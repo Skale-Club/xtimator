@@ -70,7 +70,7 @@ export function CustomersView({ onNavigate }: CustomersViewProps) {
 
   const handleAddCustomer = () => {
     if (!newCustomer.name.trim()) {
-      toast.error('Nome é obrigatório')
+      toast.error('Name is required')
       return
     }
 
@@ -85,14 +85,14 @@ export function CustomersView({ onNavigate }: CustomersViewProps) {
     }
 
     addCustomer(customer)
-    toast.success('Cliente adicionado!')
+    toast.success('Customer added!')
     setNewCustomer({ name: '', phone: '', email: '', address: '', notes: '' })
     setIsAddDialogOpen(false)
   }
 
   const handleDeleteCustomer = (customer: Customer) => {
     removeCustomer(customer.id)
-    toast.success('Cliente removido')
+    toast.success('Customer removed')
   }
 
   return (
@@ -100,30 +100,30 @@ export function CustomersView({ onNavigate }: CustomersViewProps) {
       {/* Header */}
       <div className="sticky top-0 z-10 bg-background p-4 border-b space-y-4">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-foreground">Clientes</h1>
+          <h1 className="text-2xl font-bold text-foreground">Customers</h1>
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <DialogTrigger asChild>
               <Button size="sm" className="gap-2">
                 <Plus className="h-4 w-4" />
-                Novo
+                New
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Novo Cliente</DialogTitle>
+                <DialogTitle>New Customer</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 pt-4">
                 <div className="space-y-2">
-                  <Label htmlFor="name">Nome *</Label>
+                  <Label htmlFor="name">Name *</Label>
                   <Input
                     id="name"
-                    placeholder="Nome do cliente"
+                    placeholder="Customer name"
                     value={newCustomer.name}
                     onChange={(e) => setNewCustomer(prev => ({ ...prev, name: e.target.value }))}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="phone">Telefone</Label>
+                  <Label htmlFor="phone">Phone</Label>
                   <Input
                     id="phone"
                     placeholder="(11) 99999-9999"
@@ -136,23 +136,23 @@ export function CustomersView({ onNavigate }: CustomersViewProps) {
                   <Label htmlFor="email">Email</Label>
                   <Input
                     id="email"
-                    placeholder="email@exemplo.com"
+                    placeholder="email@example.com"
                     value={newCustomer.email}
                     onChange={(e) => setNewCustomer(prev => ({ ...prev, email: e.target.value }))}
                     type="email"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="address">Endereço</Label>
+                  <Label htmlFor="address">Address</Label>
                   <Input
                     id="address"
-                    placeholder="Endereço completo"
+                    placeholder="Full address"
                     value={newCustomer.address}
                     onChange={(e) => setNewCustomer(prev => ({ ...prev, address: e.target.value }))}
                   />
                 </div>
                 <Button onClick={handleAddCustomer} className="w-full">
-                  Adicionar Cliente
+                  Add Customer
                 </Button>
               </div>
             </DialogContent>
@@ -163,7 +163,7 @@ export function CustomersView({ onNavigate }: CustomersViewProps) {
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Buscar clientes..."
+            placeholder="Search customers..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-10"
@@ -176,14 +176,14 @@ export function CustomersView({ onNavigate }: CustomersViewProps) {
         {filteredCustomers.length === 0 ? (
           <div className="text-center py-12">
             <Users className="h-16 w-16 mx-auto text-muted-foreground/50 mb-4" />
-            <h3 className="font-semibold text-foreground mb-1">Nenhum cliente</h3>
+            <h3 className="font-semibold text-foreground mb-1">No customers</h3>
             <p className="text-muted-foreground text-sm mb-4">
-              {search ? 'Nenhum resultado encontrado' : 'Adicione seu primeiro cliente'}
+              {search ? 'No results found' : 'Add your first customer'}
             </p>
             {!search && (
               <Button onClick={() => setIsAddDialogOpen(true)} className="gap-2">
                 <Plus className="h-4 w-4" />
-                Adicionar Cliente
+                Add Customer
               </Button>
             )}
           </div>
@@ -210,13 +210,13 @@ export function CustomersView({ onNavigate }: CustomersViewProps) {
                             <DropdownMenuContent align="end">
                               <DropdownMenuItem onClick={() => onNavigate('new-estimate')}>
                                 <FileText className="h-4 w-4 mr-2" />
-                                Novo Orçamento
+                                New Estimate
                               </DropdownMenuItem>
                               <DropdownMenuItem 
                                 className="text-destructive"
                                 onClick={() => handleDeleteCustomer(customer)}
                               >
-                                Excluir
+                                Delete
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -243,7 +243,7 @@ export function CustomersView({ onNavigate }: CustomersViewProps) {
                         </div>
                         {estimatesCount > 0 && (
                           <Badge variant="secondary" className="mt-2">
-                            {estimatesCount} {estimatesCount === 1 ? 'orçamento' : 'orçamentos'}
+                            {estimatesCount} {estimatesCount === 1 ? 'estimate' : 'estimates'}
                           </Badge>
                         )}
                       </div>

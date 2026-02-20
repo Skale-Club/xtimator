@@ -35,12 +35,12 @@ export function EstimateDetailView({ estimate, onBack }: EstimateDetailViewProps
 
   const getStatusConfig = (status: string) => {
     const configs: Record<string, { icon: React.ReactNode; label: string; color: string }> = {
-      draft: { icon: <Clock className="h-4 w-4" />, label: 'Rascunho', color: 'bg-secondary text-secondary-foreground' },
-      sent: { icon: <Send className="h-4 w-4" />, label: 'Enviado', color: 'bg-blue-100 text-blue-700' },
-      viewed: { icon: <Eye className="h-4 w-4" />, label: 'Visualizado', color: 'bg-amber-100 text-amber-700' },
-      accepted: { icon: <CheckCircle className="h-4 w-4" />, label: 'Aceito', color: 'bg-green-100 text-green-700' },
-      rejected: { icon: <Clock className="h-4 w-4" />, label: 'Recusado', color: 'bg-red-100 text-red-700' },
-      expired: { icon: <Clock className="h-4 w-4" />, label: 'Expirado', color: 'bg-secondary text-secondary-foreground' }
+      draft: { icon: <Clock className="h-4 w-4" />, label: 'Draft', color: 'bg-secondary text-secondary-foreground' },
+      sent: { icon: <Send className="h-4 w-4" />, label: 'Sent', color: 'bg-blue-100 text-blue-700' },
+      viewed: { icon: <Eye className="h-4 w-4" />, label: 'Viewed', color: 'bg-amber-100 text-amber-700' },
+      accepted: { icon: <CheckCircle className="h-4 w-4" />, label: 'Accepted', color: 'bg-green-100 text-green-700' },
+      rejected: { icon: <Clock className="h-4 w-4" />, label: 'Declined', color: 'bg-red-100 text-red-700' },
+      expired: { icon: <Clock className="h-4 w-4" />, label: 'Expired', color: 'bg-secondary text-secondary-foreground' }
     }
     return configs[status] || configs.draft
   }
@@ -49,16 +49,16 @@ export function EstimateDetailView({ estimate, onBack }: EstimateDetailViewProps
 
   const handleMarkAsSent = () => {
     updateEstimate(estimate.id, { status: 'sent', sentAt: new Date() })
-    toast.success('Orçamento marcado como enviado')
+    toast.success('Estimate marked as sent')
   }
 
   const handleMarkAsAccepted = () => {
     updateEstimate(estimate.id, { status: 'accepted', respondedAt: new Date() })
-    toast.success('Orçamento marcado como aceito!')
+    toast.success('Estimate marked as accepted!')
   }
 
   const handleShare = async () => {
-    const text = `Orçamento - ${estimate.customerName}\n\n` +
+    const text = `Estimate - ${estimate.customerName}\n\n` +
       estimate.lineItems.map(item => 
         `${item.serviceName}: ${item.quantity} ${item.unit} - ${formatCurrency(item.total, settings.currencySymbol)}`
       ).join('\n') +
@@ -67,7 +67,7 @@ export function EstimateDetailView({ estimate, onBack }: EstimateDetailViewProps
     if (navigator.share) {
       try {
         await navigator.share({
-          title: `Orçamento - ${estimate.customerName}`,
+          title: `Estimate - ${estimate.customerName}`,
           text
         })
       } catch {
@@ -75,14 +75,14 @@ export function EstimateDetailView({ estimate, onBack }: EstimateDetailViewProps
       }
     } else {
       await navigator.clipboard.writeText(text)
-      toast.success('Orçamento copiado!')
+      toast.success('Estimate copied!')
     }
   }
 
   const handleCopyLink = () => {
-    const text = `Orçamento - ${estimate.customerName}\nTotal: ${formatCurrency(estimate.total, settings.currencySymbol)}`
+    const text = `Estimate - ${estimate.customerName}\nTotal: ${formatCurrency(estimate.total, settings.currencySymbol)}`
     navigator.clipboard.writeText(text)
-    toast.success('Copiado!')
+    toast.success('Copied!')
   }
 
   return (
@@ -93,9 +93,9 @@ export function EstimateDetailView({ estimate, onBack }: EstimateDetailViewProps
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div className="flex-1">
-          <h1 className="font-semibold text-foreground">{estimate.customerName || 'Orçamento'}</h1>
+          <h1 className="font-semibold text-foreground">{estimate.customerName || 'Estimate'}</h1>
           <p className="text-xs text-muted-foreground">
-            {new Date(estimate.createdAt).toLocaleDateString('pt-BR')}
+            {new Date(estimate.createdAt).toLocaleDateString('en-US')}
           </p>
         </div>
         <Badge className={`${status.color} gap-1`}>
@@ -138,7 +138,7 @@ export function EstimateDetailView({ estimate, onBack }: EstimateDetailViewProps
           {/* Line Items */}
           <Card>
             <CardContent className="p-4 space-y-4">
-              <h3 className="font-semibold text-foreground">Serviços</h3>
+              <h3 className="font-semibold text-foreground">Services</h3>
               <div className="space-y-3">
                 {estimate.lineItems.map(item => (
                   <div key={item.id} className="flex justify-between items-start pb-3 border-b last:border-0 last:pb-0">
@@ -161,13 +161,13 @@ export function EstimateDetailView({ estimate, onBack }: EstimateDetailViewProps
           {estimate.photos.length > 0 && (
             <Card>
               <CardContent className="p-4 space-y-3">
-                <h3 className="font-semibold text-foreground">Fotos</h3>
+                <h3 className="font-semibold text-foreground">Photos</h3>
                 <div className="flex flex-wrap gap-2">
                   {estimate.photos.map(photo => (
                     <img
                       key={photo.id}
                       src={photo.url || '/placeholder.svg'}
-                      alt="Foto do trabalho"
+                      alt="Work photo"
                       className="w-20 h-20 object-cover rounded-lg"
                     />
                   ))}
@@ -185,7 +185,7 @@ export function EstimateDetailView({ estimate, onBack }: EstimateDetailViewProps
               </div>
               {estimate.taxAmount && estimate.taxAmount > 0 && (
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Impostos ({estimate.taxRate}%)</span>
+                  <span className="text-muted-foreground">Taxes ({estimate.taxRate}%)</span>
                   <span className="text-foreground">{formatCurrency(estimate.taxAmount, settings.currencySymbol)}</span>
                 </div>
               )}
@@ -200,7 +200,7 @@ export function EstimateDetailView({ estimate, onBack }: EstimateDetailViewProps
           {estimate.validUntil && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground justify-center">
               <Calendar className="h-4 w-4" />
-              <span>Válido até {new Date(estimate.validUntil).toLocaleDateString('pt-BR')}</span>
+              <span>Valid until {new Date(estimate.validUntil).toLocaleDateString('en-US')}</span>
             </div>
           )}
 
@@ -208,7 +208,7 @@ export function EstimateDetailView({ estimate, onBack }: EstimateDetailViewProps
           {estimate.notes && (
             <Card>
               <CardContent className="p-4">
-                <h3 className="font-semibold text-foreground mb-2">Observações</h3>
+                <h3 className="font-semibold text-foreground mb-2">Notes</h3>
                 <p className="text-sm text-muted-foreground">{estimate.notes}</p>
               </CardContent>
             </Card>
@@ -221,25 +221,25 @@ export function EstimateDetailView({ estimate, onBack }: EstimateDetailViewProps
         <div className="flex gap-3">
           <Button variant="outline" className="flex-1 gap-2 bg-transparent" onClick={handleShare}>
             <Share2 className="h-4 w-4" />
-            Compartilhar
+            Share
           </Button>
           <Button variant="outline" className="flex-1 gap-2 bg-transparent" onClick={handleCopyLink}>
             <Copy className="h-4 w-4" />
-            Copiar
+            Copy
           </Button>
         </div>
         
         {estimate.status === 'draft' && (
           <Button className="w-full gap-2" onClick={handleMarkAsSent}>
             <Send className="h-4 w-4" />
-            Marcar como Enviado
+            Mark as Sent
           </Button>
         )}
         
         {(estimate.status === 'sent' || estimate.status === 'viewed') && (
           <Button className="w-full gap-2" onClick={handleMarkAsAccepted}>
             <CheckCircle className="h-4 w-4" />
-            Marcar como Aceito
+            Mark as Accepted
           </Button>
         )}
       </div>

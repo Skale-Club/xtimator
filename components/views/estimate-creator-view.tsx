@@ -48,7 +48,7 @@ export function EstimateCreatorView({ onBack, onComplete }: EstimateCreatorViewP
     {
       id: generateId(),
       role: 'assistant',
-      content: 'Olá! Vou te ajudar a criar um orçamento. Você pode adicionar serviços da lista ou me descrever o que precisa.',
+      content: 'Hello! I\'ll help you create an estimate. You can add services from the list or describe what you need.',
       timestamp: new Date()
     }
   ])
@@ -100,7 +100,7 @@ export function EstimateCreatorView({ onBack, onComplete }: EstimateCreatorViewP
     const assistantMessage: ChatMessage = {
       id: generateId(),
       role: 'assistant',
-      content: `Adicionei "${service.name}" ao orçamento. ${lineItems.length === 0 ? 'Quer adicionar mais algum serviço?' : `Agora você tem ${lineItems.length + 1} itens no orçamento.`}`,
+      content: `Added "${service.name}" to the estimate. ${lineItems.length === 0 ? 'Want to add another service?' : `You now have ${lineItems.length + 1} items in the estimate.`}`,
       timestamp: new Date()
     }
     setChatMessages(prev => [...prev, assistantMessage])
@@ -138,7 +138,7 @@ export function EstimateCreatorView({ onBack, onComplete }: EstimateCreatorViewP
         const assistantMessage: ChatMessage = {
           id: generateId(),
           role: 'assistant',
-          content: 'Foto adicionada ao orçamento! As fotos ajudam o cliente a entender melhor o trabalho.',
+          content: 'Photo added to estimate! Photos help the client better understand the work.',
           timestamp: new Date()
         }
         setChatMessages(prev => [...prev, assistantMessage])
@@ -164,22 +164,22 @@ export function EstimateCreatorView({ onBack, onComplete }: EstimateCreatorViewP
       let response = ''
       const input = chatInput.toLowerCase()
       
-      if (input.includes('ajuda') || input.includes('como')) {
-        response = 'Você pode:\n- Adicionar serviços clicando no botão "+" abaixo\n- Enviar fotos do trabalho\n- Ajustar quantidades dos itens\n- Quando terminar, clique em "Revisar Orçamento"'
-      } else if (input.includes('pronto') || input.includes('finalizar') || input.includes('revisar')) {
-        response = 'Ótimo! Clique no botão "Revisar Orçamento" para ver o resumo e gerar o PDF.'
+      if (input.includes('help') || input.includes('how')) {
+        response = 'You can:\n- Add services by clicking the "+" button below\n- Send photos of the work\n- Adjust item quantities\n- When finished, click "Review Estimate"'
+      } else if (input.includes('done') || input.includes('finish') || input.includes('review')) {
+        response = 'Great! Click the "Review Estimate" button to see the summary and generate the PDF.'
         setStep('review')
-      } else if (input.includes('desconto')) {
-        response = 'Você pode aplicar descontos na tela de revisão do orçamento.'
+      } else if (input.includes('discount')) {
+        response = 'You can apply discounts in the estimate review screen.'
       } else {
         const matchedService = services.find(s => 
           s.name.toLowerCase().includes(input) || 
           (s.description && s.description.toLowerCase().includes(input))
         )
         if (matchedService) {
-          response = `Encontrei "${matchedService.name}" por ${formatCurrency(matchedService.basePrice, settings.currencySymbol)}/${matchedService.unitLabel}. Quer que eu adicione ao orçamento?`
+          response = `Found "${matchedService.name}" for ${formatCurrency(matchedService.basePrice, settings.currencySymbol)}/${matchedService.unitLabel}. Would you like me to add it to the estimate?`
         } else {
-          response = 'Entendi! Para adicionar serviços específicos, use o botão "+" abaixo ou me descreva o que precisa com mais detalhes.'
+          response = 'Got it! To add specific services, use the "+" button below or describe what you need in more detail.'
         }
       }
       
@@ -197,17 +197,17 @@ export function EstimateCreatorView({ onBack, onComplete }: EstimateCreatorViewP
 
   const handleCreateEstimate = () => {
     if (lineItems.length === 0) {
-      toast.error('Adicione pelo menos um serviço ao orçamento')
+      toast.error('Add at least one service to the estimate')
       return
     }
 
     const estimate: Estimate = {
       id: generateId(),
       customerId: selectedCustomerId || undefined,
-      customerName: customerName || 'Cliente',
+      customerName: customerName || 'Customer',
       customerPhone: customerPhone || undefined,
       customerAddress: customerAddress || undefined,
-      title: `Orçamento - ${customerName || 'Cliente'}`,
+      title: `Estimate - ${customerName || 'Customer'}`,
       status: 'draft',
       lineItems,
       photos,
@@ -223,7 +223,7 @@ export function EstimateCreatorView({ onBack, onComplete }: EstimateCreatorViewP
     }
 
     addEstimate(estimate)
-    toast.success('Orçamento criado com sucesso!')
+    toast.success('Estimate created successfully!')
     onComplete(estimate)
   }
 
@@ -236,15 +236,15 @@ export function EstimateCreatorView({ onBack, onComplete }: EstimateCreatorViewP
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div>
-            <h1 className="font-semibold text-foreground">Novo Orçamento</h1>
-            <p className="text-xs text-muted-foreground">Informações do cliente</p>
+            <h1 className="font-semibold text-foreground">New Estimate</h1>
+            <p className="text-xs text-muted-foreground">Customer information</p>
           </div>
         </div>
 
         <div className="flex-1 p-4 space-y-6 overflow-auto">
           {customers.length > 0 && (
             <div className="space-y-3">
-              <p className="text-sm font-medium text-foreground">Clientes Recentes</p>
+              <p className="text-sm font-medium text-foreground">Recent Customers</p>
               <div className="space-y-2">
                 {customers.slice(0, 3).map(customer => (
                   <Card 
@@ -273,25 +273,25 @@ export function EstimateCreatorView({ onBack, onComplete }: EstimateCreatorViewP
 
           <div className="space-y-4">
             <p className="text-sm font-medium text-foreground">
-              {customers.length > 0 ? 'Ou adicione novo cliente' : 'Dados do Cliente'}
+              {customers.length > 0 ? 'Or add new customer' : 'Customer Information'}
             </p>
             
             <div className="space-y-3">
               <Input
-                placeholder="Nome do cliente *"
+                placeholder="Customer name *"
                 value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)}
                 className="h-12"
               />
               <Input
-                placeholder="Telefone / WhatsApp"
+                placeholder="Phone / WhatsApp"
                 value={customerPhone}
                 onChange={(e) => setCustomerPhone(e.target.value)}
                 className="h-12"
                 type="tel"
               />
               <Input
-                placeholder="Endereço"
+                placeholder="Address"
                 value={customerAddress}
                 onChange={(e) => setCustomerAddress(e.target.value)}
                 className="h-12"
@@ -306,7 +306,7 @@ export function EstimateCreatorView({ onBack, onComplete }: EstimateCreatorViewP
             onClick={() => setStep('items')}
             disabled={!customerName.trim()}
           >
-            Continuar
+            Continue
             <ChevronRight className="h-5 w-5 ml-2" />
           </Button>
         </div>
@@ -327,12 +327,12 @@ export function EstimateCreatorView({ onBack, onComplete }: EstimateCreatorViewP
             <div>
               <h1 className="font-semibold text-foreground">{customerName}</h1>
               <p className="text-xs text-muted-foreground">
-                {lineItems.length} {lineItems.length === 1 ? 'item' : 'itens'} - {formatCurrency(total, settings.currencySymbol)}
+                {lineItems.length} {lineItems.length === 1 ? 'item' : 'items'} - {formatCurrency(total, settings.currencySymbol)}
               </p>
             </div>
           </div>
           <Button onClick={() => setStep('review')} disabled={lineItems.length === 0}>
-            Revisar
+            Review
           </Button>
         </div>
 
@@ -405,7 +405,7 @@ export function EstimateCreatorView({ onBack, onComplete }: EstimateCreatorViewP
                   {message.role === 'assistant' && (
                     <div className="flex items-center gap-2 mb-1">
                       <Sparkles className="h-4 w-4 text-primary" />
-                      <span className="text-xs font-medium text-primary">Assistente</span>
+                      <span className="text-xs font-medium text-primary">Assistant</span>
                     </div>
                   )}
                   <p className="text-sm whitespace-pre-line">{message.content}</p>
@@ -420,7 +420,7 @@ export function EstimateCreatorView({ onBack, onComplete }: EstimateCreatorViewP
                   <div key={photo.id} className="relative">
                     <img 
                       src={photo.url || "/placeholder.svg"} 
-                      alt="Foto do orçamento"
+                      alt="Estimate photo"
                       className="w-16 h-16 object-cover rounded-lg"
                     />
                     <Button
@@ -448,12 +448,12 @@ export function EstimateCreatorView({ onBack, onComplete }: EstimateCreatorViewP
               <SheetTrigger asChild>
                 <Button variant="outline" size="sm" className="gap-2 bg-transparent">
                   <Package className="h-4 w-4" />
-                  Serviços
+                  Services
                 </Button>
               </SheetTrigger>
               <SheetContent side="bottom" className="h-[70vh]">
                 <SheetHeader>
-                  <SheetTitle>Adicionar Serviço</SheetTitle>
+                  <SheetTitle>Add Service</SheetTitle>
                 </SheetHeader>
                 <ScrollArea className="h-full py-4">
                   <div className="space-y-4">
@@ -464,7 +464,7 @@ export function EstimateCreatorView({ onBack, onComplete }: EstimateCreatorViewP
                         className="cursor-pointer whitespace-nowrap"
                         onClick={() => setSelectedCategory(null)}
                       >
-                        Todos
+                        All
                       </Badge>
                       {categories.map(cat => (
                         <Badge
@@ -522,14 +522,14 @@ export function EstimateCreatorView({ onBack, onComplete }: EstimateCreatorViewP
               onClick={() => fileInputRef.current?.click()}
             >
               <Camera className="h-4 w-4" />
-              Foto
+              Photo
             </Button>
           </div>
 
           {/* Chat Input */}
           <form onSubmit={handleChatSubmit} className="flex gap-2">
             <Input
-              placeholder="Descreva o serviço ou faça perguntas..."
+              placeholder="Describe the service or ask questions..."
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
               className="flex-1"
@@ -551,8 +551,8 @@ export function EstimateCreatorView({ onBack, onComplete }: EstimateCreatorViewP
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div>
-          <h1 className="font-semibold text-foreground">Revisar Orçamento</h1>
-          <p className="text-xs text-muted-foreground">{lineItems.length} itens</p>
+          <h1 className="font-semibold text-foreground">Review Estimate</h1>
+          <p className="text-xs text-muted-foreground">{lineItems.length} items</p>
         </div>
       </div>
 
@@ -577,7 +577,7 @@ export function EstimateCreatorView({ onBack, onComplete }: EstimateCreatorViewP
           {/* Line Items */}
           <Card>
             <CardContent className="p-4 space-y-4">
-              <h3 className="font-semibold text-foreground">Serviços</h3>
+              <h3 className="font-semibold text-foreground">Services</h3>
               <div className="space-y-3">
                 {lineItems.map(item => (
                   <div key={item.id} className="flex justify-between items-start pb-3 border-b last:border-0 last:pb-0">
@@ -600,13 +600,13 @@ export function EstimateCreatorView({ onBack, onComplete }: EstimateCreatorViewP
           {photos.length > 0 && (
             <Card>
               <CardContent className="p-4 space-y-3">
-                <h3 className="font-semibold text-foreground">Fotos</h3>
+                <h3 className="font-semibold text-foreground">Photos</h3>
                 <div className="flex flex-wrap gap-2">
                   {photos.map(photo => (
                     <img
                       key={photo.id}
                       src={photo.url || "/placeholder.svg"}
-                      alt="Foto do trabalho"
+                      alt="Work photo"
                       className="w-20 h-20 object-cover rounded-lg"
                     />
                   ))}
@@ -624,7 +624,7 @@ export function EstimateCreatorView({ onBack, onComplete }: EstimateCreatorViewP
               </div>
               {settings.taxRate > 0 && (
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Impostos ({settings.taxRate}%)</span>
+                  <span className="text-muted-foreground">Taxes ({settings.taxRate}%)</span>
                   <span className="text-foreground">{formatCurrency(taxAmount, settings.currencySymbol)}</span>
                 </div>
               )}
@@ -638,9 +638,9 @@ export function EstimateCreatorView({ onBack, onComplete }: EstimateCreatorViewP
           {/* Notes */}
           <Card>
             <CardContent className="p-4 space-y-3">
-              <h3 className="font-semibold text-foreground">Observações</h3>
+              <h3 className="font-semibold text-foreground">Notes</h3>
               <Input
-                placeholder="Adicionar observações..."
+                placeholder="Add notes..."
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 className="h-20"
@@ -653,7 +653,7 @@ export function EstimateCreatorView({ onBack, onComplete }: EstimateCreatorViewP
       <div className="p-4 border-t bg-card">
         <Button className="w-full h-12 text-lg gap-2" onClick={handleCreateEstimate}>
           <FileText className="h-5 w-5" />
-          Criar Orçamento
+          Create Estimate
         </Button>
       </div>
     </div>

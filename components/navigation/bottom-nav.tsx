@@ -20,11 +20,11 @@ interface BottomNavProps {
 }
 
 const navItems: { view: AppView; icon: React.ReactNode; label: string }[] = [
-  { view: 'dashboard', icon: <LayoutDashboard className="h-5 w-5" />, label: 'Início' },
-  { view: 'estimates', icon: <FileText className="h-5 w-5" />, label: 'Orçamentos' },
-  { view: 'customers', icon: <Users className="h-5 w-5" />, label: 'Clientes' },
-  { view: 'services', icon: <Layers className="h-5 w-5" />, label: 'Serviços' },
-  { view: 'settings', icon: <Settings className="h-5 w-5" />, label: 'Config' },
+  { view: 'dashboard', icon: <LayoutDashboard className="h-5 w-5" />, label: 'Home' },
+  { view: 'estimates', icon: <FileText className="h-5 w-5" />, label: 'Estimates' },
+  { view: 'customers', icon: <Users className="h-5 w-5" />, label: 'Customers' },
+  { view: 'services', icon: <Layers className="h-5 w-5" />, label: 'Services' },
+  { view: 'settings', icon: <Settings className="h-5 w-5" />, label: 'Settings' },
 ]
 
 export function BottomNav({ currentView, onViewChange, onNewEstimate }: BottomNavProps) {

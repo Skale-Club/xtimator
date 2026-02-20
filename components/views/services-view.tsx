@@ -45,12 +45,12 @@ interface ServicesViewProps {
 }
 
 const unitOptions = [
-  { value: 'hour', label: 'Hora' },
+  { value: 'hour', label: 'Hour' },
   { value: 'sqm', label: 'm²' },
   { value: 'sqft', label: 'ft²' },
-  { value: 'unit', label: 'Unidade' },
-  { value: 'linear_m', label: 'm linear' },
-  { value: 'job', label: 'Serviço' },
+  { value: 'unit', label: 'Unit' },
+  { value: 'linear_m', label: 'Linear m' },
+  { value: 'job', label: 'Service' },
 ]
 
 export function ServicesView({ onNavigate }: ServicesViewProps) {
@@ -82,16 +82,16 @@ export function ServicesView({ onNavigate }: ServicesViewProps) {
 
   const getCategoryName = (categoryId: string) => {
     const category = categories.find(c => c.id === categoryId)
-    return category?.name || 'Sem categoria'
+    return category?.name || 'No category'
   }
 
   const handleAddService = () => {
     if (!newService.name.trim()) {
-      toast.error('Nome é obrigatório')
+      toast.error('Name is required')
       return
     }
     if (!newService.basePrice || Number(newService.basePrice) <= 0) {
-      toast.error('Preço deve ser maior que zero')
+      toast.error('Price must be greater than zero')
       return
     }
 
@@ -103,13 +103,13 @@ export function ServicesView({ onNavigate }: ServicesViewProps) {
       description: newService.description || undefined,
       basePrice: Number(newService.basePrice),
       unit: newService.unit as ServiceItem['unit'],
-      unitLabel: unitOption?.label || 'Unidade',
+      unitLabel: unitOption?.label || 'Unit',
       categoryId: newService.categoryId || categories[0]?.id || '',
       isActive: true
     }
 
     addService(service)
-    toast.success('Serviço adicionado!')
+    toast.success('Service added!')
     setNewService({ name: '', description: '', basePrice: '', unit: 'hour', categoryId: '' })
     setIsAddDialogOpen(false)
   }
@@ -118,13 +118,13 @@ export function ServicesView({ onNavigate }: ServicesViewProps) {
     if (!editingService) return
     
     updateService(editingService.id, editingService)
-    toast.success('Serviço atualizado!')
+    toast.success('Service updated!')
     setEditingService(null)
   }
 
   const handleDeleteService = (serviceId: string) => {
     removeService(serviceId)
-    toast.success('Serviço removido')
+    toast.success('Service removed')
   }
 
   const handleToggleActive = (service: ServiceItem) => {
@@ -136,40 +136,40 @@ export function ServicesView({ onNavigate }: ServicesViewProps) {
       {/* Header */}
       <div className="sticky top-0 z-10 bg-background p-4 border-b space-y-4">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-foreground">Serviços</h1>
+          <h1 className="text-2xl font-bold text-foreground">Services</h1>
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <DialogTrigger asChild>
               <Button size="sm" className="gap-2">
                 <Plus className="h-4 w-4" />
-                Novo
+                New
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Novo Serviço</DialogTitle>
+                <DialogTitle>New Service</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 pt-4">
                 <div className="space-y-2">
-                  <Label htmlFor="service-name">Nome *</Label>
+                  <Label htmlFor="service-name">Name *</Label>
                   <Input
                     id="service-name"
-                    placeholder="Nome do serviço"
+                    placeholder="Service name"
                     value={newService.name}
                     onChange={(e) => setNewService(prev => ({ ...prev, name: e.target.value }))}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="service-desc">Descrição</Label>
+                  <Label htmlFor="service-desc">Description</Label>
                   <Input
                     id="service-desc"
-                    placeholder="Descrição opcional"
+                    placeholder="Optional description"
                     value={newService.description}
                     onChange={(e) => setNewService(prev => ({ ...prev, description: e.target.value }))}
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
-                    <Label htmlFor="service-price">Preço *</Label>
+                    <Label htmlFor="service-price">Price *</Label>
                     <Input
                       id="service-price"
                       placeholder="0.00"
@@ -180,7 +180,7 @@ export function ServicesView({ onNavigate }: ServicesViewProps) {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Unidade</Label>
+                    <Label>Unit</Label>
                     <Select
                       value={newService.unit}
                       onValueChange={(value) => setNewService(prev => ({ ...prev, unit: value }))}
@@ -200,7 +200,7 @@ export function ServicesView({ onNavigate }: ServicesViewProps) {
                 </div>
                 {categories.length > 0 && (
                   <div className="space-y-2">
-                    <Label>Categoria</Label>
+                    <Label>Category</Label>
                     <Select
                       value={newService.categoryId || categories[0]?.id}
                       onValueChange={(value) => setNewService(prev => ({ ...prev, categoryId: value }))}
@@ -219,7 +219,7 @@ export function ServicesView({ onNavigate }: ServicesViewProps) {
                   </div>
                 )}
                 <Button onClick={handleAddService} className="w-full">
-                  Adicionar Serviço
+                  Add Service
                 </Button>
               </div>
             </DialogContent>
@@ -230,7 +230,7 @@ export function ServicesView({ onNavigate }: ServicesViewProps) {
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Buscar serviços..."
+            placeholder="Search services..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-10"
@@ -245,7 +245,7 @@ export function ServicesView({ onNavigate }: ServicesViewProps) {
               className="cursor-pointer whitespace-nowrap"
               onClick={() => setSelectedCategory(null)}
             >
-              Todos
+              All
             </Badge>
             {categories.map(cat => (
               <Badge
@@ -266,14 +266,14 @@ export function ServicesView({ onNavigate }: ServicesViewProps) {
         {filteredServices.length === 0 ? (
           <div className="text-center py-12">
             <Package className="h-16 w-16 mx-auto text-muted-foreground/50 mb-4" />
-            <h3 className="font-semibold text-foreground mb-1">Nenhum serviço</h3>
+            <h3 className="font-semibold text-foreground mb-1">No services</h3>
             <p className="text-muted-foreground text-sm mb-4">
-              {search ? 'Nenhum resultado encontrado' : 'Adicione seu primeiro serviço'}
+              {search ? 'No results found' : 'Add your first service'}
             </p>
             {!search && (
               <Button onClick={() => setIsAddDialogOpen(true)} className="gap-2">
                 <Plus className="h-4 w-4" />
-                Adicionar Serviço
+                Add Service
               </Button>
             )}
           </div>
@@ -287,7 +287,7 @@ export function ServicesView({ onNavigate }: ServicesViewProps) {
                       <div className="flex items-center gap-2 mb-1">
                         <p className="font-semibold text-foreground truncate">{service.name}</p>
                         {!service.isActive && (
-                          <Badge variant="secondary">Inativo</Badge>
+                          <Badge variant="secondary">Inactive</Badge>
                         )}
                       </div>
                       {service.description && (
@@ -311,17 +311,17 @@ export function ServicesView({ onNavigate }: ServicesViewProps) {
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => setEditingService(service)}>
                           <Pencil className="h-4 w-4 mr-2" />
-                          Editar
+                          Edit
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleToggleActive(service)}>
-                          {service.isActive ? 'Desativar' : 'Ativar'}
+                          {service.isActive ? 'Deactivate' : 'Activate'}
                         </DropdownMenuItem>
                         <DropdownMenuItem 
                           className="text-destructive"
                           onClick={() => handleDeleteService(service.id)}
                         >
                           <Trash2 className="h-4 w-4 mr-2" />
-                          Excluir
+                          Delete
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -337,19 +337,19 @@ export function ServicesView({ onNavigate }: ServicesViewProps) {
       <Dialog open={!!editingService} onOpenChange={(open) => !open && setEditingService(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Editar Serviço</DialogTitle>
+            <DialogTitle>Edit Service</DialogTitle>
           </DialogHeader>
           {editingService && (
             <div className="space-y-4 pt-4">
               <div className="space-y-2">
-                <Label>Nome</Label>
+                <Label>Name</Label>
                 <Input
                   value={editingService.name}
                   onChange={(e) => setEditingService(prev => prev ? { ...prev, name: e.target.value } : null)}
                 />
               </div>
               <div className="space-y-2">
-                <Label>Descrição</Label>
+                <Label>Description</Label>
                 <Input
                   value={editingService.description || ''}
                   onChange={(e) => setEditingService(prev => prev ? { ...prev, description: e.target.value } : null)}
@@ -357,7 +357,7 @@ export function ServicesView({ onNavigate }: ServicesViewProps) {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
-                  <Label>Preço</Label>
+                  <Label>Price</Label>
                   <Input
                     type="number"
                     step="0.01"
@@ -366,7 +366,7 @@ export function ServicesView({ onNavigate }: ServicesViewProps) {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Unidade</Label>
+                  <Label>Unit</Label>
                   <Select
                     value={editingService.unit}
                     onValueChange={(value) => {
@@ -374,7 +374,7 @@ export function ServicesView({ onNavigate }: ServicesViewProps) {
                       setEditingService(prev => prev ? { 
                         ...prev, 
                         unit: value as ServiceItem['unit'],
-                        unitLabel: unitOption?.label || 'Unidade'
+                        unitLabel: unitOption?.label || 'Unit'
                       } : null)
                     }}
                   >
@@ -392,7 +392,7 @@ export function ServicesView({ onNavigate }: ServicesViewProps) {
                 </div>
               </div>
               <Button onClick={handleUpdateService} className="w-full">
-                Salvar Alterações
+                Save Changes
               </Button>
             </div>
           )}

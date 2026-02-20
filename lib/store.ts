@@ -69,7 +69,7 @@ const defaultSettings: AppSettings = {
   currencySymbol: 'R$',
   taxRate: 0,
   defaultValidityDays: 30,
-  termsAndConditions: 'Orçamento válido por 30 dias. Pagamento em até 3x sem juros.',
+  termsAndConditions: 'Estimate valid for 30 days. Payment in up to 3 interest-free installments.',
 }
 
 export const useAppStore = create<AppState>()(

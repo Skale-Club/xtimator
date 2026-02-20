@@ -48,21 +48,21 @@ export function EstimatesView({ onNavigate, onSelectEstimate }: EstimatesViewPro
 
   const getStatusConfig = (status: string) => {
     const configs: Record<string, { icon: React.ReactNode; label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
-      draft: { icon: <Clock className="h-3 w-3" />, label: 'Rascunho', variant: 'secondary' },
-      sent: { icon: <Send className="h-3 w-3" />, label: 'Enviado', variant: 'default' },
-      viewed: { icon: <Eye className="h-3 w-3" />, label: 'Visualizado', variant: 'outline' },
-      accepted: { icon: <CheckCircle className="h-3 w-3" />, label: 'Aceito', variant: 'default' },
-      rejected: { icon: <XCircle className="h-3 w-3" />, label: 'Recusado', variant: 'destructive' },
-      expired: { icon: <Clock className="h-3 w-3" />, label: 'Expirado', variant: 'secondary' }
+      draft: { icon: <Clock className="h-3 w-3" />, label: 'Draft', variant: 'secondary' },
+      sent: { icon: <Send className="h-3 w-3" />, label: 'Sent', variant: 'default' },
+      viewed: { icon: <Eye className="h-3 w-3" />, label: 'Viewed', variant: 'outline' },
+      accepted: { icon: <CheckCircle className="h-3 w-3" />, label: 'Accepted', variant: 'default' },
+      rejected: { icon: <XCircle className="h-3 w-3" />, label: 'Declined', variant: 'destructive' },
+      expired: { icon: <Clock className="h-3 w-3" />, label: 'Expired', variant: 'secondary' }
     }
     return configs[status] || configs.draft
   }
 
   const filterOptions = [
-    { value: null, label: 'Todos' },
-    { value: 'draft', label: 'Rascunhos' },
-    { value: 'sent', label: 'Enviados' },
-    { value: 'accepted', label: 'Aceitos' },
+    { value: null, label: 'All' },
+    { value: 'draft', label: 'Drafts' },
+    { value: 'sent', label: 'Sent' },
+    { value: 'accepted', label: 'Accepted' },
   ]
 
   return (
@@ -70,10 +70,10 @@ export function EstimatesView({ onNavigate, onSelectEstimate }: EstimatesViewPro
       {/* Header */}
       <div className="sticky top-0 z-10 bg-background p-4 border-b space-y-4">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-foreground">Orçamentos</h1>
+          <h1 className="text-2xl font-bold text-foreground">Estimates</h1>
           <Button onClick={() => onNavigate('new-estimate')} size="sm" className="gap-2">
             <Plus className="h-4 w-4" />
-            Novo
+            New
           </Button>
         </div>
 
@@ -81,7 +81,7 @@ export function EstimatesView({ onNavigate, onSelectEstimate }: EstimatesViewPro
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Buscar orçamentos..."
+            placeholder="Search estimates..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-10"
@@ -108,14 +108,14 @@ export function EstimatesView({ onNavigate, onSelectEstimate }: EstimatesViewPro
         {filteredEstimates.length === 0 ? (
           <div className="text-center py-12">
             <FileText className="h-16 w-16 mx-auto text-muted-foreground/50 mb-4" />
-            <h3 className="font-semibold text-foreground mb-1">Nenhum orçamento</h3>
+            <h3 className="font-semibold text-foreground mb-1">No estimates</h3>
             <p className="text-muted-foreground text-sm mb-4">
-              {search ? 'Nenhum resultado encontrado' : 'Crie seu primeiro orçamento'}
+              {search ? 'No results found' : 'Create your first estimate'}
             </p>
             {!search && (
               <Button onClick={() => onNavigate('new-estimate')} className="gap-2">
                 <Plus className="h-4 w-4" />
-                Criar Orçamento
+                Create Estimate
               </Button>
             )}
           </div>
@@ -134,7 +134,7 @@ export function EstimatesView({ onNavigate, onSelectEstimate }: EstimatesViewPro
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
                           <p className="font-semibold text-foreground truncate">
-                            {estimate.customerName || estimate.title || 'Sem título'}
+                            {estimate.customerName || estimate.title || 'Untitled'}
                           </p>
                           <Badge variant={status.variant} className="gap-1 shrink-0">
                             {status.icon}
@@ -142,7 +142,7 @@ export function EstimatesView({ onNavigate, onSelectEstimate }: EstimatesViewPro
                           </Badge>
                         </div>
                         <p className="text-sm text-muted-foreground">
-                          {estimate.lineItems.length} {estimate.lineItems.length === 1 ? 'item' : 'itens'}
+                          {estimate.lineItems.length} {estimate.lineItems.length === 1 ? 'item' : 'items'}
                         </p>
                         <p className="text-xs text-muted-foreground mt-1">
                           {new Date(estimate.createdAt).toLocaleDateString('pt-BR')}

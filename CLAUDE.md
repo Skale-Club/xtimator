@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Xtimator is a professional estimate/quotation app for Brazilian service professionals (Portuguese-BR UI). It's a client-side SPA built with Next.js App Router — all data is stored in browser localStorage via Zustand. No backend API exists yet (Supabase integration planned).
+Xtimator is a professional estimate/quotation app for service professionals. It's a client-side SPA built with Next.js App Router — all data is stored in browser localStorage via Zustand. No backend API exists yet (Supabase integration planned).
 
 ## Commands
 
@@ -31,17 +31,30 @@ Xtimator is a professional estimate/quotation app for Brazilian service professi
 - `lib/types.ts` — All TypeScript interfaces (User, ServiceCategory, ServiceItem, Customer, Estimate, EstimateLineItem, AppSettings)
 - `lib/service-templates.ts` — Pre-built service catalog templates for 6 business types (cleaning, painting, landscaping, electrical, plumbing, handyman)
 - `lib/utils.ts` — `cn()` class helper and `formatCurrency()` utility
+- `lib/sitemap-config.ts` — Sitemap static route configuration
+- `lib/sitemap-utils.ts` — SEO and URL generation utilities
 - `components/main-app.tsx` — Central view router and navigation logic
 - `components/views/` — 7 view components (dashboard, estimates, estimate-creator, estimate-detail, customers, services, settings)
 - `components/navigation/bottom-nav.tsx` — Mobile bottom navigation with FAB
 - `components/ui/` — shadcn/ui components (do not edit manually; use `npx shadcn@latest add <component>`)
+- `app/sitemap.ts` — Dynamic sitemap generator
+- `app/robots.ts` — Dynamic robots.txt generator
 
 **Path alias:** `@/*` maps to the repository root.
 
+## SEO & Sitemap
+
+The app uses a **dynamic sitemap system** that automatically generates sitemap.xml and robots.txt:
+- Static routes defined in `lib/sitemap-config.ts`
+- Dynamic routes generated from `lib/service-templates.ts` (business templates and categories)
+- Accessible at `/sitemap.xml` and `/robots.txt`
+- Base URL configured via `NEXT_PUBLIC_SITE_URL` environment variable
+- See `docs/SITEMAP.md` for detailed documentation
+
 ## Conventions
 
-- All user-facing text is in Portuguese (pt-BR)
-- Default currency is BRL (R$)
+- All user-facing text is in English
+- Default currency is USD ($)
 - Theme primary color is teal (#0D9488)
 - Dark mode is supported via `next-themes`
 - The onboarding flow exists but is currently disabled in `app-shell.tsx`

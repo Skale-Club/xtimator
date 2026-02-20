@@ -49,7 +49,7 @@ export function SettingsView() {
         phone: phone || undefined,
         address: address || undefined
       })
-      toast.success('Perfil atualizado!')
+      toast.success('Profile updated!')
     }
   }
 
@@ -61,11 +61,11 @@ export function SettingsView() {
       defaultValidityDays: Number(validityDays) || 30,
       termsAndConditions: terms
     })
-    toast.success('Configurações salvas!')
+    toast.success('Settings saved!')
   }
 
   const handleReset = () => {
-    if (confirm('Tem certeza que deseja apagar todos os dados? Esta ação não pode ser desfeita.')) {
+    if (confirm('Are you sure you want to delete all data? This action cannot be undone.')) {
       resetStore()
       window.location.reload()
     }
@@ -73,7 +73,7 @@ export function SettingsView() {
 
   const currencyOptions = [
     { value: 'BRL', symbol: 'R$', label: 'Real (R$)' },
-    { value: 'USD', symbol: '$', label: 'Dólar ($)' },
+    { value: 'USD', symbol: '$', label: 'Dollar ($)' },
     { value: 'EUR', symbol: '€', label: 'Euro (€)' },
   ]
 
@@ -81,7 +81,7 @@ export function SettingsView() {
     <div className="flex flex-col min-h-full pb-24">
       {/* Header */}
       <div className="sticky top-0 z-10 bg-background p-4 border-b">
-        <h1 className="text-2xl font-bold text-foreground">Configurações</h1>
+        <h1 className="text-2xl font-bold text-foreground">Settings</h1>
       </div>
 
       <div className="flex-1 p-4 space-y-6">
@@ -90,30 +90,30 @@ export function SettingsView() {
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
               <Building2 className="h-5 w-5 text-primary" />
-              Perfil da Empresa
+              Company Profile
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="biz-name">Nome da empresa</Label>
+              <Label htmlFor="biz-name">Business name</Label>
               <Input
                 id="biz-name"
                 value={businessName}
                 onChange={(e) => setBusinessName(e.target.value)}
-                placeholder="Sua empresa"
+                placeholder="Your business"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="biz-type">Tipo de serviço</Label>
+              <Label htmlFor="biz-type">Service type</Label>
               <Input
                 id="biz-type"
                 value={businessType}
                 onChange={(e) => setBusinessType(e.target.value)}
-                placeholder="Ex: Pintura Residencial"
+                placeholder="e.g., Residential Painting"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="biz-phone">Telefone / WhatsApp</Label>
+              <Label htmlFor="biz-phone">Phone / WhatsApp</Label>
               <Input
                 id="biz-phone"
                 value={phone}
@@ -123,17 +123,17 @@ export function SettingsView() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="biz-address">Endereço</Label>
+              <Label htmlFor="biz-address">Address</Label>
               <Input
                 id="biz-address"
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
-                placeholder="Endereço da empresa"
+                placeholder="Business address"
               />
             </div>
             <Button onClick={handleSaveProfile} className="w-full gap-2">
               <Save className="h-4 w-4" />
-              Salvar Perfil
+              Save Profile
             </Button>
           </CardContent>
         </Card>
@@ -143,12 +143,12 @@ export function SettingsView() {
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
               <DollarSign className="h-5 w-5 text-primary" />
-              Moeda e Impostos
+              Currency and Taxes
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label>Moeda</Label>
+              <Label>Currency</Label>
               <Select
                 value={currency}
                 onValueChange={(value) => {
@@ -170,7 +170,7 @@ export function SettingsView() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="tax-rate">Taxa de impostos (%)</Label>
+              <Label htmlFor="tax-rate">Tax rate (%)</Label>
               <Input
                 id="tax-rate"
                 type="number"
@@ -181,7 +181,7 @@ export function SettingsView() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="validity">Validade padrão (dias)</Label>
+              <Label htmlFor="validity">Default validity (days)</Label>
               <Input
                 id="validity"
                 type="number"
@@ -198,19 +198,19 @@ export function SettingsView() {
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
               <FileText className="h-5 w-5 text-primary" />
-              Termos e Condições
+              Terms and Conditions
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <Textarea
               value={terms}
               onChange={(e) => setTerms(e.target.value)}
-              placeholder="Termos e condições que aparecerão nos orçamentos..."
+              placeholder="Terms and conditions that will appear on estimates..."
               rows={4}
             />
             <Button onClick={handleSaveSettings} className="w-full gap-2">
               <Save className="h-4 w-4" />
-              Salvar Configurações
+              Save Settings
             </Button>
           </CardContent>
         </Card>
@@ -221,7 +221,7 @@ export function SettingsView() {
             <button className="w-full flex items-center justify-between p-4 hover:bg-secondary/50 transition-colors">
               <div className="flex items-center gap-3">
                 <Bell className="h-5 w-5 text-muted-foreground" />
-                <span className="text-foreground">Notificações</span>
+                <span className="text-foreground">Notifications</span>
               </div>
               <ChevronRight className="h-5 w-5 text-muted-foreground" />
             </button>
@@ -229,7 +229,7 @@ export function SettingsView() {
             <button className="w-full flex items-center justify-between p-4 hover:bg-secondary/50 transition-colors">
               <div className="flex items-center gap-3">
                 <HelpCircle className="h-5 w-5 text-muted-foreground" />
-                <span className="text-foreground">Ajuda e Suporte</span>
+                <span className="text-foreground">Help and Support</span>
               </div>
               <ChevronRight className="h-5 w-5 text-muted-foreground" />
             </button>
@@ -245,10 +245,10 @@ export function SettingsView() {
               onClick={handleReset}
             >
               <LogOut className="h-4 w-4" />
-              Apagar todos os dados
+              Delete all data
             </Button>
             <p className="text-xs text-muted-foreground text-center mt-2">
-              Esta ação não pode ser desfeita
+              This action cannot be undone
             </p>
           </CardContent>
         </Card>
@@ -256,7 +256,7 @@ export function SettingsView() {
         {/* App Info */}
         <div className="text-center text-xs text-muted-foreground py-4">
           <p>Xtimator v1.0.0</p>
-          <p>Feito com carinho para seu negócio</p>
+          <p>Made with love for your business</p>
         </div>
       </div>
     </div>

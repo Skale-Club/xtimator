@@ -49,12 +49,12 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
 
   const getStatusLabel = (status: string) => {
     const labels: Record<string, string> = {
-      draft: 'Rascunho',
-      sent: 'Enviado',
-      viewed: 'Visualizado',
-      accepted: 'Aceito',
-      rejected: 'Recusado',
-      expired: 'Expirado'
+      draft: 'Draft',
+      sent: 'Sent',
+      viewed: 'Viewed',
+      accepted: 'Accepted',
+      rejected: 'Declined',
+      expired: 'Expired'
     }
     return labels[status] || status
   }
@@ -63,8 +63,8 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
     <div className="flex flex-col min-h-full pb-24">
       {/* Header */}
       <div className="bg-primary text-primary-foreground p-6 rounded-b-3xl">
-        <p className="text-primary-foreground/80 text-sm">Bem-vindo de volta,</p>
-        <h1 className="text-2xl font-bold">{user?.businessName || 'Meu Negócio'}</h1>
+        <p className="text-primary-foreground/80 text-sm">Welcome back,</p>
+        <h1 className="text-2xl font-bold">{user?.businessName || 'My Business'}</h1>
       </div>
 
       <div className="flex-1 p-4 space-y-6 -mt-4">
@@ -76,7 +76,7 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
               onClick={() => onNavigate('new-estimate')}
             >
               <Plus className="h-5 w-5" />
-              Novo Orçamento
+              New Estimate
             </Button>
           </CardContent>
         </Card>
@@ -91,7 +91,7 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
                 </div>
                 <div>
                   <p className="text-2xl font-bold text-foreground">{stats.totalEstimates}</p>
-                  <p className="text-xs text-muted-foreground">Orçamentos</p>
+                  <p className="text-xs text-muted-foreground">Estimates</p>
                 </div>
               </div>
             </CardContent>
@@ -105,7 +105,7 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
                 </div>
                 <div>
                   <p className="text-2xl font-bold text-foreground">{stats.pendingEstimates}</p>
-                  <p className="text-xs text-muted-foreground">Pendentes</p>
+                  <p className="text-xs text-muted-foreground">Pending</p>
                 </div>
               </div>
             </CardContent>
@@ -119,7 +119,7 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
                 </div>
                 <div>
                   <p className="text-2xl font-bold text-foreground">{stats.acceptedEstimates}</p>
-                  <p className="text-xs text-muted-foreground">Aceitos</p>
+                  <p className="text-xs text-muted-foreground">Accepted</p>
                 </div>
               </div>
             </CardContent>
@@ -133,7 +133,7 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
                 </div>
                 <div>
                   <p className="text-2xl font-bold text-foreground">{stats.totalCustomers}</p>
-                  <p className="text-xs text-muted-foreground">Clientes</p>
+                  <p className="text-xs text-muted-foreground">Customers</p>
                 </div>
               </div>
             </CardContent>
@@ -145,7 +145,7 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Valor Total Aceito</p>
+                <p className="text-sm text-muted-foreground">Total Accepted Value</p>
                 <p className="text-2xl font-bold text-foreground">
                   {formatCurrency(stats.acceptedValue, settings.currencySymbol)}
                 </p>
@@ -161,9 +161,9 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center justify-between">
-              Orçamentos Recentes
+              Recent Estimates
               <Button variant="ghost" size="sm" onClick={() => onNavigate('estimates')}>
-                Ver todos
+                View all
               </Button>
             </CardTitle>
           </CardHeader>
@@ -171,8 +171,8 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
             {recentEstimates.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 <FileText className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                <p>Nenhum orçamento ainda</p>
-                <p className="text-sm">Crie seu primeiro orçamento!</p>
+                <p>No estimates yet</p>
+                <p className="text-sm">Create your first estimate!</p>
               </div>
             ) : (
               <div className="space-y-3">
@@ -186,7 +186,7 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
                       {getStatusIcon(estimate.status)}
                       <div>
                         <p className="font-medium text-foreground text-sm">
-                          {estimate.title || estimate.customerName || 'Sem título'}
+                          {estimate.title || estimate.customerName || 'Untitled'}
                         </p>
                         <p className="text-xs text-muted-foreground">
                           {getStatusLabel(estimate.status)}

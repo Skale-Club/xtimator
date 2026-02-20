@@ -55,7 +55,7 @@ export function OnboardingFlow() {
         id: generateId(),
         email: '',
         businessName: businessName.trim(),
-        businessType: businessType || 'Serviços',
+        businessType: businessType || 'Services',
         phone: phone || undefined,
         createdAt: new Date(),
       })
@@ -88,10 +88,10 @@ export function OnboardingFlow() {
               <Building2 className="h-10 w-10 text-primary" />
             </div>
             <h1 className="text-3xl font-bold text-foreground text-balance">
-              Bem-vindo ao Xtimator
+              Welcome to Xtimator
             </h1>
             <p className="text-muted-foreground text-lg text-pretty">
-              Crie orçamentos profissionais em minutos. Vamos configurar seu negócio.
+              Create professional estimates in minutes. Let's set up your business.
             </p>
           </div>
           
@@ -99,7 +99,7 @@ export function OnboardingFlow() {
             onClick={() => setOnboardingStep('business-info')}
             className="w-full h-14 text-lg gap-2"
           >
-            Começar
+            Get Started
             <ArrowRight className="h-5 w-5" />
           </Button>
         </div>
@@ -117,27 +117,27 @@ export function OnboardingFlow() {
           className="self-start -ml-2 mb-4"
         >
           <ArrowLeft className="h-4 w-4 mr-1" />
-          Voltar
+          Back
         </Button>
 
         <div className="flex-1 flex flex-col justify-center max-w-md mx-auto w-full space-y-8">
           <div className="space-y-2">
             <h1 className="text-2xl font-bold text-foreground">
-              Sobre seu negócio
+              About your business
             </h1>
             <p className="text-muted-foreground">
-              Essas informações aparecerão nos seus orçamentos.
+              This information will appear on your estimates.
             </p>
           </div>
 
           <div className="space-y-6">
             <div className="space-y-2">
               <Label htmlFor="businessName" className="text-base">
-                Nome da empresa *
+                Business name *
               </Label>
               <Input
                 id="businessName"
-                placeholder="Ex: João Pinturas"
+                placeholder="e.g., John's Painting"
                 value={businessName}
                 onChange={(e) => setBusinessName(e.target.value)}
                 className="h-14 text-lg"
@@ -146,11 +146,11 @@ export function OnboardingFlow() {
 
             <div className="space-y-2">
               <Label htmlFor="businessType" className="text-base">
-                Tipo de serviço
+                Service type
               </Label>
               <Input
                 id="businessType"
-                placeholder="Ex: Pintura Residencial"
+                placeholder="e.g., Residential Painting"
                 value={businessType}
                 onChange={(e) => setBusinessType(e.target.value)}
                 className="h-14 text-lg"
@@ -159,7 +159,7 @@ export function OnboardingFlow() {
 
             <div className="space-y-2">
               <Label htmlFor="phone" className="text-base">
-                Telefone / WhatsApp
+                Phone / WhatsApp
               </Label>
               <Input
                 id="phone"
@@ -177,7 +177,7 @@ export function OnboardingFlow() {
             disabled={!businessName.trim()}
             className="w-full h-14 text-lg gap-2"
           >
-            Continuar
+            Continue
             <ArrowRight className="h-5 w-5" />
           </Button>
         </div>
@@ -195,16 +195,16 @@ export function OnboardingFlow() {
           className="self-start -ml-2 mb-4"
         >
           <ArrowLeft className="h-4 w-4 mr-1" />
-          Voltar
+          Back
         </Button>
 
         <div className="flex-1 max-w-md mx-auto w-full space-y-6">
           <div className="space-y-2">
             <h1 className="text-2xl font-bold text-foreground">
-              Escolha um modelo
+              Choose a template
             </h1>
             <p className="text-muted-foreground">
-              Selecione o tipo de serviço que mais se aproxima do seu negócio.
+              Select the service type that best matches your business.
             </p>
           </div>
 

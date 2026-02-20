@@ -11,8 +11,8 @@ const plusJakartaSans = Plus_Jakarta_Sans({
   variable: "--font-sans",
 })
 
-const DEFAULT_TITLE = 'Xtimator - Estimativas Profissionais'
-const DEFAULT_DESCRIPTION = 'Crie orcamentos profissionais em minutos com IA'
+const DEFAULT_TITLE = 'Xtimator - Professional Estimates'
+const DEFAULT_DESCRIPTION = 'Create professional estimates in minutes with AI'
 
 function getFirstHeaderValue(value: string | null): string | null {
   if (!value) return null
@@ -90,7 +90,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="pt-BR" className="bg-background">
+    <html lang="en" className="bg-background">
       <body className={`${plusJakartaSans.variable} font-sans antialiased`}>
         {children}
         <Analytics />
