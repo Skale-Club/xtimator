@@ -34,10 +34,13 @@ EstimateBuilder Pro delivers a full AI-powered estimating workflow for US servic
 
 ### Plans
 
-1. **Project scaffold** — Initialize Next.js 14+ App Router project with TypeScript strict, Tailwind CSS, shadcn/ui (New York style), ESLint, and Bun; configure path aliases and environment variable types; wire Vercel deployment config.
-2. **Supabase client wiring** — Create `lib/supabase/client.ts` (browser client), `lib/supabase/server.ts` (server component client), and `middleware.ts` (session refresh + protected route redirects); validate all env vars are loaded.
-3. **Database migrations** — Write and run migrations for all 8 tables (`companies`, `clients`, `projects`, `recordings`, `photos`, `estimates`, `estimate_sections`, `estimate_items`, `estimate_activity`); enable RLS on every table; write row-level policies scoped to `company_id`; scope Storage buckets (`audio`, `photos`, `pdfs`, `logos`) with per-company access policies.
-4. **Auth UI & flow** — Build `/auth/login`, `/auth/signup`, `/auth/reset-password` pages using shadcn/ui form components and Zod validation; implement Google OAuth sign-in button; implement session-aware redirect logic (no company → `/onboarding`; company exists → `/dashboard`); add sign-out action accessible from any authenticated page.
+**Plans:** 4 plans
+
+Plans:
+- [ ] 01-01-PLAN.md — Scaffold Next.js project, install all shadcn/ui components, configure env vars, wire test infrastructure (Wave 1)
+- [ ] 01-02-PLAN.md — Supabase SSR client wiring (browser, server, proxy), middleware route protection (Wave 2)
+- [ ] 01-03-PLAN.md — Database migrations: 9 tables, RLS policies, Storage buckets (Wave 2, parallel with 01-02)
+- [ ] 01-04-PLAN.md — Auth pages UI: login, signup, reset-password, callback route, server actions (Wave 3)
 
 ### Requirements
 AUTH-01, AUTH-02, AUTH-03, AUTH-04, AUTH-05, AUTH-06, AUTH-07, SEC-01, SEC-02, SEC-03, SEC-04
@@ -202,7 +205,7 @@ PDF-01, PDF-02, PDF-03, SHARE-01, SHARE-02, SHARE-03, SHARE-04, SHARE-05, SHARE-
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation & Auth | 0/4 | Not started | - |
+| 1. Foundation & Auth | 0/4 | Planned | - |
 | 2. Company Onboarding | 0/3 | Not started | - |
 | 3. Dashboard & Client Management | 0/3 | Not started | - |
 | 4. Project Creation & Workspace | 0/3 | Not started | - |
