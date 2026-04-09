@@ -10,7 +10,7 @@
 - [ ] **AUTH-01**: User can sign up with email and password via Supabase Auth
 - [ ] **AUTH-02**: User can sign in with email and password
 - [ ] **AUTH-03**: User can sign in with Google OAuth
-- [ ] **AUTH-04**: User session persists across browser refresh (Supabase session management)
+- [x] **AUTH-04**: User session persists across browser refresh (Supabase session management)
 - [ ] **AUTH-05**: User can reset password via email link
 - [ ] **AUTH-06**: After first sign-up with no company record, user is redirected to onboarding wizard
 - [ ] **AUTH-07**: User can sign out from any authenticated page

@@ -38,7 +38,7 @@ EstimateBuilder Pro delivers a full AI-powered estimating workflow for US servic
 
 Plans:
 - [x] 01-01-PLAN.md — Scaffold Next.js project, install all shadcn/ui components, configure env vars, wire test infrastructure (Wave 1)
-- [ ] 01-02-PLAN.md — Supabase SSR client wiring (browser, server, proxy), middleware route protection (Wave 2)
+- [x] 01-02-PLAN.md — Supabase SSR client wiring (browser, server, proxy), middleware route protection (Wave 2)
 - [ ] 01-03-PLAN.md — Database migrations: 9 tables, RLS policies, Storage buckets (Wave 2, parallel with 01-02)
 - [ ] 01-04-PLAN.md — Auth pages UI: login, signup, reset-password, callback route, server actions (Wave 3)
 
