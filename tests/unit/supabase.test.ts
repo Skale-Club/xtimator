@@ -1,7 +1,18 @@
-import { describe, it } from 'vitest'
+import { describe, it, expect } from 'vitest'
 
-describe('Supabase client instantiation', () => {
-  it.todo('browser client creates without error when env vars are set')
-  it.todo('server client creates without error in server context')
-  it.todo('proxy updateSession function is exported from lib/supabase/proxy.ts')
+describe('Supabase client module exports', () => {
+  it('browser client module exports createClient function', async () => {
+    const mod = await import('@/lib/supabase/client')
+    expect(typeof mod.createClient).toBe('function')
+  })
+
+  it('server client module exports createClient function', async () => {
+    const mod = await import('@/lib/supabase/server')
+    expect(typeof mod.createClient).toBe('function')
+  })
+
+  it('proxy module exports updateSession function', async () => {
+    const mod = await import('@/lib/supabase/proxy')
+    expect(typeof mod.updateSession).toBe('function')
+  })
 })
