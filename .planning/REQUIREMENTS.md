@@ -151,10 +151,10 @@
 
 ### Data & Security
 
-- [ ] **SEC-01**: RLS enabled on all 8 database tables — users only access their company's data
-- [ ] **SEC-02**: Public share link routes bypass RLS for read-only estimate viewing
+- [x] **SEC-01**: RLS enabled on all 8 database tables — users only access their company's data
+- [x] **SEC-02**: Public share link routes bypass RLS for read-only estimate viewing
 - [x] **SEC-03**: Service role key is never exposed to the browser; all privileged ops via server-side API routes
-- [ ] **SEC-04**: Audio, photo, and PDF files in Supabase Storage are scoped to the owning company
+- [x] **SEC-04**: Audio, photo, and PDF files in Supabase Storage are scoped to the owning company
 
 ### Mobile & UX
 
