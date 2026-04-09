@@ -61,9 +61,9 @@ Exceptions:
 | Role | Size | Weight | Line Height | Usage |
 |------|------|--------|-------------|-------|
 | Body | 16px | 400 (regular) | 1.5 | Form labels, input placeholder text, paragraph copy |
-| Label | 14px | 500 (medium) | 1.4 | Field labels, helper text, badge text, meta text |
+| Label | 14px | 400 (regular) | 1.4 | Field labels, helper text, badge text, meta text |
 | Heading | 20px | 600 (semibold) | 1.2 | Card titles, page section headings |
-| Display | 28px | 700 (bold) | 1.15 | Auth page app name / wordmark fallback text |
+| Display | 28px | 600 (semibold) | 1.15 | Auth page app name / wordmark fallback text |
 
 **Font stack:** `Inter, ui-sans-serif, system-ui, sans-serif`
 **Font loading:** `next/font/google` with `variable` mode; apply CSS variable `--font-inter` to `<html>`.
@@ -113,6 +113,8 @@ Components used in Phase 1 auth UI (subset of D-09 full install):
 
 ### Auth Pages (`/auth/login`, `/auth/signup`, `/auth/reset-password`)
 
+**Primary focal point: the "Continue with Google" button — it must be the most visually prominent element inside the card.**
+
 ```
 ┌─────────────────────────────────────────────────────────┐
 │  Full-screen centered column (flex, items-center,        │
@@ -147,7 +149,7 @@ Components used in Phase 1 auth UI (subset of D-09 full install):
 - Card border-radius: New York default (`rounded-xl`)
 - Card shadow: `shadow-sm`
 - Background: `bg-muted/40` (subtle neutral wash behind card)
-- Logo block: SVG logomark (placeholder compass/building icon in Phase 1) + `<span>` wordmark text at Display size (28px, weight 700)
+- Logo block: SVG logomark (placeholder compass/building icon in Phase 1) + `<span>` wordmark text at Display size (28px, weight 600)
 - All form buttons: `w-full` (full card width)
 - Google button: outlined with Google "G" icon from lucide-react or inline SVG; variant="outline"
 
