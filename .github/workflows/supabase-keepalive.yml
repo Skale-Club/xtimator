@@ -1,0 +1,41 @@
+name: Supabase Keepalive
+
+on:
+  schedule:
+    # Run daily at a non-peak minute to keep the Supabase project warm.
+    - cron: "37 14 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ping:
+    name: Ping Supabase API
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Run keepalive request
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          if [ -z "$SUPABASE_URL" ]; then
+            echo "::error::Missing SUPABASE_URL GitHub secret."
+            exit 1
+          fi
+
+          if [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "::error::Missing SUPABASE_SERVICE_ROLE_KEY GitHub secret."
+            exit 1
+          fi
+
+          supabase_url="${SUPABASE_URL%/}"
+
+          curl --fail --silent --show-error --output /dev/null \
+            --header "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+            --header "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+            "$supabase_url/rest/v1/"
+
+          echo "Supabase keepalive OK"
