@@ -202,7 +202,7 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| AUTH-01 to AUTH-07 | Phase 1 | Pending |
+| AUTH-01 to AUTH-07 | Phase 1 | Complete (01-04) |
 | ONBOARD-01 to ONBOARD-08 | Phase 2 | Pending |
 | DASH-01 to DASH-08 | Phase 3 | Pending |
 | CLIENT-01 to CLIENT-06 | Phase 3 | Pending |
@@ -216,7 +216,7 @@
 | SHARE-01 to SHARE-07 | Phase 7 | Pending |
 | EMAIL-01 to EMAIL-06 | Phase 7 | Pending |
 | SET-01 to SET-06 | Phase 7 | Pending |
-| SEC-01 to SEC-04 | Phase 1 | Pending |
+| SEC-01 to SEC-04 | Phase 1 | Complete (01-01 to 01-03) |
 | UX-01 to UX-06 | All phases | Pending |
 
 **Coverage:**
