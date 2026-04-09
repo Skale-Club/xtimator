@@ -14,7 +14,7 @@ EstimateBuilder Pro delivers a full AI-powered estimating workflow for US servic
 
 ## Phases
 
-- [ ] **Phase 1: Foundation & Auth** - Project scaffold, Supabase wiring, database schema, and complete authentication flow
+- [x] **Phase 1: Foundation & Auth** - Project scaffold, Supabase wiring, database schema, and complete authentication flow (completed 2026-04-09)
 - [ ] **Phase 2: Company Onboarding** - Multi-step wizard that captures business identity and redirects to dashboard
 - [ ] **Phase 3: Dashboard & Client Management** - Main app shell, project list with search/filter, and full client CRUD
 - [ ] **Phase 4: Project Creation & Workspace** - New project wizard and the 5-tab workspace shell with overview tab
@@ -34,13 +34,13 @@ EstimateBuilder Pro delivers a full AI-powered estimating workflow for US servic
 
 ### Plans
 
-**Plans:** 4 plans
+**Plans:** 4/4 plans complete
 
 Plans:
 - [x] 01-01-PLAN.md — Scaffold Next.js project, install all shadcn/ui components, configure env vars, wire test infrastructure (Wave 1)
 - [x] 01-02-PLAN.md — Supabase SSR client wiring (browser, server, proxy), middleware route protection (Wave 2)
 - [x] 01-03-PLAN.md — Database migrations: 9 tables, RLS policies, Storage buckets (Wave 2, parallel with 01-02)
-- [ ] 01-04-PLAN.md — Auth pages UI: login, signup, reset-password, callback route, server actions (Wave 3)
+- [x] 01-04-PLAN.md — Auth pages UI: login, signup, reset-password, callback route, server actions (Wave 3)
 
 ### Requirements
 AUTH-01, AUTH-02, AUTH-03, AUTH-04, AUTH-05, AUTH-06, AUTH-07, SEC-01, SEC-02, SEC-03, SEC-04
@@ -205,7 +205,7 @@ PDF-01, PDF-02, PDF-03, SHARE-01, SHARE-02, SHARE-03, SHARE-04, SHARE-05, SHARE-
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation & Auth | 3/4 | In progress | - |
+| 1. Foundation & Auth | 4/4 | Complete   | 2026-04-09 |
 | 2. Company Onboarding | 0/3 | Not started | - |
 | 3. Dashboard & Client Management | 0/3 | Not started | - |
 | 4. Project Creation & Workspace | 0/3 | Not started | - |

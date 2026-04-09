@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-last_updated: "2026-04-09T22:45:01Z"
+last_updated: "2026-04-09T22:58:15.001Z"
 progress:
   total_phases: 7
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 4
-  completed_plans: 3
+  completed_plans: 4
 ---
 
 # Project State
@@ -45,6 +45,9 @@ Phase 1: Foundation & Auth (01-foundation-auth)
 - [Phase 01-foundation-auth 01-03]: RLS subquery pattern: company_id IN (SELECT id FROM companies WHERE user_id = (SELECT auth.uid()))
 - [Phase 01-foundation-auth 01-03]: Storage policy pattern: (storage.foldername(name))[1] matches company_id path prefix
 - [Phase 01-foundation-auth 01-03]: Supabase migrations applied via bunx supabase db push --db-url {DATABASE_URL}
+- [Phase 01-foundation-auth]: useSearchParams wrapped in Suspense boundary in reset-password page — Next.js requires this for static generation
+- [Phase 01-foundation-auth]: AuthCard shared wrapper with logo SVG + EstimateBuilder Pro wordmark above Card — used by all three auth pages (D-02)
+- [Phase 01-foundation-auth]: GoogleOAuthButton uses window.location.origin for redirectTo — works on localhost and any production domain
 
 ## Performance Metrics
 
@@ -53,6 +56,7 @@ Phase 1: Foundation & Auth (01-foundation-auth)
 | 01-foundation-auth | 01 | 14min | 2 | 52 |
 | 01-foundation-auth | 02 | 6min | 2 | 6 |
 | 01-foundation-auth | 03 | 3min | 1 | 2 |
+| Phase 01-foundation-auth P04 | 12min | 2 tasks | 12 files |
 
 ## Notes
 
