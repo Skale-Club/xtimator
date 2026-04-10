@@ -1,9 +1,96 @@
 'use server'
 
+import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 
-// Stub: Plan 03 replaces this with full Supabase persistence
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export async function createOrUpdateCompany(_data: any) {
+interface CompanyFormData {
+  companyName?: string
+  ownerName?: string
+  phone?: string
+  email?: string
+  website?: string
+  industry?: string
+  customIndustry?: string
+  brandPrimaryColor?: string
+  address?: string
+  city?: string
+  state?: string
+  zip?: string
+  licenseNumber?: string
+  insuranceInfo?: string
+  defaultTaxRate?: number
+  defaultPaymentTerms?: string
+  defaultWarrantyTerms?: string
+  defaultValidityDays?: number
+  logoUrl?: string
+}
+
+export async function createOrUpdateCompany(data: CompanyFormData) {
+  const supabase = await createClient()
+
+  // Auth validation using getClaims() pattern (not getSession)
+  const { data: claimsData } = await supabase.auth.getClaims()
+  const claims = claimsData?.claims ?? null
+  if (!claims) return { error: 'Not authenticated' }
+
+  // Resolve industry: if "other", use customIndustry value
+  const resolvedIndustry =
+    data.industry === 'other' ? data.customIndustry : data.industry
+
+  // Build the row object mapping form fields to DB columns
+  const row = {
+    user_id: claims.sub,
+    name: data.companyName || 'My Company',
+    owner_name: data.ownerName || null,
+    phone: data.phone || null,
+    email: data.email || null,
+    website: data.website || null,
+    industry: resolvedIndustry || null,
+    brand_primary_color: data.brandPrimaryColor || '#0D9488',
+    logo_url: data.logoUrl || null,
+    address: data.address || null,
+    city: data.city || null,
+    state: data.state || null,
+    zip: data.zip || null,
+    license_number: data.licenseNumber || null,
+    insurance_info: data.insuranceInfo || null,
+    default_tax_rate: data.defaultTaxRate ?? 0,
+    default_payment_terms: data.defaultPaymentTerms || 'Net 30',
+    default_warranty_terms: data.defaultWarrantyTerms || '1 year',
+    default_validity_days: data.defaultValidityDays ?? 30,
+  }
+
+  // SELECT-then-INSERT/UPDATE pattern (Pitfall 6: no UNIQUE constraint on user_id)
+  const { data: existing } = await supabase
+    .from('companies')
+    .select('id')
+    .eq('user_id', claims.sub)
+    .single()
+
+  if (existing) {
+    // Update existing company
+    const { error } = await supabase
+      .from('companies')
+      .update(row)
+      .eq('id', existing.id)
+
+    if (error) {
+      return {
+        error:
+          'Could not save your company details. Please check your connection and try again.',
+      }
+    }
+  } else {
+    // Insert new company
+    const { error } = await supabase.from('companies').insert(row)
+
+    if (error) {
+      return {
+        error:
+          'Could not save your company details. Please check your connection and try again.',
+      }
+    }
+  }
+
   redirect('/dashboard')
 }

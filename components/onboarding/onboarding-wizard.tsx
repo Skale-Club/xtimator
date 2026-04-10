@@ -9,6 +9,7 @@ import { toast } from 'sonner'
 import { onboardingSchema, STEP_FIELDS } from '@/lib/schemas/onboarding'
 import type { OnboardingValues } from '@/lib/schemas/onboarding'
 import { createOrUpdateCompany } from '@/lib/actions/company'
+import { createClient } from '@/lib/supabase/client'
 
 import { Form } from '@/components/ui/form'
 import { Button } from '@/components/ui/button'
@@ -94,7 +95,10 @@ export function OnboardingWizard() {
     startTransition(async () => {
       try {
         const companyName = form.getValues('companyName') || 'My Company'
-        await createOrUpdateCompany({ companyName })
+        const result = await createOrUpdateCompany({ companyName })
+        if (result?.error) {
+          toast.error(result.error)
+        }
       } catch {
         // redirect throws NEXT_REDIRECT, which is expected
       }
@@ -118,22 +122,51 @@ export function OnboardingWizard() {
       try {
         const values = form.getValues()
 
-        // TODO: Plan 03 will add logo upload to Supabase Storage here
+        // Upload logo to Supabase Storage if a file was selected
         let logoUrl: string | undefined
         if (logoFile) {
-          // Logo upload will be wired in Plan 03
-          logoUrl = undefined
+          try {
+            const supabase = createClient()
+
+            // First, create or get the company to obtain its ID for the storage path
+            // We use the user's auth UID as a temporary path prefix
+            const { data: userData } = await supabase.auth.getUser()
+            if (userData?.user) {
+              const ext = logoFile.name.split('.').pop() || 'png'
+              const path = `${userData.user.id}/logo.${ext}`
+
+              const { error: uploadError } = await supabase.storage
+                .from('logos')
+                .upload(path, logoFile, {
+                  cacheControl: '3600',
+                  upsert: true,
+                })
+
+              if (uploadError) {
+                toast.error('Logo upload failed. Your company will be saved without a logo.')
+              } else {
+                // Store the storage path (not public URL) -- bucket is private (Pitfall 2)
+                logoUrl = path
+              }
+            }
+          } catch {
+            toast.error('Logo upload failed. Your company will be saved without a logo.')
+          }
         }
 
-        await createOrUpdateCompany({
+        const result = await createOrUpdateCompany({
           ...values,
           logoUrl,
         })
 
+        if (result?.error) {
+          toast.error(result.error)
+          return
+        }
+
         toast.success('Company setup complete')
       } catch {
         // redirect throws NEXT_REDIRECT, which is expected
-        // Real errors will be handled when Plan 03 adds persistence
       }
     })
   }
