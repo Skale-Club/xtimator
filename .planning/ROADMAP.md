@@ -143,10 +143,10 @@ PROJ-01, PROJ-02, PROJ-03, PROJ-04, PROJ-05, PROJ-06, PROJ-07, PROJ-08, WS-01, W
 
 ### Plans
 
-**Plans:** 4 plans
+**Plans:** 1/4 plans executed
 
 Plans:
-- [ ] 05-01-PLAN.md — Data layer: service role client, recording/photo queries and actions, media format detection, image compression utility, @dnd-kit install (Wave 1)
+- [x] 05-01-PLAN.md — Data layer: service role client, recording/photo queries and actions, media format detection, image compression utility, @dnd-kit install (Wave 1)
 - [ ] 05-02-PLAN.md — Audio Recording tab: MediaRecorder with waveform visualization, timer, live transcript preview, recording list with playback and transcript editing (Wave 2)
 - [ ] 05-03-PLAN.md — Photos tab: drop zone with camera capture and drag-and-drop, client-side compression, sortable grid with @dnd-kit, lightbox, caption editing, 20-photo limit (Wave 2)
 - [ ] 05-04-PLAN.md — Workspace wiring: replace PlaceholderTab with AudioTab and PhotosTab, load recordings/photos server-side, human verification checkpoint (Wave 3)
@@ -222,6 +222,6 @@ PDF-01, PDF-02, PDF-03, SHARE-01, SHARE-02, SHARE-03, SHARE-04, SHARE-05, SHARE-
 | 2. Company Onboarding | 3/3 | Complete | 2026-04-10 |
 | 3. Dashboard & Client Management | 3/3 | Complete |  |
 | 4. Project Creation & Workspace | 2/3 | In Progress | - |
-| 5. Audio Recording & Photo Management | 0/4 | Not started | - |
+| 5. Audio Recording & Photo Management | 1/4 | In Progress|  |
 | 6. AI Estimate Generation & Editor | 0/3 | Not started | - |
 | 7. PDF, Sharing, Email & Settings | 0/4 | Not started | - |

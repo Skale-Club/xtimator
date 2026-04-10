@@ -68,13 +68,13 @@
 - [ ] **AUDIO-01**: User can start and stop audio recording via a prominent mic button
 - [ ] **AUDIO-02**: Recording timer displays elapsed time in MM:SS format
 - [ ] **AUDIO-03**: Real-time waveform visualization is shown during recording (Web Audio API)
-- [ ] **AUDIO-04**: Live transcript preview is shown during recording (Web Speech API, Chrome/supported browsers)
-- [ ] **AUDIO-05**: After recording stops, audio is uploaded to Supabase Storage
-- [ ] **AUDIO-06**: Audio is sent to OpenAI Whisper API for accurate transcription
+- [x] **AUDIO-04**: Live transcript preview is shown during recording (Web Speech API, Chrome/supported browsers)
+- [x] **AUDIO-05**: After recording stops, audio is uploaded to Supabase Storage
+- [x] **AUDIO-06**: Audio is sent to OpenAI Whisper API for accurate transcription
 - [ ] **AUDIO-07**: Transcript is displayed and user can edit it manually
 - [ ] **AUDIO-08**: User can delete a recording and re-record
 - [ ] **AUDIO-09**: Multiple recordings per project are supported; all transcripts are concatenated for AI
-- [ ] **AUDIO-10**: Audio recording works on mobile browsers (iOS Safari, Android Chrome)
+- [x] **AUDIO-10**: Audio recording works on mobile browsers (iOS Safari, Android Chrome)
 
 ### Photo Management
 
@@ -86,9 +86,9 @@
 - [ ] **PHOTO-06**: User can delete individual photos
 - [ ] **PHOTO-07**: User can reorder photos via drag & drop
 - [ ] **PHOTO-08**: User can add/edit a caption per photo
-- [ ] **PHOTO-09**: Photos are stored in Supabase Storage
+- [x] **PHOTO-09**: Photos are stored in Supabase Storage
 - [ ] **PHOTO-10**: Maximum 20 photos per project enforced
-- [ ] **PHOTO-11**: Images are compressed client-side before upload (max 2000px width)
+- [x] **PHOTO-11**: Images are compressed client-side before upload (max 2000px width)
 
 ### AI Estimate Generation
 
