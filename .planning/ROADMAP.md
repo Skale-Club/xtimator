@@ -171,11 +171,11 @@ AUDIO-01, AUDIO-02, AUDIO-03, AUDIO-04, AUDIO-05, AUDIO-06, AUDIO-07, AUDIO-08, 
 
 ### Plans
 
-**Plans:** 3 plans
+**Plans:** 2/3 plans executed
 
 Plans:
-- [ ] 06-01-PLAN.md — Anthropic SDK install, estimate TypeScript interfaces/queries, POST /api/analyze-photos Claude Vision route (Wave 1)
-- [ ] 06-02-PLAN.md — POST /api/generate-estimate route with Claude tool_use, math validation, DB persistence, version management; estimate server actions for save/blank creation (Wave 1)
+- [x] 06-01-PLAN.md — Anthropic SDK install, estimate TypeScript interfaces/queries, POST /api/analyze-photos Claude Vision route (Wave 1)
+- [x] 06-02-PLAN.md — POST /api/generate-estimate route with Claude tool_use, math validation, DB persistence, version management; estimate server actions for save/blank creation (Wave 1)
 - [ ] 06-03-PLAN.md — Estimate editor UI: useReducer state, inline editing, real-time recalc, drag reorder, discount/tax, auto-save, generation progress, version selector, workspace wiring (Wave 2)
 
 ### Requirements
@@ -226,5 +226,5 @@ PDF-01, PDF-02, PDF-03, SHARE-01, SHARE-02, SHARE-03, SHARE-04, SHARE-05, SHARE-
 | 3. Dashboard & Client Management | 3/3 | Complete |  |
 | 4. Project Creation & Workspace | 3/3 | Complete   | 2026-04-10 |
 | 5. Audio Recording & Photo Management | 4/4 | Complete   | 2026-04-10 |
-| 6. AI Estimate Generation & Editor | 0/3 | Planning complete | - |
+| 6. AI Estimate Generation & Editor | 2/3 | In Progress|  |
 | 7. PDF, Sharing, Email & Settings | 0/4 | Not started | - |
