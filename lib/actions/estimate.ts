@@ -570,3 +570,51 @@ export async function getEstimateByIdAction(
 
   return { data: estimate }
 }
+
+// ---------------------------------------------------------------------------
+// Action 6: markAsSentAction (mark estimate as sent without emailing)
+// ---------------------------------------------------------------------------
+
+export async function markAsSentAction(estimateId: string) {
+  const ctx = await getAuthContext()
+  if ('error' in ctx) return { error: ctx.error }
+  const { supabase, company } = ctx
+  const companyId = company.id as string
+
+  // Fetch estimate to get project_id
+  const { data: estimate } = await supabase
+    .from('estimates')
+    .select('project_id')
+    .eq('id', estimateId)
+    .single()
+
+  if (!estimate) return { error: 'Estimate not found' }
+
+  const projectId = estimate.project_id as string
+
+  // Update estimate sent_at
+  const { error: updateError } = await supabase
+    .from('estimates')
+    .update({ sent_at: new Date().toISOString() })
+    .eq('id', estimateId)
+
+  if (updateError) return { error: 'Failed to mark estimate as sent' }
+
+  // Update project status to 'sent'
+  await supabase
+    .from('projects')
+    .update({ status: 'sent' })
+    .eq('id', projectId)
+
+  // Log activity
+  await supabase.from('estimate_activity').insert({
+    project_id: projectId,
+    company_id: companyId,
+    estimate_id: estimateId,
+    event_type: 'estimate_marked_sent',
+    metadata: { marked_manually: true },
+  })
+
+  revalidatePath(`/projects/${projectId}`)
+  return { success: true }
+}

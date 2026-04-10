@@ -3,7 +3,7 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ClipboardList, Mic, Camera, Sparkles, Send } from 'lucide-react'
 import { OverviewTab } from './overview-tab'
-import { PlaceholderTab } from './placeholder-tab'
+import { SendTab } from './send/send-tab'
 import { AudioTab } from './audio/audio-tab'
 import { PhotosTab } from './photos/photos-tab'
 import { EstimateTab } from './estimate/estimate-tab'
@@ -20,9 +20,10 @@ interface ProjectWorkspaceProps {
   photos: Photo[]
   currentEstimate: EstimateWithSections | null
   allVersions: Estimate[]
+  companyName: string
 }
 
-export function ProjectWorkspace({ project, activity, stats, recordings, photos, currentEstimate, allVersions }: ProjectWorkspaceProps) {
+export function ProjectWorkspace({ project, activity, stats, recordings, photos, currentEstimate, allVersions, companyName }: ProjectWorkspaceProps) {
   return (
     <Tabs defaultValue="overview" className="w-full">
       <TabsList className="w-full grid grid-cols-5">
@@ -67,7 +68,12 @@ export function ProjectWorkspace({ project, activity, stats, recordings, photos,
         />
       </TabsContent>
       <TabsContent value="send">
-        <PlaceholderTab title="Preview & Send" phase={7} />
+        <SendTab
+          estimate={currentEstimate}
+          projectName={project.name}
+          companyName={companyName}
+          clientEmail={project.client?.email ?? null}
+        />
       </TabsContent>
     </Tabs>
   )

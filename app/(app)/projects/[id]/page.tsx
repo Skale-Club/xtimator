@@ -28,6 +28,15 @@ export default async function ProjectPage({
     notFound()
   }
 
+  // Fetch company name for the Send tab
+  const { data: company } = await supabase
+    .from('companies')
+    .select('name')
+    .eq('id', project.company_id)
+    .single()
+
+  const companyName = (company?.name as string) ?? ''
+
   return (
     <div className="space-y-6">
       <div>
@@ -44,6 +53,7 @@ export default async function ProjectPage({
         photos={photos}
         currentEstimate={currentEstimate}
         allVersions={allVersions}
+        companyName={companyName}
       />
     </div>
   )
