@@ -171,9 +171,12 @@ AUDIO-01, AUDIO-02, AUDIO-03, AUDIO-04, AUDIO-05, AUDIO-06, AUDIO-07, AUDIO-08, 
 
 ### Plans
 
-1. **Claude Vision photo analysis** — Implement `POST /api/analyze-photos` server route that sends each project photo to Claude Vision API and stores the returned description on the `photos` row; run analyses in parallel; surface per-photo status in the UI.
-2. **Estimate generation & persistence** — Implement `POST /api/generate-estimate` server route: build the full prompt (transcripts + photo descriptions + project metadata + company context); call Claude API with a structured JSON schema response; validate all math (item total = qty × unit price; section subtotal = sum of items); insert rows into `estimates`, `estimate_sections`, and `estimate_items`; update project status to `estimate_ready`; handle generation failures with retry and manual-creation fallback; create a new version record on each generation, preserving previous versions.
-3. **Estimate editor UI** — Build the AI Estimate tab with the estimate editor: section headers and collapsible line items with inline editing (description, quantity, unit, unit price); real-time total recalculation on every keypress; add/remove/reorder items and sections; summary/notes/timeline/terms editing; discount field (percentage or fixed); auto-calculated tax line from company default rate; grand total display; debounced auto-save with manual save button fallback; multi-step generation progress indicator; version history selector.
+**Plans:** 3 plans
+
+Plans:
+- [ ] 06-01-PLAN.md — Anthropic SDK install, estimate TypeScript interfaces/queries, POST /api/analyze-photos Claude Vision route (Wave 1)
+- [ ] 06-02-PLAN.md — POST /api/generate-estimate route with Claude tool_use, math validation, DB persistence, version management; estimate server actions for save/blank creation (Wave 1)
+- [ ] 06-03-PLAN.md — Estimate editor UI: useReducer state, inline editing, real-time recalc, drag reorder, discount/tax, auto-save, generation progress, version selector, workspace wiring (Wave 2)
 
 ### Requirements
 AI-01, AI-02, AI-03, AI-04, AI-05, AI-06, AI-07, AI-08, AI-09, AI-10, EDIT-01, EDIT-02, EDIT-03, EDIT-04, EDIT-05, EDIT-06, EDIT-07, EDIT-08, EDIT-09, EDIT-10, EDIT-11, EDIT-12
@@ -223,5 +226,5 @@ PDF-01, PDF-02, PDF-03, SHARE-01, SHARE-02, SHARE-03, SHARE-04, SHARE-05, SHARE-
 | 3. Dashboard & Client Management | 3/3 | Complete |  |
 | 4. Project Creation & Workspace | 3/3 | Complete   | 2026-04-10 |
 | 5. Audio Recording & Photo Management | 4/4 | Complete   | 2026-04-10 |
-| 6. AI Estimate Generation & Editor | 0/3 | Not started | - |
+| 6. AI Estimate Generation & Editor | 0/3 | Planning complete | - |
 | 7. PDF, Sharing, Email & Settings | 0/4 | Not started | - |
