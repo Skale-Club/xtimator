@@ -4,15 +4,21 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ClipboardList, Mic, Camera, Sparkles, Send } from 'lucide-react'
 import { OverviewTab } from './overview-tab'
 import { PlaceholderTab } from './placeholder-tab'
+import { AudioTab } from './audio/audio-tab'
+import { PhotosTab } from './photos/photos-tab'
 import type { ProjectDetail, ActivityEvent, ProjectQuickStats } from '@/lib/queries/project'
+import type { Recording } from '@/lib/queries/recording'
+import type { Photo } from '@/lib/queries/photo'
 
 interface ProjectWorkspaceProps {
   project: ProjectDetail
   activity: ActivityEvent[]
   stats: ProjectQuickStats
+  recordings: Recording[]
+  photos: Photo[]
 }
 
-export function ProjectWorkspace({ project, activity, stats }: ProjectWorkspaceProps) {
+export function ProjectWorkspace({ project, activity, stats, recordings, photos }: ProjectWorkspaceProps) {
   return (
     <Tabs defaultValue="overview" className="w-full">
       <TabsList className="w-full grid grid-cols-5">
@@ -41,10 +47,10 @@ export function ProjectWorkspace({ project, activity, stats }: ProjectWorkspaceP
         <OverviewTab project={project} activity={activity} stats={stats} />
       </TabsContent>
       <TabsContent value="audio">
-        <PlaceholderTab title="Audio Recording" phase={5} />
+        <AudioTab projectId={project.id} companyId={project.company_id} initialRecordings={recordings} />
       </TabsContent>
       <TabsContent value="photos">
-        <PlaceholderTab title="Photos" phase={5} />
+        <PhotosTab projectId={project.id} companyId={project.company_id} initialPhotos={photos} />
       </TabsContent>
       <TabsContent value="estimate">
         <PlaceholderTab title="AI Estimate" phase={6} />

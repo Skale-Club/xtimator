@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 
 export interface ProjectDetail {
   id: string
+  company_id: string
   name: string
   project_type: string | null
   status: string
