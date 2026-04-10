@@ -15,7 +15,7 @@ EstimateBuilder Pro delivers a full AI-powered estimating workflow for US servic
 ## Phases
 
 - [x] **Phase 1: Foundation & Auth** - Project scaffold, Supabase wiring, database schema, and complete authentication flow (completed 2026-04-09)
-- [ ] **Phase 2: Company Onboarding** - Multi-step wizard that captures business identity and redirects to dashboard
+- [x] **Phase 2: Company Onboarding** - Multi-step wizard that captures business identity and redirects to dashboard (completed 2026-04-10)
 - [ ] **Phase 3: Dashboard & Client Management** - Main app shell, project list with search/filter, and full client CRUD
 - [ ] **Phase 4: Project Creation & Workspace** - New project wizard and the 5-tab workspace shell with overview tab
 - [ ] **Phase 5: Audio Recording & Photo Management** - Job-site capture: mic recording with Whisper transcription and photo upload pipeline
@@ -62,7 +62,7 @@ AUTH-01, AUTH-02, AUTH-03, AUTH-04, AUTH-05, AUTH-06, AUTH-07, SEC-01, SEC-02, S
 
 ### Plans
 
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 
 Plans:
 - [x] 02-01-PLAN.md — INDUSTRIES config, onboarding Zod schema, and unit tests (Wave 1)
@@ -89,9 +89,12 @@ ONBOARD-01, ONBOARD-02, ONBOARD-03, ONBOARD-04, ONBOARD-05, ONBOARD-06, ONBOARD-
 
 ### Plans
 
-1. **App shell layout** — Build the persistent shell with sidebar navigation (desktop) and bottom navigation bar (mobile, 44px touch targets); add responsive topbar with company name and user menu; implement skeleton loaders and global toast notification provider.
-2. **Dashboard stats & project list** — Build the `/dashboard` page with four stat cards (total projects, pending estimates, accepted, total revenue); implement the project list table/card view with name, client, type, status badge, total, and date; wire search (by project name or client name), status filter tabs, and sort controls; add project card quick actions (View, Edit, Delete with confirmation dialog, Duplicate).
-3. **Client management** — Build `/clients` list page with search and filter; implement create/edit client drawer/modal (name required, email/phone/address/notes optional); implement logo upload to `logos` bucket; implement view-client page showing associated projects; implement delete with confirmation dialog.
+**Plans:** 3 plans
+
+Plans:
+- [ ] 03-01-PLAN.md — App shell layout (sidebar, topbar, bottom nav), shared components (StatusBadge, EmptyState), data layer (queries, schemas, server actions) (Wave 1)
+- [ ] 03-02-PLAN.md — Dashboard page with stat cards, project list with search/filter/sort, quick actions (Wave 2)
+- [ ] 03-03-PLAN.md — Client management: list page, create/edit Sheet, logo upload, detail page, delete flow (Wave 2)
 
 ### Requirements
 DASH-01, DASH-02, DASH-03, DASH-04, DASH-05, DASH-06, DASH-07, DASH-08, CLIENT-01, CLIENT-02, CLIENT-03, CLIENT-04, CLIENT-05, CLIENT-06, UX-01, UX-02, UX-03, UX-04, UX-05, UX-06
@@ -209,8 +212,8 @@ PDF-01, PDF-02, PDF-03, SHARE-01, SHARE-02, SHARE-03, SHARE-04, SHARE-05, SHARE-
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation & Auth | 4/4 | Complete    | 2026-04-10 |
-| 2. Company Onboarding | 2/3 | In Progress | - |
-| 3. Dashboard & Client Management | 0/3 | Not started | - |
+| 2. Company Onboarding | 3/3 | Complete | 2026-04-10 |
+| 3. Dashboard & Client Management | 0/3 | Planned | - |
 | 4. Project Creation & Workspace | 0/3 | Not started | - |
 | 5. Audio Recording & Photo Management | 0/3 | Not started | - |
 | 6. AI Estimate Generation & Editor | 0/3 | Not started | - |
