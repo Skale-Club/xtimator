@@ -64,6 +64,9 @@ blob-report/
 Thumbs.db
 Desktop.ini
 
+# Claude Code
+.claude/
+
 # Editor files
 .idea/
 .vscode/*
