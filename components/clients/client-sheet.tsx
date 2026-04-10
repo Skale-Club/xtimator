@@ -23,8 +23,10 @@ import {
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
+import { ClientLogoUploader } from '@/components/clients/client-logo-uploader'
 import { clientSchema, type ClientFormValues } from '@/lib/schemas/client'
 import { createClientAction, updateClientAction } from '@/lib/actions/client'
+import { createClient as createBrowserClient } from '@/lib/supabase/client'
 import type { ClientDetail } from '@/lib/queries/clients'
 
 interface ClientSheetProps {
@@ -42,6 +44,8 @@ export function ClientSheet({
 }: ClientSheetProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
+  const [logoFile, setLogoFile] = useState<File | null>(null)
+  const [logoPreview, setLogoPreview] = useState<string | null>(null)
   const isEditing = !!client
 
   const form = useForm<ClientFormValues>({
@@ -70,6 +74,8 @@ export function ClientSheet({
         zip: client.zip ?? '',
         notes: client.notes ?? '',
       })
+      setLogoPreview(client.logo_url ?? null)
+      setLogoFile(null)
     } else {
       form.reset({
         name: '',
@@ -81,30 +87,87 @@ export function ClientSheet({
         zip: '',
         notes: '',
       })
+      setLogoPreview(null)
+      setLogoFile(null)
     }
   }, [client, form])
+
+  async function uploadLogo(clientId: string, file: File): Promise<string | null> {
+    const supabase = createBrowserClient()
+    const ext = file.name.split('.').pop() ?? 'jpg'
+    const path = `${companyId}/clients/${clientId}/logo.${ext}`
+
+    const { error } = await supabase.storage
+      .from('logos')
+      .upload(path, file, { upsert: true })
+
+    if (error) {
+      console.error('Logo upload error:', error)
+      return null
+    }
+
+    const { data } = supabase.storage.from('logos').getPublicUrl(path)
+    return data.publicUrl
+  }
 
   function onSubmit(values: ClientFormValues) {
     startTransition(async () => {
       if (isEditing && client) {
+        // Edit mode
+        let logoUrl = client.logo_url
+        if (logoFile) {
+          const url = await uploadLogo(client.id, logoFile)
+          if (url) logoUrl = url
+        }
+        // If logo was removed (preview is null but client had a logo)
+        if (!logoPreview && !logoFile) {
+          logoUrl = null
+        }
+
         const result = await updateClientAction(client.id, values)
         if (result.error) {
           toast.error(result.error)
           return
         }
+
+        // Update logo_url if changed
+        if (logoUrl !== client.logo_url) {
+          const supabase = createBrowserClient()
+          await supabase
+            .from('clients')
+            .update({ logo_url: logoUrl })
+            .eq('id', client.id)
+        }
+
         toast.success('Client updated')
       } else {
+        // Create mode
         const result = await createClientAction(values)
         if (result.error) {
           toast.error(result.error)
           return
         }
+
+        // Upload logo if selected
+        if (logoFile && result.data?.id) {
+          const url = await uploadLogo(result.data.id, logoFile)
+          if (url) {
+            const supabase = createBrowserClient()
+            await supabase
+              .from('clients')
+              .update({ logo_url: url })
+              .eq('id', result.data.id)
+          }
+        }
+
         toast.success('Client created')
       }
       onOpenChange(false)
       router.refresh()
     })
   }
+
+  const clientInitial = form.watch('name')?.charAt(0) || ''
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -120,6 +183,22 @@ export function ClientSheet({
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 mt-6 px-1">
+            {/* Logo Upload */}
+            <div className="flex justify-center pb-2">
+              <ClientLogoUploader
+                preview={logoPreview}
+                clientInitial={clientInitial}
+                onFileSelect={(file, preview) => {
+                  setLogoFile(file)
+                  setLogoPreview(preview)
+                }}
+                onRemove={() => {
+                  setLogoFile(null)
+                  setLogoPreview(null)
+                }}
+              />
+            </div>
+
             <FormField
               control={form.control}
               name="name"
