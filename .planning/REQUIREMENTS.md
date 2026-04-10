@@ -39,12 +39,12 @@
 
 ### Client Management
 
-- [ ] **CLIENT-01**: User can view all clients in a searchable, filterable list
-- [ ] **CLIENT-02**: User can create a new client (name required; email, phone, address, notes optional)
-- [ ] **CLIENT-03**: User can upload a client logo (stored in Supabase Storage)
-- [ ] **CLIENT-04**: User can edit client details
-- [ ] **CLIENT-05**: User can view a client's associated projects
-- [ ] **CLIENT-06**: User can delete a client with a confirmation dialog
+- [x] **CLIENT-01**: User can view all clients in a searchable, filterable list
+- [x] **CLIENT-02**: User can create a new client (name required; email, phone, address, notes optional)
+- [x] **CLIENT-03**: User can upload a client logo (stored in Supabase Storage)
+- [x] **CLIENT-04**: User can edit client details
+- [x] **CLIENT-05**: User can view a client's associated projects
+- [x] **CLIENT-06**: User can delete a client with a confirmation dialog
 
 ### Project Creation
 
@@ -163,7 +163,7 @@
 - [x] **UX-03**: Bottom navigation bar is shown on mobile
 - [x] **UX-04**: Skeleton loaders are shown while content loads
 - [x] **UX-05**: Toast notifications confirm success and surface errors
-- [ ] **UX-06**: Form validation shows inline error messages via zod + react-hook-form
+- [x] **UX-06**: Form validation shows inline error messages via zod + react-hook-form
 
 ## v2 Requirements
 

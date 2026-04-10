@@ -94,7 +94,7 @@ ONBOARD-01, ONBOARD-02, ONBOARD-03, ONBOARD-04, ONBOARD-05, ONBOARD-06, ONBOARD-
 Plans:
 - [x] 03-01-PLAN.md — App shell layout (sidebar, topbar, bottom nav), shared components (StatusBadge, EmptyState), data layer (queries, schemas, server actions) (Wave 1)
 - [x] 03-02-PLAN.md — Dashboard page with stat cards, project list with search/filter/sort, quick actions (Wave 2)
-- [ ] 03-03-PLAN.md — Client management: list page, create/edit Sheet, logo upload, detail page, delete flow (Wave 2)
+- [x] 03-03-PLAN.md — Client management: list page, create/edit Sheet, logo upload, detail page, delete flow (Wave 2)
 
 ### Requirements
 DASH-01, DASH-02, DASH-03, DASH-04, DASH-05, DASH-06, DASH-07, DASH-08, CLIENT-01, CLIENT-02, CLIENT-03, CLIENT-04, CLIENT-05, CLIENT-06, UX-01, UX-02, UX-03, UX-04, UX-05, UX-06
