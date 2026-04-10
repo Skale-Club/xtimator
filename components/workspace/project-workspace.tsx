@@ -6,9 +6,11 @@ import { OverviewTab } from './overview-tab'
 import { PlaceholderTab } from './placeholder-tab'
 import { AudioTab } from './audio/audio-tab'
 import { PhotosTab } from './photos/photos-tab'
+import { EstimateTab } from './estimate/estimate-tab'
 import type { ProjectDetail, ActivityEvent, ProjectQuickStats } from '@/lib/queries/project'
 import type { Recording } from '@/lib/queries/recording'
 import type { Photo } from '@/lib/queries/photo'
+import type { EstimateWithSections, Estimate } from '@/lib/queries/estimate'
 
 interface ProjectWorkspaceProps {
   project: ProjectDetail
@@ -16,9 +18,11 @@ interface ProjectWorkspaceProps {
   stats: ProjectQuickStats
   recordings: Recording[]
   photos: Photo[]
+  currentEstimate: EstimateWithSections | null
+  allVersions: Estimate[]
 }
 
-export function ProjectWorkspace({ project, activity, stats, recordings, photos }: ProjectWorkspaceProps) {
+export function ProjectWorkspace({ project, activity, stats, recordings, photos, currentEstimate, allVersions }: ProjectWorkspaceProps) {
   return (
     <Tabs defaultValue="overview" className="w-full">
       <TabsList className="w-full grid grid-cols-5">
@@ -53,7 +57,14 @@ export function ProjectWorkspace({ project, activity, stats, recordings, photos 
         <PhotosTab projectId={project.id} companyId={project.company_id} initialPhotos={photos} />
       </TabsContent>
       <TabsContent value="estimate">
-        <PlaceholderTab title="AI Estimate" phase={6} />
+        <EstimateTab
+          projectId={project.id}
+          companyId={project.company_id}
+          currentEstimate={currentEstimate}
+          allVersions={allVersions}
+          recordings={recordings}
+          photos={photos}
+        />
       </TabsContent>
       <TabsContent value="send">
         <PlaceholderTab title="Preview & Send" phase={7} />

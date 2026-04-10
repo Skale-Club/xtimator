@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getProjectById, getProjectActivity, getProjectQuickStats } from '@/lib/queries/project'
 import { getProjectRecordings } from '@/lib/queries/recording'
 import { getProjectPhotos } from '@/lib/queries/photo'
+import { getCurrentEstimate, getProjectEstimates } from '@/lib/queries/estimate'
 import { ProjectWorkspace } from '@/components/workspace/project-workspace'
 
 export default async function ProjectPage({
@@ -13,12 +14,14 @@ export default async function ProjectPage({
   const { id } = await params
   const supabase = await createClient()
 
-  const [project, activity, stats, recordings, photos] = await Promise.all([
+  const [project, activity, stats, recordings, photos, currentEstimate, allVersions] = await Promise.all([
     getProjectById(supabase, id),
     getProjectActivity(supabase, id),
     getProjectQuickStats(supabase, id),
     getProjectRecordings(supabase, id),
     getProjectPhotos(supabase, id),
+    getCurrentEstimate(supabase, id),
+    getProjectEstimates(supabase, id),
   ])
 
   if (!project) {
@@ -39,6 +42,8 @@ export default async function ProjectPage({
         stats={stats}
         recordings={recordings}
         photos={photos}
+        currentEstimate={currentEstimate}
+        allVersions={allVersions}
       />
     </div>
   )

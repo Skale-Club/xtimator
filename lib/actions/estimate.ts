@@ -2,6 +2,8 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { getEstimateById } from '@/lib/queries/estimate'
+import type { EstimateWithSections } from '@/lib/queries/estimate'
 
 // ---------------------------------------------------------------------------
 // Auth helper (same pattern as recording.ts)
@@ -550,4 +552,21 @@ async function recalculateEstimateTotals(
   }
 
   return { data: { total } }
+}
+
+// ---------------------------------------------------------------------------
+// Action 5: getEstimateByIdAction (for version switching in the editor)
+// ---------------------------------------------------------------------------
+
+export async function getEstimateByIdAction(
+  estimateId: string
+): Promise<{ data?: EstimateWithSections; error?: string }> {
+  const ctx = await getAuthContext()
+  if ('error' in ctx) return { error: ctx.error }
+  const { supabase } = ctx
+
+  const estimate = await getEstimateById(supabase, estimateId)
+  if (!estimate) return { error: 'Estimate not found' }
+
+  return { data: estimate }
 }
