@@ -143,9 +143,13 @@ PROJ-01, PROJ-02, PROJ-03, PROJ-04, PROJ-05, PROJ-06, PROJ-07, PROJ-08, WS-01, W
 
 ### Plans
 
-1. **Audio recording UI** — Build the Audio Recording tab with MediaRecorder integration; implement MM:SS timer, Web Audio API waveform visualization, and Web Speech API live transcript preview; add start/stop/delete/re-record controls; ensure the implementation works on iOS Safari and Android Chrome.
-2. **Whisper transcription pipeline** — On recording stop, upload the audio blob to Supabase Storage (`audio` bucket, project-scoped path); call `POST /api/transcribe` server route that sends the file to OpenAI Whisper API; return and persist the transcript; display the transcript below the recorder with manual edit capability; support multiple recordings per project with all transcripts concatenated in the AI prompt.
-3. **Photo upload & management UI** — Build the Photos tab with multi-file input (`accept="image/*"`, `capture="environment"` for mobile), drag-and-drop zone (desktop), and client-side compression to max 2000px width; implement photo grid with thumbnails; implement full-size lightbox on tap/click; implement caption editing, reordering via drag-and-drop, and individual delete; enforce 20-photo maximum with user feedback; upload compressed files to Supabase Storage (`photos` bucket, project-scoped path).
+**Plans:** 4 plans
+
+Plans:
+- [ ] 05-01-PLAN.md — Data layer: service role client, recording/photo queries and actions, media format detection, image compression utility, @dnd-kit install (Wave 1)
+- [ ] 05-02-PLAN.md — Audio Recording tab: MediaRecorder with waveform visualization, timer, live transcript preview, recording list with playback and transcript editing (Wave 2)
+- [ ] 05-03-PLAN.md — Photos tab: drop zone with camera capture and drag-and-drop, client-side compression, sortable grid with @dnd-kit, lightbox, caption editing, 20-photo limit (Wave 2)
+- [ ] 05-04-PLAN.md — Workspace wiring: replace PlaceholderTab with AudioTab and PhotosTab, load recordings/photos server-side, human verification checkpoint (Wave 3)
 
 ### Requirements
 AUDIO-01, AUDIO-02, AUDIO-03, AUDIO-04, AUDIO-05, AUDIO-06, AUDIO-07, AUDIO-08, AUDIO-09, AUDIO-10, PHOTO-01, PHOTO-02, PHOTO-03, PHOTO-04, PHOTO-05, PHOTO-06, PHOTO-07, PHOTO-08, PHOTO-09, PHOTO-10, PHOTO-11
@@ -218,6 +222,6 @@ PDF-01, PDF-02, PDF-03, SHARE-01, SHARE-02, SHARE-03, SHARE-04, SHARE-05, SHARE-
 | 2. Company Onboarding | 3/3 | Complete | 2026-04-10 |
 | 3. Dashboard & Client Management | 3/3 | Complete |  |
 | 4. Project Creation & Workspace | 2/3 | In Progress | - |
-| 5. Audio Recording & Photo Management | 0/3 | Not started | - |
+| 5. Audio Recording & Photo Management | 0/4 | Not started | - |
 | 6. AI Estimate Generation & Editor | 0/3 | Not started | - |
 | 7. PDF, Sharing, Email & Settings | 0/4 | Not started | - |
