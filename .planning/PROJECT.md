@@ -15,10 +15,13 @@ A business owner can go from job site audio recording to a sent, professional es
 - [x] Users can sign up, sign in (email/password + Google OAuth), and manage their account via Supabase Auth — Validated in Phase 1: Foundation & Auth
 - [x] First-time users complete a multi-step company onboarding wizard (business info, industry, branding, address, defaults) — Validated in Phase 2: Company Onboarding (human UAT pending)
 
+- [x] Dashboard shows project stats, project list with filters/search/sort, and quick actions — Validated in Phase 3: Dashboard & Client Management
+- [x] Users can manage clients (CRUD) with name, contact info, address, logo, and notes — Validated in Phase 3: Dashboard & Client Management
+- [x] App is fully mobile-responsive; audio recording and camera capture work on mobile browsers — Validated in Phase 3: Dashboard & Client Management (shell + responsive nav)
+
 ### Active
 
 
-- [ ] Users can manage clients (CRUD) with name, contact info, address, logo, and notes
 - [ ] Users can create projects with a 3-step wizard (client selection/creation, project details, confirmation)
 - [ ] Projects have a workspace with tabs: Overview, Audio Recording, Photos, AI Estimate, Preview & Send
 - [ ] Audio recording captures walkthroughs via browser MediaRecorder API with waveform visualization and real-time transcript preview
@@ -98,4 +101,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-10 after Phase 2 completion*
+*Last updated: 2026-04-10 after Phase 3 completion*
