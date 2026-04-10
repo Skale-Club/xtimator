@@ -92,7 +92,7 @@ ONBOARD-01, ONBOARD-02, ONBOARD-03, ONBOARD-04, ONBOARD-05, ONBOARD-06, ONBOARD-
 **Plans:** 3 plans
 
 Plans:
-- [ ] 03-01-PLAN.md — App shell layout (sidebar, topbar, bottom nav), shared components (StatusBadge, EmptyState), data layer (queries, schemas, server actions) (Wave 1)
+- [x] 03-01-PLAN.md — App shell layout (sidebar, topbar, bottom nav), shared components (StatusBadge, EmptyState), data layer (queries, schemas, server actions) (Wave 1)
 - [ ] 03-02-PLAN.md — Dashboard page with stat cards, project list with search/filter/sort, quick actions (Wave 2)
 - [ ] 03-03-PLAN.md — Client management: list page, create/edit Sheet, logo upload, detail page, delete flow (Wave 2)
 

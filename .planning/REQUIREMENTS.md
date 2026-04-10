@@ -158,11 +158,11 @@
 
 ### Mobile & UX
 
-- [ ] **UX-01**: All screens are fully responsive and usable on mobile phones
-- [ ] **UX-02**: Touch targets are minimum 44px for mobile usability
-- [ ] **UX-03**: Bottom navigation bar is shown on mobile
-- [ ] **UX-04**: Skeleton loaders are shown while content loads
-- [ ] **UX-05**: Toast notifications confirm success and surface errors
+- [x] **UX-01**: All screens are fully responsive and usable on mobile phones
+- [x] **UX-02**: Touch targets are minimum 44px for mobile usability
+- [x] **UX-03**: Bottom navigation bar is shown on mobile
+- [x] **UX-04**: Skeleton loaders are shown while content loads
+- [x] **UX-05**: Toast notifications confirm success and surface errors
 - [ ] **UX-06**: Form validation shows inline error messages via zod + react-hook-form
 
 ## v2 Requirements
