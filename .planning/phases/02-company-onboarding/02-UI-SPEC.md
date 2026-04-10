@@ -5,6 +5,7 @@ status: draft
 shadcn_initialized: true
 preset: new-york
 created: 2026-04-10
+revised: 2026-04-10
 ---
 
 # Phase 2 — UI Design Contract
@@ -21,7 +22,7 @@ created: 2026-04-10
 | Preset | new-york, neutral base, CSS variables |
 | Component library | Radix UI primitives |
 | Icon library | Lucide |
-| Font | Inter (variable `--font-inter`) |
+| Font | Plus Jakarta Sans (variable `--font-plus-jakarta-sans`) |
 
 ---
 
@@ -48,13 +49,15 @@ Exceptions: Industry icon cards use 12px internal padding for compact card feel.
 | Role | Size | Weight | Line Height |
 |------|------|--------|-------------|
 | Body | 14px | 400 (regular) | 1.5 |
-| Label | 14px | 500 (medium) | 1.4 |
+| Label | 14px | 400 (regular) | 1.4 |
 | Heading | 20px | 600 (semibold) | 1.2 |
 | Display | 28px | 600 (semibold) | 1.15 |
 
+Labels are differentiated from Body text via `text-muted-foreground` color and uppercase `tracking-wide` letter-spacing, not font weight.
+
 - **Display** is used only for the "EstimateBuilder Pro" wordmark above the card (matches auth pages).
 - **Heading** is used for the step title inside the card (e.g., "Business Information", "Brand Identity", "Address & Defaults").
-- **Label** is used for form field labels and industry card labels.
+- **Label** is used for form field labels and industry card labels. Differentiated from body via color (`--muted-foreground`) and optional uppercase tracking.
 - **Body** is used for helper text, descriptions, and form inputs.
 
 ---
@@ -97,7 +100,7 @@ Dark mode: All values auto-map via existing `.dark` CSS variable overrides in `g
 |-----------|-------------|
 | `OnboardingCard` | Variant of `AuthCard` with `max-w-[600px]` and same centered layout (logo + wordmark above card) |
 | `StepIndicator` | Three numbered circles connected by lines. Active step: filled `--primary` bg with white number. Completed step: checkmark icon. Future step: `--border` outline with `--muted-foreground` number. Clickable for direct navigation. |
-| `IndustrySelector` | 2x4 responsive grid (2x5 with "Other"). Each card: 100px tall, Lucide icon (24px) centered above label (14px medium). Default: `--border` outline. Selected: 2px `--primary` border + `--primary/5%` background tint. |
+| `IndustrySelector` | 2x4 responsive grid (2x5 with "Other"). Each card: 100px tall, Lucide icon (24px) centered above label (14px regular, `--muted-foreground` color, uppercase tracking-wide). Default: `--border` outline. Selected: 2px `--primary` border + `--primary/5%` background tint. |
 | `ColorPicker` | Row of 8-12 circular swatches (32px diameter, 8px gap). Selected swatch: 2px `--primary` ring with 2px offset. Last item is "Custom" swatch opening a hex input popover. |
 | `LogoUploader` | 80px circle. Empty: `--muted` background with Camera icon (24px, `--muted-foreground`). Filled: cropped image preview. Below circle: "Change" and "Remove" text links when image present. Click triggers hidden file input. |
 
@@ -111,15 +114,15 @@ Dark mode: All values auto-map via existing `.dark` CSS variable overrides in `g
 Full viewport height, centered vertically and horizontally
 bg-muted/40 background (matches auth pages)
 
-[Logo SVG + "EstimateBuilder Pro" wordmark]  ← 48px margin-bottom
+[Logo SVG + "EstimateBuilder Pro" wordmark]  <- 48px margin-bottom
 [Wizard Card max-w-[600px] w-full]
-  [StepIndicator — top of card]              ← 24px padding-bottom
+  [StepIndicator -- top of card]              <- 24px padding-bottom
   [Separator]
-  [Step Content — scrollable if needed]       ← 24px padding all sides
+  [Step Content -- scrollable if needed]       <- 24px padding all sides
   [Separator]
-  [Navigation Footer]                         ← 24px padding, flex justify-between
-    [Back button — ghost variant]  [Next/Complete — default variant]
-[Skip for now — text link, centered below card] ← 16px margin-top
+  [Navigation Footer]                         <- 24px padding, flex justify-between
+    [Back button -- ghost variant]  [Next/Complete -- default variant]
+[Skip for now -- text link, centered below card] <- 16px margin-top
 ```
 
 ### Responsive Behavior
@@ -146,7 +149,7 @@ bg-muted/40 background (matches auth pages)
 | Click "Next" | Validate current step fields (blur + form-level). If valid, advance to next step. If invalid, show inline errors and focus first invalid field. |
 | Click "Back" | Return to previous step. No validation triggered. Form data preserved. |
 | Click step indicator dot | Jump to that step. No validation triggered for skipped steps. Form data preserved. |
-| Click "Complete Setup" (Step 3) | Validate Step 3. Submit all data. Show loading spinner on button. On success: toast "Company setup complete" + redirect to `/dashboard`. On error: toast with error message. |
+| Click "Complete Setup" (Step 3) | Validate Step 3. Submit all data. Show loading spinner on button. On success: toast "Company setup complete" + redirect to `/dashboard`. On error: contextual error toast (see Copywriting Contract). |
 | Click "Skip for now" | Create minimal company record (user_id only, plus company name if entered). Redirect to `/dashboard`. No validation. |
 
 ### Logo Upload Interaction
@@ -155,8 +158,8 @@ bg-muted/40 background (matches auth pages)
 |--------|----------|
 | Click avatar circle | Open file picker (accept: `.png,.jpg,.jpeg`, max 2MB) |
 | File selected (valid) | Show image preview in circle. Display "Change" and "Remove" links below. |
-| File selected (too large) | Toast: "Logo must be under 2MB" |
-| File selected (wrong format) | Toast: "Please upload a PNG or JPG image" |
+| File selected (too large) | Toast: "Logo must be under 2MB. Please choose a smaller file." |
+| File selected (wrong format) | Toast: "Unsupported image format. Please upload a PNG or JPG file." |
 | Click "Remove" | Clear preview, restore placeholder. |
 
 ### Industry Selector Interaction
@@ -208,8 +211,10 @@ bg-muted/40 background (matches auth pages)
 | Color section label | "Brand Color" |
 | Color custom label | "Custom" |
 | Success toast | "Company setup complete" |
-| Error toast (generic) | "Something went wrong. Please try again." |
-| Error toast (upload) | "Failed to upload logo. Please try again." |
+| Error toast (save failed) | "Could not save your company details. Please check your connection and try again." |
+| Error toast (logo too large) | "Logo must be under 2MB. Please choose a smaller file." |
+| Error toast (logo wrong format) | "Unsupported image format. Please upload a PNG or JPG file." |
+| Error toast (invalid hex) | "Invalid color code. Please enter a 6-digit hex value like #0D9488." |
 | Skip confirmation (none) | No confirmation dialog for skip. Direct redirect. |
 
 ---
@@ -247,7 +252,7 @@ bg-muted/40 background (matches auth pages)
 | Slate | `#475569` | |
 | Zinc | `#3F3F46` | |
 
-Default selection: Teal (`#0D9488`) — matches existing theme primary color from CLAUDE.md.
+Default selection: Teal (`#0D9488`) -- matches existing theme primary color from CLAUDE.md.
 
 ---
 
