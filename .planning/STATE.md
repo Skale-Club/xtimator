@@ -16,10 +16,10 @@ progress:
 ## Current Status
 
 - **Phase**: 04-project-creation-workspace
-- **Current Plan**: Plan 01 of 03 COMPLETE
+- **Current Plan**: Plan 03 of 03 COMPLETE
 - **Last updated**: 2026-04-10
-- **Last session**: 2026-04-10T13:06:22Z
-- **Stopped at**: Completed 04-project-creation-workspace/04-01-PLAN.md
+- **Last session**: 2026-04-10T13:19:00Z
+- **Stopped at**: Completed 04-project-creation-workspace/04-03-PLAN.md
 
 ## Active Phase
 
@@ -27,7 +27,7 @@ Phase 4: Project Creation & Workspace (04-project-creation-workspace)
 
 - Plan 01: Project data layer (schema, queries, actions) — COMPLETE (b08c8ec, 18205bb)
 - Plan 02: Project creation wizard UI — PENDING
-- Plan 03: Project workspace UI — PENDING
+- Plan 03: Project workspace UI — COMPLETE (uncommitted - sandbox blocked git add/commit)
 
 ## Completed Phases
 
@@ -80,6 +80,9 @@ Phase 4: Project Creation & Workspace (04-project-creation-workspace)
 - [Phase 04-project-creation-workspace]: createProjectAction returns { data: project } for client-side redirect, not server redirect (D-04 / Pitfall 6)
 - [Phase 04-project-creation-workspace]: getProjectQuickStats uses Promise.all with 3 count queries on recordings, photos, estimates
 - [Phase 04-project-creation-workspace]: Activity logging pattern: insert estimate_activity row with event_type and metadata after entity creation
+- [Phase 04-project-creation-workspace 04-03]: Tab labels hidden on mobile (hidden sm:inline), icons always visible for compact layout
+- [Phase 04-project-creation-workspace 04-03]: EVENT_CONFIG Record maps event_type to icon+label with Clock fallback for unknown types
+- [Phase 04-project-creation-workspace 04-03]: All workspace child components use 'use client' since Tabs requires client-side interactivity
 
 ## Performance Metrics
 
@@ -96,6 +99,7 @@ Phase 4: Project Creation & Workspace (04-project-creation-workspace)
 | 03-dashboard-client-management | 02 | 4min | 2 | 9 |
 | 03-dashboard-client-management | 03 | 7min | 2 | 9 |
 | Phase 04-project-creation-workspace P01 | 5min | 2 tasks | 4 files |
+| 04-project-creation-workspace | 03 | 5min | 2 | 7 |
 
 ## Notes
 

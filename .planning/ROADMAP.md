@@ -121,7 +121,7 @@ DASH-01, DASH-02, DASH-03, DASH-04, DASH-05, DASH-06, DASH-07, DASH-08, CLIENT-0
 Plans:
 - [x] 04-01-PLAN.md — Data layer: project Zod schema, query functions (getProjectById, getProjectActivity, getProjectQuickStats), createProjectAction, relative-time utility (Wave 1)
 - [ ] 04-02-PLAN.md — New Project Wizard: 3-step form at /projects/new with client selection, inline client creation, project details with auto-name, confirmation (Wave 2)
-- [ ] 04-03-PLAN.md — Project Workspace: 5-tab layout at /projects/[id] with Overview tab (summary card, activity timeline, quick stats), placeholder tabs for Phases 5-7 (Wave 2)
+- [x] 04-03-PLAN.md — Project Workspace: 5-tab layout at /projects/[id] with Overview tab (summary card, activity timeline, quick stats), placeholder tabs for Phases 5-7 (Wave 2) -- COMPLETE (files written, commits pending)
 
 ### Requirements
 PROJ-01, PROJ-02, PROJ-03, PROJ-04, PROJ-05, PROJ-06, PROJ-07, PROJ-08, WS-01, WS-02, WS-03
@@ -217,7 +217,7 @@ PDF-01, PDF-02, PDF-03, SHARE-01, SHARE-02, SHARE-03, SHARE-04, SHARE-05, SHARE-
 | 1. Foundation & Auth | 4/4 | Complete    | 2026-04-10 |
 | 2. Company Onboarding | 3/3 | Complete | 2026-04-10 |
 | 3. Dashboard & Client Management | 3/3 | Complete |  |
-| 4. Project Creation & Workspace | 0/3 | Not started | - |
+| 4. Project Creation & Workspace | 2/3 | In Progress | - |
 | 5. Audio Recording & Photo Management | 0/3 | Not started | - |
 | 6. AI Estimate Generation & Editor | 0/3 | Not started | - |
 | 7. PDF, Sharing, Email & Settings | 0/4 | Not started | - |
