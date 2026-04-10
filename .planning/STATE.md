@@ -8,7 +8,7 @@ progress:
   total_phases: 7
   completed_phases: 1
   total_plans: 7
-  completed_plans: 5
+  completed_plans: 6
 ---
 
 # Project State
@@ -16,17 +16,17 @@ progress:
 ## Current Status
 
 - **Phase**: 02-company-onboarding
-- **Current Plan**: 02-02 (next to execute)
+- **Current Plan**: 02-03 (next to execute)
 - **Last updated**: 2026-04-10
-- **Last session**: 2026-04-10T10:14:12Z
-- **Stopped at**: Completed 02-company-onboarding/02-01-PLAN.md
+- **Last session**: 2026-04-10T10:41:28Z
+- **Stopped at**: Completed 02-company-onboarding/02-02-PLAN.md
 
 ## Active Phase
 
 Phase 2: Company Onboarding (02-company-onboarding)
 
 - Plan 01: INDUSTRIES config & types — COMPLETE (31df2c2, 18fa8d2)
-- Plan 02: Onboarding wizard UI — pending
+- Plan 02: Onboarding wizard UI — COMPLETE (b72528f, b2affc6)
 - Plan 03: Logo upload & company persistence — pending
 
 ## Completed Phases
@@ -54,6 +54,9 @@ Phase 2: Company Onboarding (02-company-onboarding)
 - [Phase 02-company-onboarding 02-01]: INDUSTRIES uses `as const satisfies Industry[]` for type safety with literal inference
 - [Phase 02-company-onboarding 02-01]: Email/website use `.optional().or(z.literal(''))` zod pattern for empty string bypass
 - [Phase 02-company-onboarding 02-01]: STEP_FIELDS typed as Record<number, (keyof OnboardingValues)[]> for type-safe step validation
+- [Phase 02-company-onboarding 02-02]: zodResolver cast to any for zod v4 optional+default type mismatch with react-hook-form
+- [Phase 02-company-onboarding 02-02]: Single useForm shared across all wizard steps for data preservation on back/forward
+- [Phase 02-company-onboarding 02-02]: createOrUpdateCompany stub at lib/actions/company.ts -- Plan 03 replaces
 
 ## Performance Metrics
 
@@ -64,6 +67,7 @@ Phase 2: Company Onboarding (02-company-onboarding)
 | 01-foundation-auth | 03 | 3min | 1 | 2 |
 | 01-foundation-auth | 04 | 12min | 3 | 12 |
 | 02-company-onboarding | 01 | 5min | 2 | 4 |
+| 02-company-onboarding | 02 | 22min | 2 | 12 |
 
 ## Notes
 

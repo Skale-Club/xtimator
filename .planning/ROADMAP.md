@@ -62,11 +62,11 @@ AUTH-01, AUTH-02, AUTH-03, AUTH-04, AUTH-05, AUTH-06, AUTH-07, SEC-01, SEC-02, S
 
 ### Plans
 
-**Plans:** 1/3 plans executed
+**Plans:** 2/3 plans executed
 
 Plans:
 - [x] 02-01-PLAN.md — INDUSTRIES config, onboarding Zod schema, and unit tests (Wave 1)
-- [ ] 02-02-PLAN.md — Onboarding wizard UI: 3-step form with industry selector, color picker, logo uploader (Wave 2)
+- [x] 02-02-PLAN.md — Onboarding wizard UI: 3-step form with industry selector, color picker, logo uploader (Wave 2)
 - [ ] 02-03-PLAN.md — Server action for company persistence and logo upload to Supabase Storage (Wave 3)
 
 ### Requirements
@@ -209,7 +209,7 @@ PDF-01, PDF-02, PDF-03, SHARE-01, SHARE-02, SHARE-03, SHARE-04, SHARE-05, SHARE-
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation & Auth | 4/4 | Complete    | 2026-04-10 |
-| 2. Company Onboarding | 1/3 | In Progress|  |
+| 2. Company Onboarding | 2/3 | In Progress | - |
 | 3. Dashboard & Client Management | 0/3 | Not started | - |
 | 4. Project Creation & Workspace | 0/3 | Not started | - |
 | 5. Audio Recording & Photo Management | 0/3 | Not started | - |
