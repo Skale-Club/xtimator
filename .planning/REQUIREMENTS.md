@@ -48,20 +48,20 @@
 
 ### Project Creation
 
-- [ ] **PROJ-01**: New project wizard has 3 steps: client selection, project details, confirmation
+- [x] **PROJ-01**: New project wizard has 3 steps: client selection, project details, confirmation
 - [ ] **PROJ-02**: User can select an existing client or create a new one inline during project creation
-- [ ] **PROJ-03**: Project name auto-suggests based on client name + project type
-- [ ] **PROJ-04**: Project type dropdown is populated from the company's industry config
-- [ ] **PROJ-05**: User can enter a custom project type if "Custom" is selected
-- [ ] **PROJ-06**: User can optionally enter a target budget (USD)
+- [x] **PROJ-03**: Project name auto-suggests based on client name + project type
+- [x] **PROJ-04**: Project type dropdown is populated from the company's industry config
+- [x] **PROJ-05**: User can enter a custom project type if "Custom" is selected
+- [x] **PROJ-06**: User can optionally enter a target budget (USD)
 - [ ] **PROJ-07**: Confirmation step shows summary before creating the project
-- [ ] **PROJ-08**: After creation, user is redirected to the Project Workspace
+- [x] **PROJ-08**: After creation, user is redirected to the Project Workspace
 
 ### Project Workspace
 
 - [ ] **WS-01**: Project workspace has 5 tabs: Overview, Audio Recording, Photos, AI Estimate, Preview & Send
-- [ ] **WS-02**: Overview tab shows project summary card, activity timeline, and quick stats
-- [ ] **WS-03**: Project status is displayed and updates automatically as actions are taken
+- [x] **WS-02**: Overview tab shows project summary card, activity timeline, and quick stats
+- [x] **WS-03**: Project status is displayed and updates automatically as actions are taken
 
 ### Audio Recording
 

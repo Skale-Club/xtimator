@@ -119,7 +119,7 @@ DASH-01, DASH-02, DASH-03, DASH-04, DASH-05, DASH-06, DASH-07, DASH-08, CLIENT-0
 **Plans:** 3 plans
 
 Plans:
-- [ ] 04-01-PLAN.md — Data layer: project Zod schema, query functions (getProjectById, getProjectActivity, getProjectQuickStats), createProjectAction, relative-time utility (Wave 1)
+- [x] 04-01-PLAN.md — Data layer: project Zod schema, query functions (getProjectById, getProjectActivity, getProjectQuickStats), createProjectAction, relative-time utility (Wave 1)
 - [ ] 04-02-PLAN.md — New Project Wizard: 3-step form at /projects/new with client selection, inline client creation, project details with auto-name, confirmation (Wave 2)
 - [ ] 04-03-PLAN.md — Project Workspace: 5-tab layout at /projects/[id] with Overview tab (summary card, activity timeline, quick stats), placeholder tabs for Phases 5-7 (Wave 2)
 
