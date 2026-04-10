@@ -20,10 +20,10 @@
 - [x] **ONBOARD-01**: Multi-step wizard collects business info (name, owner name, phone, email, website)
 - [x] **ONBOARD-02**: User selects industry from INDUSTRIES config (8 options)
 - [x] **ONBOARD-03**: User picks brand primary color via color picker
-- [ ] **ONBOARD-04**: User can upload company logo (stored in Supabase Storage)
+- [x] **ONBOARD-04**: User can upload company logo (stored in Supabase Storage)
 - [x] **ONBOARD-05**: User can enter business address, license number, insurance info
 - [x] **ONBOARD-06**: User sets default tax rate, payment terms, and warranty terms
-- [ ] **ONBOARD-07**: After onboarding, user is redirected to main dashboard
+- [x] **ONBOARD-07**: After onboarding, user is redirected to main dashboard
 - [x] **ONBOARD-08**: Onboarding can be skipped and completed later via Settings
 
 ### Dashboard

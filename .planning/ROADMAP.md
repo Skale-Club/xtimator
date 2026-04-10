@@ -67,7 +67,7 @@ AUTH-01, AUTH-02, AUTH-03, AUTH-04, AUTH-05, AUTH-06, AUTH-07, SEC-01, SEC-02, S
 Plans:
 - [x] 02-01-PLAN.md — INDUSTRIES config, onboarding Zod schema, and unit tests (Wave 1)
 - [x] 02-02-PLAN.md — Onboarding wizard UI: 3-step form with industry selector, color picker, logo uploader (Wave 2)
-- [ ] 02-03-PLAN.md — Server action for company persistence and logo upload to Supabase Storage (Wave 3)
+- [x] 02-03-PLAN.md — Server action for company persistence and logo upload to Supabase Storage (Wave 3)
 
 ### Requirements
 ONBOARD-01, ONBOARD-02, ONBOARD-03, ONBOARD-04, ONBOARD-05, ONBOARD-06, ONBOARD-07, ONBOARD-08

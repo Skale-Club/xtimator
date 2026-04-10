@@ -3,23 +3,23 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: Executing Phase 02
-last_updated: "2026-04-10T10:07:37.039Z"
+last_updated: "2026-04-10T11:13:32.629Z"
 progress:
   total_phases: 7
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 7
-  completed_plans: 6
+  completed_plans: 7
 ---
 
 # Project State
 
 ## Current Status
 
-- **Phase**: 02-company-onboarding
-- **Current Plan**: 02-03 (next to execute)
+- **Phase**: 02-company-onboarding (COMPLETE)
+- **Current Plan**: Phase 02 complete, ready for Phase 03
 - **Last updated**: 2026-04-10
-- **Last session**: 2026-04-10T10:41:28Z
-- **Stopped at**: Completed 02-company-onboarding/02-02-PLAN.md
+- **Last session**: 2026-04-10T11:13:00Z
+- **Stopped at**: Completed 02-company-onboarding/02-03-PLAN.md
 
 ## Active Phase
 
@@ -27,7 +27,7 @@ Phase 2: Company Onboarding (02-company-onboarding)
 
 - Plan 01: INDUSTRIES config & types — COMPLETE (31df2c2, 18fa8d2)
 - Plan 02: Onboarding wizard UI — COMPLETE (b72528f, b2affc6)
-- Plan 03: Logo upload & company persistence — pending
+- Plan 03: Logo upload & company persistence — COMPLETE (40017b3)
 
 ## Completed Phases
 
@@ -57,6 +57,8 @@ Phase 2: Company Onboarding (02-company-onboarding)
 - [Phase 02-company-onboarding 02-02]: zodResolver cast to any for zod v4 optional+default type mismatch with react-hook-form
 - [Phase 02-company-onboarding 02-02]: Single useForm shared across all wizard steps for data preservation on back/forward
 - [Phase 02-company-onboarding 02-02]: createOrUpdateCompany stub at lib/actions/company.ts -- Plan 03 replaces
+- [Phase 02-company-onboarding]: SELECT-then-INSERT/UPDATE pattern for company upsert (no UNIQUE on user_id)
+- [Phase 02-company-onboarding]: Logo stored at {user_id}/logo.{ext} in Storage logos bucket
 
 ## Performance Metrics
 
@@ -68,6 +70,7 @@ Phase 2: Company Onboarding (02-company-onboarding)
 | 01-foundation-auth | 04 | 12min | 3 | 12 |
 | 02-company-onboarding | 01 | 5min | 2 | 4 |
 | 02-company-onboarding | 02 | 22min | 2 | 12 |
+| 02-company-onboarding | 03 | 8min | 2 | 2 |
 
 ## Notes
 
