@@ -17,7 +17,7 @@ EstimateBuilder Pro delivers a full AI-powered estimating workflow for US servic
 - [x] **Phase 1: Foundation & Auth** - Project scaffold, Supabase wiring, database schema, and complete authentication flow (completed 2026-04-09)
 - [x] **Phase 2: Company Onboarding** - Multi-step wizard that captures business identity and redirects to dashboard (completed 2026-04-10)
 - [x] **Phase 3: Dashboard & Client Management** - Main app shell, project list with search/filter, and full client CRUD
-- [ ] **Phase 4: Project Creation & Workspace** - New project wizard and the 5-tab workspace shell with overview tab
+- [x] **Phase 4: Project Creation & Workspace** - New project wizard and the 5-tab workspace shell with overview tab (completed 2026-04-10)
 - [x] **Phase 5: Audio Recording & Photo Management** - Job-site capture: mic recording with Whisper transcription and photo upload pipeline (completed 2026-04-10)
 - [ ] **Phase 6: AI Estimate Generation & Editor** - Claude-powered estimate generation, structured JSON persistence, and inline editor with auto-save
 - [ ] **Phase 7: PDF, Sharing, Email & Settings** - Branded PDF export, public share page with client accept/decline, Resend email delivery, and settings
@@ -116,7 +116,7 @@ DASH-01, DASH-02, DASH-03, DASH-04, DASH-05, DASH-06, DASH-07, DASH-08, CLIENT-0
 
 ### Plans
 
-**Plans:** 3 plans
+**Plans:** 3/3 plans complete
 
 Plans:
 - [x] 04-01-PLAN.md — Data layer: project Zod schema, query functions (getProjectById, getProjectActivity, getProjectQuickStats), createProjectAction, relative-time utility (Wave 1)
@@ -221,7 +221,7 @@ PDF-01, PDF-02, PDF-03, SHARE-01, SHARE-02, SHARE-03, SHARE-04, SHARE-05, SHARE-
 | 1. Foundation & Auth | 4/4 | Complete    | 2026-04-10 |
 | 2. Company Onboarding | 3/3 | Complete | 2026-04-10 |
 | 3. Dashboard & Client Management | 3/3 | Complete |  |
-| 4. Project Creation & Workspace | 2/3 | In Progress | - |
+| 4. Project Creation & Workspace | 3/3 | Complete   | 2026-04-10 |
 | 5. Audio Recording & Photo Management | 4/4 | Complete   | 2026-04-10 |
 | 6. AI Estimate Generation & Editor | 0/3 | Not started | - |
 | 7. PDF, Sharing, Email & Settings | 0/4 | Not started | - |
