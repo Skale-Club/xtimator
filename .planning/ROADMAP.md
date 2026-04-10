@@ -14,7 +14,7 @@ EstimateBuilder Pro delivers a full AI-powered estimating workflow for US servic
 
 ## Phases
 
-- [x] **Phase 1: Foundation & Auth** - Project scaffold, Supabase wiring, database schema, and complete authentication flow (completed 2026-04-09)
+- [x] **Phase 1: Foundation & Auth** - Project scaffold, Supabase wiring, database schema, and complete authentication flow (completed 2026-04-09)
 - [ ] **Phase 2: Company Onboarding** - Multi-step wizard that captures business identity and redirects to dashboard
 - [ ] **Phase 3: Dashboard & Client Management** - Main app shell, project list with search/filter, and full client CRUD
 - [ ] **Phase 4: Project Creation & Workspace** - New project wizard and the 5-tab workspace shell with overview tab
@@ -62,9 +62,12 @@ AUTH-01, AUTH-02, AUTH-03, AUTH-04, AUTH-05, AUTH-06, AUTH-07, SEC-01, SEC-02, S
 
 ### Plans
 
-1. **INDUSTRIES config & types** — Define the `INDUSTRIES` constant (8 service types) with associated project-type lists and default templates; export shared TypeScript types for `Company`, `Industry`, and `BrandConfig`.
-2. **Onboarding wizard UI** — Build the `/onboarding` multi-step wizard with three steps: (1) business info form (name, owner, phone, email, website), (2) industry selector + brand color picker, (3) address/license/insurance + tax rate/payment terms/warranty terms; include step progress indicator and skip-to-later affordance.
-3. **Logo upload & company persistence** — Implement logo upload to Supabase Storage (`logos` bucket, company-scoped path); write the `POST /api/company` server action that inserts or updates the `companies` row; on completion redirect to `/dashboard`.
+**Plans:** 3 plans
+
+Plans:
+- [ ] 02-01-PLAN.md — INDUSTRIES config, onboarding Zod schema, and unit tests (Wave 1)
+- [ ] 02-02-PLAN.md — Onboarding wizard UI: 3-step form with industry selector, color picker, logo uploader (Wave 2)
+- [ ] 02-03-PLAN.md — Server action for company persistence and logo upload to Supabase Storage (Wave 3)
 
 ### Requirements
 ONBOARD-01, ONBOARD-02, ONBOARD-03, ONBOARD-04, ONBOARD-05, ONBOARD-06, ONBOARD-07, ONBOARD-08
