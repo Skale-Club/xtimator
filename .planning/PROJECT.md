@@ -19,6 +19,9 @@ A business owner can go from job site audio recording to a sent, professional es
 - [x] Users can manage clients (CRUD) with name, contact info, address, logo, and notes — Validated in Phase 3: Dashboard & Client Management
 - [x] App is fully mobile-responsive; audio recording and camera capture work on mobile browsers — Validated in Phase 3: Dashboard & Client Management (shell + responsive nav)
 
+- [x] Users can create projects with a 3-step wizard (client selection/creation, project details, confirmation) — Validated in Phase 4: Project Creation & Workspace
+- [x] Projects have a workspace with tabs: Overview, Audio Recording, Photos, AI Estimate, Preview & Send — Validated in Phase 4: Project Creation & Workspace (Overview working, others placeholder)
+
 ### Active
 
 
@@ -101,4 +104,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-10 after Phase 3 completion*
+*Last updated: 2026-04-10 after Phase 4 completion*
