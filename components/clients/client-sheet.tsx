@@ -1,0 +1,251 @@
+'use client'
+
+import { useEffect, useState, useTransition } from 'react'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { toast } from 'sonner'
+import { useRouter } from 'next/navigation'
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from '@/components/ui/sheet'
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { Button } from '@/components/ui/button'
+import { clientSchema, type ClientFormValues } from '@/lib/schemas/client'
+import { createClientAction, updateClientAction } from '@/lib/actions/client'
+import type { ClientDetail } from '@/lib/queries/clients'
+
+interface ClientSheetProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  client: ClientDetail | null
+  companyId: string
+}
+
+export function ClientSheet({
+  open,
+  onOpenChange,
+  client,
+  companyId,
+}: ClientSheetProps) {
+  const router = useRouter()
+  const [isPending, startTransition] = useTransition()
+  const isEditing = !!client
+
+  const form = useForm<ClientFormValues>({
+    resolver: zodResolver(clientSchema) as any,
+    defaultValues: {
+      name: '',
+      email: '',
+      phone: '',
+      address: '',
+      city: '',
+      state: '',
+      zip: '',
+      notes: '',
+    },
+  })
+
+  useEffect(() => {
+    if (client) {
+      form.reset({
+        name: client.name,
+        email: client.email ?? '',
+        phone: client.phone ?? '',
+        address: client.address ?? '',
+        city: client.city ?? '',
+        state: client.state ?? '',
+        zip: client.zip ?? '',
+        notes: client.notes ?? '',
+      })
+    } else {
+      form.reset({
+        name: '',
+        email: '',
+        phone: '',
+        address: '',
+        city: '',
+        state: '',
+        zip: '',
+        notes: '',
+      })
+    }
+  }, [client, form])
+
+  function onSubmit(values: ClientFormValues) {
+    startTransition(async () => {
+      if (isEditing && client) {
+        const result = await updateClientAction(client.id, values)
+        if (result.error) {
+          toast.error(result.error)
+          return
+        }
+        toast.success('Client updated')
+      } else {
+        const result = await createClientAction(values)
+        if (result.error) {
+          toast.error(result.error)
+          return
+        }
+        toast.success('Client created')
+      }
+      onOpenChange(false)
+      router.refresh()
+    })
+  }
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="right" className="overflow-y-auto">
+        <SheetHeader>
+          <SheetTitle>{isEditing ? 'Edit Client' : 'Add Client'}</SheetTitle>
+          <SheetDescription>
+            {isEditing
+              ? 'Update client information.'
+              : 'Add a new client to your database.'}
+          </SheetDescription>
+        </SheetHeader>
+
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 mt-6 px-1">
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Name *</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Client name" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="email"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Email</FormLabel>
+                  <FormControl>
+                    <Input type="email" placeholder="Email address" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="phone"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Phone</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Phone number" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="address"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Address</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Street address" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <div className="grid grid-cols-3 gap-3">
+              <FormField
+                control={form.control}
+                name="city"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>City</FormLabel>
+                    <FormControl>
+                      <Input placeholder="City" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="state"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>State</FormLabel>
+                    <FormControl>
+                      <Input placeholder="State" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="zip"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>ZIP</FormLabel>
+                    <FormControl>
+                      <Input placeholder="ZIP code" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <FormField
+              control={form.control}
+              name="notes"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Notes</FormLabel>
+                  <FormControl>
+                    <Textarea placeholder="Notes..." {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <Button type="submit" className="w-full" disabled={isPending}>
+              {isPending
+                ? isEditing
+                  ? 'Updating...'
+                  : 'Creating...'
+                : isEditing
+                  ? 'Update Client'
+                  : 'Add Client'}
+            </Button>
+          </form>
+        </Form>
+      </SheetContent>
+    </Sheet>
+  )
+}

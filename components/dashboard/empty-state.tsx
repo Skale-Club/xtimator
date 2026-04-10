@@ -8,6 +8,7 @@ interface EmptyStateProps {
   description: string
   actionLabel?: string
   actionHref?: string
+  onAction?: () => void
   onClearFilter?: () => void
 }
 
@@ -17,6 +18,7 @@ export function EmptyState({
   description,
   actionLabel,
   actionHref,
+  onAction,
   onClearFilter,
 }: EmptyStateProps) {
   return (
@@ -29,6 +31,10 @@ export function EmptyState({
         <Button asChild>
           <Link href={actionHref}>{actionLabel}</Link>
         </Button>
+      )}
+
+      {actionLabel && onAction && !actionHref && (
+        <Button onClick={onAction}>{actionLabel}</Button>
       )}
 
       {onClearFilter && (
