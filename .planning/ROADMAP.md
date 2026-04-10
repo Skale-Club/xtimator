@@ -198,10 +198,13 @@ AI-01, AI-02, AI-03, AI-04, AI-05, AI-06, AI-07, AI-08, AI-09, AI-10, EDIT-01, E
 
 ### Plans
 
-1. **PDF generation** — Implement `GET /api/estimates/[id]/pdf` server route using `@react-pdf/renderer`; build a branded PDF document component that includes company logo, brand colors, contact info, client info, project details, all sections and line items, totals (subtotal, discount, tax, grand total), payment/warranty terms, page numbers, and proper page breaks; return as a downloadable PDF binary.
-2. **Public share page & client response** — Generate a unique `share_token` (UUID) on estimate save; implement the public `/estimate/[share_token]` page (unauthenticated, read-only, branded with company logo and colors); implement "Accept" and "Decline" buttons that call `POST /api/estimates/share/[token]/respond`; record acceptance/decline with timestamp and update project status; log each view event to `estimate_activity`; send email notification to the business owner via Resend when the estimate is viewed, accepted, or declined (if notification preference enabled).
-3. **Email delivery** — Build the "Send via Email" compose form in the Preview & Send tab pre-filled with client email and default subject; implement a customizable email body template with estimate summary and share link; implement optional PDF attachment toggle; call `POST /api/estimates/[id]/send` which uses the Resend API; update project status to `sent` on success; implement "Mark as Sent" button for in-person delivery.
-4. **Settings page** — Build `/settings` with four sections: (1) Company Info — all fields from onboarding editable including logo and brand color; (2) Defaults — payment terms, warranty terms, tax rate, validity period; (3) Notifications — toggles for viewed/accepted/declined email alerts; (4) Account — change password, change email, delete account with confirmation dialog.
+**Plans:** 4 plans
+
+Plans:
+- [ ] 07-01-PLAN.md — PDF generation: @react-pdf/renderer install, EstimatePDF document component, GET /api/estimates/[id]/pdf route (Wave 1)
+- [ ] 07-02-PLAN.md — Public share page: /estimate/[token] with branded view, accept/decline, view logging, email notifications (Wave 2)
+- [ ] 07-03-PLAN.md — Email delivery: Resend install, Send tab with preview/compose form, POST /api/estimates/[id]/send, Mark as Sent, workspace wiring (Wave 2)
+- [ ] 07-04-PLAN.md — Settings page: company info, defaults, notifications, account management (Wave 1)
 
 ### Requirements
 PDF-01, PDF-02, PDF-03, SHARE-01, SHARE-02, SHARE-03, SHARE-04, SHARE-05, SHARE-06, SHARE-07, EMAIL-01, EMAIL-02, EMAIL-03, EMAIL-04, EMAIL-05, EMAIL-06, SET-01, SET-02, SET-03, SET-04, SET-05, SET-06
@@ -227,4 +230,4 @@ PDF-01, PDF-02, PDF-03, SHARE-01, SHARE-02, SHARE-03, SHARE-04, SHARE-05, SHARE-
 | 4. Project Creation & Workspace | 3/3 | Complete   | 2026-04-10 |
 | 5. Audio Recording & Photo Management | 4/4 | Complete   | 2026-04-10 |
 | 6. AI Estimate Generation & Editor | 3/3 | Complete   | 2026-04-10 |
-| 7. PDF, Sharing, Email & Settings | 0/4 | Not started | - |
+| 7. PDF, Sharing, Email & Settings | 0/4 | Planning complete | - |
