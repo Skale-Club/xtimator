@@ -59,7 +59,7 @@
 
 ### Project Workspace
 
-- [ ] **WS-01**: Project workspace has 5 tabs: Overview, Audio Recording, Photos, AI Estimate, Preview & Send
+- [x] **WS-01**: Project workspace has 5 tabs: Overview, Audio Recording, Photos, AI Estimate, Preview & Send
 - [x] **WS-02**: Overview tab shows project summary card, activity timeline, and quick stats
 - [x] **WS-03**: Project status is displayed and updates automatically as actions are taken
 
@@ -207,7 +207,7 @@
 | DASH-01 to DASH-08 | Phase 3 | Pending |
 | CLIENT-01 to CLIENT-06 | Phase 3 | Pending |
 | PROJ-01 to PROJ-08 | Phase 4 | Pending |
-| WS-01 to WS-03 | Phase 4 | Pending |
+| WS-01 to WS-03 | Phase 4 | Complete (04-03) |
 | AUDIO-01 to AUDIO-10 | Phase 5 | Pending |
 | PHOTO-01 to PHOTO-11 | Phase 5 | Pending |
 | AI-01 to AI-10 | Phase 6 | Pending |
