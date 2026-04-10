@@ -12,12 +12,12 @@ A business owner can go from job site audio recording to a sent, professional es
 
 ### Validated
 
-(None yet — ship to validate)
+- [x] Users can sign up, sign in (email/password + Google OAuth), and manage their account via Supabase Auth — Validated in Phase 1: Foundation & Auth
+- [x] First-time users complete a multi-step company onboarding wizard (business info, industry, branding, address, defaults) — Validated in Phase 2: Company Onboarding (human UAT pending)
 
 ### Active
 
-- [ ] Users can sign up, sign in (email/password + Google OAuth), and manage their account via Supabase Auth
-- [ ] First-time users complete a multi-step company onboarding wizard (business info, industry, branding, address, defaults)
+
 - [ ] Users can manage clients (CRUD) with name, contact info, address, logo, and notes
 - [ ] Users can create projects with a 3-step wizard (client selection/creation, project details, confirmation)
 - [ ] Projects have a workspace with tabs: Overview, Audio Recording, Photos, AI Estimate, Preview & Send
@@ -98,4 +98,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-09 after initialization*
+*Last updated: 2026-04-10 after Phase 2 completion*
