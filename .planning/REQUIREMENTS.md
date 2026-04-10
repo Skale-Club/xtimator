@@ -28,14 +28,14 @@
 
 ### Dashboard
 
-- [ ] **DASH-01**: Dashboard shows total projects, pending estimates, accepted count, and total revenue stats
-- [ ] **DASH-02**: Project list displays all projects with name, client, type, status badge, total, and date
-- [ ] **DASH-03**: User can search projects by name or client name
-- [ ] **DASH-04**: User can filter projects by status (All, Draft, Processing, Ready, Sent, Accepted, Declined, Archived)
-- [ ] **DASH-05**: User can sort projects (newest, oldest, highest value, alphabetical)
-- [ ] **DASH-06**: "+ New Project" button is prominently accessible
-- [ ] **DASH-07**: Each project card has quick actions: View, Edit, Delete, Duplicate
-- [ ] **DASH-08**: Delete project shows confirmation dialog before proceeding
+- [x] **DASH-01**: Dashboard shows total projects, pending estimates, accepted count, and total revenue stats
+- [x] **DASH-02**: Project list displays all projects with name, client, type, status badge, total, and date
+- [x] **DASH-03**: User can search projects by name or client name
+- [x] **DASH-04**: User can filter projects by status (All, Draft, Processing, Ready, Sent, Accepted, Declined, Archived)
+- [x] **DASH-05**: User can sort projects (newest, oldest, highest value, alphabetical)
+- [x] **DASH-06**: "+ New Project" button is prominently accessible
+- [x] **DASH-07**: Each project card has quick actions: View, Edit, Delete, Duplicate
+- [x] **DASH-08**: Delete project shows confirmation dialog before proceeding
 
 ### Client Management
 

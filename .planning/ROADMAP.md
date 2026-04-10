@@ -89,11 +89,11 @@ ONBOARD-01, ONBOARD-02, ONBOARD-03, ONBOARD-04, ONBOARD-05, ONBOARD-06, ONBOARD-
 
 ### Plans
 
-**Plans:** 3 plans
+**Plans:** 2/3 plans executed
 
 Plans:
 - [x] 03-01-PLAN.md — App shell layout (sidebar, topbar, bottom nav), shared components (StatusBadge, EmptyState), data layer (queries, schemas, server actions) (Wave 1)
-- [ ] 03-02-PLAN.md — Dashboard page with stat cards, project list with search/filter/sort, quick actions (Wave 2)
+- [x] 03-02-PLAN.md — Dashboard page with stat cards, project list with search/filter/sort, quick actions (Wave 2)
 - [ ] 03-03-PLAN.md — Client management: list page, create/edit Sheet, logo upload, detail page, delete flow (Wave 2)
 
 ### Requirements
@@ -213,7 +213,7 @@ PDF-01, PDF-02, PDF-03, SHARE-01, SHARE-02, SHARE-03, SHARE-04, SHARE-05, SHARE-
 |-------|----------------|--------|-----------|
 | 1. Foundation & Auth | 4/4 | Complete    | 2026-04-10 |
 | 2. Company Onboarding | 3/3 | Complete | 2026-04-10 |
-| 3. Dashboard & Client Management | 0/3 | Planned | - |
+| 3. Dashboard & Client Management | 2/3 | In Progress|  |
 | 4. Project Creation & Workspace | 0/3 | Not started | - |
 | 5. Audio Recording & Photo Management | 0/3 | Not started | - |
 | 6. AI Estimate Generation & Editor | 0/3 | Not started | - |
