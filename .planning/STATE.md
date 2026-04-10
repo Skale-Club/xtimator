@@ -8,7 +8,7 @@ progress:
   total_phases: 7
   completed_phases: 1
   total_plans: 4
-  completed_plans: 4
+  completed_plans: 5
 ---
 
 # Project State
@@ -16,16 +16,16 @@ progress:
 ## Current Status
 
 - **Phase**: 02-company-onboarding
-- **Current Plan**: 02-01 (next to execute)
-- **Last updated**: 2026-04-09
-- **Last session**: 2026-04-09T23:05:00Z
-- **Stopped at**: Completed 01-foundation-auth/01-04-PLAN.md
+- **Current Plan**: 02-02 (next to execute)
+- **Last updated**: 2026-04-10
+- **Last session**: 2026-04-10T10:14:12Z
+- **Stopped at**: Completed 02-company-onboarding/02-01-PLAN.md
 
 ## Active Phase
 
 Phase 2: Company Onboarding (02-company-onboarding)
 
-- Plan 01: INDUSTRIES config & types — pending
+- Plan 01: INDUSTRIES config & types — COMPLETE (31df2c2, 18fa8d2)
 - Plan 02: Onboarding wizard UI — pending
 - Plan 03: Logo upload & company persistence — pending
 
@@ -51,6 +51,9 @@ Phase 2: Company Onboarding (02-company-onboarding)
 - [Phase 01-foundation-auth]: useSearchParams wrapped in Suspense boundary in reset-password page — Next.js requires this for static generation
 - [Phase 01-foundation-auth]: AuthCard shared wrapper with logo SVG + EstimateBuilder Pro wordmark above Card — used by all three auth pages (D-02)
 - [Phase 01-foundation-auth]: GoogleOAuthButton uses window.location.origin for redirectTo — works on localhost and any production domain
+- [Phase 02-company-onboarding 02-01]: INDUSTRIES uses `as const satisfies Industry[]` for type safety with literal inference
+- [Phase 02-company-onboarding 02-01]: Email/website use `.optional().or(z.literal(''))` zod pattern for empty string bypass
+- [Phase 02-company-onboarding 02-01]: STEP_FIELDS typed as Record<number, (keyof OnboardingValues)[]> for type-safe step validation
 
 ## Performance Metrics
 
@@ -60,6 +63,7 @@ Phase 2: Company Onboarding (02-company-onboarding)
 | 01-foundation-auth | 02 | 6min | 2 | 6 |
 | 01-foundation-auth | 03 | 3min | 1 | 2 |
 | 01-foundation-auth | 04 | 12min | 3 | 12 |
+| 02-company-onboarding | 01 | 5min | 2 | 4 |
 
 ## Notes
 
