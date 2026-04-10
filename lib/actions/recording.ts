@@ -1,0 +1,176 @@
+'use server'
+
+import { createClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/service'
+import { revalidatePath } from 'next/cache'
+
+async function getAuthContext() {
+  const supabase = await createClient()
+  const { data: claimsData } = await supabase.auth.getClaims()
+  const claims = claimsData?.claims ?? null
+  if (!claims) return { error: 'Not authenticated' as const }
+
+  const { data: company } = await supabase
+    .from('companies')
+    .select('id')
+    .eq('user_id', claims.sub)
+    .single()
+
+  if (!company) return { error: 'No company found' as const }
+
+  return { supabase, company }
+}
+
+export async function createRecording(
+  projectId: string,
+  storagePath: string,
+  durationSeconds: number
+) {
+  const ctx = await getAuthContext()
+  if ('error' in ctx) return { error: ctx.error }
+  const { supabase, company } = ctx
+
+  const { data: recording, error: insertError } = await supabase
+    .from('recordings')
+    .insert({
+      project_id: projectId,
+      company_id: company.id,
+      storage_path: storagePath,
+      duration_seconds: durationSeconds,
+    })
+    .select()
+    .single()
+
+  if (insertError || !recording) {
+    return { error: 'Failed to create recording. Please try again.' }
+  }
+
+  // Check if first recording for project — update status to 'recording' per D-20
+  const { count } = await supabase
+    .from('recordings')
+    .select('*', { count: 'exact', head: true })
+    .eq('project_id', projectId)
+
+  if (count === 1) {
+    await supabase
+      .from('projects')
+      .update({ status: 'recording' })
+      .eq('id', projectId)
+  }
+
+  // Log activity
+  await supabase.from('estimate_activity').insert({
+    project_id: projectId,
+    company_id: company.id,
+    event_type: 'recording_added',
+    metadata: { duration_seconds: durationSeconds },
+  })
+
+  revalidatePath(`/projects/${projectId}`)
+  return { data: recording }
+}
+
+export async function transcribeRecording(recordingId: string) {
+  const ctx = await getAuthContext()
+  if ('error' in ctx) return { error: ctx.error }
+  const { supabase } = ctx
+
+  // Get recording row
+  const { data: recording } = await supabase
+    .from('recordings')
+    .select('storage_path, company_id, project_id')
+    .eq('id', recordingId)
+    .single()
+
+  if (!recording) return { error: 'Recording not found' }
+
+  // Download audio with service role (bypasses RLS for Storage)
+  const serviceClient = createServiceClient()
+  const { data: fileData, error: downloadError } = await serviceClient
+    .storage
+    .from('audio')
+    .download(recording.storage_path)
+
+  if (downloadError || !fileData) return { error: 'Failed to download audio' }
+
+  // Send to Whisper API
+  const formData = new FormData()
+  const ext = recording.storage_path.split('.').pop() ?? 'webm'
+  formData.append('file', fileData, `recording.${ext}`)
+  formData.append('model', 'whisper-1')
+  formData.append('response_format', 'text')
+
+  const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
+    body: formData,
+  })
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => 'Unknown error')
+    return { error: `Transcription failed: ${errorText}` }
+  }
+
+  const transcript = await response.text()
+
+  // Update recording with transcript
+  const { error: updateError } = await supabase
+    .from('recordings')
+    .update({ transcript })
+    .eq('id', recordingId)
+
+  if (updateError) return { error: 'Failed to save transcript' }
+
+  return { data: { transcript } }
+}
+
+export async function updateTranscript(recordingId: string, transcript: string) {
+  const ctx = await getAuthContext()
+  if ('error' in ctx) return { error: ctx.error }
+  const { supabase } = ctx
+
+  const { error } = await supabase
+    .from('recordings')
+    .update({ transcript })
+    .eq('id', recordingId)
+
+  if (error) return { error: 'Failed to update transcript' }
+
+  return { data: true }
+}
+
+export async function deleteRecording(recordingId: string) {
+  const ctx = await getAuthContext()
+  if ('error' in ctx) return { error: ctx.error }
+  const { supabase } = ctx
+
+  // Get recording to find storage_path and project_id
+  const { data: recording } = await supabase
+    .from('recordings')
+    .select('storage_path, project_id')
+    .eq('id', recordingId)
+    .single()
+
+  if (!recording) return { error: 'Recording not found' }
+
+  // Delete from Storage audio bucket
+  const { error: storageError } = await supabase
+    .storage
+    .from('audio')
+    .remove([recording.storage_path])
+
+  if (storageError) {
+    return { error: 'Failed to delete audio file' }
+  }
+
+  // Delete DB row
+  const { error: dbError } = await supabase
+    .from('recordings')
+    .delete()
+    .eq('id', recordingId)
+
+  if (dbError) return { error: 'Failed to delete recording' }
+
+  revalidatePath(`/projects/${recording.project_id}`)
+  return { data: true }
+}
