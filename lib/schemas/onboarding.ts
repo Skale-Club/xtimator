@@ -43,6 +43,7 @@ export const onboardingSchema = z.object({
 })
 
 export type OnboardingValues = z.infer<typeof onboardingSchema>
+export type OnboardingInput = z.input<typeof onboardingSchema>
 
 export const STEP_FIELDS: Record<number, (keyof OnboardingValues)[]> = {
   1: ['companyName', 'ownerName', 'phone', 'email', 'website'],
