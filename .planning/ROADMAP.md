@@ -16,7 +16,7 @@ EstimateBuilder Pro delivers a full AI-powered estimating workflow for US servic
 
 - [x] **Phase 1: Foundation & Auth** - Project scaffold, Supabase wiring, database schema, and complete authentication flow (completed 2026-04-09)
 - [x] **Phase 2: Company Onboarding** - Multi-step wizard that captures business identity and redirects to dashboard (completed 2026-04-10)
-- [ ] **Phase 3: Dashboard & Client Management** - Main app shell, project list with search/filter, and full client CRUD
+- [x] **Phase 3: Dashboard & Client Management** - Main app shell, project list with search/filter, and full client CRUD
 - [ ] **Phase 4: Project Creation & Workspace** - New project wizard and the 5-tab workspace shell with overview tab
 - [ ] **Phase 5: Audio Recording & Photo Management** - Job-site capture: mic recording with Whisper transcription and photo upload pipeline
 - [ ] **Phase 6: AI Estimate Generation & Editor** - Claude-powered estimate generation, structured JSON persistence, and inline editor with auto-save
@@ -89,7 +89,7 @@ ONBOARD-01, ONBOARD-02, ONBOARD-03, ONBOARD-04, ONBOARD-05, ONBOARD-06, ONBOARD-
 
 ### Plans
 
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 
 Plans:
 - [x] 03-01-PLAN.md — App shell layout (sidebar, topbar, bottom nav), shared components (StatusBadge, EmptyState), data layer (queries, schemas, server actions) (Wave 1)
@@ -116,9 +116,12 @@ DASH-01, DASH-02, DASH-03, DASH-04, DASH-05, DASH-06, DASH-07, DASH-08, CLIENT-0
 
 ### Plans
 
-1. **New project wizard** — Build the 3-step `NewProjectWizard` modal/page: (1) client selector with inline "Create new client" flow, (2) project details (name auto-suggestion from client + type, type dropdown from industry config, custom type option, target budget field), (3) confirmation summary; on submit call `POST /api/projects`, then redirect to `/projects/[id]`.
-2. **Project workspace shell & Overview tab** — Build the `/projects/[id]` layout with 5 tabs (Overview, Audio Recording, Photos, AI Estimate, Preview & Send); implement the Overview tab with project summary card (name, client, type, status badge, total), activity timeline component, and quick stats; implement project status state machine that updates status automatically as later actions are taken.
-3. **Project API routes** — Implement `GET/POST /api/projects`, `GET/PATCH/DELETE /api/projects/[id]`; implement project duplication endpoint; ensure all routes verify the authenticated user owns the project via RLS.
+**Plans:** 3 plans
+
+Plans:
+- [ ] 04-01-PLAN.md — Data layer: project Zod schema, query functions (getProjectById, getProjectActivity, getProjectQuickStats), createProjectAction, relative-time utility (Wave 1)
+- [ ] 04-02-PLAN.md — New Project Wizard: 3-step form at /projects/new with client selection, inline client creation, project details with auto-name, confirmation (Wave 2)
+- [ ] 04-03-PLAN.md — Project Workspace: 5-tab layout at /projects/[id] with Overview tab (summary card, activity timeline, quick stats), placeholder tabs for Phases 5-7 (Wave 2)
 
 ### Requirements
 PROJ-01, PROJ-02, PROJ-03, PROJ-04, PROJ-05, PROJ-06, PROJ-07, PROJ-08, WS-01, WS-02, WS-03
@@ -207,13 +210,13 @@ PDF-01, PDF-02, PDF-03, SHARE-01, SHARE-02, SHARE-03, SHARE-04, SHARE-05, SHARE-
 
 ## Progress
 
-**Execution Order:** 1 → 2 → 3 → 4 → 5 → 6 → 7
+**Execution Order:** 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation & Auth | 4/4 | Complete    | 2026-04-10 |
 | 2. Company Onboarding | 3/3 | Complete | 2026-04-10 |
-| 3. Dashboard & Client Management | 2/3 | In Progress|  |
+| 3. Dashboard & Client Management | 3/3 | Complete |  |
 | 4. Project Creation & Workspace | 0/3 | Not started | - |
 | 5. Audio Recording & Photo Management | 0/3 | Not started | - |
 | 6. AI Estimate Generation & Editor | 0/3 | Not started | - |
