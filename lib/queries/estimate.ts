@@ -97,6 +97,32 @@ export async function getEstimateById(
   return fetchEstimateWithSections(supabase, estimate as Estimate)
 }
 
+export async function getEstimateWithContext(
+  supabase: SupabaseClient,
+  estimateId: string
+) {
+  const estimate = await getEstimateById(supabase, estimateId)
+  if (!estimate) return null
+
+  const { data: project } = await supabase
+    .from('projects')
+    .select(
+      'name, project_type, client:clients(name, email, phone, address, city, state, zip)'
+    )
+    .eq('id', estimate.project_id)
+    .single()
+
+  const { data: company } = await supabase
+    .from('companies')
+    .select(
+      'name, owner_name, phone, email, website, address, city, state, zip, logo_url, brand_primary_color'
+    )
+    .eq('id', estimate.company_id)
+    .single()
+
+  return { estimate, project, company }
+}
+
 async function fetchEstimateWithSections(
   supabase: SupabaseClient,
   estimate: Estimate
