@@ -1,0 +1,237 @@
+'use client'
+
+import { useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
+import { Loader2 } from 'lucide-react'
+import { toast } from 'sonner'
+
+import { changePassword, changeEmail, deleteAccount } from '@/lib/actions/settings'
+
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
+import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
+import { Separator } from '@/components/ui/separator'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
+
+// Password schema
+const passwordSchema = z
+  .object({
+    currentPassword: z.string().min(1, 'Current password is required'),
+    newPassword: z.string().min(6, 'Password must be at least 6 characters'),
+    confirmPassword: z.string().min(1, 'Please confirm your new password'),
+  })
+  .refine((data) => data.newPassword === data.confirmPassword, {
+    message: 'Passwords do not match',
+    path: ['confirmPassword'],
+  })
+
+type PasswordValues = z.infer<typeof passwordSchema>
+
+// Email schema
+const emailSchema = z.object({
+  newEmail: z.string().email('Please enter a valid email'),
+})
+
+type EmailValues = z.infer<typeof emailSchema>
+
+export function AccountSection() {
+  const router = useRouter()
+  const [isPendingPassword, startPasswordTransition] = useTransition()
+  const [isPendingEmail, startEmailTransition] = useTransition()
+  const [isPendingDelete, startDeleteTransition] = useTransition()
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const passwordForm = useForm<PasswordValues>({
+    resolver: zodResolver(passwordSchema) as any,
+    defaultValues: {
+      currentPassword: '',
+      newPassword: '',
+      confirmPassword: '',
+    },
+  })
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const emailForm = useForm<EmailValues>({
+    resolver: zodResolver(emailSchema) as any,
+    defaultValues: {
+      newEmail: '',
+    },
+  })
+
+  function onPasswordSubmit(values: PasswordValues) {
+    startPasswordTransition(async () => {
+      const result = await changePassword({
+        currentPassword: values.currentPassword,
+        newPassword: values.newPassword,
+      })
+      if (result.error) {
+        toast.error(result.error)
+      } else {
+        toast.success('Password changed successfully.')
+        passwordForm.reset()
+      }
+    })
+  }
+
+  function onEmailSubmit(values: EmailValues) {
+    startEmailTransition(async () => {
+      const result = await changeEmail({ newEmail: values.newEmail })
+      if (result.error) {
+        toast.error(result.error)
+      } else {
+        toast.success(result.message || 'Confirmation email sent to your new address.')
+        emailForm.reset()
+      }
+    })
+  }
+
+  function onDeleteAccount() {
+    startDeleteTransition(async () => {
+      const result = await deleteAccount()
+      if (result.error) {
+        toast.error(result.error)
+      } else {
+        toast.success('Account deleted.')
+        router.push(result.redirect || '/auth/login')
+      }
+    })
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Account</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-8">
+        {/* Change Password */}
+        <div>
+          <h3 className="text-sm font-medium mb-4">Change Password</h3>
+          <Form {...passwordForm}>
+            <form onSubmit={passwordForm.handleSubmit(onPasswordSubmit)} className="space-y-4">
+              <FormField
+                control={passwordForm.control}
+                name="currentPassword"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Current Password</FormLabel>
+                    <FormControl>
+                      <Input type="password" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={passwordForm.control}
+                name="newPassword"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>New Password</FormLabel>
+                    <FormControl>
+                      <Input type="password" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={passwordForm.control}
+                name="confirmPassword"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Confirm New Password</FormLabel>
+                    <FormControl>
+                      <Input type="password" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <Button type="submit" disabled={isPendingPassword}>
+                {isPendingPassword && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Change Password
+              </Button>
+            </form>
+          </Form>
+        </div>
+
+        <Separator />
+
+        {/* Change Email */}
+        <div>
+          <h3 className="text-sm font-medium mb-4">Change Email</h3>
+          <Form {...emailForm}>
+            <form onSubmit={emailForm.handleSubmit(onEmailSubmit)} className="space-y-4">
+              <FormField
+                control={emailForm.control}
+                name="newEmail"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>New Email Address</FormLabel>
+                    <FormControl>
+                      <Input type="email" placeholder="new@email.com" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <Button type="submit" disabled={isPendingEmail}>
+                {isPendingEmail && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Change Email
+              </Button>
+            </form>
+          </Form>
+        </div>
+
+        <Separator />
+
+        {/* Delete Account */}
+        <div>
+          <h3 className="text-sm font-medium mb-4 text-destructive">Danger Zone</h3>
+          <p className="text-sm text-muted-foreground mb-4">
+            Once you delete your account, there is no going back. All your data, company profile, and projects will be permanently removed.
+          </p>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="destructive" disabled={isPendingDelete}>
+                {isPendingDelete && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Delete Account
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will permanently delete your account, company, and all projects. This action cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={onDeleteAccount}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  Delete Account
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}

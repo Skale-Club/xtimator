@@ -1,0 +1,350 @@
+'use client'
+
+import { useState, useTransition } from 'react'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
+import { Loader2 } from 'lucide-react'
+import { toast } from 'sonner'
+
+import type { CompanySettings } from '@/lib/queries/company'
+import { updateCompanySettings } from '@/lib/actions/settings'
+import { INDUSTRIES } from '@/lib/industries'
+
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
+import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { LogoUploader } from '@/components/onboarding/logo-uploader'
+
+const companyInfoSchema = z.object({
+  name: z.string().min(1, 'Company name is required'),
+  ownerName: z.string().optional().or(z.literal('')),
+  phone: z.string().optional().or(z.literal('')),
+  email: z.string().email('Invalid email').optional().or(z.literal('')),
+  website: z.string().optional().or(z.literal('')),
+  industry: z.string().optional().or(z.literal('')),
+  address: z.string().optional().or(z.literal('')),
+  city: z.string().optional().or(z.literal('')),
+  state: z.string().optional().or(z.literal('')),
+  zip: z.string().optional().or(z.literal('')),
+  licenseNumber: z.string().optional().or(z.literal('')),
+  insuranceInfo: z.string().optional().or(z.literal('')),
+  brandPrimaryColor: z.string().optional(),
+})
+
+type CompanyInfoValues = z.infer<typeof companyInfoSchema>
+
+interface CompanyInfoFormProps {
+  company: CompanySettings
+}
+
+export function CompanyInfoForm({ company }: CompanyInfoFormProps) {
+  const [logoFile, setLogoFile] = useState<File | null>(null)
+  const [logoPreview, setLogoPreview] = useState<string | null>(company.logo_url)
+  const [isPending, startTransition] = useTransition()
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const form = useForm<CompanyInfoValues>({
+    resolver: zodResolver(companyInfoSchema) as any,
+    defaultValues: {
+      name: company.name || '',
+      ownerName: company.owner_name || '',
+      phone: company.phone || '',
+      email: company.email || '',
+      website: company.website || '',
+      industry: company.industry || '',
+      address: company.address || '',
+      city: company.city || '',
+      state: company.state || '',
+      zip: company.zip || '',
+      licenseNumber: company.license_number || '',
+      insuranceInfo: company.insurance_info || '',
+      brandPrimaryColor: company.brand_primary_color || '#0D9488',
+    },
+  })
+
+  function onSubmit(values: CompanyInfoValues) {
+    startTransition(async () => {
+      const fd = new FormData()
+      fd.set('name', values.name)
+      fd.set('ownerName', values.ownerName || '')
+      fd.set('phone', values.phone || '')
+      fd.set('email', values.email || '')
+      fd.set('website', values.website || '')
+      fd.set('industry', values.industry || '')
+      fd.set('address', values.address || '')
+      fd.set('city', values.city || '')
+      fd.set('state', values.state || '')
+      fd.set('zip', values.zip || '')
+      fd.set('licenseNumber', values.licenseNumber || '')
+      fd.set('insuranceInfo', values.insuranceInfo || '')
+      fd.set('brandPrimaryColor', values.brandPrimaryColor || '#0D9488')
+      fd.set('existingLogoUrl', logoPreview && !logoFile ? company.logo_url || '' : '')
+
+      if (logoFile) {
+        fd.set('logo', logoFile)
+      }
+
+      const result = await updateCompanySettings(fd)
+      if (result.error) {
+        toast.error(result.error)
+      } else {
+        toast.success('Company information saved.')
+      }
+    })
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Company Information</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            {/* Logo */}
+            <div className="flex justify-center">
+              <LogoUploader
+                preview={logoPreview}
+                companyInitial={form.watch('name')?.[0] || 'C'}
+                onFileSelect={(file, preview) => {
+                  setLogoFile(file)
+                  setLogoPreview(preview)
+                }}
+                onRemove={() => {
+                  setLogoFile(null)
+                  setLogoPreview(null)
+                }}
+              />
+            </div>
+
+            {/* Company Name */}
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Company Name *</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Your Company" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Owner Name */}
+            <FormField
+              control={form.control}
+              name="ownerName"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Owner Name</FormLabel>
+                  <FormControl>
+                    <Input placeholder="John Doe" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Phone & Email */}
+            <div className="grid gap-4 sm:grid-cols-2">
+              <FormField
+                control={form.control}
+                name="phone"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Phone</FormLabel>
+                    <FormControl>
+                      <Input placeholder="(555) 123-4567" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email</FormLabel>
+                    <FormControl>
+                      <Input placeholder="info@company.com" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            {/* Website */}
+            <FormField
+              control={form.control}
+              name="website"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Website</FormLabel>
+                  <FormControl>
+                    <Input placeholder="https://company.com" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Industry */}
+            <FormField
+              control={form.control}
+              name="industry"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Industry</FormLabel>
+                  <Select
+                    onValueChange={field.onChange}
+                    defaultValue={field.value}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select industry" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {INDUSTRIES.map((ind) => (
+                        <SelectItem key={ind.id} value={ind.id}>
+                          {ind.label}
+                        </SelectItem>
+                      ))}
+                      <SelectItem value="other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Address */}
+            <FormField
+              control={form.control}
+              name="address"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Address</FormLabel>
+                  <FormControl>
+                    <Input placeholder="123 Main St" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* City, State, Zip */}
+            <div className="grid gap-4 sm:grid-cols-3">
+              <FormField
+                control={form.control}
+                name="city"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>City</FormLabel>
+                    <FormControl>
+                      <Input placeholder="City" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="state"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>State</FormLabel>
+                    <FormControl>
+                      <Input placeholder="CA" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="zip"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Zip</FormLabel>
+                    <FormControl>
+                      <Input placeholder="90210" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            {/* License & Insurance */}
+            <div className="grid gap-4 sm:grid-cols-2">
+              <FormField
+                control={form.control}
+                name="licenseNumber"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>License Number</FormLabel>
+                    <FormControl>
+                      <Input placeholder="License #" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="insuranceInfo"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Insurance Info</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Insurance details" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            {/* Brand Color */}
+            <FormField
+              control={form.control}
+              name="brandPrimaryColor"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Brand Color</FormLabel>
+                  <div className="flex items-center gap-3">
+                    <FormControl>
+                      <input
+                        type="color"
+                        className="h-10 w-10 cursor-pointer rounded border"
+                        value={field.value || '#0D9488'}
+                        onChange={field.onChange}
+                      />
+                    </FormControl>
+                    <span className="text-sm text-muted-foreground font-mono">
+                      {field.value || '#0D9488'}
+                    </span>
+                  </div>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <Button type="submit" disabled={isPending}>
+              {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Save Company Info
+            </Button>
+          </form>
+        </Form>
+      </CardContent>
+    </Card>
+  )
+}
