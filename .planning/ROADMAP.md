@@ -18,7 +18,7 @@ EstimateBuilder Pro delivers a full AI-powered estimating workflow for US servic
 - [x] **Phase 2: Company Onboarding** - Multi-step wizard that captures business identity and redirects to dashboard (completed 2026-04-10)
 - [x] **Phase 3: Dashboard & Client Management** - Main app shell, project list with search/filter, and full client CRUD
 - [ ] **Phase 4: Project Creation & Workspace** - New project wizard and the 5-tab workspace shell with overview tab
-- [ ] **Phase 5: Audio Recording & Photo Management** - Job-site capture: mic recording with Whisper transcription and photo upload pipeline
+- [x] **Phase 5: Audio Recording & Photo Management** - Job-site capture: mic recording with Whisper transcription and photo upload pipeline (completed 2026-04-10)
 - [ ] **Phase 6: AI Estimate Generation & Editor** - Claude-powered estimate generation, structured JSON persistence, and inline editor with auto-save
 - [ ] **Phase 7: PDF, Sharing, Email & Settings** - Branded PDF export, public share page with client accept/decline, Resend email delivery, and settings
 
@@ -143,13 +143,13 @@ PROJ-01, PROJ-02, PROJ-03, PROJ-04, PROJ-05, PROJ-06, PROJ-07, PROJ-08, WS-01, W
 
 ### Plans
 
-**Plans:** 3/4 plans executed
+**Plans:** 4/4 plans complete
 
 Plans:
 - [x] 05-01-PLAN.md — Data layer: service role client, recording/photo queries and actions, media format detection, image compression utility, @dnd-kit install (Wave 1)
 - [x] 05-02-PLAN.md — Audio Recording tab: MediaRecorder with waveform visualization, timer, live transcript preview, recording list with playback and transcript editing (Wave 2)
 - [x] 05-03-PLAN.md — Photos tab: drop zone with camera capture and drag-and-drop, client-side compression, sortable grid with @dnd-kit, lightbox, caption editing, 20-photo limit (Wave 2)
-- [ ] 05-04-PLAN.md — Workspace wiring: replace PlaceholderTab with AudioTab and PhotosTab, load recordings/photos server-side, human verification checkpoint (Wave 3)
+- [x] 05-04-PLAN.md — Workspace wiring: replace PlaceholderTab with AudioTab and PhotosTab, load recordings/photos server-side, human verification checkpoint (Wave 3)
 
 ### Requirements
 AUDIO-01, AUDIO-02, AUDIO-03, AUDIO-04, AUDIO-05, AUDIO-06, AUDIO-07, AUDIO-08, AUDIO-09, AUDIO-10, PHOTO-01, PHOTO-02, PHOTO-03, PHOTO-04, PHOTO-05, PHOTO-06, PHOTO-07, PHOTO-08, PHOTO-09, PHOTO-10, PHOTO-11
@@ -222,6 +222,6 @@ PDF-01, PDF-02, PDF-03, SHARE-01, SHARE-02, SHARE-03, SHARE-04, SHARE-05, SHARE-
 | 2. Company Onboarding | 3/3 | Complete | 2026-04-10 |
 | 3. Dashboard & Client Management | 3/3 | Complete |  |
 | 4. Project Creation & Workspace | 2/3 | In Progress | - |
-| 5. Audio Recording & Photo Management | 3/4 | In Progress|  |
+| 5. Audio Recording & Photo Management | 4/4 | Complete   | 2026-04-10 |
 | 6. AI Estimate Generation & Editor | 0/3 | Not started | - |
 | 7. PDF, Sharing, Email & Settings | 0/4 | Not started | - |
