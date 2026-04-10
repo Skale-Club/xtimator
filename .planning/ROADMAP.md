@@ -198,13 +198,13 @@ AI-01, AI-02, AI-03, AI-04, AI-05, AI-06, AI-07, AI-08, AI-09, AI-10, EDIT-01, E
 
 ### Plans
 
-**Plans:** 4 plans
+**Plans:** 2/4 plans executed
 
 Plans:
-- [ ] 07-01-PLAN.md — PDF generation: @react-pdf/renderer install, EstimatePDF document component, GET /api/estimates/[id]/pdf route (Wave 1)
+- [x] 07-01-PLAN.md — PDF generation: @react-pdf/renderer install, EstimatePDF document component, GET /api/estimates/[id]/pdf route (Wave 1)
 - [ ] 07-02-PLAN.md — Public share page: /estimate/[token] with branded view, accept/decline, view logging, email notifications (Wave 2)
 - [ ] 07-03-PLAN.md — Email delivery: Resend install, Send tab with preview/compose form, POST /api/estimates/[id]/send, Mark as Sent, workspace wiring (Wave 2)
-- [ ] 07-04-PLAN.md — Settings page: company info, defaults, notifications, account management (Wave 1)
+- [x] 07-04-PLAN.md — Settings page: company info, defaults, notifications, account management (Wave 1)
 
 ### Requirements
 PDF-01, PDF-02, PDF-03, SHARE-01, SHARE-02, SHARE-03, SHARE-04, SHARE-05, SHARE-06, SHARE-07, EMAIL-01, EMAIL-02, EMAIL-03, EMAIL-04, EMAIL-05, EMAIL-06, SET-01, SET-02, SET-03, SET-04, SET-05, SET-06
@@ -230,4 +230,4 @@ PDF-01, PDF-02, PDF-03, SHARE-01, SHARE-02, SHARE-03, SHARE-04, SHARE-05, SHARE-
 | 4. Project Creation & Workspace | 3/3 | Complete   | 2026-04-10 |
 | 5. Audio Recording & Photo Management | 4/4 | Complete   | 2026-04-10 |
 | 6. AI Estimate Generation & Editor | 3/3 | Complete   | 2026-04-10 |
-| 7. PDF, Sharing, Email & Settings | 0/4 | Planning complete | - |
+| 7. PDF, Sharing, Email & Settings | 2/4 | In Progress|  |
