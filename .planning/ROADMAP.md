@@ -19,7 +19,7 @@ EstimateBuilder Pro delivers a full AI-powered estimating workflow for US servic
 - [x] **Phase 3: Dashboard & Client Management** - Main app shell, project list with search/filter, and full client CRUD
 - [x] **Phase 4: Project Creation & Workspace** - New project wizard and the 5-tab workspace shell with overview tab (completed 2026-04-10)
 - [x] **Phase 5: Audio Recording & Photo Management** - Job-site capture: mic recording with Whisper transcription and photo upload pipeline (completed 2026-04-10)
-- [ ] **Phase 6: AI Estimate Generation & Editor** - Claude-powered estimate generation, structured JSON persistence, and inline editor with auto-save
+- [x] **Phase 6: AI Estimate Generation & Editor** - Claude-powered estimate generation, structured JSON persistence, and inline editor with auto-save (completed 2026-04-10)
 - [ ] **Phase 7: PDF, Sharing, Email & Settings** - Branded PDF export, public share page with client accept/decline, Resend email delivery, and settings
 
 ---
@@ -171,12 +171,12 @@ AUDIO-01, AUDIO-02, AUDIO-03, AUDIO-04, AUDIO-05, AUDIO-06, AUDIO-07, AUDIO-08, 
 
 ### Plans
 
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 
 Plans:
 - [x] 06-01-PLAN.md — Anthropic SDK install, estimate TypeScript interfaces/queries, POST /api/analyze-photos Claude Vision route (Wave 1)
 - [x] 06-02-PLAN.md — POST /api/generate-estimate route with Claude tool_use, math validation, DB persistence, version management; estimate server actions for save/blank creation (Wave 1)
-- [ ] 06-03-PLAN.md — Estimate editor UI: useReducer state, inline editing, real-time recalc, drag reorder, discount/tax, auto-save, generation progress, version selector, workspace wiring (Wave 2)
+- [x] 06-03-PLAN.md — Estimate editor UI: useReducer state, inline editing, real-time recalc, drag reorder, discount/tax, auto-save, generation progress, version selector, workspace wiring (Wave 2)
 
 ### Requirements
 AI-01, AI-02, AI-03, AI-04, AI-05, AI-06, AI-07, AI-08, AI-09, AI-10, EDIT-01, EDIT-02, EDIT-03, EDIT-04, EDIT-05, EDIT-06, EDIT-07, EDIT-08, EDIT-09, EDIT-10, EDIT-11, EDIT-12
@@ -226,5 +226,5 @@ PDF-01, PDF-02, PDF-03, SHARE-01, SHARE-02, SHARE-03, SHARE-04, SHARE-05, SHARE-
 | 3. Dashboard & Client Management | 3/3 | Complete |  |
 | 4. Project Creation & Workspace | 3/3 | Complete   | 2026-04-10 |
 | 5. Audio Recording & Photo Management | 4/4 | Complete   | 2026-04-10 |
-| 6. AI Estimate Generation & Editor | 2/3 | In Progress|  |
+| 6. AI Estimate Generation & Editor | 3/3 | Complete   | 2026-04-10 |
 | 7. PDF, Sharing, Email & Settings | 0/4 | Not started | - |
