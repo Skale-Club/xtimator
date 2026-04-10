@@ -30,13 +30,13 @@ export async function updateSession(request: NextRequest) {
 
   const { pathname } = request.nextUrl
 
-  // D-05: protect all routes EXCEPT /auth/* and /estimate/*
-  const isAuthRoute = pathname.startsWith('/auth')
+  // D-05: protect all routes EXCEPT /login, /signup, /reset-password and /estimate/*
+  const isAuthRoute = pathname.startsWith('/login') || pathname.startsWith('/signup') || pathname.startsWith('/reset-password')
   const isPublicEstimate = pathname.startsWith('/estimate')
 
   if (!claims && !isAuthRoute && !isPublicEstimate) {
     const url = request.nextUrl.clone()
-    url.pathname = '/auth/login'
+    url.pathname = '/login'
     // Preserve set-cookie headers so Supabase can rotate session tokens on redirect
     const redirectResponse = NextResponse.redirect(url)
     supabaseResponse.headers.forEach((value, key) => {
