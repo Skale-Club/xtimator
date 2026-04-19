@@ -2,40 +2,108 @@ name: Supabase Keepalive
 
 on:
   schedule:
-    # Run daily at a non-peak minute to keep the Supabase project warm.
+    # Twice daily (~12h apart) so a single transient failure never strands
+    # the project near the free-tier inactivity threshold.
+    - cron: "13 2 * * *"
     - cron: "37 14 * * *"
   workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: supabase-keepalive
+  cancel-in-progress: false
+
 jobs:
   ping:
-    name: Ping Supabase API
+    name: Ping Supabase
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
     steps:
-      - name: Run keepalive request
+      - name: Exercise Postgres, Auth, and Storage
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL || secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          KEEPALIVE_TABLE: ${{ vars.KEEPALIVE_TABLE || 'companies' }}
+          HEALTHCHECKS_URL: ${{ secrets.HEALTHCHECKS_URL }}
         run: |
-          if [ -z "$SUPABASE_URL" ]; then
-            echo "::error::Missing SUPABASE_URL GitHub secret."
+          set -u
+
+          if [ -z "${SUPABASE_URL:-}" ]; then
+            echo "::error::Missing SUPABASE_URL (or NEXT_PUBLIC_SUPABASE_URL) GitHub secret."
             exit 1
           fi
 
-          if [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+          if [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
             echo "::error::Missing SUPABASE_SERVICE_ROLE_KEY GitHub secret."
             exit 1
           fi
 
           supabase_url="${SUPABASE_URL%/}"
 
-          curl --fail --silent --show-error --output /dev/null \
-            --header "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
-            --header "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
-            "$supabase_url/rest/v1/"
+          # Fail the step only after all checks have been attempted, so logs
+          # show every failing subsystem — not just the first.
+          overall_status=0
 
-          echo "Supabase keepalive OK"
+          ping() {
+            local label="$1"
+            local url="$2"
+            local attempt=1
+            local max_attempts=3
+            local delay=5
+
+            while [ $attempt -le $max_attempts ]; do
+              http_code=$(curl --silent --show-error --output /tmp/keepalive_body \
+                --write-out "%{http_code}" \
+                --max-time 15 \
+                --header "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+                --header "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+                "$url" || echo "000")
+
+              if [ "$http_code" = "200" ] || [ "$http_code" = "204" ] || [ "$http_code" = "206" ]; then
+                echo "[$label] OK (HTTP $http_code) on attempt $attempt"
+                return 0
+              fi
+
+              echo "[$label] attempt $attempt/$max_attempts failed (HTTP $http_code)"
+              if [ $attempt -lt $max_attempts ]; then
+                sleep $delay
+                delay=$((delay * 3))
+              fi
+              attempt=$((attempt + 1))
+            done
+
+            echo "::error::[$label] failed after $max_attempts attempts"
+            if [ -s /tmp/keepalive_body ]; then
+              echo "::group::[$label] last response body"
+              head -c 2048 /tmp/keepalive_body
+              echo ""
+              echo "::endgroup::"
+            fi
+            return 1
+          }
+
+          # 1. Postgres — selecting from a real table forces DB activity,
+          #    which is what Supabase measures for inactivity auto-pause.
+          ping "postgres" "$supabase_url/rest/v1/${KEEPALIVE_TABLE}?select=id&limit=1" || overall_status=1
+
+          # 2. Auth service health endpoint.
+          ping "auth" "$supabase_url/auth/v1/health" || overall_status=1
+
+          # 3. Storage service — listing buckets keeps the service warm.
+          ping "storage" "$supabase_url/storage/v1/bucket" || overall_status=1
+
+          if [ $overall_status -eq 0 ]; then
+            echo "All Supabase subsystems healthy"
+            if [ -n "${HEALTHCHECKS_URL:-}" ]; then
+              # Dead-man's-switch: external service alerts if this ping
+              # stops arriving within its configured grace window.
+              curl --silent --show-error --max-time 10 --retry 3 \
+                --output /dev/null "$HEALTHCHECKS_URL" || \
+                echo "::warning::healthchecks.io ping failed (non-fatal)"
+            fi
+          fi
+
+          exit $overall_status

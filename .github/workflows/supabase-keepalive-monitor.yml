@@ -1,0 +1,113 @@
+name: Supabase Keepalive Monitor
+
+# Watchdog for the keepalive watchdog. Runs daily, looks back at the most
+# recent keepalive runs, and opens a GitHub issue if the project is silently
+# drifting toward auto-pause. This gives us an in-repo signal that survives
+# even if the email notification is missed or filtered.
+
+on:
+  schedule:
+    - cron: "5 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  actions: read
+
+jobs:
+  check:
+    name: Check keepalive health
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+
+    steps:
+      - name: Evaluate recent keepalive runs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          # Grab the last 4 scheduled+manual runs (~48h of coverage given
+          # the 12h keepalive cadence).
+          runs_json=$(gh api \
+            "repos/${REPO}/actions/workflows/supabase-keepalive.yml/runs?per_page=4" \
+            --jq '{runs: [.workflow_runs[] | {id, conclusion, status, created_at, html_url}]}')
+
+          echo "$runs_json" | jq .
+
+          total=$(echo "$runs_json" | jq '.runs | length')
+          failed=$(echo "$runs_json" | jq '[.runs[] | select(.conclusion == "failure" or .conclusion == "timed_out" or .conclusion == "startup_failure")] | length')
+          latest_conclusion=$(echo "$runs_json" | jq -r '.runs[0].conclusion // "unknown"')
+
+          echo "Evaluated $total recent runs; $failed failed; latest=$latest_conclusion"
+
+          if [ "$total" -eq 0 ]; then
+            echo "::warning::No recent keepalive runs found — scheduler may be disabled."
+            echo "alert=true" >> "$GITHUB_OUTPUT"
+            echo "reason=No keepalive runs found in the last cycle. The schedule may be disabled (GitHub auto-disables scheduled workflows after 60 days of repo inactivity)." >> "$GITHUB_OUTPUT"
+          elif [ "$failed" -ge 2 ]; then
+            echo "::error::$failed of the last $total keepalive runs failed."
+            echo "alert=true" >> "$GITHUB_OUTPUT"
+            echo "reason=$failed of the last $total Supabase keepalive runs failed. The project may be drifting toward auto-pause or the credentials may be stale." >> "$GITHUB_OUTPUT"
+          else
+            echo "Keepalive is healthy."
+            echo "alert=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          # Persist the run list for the next step.
+          echo "$runs_json" > /tmp/runs.json
+        id: evaluate
+
+      - name: Open or update alert issue
+        if: steps.evaluate.outputs.alert == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          REASON: ${{ steps.evaluate.outputs.reason }}
+        run: |
+          set -euo pipefail
+
+          title="[keepalive-alert] Supabase keepalive is unhealthy"
+
+          existing=$(gh issue list --repo "$REPO" --state open \
+            --search "\"$title\" in:title" \
+            --json number,title \
+            --jq '.[] | select(.title == "'"$title"'") | .number' \
+            | head -n1)
+
+          runs_md=$(jq -r '.runs[] | "- \(.conclusion // "pending") — [\(.created_at)](\(.html_url))"' /tmp/runs.json)
+
+          body=$(cat <<EOF
+          **Automated alert from \`supabase-keepalive-monitor\`.**
+
+          $REASON
+
+          ### Recent keepalive runs
+
+          $runs_md
+
+          ### Suggested checks
+
+          - Supabase dashboard — is the project paused, deleted, or restorable?
+          - GitHub secrets \`SUPABASE_URL\` / \`NEXT_PUBLIC_SUPABASE_URL\` / \`SUPABASE_SERVICE_ROLE_KEY\` — still valid?
+          - Scheduler — is the keepalive workflow disabled? (GitHub disables scheduled workflows after 60 days without repo activity.)
+
+          Close this issue once keepalive is green again; the monitor will reopen a fresh issue if the problem recurs.
+          EOF
+          )
+
+          if [ -n "$existing" ]; then
+            echo "Updating existing issue #$existing"
+            gh issue comment "$existing" --repo "$REPO" --body "$body"
+          else
+            echo "Opening new alert issue"
+            gh issue create --repo "$REPO" \
+              --title "$title" \
+              --body "$body" \
+              --label "keepalive,urgent" || \
+            gh issue create --repo "$REPO" \
+              --title "$title" \
+              --body "$body"
+          fi
