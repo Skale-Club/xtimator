@@ -115,3 +115,9 @@ Phase 5: Audio Recording & Photo Management (05-audio-recording-photo-management
 Project initialized from comprehensive spec on 2026-04-09.
 7 phases, 83 v1 requirements, YOLO mode, standard granularity.
 Plan 01-01 complete: Next.js 16 scaffold with all dependencies and test infrastructure.
+
+## Accumulated Context
+
+### Roadmap Evolution
+
+- Phase 8 added: Platform admin panel — scope covers centralized API integrations (Resend/Anthropic/OpenAI) AND global branding (app name, logo, theme). Removes all hardcoded "EstimateBuilder Pro" strings and process.env key coupling; replaces with DB-backed config fetched via server-side loader. Drives v1.1.
