@@ -7,7 +7,11 @@ import { getEstimateWithContext } from '@/lib/queries/estimate'
 import EstimatePDF from '@/components/pdf/estimate-pdf'
 import { revalidatePath } from 'next/cache'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
+function getResend(): Resend | null {
+  const apiKey = process.env.RESEND_API_KEY
+  if (!apiKey) return null
+  return new Resend(apiKey)
+}
 
 interface SendRequestBody {
   to: string
@@ -145,6 +149,13 @@ export async function POST(
     }
 
     // Send email via Resend
+    const resend = getResend()
+    if (!resend) {
+      return NextResponse.json(
+        { error: 'Email service is not configured. Ask the platform admin to set up Resend.' },
+        { status: 503 }
+      )
+    }
     const { error: sendError } = await resend.emails.send(emailOptions)
 
     if (sendError) {
