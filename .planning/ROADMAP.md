@@ -6,7 +6,7 @@ EstimateBuilder Pro delivers a full AI-powered estimating workflow for US servic
 
 **Core value:** A business owner can go from job-site audio recording to a sent, professional estimate in under 5 minutes.
 
-**Total phases:** 7
+**Total phases:** 8 (v1.0 = Phases 1–7 complete; Phase 8 opens v1.1)
 **Total v1 requirements:** 83
 **Coverage:** 83/83
 
@@ -21,6 +21,7 @@ EstimateBuilder Pro delivers a full AI-powered estimating workflow for US servic
 - [x] **Phase 5: Audio Recording & Photo Management** - Job-site capture: mic recording with Whisper transcription and photo upload pipeline (completed 2026-04-10)
 - [x] **Phase 6: AI Estimate Generation & Editor** - Claude-powered estimate generation, structured JSON persistence, and inline editor with auto-save (completed 2026-04-10)
 - [x] **Phase 7: PDF, Sharing, Email & Settings** - Branded PDF export, public share page with client accept/decline, Resend email delivery, and settings (completed 2026-04-10)
+- [ ] **Phase 8: Platform admin — integrations & branding** - Super-admin panel for centralized API credentials (Resend/Anthropic/OpenAI) and global branding (app name, logo); removes all hardcoded identity/env-var coupling
 
 ---
 
@@ -216,11 +217,41 @@ PDF-01, PDF-02, PDF-03, SHARE-01, SHARE-02, SHARE-03, SHARE-04, SHARE-05, SHARE-
 - [ ] "Send via Email" sends a Resend-delivered email to the client address containing the share link; the project status changes to "sent"
 - [ ] All company fields edited in Settings are reflected in the next PDF generated and the next share page served
 
+### Phase 8: Platform admin panel — integrations & branding
+
+**Goal:** Introduce a platform-level admin panel (super-admin only) that centralizes two classes of configuration currently scattered across `process.env` and hardcoded literals in components/emails:
+
+1. **Shared API integrations** — Resend, Anthropic, OpenAI credentials stored once in the database (encrypted), consumed by all tenants via a server-side loader with short in-memory cache. Eliminates dependency on Vercel env vars for keys and enables rotation without redeploys.
+
+2. **Global branding/identity** — App name (currently hardcoded as "EstimateBuilder Pro" across auth pages, layout, emails, PDF footer), logo, and theme tokens fetched from DB at runtime so the platform owner can rebrand (e.g., "Xtimator") without code changes. No branding string may remain hardcoded after this phase.
+
+**Scope includes:**
+- Schema: `platform_integrations` and `platform_branding` tables (super-admin RLS; Supabase Vault for secrets)
+- Server-side loader (`lib/platform-config.ts`) with 60s in-memory cache and null-safe fallbacks
+- Super-admin role gate (`is_platform_admin` flag on profiles) + middleware for `/admin/*`
+- Admin UI: `/admin/integrations` (Resend/Anthropic/OpenAI with per-provider Test button) and `/admin/branding` (app name, logo upload, primary color)
+- Codebase sweep: replace every hardcoded "EstimateBuilder Pro" and `process.env.{RESEND,ANTHROPIC,OPENAI}_API_KEY` usage with loader calls
+- Auth screens: dark-mode visual pass consistent with the new platform identity
+
+**Out of scope:** per-tenant API keys (tenants always use platform shared credentials); public-facing marketing site; multi-theme switcher.
+
+**Requirements**: ADMIN-01, ADMIN-02, ADMIN-03, ADMIN-04, ADMIN-05, ADMIN-06, ADMIN-07, ADMIN-08, ADMIN-09, ADMIN-10, ADMIN-11, ADMIN-12, ADMIN-13, ADMIN-14
+**Depends on:** Phase 7
+**Plans:** 6 plans
+
+Plans:
+- [ ] 08-01-PLAN.md — Schema migration (platform_admins, platform_integrations, platform_branding), bootstrap doc, last-admin trigger, storage bucket + integration tests (Wave 1)
+- [ ] 08-02-PLAN.md — AES-256-GCM crypto module, platform-config loader with 60s cache + null-safe fallback, hex-to-HSL util, .env.example entry, server-only import guard (Wave 1)
+- [ ] 08-03-PLAN.md — Super-admin gate: proxy.ts rewrite-to-404, React-cache admin-context helper, scoped dark CSS vars for [data-theme='admin-dark'|'dark-auth'], e2e gate spec (Wave 2)
+- [ ] 08-04-PLAN.md — Admin UI: /admin/integrations (3 provider cards + Test button), /admin/branding (form + live preview), /admin/admins (add/remove + last-admin guard) + server actions + e2e specs (Wave 3, has checkpoint)
+- [ ] 08-05-PLAN.md — Auth dark visual pass: (auth)/layout.tsx with dark theme, auth-card.tsx refactor to branding prop, google-oauth-button dark variant, login/signup/reset/callback migration (Wave 3)
+- [ ] 08-06-PLAN.md — Sweep: migrate 5 process.env.*_API_KEY sites to getIntegrationKey, migrate 5 remaining 'EstimateBuilder Pro' literals to getBranding, grep-assertion tests, e2e auth title update (Wave 4, has checkpoint)
+
 ---
 
 ## Progress
 
-**Execution Order:** 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
+**Execution Order:** 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -231,3 +262,4 @@ PDF-01, PDF-02, PDF-03, SHARE-01, SHARE-02, SHARE-03, SHARE-04, SHARE-05, SHARE-
 | 5. Audio Recording & Photo Management | 4/4 | Complete   | 2026-04-10 |
 | 6. AI Estimate Generation & Editor | 3/3 | Complete   | 2026-04-10 |
 | 7. PDF, Sharing, Email & Settings | 4/4 | Complete   | 2026-04-10 |
+| 8. Platform admin — integrations & branding | 0/6 | Planned  |  |
