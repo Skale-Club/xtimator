@@ -3,7 +3,8 @@ import { test, expect } from '@playwright/test'
 test.describe('signup', () => {
   test('signup page renders correctly', async ({ page }) => {
     await page.goto('/auth/signup')
-    await expect(page.getByText('EstimateBuilder Pro')).toBeVisible()
+    // Wordmark now sourced from getBranding() — Xtimator is the seeded default (Phase 8 rebrand)
+    await expect(page.getByText('Xtimator')).toBeVisible()
     await expect(page.getByRole('button', { name: 'Continue with Google' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Create account' })).toBeVisible()
     await expect(page.getByLabel('Email')).toBeVisible()
@@ -14,7 +15,7 @@ test.describe('signup', () => {
 test.describe('login', () => {
   test('login page renders correctly', async ({ page }) => {
     await page.goto('/auth/login')
-    await expect(page.getByText('EstimateBuilder Pro')).toBeVisible()
+    await expect(page.getByText('Xtimator')).toBeVisible()
     await expect(page.getByRole('button', { name: 'Continue with Google' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible()
     await expect(page.getByLabel('Email')).toBeVisible()
