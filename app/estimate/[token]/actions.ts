@@ -1,6 +1,7 @@
 'use server'
 
 import { createServiceClient } from '@/lib/supabase/service'
+import { getIntegrationKey, getBranding } from '@/lib/platform-config'
 
 export async function logEstimateView(token: string): Promise<void> {
   const supabase = createServiceClient()
@@ -38,25 +39,31 @@ export async function logEstimateView(token: string): Promise<void> {
     .eq('id', estimate.company_id)
     .single()
 
-  if (company?.notify_on_view && company.email && process.env.RESEND_API_KEY) {
-    // Fetch project name for the email
-    const { data: project } = await supabase
-      .from('projects')
-      .select('name')
-      .eq('id', estimate.project_id)
-      .single()
+  if (company?.notify_on_view && company.email) {
+    // Load Resend key from DB-backed loader (ADMIN-06)
+    const resendKey = await getIntegrationKey('resend')
+    if (resendKey) {
+      // Fetch project name for the email
+      const { data: project } = await supabase
+        .from('projects')
+        .select('name')
+        .eq('id', estimate.project_id)
+        .single()
 
-    try {
-      const { Resend } = await import('resend')
-      const resend = new Resend(process.env.RESEND_API_KEY)
-      await resend.emails.send({
-        from: 'EstimateBuilder Pro <notifications@estimatebuilder.pro>',
-        to: company.email,
-        subject: `Your estimate was viewed - ${project?.name ?? 'Unknown Project'}`,
-        text: `Hi ${company.name},\n\nYour estimate for "${project?.name ?? 'Unknown Project'}" was just viewed by the client.\n\nLog in to EstimateBuilder Pro to see more details.`,
-      })
-    } catch {
-      // Resend not installed yet or send failed — skip silently
+      try {
+        const { Resend } = await import('resend')
+        const resend = new Resend(resendKey)
+        const branding = await getBranding()
+        const appName = branding.appName
+        await resend.emails.send({
+          from: `${appName} <notifications@estimatebuilder.pro>`,
+          to: company.email,
+          subject: `Your estimate was viewed - ${project?.name ?? 'Unknown Project'}`,
+          text: `Hi ${company.name},\n\nYour estimate for "${project?.name ?? 'Unknown Project'}" was just viewed by the client.\n\nLog in to ${appName} to see more details.`,
+        })
+      } catch {
+        // Resend not installed yet or send failed — skip silently
+      }
     }
   }
 }
@@ -118,24 +125,30 @@ export async function respondToEstimate(
       ? company?.notify_on_accept
       : company?.notify_on_decline
 
-  if (shouldNotify && company?.email && process.env.RESEND_API_KEY) {
-    const { data: project } = await supabase
-      .from('projects')
-      .select('name')
-      .eq('id', estimate.project_id)
-      .single()
+  if (shouldNotify && company?.email) {
+    // Load Resend key from DB-backed loader (ADMIN-06)
+    const resendKey = await getIntegrationKey('resend')
+    if (resendKey) {
+      const { data: project } = await supabase
+        .from('projects')
+        .select('name')
+        .eq('id', estimate.project_id)
+        .single()
 
-    try {
-      const { Resend } = await import('resend')
-      const resend = new Resend(process.env.RESEND_API_KEY)
-      await resend.emails.send({
-        from: 'EstimateBuilder Pro <notifications@estimatebuilder.pro>',
-        to: company.email,
-        subject: `Estimate ${response} - ${project?.name ?? 'Unknown Project'}`,
-        text: `Hi ${company.name},\n\nYour estimate for "${project?.name ?? 'Unknown Project'}" has been ${response} by the client.\n\nLog in to EstimateBuilder Pro to see more details.`,
-      })
-    } catch {
-      // Resend not installed yet or send failed — skip silently
+      try {
+        const { Resend } = await import('resend')
+        const resend = new Resend(resendKey)
+        const branding = await getBranding()
+        const appName = branding.appName
+        await resend.emails.send({
+          from: `${appName} <notifications@estimatebuilder.pro>`,
+          to: company.email,
+          subject: `Estimate ${response} - ${project?.name ?? 'Unknown Project'}`,
+          text: `Hi ${company.name},\n\nYour estimate for "${project?.name ?? 'Unknown Project'}" has been ${response} by the client.\n\nLog in to ${appName} to see more details.`,
+        })
+      } catch {
+        // Resend not installed yet or send failed — skip silently
+      }
     }
   }
 

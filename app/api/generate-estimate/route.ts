@@ -3,6 +3,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@/lib/supabase/server'
 import { getProjectRecordings } from '@/lib/queries/recording'
 import { getProjectPhotos } from '@/lib/queries/photo'
+import { getIntegrationKey } from '@/lib/platform-config'
 
 export async function POST(request: Request) {
   try {
@@ -135,7 +136,15 @@ export async function POST(request: Request) {
     const userContent = parts.join('\n\n')
 
     // Step 3: Call Claude with tool_use
-    const anthropic = new Anthropic()
+    // Load Anthropic key from DB-backed loader (ADMIN-06)
+    const anthropicKey = await getIntegrationKey('anthropic')
+    if (!anthropicKey) {
+      return NextResponse.json(
+        { error: "AI estimate generation isn't available right now. Contact your platform administrator." },
+        { status: 503 }
+      )
+    }
+    const anthropic = new Anthropic({ apiKey: anthropicKey })
 
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',

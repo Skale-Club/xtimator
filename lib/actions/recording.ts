@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { revalidatePath } from 'next/cache'
+import { getIntegrationKey } from '@/lib/platform-config'
 
 async function getAuthContext() {
   const supabase = await createClient()
@@ -100,9 +101,15 @@ export async function transcribeRecording(recordingId: string) {
   formData.append('model', 'whisper-1')
   formData.append('response_format', 'text')
 
+  // Load OpenAI key from DB-backed loader (ADMIN-06)
+  const openaiKey = await getIntegrationKey('openai')
+  if (!openaiKey) {
+    return { error: "Audio transcription isn't available right now. Contact your platform administrator. You can still save and manually edit this recording's transcript." }
+  }
+
   const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
     method: 'POST',
-    headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
+    headers: { Authorization: `Bearer ${openaiKey}` },
     body: formData,
   })
 

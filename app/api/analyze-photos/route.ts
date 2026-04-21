@@ -2,9 +2,8 @@ import { NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
+import { getIntegrationKey } from '@/lib/platform-config'
 import type { Photo } from '@/lib/queries/photo'
-
-const anthropic = new Anthropic() // reads ANTHROPIC_API_KEY from env
 
 type ImageMediaType = 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif'
 
@@ -27,7 +26,8 @@ function getMimeType(storagePath: string): ImageMediaType {
 async function analyzePhoto(
   serviceClient: ReturnType<typeof createServiceClient>,
   supabase: Awaited<ReturnType<typeof createClient>>,
-  photo: Photo
+  photo: Photo,
+  anthropic: Anthropic
 ): Promise<string> {
   // Download photo from Supabase Storage using service role client
   const { data: fileData, error: downloadError } = await serviceClient
@@ -136,13 +136,23 @@ export async function POST(request: Request) {
       )
     }
 
+    // Load Anthropic key from DB-backed loader (ADMIN-06)
+    const anthropicKey = await getIntegrationKey('anthropic')
+    if (!anthropicKey) {
+      return NextResponse.json(
+        { error: "AI estimate generation isn't available right now. Contact your platform administrator." },
+        { status: 503 }
+      )
+    }
+    const anthropic = new Anthropic({ apiKey: anthropicKey })
+
     const typedPhotos = photos as Photo[]
     const serviceClient = createServiceClient()
 
     // Analyze all photos in parallel with Promise.allSettled
     const results = await Promise.allSettled(
       typedPhotos.map((photo) =>
-        analyzePhoto(serviceClient, supabase, photo)
+        analyzePhoto(serviceClient, supabase, photo, anthropic)
       )
     )
 

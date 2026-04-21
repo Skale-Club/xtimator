@@ -6,12 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getEstimateWithContext } from '@/lib/queries/estimate'
 import EstimatePDF from '@/components/pdf/estimate-pdf'
 import { revalidatePath } from 'next/cache'
-
-function getResend(): Resend | null {
-  const apiKey = process.env.RESEND_API_KEY
-  if (!apiKey) return null
-  return new Resend(apiKey)
-}
+import { getIntegrationKey, getBranding } from '@/lib/platform-config'
 
 interface SendRequestBody {
   to: string
@@ -110,6 +105,20 @@ export async function POST(
       </div>
     `
 
+    // Load Resend key from DB-backed loader (ADMIN-06)
+    const resendKey = await getIntegrationKey('resend')
+    if (!resendKey) {
+      return NextResponse.json(
+        { error: "Email sending isn't available right now. Use 'Download PDF' and send manually, or contact your platform administrator." },
+        { status: 503 }
+      )
+    }
+    const resend = new Resend(resendKey)
+
+    // Load branding for email from-name
+    const branding = await getBranding()
+    const fromName = branding.emailFromName ?? branding.appName
+
     // Build email options
     const emailOptions: {
       from: string
@@ -118,7 +127,7 @@ export async function POST(
       html: string
       attachments?: { filename: string; content: Buffer }[]
     } = {
-      from: `EstimateBuilder Pro <onboarding@resend.dev>`,
+      from: `${fromName} <onboarding@resend.dev>`,
       to,
       subject,
       html,
@@ -149,13 +158,6 @@ export async function POST(
     }
 
     // Send email via Resend
-    const resend = getResend()
-    if (!resend) {
-      return NextResponse.json(
-        { error: 'Email service is not configured. Ask the platform admin to set up Resend.' },
-        { status: 503 }
-      )
-    }
     const { error: sendError } = await resend.emails.send(emailOptions)
 
     if (sendError) {
