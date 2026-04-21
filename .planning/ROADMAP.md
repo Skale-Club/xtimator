@@ -21,7 +21,7 @@ EstimateBuilder Pro delivers a full AI-powered estimating workflow for US servic
 - [x] **Phase 5: Audio Recording & Photo Management** - Job-site capture: mic recording with Whisper transcription and photo upload pipeline (completed 2026-04-10)
 - [x] **Phase 6: AI Estimate Generation & Editor** - Claude-powered estimate generation, structured JSON persistence, and inline editor with auto-save (completed 2026-04-10)
 - [x] **Phase 7: PDF, Sharing, Email & Settings** - Branded PDF export, public share page with client accept/decline, Resend email delivery, and settings (completed 2026-04-10)
-- [ ] **Phase 8: Platform admin — integrations & branding** - Super-admin panel for centralized API credentials (Resend/Anthropic/OpenAI) and global branding (app name, logo); removes all hardcoded identity/env-var coupling
+- [x] **Phase 8: Platform admin — integrations & branding** - Super-admin panel for centralized API credentials (Resend/Anthropic/OpenAI) and global branding (app name, logo); removes all hardcoded identity/env-var coupling (completed 2026-04-21)
 
 ---
 
@@ -237,7 +237,7 @@ PDF-01, PDF-02, PDF-03, SHARE-01, SHARE-02, SHARE-03, SHARE-04, SHARE-05, SHARE-
 
 **Requirements**: ADMIN-01, ADMIN-02, ADMIN-03, ADMIN-04, ADMIN-05, ADMIN-06, ADMIN-07, ADMIN-08, ADMIN-09, ADMIN-10, ADMIN-11, ADMIN-12, ADMIN-13, ADMIN-14
 **Depends on:** Phase 7
-**Plans:** 7/8 plans executed
+**Plans:** 8/8 plans complete
 
 Plans:
 - [x] 08-01-PLAN.md — Schema migration (platform_admins, platform_integrations, platform_branding), bootstrap doc, last-admin trigger, storage bucket + integration tests (Wave 1)
@@ -262,4 +262,4 @@ Plans:
 | 5. Audio Recording & Photo Management | 4/4 | Complete   | 2026-04-10 |
 | 6. AI Estimate Generation & Editor | 3/3 | Complete   | 2026-04-10 |
 | 7. PDF, Sharing, Email & Settings | 4/4 | Complete   | 2026-04-10 |
-| 8. Platform admin — integrations & branding | 7/8 | In Progress|  |
+| 8. Platform admin — integrations & branding | 8/8 | Complete   | 2026-04-21 |

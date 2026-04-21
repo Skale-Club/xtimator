@@ -2,35 +2,39 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Executing Phase 08
-last_updated: "2026-04-21T02:05:56.483Z"
+status: Phase 08 Complete — All phases done
+last_updated: "2026-04-21T02:30:19.605Z"
 progress:
   total_phases: 8
-  completed_phases: 7
+  completed_phases: 8
   total_plans: 32
-  completed_plans: 31
+  completed_plans: 32
 ---
 
 # Project State
 
 ## Current Status
 
-- **Milestone**: v1.0 — all 7 phases complete, verifications passed
-- **Last updated**: 2026-04-15
-- **Last session**: 2026-04-15 (resumed)
-- **Stopped at**: Session resumed — STATE.md was stale; filesystem shows v1 COMPLETE (commit a2b2a79). Next: milestone audit/complete.
+- **Milestone**: v1.0 — all 8 phases complete (Phase 8: platform admin panel — API keys + branding sweep done)
+- **Last updated**: 2026-04-21
+- **Last session**: 2026-04-21
+- **Stopped at**: Completed 08-08-PLAN.md — Phase 8 env-var sweep + branding sweep complete. All 32 plans across 8 phases are DONE.
 
 ## Active Phase
 
-Phase 5: Audio Recording & Photo Management (05-audio-recording-photo-management)
-
-- Plan 01: Data layer, utilities, and dependencies — COMPLETE (c52408d, d184334, d0365a4)
-- Plan 02: Audio recording UI — PENDING
-- Plan 03: Photos UI — PENDING
-- Plan 04: Integration and polish — PENDING
+None — all phases complete.
 
 ## Completed Phases
 
+- Phase 8: Platform Admin Panel (08-platform-admin-panel-for-centralized-api-integrations) — COMPLETE 2026-04-21
+  - Plan 01: Admin DB foundation (tables, migration, bootstrap doc, integration tests) — COMPLETE (df57325, 13039b8)
+  - Plan 02: platform-config.ts loader (getIntegrationKey, getBranding, AES-GCM decrypt) — COMPLETE
+  - Plan 03: Admin gate (middleware + requireAdmin + 404-rewrite) — COMPLETE
+  - Plan 04: Admin shell + integrations UI (/admin/integrations) — COMPLETE
+  - Plan 05: Branding admin UI (/admin/branding) — COMPLETE
+  - Plan 06: Admins management UI (/admin/admins) — COMPLETE
+  - Plan 07: Auth dark pass + branding loader wiring — COMPLETE (1fa1ff8, 4720895, 28ecffe)
+  - Plan 08: Env-var sweep + branding sweep — COMPLETE (a86dd16, ca99f14)
 - Phase 4: Project Creation & Workspace (04-project-creation-workspace) — COMPLETE 2026-04-10
   - Plan 01: Project data layer (schema, queries, actions) — COMPLETE (b08c8ec, 18205bb)
   - Plan 02: Project creation wizard UI — COMPLETE
@@ -102,6 +106,8 @@ Phase 5: Audio Recording & Photo Management (05-audio-recording-photo-management
 - [Phase 08-platform-admin-panel-for-centralized-api-integrations]: Decrypt integration keys server-side and project to {configured, last4, updatedAt, updatedByEmail} only — ciphertext and plaintext never enter the RSC payload (R-02 / ADMIN-14)
 - [Phase 08-platform-admin-panel-for-centralized-api-integrations]: Class-based vi.mock factories for Resend / Anthropic constructors — vi.fn().mockImplementation produces non-constructible functions after vi.resetModules()
 - [Phase 08-platform-admin-panel-for-centralized-api-integrations]: Discriminated-union return { ok: boolean; message?: string } for admin server actions so clients surface inline errors verbatim
+- [Phase 08-platform-admin-panel-for-centralized-api-integrations]: All provider SDK clients initialized per-request using getIntegrationKey(); no module-level SDK instances that read env at import time (ADMIN-06)
+- [Phase 08-platform-admin-panel-for-centralized-api-integrations]: generateMetadata async function in app/layout.tsx for dynamic page title from getBranding(); static metadata export removed (ADMIN-07)
 
 ## Performance Metrics
 
@@ -125,6 +131,7 @@ Phase 5: Audio Recording & Photo Management (05-audio-recording-photo-management
 | Phase 08-platform-admin-panel-for-centralized-api-integrations P07 | 9min | 2 tasks | 11 files |
 | Phase 08-platform-admin-panel-for-centralized-api-integrations P04 | 14min | 2 tasks | 14 files |
 | Phase 08-platform-admin-panel-for-centralized-api-integrations P06 | 15min | 3 tasks | 6 files |
+| Phase 08-platform-admin-panel-for-centralized-api-integrations P08 | 9min | 2 tasks | 12 files |
 
 ## Notes
 
