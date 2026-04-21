@@ -1,14 +1,12 @@
 import { Card, CardContent } from '@/components/ui/card'
-import { getBranding } from '@/lib/platform-config'
 
 interface OnboardingCardProps {
   children: React.ReactNode
   skipAction?: React.ReactNode
+  appName: string
 }
 
-export async function OnboardingCard({ children, skipAction }: OnboardingCardProps) {
-  const branding = await getBranding()
-  const appName = branding.appName
+export function OnboardingCard({ children, skipAction, appName }: OnboardingCardProps) {
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-muted/40 px-4">

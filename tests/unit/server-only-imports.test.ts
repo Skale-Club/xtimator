@@ -38,8 +38,9 @@ describe('server-only imports (ADMIN-14, R-01, R-03)', () => {
         const body = readFileSync(file, 'utf8')
         const firstLines = body.split('\n').slice(0, 3).join('\n')
         if (!/['"]use client['"]/.test(firstLines)) continue
+        const runtimeLines = body.split('\n').filter(l => !/^\s*import\s+type\b/.test(l)).join('\n')
         for (const bad of FORBIDDEN) {
-          if (body.includes(bad)) {
+          if (runtimeLines.includes(bad)) {
             offenders.push(`${file} imports ${bad}`)
           }
         }

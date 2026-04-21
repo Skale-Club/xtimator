@@ -20,7 +20,7 @@ import { StepBusinessInfo } from '@/components/onboarding/step-business-info'
 import { StepBrandIdentity } from '@/components/onboarding/step-brand-identity'
 import { StepAddressDefaults } from '@/components/onboarding/step-address-defaults'
 
-export function OnboardingWizard() {
+export function OnboardingWizard({ appName }: { appName: string }) {
   const [currentStep, setCurrentStep] = useState(1)
   const [logoFile, setLogoFile] = useState<File | null>(null)
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
@@ -173,6 +173,7 @@ export function OnboardingWizard() {
 
   return (
     <OnboardingCard
+      appName={appName}
       skipAction={
         <Button
           type="button"
