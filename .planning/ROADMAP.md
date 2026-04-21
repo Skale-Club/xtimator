@@ -237,7 +237,7 @@ PDF-01, PDF-02, PDF-03, SHARE-01, SHARE-02, SHARE-03, SHARE-04, SHARE-05, SHARE-
 
 **Requirements**: ADMIN-01, ADMIN-02, ADMIN-03, ADMIN-04, ADMIN-05, ADMIN-06, ADMIN-07, ADMIN-08, ADMIN-09, ADMIN-10, ADMIN-11, ADMIN-12, ADMIN-13, ADMIN-14
 **Depends on:** Phase 7
-**Plans:** 6 plans
+**Plans:** 7/8 plans executed
 
 Plans:
 - [x] 08-01-PLAN.md — Schema migration (platform_admins, platform_integrations, platform_branding), bootstrap doc, last-admin trigger, storage bucket + integration tests (Wave 1)
@@ -245,7 +245,7 @@ Plans:
 - [x] 08-03-PLAN.md — Super-admin gate: proxy.ts rewrite-to-404, React-cache admin-context helper, scoped dark CSS vars for [data-theme='admin-dark'|'dark-auth'], e2e gate spec (Wave 2)
 - [x] 08-04-PLAN.md — Admin UI: /admin/integrations (3 provider cards + Test button), /admin/branding (form + live preview), /admin/admins (add/remove + last-admin guard) + server actions + e2e specs (Wave 3, has checkpoint)
 - [x] 08-05-PLAN.md — Auth dark visual pass: (auth)/layout.tsx with dark theme, auth-card.tsx refactor to branding prop, google-oauth-button dark variant, login/signup/reset/callback migration (Wave 3)
-- [ ] 08-06-PLAN.md — Sweep: migrate 5 process.env.*_API_KEY sites to getIntegrationKey, migrate 5 remaining 'EstimateBuilder Pro' literals to getBranding, grep-assertion tests, e2e auth title update (Wave 4, has checkpoint)
+- [x] 08-06-PLAN.md — Sweep: migrate 5 process.env.*_API_KEY sites to getIntegrationKey, migrate 5 remaining 'EstimateBuilder Pro' literals to getBranding, grep-assertion tests, e2e auth title update (Wave 4, has checkpoint)
 
 ---
 
@@ -262,4 +262,4 @@ Plans:
 | 5. Audio Recording & Photo Management | 4/4 | Complete   | 2026-04-10 |
 | 6. AI Estimate Generation & Editor | 3/3 | Complete   | 2026-04-10 |
 | 7. PDF, Sharing, Email & Settings | 4/4 | Complete   | 2026-04-10 |
-| 8. Platform admin — integrations & branding | 0/6 | Planned  |  |
+| 8. Platform admin — integrations & branding | 7/8 | In Progress|  |

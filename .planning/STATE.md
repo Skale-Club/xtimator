@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: Executing Phase 08
-last_updated: "2026-04-21T01:41:37.351Z"
+last_updated: "2026-04-21T02:05:56.483Z"
 progress:
   total_phases: 8
   completed_phases: 7
   total_plans: 32
-  completed_plans: 30
+  completed_plans: 31
 ---
 
 # Project State
@@ -101,6 +101,7 @@ Phase 5: Audio Recording & Photo Management (05-audio-recording-photo-management
 - [Phase 08-platform-admin-panel-for-centralized-api-integrations]: Send BYTEA as '\xHEX' strings to Supabase PostgREST (not Buffer instances) — supabase-js JSON.stringifies Buffer payloads, corrupting bytea round-trips
 - [Phase 08-platform-admin-panel-for-centralized-api-integrations]: Decrypt integration keys server-side and project to {configured, last4, updatedAt, updatedByEmail} only — ciphertext and plaintext never enter the RSC payload (R-02 / ADMIN-14)
 - [Phase 08-platform-admin-panel-for-centralized-api-integrations]: Class-based vi.mock factories for Resend / Anthropic constructors — vi.fn().mockImplementation produces non-constructible functions after vi.resetModules()
+- [Phase 08-platform-admin-panel-for-centralized-api-integrations]: Discriminated-union return { ok: boolean; message?: string } for admin server actions so clients surface inline errors verbatim
 
 ## Performance Metrics
 
@@ -123,6 +124,7 @@ Phase 5: Audio Recording & Photo Management (05-audio-recording-photo-management
 | Phase 08-platform-admin-panel-for-centralized-api-integrations P05 | 5min | 2 tasks | 6 files |
 | Phase 08-platform-admin-panel-for-centralized-api-integrations P07 | 9min | 2 tasks | 11 files |
 | Phase 08-platform-admin-panel-for-centralized-api-integrations P04 | 14min | 2 tasks | 14 files |
+| Phase 08-platform-admin-panel-for-centralized-api-integrations P06 | 15min | 3 tasks | 6 files |
 
 ## Notes
 
