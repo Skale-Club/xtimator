@@ -1,11 +1,15 @@
 import { Card, CardContent } from '@/components/ui/card'
+import { getBranding } from '@/lib/platform-config'
 
 interface OnboardingCardProps {
   children: React.ReactNode
   skipAction?: React.ReactNode
 }
 
-export function OnboardingCard({ children, skipAction }: OnboardingCardProps) {
+export async function OnboardingCard({ children, skipAction }: OnboardingCardProps) {
+  const branding = await getBranding()
+  const appName = branding.appName
+
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-muted/40 px-4">
       {/* Logo + wordmark above card (D-05) */}
@@ -23,7 +27,7 @@ export function OnboardingCard({ children, skipAction }: OnboardingCardProps) {
           <path d="M15 23H25" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
         </svg>
         <span className="text-[28px] font-semibold leading-[1.15] tracking-tight">
-          EstimateBuilder Pro
+          {appName}
         </span>
       </div>
 

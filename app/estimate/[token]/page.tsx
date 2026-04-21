@@ -3,6 +3,7 @@ import type { Metadata } from 'next'
 import { getEstimateByShareToken } from '@/lib/queries/share'
 import { logEstimateView } from './actions'
 import { EstimateView } from '@/components/share/estimate-view'
+import { getBranding } from '@/lib/platform-config'
 
 interface SharePageProps {
   params: Promise<{ token: string }>
@@ -38,6 +39,7 @@ export default async function SharePage({ params }: SharePageProps) {
   })
 
   const alreadyResponded = !!data.estimate.client_response
+  const branding = await getBranding()
 
   return (
     <main className="max-w-4xl mx-auto px-4 py-8 sm:py-12">
@@ -46,6 +48,7 @@ export default async function SharePage({ params }: SharePageProps) {
         client={data.client}
         token={token}
         alreadyResponded={alreadyResponded}
+        appName={branding.appName}
       />
     </main>
   )

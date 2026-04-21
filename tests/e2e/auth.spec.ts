@@ -1,10 +1,14 @@
 import { test, expect } from '@playwright/test'
 
+// APP_NAME_E2E is set in CI to match the seeded platform_branding row.
+// Falls back to 'Xtimator' (the default seeded branding value from Plan 01).
+const APP_NAME = process.env.APP_NAME_E2E ?? 'Xtimator'
+
 test.describe('signup', () => {
   test('signup page renders correctly', async ({ page }) => {
     await page.goto('/auth/signup')
-    // Wordmark now sourced from getBranding() — Xtimator is the seeded default (Phase 8 rebrand)
-    await expect(page.getByText('Xtimator')).toBeVisible()
+    // Wordmark now sourced from getBranding() — env-driven via APP_NAME_E2E (Phase 8 rebrand)
+    await expect(page.getByText(APP_NAME)).toBeVisible()
     await expect(page.getByRole('button', { name: 'Continue with Google' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Create account' })).toBeVisible()
     await expect(page.getByLabel('Email')).toBeVisible()
@@ -15,7 +19,7 @@ test.describe('signup', () => {
 test.describe('login', () => {
   test('login page renders correctly', async ({ page }) => {
     await page.goto('/auth/login')
-    await expect(page.getByText('Xtimator')).toBeVisible()
+    await expect(page.getByText(APP_NAME)).toBeVisible()
     await expect(page.getByRole('button', { name: 'Continue with Google' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible()
     await expect(page.getByLabel('Email')).toBeVisible()
