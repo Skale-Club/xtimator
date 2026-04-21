@@ -80,9 +80,9 @@ export async function getIntegrationKey(
 
   try {
     const plaintext = decrypt({
-      ciphertext: Buffer.from(data.ciphertext),
-      iv: Buffer.from(data.iv),
-      authTag: Buffer.from(data.auth_tag),
+      ciphertext: toBuffer(data.ciphertext),
+      iv: toBuffer(data.iv),
+      authTag: toBuffer(data.auth_tag),
     })
     integrationCache.set(provider, { value: plaintext, fetchedAt: now })
     return plaintext
@@ -93,6 +93,28 @@ export async function getIntegrationKey(
     )
     return null
   }
+}
+
+/**
+ * Normalise BYTEA values returned by Supabase PostgREST into a Buffer.
+ *
+ * PostgREST serialises bytea as `\x` + lowercase hex (the Postgres `bytea_output=hex`
+ * default). When Supabase JS deserialises it, the value reaches userland as a string.
+ * Newer Supabase versions may return Uint8Array directly; both are handled here.
+ *
+ * Without this normalisation, `Buffer.from('\\xabcd...')` interprets the value as
+ * UTF-8 text and produces the wrong byte length, causing GCM decryption to throw
+ * "invalid iv length" and silently dropping the integration to null.
+ */
+function toBuffer(value: unknown): Buffer {
+  if (value instanceof Buffer) return value
+  if (value instanceof Uint8Array) return Buffer.from(value)
+  if (typeof value === 'string') {
+    if (value.startsWith('\\x')) return Buffer.from(value.slice(2), 'hex')
+    // Fallback: try base64 then hex
+    return Buffer.from(value, 'base64')
+  }
+  return Buffer.from(value as ArrayBuffer)
 }
 
 export function invalidatePlatformConfig(): void {
