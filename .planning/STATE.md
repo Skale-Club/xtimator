@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: Executing Phase 08
-last_updated: "2026-04-21T01:26:19.963Z"
+last_updated: "2026-04-21T01:36:26.680Z"
 progress:
   total_phases: 8
   completed_phases: 7
   total_plans: 32
-  completed_plans: 27
+  completed_plans: 29
 ---
 
 # Project State
@@ -94,6 +94,10 @@ Phase 5: Audio Recording & Photo Management (05-audio-recording-photo-management
 - [Phase 08-platform-admin-panel-for-centralized-api-integrations]: Admin gate runs BEFORE updateSession redirect for /admin/* paths — 404-rewrite takes precedence over login-redirect to never reveal admin surface (D-07)
 - [Phase 08-platform-admin-panel-for-centralized-api-integrations]: requireAdmin() throws notFound() — clean call sites and matches Next.js idiom for hiding routes
 - [Phase 08-platform-admin-panel-for-centralized-api-integrations]: Scoped dark theme via [data-theme] selector + var(--platform-primary, fallback) for runtime-overridable accent — does not collide with next-themes (D-20)
+- [Phase 08-platform-admin-panel-for-centralized-api-integrations]: Inline brandingSchema mock in branding-actions test decouples Plan 05 unit tests from Plan 04 wave timing
+- [Phase 08-platform-admin-panel-for-centralized-api-integrations]: saveBranding normalises 0-byte logoFile to null before schema parse to handle browser variance
+- [Phase 08-platform-admin-panel-for-centralized-api-integrations]: BrandingPreviewCard wraps both mini previews in a single data-theme='dark-auth' div with --platform-primary inline so accent color updates instantly without iframe
+- [Phase 08-platform-admin-panel-for-centralized-api-integrations]: Auth dark pass: page+form split (server fetches branding, client owns interactive state) + AuthCard branding prop + LogoFallback exported + semantic-token-only styling drives dark theme via [data-theme="dark-auth"] CSS-vars
 
 ## Performance Metrics
 
@@ -113,6 +117,8 @@ Phase 5: Audio Recording & Photo Management (05-audio-recording-photo-management
 | 04-project-creation-workspace | 03 | 5min | 2 | 7 |
 | 05-audio-recording-photo-management | 01 | 5min | 2 | 11 |
 | Phase 08-platform-admin-panel-for-centralized-api-integrations P03 | 8min | 2 tasks | 7 files |
+| Phase 08-platform-admin-panel-for-centralized-api-integrations P05 | 5min | 2 tasks | 6 files |
+| Phase 08-platform-admin-panel-for-centralized-api-integrations P07 | 9min | 2 tasks | 11 files |
 
 ## Notes
 
