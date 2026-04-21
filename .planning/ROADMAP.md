@@ -243,7 +243,7 @@ Plans:
 - [x] 08-01-PLAN.md — Schema migration (platform_admins, platform_integrations, platform_branding), bootstrap doc, last-admin trigger, storage bucket + integration tests (Wave 1)
 - [x] 08-02-PLAN.md — AES-256-GCM crypto module, platform-config loader with 60s cache + null-safe fallback, hex-to-HSL util, .env.example entry, server-only import guard (Wave 1)
 - [x] 08-03-PLAN.md — Super-admin gate: proxy.ts rewrite-to-404, React-cache admin-context helper, scoped dark CSS vars for [data-theme='admin-dark'|'dark-auth'], e2e gate spec (Wave 2)
-- [ ] 08-04-PLAN.md — Admin UI: /admin/integrations (3 provider cards + Test button), /admin/branding (form + live preview), /admin/admins (add/remove + last-admin guard) + server actions + e2e specs (Wave 3, has checkpoint)
+- [x] 08-04-PLAN.md — Admin UI: /admin/integrations (3 provider cards + Test button), /admin/branding (form + live preview), /admin/admins (add/remove + last-admin guard) + server actions + e2e specs (Wave 3, has checkpoint)
 - [x] 08-05-PLAN.md — Auth dark visual pass: (auth)/layout.tsx with dark theme, auth-card.tsx refactor to branding prop, google-oauth-button dark variant, login/signup/reset/callback migration (Wave 3)
 - [ ] 08-06-PLAN.md — Sweep: migrate 5 process.env.*_API_KEY sites to getIntegrationKey, migrate 5 remaining 'EstimateBuilder Pro' literals to getBranding, grep-assertion tests, e2e auth title update (Wave 4, has checkpoint)
 

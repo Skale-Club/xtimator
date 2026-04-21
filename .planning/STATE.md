@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: Executing Phase 08
-last_updated: "2026-04-21T01:36:26.680Z"
+last_updated: "2026-04-21T01:41:37.351Z"
 progress:
   total_phases: 8
   completed_phases: 7
   total_plans: 32
-  completed_plans: 29
+  completed_plans: 30
 ---
 
 # Project State
@@ -98,6 +98,9 @@ Phase 5: Audio Recording & Photo Management (05-audio-recording-photo-management
 - [Phase 08-platform-admin-panel-for-centralized-api-integrations]: saveBranding normalises 0-byte logoFile to null before schema parse to handle browser variance
 - [Phase 08-platform-admin-panel-for-centralized-api-integrations]: BrandingPreviewCard wraps both mini previews in a single data-theme='dark-auth' div with --platform-primary inline so accent color updates instantly without iframe
 - [Phase 08-platform-admin-panel-for-centralized-api-integrations]: Auth dark pass: page+form split (server fetches branding, client owns interactive state) + AuthCard branding prop + LogoFallback exported + semantic-token-only styling drives dark theme via [data-theme="dark-auth"] CSS-vars
+- [Phase 08-platform-admin-panel-for-centralized-api-integrations]: Send BYTEA as '\xHEX' strings to Supabase PostgREST (not Buffer instances) — supabase-js JSON.stringifies Buffer payloads, corrupting bytea round-trips
+- [Phase 08-platform-admin-panel-for-centralized-api-integrations]: Decrypt integration keys server-side and project to {configured, last4, updatedAt, updatedByEmail} only — ciphertext and plaintext never enter the RSC payload (R-02 / ADMIN-14)
+- [Phase 08-platform-admin-panel-for-centralized-api-integrations]: Class-based vi.mock factories for Resend / Anthropic constructors — vi.fn().mockImplementation produces non-constructible functions after vi.resetModules()
 
 ## Performance Metrics
 
@@ -119,6 +122,7 @@ Phase 5: Audio Recording & Photo Management (05-audio-recording-photo-management
 | Phase 08-platform-admin-panel-for-centralized-api-integrations P03 | 8min | 2 tasks | 7 files |
 | Phase 08-platform-admin-panel-for-centralized-api-integrations P05 | 5min | 2 tasks | 6 files |
 | Phase 08-platform-admin-panel-for-centralized-api-integrations P07 | 9min | 2 tasks | 11 files |
+| Phase 08-platform-admin-panel-for-centralized-api-integrations P04 | 14min | 2 tasks | 14 files |
 
 ## Notes
 
