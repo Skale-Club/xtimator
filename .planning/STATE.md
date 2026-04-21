@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: Executing Phase 08
-last_updated: "2026-04-20T13:16:07.070Z"
+last_updated: "2026-04-21T01:26:19.963Z"
 progress:
   total_phases: 8
   completed_phases: 7
   total_plans: 32
-  completed_plans: 24
+  completed_plans: 27
 ---
 
 # Project State
@@ -91,6 +91,9 @@ Phase 5: Audio Recording & Photo Management (05-audio-recording-photo-management
 - [Phase 05-audio-recording-photo-management 05-01]: Whisper transcription uses direct fetch to OpenAI API (no SDK dependency)
 - [Phase 05-audio-recording-photo-management 05-01]: Photo reorder uses Promise.all for parallel sort_order updates
 - [Phase 05-audio-recording-photo-management 05-01]: Service role client pattern: createServiceClient() for privileged server operations
+- [Phase 08-platform-admin-panel-for-centralized-api-integrations]: Admin gate runs BEFORE updateSession redirect for /admin/* paths — 404-rewrite takes precedence over login-redirect to never reveal admin surface (D-07)
+- [Phase 08-platform-admin-panel-for-centralized-api-integrations]: requireAdmin() throws notFound() — clean call sites and matches Next.js idiom for hiding routes
+- [Phase 08-platform-admin-panel-for-centralized-api-integrations]: Scoped dark theme via [data-theme] selector + var(--platform-primary, fallback) for runtime-overridable accent — does not collide with next-themes (D-20)
 
 ## Performance Metrics
 
@@ -109,6 +112,7 @@ Phase 5: Audio Recording & Photo Management (05-audio-recording-photo-management
 | Phase 04-project-creation-workspace P01 | 5min | 2 tasks | 4 files |
 | 04-project-creation-workspace | 03 | 5min | 2 | 7 |
 | 05-audio-recording-photo-management | 01 | 5min | 2 | 11 |
+| Phase 08-platform-admin-panel-for-centralized-api-integrations P03 | 8min | 2 tasks | 7 files |
 
 ## Notes
 
