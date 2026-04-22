@@ -57,14 +57,15 @@ Source: 8-point defaults; touch-target exception from LAND-04 iOS Safari require
 | Role | Token | Size | Weight | Line Height | Tracking | Usage |
 |------|-------|------|--------|-------------|----------|-------|
 | Body | `--font-size-base` | 16px (1rem) | 400 (`--font-weight-normal`) | 1.5 (24px) | 0em | Step descriptions, feature benefit copy, nav anchor labels |
-| Label | `--font-size-sm` | 14px (0.875rem) | 500 (`--font-weight-medium`) | 1.25 (20px) | 0em | Step number badges, section eyebrow labels (e.g. "How It Works"), footer copyright |
-| Heading | `--font-size-xl` | 20px (1.25rem) | 600 (`--font-weight-semibold`) | 1.4 | -0.01em (`--tracking-tight`) | Card titles (step titles, feature titles), nav wordmark |
+| Label | `--font-size-sm` | 14px (0.875rem) | 400 (`--font-weight-normal`) | 1.25 (20px) | 0.04em (wider tracking to distinguish from Body) | Step number badges, section eyebrow labels (e.g. "How It Works"), footer copyright |
+| Heading | `--font-size-xl` | 20px (1.25rem) | 700 (`--font-weight-bold`) | 1.4 | -0.01em (`--tracking-tight`) | Card titles (step titles, feature titles), nav wordmark |
 | Display | `--font-size-3xl` + fluid up | 30px–52px fluid | 700 (`--font-weight-bold`) | 1.15 | -0.02em (`--tracking-tighter`) | Hero headline only |
-| Subheadline | `--font-size-lg` | 18px (1.125rem) | 400 (`--font-weight-normal`) | 1.6 | 0em | Hero subheadline, below the display headline |
 
 Notes:
 - Hero headline uses `clamp(1.875rem, 4vw + 1rem, 3.25rem)` for fluid sizing between mobile and desktop — stays within the display role.
-- Maximum 4 declared sizes in use: sm (14), base (16), lg (18), xl (20), with display as a fluid variant of 3xl. Effectively 4 discrete steps plus the fluid hero variant.
+- Hero subheadline uses Body role (16px, font-normal, line-height 1.6) — wider line-height distinguishes it from standard body copy in step/feature cards.
+- Final 4 declared sizes: sm (14px), base (16px), xl (20px), display fluid (30–52px). No lg/18px size in use.
+- Label is differentiated from Body by size (14px vs 16px) and wider tracking (0.04em vs 0em) — not by weight.
 - No decorative fonts. Inter at weight 700 provides sufficient impact for the hero display.
 
 Source: `--font-size-*` and `--font-weight-*` tokens in `app/globals.css` Phase 9 Pillar C block.
@@ -160,7 +161,7 @@ Mobile (< md): Logo left + hamburger right. Sheet drawer contains: How It Works,
 
 - 3-step horizontal grid: `grid-cols-1 sm:grid-cols-3`
 - Each step card: number badge (top) + Lucide icon + title + description
-- Step number badge: 36px circle, border `1px solid hsl(var(--primary) / 0.6)`, text `text-primary font-semibold`
+- Step number badge: 36px circle, border `1px solid hsl(var(--primary) / 0.6)`, text `text-primary font-bold`
 - Connector line between steps (desktop only): `1px dashed hsl(var(--border))` spanning between cards
 
 ### Features Grid Layout
@@ -251,17 +252,17 @@ Source: CONTEXT.md D-07 (headline leads with core promise), D-09 (CTA routes), D
 
 ## Icon Contract (Lucide)
 
-| Context | Icon | Size |
-|---------|------|------|
-| Step 1 — Record | `Mic` | 24px |
-| Step 2 — Photos | `Camera` | 24px |
-| Step 3 — AI Estimate | `Sparkles` | 24px |
-| Feature — AI Generation | `Brain` | 20px |
-| Feature — PDF | `FileText` | 20px |
-| Feature — Share Link | `Share2` | 20px |
-| Feature — Mobile | `Smartphone` | 20px |
-| Nav hamburger | `Menu` | 20px |
-| Sheet close | `X` | 20px |
+| Context | Icon | Size | aria-label |
+|---------|------|------|------------|
+| Step 1 — Record | `Mic` | 24px | (decorative, aria-hidden) |
+| Step 2 — Photos | `Camera` | 24px | (decorative, aria-hidden) |
+| Step 3 — AI Estimate | `Sparkles` | 24px | (decorative, aria-hidden) |
+| Feature — AI Generation | `Brain` | 20px | (decorative, aria-hidden) |
+| Feature — PDF | `FileText` | 20px | (decorative, aria-hidden) |
+| Feature — Share Link | `Share2` | 20px | (decorative, aria-hidden) |
+| Feature — Mobile | `Smartphone` | 20px | (decorative, aria-hidden) |
+| Nav hamburger | `Menu` | 20px | `aria-label="Open navigation"` |
+| Sheet close | `X` | 20px | `aria-label="Close navigation"` |
 
 Icon color: `text-primary` for step icons and section icons; `text-muted-foreground` for utility/nav icons at rest.
 
