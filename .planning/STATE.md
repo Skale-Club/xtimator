@@ -1,14 +1,14 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: milestone
+milestone: v1.1
+milestone_name: Dark-first UX & Modern Redesign
 status: v1.0 milestone complete
-last_updated: "2026-04-22T01:25:10.321Z"
+last_updated: "2026-04-22T04:09:07.810Z"
 progress:
-  total_phases: 8
+  total_phases: 9
   completed_phases: 8
-  total_plans: 32
-  completed_plans: 32
+  total_plans: 40
+  completed_plans: 33
 ---
 
 # Project State
@@ -108,6 +108,7 @@ None — all phases complete.
 - [Phase 08-platform-admin-panel-for-centralized-api-integrations]: Discriminated-union return { ok: boolean; message?: string } for admin server actions so clients surface inline errors verbatim
 - [Phase 08-platform-admin-panel-for-centralized-api-integrations]: All provider SDK clients initialized per-request using getIntegrationKey(); no module-level SDK instances that read env at import time (ADMIN-06)
 - [Phase 08-platform-admin-panel-for-centralized-api-integrations]: generateMetadata async function in app/layout.tsx for dynamic page title from getBranding(); static metadata export removed (ADMIN-07)
+- [Phase 09-system-wide-dark-mode-default]: 09-06 appends new token block at end of globals.css (not interleaved) to avoid ordering conflicts with parallel plans 09-02/09-04
 
 ## Performance Metrics
 
@@ -132,6 +133,7 @@ None — all phases complete.
 | Phase 08-platform-admin-panel-for-centralized-api-integrations P04 | 14min | 2 tasks | 14 files |
 | Phase 08-platform-admin-panel-for-centralized-api-integrations P06 | 15min | 3 tasks | 6 files |
 | Phase 08-platform-admin-panel-for-centralized-api-integrations P08 | 9min | 2 tasks | 12 files |
+| Phase 09-system-wide-dark-mode-default P06 | 3min | 1 tasks | 1 files |
 
 ## Notes
 
