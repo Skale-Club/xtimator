@@ -1,6 +1,7 @@
 'use client'
 
 import { usePathname } from 'next/navigation'
+import { ThemeToggle } from '@/components/app-shell/theme-toggle'
 
 const PAGE_TITLES: Record<string, string> = {
   '/dashboard': 'Dashboard',
@@ -29,8 +30,9 @@ export function MobileHeader() {
   const title = getTitleFromPathname(pathname)
 
   return (
-    <header className="flex items-center border-b bg-background px-4 py-3 md:hidden">
+    <header className="flex items-center justify-between border-b bg-background px-4 py-3 md:hidden">
       <h1 className="text-lg font-semibold">{title}</h1>
+      <ThemeToggle />
     </header>
   )
 }

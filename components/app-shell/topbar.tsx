@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Settings, LogOut } from 'lucide-react'
 import { signOut } from '@/lib/actions/auth'
+import { ThemeToggle } from '@/components/app-shell/theme-toggle'
 
 interface TopbarProps {
   company: {
@@ -28,31 +29,34 @@ export function Topbar({ company }: TopbarProps) {
     <header className="hidden md:flex items-center justify-between border-b bg-background px-6 py-3">
       <h2 className="text-lg font-semibold">{company.name}</h2>
 
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button className="flex items-center gap-2 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring">
-            <Avatar className="h-8 w-8">
-              <AvatarFallback className="text-sm">{initial}</AvatarFallback>
-            </Avatar>
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-48">
-          <DropdownMenuItem asChild>
-            <Link href="/settings" className="flex items-center gap-2">
-              <Settings className="h-4 w-4" />
-              Settings
-            </Link>
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            className="flex items-center gap-2 text-destructive focus:text-destructive"
-            onClick={() => signOut()}
-          >
-            <LogOut className="h-4 w-4" />
-            Sign Out
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <div className="flex items-center gap-1">
+        <ThemeToggle />
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="flex items-center gap-2 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              <Avatar className="h-8 w-8">
+                <AvatarFallback className="text-sm">{initial}</AvatarFallback>
+              </Avatar>
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuItem asChild>
+              <Link href="/settings" className="flex items-center gap-2">
+                <Settings className="h-4 w-4" />
+                Settings
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="flex items-center gap-2 text-destructive focus:text-destructive"
+              onClick={() => signOut()}
+            >
+              <LogOut className="h-4 w-4" />
+              Sign Out
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     </header>
   )
 }
