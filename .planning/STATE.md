@@ -16,24 +16,25 @@ progress:
 
 ## Current Status
 
-- **Milestone**: v1.2 Brand Identity & Global Reach — roadmap defined, Phase 10 ready to plan
+- **Milestone**: v1.2 Brand Identity & Global Reach — Phase 10 complete & verified; Phase 11 context gathered
 - **Last updated**: 2026-04-22
 - **Last session**: 2026-04-22
-- **Stopped at**: Roadmap created. Run `/gsd:plan-phase 10` to begin.
+- **Stopped at**: Phase 11 context gathered. Run `/gsd:plan-phase 11` to begin planning.
 
 ## Current Position
 
 Phase: 11
 Plan: Not started
-Status: Phase complete — ready for verification
+Status: Context gathered — ready for planning
 Last activity: 2026-04-22
+Resume file: .planning/phases/11-marketing-landing-page/11-CONTEXT.md
 
 ## Active Phase
 
-**Phase 10: Global Brand Tokens**
+**Phase 11: Marketing Landing Page**
 
-- Goal: Every app surface renders with #406EF1 as the default primary color without any component rewrites
-- Requirements: BRAND-01, BRAND-02, BRAND-03
+- Goal: A visitor landing on the root URL sees a professional, dark-mode marketing page that explains the product and drives sign-up
+- Requirements: LAND-01, LAND-02, LAND-03, LAND-04, LAND-05
 - Plans: TBD
 
 ## Completed Phases
