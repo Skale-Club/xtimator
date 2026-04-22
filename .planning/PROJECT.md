@@ -58,7 +58,7 @@ A business owner can go from job site audio recording to a sent, professional es
 ### Active (v1.2)
 
 - [ ] LAND-01–06: Landing page — Hero+CTA, How It Works, Features/Benefits, dark mode, #406EF1 design system, responsive
-- [ ] BRAND-01–03: Global brand token update — #406EF1 as `--primary`/`--platform-primary` default across entire app (landing + authenticated + admin)
+- [x] BRAND-01–03: Global brand token update — #406EF1 as `--primary`/`--platform-primary` default across entire app (landing + authenticated + admin) — Validated in Phase 10: Global Brand Tokens
 - [ ] I18N-01–10: i18n system — LanguageContext (EN/PT/ES), `useTranslation()` hook, static dictionary, `/api/translate` AI on-demand with DB cache, language toggle in navbar; English-first
 - [ ] Production Supabase migration applied and first super-admin bootstrapped
 - [ ] Vercel deployment pipeline configured and first production deploy successful
@@ -130,4 +130,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context
 
 ---
-*Last updated: 2026-04-22 — v1.2 milestone started*
+*Last updated: 2026-04-22 — Phase 10 complete (Global Brand Tokens)*
