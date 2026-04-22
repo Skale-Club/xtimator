@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { getBranding } from '@/lib/platform-config'
-import { OnboardingWizard } from '@/components/onboarding/onboarding-wizard'
+import { OnboardingSurvey } from '@/components/onboarding/onboarding-survey'
 
 export default async function OnboardingPage() {
   const supabase = await createClient()
@@ -14,5 +14,5 @@ export default async function OnboardingPage() {
 
   const branding = await getBranding()
 
-  return <OnboardingWizard appName={branding.appName} />
+  return <OnboardingSurvey appName={branding.appName} />
 }
