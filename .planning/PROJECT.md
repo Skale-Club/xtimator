@@ -1,8 +1,8 @@
-# EstimateBuilder Pro
+# Xtimator
 
 ## What This Is
 
-EstimateBuilder Pro is a SaaS web application for US-based service businesses (construction, landscaping, plumbing, electrical, HVAC, cleaning, painting, etc.) to create professional, AI-powered estimates and quotes. A business owner visits a job site, records an audio walkthrough, takes photos, and the AI generates a complete, professionally formatted estimate ready to send as a branded PDF or shareable link.
+Xtimator is a SaaS web application for US-based service businesses (construction, landscaping, plumbing, electrical, HVAC, cleaning, painting, etc.) to create professional, AI-powered estimates and quotes. A business owner visits a job site, records an audio walkthrough, takes photos, and the AI generates a complete, professionally formatted estimate ready to send as a branded PDF or shareable link.
 
 The platform includes a super-admin layer for centralized API credential management and runtime branding configuration, enabling the platform owner to manage integrations (Resend, Anthropic, OpenAI) and global identity (app name, logo, primary color) from a UI without code changes or redeployment.
 
@@ -12,7 +12,7 @@ A business owner can go from job site audio recording to a sent, professional es
 
 ## Current Milestone: v1.2 Brand Identity & Global Reach
 
-**Goal:** Establish EstimateBuilder Pro's public presence with a branded dark-mode marketing landing page using #406EF1 design system applied globally, and enable the app for BR/LATAM markets with a full EN/PT-BR/ES translation system (English-first).
+**Goal:** Establish Xtimator's public presence with a branded dark-mode marketing landing page using #406EF1 design system applied globally, and enable the app for BR/LATAM markets with a full EN/PT-BR/ES translation system (English-first).
 
 **Target features:**
 - Landing page (Hero+CTA, How It Works, Features/Benefits) — dark mode, #406EF1 primary, modern design using vercel-labs + ui-ux-pro-max skills

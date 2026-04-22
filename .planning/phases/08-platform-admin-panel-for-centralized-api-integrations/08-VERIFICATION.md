@@ -22,7 +22,7 @@ human_verification:
     expected: "New admin listed; removed admin no longer appears; attempting to remove the last admin shows tooltip 'You are the only admin'"
     why_human: "Requires two real auth.users rows and live trigger behavior"
   - test: "Visit /auth/login as unauthenticated user"
-    expected: "Dark background with 'Xtimator' wordmark; no 'EstimateBuilder Pro' visible in page body"
+    expected: "Dark background with 'Xtimator' wordmark; no 'Xtimator' visible in page body"
     why_human: "Visual verification of dark theme fidelity and wordmark"
   - test: "Visit /admin/integrations as an unauthenticated browser"
     expected: "404 page returned, NOT redirect to /auth/login"
@@ -73,7 +73,7 @@ Result: `bunx vitest run tests/unit/server-only-imports.test.ts` passes 1/1.
 | 6 | app/(auth)/layout.tsx applies dark-auth theme with getBranding | VERIFIED | Renders `data-theme="dark-auth"` with `--platform-primary` CSS var from `hexToHslTriplet(branding.primaryColor)` |
 | 7 | All admin server actions gate with requireAdmin() | VERIFIED | integrations/actions.ts: 3 calls; branding/actions.ts: 1 call; admins/actions.ts: 2 calls — all confirmed |
 | 8 | No process.env.ANTHROPIC_API_KEY / OPENAI_API_KEY / RESEND_API_KEY reads outside lib/platform-config.ts | VERIFIED | grep returns 0 matches; env-var-sweep.test.ts passes 1/1 |
-| 9 | No hardcoded "EstimateBuilder Pro" literals in app/ or components/ | VERIFIED | grep returns 0 matches; platform-branding-sweep.test.ts passes 1/1 |
+| 9 | No hardcoded "Xtimator" literals in app/ or components/ | VERIFIED | grep returns 0 matches; platform-branding-sweep.test.ts passes 1/1 |
 | 10 | No 'use client' file imports @/lib/platform-config or @/lib/crypto/aes | VERIFIED | server-only-imports.test.ts passes 1/1 after adding `import type` filter; no runtime imports of server-only modules in client components |
 | 11 | bun run build passes without errors | VERIFIED | Compiled successfully in 2.6s; 18 pages generated; 0 Turbopack errors |
 
@@ -101,7 +101,7 @@ Result: `bunx vitest run tests/unit/server-only-imports.test.ts` passes 1/1.
 | `app/admin/admins/page.tsx` | requireAdmin + platform_admins list | VERIFIED | Exists |
 | `app/admin/admins/actions.ts` | addPlatformAdmin + removePlatformAdmin | VERIFIED | Exists; both actions gate with requireAdmin |
 | `app/(auth)/layout.tsx` | data-theme=dark-auth + getBranding | VERIFIED | Exists; confirmed dark-auth wrapper + getBranding + hexToHslTriplet |
-| `components/auth/auth-card.tsx` | branding prop, no hardcoded literals | VERIFIED | Contains branding.appName ×1, branding.logoUrl ×3; 0 "EstimateBuilder Pro" matches |
+| `components/auth/auth-card.tsx` | branding prop, no hardcoded literals | VERIFIED | Contains branding.appName ×1, branding.logoUrl ×3; 0 "Xtimator" matches |
 | `components/onboarding/onboarding-card.tsx` | appName prop (no direct getBranding call), no server-only violation | VERIFIED | Accepts `appName: string` prop; `app/onboarding/page.tsx` fetches `getBranding()` server-side and passes `branding.appName` down; build passes cleanly |
 | `app/admin/integrations/integration-card.tsx` | 'use client' component, no server-only runtime import | VERIFIED | File is 'use client'; `import type { IntegrationProvider }` from platform-config is type-only (erased at compile time); test now correctly skips type-only imports |
 | `tests/unit/env-var-sweep.test.ts` | grep assertion for provider key hygiene | VERIFIED | Exists; passes 1/1 |
@@ -139,7 +139,7 @@ Result: `bunx vitest run tests/unit/server-only-imports.test.ts` passes 1/1.
 | Behavior | Command | Result | Status |
 |----------|---------|--------|--------|
 | All 5 provider-key env reads eliminated | `grep -rn "process.env.RESEND_API_KEY\|ANTHROPIC_API_KEY\|OPENAI_API_KEY" app/ components/ lib/ \| grep -v platform-config` | 0 matches | PASS |
-| All "EstimateBuilder Pro" literals eliminated | `grep -rn "EstimateBuilder Pro" app/ components/ lib/` | 0 matches | PASS |
+| All "Xtimator" literals eliminated | `grep -rn "Xtimator" app/ components/ lib/` | 0 matches | PASS |
 | migration file contains all 3 tables | `grep -c "create table public.platform_" migration.sql` | 3 | PASS |
 | env-var-sweep + platform-branding-sweep tests | `bunx vitest run tests/unit/env-var-sweep.test.ts tests/unit/platform-branding-sweep.test.ts` | 2/2 passed | PASS |
 | server-only-imports test | `bunx vitest run tests/unit/server-only-imports.test.ts` | 1/1 passed | PASS |
@@ -158,7 +158,7 @@ Result: `bunx vitest run tests/unit/server-only-imports.test.ts` passes 1/1.
 | ADMIN-04 | 08-02, 08-04 | AES-256-GCM encrypt/decrypt lib | SATISFIED | lib/crypto/aes.ts verified, 9/9 crypto tests pass |
 | ADMIN-05 | 08-02, 08-04 | Platform-config loader — getBranding + getIntegrationKey | SATISFIED | lib/platform-config.ts verified; all exports present |
 | ADMIN-06 | 08-08 | Zero env reads for provider keys outside platform-config | SATISFIED | grep returns 0 matches; sweep test passes |
-| ADMIN-07 | 08-08 | Zero hardcoded "EstimateBuilder Pro" in app/components/lib | SATISFIED | grep returns 0 matches; sweep test passes |
+| ADMIN-07 | 08-08 | Zero hardcoded "Xtimator" in app/components/lib | SATISFIED | grep returns 0 matches; sweep test passes |
 | ADMIN-08 | 08-01, 08-05 | platform_branding singleton seeded at migration time | SATISFIED | Migration confirmed; getBranding() fallback also covers pre-seed case |
 | ADMIN-09 | 08-01 | platform-brand bucket admin-only write policies | SATISFIED | 3 storage policies confirmed in migration |
 | ADMIN-10 | 08-04 | Integrations admin UI with masked key + test button | SATISFIED | All 5 files in app/admin/integrations/ confirmed |
@@ -205,7 +205,7 @@ These items passed all automated checks but require a live environment to confir
 #### 4. Auth Dark Theme Visual
 
 **Test:** Visit /auth/login as unauthenticated user in a browser
-**Expected:** Dark zinc background (#0f0f10 or near-black), "Xtimator" wordmark, no "EstimateBuilder Pro" visible in rendered UI
+**Expected:** Dark zinc background (#0f0f10 or near-black), "Xtimator" wordmark, no "Xtimator" visible in rendered UI
 **Why human:** Visual/design verification; unit tests confirm structure but not color fidelity
 
 #### 5. Admin Gate — Anon 404

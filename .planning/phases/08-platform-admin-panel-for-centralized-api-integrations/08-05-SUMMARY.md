@@ -147,7 +147,7 @@ No new env vars or migrations introduced by this plan.
 
 - **Wave 3 sibling Plan 06 (admins page)** — same `requireAdmin` + service-role + `revalidatePath` pattern is ready to reuse.
 - **Wave 4 Plan 07 (auth dark pass)** — once an admin saves a primary color via this page, `getBranding().primaryColor` carries it forward to `app/(auth)/layout.tsx`. Cache invalidation here means the auth layout sees the change on its next request rather than after a 60s TTL.
-- **Wave 4 Plan 08 (rebrand sweep)** — every place currently rendering hardcoded "EstimateBuilder Pro" can swap to `(await getBranding()).appName`. Operators can now change that string from the UI; deploys are no longer required for rebrand.
+- **Wave 4 Plan 08 (rebrand sweep)** — every place currently rendering hardcoded "Xtimator" can swap to `(await getBranding()).appName`. Operators can now change that string from the UI; deploys are no longer required for rebrand.
 - **Verifier hooks:** unit test runs in <2s; e2e runs in <10s when env-gated, instant skip otherwise. No flakey selectors (uses `input[name="appName"]` and `getByRole('button', { name: /save branding/i })`).
 
 ## Self-Check: PASSED

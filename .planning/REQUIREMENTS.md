@@ -1,6 +1,6 @@
 # Requirements: v1.2 Brand Identity & Global Reach
 
-**Milestone goal:** Establish EstimateBuilder Pro's public presence with a branded dark-mode marketing landing page using #406EF1 design system applied globally, and enable the app for BR/LATAM markets with a full EN/PT-BR/ES translation system (English-first).
+**Milestone goal:** Establish Xtimator's public presence with a branded dark-mode marketing landing page using #406EF1 design system applied globally, and enable the app for BR/LATAM markets with a full EN/PT-BR/ES translation system (English-first).
 
 **Key constraints:**
 - English-first: all UI built and tested in English; PT-BR and ES are layered on top

@@ -16,8 +16,8 @@
 - Shipped the dark-themed `/admin` shell (layout + left-rail nav + index redirect + shared zod schemas) and the first of three admin pages — `/admin/integrations` — with full save/delete/test server actions, masked key UI, inline test result, and a fix to `lib/platform-config.ts` that closes the BYTEA round-trip gap left by Plan 02. 18/18 unit + integration tests pass.
 - `/admin/branding` lets a super-admin edit app_name + logo + primary_color + email_from_name with a live scoped-dark preview, persists via service-role upload to `platform-brand/` + upsert of `platform_branding.id=1`, and invalidates the loader cache so downstream pages pick up changes within one request.
 - Platform admin CRUD with last-admin guard, trigger-error translation, TDD unit tests, and human-verified Wave-3 checkpoint across all three admin pages
-- 1. [Rule 1 — Bug] Existing `tests/e2e/auth.spec.ts` asserts on legacy "EstimateBuilder Pro" literal
-- All 5 provider-key env reads migrated to `getIntegrationKey()` with graceful 503/error responses on null; all 5 remaining "EstimateBuilder Pro" hardcoded strings replaced with `getBranding()` loader calls; two grep-assertion unit tests enforce future compliance; e2e auth assertion made env-driven via `APP_NAME_E2E`. Phase 8 is now feature-complete.
+- 1. [Rule 1 — Bug] Existing `tests/e2e/auth.spec.ts` asserts on legacy "Xtimator" literal
+- All 5 provider-key env reads migrated to `getIntegrationKey()` with graceful 503/error responses on null; all 5 remaining "Xtimator" hardcoded strings replaced with `getBranding()` loader calls; two grep-assertion unit tests enforce future compliance; e2e auth assertion made env-driven via `APP_NAME_E2E`. Phase 8 is now feature-complete.
 - Task 1 (commit `ed11146`)
 
 ---
@@ -38,7 +38,7 @@
 - Shipped the dark-themed `/admin` shell (layout + left-rail nav + index redirect + shared zod schemas) and the first of three admin pages — `/admin/integrations` — with full save/delete/test server actions, masked key UI, inline test result, and a fix to `lib/platform-config.ts` that closes the BYTEA round-trip gap left by Plan 02. 18/18 unit + integration tests pass.
 - `/admin/branding` lets a super-admin edit app_name + logo + primary_color + email_from_name with a live scoped-dark preview, persists via service-role upload to `platform-brand/` + upsert of `platform_branding.id=1`, and invalidates the loader cache so downstream pages pick up changes within one request.
 - Platform admin CRUD with last-admin guard, trigger-error translation, TDD unit tests, and human-verified Wave-3 checkpoint across all three admin pages
-- 1. [Rule 1 — Bug] Existing `tests/e2e/auth.spec.ts` asserts on legacy "EstimateBuilder Pro" literal
-- All 5 provider-key env reads migrated to `getIntegrationKey()` with graceful 503/error responses on null; all 5 remaining "EstimateBuilder Pro" hardcoded strings replaced with `getBranding()` loader calls; two grep-assertion unit tests enforce future compliance; e2e auth assertion made env-driven via `APP_NAME_E2E`. Phase 8 is now feature-complete.
+- 1. [Rule 1 — Bug] Existing `tests/e2e/auth.spec.ts` asserts on legacy "Xtimator" literal
+- All 5 provider-key env reads migrated to `getIntegrationKey()` with graceful 503/error responses on null; all 5 remaining "Xtimator" hardcoded strings replaced with `getBranding()` loader calls; two grep-assertion unit tests enforce future compliance; e2e auth assertion made env-driven via `APP_NAME_E2E`. Phase 8 is now feature-complete.
 
 ---

@@ -27,7 +27,7 @@ function walk(dir: string, out: string[] = []): string[] {
 }
 
 describe('Platform branding sweep (ADMIN-07)', () => {
-  it('no source file under app/ components/ lib/ contains "EstimateBuilder Pro"', () => {
+  it('no source file under app/ components/ lib/ contains "Xtimator"', () => {
     const roots = ['app', 'components', 'lib']
     const offenders: string[] = []
     for (const root of roots) {

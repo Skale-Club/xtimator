@@ -1,4 +1,4 @@
--- EstimateBuilder Pro — Initial Schema Migration
+-- Xtimator — Initial Schema Migration
 -- Phase 1: Foundation & Auth
 -- D-07: All PKs use UUID DEFAULT gen_random_uuid()
 -- D-08: Hard-delete only (no deleted_at columns)

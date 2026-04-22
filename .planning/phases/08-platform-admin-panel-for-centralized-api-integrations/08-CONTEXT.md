@@ -10,7 +10,7 @@ Introduce a super-admin-only platform panel that centralizes two classes of conf
 
 1. **Shared API integrations** (Resend, Anthropic, OpenAI) — credentials stored once in the DB (encrypted), consumed by all tenants via a single server-side loader with short in-memory cache. Eliminates dependency on Vercel env vars for provider keys and enables rotation without a redeploy.
 
-2. **Global platform branding** — app name, logo, visual identity fetched from DB at runtime so the platform owner (you) can rebrand the chrome (currently "EstimateBuilder Pro" → "Xtimator") without touching code. No platform-brand string may remain hardcoded after this phase.
+2. **Global platform branding** — app name, logo, visual identity fetched from DB at runtime so the platform owner (you) can rebrand the chrome (currently "Xtimator" → "Xtimator") without touching code. No platform-brand string may remain hardcoded after this phase.
 
 Also folded: a dark-themed visual pass on `/(auth)/*` routes, isolated from the main app (global dark mode remains V2-06, deferred).
 
@@ -52,7 +52,7 @@ Out of scope:
   - `process.env.RESEND_API_KEY` → `await getIntegrationKey('resend')` (2 files: `app/api/estimates/[id]/send/route.ts`, `app/estimate/[token]/actions.ts`)
   - `process.env.ANTHROPIC_API_KEY` → `await getIntegrationKey('anthropic')` (2 files: `app/api/generate-estimate/route.ts`, `app/api/analyze-photos/route.ts`)
   - `process.env.OPENAI_API_KEY` → `await getIntegrationKey('openai')` (1 file: audio transcription server action)
-  - Hardcoded `"EstimateBuilder Pro"` → `(await getBranding()).app_name` (7 code files: `app/layout.tsx`, `components/auth/auth-card.tsx`, `components/onboarding/onboarding-card.tsx`, `components/share/estimate-view.tsx`, `app/estimate/[token]/actions.ts`, `app/api/estimates/[id]/send/route.ts`, `tests/e2e/auth.spec.ts`)
+  - Hardcoded `"Xtimator"` → `(await getBranding()).app_name` (7 code files: `app/layout.tsx`, `components/auth/auth-card.tsx`, `components/onboarding/onboarding-card.tsx`, `components/share/estimate-view.tsx`, `app/estimate/[token]/actions.ts`, `app/api/estimates/[id]/send/route.ts`, `tests/e2e/auth.spec.ts`)
 - **D-15:** Key-missing UX: when a feature's provider key isn't configured, the server route returns HTTP 503 with a friendly message ("Feature not configured — contact platform admin"). Frontend surfaces this as a disabled button with tooltip, NOT a hidden feature. Consistent with the pattern just shipped for Resend in commit `3492264`.
 - **D-16:** Environment variables `RESEND_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` deprecated. Loader reads DB first; falls back to env var only if DB row is null (smoothes local dev where admin UI isn't used). Log a warning on fallback.
 
@@ -89,7 +89,7 @@ Out of scope:
 - `CLAUDE.md` — GSD workflow enforcement, project constraints
 
 ### Prior phase context (branding + auth patterns)
-- `.planning/phases/01-foundation-auth/01-CONTEXT.md` §D-02 — established auth wordmark ("EstimateBuilder Pro") pattern to be replaced
+- `.planning/phases/01-foundation-auth/01-CONTEXT.md` §D-02 — established auth wordmark ("Xtimator") pattern to be replaced
 - `.planning/phases/02-company-onboarding/02-CONTEXT.md` §D-05, D-08, D-09 — per-company brand picker + logo upload pattern to REUSE for platform branding UI
 - `.planning/phases/07-pdf-sharing-email-settings/07-CONTEXT.md` §D-21 — server-action + service-role pattern for privileged ops (parallel to admin role check)
 
@@ -143,7 +143,7 @@ Out of scope:
 
 - App name rebrand target is **"Xtimator"** (platform owner's direction) — seed in initial migration.
 - Auth dark mode is a **visual refresh**, not a toggle. Tenant app stays light.
-- User explicitly wants **"zero hardcoded"** branding after this phase. Acceptance criterion in verification: grep for `"EstimateBuilder Pro"` in `app/`, `components/`, `lib/` returns zero matches.
+- User explicitly wants **"zero hardcoded"** branding after this phase. Acceptance criterion in verification: grep for `"Xtimator"` in `app/`, `components/`, `lib/` returns zero matches.
 - User wants **one shared set** of API keys for all tenants (classic shared-SaaS-platform billing model). No per-tenant BYO-key in v1.
 
 </specifics>

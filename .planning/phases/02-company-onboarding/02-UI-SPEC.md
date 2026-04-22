@@ -55,7 +55,7 @@ Exceptions: Industry icon cards use 12px internal padding for compact card feel.
 
 Labels are differentiated from Body text via `text-muted-foreground` color and uppercase `tracking-wide` letter-spacing, not font weight.
 
-- **Display** is used only for the "EstimateBuilder Pro" wordmark above the card (matches auth pages).
+- **Display** is used only for the "Xtimator" wordmark above the card (matches auth pages).
 - **Heading** is used for the step title inside the card (e.g., "Business Information", "Brand Identity", "Address & Defaults").
 - **Label** is used for form field labels and industry card labels. Differentiated from body via color (`--muted-foreground`) and optional uppercase tracking.
 - **Body** is used for helper text, descriptions, and form inputs.
@@ -114,7 +114,7 @@ Dark mode: All values auto-map via existing `.dark` CSS variable overrides in `g
 Full viewport height, centered vertically and horizontally
 bg-muted/40 background (matches auth pages)
 
-[Logo SVG + "EstimateBuilder Pro" wordmark]  <- 48px margin-bottom
+[Logo SVG + "Xtimator" wordmark]  <- 48px margin-bottom
 [Wizard Card max-w-[600px] w-full]
   [StepIndicator -- top of card]              <- 24px padding-bottom
   [Separator]
