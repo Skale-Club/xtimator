@@ -96,6 +96,6 @@ Plans:
 | 7. PDF Sharing Email and Settings | v1.0 | 4/4 | Complete | 2026-04-10 |
 | 8. Platform Admin Panel | v1.0 | 8/8 | Complete | 2026-04-21 |
 | 9. Dark-first UX & Modern Redesign | v1.1 | 8/8 | Complete | 2026-04-22 |
-| 10. Global Brand Tokens | v1.2 | 1/1 | Complete   | 2026-04-22 |
+| 10. Global Brand Tokens | v1.2 | 1/1 | Complete    | 2026-04-22 |
 | 11. Marketing Landing Page | v1.2 | 0/TBD | Not started | - |
 | 12. i18n Translation System | v1.2 | 0/TBD | Not started | - |
