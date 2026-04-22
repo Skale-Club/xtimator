@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: v1.0 milestone complete
-last_updated: "2026-04-21T02:55:05.212Z"
+last_updated: "2026-04-22T01:25:10.321Z"
 progress:
   total_phases: 8
   completed_phases: 8
@@ -144,3 +144,9 @@ Plan 01-01 complete: Next.js 16 scaffold with all dependencies and test infrastr
 ### Roadmap Evolution
 
 - Phase 8 added: Platform admin panel — scope covers centralized API integrations (Resend/Anthropic/OpenAI) AND global branding (app name, logo, theme). Removes all hardcoded "EstimateBuilder Pro" strings and process.env key coupling; replaces with DB-backed config fetched via server-side loader. Drives v1.1.
+
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 260421-tqz | Add login event logging | 2026-04-22 | e5ba1c5 | [260421-tqz-add-login-event-logging](.planning/quick/260421-tqz-add-login-event-logging/) |
