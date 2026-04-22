@@ -26,8 +26,8 @@ export function Topbar({ company }: TopbarProps) {
   const initial = (company.owner_name ?? company.name).charAt(0).toUpperCase()
 
   return (
-    <header className="hidden md:flex items-center justify-between border-b bg-background px-6 py-3">
-      <h2 className="text-lg font-semibold">{company.name}</h2>
+    <header className="hidden md:flex items-center justify-between border-b border-border bg-background px-6 py-4">
+      <h2 className="text-lg font-[var(--font-weight-semibold)] tracking-[var(--tracking-tight)]">{company.name}</h2>
 
       <div className="flex items-center gap-1">
         <ThemeToggle />
