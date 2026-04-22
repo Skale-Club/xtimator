@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { logAuthEvent } from '@/lib/auth-logger'
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
@@ -12,6 +13,7 @@ export async function GET(request: NextRequest) {
 
     // For password recovery, redirect to reset-password page
     if (type === 'recovery') {
+      logAuthEvent({ event: 'oauth_callback', success: true, provider: 'recovery', redirectTo: '/auth/reset-password?mode=update' })
       return NextResponse.redirect(new URL('/auth/reset-password?mode=update', origin))
     }
 
@@ -24,10 +26,13 @@ export async function GET(request: NextRequest) {
         .select('id')
         .eq('user_id', claims.sub)
         .single()
-      return NextResponse.redirect(new URL(company ? '/dashboard' : '/onboarding', origin))
+      const redirectTo = company ? '/dashboard' : '/onboarding'
+      logAuthEvent({ event: 'oauth_callback', success: true, provider: 'google', userId: claims.sub, redirectTo })
+      return NextResponse.redirect(new URL(redirectTo, origin))
     }
   }
 
   // Fallback: redirect to login if no code or claims
+  logAuthEvent({ event: 'oauth_callback', success: false, provider: 'google', error: 'no_code_or_claims' })
   return NextResponse.redirect(new URL('/auth/login', origin))
 }
