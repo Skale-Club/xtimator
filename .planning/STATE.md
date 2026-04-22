@@ -1,14 +1,14 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: milestone
+milestone: v1.1
+milestone_name: Dark-first UX & Modern Redesign
 status: v1.0 milestone complete
-last_updated: "2026-04-22T01:25:10.321Z"
+last_updated: "2026-04-22T04:53:53.725Z"
 progress:
-  total_phases: 8
+  total_phases: 9
   completed_phases: 8
-  total_plans: 32
-  completed_plans: 32
+  total_plans: 40
+  completed_plans: 33
 ---
 
 # Project State
@@ -17,8 +17,8 @@ progress:
 
 - **Milestone**: v1.0 — all 8 phases complete (Phase 8: platform admin panel — API keys + branding sweep done)
 - **Last updated**: 2026-04-21
-- **Last session**: 2026-04-21
-- **Stopped at**: Completed 08-08-PLAN.md — Phase 8 env-var sweep + branding sweep complete. All 32 plans across 8 phases are DONE.
+- **Last session**: 2026-04-22
+- **Stopped at**: Completed 09-05-PLAN.md — Survey-style onboarding flow (10-step single-question wizard with progress, back, validation, review). Replaces legacy OnboardingWizard at /onboarding.
 
 ## Active Phase
 
@@ -108,6 +108,9 @@ None — all phases complete.
 - [Phase 08-platform-admin-panel-for-centralized-api-integrations]: Discriminated-union return { ok: boolean; message?: string } for admin server actions so clients surface inline errors verbatim
 - [Phase 08-platform-admin-panel-for-centralized-api-integrations]: All provider SDK clients initialized per-request using getIntegrationKey(); no module-level SDK instances that read env at import time (ADMIN-06)
 - [Phase 08-platform-admin-panel-for-centralized-api-integrations]: generateMetadata async function in app/layout.tsx for dynamic page title from getBranding(); static metadata export removed (ADMIN-07)
+- [Phase 09-system-wide-dark-mode-default]: Survey onboarding state machine in custom hook (useSurveyState) instead of react-hook-form — keeps the framework dependency-free and lets goNext() validate against the latest values via setValues callback for race-safe gating
+- [Phase 09-system-wide-dark-mode-default]: CSS @keyframes for inter-step transition (no framer-motion / tw-animate dependency) — gated behind motion-safe: for prefers-reduced-motion compliance
+- [Phase 09-system-wide-dark-mode-default]: Legacy onboarding-wizard.tsx + step-* files left on disk (unused, not imported) so a follow-up cleanup phase can delete them safely
 
 ## Performance Metrics
 
@@ -132,6 +135,7 @@ None — all phases complete.
 | Phase 08-platform-admin-panel-for-centralized-api-integrations P04 | 14min | 2 tasks | 14 files |
 | Phase 08-platform-admin-panel-for-centralized-api-integrations P06 | 15min | 3 tasks | 6 files |
 | Phase 08-platform-admin-panel-for-centralized-api-integrations P08 | 9min | 2 tasks | 12 files |
+| Phase 09 P05 | 8m49s | 2 tasks | 18 files |
 
 ## Notes
 
