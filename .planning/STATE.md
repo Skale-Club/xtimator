@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Brand Identity & Global Reach
 status: planning
-last_updated: "2026-04-22T13:49:03.376Z"
+last_updated: "2026-04-22T14:31:16.589Z"
 last_activity: 2026-04-22
 progress:
   total_phases: 3
   completed_phases: 1
-  total_plans: 1
-  completed_plans: 1
+  total_plans: 3
+  completed_plans: 2
 ---
 
 # Project State
@@ -27,7 +27,7 @@ Phase: 11
 Plan: Not started
 Status: Context gathered — ready for planning
 Last activity: 2026-04-22
-Resume file: .planning/phases/11-marketing-landing-page/11-UI-SPEC.md
+Resume file: None
 
 ## Active Phase
 
@@ -126,6 +126,8 @@ Resume file: .planning/phases/11-marketing-landing-page/11-UI-SPEC.md
 - [Phase 09-system-wide-dark-mode-default]: Primitives redesigned to consume Plan-06 tokens via Tailwind arbitrary-value syntax; removed all dark:* color variants that don't fire inside scoped [data-theme] wrappers (RESEARCH Pitfall 4)
 - [Phase 09-system-wide-dark-mode-default]: Skeleton uses gradient-shimmer before-pseudo-element with @keyframes shimmer defined at top level of globals.css (outside @layer) for arbitrary-value animate-[shimmer_...] consumption
 - [Phase 10-global-brand-tokens]: 224 86% 60% HSL triplet locked as global brand primary (#406EF1) across all CSS scopes; .dark --primary-foreground changed to 0 0% 100% for white-on-blue contrast; var(--platform-primary, ...) runtime override path preserved
+- [Phase 11-marketing-landing-page]: D-01: isLandingRoot = pathname === '/' exempts landing root from unauthenticated redirect guard in proxy.ts
+- [Phase 11-marketing-landing-page]: D-02: authenticated / → /dashboard redirect via claims && isLandingRoot condition with set-cookie preservation
 
 ## Performance Metrics
 
@@ -153,6 +155,7 @@ Resume file: .planning/phases/11-marketing-landing-page/11-UI-SPEC.md
 | Phase 09-system-wide-dark-mode-default P01 | 7min | 2 tasks | 4 files |
 | Phase 09-system-wide-dark-mode-default P07 | 6min | 2 tasks | 10 files |
 | Phase 10-global-brand-tokens P01 | 8min | 2 tasks | 4 files |
+| Phase 11-marketing-landing-page P01 | 10min | 2 tasks | 2 files |
 
 ## Project Reference
 
