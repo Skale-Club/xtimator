@@ -28,7 +28,7 @@ describe('UI overlays — Phase 9 redesign', () => {
     )
     const content = screen.getByTestId('dialog-content')
     expect(content.className).toContain('rounded-[var(--radius-lg)]')
-    expect(content.className).toContain('shadow-[var(--shadow-lg)]')
+    expect(content.className).toContain('shadow-lg')
     expect(content.className).toContain('border-border')
   })
 
@@ -43,7 +43,7 @@ describe('UI overlays — Phase 9 redesign', () => {
     )
     const content = screen.getByTestId('dd-content')
     expect(content.className).toContain('rounded-[var(--radius-md)]')
-    expect(content.className).toContain('shadow-[var(--shadow-md)]')
+    expect(content.className).toContain('shadow-md')
     const item = screen.getByTestId('dd-item')
     expect(item.className).toContain('rounded-[var(--radius-sm)]')
   })
