@@ -1,24 +1,31 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.1
-milestone_name: Dark-first UX & Modern Redesign
-status: v1.1 milestone complete
-last_updated: "2026-04-22T12:11:22.497Z"
+milestone: v1.2
+milestone_name: Brand Identity & Global Reach
+status: Defining requirements
+last_updated: "2026-04-22T12:30:00.000Z"
 progress:
-  total_phases: 9
-  completed_phases: 9
-  total_plans: 40
-  completed_plans: 40
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
 ---
 
 # Project State
 
 ## Current Status
 
-- **Milestone**: v1.1 shipped — all 9 phases complete. Next: `/gsd:new-milestone` to define v1.2.
+- **Milestone**: v1.2 Brand Identity & Global Reach — defining requirements
 - **Last updated**: 2026-04-22
 - **Last session**: 2026-04-22
-- **Stopped at**: v1.1 milestone archived. All 40 plans across 9 phases are DONE. Seeds planted: SEED-001 (i18n EN/PT-BR/ES), SEED-002 (landing page + #406EF1 brand identity).
+- **Stopped at**: Milestone started. Requirements being defined.
+
+## Current Position
+
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-04-22 — Milestone v1.2 started
 
 ## Active Phase
 

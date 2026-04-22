@@ -10,6 +10,21 @@ The platform includes a super-admin layer for centralized API credential managem
 
 A business owner can go from job site audio recording to a sent, professional estimate in under 5 minutes without touching a keyboard.
 
+## Current Milestone: v1.2 Brand Identity & Global Reach
+
+**Goal:** Establish EstimateBuilder Pro's public presence with a branded dark-mode marketing landing page using #406EF1 design system applied globally, and enable the app for BR/LATAM markets with a full EN/PT-BR/ES translation system (English-first).
+
+**Target features:**
+- Landing page (Hero+CTA, How It Works, Features/Benefits) — dark mode, #406EF1 primary, modern design using vercel-labs + ui-ux-pro-max skills
+- Global brand token update — #406EF1 as `--primary` / `--platform-primary` default across landing, authenticated app, and admin panel
+- i18n system — `useTranslation()` hook, `LanguageContext` (EN/PT/ES), `/api/translate` AI on-demand with DB cache, static `translations.ts` dictionary
+- Language toggle (EN/PT/ES) in navbar with localStorage persistence
+
+**Key constraints:**
+- English-first: all UI built and tested in English; PT-BR and ES are layered on top
+- Landing page must use design skills: `skills.sh/vercel-labs/agent-skills/web-design-guidelines` + `skills.sh/nextlevelbuilder/ui-ux-pro-max-skill/ui-ux-pro-max`
+- i18n architecture pre-designed (SEED-001) — implement exactly as specified
+
 ## Current State
 
 **Version:** v1.1 Dark-first UX & Modern Redesign — shipped 2026-04-22
@@ -40,20 +55,19 @@ A business owner can go from job site audio recording to a sent, professional es
 - v ADMIN-01–14: Platform admin panel (super-admin gate, integrations CRUD with encrypted keys, branding config, admins management, auth dark pass, full env-var and identity decoupling) — v1.0
 - v THEME-01–08: Dark mode default with SSR cookie hydration, 3-way user toggle (dark/light/system) persisted to `companies.theme_preference`, forced-light `/estimate/*` scope, semantic status palette, survey-style onboarding, full UI primitives + overlays redesign on shared design-token vocabulary — v1.1
 
-### Active (v1.2 candidates)
+### Active (v1.2)
 
-- [ ] Human UAT: Full browser-based walkthrough of audio recording, photo upload, AI generation, PDF download, share link, and email send flows
+- [ ] LAND-01–06: Landing page — Hero+CTA, How It Works, Features/Benefits, dark mode, #406EF1 design system, responsive
+- [ ] BRAND-01–03: Global brand token update — #406EF1 as `--primary`/`--platform-primary` default across entire app (landing + authenticated + admin)
+- [ ] I18N-01–10: i18n system — LanguageContext (EN/PT/ES), `useTranslation()` hook, static dictionary, `/api/translate` AI on-demand with DB cache, language toggle in navbar; English-first
 - [ ] Production Supabase migration applied and first super-admin bootstrapped
-- [ ] APP_ENCRYPTION_KEY set in Vercel environment variables
 - [ ] Vercel deployment pipeline configured and first production deploy successful
-- [ ] Landing page for public-facing marketing (currently `app/page.tsx` redirects to `/auth/login`)
-- [ ] Global brand color `#406EF1` applied as `--primary` / `--platform-primary` default
 
 ### Out of Scope
 
-- Multi-language support (EN/PT-BR/ES) — seeded for future milestone (SEED-001)
-- Landing page + global brand identity (#406EF1) — seeded for future milestone (SEED-002)
+- Pricing section on landing page — deferred (pricing model not yet defined)
 - Client portal (clients log in) — public share link covers v1 use case
+- Per-tenant language settings — app-level toggle covers this milestone
 - QuickBooks integration — deferred to v2
 - Offline PWA mode — deferred to v2
 - Dashboard charts/analytics — deferred to v2
@@ -116,4 +130,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context
 
 ---
-*Last updated: 2026-04-22 after v1.1 milestone*
+*Last updated: 2026-04-22 — v1.2 milestone started*
