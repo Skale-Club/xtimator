@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Dark-first UX & Modern Redesign
-status: Milestone complete
-last_updated: "2026-04-22T05:13:34.421Z"
+status: v1.1 milestone complete
+last_updated: "2026-04-22T12:11:22.497Z"
 progress:
   total_phases: 9
   completed_phases: 9
@@ -15,10 +15,10 @@ progress:
 
 ## Current Status
 
-- **Milestone**: v1.0 — all 8 phases complete (Phase 8: platform admin panel — API keys + branding sweep done)
-- **Last updated**: 2026-04-21
-- **Last session**: 2026-04-21
-- **Stopped at**: Completed 08-08-PLAN.md — Phase 8 env-var sweep + branding sweep complete. All 32 plans across 8 phases are DONE.
+- **Milestone**: v1.1 shipped — all 9 phases complete. Next: `/gsd:new-milestone` to define v1.2.
+- **Last updated**: 2026-04-22
+- **Last session**: 2026-04-22
+- **Stopped at**: v1.1 milestone archived. All 40 plans across 9 phases are DONE. Seeds planted: SEED-001 (i18n EN/PT-BR/ES), SEED-002 (landing page + #406EF1 brand identity).
 
 ## Active Phase
 
@@ -139,11 +139,18 @@ None — all phases complete.
 | Phase 09-system-wide-dark-mode-default P01 | 7min | 2 tasks | 4 files |
 | Phase 09-system-wide-dark-mode-default P07 | 6min | 2 tasks | 10 files |
 
+## Project Reference
+
+See: .planning/PROJECT.md (updated 2026-04-22)
+
+**Core value:** Business owner → job site audio recording → sent professional estimate in under 5 minutes
+**Current focus:** Planning next milestone (v1.2) — run `/gsd:new-milestone`
+
 ## Notes
 
 Project initialized from comprehensive spec on 2026-04-09.
-7 phases, 83 v1 requirements, YOLO mode, standard granularity.
-Plan 01-01 complete: Next.js 16 scaffold with all dependencies and test infrastructure.
+v1.0: 8 phases, 32 plans, 151+ commits. v1.1: Phase 9, 8 plans, 38 commits. YOLO mode, standard granularity.
+Seeds planted: SEED-001 (i18n EN/PT-BR/ES), SEED-002 (landing page + #406EF1 brand identity).
 
 ## Accumulated Context
 

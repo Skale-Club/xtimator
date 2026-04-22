@@ -1,5 +1,58 @@
 # Retrospective: EstimateBuilder Pro
 
+## Milestone: v1.1 — Dark-first UX & Modern Redesign
+
+**Shipped:** 2026-04-22
+**Phases:** 1 (Phase 9) | **Plans:** 8 | **Commits:** ~38
+**Timeline:** 2026-04-21 → 2026-04-22 (1 day)
+
+### What Was Built
+
+1. **Plan 01 — Theme persistence:** `companies.theme_preference` column + `eb-theme` SSR cookie + `saveThemePreference` server action with discriminated-union result
+2. **Plan 02 — Root layout dark default:** Cookie-hydrated `defaultTheme`, forced-light `/estimate/*` scope with `[data-theme="light"]` wrapper, per-request DB→cookie sync in the authenticated shell
+3. **Plan 03 — 3-way theme toggle:** Dark/light/system toggle in Topbar + MobileHeader + new `/settings/appearance` page; instant via `setTheme()` + persistent via `saveThemePreference()`
+4. **Plan 04 — Semantic status palette:** `--success/--warning/--info/--danger` token trio added to all theme blocks; 5 Tier-1 hardcoded-color violators migrated
+5. **Plan 05 — Survey-style onboarding:** 10-step one-question-per-screen survey with `useSurveyState` hook replacing the 3-step react-hook-form wizard; submission contract unchanged
+6. **Plan 06 — Design token foundation:** Radius/shadow/typography scale in `globals.css` as additive token vocabulary for Wave 2+3
+7. **Plan 07 — UI primitives redesign:** Button, Input, Textarea, Select, Label, Card, Badge, Skeleton all on Plan-06 tokens; unified h-10 form control height, shimmer skeleton animation
+8. **Plan 08 — Overlays + nav shells:** Dialog, AlertDialog, Sheet, DropdownMenu, Table, Sonner redesigned on token vocabulary; Topbar/Sidebar/MobileHeader/BottomNav refined; shared `empty-state.tsx` consolidated
+
+### What Worked
+
+- **Token-first approach:** Defining the full radius/shadow/typography vocabulary in Plan 06 before touching any component eliminated repeated token lookups in Plans 07-08. Wave 2+3 executed cleanly with zero token collisions.
+- **`[data-theme]` scoped approach:** Forced-light estimate scope and scoped-dark admin/auth inherited from Phase 8 pattern — no new abstraction needed, just `data-theme="light"` wrapper around `/estimate/*`.
+- **`useSurveyState` hook isolation:** Owning all step navigation and form data in one hook let the server-action submission contract from Phase 2 stay untouched. Zero regression risk on existing onboarding data.
+- **SSR cookie hydration pattern:** `readThemeCookie()` in root layout `async` RSC eliminates FOUC at the framework level — no JS-before-paint flicker tricks needed.
+- **Validate-before-auth pattern:** Checking theme value validity before opening a DB connection short-circuits invalid inputs cheaply. Carried forward as a server-action convention.
+
+### What Was Inefficient
+
+- **Tier-1 scope boundary:** The hardcoded-color audit scoped to 5 files left `estimate-preview.tsx:127` with one `text-red-600` outside the declared scope. A full grep-driven audit at plan time would have included all violators rather than requiring a follow-up.
+- **E2E tests blocked by environment:** Playwright E2E specs for dark mode and onboarding survey were written correctly but auto-skip without a live Supabase environment. The structural coverage is there but observable behavior cannot be verified programmatically in this setup.
+- **Lighthouse a11y deferred:** DARK-06 was declared optional at research time. In hindsight, wiring a minimal axe-core check in Playwright (even against a static server) would have closed this gap within the phase rather than deferring it indefinitely.
+
+### Patterns Established
+
+- **SSR cookie hydration for theme:** `readThemeCookie()` in async RSC root layout + `writeThemeCookie()` in authenticated shell layout on DB mismatch — two-layer sync keeps cookie and DB in agreement cross-device.
+- **Token-first primitive redesign:** Define the full token vocabulary in `globals.css` first, then migrate components to consume via Tailwind arbitrary-value syntax. Never mix `dark:*` and `[data-theme]` approaches on the same token.
+- **`useSurveyState` hook pattern:** For multi-step flows, isolate step index + per-step data in a hook; let the server action see only the final assembled payload. Avoids coupling navigation state to server concerns.
+- **Forced-light scope via `data-theme`:** Public-facing pages (estimate view, PDF) wrapped in `<div data-theme="light">` with a full light-palette CSS rule — immune to the signed-in user's preference without any conditional rendering.
+
+### Key Lessons
+
+1. **Write grep-driven scope for color migrations.** "All files containing `text-red-*`" is a more defensible scope boundary than a named list. Catches stragglers automatically.
+2. **Wire axe-core in Playwright at Phase 1, not at audit time.** A single `checkA11y(page)` call in a Playwright fixture closes DARK-06-type gaps for every future feature with zero per-phase overhead.
+3. **One migration per theme-related column.** The `theme_preference` column is the only theme-state that lives in the DB. Future theme extensions (per-page overrides, tenant defaults) should extend this column pattern rather than adding new tables.
+4. **The token vocabulary file is load-bearing.** `globals.css` token scales defined in Plan 06 were consumed by Plans 07-08 without modification. Treat this file as a contract — changes need a deliberate review pass.
+
+### Cost Observations
+
+- Sessions: 1 focused session
+- Model: Claude Opus 4.7 (orchestrator) + executor subagents (balanced profile)
+- Notable: Single-phase milestone executed in one day; 8 plans across 3 waves (01-04 → 05-06 → 07-08) with clean git history
+
+---
+
 ## Milestone: v1.0 MVP
 
 **Shipped:** 2026-04-21
