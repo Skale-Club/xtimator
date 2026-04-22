@@ -71,7 +71,7 @@ export function TranscriptEditor({ recordingId, initialTranscript, isTranscribin
           </span>
         )}
         {saveStatus === 'saved' && (
-          <span className="text-xs text-green-600 flex items-center gap-1">
+          <span className="text-xs text-[hsl(var(--success))] flex items-center gap-1">
             <Check className="h-3 w-3" /> Saved
           </span>
         )}

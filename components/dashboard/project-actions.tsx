@@ -79,7 +79,7 @@ export function ProjectActions({ projectId, projectName }: ProjectActionsProps) 
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem
-            className="text-red-600"
+            className="text-destructive focus:text-destructive"
             onClick={() => setShowDeleteDialog(true)}
           >
             Delete

@@ -299,6 +299,7 @@ export function AudioRecorder({ projectId, companyId, onRecordingCreated, onTran
 
       {/* Mic button */}
       <div className="flex justify-center">
+        {/* Intentional: red signals "recording" regardless of theme (UI convention). */}
         <button
           onClick={handleToggleRecording}
           disabled={isBusy || !!audioBlob}
@@ -373,7 +374,7 @@ export function AudioRecorder({ projectId, companyId, onRecordingCreated, onTran
 
       {/* Speech API info banner */}
       {!isRecording && speechSupported === false && (
-        <div className="flex items-start gap-2 bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 text-xs rounded-md p-3">
+        <div className="flex items-start gap-2 bg-[hsl(var(--info-muted))] text-[hsl(var(--info))] text-xs rounded-md p-3">
           <Info className="h-4 w-4 flex-shrink-0 mt-0.5" />
           <span>
             Live transcript preview is only available on Chrome and Edge browsers.

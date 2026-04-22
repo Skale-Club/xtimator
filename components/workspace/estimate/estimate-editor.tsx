@@ -291,13 +291,13 @@ export function EstimateEditor({
           )}
           {saveStatus === 'saved' && (
             <>
-              <CheckCircle2 className="h-4 w-4 text-green-600" />
+              <CheckCircle2 className="h-4 w-4 text-[hsl(var(--success))]" />
               <span>Saved</span>
             </>
           )}
           {saveStatus === 'dirty' && (
             <>
-              <AlertCircle className="h-4 w-4 text-yellow-600" />
+              <AlertCircle className="h-4 w-4 text-[hsl(var(--warning))]" />
               <span>Unsaved changes</span>
             </>
           )}

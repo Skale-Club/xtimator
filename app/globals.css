@@ -22,6 +22,20 @@
     --input: 240 5.9% 90%;
     --ring: 240 5.9% 10%;
     --radius: 0.5rem;
+
+    /* --- Phase 9 (09-04): semantic status palette — light --- */
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
+    --success-muted: 142 76% 94%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+    --warning-muted: 48 96% 89%;
+    --info: 221 83% 53%;
+    --info-foreground: 0 0% 100%;
+    --info-muted: 214 95% 93%;
+    --danger: 0 84% 60%;
+    --danger-foreground: 0 0% 100%;
+    --danger-muted: 0 93% 94%;
   }
 
   .dark {
@@ -44,6 +58,20 @@
     --border: 240 3.7% 15.9%;
     --input: 240 3.7% 15.9%;
     --ring: 240 4.9% 83.9%;
+
+    /* --- Phase 9 (09-04): semantic status palette — dark --- */
+    --success: 142 70% 45%;
+    --success-foreground: 0 0% 100%;
+    --success-muted: 142 72% 15%;
+    --warning: 38 92% 60%;
+    --warning-foreground: 0 0% 100%;
+    --warning-muted: 48 30% 18%;
+    --info: 217 91% 60%;
+    --info-foreground: 0 0% 100%;
+    --info-muted: 217 33% 18%;
+    --danger: 0 72% 55%;
+    --danger-foreground: 0 0% 100%;
+    --danger-muted: 0 40% 18%;
   }
 
   /* --- Phase 8: Scoped dark themes for /admin/* and /(auth)/* (does not affect main app) --- */
@@ -68,6 +96,20 @@
     --destructive: 0 62.8% 45%;
     --destructive-foreground: 0 0% 98%;
     --ring: var(--platform-primary, 220 91% 60%);
+
+    /* --- Phase 9 (09-04): semantic status palette — scoped dark (matches .dark) --- */
+    --success: 142 70% 45%;
+    --success-foreground: 0 0% 100%;
+    --success-muted: 142 72% 15%;
+    --warning: 38 92% 60%;
+    --warning-foreground: 0 0% 100%;
+    --warning-muted: 48 30% 18%;
+    --info: 217 91% 60%;
+    --info-foreground: 0 0% 100%;
+    --info-muted: 217 33% 18%;
+    --danger: 0 72% 55%;
+    --danger-foreground: 0 0% 100%;
+    --danger-muted: 0 40% 18%;
   }
 
   /* --- Phase 9: forced-light scope for /estimate/* public view and PDF preview --- */
@@ -91,6 +133,20 @@
     --border: 240 5.9% 90%;
     --input: 240 5.9% 90%;
     --ring: 240 5.9% 10%;
+
+    /* --- Phase 9 (09-04): semantic status palette — forced-light (matches :root) --- */
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
+    --success-muted: 142 76% 94%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+    --warning-muted: 48 96% 89%;
+    --info: 221 83% 53%;
+    --info-foreground: 0 0% 100%;
+    --info-muted: 214 95% 93%;
+    --danger: 0 84% 60%;
+    --danger-foreground: 0 0% 100%;
+    --danger-muted: 0 93% 94%;
   }
 }
 
