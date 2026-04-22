@@ -30,8 +30,9 @@ export async function updateSession(request: NextRequest) {
 
   const { pathname } = request.nextUrl
 
-  // D-05: protect all routes EXCEPT /login, /signup, /reset-password and /estimate/*
-  const isAuthRoute = pathname.startsWith('/login') || pathname.startsWith('/signup') || pathname.startsWith('/reset-password')
+  // D-05: protect all routes EXCEPT /login, /signup, /reset-password, /callback and /estimate/*
+  // /callback must be public so the OAuth code exchange can run before getClaims() has anything to return
+  const isAuthRoute = pathname.startsWith('/login') || pathname.startsWith('/signup') || pathname.startsWith('/reset-password') || pathname.startsWith('/callback')
   const isPublicEstimate = pathname.startsWith('/estimate')
 
   if (!claims && !isAuthRoute && !isPublicEstimate) {
