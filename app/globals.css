@@ -156,6 +156,16 @@
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
 }
 
+/* Phase 9: Shadow scale registered in @theme (no var() refs) to prevent Tailwind v4
+   wildcard utility generation. --focus-shadow uses a different namespace to avoid
+   the --shadow-* conflict. Dark/scoped overrides stay in @layer base. */
+@theme {
+  --shadow-xs: 0 1px 2px 0 rgba(15, 23, 42, 0.04);
+  --shadow-sm: 0 1px 2px 0 rgba(15, 23, 42, 0.06), 0 1px 3px 0 rgba(15, 23, 42, 0.06);
+  --shadow-md: 0 4px 6px -1px rgba(15, 23, 42, 0.08), 0 2px 4px -2px rgba(15, 23, 42, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(15, 23, 42, 0.10), 0 4px 6px -4px rgba(15, 23, 42, 0.08);
+}
+
 @layer base {
   * {
     border-color: hsl(var(--border));
@@ -183,12 +193,8 @@
     --radius-xl: 1rem;
     --radius-full: 9999px;
 
-    /* Shadow scale — light theme */
-    --shadow-xs: 0 1px 2px 0 rgba(15, 23, 42, 0.04);
-    --shadow-sm: 0 1px 2px 0 rgba(15, 23, 42, 0.06), 0 1px 3px 0 rgba(15, 23, 42, 0.06);
-    --shadow-md: 0 4px 6px -1px rgba(15, 23, 42, 0.08), 0 2px 4px -2px rgba(15, 23, 42, 0.06);
-    --shadow-lg: 0 10px 15px -3px rgba(15, 23, 42, 0.10), 0 4px 6px -4px rgba(15, 23, 42, 0.08);
-    --shadow-focus: 0 0 0 3px hsl(var(--ring) / 0.35);
+    /* Focus ring shadow — renamed from --shadow-focus to avoid Tailwind v4 --shadow-* namespace */
+    --focus-shadow: 0 0 0 3px hsl(var(--ring) / 0.35);
 
     /* Typography scale */
     --font-size-xs:   0.75rem;   --line-height-xs:   1rem;
@@ -224,16 +230,12 @@
     --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.35), 0 1px 3px 0 rgba(0, 0, 0, 0.35);
     --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.45), 0 2px 4px -2px rgba(0, 0, 0, 0.35);
     --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.55), 0 4px 6px -4px rgba(0, 0, 0, 0.40);
-    --shadow-focus: 0 0 0 3px hsl(var(--ring) / 0.45);
+    --focus-shadow: 0 0 0 3px hsl(var(--ring) / 0.45);
   }
 
-  /* Forced-light scope inherits :root shadows explicitly */
+  /* Forced-light scope — shadow-* values come from @theme; only focus-shadow needs explicit reset */
   [data-theme="light"] {
-    --shadow-xs: 0 1px 2px 0 rgba(15, 23, 42, 0.04);
-    --shadow-sm: 0 1px 2px 0 rgba(15, 23, 42, 0.06), 0 1px 3px 0 rgba(15, 23, 42, 0.06);
-    --shadow-md: 0 4px 6px -1px rgba(15, 23, 42, 0.08), 0 2px 4px -2px rgba(15, 23, 42, 0.06);
-    --shadow-lg: 0 10px 15px -3px rgba(15, 23, 42, 0.10), 0 4px 6px -4px rgba(15, 23, 42, 0.08);
-    --shadow-focus: 0 0 0 3px hsl(var(--ring) / 0.35);
+    --focus-shadow: 0 0 0 3px hsl(var(--ring) / 0.35);
   }
 }
 
