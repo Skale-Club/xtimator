@@ -12,7 +12,7 @@ export default async function AuthLayout({
     ? hexToHslTriplet(branding.primaryColor)
     : null
   const style = {
-    ['--platform-primary' as string]: triplet ?? '220 91% 60%',
+    ['--platform-primary' as string]: triplet ?? '224 86% 60%',
   } as CSSProperties
 
   return (
