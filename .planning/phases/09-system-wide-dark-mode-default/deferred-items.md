@@ -28,3 +28,10 @@ Scope: unrelated to Phase 9 work. Candidate for a dedicated `/gsd:quick` fix.
 - Secondary blocker: the webServer (`next dev`) fails to boot because `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` are unset in the worktree (no `.env.local`).
 - Verified on pre-09-02 HEAD (`9b7263a`): same failures reproduce without any of Plan 09-02's edits.
 - Scope: environmental. The Plan 09-02 spec `tests/e2e/dark-mode.spec.ts` compiles to valid Playwright test shapes (grep-confirmed 3 `test(` blocks) and will run green once the runner environment is restored.
+
+## Pre-existing unit-test failure (NOT caused by 09-04)
+
+- `tests/integration/missing-key-ux.test.ts > responds 503 with /not configured/i in the body` fails because the actual error string returned by `/api/estimates/[id]/send` is `"Email sending isn't available right now. Use 'Download PDF' and send manually, or contact your platform administrator."` — does not contain the literal "not configured".
+- Root cause: the route's friendly error message was reworded after Phase 8 work (last route edit on `a86dd16`); the test was not updated.
+- Scope: completely unrelated to Phase 9 dark-mode work. Candidate for a dedicated `/gsd:quick` fix to either (a) update the test regex to match the new copy, or (b) restore "not configured" wording in the route response.
+- Verified: 33 of 34 test files pass; the only failure is in this single integration file with no overlap to dark-mode / status-badge / theming code touched by 09-04.
