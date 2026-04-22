@@ -49,3 +49,23 @@ test.describe('Phase 9 — dark-mode defaults & scoped theme wrappers', () => {
     await expect(wrapper.first()).toBeVisible({ timeout: 5_000 })
   })
 })
+
+// Phase 9 (09-04) — public routes render in dark mode when eb-theme=dark cookie is set.
+// Smoke test only — authenticated routes are covered by the manual visual audit in 09-08.
+test.describe('Phase 9 — routes render in dark mode', () => {
+  const PUBLIC_ROUTES = ['/auth/login', '/auth/signup', '/auth/reset-password']
+
+  test.beforeEach(async ({ context, baseURL }) => {
+    await context.addCookies([
+      { name: 'eb-theme', value: 'dark', url: baseURL ?? 'http://localhost:9633' },
+    ])
+  })
+
+  for (const path of PUBLIC_ROUTES) {
+    test(`routes-render-dark: ${path} has <html class*="dark">`, async ({ page }) => {
+      await page.goto(path)
+      const cls = await page.evaluate(() => document.documentElement.className)
+      expect(cls).toMatch(/(^|\s)dark(\s|$)/)
+    })
+  }
+})

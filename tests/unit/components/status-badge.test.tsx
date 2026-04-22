@@ -3,45 +3,36 @@ import { render, screen } from '@testing-library/react'
 import { StatusBadge } from '@/components/dashboard/status-badge'
 
 describe('StatusBadge', () => {
-  it('renders draft status with gray classes', () => {
-    const { container } = render(<StatusBadge status="draft" />)
-    const badge = container.firstElementChild as HTMLElement
-    expect(badge.textContent).toBe('draft')
-    expect(badge.className).toContain('bg-gray-100')
-    expect(badge.className).toContain('text-gray-700')
+  const EXPECTED: Record<string, string[]> = {
+    draft:      ['bg-muted', 'text-muted-foreground'],
+    processing: ['bg-[hsl(var(--warning-muted))]', 'text-[hsl(var(--warning))]'],
+    ready:      ['bg-[hsl(var(--info-muted))]', 'text-[hsl(var(--info))]'],
+    sent:       ['bg-accent', 'text-accent-foreground'],
+    accepted:   ['bg-[hsl(var(--success-muted))]', 'text-[hsl(var(--success))]'],
+    declined:   ['bg-[hsl(var(--danger-muted))]', 'text-[hsl(var(--danger))]'],
+    archived:   ['bg-muted', 'text-muted-foreground'],
+  }
+
+  for (const [status, classes] of Object.entries(EXPECTED)) {
+    it(`renders ${status} with semantic tokens`, () => {
+      render(<StatusBadge status={status} />)
+      const el = screen.getByText(status)
+      for (const cls of classes) {
+        expect(el.className).toContain(cls)
+      }
+    })
+  }
+
+  it('falls back to draft styling for unknown status', () => {
+    render(<StatusBadge status="xyz-unknown" />)
+    const el = screen.getByText('xyz-unknown')
+    expect(el.className).toContain('bg-muted')
   })
 
-  it('renders accepted status with green classes', () => {
-    const { container } = render(<StatusBadge status="accepted" />)
-    const badge = container.firstElementChild as HTMLElement
-    expect(badge.textContent).toBe('accepted')
-    expect(badge.className).toContain('bg-green-100')
-    expect(badge.className).toContain('text-green-700')
-  })
-
-  it('renders declined status with red classes', () => {
-    const { container } = render(<StatusBadge status="declined" />)
-    const badge = container.firstElementChild as HTMLElement
-    expect(badge.textContent).toBe('declined')
-    expect(badge.className).toContain('bg-red-100')
-    expect(badge.className).toContain('text-red-700')
-  })
-
-  it('renders unknown status without crashing (falls back to draft style)', () => {
-    const { container } = render(<StatusBadge status="unknown-status" />)
-    const badge = container.firstElementChild as HTMLElement
-    expect(badge.textContent).toBe('unknown-status')
-    expect(badge.className).toContain('bg-gray-100')
-  })
-
-  it('renders all 7 known statuses with non-empty output', () => {
-    const statuses = ['draft', 'processing', 'ready', 'sent', 'accepted', 'declined', 'archived']
-    for (const status of statuses) {
-      const { container, unmount } = render(<StatusBadge status={status} />)
-      const badge = container.firstElementChild as HTMLElement
-      expect(badge.textContent).toBe(status)
-      expect(badge.textContent!.length).toBeGreaterThan(0)
-      unmount()
-    }
+  it('has no hardcoded color classes', () => {
+    render(<StatusBadge status="accepted" />)
+    const el = screen.getByText('accepted')
+    expect(el.className).not.toMatch(/bg-(gray|green|red|blue|yellow|purple)-\d{3}/)
+    expect(el.className).not.toMatch(/text-(gray|green|red|blue|yellow|purple)-\d{3}/)
   })
 })
