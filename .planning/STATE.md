@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Dark-first UX & Modern Redesign
 status: v1.0 milestone complete
-last_updated: "2026-04-22T04:10:58.974Z"
+last_updated: "2026-04-22T04:18:08.246Z"
 progress:
   total_phases: 9
   completed_phases: 8
   total_plans: 40
-  completed_plans: 34
+  completed_plans: 35
 ---
 
 # Project State
@@ -110,6 +110,9 @@ None — all phases complete.
 - [Phase 08-platform-admin-panel-for-centralized-api-integrations]: generateMetadata async function in app/layout.tsx for dynamic page title from getBranding(); static metadata export removed (ADMIN-07)
 - [Phase 09-system-wide-dark-mode-default]: theme_preference stored as nullable TEXT on companies with CHECK constraint; eb-theme cookie mirrors DB for SSR hydration (httpOnly:false so next-themes can read pre-hydration)
 - [Phase 09-system-wide-dark-mode-default]: saveThemePreference validates input BEFORE auth check (no DB round-trip for invalid input); cookie written AFTER successful DB update so cookie never drifts ahead of DB
+- [Phase 09-system-wide-dark-mode-default]: Phase 09 Plan 02: [data-theme="light"] palette redeclaration added additively after admin-dark/dark-auth block — preserves all existing rules, wins over .dark via CSS cascade (nearer ancestor)
+- [Phase 09-system-wide-dark-mode-default]: Phase 09 Plan 02: (app) layout syncs eb-theme cookie from DB on every authenticated request but only writes when value differs — avoids redundant Set-Cookie on the hot path
+- [Phase 09-system-wide-dark-mode-default]: Phase 09 Plan 02: forced-light estimate scope uses data-theme="light" + CSS-var redeclare (not nested ThemeProvider forcedTheme) — matches Phase 8 scoped-dark wrappers and avoids officially-unsupported nested provider pattern
 
 ## Performance Metrics
 
@@ -135,6 +138,7 @@ None — all phases complete.
 | Phase 08-platform-admin-panel-for-centralized-api-integrations P06 | 15min | 3 tasks | 6 files |
 | Phase 08-platform-admin-panel-for-centralized-api-integrations P08 | 9min | 2 tasks | 12 files |
 | Phase 09-system-wide-dark-mode-default P01 | 7min | 2 tasks | 4 files |
+| Phase 09-system-wide-dark-mode-default P02 | 3min | 2 tasks | 6 files |
 
 ## Notes
 
