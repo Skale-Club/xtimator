@@ -14,10 +14,10 @@
 
 ### Landing Page
 
-- [ ] **LAND-01**: Visitor can see a hero section with a strong headline, subheadline, and a signup/login CTA button
+- [x] **LAND-01**: Visitor can see a hero section with a strong headline, subheadline, and a signup/login CTA button
 - [ ] **LAND-02**: Visitor can read a "How It Works" section showing the 3-step flow (record audio on site → add photos → receive AI-generated estimate)
 - [ ] **LAND-03**: Visitor can explore a features/benefits grid highlighting AI generation, branded PDF output, shareable links, and mobile-first use
-- [ ] **LAND-04**: Landing page is fully responsive and functions correctly on iOS Safari and Android Chrome
+- [x] **LAND-04**: Landing page is fully responsive and functions correctly on iOS Safari and Android Chrome
 - [ ] **LAND-05**: Landing page uses dark theme with `#406EF1` as primary color and near-black background; visual quality meets production standards (using vercel-labs + ui-ux-pro-max skills)
 
 ### Brand Identity
