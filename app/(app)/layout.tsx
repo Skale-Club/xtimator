@@ -4,6 +4,7 @@ import { Sidebar } from '@/components/app-shell/sidebar'
 import { Topbar } from '@/components/app-shell/topbar'
 import { BottomNav } from '@/components/app-shell/bottom-nav'
 import { MobileHeader } from '@/components/app-shell/mobile-header'
+import { readThemeCookie, writeThemeCookie, isValidTheme } from '@/lib/theme/cookie'
 
 export default async function AppShellLayout({
   children,
@@ -20,12 +21,19 @@ export default async function AppShellLayout({
 
   const { data: company } = await supabase
     .from('companies')
-    .select('id, name, logo_url, owner_name')
+    .select('id, name, logo_url, owner_name, theme_preference')
     .eq('user_id', claims.sub)
     .single()
 
   if (!company) {
     redirect('/onboarding')
+  }
+
+  if (isValidTheme(company.theme_preference)) {
+    const current = await readThemeCookie()
+    if (current !== company.theme_preference) {
+      await writeThemeCookie(company.theme_preference)
+    }
   }
 
   return (
