@@ -19,9 +19,9 @@ export function Sidebar({ company }: SidebarProps) {
   const pathname = usePathname()
 
   return (
-    <aside className="hidden md:flex flex-col border-r bg-muted/40 w-16 lg:w-64 transition-all">
+    <aside className="hidden md:flex flex-col border-r border-border bg-background w-16 lg:w-64 transition-all">
       {/* Company branding */}
-      <div className="flex items-center gap-3 border-b px-3 py-4">
+      <div className="flex items-center gap-3 border-b border-border px-3 py-4">
         <Avatar className="h-9 w-9 shrink-0">
           {company.logo_url && (
             <AvatarImage src={company.logo_url} alt={company.name} />
@@ -47,9 +47,10 @@ export function Sidebar({ company }: SidebarProps) {
               key={item.href}
               href={item.href}
               className={cn(
-                'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
-                'hover:bg-accent hover:text-accent-foreground',
-                isActive && 'bg-accent text-accent-foreground',
+                'flex items-center gap-3 rounded-[var(--radius-md)] px-3 py-2 text-sm font-[var(--font-weight-medium)] transition-colors duration-150',
+                isActive
+                  ? 'bg-accent text-accent-foreground'
+                  : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
                 item.primary && !isActive && 'text-primary',
                 item.primary && 'border border-primary/20 bg-primary/5 hover:bg-primary/10'
               )}

@@ -29,8 +29,8 @@ export function MobileHeader() {
   const title = getTitleFromPathname(pathname)
 
   return (
-    <header className="flex items-center border-b bg-background px-4 py-3 md:hidden">
-      <h1 className="text-lg font-semibold">{title}</h1>
+    <header className="flex items-center border-b border-border bg-background px-4 py-4 md:hidden">
+      <h1 className="text-lg font-[var(--font-weight-semibold)] tracking-[var(--tracking-tight)]">{title}</h1>
     </header>
   )
 }
