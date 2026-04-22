@@ -22,9 +22,9 @@
 
 ### Brand Identity
 
-- [ ] **BRAND-01**: All authenticated app pages render with `#406EF1` as the global primary color (`--primary` CSS token updated in `app/globals.css`)
-- [ ] **BRAND-02**: Admin panel uses `#406EF1` as the default platform primary color (CSS fallback in `--platform-primary` updated from `220 91% 60%` to `226 85% 60%`)
-- [ ] **BRAND-03**: Auth pages (login, signup, reset-password) use `#406EF1` as the default primary color (fallback in auth layout updated)
+- [x] **BRAND-01**: All authenticated app pages render with `#406EF1` as the global primary color (`--primary` CSS token updated in `app/globals.css`)
+- [x] **BRAND-02**: Admin panel uses `#406EF1` as the default platform primary color (CSS fallback in `--platform-primary` updated from `220 91% 60%` to `226 85% 60%`)
+- [x] **BRAND-03**: Auth pages (login, signup, reset-password) use `#406EF1` as the default primary color (fallback in auth layout updated)
 
 ### i18n — Translation System
 

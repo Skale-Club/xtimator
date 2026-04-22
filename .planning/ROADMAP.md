@@ -35,7 +35,7 @@
 
 ### v1.2 Brand Identity & Global Reach
 
-- [ ] **Phase 10: Global Brand Tokens** — Apply #406EF1 as the default primary color across all app surfaces (globals.css + layout fallbacks)
+- [x] **Phase 10: Global Brand Tokens** — Apply #406EF1 as the default primary color across all app surfaces (globals.css + layout fallbacks) (completed 2026-04-22)
 - [ ] **Phase 11: Marketing Landing Page** — Build the dark-mode public landing page (Hero+CTA, How It Works, Features/Benefits) using #406EF1 design system
 - [ ] **Phase 12: i18n Translation System** — Add EN/PT-BR/ES language switching with static dictionary, AI on-demand translation, DB cache, and navbar toggle
 
@@ -54,7 +54,7 @@
 **Plans**: 1 plan
 
 Plans:
-- [ ] 10-01-PLAN.md — CSS token surgery: test scaffold + apply #406EF1 across all scopes
+- [x] 10-01-PLAN.md — CSS token surgery: test scaffold + apply #406EF1 across all scopes
 
 ### Phase 11: Marketing Landing Page
 **Goal**: A visitor landing on the root URL sees a professional, dark-mode marketing page that explains the product and drives sign-up
@@ -96,6 +96,6 @@ Plans:
 | 7. PDF Sharing Email and Settings | v1.0 | 4/4 | Complete | 2026-04-10 |
 | 8. Platform Admin Panel | v1.0 | 8/8 | Complete | 2026-04-21 |
 | 9. Dark-first UX & Modern Redesign | v1.1 | 8/8 | Complete | 2026-04-22 |
-| 10. Global Brand Tokens | v1.2 | 1/1 | Planned | - |
+| 10. Global Brand Tokens | v1.2 | 1/1 | Complete   | 2026-04-22 |
 | 11. Marketing Landing Page | v1.2 | 0/TBD | Not started | - |
 | 12. i18n Translation System | v1.2 | 0/TBD | Not started | - |
