@@ -51,7 +51,10 @@
   1. Authenticated app pages display interactive elements (buttons, links, focus rings) in #406EF1 blue
   2. Admin panel accent color defaults to #406EF1 when no runtime override is configured
   3. Auth pages (login, signup, reset-password) render their primary action buttons in #406EF1
-**Plans**: TBD
+**Plans**: 1 plan
+
+Plans:
+- [ ] 10-01-PLAN.md — CSS token surgery: test scaffold + apply #406EF1 across all scopes
 
 ### Phase 11: Marketing Landing Page
 **Goal**: A visitor landing on the root URL sees a professional, dark-mode marketing page that explains the product and drives sign-up
@@ -93,6 +96,6 @@
 | 7. PDF Sharing Email and Settings | v1.0 | 4/4 | Complete | 2026-04-10 |
 | 8. Platform Admin Panel | v1.0 | 8/8 | Complete | 2026-04-21 |
 | 9. Dark-first UX & Modern Redesign | v1.1 | 8/8 | Complete | 2026-04-22 |
-| 10. Global Brand Tokens | v1.2 | 0/TBD | Not started | - |
+| 10. Global Brand Tokens | v1.2 | 1/1 | Planned | - |
 | 11. Marketing Landing Page | v1.2 | 0/TBD | Not started | - |
 | 12. i18n Translation System | v1.2 | 0/TBD | Not started | - |
