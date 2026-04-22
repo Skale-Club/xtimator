@@ -242,3 +242,31 @@
   0%   { transform: translateX(-100%); }
   100% { transform: translateX(100%); }
 }
+
+/* Phase 11: Landing page gradient border hover treatment (ui-ux-pro-max) */
+.card-hover-gradient {
+  position: relative;
+}
+@media (hover: hover) {
+  .card-hover-gradient:hover::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(135deg, hsl(var(--primary) / 0.4) 0%, hsl(218 85% 73% / 0.4) 100%);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+}
+
+/* Phase 11: Product mockup waveform pulse */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes waveform {
+    from { transform: scaleY(0.4); }
+    to   { transform: scaleY(1); }
+  }
+}
