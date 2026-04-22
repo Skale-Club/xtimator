@@ -30,15 +30,27 @@ export async function updateSession(request: NextRequest) {
 
   const { pathname } = request.nextUrl
 
-  // D-05: protect all routes EXCEPT /login, /signup, /reset-password, /callback and /estimate/*
+  // D-05, D-01, D-02: protect all routes EXCEPT /login, /signup, /reset-password, /callback, /estimate/* and /
   // /callback must be public so the OAuth code exchange can run before getClaims() has anything to return
   const isAuthRoute = pathname.startsWith('/login') || pathname.startsWith('/signup') || pathname.startsWith('/reset-password') || pathname.startsWith('/callback')
   const isPublicEstimate = pathname.startsWith('/estimate')
+  const isLandingRoot = pathname === '/'  // D-01: / is public; D-02: authenticated / → /dashboard
 
-  if (!claims && !isAuthRoute && !isPublicEstimate) {
+  if (!claims && !isAuthRoute && !isPublicEstimate && !isLandingRoot) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     // Preserve set-cookie headers so Supabase can rotate session tokens on redirect
+    const redirectResponse = NextResponse.redirect(url)
+    supabaseResponse.headers.forEach((value, key) => {
+      if (key === 'set-cookie') redirectResponse.headers.append(key, value)
+    })
+    return redirectResponse
+  }
+
+  // D-02: Authenticated visitor hits landing root → redirect to /dashboard
+  if (claims && isLandingRoot) {
+    const url = request.nextUrl.clone()
+    url.pathname = '/dashboard'
     const redirectResponse = NextResponse.redirect(url)
     supabaseResponse.headers.forEach((value, key) => {
       if (key === 'set-cookie') redirectResponse.headers.append(key, value)
