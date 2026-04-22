@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Brand Identity & Global Reach
-status: verifying
-last_updated: "2026-04-22T12:56:49.207Z"
+status: planning
+last_updated: "2026-04-22T13:49:03.376Z"
 last_activity: 2026-04-22
 progress:
   total_phases: 3
@@ -27,7 +27,7 @@ Phase: 11
 Plan: Not started
 Status: Context gathered — ready for planning
 Last activity: 2026-04-22
-Resume file: .planning/phases/11-marketing-landing-page/11-CONTEXT.md
+Resume file: .planning/phases/11-marketing-landing-page/11-UI-SPEC.md
 
 ## Active Phase
 
