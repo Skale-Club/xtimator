@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Brand Identity & Global Reach
-status: Defining requirements
+status: Roadmap defined — ready for Phase 10
 last_updated: "2026-04-22T12:30:00.000Z"
 progress:
-  total_phases: 0
+  total_phases: 3
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -15,21 +15,24 @@ progress:
 
 ## Current Status
 
-- **Milestone**: v1.2 Brand Identity & Global Reach — defining requirements
+- **Milestone**: v1.2 Brand Identity & Global Reach — roadmap defined, Phase 10 ready to plan
 - **Last updated**: 2026-04-22
 - **Last session**: 2026-04-22
-- **Stopped at**: Milestone started. Requirements being defined.
+- **Stopped at**: Roadmap created. Run `/gsd:plan-phase 10` to begin.
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 10 — Global Brand Tokens (not started)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-04-22 — Milestone v1.2 started
+Status: Ready to plan
+Last activity: 2026-04-22 — v1.2 roadmap created (3 phases, 16 requirements mapped)
 
 ## Active Phase
 
-None — all phases complete.
+**Phase 10: Global Brand Tokens**
+- Goal: Every app surface renders with #406EF1 as the default primary color without any component rewrites
+- Requirements: BRAND-01, BRAND-02, BRAND-03
+- Plans: TBD
 
 ## Completed Phases
 
@@ -65,7 +68,7 @@ None — all phases complete.
 - shadcn/ui New York style (D-09 locked) with neutral base color and CSS variables
 - SUPABASE_SERVICE_ROLE_KEY declared without NEXT_PUBLIC_ prefix (SEC-03)
 - vitest include pattern explicitly set to tests/unit/** to avoid Playwright import collisions
-- app/page.tsx redirects to /auth/login (D-04 — no landing page in v1)
+- app/page.tsx redirects to /auth/login (D-04 — no landing page in v1; v1.2 moves redirect to middleware so / serves landing page)
 - [Phase 01-foundation-auth]: getClaims() used instead of getSession() for JWT validation — re-validates signature against Supabase servers (AUTH-04, SEC-03)
 - [Phase 01-foundation-auth]: data?.claims ?? null pattern adopted for getClaims() null-safe destructuring
 - [Phase 01-foundation-auth 01-03]: RLS subquery pattern: company_id IN (SELECT id FROM companies WHERE user_id = (SELECT auth.uid()))
@@ -151,19 +154,20 @@ None — all phases complete.
 See: .planning/PROJECT.md (updated 2026-04-22)
 
 **Core value:** Business owner → job site audio recording → sent professional estimate in under 5 minutes
-**Current focus:** Planning next milestone (v1.2) — run `/gsd:new-milestone`
+**Current focus:** v1.2 — Phase 10: Global Brand Tokens
 
 ## Notes
 
 Project initialized from comprehensive spec on 2026-04-09.
 v1.0: 8 phases, 32 plans, 151+ commits. v1.1: Phase 9, 8 plans, 38 commits. YOLO mode, standard granularity.
-Seeds planted: SEED-001 (i18n EN/PT-BR/ES), SEED-002 (landing page + #406EF1 brand identity).
+v1.2: 3 phases (10-12), 16 requirements. Seeds: SEED-001 (i18n EN/PT-BR/ES), SEED-002 (landing page + #406EF1 brand identity).
 
 ## Accumulated Context
 
 ### Roadmap Evolution
 
 - Phase 8 added: Platform admin panel — scope covers centralized API integrations (Resend/Anthropic/OpenAI) AND global branding (app name, logo, theme). Removes all hardcoded "EstimateBuilder Pro" strings and process.env key coupling; replaces with DB-backed config fetched via server-side loader. Drives v1.1.
+- v1.2 phases 10-12: Brand tokens (BRAND-01–03) → Landing page (LAND-01–05) → i18n system (I18N-01–08). Ordering constraint: landing page must exist before i18n so translations layer on top of real UI strings.
 
 ### Quick Tasks Completed
 

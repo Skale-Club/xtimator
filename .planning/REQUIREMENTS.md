@@ -64,19 +64,19 @@
 
 | REQ-ID | Feature Area | Phase | Status |
 |--------|-------------|-------|--------|
-| LAND-01 | Landing Page | TBD | — |
-| LAND-02 | Landing Page | TBD | — |
-| LAND-03 | Landing Page | TBD | — |
-| LAND-04 | Landing Page | TBD | — |
-| LAND-05 | Landing Page | TBD | — |
-| BRAND-01 | Brand Identity | TBD | — |
-| BRAND-02 | Brand Identity | TBD | — |
-| BRAND-03 | Brand Identity | TBD | — |
-| I18N-01 | i18n | TBD | — |
-| I18N-02 | i18n | TBD | — |
-| I18N-03 | i18n | TBD | — |
-| I18N-04 | i18n | TBD | — |
-| I18N-05 | i18n | TBD | — |
-| I18N-06 | i18n | TBD | — |
-| I18N-07 | i18n | TBD | — |
-| I18N-08 | i18n | TBD | — |
+| BRAND-01 | Brand Identity | Phase 10 | Pending |
+| BRAND-02 | Brand Identity | Phase 10 | Pending |
+| BRAND-03 | Brand Identity | Phase 10 | Pending |
+| LAND-01 | Landing Page | Phase 11 | Pending |
+| LAND-02 | Landing Page | Phase 11 | Pending |
+| LAND-03 | Landing Page | Phase 11 | Pending |
+| LAND-04 | Landing Page | Phase 11 | Pending |
+| LAND-05 | Landing Page | Phase 11 | Pending |
+| I18N-01 | i18n | Phase 12 | Pending |
+| I18N-02 | i18n | Phase 12 | Pending |
+| I18N-03 | i18n | Phase 12 | Pending |
+| I18N-04 | i18n | Phase 12 | Pending |
+| I18N-05 | i18n | Phase 12 | Pending |
+| I18N-06 | i18n | Phase 12 | Pending |
+| I18N-07 | i18n | Phase 12 | Pending |
+| I18N-08 | i18n | Phase 12 | Pending |
