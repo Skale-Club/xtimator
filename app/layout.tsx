@@ -3,6 +3,7 @@ import { Inter } from "next/font/google"
 import { ThemeProvider } from "next-themes"
 import { Toaster } from "@/components/ui/sonner"
 import { getBranding } from "@/lib/platform-config"
+import { readThemeCookie } from "@/lib/theme/cookie"
 import "./globals.css"
 
 const inter = Inter({
@@ -18,17 +19,19 @@ export async function generateMetadata(): Promise<Metadata> {
   }
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  const saved = await readThemeCookie()
   return (
     <html lang="en" className={`${inter.variable} h-full antialiased`} suppressHydrationWarning>
       <body className="min-h-full flex flex-col">
         <ThemeProvider
           attribute="class"
-          defaultTheme="light"
+          defaultTheme={saved ?? 'dark'}
+          enableSystem
           disableTransitionOnChange
         >
           {children}

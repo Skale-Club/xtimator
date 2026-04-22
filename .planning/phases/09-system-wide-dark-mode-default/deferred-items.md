@@ -20,3 +20,11 @@ Scope: unrelated to Phase 9 work. Candidate for a dedicated `/gsd:quick` fix.
 
 - Plan 09-01 added `supabase/migrations/20260422000001_theme_preference.sql` but the migration was NOT auto-applied (DATABASE_URL not exported in the worktree).
 - Before production runtime reads `companies.theme_preference`, operator must run: `bunx supabase db push --db-url $DATABASE_URL`.
+
+## Pre-existing Playwright runner environment issue (NOT caused by 09-02)
+
+- Running `npx playwright test` inside the worktree fails with `Error: Playwright Test did not expect test.describe() to be called here ... You have two different versions of @playwright/test`.
+- Root cause: the worktree inherits the shared root `node_modules` but the Playwright resolver sees a duplicate copy during list/run, likely because of the inner `.claude/worktrees/agent-*` path depth hitting a second resolved module.
+- Secondary blocker: the webServer (`next dev`) fails to boot because `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` are unset in the worktree (no `.env.local`).
+- Verified on pre-09-02 HEAD (`9b7263a`): same failures reproduce without any of Plan 09-02's edits.
+- Scope: environmental. The Plan 09-02 spec `tests/e2e/dark-mode.spec.ts` compiles to valid Playwright test shapes (grep-confirmed 3 `test(` blocks) and will run green once the runner environment is restored.
