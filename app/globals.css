@@ -157,3 +157,9 @@
     --shadow-focus: 0 0 0 3px hsl(var(--ring) / 0.35);
   }
 }
+
+/* Phase 9 Pillar C (09-07) — shimmer keyframes for Skeleton */
+@keyframes shimmer {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
