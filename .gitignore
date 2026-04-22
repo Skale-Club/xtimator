@@ -78,3 +78,18 @@ Desktop.ini
 *.swo
 *~
 .vercel
+
+# ── GSD baseline (auto-generated) ──
+.gsd
+.gsd-id
+.mcp.json
+.bg-shell/
+.vscode/
+*.code-workspace
+__pycache__/
+*.pyc
+.venv/
+venv/
+target/
+vendor/
+tmp/
