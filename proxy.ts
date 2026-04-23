@@ -4,9 +4,17 @@ import { checkPlatformAdmin } from '@/lib/supabase/admin-gate'
 
 export async function proxy(request: NextRequest) {
   // Always refresh session first (existing behavior — preserved).
-  const response = await updateSession(request)
+  const { claims, response } = await updateSession(request)
 
   const { pathname } = request.nextUrl
+
+  if (pathname === '/' && claims) {
+    const redirectResponse = NextResponse.redirect(new URL('/dashboard', request.url))
+    response.headers.forEach((value, key) => {
+      if (key === 'set-cookie') redirectResponse.headers.append(key, value)
+    })
+    return redirectResponse
+  }
 
   // Avoid loop: skip the admin gate when the request is already on /404 (R-06).
   if (pathname === '/404') return response

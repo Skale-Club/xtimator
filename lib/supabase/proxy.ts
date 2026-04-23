@@ -1,6 +1,13 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+export function isPublicRoute(pathname: string) {
+  const isAuthRoute = pathname.startsWith('/auth')
+  const isPublicEstimate = pathname.startsWith('/estimate')
+
+  return pathname === '/' || isAuthRoute || isPublicEstimate
+}
+
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
 
@@ -30,21 +37,22 @@ export async function updateSession(request: NextRequest) {
 
   const { pathname } = request.nextUrl
 
-  // D-05: protect all routes EXCEPT /login, /signup, /reset-password, /callback and /estimate/*
-  // /callback must be public so the OAuth code exchange can run before getClaims() has anything to return
-  const isAuthRoute = pathname.startsWith('/login') || pathname.startsWith('/signup') || pathname.startsWith('/reset-password') || pathname.startsWith('/callback')
-  const isPublicEstimate = pathname.startsWith('/estimate')
-
-  if (!claims && !isAuthRoute && !isPublicEstimate) {
+  if (!claims && !isPublicRoute(pathname)) {
     const url = request.nextUrl.clone()
-    url.pathname = '/login'
+    url.pathname = '/auth/login'
     // Preserve set-cookie headers so Supabase can rotate session tokens on redirect
     const redirectResponse = NextResponse.redirect(url)
     supabaseResponse.headers.forEach((value, key) => {
       if (key === 'set-cookie') redirectResponse.headers.append(key, value)
     })
-    return redirectResponse
+    return {
+      claims,
+      response: redirectResponse,
+    }
   }
 
-  return supabaseResponse
+  return {
+    claims,
+    response: supabaseResponse,
+  }
 }
