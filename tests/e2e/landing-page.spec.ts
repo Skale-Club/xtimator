@@ -9,12 +9,24 @@ test.describe('landing page', () => {
     await expect(page.getByRole('link', { name: 'Log in' })).toBeVisible()
   })
 
-  test.fixme('how it works', async () => {
-    // Activated in Plan 11-01 Task 2 once the remaining landing sections ship.
+  test('how it works', async ({ page }) => {
+    await page.goto('/')
+
+    await expect(page.getByRole('heading', { name: 'Record audio' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Add photos' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Get estimate' })).toBeVisible()
   })
 
-  test.fixme('features', async () => {
-    // Activated in Plan 11-01 Task 2 once the benefits grid ships.
+  test('features', async ({ page }) => {
+    await page.goto('/')
+
+    const firstFeature = page.getByRole('heading', { name: 'AI-generated estimate draft' })
+
+    await firstFeature.scrollIntoViewIfNeeded()
+    await expect(firstFeature).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Branded PDF output' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Share link for fast approvals' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Mobile-first from the driveway' })).toBeVisible()
   })
 
   test('unauthenticated root', async ({ page }) => {
