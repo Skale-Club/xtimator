@@ -66,7 +66,11 @@ Plans:
   3. Visitor can browse a features/benefits grid (AI generation, branded PDF, shareable link, mobile-first)
   4. Landing page renders correctly on iOS Safari and Android Chrome at all breakpoints
   5. Visual design uses dark near-black background, #406EF1 primary, #7FA4F4 secondary, and meets production visual quality standards
-**Plans**: TBD
+**Plans**: 2 plans
+
+Plans:
+- [x] 11-01-PLAN.md - Public root route + landing baseline + baseline coverage
+- [ ] 11-02-PLAN.md - Mobile responsiveness + visual polish + mobile Playwright coverage
 **UI hint**: yes
 
 ### Phase 12: i18n Translation System
@@ -97,5 +101,5 @@ Plans:
 | 8. Platform Admin Panel | v1.0 | 8/8 | Complete | 2026-04-21 |
 | 9. Dark-first UX & Modern Redesign | v1.1 | 8/8 | Complete | 2026-04-22 |
 | 10. Global Brand Tokens | v1.2 | 1/1 | Complete    | 2026-04-22 |
-| 11. Marketing Landing Page | v1.2 | 0/TBD | Not started | - |
+| 11. Marketing Landing Page | v1.2 | 1/2 | In Progress|  |
 | 12. i18n Translation System | v1.2 | 0/TBD | Not started | - |

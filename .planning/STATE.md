@@ -2,39 +2,41 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Brand Identity & Global Reach
-status: verifying
-last_updated: "2026-04-22T12:56:49.207Z"
-last_activity: 2026-04-22
+status: In Progress
+last_updated: "2026-04-23T16:51:42.484Z"
+last_activity: 2026-04-23
 progress:
   total_phases: 3
   completed_phases: 1
-  total_plans: 1
-  completed_plans: 1
+  total_plans: 3
+  completed_plans: 2
 ---
 
 # Project State
 
 ## Current Status
 
-- **Milestone**: v1.2 Brand Identity & Global Reach — roadmap defined, Phase 10 ready to plan
-- **Last updated**: 2026-04-22
-- **Last session**: 2026-04-22
-- **Stopped at**: Roadmap created. Run `/gsd:plan-phase 10` to begin.
+- **Milestone**: v1.2 Brand Identity & Global Reach - Phase 11 execution in progress
+- **Last updated**: 2026-04-23
+- **Last session**: 2026-04-23
+- **Stopped at**: Completed 11-01-PLAN.md. Next step: execute `/gsd:execute-phase .planning/phases/11-marketing-landing-page/11-02-PLAN.md`.
 
 ## Current Position
 
 Phase: 11
-Plan: Not started
-Status: Phase complete — ready for verification
-Last activity: 2026-04-22
+Plan: 11-01 complete, 11-02 planned
+Status: In progress
+Last activity: 2026-04-23
 
 ## Active Phase
 
-**Phase 10: Global Brand Tokens**
+**Phase 11: Marketing Landing Page**
 
-- Goal: Every app surface renders with #406EF1 as the default primary color without any component rewrites
-- Requirements: BRAND-01, BRAND-02, BRAND-03
-- Plans: TBD
+- Goal: A visitor landing on `/` sees a professional, dark-mode marketing page while authenticated users still fast-path into the app
+- Requirements: LAND-01, LAND-02, LAND-03, LAND-04, LAND-05
+- Plans:
+  - 11-01 - Public root route, landing baseline, and baseline route coverage
+  - 11-02 - Mobile responsiveness, visual polish, and mobile Playwright coverage
 
 ## Completed Phases
 
@@ -125,6 +127,8 @@ Last activity: 2026-04-22
 - [Phase 09-system-wide-dark-mode-default]: Primitives redesigned to consume Plan-06 tokens via Tailwind arbitrary-value syntax; removed all dark:* color variants that don't fire inside scoped [data-theme] wrappers (RESEARCH Pitfall 4)
 - [Phase 09-system-wide-dark-mode-default]: Skeleton uses gradient-shimmer before-pseudo-element with @keyframes shimmer defined at top level of globals.css (outside @layer) for arbitrary-value animate-[shimmer_...] consumption
 - [Phase 10-global-brand-tokens]: 224 86% 60% HSL triplet locked as global brand primary (#406EF1) across all CSS scopes; .dark --primary-foreground changed to 0 0% 100% for white-on-blue contrast; var(--platform-primary, ...) runtime override path preserved
+- [Phase 11-marketing-landing-page]: Authenticated root redirects stay in proxy.ts so signed-in users fast-path before landing-page rendering.
+- [Phase 11-marketing-landing-page]: Landing-page baseline uses shallow components/landing sections plus env-gated Playwright coverage for the authenticated root path.
 
 ## Performance Metrics
 
@@ -152,13 +156,14 @@ Last activity: 2026-04-22
 | Phase 09-system-wide-dark-mode-default P01 | 7min | 2 tasks | 4 files |
 | Phase 09-system-wide-dark-mode-default P07 | 6min | 2 tasks | 10 files |
 | Phase 10-global-brand-tokens P01 | 8min | 2 tasks | 4 files |
+| Phase 11-marketing-landing-page P01 | 9min | 2 tasks | 11 files |
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-04-22)
 
 **Core value:** Business owner → job site audio recording → sent professional estimate in under 5 minutes
-**Current focus:** Phase 10 — global-brand-tokens
+**Current focus:** Phase 11 - marketing-landing-page
 
 ## Notes
 
