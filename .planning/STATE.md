@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Brand Identity & Global Reach
-status: completed
-last_updated: "2026-04-24T14:17:33.755Z"
+status: executing
+last_updated: "2026-04-24T16:56:29.582Z"
 last_activity: 2026-04-24
 progress:
   total_phases: 3
   completed_phases: 2
-  total_plans: 3
-  completed_plans: 3
+  total_plans: 8
+  completed_plans: 4
 ---
 
 # Project State
@@ -23,9 +23,9 @@ progress:
 
 ## Current Position
 
-Phase: 12
-Plan: Not started
-Status: Phase 11 complete, ready for Phase 12
+Phase: 12 (i18n-translation-system) — EXECUTING
+Plan: 2 of 5
+Status: Ready to execute
 Last activity: 2026-04-24
 
 ## Active Phase
@@ -131,6 +131,9 @@ Last activity: 2026-04-24
 - [Phase 11-marketing-landing-page]: Landing-page baseline uses shallow components/landing sections plus env-gated Playwright coverage for the authenticated root path.
 - [Phase 11-marketing-landing-page]: Hero workflow panel hidden on mobile (sm:hidden) to guarantee CTAs above fold on 390px viewports
 - [Phase 11-marketing-landing-page]: Footer converted to async server component consuming getBranding().appName; no hardcoded app name strings in landing
+- [Phase 12-i18n-translation-system]: LanguageContext uses pendingCount/setPendingCount (not isTranslating) to prevent premature overlay dismissal on concurrent translation batches
+- [Phase 12-i18n-translation-system]: Wave 0 test scaffold pattern: vi.mock the target module itself so test files compile before source modules exist
+- [Phase 12-i18n-translation-system]: translations table uses service-role-only writes (no INSERT policy) — service role bypasses RLS by design
 
 ## Performance Metrics
 
@@ -160,13 +163,14 @@ Last activity: 2026-04-24
 | Phase 10-global-brand-tokens P01 | 8min | 2 tasks | 4 files |
 | Phase 11-marketing-landing-page P01 | 9min | 2 tasks | 11 files |
 | Phase 11-marketing-landing-page P02 | 6min | 2 tasks | 6 files |
+| Phase 12-i18n-translation-system P01 | 5min | 2 tasks | 6 files |
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-04-22)
 
 **Core value:** Business owner → job site audio recording → sent professional estimate in under 5 minutes
-**Current focus:** Phase 11 - marketing-landing-page
+**Current focus:** Phase 12 — i18n-translation-system
 
 ## Notes
 
