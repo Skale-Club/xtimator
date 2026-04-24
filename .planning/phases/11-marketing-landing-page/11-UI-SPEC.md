@@ -46,9 +46,9 @@ Declared values (multiples of 4 only):
 | xl | 32px | Layout column gaps, feature grid gaps |
 | 2xl | 48px | Section vertical padding (mobile) |
 | 3xl | 64px | Section vertical padding (desktop), hero bottom clearance |
-| 4xl | 96px | Hero vertical centering padding |
 
 Exceptions:
+- `4xl: 96px` — Hero vertical centering padding. Provides spacing beyond the max standard value (64px) for full-viewport hero sections; equals 64 + 32. Justified because the hero occupies 100svh and requires breathing room that exceeds the top of the standard scale.
 - Navbar height: 64px (fixed, ensures 44px minimum touch target for interactive elements inside)
 - Touch targets (CTAs, nav links): minimum 44px height on mobile per iOS HIG
 - Hero section height: `100svh` desktop, `90svh` mobile (D-07)
@@ -82,7 +82,7 @@ Token system: all colors consumed via `hsl(var(--token))` syntax per globals.css
 | Dominant (60%) | `--background: 240 10% 3.9%` | #09090B | Page background, hero background, section backgrounds |
 | Secondary (30%) | `--card: 240 10% 3.9%` + `--border: 240 3.7% 15.9%` | #09090B / #27272A | Card surfaces (How It Works, Features), navbar background (semi-transparent), bottom CTA band |
 | Accent (10%) | `--primary: 224 86% 60%` | #406EF1 | See reserved-for list below |
-| Secondary blue | `#7FA4F4` (224 86% 72%) | #7FA4F4 | Hero radial glow outer ring, decorative step numerals muted overlay |
+| Secondary blue | `#7FA4F4` (224 86% 72%) | #7FA4F4 | decorative tint — gradient stop only, never used on interactive elements or semantic indicators; hero radial glow outer ring, decorative step numerals muted overlay |
 | Destructive | `--destructive: 0 62.8% 30.6%` | — | Destructive actions only (not present on landing page) |
 
 **Accent reserved for (explicit list):**
