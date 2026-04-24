@@ -37,7 +37,7 @@
 
 - [x] **Phase 10: Global Brand Tokens** — Apply #406EF1 as the default primary color across all app surfaces (globals.css + layout fallbacks) (completed 2026-04-22)
 - [x] **Phase 11: Marketing Landing Page** — Build the dark-mode public landing page (Hero+CTA, How It Works, Features/Benefits) using #406EF1 design system (completed 2026-04-24)
-- [ ] **Phase 12: i18n Translation System** — Add EN/PT-BR/ES language switching with static dictionary, AI on-demand translation, DB cache, and navbar toggle
+- [x] **Phase 12: i18n Translation System** — Add EN/PT-BR/ES language switching with static dictionary, AI on-demand translation, DB cache, and navbar toggle (completed 2026-04-24)
 
 ---
 
@@ -90,7 +90,7 @@ Plans:
 - [x] 12-02-PLAN.md — i18n core: LanguageContext, useTranslation hook, static dictionary (~80 strings), layout wiring
 - [x] 12-03-PLAN.md — /api/translate route: DB cache, Claude haiku AI, onConflict insert
 - [x] 12-04-PLAN.md — LanguageToggle + TranslationLoadingOverlay + topbar/bottom-nav wiring
-- [ ] 12-05-PLAN.md — t() string wrapping pass across authenticated app client components
+- [x] 12-05-PLAN.md — t() string wrapping pass across authenticated app client components
 
 ---
 
@@ -109,4 +109,4 @@ Plans:
 | 9. Dark-first UX & Modern Redesign | v1.1 | 8/8 | Complete | 2026-04-22 |
 | 10. Global Brand Tokens | v1.2 | 1/1 | Complete    | 2026-04-22 |
 | 11. Marketing Landing Page | v1.2 | 2/2 | Complete    | 2026-04-24 |
-| 12. i18n Translation System | v1.2 | 3/5 | In Progress|  |
+| 12. i18n Translation System | v1.2 | 5/5 | Complete   | 2026-04-24 |
