@@ -12,6 +12,7 @@ import {
 import { Settings, LogOut } from 'lucide-react'
 import { signOut } from '@/lib/actions/auth'
 import { ThemeToggle } from '@/components/app-shell/theme-toggle'
+import { LanguageToggle } from '@/components/app-shell/language-toggle'
 
 interface TopbarProps {
   company: {
@@ -30,6 +31,7 @@ export function Topbar({ company }: TopbarProps) {
       <h2 className="text-lg font-[var(--font-weight-semibold)] tracking-[var(--tracking-tight)]">{company.name}</h2>
 
       <div className="flex items-center gap-1">
+        <LanguageToggle />
         <ThemeToggle />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

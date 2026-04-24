@@ -5,6 +5,7 @@ import { Topbar } from '@/components/app-shell/topbar'
 import { BottomNav } from '@/components/app-shell/bottom-nav'
 import { MobileHeader } from '@/components/app-shell/mobile-header'
 import { readThemeCookie, writeThemeCookie, isValidTheme } from '@/lib/theme/cookie'
+import { TranslationLoadingOverlay } from '@/components/i18n/translation-loading-overlay'
 
 export default async function AppShellLayout({
   children,
@@ -47,6 +48,7 @@ export default async function AppShellLayout({
         </main>
       </div>
       <BottomNav />
+      <TranslationLoadingOverlay />
     </div>
   )
 }
