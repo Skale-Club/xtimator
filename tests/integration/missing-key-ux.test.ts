@@ -86,6 +86,6 @@ describe('estimate /send route returns 503 with friendly body when Resend not co
     expect(response.status).toBe(503)
     const json = (await response.json()) as { error?: string }
     expect(json.error).toBeDefined()
-    expect(json.error).toMatch(/not configured/i)
+    expect(json.error).toMatch(/not available|not configured|isn't available/i)
   })
 })

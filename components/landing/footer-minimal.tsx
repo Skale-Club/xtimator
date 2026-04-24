@@ -13,7 +13,7 @@ export function FooterMinimal({ appName }: FooterMinimalProps) {
           <span className="text-[length:var(--font-size-sm)] font-[var(--font-weight-normal)]">{appName}</span>
         </div>
         <p className="text-[length:var(--font-size-sm)] font-[var(--font-weight-normal)] tracking-[0.04em] text-muted-foreground">
-          © 2026 EstimateBuilder Pro. All rights reserved.
+          © 2026 {appName}. All rights reserved.
         </p>
       </div>
     </footer>
