@@ -36,7 +36,7 @@
 ### v1.2 Brand Identity & Global Reach
 
 - [x] **Phase 10: Global Brand Tokens** — Apply #406EF1 as the default primary color across all app surfaces (globals.css + layout fallbacks) (completed 2026-04-22)
-- [x] **Phase 11: Marketing Landing Page** — Build the dark-mode public landing page (Hero+CTA, How It Works, Features/Benefits) using #406EF1 design system (completed 2026-04-24)
+- [x] **Phase 11: Marketing Landing Page** — Build the dark-mode public landing page (Hero+CTA, How It Works, Features/Benefits) using #406EF1 design system (completed 2026-04-24)
 - [ ] **Phase 12: i18n Translation System** — Add EN/PT-BR/ES language switching with static dictionary, AI on-demand translation, DB cache, and navbar toggle
 
 ---
@@ -83,7 +83,14 @@ Plans:
   3. Strings absent from the static dictionary are automatically translated by AI via /api/translate (batched, 50ms debounce) and the translated text appears in the UI
   4. A loading overlay is shown during the first dynamic translation fetch in a session; subsequent navigation to already-translated pages shows text instantly
   5. The translations DB table stores entries and rejects duplicates; a second visit after translation resolves from cache, not a repeat API call
-**Plans**: TBD
+**Plans**: 5 plans
+
+Plans:
+- [ ] 12-01-PLAN.md — DB migration (translations table) + Wave 0 test scaffolds
+- [ ] 12-02-PLAN.md — i18n core: LanguageContext, useTranslation hook, static dictionary (~80 strings), layout wiring
+- [ ] 12-03-PLAN.md — /api/translate route: DB cache, Claude haiku AI, onConflict insert
+- [ ] 12-04-PLAN.md — LanguageToggle + TranslationLoadingOverlay + topbar/bottom-nav wiring
+- [ ] 12-05-PLAN.md — t() string wrapping pass across authenticated app client components
 
 ---
 
@@ -102,4 +109,4 @@ Plans:
 | 9. Dark-first UX & Modern Redesign | v1.1 | 8/8 | Complete | 2026-04-22 |
 | 10. Global Brand Tokens | v1.2 | 1/1 | Complete    | 2026-04-22 |
 | 11. Marketing Landing Page | v1.2 | 2/2 | Complete    | 2026-04-24 |
-| 12. i18n Translation System | v1.2 | 0/TBD | Not started | - |
+| 12. i18n Translation System | v1.2 | 0/5 | Not started | - |
