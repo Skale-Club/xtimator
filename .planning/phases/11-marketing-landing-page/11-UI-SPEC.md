@@ -57,18 +57,18 @@ Exceptions:
 
 ## Typography
 
-All sizes use Inter (`--font-inter`). Exactly 4 sizes declared for the landing page surface.
+All sizes use Inter (`--font-inter`). Exactly 4 sizes and exactly 2 weights declared for the landing page surface.
 
 | Role | Size | Weight | Line Height | Tracking | Usage |
 |------|------|--------|-------------|----------|-------|
 | Body | 16px (1rem) | 400 (normal) | 1.5 | 0 | Section body copy, footer links, subheadlines below heading level |
-| Label | 14px (0.875rem) | 500 (medium) | 1.25 | 0 | Step numbers, badge text, nav links, footer copyright |
-| Heading | 24px (1.5rem) | 600 (semibold) | 1.2 | -0.01em | Section headings (How It Works, Features), card titles |
-| Display | 48px (3rem) desktop / 36px (2.25rem) mobile | 700 (bold) | 1.1 | -0.02em | Hero headline "Professional estimates in 5 minutes." |
+| Label | 14px (0.875rem) | 400 (normal) | 1.25 | 0 | Step numbers, badge text, nav links, footer copyright |
+| Heading | 24px (1.5rem) | 700 (bold) | 1.2 | -0.01em | Section headings (How It Works, Features), card titles, Bottom CTA heading |
+| Display | 48px (3rem) desktop / 36px (2.25rem) mobile | 700 (bold) | 1.1 | -0.02em | Hero headline "Professional estimates in 5 minutes.", decorative step numerals |
 
 Notes:
 - Hero subheadline uses Body size (16px) at weight 400, line-height 1.6, color `hsl(var(--muted-foreground))` for de-emphasis
-- Step numbers in How It Works use Display-adjacent sizing: 40px, weight 700, color `hsl(var(--primary) / 0.4)` (muted brand accent as decorative numeral)
+- Step numerals in How It Works use Display size (48px), weight 700, color `hsl(var(--primary) / 0.35)` (ghost/muted brand accent as decorative numeral)
 - All sizes map directly to existing `--font-size-*` tokens in globals.css
 
 ---
@@ -113,13 +113,14 @@ Applied as absolute-positioned div behind headline text, `pointer-events-none`, 
 - `<nav>` with `sticky top-0 z-50 backdrop-blur-md bg-[hsl(var(--background)/0.8)] border-b border-[hsl(var(--border))]`
 - Left: wordmark from `getBranding().appName` — `<span className="font-bold text-lg">` + optional logo
 - Right: `<Button variant="ghost" size="sm">Sign In</Button>` + `<Button size="sm">Get Started Free</Button>`
+- Nav link text: 14px / 400
 - Mount animation: `opacity-0 → opacity-100` over 300ms on initial load (CSS class toggle, no Framer Motion)
 
 ### Hero Section
 - Full-viewport: `min-h-[100svh]` desktop, `min-h-[90svh]` mobile (`min-h-[90svh] md:min-h-[100svh]`)
 - Layout: `flex flex-col items-center justify-center text-center px-4 relative overflow-hidden`
 - Radial glow: `absolute inset-0 flex items-center justify-center pointer-events-none` containing the gradient div
-- Headline: `<h1>` Display size, weight 700, tracking -0.02em, `text-[hsl(var(--foreground))]`
+- Headline: `<h1>` 48px / 700 / tracking -0.02em, `text-[hsl(var(--foreground))]`
 - Subheadline: `<p>` 16px / 400 / 1.6 lh, `text-[hsl(var(--muted-foreground))]`, max-width 560px
 - CTA row: `flex flex-col sm:flex-row gap-3 mt-8 items-center justify-center`
   - Primary: `<Button size="lg">Get Started Free</Button>` — links to `/auth/signup`
@@ -127,10 +128,10 @@ Applied as absolute-positioned div behind headline text, `pointer-events-none`, 
 - Stagger animation: headline (0ms delay) → subheadline (100ms) → CTA row (200ms), each `fade-in-up` via Intersection Observer / load trigger
 
 ### How It Works Section
-- Heading: `<h2>` 24px / semibold / 1.2 lh, centered
+- Heading: `<h2>` 24px / 700 / 1.2 lh, centered
 - 3 cards in responsive grid: `grid grid-cols-1 md:grid-cols-3 gap-6`
 - Each card: shadcn `<Card>` with hover border glow — `border border-[hsl(var(--border))] hover:border-[hsl(var(--primary)/0.5)] transition-colors duration-200`
-- Inside each card: decorative step number (40px/700/`hsl(var(--primary)/0.35)`), icon (Lucide, 24px, `hsl(var(--primary))`), title (16px/600), body (14px/400/`muted-foreground`)
+- Inside each card: decorative step number (48px / 700 / `hsl(var(--primary)/0.35)` — ghost decorative numeral), icon (Lucide, 24px, `hsl(var(--primary))`), title (16px / 700), body (14px / 400 / `muted-foreground`)
 - Step content:
   1. Icon: `Mic` — Title: "Record on-site" — Body: "Walk through the job and narrate what you see. Works on any phone."
   2. Icon: `Camera` — Title: "Add photos" — Body: "Capture the space. AI reads the photos alongside your audio."
@@ -138,9 +139,9 @@ Applied as absolute-positioned div behind headline text, `pointer-events-none`, 
 - Scroll-triggered fade-in: each card fades in with 100ms stagger using Intersection Observer
 
 ### Features / Benefits Grid
-- Heading: `<h2>` 24px / semibold / 1.2 lh, centered
+- Heading: `<h2>` 24px / 700 / 1.2 lh, centered
 - 4 cards in responsive grid: `grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5`
-- Each card: shadcn `<Card>` compact — icon + title + one-line description
+- Each card: shadcn `<Card>` compact — icon + title (16px / 700) + one-line description (14px / 400)
 - Feature content:
   1. Icon: `Brain` — Title: "AI estimate generation" — Body: "Claude AI writes itemized estimates from your audio and photos."
   2. Icon: `FileDown` — Title: "Branded PDF output" — Body: "Professional PDFs with your company logo, ready in seconds."
@@ -151,7 +152,7 @@ Applied as absolute-positioned div behind headline text, `pointer-events-none`, 
 ### Bottom CTA Band
 - Full-width strip: `bg-[hsl(var(--card))] border-t border-[hsl(var(--border))] py-16`
 - Centered content: heading + subtext + single CTA button
-- Heading: 28px / semibold / 1.2 lh — "Ready to send estimates in 5 minutes?"
+- Heading: 24px / 700 / 1.2 lh — "Ready to send estimates in 5 minutes?"
 - Subtext: 16px / 400 / 1.5 lh / muted-foreground — "Get started free. No credit card required."
 - CTA: `<Button size="lg">Get Started Free</Button>` → `/auth/signup`
 - Scroll-triggered fade-in on entrance
@@ -243,6 +244,7 @@ No third-party registries declared. Registry vetting gate not executed (not appl
 6. **Server component first** — `app/page.tsx` must be a server component for `getBranding()` and `getClaims()` calls. Client components scoped to animation hooks only.
 7. **Middleware patch** — `proxy.ts` exemption for `/` must be implemented in the same plan as the landing page itself.
 8. **Phase 12 readiness** — All user-visible strings must be plain English string literals (not interpolated fragments) so Phase 12's `t()` wrapper can be applied cleanly.
+9. **Typography enforcement** — Only 2 weights in use: 400 (normal) and 700 (bold). No 500 or 600 weight classes anywhere. Step numerals use Display size (48px / `text-5xl`) with `text-[hsl(var(--primary)/0.35)]` for the ghost decorative effect.
 
 ---
 
