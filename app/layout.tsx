@@ -4,6 +4,7 @@ import { ThemeProvider } from "next-themes"
 import { Toaster } from "@/components/ui/sonner"
 import { getBranding } from "@/lib/platform-config"
 import { readThemeCookie } from "@/lib/theme/cookie"
+import { LanguageProvider } from "@/lib/i18n/language-context"
 import "./globals.css"
 
 const inter = Inter({
@@ -34,8 +35,10 @@ export default async function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          {children}
-          <Toaster />
+          <LanguageProvider>
+            {children}
+            <Toaster />
+          </LanguageProvider>
         </ThemeProvider>
       </body>
     </html>
