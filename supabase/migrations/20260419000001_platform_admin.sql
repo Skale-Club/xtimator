@@ -1,4 +1,4 @@
--- EstimateBuilder Pro / Xtimator — Platform Admin Migration
+-- Xtimator — Platform Admin Migration
 -- Phase 8: Platform Admin Panel for Centralized API Integrations
 -- Plan 01: Database foundation (3 tables + trigger + storage bucket + seed)
 --

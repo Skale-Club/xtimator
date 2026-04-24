@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@source not "../.planning";
 
 @layer base {
   :root {

@@ -11,7 +11,7 @@ scope: Medium
 
 ## Why This Matters
 
-EstimateBuilder Pro targets US-based service businesses, but there are large Brazilian and
+Xtimator targets US-based service businesses, but there are large Brazilian and
 Latin American markets (construction, landscaping, cleaning, etc.) that could benefit from
 the platform. Offering native Portuguese and Spanish experiences removes friction for BR/LATAM
 users and opens two additional markets without rewriting the app.

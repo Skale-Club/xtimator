@@ -12,7 +12,7 @@
 ### Locked Decisions
 
 - **D-01:** Centered card layout on all auth pages. Single form card centered on a plain/subtle background. Works well on mobile.
-- **D-02:** App logo + wordmark ("EstimateBuilder Pro") appears above the card on all auth pages.
+- **D-02:** App logo + wordmark ("Xtimator") appears above the card on all auth pages.
 - **D-03:** Google OAuth button at top of card, visual divider ("or"), then email/password form below.
 - **D-04:** No landing/marketing page in v1. Root `/` redirects: logged-out → `/auth/login`, logged-in → `/dashboard`.
 - **D-05:** Middleware protects **all routes except** `/auth/*` and `/estimate/*`. Everything else requires authentication.

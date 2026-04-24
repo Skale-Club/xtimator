@@ -26,22 +26,14 @@ function walk(dir: string, out: string[] = []): string[] {
   return out
 }
 
-// Exempt paths: marketing content and the single branding-orchestration entry point
-// are allowed to contain the product name.
-const BRAND_SWEEP_EXEMPT = [
-  /components[/\\]landing[/\\]/,   // Phase 11: marketing surface — content is intentional
-  /app[/\\]page\.tsx$/,            // Phase 11: branding orchestration (getBranding fallback)
-]
-
 describe('Platform branding sweep (ADMIN-07)', () => {
-  it('no non-exempt source file under app/ components/ lib/ contains "EstimateBuilder Pro"', () => {
+  it('no source file under app/ components/ lib/ contains "Xtimator"', () => {
     const roots = ['app', 'components', 'lib']
     const offenders: string[] = []
     for (const root of roots) {
       const abs = resolve(process.cwd(), root)
       try {
         for (const file of walk(abs)) {
-          if (BRAND_SWEEP_EXEMPT.some(re => re.test(file))) continue
           const body = readFileSync(file, 'utf8')
           if (/EstimateBuilder\s+Pro/.test(body)) offenders.push(file)
         }

@@ -54,7 +54,7 @@
 
 | Option | Description | Selected |
 |--------|-------------|----------|
-| Minimal (strings only) | Swap "EstimateBuilder Pro" → DB value. No visual change. | |
+| Minimal (strings only) | Swap "Xtimator" → DB value. No visual change. | |
 | Refreshed dark card, auth-only | Dark background + card on `(auth)/*` route group only. Tenant app stays light. Accent uses platform `primary_color`. | ✓ |
 | Full platform dark theme | Global dark mode applied app-wide. Contradicts V2-06. | |
 

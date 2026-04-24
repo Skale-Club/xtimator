@@ -3,39 +3,40 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Brand Identity & Global Reach
 status: executing
-last_updated: "2026-04-22T18:13:34.078Z"
-last_activity: 2026-04-22 -- Phase 11 execution started
+last_updated: "2026-04-24T13:46:57.271Z"
+last_activity: 2026-04-23
 progress:
   total_phases: 3
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 3
-  completed_plans: 2
+  completed_plans: 3
 ---
 
 # Project State
 
 ## Current Status
 
-- **Milestone**: v1.2 Brand Identity & Global Reach — Phase 10 complete & verified; Phase 11 context gathered
-- **Last updated**: 2026-04-22
-- **Last session**: 2026-04-22
-- **Stopped at**: Phase 11 context gathered. Run `/gsd:plan-phase 11` to begin planning.
+- **Milestone**: v1.2 Brand Identity & Global Reach - Phase 11 complete
+- **Last updated**: 2026-04-24
+- **Last session**: 2026-04-24
+- **Stopped at**: Completed 11-02-PLAN.md. Phase 11 marketing-landing-page complete. Next: Phase 12 i18n system.
 
 ## Current Position
 
-Phase: 11 (marketing-landing-page) — EXECUTING
-Plan: 1 of 2
-Status: Executing Phase 11
-Last activity: 2026-04-22 -- Phase 11 execution started
-Resume file: .planning/phases/11-marketing-landing-page/11-UI-SPEC.md
+Phase: 11 (complete)
+Plan: 11-01 complete, 11-02 complete
+Status: Phase 11 complete, ready for Phase 12
+Last activity: 2026-04-24
 
 ## Active Phase
 
 **Phase 11: Marketing Landing Page**
 
-- Goal: A visitor landing on the root URL sees a professional, dark-mode marketing page that explains the product and drives sign-up
+- Goal: A visitor landing on `/` sees a professional, dark-mode marketing page while authenticated users still fast-path into the app
 - Requirements: LAND-01, LAND-02, LAND-03, LAND-04, LAND-05
-- Plans: TBD
+- Plans:
+  - 11-01 - Public root route, landing baseline, and baseline route coverage
+  - 11-02 - Mobile responsiveness, visual polish, and mobile Playwright coverage
 
 ## Completed Phases
 
@@ -78,7 +79,7 @@ Resume file: .planning/phases/11-marketing-landing-page/11-UI-SPEC.md
 - [Phase 01-foundation-auth 01-03]: Storage policy pattern: (storage.foldername(name))[1] matches company_id path prefix
 - [Phase 01-foundation-auth 01-03]: Supabase migrations applied via bunx supabase db push --db-url {DATABASE_URL}
 - [Phase 01-foundation-auth]: useSearchParams wrapped in Suspense boundary in reset-password page — Next.js requires this for static generation
-- [Phase 01-foundation-auth]: AuthCard shared wrapper with logo SVG + EstimateBuilder Pro wordmark above Card — used by all three auth pages (D-02)
+- [Phase 01-foundation-auth]: AuthCard shared wrapper with logo SVG + Xtimator wordmark above Card — used by all three auth pages (D-02)
 - [Phase 01-foundation-auth]: GoogleOAuthButton uses window.location.origin for redirectTo — works on localhost and any production domain
 - [Phase 02-company-onboarding 02-01]: INDUSTRIES uses `as const satisfies Industry[]` for type safety with literal inference
 - [Phase 02-company-onboarding 02-01]: Email/website use `.optional().or(z.literal(''))` zod pattern for empty string bypass
@@ -126,6 +127,10 @@ Resume file: .planning/phases/11-marketing-landing-page/11-UI-SPEC.md
 - [Phase 09-system-wide-dark-mode-default]: Primitives redesigned to consume Plan-06 tokens via Tailwind arbitrary-value syntax; removed all dark:* color variants that don't fire inside scoped [data-theme] wrappers (RESEARCH Pitfall 4)
 - [Phase 09-system-wide-dark-mode-default]: Skeleton uses gradient-shimmer before-pseudo-element with @keyframes shimmer defined at top level of globals.css (outside @layer) for arbitrary-value animate-[shimmer_...] consumption
 - [Phase 10-global-brand-tokens]: 224 86% 60% HSL triplet locked as global brand primary (#406EF1) across all CSS scopes; .dark --primary-foreground changed to 0 0% 100% for white-on-blue contrast; var(--platform-primary, ...) runtime override path preserved
+- [Phase 11-marketing-landing-page]: Authenticated root redirects stay in proxy.ts so signed-in users fast-path before landing-page rendering.
+- [Phase 11-marketing-landing-page]: Landing-page baseline uses shallow components/landing sections plus env-gated Playwright coverage for the authenticated root path.
+- [Phase 11-marketing-landing-page]: Hero workflow panel hidden on mobile (sm:hidden) to guarantee CTAs above fold on 390px viewports
+- [Phase 11-marketing-landing-page]: Footer converted to async server component consuming getBranding().appName; no hardcoded app name strings in landing
 
 ## Performance Metrics
 
@@ -153,13 +158,15 @@ Resume file: .planning/phases/11-marketing-landing-page/11-UI-SPEC.md
 | Phase 09-system-wide-dark-mode-default P01 | 7min | 2 tasks | 4 files |
 | Phase 09-system-wide-dark-mode-default P07 | 6min | 2 tasks | 10 files |
 | Phase 10-global-brand-tokens P01 | 8min | 2 tasks | 4 files |
+| Phase 11-marketing-landing-page P01 | 9min | 2 tasks | 11 files |
+| Phase 11-marketing-landing-page P02 | 6min | 2 tasks | 6 files |
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-04-22)
 
 **Core value:** Business owner → job site audio recording → sent professional estimate in under 5 minutes
-**Current focus:** Phase 11 — marketing-landing-page
+**Current focus:** Phase 11 - marketing-landing-page
 
 ## Notes
 
@@ -171,7 +178,7 @@ v1.2: 3 phases (10-12), 16 requirements. Seeds: SEED-001 (i18n EN/PT-BR/ES), SEE
 
 ### Roadmap Evolution
 
-- Phase 8 added: Platform admin panel — scope covers centralized API integrations (Resend/Anthropic/OpenAI) AND global branding (app name, logo, theme). Removes all hardcoded "EstimateBuilder Pro" strings and process.env key coupling; replaces with DB-backed config fetched via server-side loader. Drives v1.1.
+- Phase 8 added: Platform admin panel — scope covers centralized API integrations (Resend/Anthropic/OpenAI) AND global branding (app name, logo, theme). Removes all hardcoded "Xtimator" strings and process.env key coupling; replaces with DB-backed config fetched via server-side loader. Drives v1.1.
 - v1.2 phases 10-12: Brand tokens (BRAND-01–03) → Landing page (LAND-01–05) → i18n system (I18N-01–08). Ordering constraint: landing page must exist before i18n so translations layer on top of real UI strings.
 
 ### Quick Tasks Completed
@@ -179,3 +186,4 @@ v1.2: 3 phases (10-12), 16 requirements. Seeds: SEED-001 (i18n EN/PT-BR/ES), SEE
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
 | 260421-tqz | Add login event logging | 2026-04-22 | e5ba1c5 | [260421-tqz-add-login-event-logging](.planning/quick/260421-tqz-add-login-event-logging/) |
+| 260422-o7y | Rename project from EstimateBuilder Pro to Xtimator | 2026-04-22 | bafcb2c | [260422-o7y-rename-project-from-estimatebuilder-pro-](.planning/quick/260422-o7y-rename-project-from-estimatebuilder-pro-/) |

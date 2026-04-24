@@ -1,0 +1,3 @@
+- `playwright.config.ts`: local mobile browser project additions are present in the working tree but belong to Plan 11-02 mobile coverage, not Plan 11-01 baseline delivery.
+- `app/globals.css`: local `@source not "../.planning"` change is unrelated to the landing baseline acceptance criteria and was left out of 11-01 task commits.
+- `package-lock.json`: local lockfile drift (including `server-only`) is unrelated to the landing baseline implementation and was left untouched.

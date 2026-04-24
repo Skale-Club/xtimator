@@ -105,7 +105,7 @@ Each task was committed atomically:
 - `app/(auth)/reset-password/page.tsx` — request mode + update mode (Suspense-wrapped)
 - `app/dashboard/page.tsx` — Placeholder: auth guard + SignOutButton (Phase 3 builds this)
 - `app/onboarding/page.tsx` — Placeholder: auth guard + SignOutButton (Phase 2 builds this)
-- `components/auth/auth-card.tsx` — Shared wrapper: SVG logo + "EstimateBuilder Pro" wordmark above Card (D-02)
+- `components/auth/auth-card.tsx` — Shared wrapper: SVG logo + "Xtimator" wordmark above Card (D-02)
 - `components/auth/google-oauth-button.tsx` — Google G SVG inline, signInWithOAuth with dynamic redirectTo
 - `components/auth/sign-out-button.tsx` — useTransition + signOut server action + LogOut icon
 - `tests/unit/auth-actions.test.ts` — TDD RED tests for module exports (6 export assertions)

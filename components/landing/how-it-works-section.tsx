@@ -1,79 +1,56 @@
-import { Mic, Camera, Sparkles } from 'lucide-react'
-import { Card, CardContent } from '@/components/ui/card'
-import { cn } from '@/lib/utils'
+import { Mic, Camera, FileText } from 'lucide-react'
 
-const STEPS = [
+const steps = [
   {
-    number: '01',
     icon: Mic,
-    title: 'Record a Walkthrough',
-    description: 'Walk the job site and narrate what you see. Works on iOS and Android — no app install needed.',
+    eyebrow: 'Step 1',
+    title: 'Record audio',
+    description:
+      'Walk the property and talk through measurements, materials, and special requests while your hands stay free.',
   },
   {
-    number: '02',
     icon: Camera,
-    title: 'Add Job Site Photos',
-    description: 'Snap or upload photos. AI reads the images and adds context to your estimate automatically.',
+    eyebrow: 'Step 2',
+    title: 'Add photos',
+    description:
+      'Drop in site photos so the AI can anchor line items to the real condition of the work.',
   },
   {
-    number: '03',
-    icon: Sparkles,
-    title: 'Receive Your Estimate',
-    description: 'AI generates a complete, itemized estimate. Review, adjust, and send — all in under 5 minutes.',
+    icon: FileText,
+    eyebrow: 'Step 3',
+    title: 'Get estimate',
+    description:
+      'Review the draft estimate, then send a branded PDF or live link without rebuilding the job from scratch.',
   },
-]
+] as const
 
 export function HowItWorksSection() {
   return (
-    <section id="how-it-works" className="py-24">
-      <div className="mx-auto w-full max-w-[1200px] px-6">
-        {/* Section header */}
-        <div className="text-center mb-16 flex flex-col gap-3">
-          <p className="text-[length:var(--font-size-sm)] font-[var(--font-weight-normal)] tracking-[0.04em] text-primary uppercase">
-            How It Works
-          </p>
-          <h2 className="text-[length:var(--font-size-xl)] sm:text-3xl font-[var(--font-weight-bold)] tracking-[var(--tracking-tight)] text-foreground">
-            Three Steps. Zero Typing.
+    <section className="border-b border-white/10 bg-transparent">
+      <div className="mx-auto max-w-6xl px-6 py-16 sm:px-8 lg:px-10 lg:py-24">
+        <div className="mb-10 max-w-2xl space-y-3">
+          <p className="text-sm font-bold uppercase tracking-[0.14em] text-primary">How it works</p>
+          <h2 className="text-3xl font-bold tracking-[-0.02em] sm:text-4xl">
+            Built around the way estimates happen in the field.
           </h2>
+          <p className="text-lg leading-7 text-muted-foreground">
+            No clipboard rewrite later. Capture the job once and turn that visit into a professional quote package.
+          </p>
         </div>
-
-        {/* Steps grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 lg:gap-8 relative">
-          {/* Connector line (desktop only) */}
-          <div
-            className="hidden sm:block absolute top-10 left-[calc(33.3%+1.5rem)] right-[calc(33.3%+1.5rem)] h-px border-t border-dashed border-border"
-            aria-hidden="true"
-          />
-
-          {STEPS.map((step) => {
-            const Icon = step.icon
-            return (
-              <Card
-                key={step.number}
-                className={cn('card-hover-gradient transition-shadow duration-200 hover:shadow-md')}
-              >
-                <CardContent className="pt-6 flex flex-col gap-4">
-                  {/* Number badge */}
-                  <div className="flex items-center gap-3">
-                    <span className="w-9 h-9 rounded-full border border-primary/60 flex items-center justify-center text-primary font-bold text-[length:var(--font-size-sm)] flex-shrink-0">
-                      {step.number}
-                    </span>
-                    <Icon className="h-6 w-6 text-primary" aria-hidden="true" />
-                  </div>
-
-                  {/* Title */}
-                  <h3 className="text-[length:var(--font-size-xl)] font-[var(--font-weight-bold)] tracking-[var(--tracking-tight)] text-foreground">
-                    {step.title}
-                  </h3>
-
-                  {/* Description */}
-                  <p className="text-[length:var(--font-size-base)] font-[var(--font-weight-normal)] leading-[1.5] text-muted-foreground">
-                    {step.description}
-                  </p>
-                </CardContent>
-              </Card>
-            )
-          })}
+        <div className="grid gap-4 md:grid-cols-3 lg:gap-6">
+          {steps.map(({ icon: Icon, eyebrow, title, description }) => (
+            <article
+              key={title}
+              className="rounded-2xl border border-[rgba(127,164,244,0.14)] bg-[#13131A] p-6 shadow-[0_4px_24px_rgba(0,0,0,0.35)]"
+            >
+              <div className="mb-5 inline-flex size-12 items-center justify-center rounded-xl bg-[#406EF1]/12 text-[#7FA4F4] shadow-[0_0_0_1px_rgba(127,164,244,0.16)]">
+                <Icon className="size-5" aria-hidden="true" />
+              </div>
+              <p className="mb-2 text-sm font-bold uppercase tracking-[0.12em] text-[#406EF1]">{eyebrow}</p>
+              <h3 className="mb-3 text-xl font-bold">{title}</h3>
+              <p className="leading-7 text-muted-foreground">{description}</p>
+            </article>
+          ))}
         </div>
       </div>
     </section>

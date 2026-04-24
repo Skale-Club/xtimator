@@ -44,7 +44,7 @@ key-files:
     - app/(auth)/login/page.tsx (rewritten as server component)
     - app/(auth)/signup/page.tsx (rewritten as server component)
     - app/(auth)/reset-password/page.tsx (rewritten as server component)
-    - tests/e2e/auth.spec.ts (assertions updated: "EstimateBuilder Pro" → "Xtimator")
+    - tests/e2e/auth.spec.ts (assertions updated: "Xtimator" → "Xtimator")
 
 key-decisions:
   - "Page+form split (not BrandingProvider) because the in-memory module cache in lib/platform-config.ts already memoises getBranding() for 60s — re-fetching in each page is functionally free and keeps the data-flow visible at every call site"
@@ -66,7 +66,7 @@ completed: 2026-04-20
 
 # Phase 08 Plan 07: Auth Dark Pass + Branding Loader Wiring Summary
 
-**Scoped dark theme applied to every `/(auth)/*` route via a new server-component layout (sets `[data-theme="dark-auth"]` + injects `--platform-primary` from `getBranding().primaryColor`); AuthCard + GoogleOAuthButton refactored to consume branding prop with hardcoded "EstimateBuilder Pro" eliminated; each auth page split into server (`page.tsx`) + client (`*-form.tsx`) so server-only `await getBranding()` can co-exist with react-hook-form interactivity; e2e proves dark-auth wrapper presence and asserts no leaked legacy literal on every auth page (6/6 passing).**
+**Scoped dark theme applied to every `/(auth)/*` route via a new server-component layout (sets `[data-theme="dark-auth"]` + injects `--platform-primary` from `getBranding().primaryColor`); AuthCard + GoogleOAuthButton refactored to consume branding prop with hardcoded "Xtimator" eliminated; each auth page split into server (`page.tsx`) + client (`*-form.tsx`) so server-only `await getBranding()` can co-exist with react-hook-form interactivity; e2e proves dark-auth wrapper presence and asserts no leaked legacy literal on every auth page (6/6 passing).**
 
 ## Performance
 
@@ -86,8 +86,8 @@ completed: 2026-04-20
 - **`components/auth/google-oauth-button.tsx`** — outline variant with `border-border bg-transparent text-foreground hover:bg-accent`. The Google "G" SVG keeps its full-color brand marks (no monochrome filter); contrast on the dark-zinc background is preserved by the surrounding semantic tokens.
 - **Page+form split** — `login`, `signup`, `reset-password` each became a 2-file pair: a server `page.tsx` that fetches branding and renders `<AuthCard branding={…}><XxxForm /></AuthCard>`, and a sibling `xxx-form.tsx` client component that owns all interactive state (form hooks, submit handlers, password eye-toggles, Google OAuth button, useSearchParams Suspense). All existing form behavior is byte-for-byte preserved — only the file boundary moved.
 - **`app/(auth)/callback/route.ts`** — left untouched. It is a pure `NextResponse` route handler with no UI render, so the dark theme has nothing to apply to. The (auth) layout still wraps the route group, but the route returns a redirect before any layout would render.
-- **`tests/e2e/auth-dark.spec.ts`** — 6 cases iterating over `/auth/login`, `/auth/signup`, `/auth/reset-password`. Each path gets two checks: (1) `[data-theme="dark-auth"]` wrapper present, count = 1; (2) the dark-auth subtree's `innerHTML` does not contain the legacy "EstimateBuilder Pro" literal. All 6 pass against the live dev server.
-- **`tests/e2e/auth.spec.ts`** — existing assertions updated from `'EstimateBuilder Pro'` to `'Xtimator'` (the seeded default in `platform_branding` from Plan 01). Without this update those tests would have started failing on the first run — Rule 1 fix that keeps the existing suite green.
+- **`tests/e2e/auth-dark.spec.ts`** — 6 cases iterating over `/auth/login`, `/auth/signup`, `/auth/reset-password`. Each path gets two checks: (1) `[data-theme="dark-auth"]` wrapper present, count = 1; (2) the dark-auth subtree's `innerHTML` does not contain the legacy "Xtimator" literal. All 6 pass against the live dev server.
+- **`tests/e2e/auth.spec.ts`** — existing assertions updated from `'Xtimator'` to `'Xtimator'` (the seeded default in `platform_branding` from Plan 01). Without this update those tests would have started failing on the first run — Rule 1 fix that keeps the existing suite green.
 
 ## Task Commits
 
@@ -114,7 +114,7 @@ The TDD attribute on both tasks was honoured by structure (write the test that d
 - `app/(auth)/login/page.tsx` — rewritten: 12-line server component that fetches branding and renders AuthCard+LoginForm
 - `app/(auth)/signup/page.tsx` — same pattern
 - `app/(auth)/reset-password/page.tsx` — same pattern
-- `tests/e2e/auth.spec.ts` — `'EstimateBuilder Pro'` → `'Xtimator'` in two `getByText` assertions
+- `tests/e2e/auth.spec.ts` — `'Xtimator'` → `'Xtimator'` in two `getByText` assertions
 
 ## Decisions Made
 
@@ -122,23 +122,23 @@ The TDD attribute on both tasks was honoured by structure (write the test that d
 - **Plain `<img>`, not `next/image`, for `branding.logoUrl`.** Using `next/image` for a remote Supabase Storage URL would force a `next.config` `remotePatterns` change (or the `unoptimized` flag). The logo is 40×40 — image optimization is irrelevant at this size. Plan 08's branding sweep will revisit this if the same logo lands on the share page or PDF where size matters.
 - **`LogoFallback` exported, not inlined.** Plan 08 will need the same fallback in the global header (shell), share page, and possibly the PDF template. Exporting it now avoids three copies of the SVG geometry.
 - **Semantic tokens, not custom dark-zinc classes.** AuthCard and GoogleOAuthButton use only `bg-card`, `border-border`, `text-foreground`, `hover:bg-accent` — all of which resolve to the dark palette inside `[data-theme="dark-auth"]` thanks to the Plan 03 globals.css block. This means future theme tweaks happen in one place (globals.css) instead of being scattered across components.
-- **Test scope = the dark-auth subtree.** Asserting on `page.content()` (the full HTML payload) would have flagged the legacy "EstimateBuilder Pro" string in the root `app/layout.tsx` `<title>` metadata — a real leak, but explicitly out of scope for Plan 07. Plan 08 owns that sweep. Scoping the assertion to `locator('[data-theme="dark-auth"]').innerHTML()` keeps Plan 07 verifiable without entangling it with another plan's deliverables.
+- **Test scope = the dark-auth subtree.** Asserting on `page.content()` (the full HTML payload) would have flagged the legacy "Xtimator" string in the root `app/layout.tsx` `<title>` metadata — a real leak, but explicitly out of scope for Plan 07. Plan 08 owns that sweep. Scoping the assertion to `locator('[data-theme="dark-auth"]').innerHTML()` keeps Plan 07 verifiable without entangling it with another plan's deliverables.
 
 ## Deviations from Plan
 
 ### Auto-fixed Issues
 
-**1. [Rule 1 — Bug] Existing `tests/e2e/auth.spec.ts` asserts on legacy "EstimateBuilder Pro" literal**
+**1. [Rule 1 — Bug] Existing `tests/e2e/auth.spec.ts` asserts on legacy "Xtimator" literal**
 
 - **Found during:** Task 2 (after pages were rewritten to source the wordmark from `getBranding()`)
-- **Issue:** Two `expect(page.getByText('EstimateBuilder Pro')).toBeVisible()` assertions in the existing suite (`signup` describe block + `login` describe block) would start failing immediately, because the wordmark is now "Xtimator" (the seeded branding default).
+- **Issue:** Two `expect(page.getByText('Xtimator')).toBeVisible()` assertions in the existing suite (`signup` describe block + `login` describe block) would start failing immediately, because the wordmark is now "Xtimator" (the seeded branding default).
 - **Fix:** Updated both assertions to `'Xtimator'` with an inline comment pointing to the Phase 8 rebrand. Existing test intent (wordmark visibility above the form) preserved.
 - **Files modified:** `tests/e2e/auth.spec.ts`
 - **Committed in:** `4720895` (Task 2)
 
 **2. [Rule 1 — Bug] Initial e2e assertion ran against full page.content() and tripped on app/layout.tsx <title> metadata**
 
-- **Found during:** Task 2 first run of `auth-dark.spec.ts` — 3/6 cases failed because the document `<head><title>EstimateBuilder Pro</title></head>` (from `app/layout.tsx`'s `metadata` export) shows up in `page.content()`.
+- **Found during:** Task 2 first run of `auth-dark.spec.ts` — 3/6 cases failed because the document `<head><title>Xtimator</title></head>` (from `app/layout.tsx`'s `metadata` export) shows up in `page.content()`.
 - **Issue:** The plan's intent for this assertion is to verify Plan 07's deliverable — that the (auth) page bodies have no leaked legacy literal. The root metadata title is owned by Plan 08's env+branding sweep (explicitly noted in 08-07-PLAN.md's objective).
 - **Fix:** Scoped the assertion to `locator('[data-theme="dark-auth"]').innerHTML()` — only inspects the wrapper subtree, leaving the document `<head>` to Plan 08.
 - **Files modified:** `tests/e2e/auth-dark.spec.ts`
@@ -168,7 +168,7 @@ If Plan 01 hasn't been run on this Supabase project yet, `getBranding()` returns
 ## Self-Check: PASSED
 
 - `app/(auth)/layout.tsx` — FOUND (commit `1fa1ff8`)
-- `components/auth/auth-card.tsx` — MODIFIED (commit `1fa1ff8`); contains `branding.appName` (1), `branding.logoUrl` (3), `LogoFallback` export (1), zero "EstimateBuilder Pro" matches
+- `components/auth/auth-card.tsx` — MODIFIED (commit `1fa1ff8`); contains `branding.appName` (1), `branding.logoUrl` (3), `LogoFallback` export (1), zero "Xtimator" matches
 - `components/auth/google-oauth-button.tsx` — MODIFIED (commit `1fa1ff8`); contains "Continue with Google" (1) and dark-variant classes
 - `app/(auth)/login/page.tsx` — MODIFIED (commit `4720895`); first line is `import` (no `'use client'`); contains `getBranding` (2) and `branding={` (1)
 - `app/(auth)/signup/page.tsx` — MODIFIED (commit `4720895`); same shape
@@ -177,7 +177,7 @@ If Plan 01 hasn't been run on this Supabase project yet, `getBranding()` returns
 - `app/(auth)/signup/signup-form.tsx` — FOUND (commit `4720895`); first line `'use client'`
 - `app/(auth)/reset-password/reset-password-form.tsx` — FOUND (commit `4720895`); first line `'use client'`
 - `tests/e2e/auth-dark.spec.ts` — FOUND (commit `4720895`, refined `28ecffe`); contains `data-theme="dark-auth"` (1)
-- `grep -rn "EstimateBuilder Pro" app/(auth)/ components/auth/` → 0 matches ✓ (verified via Grep tool)
+- `grep -rn "Xtimator" app/(auth)/ components/auth/` → 0 matches ✓ (verified via Grep tool)
 - Commit `1fa1ff8` — FOUND in `git log --oneline` (Task 1)
 - Commit `4720895` — FOUND in `git log --oneline` (Task 2)
 - Commit `28ecffe` — FOUND in `git log --oneline` (Task 2 fix)

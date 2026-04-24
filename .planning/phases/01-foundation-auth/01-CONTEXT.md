@@ -15,7 +15,7 @@ Scaffold the Next.js 14+ App Router project with all tooling configured, wire Su
 
 ### Auth Page Layout
 - **D-01:** Centered card layout on all auth pages (`/auth/login`, `/auth/signup`, `/auth/reset-password`). Single form card centered on a plain/subtle background. Works well on mobile.
-- **D-02:** App logo + wordmark ("EstimateBuilder Pro") appears above the card on all auth pages. This is the app's own brand (no company branding at this point — user isn't logged in).
+- **D-02:** App logo + wordmark ("Xtimator") appears above the card on all auth pages. This is the app's own brand (no company branding at this point — user isn't logged in).
 - **D-03:** Google OAuth button at top of card, visual divider ("or"), then email/password form below. Google is the primary CTA; email is secondary.
 
 ### Root Route & Middleware

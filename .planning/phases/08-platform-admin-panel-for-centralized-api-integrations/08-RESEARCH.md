@@ -71,7 +71,7 @@ Phase 8 introduces a new requirement family. Planner should register these in RE
 | ADMIN-04    | `platform_integrations` table stores AES-256-GCM ciphertext + IV + auth tag; super-admin-only RLS                | §Key Pattern 1 (AES-GCM), §Key Pattern 7 (RLS policies)                                                           |
 | ADMIN-05    | `lib/platform-config.ts` loader exposes `getIntegrationKey(provider)` + `getBranding()` with 60s in-memory cache | §Key Pattern 5 (in-memory cache on serverless)                                                                    |
 | ADMIN-06    | All 5 `process.env.{RESEND,ANTHROPIC,OPENAI}_API_KEY` reads migrated to loader; env vars become fallback only    | §Key Pattern 8 (migration + deprecation); §Validation (grep assertion)                                            |
-| ADMIN-07    | All 7 hardcoded `"EstimateBuilder Pro"` occurrences migrated to `(await getBranding()).app_name`                 | §Validation (grep zero-match assertion)                                                                           |
+| ADMIN-07    | All 7 hardcoded `"Xtimator"` occurrences migrated to `(await getBranding()).app_name`                 | §Validation (grep zero-match assertion)                                                                           |
 | ADMIN-08    | `platform_branding` singleton (id=1) seeded with `app_name='Xtimator'` in migration                              | §Key Pattern 7 (singleton CHECK constraint)                                                                       |
 | ADMIN-09    | `platform-brand` Storage bucket with super-admin-only RLS; reuses `logo-uploader.tsx`                            | §Key Pattern 7 (storage RLS pattern)                                                                              |
 | ADMIN-10    | `/admin/integrations` Test button verifies each provider's key live (Resend send, Anthropic 1-token, OpenAI /models) | §Key Pattern 9 (Test button)                                                                                  |
@@ -592,7 +592,7 @@ Recommend (a) for logos — they're deliberately public-facing. Access control i
 
 1. **Wave 1 (schema + loader):** Deploy migration + `lib/platform-config.ts` + `lib/crypto/aes.ts` + admin gate. Loader reads from DB first; falls back to `process.env.*_API_KEY` if DB row is null. `APP_ENCRYPTION_KEY` set in Vercel prod. Existing env-var-coupled code paths unchanged.
 2. **Wave 2 (admin UI):** Build `/admin/{integrations,branding,admins}`. Admin logs in, configures each key (Resend, Anthropic, OpenAI) via UI — loader reads from DB from that moment forward.
-3. **Wave 3 (usage migration):** Swap the 5 `process.env.*_API_KEY` call sites to `await getIntegrationKey(...)` + the 7 `"EstimateBuilder Pro"` hardcode sites to `await getBranding()`. Verify app still works end-to-end.
+3. **Wave 3 (usage migration):** Swap the 5 `process.env.*_API_KEY` call sites to `await getIntegrationKey(...)` + the 7 `"Xtimator"` hardcode sites to `await getBranding()`. Verify app still works end-to-end.
 4. **Wave 4 (env var deprecation):** Keep env vars in Vercel/`.env.example` marked as "optional dev fallback". Do NOT remove them — they're the escape hatch for local dev where the admin UI isn't populated. Log a warning when the fallback fires.
 
 Phases 1–3 can live in one plan; Phase 4 is documentation.
@@ -704,7 +704,7 @@ See §Risks & Pitfalls below — 10 concrete risks enumerated.
 | ADMIN-05 | Loader returns cached value within TTL (one DB call)                  | unit        | `npx vitest run tests/unit/platform-config.test.ts -t "cache hit"`                                              | ❌ Wave 0    |
 | ADMIN-05 | Loader invalidation clears cache                                      | unit        | `npx vitest run tests/unit/platform-config.test.ts -t "invalidate"`                                             | ❌ Wave 0    |
 | ADMIN-06 | Zero `process.env.{RESEND,ANTHROPIC,OPENAI}_API_KEY` reads outside `lib/platform-config.ts` | grep | `npx vitest run tests/unit/env-var-sweep.test.ts` (asserts grep count = 0 in app/, components/, lib/actions/, excluding lib/platform-config.ts) | ❌ Wave 0 |
-| ADMIN-07 | Zero `"EstimateBuilder Pro"` in code                                  | grep/unit   | `npx vitest run tests/unit/platform-branding-sweep.test.ts` (grep count = 0 in app/, components/, lib/, tests/) | ❌ Wave 0    |
+| ADMIN-07 | Zero `"Xtimator"` in code                                  | grep/unit   | `npx vitest run tests/unit/platform-branding-sweep.test.ts` (grep count = 0 in app/, components/, lib/, tests/) | ❌ Wave 0    |
 | ADMIN-08 | Migration seeds `platform_branding.id=1` with `app_name='Xtimator'`   | integration | `npx vitest run tests/integration/migration-branding-seed.test.ts`                                              | ❌ Wave 0    |
 | ADMIN-09 | `platform-brand` bucket exists; RLS denies non-admin writes           | integration | `npx vitest run tests/integration/platform-brand-rls.test.ts`                                                   | ❌ Wave 0    |
 | ADMIN-10 | Test button for each provider calls live API (mocked in CI)           | unit + e2e  | `npx vitest run tests/unit/admin-test-button.test.ts`                                                           | ❌ Wave 0    |
@@ -722,7 +722,7 @@ See §Risks & Pitfalls below — 10 concrete risks enumerated.
 - [ ] `tests/unit/crypto.aes.test.ts` — AES-GCM roundtrip, tamper, key-length (REQ ADMIN-04)
 - [ ] `tests/unit/platform-config.test.ts` — loader cache, invalidation, null-branding fallback (REQ ADMIN-05, R-04)
 - [ ] `tests/unit/env-var-sweep.test.ts` — grep assertion for `process.env.{RESEND,ANTHROPIC,OPENAI}_API_KEY` zero-match (REQ ADMIN-06)
-- [ ] `tests/unit/platform-branding-sweep.test.ts` — grep assertion for `"EstimateBuilder Pro"` zero-match (REQ ADMIN-07)
+- [ ] `tests/unit/platform-branding-sweep.test.ts` — grep assertion for `"Xtimator"` zero-match (REQ ADMIN-07)
 - [ ] `tests/unit/server-only-imports.test.ts` — static-analysis: no client components import the loader or crypto module (REQ ADMIN-14, R-01, R-03)
 - [ ] `tests/unit/env-example.test.ts` — `.env.example` contains `APP_ENCRYPTION_KEY=` (REQ ADMIN-13)
 - [ ] `tests/unit/admin-bootstrap-doc.test.ts` — `supabase/ADMIN-BOOTSTRAP.md` exists and contains an `INSERT INTO platform_admins` statement (REQ ADMIN-02)

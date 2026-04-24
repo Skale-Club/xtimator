@@ -20,7 +20,7 @@ The onboarding page placeholder already exists at `app/onboarding/page.tsx` with
 - D-02: Wider card (~600px max-width) instead of the 400px AuthCard.
 - D-03: "Skip for now" skips the ENTIRE wizard -- goes straight to `/dashboard`. A minimal `companies` row is created with just `user_id` (and company name if provided). No per-step skip.
 - D-04: Back + Next navigation on every step. Step 1 has only Next. Steps 2-3 have Back + Next. Step 3's forward button says "Complete Setup". Stepper dots are also clickable for direct jump.
-- D-05: App logo + "EstimateBuilder Pro" wordmark appears above the wizard card (consistent with auth pages).
+- D-05: App logo + "Xtimator" wordmark appears above the wizard card (consistent with auth pages).
 - D-06: Industry presented as an icon card grid (2x4 or responsive grid). Each card has a Lucide icon + label. Tap to select, selected card gets highlight border.
 - D-07: 9th "Other" card option -- selecting it reveals a text input to type a custom industry.
 - D-08: Brand color picker uses a preset palette of 8-12 curated brand-safe colors shown as swatches, plus a "Custom" option that opens a hex input.

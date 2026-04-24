@@ -1,4 +1,4 @@
-# Retrospective: EstimateBuilder Pro
+# Retrospective: Xtimator
 
 ## Milestone: v1.1 — Dark-first UX & Modern Redesign
 
