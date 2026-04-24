@@ -5,18 +5,18 @@ import { Slot } from "radix-ui"
 import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
-  "cursor-pointer inline-flex shrink-0 items-center justify-center gap-2 rounded-[var(--radius-md)] text-sm font-[var(--font-weight-medium)] whitespace-nowrap transition-all duration-150 outline-none focus-visible:shadow-[var(--shadow-focus)] disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "cursor-pointer inline-flex shrink-0 items-center justify-center gap-2 rounded-[var(--radius-md)] text-sm font-[var(--font-weight-medium)] whitespace-nowrap transition-all duration-150 outline-none focus-visible:shadow-[var(--focus-shadow)] disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
         default:
-          "bg-primary text-primary-foreground shadow-[var(--shadow-xs)] hover:bg-primary/90 hover:shadow-[var(--shadow-sm)] hover:-translate-y-[0.5px] active:translate-y-0 active:shadow-[var(--shadow-xs)]",
+          "bg-primary text-primary-foreground shadow-xs hover:bg-primary/90 hover:shadow-sm hover:-translate-y-[0.5px] active:translate-y-0 active:shadow-xs",
         destructive:
-          "bg-destructive text-white shadow-[var(--shadow-xs)] hover:bg-destructive/90 focus-visible:ring-destructive/40",
+          "bg-destructive text-white shadow-xs hover:bg-destructive/90 focus-visible:ring-destructive/40",
         outline:
-          "border border-input bg-background shadow-[var(--shadow-xs)] hover:bg-accent hover:text-accent-foreground hover:border-accent",
+          "border border-input bg-background shadow-xs hover:bg-accent hover:text-accent-foreground hover:border-accent",
         secondary:
-          "bg-secondary text-secondary-foreground shadow-[var(--shadow-xs)] hover:bg-secondary/80",
+          "bg-secondary text-secondary-foreground shadow-xs hover:bg-secondary/80",
         ghost:
           "hover:bg-accent hover:text-accent-foreground",
         link:

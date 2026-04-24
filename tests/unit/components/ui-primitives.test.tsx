@@ -7,12 +7,12 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 
 describe('UI primitives — Phase 9 redesign', () => {
-  it('Button default variant uses --radius-md + --shadow-xs + --shadow-focus', () => {
+  it('Button default variant uses --radius-md + shadow-xs + --focus-shadow', () => {
     render(<Button>Go</Button>)
     const btn = screen.getByRole('button', { name: 'Go' })
     expect(btn.className).toContain('rounded-[var(--radius-md)]')
-    expect(btn.className).toContain('shadow-[var(--shadow-xs)]')
-    expect(btn.className).toContain('shadow-[var(--shadow-focus)]')
+    expect(btn.className).toContain('shadow-xs')
+    expect(btn.className).toContain('shadow-[var(--focus-shadow)]')
   })
 
   it('Button default size is h-10', () => {
@@ -32,15 +32,15 @@ describe('UI primitives — Phase 9 redesign', () => {
     const input = screen.getByPlaceholderText('p')
     expect(input.className).toContain('h-10')
     expect(input.className).toContain('rounded-[var(--radius-md)]')
-    expect(input.className).toContain('shadow-[var(--shadow-xs)]')
-    expect(input.className).toContain('shadow-[var(--shadow-focus)]')
+    expect(input.className).toContain('shadow-xs')
+    expect(input.className).toContain('shadow-[var(--focus-shadow)]')
   })
 
-  it('Card uses --radius-lg + --shadow-sm', () => {
+  it('Card uses --radius-lg + shadow-sm', () => {
     render(<Card data-testid="card">c</Card>)
     const card = screen.getByTestId('card')
     expect(card.className).toContain('rounded-[var(--radius-lg)]')
-    expect(card.className).toContain('shadow-[var(--shadow-sm)]')
+    expect(card.className).toContain('shadow-sm')
   })
 
   it('Badge is pill-shaped via --radius-full', () => {

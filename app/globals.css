@@ -156,6 +156,7 @@
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
 }
 
+
 @layer base {
   * {
     border-color: hsl(var(--border));
@@ -183,12 +184,8 @@
     --radius-xl: 1rem;
     --radius-full: 9999px;
 
-    /* Shadow scale — light theme */
-    --shadow-xs: 0 1px 2px 0 rgba(15, 23, 42, 0.04);
-    --shadow-sm: 0 1px 2px 0 rgba(15, 23, 42, 0.06), 0 1px 3px 0 rgba(15, 23, 42, 0.06);
-    --shadow-md: 0 4px 6px -1px rgba(15, 23, 42, 0.08), 0 2px 4px -2px rgba(15, 23, 42, 0.06);
-    --shadow-lg: 0 10px 15px -3px rgba(15, 23, 42, 0.10), 0 4px 6px -4px rgba(15, 23, 42, 0.08);
-    --shadow-focus: 0 0 0 3px hsl(var(--ring) / 0.35);
+    /* Focus ring shadow — renamed from --shadow-focus to avoid Tailwind v4 --shadow-* namespace */
+    --focus-shadow: 0 0 0 3px hsl(var(--ring) / 0.35);
 
     /* Typography scale */
     --font-size-xs:   0.75rem;   --line-height-xs:   1rem;
@@ -216,24 +213,17 @@
     --space-stack-xl: 2rem;
   }
 
-  /* Dark surfaces (root + scoped dark-auth / admin-dark) get elevated shadows */
+  /* Dark surfaces — focus-shadow gets a stronger ring; --shadow-* live in @theme only
+     to prevent Tailwind v4 wildcard utility generation (.shadow-[var(--shadow-*)]) */
   .dark,
   [data-theme="admin-dark"],
   [data-theme="dark-auth"] {
-    --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.30);
-    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.35), 0 1px 3px 0 rgba(0, 0, 0, 0.35);
-    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.45), 0 2px 4px -2px rgba(0, 0, 0, 0.35);
-    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.55), 0 4px 6px -4px rgba(0, 0, 0, 0.40);
-    --shadow-focus: 0 0 0 3px hsl(var(--ring) / 0.45);
+    --focus-shadow: 0 0 0 3px hsl(var(--ring) / 0.45);
   }
 
-  /* Forced-light scope inherits :root shadows explicitly */
+  /* Forced-light scope — shadow-* values come from @theme; only focus-shadow needs explicit reset */
   [data-theme="light"] {
-    --shadow-xs: 0 1px 2px 0 rgba(15, 23, 42, 0.04);
-    --shadow-sm: 0 1px 2px 0 rgba(15, 23, 42, 0.06), 0 1px 3px 0 rgba(15, 23, 42, 0.06);
-    --shadow-md: 0 4px 6px -1px rgba(15, 23, 42, 0.08), 0 2px 4px -2px rgba(15, 23, 42, 0.06);
-    --shadow-lg: 0 10px 15px -3px rgba(15, 23, 42, 0.10), 0 4px 6px -4px rgba(15, 23, 42, 0.08);
-    --shadow-focus: 0 0 0 3px hsl(var(--ring) / 0.35);
+    --focus-shadow: 0 0 0 3px hsl(var(--ring) / 0.35);
   }
 }
 
@@ -241,4 +231,32 @@
 @keyframes shimmer {
   0%   { transform: translateX(-100%); }
   100% { transform: translateX(100%); }
+}
+
+/* Phase 11: Landing page gradient border hover treatment (ui-ux-pro-max) */
+.card-hover-gradient {
+  position: relative;
+}
+@media (hover: hover) {
+  .card-hover-gradient:hover::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(135deg, hsl(var(--primary) / 0.4) 0%, hsl(218 85% 73% / 0.4) 100%);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+}
+
+/* Phase 11: Product mockup waveform pulse */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes waveform {
+    from { transform: scaleY(0.4); }
+    to   { transform: scaleY(1); }
+  }
 }

@@ -28,7 +28,7 @@ export function BottomNav() {
             )}
           >
             {item.primary ? (
-              <span className="flex h-10 w-10 items-center justify-center rounded-[var(--radius-full)] bg-primary text-primary-foreground shadow-[var(--shadow-md)]">
+              <span className="flex h-10 w-10 items-center justify-center rounded-[var(--radius-full)] bg-primary text-primary-foreground shadow-md">
                 <Icon className="h-5 w-5" />
               </span>
             ) : (
