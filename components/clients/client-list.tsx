@@ -39,6 +39,7 @@ import { ClientSheet } from '@/components/clients/client-sheet'
 import { deleteClientAction } from '@/lib/actions/client'
 import { createClient } from '@/lib/supabase/client'
 import type { ClientWithCount, ClientDetail } from '@/lib/queries/clients'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface ClientListProps {
   clients: ClientWithCount[]
@@ -47,6 +48,7 @@ interface ClientListProps {
 
 export function ClientList({ clients, companyId }: ClientListProps) {
   const router = useRouter()
+  const { t } = useTranslation()
   const [search, setSearch] = useState('')
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editingClient, setEditingClient] = useState<ClientDetail | null>(null)
@@ -125,13 +127,13 @@ export function ClientList({ clients, companyId }: ClientListProps) {
     return (
       <>
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold">Clients</h1>
+          <h1 className="text-2xl font-bold">{t('Clients')}</h1>
         </div>
         <EmptyState
           icon={Users}
-          title="No clients yet"
-          description="Add your first client to get started"
-          actionLabel="Add Client"
+          title={t('No clients yet')}
+          description={t('Add your first client to get started')}
+          actionLabel={t('Add Client')}
           onAction={handleAddClient}
         />
         <ClientSheet
@@ -147,10 +149,10 @@ export function ClientList({ clients, companyId }: ClientListProps) {
   return (
     <>
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Clients</h1>
+        <h1 className="text-2xl font-bold">{t('Clients')}</h1>
         <Button onClick={handleAddClient}>
           <Plus className="h-4 w-4 mr-2" />
-          Add Client
+          {t('Add Client')}
         </Button>
       </div>
 
@@ -169,8 +171,8 @@ export function ClientList({ clients, companyId }: ClientListProps) {
       {filtered.length === 0 && clients.length > 0 && (
         <EmptyState
           icon={Search}
-          title="No clients match your search"
-          description="Try a different search term"
+          title={t('No clients match your search')}
+          description={t('Try a different search term')}
           onClearFilter={() => setSearch('')}
         />
       )}
@@ -181,10 +183,10 @@ export function ClientList({ clients, companyId }: ClientListProps) {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Phone</TableHead>
-                <TableHead>Projects</TableHead>
+                <TableHead>{t('Name')}</TableHead>
+                <TableHead>{t('Email')}</TableHead>
+                <TableHead>{t('Phone')}</TableHead>
+                <TableHead>{t('Projects')}</TableHead>
                 <TableHead className="w-[50px]" />
               </TableRow>
             </TableHeader>
@@ -225,16 +227,16 @@ export function ClientList({ clients, companyId }: ClientListProps) {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem asChild>
-                          <Link href={`/clients/${client.id}`}>View</Link>
+                          <Link href={`/clients/${client.id}`}>{t('View')}</Link>
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleEditClient(client.id)}>
-                          Edit
+                          {t('Edit')}
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           className="text-destructive"
                           onClick={() => handleDeletePrompt(client)}
                         >
-                          Delete
+                          {t('Delete')}
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -281,16 +283,16 @@ export function ClientList({ clients, companyId }: ClientListProps) {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem asChild>
-                        <Link href={`/clients/${client.id}`}>View</Link>
+                        <Link href={`/clients/${client.id}`}>{t('View')}</Link>
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => handleEditClient(client.id)}>
-                        Edit
+                        {t('Edit')}
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         className="text-destructive"
                         onClick={() => handleDeletePrompt(client)}
                       >
-                        Delete
+                        {t('Delete')}
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -313,23 +315,23 @@ export function ClientList({ clients, companyId }: ClientListProps) {
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Client</AlertDialogTitle>
+            <AlertDialogTitle>{t('Delete Client')}</AlertDialogTitle>
             <AlertDialogDescription>
               {deletingClient && deletingClient.projectCount > 0
-                ? `"${deletingClient.name}" has ${deletingClient.projectCount} project(s). Deleting will remove the client association from those projects. This action cannot be undone.`
+                ? `"${deletingClient.name}" has ${deletingClient.projectCount} project(s). Deleting will remove the client association from those projects. ${t('This action cannot be undone')}.`
                 : deletingClient
-                  ? `Are you sure you want to delete "${deletingClient.name}"? This action cannot be undone.`
+                  ? `${t('Are you sure?')} ${t('This action cannot be undone')}.`
                   : ''}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={isPending}>{t('Cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleConfirmDelete}
               disabled={isPending}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {isPending ? 'Deleting...' : 'Delete'}
+              {isPending ? t('Deleting...') : t('Delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

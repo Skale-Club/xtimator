@@ -73,12 +73,37 @@ export const staticDict: Record<'pt' | 'es', TranslationDict> = {
     'Overview': 'Visão geral',
     'Audio': 'Áudio',
 
+    // Table headers
+    'Client': 'Cliente',
+    'Type': 'Tipo',
+    'Actions': 'Ações',
+    'Status': 'Status',
+
     // Empty states
     'No clients yet': 'Nenhum cliente ainda',
     'No projects yet': 'Nenhum projeto ainda',
     'No estimates yet': 'Nenhum orçamento ainda',
     'No recordings yet': 'Nenhuma gravação ainda',
     'No photos yet': 'Nenhuma foto ainda',
+    'No clients match your search': 'Nenhum cliente corresponde à sua busca',
+    'No projects match your search': 'Nenhum projeto corresponde à sua busca',
+    'Add your first client to get started': 'Adicione seu primeiro cliente para começar',
+    'Create your first project to get started': 'Crie seu primeiro projeto para começar',
+    'Try a different search term': 'Tente um termo de busca diferente',
+    'Try a different search term or clear filters': 'Tente outro termo ou limpe os filtros',
+
+    // Action labels
+    'Add Client': 'Adicionar Cliente',
+    'Delete Client': 'Excluir Cliente',
+    'Delete Project': 'Excluir Projeto',
+    'Duplicate': 'Duplicar',
+    'Duplicating...': 'Duplicando...',
+
+    // Sort options
+    'Newest': 'Mais recente',
+    'Oldest': 'Mais antigo',
+    'Highest Value': 'Maior valor',
+    'Alphabetical': 'Alfabética',
 
     // Common messages
     'Saving...': 'Salvando...',
@@ -167,12 +192,37 @@ export const staticDict: Record<'pt' | 'es', TranslationDict> = {
     'Overview': 'Resumen',
     'Audio': 'Audio',
 
+    // Table headers
+    'Client': 'Cliente',
+    'Type': 'Tipo',
+    'Actions': 'Acciones',
+    'Status': 'Estado',
+
     // Empty states
     'No clients yet': 'Sin clientes aún',
     'No projects yet': 'Sin proyectos aún',
     'No estimates yet': 'Sin presupuestos aún',
     'No recordings yet': 'Sin grabaciones aún',
     'No photos yet': 'Sin fotos aún',
+    'No clients match your search': 'Ningún cliente coincide con tu búsqueda',
+    'No projects match your search': 'Ningún proyecto coincide con tu búsqueda',
+    'Add your first client to get started': 'Agrega tu primer cliente para comenzar',
+    'Create your first project to get started': 'Crea tu primer proyecto para comenzar',
+    'Try a different search term': 'Prueba con otro término de búsqueda',
+    'Try a different search term or clear filters': 'Prueba otro término o limpia los filtros',
+
+    // Action labels
+    'Add Client': 'Agregar Cliente',
+    'Delete Client': 'Eliminar Cliente',
+    'Delete Project': 'Eliminar Proyecto',
+    'Duplicate': 'Duplicar',
+    'Duplicating...': 'Duplicando...',
+
+    // Sort options
+    'Newest': 'Más reciente',
+    'Oldest': 'Más antiguo',
+    'Highest Value': 'Mayor valor',
+    'Alphabetical': 'Alfabético',
 
     // Common messages
     'Saving...': 'Guardando...',

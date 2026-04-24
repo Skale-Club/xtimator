@@ -18,6 +18,7 @@ import {
 import { ClientSheet } from '@/components/clients/client-sheet'
 import { deleteClientAction } from '@/lib/actions/client'
 import type { ClientDetail } from '@/lib/queries/clients'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface ClientDetailActionsProps {
   client: ClientDetail
@@ -26,6 +27,7 @@ interface ClientDetailActionsProps {
 
 export function ClientDetailActions({ client, companyId }: ClientDetailActionsProps) {
   const router = useRouter()
+  const { t } = useTranslation()
   const [sheetOpen, setSheetOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
@@ -55,7 +57,7 @@ export function ClientDetailActions({ client, companyId }: ClientDetailActionsPr
       <div className="flex gap-2 shrink-0">
         <Button variant="outline" size="sm" onClick={() => setSheetOpen(true)}>
           <Pencil className="h-4 w-4 mr-1" />
-          Edit
+          {t('Edit')}
         </Button>
         <Button
           variant="outline"
@@ -64,7 +66,7 @@ export function ClientDetailActions({ client, companyId }: ClientDetailActionsPr
           onClick={() => setDeleteDialogOpen(true)}
         >
           <Trash2 className="h-4 w-4 mr-1" />
-          Delete
+          {t('Delete')}
         </Button>
       </div>
 
@@ -78,21 +80,21 @@ export function ClientDetailActions({ client, companyId }: ClientDetailActionsPr
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Client</AlertDialogTitle>
+            <AlertDialogTitle>{t('Delete Client')}</AlertDialogTitle>
             <AlertDialogDescription>
               {client.project_count > 0
-                ? `"${client.name}" has ${client.project_count} project(s). Deleting will remove the client association from those projects. This action cannot be undone.`
-                : `Are you sure you want to delete "${client.name}"? This action cannot be undone.`}
+                ? `"${client.name}" has ${client.project_count} project(s). Deleting will remove the client association from those projects. ${t('This action cannot be undone')}.`
+                : `${t('Are you sure?')} ${t('This action cannot be undone')}.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={isPending}>{t('Cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleConfirmDelete}
               disabled={isPending}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {isPending ? 'Deleting...' : 'Delete'}
+              {isPending ? t('Deleting...') : t('Delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

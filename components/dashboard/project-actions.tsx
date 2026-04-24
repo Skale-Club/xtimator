@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { deleteProjectAction, duplicateProjectAction } from '@/lib/actions/project'
 import { toast } from 'sonner'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface ProjectActionsProps {
   projectId: string
@@ -30,6 +31,7 @@ interface ProjectActionsProps {
 }
 
 export function ProjectActions({ projectId, projectName }: ProjectActionsProps) {
+  const { t } = useTranslation()
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [isDeleting, startDeleteTransition] = useTransition()
   const [isDuplicating, startDuplicateTransition] = useTransition()
@@ -68,21 +70,21 @@ export function ProjectActions({ projectId, projectName }: ProjectActionsProps) 
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuItem asChild>
-            <Link href={`/projects/${projectId}`}>View</Link>
+            <Link href={`/projects/${projectId}`}>{t('View')}</Link>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
-            <Link href={`/projects/${projectId}`}>Edit</Link>
+            <Link href={`/projects/${projectId}`}>{t('Edit')}</Link>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={handleDuplicate} disabled={isDuplicating}>
-            {isDuplicating ? 'Duplicating...' : 'Duplicate'}
+            {isDuplicating ? t('Duplicating...') : t('Duplicate')}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem
             className="text-destructive focus:text-destructive"
             onClick={() => setShowDeleteDialog(true)}
           >
-            Delete
+            {t('Delete')}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -90,20 +92,19 @@ export function ProjectActions({ projectId, projectName }: ProjectActionsProps) 
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Project</AlertDialogTitle>
+            <AlertDialogTitle>{t('Delete Project')}</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete &quot;{projectName}&quot;? This action
-              cannot be undone.
+              {t('Are you sure?')} {t('This action cannot be undone')}.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={isDeleting}>{t('Cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
               disabled={isDeleting}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {isDeleting ? 'Deleting...' : 'Delete'}
+              {isDeleting ? t('Deleting...') : t('Delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -23,6 +23,7 @@ import {
 import { FolderOpen, Search } from 'lucide-react'
 import { ProjectTableRow } from '@/components/dashboard/project-table-row'
 import { ProjectCard } from '@/components/dashboard/project-card'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 const STATUS_FILTERS = [
   'all',
@@ -40,6 +41,7 @@ interface ProjectListProps {
 }
 
 export function ProjectList({ projects }: ProjectListProps) {
+  const { t } = useTranslation()
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [sortBy, setSortBy] = useState('newest')
@@ -85,9 +87,9 @@ export function ProjectList({ projects }: ProjectListProps) {
     return (
       <EmptyState
         icon={FolderOpen}
-        title="No projects yet"
-        description="Create your first project to get started"
-        actionLabel="New Project"
+        title={t('No projects yet')}
+        description={t('Create your first project to get started')}
+        actionLabel={t('New Project')}
         actionHref="/projects/new"
       />
     )
@@ -111,10 +113,10 @@ export function ProjectList({ projects }: ProjectListProps) {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="newest">Newest</SelectItem>
-            <SelectItem value="oldest">Oldest</SelectItem>
-            <SelectItem value="highest">Highest Value</SelectItem>
-            <SelectItem value="alphabetical">Alphabetical</SelectItem>
+            <SelectItem value="newest">{t('Newest')}</SelectItem>
+            <SelectItem value="oldest">{t('Oldest')}</SelectItem>
+            <SelectItem value="highest">{t('Highest Value')}</SelectItem>
+            <SelectItem value="alphabetical">{t('Alphabetical')}</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -138,8 +140,8 @@ export function ProjectList({ projects }: ProjectListProps) {
       {filteredProjects.length === 0 ? (
         <EmptyState
           icon={Search}
-          title="No projects match your search"
-          description="Try a different search term or clear filters"
+          title={t('No projects match your search')}
+          description={t('Try a different search term or clear filters')}
           onClearFilter={() => {
             setSearch('')
             setStatusFilter('all')
@@ -152,13 +154,13 @@ export function ProjectList({ projects }: ProjectListProps) {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Client</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Total</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead className="w-[50px]">Actions</TableHead>
+                  <TableHead>{t('Name')}</TableHead>
+                  <TableHead>{t('Client')}</TableHead>
+                  <TableHead>{t('Type')}</TableHead>
+                  <TableHead>{t('Status')}</TableHead>
+                  <TableHead>{t('Total')}</TableHead>
+                  <TableHead>{t('Date')}</TableHead>
+                  <TableHead className="w-[50px]">{t('Actions')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
