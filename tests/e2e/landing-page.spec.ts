@@ -4,7 +4,10 @@ test.describe('landing page', () => {
   test('hero', async ({ page }) => {
     await page.goto('/')
 
-    await expect(page.getByRole('heading', { name: 'Turn a job-site walkthrough into a client-ready estimate in minutes.' })).toBeVisible()
+    // Headline per CONTEXT.md D-05: "Professional estimates in 5 minutes."
+    const hero = page.getByRole('heading', { level: 1 })
+    await expect(hero).toBeVisible()
+    await expect(hero).toContainText(/professional estimates/i)
     await expect(page.getByRole('link', { name: 'Start free' })).toBeVisible()
     await expect(page.getByRole('link', { name: 'Log in' })).toBeVisible()
   })
