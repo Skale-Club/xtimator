@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Brand Identity & Global Reach
 status: executing
-last_updated: "2026-04-24T17:01:37.366Z"
+last_updated: "2026-04-24T17:31:08Z"
 last_activity: 2026-04-24
 progress:
   total_phases: 3
   completed_phases: 2
   total_plans: 8
-  completed_plans: 4
+  completed_plans: 5
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 - **Milestone**: v1.2 Brand Identity & Global Reach - Phase 11 complete
 - **Last updated**: 2026-04-24
 - **Last session**: 2026-04-24
-- **Stopped at**: Completed 11-02-PLAN.md. Phase 11 marketing-landing-page complete. Next: Phase 12 i18n system.
+- **Stopped at**: Completed 12-04-PLAN.md (LanguageToggle + TranslationLoadingOverlay UI components). Next: Plan 12-05 (string wrapping pass).
 
 ## Current Position
 
 Phase: 12 (i18n-translation-system) — EXECUTING
-Plan: 2 of 5
+Plan: 4 of 5 complete
 Status: Ready to execute
 Last activity: 2026-04-24
 
@@ -136,6 +136,8 @@ Last activity: 2026-04-24
 - [Phase 12-i18n-translation-system]: translations table uses service-role-only writes (no INSERT policy) — service role bypasses RLS by design
 - [Phase 12-i18n-translation-system]: Per-language batch accumulator (Map<lang,...>) avoids language switch mid-debounce mixing PT and ES translations (Pitfall 3)
 - [Phase 12-i18n-translation-system]: LanguageProvider nests inside ThemeProvider in app/layout.tsx; Language type exported from language-context.tsx for downstream modules
+- [Phase 12-i18n-translation-system 12-04]: LanguageToggle placed outside NAV_ITEMS.map() in BottomNav — it is a button action not a nav link (Pitfall 4)
+- [Phase 12-i18n-translation-system 12-04]: TranslationLoadingOverlay uses pendingCount counter (not isTranslating boolean) for concurrent batch overlay management; mounted in app/(app)/layout.tsx so I18N-07 triggers from any authenticated page
 
 ## Performance Metrics
 
@@ -167,6 +169,7 @@ Last activity: 2026-04-24
 | Phase 11-marketing-landing-page P02 | 6min | 2 tasks | 6 files |
 | Phase 12-i18n-translation-system P01 | 5min | 2 tasks | 6 files |
 | Phase 12-i18n-translation-system P02 | 7min | 2 tasks | 4 files |
+| Phase 12-i18n-translation-system P04 | 6min | 2 tasks | 7 files |
 
 ## Project Reference
 

@@ -34,7 +34,7 @@
 - [x] **I18N-04**: A static `translations.ts` dictionary provides immediate PT-BR and ES translations for the most commonly used UI strings (no API call needed)
 - [ ] **I18N-05**: Strings not found in the static dictionary are automatically translated by AI via `/api/translate` — requests are batched and debounced 50ms; translated strings are saved to the `translations` DB table with `onConflictDoNothing()`
 - [x] **I18N-06**: Translated strings are cached in-memory for the duration of the browser session, preventing redundant `/api/translate` calls for already-resolved strings
-- [ ] **I18N-07**: A `TranslationLoadingOverlay` component is shown while dynamic translations are being fetched in the current session
+- [x] **I18N-07**: A `TranslationLoadingOverlay` component is shown while dynamic translations are being fetched in the current session
 - [x] **I18N-08**: The `translations` DB table stores entries with a unique index on `(source_text, source_language, target_language)` to prevent duplicate rows
 
 ---
@@ -78,5 +78,5 @@
 | I18N-04 | i18n | Phase 12 | Pending |
 | I18N-05 | i18n | Phase 12 | Pending |
 | I18N-06 | i18n | Phase 12 | Pending |
-| I18N-07 | i18n | Phase 12 | Pending |
+| I18N-07 | i18n | Phase 12 | Complete |
 | I18N-08 | i18n | Phase 12 | Pending |
