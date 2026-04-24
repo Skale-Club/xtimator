@@ -7,27 +7,46 @@ vi.mock('@/lib/i18n/language-context', () => ({
   useLanguage: () => useLanguageMock(),
 }))
 
-// Stub overlay — source created in Plan 04
-vi.mock('@/components/i18n/translation-loading-overlay', () => ({
-  TranslationLoadingOverlay: () => null,
-}))
-
+// Import the real TranslationLoadingOverlay — source exists in Plan 04
 import { TranslationLoadingOverlay } from '@/components/i18n/translation-loading-overlay'
 
-describe('TranslationLoadingOverlay — I18N-07', () => {
-  beforeEach(() => {
-    useLanguageMock.mockReset()
-  })
+beforeEach(() => {
+  useLanguageMock.mockReset()
+})
 
+describe('TranslationLoadingOverlay — I18N-07', () => {
   it('renders spinner and "Translating..." text when pendingCount > 0', () => {
-    expect(true).toBe(false) // stub — implement in Plan 04
+    useLanguageMock.mockReturnValue({
+      language: 'pt',
+      setLanguage: vi.fn(),
+      pendingCount: 1,
+      setPendingCount: vi.fn(),
+    })
+    render(<TranslationLoadingOverlay />)
+    expect(screen.getByText('Translating...')).toBeTruthy()
   })
 
   it('renders nothing when pendingCount is 0', () => {
-    expect(true).toBe(false) // stub — implement in Plan 04
+    useLanguageMock.mockReturnValue({
+      language: 'pt',
+      setLanguage: vi.fn(),
+      pendingCount: 0,
+      setPendingCount: vi.fn(),
+    })
+    const { container } = render(<TranslationLoadingOverlay />)
+    expect(container.firstChild).toBeNull()
   })
 
   it('has role="status" and aria-live="polite" when visible', () => {
-    expect(true).toBe(false) // stub — implement in Plan 04
+    useLanguageMock.mockReturnValue({
+      language: 'es',
+      setLanguage: vi.fn(),
+      pendingCount: 2,
+      setPendingCount: vi.fn(),
+    })
+    render(<TranslationLoadingOverlay />)
+    const statusEl = screen.getByRole('status')
+    expect(statusEl).toBeTruthy()
+    expect(statusEl.getAttribute('aria-live')).toBe('polite')
   })
 })
