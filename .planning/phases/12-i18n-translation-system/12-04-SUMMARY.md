@@ -70,7 +70,7 @@ completed: "2026-04-24"
 
 ## Accomplishments
 
-- `components/app-shell/language-toggle.tsx` — LanguageToggle with CYCLE pattern (EN->PT->ES->EN), 2-letter badge (`text-xs font-bold`), SSR-safe mounted guard (renders null before mount), correct aria-labels per language
+- `components/app-shell/language-toggle.tsx` — LanguageToggle with CYCLE pattern (EN→PT→ES→EN), 2-letter badge (`text-xs font-bold`), SSR-safe mounted guard (renders null before mount), correct aria-labels per language
 - `components/i18n/translation-loading-overlay.tsx` — fixed bottom-right corner overlay with Loader2 spinner, "Translating..." text, `role="status"` `aria-live="polite"`, renders null when `pendingCount === 0`, uses `bottom-20 md:bottom-4` responsive positioning for mobile bottom-nav clearance
 - `components/app-shell/topbar.tsx` — LanguageToggle imported and rendered BEFORE ThemeToggle in desktop header's `flex items-center gap-1` section
 - `components/app-shell/bottom-nav.tsx` — LanguageToggle imported and rendered AFTER the `NAV_ITEMS.map()` call (outside the loop) wrapped in `min-h-[44px] min-w-[44px]` touch target div

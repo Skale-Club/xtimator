@@ -88,7 +88,7 @@ Plans:
 Plans:
 - [x] 12-01-PLAN.md — DB migration (translations table) + Wave 0 test scaffolds
 - [x] 12-02-PLAN.md — i18n core: LanguageContext, useTranslation hook, static dictionary (~80 strings), layout wiring
-- [ ] 12-03-PLAN.md — /api/translate route: DB cache, Claude haiku AI, onConflict insert
+- [x] 12-03-PLAN.md — /api/translate route: DB cache, Claude haiku AI, onConflict insert
 - [x] 12-04-PLAN.md — LanguageToggle + TranslationLoadingOverlay + topbar/bottom-nav wiring
 - [ ] 12-05-PLAN.md — t() string wrapping pass across authenticated app client components
 

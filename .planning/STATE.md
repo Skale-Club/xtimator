@@ -136,6 +136,8 @@ Last activity: 2026-04-24
 - [Phase 12-i18n-translation-system]: translations table uses service-role-only writes (no INSERT policy) — service role bypasses RLS by design
 - [Phase 12-i18n-translation-system]: Per-language batch accumulator (Map<lang,...>) avoids language switch mid-debounce mixing PT and ES translations (Pitfall 3)
 - [Phase 12-i18n-translation-system]: LanguageProvider nests inside ThemeProvider in app/layout.tsx; Language type exported from language-context.tsx for downstream modules
+- [Phase 12-i18n-translation-system 12-03]: upsert(rows, { onConflict, ignoreDuplicates: true }) used instead of insert() with onConflict — Supabase JS v2 TypeScript types only support onConflict on upsert(); ignoreDuplicates:true = ON CONFLICT DO NOTHING
+- [Phase 12-i18n-translation-system 12-03]: /api/translate adds getClaims() auth check for rate-limit protection — not required by generate-estimate pattern but added to prevent unauthenticated AI abuse (translations are platform-wide, no companyId needed)
 - [Phase 12-i18n-translation-system 12-04]: LanguageToggle placed outside NAV_ITEMS.map() in BottomNav — it is a button action not a nav link (Pitfall 4)
 - [Phase 12-i18n-translation-system 12-04]: TranslationLoadingOverlay uses pendingCount counter (not isTranslating boolean) for concurrent batch overlay management; mounted in app/(app)/layout.tsx so I18N-07 triggers from any authenticated page
 
@@ -169,6 +171,7 @@ Last activity: 2026-04-24
 | Phase 11-marketing-landing-page P02 | 6min | 2 tasks | 6 files |
 | Phase 12-i18n-translation-system P01 | 5min | 2 tasks | 6 files |
 | Phase 12-i18n-translation-system P02 | 7min | 2 tasks | 4 files |
+| Phase 12-i18n-translation-system P03 | 12min | 1 task | 2 files |
 | Phase 12-i18n-translation-system P04 | 6min | 2 tasks | 7 files |
 
 ## Project Reference
