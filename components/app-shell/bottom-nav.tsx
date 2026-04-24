@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { NAV_ITEMS } from './nav-items'
+import { LanguageToggle } from '@/components/app-shell/language-toggle'
 
 export function BottomNav() {
   const pathname = usePathname()
@@ -40,6 +41,9 @@ export function BottomNav() {
           </Link>
         )
       })}
+      <div className="flex min-h-[44px] min-w-[44px] items-center justify-center">
+        <LanguageToggle />
+      </div>
     </nav>
   )
 }
