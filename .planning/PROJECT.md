@@ -27,12 +27,13 @@ A business owner can go from job site audio recording to a sent, professional es
 
 ## Current State
 
-**Version:** v1.1 Dark-first UX & Modern Redesign — shipped 2026-04-22
-**Phases complete:** 9/9 | **Plans:** 40/40 | **Build:** passing
+**Version:** v1.2 Brand Identity & Global Reach — in progress (Phase 11 complete 2026-04-24)
+**Phases complete:** 11/12 | **Plans:** 42/42 | **Build:** passing
 **Tech stack:** Next.js 16 (App Router), TypeScript strict, Tailwind 4, shadcn/ui (New York), Supabase (Auth + DB + Storage), React PDF, Resend, Anthropic Claude, OpenAI Whisper, next-themes
-**Test coverage:** 154+ unit tests passing, integration tests for theme action, E2E with Playwright (env-gated for live flows)
+**Test coverage:** 218 unit tests passing, integration tests, E2E with Playwright (mobile + landing page coverage added Phase 11)
 **Deployment target:** Vercel
 **Theme system:** Dark mode default, user-persisted toggle (dark/light/system), SSR cookie hydration, forced-light `/estimate/*` scope
+**Landing page:** Public dark-mode marketing page at `/` — Hero (#406EF1 glow), How It Works, Features, CTA band, footer
 
 ## Requirements
 
@@ -57,7 +58,7 @@ A business owner can go from job site audio recording to a sent, professional es
 
 ### Active (v1.2)
 
-- [ ] LAND-01–06: Landing page — Hero+CTA, How It Works, Features/Benefits, dark mode, #406EF1 design system, responsive
+- [x] LAND-01–05: Landing page — Hero+CTA, How It Works, Features/Benefits, dark mode, #406EF1 design system, responsive — Validated in Phase 11: Marketing Landing Page
 - [x] BRAND-01–03: Global brand token update — #406EF1 as `--primary`/`--platform-primary` default across entire app (landing + authenticated + admin) — Validated in Phase 10: Global Brand Tokens
 - [ ] I18N-01–10: i18n system — LanguageContext (EN/PT/ES), `useTranslation()` hook, static dictionary, `/api/translate` AI on-demand with DB cache, language toggle in navbar; English-first
 - [ ] Production Supabase migration applied and first super-admin bootstrapped
@@ -130,4 +131,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context
 
 ---
-*Last updated: 2026-04-22 — Phase 10 complete (Global Brand Tokens)*
+*Last updated: 2026-04-24 — Phase 11 complete (Marketing Landing Page)*
