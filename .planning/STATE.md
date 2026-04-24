@@ -2,31 +2,31 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Brand Identity & Global Reach
-status: In Progress
-last_updated: "2026-04-23T16:51:42.484Z"
+status: executing
+last_updated: "2026-04-24T13:46:57.271Z"
 last_activity: 2026-04-23
 progress:
   total_phases: 3
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 3
-  completed_plans: 2
+  completed_plans: 3
 ---
 
 # Project State
 
 ## Current Status
 
-- **Milestone**: v1.2 Brand Identity & Global Reach - Phase 11 execution in progress
-- **Last updated**: 2026-04-23
-- **Last session**: 2026-04-23
-- **Stopped at**: Completed 11-01-PLAN.md. Next step: execute `/gsd:execute-phase .planning/phases/11-marketing-landing-page/11-02-PLAN.md`.
+- **Milestone**: v1.2 Brand Identity & Global Reach - Phase 11 complete
+- **Last updated**: 2026-04-24
+- **Last session**: 2026-04-24
+- **Stopped at**: Completed 11-02-PLAN.md. Phase 11 marketing-landing-page complete. Next: Phase 12 i18n system.
 
 ## Current Position
 
-Phase: 11
-Plan: 11-01 complete, 11-02 planned
-Status: In progress
-Last activity: 2026-04-23
+Phase: 11 (complete)
+Plan: 11-01 complete, 11-02 complete
+Status: Phase 11 complete, ready for Phase 12
+Last activity: 2026-04-24
 
 ## Active Phase
 
@@ -129,6 +129,8 @@ Last activity: 2026-04-23
 - [Phase 10-global-brand-tokens]: 224 86% 60% HSL triplet locked as global brand primary (#406EF1) across all CSS scopes; .dark --primary-foreground changed to 0 0% 100% for white-on-blue contrast; var(--platform-primary, ...) runtime override path preserved
 - [Phase 11-marketing-landing-page]: Authenticated root redirects stay in proxy.ts so signed-in users fast-path before landing-page rendering.
 - [Phase 11-marketing-landing-page]: Landing-page baseline uses shallow components/landing sections plus env-gated Playwright coverage for the authenticated root path.
+- [Phase 11-marketing-landing-page]: Hero workflow panel hidden on mobile (sm:hidden) to guarantee CTAs above fold on 390px viewports
+- [Phase 11-marketing-landing-page]: Footer converted to async server component consuming getBranding().appName; no hardcoded app name strings in landing
 
 ## Performance Metrics
 
@@ -157,6 +159,7 @@ Last activity: 2026-04-23
 | Phase 09-system-wide-dark-mode-default P07 | 6min | 2 tasks | 10 files |
 | Phase 10-global-brand-tokens P01 | 8min | 2 tasks | 4 files |
 | Phase 11-marketing-landing-page P01 | 9min | 2 tasks | 11 files |
+| Phase 11-marketing-landing-page P02 | 6min | 2 tasks | 6 files |
 
 ## Project Reference
 
