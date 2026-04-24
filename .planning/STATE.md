@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Brand Identity & Global Reach
 status: completed
-last_updated: "2026-04-24T14:17:33.755Z"
+last_updated: "2026-04-24T17:01:37.366Z"
 last_activity: 2026-04-24
 progress:
   total_phases: 3
   completed_phases: 2
-  total_plans: 3
-  completed_plans: 3
+  total_plans: 8
+  completed_plans: 4
 ---
 
 # Project State
@@ -131,6 +131,9 @@ Last activity: 2026-04-24
 - [Phase 11-marketing-landing-page]: Landing-page baseline uses shallow components/landing sections plus env-gated Playwright coverage for the authenticated root path.
 - [Phase 11-marketing-landing-page]: Hero workflow panel hidden on mobile (sm:hidden) to guarantee CTAs above fold on 390px viewports
 - [Phase 11-marketing-landing-page]: Footer converted to async server component consuming getBranding().appName; no hardcoded app name strings in landing
+- [Phase 12-i18n-translation-system]: pendingCount (not isTranslating) in LanguageContext prevents premature overlay dismissal when multiple concurrent batches are in flight
+- [Phase 12-i18n-translation-system]: Per-language batch accumulator (Map<lang,...>) avoids language switch mid-debounce mixing PT and ES translations (Pitfall 3)
+- [Phase 12-i18n-translation-system]: LanguageProvider nests inside ThemeProvider in app/layout.tsx; Language type exported from language-context.tsx for downstream modules
 
 ## Performance Metrics
 
@@ -160,6 +163,7 @@ Last activity: 2026-04-24
 | Phase 10-global-brand-tokens P01 | 8min | 2 tasks | 4 files |
 | Phase 11-marketing-landing-page P01 | 9min | 2 tasks | 11 files |
 | Phase 11-marketing-landing-page P02 | 6min | 2 tasks | 6 files |
+| Phase 12-i18n-translation-system P02 | 7 | 2 tasks | 6 files |
 
 ## Project Reference
 

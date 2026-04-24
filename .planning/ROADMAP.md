@@ -87,7 +87,7 @@ Plans:
 
 Plans:
 - [ ] 12-01-PLAN.md — DB migration (translations table) + Wave 0 test scaffolds
-- [ ] 12-02-PLAN.md — i18n core: LanguageContext, useTranslation hook, static dictionary (~80 strings), layout wiring
+- [x] 12-02-PLAN.md — i18n core: LanguageContext, useTranslation hook, static dictionary (~80 strings), layout wiring
 - [ ] 12-03-PLAN.md — /api/translate route: DB cache, Claude haiku AI, onConflict insert
 - [ ] 12-04-PLAN.md — LanguageToggle + TranslationLoadingOverlay + topbar/bottom-nav wiring
 - [ ] 12-05-PLAN.md — t() string wrapping pass across authenticated app client components
@@ -109,4 +109,4 @@ Plans:
 | 9. Dark-first UX & Modern Redesign | v1.1 | 8/8 | Complete | 2026-04-22 |
 | 10. Global Brand Tokens | v1.2 | 1/1 | Complete    | 2026-04-22 |
 | 11. Marketing Landing Page | v1.2 | 2/2 | Complete    | 2026-04-24 |
-| 12. i18n Translation System | v1.2 | 0/5 | Not started | - |
+| 12. i18n Translation System | v1.2 | 1/5 | In Progress|  |

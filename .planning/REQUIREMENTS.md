@@ -28,12 +28,12 @@
 
 ### i18n — Translation System
 
-- [ ] **I18N-01**: User can switch the app language between English (EN), Portuguese/Brazil (PT), and Spanish (ES) from a language toggle component in the navbar
-- [ ] **I18N-02**: Selected language is persisted in `localStorage` under key `language` and restored on page reload without flicker
-- [ ] **I18N-03**: All user-visible text strings in the authenticated app and landing page are wrapped in `t()` for translation; English strings are returned unchanged
-- [ ] **I18N-04**: A static `translations.ts` dictionary provides immediate PT-BR and ES translations for the most commonly used UI strings (no API call needed)
+- [x] **I18N-01**: User can switch the app language between English (EN), Portuguese/Brazil (PT), and Spanish (ES) from a language toggle component in the navbar
+- [x] **I18N-02**: Selected language is persisted in `localStorage` under key `language` and restored on page reload without flicker
+- [x] **I18N-03**: All user-visible text strings in the authenticated app and landing page are wrapped in `t()` for translation; English strings are returned unchanged
+- [x] **I18N-04**: A static `translations.ts` dictionary provides immediate PT-BR and ES translations for the most commonly used UI strings (no API call needed)
 - [ ] **I18N-05**: Strings not found in the static dictionary are automatically translated by AI via `/api/translate` — requests are batched and debounced 50ms; translated strings are saved to the `translations` DB table with `onConflictDoNothing()`
-- [ ] **I18N-06**: Translated strings are cached in-memory for the duration of the browser session, preventing redundant `/api/translate` calls for already-resolved strings
+- [x] **I18N-06**: Translated strings are cached in-memory for the duration of the browser session, preventing redundant `/api/translate` calls for already-resolved strings
 - [ ] **I18N-07**: A `TranslationLoadingOverlay` component is shown while dynamic translations are being fetched in the current session
 - [ ] **I18N-08**: The `translations` DB table stores entries with a unique index on `(source_text, source_language, target_language)` to prevent duplicate rows
 
