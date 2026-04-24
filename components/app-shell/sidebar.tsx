@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { cn } from '@/lib/utils'
 import { NAV_ITEMS } from './nav-items'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface SidebarProps {
   company: {
@@ -17,6 +18,7 @@ interface SidebarProps {
 
 export function Sidebar({ company }: SidebarProps) {
   const pathname = usePathname()
+  const { t } = useTranslation()
 
   return (
     <aside className="hidden md:flex flex-col border-r border-border bg-background w-16 lg:w-64 transition-all">
@@ -56,7 +58,7 @@ export function Sidebar({ company }: SidebarProps) {
               )}
             >
               <Icon className="h-5 w-5 shrink-0" />
-              <span className="hidden lg:block">{item.label}</span>
+              <span className="hidden lg:block">{t(item.label)}</span>
             </Link>
           )
         })}

@@ -13,6 +13,7 @@ import { Settings, LogOut } from 'lucide-react'
 import { signOut } from '@/lib/actions/auth'
 import { ThemeToggle } from '@/components/app-shell/theme-toggle'
 import { LanguageToggle } from '@/components/app-shell/language-toggle'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface TopbarProps {
   company: {
@@ -25,6 +26,7 @@ interface TopbarProps {
 
 export function Topbar({ company }: TopbarProps) {
   const initial = (company.owner_name ?? company.name).charAt(0).toUpperCase()
+  const { t } = useTranslation()
 
   return (
     <header className="hidden md:flex items-center justify-between border-b border-border bg-background px-6 py-4">
@@ -45,7 +47,7 @@ export function Topbar({ company }: TopbarProps) {
             <DropdownMenuItem asChild>
               <Link href="/settings" className="flex items-center gap-2">
                 <Settings className="h-4 w-4" />
-                Settings
+                {t('Settings')}
               </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
@@ -54,7 +56,7 @@ export function Topbar({ company }: TopbarProps) {
               onClick={() => signOut()}
             >
               <LogOut className="h-4 w-4" />
-              Sign Out
+              {t('Sign Out')}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

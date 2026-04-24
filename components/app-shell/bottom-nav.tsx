@@ -5,9 +5,11 @@ import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { NAV_ITEMS } from './nav-items'
 import { LanguageToggle } from '@/components/app-shell/language-toggle'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 export function BottomNav() {
   const pathname = usePathname()
+  const { t } = useTranslation()
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around border-t border-border bg-background md:hidden">
@@ -36,7 +38,7 @@ export function BottomNav() {
               <Icon className="h-5 w-5" />
             )}
             <span className={cn('text-[10px]', item.primary && 'mt-0.5')}>
-              {item.label}
+              {t(item.label)}
             </span>
           </Link>
         )
