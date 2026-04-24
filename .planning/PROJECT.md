@@ -27,13 +27,14 @@ A business owner can go from job site audio recording to a sent, professional es
 
 ## Current State
 
-**Version:** v1.2 Brand Identity & Global Reach — in progress (Phase 11 complete 2026-04-24)
-**Phases complete:** 11/12 | **Plans:** 42/42 | **Build:** passing
+**Version:** v1.2 Brand Identity & Global Reach — complete (Phase 12 complete 2026-04-24)
+**Phases complete:** 12/12 | **Plans:** 47/47 | **Build:** passing
 **Tech stack:** Next.js 16 (App Router), TypeScript strict, Tailwind 4, shadcn/ui (New York), Supabase (Auth + DB + Storage), React PDF, Resend, Anthropic Claude, OpenAI Whisper, next-themes
-**Test coverage:** 218 unit tests passing, integration tests, E2E with Playwright (mobile + landing page coverage added Phase 11)
+**Test coverage:** 253 unit tests passing, integration tests, E2E with Playwright (mobile + landing page coverage added Phase 11)
 **Deployment target:** Vercel
 **Theme system:** Dark mode default, user-persisted toggle (dark/light/system), SSR cookie hydration, forced-light `/estimate/*` scope
 **Landing page:** Public dark-mode marketing page at `/` — Hero (#406EF1 glow), How It Works, Features, CTA band, footer
+**i18n:** EN/PT-BR/ES language switching — `LanguageContext` + `useTranslation()`, 192-entry static dict, `/api/translate` with Claude Haiku + DB cache, `LanguageToggle` in navbar + mobile bottom-nav
 
 ## Requirements
 
@@ -60,7 +61,7 @@ A business owner can go from job site audio recording to a sent, professional es
 
 - [x] LAND-01–05: Landing page — Hero+CTA, How It Works, Features/Benefits, dark mode, #406EF1 design system, responsive — Validated in Phase 11: Marketing Landing Page
 - [x] BRAND-01–03: Global brand token update — #406EF1 as `--primary`/`--platform-primary` default across entire app (landing + authenticated + admin) — Validated in Phase 10: Global Brand Tokens
-- [ ] I18N-01–10: i18n system — LanguageContext (EN/PT/ES), `useTranslation()` hook, static dictionary, `/api/translate` AI on-demand with DB cache, language toggle in navbar; English-first
+- [x] I18N-01–08: i18n system — LanguageContext (EN/PT/ES), `useTranslation()` hook, 192-entry static dictionary, `/api/translate` AI on-demand with DB cache, `LanguageToggle` in navbar + mobile bottom-nav; English-first — Validated in Phase 12: i18n Translation System
 - [ ] Production Supabase migration applied and first super-admin bootstrapped
 - [ ] Vercel deployment pipeline configured and first production deploy successful
 
