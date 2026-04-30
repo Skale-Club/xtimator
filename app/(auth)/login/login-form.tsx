@@ -46,40 +46,39 @@ export function LoginForm() {
 
   return (
     <>
-      {/* Google OAuth — primary CTA (D-03) */}
       <GoogleOAuthButton />
 
-      <div className="my-4 flex items-center gap-2">
-        <Separator className="flex-1" />
-        <span className="text-sm text-muted-foreground">or</span>
-        <Separator className="flex-1" />
+      <div className="my-6 flex items-center gap-4">
+        <Separator className="flex-1 bg-white/10" />
+        <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">or</span>
+        <Separator className="flex-1 bg-white/10" />
       </div>
 
       {formError && (
-        <Alert variant="destructive" className="mb-4">
+        <Alert variant="destructive" className="mb-6 border-red-500/50 bg-red-500/10 text-red-200">
           <AlertDescription>{formError}</AlertDescription>
         </Alert>
       )}
 
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
           <FormField
             control={form.control}
             name="email"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Email</FormLabel>
+                <FormLabel className="text-sm font-medium text-white/80">Email</FormLabel>
                 <FormControl>
                   <Input
                     type="email"
                     placeholder="you@example.com"
                     autoComplete="email"
                     disabled={isPending}
-                    className="min-h-[44px]"
+                    className="min-h-[48px] border-white/10 bg-white/5 px-4 text-white transition-colors focus-visible:border-[#406EF1] focus-visible:bg-white/10 focus-visible:ring-1 focus-visible:ring-[#406EF1]"
                     {...field}
                   />
                 </FormControl>
-                <FormMessage />
+                <FormMessage className="text-red-400" />
               </FormItem>
             )}
           />
@@ -88,7 +87,7 @@ export function LoginForm() {
             name="password"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Password</FormLabel>
+                <FormLabel className="text-sm font-medium text-white/80">Password</FormLabel>
                 <FormControl>
                   <div className="relative">
                     <Input
@@ -96,39 +95,39 @@ export function LoginForm() {
                       placeholder="••••••••"
                       autoComplete="current-password"
                       disabled={isPending}
-                      className="min-h-[44px] pr-10"
+                      className="min-h-[48px] border-white/10 bg-white/5 px-4 pr-12 text-white transition-colors focus-visible:border-[#406EF1] focus-visible:bg-white/10 focus-visible:ring-1 focus-visible:ring-[#406EF1]"
                       {...field}
                     />
                     <button
                       type="button"
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-white"
                       onClick={() => setShowPassword(!showPassword)}
                       aria-label={showPassword ? 'Hide password' : 'Show password'}
                       tabIndex={-1}
                     >
-                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                     </button>
                   </div>
                 </FormControl>
-                <FormMessage />
+                <FormMessage className="text-red-400" />
               </FormItem>
             )}
           />
 
-          <Button type="submit" className="w-full min-h-[44px]" disabled={isPending}>
-            {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Sign in
+          <Button type="submit" className="mt-2 min-h-[48px] w-full bg-[#406EF1] text-base font-semibold text-white shadow-[0_0_20px_rgba(64,110,241,0.3)] transition-all hover:bg-[#406EF1]/90 hover:shadow-[0_0_30px_rgba(64,110,241,0.5)]" disabled={isPending}>
+            {isPending && <Loader2 className="mr-2 size-5 animate-spin" />}
+            Sign in to Xtimator
           </Button>
         </form>
       </Form>
 
-      <div className="mt-4 flex flex-col gap-2 text-center text-sm">
-        <Link href="/auth/reset-password" className="text-muted-foreground hover:text-foreground">
+      <div className="mt-8 flex flex-col gap-3 text-center text-sm">
+        <Link href="/reset-password" className="text-muted-foreground transition-colors hover:text-white">
           Forgot your password?
         </Link>
         <span className="text-muted-foreground">
           Don&apos;t have an account?{' '}
-          <Link href="/auth/signup" className="font-medium text-foreground hover:underline">
+          <Link href="/signup" className="font-semibold text-[#7FA4F4] transition-colors hover:text-white hover:underline">
             Sign up
           </Link>
         </span>

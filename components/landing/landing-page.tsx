@@ -3,17 +3,22 @@ import { FeaturesSection } from '@/components/landing/features-section'
 import { HeroSection } from '@/components/landing/hero-section'
 import { HowItWorksSection } from '@/components/landing/how-it-works-section'
 import { LandingFooter } from '@/components/landing/landing-footer'
+import { TopNav } from '@/components/landing/top-nav'
 
 export function LandingPage() {
   return (
     <div
       data-testid="landing-shell"
-      className="dark isolate min-h-screen overflow-x-hidden bg-[linear-gradient(180deg,#0a0a0f_0%,#0d0f1a_100%)] text-foreground"
+      className="dark isolate min-h-screen overflow-x-hidden bg-[#0a0a0f] text-foreground selection:bg-[#406EF1]/30"
     >
-      <HeroSection />
-      <HowItWorksSection />
-      <FeaturesSection />
-      <FinalCtaSection />
+      <div className="fixed inset-0 -z-10 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(64,110,241,0.15),rgba(255,255,255,0))]" />
+      <TopNav />
+      <main className="pt-16">
+        <HeroSection />
+        <HowItWorksSection />
+        <FeaturesSection />
+        <FinalCtaSection />
+      </main>
       <LandingFooter />
     </div>
   )

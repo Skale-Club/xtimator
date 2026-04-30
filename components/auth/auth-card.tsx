@@ -11,70 +11,46 @@ interface AuthCardProps {
   children: React.ReactNode
 }
 
-/**
- * Inline SVG logomark used as fallback when branding.logoUrl is null (R-09).
- * Exported so other consumers (e.g. nav, share pages) can reuse the same mark.
- */
-export function LogoFallback() {
+export function LogoFallback({ appName }: { appName?: string }) {
+  const initial = appName ? appName.charAt(0) : 'X'
   return (
-    <svg
-      width="40"
-      height="40"
-      viewBox="0 0 40 40"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-hidden="true"
-    >
-      <rect width="40" height="40" rx="8" fill="hsl(var(--primary))" />
-      <path
-        d="M12 28L20 12L28 28"
-        stroke="hsl(var(--primary-foreground))"
-        strokeWidth="2.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M15 23H25"
-        stroke="hsl(var(--primary-foreground))"
-        strokeWidth="2.5"
-        strokeLinecap="round"
-      />
-    </svg>
+    <div className="flex size-12 items-center justify-center rounded-xl bg-[#406EF1] font-bold text-white shadow-[0_0_20px_rgba(64,110,241,0.5)]">
+      <span className="text-2xl">{initial}</span>
+    </div>
   )
 }
 
 export function AuthCard({ branding, title, children }: AuthCardProps) {
   return (
-    <div className="flex w-full flex-col items-center">
-      {/* Logo + wordmark above card (D-02) — fed from getBranding() */}
-      <div className="mb-8 flex flex-col items-center gap-2">
+    <div className="z-10 flex w-full flex-col items-center">
+      <div className="mb-8 flex flex-col items-center gap-3">
         {branding.logoUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={branding.logoUrl}
             alt=""
-            width={40}
-            height={40}
+            className="size-12 rounded-xl object-contain shadow-[0_0_20px_rgba(64,110,241,0.3)]"
             aria-hidden="true"
           />
         ) : (
-          <LogoFallback />
+          <LogoFallback appName={branding.appName} />
         )}
-        <span className="text-2xl font-semibold leading-[1.15] tracking-tight">
+        <span className="text-3xl font-extrabold tracking-tight text-white">
           {branding.appName}
         </span>
       </div>
 
-      {/* Auth card (D-01) — uses semantic tokens that resolve to dark values
-          inside [data-theme="dark-auth"] */}
-      <Card className="w-full max-w-[400px] rounded-xl border border-border bg-card text-card-foreground shadow-none">
-        <CardContent className="p-6">
-          {title && (
-            <h1 className="mb-6 text-center text-xl font-semibold">{title}</h1>
-          )}
-          {children}
-        </CardContent>
-      </Card>
+      <div className="relative w-full max-w-[420px]">
+        <div className="absolute -inset-1 -z-10 rounded-2xl bg-gradient-to-b from-[#406EF1]/20 to-transparent blur-xl" />
+        <Card className="rounded-[1.5rem] border border-white/10 bg-black/40 shadow-2xl backdrop-blur-xl">
+          <CardContent className="p-8">
+            {title && (
+              <h1 className="mb-8 text-center text-2xl font-bold tracking-tight text-white">{title}</h1>
+            )}
+            {children}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   )
 }
