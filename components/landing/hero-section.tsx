@@ -3,9 +3,9 @@
 import Link from 'next/link'
 import { ArrowRight, LogIn, Sparkles, CheckCircle2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { motion } from 'framer-motion'
+import { motion, type Variants } from 'framer-motion'
 
-const FADE_UP_ANIMATION_VARIANTS = {
+const FADE_UP_ANIMATION_VARIANTS: Variants = {
   hidden: { opacity: 0, y: 30 },
   show: { opacity: 1, y: 0, transition: { type: 'spring', duration: 1 } },
 }
