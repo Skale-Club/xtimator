@@ -37,7 +37,7 @@
 
 - [x] **Phase 10: Global Brand Tokens** — Apply #406EF1 as the default primary color across all app surfaces (globals.css + layout fallbacks) (completed 2026-04-22)
 - [x] **Phase 11: Marketing Landing Page** — Build the dark-mode public landing page (Hero+CTA, How It Works, Features/Benefits) using #406EF1 design system (completed 2026-04-24)
-- [x] **Phase 12: i18n Translation System** — Add EN/PT-BR/ES language switching with static dictionary, AI on-demand translation, DB cache, and navbar toggle (completed 2026-04-24)
+- [x] **Phase 12: i18n Translation System** — Add EN/PT-BR/ES language switching with static dictionary, AI on-demand translation, DB cache, and navbar toggle (completed 2026-04-24)
 
 ---
 
@@ -91,6 +91,28 @@ Plans:
 - [x] 12-03-PLAN.md — /api/translate route: DB cache, Claude haiku AI, onConflict insert
 - [x] 12-04-PLAN.md — LanguageToggle + TranslationLoadingOverlay + topbar/bottom-nav wiring
 - [x] 12-05-PLAN.md — t() string wrapping pass across authenticated app client components
+
+### Phase 13: Visual identity polish — robust favicon and app icons across all surfaces
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 12
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 13 to break down)
+
+### Phase 14: Auth system hardening — fix URL routing inconsistency, redirect bugs, error handling, and OAuth loading state
+
+**Goal:** Every auth redirect in the codebase points to a URL that actually exists, all error-handling gaps are patched, and the auth flow works end-to-end with no dead-end 404s or stuck UI states
+**Requirements**: none (bug-fix phase)
+**Depends on:** Phase 13
+**Plans:** 3 plans
+
+Plans:
+- [ ] 14-01-PLAN.md — Fix isPublicRoute + all /auth/* redirect and href references in production code (BUG-01, BUG-02, BUG-03)
+- [ ] 14-02-PLAN.md — updatePassword company check + getClaims error handling + OAuth button loading reset + proxy try/catch (BUG-04, BUG-05, BUG-06, BUG-07)
+- [ ] 14-03-PLAN.md — Fix all Playwright E2E tests and unit tests to use /login, /signup, /reset-password
 
 ---
 
