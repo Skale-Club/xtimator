@@ -4,8 +4,12 @@ import { NextResponse, type NextRequest } from 'next/server'
 export function isPublicRoute(pathname: string) {
   const isAuthRoute = pathname.startsWith('/auth')
   const isPublicEstimate = pathname.startsWith('/estimate')
+  const isMetadataRoute =
+    pathname === '/icon' ||
+    pathname === '/apple-icon' ||
+    pathname === '/manifest.webmanifest'
 
-  return pathname === '/' || isAuthRoute || isPublicEstimate
+  return pathname === '/' || isAuthRoute || isPublicEstimate || isMetadataRoute
 }
 
 export async function updateSession(request: NextRequest) {
