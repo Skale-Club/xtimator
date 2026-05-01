@@ -10,14 +10,20 @@ export function GoogleOAuthButton() {
 
   async function handleGoogleSignIn() {
     setIsLoading(true)
-    const supabase = createClient()
-    await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: `${window.location.origin}/callback`,
-      },
-    })
-    // Loading stays true while redirect happens
+    try {
+      const supabase = createClient()
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/callback`,
+        },
+      })
+      if (error) {
+        setIsLoading(false)
+      }
+    } catch {
+      setIsLoading(false)
+    }
   }
 
   return (

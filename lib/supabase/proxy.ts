@@ -40,8 +40,13 @@ export async function updateSession(request: NextRequest) {
 
   // CRITICAL: Use getClaims(), NOT getSession()
   // getSession() does not re-validate the JWT signature against Supabase servers
-  const { data } = await supabase.auth.getClaims()
-  const claims = data?.claims ?? null
+  let claims = null
+  try {
+    const { data } = await supabase.auth.getClaims()
+    claims = data?.claims ?? null
+  } catch {
+    claims = null
+  }
 
   const { pathname } = request.nextUrl
 
