@@ -99,5 +99,17 @@ export async function updatePassword(formData: FormData) {
   }
 
   logAuthEvent({ event: 'password_update', success: true })
-  redirect('/dashboard')
+
+  const { data } = await supabase.auth.getClaims()
+  const claims = data?.claims ?? null
+  if (claims) {
+    const { data: company } = await supabase
+      .from('companies')
+      .select('id')
+      .eq('user_id', claims.sub)
+      .single()
+    redirect(company ? '/dashboard' : '/onboarding')
+  }
+
+  redirect('/login')
 }

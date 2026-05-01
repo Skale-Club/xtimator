@@ -18,7 +18,10 @@ export async function GET(request: NextRequest) {
     }
 
     // Check company record to determine redirect destination (AUTH-06)
-    const { data } = await supabase.auth.getClaims()
+    const { data, error: claimsError } = await supabase.auth.getClaims()
+    if (claimsError) {
+      logAuthEvent({ event: 'oauth_callback', success: false, provider: 'google', error: `claims_error: ${claimsError.message}` })
+    }
     const claims = data?.claims ?? null
     if (claims) {
       const { data: company } = await supabase
