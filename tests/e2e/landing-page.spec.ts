@@ -36,7 +36,7 @@ test.describe('landing page', () => {
     await page.goto('/')
 
     await expect(page).toHaveURL('/')
-    await expect(page).not.toHaveURL(/\/auth\/login$/)
+    await expect(page).not.toHaveURL(/\/login$/)
   })
 
   test('authenticated root redirect', async ({ page }) => {
@@ -48,7 +48,7 @@ test.describe('landing page', () => {
       'Set TEST_ADMIN_EMAIL + TEST_ADMIN_PASSWORD to run authenticated root redirect test'
     )
 
-    await page.goto('/auth/login')
+    await page.goto('/login')
     await page.fill('input[name="email"]', adminEmail!)
     await page.fill('input[name="password"]', adminPassword!)
     await page.click('button[type="submit"]')

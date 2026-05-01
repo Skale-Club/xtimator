@@ -27,7 +27,7 @@ test.describe('/admin/integrations end-to-end (ADMIN-04, ADMIN-10)', () => {
     )
 
     // 1) Login as admin
-    await page.goto('/auth/login')
+    await page.goto('/login')
     await page.fill('input[name="email"]', adminEmail!)
     await page.fill('input[name="password"]', adminPassword!)
     await page.click('button[type="submit"]')

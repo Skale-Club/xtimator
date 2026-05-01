@@ -26,7 +26,7 @@ test.describe('Admin branding (ADMIN-08)', () => {
     const newName = `Xtimator Test ${Date.now()}`
 
     // Login flow.
-    await page.goto('/auth/login')
+    await page.goto('/login')
     await page.fill('input[name="email"]', ADMIN_EMAIL!)
     await page.fill('input[name="password"]', ADMIN_PASSWORD!)
     await page.click('button[type="submit"]')

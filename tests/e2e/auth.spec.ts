@@ -6,7 +6,7 @@ const APP_NAME = process.env.APP_NAME_E2E ?? 'Xtimator'
 
 test.describe('signup', () => {
   test('signup page renders correctly', async ({ page }) => {
-    await page.goto('/auth/signup')
+    await page.goto('/signup')
     // Wordmark now sourced from getBranding() — env-driven via APP_NAME_E2E (Phase 8 rebrand)
     await expect(page.getByText(APP_NAME)).toBeVisible()
     await expect(page.getByRole('button', { name: 'Continue with Google' })).toBeVisible()
@@ -18,7 +18,7 @@ test.describe('signup', () => {
 
 test.describe('login', () => {
   test('login page renders correctly', async ({ page }) => {
-    await page.goto('/auth/login')
+    await page.goto('/login')
     await expect(page.getByText(APP_NAME)).toBeVisible()
     await expect(page.getByRole('button', { name: 'Continue with Google' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible()
@@ -29,7 +29,7 @@ test.describe('login', () => {
 
 test.describe('google-oauth', () => {
   test('Google OAuth button is visible and above the separator', async ({ page }) => {
-    await page.goto('/auth/login')
+    await page.goto('/login')
     const googleBtn = page.getByRole('button', { name: 'Continue with Google' })
     const separator = page.getByText('or')
     await expect(googleBtn).toBeVisible()
@@ -42,29 +42,29 @@ test.describe('google-oauth', () => {
 })
 
 test.describe('session', () => {
-  test('unauthenticated visit to /dashboard redirects to /auth/login', async ({ page }) => {
+  test('unauthenticated visit to /dashboard redirects to /login', async ({ page }) => {
     await page.goto('/dashboard')
-    await expect(page).toHaveURL('/auth/login')
+    await expect(page).toHaveURL('/login')
   })
 
-  test('unauthenticated visit to /onboarding redirects to /auth/login', async ({ page }) => {
+  test('unauthenticated visit to /onboarding redirects to /login', async ({ page }) => {
     await page.goto('/onboarding')
-    await expect(page).toHaveURL('/auth/login')
+    await expect(page).toHaveURL('/login')
   })
 })
 
 test.describe('reset-password', () => {
   test('reset password page renders request form', async ({ page }) => {
-    await page.goto('/auth/reset-password')
+    await page.goto('/reset-password')
     await expect(page.getByRole('button', { name: 'Send reset link' })).toBeVisible()
     await expect(page.getByLabel('Email')).toBeVisible()
   })
 })
 
 test.describe('onboarding-redirect', () => {
-  test.todo('new user with no company record is redirected to /onboarding after signup (AUTH-06) — requires live Supabase')
+  test.skip('new user with no company record is redirected to /onboarding after signup (AUTH-06) — requires live Supabase', async () => {})
 })
 
 test.describe('signout', () => {
-  test.todo('user can sign out and is redirected to /auth/login (AUTH-07) — requires authenticated session')
+  test.skip('user can sign out and is redirected to /login (AUTH-07) — requires authenticated session', async () => {})
 })

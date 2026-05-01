@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 
 test.describe('Auth dark pass (ADMIN-12)', () => {
-  for (const path of ['/auth/login', '/auth/signup', '/auth/reset-password']) {
+  for (const path of ['/login', '/signup', '/reset-password']) {
     test(`${path} has [data-theme="dark-auth"] wrapper`, async ({ page }) => {
       await page.goto(path)
       await expect(page.locator('[data-theme="dark-auth"]')).toHaveCount(1)

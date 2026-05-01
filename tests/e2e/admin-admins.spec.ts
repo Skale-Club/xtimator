@@ -18,7 +18,7 @@ test.describe('Admin admins (ADMIN-03)', () => {
   )
 
   test('dialog surfaces inline error for unknown email', async ({ page }) => {
-    await page.goto('/auth/login')
+    await page.goto('/login')
     await page.fill('input[name="email"]', process.env.TEST_ADMIN_EMAIL!)
     await page.fill('input[name="password"]', process.env.TEST_ADMIN_PASSWORD!)
     await page.click('button[type="submit"]')
