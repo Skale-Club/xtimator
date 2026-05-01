@@ -3,40 +3,40 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Brand Identity & Global Reach
 status: executing
-last_updated: "2026-04-24T22:03:22.228Z"
-last_activity: 2026-04-24
+last_updated: "2026-05-01T20:50:03.512Z"
+last_activity: 2026-05-01
 progress:
-  total_phases: 3
+  total_phases: 5
   completed_phases: 3
-  total_plans: 8
-  completed_plans: 8
+  total_plans: 13
+  completed_plans: 9
 ---
 
 # Project State
 
 ## Current Status
 
-- **Milestone**: v1.2 Brand Identity & Global Reach - Phase 11 complete
-- **Last updated**: 2026-04-24
-- **Last session**: 2026-04-24
-- **Stopped at**: Completed 12-04-PLAN.md (LanguageToggle + TranslationLoadingOverlay UI components). Next: Plan 12-05 (string wrapping pass).
+- **Milestone**: Post-v1.2 follow-on work - Phase 13 execution in progress
+- **Last updated**: 2026-05-01
+- **Last session**: 2026-05-01
+- **Stopped at**: Completed 13-01-PLAN.md (canonical icon assets + metadata route coverage). Next: 13-02-PLAN.md.
 
 ## Current Position
 
-Phase: 12
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-04-24
+Phase: 13
+Plan: 02
+Status: Executing
+Last activity: 2026-05-01
 
 ## Active Phase
 
-**Phase 11: Marketing Landing Page**
+**Phase 13: Visual identity polish - robust favicon and app icons across all surfaces**
 
-- Goal: A visitor landing on `/` sees a professional, dark-mode marketing page while authenticated users still fast-path into the app
-- Requirements: LAND-01, LAND-02, LAND-03, LAND-04, LAND-05
+- Goal: Ship a complete, conflict-free icon set across browser, install, and manifest surfaces using App Router metadata conventions
+- Requirements: TBD
 - Plans:
-  - 11-01 - Public root route, landing baseline, and baseline route coverage
-  - 11-02 - Mobile responsiveness, visual polish, and mobile Playwright coverage
+  - 13-01 - COMPLETE (canonical icon assets, manifest wiring, metadata-route regression tests)
+  - 13-02 - In progress (smoke checklist + human verification checkpoint)
 
 ## Completed Phases
 
@@ -142,6 +142,9 @@ Last activity: 2026-04-24
 - [Phase 12-i18n-translation-system 12-04]: TranslationLoadingOverlay uses pendingCount counter (not isTranslating boolean) for concurrent batch overlay management; mounted in app/(app)/layout.tsx so I18N-07 triggers from any authenticated page
 - [Phase 12-i18n-translation-system]: nav-items.ts left unmodified — t() applied at render site in sidebar.tsx and bottom-nav.tsx (data files have no React context)
 - [Phase 12-i18n-translation-system]: empty-state.tsx is a server component; caller passes pre-translated strings as props at call site instead of wrapping inside the component
+- [Phase 13]: Phase 13 Plan 01 keeps all browser/install icon assets under app/ and relies on App Router metadata files instead of manual head links.
+- [Phase 13]: Phase 13 Plan 01 explicitly marks /icon, /apple-icon, and /manifest.webmanifest as public in both proxy layers to protect favicon and install surfaces from auth redirects.
+- [Phase 13]: Phase 13 Plan 01 keeps app/manifest.ts static for app naming so manifest prerendering does not depend on Supabase branding env/config at build time.
 
 ## Performance Metrics
 
@@ -176,6 +179,7 @@ Last activity: 2026-04-24
 | Phase 12-i18n-translation-system P03 | 12min | 1 task | 2 files |
 | Phase 12-i18n-translation-system P04 | 6min | 2 tasks | 7 files |
 | Phase 12-i18n-translation-system P05 | 16min | 3 tasks | 8 files |
+| Phase 13-visual-identity-polish-robust-favicon-and-app-icons-across-all-surfaces P01 | 6min | 2 tasks | 8 files |
 
 ## Project Reference
 

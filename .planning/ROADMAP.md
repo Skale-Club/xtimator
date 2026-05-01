@@ -94,13 +94,14 @@ Plans:
 
 ### Phase 13: Visual identity polish — robust favicon and app icons across all surfaces
 
-**Goal:** [To be planned]
+**Goal:** Browser tabs, Apple touch surfaces, and manifest-driven install flows all resolve a single brand-consistent icon set from App Router metadata files with no duplicate asset sources or manual head tags
 **Requirements**: TBD
 **Depends on:** Phase 12
-**Plans:** 0 plans
+**Plans:** 1/2 plans executed
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 13 to break down)
+- [x] 13-01-PLAN.md — Canonical App Router icon assets + manifest wiring + public metadata routes + regression tests
+- [ ] 13-02-PLAN.md — Icon smoke checklist + human verification checkpoint
 
 ### Phase 14: Auth system hardening — fix URL routing inconsistency, redirect bugs, error handling, and OAuth loading state
 
