@@ -3,29 +3,29 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Brand Identity & Global Reach
 status: executing
-last_updated: "2026-05-01T20:50:03.512Z"
+last_updated: "2026-05-01T21:46:29.336Z"
 last_activity: 2026-05-01
 progress:
   total_phases: 5
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 13
-  completed_plans: 9
+  completed_plans: 12
 ---
 
 # Project State
 
 ## Current Status
 
-- **Milestone**: Post-v1.2 follow-on work - Phase 13 execution in progress
+- **Milestone**: Post-v1.2 follow-on work - Phase 13 manual smoke approval pending, Phase 14 complete
 - **Last updated**: 2026-05-01
 - **Last session**: 2026-05-01
-- **Stopped at**: Completed 13-01-PLAN.md (canonical icon assets + metadata route coverage). Next: 13-02-PLAN.md.
+- **Stopped at**: Phase 13-02 human smoke approval pending. Phase 14-01 through 14-03 completed.
 
 ## Current Position
 
 Phase: 13
 Plan: 02
-Status: Executing
+Status: Awaiting human verification
 Last activity: 2026-05-01
 
 ## Active Phase
@@ -36,10 +36,14 @@ Last activity: 2026-05-01
 - Requirements: TBD
 - Plans:
   - 13-01 - COMPLETE (canonical icon assets, manifest wiring, metadata-route regression tests)
-  - 13-02 - In progress (smoke checklist + human verification checkpoint)
+  - 13-02 - Awaiting human verification (smoke checklist completed; manual visual approval still deferred)
 
 ## Completed Phases
 
+- Phase 14: Auth system hardening (14-auth-system-hardening-fix-url-routing-inconsistency-redirect-bugs-error-handling-and-oauth-loading-state) — COMPLETE 2026-05-01
+  - Plan 01: Live auth route targets across middleware, redirects, callback flows, and production links — COMPLETE (ecbf990, 84d5d1f)
+  - Plan 02: Password reset, callback, OAuth, and proxy error hardening — COMPLETE (0ed3585, 4dc4a15)
+  - Plan 03: Unit + Playwright auth route alignment — COMPLETE (a3aeade, 05ace7f)
 - Phase 8: Platform Admin Panel (08-platform-admin-panel-for-centralized-api-integrations) — COMPLETE 2026-04-21
   - Plan 01: Admin DB foundation (tables, migration, bootstrap doc, integration tests) — COMPLETE (df57325, 13039b8)
   - Plan 02: platform-config.ts loader (getIntegrationKey, getBranding, AES-GCM decrypt) — COMPLETE
@@ -145,6 +149,9 @@ Last activity: 2026-05-01
 - [Phase 13]: Phase 13 Plan 01 keeps all browser/install icon assets under app/ and relies on App Router metadata files instead of manual head links.
 - [Phase 13]: Phase 13 Plan 01 explicitly marks /icon, /apple-icon, and /manifest.webmanifest as public in both proxy layers to protect favicon and install surfaces from auth redirects.
 - [Phase 13]: Phase 13 Plan 01 keeps app/manifest.ts static for app naming so manifest prerendering does not depend on Supabase branding env/config at build time.
+- [Phase 14]: Phase 14: all runtime auth URLs use /login, /signup, /reset-password, and /callback because App Router route-group names are silent in the URL.
+- [Phase 14]: Phase 14: updatePassword now mirrors signIn/callback by querying companies and redirecting to /dashboard or /onboarding after a successful password reset.
+- [Phase 14]: Phase 14: auth transport failures degrade gracefully - proxy getClaims() falls back to anonymous handling, callback logs claims errors, and Google OAuth resets loading on startup failure.
 
 ## Performance Metrics
 
@@ -180,13 +187,16 @@ Last activity: 2026-05-01
 | Phase 12-i18n-translation-system P04 | 6min | 2 tasks | 7 files |
 | Phase 12-i18n-translation-system P05 | 16min | 3 tasks | 8 files |
 | Phase 13-visual-identity-polish-robust-favicon-and-app-icons-across-all-surfaces P01 | 6min | 2 tasks | 8 files |
+| Phase 14-auth-system-hardening-fix-url-routing-inconsistency-redirect-bugs-error-handling-and-oauth-loading-state P01 | 12min | 2 tasks | 15 files |
+| Phase 14-auth-system-hardening-fix-url-routing-inconsistency-redirect-bugs-error-handling-and-oauth-loading-state P02 | 11min | 2 tasks | 4 files |
+| Phase 14-auth-system-hardening-fix-url-routing-inconsistency-redirect-bugs-error-handling-and-oauth-loading-state P03 | 14min | 2 tasks | 11 files |
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-04-22)
 
 **Core value:** Business owner → job site audio recording → sent professional estimate in under 5 minutes
-**Current focus:** Phase 12 — i18n-translation-system
+**Current focus:** Phase 13 manual icon smoke verification pending; Phase 14 auth hardening shipped
 
 ## Notes
 

@@ -97,7 +97,7 @@ Plans:
 **Goal:** Browser tabs, Apple touch surfaces, and manifest-driven install flows all resolve a single brand-consistent icon set from App Router metadata files with no duplicate asset sources or manual head tags
 **Requirements**: TBD
 **Depends on:** Phase 12
-**Plans:** 1/2 plans executed
+**Plans:** 1/2 plans executed (manual smoke approval still pending on 13-02)
 
 Plans:
 - [x] 13-01-PLAN.md — Canonical App Router icon assets + manifest wiring + public metadata routes + regression tests
@@ -108,12 +108,12 @@ Plans:
 **Goal:** Every auth redirect in the codebase points to a URL that actually exists, all error-handling gaps are patched, and the auth flow works end-to-end with no dead-end 404s or stuck UI states
 **Requirements**: none (bug-fix phase)
 **Depends on:** Phase 13
-**Plans:** 3 plans
+**Plans:** 3/3 plans complete (completed 2026-05-01)
 
 Plans:
-- [ ] 14-01-PLAN.md — Fix isPublicRoute + all /auth/* redirect and href references in production code (BUG-01, BUG-02, BUG-03)
-- [ ] 14-02-PLAN.md — updatePassword company check + getClaims error handling + OAuth button loading reset + proxy try/catch (BUG-04, BUG-05, BUG-06, BUG-07)
-- [ ] 14-03-PLAN.md — Fix all Playwright E2E tests and unit tests to use /login, /signup, /reset-password
+- [x] 14-01-PLAN.md — Fix isPublicRoute + all /auth/* redirect and href references in production code (BUG-01, BUG-02, BUG-03)
+- [x] 14-02-PLAN.md — updatePassword company check + getClaims error handling + OAuth button loading reset + proxy try/catch (BUG-04, BUG-05, BUG-06, BUG-07)
+- [x] 14-03-PLAN.md — Fix all Playwright E2E tests and unit tests to use /login, /signup, /reset-password
 
 ---
 
@@ -133,3 +133,5 @@ Plans:
 | 10. Global Brand Tokens | v1.2 | 1/1 | Complete    | 2026-04-22 |
 | 11. Marketing Landing Page | v1.2 | 2/2 | Complete    | 2026-04-24 |
 | 12. i18n Translation System | v1.2 | 5/5 | Complete    | 2026-04-24 |
+| 13. Visual identity polish | post-v1.2 | 1/2 | Awaiting human verification | — |
+| 14. Auth system hardening | post-v1.2 | 3/3 | Complete | 2026-05-01 |
