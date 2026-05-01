@@ -196,6 +196,8 @@ v1.2: 3 phases (10-12), 16 requirements. Seeds: SEED-001 (i18n EN/PT-BR/ES), SEE
 
 - Phase 8 added: Platform admin panel — scope covers centralized API integrations (Resend/Anthropic/OpenAI) AND global branding (app name, logo, theme). Removes all hardcoded "Xtimator" strings and process.env key coupling; replaces with DB-backed config fetched via server-side loader. Drives v1.1.
 - v1.2 phases 10-12: Brand tokens (BRAND-01–03) → Landing page (LAND-01–05) → i18n system (I18N-01–08). Ordering constraint: landing page must exist before i18n so translations layer on top of real UI strings.
+- Phase 13 added: Visual identity polish — robust favicon and app icons across all surfaces (.ico legacy, icon.svg with light/dark, icon.png fallback, apple-icon.png, web manifest, no public/ vs app/ conflict, no manual <link> in head)
+- Phase 14 added: Auth system hardening. Root cause: route group `app/(auth)/` is silent in URL (parens), but 32+ code sites use `/auth/login`, `/auth/signup`, `/auth/reset-password` — those URLs are 404s. Two conflicting URL conventions split across codebase (proxy.isPublicRoute, server actions, layout/page redirects, callback route, internal Links, Playwright + unit tests). Also covers: dead-code fallback redirect in signIn (auth.ts:59), updatePassword skipping company check (auth.ts:102), missing try/catch in callback getClaims and proxy updateSession, OAuth button loading-state never resets on failure/cancel, SELECT-then-INSERT race in createOrUpdateCompany.
 
 ### Quick Tasks Completed
 
