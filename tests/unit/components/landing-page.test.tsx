@@ -10,6 +10,21 @@ vi.mock('next/link', () => ({
   ),
 }))
 
+vi.stubGlobal(
+  'IntersectionObserver',
+  class {
+    disconnect() {}
+    observe() {}
+    unobserve() {}
+    takeRecords() {
+      return []
+    }
+    root = null
+    rootMargin = ''
+    thresholds = []
+  }
+)
+
 // LAND-01: Hero section — headline, subheadline, CTAs
 describe('HeroSection (LAND-01)', () => {
   it('renders the locked D-05 headline containing "5 minutes"', () => {
@@ -18,17 +33,17 @@ describe('HeroSection (LAND-01)', () => {
     expect(heading.textContent?.toLowerCase()).toContain('5 minutes')
   })
 
-  it('renders a link to /auth/signup', () => {
+  it('renders a link to /signup', () => {
     render(<HeroSection />)
     const links = screen.getAllByRole('link')
-    const signupLink = links.find(l => l.getAttribute('href') === '/auth/signup')
+    const signupLink = links.find(l => l.getAttribute('href') === '/signup')
     expect(signupLink).toBeTruthy()
   })
 
-  it('renders a link to /auth/login', () => {
+  it('renders a link to /login', () => {
     render(<HeroSection />)
     const links = screen.getAllByRole('link')
-    const loginLink = links.find(l => l.getAttribute('href') === '/auth/login')
+    const loginLink = links.find(l => l.getAttribute('href') === '/login')
     expect(loginLink).toBeTruthy()
   })
 })

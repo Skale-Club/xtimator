@@ -6,16 +6,24 @@ describe('Middleware route protection rules (D-05)', () => {
     expect(isPublicRoute('/')).toBe(true)
   })
 
-  it('/auth/login is an auth route (not protected)', () => {
-    expect(isPublicRoute('/auth/login')).toBe(true)
+  it('/login is an auth route (not protected)', () => {
+    expect(isPublicRoute('/login')).toBe(true)
   })
 
-  it('/auth/signup is an auth route (not protected)', () => {
-    expect(isPublicRoute('/auth/signup')).toBe(true)
+  it('/signup is an auth route (not protected)', () => {
+    expect(isPublicRoute('/signup')).toBe(true)
   })
 
   it('/estimate/abc is a public estimate route (not protected)', () => {
     expect(isPublicRoute('/estimate/abc123')).toBe(true)
+  })
+
+  it('/reset-password is an auth route (not protected)', () => {
+    expect(isPublicRoute('/reset-password')).toBe(true)
+  })
+
+  it('/callback is an auth route (not protected)', () => {
+    expect(isPublicRoute('/callback')).toBe(true)
   })
 
   it('/dashboard is a protected route', () => {
@@ -54,7 +62,7 @@ describe('Landing root (/) routing rules (D-01, D-02)', () => {
   })
 
   it('authenticated GET /dashboard does NOT trigger the landing-root redirect', () => {
-    const pathname = '/dashboard'
+    const pathname: string = '/dashboard'
     const claims = { sub: 'user-123' } // authenticated
     const isLandingRoot = pathname === '/'
     const wouldRedirectToDashboard = !!claims && isLandingRoot
