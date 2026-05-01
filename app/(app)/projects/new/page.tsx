@@ -10,7 +10,7 @@ export default async function NewProjectPage() {
   const claims = claimsData?.claims ?? null
 
   if (!claims) {
-    redirect('/auth/login')
+    redirect('/login')
   }
 
   const { data: company } = await supabase

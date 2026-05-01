@@ -21,7 +21,7 @@ export default async function SettingsPage() {
   const claims = claimsData?.claims ?? null
 
   if (!claims) {
-    redirect('/auth/login')
+    redirect('/login')
   }
 
   const company = await getCompanySettings(supabase, claims.sub as string)

@@ -100,7 +100,7 @@ function RequestResetForm() {
       </Form>
 
       <div className="mt-4 text-center text-sm">
-        <Link href="/auth/login" className="text-muted-foreground hover:text-foreground">
+        <Link href="/login" className="text-muted-foreground hover:text-foreground">
           Back to sign in
         </Link>
       </div>
@@ -212,7 +212,7 @@ function UpdatePasswordForm() {
       </Form>
 
       <div className="mt-4 text-center text-sm">
-        <Link href="/auth/login" className="text-muted-foreground hover:text-foreground">
+        <Link href="/login" className="text-muted-foreground hover:text-foreground">
           Back to sign in
         </Link>
       </div>

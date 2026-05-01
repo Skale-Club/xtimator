@@ -217,5 +217,5 @@ export async function deleteAccount() {
     return { error: 'Failed to delete account. Please try again.' }
   }
 
-  return { success: true, redirect: '/auth/login' }
+  return { success: true, redirect: '/login' }
 }

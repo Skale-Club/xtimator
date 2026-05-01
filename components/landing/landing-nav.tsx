@@ -51,10 +51,10 @@ export function LandingNav({ appName }: LandingNavProps) {
         {/* Desktop CTAs — hidden below md */}
         <div className="hidden md:flex items-center gap-3">
           <Button variant="ghost" size="sm" asChild>
-            <Link href="/auth/login">Sign In</Link>
+                  <Link href="/login">Sign In</Link>
           </Button>
           <Button size="sm" asChild>
-            <Link href="/auth/signup">Get Started</Link>
+            <Link href="/signup">Get Started</Link>
           </Button>
         </div>
 
@@ -84,10 +84,10 @@ export function LandingNav({ appName }: LandingNavProps) {
               </SheetClose>
               <div className="pt-4 flex flex-col gap-3 border-t border-border">
                 <Button variant="ghost" className="w-full justify-center min-h-[44px]" asChild>
-                  <Link href="/auth/login">Sign In</Link>
+                   <Link href="/login">Sign In</Link>
                 </Button>
                 <Button className="w-full justify-center min-h-[44px]" asChild>
-                  <Link href="/auth/signup">Get Started Free</Link>
+                  <Link href="/signup">Get Started Free</Link>
                 </Button>
               </div>
             </div>

@@ -8,7 +8,7 @@ export default async function ClientsPage() {
   const { data: claimsData } = await supabase.auth.getClaims()
   const claims = claimsData?.claims ?? null
 
-  if (!claims) redirect('/auth/login')
+  if (!claims) redirect('/login')
 
   const { data: company } = await supabase
     .from('companies')

@@ -9,7 +9,7 @@ export default async function OnboardingPage() {
   const claims = data?.claims ?? null
 
   if (!claims) {
-    redirect('/auth/login')
+    redirect('/login')
   }
 
   const branding = await getBranding()

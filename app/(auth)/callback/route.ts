@@ -13,8 +13,8 @@ export async function GET(request: NextRequest) {
 
     // For password recovery, redirect to reset-password page
     if (type === 'recovery') {
-      logAuthEvent({ event: 'oauth_callback', success: true, provider: 'recovery', redirectTo: '/auth/reset-password?mode=update' })
-      return NextResponse.redirect(new URL('/auth/reset-password?mode=update', origin))
+      logAuthEvent({ event: 'oauth_callback', success: true, provider: 'recovery', redirectTo: '/reset-password?mode=update' })
+      return NextResponse.redirect(new URL('/reset-password?mode=update', origin))
     }
 
     // Check company record to determine redirect destination (AUTH-06)
@@ -34,5 +34,5 @@ export async function GET(request: NextRequest) {
 
   // Fallback: redirect to login if no code or claims
   logAuthEvent({ event: 'oauth_callback', success: false, provider: 'google', error: 'no_code_or_claims' })
-  return NextResponse.redirect(new URL('/auth/login', origin))
+  return NextResponse.redirect(new URL('/login', origin))
 }

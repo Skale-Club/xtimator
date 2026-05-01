@@ -56,14 +56,14 @@ export async function signIn(formData: FormData) {
   }
 
   logAuthEvent({ event: 'sign_in_attempt', success: false, email, error: 'claims_unavailable_after_sign_in' })
-  redirect('/auth/login')
+  redirect('/login')
 }
 
 export async function signOut() {
   const supabase = await createClient()
   await supabase.auth.signOut()
   logAuthEvent({ event: 'sign_out', success: true })
-  redirect('/auth/login')
+  redirect('/login')
 }
 
 export async function resetPassword(formData: FormData) {
