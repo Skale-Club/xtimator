@@ -176,7 +176,12 @@ Plans:
   4. Company data and auth claims are not re-fetched on every page — they are read from a short-lived cache
   5. Time-to-interactive measured in Chrome DevTools drops from ~1s to under 300ms on a warm connection
 
-**Plans:** TBD
+**Plans:** 3 plans
+
+Plans:
+- [ ] 17-01-PLAN.md — loading.tsx for missing routes (projects/new, settings, settings/appearance) + Wave 0 smoke tests
+- [ ] 17-02-PLAN.md — Cached auth + company queries: lib/queries/auth.ts with React cache() + unstable_cache, update layout + 4 pages
+- [ ] 17-03-PLAN.md — Suspense streaming for dashboard + project workspace + HoverPrefetchLink for sidebar nav
 
 ---
 
