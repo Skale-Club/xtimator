@@ -81,3 +81,27 @@ export async function getProjectQuickStats(
     estimateCount: estimates.count ?? 0,
   }
 }
+
+export interface ProjectSummary {
+  id: string
+  name: string
+  status: string
+  created_at: string
+}
+
+export async function getProjectsByCompany(
+  supabase: SupabaseClient,
+  companyId: string,
+  page = 1,
+  limit = 10
+): Promise<{ projects: ProjectSummary[]; hasMore: boolean }> {
+  const { data, error } = await supabase
+    .from('projects')
+    .select('id, name, status, created_at')
+    .eq('company_id', companyId)
+    .order('created_at', { ascending: false })
+    .range((page - 1) * limit, page * limit - 1)
+
+  if (error || !data) return { projects: [], hasMore: false }
+  return { projects: data as ProjectSummary[], hasMore: data.length === limit }
+}
