@@ -55,12 +55,18 @@ describe('lib/platform-config (ADMIN-05, R-04)', () => {
 
     const { getBranding } = await import('@/lib/platform-config')
     const result = await getBranding()
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       appName: 'Xtimator',
       logoUrl: null,
       primaryColor: '#0D9488',
       emailFromName: 'Xtimator Team',
+      siteTitle: null,
+      metaDescription: null,
+      ogImageUrl: null,
+      canonicalBaseUrl: null,
+      faviconUrl: null,
     })
+    expect(result.landingContent).toBeDefined()
   })
 
   it('getBranding() cache hit: second call within TTL does NOT invoke the client', async () => {
@@ -114,12 +120,18 @@ describe('lib/platform-config (ADMIN-05, R-04)', () => {
 
     const { getBranding } = await import('@/lib/platform-config')
     const result = await getBranding()
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       appName: 'Xtimator',
       logoUrl: null,
       primaryColor: null,
       emailFromName: null,
+      siteTitle: null,
+      metaDescription: null,
+      ogImageUrl: null,
+      canonicalBaseUrl: null,
+      faviconUrl: null,
     })
+    expect(result.landingContent).toBeDefined()
   })
 
   it('getIntegrationKey(provider) decrypts DB ciphertext to plaintext', async () => {
