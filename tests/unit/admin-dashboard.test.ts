@@ -71,7 +71,8 @@ describe('admin dashboard stats (DASH-01)', () => {
   it('returns totalCompanies count from companies table', async () => {
     const spy = makeServiceClient({ companiesCount: 7 })
     const { createServiceClient } = await import('@/lib/supabase/service')
-    vi.mocked(createServiceClient).mockReturnValue(spy as ReturnType<typeof createServiceClient>)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    vi.mocked(createServiceClient).mockReturnValue(spy as unknown as ReturnType<typeof createServiceClient>)
 
     const { getPlatformStats } = await import('@/lib/queries/admin-stats')
     const result = await getPlatformStats()
@@ -83,7 +84,8 @@ describe('admin dashboard stats (DASH-01)', () => {
   it('returns totalUsers from get_platform_user_count RPC', async () => {
     const spy = makeServiceClient({ userCountData: 42 })
     const { createServiceClient } = await import('@/lib/supabase/service')
-    vi.mocked(createServiceClient).mockReturnValue(spy as ReturnType<typeof createServiceClient>)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    vi.mocked(createServiceClient).mockReturnValue(spy as unknown as ReturnType<typeof createServiceClient>)
 
     const { getPlatformStats } = await import('@/lib/queries/admin-stats')
     const result = await getPlatformStats()
@@ -95,7 +97,8 @@ describe('admin dashboard stats (DASH-01)', () => {
   it('returns estimatesLast30d count for estimates within 30 days', async () => {
     const spy = makeServiceClient({ estimatesCount: 99 })
     const { createServiceClient } = await import('@/lib/supabase/service')
-    vi.mocked(createServiceClient).mockReturnValue(spy as ReturnType<typeof createServiceClient>)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    vi.mocked(createServiceClient).mockReturnValue(spy as unknown as ReturnType<typeof createServiceClient>)
 
     const { getPlatformStats } = await import('@/lib/queries/admin-stats')
     const result = await getPlatformStats()
@@ -112,7 +115,8 @@ describe('admin dashboard stats (DASH-01)', () => {
       userCountError: true,
     })
     const { createServiceClient } = await import('@/lib/supabase/service')
-    vi.mocked(createServiceClient).mockReturnValue(spy as ReturnType<typeof createServiceClient>)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    vi.mocked(createServiceClient).mockReturnValue(spy as unknown as ReturnType<typeof createServiceClient>)
 
     const { getPlatformStats } = await import('@/lib/queries/admin-stats')
     const result = await getPlatformStats()

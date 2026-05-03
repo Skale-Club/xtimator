@@ -4,13 +4,17 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { useTransition } from 'react'
-import { Settings2, Palette, Users, LogOut, Loader2 } from 'lucide-react'
+import { Settings2, Palette, Users, LogOut, Loader2, LayoutDashboard, Globe, Layout, FileText } from 'lucide-react'
 import { signOut } from '@/lib/actions/auth'
 
 const NAV_ITEMS = [
+  { href: '/admin',              label: 'Dashboard',    Icon: LayoutDashboard },
+  { href: '/admin/seo',          label: 'SEO',          Icon: Globe },
+  { href: '/admin/landing',      label: 'Landing Page', Icon: Layout },
+  { href: '/admin/blog',         label: 'Blog',         Icon: FileText },
+  { href: '/admin/branding',     label: 'Branding',     Icon: Palette },
   { href: '/admin/integrations', label: 'Integrations', Icon: Settings2 },
-  { href: '/admin/branding', label: 'Branding', Icon: Palette },
-  { href: '/admin/admins', label: 'Admins', Icon: Users },
+  { href: '/admin/admins',       label: 'Admins',       Icon: Users },
 ] as const
 
 function LogoFallbackSvg() {
@@ -74,7 +78,9 @@ export function AdminNav({ appName, logoUrl, adminEmail }: AdminNavProps) {
       <ul className="flex-1 flex flex-col gap-1 px-2">
         {NAV_ITEMS.map(({ href, label, Icon }) => {
           const isActive =
-            pathname === href || pathname.startsWith(href + '/')
+            href === '/admin'
+              ? pathname === '/admin'
+              : pathname === href || pathname.startsWith(href + '/')
           return (
             <li key={href}>
               <Link
