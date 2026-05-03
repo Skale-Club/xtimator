@@ -122,7 +122,10 @@ export function Sidebar({ branding, company, projects, hasMore }: SidebarProps) 
                 <SidebarProjectItem
                   key={project.id}
                   project={project}
-                  isActive={pathname === `/projects/${project.id}`}
+                  isActive={
+                    pathname === `/projects/${project.id}` ||
+                    pathname.startsWith(`/projects/${project.id}/`)
+                  }
                 />
               ))}
               {moreAvailable && (
