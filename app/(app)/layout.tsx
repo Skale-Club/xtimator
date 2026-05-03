@@ -1,6 +1,8 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { getBranding } from '@/lib/platform-config'
 import { getProjectsByCompany } from '@/lib/queries/project'
+import { getAuthClaims, getCachedCompany } from '@/lib/queries/auth'
 import { Sidebar } from '@/components/app-shell/sidebar'
 import { Topbar } from '@/components/app-shell/topbar'
 import { BottomNav } from '@/components/app-shell/bottom-nav'
@@ -12,29 +14,33 @@ export default async function AppShellLayout({
 }: {
   children: React.ReactNode
 }) {
-  const supabase = await createClient()
-  const { data: claimsData } = await supabase.auth.getClaims()
-  const claims = claimsData?.claims ?? null
+  const claims = await getAuthClaims()
 
   if (!claims) {
     redirect('/login')
   }
 
-  const { data: company } = await supabase
-    .from('companies')
-    .select('id, name, logo_url, owner_name, theme_preference')
-    .eq('user_id', claims.sub)
-    .single()
+  const company = await getCachedCompany(claims.sub)
 
   if (!company) {
     redirect('/onboarding')
   }
 
+  const supabase = await createClient()
   const { projects, hasMore } = await getProjectsByCompany(supabase, company.id, 1, 10)
+  const branding = await getBranding()
 
   return (
     <div className="flex h-screen">
-      <Sidebar company={company} projects={projects} hasMore={hasMore} />
+      <Sidebar
+        branding={{
+          appName: branding.appName,
+          faviconUrl: branding.faviconUrl,
+        }}
+        company={company}
+        projects={projects}
+        hasMore={hasMore}
+      />
       <div className="flex flex-1 flex-col overflow-hidden">
         <Topbar company={company} />
         <MobileHeader />

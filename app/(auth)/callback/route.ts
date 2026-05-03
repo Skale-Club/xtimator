@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { logAuthEvent } from '@/lib/auth-logger'
+import { writeThemeCookie, isValidTheme } from '@/lib/theme/cookie'
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
@@ -26,9 +27,16 @@ export async function GET(request: NextRequest) {
     if (claims) {
       const { data: company } = await supabase
         .from('companies')
-        .select('id')
+        .select('id, theme_preference')
         .eq('user_id', claims.sub)
         .single()
+
+      // Sync theme cookie from DB so SSR serves correct theme on first load.
+      // Route Handlers are allowed to write cookies (layouts are not).
+      if (company && isValidTheme(company.theme_preference)) {
+        await writeThemeCookie(company.theme_preference)
+      }
+
       const redirectTo = company ? '/dashboard' : '/onboarding'
       logAuthEvent({ event: 'oauth_callback', success: true, provider: 'google', userId: claims.sub, redirectTo })
       return NextResponse.redirect(new URL(redirectTo, origin))

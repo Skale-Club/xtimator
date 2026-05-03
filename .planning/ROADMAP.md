@@ -158,8 +158,8 @@ Plans:
 
 Plans:
 - [x] 16-01-PLAN.md — Data layer: ProjectSummary type + getProjectsByCompany query + getMoreProjects server action + layout wiring + Sidebar props interface
-- [ ] 16-02-PLAN.md — UI: SidebarProjectItem component, status dots, active highlight, empty state, load more with useTransition
-- [ ] 16-03-PLAN.md — Sync: revalidatePath on project creation + active state covers sub-routes
+- [x] 16-02-PLAN.md — UI: SidebarProjectItem component, status dots, active highlight, empty state, load more with useTransition
+- [x] 16-03-PLAN.md — Sync: revalidatePath on project creation + active state covers sub-routes
 
 ### Phase 17: Navigation Performance — Instant Page Transitions via Streaming and Skeleton Loading
 
@@ -176,11 +176,11 @@ Plans:
   4. Company data and auth claims are not re-fetched on every page — they are read from a short-lived cache
   5. Time-to-interactive measured in Chrome DevTools drops from ~1s to under 300ms on a warm connection
 
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 
 Plans:
 - [x] 17-01-PLAN.md — loading.tsx for missing routes (projects/new, settings, settings/appearance) + Wave 0 smoke tests
-- [ ] 17-02-PLAN.md — Cached auth + company queries: lib/queries/auth.ts with React cache() + unstable_cache, update layout + 4 pages
+- [x] 17-02-PLAN.md — Cached auth + company queries: lib/queries/auth.ts with React cache() + unstable_cache, update layout + 4 pages
 - [x] 17-03-PLAN.md — Suspense streaming for dashboard + project workspace + HoverPrefetchLink for sidebar nav
 
 ---

@@ -2,7 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, revalidateTag } from 'next/cache'
 
 async function getAuthContext() {
   const supabase = await createClient()
@@ -88,6 +88,8 @@ export async function updateCompanySettings(formData: FormData) {
     return { error: 'Failed to save company settings. Please try again.' }
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ;(revalidateTag as any)('company')
   revalidatePath('/settings')
   revalidatePath('/dashboard')
   return { success: true }

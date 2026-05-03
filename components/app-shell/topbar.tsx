@@ -13,6 +13,7 @@ import { Settings, LogOut } from 'lucide-react'
 import { signOut } from '@/lib/actions/auth'
 import { ThemeToggle } from '@/components/app-shell/theme-toggle'
 import { LanguageToggle } from '@/components/app-shell/language-toggle'
+import { CompanySelector } from '@/components/app-shell/company-selector'
 import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface TopbarProps {
@@ -29,9 +30,8 @@ export function Topbar({ company }: TopbarProps) {
   const { t } = useTranslation()
 
   return (
-    <header className="hidden md:flex items-center justify-between border-b border-border bg-background px-6 py-4">
-      <h2 className="text-lg font-[var(--font-weight-semibold)] tracking-[var(--tracking-tight)]">{company.name}</h2>
-
+    <header className="hidden md:flex items-center justify-between border-b border-border bg-background px-6 h-16">
+      <CompanySelector company={company} />
       <div className="flex items-center gap-1">
         <LanguageToggle />
         <ThemeToggle />

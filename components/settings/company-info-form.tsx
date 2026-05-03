@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, useWatch, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Loader2 } from 'lucide-react'
@@ -11,7 +11,7 @@ import type { CompanySettings } from '@/lib/queries/company'
 import { updateCompanySettings } from '@/lib/actions/settings'
 import { INDUSTRIES } from '@/lib/industries'
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -45,9 +45,8 @@ export function CompanyInfoForm({ company }: CompanyInfoFormProps) {
   const [logoPreview, setLogoPreview] = useState<string | null>(company.logo_url)
   const [isPending, startTransition] = useTransition()
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const form = useForm<CompanyInfoValues>({
-    resolver: zodResolver(companyInfoSchema) as any,
+    resolver: zodResolver(companyInfoSchema) as Resolver<CompanyInfoValues>,
     defaultValues: {
       name: company.name || '',
       ownerName: company.owner_name || '',
@@ -64,6 +63,8 @@ export function CompanyInfoForm({ company }: CompanyInfoFormProps) {
       brandPrimaryColor: company.brand_primary_color || '#0D9488',
     },
   })
+
+  const companyName = useWatch({ control: form.control, name: 'name' })
 
   function onSubmit(values: CompanyInfoValues) {
     startTransition(async () => {
@@ -97,133 +98,138 @@ export function CompanyInfoForm({ company }: CompanyInfoFormProps) {
   }
 
   return (
-    <Card>
-      <CardHeader>
+    <Card className="w-full rounded-[var(--radius-md)]">
+      <CardHeader className="border-b border-border">
         <CardTitle>Company Information</CardTitle>
+        <CardDescription>
+          Keep the business details that appear across estimates, client links,
+          and generated documents up to date.
+        </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="py-6">
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            {/* Logo */}
-            <div className="flex justify-center">
-              <LogoUploader
-                preview={logoPreview}
-                companyInitial={form.watch('name')?.[0] || 'C'}
-                onFileSelect={(file, preview) => {
-                  setLogoFile(file)
-                  setLogoPreview(preview)
-                }}
-                onRemove={() => {
-                  setLogoFile(null)
-                  setLogoPreview(null)
-                }}
-              />
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+            <div className="grid gap-8 xl:grid-cols-[280px_minmax(0,1fr)]">
+              <div className="flex items-center justify-center rounded-[var(--radius-md)] border border-dashed border-border bg-muted/30 p-6 xl:items-start">
+                <LogoUploader
+                  preview={logoPreview}
+                  companyInitial={companyName?.[0] || 'C'}
+                  onFileSelect={(file, preview) => {
+                    setLogoFile(file)
+                    setLogoPreview(preview)
+                  }}
+                  onRemove={() => {
+                    setLogoFile(null)
+                    setLogoPreview(null)
+                  }}
+                />
+              </div>
+
+              <div className="grid gap-5 lg:grid-cols-2">
+                {/* Company Name */}
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem className="lg:col-span-2">
+                      <FormLabel>Company Name *</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Your Company" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Owner Name */}
+                <FormField
+                  control={form.control}
+                  name="ownerName"
+                  render={({ field }) => (
+                    <FormItem className="lg:col-span-2">
+                      <FormLabel>Owner Name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="John Doe" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Phone & Email */}
+                <FormField
+                  control={form.control}
+                  name="phone"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Phone</FormLabel>
+                      <FormControl>
+                        <Input placeholder="(555) 123-4567" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Email</FormLabel>
+                      <FormControl>
+                        <Input placeholder="info@company.com" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Website */}
+                <FormField
+                  control={form.control}
+                  name="website"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Website</FormLabel>
+                      <FormControl>
+                        <Input placeholder="https://company.com" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Industry */}
+                <FormField
+                  control={form.control}
+                  name="industry"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Industry</FormLabel>
+                      <Select
+                        onValueChange={field.onChange}
+                        defaultValue={field.value}
+                      >
+                        <FormControl>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Select industry" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {INDUSTRIES.map((ind) => (
+                            <SelectItem key={ind.id} value={ind.id}>
+                              {ind.label}
+                            </SelectItem>
+                          ))}
+                          <SelectItem value="other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
             </div>
-
-            {/* Company Name */}
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Company Name *</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Your Company" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {/* Owner Name */}
-            <FormField
-              control={form.control}
-              name="ownerName"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Owner Name</FormLabel>
-                  <FormControl>
-                    <Input placeholder="John Doe" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {/* Phone & Email */}
-            <div className="grid gap-4 sm:grid-cols-2">
-              <FormField
-                control={form.control}
-                name="phone"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Phone</FormLabel>
-                    <FormControl>
-                      <Input placeholder="(555) 123-4567" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Email</FormLabel>
-                    <FormControl>
-                      <Input placeholder="info@company.com" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            {/* Website */}
-            <FormField
-              control={form.control}
-              name="website"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Website</FormLabel>
-                  <FormControl>
-                    <Input placeholder="https://company.com" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {/* Industry */}
-            <FormField
-              control={form.control}
-              name="industry"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Industry</FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    defaultValue={field.value}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select industry" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {INDUSTRIES.map((ind) => (
-                        <SelectItem key={ind.id} value={ind.id}>
-                          {ind.label}
-                        </SelectItem>
-                      ))}
-                      <SelectItem value="other">Other</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
 
             {/* Address */}
             <FormField
@@ -241,7 +247,7 @@ export function CompanyInfoForm({ company }: CompanyInfoFormProps) {
             />
 
             {/* City, State, Zip */}
-            <div className="grid gap-4 sm:grid-cols-3">
+            <div className="grid gap-5 sm:grid-cols-3">
               <FormField
                 control={form.control}
                 name="city"
@@ -284,7 +290,7 @@ export function CompanyInfoForm({ company }: CompanyInfoFormProps) {
             </div>
 
             {/* License & Insurance */}
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-5 sm:grid-cols-2">
               <FormField
                 control={form.control}
                 name="licenseNumber"
@@ -338,7 +344,7 @@ export function CompanyInfoForm({ company }: CompanyInfoFormProps) {
               )}
             />
 
-            <Button type="submit" disabled={isPending}>
+            <Button type="submit" disabled={isPending} className="min-w-40">
               {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Save Company Info
             </Button>

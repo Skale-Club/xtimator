@@ -1,16 +1,24 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { Check } from 'lucide-react'
+import { FlagUS, FlagBR, FlagES } from '@/components/app-shell/flags'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { useLanguage, type Language } from '@/lib/i18n/language-context'
 
-const CYCLE: Language[] = ['en', 'pt', 'es']
-const LABELS: Record<Language, string> = { en: 'EN', pt: 'PT', es: 'ES' }
-const ARIA_LABELS: Record<Language, string> = {
-  en: 'Switch language: currently English',
-  pt: 'Switch language: currently Português',
-  es: 'Switch language: currently Español',
-}
+const FLAG_CLASS = 'h-5 w-5 rounded-[3px] shrink-0'
+
+const LANGUAGES: { value: Language; label: string; Flag: React.ComponentType<{ className?: string }> }[] = [
+  { value: 'en', label: 'English',   Flag: FlagUS },
+  { value: 'pt', label: 'Português', Flag: FlagBR },
+  { value: 'es', label: 'Español',   Flag: FlagES },
+]
 
 export function LanguageToggle() {
   const [mounted, setMounted] = useState(false)
@@ -20,20 +28,34 @@ export function LanguageToggle() {
 
   if (!mounted) return null
 
-  const next = () => {
-    const idx = CYCLE.indexOf(language)
-    setLanguage(CYCLE[(idx + 1) % CYCLE.length])
-  }
+  const current = LANGUAGES.find(l => l.value === language) ?? LANGUAGES[0]
 
   return (
-    <Button
-      variant="ghost"
-      size="icon"
-      onClick={next}
-      aria-label={ARIA_LABELS[language]}
-      className="cursor-pointer"
-    >
-      <span className="text-xs font-bold">{LABELS[language]}</span>
-    </Button>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label={`Language: ${current.label}`}
+          className="cursor-pointer"
+        >
+          <current.Flag className={FLAG_CLASS} />
+        </Button>
+      </DropdownMenuTrigger>
+
+      <DropdownMenuContent align="end" className="w-44">
+        {LANGUAGES.map(({ value, label, Flag }) => (
+          <DropdownMenuItem
+            key={value}
+            onClick={() => setLanguage(value)}
+            className="flex items-center gap-2.5 cursor-pointer"
+          >
+            <Flag className={FLAG_CLASS} />
+            <span className="flex-1">{label}</span>
+            {language === value && <Check className="h-4 w-4 text-primary shrink-0" />}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }

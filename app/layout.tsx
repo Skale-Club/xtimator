@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/sonner"
 import { getBranding } from "@/lib/platform-config"
 import { readThemeCookie } from "@/lib/theme/cookie"
 import { LanguageProvider } from "@/lib/i18n/language-context"
+import { SuppressWarnings } from "@/components/app-shell/suppress-warnings"
 import "./globals.css"
 
 const inter = Inter({
@@ -40,10 +41,10 @@ export default async function RootLayout({
   return (
     <html lang="en" className={`${inter.variable} h-full antialiased`} suppressHydrationWarning>
       <body className="min-h-full flex flex-col">
+        <SuppressWarnings />
         <ThemeProvider
           attribute="class"
           defaultTheme={saved ?? 'dark'}
-          enableSystem
           disableTransitionOnChange
         >
           <LanguageProvider>

@@ -1,7 +1,7 @@
 'use client'
 
 import { useTransition } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Loader2 } from 'lucide-react'
@@ -10,7 +10,7 @@ import { toast } from 'sonner'
 import type { CompanySettings } from '@/lib/queries/company'
 import { updateDefaults } from '@/lib/actions/settings'
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -32,9 +32,8 @@ interface DefaultsFormProps {
 export function DefaultsForm({ company }: DefaultsFormProps) {
   const [isPending, startTransition] = useTransition()
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const form = useForm<DefaultsValues>({
-    resolver: zodResolver(defaultsSchema) as any,
+    resolver: zodResolver(defaultsSchema) as Resolver<DefaultsValues>,
     defaultValues: {
       // Display as percentage (DB stores as decimal 0-1)
       defaultTaxRate: Number(company.default_tax_rate) * 100,
@@ -61,106 +60,112 @@ export function DefaultsForm({ company }: DefaultsFormProps) {
   }
 
   return (
-    <Card>
-      <CardHeader>
+    <Card className="w-full rounded-[var(--radius-md)]">
+      <CardHeader className="border-b border-border">
         <CardTitle>Estimate Defaults</CardTitle>
+        <CardDescription>
+          Set the reusable terms and calculation defaults applied when new
+          estimates are created.
+        </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="py-6">
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            {/* Tax Rate */}
-            <FormField
-              control={form.control}
-              name="defaultTaxRate"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Default Tax Rate (%)</FormLabel>
-                  <FormControl>
-                    <div className="relative">
-                      <Input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        max="100"
-                        placeholder="0"
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+            <div className="grid gap-6 lg:grid-cols-2">
+              {/* Tax Rate */}
+              <FormField
+                control={form.control}
+                name="defaultTaxRate"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Default Tax Rate (%)</FormLabel>
+                    <FormControl>
+                      <div className="relative">
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          max="100"
+                          placeholder="0"
+                          {...field}
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                          %
+                        </span>
+                      </div>
+                    </FormControl>
+                    <FormDescription>Applied to new estimates by default.</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Validity Days */}
+              <FormField
+                control={form.control}
+                name="defaultValidityDays"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Estimate Validity Period</FormLabel>
+                    <FormControl>
+                      <div className="relative">
+                        <Input
+                          type="number"
+                          min="1"
+                          placeholder="30"
+                          {...field}
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                          days
+                        </span>
+                      </div>
+                    </FormControl>
+                    <FormDescription>How long estimates are valid after creation.</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Payment Terms */}
+              <FormField
+                control={form.control}
+                name="defaultPaymentTerms"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Payment Terms</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Net 30"
+                        rows={6}
                         {...field}
                       />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                        %
-                      </span>
-                    </div>
-                  </FormControl>
-                  <FormDescription>Applied to new estimates by default.</FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-            {/* Payment Terms */}
-            <FormField
-              control={form.control}
-              name="defaultPaymentTerms"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Payment Terms</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      placeholder="Net 30"
-                      rows={3}
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {/* Warranty Terms */}
-            <FormField
-              control={form.control}
-              name="defaultWarrantyTerms"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Warranty Terms</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      placeholder="1 year warranty on labor and materials"
-                      rows={3}
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {/* Validity Days */}
-            <FormField
-              control={form.control}
-              name="defaultValidityDays"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Estimate Validity Period</FormLabel>
-                  <FormControl>
-                    <div className="relative">
-                      <Input
-                        type="number"
-                        min="1"
-                        placeholder="30"
+              {/* Warranty Terms */}
+              <FormField
+                control={form.control}
+                name="defaultWarrantyTerms"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Warranty Terms</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="1 year warranty on labor and materials"
+                        rows={6}
                         {...field}
                       />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                        days
-                      </span>
-                    </div>
-                  </FormControl>
-                  <FormDescription>How long estimates are valid after creation.</FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
 
-            <Button type="submit" disabled={isPending}>
+            <Button type="submit" disabled={isPending} className="min-w-40">
               {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Save Defaults
             </Button>

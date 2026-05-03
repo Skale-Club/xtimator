@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { useForm } from 'react-hook-form'
+import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Loader2 } from 'lucide-react'
@@ -10,7 +10,7 @@ import { toast } from 'sonner'
 
 import { changePassword, changeEmail, deleteAccount } from '@/lib/actions/settings'
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -54,9 +54,8 @@ export function AccountSection() {
   const [isPendingEmail, startEmailTransition] = useTransition()
   const [isPendingDelete, startDeleteTransition] = useTransition()
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const passwordForm = useForm<PasswordValues>({
-    resolver: zodResolver(passwordSchema) as any,
+    resolver: zodResolver(passwordSchema) as Resolver<PasswordValues>,
     defaultValues: {
       currentPassword: '',
       newPassword: '',
@@ -64,9 +63,8 @@ export function AccountSection() {
     },
   })
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const emailForm = useForm<EmailValues>({
-    resolver: zodResolver(emailSchema) as any,
+    resolver: zodResolver(emailSchema) as Resolver<EmailValues>,
     defaultValues: {
       newEmail: '',
     },
@@ -112,14 +110,22 @@ export function AccountSection() {
   }
 
   return (
-    <Card>
-      <CardHeader>
+    <Card className="w-full rounded-[var(--radius-md)]">
+      <CardHeader className="border-b border-border">
         <CardTitle>Account</CardTitle>
+        <CardDescription>
+          Update login credentials and manage irreversible account actions.
+        </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-8">
+      <CardContent className="space-y-8 py-6">
         {/* Change Password */}
-        <div>
-          <h3 className="text-sm font-medium mb-4">Change Password</h3>
+        <div className="grid gap-6 xl:grid-cols-[260px_minmax(0,1fr)]">
+          <div>
+            <h3 className="text-sm font-medium">Change Password</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Use a strong password that is not shared with other services.
+            </p>
+          </div>
           <Form {...passwordForm}>
             <form onSubmit={passwordForm.handleSubmit(onPasswordSubmit)} className="space-y-4">
               <FormField
@@ -161,7 +167,7 @@ export function AccountSection() {
                   </FormItem>
                 )}
               />
-              <Button type="submit" disabled={isPendingPassword}>
+              <Button type="submit" disabled={isPendingPassword} className="min-w-40">
                 {isPendingPassword && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Change Password
               </Button>
@@ -172,8 +178,13 @@ export function AccountSection() {
         <Separator />
 
         {/* Change Email */}
-        <div>
-          <h3 className="text-sm font-medium mb-4">Change Email</h3>
+        <div className="grid gap-6 xl:grid-cols-[260px_minmax(0,1fr)]">
+          <div>
+            <h3 className="text-sm font-medium">Change Email</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              A confirmation message will be sent to the new address.
+            </p>
+          </div>
           <Form {...emailForm}>
             <form onSubmit={emailForm.handleSubmit(onEmailSubmit)} className="space-y-4">
               <FormField
@@ -189,7 +200,7 @@ export function AccountSection() {
                   </FormItem>
                 )}
               />
-              <Button type="submit" disabled={isPendingEmail}>
+              <Button type="submit" disabled={isPendingEmail} className="min-w-40">
                 {isPendingEmail && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Change Email
               </Button>
@@ -200,11 +211,14 @@ export function AccountSection() {
         <Separator />
 
         {/* Delete Account */}
-        <div>
-          <h3 className="text-sm font-medium mb-4 text-destructive">Danger Zone</h3>
-          <p className="text-sm text-muted-foreground mb-4">
-            Once you delete your account, there is no going back. All your data, company profile, and projects will be permanently removed.
-          </p>
+        <div className="grid gap-6 xl:grid-cols-[260px_minmax(0,1fr)]">
+          <div>
+            <h3 className="text-sm font-medium text-destructive">Danger Zone</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              This permanently removes your company profile, projects, and
+              account access.
+            </p>
+          </div>
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button variant="destructive" disabled={isPendingDelete}>
