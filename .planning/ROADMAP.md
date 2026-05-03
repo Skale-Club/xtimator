@@ -115,6 +115,30 @@ Plans:
 - [x] 14-02-PLAN.md — updatePassword company check + getClaims error handling + OAuth button loading reset + proxy try/catch (BUG-04, BUG-05, BUG-06, BUG-07)
 - [x] 14-03-PLAN.md — Fix all Playwright E2E tests and unit tests to use /login, /signup, /reset-password
 
+### Phase 15: Owner Admin Panel — Customer Dashboard, SEO, LP Control, Blog, and Extended Branding
+
+**Goal:** The SaaS owner (skale.club@gmail.com) can manage the entire platform from a single admin section: monitor registered customers, configure global SEO metadata, edit landing page content, publish blog posts, and set system-wide branding including logo, brand colors, and favicon.
+
+**Depends on:** Phase 14
+
+**Requirements:** ADMIN-10, ADMIN-11, ADMIN-12, ADMIN-13, ADMIN-14
+
+**Success Criteria** (what must be TRUE):
+  1. Admin can open `/admin` and see a dashboard card with total registered companies, total users, and estimates generated in the last 30 days
+  2. Admin can edit global SEO fields (site title, meta description, OG image, canonical URL) at `/admin/seo` and the landing page `<head>` reflects changes on next render
+  3. Admin can edit every text section of the landing page (hero headline, subheadline, CTA label, How It Works steps, features list) at `/admin/landing` and changes persist and render immediately on the public page
+  4. Admin can create, edit, publish and delete blog posts at `/admin/blog`; published posts render at `/blog/[slug]` with individual SEO metadata
+  5. Admin can upload a favicon (`.ico` / `.png`) at `/admin/branding`; the favicon displays in browser tabs after upload; logo and primary color fields already present are preserved and enhanced with a color picker
+
+**Plans:** 5 plans
+
+Plans:
+- [ ] 15-01-PLAN.md — DB migration + packages + platform-config extensions + zod schemas + Wave 0 test stubs
+- [ ] 15-02-PLAN.md — Customer dashboard at /admin + extended admin nav (7 items, exact-match fix)
+- [ ] 15-03-PLAN.md — SEO editor at /admin/seo + favicon upload in /admin/branding + root generateMetadata
+- [ ] 15-04-PLAN.md — Landing page content editor at /admin/landing + props-driven landing sections
+- [ ] 15-05-PLAN.md — Blog system: admin CRUD at /admin/blog + public pages at /blog/[slug]
+
 ---
 
 ## Progress
@@ -135,3 +159,4 @@ Plans:
 | 12. i18n Translation System | v1.2 | 5/5 | Complete    | 2026-04-24 |
 | 13. Visual identity polish | post-v1.2 | 1/2 | Awaiting human verification | — |
 | 14. Auth system hardening | post-v1.2 | 3/3 | Complete | 2026-05-01 |
+| 15. Owner Admin Panel | v1.3 | 0/5 | Planning | — |
