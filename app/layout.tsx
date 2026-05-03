@@ -14,9 +14,20 @@ const inter = Inter({
 
 export async function generateMetadata(): Promise<Metadata> {
   const b = await getBranding()
+  const base = b.canonicalBaseUrl ? new URL(b.canonicalBaseUrl) : undefined
   return {
-    title: b.appName,
-    description: `Professional AI-powered estimates for service businesses — powered by ${b.appName}`,
+    metadataBase: base,
+    title: {
+      default: b.siteTitle ?? b.appName,
+      template: `%s | ${b.siteTitle ?? b.appName}`,
+    },
+    description:
+      b.metaDescription ??
+      `Professional AI-powered estimates for service businesses — powered by ${b.appName}`,
+    openGraph: b.ogImageUrl
+      ? { images: [b.ogImageUrl], siteName: b.siteTitle ?? b.appName }
+      : undefined,
+    icons: b.faviconUrl ? { icon: b.faviconUrl } : undefined,
   }
 }
 

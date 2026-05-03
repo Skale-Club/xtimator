@@ -13,6 +13,7 @@ export default async function BrandingPage() {
     logoUrl: branding.logoUrl,
     primaryColor: branding.primaryColor,
     emailFromName: branding.emailFromName,
+    faviconUrl: branding.faviconUrl,
   }
 
   return (

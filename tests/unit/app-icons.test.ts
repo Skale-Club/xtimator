@@ -33,9 +33,11 @@ describe('App Router icon contract (Phase 13)', () => {
     expect(existsSync(resolve(appDir, 'manifest.ts'))).toBe(true)
   })
 
-  it('keeps icon metadata out of app/layout.tsx', () => {
+  it('keeps hardcoded icon link tags out of app/layout.tsx', () => {
+    // Static <link rel="icon"> / <link rel="apple-touch-icon"> must never appear
+    // in layout.tsx — App Router serves icons from app/favicon.ico, app/icon.*, etc.
+    // Dynamic `icons` in generateMetadata is allowed (Phase 15-03: DB-backed favicon).
     expect(layoutSource).not.toMatch(/<link\s+[^>]*rel=["'](?:shortcut\s+icon|icon|apple-touch-icon)["']/i)
-    expect(layoutSource).not.toMatch(/icons\s*:/)
   })
 
   it('defines the expected manifest contract', () => {

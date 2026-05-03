@@ -53,6 +53,24 @@ export async function saveBranding(formData: FormData): Promise<SaveBrandingResu
     logoUrl = pub.publicUrl
   }
 
+  // Favicon upload — same pattern as logo upload.
+  let faviconUrl: string | undefined = undefined
+  const rawFavicon = formData.get('faviconFile')
+  const faviconFile = rawFavicon instanceof File && rawFavicon.size > 0 ? rawFavicon : null
+  if (faviconFile) {
+    const ext = (faviconFile.name.split('.').pop() || 'ico').toLowerCase()
+    const path = `favicon-${Date.now()}.${ext}`
+    const body = Buffer.from(await faviconFile.arrayBuffer())
+    const { data: up, error: upErr } = await svc.storage
+      .from('platform-brand')
+      .upload(path, body, { contentType: faviconFile.type, upsert: true })
+    if (upErr || !up) {
+      return { ok: false, message: upErr?.message ?? 'Favicon upload failed.' }
+    }
+    const { data: pub } = svc.storage.from('platform-brand').getPublicUrl(up.path)
+    faviconUrl = pub.publicUrl
+  }
+
   const upsertPayload: Record<string, unknown> = {
     id: 1,
     app_name: parsed.data.appName,
@@ -63,6 +81,9 @@ export async function saveBranding(formData: FormData): Promise<SaveBrandingResu
   }
   if (logoUrl !== undefined) {
     upsertPayload.logo_url = logoUrl
+  }
+  if (faviconUrl !== undefined) {
+    upsertPayload.favicon_url = faviconUrl
   }
 
   const { error: dbErr } = await svc.from('platform_branding').upsert(upsertPayload)

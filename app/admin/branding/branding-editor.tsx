@@ -28,6 +28,7 @@ export type EditorBranding = {
   logoUrl: string | null
   primaryColor: string | null
   emailFromName: string | null
+  faviconUrl: string | null
 }
 
 interface BrandingEditorProps {
@@ -43,6 +44,7 @@ export function BrandingEditor({ initial }: BrandingEditorProps) {
   // uploader's local objectURL flow can drive the preview before submit).
   const [logoPreview, setLogoPreview] = useState<string | null>(initial.logoUrl)
   const [logoFile, setLogoFile] = useState<File | null>(null)
+  const [faviconFile, setFaviconFile] = useState<File | null>(null)
 
   const form = useForm<BrandingInput>({
     // zod v4 + RHF generic mismatch — same cast pattern as
@@ -85,6 +87,7 @@ export function BrandingEditor({ initial }: BrandingEditorProps) {
       fd.set('primaryColor', values.primaryColor ?? '')
       fd.set('emailFromName', values.emailFromName ?? '')
       if (logoFile) fd.set('logoFile', logoFile)
+      if (faviconFile) fd.set('faviconFile', faviconFile)
 
       const result = await saveBranding(fd)
       if (result.ok) {
@@ -92,7 +95,7 @@ export function BrandingEditor({ initial }: BrandingEditorProps) {
       } else if ('errors' in result) {
         toast.error('Couldn’t save branding. Check the form for errors.')
       } else {
-        toast.error(`Couldn't save branding. ${result.message}`)
+        toast.error(`Couldn’t save branding. ${result.message}`)
       }
     })
   }
@@ -141,6 +144,32 @@ export function BrandingEditor({ initial }: BrandingEditorProps) {
               Square PNG or JPG, under 2MB. Shown above the sign-in form and in the
               admin header.
             </FormDescription>
+          </FormItem>
+
+          <FormItem>
+            <FormLabel>Favicon</FormLabel>
+            <FormControl>
+              <input
+                type="file"
+                accept=".ico,.png,.svg"
+                className="text-sm"
+                onChange={(e) => setFaviconFile(e.target.files?.[0] ?? null)}
+              />
+            </FormControl>
+            <FormDescription>
+              ICO or PNG, under 1MB. Shown in browser tabs. If set, overrides the
+              static favicon file.
+            </FormDescription>
+            {initial.faviconUrl && (
+              <a
+                href={initial.faviconUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-primary underline"
+              >
+                Current favicon
+              </a>
+            )}
           </FormItem>
 
           <FormField
