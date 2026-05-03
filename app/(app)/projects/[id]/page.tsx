@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getProjectById, getProjectActivity, getProjectQuickStats } from '@/lib/queries/project'
@@ -5,6 +6,7 @@ import { getProjectRecordings } from '@/lib/queries/recording'
 import { getProjectPhotos } from '@/lib/queries/photo'
 import { getCurrentEstimate, getProjectEstimates } from '@/lib/queries/estimate'
 import { ProjectWorkspace } from '@/components/workspace/project-workspace'
+import { Skeleton } from '@/components/ui/skeleton'
 
 export default async function ProjectPage({
   params,
@@ -14,28 +16,19 @@ export default async function ProjectPage({
   const { id } = await params
   const supabase = await createClient()
 
-  const [project, activity, stats, recordings, photos, currentEstimate, allVersions] = await Promise.all([
-    getProjectById(supabase, id),
-    getProjectActivity(supabase, id),
-    getProjectQuickStats(supabase, id),
-    getProjectRecordings(supabase, id),
-    getProjectPhotos(supabase, id),
-    getCurrentEstimate(supabase, id),
-    getProjectEstimates(supabase, id),
-  ])
+  const project = await getProjectById(supabase, id)
 
   if (!project) {
     notFound()
   }
 
-  // Fetch company name for the Send tab
-  const { data: company } = await supabase
-    .from('companies')
-    .select('name')
-    .eq('id', project.company_id)
-    .single()
-
-  const companyName = (company?.name as string) ?? ''
+  // Start remaining queries as unresolved promises (no await — passed to async sub-component)
+  const activityPromise = getProjectActivity(supabase, id)
+  const statsPromise = getProjectQuickStats(supabase, id)
+  const recordingsPromise = getProjectRecordings(supabase, id)
+  const photosPromise = getProjectPhotos(supabase, id)
+  const currentEstimatePromise = getCurrentEstimate(supabase, id)
+  const allVersionsPromise = getProjectEstimates(supabase, id)
 
   return (
     <div className="space-y-6">
@@ -45,16 +38,78 @@ export default async function ProjectPage({
           <p className="text-muted-foreground">{project.client.name}</p>
         )}
       </div>
-      <ProjectWorkspace
-        project={project}
-        activity={activity}
-        stats={stats}
-        recordings={recordings}
-        photos={photos}
-        currentEstimate={currentEstimate}
-        allVersions={allVersions}
-        companyName={companyName}
-      />
+      <Suspense fallback={<ProjectWorkspaceSkeleton />}>
+        <ProjectTabs
+          project={project}
+          activityPromise={activityPromise}
+          statsPromise={statsPromise}
+          recordingsPromise={recordingsPromise}
+          photosPromise={photosPromise}
+          currentEstimatePromise={currentEstimatePromise}
+          allVersionsPromise={allVersionsPromise}
+        />
+      </Suspense>
+    </div>
+  )
+}
+
+type ProjectTabsProps = {
+  project: Awaited<ReturnType<typeof getProjectById>> & {}
+  activityPromise: ReturnType<typeof getProjectActivity>
+  statsPromise: ReturnType<typeof getProjectQuickStats>
+  recordingsPromise: ReturnType<typeof getProjectRecordings>
+  photosPromise: ReturnType<typeof getProjectPhotos>
+  currentEstimatePromise: ReturnType<typeof getCurrentEstimate>
+  allVersionsPromise: ReturnType<typeof getProjectEstimates>
+}
+
+async function ProjectTabs({
+  project,
+  activityPromise,
+  statsPromise,
+  recordingsPromise,
+  photosPromise,
+  currentEstimatePromise,
+  allVersionsPromise,
+}: ProjectTabsProps) {
+  const [activity, stats, recordings, photos, currentEstimate, allVersions] = await Promise.all([
+    activityPromise,
+    statsPromise,
+    recordingsPromise,
+    photosPromise,
+    currentEstimatePromise,
+    allVersionsPromise,
+  ])
+
+  // Fetch company name for the Send tab
+  const supabase = await createClient()
+  const { data: company } = await supabase
+    .from('companies')
+    .select('name')
+    .eq('id', project.company_id)
+    .single()
+
+  const companyName = (company?.name as string) ?? ''
+
+  return (
+    <ProjectWorkspace
+      project={project}
+      activity={activity}
+      stats={stats}
+      recordings={recordings}
+      photos={photos}
+      currentEstimate={currentEstimate}
+      allVersions={allVersions}
+      companyName={companyName}
+    />
+  )
+}
+
+function ProjectWorkspaceSkeleton() {
+  return (
+    <div className="space-y-4">
+      <Skeleton className="h-10 w-full" />
+      <Skeleton className="h-64 w-full" />
     </div>
   )
 }

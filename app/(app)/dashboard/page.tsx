@@ -1,35 +1,27 @@
+import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { getDashboardStats, getProjects } from '@/lib/queries/dashboard'
+import { getAuthClaims, getCachedCompany } from '@/lib/queries/auth'
 import { StatCards } from '@/components/dashboard/stat-cards'
 import { ProjectList } from '@/components/dashboard/project-list'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { Plus } from 'lucide-react'
 
 export default async function DashboardPage() {
-  const supabase = await createClient()
-  const { data: claimsData } = await supabase.auth.getClaims()
-  const claims = claimsData?.claims ?? null
+  const claims = await getAuthClaims()
 
   if (!claims) {
     redirect('/login')
   }
 
-  const { data: company } = await supabase
-    .from('companies')
-    .select('id')
-    .eq('user_id', claims.sub)
-    .single()
+  const company = await getCachedCompany(claims.sub)
 
   if (!company) {
     redirect('/onboarding')
   }
-
-  const [stats, projects] = await Promise.all([
-    getDashboardStats(supabase, company.id),
-    getProjects(supabase, company.id),
-  ])
 
   return (
     <div className="space-y-6">
@@ -43,8 +35,38 @@ export default async function DashboardPage() {
         </Button>
       </div>
 
-      <StatCards stats={stats} />
-      <ProjectList projects={projects} />
+      <Suspense fallback={<StatCardsSkeleton />}>
+        <DashboardStats companyId={company.id} />
+      </Suspense>
+      <Suspense fallback={<ProjectListSkeleton />}>
+        <DashboardProjects companyId={company.id} />
+      </Suspense>
     </div>
   )
+}
+
+async function DashboardStats({ companyId }: { companyId: string }) {
+  const supabase = await createClient()
+  const stats = await getDashboardStats(supabase, companyId)
+  return <StatCards stats={stats} />
+}
+
+async function DashboardProjects({ companyId }: { companyId: string }) {
+  const supabase = await createClient()
+  const projects = await getProjects(supabase, companyId)
+  return <ProjectList projects={projects} />
+}
+
+function StatCardsSkeleton() {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      {Array.from({ length: 4 }).map((_, i) => (
+        <Skeleton key={i} className="h-24 rounded-lg" />
+      ))}
+    </div>
+  )
+}
+
+function ProjectListSkeleton() {
+  return <Skeleton className="h-64 w-full rounded-lg" />
 }

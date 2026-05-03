@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useState, useTransition } from 'react'
+import { HoverPrefetchLink } from './hover-prefetch-link'
 import { usePathname } from 'next/navigation'
 import { Plus } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -69,7 +70,7 @@ export function Sidebar({ branding, company, projects, hasMore }: SidebarProps) 
           const Icon = item.icon
 
           return (
-            <Link
+            <HoverPrefetchLink
               key={item.href}
               href={item.href}
               className={cn(
@@ -83,7 +84,7 @@ export function Sidebar({ branding, company, projects, hasMore }: SidebarProps) 
             >
               <Icon className="h-5 w-5 shrink-0" />
               <span className="hidden lg:block">{t(item.label)}</span>
-            </Link>
+            </HoverPrefetchLink>
           )
         })}
       </nav>
