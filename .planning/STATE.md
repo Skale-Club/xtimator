@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Brand Identity & Global Reach
 status: verifying
-last_updated: "2026-05-03T18:16:02.452Z"
+last_updated: "2026-05-03T20:15:56.093Z"
 last_activity: 2026-05-01
 progress:
-  total_phases: 6
+  total_phases: 8
   completed_phases: 5
-  total_plans: 18
-  completed_plans: 17
+  total_plans: 24
+  completed_plans: 18
 ---
 
 # Project State
@@ -163,6 +163,8 @@ Last activity: 2026-05-01
 - [Phase 15-owner-admin-panel]: saveSeo follows identical server action pattern as saveBranding: validate -> upload -> upsert -> invalidate -> revalidate
 - [Phase 15-owner-admin-panel]: app-icons.test.ts updated to allow dynamic icons in generateMetadata (Phase 15-03) while still forbidding hardcoded <link> tags
 - [Phase 15-owner-admin-panel]: seo-actions.test.ts uses inline seoSchema mock for wave-order safety (same pattern as branding-actions.test.ts)
+- [Phase 16]: ProjectSummary is minimal (4 fields) — enough for sidebar list without pulling full ProjectDetail; hasMore sentinel avoids extra COUNT query
+- [Phase 16]: getMoreProjects has no extra auth check — RLS on projects table enforces company_id ownership automatically
 
 ## Performance Metrics
 
@@ -206,6 +208,7 @@ Last activity: 2026-05-01
 | Phase 15-owner-admin-panel P02 | 11min | 2 tasks | 4 files |
 | Phase 15-owner-admin-panel P04 | 11min | 9 tasks | 10 files |
 | Phase 15-owner-admin-panel P03 | 13min | 2 tasks | 8 files |
+| Phase 16 P01 | 8 | 2 tasks | 4 files |
 
 ## Project Reference
 
