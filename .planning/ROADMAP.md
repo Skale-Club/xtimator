@@ -139,6 +139,45 @@ Plans:
 - [x] 15-04-PLAN.md — Landing page content editor at /admin/landing + props-driven landing sections
 - [x] 15-05-PLAN.md — Blog system: admin CRUD at /admin/blog + public pages at /blog/[slug]
 
+### Phase 16: Sidebar Projects Panel — Collapsible Project List with Pagination and Full Project View
+
+**Goal:** The sidebar shows a scrollable, paginated list of all projects created by the company. Each item is clickable, opens the project workspace, and the panel has a clear empty state and "New Project" shortcut. The list updates in real time when a project is created or renamed.
+
+**Depends on:** Phase 15
+
+**Requirements:** PROJ-10, PROJ-11, PROJ-12
+
+**Success Criteria** (what must be TRUE):
+  1. User opens the app and sees all their projects listed in the sidebar below the main nav items, with project name and status indicator visible
+  2. Clicking a project navigates to `/projects/[id]` and the active project is highlighted in the list
+  3. If there are more than 10 projects, a "Load more" or scroll-based pagination loads additional projects without a full page reload
+  4. Creating a new project from `/projects/new` causes it to appear at the top of the sidebar list
+  5. An empty state with a clear CTA is shown when there are no projects
+
+**Plans:** 3 plans
+
+Plans:
+- [ ] 16-01-PLAN.md — Data layer: ProjectSummary type + getProjectsByCompany query + getMoreProjects server action + layout wiring + Sidebar props interface
+- [ ] 16-02-PLAN.md — UI: SidebarProjectItem component, status dots, active highlight, empty state, load more with useTransition
+- [ ] 16-03-PLAN.md — Sync: revalidatePath on project creation + active state covers sub-routes
+
+### Phase 17: Navigation Performance — Instant Page Transitions via Streaming and Skeleton Loading
+
+**Goal:** Every page-to-page navigation in the authenticated app feels instant (under 200ms perceived latency). The user sees skeleton screens immediately while data loads server-side, eliminating the current ~1 second blank-screen delay between routes.
+
+**Depends on:** Phase 15
+
+**Requirements:** PERF-01, PERF-02, PERF-03
+
+**Success Criteria** (what must be TRUE):
+  1. Clicking any sidebar nav item shows a skeleton/loading UI within 50ms — no blank screen or spinner delay
+  2. The dashboard, clients list, and project workspace all stream progressively: layout and skeleton appear first, then real data replaces them
+  3. Hovering a nav link prefetches the route so subsequent clicks feel instant
+  4. Company data and auth claims are not re-fetched on every page — they are read from a short-lived cache
+  5. Time-to-interactive measured in Chrome DevTools drops from ~1s to under 300ms on a warm connection
+
+**Plans:** TBD
+
 ---
 
 ## Progress
@@ -159,4 +198,6 @@ Plans:
 | 12. i18n Translation System | v1.2 | 5/5 | Complete    | 2026-04-24 |
 | 13. Visual identity polish | post-v1.2 | 1/2 | Awaiting human verification | — |
 | 14. Auth system hardening | post-v1.2 | 3/3 | Complete | 2026-05-01 |
-| 15. Owner Admin Panel | v1.3 | 5/5 | Complete   | 2026-05-03 |
+| 15. Owner Admin Panel | v1.3 | 5/5 | Complete | 2026-05-03 |
+| 16. Sidebar Projects Panel | v1.3 | 0/3 | Planning | — |
+| 17. Navigation Performance | v1.3 | 0/3 | Planning | — |
