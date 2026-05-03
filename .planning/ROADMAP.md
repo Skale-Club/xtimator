@@ -154,7 +154,7 @@ Plans:
   4. Creating a new project from `/projects/new` causes it to appear at the top of the sidebar list
   5. An empty state with a clear CTA is shown when there are no projects
 
-**Plans:** 1/3 plans executed
+**Plans:** 2/3 plans executed
 
 Plans:
 - [x] 16-01-PLAN.md — Data layer: ProjectSummary type + getProjectsByCompany query + getMoreProjects server action + layout wiring + Sidebar props interface
@@ -204,5 +204,5 @@ Plans:
 | 13. Visual identity polish | post-v1.2 | 1/2 | Awaiting human verification | — |
 | 14. Auth system hardening | post-v1.2 | 3/3 | Complete | 2026-05-01 |
 | 15. Owner Admin Panel | v1.3 | 5/5 | Complete | 2026-05-03 |
-| 16. Sidebar Projects Panel | v1.3 | 1/3 | In Progress|  |
+| 16. Sidebar Projects Panel | v1.3 | 2/3 | In Progress|  |
 | 17. Navigation Performance | v1.3 | 0/3 | Planning | — |
