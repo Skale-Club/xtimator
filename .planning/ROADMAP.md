@@ -130,13 +130,13 @@ Plans:
   4. Admin can create, edit, publish and delete blog posts at `/admin/blog`; published posts render at `/blog/[slug]` with individual SEO metadata
   5. Admin can upload a favicon (`.ico` / `.png`) at `/admin/branding`; the favicon displays in browser tabs after upload; logo and primary color fields already present are preserved and enhanced with a color picker
 
-**Plans:** 3/5 plans executed
+**Plans:** 4/5 plans executed
 
 Plans:
 - [x] 15-01-PLAN.md — DB migration + packages + platform-config extensions + zod schemas + Wave 0 test stubs
 - [x] 15-02-PLAN.md — Customer dashboard at /admin + extended admin nav (7 items, exact-match fix)
 - [ ] 15-03-PLAN.md — SEO editor at /admin/seo + favicon upload in /admin/branding + root generateMetadata
-- [ ] 15-04-PLAN.md — Landing page content editor at /admin/landing + props-driven landing sections
+- [x] 15-04-PLAN.md — Landing page content editor at /admin/landing + props-driven landing sections
 - [x] 15-05-PLAN.md — Blog system: admin CRUD at /admin/blog + public pages at /blog/[slug]
 
 ---
@@ -159,4 +159,4 @@ Plans:
 | 12. i18n Translation System | v1.2 | 5/5 | Complete    | 2026-04-24 |
 | 13. Visual identity polish | post-v1.2 | 1/2 | Awaiting human verification | — |
 | 14. Auth system hardening | post-v1.2 | 3/3 | Complete | 2026-05-01 |
-| 15. Owner Admin Panel | v1.3 | 3/5 | In Progress|  |
+| 15. Owner Admin Panel | v1.3 | 4/5 | In Progress|  |

@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Brand Identity & Global Reach
 status: verifying
-last_updated: "2026-05-03T18:13:02.096Z"
+last_updated: "2026-05-03T18:14:14.529Z"
 last_activity: 2026-05-01
 progress:
   total_phases: 6
   completed_phases: 4
   total_plans: 18
-  completed_plans: 15
+  completed_plans: 16
 ---
 
 # Project State
@@ -157,6 +157,9 @@ Last activity: 2026-05-01
 - [Phase 15-owner-admin-panel]: EditPostWrapper extracted to separate file for server/client boundary; BlogPostActions extracted to blog-post-actions.tsx for same reason
 - [Phase 15-owner-admin-panel]: getPlatformStats uses Promise.all for 3 concurrent Supabase queries; get_platform_user_count RPC bypasses RLS for platform-level user count
 - [Phase 15-owner-admin-panel]: Admin nav /admin Dashboard item uses exact pathname match; all other items use startsWith prefix match
+- [Phase 15-owner-admin-panel]: ICON_MAP pattern: icons stored as strings in DB resolved at render via ICON_MAP[feature.icon] fallback BrainCircuit
+- [Phase 15-owner-admin-panel]: BENTO_CLASSES positional array: bento grid classes are layout concerns fixed by position not DB-editable
+- [Phase 15-owner-admin-panel]: details HTML element for collapsible editor sections in LandingEditor (no JS dependency for expand/collapse)
 
 ## Performance Metrics
 
@@ -198,6 +201,7 @@ Last activity: 2026-05-01
 | Phase 15-owner-admin-panel P01 | 5min | 3 tasks | 11 files |
 | Phase 15-owner-admin-panel P05 | 5min | 10 tasks | 13 files |
 | Phase 15-owner-admin-panel P02 | 11min | 2 tasks | 4 files |
+| Phase 15-owner-admin-panel P04 | 11min | 9 tasks | 10 files |
 
 ## Project Reference
 
