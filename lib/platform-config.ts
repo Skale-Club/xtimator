@@ -7,6 +7,29 @@ export type Branding = {
   logoUrl: string | null
   primaryColor: string | null
   emailFromName: string | null
+  siteTitle: string | null
+  metaDescription: string | null
+  ogImageUrl: string | null
+  canonicalBaseUrl: string | null
+  faviconUrl: string | null
+  landingContent: LandingContent
+}
+
+export type LandingContent = {
+  heroHeadline: string
+  heroSubheadline: string
+  ctaLabel: string
+  howItWorksSteps: Array<{
+    eyebrow: string
+    title: string
+    description: string
+  }>
+  features: Array<{
+    icon: string
+    title: string
+    description: string
+    benefit: string
+  }>
 }
 
 export type IntegrationProvider = 'resend' | 'anthropic' | 'openai'
@@ -16,11 +39,74 @@ const TTL_MS = 60_000
 let brandingCache: { value: Branding; fetchedAt: number } | null = null
 const integrationCache = new Map<string, { value: string; fetchedAt: number }>()
 
+export const DEFAULT_LANDING_CONTENT: LandingContent = {
+  heroHeadline: 'Professional estimates in 5 minutes.',
+  heroSubheadline:
+    'Record a site walkthrough, add photos, and let AI draft the scope, pricing, and branded PDF before you leave the driveway.',
+  ctaLabel: 'Start free',
+  howItWorksSteps: [
+    {
+      eyebrow: 'Step 1',
+      title: 'Record audio',
+      description:
+        'Walk the property and talk through measurements, materials, and special requests while your hands stay free.',
+    },
+    {
+      eyebrow: 'Step 2',
+      title: 'Add photos',
+      description:
+        'Drop in site photos so the AI can anchor line items to the real condition of the work.',
+    },
+    {
+      eyebrow: 'Step 3',
+      title: 'Get estimate',
+      description:
+        'Review the draft estimate, then send a branded PDF or live link without rebuilding the job from scratch.',
+    },
+  ],
+  features: [
+    {
+      icon: 'BrainCircuit',
+      title: 'AI-generated estimate draft',
+      description:
+        'Turns field notes and site photos into a structured scope you can review instead of writing from a blank page.',
+      benefit: 'Skip the blank-page struggle',
+    },
+    {
+      icon: 'FileBadge2',
+      title: 'Branded PDF output',
+      description:
+        'Send estimates that look polished, consistent, and ready for the customer without extra formatting work.',
+      benefit: 'Look professional',
+    },
+    {
+      icon: 'Link2',
+      title: 'Share link for fast approvals',
+      description:
+        'Deliver a live estimate link when the customer wants the quote now, not after you get back to the office.',
+      benefit: 'Faster response',
+    },
+    {
+      icon: 'Smartphone',
+      title: 'Mobile-first from the driveway',
+      description:
+        'Designed for iPhone and Android job-site use, where typing is slow and conditions are rarely perfect.',
+      benefit: 'Works where you work',
+    },
+  ],
+}
+
 const FALLBACK_BRANDING: Branding = {
   appName: 'Xtimator',
   logoUrl: null,
   primaryColor: null,
   emailFromName: null,
+  siteTitle: null,
+  metaDescription: null,
+  ogImageUrl: null,
+  canonicalBaseUrl: null,
+  faviconUrl: null,
+  landingContent: DEFAULT_LANDING_CONTENT,
 }
 
 export async function getBranding(): Promise<Branding> {
@@ -44,9 +130,23 @@ export async function getBranding(): Promise<Branding> {
     logoUrl: data.logo_url,
     primaryColor: data.primary_color,
     emailFromName: data.email_from_name,
+    siteTitle: data.site_title ?? null,
+    metaDescription: data.meta_description ?? null,
+    ogImageUrl: data.og_image_url ?? null,
+    canonicalBaseUrl: data.canonical_base_url ?? null,
+    faviconUrl: data.favicon_url ?? null,
+    landingContent:
+      data.landing_content && Object.keys(data.landing_content).length > 0
+        ? (data.landing_content as LandingContent)
+        : DEFAULT_LANDING_CONTENT,
   }
   brandingCache = { value: branding, fetchedAt: now }
   return branding
+}
+
+export async function getLandingContent(): Promise<LandingContent> {
+  const branding = await getBranding()
+  return branding.landingContent
 }
 
 export async function getIntegrationKey(
