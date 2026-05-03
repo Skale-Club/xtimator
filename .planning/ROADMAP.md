@@ -176,12 +176,12 @@ Plans:
   4. Company data and auth claims are not re-fetched on every page — they are read from a short-lived cache
   5. Time-to-interactive measured in Chrome DevTools drops from ~1s to under 300ms on a warm connection
 
-**Plans:** 1/3 plans executed
+**Plans:** 2/3 plans executed
 
 Plans:
 - [x] 17-01-PLAN.md — loading.tsx for missing routes (projects/new, settings, settings/appearance) + Wave 0 smoke tests
 - [ ] 17-02-PLAN.md — Cached auth + company queries: lib/queries/auth.ts with React cache() + unstable_cache, update layout + 4 pages
-- [ ] 17-03-PLAN.md — Suspense streaming for dashboard + project workspace + HoverPrefetchLink for sidebar nav
+- [x] 17-03-PLAN.md — Suspense streaming for dashboard + project workspace + HoverPrefetchLink for sidebar nav
 
 ---
 
@@ -205,4 +205,4 @@ Plans:
 | 14. Auth system hardening | post-v1.2 | 3/3 | Complete | 2026-05-01 |
 | 15. Owner Admin Panel | v1.3 | 5/5 | Complete | 2026-05-03 |
 | 16. Sidebar Projects Panel | v1.3 | 3/3 | Complete   | 2026-05-03 |
-| 17. Navigation Performance | v1.3 | 1/3 | In Progress|  |
+| 17. Navigation Performance | v1.3 | 2/3 | In Progress|  |

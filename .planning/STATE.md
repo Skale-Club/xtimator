@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Brand Identity & Global Reach
 status: verifying
-last_updated: "2026-05-03T20:30:02.957Z"
+last_updated: "2026-05-03T21:58:34.552Z"
 last_activity: 2026-05-01
 progress:
   total_phases: 8
   completed_phases: 6
   total_plans: 24
-  completed_plans: 21
+  completed_plans: 22
 ---
 
 # Project State
@@ -170,6 +170,7 @@ Last activity: 2026-05-01
 - [Phase 16-sidebar-projects-panel]: revalidatePath('/', 'layout') wired in project create/duplicate actions; delete action intentionally excluded from layout revalidation
 - [Phase 16-sidebar-projects-panel]: SidebarProjectItem isActive uses exact match OR startsWith with trailing slash to cover sub-routes without false positives
 - [Phase 17]: Used shadcn/ui Skeleton component for loading states matching existing clients/ and dashboard/ patterns
+- [Phase 17]: ProjectTabs receives typed promises (ReturnType<typeof fn>) for streaming semantics; company query co-located inside async sub-component to keep page shell fast
 
 ## Performance Metrics
 
@@ -217,6 +218,7 @@ Last activity: 2026-05-01
 | Phase 16 P02 | 8 | 2 tasks | 2 files |
 | Phase 16-sidebar-projects-panel P03 | 2min | 2 tasks | 2 files |
 | Phase 17 P01 | 2m | 4 tasks | 4 files |
+| Phase 17-navigation-performance P03 | 3min | 4 tasks | 4 files |
 
 ## Project Reference
 
