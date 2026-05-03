@@ -185,6 +185,14 @@
     color: hsl(var(--foreground));
     font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   }
+  button:not(:disabled),
+  [role="button"]:not(:disabled),
+  [role="menuitem"],
+  [role="option"],
+  [role="tab"],
+  summary {
+    cursor: pointer;
+  }
 }
 
 /* ============================================================

@@ -26,28 +26,38 @@ interface ProjectWorkspaceProps {
 export function ProjectWorkspace({ project, activity, stats, recordings, photos, currentEstimate, allVersions, companyName }: ProjectWorkspaceProps) {
   return (
     <Tabs defaultValue="overview" className="w-full">
-      <TabsList className="w-full grid grid-cols-5">
-        <TabsTrigger value="overview" className="min-h-[44px] gap-1.5 text-xs sm:text-sm">
-          <ClipboardList className="h-4 w-4" />
-          <span className="hidden sm:inline">Overview</span>
-        </TabsTrigger>
-        <TabsTrigger value="audio" className="min-h-[44px] gap-1.5 text-xs sm:text-sm">
-          <Mic className="h-4 w-4" />
-          <span className="hidden sm:inline">Audio</span>
-        </TabsTrigger>
-        <TabsTrigger value="photos" className="min-h-[44px] gap-1.5 text-xs sm:text-sm">
-          <Camera className="h-4 w-4" />
-          <span className="hidden sm:inline">Photos</span>
-        </TabsTrigger>
-        <TabsTrigger value="estimate" className="min-h-[44px] gap-1.5 text-xs sm:text-sm">
-          <Sparkles className="h-4 w-4" />
-          <span className="hidden sm:inline">AI Estimate</span>
-        </TabsTrigger>
-        <TabsTrigger value="send" className="min-h-[44px] gap-1.5 text-xs sm:text-sm">
-          <Send className="h-4 w-4" />
-          <span className="hidden sm:inline">Send</span>
-        </TabsTrigger>
-      </TabsList>
+      <div className="border-b border-border">
+        <TabsList
+          variant="line"
+          className="w-auto h-auto bg-transparent p-0 gap-0 rounded-none justify-start"
+        >
+          {[
+            { value: 'overview',  Icon: ClipboardList, label: 'Overview'    },
+            { value: 'audio',     Icon: Mic,           label: 'Audio'       },
+            { value: 'photos',    Icon: Camera,        label: 'Photos'      },
+            { value: 'estimate',  Icon: Sparkles,      label: 'AI Estimate' },
+            { value: 'send',      Icon: Send,          label: 'Send'        },
+          ].map(({ value, Icon, label }) => (
+            <TabsTrigger
+              key={value}
+              value={value}
+              className="
+                h-auto rounded-none border-0 border-b-2 border-transparent bg-transparent px-4 py-3
+                gap-2 text-sm font-medium text-muted-foreground
+                hover:text-foreground
+                data-[state=active]:border-primary dark:data-[state=active]:border-primary
+                data-[state=active]:text-foreground data-[state=active]:shadow-none
+                data-[state=active]:bg-transparent dark:data-[state=active]:bg-transparent dark:data-[state=active]:text-foreground
+                after:hidden
+                transition-colors
+              "
+            >
+              <Icon className="h-4 w-4 shrink-0" />
+              <span className="hidden sm:inline">{label}</span>
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </div>
       <TabsContent value="overview">
         <OverviewTab project={project} activity={activity} stats={stats} />
       </TabsContent>

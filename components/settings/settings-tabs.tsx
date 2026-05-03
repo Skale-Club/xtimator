@@ -64,30 +64,34 @@ const SETTINGS_STEPS = [
 export function SettingsTabs({ company }: SettingsTabsProps) {
   return (
     <Tabs defaultValue="company" className="w-full gap-5">
-      <TabsList
-        variant="line"
-        className="grid h-auto w-full grid-cols-2 items-stretch gap-0 overflow-hidden rounded-none border-b border-border p-0 sm:grid-cols-3 xl:grid-cols-5"
-      >
-        {SETTINGS_STEPS.map((step) => {
-          const Icon = step.icon
-
-          return (
-            <TabsTrigger
-              key={step.value}
-              value={step.value}
-              className="min-h-[64px] justify-start rounded-none border-0 px-3 py-3 text-left sm:px-4"
-            >
-              <Icon className="h-4 w-4" />
-              <span className="min-w-0">
-                <span className="block truncate text-sm">{step.label}</span>
-                <span className="hidden truncate text-xs font-normal text-muted-foreground lg:block">
-                  {step.description}
-                </span>
-              </span>
-            </TabsTrigger>
-          )
-        })}
-      </TabsList>
+      <div className="border-b border-border">
+        <TabsList
+          variant="line"
+          className="w-auto h-auto bg-transparent p-0 gap-0 rounded-none justify-start"
+        >
+          {SETTINGS_STEPS.map((step) => {
+            const Icon = step.icon
+            return (
+              <TabsTrigger
+                key={step.value}
+                value={step.value}
+                className="
+                  h-auto rounded-none border-0 border-b-2 border-transparent bg-transparent px-4 py-3
+                  gap-2 text-sm font-medium text-muted-foreground
+                  hover:text-foreground
+                  data-[state=active]:border-primary dark:data-[state=active]:border-primary
+                  data-[state=active]:text-foreground data-[state=active]:shadow-none
+                  data-[state=active]:bg-transparent dark:data-[state=active]:bg-transparent dark:data-[state=active]:text-foreground
+                  after:hidden transition-colors
+                "
+              >
+                <Icon className="h-4 w-4 shrink-0" />
+                <span className="hidden sm:inline">{step.label}</span>
+              </TabsTrigger>
+            )
+          })}
+        </TabsList>
+      </div>
 
       <TabsContent value="company" className="mt-0">
         <CompanyInfoForm company={company} />

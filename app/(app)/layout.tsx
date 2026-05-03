@@ -1,7 +1,5 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
 import { getBranding } from '@/lib/platform-config'
-import { getProjectsByCompany } from '@/lib/queries/project'
 import { getAuthClaims, getCachedCompany } from '@/lib/queries/auth'
 import { Sidebar } from '@/components/app-shell/sidebar'
 import { Topbar } from '@/components/app-shell/topbar'
@@ -26,8 +24,6 @@ export default async function AppShellLayout({
     redirect('/onboarding')
   }
 
-  const supabase = await createClient()
-  const { projects, hasMore } = await getProjectsByCompany(supabase, company.id, 1, 10)
   const branding = await getBranding()
 
   return (
@@ -38,8 +34,6 @@ export default async function AppShellLayout({
           faviconUrl: branding.faviconUrl,
         }}
         company={company}
-        projects={projects}
-        hasMore={hasMore}
       />
       <div className="flex flex-1 flex-col overflow-hidden">
         <Topbar company={company} />
