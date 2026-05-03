@@ -64,6 +64,7 @@ export async function createProjectAction(formData: ProjectFormValues) {
   })
 
   revalidatePath('/dashboard')
+  revalidatePath('/', 'layout')
   return { data: project }
 }
 
@@ -120,5 +121,6 @@ export async function duplicateProjectAction(projectId: string) {
   if (insertError) return { error: 'Failed to duplicate project. Please try again.' }
 
   revalidatePath('/dashboard')
+  revalidatePath('/', 'layout')
   return { data: newProject }
 }
