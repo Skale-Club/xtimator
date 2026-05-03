@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Brand Identity & Global Reach
 status: verifying
-last_updated: "2026-05-03T18:14:14.529Z"
+last_updated: "2026-05-03T18:16:02.452Z"
 last_activity: 2026-05-01
 progress:
   total_phases: 6
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 18
-  completed_plans: 16
+  completed_plans: 17
 ---
 
 # Project State
@@ -160,6 +160,9 @@ Last activity: 2026-05-01
 - [Phase 15-owner-admin-panel]: ICON_MAP pattern: icons stored as strings in DB resolved at render via ICON_MAP[feature.icon] fallback BrainCircuit
 - [Phase 15-owner-admin-panel]: BENTO_CLASSES positional array: bento grid classes are layout concerns fixed by position not DB-editable
 - [Phase 15-owner-admin-panel]: details HTML element for collapsible editor sections in LandingEditor (no JS dependency for expand/collapse)
+- [Phase 15-owner-admin-panel]: saveSeo follows identical server action pattern as saveBranding: validate -> upload -> upsert -> invalidate -> revalidate
+- [Phase 15-owner-admin-panel]: app-icons.test.ts updated to allow dynamic icons in generateMetadata (Phase 15-03) while still forbidding hardcoded <link> tags
+- [Phase 15-owner-admin-panel]: seo-actions.test.ts uses inline seoSchema mock for wave-order safety (same pattern as branding-actions.test.ts)
 
 ## Performance Metrics
 
@@ -202,6 +205,7 @@ Last activity: 2026-05-01
 | Phase 15-owner-admin-panel P05 | 5min | 10 tasks | 13 files |
 | Phase 15-owner-admin-panel P02 | 11min | 2 tasks | 4 files |
 | Phase 15-owner-admin-panel P04 | 11min | 9 tasks | 10 files |
+| Phase 15-owner-admin-panel P03 | 13min | 2 tasks | 8 files |
 
 ## Project Reference
 
