@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import type { ProjectFormValues } from '@/lib/schemas/project'
+import { getProjectsByCompany } from '@/lib/queries/project'
 
 async function getAuthContext() {
   const supabase = await createClient()
@@ -80,6 +81,11 @@ export async function deleteProjectAction(projectId: string) {
 
   revalidatePath('/dashboard')
   return { data: { deleted: true } }
+}
+
+export async function getMoreProjects(companyId: string, page: number) {
+  const supabase = await createClient()
+  return getProjectsByCompany(supabase, companyId, page, 10)
 }
 
 export async function duplicateProjectAction(projectId: string) {

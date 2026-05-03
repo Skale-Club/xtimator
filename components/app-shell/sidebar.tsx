@@ -6,6 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { cn } from '@/lib/utils'
 import { NAV_ITEMS } from './nav-items'
 import { useTranslation } from '@/lib/i18n/use-translation'
+import type { ProjectSummary } from '@/lib/queries/project'
 
 interface SidebarProps {
   company: {
@@ -14,16 +15,18 @@ interface SidebarProps {
     logo_url: string | null
     owner_name: string | null
   }
+  projects: ProjectSummary[]
+  hasMore: boolean
 }
 
-export function Sidebar({ company }: SidebarProps) {
+export function Sidebar({ company, projects, hasMore }: SidebarProps) {
   const pathname = usePathname()
   const { t } = useTranslation()
 
   return (
     <aside className="hidden md:flex flex-col border-r border-border bg-background w-16 lg:w-64 transition-all">
       {/* Company branding */}
-      <div className="flex items-center gap-3 border-b border-border px-3 py-4">
+      <div className="flex items-center gap-3 border-b border-border px-3 h-16">
         <Avatar className="h-9 w-9 shrink-0">
           {company.logo_url && (
             <AvatarImage src={company.logo_url} alt={company.name} />

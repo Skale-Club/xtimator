@@ -1,10 +1,10 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { getProjectsByCompany } from '@/lib/queries/project'
 import { Sidebar } from '@/components/app-shell/sidebar'
 import { Topbar } from '@/components/app-shell/topbar'
 import { BottomNav } from '@/components/app-shell/bottom-nav'
 import { MobileHeader } from '@/components/app-shell/mobile-header'
-import { readThemeCookie, writeThemeCookie, isValidTheme } from '@/lib/theme/cookie'
 import { TranslationLoadingOverlay } from '@/components/i18n/translation-loading-overlay'
 
 export default async function AppShellLayout({
@@ -30,16 +30,11 @@ export default async function AppShellLayout({
     redirect('/onboarding')
   }
 
-  if (isValidTheme(company.theme_preference)) {
-    const current = await readThemeCookie()
-    if (current !== company.theme_preference) {
-      await writeThemeCookie(company.theme_preference)
-    }
-  }
+  const { projects, hasMore } = await getProjectsByCompany(supabase, company.id, 1, 10)
 
   return (
     <div className="flex h-screen">
-      <Sidebar company={company} />
+      <Sidebar company={company} projects={projects} hasMore={hasMore} />
       <div className="flex flex-1 flex-col overflow-hidden">
         <Topbar company={company} />
         <MobileHeader />
