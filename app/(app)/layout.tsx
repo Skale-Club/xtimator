@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getBranding } from '@/lib/platform-config'
 import { getAuthClaims, getCachedCompany } from '@/lib/queries/auth'
+import { createServiceClient } from '@/lib/supabase/service'
 import { Sidebar } from '@/components/app-shell/sidebar'
 import { Topbar } from '@/components/app-shell/topbar'
 import { BottomNav } from '@/components/app-shell/bottom-nav'
@@ -24,7 +25,15 @@ export default async function AppShellLayout({
     redirect('/onboarding')
   }
 
-  const branding = await getBranding()
+  const [branding, adminRow] = await Promise.all([
+    getBranding(),
+    createServiceClient()
+      .from('platform_admins')
+      .select('id')
+      .eq('email', claims.email ?? '')
+      .maybeSingle(),
+  ])
+  const isAdmin = !!adminRow.data
 
   return (
     <div className="flex h-screen">
@@ -36,7 +45,7 @@ export default async function AppShellLayout({
         company={company}
       />
       <div className="flex flex-1 flex-col overflow-hidden">
-        <Topbar company={company} />
+        <Topbar company={company} isAdmin={isAdmin} />
         <MobileHeader />
         <main className="flex-1 overflow-y-auto p-4 md:p-6 pb-20 md:pb-6">
           {children}

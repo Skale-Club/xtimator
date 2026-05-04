@@ -9,7 +9,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Settings, LogOut } from 'lucide-react'
+import { Settings, LogOut, ShieldCheck } from 'lucide-react'
 import { signOut } from '@/lib/actions/auth'
 import { ThemeToggle } from '@/components/app-shell/theme-toggle'
 import { LanguageToggle } from '@/components/app-shell/language-toggle'
@@ -23,9 +23,10 @@ interface TopbarProps {
     logo_url: string | null
     owner_name: string | null
   }
+  isAdmin?: boolean
 }
 
-export function Topbar({ company }: TopbarProps) {
+export function Topbar({ company, isAdmin }: TopbarProps) {
   const initial = (company.owner_name ?? company.name).charAt(0).toUpperCase()
   const { t } = useTranslation()
 
@@ -33,6 +34,15 @@ export function Topbar({ company }: TopbarProps) {
     <header className="hidden md:flex items-center justify-between border-b border-border bg-background px-6 h-16">
       <CompanySelector company={company} />
       <div className="flex items-center gap-1">
+        {isAdmin && (
+          <Link
+            href="/admin"
+            className="inline-flex items-center justify-center h-9 w-9 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+            title="Admin Panel"
+          >
+            <ShieldCheck className="h-4 w-4" />
+          </Link>
+        )}
         <LanguageToggle />
         <ThemeToggle />
         <DropdownMenu>
