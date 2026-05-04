@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { CheckCircle, XCircle, Loader2 } from 'lucide-react'
 import { respondToEstimate } from '@/app/estimate/[token]/actions'
+import { SYSTEM_COLORS } from '@/lib/system-colors'
 import { formatCurrency } from '@/lib/utils/format'
 import type { ShareEstimateData } from '@/lib/queries/share'
 
@@ -32,7 +33,7 @@ export function EstimateView({
   const [error, setError] = useState<string | null>(null)
 
   const { company, project } = estimate
-  const brandColor = company.brand_primary_color ?? '#1a1a1a'
+  const brandColor = company.brand_primary_color ?? SYSTEM_COLORS.primary
 
   async function handleRespond(response: 'accepted' | 'declined') {
     setResponding(response)

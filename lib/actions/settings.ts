@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
+import { SYSTEM_COLORS } from '@/lib/system-colors'
 import { revalidatePath, revalidateTag } from 'next/cache'
 
 async function getAuthContext() {
@@ -79,7 +80,7 @@ export async function updateCompanySettings(formData: FormData) {
       license_number: licenseNumber || null,
       insurance_info: insuranceInfo || null,
       industry: industry || null,
-      brand_primary_color: brandPrimaryColor || '#0D9488',
+      brand_primary_color: brandPrimaryColor || SYSTEM_COLORS.primary,
       logo_url: logoUrl || null,
     })
     .eq('id', company.id)

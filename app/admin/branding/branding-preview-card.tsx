@@ -2,6 +2,7 @@
 
 import type { CSSProperties } from 'react'
 import { hexToHslTriplet } from '@/lib/color'
+import { SYSTEM_COLORS } from '@/lib/system-colors'
 import { LogoFallback } from '@/components/auth/auth-card'
 
 export type PreviewBranding = {
@@ -27,7 +28,9 @@ interface BrandingPreviewCardProps {
  * primary color).
  */
 export function BrandingPreviewCard({ branding }: BrandingPreviewCardProps) {
-  const triplet = hexToHslTriplet(branding.primaryColor ?? '') ?? '220 91% 60%'
+  const triplet =
+    hexToHslTriplet(branding.primaryColor ?? '') ?? SYSTEM_COLORS.primaryHsl
+  const platformPrimary = `hsl(var(--platform-primary, ${SYSTEM_COLORS.primaryHsl}))`
   const themedStyle: CSSProperties = {
     ['--platform-primary' as string]: triplet,
   }
@@ -71,7 +74,7 @@ export function BrandingPreviewCard({ branding }: BrandingPreviewCardProps) {
             disabled
             className="pointer-events-none rounded-md px-4 py-1.5 text-xs font-medium"
             style={{
-              backgroundColor: `hsl(var(--platform-primary, 220 91% 60%))`,
+              backgroundColor: platformPrimary,
               color: 'white',
             }}
           >
@@ -95,8 +98,8 @@ export function BrandingPreviewCard({ branding }: BrandingPreviewCardProps) {
                   style={
                     active
                       ? {
-                          backgroundColor: `hsl(var(--platform-primary, 220 91% 60%) / 0.12)`,
-                          borderLeft: `3px solid hsl(var(--platform-primary, 220 91% 60%))`,
+                          backgroundColor: `hsl(var(--platform-primary, ${SYSTEM_COLORS.primaryHsl}) / 0.12)`,
+                          borderLeft: `3px solid ${platformPrimary}`,
                           paddingLeft: 'calc(0.5rem - 3px)',
                           color: 'hsl(var(--foreground))',
                         }

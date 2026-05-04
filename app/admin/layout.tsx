@@ -1,37 +1,44 @@
 import type { CSSProperties } from 'react'
-import { requireAdmin } from '@/lib/auth/admin-context'
+import { notFound } from 'next/navigation'
+import { getAdminContext } from '@/lib/auth/admin-context'
 import { getBranding } from '@/lib/platform-config'
 import { hexToHslTriplet } from '@/lib/color'
+import { SYSTEM_COLORS } from '@/lib/system-colors'
 import { AdminNav } from '@/components/admin/admin-nav'
+import { AdminTopbar } from '@/components/admin/admin-topbar'
 
 export default async function AdminLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  const ctx = await requireAdmin()
-  const branding = await getBranding()
+  const [adminCtx, branding] = await Promise.all([getAdminContext(), getBranding()])
+  if (!adminCtx) notFound()
+  const ctx = adminCtx
   const triplet = branding.primaryColor
     ? hexToHslTriplet(branding.primaryColor)
     : null
   const style = {
-    ['--platform-primary' as string]: triplet ?? '224 86% 60%',
+    ['--platform-primary' as string]: triplet ?? SYSTEM_COLORS.primaryHsl,
   } as CSSProperties
 
   return (
     <div
       data-theme="admin-dark"
       style={style}
-      className="min-h-screen bg-background text-foreground flex"
+      className="h-screen bg-background text-foreground flex overflow-hidden"
     >
       <AdminNav
         appName={branding.appName}
         logoUrl={branding.logoUrl}
         adminEmail={ctx.email}
       />
-      <main className="flex-1 max-w-[720px] mx-auto px-8 pt-8 pb-12">
-        {children}
-      </main>
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <AdminTopbar adminEmail={ctx.email} />
+        <main className="flex-1 overflow-y-auto px-8 py-8">
+          {children}
+        </main>
+      </div>
     </div>
   )
 }

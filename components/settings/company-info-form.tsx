@@ -10,6 +10,7 @@ import { toast } from 'sonner'
 import type { CompanySettings } from '@/lib/queries/company'
 import { updateCompanySettings } from '@/lib/actions/settings'
 import { INDUSTRIES } from '@/lib/industries'
+import { SYSTEM_COLORS } from '@/lib/system-colors'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
@@ -60,7 +61,7 @@ export function CompanyInfoForm({ company }: CompanyInfoFormProps) {
       zip: company.zip || '',
       licenseNumber: company.license_number || '',
       insuranceInfo: company.insurance_info || '',
-      brandPrimaryColor: company.brand_primary_color || '#0D9488',
+      brandPrimaryColor: company.brand_primary_color || SYSTEM_COLORS.primary,
     },
   })
 
@@ -81,7 +82,7 @@ export function CompanyInfoForm({ company }: CompanyInfoFormProps) {
       fd.set('zip', values.zip || '')
       fd.set('licenseNumber', values.licenseNumber || '')
       fd.set('insuranceInfo', values.insuranceInfo || '')
-      fd.set('brandPrimaryColor', values.brandPrimaryColor || '#0D9488')
+      fd.set('brandPrimaryColor', values.brandPrimaryColor || SYSTEM_COLORS.primary)
       fd.set('existingLogoUrl', logoPreview && !logoFile ? company.logo_url || '' : '')
 
       if (logoFile) {
@@ -331,12 +332,12 @@ export function CompanyInfoForm({ company }: CompanyInfoFormProps) {
                       <input
                         type="color"
                         className="h-10 w-10 cursor-pointer rounded border"
-                        value={field.value || '#0D9488'}
+                        value={field.value || SYSTEM_COLORS.primary}
                         onChange={field.onChange}
                       />
                     </FormControl>
                     <span className="text-sm text-muted-foreground font-mono">
-                      {field.value || '#0D9488'}
+                      {field.value || SYSTEM_COLORS.primary}
                     </span>
                   </div>
                   <FormMessage />

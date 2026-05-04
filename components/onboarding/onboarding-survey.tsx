@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import { useSurveyState } from '@/components/onboarding/survey/use-survey-state'
 import { SurveyShell } from '@/components/onboarding/survey/survey-shell'
 import { createOrUpdateCompany } from '@/lib/actions/company'
+import { SYSTEM_COLORS } from '@/lib/system-colors'
 import { createClient } from '@/lib/supabase/client'
 import type { OnboardingValues } from '@/lib/schemas/onboarding'
 
@@ -16,7 +17,7 @@ const INITIAL: OnboardingValues = {
   website: '',
   industry: '',
   customIndustry: '',
-  brandPrimaryColor: '#0D9488',
+  brandPrimaryColor: SYSTEM_COLORS.primary,
   address: '',
   city: '',
   state: '',

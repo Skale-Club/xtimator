@@ -2,7 +2,6 @@
 
 import { useRef } from 'react'
 import { Camera } from 'lucide-react'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { toast } from 'sonner'
 
 const MAX_FILE_SIZE = 2 * 1024 * 1024 // 2MB
@@ -53,24 +52,26 @@ export function LogoUploader({
   }
 
   return (
-    <div className="flex flex-col items-center gap-2">
+    <div className="flex flex-col items-start gap-2">
       <button
         type="button"
         role="button"
         aria-label="Upload company logo"
         onClick={handleClick}
-        className="cursor-pointer"
+        className="cursor-pointer rounded-lg border border-dashed border-border hover:border-muted-foreground transition-colors"
       >
-        <Avatar className="h-20 w-20">
-          {preview ? (
-            <AvatarImage src={preview} alt="Company logo preview" />
-          ) : null}
-          <AvatarFallback className="bg-muted">
-            {preview ? null : (
-              <Camera className="h-6 w-6 text-muted-foreground" />
-            )}
-          </AvatarFallback>
-        </Avatar>
+        {preview ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={preview}
+            alt="Logo preview"
+            className="h-20 w-auto max-w-[160px] object-contain rounded-lg p-2"
+          />
+        ) : (
+          <div className="h-20 w-20 flex items-center justify-center bg-muted rounded-lg">
+            <Camera className="h-6 w-6 text-muted-foreground" />
+          </div>
+        )}
       </button>
 
       <input

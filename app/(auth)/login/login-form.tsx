@@ -74,7 +74,7 @@ export function LoginForm() {
                     placeholder="you@example.com"
                     autoComplete="email"
                     disabled={isPending}
-                    className="min-h-[48px] border-white/10 bg-white/5 px-4 text-white transition-colors focus-visible:border-[#406EF1] focus-visible:bg-white/10 focus-visible:ring-1 focus-visible:ring-[#406EF1]"
+                    className="min-h-[48px] border-white/10 bg-white/5 px-4 text-white transition-colors focus-visible:border-primary focus-visible:bg-white/10 focus-visible:ring-1 focus-visible:ring-primary"
                     {...field}
                   />
                 </FormControl>
@@ -95,7 +95,7 @@ export function LoginForm() {
                       placeholder="••••••••"
                       autoComplete="current-password"
                       disabled={isPending}
-                      className="min-h-[48px] border-white/10 bg-white/5 px-4 pr-12 text-white transition-colors focus-visible:border-[#406EF1] focus-visible:bg-white/10 focus-visible:ring-1 focus-visible:ring-[#406EF1]"
+                      className="min-h-[48px] border-white/10 bg-white/5 px-4 pr-12 text-white transition-colors focus-visible:border-primary focus-visible:bg-white/10 focus-visible:ring-1 focus-visible:ring-primary"
                       {...field}
                     />
                     <button
@@ -114,7 +114,7 @@ export function LoginForm() {
             )}
           />
 
-          <Button type="submit" className="mt-2 min-h-[48px] w-full bg-[#406EF1] text-base font-semibold text-white shadow-[0_0_20px_rgba(64,110,241,0.3)] transition-all hover:bg-[#406EF1]/90 hover:shadow-[0_0_30px_rgba(64,110,241,0.5)]" disabled={isPending}>
+          <Button type="submit" className="mt-2 min-h-[48px] w-full bg-primary text-base font-semibold text-primary-foreground shadow-[0_0_20px_hsl(var(--primary)/0.3)] transition-all hover:bg-primary/90 hover:shadow-[0_0_30px_hsl(var(--primary)/0.5)]" disabled={isPending}>
             {isPending && <Loader2 className="mr-2 size-5 animate-spin" />}
             Sign in to Xtimator
           </Button>
@@ -127,7 +127,7 @@ export function LoginForm() {
         </Link>
         <span className="text-muted-foreground">
           Don&apos;t have an account?{' '}
-          <Link href="/signup" className="font-semibold text-[#7FA4F4] transition-colors hover:text-white hover:underline">
+          <Link href="/signup" className="font-semibold text-secondary transition-colors hover:text-white hover:underline">
             Sign up
           </Link>
         </span>

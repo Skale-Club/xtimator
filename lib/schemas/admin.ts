@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { SYSTEM_COLORS } from '@/lib/system-colors'
 
 /**
  * Shared zod schemas for the Platform Admin Panel (/admin/*).
@@ -19,7 +20,7 @@ export const brandingSchema = z.object({
     .string()
     .regex(
       /^#[0-9a-fA-F]{6}$/,
-      'Invalid color code. Please enter a 6-digit hex value like #0D9488'
+      `Invalid color code. Please enter a 6-digit hex value like ${SYSTEM_COLORS.primary}`
     )
     .nullable(),
   emailFromName: z.string().max(128).nullable(),

@@ -14,11 +14,11 @@ const FADE_UP_ANIMATION_VARIANTS: Variants = {
 
 export function HeroSection({ content }: { content: HeroContent }) {
   return (
-    <section className="relative overflow-hidden border-b border-white/5 bg-transparent pt-12 md:pt-20">
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,transparent,rgba(64,110,241,0.5),transparent)]" />
+    <section className="relative overflow-hidden border-b border-white/5 bg-transparent pt-8 md:pt-11">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,transparent,hsl(var(--primary)/0.5),transparent)]" />
 
-      <div className="relative mx-auto max-w-6xl px-6 py-14 sm:px-8 sm:py-20 lg:px-10 lg:py-28">
-        <div className="flex flex-col gap-16 lg:flex-row lg:items-center lg:justify-between lg:gap-12">
+      <div className="relative mx-auto max-w-6xl px-6 py-6 sm:px-8 sm:py-8 lg:px-10 lg:py-11">
+        <div className="flex flex-col gap-11 lg:flex-row lg:items-center lg:justify-between lg:gap-8">
           {/* Left: headline + CTAs */}
           <motion.div
             initial="hidden"
@@ -28,50 +28,50 @@ export function HeroSection({ content }: { content: HeroContent }) {
               hidden: {},
               show: { transition: { staggerChildren: 0.15 } },
             }}
-            className="max-w-2xl space-y-8"
+            className="max-w-2xl space-y-5"
           >
             <motion.div variants={FADE_UP_ANIMATION_VARIANTS} className="flex justify-start">
-              <div className="inline-flex items-center gap-2 rounded-full border border-[#406EF1]/30 bg-[#406EF1]/10 px-3 py-1.5 text-sm font-medium text-[#7FA4F4] shadow-[0_0_20px_rgba(64,110,241,0.15)]">
-                <Sparkles className="size-4" aria-hidden="true" />
+              <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-medium text-secondary">
+                <Sparkles className="size-3.5" aria-hidden="true" />
                 Built for contractors &amp; field crews
               </div>
             </motion.div>
 
-            <motion.h1 variants={FADE_UP_ANIMATION_VARIANTS} className="text-balance text-5xl font-extrabold leading-[1.05] tracking-tight sm:text-6xl lg:text-7xl">
+            <motion.h1 variants={FADE_UP_ANIMATION_VARIANTS} className="text-balance text-3xl font-extrabold leading-[1.05] tracking-tight sm:text-4xl lg:text-5xl">
               {content.heroHeadline}
             </motion.h1>
 
-            <motion.p variants={FADE_UP_ANIMATION_VARIANTS} className="max-w-xl text-lg leading-relaxed text-muted-foreground sm:text-xl">
+            <motion.p variants={FADE_UP_ANIMATION_VARIANTS} className="max-w-xl text-sm leading-relaxed text-muted-foreground sm:text-base">
               {content.heroSubheadline}
             </motion.p>
 
-            <motion.div variants={FADE_UP_ANIMATION_VARIANTS} className="flex flex-col gap-4 sm:flex-row">
+            <motion.div variants={FADE_UP_ANIMATION_VARIANTS} className="flex flex-col gap-3 sm:flex-row">
               <Button
                 asChild
                 size="lg"
-                className="h-14 bg-[#406EF1] text-lg font-semibold text-white shadow-[0_0_30px_rgba(64,110,241,0.4)] transition-all hover:scale-105 hover:bg-[#406EF1]/90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0a0f] sm:min-w-44"
+                className="h-10 bg-primary text-sm font-semibold text-primary-foreground transition-all hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:min-w-36"
               >
                 <Link href="/signup">
                   {content.ctaLabel}
-                  <ArrowRight className="ml-2 size-5" aria-hidden="true" />
+                  <ArrowRight className="ml-2 size-4" aria-hidden="true" />
                 </Link>
               </Button>
               <Button
                 asChild
                 size="lg"
                 variant="outline"
-                className="h-14 border-white/10 bg-white/5 text-lg font-semibold text-foreground transition-all hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0a0f] sm:min-w-44"
+                className="h-10 border-white/10 bg-white/5 text-sm font-semibold text-foreground transition-all hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:min-w-36"
               >
                 <Link href="/login">
                   Log in
-                  <LogIn className="ml-2 size-5" aria-hidden="true" />
+                  <LogIn className="ml-2 size-4" aria-hidden="true" />
                 </Link>
               </Button>
             </motion.div>
 
-            <motion.div variants={FADE_UP_ANIMATION_VARIANTS} className="flex flex-wrap items-center gap-x-6 gap-y-3 text-sm font-medium text-muted-foreground/80">
-              <span className="flex items-center gap-1.5"><CheckCircle2 className="size-4 text-[#406EF1]" /> No credit card required</span>
-              <span className="flex items-center gap-1.5"><CheckCircle2 className="size-4 text-[#406EF1]" /> iPhone &amp; Android</span>
+            <motion.div variants={FADE_UP_ANIMATION_VARIANTS} className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs font-medium text-muted-foreground/80">
+              <span className="flex items-center gap-1.5"><CheckCircle2 className="size-3.5 text-primary" /> No credit card required</span>
+              <span className="flex items-center gap-1.5"><CheckCircle2 className="size-3.5 text-primary" /> iPhone &amp; Android</span>
             </motion.div>
           </motion.div>
 
@@ -82,15 +82,15 @@ export function HeroSection({ content }: { content: HeroContent }) {
             transition={{ duration: 1, type: "spring", delay: 0.3 }}
             className="hidden w-full max-w-md lg:block lg:shrink-0"
           >
-            <div className="relative rounded-2xl border border-white/10 bg-black/40 p-2 shadow-[0_0_60px_rgba(64,110,241,0.15)] backdrop-blur-md">
-              <div className="absolute inset-0 -z-10 rounded-2xl bg-gradient-to-tr from-[#406EF1]/20 via-transparent to-[#7FA4F4]/20 blur-xl" />
-              <div className="rounded-xl border border-white/5 bg-[#0a0a0f] p-6 shadow-2xl">
+            <div className="relative rounded-2xl border border-white/10 bg-black/40 p-2 shadow-[0_0_60px_hsl(var(--primary)/0.15)] backdrop-blur-md">
+              <div className="absolute inset-0 -z-10 rounded-2xl bg-gradient-to-tr from-primary/20 via-transparent to-secondary/20 blur-xl" />
+              <div className="rounded-xl border border-white/5 bg-background p-6 shadow-2xl">
                 <div className="mb-6 flex items-center justify-between border-b border-white/5 pb-4">
                   <div className="flex items-center gap-2">
-                    <div className="size-2.5 animate-pulse rounded-full bg-[#406EF1]" aria-hidden="true" />
+                    <div className="size-2.5 animate-pulse rounded-full bg-primary" aria-hidden="true" />
                     <p className="text-sm font-semibold text-foreground">AI Estimator Active</p>
                   </div>
-                  <span className="rounded-full bg-[#406EF1]/10 px-2 py-1 text-xs font-bold text-[#7FA4F4]">On-site</span>
+                  <span className="rounded-full bg-primary/10 px-2 py-1 text-xs font-bold text-secondary">On-site</span>
                 </div>
                 <div className="space-y-4">
                   {[
@@ -98,8 +98,8 @@ export function HeroSection({ content }: { content: HeroContent }) {
                     { step: '2', label: 'Analyzing Photos', detail: 'Extracting dimensions and conditions from 4 site photos.', active: false },
                     { step: '3', label: 'Drafting PDF', detail: 'Generating line items and standard pricing.', active: false },
                   ].map(({ step, label, detail, active }) => (
-                    <div key={step} className={`flex gap-4 rounded-xl border p-4 transition-all ${active ? 'border-[#406EF1]/40 bg-[#406EF1]/5 shadow-[0_0_20px_rgba(64,110,241,0.1)]' : 'border-white/5 bg-white/5'}`}>
-                      <div className={`flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ${active ? 'bg-[#406EF1] text-white shadow-[0_0_10px_rgba(64,110,241,0.5)]' : 'bg-white/10 text-muted-foreground'}`}>
+                    <div key={step} className={`flex gap-4 rounded-xl border p-4 transition-all ${active ? 'border-primary/40 bg-primary/5 shadow-[0_0_20px_hsl(var(--primary)/0.1)]' : 'border-white/5 bg-white/5'}`}>
+                      <div className={`flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ${active ? 'bg-primary text-primary-foreground shadow-[0_0_10px_hsl(var(--primary)/0.5)]' : 'bg-white/10 text-muted-foreground'}`}>
                         {step}
                       </div>
                       <div>

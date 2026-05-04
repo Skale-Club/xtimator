@@ -1,12 +1,14 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { useForm } from 'react-hook-form'
+import { useRouter } from 'next/navigation'
+import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
 
 import { brandingSchema, type BrandingInput } from '@/lib/schemas/admin'
+import { SYSTEM_COLORS } from '@/lib/system-colors'
 import {
   Form,
   FormControl,
@@ -35,10 +37,11 @@ interface BrandingEditorProps {
   initial: EditorBranding
 }
 
-const DEFAULT_COLOR = '#0D9488'
+const DEFAULT_COLOR = SYSTEM_COLORS.primary
 
 export function BrandingEditor({ initial }: BrandingEditorProps) {
   const [isPending, startTransition] = useTransition()
+  const router = useRouter()
 
   // Lifted state for live preview + logo file (kept outside RHF so the
   // uploader's local objectURL flow can drive the preview before submit).
@@ -58,9 +61,10 @@ export function BrandingEditor({ initial }: BrandingEditorProps) {
     },
   })
 
-  // Watch the form so the preview updates on every keystroke / color change.
-  const watchedAppName = form.watch('appName')
-  const watchedColor = form.watch('primaryColor')
+  const [watchedAppName, watchedColor] = useWatch({
+    control: form.control,
+    name: ['appName', 'primaryColor'],
+  })
 
   const livePreview: PreviewBranding = {
     appName: watchedAppName ?? initial.appName,
@@ -92,6 +96,7 @@ export function BrandingEditor({ initial }: BrandingEditorProps) {
       const result = await saveBranding(fd)
       if (result.ok) {
         toast.success('Branding updated.')
+        router.refresh()
       } else if ('errors' in result) {
         toast.error('Couldn’t save branding. Check the form for errors.')
       } else {

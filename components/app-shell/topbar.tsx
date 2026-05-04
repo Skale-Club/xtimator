@@ -47,14 +47,14 @@ export function Topbar({ company, isAdmin }: TopbarProps) {
         <ThemeToggle />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="flex items-center gap-2 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            <button className="flex cursor-pointer items-center gap-2 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring">
               <Avatar className="h-8 w-8">
                 <AvatarFallback className="text-sm">{initial}</AvatarFallback>
               </Avatar>
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuItem asChild>
+            <DropdownMenuItem asChild className="cursor-pointer">
               <Link href="/settings" className="flex items-center gap-2">
                 <Settings className="h-4 w-4" />
                 {t('Settings')}
@@ -62,7 +62,7 @@ export function Topbar({ company, isAdmin }: TopbarProps) {
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
-              className="flex items-center gap-2 text-destructive focus:text-destructive"
+              className="flex cursor-pointer items-center gap-2 text-destructive focus:text-destructive"
               onClick={() => signOut()}
             >
               <LogOut className="h-4 w-4" />

@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState, useTransition } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -9,6 +9,7 @@ import { toast } from 'sonner'
 import { onboardingSchema, STEP_FIELDS } from '@/lib/schemas/onboarding'
 import type { OnboardingValues } from '@/lib/schemas/onboarding'
 import { createOrUpdateCompany } from '@/lib/actions/company'
+import { SYSTEM_COLORS } from '@/lib/system-colors'
 import { createClient } from '@/lib/supabase/client'
 
 import { Form } from '@/components/ui/form'
@@ -27,9 +28,8 @@ export function OnboardingWizard({ appName }: { appName: string }) {
   const [isPending, startTransition] = useTransition()
   const stepTitleRef = useRef<HTMLDivElement>(null)
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const form = useForm<OnboardingValues>({
-    resolver: zodResolver(onboardingSchema) as any,
+    resolver: zodResolver(onboardingSchema) as Resolver<OnboardingValues>,
     mode: 'onBlur',
     defaultValues: {
       companyName: '',
@@ -39,7 +39,7 @@ export function OnboardingWizard({ appName }: { appName: string }) {
       website: '',
       industry: '',
       customIndustry: '',
-      brandPrimaryColor: '#0D9488',
+      brandPrimaryColor: SYSTEM_COLORS.primary,
       address: '',
       city: '',
       state: '',

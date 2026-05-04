@@ -2,7 +2,6 @@
 
 import { HoverPrefetchLink } from './hover-prefetch-link'
 import { usePathname } from 'next/navigation'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { cn } from '@/lib/utils'
 import { NAV_ITEMS } from './nav-items'
 import { useTranslation } from '@/lib/i18n/use-translation'
@@ -10,7 +9,7 @@ import { useTranslation } from '@/lib/i18n/use-translation'
 interface SidebarProps {
   branding: {
     appName: string
-    faviconUrl: string | null
+    logoUrl: string | null
   }
   company: {
     id: string
@@ -23,18 +22,26 @@ interface SidebarProps {
 export function Sidebar({ branding, company: _company }: SidebarProps) {
   const pathname = usePathname()
   const { t } = useTranslation()
-  const faviconUrl = branding.faviconUrl ?? '/favicon.ico'
+  const logoUrl = branding.logoUrl
 
   return (
     <aside className="hidden md:flex flex-col border-r border-border bg-background w-16 lg:w-64 transition-all">
       {/* Product branding */}
       <div className="flex items-center gap-3 border-b border-border px-3 h-16">
-        <Avatar className="h-9 w-9 shrink-0">
-          <AvatarImage src={faviconUrl} alt={branding.appName} />
-          <AvatarFallback className="text-sm font-semibold">
-            {branding.appName.charAt(0).toUpperCase()}
-          </AvatarFallback>
-        </Avatar>
+        <div className="h-9 w-9 shrink-0 flex items-center justify-center">
+          {logoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={logoUrl}
+              alt={branding.appName}
+              className="h-9 w-9 object-contain"
+            />
+          ) : (
+            <span className="h-9 w-9 flex items-center justify-center rounded-[var(--radius-md)] bg-primary text-primary-foreground text-sm font-semibold">
+              {branding.appName.charAt(0).toUpperCase()}
+            </span>
+          )}
+        </div>
         <span className="hidden lg:block truncate text-sm font-semibold">
           {branding.appName}
         </span>

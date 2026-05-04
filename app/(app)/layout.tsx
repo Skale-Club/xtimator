@@ -29,8 +29,8 @@ export default async function AppShellLayout({
     getBranding(),
     createServiceClient()
       .from('platform_admins')
-      .select('id')
-      .eq('email', claims.email ?? '')
+      .select('user_id')
+      .eq('user_id', claims.sub)
       .maybeSingle(),
   ])
   const isAdmin = !!adminRow.data
@@ -40,7 +40,7 @@ export default async function AppShellLayout({
       <Sidebar
         branding={{
           appName: branding.appName,
-          faviconUrl: branding.faviconUrl,
+          logoUrl: branding.logoUrl,
         }}
         company={company}
       />

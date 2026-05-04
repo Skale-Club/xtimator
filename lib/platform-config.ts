@@ -34,7 +34,7 @@ export type LandingContent = {
 
 export type IntegrationProvider = 'resend' | 'anthropic' | 'openai'
 
-const TTL_MS = 60_000
+const TTL_MS = 30_000
 
 let brandingCache: { value: Branding; fetchedAt: number } | null = null
 const integrationCache = new Map<string, { value: string; fetchedAt: number }>()

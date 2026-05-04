@@ -28,7 +28,12 @@ export async function generateMetadata(): Promise<Metadata> {
     openGraph: b.ogImageUrl
       ? { images: [b.ogImageUrl], siteName: b.siteTitle ?? b.appName }
       : undefined,
-    icons: b.faviconUrl ? { icon: b.faviconUrl } : undefined,
+    icons: b.faviconUrl || b.logoUrl
+      ? {
+          icon: [{ url: b.faviconUrl ?? b.logoUrl!, type: 'image/png' }],
+          apple: [{ url: b.faviconUrl ?? b.logoUrl!, type: 'image/png' }],
+        }
+      : undefined,
   }
 }
 

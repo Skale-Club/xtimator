@@ -3,9 +3,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
-import { useTransition } from 'react'
-import { Settings2, Palette, Users, LogOut, Loader2, LayoutDashboard, Globe, Layout, FileText } from 'lucide-react'
-import { signOut } from '@/lib/actions/auth'
+import { Settings2, Palette, Users, LayoutDashboard, Globe, Layout, FileText } from 'lucide-react'
 
 const NAV_ITEMS = [
   { href: '/admin',              label: 'Dashboard',    Icon: LayoutDashboard },
@@ -49,12 +47,11 @@ function LogoFallbackSvg() {
 interface AdminNavProps {
   appName: string
   logoUrl: string | null
-  adminEmail: string
+  adminEmail?: string
 }
 
 export function AdminNav({ appName, logoUrl, adminEmail }: AdminNavProps) {
   const pathname = usePathname()
-  const [isPending, startTransition] = useTransition()
 
   return (
     <nav
@@ -99,23 +96,6 @@ export function AdminNav({ appName, logoUrl, adminEmail }: AdminNavProps) {
           )
         })}
       </ul>
-      <div className="mt-auto border-t border-border px-4 py-4 text-xs">
-        <div className="text-muted-foreground truncate">{adminEmail}</div>
-        <button
-          type="button"
-          onClick={() => startTransition(() => signOut())}
-          disabled={isPending}
-          aria-label="Sign out"
-          className="flex items-center gap-2 mt-2 hover:text-foreground text-muted-foreground disabled:opacity-50"
-        >
-          {isPending ? (
-            <Loader2 size={14} className="animate-spin" />
-          ) : (
-            <LogOut size={14} />
-          )}
-          Sign out
-        </button>
-      </div>
     </nav>
   )
 }

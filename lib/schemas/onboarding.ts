@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { SYSTEM_COLORS } from '@/lib/system-colors'
 
 export const onboardingSchema = z.object({
   // Step 1: Business Information
@@ -23,7 +24,7 @@ export const onboardingSchema = z.object({
   // Step 2: Brand Identity
   industry: z.string().optional().default(''),
   customIndustry: z.string().optional().default(''),
-  brandPrimaryColor: z.string().default('#0D9488'),
+  brandPrimaryColor: z.string().default(SYSTEM_COLORS.primary),
 
   // Step 3: Address & Defaults
   address: z.string().optional().default(''),

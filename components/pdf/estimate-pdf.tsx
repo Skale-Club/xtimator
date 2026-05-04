@@ -7,6 +7,7 @@ import {
   StyleSheet,
 } from '@react-pdf/renderer'
 import type { EstimateWithSections } from '@/lib/queries/estimate'
+import { SYSTEM_COLORS } from '@/lib/system-colors'
 
 interface CompanyInfo {
   name: string
@@ -284,7 +285,7 @@ export default function EstimatePDF({
   projectName,
   projectType,
 }: EstimatePDFProps) {
-  const brandColor = company.brand_primary_color ?? '#2563EB'
+  const brandColor = company.brand_primary_color ?? SYSTEM_COLORS.primary
   const companyAddress = formatAddress(company)
   const clientAddress = client ? formatAddress(client) : null
 
@@ -298,6 +299,7 @@ export default function EstimatePDF({
         >
           <View style={styles.headerLeft}>
             {company.logo_url && (
+              // eslint-disable-next-line jsx-a11y/alt-text
               <Image src={company.logo_url} style={styles.logo} />
             )}
             <View>

@@ -3,11 +3,12 @@
 import { useState } from 'react'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
+import { SYSTEM_COLORS } from '@/lib/system-colors'
 import { toast } from 'sonner'
 
 const PRESET_COLORS = [
-  { name: 'Teal', hex: '#0D9488' },
-  { name: 'Blue', hex: '#2563EB' },
+  { name: 'System primary', hex: SYSTEM_COLORS.primary },
+  { name: 'System secondary', hex: SYSTEM_COLORS.secondary },
   { name: 'Indigo', hex: '#4F46E5' },
   { name: 'Purple', hex: '#7C3AED' },
   { name: 'Rose', hex: '#E11D48' },
@@ -43,7 +44,7 @@ export function ColorPicker({ value, onChange }: ColorPickerProps) {
     if (/^#[0-9A-Fa-f]{6}$/.test(hex)) {
       onChange(hex)
     } else if (customHex.trim() !== '') {
-      toast.error('Invalid color code. Please enter a 6-digit hex value like #0D9488.')
+      toast.error(`Invalid color code. Please enter a 6-digit hex value like ${SYSTEM_COLORS.primary}.`)
     }
   }
 
@@ -70,13 +71,13 @@ export function ColorPicker({ value, onChange }: ColorPickerProps) {
         <button
           type="button"
           role="radio"
-          aria-checked={!isPreset && value !== '#0D9488'}
+          aria-checked={!isPreset && value !== SYSTEM_COLORS.primary}
           aria-label="Custom"
           onClick={handleCustomToggle}
           className={cn(
             'flex h-8 w-8 items-center justify-center rounded-full cursor-pointer border border-border text-xs font-bold transition-all',
             showCustom && 'ring-2 ring-primary ring-offset-2',
-            !isPreset && !showCustom && value !== '#0D9488' && 'ring-2 ring-primary ring-offset-2'
+            !isPreset && !showCustom && value !== SYSTEM_COLORS.primary && 'ring-2 ring-primary ring-offset-2'
           )}
           style={{
             background: 'conic-gradient(red, yellow, lime, aqua, blue, magenta, red)',
@@ -90,7 +91,7 @@ export function ColorPicker({ value, onChange }: ColorPickerProps) {
         <div className="mt-3 flex items-center gap-2">
           <span className="text-sm text-muted-foreground">#</span>
           <Input
-            placeholder="0D9488"
+            placeholder={SYSTEM_COLORS.primary.slice(1)}
             className="min-h-[44px] max-w-[160px]"
             value={customHex}
             onChange={(e) => setCustomHex(e.target.value)}

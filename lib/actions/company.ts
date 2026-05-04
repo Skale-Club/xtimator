@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { SYSTEM_COLORS } from '@/lib/system-colors'
 import { redirect } from 'next/navigation'
 
 interface CompanyFormData {
@@ -46,7 +47,7 @@ export async function createOrUpdateCompany(data: CompanyFormData) {
     email: data.email || null,
     website: data.website || null,
     industry: resolvedIndustry || null,
-    brand_primary_color: data.brandPrimaryColor || '#0D9488',
+    brand_primary_color: data.brandPrimaryColor || SYSTEM_COLORS.primary,
     logo_url: data.logoUrl || null,
     address: data.address || null,
     city: data.city || null,

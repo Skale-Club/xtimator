@@ -6,12 +6,12 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from '@/components/ui/sheet'
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog'
 import {
   Form,
   FormControl,
@@ -170,19 +170,19 @@ export function ClientSheet({
   const clientInitial = form.watch('name')?.charAt(0) || ''
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="overflow-y-auto">
-        <SheetHeader>
-          <SheetTitle>{isEditing ? 'Edit Client' : 'Add Client'}</SheetTitle>
-          <SheetDescription>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="w-[90vw] max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{isEditing ? 'Edit Client' : 'Add Client'}</DialogTitle>
+          <DialogDescription>
             {isEditing
               ? 'Update client information.'
               : 'Add a new client to your database.'}
-          </SheetDescription>
-        </SheetHeader>
+          </DialogDescription>
+        </DialogHeader>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 mt-6 px-1">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             {/* Logo Upload */}
             <div className="flex justify-center pb-2">
               <ClientLogoUploader
@@ -324,7 +324,7 @@ export function ClientSheet({
             </Button>
           </form>
         </Form>
-      </SheetContent>
-    </Sheet>
+      </DialogContent>
+    </Dialog>
   )
 }
