@@ -183,6 +183,30 @@ Plans:
 - [x] 17-02-PLAN.md — Cached auth + company queries: lib/queries/auth.ts with React cache() + unstable_cache, update layout + 4 pages
 - [x] 17-03-PLAN.md — Suspense streaming for dashboard + project workspace + HoverPrefetchLink for sidebar nav
 
+### Phase 18: Voice-First Project Onboarding — recorder as the centerpiece of new project creation with auto-estimate generation
+
+**Goal:** A user can create a project, immediately land on a full-screen voice recorder, describe the job by voice, and arrive at the estimate editor with a populated AI-generated draft — without manually navigating through tabs or pressing a "Generate" button.
+
+**Depends on:** Phase 17
+
+**Requirements:** TBD (defined during planning)
+
+**Success Criteria** (what must be TRUE):
+  1. After clicking "New Project", the wizard asks for a client only (existing or inline-created) — name, type, and budget are no longer required upfront
+  2. Immediately after the client step, the user lands on a full-screen recorder screen with the mic as the visual focus (large timer, full-width waveform, circular progress ring around the mic button)
+  3. Recording has a 10-minute hard cap; timer color shifts neutral → amber → red as the limit approaches; auto-stop fires at 10:00 with a clear "Time limit reached" toast
+  4. A 60-second-remaining warning is shown both visually and via toast
+  5. After the user stops recording (or auto-stop fires), a multi-stage progress stepper appears with named stages: Saving → Transcribing → Analyzing → Generating estimate. Each stage has an animated active state and a checkmark on completion
+  6. The Whisper transcript is revealed in the stepper UI as soon as transcription completes, giving the user something concrete to read while estimate generation runs
+  7. Estimate generation auto-fires when the transcript is ready; the user is redirected to the estimate editor with a populated draft (sections + items) — no manual "Generate" click required
+  8. A "Skip recording" escape hatch exists on the recorder screen and routes the user into the existing workspace tabs for manual entry
+  9. The recorder works on iOS Safari and Android Chrome at all breakpoints, with the timer and progress ring fully readable
+
+**Plans:** 0 plans (run /gsd:plan-phase 18 to break down)
+
+Plans:
+- [ ] TBD
+
 ---
 
 ## Progress
@@ -206,3 +230,4 @@ Plans:
 | 15. Owner Admin Panel | v1.3 | 5/5 | Complete | 2026-05-03 |
 | 16. Sidebar Projects Panel | v1.3 | 3/3 | Complete   | 2026-05-03 |
 | 17. Navigation Performance | v1.3 | 3/3 | Complete   | 2026-05-05 |
+| 18. Voice-First Project Onboarding | v1.3 | 0 | Not planned | — |
