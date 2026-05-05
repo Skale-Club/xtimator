@@ -97,7 +97,7 @@ Plans:
 **Goal:** Browser tabs, Apple touch surfaces, and manifest-driven install flows all resolve a single brand-consistent icon set from App Router metadata files with no duplicate asset sources or manual head tags
 **Requirements**: TBD
 **Depends on:** Phase 12
-**Plans:** 1/2 plans executed (manual smoke approval still pending on 13-02)
+**Plans:** 2/2 plans complete
 
 Plans:
 - [x] 13-01-PLAN.md — Canonical App Router icon assets + manifest wiring + public metadata routes + regression tests
@@ -201,7 +201,7 @@ Plans:
 | 10. Global Brand Tokens | v1.2 | 1/1 | Complete    | 2026-04-22 |
 | 11. Marketing Landing Page | v1.2 | 2/2 | Complete    | 2026-04-24 |
 | 12. i18n Translation System | v1.2 | 5/5 | Complete    | 2026-04-24 |
-| 13. Visual identity polish | post-v1.2 | 1/2 | Awaiting human verification | — |
+| 13. Visual identity polish | post-v1.2 | 1/2 | Complete    | 2026-05-05 |
 | 14. Auth system hardening | post-v1.2 | 3/3 | Complete | 2026-05-01 |
 | 15. Owner Admin Panel | v1.3 | 5/5 | Complete | 2026-05-03 |
 | 16. Sidebar Projects Panel | v1.3 | 3/3 | Complete   | 2026-05-03 |
