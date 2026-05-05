@@ -1,7 +1,7 @@
 // Wave 0 scaffold — RED until Phase 18 plan 03 implements tool schema extension + project name patch.
 // This test turns GREEN in Phase 18 plan 03 task 1 (tool schema extension + name patch).
 
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 
 // The generate-estimate route is not yet extended — mock it so the file compiles.
 vi.mock('@/app/api/generate-estimate/route', () => ({

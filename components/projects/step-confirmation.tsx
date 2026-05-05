@@ -1,10 +1,14 @@
 'use client'
 
-import type { UseFormReturn } from 'react-hook-form'
-import type { ProjectFormValues } from '@/lib/schemas/project'
+// NOTE: This component is no longer used in the new 1-step wizard (Phase 18).
+// The confirmation step was removed as part of wizard reduction to 1 step (D-04).
+// Retained for reference; not imported by new-project-wizard.tsx.
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyForm = any
 
 interface StepConfirmationProps {
-  form: UseFormReturn<ProjectFormValues>
+  form: AnyForm
 }
 
 export function StepConfirmation({ form }: StepConfirmationProps) {
@@ -13,7 +17,7 @@ export function StepConfirmation({ form }: StepConfirmationProps) {
   const displayType =
     values.projectType === 'Custom' && values.customProjectType
       ? values.customProjectType
-      : values.projectType
+      : (values.projectType ?? '')
 
   const displayBudget = values.targetBudget
     ? `$${parseFloat(values.targetBudget).toLocaleString()}`

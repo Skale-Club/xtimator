@@ -1,7 +1,7 @@
 // Wave 0 scaffold — RED until Phase 18 plan 02 implements CaptureStepper component.
 // This test turns GREEN in Phase 18 plan 02 task 1 (presentational components).
 
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import React from 'react'
 
 // CaptureStepper is not yet built — mock the module so the file compiles.

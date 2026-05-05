@@ -1,7 +1,7 @@
 // Wave 0 scaffold — RED until Phase 18 plan 02 implements CaptureRecorder component.
 // This test turns GREEN in Phase 18 plan 02 task 1 (presentational components) / task 2 (full-screen recorder).
 
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 
 // CaptureRecorder is not yet built — mock the module so the file compiles.
 vi.mock('@/components/capture/capture-recorder', () => ({

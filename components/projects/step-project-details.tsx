@@ -1,9 +1,12 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
-import type { UseFormReturn } from 'react-hook-form'
+// NOTE: This component is no longer used in the new 1-step wizard (Phase 18).
+// Project details (name, type, budget) are now populated by AI after recording (D-04, D-05).
+// Retained for reference; not imported by new-project-wizard.tsx.
 
-import type { ProjectFormValues } from '@/lib/schemas/project'
+import { useEffect, useRef } from 'react'
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyForm = any
 
 import {
   FormField,
@@ -22,7 +25,7 @@ import {
 } from '@/components/ui/select'
 
 interface StepProjectDetailsProps {
-  form: UseFormReturn<ProjectFormValues>
+  form: AnyForm
   projectTypes: string[]
 }
 
@@ -59,7 +62,6 @@ export function StepProjectDetails({ form, projectTypes }: StepProjectDetailsPro
     if (value !== lastAutoSuggestion.current) {
       nameManuallyEdited.current = true
     }
-    // When user clears the field, allow auto-suggestion again
     if (value === '' || value === lastAutoSuggestion.current) {
       nameManuallyEdited.current = false
     }
@@ -71,7 +73,6 @@ export function StepProjectDetails({ form, projectTypes }: StepProjectDetailsPro
     if (value !== 'Custom') {
       form.setValue('customProjectType', '')
     }
-    // Reset auto-suggestion tracking when type changes
     if (!nameManuallyEdited.current || form.getValues('name') === lastAutoSuggestion.current) {
       nameManuallyEdited.current = false
     }
@@ -85,7 +86,7 @@ export function StepProjectDetails({ form, projectTypes }: StepProjectDetailsPro
       <FormField
         control={form.control}
         name="name"
-        render={({ field }) => (
+        render={({ field }: { field: AnyForm }) => (
           <FormItem>
             <FormLabel>Project Name</FormLabel>
             <FormControl>
@@ -117,7 +118,7 @@ export function StepProjectDetails({ form, projectTypes }: StepProjectDetailsPro
                 </SelectTrigger>
               </FormControl>
               <SelectContent>
-                {projectTypes.map((type) => (
+                {projectTypes.map((type: string) => (
                   <SelectItem key={type} value={type}>
                     {type}
                   </SelectItem>
@@ -135,7 +136,7 @@ export function StepProjectDetails({ form, projectTypes }: StepProjectDetailsPro
         <FormField
           control={form.control}
           name="customProjectType"
-          render={({ field }) => (
+          render={({ field }: { field: AnyForm }) => (
             <FormItem>
               <FormLabel>Custom Project Type</FormLabel>
               <FormControl>
@@ -151,7 +152,7 @@ export function StepProjectDetails({ form, projectTypes }: StepProjectDetailsPro
       <FormField
         control={form.control}
         name="targetBudget"
-        render={({ field }) => (
+        render={({ field }: { field: AnyForm }) => (
           <FormItem>
             <FormLabel>Target Budget</FormLabel>
             <FormControl>

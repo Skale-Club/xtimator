@@ -22,31 +22,25 @@ async function getAuthContext() {
   return { supabase, company }
 }
 
+// Exported so plan 18-03 name-patcher can import and check against this prefix.
+export const PLACEHOLDER_PREFIX = 'Untitled project — '
+
 export async function createProjectAction(formData: ProjectFormValues) {
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error }
   const { supabase, company } = ctx
 
-  const projectType =
-    formData.projectType === 'Custom' && formData.customProjectType
-      ? formData.customProjectType
-      : formData.projectType
-
-  let targetBudget: number | null = null
-  if (formData.targetBudget) {
-    const parsed = parseFloat(formData.targetBudget)
-    if (!isNaN(parsed)) targetBudget = parsed
-  }
+  const placeholderName = `${PLACEHOLDER_PREFIX}${new Date().toLocaleDateString()}`
 
   const { data: project, error: insertError } = await supabase
     .from('projects')
     .insert({
       company_id: company.id,
       client_id: formData.clientId,
-      name: formData.name,
-      project_type: projectType,
+      name: placeholderName,
+      project_type: null,
       status: 'draft',
-      target_budget: targetBudget,
+      target_budget: null,
       total: 0,
     })
     .select()
@@ -60,7 +54,7 @@ export async function createProjectAction(formData: ProjectFormValues) {
     project_id: project.id,
     company_id: company.id,
     event_type: 'project_created',
-    metadata: { project_name: formData.name },
+    metadata: { placeholder_name: placeholderName },
   })
 
   revalidatePath('/dashboard')
