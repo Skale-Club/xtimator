@@ -26,14 +26,14 @@ describe('getCachedCompany', () => {
   beforeEach(() => { vi.resetModules() })
 
   it('returns null when company not found', async () => {
-    vi.doMock('@/lib/supabase/server', () => ({
-      createClient: vi.fn().mockResolvedValue({
+    vi.doMock('@/lib/supabase/service', () => ({
+      createServiceClient: vi.fn(() => ({
         from: vi.fn(() => ({
           select: vi.fn(() => ({
             eq: vi.fn(() => ({ single: vi.fn().mockResolvedValue({ data: null }) })),
           })),
         })),
-      }),
+      })),
     }))
     const { getCachedCompany } = await import('@/lib/queries/auth')
     const result = await getCachedCompany('user-123')
@@ -42,14 +42,14 @@ describe('getCachedCompany', () => {
 
   it('returns company when found', async () => {
     const mockCompany = { id: 'co-1', name: 'Acme', logo_url: null, owner_name: 'Bob', theme_preference: 'dark', industry: null }
-    vi.doMock('@/lib/supabase/server', () => ({
-      createClient: vi.fn().mockResolvedValue({
+    vi.doMock('@/lib/supabase/service', () => ({
+      createServiceClient: vi.fn(() => ({
         from: vi.fn(() => ({
           select: vi.fn(() => ({
             eq: vi.fn(() => ({ single: vi.fn().mockResolvedValue({ data: mockCompany }) })),
           })),
         })),
-      }),
+      })),
     }))
     const { getCachedCompany } = await import('@/lib/queries/auth')
     const result = await getCachedCompany('user-123')
