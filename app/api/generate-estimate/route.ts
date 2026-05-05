@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@/lib/supabase/server'
+import { revalidatePath } from 'next/cache'
 import { getProjectRecordings } from '@/lib/queries/recording'
 import { getProjectPhotos } from '@/lib/queries/photo'
 import { getIntegrationKey } from '@/lib/platform-config'
+import { PLACEHOLDER_PREFIX } from '@/lib/actions/project'
 
 export async function POST(request: Request) {
   try {
@@ -85,7 +87,9 @@ export async function POST(request: Request) {
     }
 
     // Step 2: Build prompt
-    const systemPrompt = `You are a professional estimator for a ${company.industry ?? 'general services'} business. Create a detailed, itemized estimate based on the job site information provided. Be thorough but realistic with pricing for the US market. Break the work into logical sections (e.g., Materials, Labor, Equipment). Each line item needs a clear description, quantity, unit (e.g., sq ft, hours, each, linear ft), and unit price.`
+    const systemPrompt = `You are a professional estimator for a ${company.industry ?? 'general services'} business. Create a detailed, itemized estimate based on the job site information provided. Be thorough but realistic with pricing for the US market. Break the work into logical sections (e.g., Materials, Labor, Equipment). Each line item needs a clear description, quantity, unit (e.g., sq ft, hours, each, linear ft), and unit price.
+
+Also generate a short, professional project name in 2-5 words derived from the work scope and the client name. Examples: "Smith Bathroom Remodel", "Garcia Driveway Repaving". Return it as suggested_project_name.`
 
     const parts: string[] = []
 
@@ -158,8 +162,12 @@ export async function POST(request: Request) {
             'Create a structured estimate with sections and line items',
           input_schema: {
             type: 'object' as const,
-            required: ['summary', 'sections'],
+            required: ['summary', 'sections', 'suggested_project_name'],
             properties: {
+              suggested_project_name: {
+                type: 'string',
+                description: 'A short, professional project name in 2-5 words derived from the work scope and client. Examples: "Smith Bathroom Remodel", "Garcia Driveway Repaving", "Patel Kitchen Reno". Avoid generic words like "Project" or "Estimate".',
+              },
               summary: {
                 type: 'string',
                 description: 'Brief summary of the work scope',
@@ -226,6 +234,7 @@ export async function POST(request: Request) {
     }
 
     const aiEstimate = toolBlock.input as {
+      suggested_project_name: string
       summary: string
       notes?: string
       timeline?: string
@@ -240,6 +249,24 @@ export async function POST(request: Request) {
           unit_price: number
         }[]
       }[]
+    }
+
+    // D-05: patch project name only if it's still the eager-create placeholder
+    if (aiEstimate.suggested_project_name?.trim()) {
+      const { data: currentProject } = await supabase
+        .from('projects')
+        .select('name')
+        .eq('id', projectId)
+        .single()
+      if (
+        currentProject?.name &&
+        currentProject.name.startsWith(PLACEHOLDER_PREFIX)
+      ) {
+        await supabase
+          .from('projects')
+          .update({ name: aiEstimate.suggested_project_name.trim() })
+          .eq('id', projectId)
+      }
     }
 
     // Step 4: Server-side math validation
@@ -389,7 +416,11 @@ export async function POST(request: Request) {
       metadata: { version: nextVersion },
     })
 
-    // Step 8: Return response
+    // Step 8: Revalidate paths so workspace tabs and sidebar see new estimate + project name
+    revalidatePath(`/projects/${projectId}`)
+    revalidatePath('/', 'layout')
+
+    // Step 9: Return response
     return NextResponse.json({ estimateId, version: nextVersion })
   } catch (error) {
     console.error('Estimate generation failed:', error)
