@@ -1,9 +1,10 @@
 ---
-status: partial
+status: skipped
 phase: 02-company-onboarding
 source: [02-VERIFICATION.md]
 started: 2026-04-10T12:05:00Z
-updated: 2026-04-10T12:05:00Z
+updated: 2026-05-05T19:25:00Z
+skipped_reason: User waived human verification before milestone close (2026-05-05). Automated test suites passed; manual UAT items deferred indefinitely.
 ---
 
 ## Current Test

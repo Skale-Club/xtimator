@@ -1,9 +1,10 @@
 ---
-status: partial
+status: skipped
 phase: 11-marketing-landing-page
 source: [11-VERIFICATION.md]
 started: 2026-04-24T10:02:00Z
-updated: 2026-04-24T10:02:00Z
+updated: 2026-05-05T19:25:00Z
+skipped_reason: User waived human verification before milestone close (2026-05-05). Automated test suites passed; manual UAT items deferred indefinitely.
 ---
 
 ## Current Test

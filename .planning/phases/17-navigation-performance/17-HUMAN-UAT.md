@@ -1,9 +1,10 @@
 ---
-status: partial
+status: skipped
 phase: 17-navigation-performance
 source: [17-VERIFICATION.md]
 started: 2026-05-05T08:55:00Z
-updated: 2026-05-05T08:55:00Z
+updated: 2026-05-05T19:25:00Z
+skipped_reason: User waived human verification before milestone close (2026-05-05). Automated test suites passed; manual UAT items deferred indefinitely.
 ---
 
 ## Current Test

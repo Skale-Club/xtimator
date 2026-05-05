@@ -1,5 +1,8 @@
 # Phase 13 Icon Smoke Checklist
 
+> **Status:** SKIPPED 2026-05-05 — user waived human verification before milestone close. Automated `app-icons.test.ts` regression suite passed; manual visual smoke pass deferred indefinitely. The browser-surface checks below remain on file as historical reference but do not block phase or milestone completion.
+
+
 1. Run `npm test -- --run tests/unit/app-icons.test.ts && npm run build` and confirm both commands pass before checking any browser surface.
 2. Run `npm run dev` and keep the app available at `http://localhost:9633/` for the rest of the smoke pass.
 3. Open `http://localhost:9633/` in a desktop browser and confirm the tab favicon shows the new blue X monogram instead of a blank, default, or stale placeholder icon.

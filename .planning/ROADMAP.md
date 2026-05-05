@@ -101,7 +101,7 @@ Plans:
 
 Plans:
 - [x] 13-01-PLAN.md — Canonical App Router icon assets + manifest wiring + public metadata routes + regression tests
-- [ ] 13-02-PLAN.md — Icon smoke checklist + human verification checkpoint
+- [x] 13-02-PLAN.md — Icon smoke checklist + human verification checkpoint (smoke pass waived 2026-05-05; automated app-icons regression suite passed)
 
 ### Phase 14: Auth system hardening — fix URL routing inconsistency, redirect bugs, error handling, and OAuth loading state
 
