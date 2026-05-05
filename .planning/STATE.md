@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Brand Identity & Global Reach
 status: executing
-last_updated: "2026-05-05T18:36:57.685Z"
+last_updated: "2026-05-05T18:55:35.122Z"
 last_activity: 2026-05-05
 progress:
   total_phases: 9
@@ -24,7 +24,7 @@ progress:
 ## Current Position
 
 Phase: 18 (voice-first-project-onboarding) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
 Last activity: 2026-05-05
 
@@ -176,6 +176,9 @@ Last activity: 2026-05-05
 - [Phase 18-voice-first-project-onboarding]: (capture) route group is a sibling to (app) — mounts /projects/[id]/capture with own full-screen layout (no sidebar/topbar)
 - [Phase 18-voice-first-project-onboarding]: PLACEHOLDER_PREFIX exported from lib/actions/project.ts for plan 18-03 name-patcher to import and guard against overwriting user-set names
 - [Phase 18-voice-first-project-onboarding]: Wave 0 scaffold pattern: vi.mock target module + explicit vi import + expect.fail() for Nyquist-compliant failing tests before implementation
+- [Phase 18-voice-first-project-onboarding]: No in-recording cancel by design: Skip is idle-only escape; once recording starts the only escape is auto-stop or failure-stage Edit manually (CONTEXT Discretion + Pitfall 4 race prevention)
+- [Phase 18-voice-first-project-onboarding]: Wall-clock timer: performance.now() baseline in setInterval(tick, 250) — immune to background tab throttling; accuracy within <50ms even after long backgrounding (RESEARCH Pattern 4)
+- [Phase 18-voice-first-project-onboarding]: Controlled Tabs workspace: useSearchParams() drives activeTab; router.replace keeps URL in sync; defaultTab forwarded from server searchParams — redirect to ?tab=estimate renders Estimate tab without a click (Plan 18-02 Task 3)
 
 ## Performance Metrics
 
@@ -226,6 +229,7 @@ Last activity: 2026-05-05
 | Phase 17-navigation-performance P03 | 3min | 4 tasks | 4 files |
 | Phase 17-navigation-performance P02 | spread | 11 tasks | 8 files |
 | Phase 18-voice-first-project-onboarding P01 | 11min | 3 tasks | 20 files |
+| Phase 18-voice-first-project-onboarding P02 | 12min | 3 tasks | 9 files |
 
 ## Project Reference
 
