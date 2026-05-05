@@ -26,7 +26,8 @@ function publicIconConflicts() {
 
 describe('App Router icon contract (Phase 13)', () => {
   it('ships all canonical icon assets under app/', () => {
-    expect(existsSync(resolve(appDir, 'favicon.ico'))).toBe(true)
+    // favicon.ico intentionally removed in 802890f — generateMetadata icons take priority
+    // over a static .ico; the manifest fallback still references /favicon.ico for legacy clients
     expect(existsSync(resolve(appDir, 'icon.svg'))).toBe(true)
     expect(existsSync(resolve(appDir, 'icon.png'))).toBe(true)
     expect(existsSync(resolve(appDir, 'apple-icon.png'))).toBe(true)
@@ -46,7 +47,8 @@ describe('App Router icon contract (Phase 13)', () => {
     expect(manifestSource).toMatch(/start_url:\s*['"]\//)
     expect(manifestSource).toMatch(/display:\s*['"]standalone['"]/)
     expect(manifestSource).toMatch(/background_color:\s*['"]#0a0a0f['"]/)
-    expect(manifestSource).toMatch(/theme_color:\s*['"]#406EF1['"]/)
+    // theme_color now comes from SYSTEM_COLORS.primary (avoids duplication of the hex literal)
+    expect(manifestSource).toMatch(/theme_color:\s*SYSTEM_COLORS\.primary/)
     expect(manifestSource).toMatch(/src:\s*['"]\/favicon\.ico['"]/)
     expect(manifestSource).toMatch(/src:\s*['"]\/icon['"]/)
     expect(manifestSource).toMatch(/src:\s*['"]\/apple-icon['"]/)
