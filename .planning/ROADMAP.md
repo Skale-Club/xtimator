@@ -202,10 +202,10 @@ Plans:
   8. A "Skip recording" escape hatch exists on the recorder screen and routes the user into the existing workspace tabs for manual entry
   9. The recorder works on iOS Safari and Android Chrome at all breakpoints, with the timer and progress ring fully readable
 
-**Plans:** 3 plans
+**Plans:** 1/3 plans executed
 
 Plans:
-- [ ] 18-01-PLAN.md — Wave 0 test scaffolds + reduced 1-step wizard + eager-create + (capture) route group with full-screen layout escape
+- [x] 18-01-PLAN.md — Wave 0 test scaffolds + reduced 1-step wizard + eager-create + (capture) route group with full-screen layout escape
 - [ ] 18-02-PLAN.md — Recorder visual upgrade (full-width waveform, SVG progress ring, color-escalating timer, wall-clock duration cap, 60s warning) + multi-stage stepper + auto-fire orchestration + retry/manual-fallback
 - [ ] 18-03-PLAN.md — create_estimate tool schema extension (D-05 suggested_project_name + name patcher) + cleanup cron (pg_cron primary, Vercel cron fallback) + e2e finalization
 
@@ -232,4 +232,4 @@ Plans:
 | 15. Owner Admin Panel | v1.3 | 5/5 | Complete | 2026-05-03 |
 | 16. Sidebar Projects Panel | v1.3 | 3/3 | Complete   | 2026-05-03 |
 | 17. Navigation Performance | v1.3 | 3/3 | Complete   | 2026-05-05 |
-| 18. Voice-First Project Onboarding | v1.3 | 0/3 | Planned | — |
+| 18. Voice-First Project Onboarding | v1.3 | 1/3 | In Progress|  |
