@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Brand Identity & Global Reach
 status: executing
-last_updated: "2026-05-05T18:36:57.685Z"
+last_updated: "2026-05-05T19:07:44.814Z"
 last_activity: 2026-05-05
 progress:
   total_phases: 9
-  completed_phases: 8
+  completed_phases: 9
   total_plans: 27
-  completed_plans: 25
+  completed_plans: 27
 ---
 
 # Project State
@@ -24,7 +24,7 @@ progress:
 ## Current Position
 
 Phase: 18 (voice-first-project-onboarding) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
 Last activity: 2026-05-05
 
@@ -176,6 +176,9 @@ Last activity: 2026-05-05
 - [Phase 18-voice-first-project-onboarding]: (capture) route group is a sibling to (app) — mounts /projects/[id]/capture with own full-screen layout (no sidebar/topbar)
 - [Phase 18-voice-first-project-onboarding]: PLACEHOLDER_PREFIX exported from lib/actions/project.ts for plan 18-03 name-patcher to import and guard against overwriting user-set names
 - [Phase 18-voice-first-project-onboarding]: Wave 0 scaffold pattern: vi.mock target module + explicit vi import + expect.fail() for Nyquist-compliant failing tests before implementation
+- [Phase 18-voice-first-project-onboarding]: pg_cron primary path with DO $do$ guard for idempotency; Vercel cron also wired as harmless fallback (D-03)
+- [Phase 18-voice-first-project-onboarding]: Name patcher only updates project.name if it starts with PLACEHOLDER_PREFIX — preserves user-edited names (D-05)
+- [Phase 18-voice-first-project-onboarding]: App-shell test-ids added unconditionally to prevent false-positive shell-escape e2e assertions
 
 ## Performance Metrics
 
@@ -226,6 +229,7 @@ Last activity: 2026-05-05
 | Phase 17-navigation-performance P03 | 3min | 4 tasks | 4 files |
 | Phase 17-navigation-performance P02 | spread | 11 tasks | 8 files |
 | Phase 18-voice-first-project-onboarding P01 | 11min | 3 tasks | 20 files |
+| Phase 18-voice-first-project-onboarding P03 | 9min | 3 tasks | 13 files |
 
 ## Project Reference
 
