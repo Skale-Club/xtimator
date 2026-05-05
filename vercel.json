@@ -2,5 +2,8 @@
   "framework": "nextjs",
   "buildCommand": "bun run build",
   "devCommand": "bun run dev",
-  "installCommand": "bun install"
+  "installCommand": "bun install",
+  "crons": [
+    { "path": "/api/cron/cleanup-orphan-projects", "schedule": "0 3 * * *" }
+  ]
 }
