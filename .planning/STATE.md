@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Brand Identity & Global Reach
-status: verifying
-last_updated: "2026-05-05T12:24:25.770Z"
+status: executing
+last_updated: "2026-05-05T12:45:42.800Z"
 last_activity: 2026-05-05
 progress:
   total_phases: 8
-  completed_phases: 7
+  completed_phases: 8
   total_plans: 24
-  completed_plans: 23
+  completed_plans: 24
 ---
 
 # Project State
@@ -23,9 +23,9 @@ progress:
 
 ## Current Position
 
-Phase: 14
-Plan: Not started
-Status: Awaiting human verification
+Phase: 17 (navigation-performance) — EXECUTING
+Plan: 2 of 3
+Status: Ready to execute
 Last activity: 2026-05-05
 
 ## Active Phase
@@ -171,6 +171,8 @@ Last activity: 2026-05-05
 - [Phase 16-sidebar-projects-panel]: SidebarProjectItem isActive uses exact match OR startsWith with trailing slash to cover sub-routes without false positives
 - [Phase 17]: Used shadcn/ui Skeleton component for loading states matching existing clients/ and dashboard/ patterns
 - [Phase 17]: ProjectTabs receives typed promises (ReturnType<typeof fn>) for streaming semantics; company query co-located inside async sub-component to keep page shell fast
+- [Phase 17-navigation-performance]: getCachedCompany uses createServiceClient (not createClient) — unstable_cache cannot call cookies() inside its memoized function; service role bypasses RLS and userId argument scopes the query correctly
+- [Phase 17-navigation-performance]: revalidateTag('company') wired into updateCompanySettings so layout sidebar reflects updated company name/logo immediately after save (no 60s TTL wait)
 
 ## Performance Metrics
 
@@ -219,13 +221,14 @@ Last activity: 2026-05-05
 | Phase 16-sidebar-projects-panel P03 | 2min | 2 tasks | 2 files |
 | Phase 17 P01 | 2m | 4 tasks | 4 files |
 | Phase 17-navigation-performance P03 | 3min | 4 tasks | 4 files |
+| Phase 17-navigation-performance P02 | spread | 11 tasks | 8 files |
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-04-22)
 
 **Core value:** Business owner → job site audio recording → sent professional estimate in under 5 minutes
-**Current focus:** Phase 13 manual icon smoke verification pending; Phase 14 auth hardening shipped
+**Current focus:** Phase 17 — navigation-performance
 
 ## Notes
 
