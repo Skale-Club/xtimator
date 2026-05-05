@@ -31,7 +31,7 @@ export function Topbar({ company, isAdmin }: TopbarProps) {
   const { t } = useTranslation()
 
   return (
-    <header className="hidden md:flex items-center justify-between border-b border-border bg-background px-6 h-16">
+    <header data-testid="app-topbar" className="hidden md:flex items-center justify-between border-b border-border bg-background px-6 h-16">
       <CompanySelector company={company} />
       <div className="flex items-center gap-1">
         {isAdmin && (

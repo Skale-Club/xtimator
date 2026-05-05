@@ -25,7 +25,7 @@ export function Sidebar({ branding, company: _company }: SidebarProps) {
   const logoUrl = branding.logoUrl
 
   return (
-    <aside className="hidden md:flex flex-col border-r border-border bg-background w-16 lg:w-64 transition-all">
+    <aside data-testid="app-sidebar" className="hidden md:flex flex-col border-r border-border bg-background w-16 lg:w-64 transition-all">
       {/* Product branding */}
       <div className="flex items-center gap-3 border-b border-border px-3 h-16">
         <div className="h-9 w-9 shrink-0 flex items-center justify-center">
