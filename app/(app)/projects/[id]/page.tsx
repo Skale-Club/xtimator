@@ -8,12 +8,23 @@ import { getCurrentEstimate, getProjectEstimates } from '@/lib/queries/estimate'
 import { ProjectWorkspace } from '@/components/workspace/project-workspace'
 import { Skeleton } from '@/components/ui/skeleton'
 
+const ALLOWED_TABS = ['overview', 'audio', 'photos', 'estimate', 'send'] as const
+type AllowedTab = (typeof ALLOWED_TABS)[number]
+
 export default async function ProjectPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>
+  searchParams: Promise<{ tab?: string; estimate?: string }>
 }) {
   const { id } = await params
+  const { tab: rawTab } = await searchParams
+  const defaultTab: AllowedTab =
+    (ALLOWED_TABS as readonly string[]).includes(rawTab ?? '')
+      ? (rawTab as AllowedTab)
+      : 'overview'
+
   const supabase = await createClient()
 
   const project = await getProjectById(supabase, id)
@@ -47,6 +58,7 @@ export default async function ProjectPage({
           photosPromise={photosPromise}
           currentEstimatePromise={currentEstimatePromise}
           allVersionsPromise={allVersionsPromise}
+          defaultTab={defaultTab}
         />
       </Suspense>
     </div>
@@ -61,6 +73,7 @@ type ProjectTabsProps = {
   photosPromise: ReturnType<typeof getProjectPhotos>
   currentEstimatePromise: ReturnType<typeof getCurrentEstimate>
   allVersionsPromise: ReturnType<typeof getProjectEstimates>
+  defaultTab: AllowedTab
 }
 
 async function ProjectTabs({
@@ -71,6 +84,7 @@ async function ProjectTabs({
   photosPromise,
   currentEstimatePromise,
   allVersionsPromise,
+  defaultTab,
 }: ProjectTabsProps) {
   const [activity, stats, recordings, photos, currentEstimate, allVersions] = await Promise.all([
     activityPromise,
@@ -101,6 +115,7 @@ async function ProjectTabs({
       currentEstimate={currentEstimate}
       allVersions={allVersions}
       companyName={companyName}
+      defaultTab={defaultTab}
     />
   )
 }

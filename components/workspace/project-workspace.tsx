@@ -1,5 +1,7 @@
 'use client'
 
+import { useSearchParams, useRouter, usePathname } from 'next/navigation'
+import { useEffect, useState } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ClipboardList, Mic, Camera, Sparkles, Send } from 'lucide-react'
 import { OverviewTab } from './overview-tab'
@@ -12,6 +14,9 @@ import type { Recording } from '@/lib/queries/recording'
 import type { Photo } from '@/lib/queries/photo'
 import type { EstimateWithSections, Estimate } from '@/lib/queries/estimate'
 
+const ALLOWED_TABS = ['overview', 'audio', 'photos', 'estimate', 'send'] as const
+type WorkspaceTab = (typeof ALLOWED_TABS)[number]
+
 interface ProjectWorkspaceProps {
   project: ProjectDetail
   activity: ActivityEvent[]
@@ -21,11 +26,46 @@ interface ProjectWorkspaceProps {
   currentEstimate: EstimateWithSections | null
   allVersions: Estimate[]
   companyName: string
+  defaultTab?: WorkspaceTab
 }
 
-export function ProjectWorkspace({ project, activity, stats, recordings, photos, currentEstimate, allVersions, companyName }: ProjectWorkspaceProps) {
+export function ProjectWorkspace({
+  project, activity, stats, recordings, photos,
+  currentEstimate, allVersions, companyName,
+  defaultTab = 'overview',
+}: ProjectWorkspaceProps) {
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const pathname = usePathname()
+
+  const queryTab = searchParams.get('tab')
+  const initial: WorkspaceTab =
+    (ALLOWED_TABS as readonly string[]).includes(queryTab ?? '')
+      ? (queryTab as WorkspaceTab)
+      : defaultTab
+
+  const [activeTab, setActiveTab] = useState<WorkspaceTab>(initial)
+
+  // Sync state when searchParams.tab changes (e.g., redirect from /capture)
+  useEffect(() => {
+    if (queryTab && (ALLOWED_TABS as readonly string[]).includes(queryTab)) {
+      setActiveTab(queryTab as WorkspaceTab)
+    }
+  }, [queryTab])
+
+  function handleValueChange(value: string) {
+    if (!(ALLOWED_TABS as readonly string[]).includes(value)) return
+    const next = value as WorkspaceTab
+    setActiveTab(next)
+    const params = new URLSearchParams(searchParams.toString())
+    if (next === 'overview') params.delete('tab')
+    else params.set('tab', next)
+    const qs = params.toString()
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
+  }
+
   return (
-    <Tabs defaultValue="overview" className="w-full">
+    <Tabs value={activeTab} onValueChange={handleValueChange} className="w-full">
       <div className="border-b border-border">
         <TabsList
           variant="line"
