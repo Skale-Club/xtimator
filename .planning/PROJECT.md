@@ -2,68 +2,89 @@
 
 ## What This Is
 
-Xtimator is a SaaS web application for US-based service businesses (construction, landscaping, plumbing, electrical, HVAC, cleaning, painting, etc.) to create professional, AI-powered estimates and quotes. A business owner visits a job site, records an audio walkthrough, takes photos, and the AI generates a complete, professionally formatted estimate ready to send as a branded PDF or shareable link.
+Xtimator is a SaaS web application for US-based service businesses (construction, landscaping, plumbing, electrical, HVAC, cleaning, painting, etc.) to create professional, AI-powered estimates and quotes. A business owner visits a job site, records an audio walkthrough, takes photos, and the AI generates a complete, professionally formatted estimate — ready to send as a branded PDF or shareable link.
 
-The platform includes a super-admin layer for centralized API credential management and runtime branding configuration, enabling the platform owner to manage integrations (Resend, Anthropic, OpenAI) and global identity (app name, logo, primary color) from a UI without code changes or redeployment.
+The platform includes:
+- **Voice-first project onboarding** — record job site audio, AI auto-transcribes and generates the estimate draft without manual navigation
+- **Super-admin layer** — centralized API credential management and runtime branding/content configuration (no redeployment needed)
+- **Owner admin panel** — customer dashboard, SEO, landing page CMS, blog, extended branding controls
+- **Public marketing presence** — dark-mode landing page at `/` with EN/PT-BR/ES translation support
 
 ## Core Value
 
 A business owner can go from job site audio recording to a sent, professional estimate in under 5 minutes without touching a keyboard.
 
-## Current Milestone: v1.2 Brand Identity & Global Reach
-
-**Goal:** Establish Xtimator's public presence with a branded dark-mode marketing landing page using #406EF1 design system applied globally, and enable the app for BR/LATAM markets with a full EN/PT-BR/ES translation system (English-first).
-
-**Target features:**
-- Landing page (Hero+CTA, How It Works, Features/Benefits) — dark mode, #406EF1 primary, modern design using vercel-labs + ui-ux-pro-max skills
-- Global brand token update — #406EF1 as `--primary` / `--platform-primary` default across landing, authenticated app, and admin panel
-- i18n system — `useTranslation()` hook, `LanguageContext` (EN/PT/ES), `/api/translate` AI on-demand with DB cache, static `translations.ts` dictionary
-- Language toggle (EN/PT/ES) in navbar with localStorage persistence
-
-**Key constraints:**
-- English-first: all UI built and tested in English; PT-BR and ES are layered on top
-- Landing page must use design skills: `skills.sh/vercel-labs/agent-skills/web-design-guidelines` + `skills.sh/nextlevelbuilder/ui-ux-pro-max-skill/ui-ux-pro-max`
-- i18n architecture pre-designed (SEED-001) — implement exactly as specified
-
 ## Current State
 
-**Version:** v1.2 Brand Identity & Global Reach — complete (Phase 12 complete 2026-04-24)
-**Phases complete:** 12/12 | **Plans:** 47/47 | **Build:** passing
-**Tech stack:** Next.js 16 (App Router), TypeScript strict, Tailwind 4, shadcn/ui (New York), Supabase (Auth + DB + Storage), React PDF, Resend, Anthropic Claude, OpenAI Whisper, next-themes
-**Test coverage:** 253 unit tests passing, integration tests, E2E with Playwright (mobile + landing page coverage added Phase 11)
+**Version:** v1.2 Brand Identity & Global Reach — SHIPPED 2026-05-06
+**Phases complete:** 18/18 | **Plans:** 54/54 | **Build:** passing
+**Tech stack:** Next.js 16 (App Router), TypeScript strict, Tailwind 4, shadcn/ui (New York), Supabase (Auth + DB + Storage), @react-pdf/renderer, Resend, Anthropic Claude, OpenAI Whisper, next-themes
+**Test coverage:** 250+ unit tests passing, integration tests, E2E with Playwright (mobile + landing page + voice flow coverage)
 **Deployment target:** Vercel
-**Theme system:** Dark mode default, user-persisted toggle (dark/light/system), SSR cookie hydration, forced-light `/estimate/*` scope
-**Landing page:** Public dark-mode marketing page at `/` — Hero (#406EF1 glow), How It Works, Features, CTA band, footer
-**i18n:** EN/PT-BR/ES language switching — `LanguageContext` + `useTranslation()`, 192-entry static dict, `/api/translate` with Claude Haiku + DB cache, `LanguageToggle` in navbar + mobile bottom-nav
+
+### What's Live
+- **Auth:** Email/password + Google OAuth, session persistence, password reset, middleware protection
+- **Onboarding:** Multi-step wizard (business info, industry, color, logo, address, defaults)
+- **Dashboard:** Stats, project list, search/filter/sort, quick actions
+- **Client management:** CRUD with logo upload, contact info, project association
+- **Project workspace:** 5-tab workspace (Overview, Audio, Photos, Estimate, Send), activity timeline
+- **Voice-first capture:** Full-screen recorder (`/projects/[id]/capture`), 10-min hard cap with color-escalating timer, SVG progress ring, multi-stage stepper (Saving → Transcribing → Analyzing → Generating), Whisper transcript reveal, auto-fire estimate generation on transcription complete
+- **AI pipeline:** Claude Vision photo analysis + Claude estimate generation (tool_use), structured JSON persistence, version management, retry/manual fallback
+- **Estimate editor:** Inline editing, real-time recalculation, drag reorder, discount/tax, auto-save
+- **PDF:** Branded via @react-pdf/renderer — logo, colors, line items, totals, terms, page numbers
+- **Share/email:** Public share link + branded share page, accept/decline, Resend email delivery
+- **Settings:** Company info, logo, branding, defaults, notifications, account
+- **Platform admin:** API credentials (AES-256-GCM encrypted), branding, admins management
+- **Owner admin:** Customer dashboard, SEO editor, landing page CMS, blog (CRUD + public `/blog/[slug]`), favicon upload
+- **Sidebar:** Paginated projects list, real-time sync on creation, empty state
+- **Navigation:** Skeleton loading states, streaming Suspense, React cache() for auth/company queries
+- **Landing page:** Public dark-mode marketing page — Hero (#406EF1 glow), How It Works, Features, CTA, footer
+- **i18n:** EN/PT-BR/ES — LanguageContext + useTranslation(), 192-entry static dict, /api/translate (Claude Haiku + DB cache), LanguageToggle in navbar + mobile bottom-nav
+- **Brand:** #406EF1 primary across all surfaces (landing, authenticated app, admin)
+- **Icons:** App Router-owned favicon, SVG/PNG app icons, manifest metadata
 
 ## Requirements
 
-### Validated (v1.0 + v1.1)
+### Validated (v1.0)
 
-- v AUTH-01–07: Email/password sign-up, sign-in, Google OAuth, session persistence, password reset, post-signup redirect, sign-out — v1.0
-- v ONBOARD-01–08: Multi-step onboarding wizard (business info, industry, color, logo, address, defaults, skip option) — v1.0
-- v DASH-01–08: Dashboard with stats, project list, search/filter/sort, quick actions, delete confirm — v1.0
-- v CLIENT-01–06: Client CRUD with logo upload, contact info, project association — v1.0
-- v PROJ-01–08: 3-step project wizard (client selection/inline creation, details, auto-name, confirmation, workspace redirect) — v1.0
-- v WS-01–03: 5-tab project workspace (Overview, Audio, Photos, Estimate, Send), activity timeline, status updates — v1.0
-- v AUDIO-01–10: MediaRecorder with waveform, timer, live transcript preview, Whisper transcription, editable transcript, delete/re-record, multi-recording concatenation, mobile support — v1.0
-- v PHOTO-01–11: Multi-file upload, camera capture, drag-and-drop, compression, sortable grid, lightbox, captions, 20-photo limit — v1.0
-- v AI-01–10: Claude Vision photo analysis, Claude estimate generation with tool_use, structured JSON persistence, math validation, progress indicator, version management, retry/manual fallback — v1.0
-- v EDIT-01–12: Inline estimate editor with real-time recalculation, drag reorder, discount/tax, auto-save, version selector — v1.0
-- v PDF-01–03: Branded PDF via @react-pdf/renderer with logo, colors, line items, totals, terms, page numbers — v1.0
-- v SHARE-01–07: Public share link, branded share page, accept/decline, view logging, activity timeline, email notifications — v1.0
-- v EMAIL-01–06: Resend email delivery, compose form, PDF attachment option, mark-as-sent, status update — v1.0
-- v SET-01–06: Company info/logo/branding/defaults/notifications/account settings — v1.0
-- v ADMIN-01–14: Platform admin panel (super-admin gate, integrations CRUD with encrypted keys, branding config, admins management, auth dark pass, full env-var and identity decoupling) — v1.0
-- v THEME-01–08: Dark mode default with SSR cookie hydration, 3-way user toggle (dark/light/system) persisted to `companies.theme_preference`, forced-light `/estimate/*` scope, semantic status palette, survey-style onboarding, full UI primitives + overlays redesign on shared design-token vocabulary — v1.1
+- ✓ AUTH-01–07: Email/password sign-up, sign-in, Google OAuth, session persistence, password reset, post-signup redirect, sign-out — v1.0
+- ✓ ONBOARD-01–08: Multi-step onboarding wizard (business info, industry, color, logo, address, defaults, skip option) — v1.0
+- ✓ DASH-01–08: Dashboard with stats, project list, search/filter/sort, quick actions, delete confirm — v1.0
+- ✓ CLIENT-01–06: Client CRUD with logo upload, contact info, project association — v1.0
+- ✓ PROJ-01–08: 3-step project wizard (client selection/inline creation, details, auto-name, confirmation, workspace redirect) — v1.0
+- ✓ WS-01–03: 5-tab project workspace (Overview, Audio, Photos, Estimate, Send), activity timeline, status updates — v1.0
+- ✓ AUDIO-01–10: MediaRecorder with waveform, timer, live transcript preview, Whisper transcription, editable transcript, delete/re-record, multi-recording concatenation, mobile support — v1.0
+- ✓ PHOTO-01–11: Multi-file upload, camera capture, drag-and-drop, compression, sortable grid, lightbox, captions, 20-photo limit — v1.0
+- ✓ AI-01–10: Claude Vision photo analysis, Claude estimate generation with tool_use, structured JSON persistence, math validation, progress indicator, version management, retry/manual fallback — v1.0
+- ✓ EDIT-01–12: Inline estimate editor with real-time recalculation, drag reorder, discount/tax, auto-save, version selector — v1.0
+- ✓ PDF-01–03: Branded PDF via @react-pdf/renderer with logo, colors, line items, totals, terms, page numbers — v1.0
+- ✓ SHARE-01–07: Public share link, branded share page, accept/decline, view logging, activity timeline, email notifications — v1.0
+- ✓ EMAIL-01–06: Resend email delivery, compose form, PDF attachment option, mark-as-sent, status update — v1.0
+- ✓ SET-01–06: Company info/logo/branding/defaults/notifications/account settings — v1.0
+- ✓ ADMIN-01–14: Platform admin panel (super-admin gate, integrations CRUD with encrypted keys, branding config, admins management, auth dark pass, full env-var and identity decoupling) — v1.0
 
-### Active (v1.2)
+### Validated (v1.1)
 
-- [x] LAND-01–05: Landing page — Hero+CTA, How It Works, Features/Benefits, dark mode, #406EF1 design system, responsive — Validated in Phase 11: Marketing Landing Page
-- [x] BRAND-01–03: Global brand token update — #406EF1 as `--primary`/`--platform-primary` default across entire app (landing + authenticated + admin) — Validated in Phase 10: Global Brand Tokens
-- [x] I18N-01–08: i18n system — LanguageContext (EN/PT/ES), `useTranslation()` hook, 192-entry static dictionary, `/api/translate` AI on-demand with DB cache, `LanguageToggle` in navbar + mobile bottom-nav; English-first — Validated in Phase 12: i18n Translation System
+- ✓ THEME-01–08: Dark mode default with SSR cookie hydration, 3-way user toggle (dark/light/system) persisted to `companies.theme_preference`, forced-light `/estimate/*` scope, semantic status palette, survey-style onboarding, full UI primitives + overlays redesign — v1.1
+
+### Validated (v1.2)
+
+- ✓ BRAND-01–03: Global brand token update — #406EF1 as `--primary`/`--platform-primary` default across entire app (landing + authenticated + admin) — v1.2
+- ✓ LAND-01–05: Landing page — Hero+CTA, How It Works, Features/Benefits, dark mode, #406EF1 design system, fully responsive on iOS/Android — v1.2
+- ✓ I18N-01–08: i18n system — LanguageContext (EN/PT/ES), `useTranslation()` hook, 192-entry static dictionary, `/api/translate` AI on-demand with DB cache, `LanguageToggle` in navbar + mobile bottom-nav; English-first — v1.2
+- ✓ ICON-01–02: App Router-owned favicon, SVG/PNG app icons, manifest metadata, regression suite — v1.2
+- ✓ AUTH-HARDEN-01–07: Auth redirect consistency, password recovery, OAuth error handling, middleware hardening, full Playwright auth coverage — v1.2
+- ✓ ADMIN-EXT-01–05: Owner admin panel — customer dashboard, SEO editor, landing page CMS, blog CRUD + public pages, favicon upload, extended branding — v1.2
+- ✓ PROJ-10–12: Sidebar projects panel — paginated list, active highlight, real-time sync on project creation — v1.2
+- ✓ PERF-01–03: Skeleton loading states, Suspense streaming, React cache() for auth/company, HoverPrefetchLink — v1.2
+- ✓ P18-01–09: Voice-first project onboarding — 1-step wizard, full-screen capture route, 10-min recording with color timer + SVG ring, multi-stage stepper, auto-estimate generation — v1.2
+
+### Active (v1.3)
+
 - [ ] Production Supabase migration applied and first super-admin bootstrapped
 - [ ] Vercel deployment pipeline configured and first production deploy successful
+- [ ] AI estimate precision improvements (SEED-003: price book optional per company)
+- [ ] Plain-text estimate output for SMS/WhatsApp/email inline (SEED-004)
 
 ### Out of Scope
 
@@ -73,7 +94,7 @@ A business owner can go from job site audio recording to a sent, professional es
 - QuickBooks integration — deferred to v2
 - Offline PWA mode — deferred to v2
 - Dashboard charts/analytics — deferred to v2
-- Estimate templates — deferred to v2
+- Estimate templates — deferred to v2 (SEED-004 covers plain-text variant)
 - Multi-user/team accounts — deferred to v2
 - Per-tenant API keys — platform shared credentials via admin panel covers v1
 
@@ -84,10 +105,12 @@ A business owner can go from job site audio recording to a sent, professional es
 - **AI pipeline:** Claude API (estimate generation + photo analysis) + OpenAI Whisper (audio transcription).
 - **Storage:** Supabase Storage (logos, audio, photos, PDFs, platform brand assets).
 - **Email:** Resend API — centralized via platform admin, no per-tenant key needed.
-- **Platform admin:** AES-256-GCM encrypted API credentials in  table; branding in  singleton (id=1); super-admin gate via  table + proxy middleware.
-- **Deployment:** Vercel. ENV vars: NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, APP_ENCRYPTION_KEY, DATABASE_URL.
-- **Codebase:** 40 plans shipped, 190+ commits, TypeScript strict throughout.
+- **Platform admin:** AES-256-GCM encrypted API credentials in `platform_integrations`; branding in `platform_branding` singleton (id=1); super-admin gate via `platform_admins` table + proxy middleware.
+- **Voice-first flow:** `/projects/new` → client select → `/projects/[id]/capture` (full-screen, escapes app shell) → Whisper → Claude → auto-redirect to estimate editor.
+- **Codebase:** 54 plans shipped, 200+ commits, TypeScript strict throughout.
 - **Theme system:** `next-themes` with `eb-theme` cookie SSR hydration; `[data-theme]` scoped-dark CSS-var pattern for admin/auth; `[data-theme="light"]` forced-light wrapper for public estimate view.
+- **i18n:** `LanguageContext` + `useTranslation()` hook, 192-entry static `translations.ts`, `/api/translate` with Claude Haiku + DB cache (translations table, unique index on source_text+lang pair).
+- **Seeds planted:** SEED-003 (price book per company, optional), SEED-004 (plain-text estimate output).
 
 ## Constraints
 
@@ -103,23 +126,26 @@ A business owner can go from job site audio recording to a sent, professional es
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Next.js App Router (not Pages) | Modern routing, server components, API routes co-located | Confirmed — no issues |
-| Supabase for auth + DB + storage | Single vendor reduces integration complexity | Confirmed — worked well |
-| Claude for estimate generation and photo analysis | Avoid mixing AI vendors; Claude Vision capable | Confirmed — tool_use pattern solid |
-| Whisper for audio transcription | Best-in-class accuracy for field audio | Confirmed |
-| @react-pdf/renderer for PDF | No headless browser in serverless | Confirmed — works on Vercel |
-| Resend for email | Simple API, great deliverability | Confirmed |
-| AES-256-GCM for API key encryption | Standard, auditable, no Vault dependency | Confirmed — 12-byte IV per call |
-| Singleton platform_branding (id=1) | Null-safe loader fallback from t=0 | Confirmed — avoids null checks everywhere |
-| Last-admin BEFORE DELETE trigger | Descriptive error message vs opaque constraint | Confirmed |
-| server-only marker + vitest alias | Enforces server/client boundary at both build and test | Confirmed — caught real violations |
-| Deny-all RLS by omission on platform tables | Platform secrets accessible only via service role | Confirmed — cleanest posture |
-| YOLO execution mode | Spec was comprehensive; minimal approval gates needed | Confirmed |
-| `theme_preference` nullable TEXT + CHECK constraint on companies | Enum-like enforcement without a PG enum type; NULL = system default | Confirmed |
-| `eb-theme` cookie httpOnly:false | next-themes needs document.cookie access pre-hydration for zero-FOUC | Confirmed |
-| Cookie written after DB update | Prevents cookie/DB desync on partial failure | Confirmed |
-| Primitives consume Plan-06 tokens via Tailwind arbitrary-value syntax | Avoids dark:* variants that don't fire inside [data-theme] scopes | Confirmed |
-| `useSurveyState` hook pattern for survey onboarding | Decouples step navigation from form logic; submission contract unchanged | Confirmed |
+| Next.js App Router (not Pages) | Modern routing, server components, API routes co-located | ✓ Confirmed — no issues |
+| Supabase for auth + DB + storage | Single vendor reduces integration complexity | ✓ Confirmed — worked well |
+| Claude for estimate generation and photo analysis | Avoid mixing AI vendors; Claude Vision capable | ✓ Confirmed — tool_use pattern solid |
+| Whisper for audio transcription | Best-in-class accuracy for field audio | ✓ Confirmed |
+| @react-pdf/renderer for PDF | No headless browser in serverless | ✓ Confirmed — works on Vercel |
+| Resend for email | Simple API, great deliverability | ✓ Confirmed |
+| AES-256-GCM for API key encryption | Standard, auditable, no Vault dependency | ✓ Confirmed — 12-byte IV per call |
+| Singleton platform_branding (id=1) | Null-safe loader fallback from t=0 | ✓ Confirmed — avoids null checks everywhere |
+| Last-admin BEFORE DELETE trigger | Descriptive error message vs opaque constraint | ✓ Confirmed |
+| server-only marker + vitest alias | Enforces server/client boundary at both build and test | ✓ Confirmed — caught real violations |
+| Deny-all RLS by omission on platform tables | Platform secrets accessible only via service role | ✓ Confirmed — cleanest posture |
+| YOLO execution mode | Spec was comprehensive; minimal approval gates needed | ✓ Confirmed |
+| `theme_preference` nullable TEXT + CHECK constraint | Enum-like enforcement without a PG enum type; NULL = system default | ✓ Confirmed |
+| `eb-theme` cookie httpOnly:false | next-themes needs document.cookie access pre-hydration for zero-FOUC | ✓ Confirmed |
+| Full-screen (capture) route group | Escape app shell for voice recorder; router.push from wizard | ✓ Confirmed — clean UX break |
+| Eager project draft creation at wizard step 1 | Allows redirect to /capture before user fills project details | ✓ Confirmed — drives AI auto-generate flow |
+| pg_cron primary + Vercel cron fallback for orphan cleanup | Works with and without pg_cron extension enabled | ✓ Confirmed |
+| React cache() for auth/company queries | Dedupes server component data fetching per request | ✓ Confirmed — eliminates redundant round-trips |
+| useTranslation() hook with LanguageContext | All i18n calls consistent; server-side strings handled separately | ✓ Confirmed |
+| Claude Haiku for /api/translate | Cheapest capable model for translation; cached in DB | ✓ Confirmed — cost-effective |
 
 ## Evolution
 
@@ -132,4 +158,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context
 
 ---
-*Last updated: 2026-04-24 — Phase 11 complete (Marketing Landing Page)*
+*Last updated: 2026-05-06 — after v1.2 milestone (Phases 10-18 shipped)*

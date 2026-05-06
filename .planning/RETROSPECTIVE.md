@@ -1,5 +1,62 @@
 # Retrospective: Xtimator
 
+## Milestone: v1.2 — Brand Identity & Global Reach
+
+**Shipped:** 2026-05-06
+**Phases:** 9 (Phases 10-18) | **Plans:** 27 | **Tasks:** 34
+**Timeline:** 2026-04-22 → 2026-05-06 (14 days)
+
+### What Was Built
+
+1. **Phase 10 — Global Brand Tokens:** #406EF1 applied as `--primary`/`--platform-primary` across all CSS scopes (landing, authenticated app, admin)
+2. **Phase 11 — Marketing Landing Page:** Public dark-mode landing at `/` — Hero (#406EF1 glow), How It Works, Features/Benefits, fully responsive on iOS Safari + Android Chrome with Playwright mobile coverage
+3. **Phase 12 — i18n Translation System:** EN/PT-BR/ES language switching — `LanguageContext` + `useTranslation()`, 192-entry static dict, `/api/translate` (Claude Haiku + DB cache), `LanguageToggle` in navbar + mobile bottom-nav, `TranslationLoadingOverlay`
+4. **Phase 13 — Visual Identity Polish:** App Router-owned favicon, SVG/PNG app icons, manifest metadata, auth-safe metadata routes, regression test suite
+5. **Phase 14 — Auth System Hardening:** Unified /login, /signup, /reset-password URLs; updatePassword company-check; OAuth loading-state reset; middleware fail-close; full Playwright auth coverage
+6. **Phase 15 — Owner Admin Panel:** Customer dashboard (/admin), SEO editor, landing page CMS, blog CRUD (/admin/blog) + public /blog/[slug], favicon upload; extended platform-config with 5 new Branding fields
+7. **Phase 16 — Sidebar Projects Panel:** Paginated projects list in sidebar, SidebarProjectItem with status dots and active highlight, empty state, load-more with useTransition, real-time sync via revalidatePath on project creation
+8. **Phase 17 — Navigation Performance:** loading.tsx skeleton states, Suspense streaming for dashboard + workspace, React cache() for auth/company queries, HoverPrefetchLink for nav prefetch, revalidateTag('company') wired on settings save
+9. **Phase 18 — Voice-First Project Onboarding:** 1-step wizard (client only, eager draft creation), full-screen `/projects/[id]/capture` route group escaping app shell, 10-min hard cap with color-escalating timer + SVG progress ring, multi-stage stepper (Saving → Transcribing → Analyzing → Generating), Whisper transcript reveal mid-flow, auto-fire estimate generation, skip escape hatch, AI-suggested project name patcher, pg_cron + Vercel cron orphan cleanup
+
+### What Worked
+
+- **Route group isolation for voice capture:** The `(capture)` route group as a sibling to `(app)` gave the recorder a clean full-screen layout escape without any app shell contamination. The pattern was clean and obvious in hindsight — should be remembered for any future "immersive mode" surface.
+- **React cache() for auth/company:** Deduplicating server component data fetching with `React.cache()` + `unstable_cache` eliminated redundant Supabase round-trips across the authenticated shell without any new infrastructure. The pattern is portable to any server-component tree.
+- **Wave 0 test scaffold pattern:** Creating failing `it.todo()` stubs in the first plan of each phase kept the test infrastructure compile-ready before implementation started. Eliminated "tests won't compile yet" friction in executor subagents.
+- **Per-language batch accumulator for i18n:** The `Map<lang, batch>` pattern in the translation debouncer prevented language-switch mid-debounce from mixing PT and ES batches — a subtle race condition that a simple array approach would have missed.
+- **pg_cron primary + Vercel cron fallback:** The dual-path orphan cleanup worked around pg_cron extension availability uncertainty without requiring infrastructure decisions. The DO $do$ idempotency guard made it safe to fire both.
+
+### What Was Inefficient
+
+- **Phase scope creep:** v1.2 started as 3 phases (10-12) and grew to 9 (13-18). The original requirements only covered brand/landing/i18n; phases 13-18 were added opportunistically as the milestone ran. This is fine for execution quality but makes milestone reporting harder — requirements never covered phases 13-18 formally.
+- **STATE.md active-phase drift:** STATE.md showed Phase 13 as "active" long after phases 14-18 had completed. The state file lagged execution reality by ~2 weeks. A periodic state sync step would help.
+- **MILESTONES.md one-liners raw:** The CLI-extracted accomplishments included raw debug lines ("One-liner:", "[Rule 3 - Blocking] ...") instead of clean summaries. The summary-extract CLI relies on consistent SUMMARY.md frontmatter format — some phases had it, some didn't.
+- **Auth URL inconsistency discovered in Phase 14:** 32+ code sites used `/auth/login` (non-existent — route group name bleeds into URL) vs `/login`. This was a latent bug from Phase 1 that should have been caught by a URL consistency lint step at scaffold time.
+
+### Patterns Established
+
+- **Full-screen route group pattern:** `app/(capture)/projects/[id]/capture/layout.tsx` with its own layout escaping the app shell — reuse for any immersive surface (recording, camera, onboarding flows).
+- **Eager draft creation pattern:** Create the DB record at the start of the wizard (step 1 client select), then redirect to the experience. Avoids the wizard needing to pass all data through query params or state.
+- **PLACEHOLDER_PREFIX guard for AI-suggested names:** AI-generated names use a sentinel prefix; a patcher overwrites them post-generation only if the user hasn't yet set their own name. Clean "AI default, user override" pattern.
+- **`getCachedCompany` with service role:** `unstable_cache` callbacks cannot call `cookies()` (async context missing); using service role + userId arg scopes correctly without needing session context inside the cache boundary.
+- **`getLandingContent()` delegates to `getBranding()`:** Avoids a second TTL cache layer; landing content and branding share the 60s TTL cache. Reuse the existing loader pattern rather than adding a parallel one.
+
+### Key Lessons
+
+1. **Formalize phase additions into REQUIREMENTS.md when scope grows.** Phases 13-18 were shipped without formal requirements. Next milestone, each added phase should have at least one REQ-ID so the traceability table stays honest.
+2. **Run a URL consistency check at scaffold time.** A grep for `/auth/` strings at Phase 1 would have caught the route-group URL bleed before 32 sites accumulated it. Add to Phase 1 checklist.
+3. **Extract SUMMARY.md one-liners as part of plan execution.** If the executor always writes `one_liner:` in SUMMARY.md frontmatter, the milestone archive CLI can extract clean accomplishments without raw debug noise.
+4. **Track active phase in STATE.md as part of plan completion.** The executor should update `Current Position` in STATE.md when a plan finishes, not just write SUMMARY.md. Keeps state file accurate without a separate sync pass.
+5. **The voice-first UX is the core differentiator.** Phase 18 removed the most friction from the core user journey (buried Audio tab → buried Generate button → manual navigation). This pattern of "find the biggest UX bottleneck and make it the first surface" is worth repeating at each milestone.
+
+### Cost Observations
+
+- Sessions: multiple across 14 days
+- Model: Claude Opus 4.7 (orchestrator) + balanced subagents
+- Notable: 9 phases shipped in 14 days; Phase 18 alone was 20+ files in Plan 01 — the most complex single plan in any milestone so far
+
+---
+
 ## Milestone: v1.1 — Dark-first UX & Modern Redesign
 
 **Shipped:** 2026-04-22

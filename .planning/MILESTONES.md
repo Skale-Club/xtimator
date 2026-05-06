@@ -1,5 +1,24 @@
 # Milestones
 
+## v1.2 Brand Identity & Global Reach (Shipped: 2026-05-06)
+
+**Phases completed:** 9 phases, 27 plans, 34 tasks
+
+**Key accomplishments:**
+
+- Translations DB table (BIGSERIAL PK, unique index, RLS) applied to Supabase + 23 failing stub tests across 5 files establishing the RED baseline for all I18N requirements
+- One-liner:
+- App Router-owned favicon, SVG/PNG app icons, manifest metadata, and auth-safe metadata routes locked by a fast regression suite.
+- Human-verified icon smoke pass: browser tab favicon, direct metadata routes, and mobile install surfaces all render the blue X monogram with no duplicates or login redirects
+- Password recovery, OAuth startup, and middleware claim checks now fail closed and recover gracefully instead of trapping users in dead redirects or crashing requests.
+- Vitest and Playwright auth coverage now exercises the live /login, /signup, /reset-password, and /callback routes, with landing tests stabilized for framer-motion under jsdom.
+- 1. [Rule 3 - Blocking] getCachedCompany cannot use cookie-based createClient
+- Reduces the new-project wizard to a single client-select step with eager draft creation, adds a full-screen `/projects/[id]/capture` route group escaping the app shell, and scaffolds all 10 Phase 18 test files covering P18-01 through P18-09.
+- One-liner:
+- One-liner:
+
+---
+
 ## v1.1 Dark-first UX & Modern Redesign (Shipped: 2026-04-22)
 
 **Phases completed:** 9 phases, 40 plans, 53 tasks
