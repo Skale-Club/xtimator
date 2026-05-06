@@ -56,15 +56,15 @@
 
 | REQ-ID | Feature Area | Phase | Status |
 |--------|-------------|-------|--------|
-| PB-01 | Price Book Management | TBD | Pending |
-| PB-02 | Price Book Management | TBD | Pending |
-| PB-03 | Price Book Management | TBD | Pending |
-| PB-04 | Price Book Management | TBD | Pending |
-| PB-05 | Price Book Management | TBD | Pending |
-| PB-06 | Price Book Management | TBD | Pending |
-| PB-07 | Price Book Management | TBD | Pending |
-| AIPRICE-01 | AI Integration | TBD | Pending |
-| AIPRICE-02 | AI Integration | TBD | Pending |
-| AIPRICE-03 | AI Integration | TBD | Pending |
-| EDITPRICE-01 | Estimate Editor | TBD | Pending |
-| EDITPRICE-02 | Estimate Editor | TBD | Pending |
+| PB-01 | Price Book Management | Phase 20 | Pending |
+| PB-02 | Price Book Management | Phase 20 | Pending |
+| PB-03 | Price Book Management | Phase 20 | Pending |
+| PB-04 | Price Book Management | Phase 20 | Pending |
+| PB-05 | Price Book Management | Phase 21 | Pending |
+| PB-06 | Price Book Management | Phase 20 | Pending |
+| PB-07 | Price Book Management | Phase 20 | Pending |
+| AIPRICE-01 | AI Integration | Phase 22 | Pending |
+| AIPRICE-02 | AI Integration | Phase 22 | Pending |
+| AIPRICE-03 | AI Integration | Phase 22 | Pending |
+| EDITPRICE-01 | Estimate Editor | Phase 23 | Pending |
+| EDITPRICE-02 | Estimate Editor | Phase 23 | Pending |

@@ -1,30 +1,30 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.2
-milestone_name: Brand Identity & Global Reach
-status: complete
-last_updated: "2026-05-06T20:30:00.000Z"
+milestone: v1.3
+milestone_name: Smart Pricing
+status: in_progress
+last_updated: "2026-05-06T00:00:00.000Z"
 last_activity: 2026-05-06
 progress:
-  total_phases: 9
-  completed_phases: 9
-  total_plans: 27
-  completed_plans: 27
+  total_phases: 5
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
 ---
 
 # Project State
 
 ## Current Status
 
-- **Milestone**: v1.3 Smart Pricing — defining requirements
+- **Milestone**: v1.3 Smart Pricing — roadmap defined, Phase 19 ready to plan
 - **Last updated**: 2026-05-06
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 19 — Price Book DB Foundation
 Plan: —
-Status: Defining requirements
-Last activity: 2026-05-06 — Milestone v1.3 started
+Status: Not started
+Last activity: 2026-05-06 — v1.3 roadmap created (Phases 19-23)
 
 ## Completed Phases
 
@@ -231,6 +231,7 @@ See: .planning/PROJECT.md (updated 2026-05-06)
 Project initialized from comprehensive spec on 2026-04-09.
 v1.0: 8 phases, 32 plans, 151+ commits. v1.1: Phase 9, 8 plans, 38 commits. YOLO mode, standard granularity.
 v1.2: 3 phases (10-12), 16 requirements. Seeds: SEED-001 (i18n EN/PT-BR/ES), SEED-002 (landing page + #406EF1 brand identity).
+v1.3: 5 phases (19-23), 12 requirements. Price book DB + CRUD UI + CSV import + AI anchoring + editor badges.
 
 ## Accumulated Context
 
@@ -241,6 +242,7 @@ v1.2: 3 phases (10-12), 16 requirements. Seeds: SEED-001 (i18n EN/PT-BR/ES), SEE
 - Phase 13 added: Visual identity polish — robust favicon and app icons across all surfaces (.ico legacy, icon.svg with light/dark, icon.png fallback, apple-icon.png, web manifest, no public/ vs app/ conflict, no manual <link> in head)
 - Phase 14 added: Auth system hardening. Root cause: route group `app/(auth)/` is silent in URL (parens), but 32+ code sites use `/auth/login`, `/auth/signup`, `/auth/reset-password` — those URLs are 404s. Two conflicting URL conventions split across codebase (proxy.isPublicRoute, server actions, layout/page redirects, callback route, internal Links, Playwright + unit tests). Also covers: dead-code fallback redirect in signIn (auth.ts:59), updatePassword skipping company check (auth.ts:102), missing try/catch in callback getClaims and proxy updateSession, OAuth button loading-state never resets on failure/cancel, SELECT-then-INSERT race in createOrUpdateCompany.
 - Phase 18 added: Voice-First Project Onboarding. Repositions the AI voice recorder as the centerpiece of new project creation. Wizard reduced to a single client-pick step; recorder becomes a full-screen primary surface (large timer, wide waveform, circular progress ring around mic). 10-minute hard cap optimized for Whisper + Claude (≤5MB upload, ~$0.06/recording, ≤2K transcript tokens) with neutral→amber→red timer escalation, 60s warning, auto-stop. Multi-stage progress stepper (Saving → Transcribing → Analyzing → Generating estimate) replaces the current tiny `Loader2` spinner, with the Whisper transcript revealed mid-flow. Estimate generation auto-fires post-transcript and lands the user in the editor with a populated draft. Escape hatch ("Skip recording") preserves manual-entry path. Closes UX gap identified during post-Phase-17 review: today the recorder is buried in an Audio tab and AI generation requires a manual click.
+- v1.3 phases 19-23: DB foundation (Phase 19) → CRUD UI (Phase 20) → CSV import (Phase 21) → AI anchoring (Phase 22) → editor badges (Phase 23). Key constraint: price book is optional — companies without entries continue working as before (AIPRICE-02 covers fallback with no regression). Phase 22 depends on Phase 19 (needs price_source column) but NOT on Phase 20/21 (AI integration doesn't require UI to be built first). Phase 23 depends on Phase 22 (needs price_source data on estimate_items).
 
 ### Quick Tasks Completed
 
