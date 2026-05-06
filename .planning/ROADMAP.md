@@ -75,7 +75,7 @@
   4. The build passes with TypeScript types regenerated from the new schema
 **Plans**: 2 plans
 Plans:
-- [ ] 19-01-PLAN.md — Integration test stub (Wave 0) + migration SQL file
+- [x] 19-01-PLAN.md — Integration test stub (Wave 0) + migration SQL file
 - [ ] 19-02-PLAN.md — Apply migration to live DB + regenerate TypeScript types + verify build
 
 ### Phase 20: Price Book CRUD UI
@@ -146,7 +146,7 @@ Plans:
 | 16. Sidebar Projects Panel | v1.2 | 3/3 | Complete | 2026-05-03 |
 | 17. Navigation Performance | v1.2 | 3/3 | Complete | 2026-05-05 |
 | 18. Voice-First Project Onboarding | v1.2 | 3/3 | Complete | 2026-05-05 |
-| 19. Price Book DB Foundation | v1.3 | 0/2 | Not started | - |
+| 19. Price Book DB Foundation | v1.3 | 1/2 | In Progress|  |
 | 20. Price Book CRUD UI | v1.3 | 0/? | Not started | - |
 | 21. CSV Import | v1.3 | 0/? | Not started | - |
 | 22. AI Price Anchoring | v1.3 | 0/? | Not started | - |

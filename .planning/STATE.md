@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Smart Pricing
-status: in_progress
-last_updated: "2026-05-06T00:00:00.000Z"
+status: executing
+last_updated: "2026-05-06T21:30:57.011Z"
 last_activity: 2026-05-06
 progress:
   total_phases: 5
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_plans: 2
+  completed_plans: 1
 ---
 
 # Project State
@@ -21,10 +21,10 @@ progress:
 
 ## Current Position
 
-Phase: 19 — Price Book DB Foundation
-Plan: —
-Status: Not started
-Last activity: 2026-05-06 — v1.3 roadmap created (Phases 19-23)
+Phase: 19 (Price Book DB Foundation) — EXECUTING
+Plan: 2 of 2
+Status: Ready to execute
+Last activity: 2026-05-06
 
 ## Completed Phases
 
@@ -167,6 +167,8 @@ Last activity: 2026-05-06 — v1.3 roadmap created (Phases 19-23)
 - [Phase 18-voice-first-project-onboarding]: pg_cron primary path with DO $do$ guard for idempotency; Vercel cron also wired as harmless fallback (D-03)
 - [Phase 18-voice-first-project-onboarding]: Name patcher only updates project.name if it starts with PLACEHOLDER_PREFIX — preserves user-edited names (D-05)
 - [Phase 18-voice-first-project-onboarding]: App-shell test-ids added unconditionally to prevent false-positive shell-escape e2e assertions
+- [Phase 19-price-book-db-foundation]: Wave 0 test stub covers SC-1/SC-2/SC-3 smoke criteria; SC-1 and SC-3 intentionally RED until Plan 02 applies db push
+- [Phase 19-price-book-db-foundation]: price_source CHECK uses IS NULL OR IN ('price_book','ai_estimate') to allow pre-v1.3 NULL rows; no Postgres enum (TEXT+CHECK consistent with D-07/D-08)
 
 ## Performance Metrics
 
@@ -218,13 +220,14 @@ Last activity: 2026-05-06 — v1.3 roadmap created (Phases 19-23)
 | Phase 17-navigation-performance P02 | spread | 11 tasks | 8 files |
 | Phase 18-voice-first-project-onboarding P01 | 11min | 3 tasks | 20 files |
 | Phase 18-voice-first-project-onboarding P03 | 9min | 3 tasks | 13 files |
+| Phase 19-price-book-db-foundation P01 | 11min | 2 tasks | 2 files |
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-06)
 
 **Core value:** Business owner → job site audio recording → sent professional estimate in under 5 minutes
-**Current focus:** v1.3 Smart Pricing — price book per empresa com integração na IA
+**Current focus:** Phase 19 — Price Book DB Foundation
 
 ## Notes
 
