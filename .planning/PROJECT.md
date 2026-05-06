@@ -14,6 +14,21 @@ The platform includes:
 
 A business owner can go from job site audio recording to a sent, professional estimate in under 5 minutes without touching a keyboard.
 
+## Current Milestone: v1.3 Smart Pricing
+
+**Goal:** Empresas cadastram sua tabela de preços real e a IA usa esses preços como âncora na geração de orçamentos, com fallback automático para senso comum quando vazio ou sem match, e o editor exibe a origem de cada preço.
+
+**Target features:**
+- Price book CRUD em `/settings/price-book` — categorias livres, item + unidade + preço, entrada manual + import CSV
+- Integração com pipeline da IA: price book injetado no prompt antes da geração; fallback para senso comum quando sem match
+- Editor de orçamento: badge/ícone por linha indicando origem (price book ✓ vs IA ⚡)
+- Price book opcional: empresas sem preenchimento continuam funcionando como antes
+
+**Key constraints:**
+- Ajuste manual de preço no editor é exceção per-cliente, não retroalimenta o price book (intencional)
+- RLS por company_id — cada empresa vê e edita apenas seus próprios preços
+- Import CSV cobre empresas com tabelas preexistentes
+
 ## Current State
 
 **Version:** v1.2 Brand Identity & Global Reach — SHIPPED 2026-05-06

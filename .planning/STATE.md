@@ -16,15 +16,15 @@ progress:
 
 ## Current Status
 
-- **Milestone**: v1.2 Brand Identity & Global Reach — COMPLETE 2026-05-06
+- **Milestone**: v1.3 Smart Pricing — defining requirements
 - **Last updated**: 2026-05-06
-- **All phases complete**: 18/18 phases, 54/54 plans shipped across all milestones
 
 ## Current Position
 
-Phase: 18 (complete)
-Status: Milestone archived — ready for /gsd:new-milestone
-Last activity: 2026-05-06
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-05-06 — Milestone v1.3 started
 
 ## Completed Phases
 
@@ -224,7 +224,7 @@ Last activity: 2026-05-06
 See: .planning/PROJECT.md (updated 2026-05-06)
 
 **Core value:** Business owner → job site audio recording → sent professional estimate in under 5 minutes
-**Current focus:** Planning v1.3 — run /gsd:new-milestone to define next milestone
+**Current focus:** v1.3 Smart Pricing — price book per empresa com integração na IA
 
 ## Notes
 
