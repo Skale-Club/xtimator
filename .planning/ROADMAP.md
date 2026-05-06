@@ -73,7 +73,10 @@
   2. RLS policies on `company_price_book` allow a company's authenticated user to SELECT/INSERT/UPDATE/DELETE only their own rows; rows from other companies are invisible
   3. `estimate_items` gains a nullable `price_source` TEXT column (CHECK: 'price_book' | 'ai_estimate') and existing rows are unaffected
   4. The build passes with TypeScript types regenerated from the new schema
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 19-01-PLAN.md — Integration test stub (Wave 0) + migration SQL file
+- [ ] 19-02-PLAN.md — Apply migration to live DB + regenerate TypeScript types + verify build
 
 ### Phase 20: Price Book CRUD UI
 **Goal**: Users can manage their company's price book directly in settings — viewing items grouped by category, adding new items, editing and deleting existing ones, searching, and seeing a clear empty state that explains optionality
@@ -143,7 +146,7 @@
 | 16. Sidebar Projects Panel | v1.2 | 3/3 | Complete | 2026-05-03 |
 | 17. Navigation Performance | v1.2 | 3/3 | Complete | 2026-05-05 |
 | 18. Voice-First Project Onboarding | v1.2 | 3/3 | Complete | 2026-05-05 |
-| 19. Price Book DB Foundation | v1.3 | 0/? | Not started | - |
+| 19. Price Book DB Foundation | v1.3 | 0/2 | Not started | - |
 | 20. Price Book CRUD UI | v1.3 | 0/? | Not started | - |
 | 21. CSV Import | v1.3 | 0/? | Not started | - |
 | 22. AI Price Anchoring | v1.3 | 0/? | Not started | - |
