@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import type { ProjectFormValues } from '@/lib/schemas/project'
 import { getProjectsByCompany } from '@/lib/queries/project'
+import { PLACEHOLDER_PREFIX } from '@/lib/constants/project'
 
 async function getAuthContext() {
   const supabase = await createClient()
@@ -21,9 +22,6 @@ async function getAuthContext() {
 
   return { supabase, company }
 }
-
-// Exported so plan 18-03 name-patcher can import and check against this prefix.
-export const PLACEHOLDER_PREFIX = 'Untitled project — '
 
 export async function createProjectAction(formData: ProjectFormValues) {
   const ctx = await getAuthContext()

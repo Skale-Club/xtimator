@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { getProjectRecordings } from '@/lib/queries/recording'
 import { getProjectPhotos } from '@/lib/queries/photo'
 import { getIntegrationKey } from '@/lib/platform-config'
-import { PLACEHOLDER_PREFIX } from '@/lib/actions/project'
+import { PLACEHOLDER_PREFIX } from '@/lib/constants/project'
 
 export async function POST(request: Request) {
   try {
