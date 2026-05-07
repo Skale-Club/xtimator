@@ -20,7 +20,8 @@ export default defineConfig({
       // server-only throws when imported from a client bundle (vitest runs jsdom = client-ish).
       // In tests we always exercise server modules in isolation, so alias to the empty stub
       // that Next.js ships for server-only (same as the react-server resolution path).
-      'server-only': path.resolve(__dirname, 'node_modules/server-only/empty.js'),
+      // Find the package using Node.js module resolution (works with hoisted/monorepo node_modules).
+      'server-only': require.resolve('server-only').replace(/index\.js$/, 'empty.js'),
     },
   },
 })
