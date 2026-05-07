@@ -76,7 +76,7 @@
 **Plans**: 2 plans
 Plans:
 - [x] 19-01-PLAN.md — Integration test stub (Wave 0) + migration SQL file
-- [ ] 19-02-PLAN.md — Apply migration to live DB + regenerate TypeScript types + verify build
+- [x] 19-02-PLAN.md — Apply migration to live DB + regenerate TypeScript types + verify build
 
 ### Phase 20: Price Book CRUD UI
 **Goal**: Users can manage their company's price book directly in settings — viewing items grouped by category, adding new items, editing and deleting existing ones, searching, and seeing a clear empty state that explains optionality
@@ -146,7 +146,7 @@ Plans:
 | 16. Sidebar Projects Panel | v1.2 | 3/3 | Complete | 2026-05-03 |
 | 17. Navigation Performance | v1.2 | 3/3 | Complete | 2026-05-05 |
 | 18. Voice-First Project Onboarding | v1.2 | 3/3 | Complete | 2026-05-05 |
-| 19. Price Book DB Foundation | v1.3 | 1/2 | In Progress|  |
+| 19. Price Book DB Foundation | v1.3 | 2/2 | Complete   | 2026-05-07 |
 | 20. Price Book CRUD UI | v1.3 | 0/? | Not started | - |
 | 21. CSV Import | v1.3 | 0/? | Not started | - |
 | 22. AI Price Anchoring | v1.3 | 0/? | Not started | - |
