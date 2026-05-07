@@ -105,7 +105,7 @@ Plans:
   4. Rows with missing required fields are flagged in the preview with a clear error indicator; only valid rows are imported on confirm
 **Plans**: 3 plans
 Plans:
-- [ ] 21-01-PLAN.md — Wave 0: install papaparse + RED test stubs (parser/dialog/action) + source skeletons
+- [x] 21-01-PLAN.md — Wave 0: install papaparse + RED test stubs (parser/dialog/action) + source skeletons
 - [ ] 21-02-PLAN.md — Wave 1: GREEN implementation (parser, dialog, server action) — 32 stubs turn green
 - [ ] 21-03-PLAN.md — Wave 2: wire Import CSV button into PriceBookList + template CSV + full regression sweep
 **UI hint**: yes
@@ -155,6 +155,6 @@ Plans:
 | 18. Voice-First Project Onboarding | v1.2 | 3/3 | Complete | 2026-05-05 |
 | 19. Price Book DB Foundation | v1.3 | 2/2 | Complete    | 2026-05-07 |
 | 20. Price Book CRUD UI | v1.3 | 3/3 | Complete    | 2026-05-07 |
-| 21. CSV Import | v1.3 | 0/3 | Not started | - |
+| 21. CSV Import | v1.3 | 1/3 | In Progress|  |
 | 22. AI Price Anchoring | v1.3 | 0/? | Not started | - |
 | 23. Estimate Editor Price Badges | v1.3 | 0/? | Not started | - |

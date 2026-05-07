@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Smart Pricing
 status: executing
-last_updated: "2026-05-07T23:04:47.932Z"
+last_updated: "2026-05-07T23:59:18.017Z"
 last_activity: 2026-05-07
 progress:
   total_phases: 5
   completed_phases: 2
-  total_plans: 5
-  completed_plans: 5
+  total_plans: 8
+  completed_plans: 6
 ---
 
 # Project State
@@ -21,8 +21,8 @@ progress:
 
 ## Current Position
 
-Phase: 21
-Plan: Not started
+Phase: 21 (csv-import) — EXECUTING
+Plan: 2 of 3
 Status: Ready to execute
 Last activity: 2026-05-07
 
@@ -176,6 +176,7 @@ Last activity: 2026-05-07
 - [Phase 20-price-book-crud-ui]: Helper paragraph below /settings/price-book heading is conditional on items.length > 0 — empty state owns the optionality messaging via D-10, secondary helper would be redundant
 - [Phase 20-price-book-crud-ui]: Price-book sub-route page wrapper uses w-full max-w-none space-y-6 (matches /settings parent), not the narrow mx-auto max-w-xl pattern of /settings/appearance — a grouped table list needs full width to avoid truncation
 - [Phase 20-price-book-crud-ui]: Price Book entry-point card placed strictly below SettingsTabs in the parent space-y-6 stack (D-02); SettingsTabs untouched per D-01 — price-book is a sibling sub-route, not a new tab
+- [Phase 21-csv-import]: papaparse@5.5.3 installed via npm (D-20 locked); parsePriceBookCsv + importPriceBookItems Wave 0 stubs return error/fatal to fail loudly before Wave 1
 
 ## Performance Metrics
 
@@ -231,13 +232,14 @@ Last activity: 2026-05-07
 | Phase 19-price-book-db-foundation P02 | 19min | 2 tasks | 2 files |
 | Phase 20-price-book-crud-ui P01 | 2min | 2 tasks | 5 files |
 | Phase 20-price-book-crud-ui P03 | 3min | 2 tasks | 3 files |
+| Phase 21-csv-import P01 | 4min | 3 tasks | 8 files |
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-06)
 
 **Core value:** Business owner → job site audio recording → sent professional estimate in under 5 minutes
-**Current focus:** Phase 20 — price-book-crud-ui
+**Current focus:** Phase 21 — csv-import
 
 ## Notes
 

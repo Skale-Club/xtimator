@@ -19,7 +19,7 @@
 - [x] **PB-02**: Usuário pode adicionar um novo item (categoria livre, nome do item, unidade, preço unitário, notas opcionais)
 - [x] **PB-03**: Usuário pode editar um item existente
 - [x] **PB-04**: Usuário pode excluir um item (com confirmação)
-- [ ] **PB-05**: Usuário pode importar itens em lote via upload de arquivo CSV (colunas: categoria, item, unidade, preço; preview antes de confirmar import)
+- [x] **PB-05**: Usuário pode importar itens em lote via upload de arquivo CSV (colunas: categoria, item, unidade, preço; preview antes de confirmar import)
 - [x] **PB-06**: Página exibe empty state claro comunicando que o price book é opcional — a IA usa estimativas de mercado se vazio
 - [x] **PB-07**: Usuário pode buscar itens do price book por nome ou categoria
 
