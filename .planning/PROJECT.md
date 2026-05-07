@@ -31,8 +31,9 @@ A business owner can go from job site audio recording to a sent, professional es
 
 ## Current State
 
-**Version:** v1.2 Brand Identity & Global Reach — SHIPPED 2026-05-06
-**Phases complete:** 18/18 | **Plans:** 54/54 | **Build:** passing
+**Version:** v1.3 Smart Pricing — IN PROGRESS (2/5 phases complete)
+**Phases complete:** 20/23 | **Plans:** 59/59 (Phase 19: 2, Phase 20: 3) | **Build:** passing
+**Last shipped:** Phase 20 — Price Book CRUD UI (2026-05-07)
 **Tech stack:** Next.js 16 (App Router), TypeScript strict, Tailwind 4, shadcn/ui (New York), Supabase (Auth + DB + Storage), @react-pdf/renderer, Resend, Anthropic Claude, OpenAI Whisper, next-themes
 **Test coverage:** 250+ unit tests passing, integration tests, E2E with Playwright (mobile + landing page + voice flow coverage)
 **Deployment target:** Vercel
@@ -57,6 +58,7 @@ A business owner can go from job site audio recording to a sent, professional es
 - **i18n:** EN/PT-BR/ES — LanguageContext + useTranslation(), 192-entry static dict, /api/translate (Claude Haiku + DB cache), LanguageToggle in navbar + mobile bottom-nav
 - **Brand:** #406EF1 primary across all surfaces (landing, authenticated app, admin)
 - **Icons:** App Router-owned favicon, SVG/PNG app icons, manifest metadata
+- **Price book:** `/settings/price-book` — CRUD for company-scoped pricing (category + name + unit + unit_price + notes), search, alphabetical category grouping, AlertDialog delete confirmation, EmptyState explaining optionality. Underlying `company_price_book` table with RLS isolation per company; `estimate_items.price_source` column ready for AI anchoring (Phase 22)
 
 ## Requirements
 
@@ -93,6 +95,11 @@ A business owner can go from job site audio recording to a sent, professional es
 - ✓ PROJ-10–12: Sidebar projects panel — paginated list, active highlight, real-time sync on project creation — v1.2
 - ✓ PERF-01–03: Skeleton loading states, Suspense streaming, React cache() for auth/company, HoverPrefetchLink — v1.2
 - ✓ P18-01–09: Voice-first project onboarding — 1-step wizard, full-screen capture route, 10-min recording with color timer + SVG ring, multi-stage stepper, auto-estimate generation — v1.2
+
+### Validated (v1.3 — in progress)
+
+- ✓ Phase 19 — Price Book DB Foundation: `company_price_book` table with RLS isolation, `estimate_items.price_source` CHECK column, regenerated TypeScript types (PB-DB infrastructure prerequisite for PB-01..07, AIPRICE-03, EDITPRICE-01/02) — Phase 19, 2026-05-06
+- ✓ PB-01, PB-02, PB-03, PB-04, PB-06, PB-07: Price Book CRUD UI — `/settings/price-book` route with grouped list, search, add/edit dialog (Combobox category autocomplete), delete with AlertDialog confirmation, optionality EmptyState, Settings entry-point card — Phase 20, 2026-05-07
 
 ### Active (v1.3)
 
