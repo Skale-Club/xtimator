@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Smart Pricing
-status: verifying
-last_updated: "2026-05-07T02:45:55.532Z"
+status: executing
+last_updated: "2026-05-07T22:22:18.532Z"
 last_activity: 2026-05-07
 progress:
   total_phases: 5
   completed_phases: 1
-  total_plans: 2
-  completed_plans: 2
+  total_plans: 5
+  completed_plans: 3
 ---
 
 # Project State
@@ -21,9 +21,9 @@ progress:
 
 ## Current Position
 
-Phase: 20
-Plan: Not started
-Status: Phase complete — ready for verification
+Phase: 20 (price-book-crud-ui) — EXECUTING
+Plan: 2 of 3
+Status: Ready to execute
 Last activity: 2026-05-07
 
 ## Completed Phases
@@ -170,6 +170,9 @@ Last activity: 2026-05-07
 - [Phase 19-price-book-db-foundation]: Wave 0 test stub covers SC-1/SC-2/SC-3 smoke criteria; SC-1 and SC-3 intentionally RED until Plan 02 applies db push
 - [Phase 19-price-book-db-foundation]: price_source CHECK uses IS NULL OR IN ('price_book','ai_estimate') to allow pre-v1.3 NULL rows; no Postgres enum (TEXT+CHECK consistent with D-07/D-08)
 - [Phase 19-price-book-db-foundation]: Used Supabase REST API OpenAPI introspection for type generation on Windows — supabase gen types --db-url requires Docker which is unavailable
+- [Phase 20-price-book-crud-ui]: z.coerce.number().min(0) used for unit_price (Pitfall 1) — auto-coerces HTML number input strings, no valueAsNumber prop required
+- [Phase 20-price-book-crud-ui]: PriceBookItem.category typed as string (non-null) despite generated types showing string | null — DDL is NOT NULL; type generator nullability is a known gap (Phase 19 SUMMARY)
+- [Phase 20-price-book-crud-ui]: getAuthContext duplicated in lib/actions/price-book.ts (mirrors lib/actions/client.ts) — established codebase convention since Phase 03
 
 ## Performance Metrics
 
@@ -223,13 +226,14 @@ Last activity: 2026-05-07
 | Phase 18-voice-first-project-onboarding P03 | 9min | 3 tasks | 13 files |
 | Phase 19-price-book-db-foundation P01 | 11min | 2 tasks | 2 files |
 | Phase 19-price-book-db-foundation P02 | 19min | 2 tasks | 2 files |
+| Phase 20-price-book-crud-ui P01 | 2min | 2 tasks | 5 files |
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-06)
 
 **Core value:** Business owner → job site audio recording → sent professional estimate in under 5 minutes
-**Current focus:** Phase 19 — Price Book DB Foundation
+**Current focus:** Phase 20 — price-book-crud-ui
 
 ## Notes
 

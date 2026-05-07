@@ -90,7 +90,7 @@ Plans:
   5. User can search items by name or category and the list filters instantly to matching results
 **Plans**: 3 plans
 Plans:
-- [ ] 20-01-PLAN.md — Wave 0: failing test stubs + data layer (schema, query, server actions)
+- [x] 20-01-PLAN.md — Wave 0: failing test stubs + data layer (schema, query, server actions)
 - [ ] 20-02-PLAN.md — Wave 1: PriceBookList + PriceBookItemDialog client components (tests GREEN)
 - [ ] 20-03-PLAN.md — Wave 2: page route + loading.tsx + settings entry point card
 
@@ -150,7 +150,7 @@ Plans:
 | 17. Navigation Performance | v1.2 | 3/3 | Complete | 2026-05-05 |
 | 18. Voice-First Project Onboarding | v1.2 | 3/3 | Complete | 2026-05-05 |
 | 19. Price Book DB Foundation | v1.3 | 2/2 | Complete    | 2026-05-07 |
-| 20. Price Book CRUD UI | v1.3 | 0/3 | Not started | - |
+| 20. Price Book CRUD UI | v1.3 | 1/3 | In Progress|  |
 | 21. CSV Import | v1.3 | 0/? | Not started | - |
 | 22. AI Price Anchoring | v1.3 | 0/? | Not started | - |
 | 23. Estimate Editor Price Badges | v1.3 | 0/? | Not started | - |

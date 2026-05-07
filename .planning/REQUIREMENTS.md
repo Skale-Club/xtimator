@@ -15,13 +15,13 @@
 
 ### Price Book — Gestão
 
-- [ ] **PB-01**: Usuário pode ver todos os itens do price book da empresa agrupados por categoria em `/settings/price-book`
-- [ ] **PB-02**: Usuário pode adicionar um novo item (categoria livre, nome do item, unidade, preço unitário, notas opcionais)
-- [ ] **PB-03**: Usuário pode editar um item existente
-- [ ] **PB-04**: Usuário pode excluir um item (com confirmação)
+- [x] **PB-01**: Usuário pode ver todos os itens do price book da empresa agrupados por categoria em `/settings/price-book`
+- [x] **PB-02**: Usuário pode adicionar um novo item (categoria livre, nome do item, unidade, preço unitário, notas opcionais)
+- [x] **PB-03**: Usuário pode editar um item existente
+- [x] **PB-04**: Usuário pode excluir um item (com confirmação)
 - [ ] **PB-05**: Usuário pode importar itens em lote via upload de arquivo CSV (colunas: categoria, item, unidade, preço; preview antes de confirmar import)
-- [ ] **PB-06**: Página exibe empty state claro comunicando que o price book é opcional — a IA usa estimativas de mercado se vazio
-- [ ] **PB-07**: Usuário pode buscar itens do price book por nome ou categoria
+- [x] **PB-06**: Página exibe empty state claro comunicando que o price book é opcional — a IA usa estimativas de mercado se vazio
+- [x] **PB-07**: Usuário pode buscar itens do price book por nome ou categoria
 
 ### AI Integration — Ancoragem de Preços
 
