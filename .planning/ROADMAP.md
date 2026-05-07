@@ -146,7 +146,7 @@ Plans:
 | 16. Sidebar Projects Panel | v1.2 | 3/3 | Complete | 2026-05-03 |
 | 17. Navigation Performance | v1.2 | 3/3 | Complete | 2026-05-05 |
 | 18. Voice-First Project Onboarding | v1.2 | 3/3 | Complete | 2026-05-05 |
-| 19. Price Book DB Foundation | v1.3 | 2/2 | Complete   | 2026-05-07 |
+| 19. Price Book DB Foundation | v1.3 | 2/2 | Complete    | 2026-05-07 |
 | 20. Price Book CRUD UI | v1.3 | 0/? | Not started | - |
 | 21. CSV Import | v1.3 | 0/? | Not started | - |
 | 22. AI Price Anchoring | v1.3 | 0/? | Not started | - |
