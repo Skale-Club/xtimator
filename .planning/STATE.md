@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Smart Pricing
 status: executing
-last_updated: "2026-05-07T22:22:18.532Z"
+last_updated: "2026-05-07T22:59:50.317Z"
 last_activity: 2026-05-07
 progress:
   total_phases: 5
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 5
-  completed_plans: 3
+  completed_plans: 5
 ---
 
 # Project State
@@ -22,7 +22,7 @@ progress:
 ## Current Position
 
 Phase: 20 (price-book-crud-ui) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
 Last activity: 2026-05-07
 
@@ -173,6 +173,9 @@ Last activity: 2026-05-07
 - [Phase 20-price-book-crud-ui]: z.coerce.number().min(0) used for unit_price (Pitfall 1) — auto-coerces HTML number input strings, no valueAsNumber prop required
 - [Phase 20-price-book-crud-ui]: PriceBookItem.category typed as string (non-null) despite generated types showing string | null — DDL is NOT NULL; type generator nullability is a known gap (Phase 19 SUMMARY)
 - [Phase 20-price-book-crud-ui]: getAuthContext duplicated in lib/actions/price-book.ts (mirrors lib/actions/client.ts) — established codebase convention since Phase 03
+- [Phase 20-price-book-crud-ui]: Helper paragraph below /settings/price-book heading is conditional on items.length > 0 — empty state owns the optionality messaging via D-10, secondary helper would be redundant
+- [Phase 20-price-book-crud-ui]: Price-book sub-route page wrapper uses w-full max-w-none space-y-6 (matches /settings parent), not the narrow mx-auto max-w-xl pattern of /settings/appearance — a grouped table list needs full width to avoid truncation
+- [Phase 20-price-book-crud-ui]: Price Book entry-point card placed strictly below SettingsTabs in the parent space-y-6 stack (D-02); SettingsTabs untouched per D-01 — price-book is a sibling sub-route, not a new tab
 
 ## Performance Metrics
 
@@ -227,6 +230,7 @@ Last activity: 2026-05-07
 | Phase 19-price-book-db-foundation P01 | 11min | 2 tasks | 2 files |
 | Phase 19-price-book-db-foundation P02 | 19min | 2 tasks | 2 files |
 | Phase 20-price-book-crud-ui P01 | 2min | 2 tasks | 5 files |
+| Phase 20-price-book-crud-ui P03 | 3min | 2 tasks | 3 files |
 
 ## Project Reference
 
