@@ -88,8 +88,11 @@ Plans:
   3. User can edit any existing item's fields in-place and save; changes are reflected immediately
   4. User can delete an item after confirming a destructive action dialog; the item is removed from the list
   5. User can search items by name or category and the list filters instantly to matching results
-**Plans**: TBD
-**UI hint**: yes
+**Plans**: 3 plans
+Plans:
+- [ ] 20-01-PLAN.md — Wave 0: failing test stubs + data layer (schema, query, server actions)
+- [ ] 20-02-PLAN.md — Wave 1: PriceBookList + PriceBookItemDialog client components (tests GREEN)
+- [ ] 20-03-PLAN.md — Wave 2: page route + loading.tsx + settings entry point card
 
 ### Phase 21: CSV Import
 **Goal**: Users with existing price lists can import items in bulk via CSV upload, preview what will be imported before committing, and confirm the bulk insert
@@ -147,7 +150,7 @@ Plans:
 | 17. Navigation Performance | v1.2 | 3/3 | Complete | 2026-05-05 |
 | 18. Voice-First Project Onboarding | v1.2 | 3/3 | Complete | 2026-05-05 |
 | 19. Price Book DB Foundation | v1.3 | 2/2 | Complete    | 2026-05-07 |
-| 20. Price Book CRUD UI | v1.3 | 0/? | Not started | - |
+| 20. Price Book CRUD UI | v1.3 | 0/3 | Not started | - |
 | 21. CSV Import | v1.3 | 0/? | Not started | - |
 | 22. AI Price Anchoring | v1.3 | 0/? | Not started | - |
 | 23. Estimate Editor Price Badges | v1.3 | 0/? | Not started | - |
