@@ -87,3 +87,21 @@ export async function deletePriceBookItem(itemId: string) {
   revalidatePath('/settings/price-book')
   return { data: { deleted: true } }
 }
+
+export async function importPriceBookItems(
+  rows: PriceBookItemFormValues[]
+): Promise<
+  | { data: { imported: number; skipped: number } }
+  | { error: string }
+> {
+  // Wave 0 stub — Wave 1 fills this in per RESEARCH Pattern 2:
+  //   1. getAuthContext()
+  //   2. server-side re-validate every row with priceBookItemSchema.safeParse
+  //   3. fetch existing (category, name) pairs for company → Set
+  //   4. filter rows against existing keys (case-insensitive)
+  //   5. supabase.from('company_price_book').insert(survivors) — single bulk insert
+  //   6. revalidatePath('/settings/price-book')
+  //   7. return { data: { imported, skipped } } | { error }
+  void rows // silence unused-arg warning in skeleton
+  return { error: 'not implemented (Wave 0 stub)' }
+}
