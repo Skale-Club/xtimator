@@ -4,6 +4,9 @@
  * Phase 25 imports resolveTemplate() to render the Plain Text tab.
  */
 
+import type { EstimateWithSections } from '@/lib/queries/estimate'
+import { formatCurrency } from '@/lib/utils/format'
+
 export interface TemplateData {
   client_name: string
   company_name: string
@@ -66,4 +69,28 @@ export function resolveTemplate(template: EstimateTemplate, data: TemplateData):
   ]
 
   return parts.join('\n')
+}
+
+/**
+ * Build the items_breakdown string for use in resolveTemplate().
+ * Format (per D-02 / SEED-004):
+ *   [Section Title]
+ *   Item description: $120.00
+ *
+ *   [Next Section]
+ *   Item description: $85.00
+ *
+ * Sections with no items are filtered out. Empty estimate returns ''.
+ */
+export function buildItemsBreakdown(estimate: EstimateWithSections): string {
+  return estimate.sections
+    .filter((section) => section.items.length > 0)
+    .map((section) => {
+      const header = `[${section.title}]`
+      const items = section.items
+        .map((item) => `${item.description}: ${formatCurrency(item.total)}`)
+        .join('\n')
+      return `${header}\n${items}`
+    })
+    .join('\n\n')
 }
