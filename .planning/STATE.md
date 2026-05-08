@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Smart Pricing
-status: verifying
-last_updated: "2026-05-08T00:39:41.170Z"
+status: executing
+last_updated: "2026-05-08T01:45:41.861Z"
 last_activity: 2026-05-08
 progress:
   total_phases: 5
   completed_phases: 3
-  total_plans: 8
-  completed_plans: 8
+  total_plans: 11
+  completed_plans: 9
 ---
 
 # Project State
@@ -21,9 +21,9 @@ progress:
 
 ## Current Position
 
-Phase: 22
-Plan: Not started
-Status: Phase complete — ready for verification
+Phase: 22 (ai-price-anchoring) — EXECUTING
+Plan: 2 of 3
+Status: Ready to execute
 Last activity: 2026-05-08
 
 ## Completed Phases
@@ -182,6 +182,8 @@ Last activity: 2026-05-08
 - [Phase 21-csv-import]: Close dialog BEFORE router.refresh() (Pitfall 5 pattern): onOpenChange(false) then router.refresh() in importPriceBookItems success path
 - [Phase 21-csv-import]: Import CSV button positioned in header flex group (next to Add Item) using variant=outline; empty state Import CSV button rendered as separate div below EmptyState since EmptyState only supports one action prop
 - [Phase 21-csv-import]: handleImportClose pattern mirrors handleDialogChange (closes state, calls router.refresh) — consistent with Phase 20 close-then-refresh convention (Pitfall 5)
+- [Phase 22-ai-price-anchoring]: lib/ai/normalize.ts created as Wave 0 stub so price-source-tagging.test.ts import resolves without TypeScript errors — Wave 1 implements the real function
+- [Phase 22-ai-price-anchoring]: explicit expect added to all vitest imports in test files — tsc fails on globals even with globals:true; existing test pattern requires explicit import from 'vitest'
 
 ## Performance Metrics
 
@@ -240,13 +242,14 @@ Last activity: 2026-05-08
 | Phase 21-csv-import P01 | 4min | 3 tasks | 8 files |
 | Phase 21-csv-import P02 | 7min | 3 tasks | 6 files |
 | Phase 21-csv-import P03 | 11min | 3 tasks | 4 files |
+| Phase 22-ai-price-anchoring P01 | 12min | 2 tasks | 13 files |
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-06)
 
 **Core value:** Business owner → job site audio recording → sent professional estimate in under 5 minutes
-**Current focus:** Phase 21 — csv-import
+**Current focus:** Phase 22 — ai-price-anchoring
 
 ## Notes
 

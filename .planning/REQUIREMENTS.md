@@ -25,9 +25,9 @@
 
 ### AI Integration — Ancoragem de Preços
 
-- [ ] **AIPRICE-01**: Na geração do orçamento, a IA recebe o price book da empresa como contexto e usa os preços cadastrados como âncoras para itens que coincidem com os detectados no áudio/fotos
-- [ ] **AIPRICE-02**: Quando não há match ou o price book está vazio, a IA usa estimativas de mercado (comportamento atual — sem regressão)
-- [ ] **AIPRICE-03**: Cada linha do orçamento gerado é tagged com a origem do preço: `"price_book"` (preço vindo do cadastro) ou `"ai_estimate"` (estimado pela IA)
+- [x] **AIPRICE-01**: Na geração do orçamento, a IA recebe o price book da empresa como contexto e usa os preços cadastrados como âncoras para itens que coincidem com os detectados no áudio/fotos
+- [x] **AIPRICE-02**: Quando não há match ou o price book está vazio, a IA usa estimativas de mercado (comportamento atual — sem regressão)
+- [x] **AIPRICE-03**: Cada linha do orçamento gerado é tagged com a origem do preço: `"price_book"` (preço vindo do cadastro) ou `"ai_estimate"` (estimado pela IA)
 
 ### Estimate Editor — Indicador de Origem
 

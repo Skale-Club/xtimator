@@ -120,7 +120,7 @@ Plans:
   3. Every line item in the generated estimate JSON carries a `price_source` field set to either `"price_book"` or `"ai_estimate"`, and this value is persisted to `estimate_items.price_source`
 **Plans**: 3 plans
 Plans:
-- [ ] 22-01-PLAN.md — Wave 0: install @google/genai + lib/ai/ skeleton files + 5 RED test stubs (17 total)
+- [x] 22-01-PLAN.md — Wave 0: install @google/genai + lib/ai/ skeleton files + 5 RED test stubs (17 total)
 - [ ] 22-02-PLAN.md — Wave 1: implement factory + both adapters (Claude + Gemini) — 17 tests GREEN
 - [ ] 22-03-PLAN.md — Wave 2: wire route + admin panel Gemini card + provider selector + regression gate
 
@@ -160,5 +160,5 @@ Plans:
 | 19. Price Book DB Foundation | v1.3 | 2/2 | Complete    | 2026-05-07 |
 | 20. Price Book CRUD UI | v1.3 | 3/3 | Complete    | 2026-05-07 |
 | 21. CSV Import | v1.3 | 3/3 | Complete    | 2026-05-08 |
-| 22. AI Price Anchoring | v1.3 | 0/3 | Not started | - |
+| 22. AI Price Anchoring | v1.3 | 1/3 | In Progress|  |
 | 23. Estimate Editor Price Badges | v1.3 | 0/? | Not started | - |
