@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { BookOpen, ChevronRight } from 'lucide-react'
+import { BookOpen, ChevronRight, FileText } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { getAuthClaims } from '@/lib/queries/auth'
 import { getCompanySettings } from '@/lib/queries/company'
@@ -50,6 +50,26 @@ export default async function SettingsPage() {
                 <CardTitle>Price Book</CardTitle>
                 <CardDescription>
                   Manage your standard pricing for AI-powered estimates.
+                </CardDescription>
+              </div>
+            </div>
+            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+        </Card>
+      </Link>
+
+      <Link
+        href="/settings/estimate-templates"
+        className="block rounded-[var(--radius-md)] transition-colors hover:bg-accent/50 focus-visible:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <Card className="w-full rounded-[var(--radius-md)]">
+          <CardHeader className="flex flex-row items-center justify-between border-b border-border">
+            <div className="flex items-start gap-3">
+              <FileText className="mt-0.5 h-5 w-5 text-muted-foreground" />
+              <div>
+                <CardTitle>Estimate Templates</CardTitle>
+                <CardDescription>
+                  Customize the greeting, opener, and signature for your plain-text estimates.
                 </CardDescription>
               </div>
             </div>
