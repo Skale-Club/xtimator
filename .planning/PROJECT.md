@@ -18,6 +18,16 @@ A business owner can go from job site audio recording to a sent, professional es
 
 Price book CRUD + CSV import + multi-provider AI anchoring (Claude/Gemini) + estimate editor price badges. 5 phases, 13 plans, 3 days. All 12 requirements validated.
 
+## Current Milestone: v1.4 Estimate Plain Text & Pricing Tools
+
+**Goal:** Donos de empresa podem gerar uma versão texto limpa do orçamento para colar no WhatsApp/SMS/email, e ajustar preços do price book em lote por categoria.
+
+**Target features:**
+- Plain-text estimate com template configurável por empresa (saudação, abertura, fechamento, assinatura) + copy-to-clipboard
+- Aba "Plain Text" no editor ao lado de PDF e Web Link
+- `/settings/estimate-templates` para personalizar o template da empresa
+- Bulk price adjustment: +/-% por categoria no price book (ex: +10% em "Labor" de uma vez)
+
 ## Current State
 
 **Version:** v1.3 Smart Pricing — ✅ COMPLETE (5/5 phases)

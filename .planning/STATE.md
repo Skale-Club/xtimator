@@ -1,8 +1,8 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.3
-milestone_name: Smart Pricing
-status: verifying
+milestone: v1.4
+milestone_name: Estimate Plain Text & Pricing Tools
+status: planning
 last_updated: "2026-05-08T10:07:10.885Z"
 last_activity: 2026-05-08
 progress:
@@ -16,15 +16,15 @@ progress:
 
 ## Current Status
 
-- **Milestone**: v1.3 Smart Pricing — roadmap defined, Phase 19 ready to plan
-- **Last updated**: 2026-05-06
+- **Milestone**: v1.4 Estimate Plain Text & Pricing Tools — defining requirements
+- **Last updated**: 2026-05-08
 
 ## Current Position
 
-Phase: 23
-Plan: Not started
-Status: Phase complete — ready for verification
-Last activity: 2026-05-08
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-05-08 — Milestone v1.4 started
 
 ## Completed Phases
 
