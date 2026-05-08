@@ -1,4 +1,4 @@
-import { describe, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { EstimateInput } from '@/lib/ai/types'
 
 vi.mock('@/lib/ai/prompt-builder', () => ({

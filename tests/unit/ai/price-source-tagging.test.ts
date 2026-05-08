@@ -1,4 +1,4 @@
-import { describe, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 // normalizeOutput is created in Wave 1 (lib/ai/normalize.ts) and exported.
 // This import is intentionally forward-referencing the Wave 1 artifact.
 import { normalizeOutput } from '@/lib/ai/normalize'

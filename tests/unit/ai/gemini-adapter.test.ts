@@ -1,4 +1,4 @@
-import { describe, it, vi, beforeEach } from 'vitest'
+import { describe, expect, it, vi, beforeEach } from 'vitest'
 
 const mockGeminiGenerate = vi.fn()
 vi.mock('@google/genai', () => ({
