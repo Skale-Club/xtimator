@@ -31,9 +31,9 @@ A business owner can go from job site audio recording to a sent, professional es
 
 ## Current State
 
-**Version:** v1.3 Smart Pricing — IN PROGRESS (4/5 phases complete)
-**Phases complete:** 22/23 | **Plans:** 65/65 (Phase 22: 3) | **Build:** passing
-**Last shipped:** Phase 22 — AI Price Anchoring + Multi-Provider (2026-05-08)
+**Version:** v1.3 Smart Pricing — ✅ COMPLETE (5/5 phases)
+**Phases complete:** 23/23 | **Plans:** 67/67 (Phase 23: 2) | **Build:** passing
+**Last shipped:** Phase 23 — Estimate Editor Price Badges (2026-05-08)
 **Tech stack:** Next.js 16 (App Router), TypeScript strict, Tailwind 4, shadcn/ui (New York), Supabase (Auth + DB + Storage), @react-pdf/renderer, Resend, Anthropic Claude, OpenAI Whisper, next-themes
 **Test coverage:** 250+ unit tests passing, integration tests, E2E with Playwright (mobile + landing page + voice flow coverage)
 **Deployment target:** Vercel
@@ -104,6 +104,7 @@ A business owner can go from job site audio recording to a sent, professional es
 - ✓ PB-01, PB-02, PB-03, PB-04, PB-06, PB-07: Price Book CRUD UI — `/settings/price-book` route with grouped list, search, add/edit dialog (Combobox category autocomplete), delete with AlertDialog confirmation, optionality EmptyState, Settings entry-point card — Phase 20, 2026-05-07
 - ✓ PB-05: CSV Import — two-stage Dialog (pick → preview), client-side parse with papaparse, server-side dedup, single bulk insert, invalid-row error indicators, downloadable template — Phase 21, 2026-05-08
 - ✓ AIPRICE-01/02/03: AI Price Anchoring — multi-provider layer (Claude + Gemini), price book injected as prompt context, price_source tagged + persisted, fallback to market rates when empty, admin provider selector — Phase 22, 2026-05-08
+- ✓ EDITPRICE-01/02: Estimate Editor Price Badges — "Price book" (CheckCircle2, secondary) + "AI estimate" (Zap, outline) badges per line item; "Edited" badge on manual override; price_source=null on save; null-safe for pre-v1.3 estimates — Phase 23, 2026-05-08
 
 ### Active (v1.3)
 
