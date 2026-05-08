@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createServiceClient } from '@/lib/supabase/service'
+import { requireServiceClient } from '@/lib/supabase/service'
 
 export async function GET(request: Request) {
   const cronSecret = process.env.CRON_SECRET
@@ -16,7 +16,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    const supabase = createServiceClient()
+    const supabase = requireServiceClient()
     const { data, error } = await supabase.rpc('cleanup_orphan_draft_projects')
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })

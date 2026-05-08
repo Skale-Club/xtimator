@@ -1,7 +1,7 @@
 import 'server-only'
 import { createServerClient } from '@supabase/ssr'
 import type { NextRequest } from 'next/server'
-import { createServiceClient } from '@/lib/supabase/service'
+import { requireServiceClient } from '@/lib/supabase/service'
 
 /**
  * Proxy-side admin membership check (ADMIN-01, D-07).
@@ -33,7 +33,7 @@ export async function checkPlatformAdmin(request: NextRequest): Promise<boolean>
   const userId = data?.claims?.sub
   if (!userId) return false
 
-  const svc = createServiceClient()
+  const svc = requireServiceClient()
   const { data: row } = await svc
     .from('platform_admins')
     .select('user_id')

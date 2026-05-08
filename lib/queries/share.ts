@@ -1,4 +1,4 @@
-import { createServiceClient } from '@/lib/supabase/service'
+import { requireServiceClient } from '@/lib/supabase/service'
 import type {
   Estimate,
   EstimateSection,
@@ -40,7 +40,7 @@ export interface ShareEstimateData {
 export async function getEstimateByShareToken(
   token: string
 ): Promise<ShareEstimateData | null> {
-  const supabase = createServiceClient()
+  const supabase = requireServiceClient()
 
   // Look up estimate by share_token
   const { data: estimateData } = await supabase

@@ -1,4 +1,4 @@
-import { createServiceClient } from '@/lib/supabase/service'
+import { requireServiceClient } from '@/lib/supabase/service'
 
 /**
  * Seeds a row in platform_admins for the given user_id. Idempotent.
@@ -17,7 +17,7 @@ import { createServiceClient } from '@/lib/supabase/service'
  * around here with RPC hacks.
  */
 export async function seedPlatformAdmin(userId: string) {
-  const svc = createServiceClient()
+  const svc = requireServiceClient()
   await svc.from('platform_admins').upsert({ user_id: userId, notes: 'e2e-test' })
   return async () => {
     await svc.from('platform_admins').delete().eq('user_id', userId)

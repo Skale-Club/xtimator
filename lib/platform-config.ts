@@ -115,6 +115,11 @@ export async function getBranding(): Promise<Branding> {
     return brandingCache.value
   }
   const svc = createServiceClient()
+  // svc is null when env vars are absent (e.g. Vercel static build time).
+  if (!svc) {
+    brandingCache = { value: FALLBACK_BRANDING, fetchedAt: now }
+    return FALLBACK_BRANDING
+  }
   const { data, error } = await svc
     .from('platform_branding')
     .select('*')
@@ -159,6 +164,8 @@ export async function getIntegrationKey(
   }
 
   const svc = createServiceClient()
+  // svc is null when env vars are absent (e.g. Vercel static build time).
+  if (!svc) return null
   const { data } = await svc
     .from('platform_integrations')
     .select('ciphertext, iv, auth_tag')
@@ -226,6 +233,7 @@ export type SelectedAIProvider = 'anthropic' | 'gemini'
 
 export async function getSelectedAIProvider(): Promise<SelectedAIProvider> {
   const svc = createServiceClient()
+  if (!svc) return 'anthropic'
   const { data } = await svc
     .from('platform_integrations')
     .select('metadata')

@@ -1,5 +1,5 @@
 import 'server-only'
-import { createServiceClient } from '@/lib/supabase/service'
+import { requireServiceClient } from '@/lib/supabase/service'
 
 export type PlatformStats = {
   totalCompanies: number
@@ -12,7 +12,7 @@ function thirtyDaysAgo(): string {
 }
 
 export async function getPlatformStats(): Promise<PlatformStats> {
-  const svc = createServiceClient()
+  const svc = requireServiceClient()
 
   const [companiesRes, estimatesRes, userCountRes] = await Promise.all([
     svc.from('companies').select('*', { count: 'exact', head: true }),

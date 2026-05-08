@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { requireAdmin } from '@/lib/auth/admin-context'
-import { createServiceClient } from '@/lib/supabase/service'
+import { requireServiceClient } from '@/lib/supabase/service'
 import { addAdminSchema } from '@/lib/schemas/admin'
 
 /**
@@ -26,7 +26,7 @@ export async function addPlatformAdmin(input: { email: string }): Promise<Action
     return { ok: false, message: 'Invalid email.' }
   }
 
-  const svc = createServiceClient()
+  const svc = requireServiceClient()
 
   // Look up auth.users by email. listUsers returns up to 1000 in one page —
   // sufficient for any v1 platform-admin set. RPC alternative would require
@@ -66,7 +66,7 @@ export async function addPlatformAdmin(input: { email: string }): Promise<Action
 export async function removePlatformAdmin(input: { userId: string }): Promise<ActionResult> {
   await requireAdmin()
 
-  const svc = createServiceClient()
+  const svc = requireServiceClient()
   const { error } = await svc.from('platform_admins').delete().eq('user_id', input.userId)
 
   if (error) {

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { requireAdmin } from '@/lib/auth/admin-context'
-import { createServiceClient } from '@/lib/supabase/service'
+import { requireServiceClient } from '@/lib/supabase/service'
 import { invalidatePlatformConfig } from '@/lib/platform-config'
 import { brandingSchema } from '@/lib/schemas/admin'
 
@@ -35,7 +35,7 @@ export async function saveBranding(formData: FormData): Promise<SaveBrandingResu
     return { ok: false, errors: parsed.error.flatten() as never }
   }
 
-  const svc = createServiceClient()
+  const svc = requireServiceClient()
 
   let logoUrl: string | undefined = undefined
   const logoFile = parsed.data.logoFile

@@ -1,7 +1,7 @@
 'use server'
 import { revalidatePath } from 'next/cache'
 import { requireAdmin } from '@/lib/auth/admin-context'
-import { createServiceClient } from '@/lib/supabase/service'
+import { requireServiceClient } from '@/lib/supabase/service'
 import { blogPostSchema, type BlogPostInput } from '@/lib/schemas/admin'
 
 export type BlogActionResult = { ok: true } | { ok: false; message: string }
@@ -14,7 +14,7 @@ export async function createPost(data: BlogPostInput): Promise<BlogActionResult>
   await requireAdmin()
   const parsed = blogPostSchema.safeParse(data)
   if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? 'Validation failed' }
-  const svc = createServiceClient()
+  const svc = requireServiceClient()
   const now = new Date().toISOString()
   const { error } = await svc.from('blog_posts').insert({
     title: parsed.data.title,
@@ -40,7 +40,7 @@ export async function updatePost(id: string, data: BlogPostInput): Promise<BlogA
   await requireAdmin()
   const parsed = blogPostSchema.safeParse(data)
   if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? 'Validation failed' }
-  const svc = createServiceClient()
+  const svc = requireServiceClient()
   const { data: existing } = await svc.from('blog_posts').select('published_at, status').eq('id', id).single()
   const now = new Date().toISOString()
   const publishedAt = parsed.data.status === 'published' ? (existing?.published_at ?? now) : null
@@ -67,7 +67,7 @@ export async function updatePost(id: string, data: BlogPostInput): Promise<BlogA
 
 export async function deletePost(id: string): Promise<BlogActionResult> {
   await requireAdmin()
-  const svc = createServiceClient()
+  const svc = requireServiceClient()
   const { error } = await svc.from('blog_posts').delete().eq('id', id)
   if (error) return { ok: false, message: error.message }
   revalidatePath('/admin/blog')
@@ -77,7 +77,7 @@ export async function deletePost(id: string): Promise<BlogActionResult> {
 
 export async function togglePostStatus(id: string, currentStatus: 'draft' | 'published'): Promise<BlogActionResult> {
   await requireAdmin()
-  const svc = createServiceClient()
+  const svc = requireServiceClient()
   const newStatus = currentStatus === 'draft' ? 'published' : 'draft'
   const now = new Date().toISOString()
   const { error } = await svc.from('blog_posts').update({

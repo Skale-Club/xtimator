@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { Resend } from 'resend'
 import Anthropic from '@anthropic-ai/sdk'
 import { requireAdmin } from '@/lib/auth/admin-context'
-import { createServiceClient } from '@/lib/supabase/service'
+import { requireServiceClient } from '@/lib/supabase/service'
 import { encrypt } from '@/lib/crypto/aes'
 import {
   getIntegrationKey,
@@ -35,7 +35,7 @@ export async function saveIntegrationKey(input: {
   }
 
   const blob = encrypt(parsed.data.apiKey)
-  const svc = createServiceClient()
+  const svc = requireServiceClient()
   // Supabase JS serialises Buffer values via JSON.stringify(), which corrupts
   // BYTEA round-trips. Send `\xHEX` strings — PostgREST stores those as raw
   // bytes and round-trips back through `toBuffer()` in lib/platform-config.ts.
@@ -68,7 +68,7 @@ export async function deleteIntegrationKey(input: {
   provider: IntegrationProvider
 }): Promise<ActionResult> {
   await requireAdmin()
-  const svc = createServiceClient()
+  const svc = requireServiceClient()
   const { error } = await svc
     .from('platform_integrations')
     .delete()
@@ -176,7 +176,7 @@ export async function setActiveAIProvider(
   provider: 'anthropic' | 'gemini'
 ): Promise<ActionResult> {
   const ctx = await requireAdmin()
-  const svc = createServiceClient()
+  const svc = requireServiceClient()
   const { error } = await svc.from('platform_integrations').upsert(
     {
       provider: 'ai_config',

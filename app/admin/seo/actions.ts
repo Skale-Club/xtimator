@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { requireAdmin } from '@/lib/auth/admin-context'
-import { createServiceClient } from '@/lib/supabase/service'
+import { requireServiceClient } from '@/lib/supabase/service'
 import { invalidatePlatformConfig } from '@/lib/platform-config'
 import { seoSchema } from '@/lib/schemas/admin'
 
@@ -23,7 +23,7 @@ export async function saveSeo(formData: FormData): Promise<SaveSeoResult> {
     return { ok: false, message: parsed.error.issues[0]?.message ?? 'Validation failed' }
   }
 
-  const svc = createServiceClient()
+  const svc = requireServiceClient()
   const { error } = await svc.from('platform_branding').upsert({
     id: 1,
     site_title: parsed.data.siteTitle,

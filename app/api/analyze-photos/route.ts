@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@/lib/supabase/server'
-import { createServiceClient } from '@/lib/supabase/service'
+import { requireServiceClient } from '@/lib/supabase/service'
 import { getIntegrationKey } from '@/lib/platform-config'
 import type { Photo } from '@/lib/queries/photo'
 
@@ -24,7 +24,7 @@ function getMimeType(storagePath: string): ImageMediaType {
 }
 
 async function analyzePhoto(
-  serviceClient: ReturnType<typeof createServiceClient>,
+  serviceClient: ReturnType<typeof requireServiceClient>,
   supabase: Awaited<ReturnType<typeof createClient>>,
   photo: Photo,
   anthropic: Anthropic
@@ -147,7 +147,7 @@ export async function POST(request: Request) {
     const anthropic = new Anthropic({ apiKey: anthropicKey })
 
     const typedPhotos = photos as Photo[]
-    const serviceClient = createServiceClient()
+    const serviceClient = requireServiceClient()
 
     // Analyze all photos in parallel with Promise.allSettled
     const results = await Promise.allSettled(

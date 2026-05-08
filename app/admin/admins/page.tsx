@@ -1,5 +1,5 @@
 import { requireAdmin } from '@/lib/auth/admin-context'
-import { createServiceClient } from '@/lib/supabase/service'
+import { requireServiceClient } from '@/lib/supabase/service'
 import { AdminList, type AdminRow } from './admin-list'
 import { AddAdminDialog } from './add-admin-dialog'
 
@@ -17,7 +17,7 @@ import { AddAdminDialog } from './add-admin-dialog'
 export default async function AdminAdminsPage() {
   const ctx = await requireAdmin()
 
-  const svc = createServiceClient()
+  const svc = requireServiceClient()
   const { data: rows } = await svc
     .from('platform_admins')
     .select('user_id, created_at')

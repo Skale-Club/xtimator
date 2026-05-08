@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@/lib/supabase/server'
-import { createServiceClient } from '@/lib/supabase/service'
+import { requireServiceClient } from '@/lib/supabase/service'
 import { getIntegrationKey } from '@/lib/platform-config'
 
 export async function POST(request: Request) {
@@ -26,7 +26,7 @@ export async function POST(request: Request) {
   }
 
   const { texts, targetLanguage } = body as { texts: string[]; targetLanguage: 'pt' | 'es' }
-  const svc = createServiceClient()
+  const svc = requireServiceClient()
 
   // 3. Check DB cache in one query
   const { data: cached } = await svc

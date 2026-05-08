@@ -2,7 +2,7 @@ import 'server-only'
 import { cache } from 'react'
 import { unstable_cache } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
-import { createServiceClient } from '@/lib/supabase/service'
+import { requireServiceClient } from '@/lib/supabase/service'
 
 export interface AppCompany {
   id: string
@@ -23,7 +23,7 @@ export const getCachedCompany = unstable_cache(
   async (userId: string): Promise<AppCompany | null> => {
     // Use service client — unstable_cache cannot call cookies() internally.
     // Service role bypasses RLS; the userId arg scopes the query correctly.
-    const supabase = createServiceClient()
+    const supabase = requireServiceClient()
     const { data } = await supabase
       .from('companies')
       .select('id, name, logo_url, owner_name, theme_preference, industry')

@@ -3,7 +3,7 @@ import { cache } from 'react'
 import { unstable_cache } from 'next/cache'
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { createServiceClient } from '@/lib/supabase/service'
+import { requireServiceClient } from '@/lib/supabase/service'
 
 export type AdminContext = {
   userId: string
@@ -13,7 +13,7 @@ export type AdminContext = {
 // DB lookup cached for 60s per userId — avoids a round-trip on every admin page nav.
 const cachedIsAdmin = unstable_cache(
   async (userId: string): Promise<boolean> => {
-    const svc = createServiceClient()
+    const svc = requireServiceClient()
     const { data } = await svc
       .from('platform_admins')
       .select('user_id')

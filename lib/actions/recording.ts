@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { createServiceClient } from '@/lib/supabase/service'
+import { requireServiceClient } from '@/lib/supabase/service'
 import { revalidatePath } from 'next/cache'
 import { getIntegrationKey } from '@/lib/platform-config'
 
@@ -90,7 +90,7 @@ export async function transcribeRecording(recordingId: string) {
   }
 
   // Download audio with service role (bypasses RLS for Storage)
-  const serviceClient = createServiceClient()
+  const serviceClient = requireServiceClient()
   const { data: fileData, error: downloadError } = await serviceClient
     .storage
     .from('audio')

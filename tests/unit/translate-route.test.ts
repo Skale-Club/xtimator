@@ -11,7 +11,7 @@ vi.mock('@/lib/supabase/server', () => ({
 
 // Service client (DB reads/writes)
 vi.mock('@/lib/supabase/service', () => ({
-  createServiceClient: vi.fn(),
+  requireServiceClient: vi.fn(),
 }))
 
 // getIntegrationKey
@@ -28,7 +28,7 @@ vi.mock('@anthropic-ai/sdk', () => ({
 
 import { POST } from '@/app/api/translate/route'
 import { createClient } from '@/lib/supabase/server'
-import { createServiceClient } from '@/lib/supabase/service'
+import { requireServiceClient } from '@/lib/supabase/service'
 import { getIntegrationKey } from '@/lib/platform-config'
 
 function makeRequest(body: unknown) {
@@ -71,9 +71,9 @@ describe('/api/translate — I18N-05, I18N-08', () => {
     const upsertMock = vi.fn().mockResolvedValue({ error: null })
     fromMock.mockReturnValue({ select: selectMock, upsert: upsertMock })
 
-    vi.mocked(createServiceClient).mockReturnValue({
+    vi.mocked(requireServiceClient).mockReturnValue({
       from: fromMock,
-    } as unknown as ReturnType<typeof createServiceClient>)
+    } as unknown as ReturnType<typeof requireServiceClient>)
   })
 
   it('returns 401 when not authenticated', async () => {

@@ -1,10 +1,10 @@
 'use server'
 
-import { createServiceClient } from '@/lib/supabase/service'
+import { requireServiceClient } from '@/lib/supabase/service'
 import { getIntegrationKey, getBranding } from '@/lib/platform-config'
 
 export async function logEstimateView(token: string): Promise<void> {
-  const supabase = createServiceClient()
+  const supabase = requireServiceClient()
 
   // Look up estimate by share_token
   const { data: estimate } = await supabase
@@ -72,7 +72,7 @@ export async function respondToEstimate(
   token: string,
   response: 'accepted' | 'declined'
 ): Promise<{ success: boolean; error?: string }> {
-  const supabase = createServiceClient()
+  const supabase = requireServiceClient()
 
   // Look up estimate
   const { data: estimate } = await supabase

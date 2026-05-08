@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { requireAdmin } from '@/lib/auth/admin-context'
-import { createServiceClient } from '@/lib/supabase/service'
+import { requireServiceClient } from '@/lib/supabase/service'
 import type { BlogPost } from '@/lib/queries/blog'
 import { BlogPostActions } from './blog-post-actions'
 
@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic'
 
 export default async function AdminBlogPage() {
   await requireAdmin()
-  const svc = createServiceClient()
+  const svc = requireServiceClient()
   const { data } = await svc
     .from('blog_posts')
     .select('*')

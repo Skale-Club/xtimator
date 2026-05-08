@@ -1,11 +1,11 @@
 import { describe, it, expect, afterAll } from 'vitest'
-import { createServiceClient } from '@/lib/supabase/service'
+import { requireServiceClient } from '@/lib/supabase/service'
 
 const HAS_DB = !!(process.env.DATABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL)
 
 describe.skipIf(!HAS_DB)('cleanup_orphan_draft_projects()', () => {
   const insertedIds: string[] = []
-  const supabase = createServiceClient()
+  const supabase = requireServiceClient()
 
   it.skip('deletes drafts older than 24h with no recordings/estimates (requires E2E_TEST_COMPANY_ID fixture)', async () => {
     // Seed: insert a draft project with created_at = 25h ago, no recordings, no estimates

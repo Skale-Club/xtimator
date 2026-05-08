@@ -1,5 +1,5 @@
 import { requireAdmin } from '@/lib/auth/admin-context'
-import { createServiceClient } from '@/lib/supabase/service'
+import { requireServiceClient } from '@/lib/supabase/service'
 import { decrypt } from '@/lib/crypto/aes'
 import type { IntegrationProvider } from '@/lib/platform-config'
 import { getSelectedAIProvider } from '@/lib/platform-config'
@@ -61,7 +61,7 @@ function toBuffer(value: ArrayBuffer | Uint8Array | string): Buffer {
 
 export default async function IntegrationsPage() {
   await requireAdmin()
-  const svc = createServiceClient()
+  const svc = requireServiceClient()
 
   const [{ data: rows }, activeProvider] = await Promise.all([
     svc

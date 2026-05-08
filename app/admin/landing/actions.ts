@@ -1,7 +1,7 @@
 'use server'
 import { revalidatePath } from 'next/cache'
 import { requireAdmin } from '@/lib/auth/admin-context'
-import { createServiceClient } from '@/lib/supabase/service'
+import { requireServiceClient } from '@/lib/supabase/service'
 import { invalidatePlatformConfig } from '@/lib/platform-config'
 import { landingContentSchema, type LandingContentInput } from '@/lib/schemas/admin'
 
@@ -11,7 +11,7 @@ export async function saveLandingContent(data: LandingContentInput): Promise<Sav
   await requireAdmin()
   const parsed = landingContentSchema.safeParse(data)
   if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? 'Validation failed' }
-  const svc = createServiceClient()
+  const svc = requireServiceClient()
   const { error } = await svc.from('platform_branding').upsert({
     id: 1,
     landing_content: parsed.data,

@@ -1,12 +1,12 @@
 // lib/ai/index.ts
 // Server-only by convention — only imported from API routes. Do not import in client components.
-import { createServiceClient } from '@/lib/supabase/service'
+import { requireServiceClient } from '@/lib/supabase/service'
 import type { AIProvider } from './provider.interface'
 
 export type { EstimateInput, EstimateOutput, LineItemOutput, PriceBookEntry, EstimateSectionOutput } from './types'
 
 export async function getAIProvider(): Promise<AIProvider> {
-  const svc = createServiceClient()
+  const svc = requireServiceClient()
   const { data } = await svc
     .from('platform_integrations')
     .select('metadata')

@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getBranding } from '@/lib/platform-config'
 import { getAuthClaims, getCachedCompany } from '@/lib/queries/auth'
-import { createServiceClient } from '@/lib/supabase/service'
+import { requireServiceClient } from '@/lib/supabase/service'
 import { Sidebar } from '@/components/app-shell/sidebar'
 import { Topbar } from '@/components/app-shell/topbar'
 import { BottomNav } from '@/components/app-shell/bottom-nav'
@@ -27,7 +27,7 @@ export default async function AppShellLayout({
 
   const [branding, adminRow] = await Promise.all([
     getBranding(),
-    createServiceClient()
+    requireServiceClient()
       .from('platform_admins')
       .select('user_id')
       .eq('user_id', claims.sub)

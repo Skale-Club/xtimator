@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { createServiceClient } from '@/lib/supabase/service'
+import { requireServiceClient } from '@/lib/supabase/service'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
 import { revalidatePath, revalidateTag } from 'next/cache'
 
@@ -213,7 +213,7 @@ export async function deleteAccount() {
   const claims = claimsData?.claims ?? null
   if (!claims) return { error: 'Not authenticated' }
 
-  const serviceClient = createServiceClient()
+  const serviceClient = requireServiceClient()
   const { error } = await serviceClient.auth.admin.deleteUser(claims.sub as string)
 
   if (error) {
