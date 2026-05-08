@@ -206,7 +206,7 @@ Plans:
 | 24. Estimate Template Engine + Settings Page | v1.4 | 3/3 | Complete    | 2026-05-08 |
 | 25. Plain Text Tab + Copy UI | v1.4 | 2/2 | Complete    | 2026-05-08 |
 | 26. Bulk Price Adjustment | v1.4 | 2/2 | Complete    | 2026-05-08 |
-| 27. Capture Schema Migration | v1.5 | 1/1 | Complete   | 2026-05-08 |
+| 27. Capture Schema Migration | v1.5 | 1/1 | Complete    | 2026-05-08 |
 | 28. Unified Capture Screen | v1.5 | 0/TBD | Not started | - |
 | 29. Frictionless Project Creation & Client Linking | v1.5 | 0/TBD | Not started | - |
 | 30. AI Client Extraction | v1.5 | 0/TBD | Not started | - |
