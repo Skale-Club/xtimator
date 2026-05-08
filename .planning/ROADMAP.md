@@ -138,7 +138,9 @@ Plans:
   1. A recording row can be inserted with a non-null transcript but a null storage_path, and the application does not error on such rows
   2. A project can be created and saved without a client_id value, and no constraint violation is raised
   3. Existing recordings with audio files and existing projects with clients continue to load and render correctly
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 27-01-PLAN.md — DB migration (nullable storage_path) + TypeScript type propagation + optional clientId schema + caller null-guards
 
 ### Phase 28: Unified Capture Screen
 **Goal**: Users can provide audio, typed description, or photos as co-equal inputs on the capture screen — alone or combined — and generate an estimate from any combination
@@ -204,7 +206,7 @@ Plans:
 | 24. Estimate Template Engine + Settings Page | v1.4 | 3/3 | Complete    | 2026-05-08 |
 | 25. Plain Text Tab + Copy UI | v1.4 | 2/2 | Complete    | 2026-05-08 |
 | 26. Bulk Price Adjustment | v1.4 | 2/2 | Complete    | 2026-05-08 |
-| 27. Capture Schema Migration | v1.5 | 0/TBD | Not started | - |
+| 27. Capture Schema Migration | v1.5 | 0/1 | Not started | - |
 | 28. Unified Capture Screen | v1.5 | 0/TBD | Not started | - |
 | 29. Frictionless Project Creation & Client Linking | v1.5 | 0/TBD | Not started | - |
 | 30. AI Client Extraction | v1.5 | 0/TBD | Not started | - |
