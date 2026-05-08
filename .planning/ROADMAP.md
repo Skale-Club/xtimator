@@ -118,7 +118,11 @@ Plans:
   1. When a company has price book items that match detected work items, the generated estimate uses those prices (not AI-guessed prices) for the matched line items
   2. When the price book is empty or no items match, the AI generates estimates using market-rate reasoning — identical to pre-v1.3 behavior with no regression
   3. Every line item in the generated estimate JSON carries a `price_source` field set to either `"price_book"` or `"ai_estimate"`, and this value is persisted to `estimate_items.price_source`
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+- [ ] 22-01-PLAN.md — Wave 0: install @google/genai + lib/ai/ skeleton files + 5 RED test stubs (17 total)
+- [ ] 22-02-PLAN.md — Wave 1: implement factory + both adapters (Claude + Gemini) — 17 tests GREEN
+- [ ] 22-03-PLAN.md — Wave 2: wire route + admin panel Gemini card + provider selector + regression gate
 
 ### Phase 23: Estimate Editor Price Badges
 **Goal**: Each line item in the estimate editor displays a visible badge indicating whether its price came from the company's price book or was estimated by AI, and the badge updates when a user manually overrides the price
@@ -156,5 +160,5 @@ Plans:
 | 19. Price Book DB Foundation | v1.3 | 2/2 | Complete    | 2026-05-07 |
 | 20. Price Book CRUD UI | v1.3 | 3/3 | Complete    | 2026-05-07 |
 | 21. CSV Import | v1.3 | 3/3 | Complete    | 2026-05-08 |
-| 22. AI Price Anchoring | v1.3 | 0/? | Not started | - |
+| 22. AI Price Anchoring | v1.3 | 0/3 | Not started | - |
 | 23. Estimate Editor Price Badges | v1.3 | 0/? | Not started | - |
