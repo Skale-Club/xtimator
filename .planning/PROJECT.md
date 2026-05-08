@@ -30,9 +30,9 @@ Price book CRUD + CSV import + multi-provider AI anchoring (Claude/Gemini) + est
 
 ## Current State
 
-**Version:** v1.4 Estimate Plain Text & Pricing Tools — 🔲 IN PROGRESS (1/3 phases)
-**Phases complete:** 24/26 | **Plans:** 70/TBD (Phase 24: 3) | **Build:** passing
-**Last shipped:** Phase 24 — Estimate Template Engine + Settings Page (2026-05-08)
+**Version:** v1.4 Estimate Plain Text & Pricing Tools — 🔲 IN PROGRESS (2/3 phases)
+**Phases complete:** 25/26 | **Plans:** 74/TBD (Phase 25: 2) | **Build:** passing
+**Last shipped:** Phase 25 — Plain Text Tab + Copy UI (2026-05-08)
 **Tech stack:** Next.js 16 (App Router), TypeScript strict, Tailwind 4, shadcn/ui (New York), Supabase (Auth + DB + Storage), @react-pdf/renderer, Resend, Anthropic Claude, OpenAI Whisper, next-themes
 **Test coverage:** 250+ unit tests passing, integration tests, E2E with Playwright (mobile + landing page + voice flow coverage)
 **Deployment target:** Vercel
@@ -100,6 +100,7 @@ Price book CRUD + CSV import + multi-provider AI anchoring (Claude/Gemini) + est
 
 ### Validated (v1.4)
 
+- ✓ PLAINTEXT-01, PLAINTEXT-02, PLAINTEXT-04: Plain Text Tab + Copy UI — `buildItemsBreakdown()` pure utility, `PlainTextCard` component in Send tab (editable textarea, clipboard copy + toast, RotateCcw reset), full data chain wired through workspace (owner_name + 4 template columns from company), `key={estimate.id}` version-change guard — Phase 25, 2026-05-08
 - ✓ PLAINTEXT-03, PLAINTEXT-05: Estimate Template Engine — 4 nullable TEXT columns on `companies` (`estimate_template_greeting/opener/closer/signature`), `resolveTemplate()` pure utility with `TEMPLATE_DEFAULTS` fallback, zod schema, `getEstimateTemplateSettings()` query, `saveEstimateTemplate` server action (empty→null coercion), `EstimateTemplateForm` (4 textareas + variable docs + live preview), `/settings/estimate-templates` sub-route page, Estimate Templates card on `/settings` — Phase 24, 2026-05-08
 
 ### Validated (v1.3)
@@ -189,4 +190,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context
 
 ---
-*Last updated: 2026-05-08 — after Phase 24 (Estimate Template Engine + Settings Page shipped)*
+*Last updated: 2026-05-08 — after Phase 25 (Plain Text Tab + Copy UI shipped)*
