@@ -153,6 +153,7 @@ export function SectionCard({ section, dispatch, dragHandleProps, isReadOnly }: 
                 <th className="py-2 px-1 w-20 text-right font-medium">Qty</th>
                 <th className="py-2 px-1 w-20 text-left font-medium">Unit</th>
                 <th className="py-2 px-1 w-28 text-right font-medium">Unit Price</th>
+                <th className="py-2 px-1 w-28" />
                 <th className="py-2 px-1 w-28 text-right font-medium">Total</th>
                 <th className="py-2 px-1 w-10" />
               </tr>

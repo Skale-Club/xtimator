@@ -1,8 +1,9 @@
 'use client'
 
-import { GripVertical, Trash2 } from 'lucide-react'
+import { GripVertical, Trash2, CheckCircle2, Zap } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import type { EditorItem } from './use-estimate-reducer'
 
 function formatCurrency(value: number): string {
@@ -76,6 +77,19 @@ export function ItemRow({ item, onUpdate, onRemove, dragHandleProps, isReadOnly 
             disabled={isReadOnly}
           />
         </div>
+      </td>
+      <td className="py-1.5 px-1 w-28">
+        {item.isManuallyEdited ? (
+          <Badge variant="outline" className="text-xs">Edited</Badge>
+        ) : item.price_source === 'price_book' ? (
+          <Badge variant="secondary" className="text-xs gap-1">
+            <CheckCircle2 className="h-3 w-3" />Price book
+          </Badge>
+        ) : item.price_source === 'ai_estimate' ? (
+          <Badge variant="outline" className="text-xs gap-1">
+            <Zap className="h-3 w-3" />AI estimate
+          </Badge>
+        ) : null}
       </td>
       <td className="py-1.5 px-1 w-28 text-right text-sm font-medium tabular-nums">
         ${formatCurrency(item.total)}
