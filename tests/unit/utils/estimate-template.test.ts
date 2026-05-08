@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { resolveTemplate, TEMPLATE_DEFAULTS } from '@/lib/utils/estimate-template'
+import { resolveTemplate, TEMPLATE_DEFAULTS, buildItemsBreakdown } from '@/lib/utils/estimate-template'
 import type { EstimateTemplate, TemplateData } from '@/lib/utils/estimate-template'
+import type { EstimateWithSections } from '@/lib/queries/estimate'
 
 const SAMPLE_DATA: TemplateData = {
   client_name: 'Alice',
@@ -68,5 +69,116 @@ describe('resolveTemplate', () => {
     expect(greetingIdx).toBeLessThan(openerIdx)
     expect(openerIdx).toBeLessThan(itemsIdx)
     expect(itemsIdx).toBeLessThan(closerIdx)
+  })
+})
+
+describe('buildItemsBreakdown', () => {
+  const SAMPLE_ESTIMATE: EstimateWithSections = {
+    id: 'est-1',
+    project_id: 'proj-1',
+    company_id: 'co-1',
+    version: 1,
+    is_current: true,
+    share_token: 'tok',
+    status: 'draft',
+    summary: null,
+    notes: null,
+    timeline: null,
+    payment_terms: null,
+    warranty_terms: null,
+    subtotal: 205,
+    discount_type: null,
+    discount_value: 0,
+    discount_amount: 0,
+    tax_rate: 0,
+    tax_amount: 0,
+    total: 205,
+    sent_at: null,
+    viewed_at: null,
+    responded_at: null,
+    client_response: null,
+    created_at: '2026-01-01',
+    updated_at: '2026-01-01',
+    sections: [
+      {
+        id: 'sec-1',
+        estimate_id: 'est-1',
+        company_id: 'co-1',
+        title: 'Upholstery Cleaning',
+        sort_order: 0,
+        subtotal: 120,
+        items: [
+          {
+            id: 'item-1',
+            section_id: 'sec-1',
+            company_id: 'co-1',
+            description: 'King Mattress',
+            quantity: 1,
+            unit: null,
+            unit_price: 120,
+            total: 120,
+            sort_order: 0,
+            price_source: null,
+          },
+        ],
+      },
+      {
+        id: 'sec-2',
+        estimate_id: 'est-1',
+        company_id: 'co-1',
+        title: 'Carpet Cleaning',
+        sort_order: 1,
+        subtotal: 85,
+        items: [
+          {
+            id: 'item-2',
+            section_id: 'sec-2',
+            company_id: 'co-1',
+            description: 'Small room',
+            quantity: 1,
+            unit: null,
+            unit_price: 85,
+            total: 85,
+            sort_order: 0,
+            price_source: null,
+          },
+        ],
+      },
+    ],
+  }
+
+  it('formats section title as [Section Title] on its own line', () => {
+    const output = buildItemsBreakdown(SAMPLE_ESTIMATE)
+    expect(output).toContain('[Upholstery Cleaning]')
+    expect(output).toContain('[Carpet Cleaning]')
+  })
+
+  it('formats each item as "description: $price" with colon separator', () => {
+    const output = buildItemsBreakdown(SAMPLE_ESTIMATE)
+    expect(output).toContain('King Mattress: $120.00')
+    expect(output).toContain('Small room: $85.00')
+  })
+
+  it('separates section blocks with a blank line', () => {
+    const output = buildItemsBreakdown(SAMPLE_ESTIMATE)
+    expect(output).toContain('[Upholstery Cleaning]\nKing Mattress: $120.00\n\n[Carpet Cleaning]')
+  })
+
+  it('returns empty string for estimate with no sections', () => {
+    const empty: EstimateWithSections = { ...SAMPLE_ESTIMATE, sections: [] }
+    expect(buildItemsBreakdown(empty)).toBe('')
+  })
+
+  it('filters out sections with no items', () => {
+    const withEmpty: EstimateWithSections = {
+      ...SAMPLE_ESTIMATE,
+      sections: [
+        { id: 'sec-0', estimate_id: 'est-1', company_id: 'co-1', title: 'Empty Section', sort_order: 0, subtotal: 0, items: [] },
+        ...SAMPLE_ESTIMATE.sections,
+      ],
+    }
+    const output = buildItemsBreakdown(withEmpty)
+    expect(output).not.toContain('[Empty Section]')
+    expect(output).toContain('[Upholstery Cleaning]')
   })
 })
