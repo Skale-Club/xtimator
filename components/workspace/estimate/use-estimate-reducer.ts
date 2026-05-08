@@ -15,6 +15,8 @@ export interface EditorItem {
   unit_price: number
   total: number
   sort_order: number
+  price_source: 'price_book' | 'ai_estimate' | null
+  isManuallyEdited?: boolean
 }
 
 export interface EditorSection {
@@ -147,6 +149,8 @@ function initState(estimate: EstimateWithSections | null): EstimateEditorState {
           unit_price: i.unit_price,
           total: i.total,
           sort_order: i.sort_order,
+          price_source: i.price_source ?? null,
+          isManuallyEdited: false,
         })),
       }))
       .sort((a, b) => a.sort_order - b.sort_order),
@@ -184,7 +188,11 @@ function estimateReducer(state: EstimateEditorState, action: EstimateAction): Es
             ...s,
             items: s.items.map((i) => {
               if (i.id !== action.itemId) return i
-              return { ...i, [action.field]: action.value }
+              const updated = { ...i, [action.field]: action.value }
+              if (action.field === 'unit_price') {
+                updated.isManuallyEdited = true
+              }
+              return updated
             }),
           }
         }),
@@ -210,6 +218,8 @@ function estimateReducer(state: EstimateEditorState, action: EstimateAction): Es
                 unit_price: 0,
                 total: 0,
                 sort_order: s.items.length,
+                price_source: null,
+                isManuallyEdited: false,
               },
             ],
           }
@@ -254,6 +264,8 @@ function estimateReducer(state: EstimateEditorState, action: EstimateAction): Es
                 unit_price: 0,
                 total: 0,
                 sort_order: 0,
+                price_source: null,
+                isManuallyEdited: false,
               },
             ],
           },
