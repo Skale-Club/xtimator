@@ -26,6 +26,10 @@ export interface CompanySettings {
   notify_on_decline: boolean
   created_at: string
   updated_at: string
+  estimate_template_greeting: string | null
+  estimate_template_opener: string | null
+  estimate_template_closer: string | null
+  estimate_template_signature: string | null
 }
 
 export async function getCompanySettings(
@@ -39,4 +43,28 @@ export async function getCompanySettings(
     .single()
 
   return (data as CompanySettings) ?? null
+}
+
+/**
+ * Fetch only the 4 estimate-template columns for a user's company.
+ * Uses createClient() directly (NOT getCachedCompany) — see RESEARCH Pitfall 2.
+ * Called by the /settings/estimate-templates server component page.
+ */
+export async function getEstimateTemplateSettings(
+  supabase: SupabaseClient,
+  userId: string
+): Promise<{
+  id: string
+  estimate_template_greeting: string | null
+  estimate_template_opener: string | null
+  estimate_template_closer: string | null
+  estimate_template_signature: string | null
+} | null> {
+  const { data } = await supabase
+    .from('companies')
+    .select('id, estimate_template_greeting, estimate_template_opener, estimate_template_closer, estimate_template_signature')
+    .eq('user_id', userId)
+    .single()
+
+  return data ?? null
 }
