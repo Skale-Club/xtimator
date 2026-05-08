@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Smart Pricing
-status: executing
-last_updated: "2026-05-08T02:00:19.965Z"
+status: verifying
+last_updated: "2026-05-08T02:17:12.019Z"
 last_activity: 2026-05-08
 progress:
   total_phases: 5
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 11
-  completed_plans: 10
+  completed_plans: 11
 ---
 
 # Project State
@@ -23,7 +23,7 @@ progress:
 
 Phase: 22 (ai-price-anchoring) — EXECUTING
 Plan: 3 of 3
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-05-08
 
 ## Completed Phases
@@ -187,6 +187,9 @@ Last activity: 2026-05-08
 - [Phase 22-ai-price-anchoring]: lib/ai/index.ts uses dynamic import() for adapter modules — avoids loading both adapter SDKs on every request
 - [Phase 22-ai-price-anchoring]: integrationKeySchema extended with 'gemini' (auto-fix) — required for TypeScript compatibility after IntegrationProvider extension
 - [Phase 22-ai-price-anchoring]: testIntegrationKey 'gemini' case added (D-18) — avoids exhaustiveness fallback, tests Gemini key with 1-token generateContent
+- [Phase 22-ai-price-anchoring]: generate-estimate route no longer imports Anthropic SDK — all AI logic delegated to getAIProvider() factory (D-09)
+- [Phase 22-ai-price-anchoring]: ai_config row filtered from decrypt loop via .filter(r => r.provider !== 'ai_config') — null ciphertext would crash toBuffer()
+- [Phase 22-ai-price-anchoring]: generate-estimate-name-patch.test.ts updated to mock @/lib/ai (Rule 1 auto-fix) — old test mocked @anthropic-ai/sdk which is no longer used in route
 
 ## Performance Metrics
 
@@ -247,6 +250,7 @@ Last activity: 2026-05-08
 | Phase 21-csv-import P03 | 11min | 3 tasks | 4 files |
 | Phase 22-ai-price-anchoring P01 | 12min | 2 tasks | 13 files |
 | Phase 22-ai-price-anchoring P02 | 6min | 3 tasks | 13 files |
+| Phase 22-ai-price-anchoring P03 | 13min | 2 tasks | 5 files |
 
 ## Project Reference
 
