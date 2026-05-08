@@ -35,9 +35,10 @@ This phase does **not** add bulk adjustment across all categories at once — th
 - The preview table is empty/placeholder when the percentage input is empty or 0.
 
 ### D-03: Atomic Update
-- Single Supabase `.update({ unit_price: newPrice }).in('id', itemIds)` call — all rows in one request.
-- Supabase handles this atomically per the Postgres transaction model. No RPC/function needed.
+- Use `supabase.from('company_price_book').upsert(adjustedItems)` where `adjustedItems` is an array of `{ id, company_id, category, name, unit, unit_price: computedNewPrice }` objects.
+- **Why upsert, not `.update().in()`**: `.update({unit_price: X}).in('id', ids)` would set ALL items to the SAME price X — wrong for per-item computed prices. `.upsert([...])` is a single PostgREST request wrapped in a transaction, achieving true atomicity without a Postgres RPC or migration.
 - On error, the action returns `{ error: string }` and the Dialog stays open with a toast error. No partial state.
+- No new migration file needed — uses the existing `company_price_book` table.
 
 ### D-04: Price Rounding
 - New prices rounded to **2 decimal places** (standard USD currency): `Math.round(price * (1 + percent / 100) * 100) / 100`.
