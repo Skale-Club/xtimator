@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Zero-friction Project Onboarding
-status: planning
-last_updated: "2026-05-08T18:30:00.000Z"
+status: verifying
+last_updated: "2026-05-08T20:08:52.573Z"
 last_activity: 2026-05-08
 progress:
-  total_phases: 4
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_phases: 7
+  completed_phases: 4
+  total_plans: 8
+  completed_plans: 8
 ---
 
 # Project State
@@ -21,10 +21,10 @@ progress:
 
 ## Current Position
 
-Phase: 27 — Capture Schema Migration
-Plan: —
-Status: Roadmap defined, ready to plan Phase 27
-Last activity: 2026-05-08 — v1.5 roadmap created (Phases 27-30)
+Phase: 27 (capture-schema-migration) — EXECUTING
+Plan: 1 of 1
+Status: Phase complete — ready for verification
+Last activity: 2026-05-08
 
 ## Completed Phases
 
@@ -220,6 +220,9 @@ Last activity: 2026-05-08 — v1.5 roadmap created (Phases 27-30)
 - [Phase 25-plain-text-tab-copy-ui]: key={estimate.id} on PlainTextCard remounts component on estimate version change — guards stale textarea state (Pitfall 2)
 - [Phase 26-bulk-price-adjustment]: isValid removed from BulkAdjustDialog submit button disabled — react-hook-form isValid false before first submit; percent guard sufficient
 - [Phase 26-bulk-price-adjustment]: BulkAdjustDialog items prop uses items.filter(i.category === adjustCategory) from unfiltered PriceBookList items prop (Pitfall 7) — not search-filtered categoryItems from grouped.map
+- [Phase 27-capture-schema-migration]: recordings.storage_path DROP NOT NULL via migration — non-destructive, existing rows unaffected
+- [Phase 27-capture-schema-migration]: projects.client_id already nullable in DB — only app-layer Zod schema change needed
+- [Phase 27-capture-schema-migration]: STEP_FIELDS[1] emptied — clientId optional means no required field validation at wizard step 1
 
 ## Performance Metrics
 
@@ -290,13 +293,14 @@ Last activity: 2026-05-08 — v1.5 roadmap created (Phases 27-30)
 | Phase 25-plain-text-tab-copy-ui P01 | 3min | 2 tasks | 2 files |
 | Phase 25-plain-text-tab-copy-ui P02 | 39min | 2 tasks | 4 files |
 | Phase 26-bulk-price-adjustment P02 | 4min | 2 tasks | 4 files |
+| Phase 27-capture-schema-migration P01 | 3 | 2 tasks | 7 files |
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-08)
 
 **Core value:** Business owner → job site audio recording → sent professional estimate in under 5 minutes
-**Current focus:** Phase 27 — Capture Schema Migration (v1.5 start)
+**Current focus:** Phase 27 — capture-schema-migration
 
 ## Notes
 

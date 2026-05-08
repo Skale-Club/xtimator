@@ -5,16 +5,16 @@
 ### Unified Capture Screen
 
 - [ ] **CAPTURE-01**: The audio recorder is the hero element of the capture screen — large, prominent, with the existing full-screen recording UX preserved
-- [ ] **CAPTURE-02**: The capture screen has a "Description" field where the user can type a job description alongside or instead of recording audio
+- [x] **CAPTURE-02**: The capture screen has a "Description" field where the user can type a job description alongside or instead of recording audio
 - [ ] **CAPTURE-03**: The capture screen has a photo upload area where the user can add photos alongside or instead of recording audio
-- [ ] **CAPTURE-04**: "Generate Estimate" button is enabled when at least one input is present: audio transcript, description text, or at least one photo
+- [x] **CAPTURE-04**: "Generate Estimate" button is enabled when at least one input is present: audio transcript, description text, or at least one photo
 
 ### Frictionless Client Association
 
-- [ ] **CLIENTASSOC-01**: User can create a project without selecting or creating a client upfront — the client can be linked after project creation
+- [x] **CLIENTASSOC-01**: User can create a project without selecting or creating a client upfront — the client can be linked after project creation
 - [ ] **CLIENTASSOC-02**: The client detail page has a "New Project" button that creates a new project pre-linked to that specific client
 - [ ] **CLIENTASSOC-03**: After estimate generation, if the AI detected a client name in the content, the user sees a non-blocking confirmation prompt to accept or dismiss the suggested client link before any record is created or modified
-- [ ] **CLIENTASSOC-04**: Projects without a linked client display a visible "Link client" card in the project Overview tab
+- [x] **CLIENTASSOC-04**: Projects without a linked client display a visible "Link client" card in the project Overview tab
 
 ---
 
