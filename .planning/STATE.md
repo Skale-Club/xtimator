@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Smart Pricing
 status: executing
-last_updated: "2026-05-08T01:45:41.861Z"
+last_updated: "2026-05-08T02:00:19.965Z"
 last_activity: 2026-05-08
 progress:
   total_phases: 5
   completed_phases: 3
   total_plans: 11
-  completed_plans: 9
+  completed_plans: 10
 ---
 
 # Project State
@@ -22,7 +22,7 @@ progress:
 ## Current Position
 
 Phase: 22 (ai-price-anchoring) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
 Last activity: 2026-05-08
 
@@ -184,6 +184,9 @@ Last activity: 2026-05-08
 - [Phase 21-csv-import]: handleImportClose pattern mirrors handleDialogChange (closes state, calls router.refresh) — consistent with Phase 20 close-then-refresh convention (Pitfall 5)
 - [Phase 22-ai-price-anchoring]: lib/ai/normalize.ts created as Wave 0 stub so price-source-tagging.test.ts import resolves without TypeScript errors — Wave 1 implements the real function
 - [Phase 22-ai-price-anchoring]: explicit expect added to all vitest imports in test files — tsc fails on globals even with globals:true; existing test pattern requires explicit import from 'vitest'
+- [Phase 22-ai-price-anchoring]: lib/ai/index.ts uses dynamic import() for adapter modules — avoids loading both adapter SDKs on every request
+- [Phase 22-ai-price-anchoring]: integrationKeySchema extended with 'gemini' (auto-fix) — required for TypeScript compatibility after IntegrationProvider extension
+- [Phase 22-ai-price-anchoring]: testIntegrationKey 'gemini' case added (D-18) — avoids exhaustiveness fallback, tests Gemini key with 1-token generateContent
 
 ## Performance Metrics
 
@@ -243,6 +246,7 @@ Last activity: 2026-05-08
 | Phase 21-csv-import P02 | 7min | 3 tasks | 6 files |
 | Phase 21-csv-import P03 | 11min | 3 tasks | 4 files |
 | Phase 22-ai-price-anchoring P01 | 12min | 2 tasks | 13 files |
+| Phase 22-ai-price-anchoring P02 | 6min | 3 tasks | 13 files |
 
 ## Project Reference
 

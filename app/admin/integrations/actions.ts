@@ -146,6 +146,19 @@ export async function testIntegrationKey(input: {
       return { ok: true, message: `Verified. Found ${n} models available.` }
     }
 
+    if (input.provider === 'gemini') {
+      const { GoogleGenAI } = await import('@google/genai')
+      const ai = new GoogleGenAI({ apiKey: key })
+      const start = Date.now()
+      await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: 'hi',
+        config: { maxOutputTokens: 1 },
+      })
+      const ms = Date.now() - start
+      return { ok: true, message: `Verified. Gemini responded in ${ms}ms.` }
+    }
+
     // Exhaustiveness fallback (TS narrows above; defensive)
     return { ok: false, message: `Unknown provider: ${String(input.provider)}` }
   } catch (e) {

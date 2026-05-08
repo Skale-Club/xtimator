@@ -121,7 +121,7 @@ Plans:
 **Plans**: 3 plans
 Plans:
 - [x] 22-01-PLAN.md — Wave 0: install @google/genai + lib/ai/ skeleton files + 5 RED test stubs (17 total)
-- [ ] 22-02-PLAN.md — Wave 1: implement factory + both adapters (Claude + Gemini) — 17 tests GREEN
+- [x] 22-02-PLAN.md — Wave 1: implement factory + both adapters (Claude + Gemini) — 17 tests GREEN
 - [ ] 22-03-PLAN.md — Wave 2: wire route + admin panel Gemini card + provider selector + regression gate
 
 ### Phase 23: Estimate Editor Price Badges
@@ -160,5 +160,5 @@ Plans:
 | 19. Price Book DB Foundation | v1.3 | 2/2 | Complete    | 2026-05-07 |
 | 20. Price Book CRUD UI | v1.3 | 3/3 | Complete    | 2026-05-07 |
 | 21. CSV Import | v1.3 | 3/3 | Complete    | 2026-05-08 |
-| 22. AI Price Anchoring | v1.3 | 1/3 | In Progress|  |
+| 22. AI Price Anchoring | v1.3 | 2/3 | In Progress|  |
 | 23. Estimate Editor Price Badges | v1.3 | 0/? | Not started | - |
