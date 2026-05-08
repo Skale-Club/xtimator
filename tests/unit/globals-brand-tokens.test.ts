@@ -6,42 +6,50 @@ const root = process.cwd()
 const globalsCss   = readFileSync(resolve(root, 'app/globals.css'), 'utf8')
 const authLayout   = readFileSync(resolve(root, 'app/(auth)/layout.tsx'), 'utf8')
 const adminLayout  = readFileSync(resolve(root, 'app/admin/layout.tsx'), 'utf8')
+const systemColors = readFileSync(resolve(root, 'lib/system-colors.ts'), 'utf8')
 
 describe('Global brand tokens (Phase 10)', () => {
   describe('BRAND-01 — authenticated app pages use #406EF1 primary', () => {
-    it(':root --primary is 224 86% 60%', () => {
-      // Assert the :root block contains the brand primary triplet.
-      // Simple approach: count occurrences of the new value to ensure both
-      // :root and .dark scopes are covered (at minimum 2 matches for --primary).
-      const primaryMatches = (globalsCss.match(/--primary:\s*224 86% 60%/g) ?? []).length
-      expect(primaryMatches, '--primary: 224 86% 60% must appear in :root and .dark (at least 2 times)').toBeGreaterThanOrEqual(2)
+    it('--system-primary is defined as 224 86% 60% (single source of truth)', () => {
+      // Brand triplet lives in --system-primary; all --primary vars reference it via var().
+      expect(globalsCss).toMatch(/--system-primary:\s*224 86% 60%/)
     })
 
-    it(':root and .dark --ring is 224 86% 60%', () => {
-      const ringMatches = (globalsCss.match(/--ring:\s*224 86% 60%/g) ?? []).length
-      expect(ringMatches, '--ring: 224 86% 60% must appear in :root and .dark (at least 2 times)').toBeGreaterThanOrEqual(2)
+    it('lib/system-colors.ts exports primaryHsl as "224 86% 60%"', () => {
+      expect(systemColors).toContain("primaryHsl: '224 86% 60%'")
+    })
+
+    it(':root --primary resolves through var(--system-primary)', () => {
+      // globals.css uses var(--system-primary) indirection — at least :root and .dark.
+      const matches = (globalsCss.match(/--primary:\s*var\(--system-primary\)/g) ?? []).length
+      expect(matches, '--primary: var(--system-primary) must appear in :root and .dark (≥2)').toBeGreaterThanOrEqual(2)
+    })
+
+    it(':root --ring resolves through var(--system-primary)', () => {
+      const matches = (globalsCss.match(/--ring:\s*var\(--system-primary\)/g) ?? []).length
+      expect(matches, '--ring: var(--system-primary) must appear in :root and .dark (≥2)').toBeGreaterThanOrEqual(2)
     })
 
     it('.dark --primary-foreground is 0 0% 100% (white on brand blue)', () => {
-      // The .dark scope must have white foreground for contrast on the blue primary.
-      // We look for the value; a single occurrence is sufficient.
       expect(globalsCss).toMatch(/--primary-foreground:\s*0 0% 100%/)
     })
   })
 
   describe('BRAND-02 — admin panel default accent is #406EF1', () => {
-    it('app/admin/layout.tsx fallback is 224 86% 60%', () => {
-      expect(adminLayout).toContain("triplet ?? '224 86% 60%'")
+    it('app/admin/layout.tsx fallback uses SYSTEM_COLORS.primaryHsl', () => {
+      // Layout resolves brand triplet via SYSTEM_COLORS constant (not a hardcoded literal).
+      expect(adminLayout).toContain('SYSTEM_COLORS.primaryHsl')
     })
 
-    it('globals.css [data-theme="admin-dark"] --primary fallback is 224 86% 60%', () => {
-      expect(globalsCss).toMatch(/--platform-primary,\s*224 86% 60%/)
+    it('globals.css runtime override uses var(--platform-primary, var(--system-primary))', () => {
+      // Super-admin can swap colours at runtime without a redeploy.
+      expect(globalsCss).toMatch(/var\(--platform-primary,\s*var\(--system-primary\)\)/)
     })
   })
 
   describe('BRAND-03 — auth pages primary is #406EF1', () => {
-    it('app/(auth)/layout.tsx fallback is 224 86% 60%', () => {
-      expect(authLayout).toContain("triplet ?? '224 86% 60%'")
+    it('app/(auth)/layout.tsx fallback uses SYSTEM_COLORS.primaryHsl', () => {
+      expect(authLayout).toContain('SYSTEM_COLORS.primaryHsl')
     })
   })
 

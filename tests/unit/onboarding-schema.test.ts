@@ -101,10 +101,10 @@ describe('onboardingSchema', () => {
       expect(result.data?.customIndustry).toBe('')
     })
 
-    it('brandPrimaryColor defaults to "#0D9488"', () => {
+    it('brandPrimaryColor defaults to "#406EF1"', () => {
       const result = onboardingSchema.safeParse({ companyName: 'Test Co' })
       expect(result.success).toBe(true)
-      expect(result.data?.brandPrimaryColor).toBe('#0D9488')
+      expect(result.data?.brandPrimaryColor).toBe('#406EF1')
     })
   })
 
@@ -171,7 +171,7 @@ describe('onboardingSchema', () => {
       expect(data.website).toBe('')
       expect(data.industry).toBe('')
       expect(data.customIndustry).toBe('')
-      expect(data.brandPrimaryColor).toBe('#0D9488')
+      expect(data.brandPrimaryColor).toBe('#406EF1')
       expect(data.defaultTaxRate).toBe(0)
       expect(data.defaultPaymentTerms).toBe('Net 30')
       expect(data.defaultWarrantyTerms).toBe('1 year')

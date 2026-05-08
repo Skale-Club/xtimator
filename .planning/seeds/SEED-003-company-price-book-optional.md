@@ -1,6 +1,6 @@
 ---
 id: SEED-003
-status: dormant
+status: sprouted
 planted: 2026-05-06
 planted_during: v1.2 Brand Identity & Global Reach (Phase 18 voice-first recorder complete)
 trigger_when: Próximo milestone focado em precisão/qualidade dos orçamentos gerados pela IA

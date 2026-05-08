@@ -1,6 +1,6 @@
 ---
 id: SEED-002
-status: dormant
+status: sprouted
 planted: 2026-04-22
 planted_during: v1.1 — Dark-first UX & Modern Redesign (all 9 phases complete)
 trigger_when: when starting a milestone that includes public launch prep, marketing, or brand identity consolidation

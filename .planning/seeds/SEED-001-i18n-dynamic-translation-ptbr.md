@@ -1,6 +1,6 @@
 ---
 id: SEED-001
-status: dormant
+status: sprouted
 planted: 2026-04-22
 planted_during: v1.1 — Dark-first UX & Modern Redesign (all 9 phases complete)
 trigger_when: when starting a milestone focused on internationalization, Brazilian/Latin American market expansion, or multi-language support

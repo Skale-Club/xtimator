@@ -1,6 +1,14 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import type { NextRequest } from 'next/server'
 
+// next/cache's unstable_cache requires Next.js IncrementalCache which is absent in vitest.
+// Pass-through so admin-context.ts can be imported without throwing.
+vi.mock('next/cache', () => ({
+  unstable_cache: (fn: (...args: unknown[]) => unknown) => fn,
+  revalidateTag: vi.fn(),
+  revalidatePath: vi.fn(),
+}))
+
 /**
  * Mocks for the two Supabase entry points consumed by admin-gate.ts and admin-context.ts.
  *
