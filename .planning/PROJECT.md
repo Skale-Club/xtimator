@@ -14,20 +14,9 @@ The platform includes:
 
 A business owner can go from job site audio recording to a sent, professional estimate in under 5 minutes without touching a keyboard.
 
-## Current Milestone: v1.3 Smart Pricing
+## Last Milestone: v1.3 Smart Pricing ✅ (shipped 2026-05-08)
 
-**Goal:** Empresas cadastram sua tabela de preços real e a IA usa esses preços como âncora na geração de orçamentos, com fallback automático para senso comum quando vazio ou sem match, e o editor exibe a origem de cada preço.
-
-**Target features:**
-- Price book CRUD em `/settings/price-book` — categorias livres, item + unidade + preço, entrada manual + import CSV
-- Integração com pipeline da IA: price book injetado no prompt antes da geração; fallback para senso comum quando sem match
-- Editor de orçamento: badge/ícone por linha indicando origem (price book ✓ vs IA ⚡)
-- Price book opcional: empresas sem preenchimento continuam funcionando como antes
-
-**Key constraints:**
-- Ajuste manual de preço no editor é exceção per-cliente, não retroalimenta o price book (intencional)
-- RLS por company_id — cada empresa vê e edita apenas seus próprios preços
-- Import CSV cobre empresas com tabelas preexistentes
+Price book CRUD + CSV import + multi-provider AI anchoring (Claude/Gemini) + estimate editor price badges. 5 phases, 13 plans, 3 days. All 12 requirements validated.
 
 ## Current State
 
@@ -58,9 +47,10 @@ A business owner can go from job site audio recording to a sent, professional es
 - **i18n:** EN/PT-BR/ES — LanguageContext + useTranslation(), 192-entry static dict, /api/translate (Claude Haiku + DB cache), LanguageToggle in navbar + mobile bottom-nav
 - **Brand:** #406EF1 primary across all surfaces (landing, authenticated app, admin)
 - **Icons:** App Router-owned favicon, SVG/PNG app icons, manifest metadata
-- **Price book:** `/settings/price-book` — CRUD for company-scoped pricing (category + name + unit + unit_price + notes), search, alphabetical category grouping, AlertDialog delete confirmation, EmptyState explaining optionality. Underlying `company_price_book` table with RLS isolation per company; `estimate_items.price_source` column ready for AI anchoring (Phase 22)
+- **Price book:** `/settings/price-book` — CRUD for company-scoped pricing (category + name + unit + unit_price + notes), search, alphabetical category grouping, AlertDialog delete confirmation, EmptyState explaining optionality. Underlying `company_price_book` table with RLS isolation per company.
 - **CSV import:** "Import CSV" button in price book header + EmptyState triggers a Dialog modal — client-side papaparse parse, two-stage pick→preview with per-row error indicators, server-side dedup by (name, category), single bulk `supabase.insert()`. Downloadable 4-column template at `/price-book-template.csv`. (PB-05)
-- **Multi-provider AI + price anchoring:** `lib/ai/` abstraction layer with `AIProvider` interface, `AnthropicAdapter` (Claude) and `GeminiAdapter` (`gemini-2.5-flash`). `getAIProvider()` factory reads active provider from `platform_integrations` (no env vars). Price book injected as system prompt context before generation; `price_source` tagged on every line item and persisted to `estimate_items`. Admin panel has Gemini key card + live provider switch. (AIPRICE-01/02/03)
+- **Multi-provider AI + price anchoring:** `lib/ai/` abstraction layer (`AIProvider` interface + `AnthropicAdapter` + `GeminiAdapter` with `gemini-2.5-flash`). `getAIProvider()` reads active provider from `platform_integrations` (zero env vars). Price book injected as system prompt context; `price_source` tagged per line item and persisted to `estimate_items`. Admin panel: Gemini key card + live provider switch.
+- **Estimate editor price badges:** "Price book" (`CheckCircle2`, secondary variant) and "AI estimate" (`Zap`, outline) badges per line item. "Edited" badge on manual unit_price override; `price_source = null` on save. Null-safe for pre-v1.3 estimates.
 
 ## Requirements
 
@@ -98,7 +88,7 @@ A business owner can go from job site audio recording to a sent, professional es
 - ✓ PERF-01–03: Skeleton loading states, Suspense streaming, React cache() for auth/company, HoverPrefetchLink — v1.2
 - ✓ P18-01–09: Voice-first project onboarding — 1-step wizard, full-screen capture route, 10-min recording with color timer + SVG ring, multi-stage stepper, auto-estimate generation — v1.2
 
-### Validated (v1.3 — in progress)
+### Validated (v1.3)
 
 - ✓ Phase 19 — Price Book DB Foundation: `company_price_book` table with RLS isolation, `estimate_items.price_source` CHECK column, regenerated TypeScript types (PB-DB infrastructure prerequisite for PB-01..07, AIPRICE-03, EDITPRICE-01/02) — Phase 19, 2026-05-06
 - ✓ PB-01, PB-02, PB-03, PB-04, PB-06, PB-07: Price Book CRUD UI — `/settings/price-book` route with grouped list, search, add/edit dialog (Combobox category autocomplete), delete with AlertDialog confirmation, optionality EmptyState, Settings entry-point card — Phase 20, 2026-05-07

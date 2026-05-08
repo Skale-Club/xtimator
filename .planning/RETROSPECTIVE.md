@@ -1,5 +1,57 @@
 # Retrospective: Xtimator
 
+## Milestone: v1.3 — Smart Pricing
+
+**Shipped:** 2026-05-08
+**Phases:** 5 (Phases 19-23) | **Plans:** 13 | **Tasks:** 30
+**Timeline:** 2026-05-06 → 2026-05-08 (3 days)
+**Files changed:** 97 (+16,806 / -319)
+
+### What Was Built
+
+1. **Phase 19 — Price Book DB Foundation:** `company_price_book` table with 4-policy RLS (SELECT/INSERT/UPDATE/DELETE scoped to company_id), `estimate_items.price_source` TEXT CHECK column, TypeScript types regenerated from live Supabase OpenAPI endpoint (15 tables)
+2. **Phase 20 — Price Book CRUD UI:** `/settings/price-book` with alphabetical category grouping, search (`useMemo`), add/edit Dialog (Combobox category autocomplete), AlertDialog delete, optionality EmptyState, Settings entry card
+3. **Phase 21 — CSV Import:** papaparse client-side parse (BOM-aware), two-stage Dialog (pick→preview), per-row error indicators, server-side dedup by (name, category), single bulk `supabase.insert()`, downloadable 4-column template at `/price-book-template.csv`
+4. **Phase 22 — AI Price Anchoring + Multi-provider:** `lib/ai/` abstraction layer — `AIProvider` interface, `AnthropicAdapter` (Claude `claude-sonnet-4-20250514`), `GeminiAdapter` (`gemini-2.5-flash`, `@google/genai@2.0.0`). `getAIProvider()` factory reads `platform_integrations` where `provider='ai_config'` (zero env vars). Price book injected as system prompt context; `price_source` required in tool/function schema; `normalizeOutput()` defensive fallback. Admin panel: Gemini key card + `AIProviderSelector` radio for live provider switch without redeploy.
+5. **Phase 23 — Estimate Editor Price Badges:** `EditorItem` extended with `price_source` + `isManuallyEdited` flag. `item-row.tsx` new `<td>` with ternary badge (isManuallyEdited → "Edited" outline, price_book → "Price book" secondary+CheckCircle2, ai_estimate → "AI estimate" outline+Zap, null → nothing). `saveEstimate` writes `price_source: null` for manually-edited items across all 4 DB paths.
+
+### What Worked
+
+- **Sequential wave execution with dependency guard:** Index tool grouped 20-01/20-02 in the same wave, but the plan frontmatter's `depends_on` was respected — executor ran sequentially rather than hitting a missing-import race. Plans-as-source-of-truth beats index tool grouping.
+- **Phase 22 researcher catching deprecated SDK:** `@google/generative-ai` was deprecated November 2025; the researcher found this in npm registry before the planner could hard-code the wrong package. Research phase saved a likely execution failure.
+- **Shared `normalizeOutput()` helper:** Extracting the defensive `price_source` fallback to `lib/ai/normalize.ts` solved the plan-checker blocker about untestable private functions while also removing duplication across two adapters. Clean feedback loop: checker → planner → clean solution.
+- **`ai_config` row pattern for provider selection:** Using a special `platform_integrations` row with `provider='ai_config'` and `metadata.selected_ai_provider` avoided any DB migration, leveraged the existing encrypted-key table's metadata column, and kept the admin panel pattern consistent. No new table needed.
+- **3-day milestone:** 5 phases, 13 plans, 97 files in 3 days. The GSD scaffold (CONTEXT → RESEARCH → PLAN → EXECUTE → VERIFY) kept each phase focused with zero scope creep across phases.
+
+### What Was Inefficient
+
+- **Plan checker required 2 iterations for Phase 22:** 3 blockers found on first check (deprecated SDK in CONTEXT.md, `normalizeOutput` untestable, `server-only` in index.ts). All were legitimate — but a pre-planning review of the CONTEXT.md wording against the research findings would have caught the SDK name error before the planner ran.
+- **SUMMARY.md one-liner extraction still noisy:** The CLI extracted raw `"Commit:"` lines from some SUMMARY.md files instead of clean one-liners. The SUMMARY.md frontmatter `one_liner:` field needs to be consistently populated by executors.
+- **Wave 0 "server-only" pitfall:** The planner added `import 'server-only'` to `lib/ai/index.ts` (a reasonable pattern for a server module), but this would crash `provider-factory.test.ts` in vitest. The RESEARCH.md didn't flag this pitfall. Adding a "vitest environment compatibility" section to research prompts for lib/ modules would catch this earlier.
+
+### Patterns Established
+
+- **`lib/ai/` provider interface pattern:** `AIProvider` interface + factory + per-provider adapter is the right abstraction for any AI call in this codebase. Future providers (OpenAI, Mistral) just add a new file in `lib/ai/providers/`.
+- **`getAuthContext` duplicated per-action file:** The Phase 20 pattern (not exported, duplicated in each action file) was consistently applied in Phase 21 and 22. This is a known convention (STATE.md decision) — follow it, don't consolidate.
+- **`ai_config` row for platform-level non-secret config:** `platform_integrations` with null `ciphertext` but non-null `metadata` is a clean pattern for storing platform configuration that doesn't need encryption. Reusable for any future platform-level toggle.
+- **Defensive fallback pattern for required AI fields:** `item.price_source === 'price_book' ? 'price_book' : 'ai_estimate'` (not `?? 'ai_estimate'`) — stronger than null coalescing; handles any unexpected model output safely.
+- **`isManuallyEdited` client-only flag for optimistic badge UX:** Rather than re-fetching after every keystroke, a client-side boolean tracks "user touched this price" and drives the "Edited" badge immediately. Persisted to DB only on save (price_source = null). Clean separation of client state from server state.
+
+### Key Lessons
+
+1. **Validate CONTEXT.md package names against RESEARCH.md before spawning the planner.** The `@google/generative-ai` vs `@google/genai` error slipped through because CONTEXT.md was written before research, then never re-validated. Add a "reconcile CONTEXT with RESEARCH" step before planning.
+2. **Research prompts for lib/ modules should include "vitest compatibility" target.** When researching how to implement a server-only utility that also needs unit tests, explicitly ask: "How does this module behave in vitest's jsdom environment?" Catches `server-only` import issues before planning.
+3. **The multi-provider architecture decision mid-discussion is the right time to scope it in.** The user surfaced the Gemini requirement during discuss-phase (not mid-execution), which meant CONTEXT, RESEARCH, and PLAN all accounted for it. Discuss-phase is the correct gate for architectural surprises.
+4. **`gsd-tools milestone complete` produces noisy accomplishments** — the CLI pulls from SUMMARY.md files whose one-liner field varies in quality. Executors should always write a clean `one_liner:` in the SUMMARY.md frontmatter as part of plan completion.
+
+### Cost Observations
+
+- Model: claude-sonnet-4-6 (user switched mid-session)
+- Sessions: 1 long session (2026-05-08)
+- Notable: Phase 22 was the most architecturally complex (multi-provider abstraction + price injection + admin UI + new external SDK) — completed in ~3 hours with 3 plan-checker iterations total. Phase 23 (badges) was the fastest — 2 plans, 3 hours end-to-end.
+
+---
+
 ## Milestone: v1.2 — Brand Identity & Global Reach
 
 **Shipped:** 2026-05-06

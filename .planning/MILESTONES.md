@@ -1,5 +1,27 @@
 # Milestones
 
+## v1.3 Smart Pricing (Shipped: 2026-05-08)
+
+**Phases completed:** 5 phases, 13 plans, 30 tasks
+
+**Key accomplishments:**
+
+- Supabase migration DDL for company_price_book with 4-policy RLS and estimate_items.price_source TEXT column, plus Wave 0 integration test stub
+- TypeScript types regenerated from live Supabase schema (15 tables, including company_price_book + estimate_items.price_source), build passes, integration tests SC-1/SC-2/SC-3 green
+- Commit:
+- Commit:
+- Commit:
+- One-liner:
+- One-liner:
+- One-liner:
+- Commit:
+- Commit:
+- Commit:
+- One-liner:
+- One-liner:
+
+---
+
 ## v1.2 Brand Identity & Global Reach (Shipped: 2026-05-06)
 
 **Phases completed:** 9 phases, 27 plans, 34 tasks
