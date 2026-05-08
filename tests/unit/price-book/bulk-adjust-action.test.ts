@@ -97,7 +97,7 @@ describe('bulkAdjustPriceBookCategory', () => {
   })
 
   it('rounds computed price to 2 decimal places (33% on 33.33)', async () => {
-    const singleItem = [{ id: 'ix', company_id: 'c1', category: 'X', name: 'Test', unit: null, unit_price: 33.33, notes: null }]
+    const singleItem = [{ id: 'ix', company_id: 'c1', category: 'X', name: 'Test', unit: 'each', unit_price: 33.33, notes: null }]
     const { client, upsertSpy } = makeSupabase({
       claims: { sub: 'u1' }, company: { id: 'c1' }, items: singleItem, upsertError: null
     })

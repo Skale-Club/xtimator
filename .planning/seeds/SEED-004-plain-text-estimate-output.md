@@ -1,8 +1,10 @@
 ---
 id: SEED-004
-status: dormant
+status: sprouted
 planted: 2026-05-06
+sprouted: 2026-05-08
 planted_during: v1.2 Brand Identity & Global Reach (Phase 18 voice-first recorder complete)
+sprouted_during: v1.4 Estimate Plain Text & Pricing Tools (Phases 24-26)
 trigger_when: Próximo milestone focado em output formats / canais de distribuição do orçamento
 scope: Large
 ---

@@ -6,7 +6,7 @@
 - ✅ **v1.1 Dark-first UX & Modern Redesign** — Phase 9 (shipped 2026-04-22) · [archive](milestones/v1.1-ROADMAP.md)
 - ✅ **v1.2 Brand Identity & Global Reach** — Phases 10-18 (shipped 2026-05-06) · [archive](milestones/v1.2-ROADMAP.md)
 - ✅ **v1.3 Smart Pricing** — Phases 19-23 (shipped 2026-05-08) · [archive](milestones/v1.3-ROADMAP.md)
-- 🔲 **v1.4 Estimate Plain Text & Pricing Tools** — Phases 24-26 (active)
+- ✅ **v1.4 Estimate Plain Text & Pricing Tools** — Phases 24-26 (shipped 2026-05-08) · [archive](milestones/v1.4-ROADMAP.md)
 
 ## Phases
 
@@ -65,9 +65,16 @@
 
 </details>
 
-- [x] **Phase 24: Estimate Template Engine + Settings Page** — DB schema for company estimate templates + `/settings/estimate-templates` config UI (completed 2026-05-08)
-- [x] **Phase 25: Plain Text Tab + Copy UI** — "Plain Text" tab in estimate editor with editable preview and copy-to-clipboard (completed 2026-05-08)
-- [x] **Phase 26: Bulk Price Adjustment** — Category-scoped % adjustment with preview and atomic apply in the price book (completed 2026-05-08)
+<details>
+<summary>✅ v1.4 Estimate Plain Text & Pricing Tools (Phases 24-26) — SHIPPED 2026-05-08</summary>
+
+| Phase | Name | Plans | Completed |
+|-------|------|-------|-----------|
+| 24 | Estimate Template Engine + Settings Page | 3/3 | 2026-05-08 |
+| 25 | Plain Text Tab + Copy UI | 2/2 | 2026-05-08 |
+| 26 | Bulk Price Adjustment | 2/2 | 2026-05-08 |
+
+</details>
 
 ## Phase Details
 

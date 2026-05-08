@@ -1,9 +1,9 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: milestone
-status: executing
-last_updated: "2026-05-08T18:06:28.842Z"
+milestone: v1.4
+milestone_name: Estimate Plain Text & Pricing Tools
+status: complete
+last_updated: "2026-05-08T18:30:00.000Z"
 last_activity: 2026-05-08
 progress:
   total_phases: 3
@@ -16,18 +16,28 @@ progress:
 
 ## Current Status
 
-- **Milestone**: v1.4 Estimate Plain Text & Pricing Tools — roadmap defined, ready for phase planning
+- **Milestone**: v1.4 Estimate Plain Text & Pricing Tools — ✅ COMPLETE (3/3 phases, 7/7 plans)
 - **Last updated**: 2026-05-08
 
 ## Current Position
 
-Phase: 26
-Plan: Not started
-Status: Ready to execute
+Phase: 26 (complete — last phase of v1.4)
+Plan: All complete
+Status: Milestone complete — ready for /gsd:new-milestone
 Last activity: 2026-05-08
 
 ## Completed Phases
 
+- Phase 26: Bulk Price Adjustment (26-bulk-price-adjustment) — COMPLETE 2026-05-08
+  - Plan 01: bulkAdjustSchema + bulkAdjustPriceBookCategory server action (TDD, .upsert() atomicity) — COMPLETE
+  - Plan 02: BulkAdjustDialog component + "Adjust %" button wired into PriceBookList category headers — COMPLETE
+- Phase 25: Plain Text Tab + Copy UI (25-plain-text-tab-copy-ui) — COMPLETE 2026-05-08
+  - Plan 01: buildItemsBreakdown utility + unit tests (TDD RED→GREEN) — COMPLETE
+  - Plan 02: PlainTextCard component + data chain wiring (page.tsx → ProjectWorkspace → SendTab) — COMPLETE
+- Phase 24: Estimate Template Engine + Settings Page (24-estimate-template-engine-settings-page) — COMPLETE 2026-05-08
+  - Plan 01: Migration (4 estimate_template_* columns on companies) + resolveTemplate utility + zod schema + query (TDD) — COMPLETE
+  - Plan 02: saveEstimateTemplate server action + EstimateTemplateForm client component — COMPLETE
+  - Plan 03: /settings/estimate-templates page + loading skeleton + entry card on /settings — COMPLETE
 - Phase 23: Estimate Editor Price Badges (23-estimate-editor-price-badges) — COMPLETE 2026-05-08
   - Plan 01: Badge rendering (price_source display logic, EditorItem type extension) — COMPLETE
   - Plan 02: Badge persistence (saveEstimate price_source nullification on edited items) — COMPLETE

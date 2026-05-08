@@ -106,12 +106,11 @@ Plain-text estimate with configurable company template + copy-to-clipboard + bul
 - ✓ AIPRICE-01/02/03: AI Price Anchoring — multi-provider layer (Claude + Gemini), price book injected as prompt context, price_source tagged + persisted, fallback to market rates when empty, admin provider selector — Phase 22, 2026-05-08
 - ✓ EDITPRICE-01/02: Estimate Editor Price Badges — "Price book" (CheckCircle2, secondary) + "AI estimate" (Zap, outline) badges per line item; "Edited" badge on manual override; price_source=null on save; null-safe for pre-v1.3 estimates — Phase 23, 2026-05-08
 
-### Active (v1.3)
+### Pending (production infra)
 
-- [ ] Production Supabase migration applied and first super-admin bootstrapped
+- [ ] Production Supabase migrations applied (Phase 19 price book table + Phase 24 estimate_template_* columns)
+- [ ] First super-admin bootstrapped in production
 - [ ] Vercel deployment pipeline configured and first production deploy successful
-- [ ] AI estimate precision improvements (SEED-003: price book optional per company)
-- [ ] Plain-text estimate output for SMS/WhatsApp/email inline (SEED-004)
 
 ### Out of Scope
 
@@ -121,7 +120,6 @@ Plain-text estimate with configurable company template + copy-to-clipboard + bul
 - QuickBooks integration — deferred to v2
 - Offline PWA mode — deferred to v2
 - Dashboard charts/analytics — deferred to v2
-- Estimate templates — deferred to v2 (SEED-004 covers plain-text variant)
 - Multi-user/team accounts — deferred to v2
 - Per-tenant API keys — platform shared credentials via admin panel covers v1
 
@@ -137,7 +135,7 @@ Plain-text estimate with configurable company template + copy-to-clipboard + bul
 - **Codebase:** 54 plans shipped, 200+ commits, TypeScript strict throughout.
 - **Theme system:** `next-themes` with `eb-theme` cookie SSR hydration; `[data-theme]` scoped-dark CSS-var pattern for admin/auth; `[data-theme="light"]` forced-light wrapper for public estimate view.
 - **i18n:** `LanguageContext` + `useTranslation()` hook, 192-entry static `translations.ts`, `/api/translate` with Claude Haiku + DB cache (translations table, unique index on source_text+lang pair).
-- **Seeds planted:** SEED-003 (price book per company, optional), SEED-004 (plain-text estimate output).
+- **Seeds sprouted:** SEED-001 (i18n → v1.2), SEED-002 (brand identity → v1.2), SEED-003 (price book → v1.3), SEED-004 (plain-text estimate → v1.4).
 
 ## Constraints
 
