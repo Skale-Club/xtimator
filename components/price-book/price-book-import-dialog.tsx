@@ -239,10 +239,12 @@ export function PriceBookImportDialog({ open, onOpenChange }: PriceBookImportDia
                         </TableCell>
                         <TableCell>
                           {isInvalid && (
-                            <AlertTriangle
-                              className="h-4 w-4 text-destructive"
+                            <span
                               title={row.errors.map(rowErrorLabel).join(', ')}
-                            />
+                              aria-label={row.errors.map(rowErrorLabel).join(', ')}
+                            >
+                              <AlertTriangle className="h-4 w-4 text-destructive" />
+                            </span>
                           )}
                           {isDup && !isInvalid && (
                             <span className="text-xs text-muted-foreground" title="Duplicate row in file">dup</span>
