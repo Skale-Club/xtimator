@@ -166,3 +166,33 @@ export async function testIntegrationKey(input: {
     return { ok: false, message }
   }
 }
+
+/**
+ * Upsert the ai_config row in platform_integrations to switch the active AI
+ * provider platform-wide. No redeploy required — factory reads from DB on every
+ * request (D-04, D-19).
+ */
+export async function setActiveAIProvider(
+  provider: 'anthropic' | 'gemini'
+): Promise<ActionResult> {
+  const ctx = await requireAdmin()
+  const svc = createServiceClient()
+  const { error } = await svc.from('platform_integrations').upsert(
+    {
+      provider: 'ai_config',
+      ciphertext: null,
+      iv: null,
+      auth_tag: null,
+      metadata: { selected_ai_provider: provider },
+      updated_at: new Date().toISOString(),
+      updated_by: ctx.userId,
+    },
+    { onConflict: 'provider' }
+  )
+  if (error) {
+    return { ok: false, message: error.message }
+  }
+  invalidatePlatformConfig()
+  revalidatePath('/admin/integrations')
+  return { ok: true, message: `Active AI provider set to ${provider}.` }
+}

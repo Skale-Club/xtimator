@@ -1,21 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import type { EstimateOutput } from '@/lib/ai/types'
 
 // Module-level mock function references
-const anthropicCreateMock = vi.fn()
-const supabaseFromMock = vi.fn()
-const supabaseAuthGetClaimsMock = vi.fn()
-
-// Captured tools argument for inspection
-let capturedTools: unknown[] = []
+const generateEstimateMock = vi.fn()
 
 // Auth client
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(),
-}))
-
-// Platform config
-vi.mock('@/lib/platform-config', () => ({
-  getIntegrationKey: vi.fn(),
 }))
 
 // Recording + Photo queries
@@ -32,23 +23,16 @@ vi.mock('next/cache', () => ({
   revalidatePath: vi.fn(),
 }))
 
-// Anthropic SDK — captures tools arg
-vi.mock('@anthropic-ai/sdk', () => ({
-  default: class {
-    messages = {
-      create: async (params: { tools?: unknown[] }) => {
-        capturedTools = params.tools ?? []
-        return anthropicCreateMock(params)
-      },
-    }
-  },
+// Mock the AI provider layer — replaces direct Anthropic SDK dependency (D-09)
+vi.mock('@/lib/ai', () => ({
+  getAIProvider: vi.fn(),
 }))
 
 import { POST } from '@/app/api/generate-estimate/route'
 import { createClient } from '@/lib/supabase/server'
-import { getIntegrationKey } from '@/lib/platform-config'
 import { getProjectRecordings } from '@/lib/queries/recording'
 import { getProjectPhotos } from '@/lib/queries/photo'
+import { getAIProvider } from '@/lib/ai'
 
 function makeRequest(projectId: string) {
   return new Request('http://localhost/api/generate-estimate', {
@@ -58,27 +42,35 @@ function makeRequest(projectId: string) {
   })
 }
 
+const DEFAULT_AI_OUTPUT: EstimateOutput = {
+  suggested_project_name: 'Smith Kitchen Reno',
+  summary: 'Kitchen renovation',
+  sections: [
+    {
+      title: 'Labor',
+      items: [
+        {
+          description: 'Demo',
+          quantity: 1,
+          unit_price: 500,
+          price_source: 'ai_estimate',
+        },
+      ],
+    },
+  ],
+}
+
 /**
  * Factory to build a supabase mock with configurable project name and update spy.
  */
 function makeSupabaseMock(projectName: string) {
   const updateSpy = vi.fn()
 
-  // Chain builder — each call returns an object with the next expected method
-  const eqChain = (resolveWith: unknown) => ({
-    eq: vi.fn().mockResolvedValue(resolveWith),
-  })
-
-  // single() is terminal
-  function chainWithSingle(resolveWith: unknown) {
-    return {
-      single: vi.fn().mockResolvedValue(resolveWith),
-    }
-  }
-
   function eqThenSingle(resolveWith: unknown) {
     return {
-      eq: vi.fn().mockReturnValue(chainWithSingle(resolveWith)),
+      eq: vi.fn().mockReturnValue({
+        single: vi.fn().mockResolvedValue(resolveWith),
+      }),
     }
   }
 
@@ -107,7 +99,20 @@ function makeSupabaseMock(projectName: string) {
             }),
           }),
         }),
-        // company select inside parallel Promise.all (with user_id)
+      }
+    }
+
+    if (table === 'company_price_book') {
+      // getPriceBookItems: .select().eq().order().order() → returns empty array
+      const innerOrderChain = {
+        order: vi.fn().mockResolvedValue({ data: [], error: null }),
+      }
+      return {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            order: vi.fn().mockReturnValue(innerOrderChain),
+          }),
+        }),
       }
     }
 
@@ -117,7 +122,6 @@ function makeSupabaseMock(projectName: string) {
       // 2) SELECT name (for the patch check)
       // 3) UPDATE { status, total } (Step 7)
       // 4) UPDATE { name } (name-patcher, conditional)
-      let selectCallCount = 0
       return {
         select: vi.fn().mockImplementation((cols: string) => {
           if (cols === 'name') {
@@ -132,7 +136,6 @@ function makeSupabaseMock(projectName: string) {
             }
           }
           // Default: full project fetch
-          selectCallCount++
           return {
             eq: vi.fn().mockReturnValue({
               single: vi.fn().mockResolvedValue({
@@ -211,39 +214,22 @@ function makeSupabaseMock(projectName: string) {
   return { fromMock, updateSpy }
 }
 
+function setupDefaults() {
+  generateEstimateMock.mockResolvedValue(DEFAULT_AI_OUTPUT)
+  vi.mocked(getAIProvider).mockResolvedValue({ generateEstimate: generateEstimateMock })
+  vi.mocked(getProjectRecordings).mockResolvedValue([
+    { id: 'rec-1', transcript: 'Replace the kitchen cabinets and countertops' } as never,
+  ])
+  vi.mocked(getProjectPhotos).mockResolvedValue([])
+}
+
 describe('generate-estimate tool schema (D-05)', () => {
   beforeEach(() => {
     vi.resetAllMocks()
-    capturedTools = []
-
-    // Default: AI returns tool_use with suggested_project_name
-    anthropicCreateMock.mockResolvedValue({
-      content: [
-        {
-          type: 'tool_use',
-          name: 'create_estimate',
-          input: {
-            suggested_project_name: 'Smith Kitchen Reno',
-            summary: 'Kitchen renovation',
-            sections: [
-              {
-                title: 'Labor',
-                items: [{ description: 'Demo', quantity: 1, unit_price: 500 }],
-              },
-            ],
-          },
-        },
-      ],
-    })
-
-    vi.mocked(getIntegrationKey).mockResolvedValue('test-key')
-    vi.mocked(getProjectRecordings).mockResolvedValue([
-      { id: 'rec-1', transcript: 'Replace the kitchen cabinets and countertops' } as never,
-    ])
-    vi.mocked(getProjectPhotos).mockResolvedValue([])
+    setupDefaults()
   })
 
-  it('input_schema includes suggested_project_name and is required', async () => {
+  it('route calls getAIProvider and generateEstimate returns suggested_project_name', async () => {
     const { fromMock } = makeSupabaseMock('Untitled project — 5/5/2026')
 
     vi.mocked(createClient).mockResolvedValue({
@@ -255,52 +241,24 @@ describe('generate-estimate tool schema (D-05)', () => {
       from: fromMock,
     } as unknown as Awaited<ReturnType<typeof createClient>>)
 
-    await POST(makeRequest('project-1'))
+    const res = await POST(makeRequest('project-1'))
+    expect(res.status).toBe(200)
 
-    // Inspect the tools arg captured during the mock
-    expect(capturedTools).toHaveLength(1)
-    const tool = capturedTools[0] as {
-      name: string
-      input_schema: {
-        required: string[]
-        properties: Record<string, { type: string }>
-      }
-    }
-    expect(tool.input_schema.required).toContain('suggested_project_name')
-    expect(tool.input_schema.properties.suggested_project_name.type).toBe('string')
+    // The provider's generateEstimate was called once
+    expect(generateEstimateMock).toHaveBeenCalledOnce()
+
+    // priceBookItems was passed in the EstimateInput
+    const call = generateEstimateMock.mock.calls[0]
+    const input = call[0] as { priceBookItems: unknown[] }
+    expect(input.priceBookItems).toBeDefined()
+    expect(Array.isArray(input.priceBookItems)).toBe(true)
   })
 })
 
 describe('project name patch logic (D-05)', () => {
   beforeEach(() => {
     vi.resetAllMocks()
-    capturedTools = []
-
-    // Default AI response with a suggested name
-    anthropicCreateMock.mockResolvedValue({
-      content: [
-        {
-          type: 'tool_use',
-          name: 'create_estimate',
-          input: {
-            suggested_project_name: 'Smith Kitchen Reno',
-            summary: 'Kitchen renovation',
-            sections: [
-              {
-                title: 'Labor',
-                items: [{ description: 'Demo', quantity: 1, unit_price: 500 }],
-              },
-            ],
-          },
-        },
-      ],
-    })
-
-    vi.mocked(getIntegrationKey).mockResolvedValue('test-key')
-    vi.mocked(getProjectRecordings).mockResolvedValue([
-      { id: 'rec-1', transcript: 'Replace the kitchen cabinets' } as never,
-    ])
-    vi.mocked(getProjectPhotos).mockResolvedValue([])
+    setupDefaults()
   })
 
   it('updates project name when current name starts with placeholder prefix', async () => {
