@@ -12,9 +12,9 @@
 
 ### Bulk Price Adjustment
 
-- [ ] **BULKPRICE-01**: Usuário seleciona uma categoria do price book e aplica um ajuste percentual (+/-%) em todos os itens dessa categoria de uma vez
-- [ ] **BULKPRICE-02**: Antes de confirmar, usuário vê preview dos preços atuais vs novos preços para todos os itens afetados
-- [ ] **BULKPRICE-03**: Ajuste confirmado é aplicado atomicamente a todos os itens da categoria (todos ou nenhum)
+- [x] **BULKPRICE-01**: Usuário seleciona uma categoria do price book e aplica um ajuste percentual (+/-%) em todos os itens dessa categoria de uma vez
+- [x] **BULKPRICE-02**: Antes de confirmar, usuário vê preview dos preços atuais vs novos preços para todos os itens afetados
+- [x] **BULKPRICE-03**: Ajuste confirmado é aplicado atomicamente a todos os itens da categoria (todos ou nenhum)
 
 ---
 

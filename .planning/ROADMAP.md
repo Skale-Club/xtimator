@@ -67,7 +67,7 @@
 
 - [x] **Phase 24: Estimate Template Engine + Settings Page** — DB schema for company estimate templates + `/settings/estimate-templates` config UI (completed 2026-05-08)
 - [x] **Phase 25: Plain Text Tab + Copy UI** — "Plain Text" tab in estimate editor with editable preview and copy-to-clipboard (completed 2026-05-08)
-- [ ] **Phase 26: Bulk Price Adjustment** — Category-scoped % adjustment with preview and atomic apply in the price book
+- [x] **Phase 26: Bulk Price Adjustment** — Category-scoped % adjustment with preview and atomic apply in the price book (completed 2026-05-08)
 
 ## Phase Details
 
@@ -112,8 +112,8 @@ Plans:
   3. After confirming, all item prices in that category update simultaneously — no partial saves leave some items at old prices
 **Plans**: 2 plans
 Plans:
-- [ ] 26-01-PLAN.md — bulkAdjustSchema + bulkAdjustPriceBookCategory server action (test-first: Wave 0 RED stubs + Wave 1 implementation)
-- [ ] 26-02-PLAN.md — BulkAdjustDialog component + PriceBookList wiring (Adjust % button + live preview table)
+- [x] 26-01-PLAN.md — bulkAdjustSchema + bulkAdjustPriceBookCategory server action (test-first: Wave 0 RED stubs + Wave 1 implementation)
+- [x] 26-02-PLAN.md — BulkAdjustDialog component + PriceBookList wiring (Adjust % button + live preview table)
 
 ## Progress
 
@@ -144,4 +144,4 @@ Plans:
 | 23. Estimate Editor Price Badges | v1.3 | 2/2 | Complete | 2026-05-08 |
 | 24. Estimate Template Engine + Settings Page | v1.4 | 3/3 | Complete    | 2026-05-08 |
 | 25. Plain Text Tab + Copy UI | v1.4 | 2/2 | Complete    | 2026-05-08 |
-| 26. Bulk Price Adjustment | v1.4 | 0/2 | Not started | - |
+| 26. Bulk Price Adjustment | v1.4 | 2/2 | Complete   | 2026-05-08 |

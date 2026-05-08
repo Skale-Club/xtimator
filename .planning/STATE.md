@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-last_updated: "2026-05-08T17:50:12.797Z"
-last_activity: 2026-05-08 -- Phase 26 execution started
+last_updated: "2026-05-08T18:01:49.935Z"
+last_activity: 2026-05-08
 progress:
   total_phases: 3
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 7
-  completed_plans: 5
+  completed_plans: 7
 ---
 
 # Project State
@@ -22,9 +22,9 @@ progress:
 ## Current Position
 
 Phase: 26 (bulk-price-adjustment) — EXECUTING
-Plan: 1 of 2
-Status: Executing Phase 26
-Last activity: 2026-05-08 -- Phase 26 execution started
+Plan: 2 of 2
+Status: Ready to execute
+Last activity: 2026-05-08
 
 ## Completed Phases
 
@@ -208,6 +208,8 @@ Last activity: 2026-05-08 -- Phase 26 execution started
 - [Phase 25-plain-text-tab-copy-ui]: buildItemsBreakdown placed at bottom of estimate-template.ts alongside resolveTemplate — single cohesive module for all plain-text template logic
 - [Phase 25-plain-text-tab-copy-ui]: clientName added as explicit SendTabProps field — keeps prop interface clean and consistent with clientEmail pattern
 - [Phase 25-plain-text-tab-copy-ui]: key={estimate.id} on PlainTextCard remounts component on estimate version change — guards stale textarea state (Pitfall 2)
+- [Phase 26-bulk-price-adjustment]: isValid removed from BulkAdjustDialog submit button disabled — react-hook-form isValid false before first submit; percent guard sufficient
+- [Phase 26-bulk-price-adjustment]: BulkAdjustDialog items prop uses items.filter(i.category === adjustCategory) from unfiltered PriceBookList items prop (Pitfall 7) — not search-filtered categoryItems from grouped.map
 
 ## Performance Metrics
 
@@ -277,6 +279,7 @@ Last activity: 2026-05-08 -- Phase 26 execution started
 | Phase 24-estimate-template-engine-settings-page P03 | 4min | 3 tasks | 3 files |
 | Phase 25-plain-text-tab-copy-ui P01 | 3min | 2 tasks | 2 files |
 | Phase 25-plain-text-tab-copy-ui P02 | 39min | 2 tasks | 4 files |
+| Phase 26-bulk-price-adjustment P02 | 4min | 2 tasks | 4 files |
 
 ## Project Reference
 
