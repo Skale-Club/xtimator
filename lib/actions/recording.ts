@@ -85,6 +85,10 @@ export async function transcribeRecording(recordingId: string) {
 
   if (!recording) return { error: 'Recording not found' }
 
+  if (!recording.storage_path) {
+    return { error: 'This recording has no audio file to transcribe.' }
+  }
+
   // Download audio with service role (bypasses RLS for Storage)
   const serviceClient = createServiceClient()
   const { data: fileData, error: downloadError } = await serviceClient
@@ -160,14 +164,16 @@ export async function deleteRecording(recordingId: string) {
 
   if (!recording) return { error: 'Recording not found' }
 
-  // Delete from Storage audio bucket
-  const { error: storageError } = await supabase
-    .storage
-    .from('audio')
-    .remove([recording.storage_path])
+  // Delete from Storage audio bucket (skip for text-only recordings with no audio file)
+  if (recording.storage_path) {
+    const { error: storageError } = await supabase
+      .storage
+      .from('audio')
+      .remove([recording.storage_path])
 
-  if (storageError) {
-    return { error: 'Failed to delete audio file' }
+    if (storageError) {
+      return { error: 'Failed to delete audio file' }
+    }
   }
 
   // Delete DB row

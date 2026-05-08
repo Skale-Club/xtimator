@@ -28,6 +28,7 @@ export function RecordingItem({ recording, onDelete, isTranscribing }: Recording
     let cancelled = false
 
     async function fetchSignedUrl() {
+      if (!recording.storage_path) return   // text-only recording — no audio file
       const supabase = createClient()
       const { data } = await supabase.storage
         .from('audio')

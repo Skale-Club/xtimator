@@ -34,7 +34,7 @@ export async function createProjectAction(formData: ProjectFormValues) {
     .from('projects')
     .insert({
       company_id: company.id,
-      client_id: formData.clientId,
+      client_id: formData.clientId ?? null,
       name: placeholderName,
       project_type: null,
       status: 'draft',
