@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server'
-import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { getProjectRecordings } from '@/lib/queries/recording'
 import { getProjectPhotos } from '@/lib/queries/photo'
-import { getIntegrationKey } from '@/lib/platform-config'
 import { PLACEHOLDER_PREFIX } from '@/lib/constants/project'
+import { getAIProvider, type EstimateInput } from '@/lib/ai'
+import { getPriceBookItems } from '@/lib/queries/price-book'
 
 export async function POST(request: Request) {
   try {
@@ -69,6 +69,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Company not found' }, { status: 404 })
     }
 
+    // Load price book — 0 items means skip injection in prompt (D-10, AIPRICE-02)
+    const priceBookItems = await getPriceBookItems(supabase, companyId)
+
     // Prerequisite check (AI-01): need at least one transcript or analyzed photo
     const hasTranscripts = recordings.some(
       (r) => r.transcript && r.transcript.trim().length > 0
@@ -86,14 +89,7 @@ export async function POST(request: Request) {
       )
     }
 
-    // Step 2: Build prompt
-    const systemPrompt = `You are a professional estimator for a ${company.industry ?? 'general services'} business. Create a detailed, itemized estimate based on the job site information provided. Be thorough but realistic with pricing for the US market. Break the work into logical sections (e.g., Materials, Labor, Equipment). Each line item needs a clear description, quantity, unit (e.g., sq ft, hours, each, linear ft), and unit price.
-
-Also generate a short, professional project name in 2-5 words derived from the work scope and the client name. Examples: "Smith Bathroom Remodel", "Garcia Driveway Repaving". Return it as suggested_project_name.`
-
-    const parts: string[] = []
-
-    // Project info
+    // Steps 2-4: Build input and call AI provider (D-09)
     const client = project.client as {
       name: string
       email: string | null
@@ -104,152 +100,36 @@ Also generate a short, professional project name in 2-5 words derived from the w
       zip: string | null
     } | null
 
-    let projectInfo = `## Project Information\nName: ${project.name}\nType: ${project.project_type ?? 'General'}`
-    if (project.target_budget) {
-      projectInfo += `\nTarget Budget: $${project.target_budget}`
-    }
-    if (client) {
-      projectInfo += `\nClient: ${client.name}`
-      if (client.address) {
-        projectInfo += `\nAddress: ${client.address}`
-        if (client.city) projectInfo += `, ${client.city}`
-        if (client.state) projectInfo += `, ${client.state}`
-        if (client.zip) projectInfo += ` ${client.zip}`
-      }
-    }
-    parts.push(projectInfo)
+    const clientAddress = client
+      ? [client.address, client.city, client.state, client.zip]
+          .filter(Boolean)
+          .join(', ')
+      : null
 
-    // Audio transcripts
     const transcripts = recordings
       .filter((r) => r.transcript && r.transcript.trim().length > 0)
       .map((r) => r.transcript!)
-    if (transcripts.length > 0) {
-      parts.push('## Audio Transcripts\n' + transcripts.join('\n---\n'))
-    }
 
-    // Photo descriptions
-    const descriptions = photos
-      .filter(
-        (p) => p.ai_description && p.ai_description.trim().length > 0
-      )
+    const photoDescriptions = photos
+      .filter((p) => p.ai_description && p.ai_description.trim().length > 0)
       .map((p, i) => `Photo ${i + 1}: ${p.ai_description}`)
-    if (descriptions.length > 0) {
-      parts.push('## Photo Descriptions\n' + descriptions.join('\n'))
+
+    const estimateInput: EstimateInput = {
+      industry: company.industry,
+      projectName: project.name,
+      projectType: project.project_type,
+      targetBudget: project.target_budget ? Number(project.target_budget) : null,
+      clientName: client?.name ?? null,
+      clientAddress,
+      transcripts,
+      photoDescriptions,
+      priceBookItems,   // empty array = no injection (D-10)
+      defaultPaymentTerms: company.default_payment_terms ?? null,
+      defaultWarrantyTerms: company.default_warranty_terms ?? null,
     }
 
-    const userContent = parts.join('\n\n')
-
-    // Step 3: Call Claude with tool_use
-    // Load Anthropic key from DB-backed loader (ADMIN-06)
-    const anthropicKey = await getIntegrationKey('anthropic')
-    if (!anthropicKey) {
-      return NextResponse.json(
-        { error: "AI estimate generation isn't available right now. Contact your platform administrator." },
-        { status: 503 }
-      )
-    }
-    const anthropic = new Anthropic({ apiKey: anthropicKey })
-
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 4096,
-      system: systemPrompt,
-      messages: [{ role: 'user', content: userContent }],
-      tools: [
-        {
-          name: 'create_estimate',
-          description:
-            'Create a structured estimate with sections and line items',
-          input_schema: {
-            type: 'object' as const,
-            required: ['summary', 'sections', 'suggested_project_name'],
-            properties: {
-              suggested_project_name: {
-                type: 'string',
-                description: 'A short, professional project name in 2-5 words derived from the work scope and client. Examples: "Smith Bathroom Remodel", "Garcia Driveway Repaving", "Patel Kitchen Reno". Avoid generic words like "Project" or "Estimate".',
-              },
-              summary: {
-                type: 'string',
-                description: 'Brief summary of the work scope',
-              },
-              notes: {
-                type: 'string',
-                description: 'Additional notes or assumptions',
-              },
-              timeline: {
-                type: 'string',
-                description: 'Estimated timeline for completion',
-              },
-              payment_terms: {
-                type: 'string',
-                description: 'Payment terms',
-              },
-              warranty_terms: {
-                type: 'string',
-                description: 'Warranty information',
-              },
-              sections: {
-                type: 'array',
-                items: {
-                  type: 'object',
-                  required: ['title', 'items'],
-                  properties: {
-                    title: { type: 'string' },
-                    items: {
-                      type: 'array',
-                      items: {
-                        type: 'object',
-                        required: [
-                          'description',
-                          'quantity',
-                          'unit_price',
-                        ],
-                        properties: {
-                          description: { type: 'string' },
-                          quantity: { type: 'number' },
-                          unit: { type: 'string' },
-                          unit_price: { type: 'number' },
-                        },
-                      },
-                    },
-                  },
-                },
-              },
-            },
-          },
-        },
-      ],
-      tool_choice: { type: 'tool', name: 'create_estimate' },
-    })
-
-    // Extract tool use result
-    const toolBlock = response.content.find(
-      (b: { type: string }) => b.type === 'tool_use'
-    )
-    if (!toolBlock || toolBlock.type !== 'tool_use') {
-      return NextResponse.json(
-        { error: 'AI failed to generate structured estimate' },
-        { status: 500 }
-      )
-    }
-
-    const aiEstimate = toolBlock.input as {
-      suggested_project_name: string
-      summary: string
-      notes?: string
-      timeline?: string
-      payment_terms?: string
-      warranty_terms?: string
-      sections: {
-        title: string
-        items: {
-          description: string
-          quantity: number
-          unit?: string
-          unit_price: number
-        }[]
-      }[]
-    }
+    const provider = await getAIProvider()
+    const aiEstimate = await provider.generateEstimate(estimateInput)
 
     // D-05: patch project name only if it's still the eager-create placeholder
     if (aiEstimate.suggested_project_name?.trim()) {
@@ -386,6 +266,7 @@ Also generate a short, professional project name in 2-5 words derived from the w
           unit_price: item.unit_price,
           total: item.total,
           sort_order: iIdx,
+          price_source: item.price_source,  // D-16: persists 'price_book' or 'ai_estimate' from adapter
         }))
 
         const { error: itemsError } = await supabase
