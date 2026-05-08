@@ -164,4 +164,4 @@ Plans:
 | 20. Price Book CRUD UI | v1.3 | 3/3 | Complete    | 2026-05-07 |
 | 21. CSV Import | v1.3 | 3/3 | Complete    | 2026-05-08 |
 | 22. AI Price Anchoring | v1.3 | 3/3 | Complete    | 2026-05-08 |
-| 23. Estimate Editor Price Badges | v1.3 | 2/2 | Complete   | 2026-05-08 |
+| 23. Estimate Editor Price Badges | v1.3 | 2/2 | Complete    | 2026-05-08 |
