@@ -134,7 +134,7 @@ Plans:
   3. Badge rendering does not break on estimates generated before v1.3 (items with null `price_source` have no badge, not an error)
 **Plans**: 2 plans
 Plans:
-- [ ] 23-01-PLAN.md — Wave 0: extend EditorItem type + UPDATE_ITEM reducer side-effect + 6 RED test stubs
+- [x] 23-01-PLAN.md — Wave 0: extend EditorItem type + UPDATE_ITEM reducer side-effect + 6 RED test stubs
 - [ ] 23-02-PLAN.md — Wave 1: badge render in item-row.tsx + header column in section-card.tsx + saveEstimate price_source persistence + 6 stubs GREEN
 **UI hint**: yes
 
@@ -164,4 +164,4 @@ Plans:
 | 20. Price Book CRUD UI | v1.3 | 3/3 | Complete    | 2026-05-07 |
 | 21. CSV Import | v1.3 | 3/3 | Complete    | 2026-05-08 |
 | 22. AI Price Anchoring | v1.3 | 3/3 | Complete    | 2026-05-08 |
-| 23. Estimate Editor Price Badges | v1.3 | 0/2 | Not started | - |
+| 23. Estimate Editor Price Badges | v1.3 | 1/2 | In Progress|  |

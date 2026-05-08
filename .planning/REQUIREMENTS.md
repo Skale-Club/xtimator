@@ -31,8 +31,8 @@
 
 ### Estimate Editor — Indicador de Origem
 
-- [ ] **EDITPRICE-01**: Cada item no editor de orçamento exibe um indicador visual da origem do preço (ex: badge "✓ Price book" vs "⚡ IA estimou")
-- [ ] **EDITPRICE-02**: Usuário pode editar qualquer preço independente da origem; o indicador é removido ou atualizado após override manual
+- [x] **EDITPRICE-01**: Cada item no editor de orçamento exibe um indicador visual da origem do preço (ex: badge "✓ Price book" vs "⚡ IA estimou")
+- [x] **EDITPRICE-02**: Usuário pode editar qualquer preço independente da origem; o indicador é removido ou atualizado após override manual
 
 ---
 

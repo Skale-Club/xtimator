@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Smart Pricing
-status: verifying
-last_updated: "2026-05-08T02:26:00.540Z"
+status: executing
+last_updated: "2026-05-08T09:42:25.014Z"
 last_activity: 2026-05-08
 progress:
   total_phases: 5
   completed_phases: 4
-  total_plans: 11
-  completed_plans: 11
+  total_plans: 13
+  completed_plans: 12
 ---
 
 # Project State
@@ -21,9 +21,9 @@ progress:
 
 ## Current Position
 
-Phase: 23
-Plan: Not started
-Status: Phase complete — ready for verification
+Phase: 23 (estimate-editor-price-badges) — EXECUTING
+Plan: 2 of 2
+Status: Ready to execute
 Last activity: 2026-05-08
 
 ## Completed Phases
@@ -190,6 +190,7 @@ Last activity: 2026-05-08
 - [Phase 22-ai-price-anchoring]: generate-estimate route no longer imports Anthropic SDK — all AI logic delegated to getAIProvider() factory (D-09)
 - [Phase 22-ai-price-anchoring]: ai_config row filtered from decrypt loop via .filter(r => r.provider !== 'ai_config') — null ciphertext would crash toBuffer()
 - [Phase 22-ai-price-anchoring]: generate-estimate-name-patch.test.ts updated to mock @/lib/ai (Rule 1 auto-fix) — old test mocked @anthropic-ai/sdk which is no longer used in route
+- [Phase 23-estimate-editor-price-badges]: EditorItem.price_source typed as literal union 'price_book' | 'ai_estimate' | null; isManuallyEdited client-only flag; UPDATE_ITEM sets isManuallyEdited true only for unit_price field (D-01/D-02/D-03)
 
 ## Performance Metrics
 
@@ -251,13 +252,14 @@ Last activity: 2026-05-08
 | Phase 22-ai-price-anchoring P01 | 12min | 2 tasks | 13 files |
 | Phase 22-ai-price-anchoring P02 | 6min | 3 tasks | 13 files |
 | Phase 22-ai-price-anchoring P03 | 13min | 2 tasks | 5 files |
+| Phase 23-estimate-editor-price-badges P01 | 3min | 2 tasks | 3 files |
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-06)
 
 **Core value:** Business owner → job site audio recording → sent professional estimate in under 5 minutes
-**Current focus:** Phase 22 — ai-price-anchoring
+**Current focus:** Phase 23 — estimate-editor-price-badges
 
 ## Notes
 
