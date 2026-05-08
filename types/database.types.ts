@@ -138,6 +138,10 @@ export type Database = {
           created_at: string
           updated_at: string
           theme_preference: string | null
+          estimate_template_greeting: string | null
+          estimate_template_opener: string | null
+          estimate_template_closer: string | null
+          estimate_template_signature: string | null
         }
         Insert: {
           id?: string
@@ -166,6 +170,10 @@ export type Database = {
           created_at?: string
           updated_at?: string
           theme_preference?: string | null
+          estimate_template_greeting?: string | null
+          estimate_template_opener?: string | null
+          estimate_template_closer?: string | null
+          estimate_template_signature?: string | null
         }
         Update: {
           id?: string
@@ -194,6 +202,10 @@ export type Database = {
           created_at?: string
           updated_at?: string
           theme_preference?: string | null
+          estimate_template_greeting?: string | null
+          estimate_template_opener?: string | null
+          estimate_template_closer?: string | null
+          estimate_template_signature?: string | null
         }
         Relationships: []
       }
