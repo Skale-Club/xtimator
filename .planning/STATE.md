@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: verifying
-last_updated: "2026-05-08T15:27:23.207Z"
+status: executing
+last_updated: "2026-05-08T16:14:59.878Z"
 last_activity: 2026-05-08
 progress:
   total_phases: 3
   completed_phases: 1
-  total_plans: 3
-  completed_plans: 3
+  total_plans: 5
+  completed_plans: 4
 ---
 
 # Project State
@@ -21,9 +21,9 @@ progress:
 
 ## Current Position
 
-Phase: 25
-Plan: Not started
-Status: Phase complete — ready for verification
+Phase: 25 (plain-text-tab-copy-ui) — EXECUTING
+Plan: 2 of 2
+Status: Ready to execute
 Last activity: 2026-05-08
 
 ## Completed Phases
@@ -205,6 +205,7 @@ Last activity: 2026-05-08
 - [Phase 24-estimate-template-engine-settings-page]: Use getEstimateTemplateSettings not getCachedCompany for settings sub-pages (per RESEARCH Pitfall 2)
 - [Phase 24-estimate-template-engine-settings-page]: Cast narrow query result as unknown as CompanySettings — form accesses only the 4 template fields
 - [Phase 24-estimate-template-engine-settings-page]: Estimate Templates card placed below Price Book in /settings — grouping AI-related settings together
+- [Phase 25-plain-text-tab-copy-ui]: buildItemsBreakdown placed at bottom of estimate-template.ts alongside resolveTemplate — single cohesive module for all plain-text template logic
 
 ## Performance Metrics
 
@@ -272,13 +273,14 @@ Last activity: 2026-05-08
 | Phase 24-estimate-template-engine-settings-page P02 | 8min | 2 tasks | 3 files |
 | Phase 24-estimate-template-engine-settings-page P03 | 2min | 2 tasks | 3 files |
 | Phase 24-estimate-template-engine-settings-page P03 | 4min | 3 tasks | 3 files |
+| Phase 25-plain-text-tab-copy-ui P01 | 3min | 2 tasks | 2 files |
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-06)
 
 **Core value:** Business owner → job site audio recording → sent professional estimate in under 5 minutes
-**Current focus:** Phase 24 — estimate-template-engine-settings-page
+**Current focus:** Phase 25 — plain-text-tab-copy-ui
 
 ## Notes
 

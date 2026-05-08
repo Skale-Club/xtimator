@@ -98,7 +98,7 @@ Plans:
   4. Clicking the copy button places the current text on the clipboard and shows a confirmation toast
 **Plans**: 2 plans
 Plans:
-- [ ] 25-01-PLAN.md — buildItemsBreakdown utility function + unit tests (TDD RED→GREEN)
+- [x] 25-01-PLAN.md — buildItemsBreakdown utility function + unit tests (TDD RED→GREEN)
 - [ ] 25-02-PLAN.md — PlainTextCard component + data chain wiring (page.tsx → ProjectWorkspace → SendTab → PlainTextCard)
 **UI hint**: yes
 
@@ -140,5 +140,5 @@ Plans:
 | 22. AI Price Anchoring | v1.3 | 3/3 | Complete | 2026-05-08 |
 | 23. Estimate Editor Price Badges | v1.3 | 2/2 | Complete | 2026-05-08 |
 | 24. Estimate Template Engine + Settings Page | v1.4 | 3/3 | Complete    | 2026-05-08 |
-| 25. Plain Text Tab + Copy UI | v1.4 | 0/2 | Not started | - |
+| 25. Plain Text Tab + Copy UI | v1.4 | 1/2 | In Progress|  |
 | 26. Bulk Price Adjustment | v1.4 | 0/TBD | Not started | - |
