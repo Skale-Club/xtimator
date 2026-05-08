@@ -41,6 +41,8 @@ interface SaveItemInput {
   unit: string | null
   unit_price: number
   sort_order: number
+  price_source: 'price_book' | 'ai_estimate' | null
+  isManuallyEdited?: boolean
 }
 
 interface SaveSectionInput {
@@ -170,6 +172,7 @@ export async function saveEstimate(estimateData: SaveEstimateInput) {
           unit_price: item.unit_price,
           total: item.total,
           sort_order: idx,
+          price_source: item.isManuallyEdited ? null : (item.price_source ?? null),
         }))
         const { error: itemsError } = await supabase
           .from('estimate_items')
@@ -208,6 +211,7 @@ export async function saveEstimate(estimateData: SaveEstimateInput) {
               unit_price: item.unit_price,
               total: item.total,
               sort_order: item.sort_order,
+              price_source: item.isManuallyEdited ? null : (item.price_source ?? null),
             })
             .select('id')
             .single()
@@ -225,6 +229,7 @@ export async function saveEstimate(estimateData: SaveEstimateInput) {
               unit_price: item.unit_price,
               total: item.total,
               sort_order: item.sort_order,
+              price_source: item.isManuallyEdited ? null : (item.price_source ?? null),
             })
             .eq('id', item.id)
           if (itemError) return { error: 'Failed to update item' }

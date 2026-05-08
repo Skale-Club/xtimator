@@ -98,6 +98,8 @@ function stateToSavePayload(state: EstimateEditorState) {
         unit: i.unit,
         unit_price: i.unit_price,
         sort_order: i.sort_order,
+        price_source: i.price_source ?? null,
+        isManuallyEdited: i.isManuallyEdited,
       })),
     })),
   }
