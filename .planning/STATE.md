@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: verifying
-last_updated: "2026-05-08T15:19:04.265Z"
+last_updated: "2026-05-08T15:22:21.392Z"
 last_activity: 2026-05-08
 progress:
   total_phases: 3
@@ -202,6 +202,9 @@ Last activity: 2026-05-08
 - [Phase 24-estimate-template-engine-settings-page]: ctx.error cast as string to satisfy explicit Promise return type annotation (literal union vs string mismatch in TypeScript narrowing)
 - [Phase 24-estimate-template-engine-settings-page]: database.types.ts manually extended with 4 estimate_template_* columns — migration applied in Plan 01 but types not regenerated (same pattern as Plan 19)
 - [Phase 24-estimate-template-engine-settings-page]: Use getEstimateTemplateSettings not getCachedCompany per RESEARCH Pitfall 2; cast as unknown as CompanySettings for form prop compatibility
+- [Phase 24-estimate-template-engine-settings-page]: Use getEstimateTemplateSettings not getCachedCompany for settings sub-pages (per RESEARCH Pitfall 2)
+- [Phase 24-estimate-template-engine-settings-page]: Cast narrow query result as unknown as CompanySettings — form accesses only the 4 template fields
+- [Phase 24-estimate-template-engine-settings-page]: Estimate Templates card placed below Price Book in /settings — grouping AI-related settings together
 
 ## Performance Metrics
 
@@ -268,6 +271,7 @@ Last activity: 2026-05-08
 | Phase 24-estimate-template-engine-settings-page P01 | 13min | 2 tasks | 5 files |
 | Phase 24-estimate-template-engine-settings-page P02 | 8min | 2 tasks | 3 files |
 | Phase 24-estimate-template-engine-settings-page P03 | 2min | 2 tasks | 3 files |
+| Phase 24-estimate-template-engine-settings-page P03 | 4min | 3 tasks | 3 files |
 
 ## Project Reference
 
