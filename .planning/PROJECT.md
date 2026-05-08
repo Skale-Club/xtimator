@@ -14,25 +14,19 @@ The platform includes:
 
 A business owner can go from job site audio recording to a sent, professional estimate in under 5 minutes without touching a keyboard.
 
-## Last Milestone: v1.3 Smart Pricing ✅ (shipped 2026-05-08)
+## Last Milestone: v1.4 Estimate Plain Text & Pricing Tools ✅ (shipped 2026-05-08)
 
-Price book CRUD + CSV import + multi-provider AI anchoring (Claude/Gemini) + estimate editor price badges. 5 phases, 13 plans, 3 days. All 12 requirements validated.
+Plain-text estimate with configurable company template + copy-to-clipboard + bulk price adjustment by category. 3 phases, 7 plans, 1 day. All 8 requirements validated.
 
-## Current Milestone: v1.4 Estimate Plain Text & Pricing Tools
+## Current Milestone: —
 
-**Goal:** Donos de empresa podem gerar uma versão texto limpa do orçamento para colar no WhatsApp/SMS/email, e ajustar preços do price book em lote por categoria.
-
-**Target features:**
-- Plain-text estimate com template configurável por empresa (saudação, abertura, fechamento, assinatura) + copy-to-clipboard
-- Aba "Plain Text" no editor ao lado de PDF e Web Link
-- `/settings/estimate-templates` para personalizar o template da empresa
-- Bulk price adjustment: +/-% por categoria no price book (ex: +10% em "Labor" de uma vez)
+**Next milestone not yet defined.** Run `/gsd:new-milestone` to plan the next milestone.
 
 ## Current State
 
-**Version:** v1.4 Estimate Plain Text & Pricing Tools — 🔲 IN PROGRESS (2/3 phases)
-**Phases complete:** 25/26 | **Plans:** 74/TBD (Phase 25: 2) | **Build:** passing
-**Last shipped:** Phase 25 — Plain Text Tab + Copy UI (2026-05-08)
+**Version:** v1.4 Estimate Plain Text & Pricing Tools — ✅ COMPLETE (3/3 phases)
+**Phases complete:** 26/26 | **Plans:** 76/76 | **Build:** passing
+**Last shipped:** Phase 26 — Bulk Price Adjustment (2026-05-08)
 **Tech stack:** Next.js 16 (App Router), TypeScript strict, Tailwind 4, shadcn/ui (New York), Supabase (Auth + DB + Storage), @react-pdf/renderer, Resend, Anthropic Claude, OpenAI Whisper, next-themes
 **Test coverage:** 250+ unit tests passing, integration tests, E2E with Playwright (mobile + landing page + voice flow coverage)
 **Deployment target:** Vercel
@@ -100,6 +94,7 @@ Price book CRUD + CSV import + multi-provider AI anchoring (Claude/Gemini) + est
 
 ### Validated (v1.4)
 
+- ✓ BULKPRICE-01, BULKPRICE-02, BULKPRICE-03: Bulk Price Adjustment — `bulkAdjustSchema` (z.coerce.number, -100 to +500), `bulkAdjustPriceBookCategory` server action (`.upsert()` atomicity, per-item computed prices), `BulkAdjustDialog` (live useMemo preview, green/red color coding), "Adjust %" button on each category header (unfiltered items guard) — Phase 26, 2026-05-08
 - ✓ PLAINTEXT-01, PLAINTEXT-02, PLAINTEXT-04: Plain Text Tab + Copy UI — `buildItemsBreakdown()` pure utility, `PlainTextCard` component in Send tab (editable textarea, clipboard copy + toast, RotateCcw reset), full data chain wired through workspace (owner_name + 4 template columns from company), `key={estimate.id}` version-change guard — Phase 25, 2026-05-08
 - ✓ PLAINTEXT-03, PLAINTEXT-05: Estimate Template Engine — 4 nullable TEXT columns on `companies` (`estimate_template_greeting/opener/closer/signature`), `resolveTemplate()` pure utility with `TEMPLATE_DEFAULTS` fallback, zod schema, `getEstimateTemplateSettings()` query, `saveEstimateTemplate` server action (empty→null coercion), `EstimateTemplateForm` (4 textareas + variable docs + live preview), `/settings/estimate-templates` sub-route page, Estimate Templates card on `/settings` — Phase 24, 2026-05-08
 
@@ -190,4 +185,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context
 
 ---
-*Last updated: 2026-05-08 — after Phase 25 (Plain Text Tab + Copy UI shipped)*
+*Last updated: 2026-05-08 — after v1.4 milestone complete (Phases 24-26 shipped)*
