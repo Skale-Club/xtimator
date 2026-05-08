@@ -57,7 +57,7 @@ Three co-delivered capabilities:
 
 - **D-07:** Anthropic adapter wraps the current route's Steps 2-4 (prompt build → Claude call → extract tool result). All existing prompt logic moves there verbatim, then price book injection is added on top.
 
-- **D-08:** Gemini adapter implements the same `AIProvider` interface using `@google/generative-ai` SDK (not Vertex AI — direct API key, simpler). Researcher recommends the current best Gemini model for structured/function-calling output. Gemini uses `functionDeclarations` (not `tools[].input_schema`) — the adapter normalizes this difference internally.
+- **D-08:** Gemini adapter implements the same `AIProvider` interface using `@google/genai` SDK (not Vertex AI — direct API key, simpler). Researcher recommends the current best Gemini model for structured/function-calling output. Gemini uses `functionDeclarations` (not `tools[].input_schema`) — the adapter normalizes this difference internally.
 
 - **D-09:** The `generate-estimate` route becomes thin: auth → load context → `const provider = await getAIProvider()` → `const result = await provider.generateEstimate(input)` → insert sections/items. No more direct Anthropic SDK import in the route.
 
@@ -146,7 +146,7 @@ Three co-delivered capabilities:
 
 ### External Docs (researcher must fetch)
 - Anthropic tool_use docs — https://docs.anthropic.com/en/docs/build-with-claude/tool-use (verify current `tools[].input_schema` format)
-- Google Generative AI SDK — https://ai.google.dev/gemini-api/docs/function-calling (verify `functionDeclarations` format and TypeScript SDK `@google/generative-ai`)
+- Google Generative AI SDK — https://ai.google.dev/gemini-api/docs/function-calling (verify `functionDeclarations` format and TypeScript SDK `@google/genai`)
 - Gemini model list — researcher picks current best model for structured/function-calling output
 
 </canonical_refs>
@@ -161,7 +161,7 @@ Three co-delivered capabilities:
 - **`testIntegrationKey` action** (`app/admin/integrations/actions.ts:94`) — switch statement per provider; add `'gemini'` case
 
 ### Established Patterns
-- **No env vars for API keys** — ADMIN-06 (Phase 8): all SDK clients initialized per-request using `getIntegrationKey()`. Gemini adapter follows the same pattern: `getIntegrationKey('gemini')` → initialize `@google/generative-ai` client.
+- **No env vars for API keys** — ADMIN-06 (Phase 8): all SDK clients initialized per-request using `getIntegrationKey()`. Gemini adapter follows the same pattern: `getIntegrationKey('gemini')` → initialize `@google/genai` client.
 - **Discriminated union returns** from server actions: `{ ok: boolean; message?: string }` or `{ data } | { error: string }`
 - **Service role for admin operations** — `createServiceClient()` for admin actions that bypass RLS
 
