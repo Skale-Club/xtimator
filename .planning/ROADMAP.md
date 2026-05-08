@@ -6,6 +6,7 @@
 - ✅ **v1.1 Dark-first UX & Modern Redesign** — Phase 9 (shipped 2026-04-22) · [archive](milestones/v1.1-ROADMAP.md)
 - ✅ **v1.2 Brand Identity & Global Reach** — Phases 10-18 (shipped 2026-05-06) · [archive](milestones/v1.2-ROADMAP.md)
 - ✅ **v1.3 Smart Pricing** — Phases 19-23 (shipped 2026-05-08) · [archive](milestones/v1.3-ROADMAP.md)
+- 🔲 **v1.4 Estimate Plain Text & Pricing Tools** — Phases 24-26 (active)
 
 ## Phases
 
@@ -64,6 +65,46 @@
 
 </details>
 
+- [ ] **Phase 24: Estimate Template Engine + Settings Page** — DB schema for company estimate templates + `/settings/estimate-templates` config UI
+- [ ] **Phase 25: Plain Text Tab + Copy UI** — "Plain Text" tab in estimate editor with editable preview and copy-to-clipboard
+- [ ] **Phase 26: Bulk Price Adjustment** — Category-scoped % adjustment with preview and atomic apply in the price book
+
+## Phase Details
+
+### Phase 24: Estimate Template Engine + Settings Page
+**Goal**: Companies can define and save a plain-text estimate template with named variables
+**Depends on**: Phase 7 (Settings infrastructure), Phase 20 (Price Book settings page pattern)
+**Requirements**: PLAINTEXT-03, PLAINTEXT-05
+**Success Criteria** (what must be TRUE):
+  1. Owner can navigate to `/settings/estimate-templates` and see a form with greeting, opener, closer, and signature fields
+  2. Owner can type `{client_name}`, `{company_name}`, `{owner_name}`, `{total}`, and `{items_breakdown}` as live variables and the UI identifies them as valid
+  3. Saved template persists across browser sessions and is scoped to the company (not shared across companies)
+  4. A company with no saved template gets a sensible default so the plain-text feature works out of the box
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 25: Plain Text Tab + Copy UI
+**Goal**: Users can view, edit, and copy a plain-text version of any estimate in one tap
+**Depends on**: Phase 24 (template engine must exist to drive text output)
+**Requirements**: PLAINTEXT-01, PLAINTEXT-02, PLAINTEXT-04
+**Success Criteria** (what must be TRUE):
+  1. "Plain Text" tab is visible in the estimate editor alongside PDF and Web Link tabs
+  2. Switching to the Plain Text tab shows the estimate rendered using the company template with all variables resolved (client name, totals, line items, etc.)
+  3. User can edit the rendered text directly in the preview without that edit affecting the saved template
+  4. Clicking the copy button places the current text on the clipboard and shows a confirmation toast
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 26: Bulk Price Adjustment
+**Goal**: Users can raise or lower all prices in a price book category with one confirmed action
+**Depends on**: Phase 20 (Price Book CRUD UI — needs existing items to adjust), Phase 19 (price_source column in place)
+**Requirements**: BULKPRICE-01, BULKPRICE-02, BULKPRICE-03
+**Success Criteria** (what must be TRUE):
+  1. From the price book page, user can select a category and enter a percentage adjustment (positive or negative)
+  2. Before confirming, user sees a table comparing current unit prices vs projected new prices for every item in that category
+  3. After confirming, all item prices in that category update simultaneously — no partial saves leave some items at old prices
+**Plans**: TBD
+
 ## Progress
 
 | Phase | Milestone | Plans | Status | Completed |
@@ -91,3 +132,6 @@
 | 21. CSV Import | v1.3 | 3/3 | Complete | 2026-05-08 |
 | 22. AI Price Anchoring | v1.3 | 3/3 | Complete | 2026-05-08 |
 | 23. Estimate Editor Price Badges | v1.3 | 2/2 | Complete | 2026-05-08 |
+| 24. Estimate Template Engine + Settings Page | v1.4 | 0/TBD | Not started | - |
+| 25. Plain Text Tab + Copy UI | v1.4 | 0/TBD | Not started | - |
+| 26. Bulk Price Adjustment | v1.4 | 0/TBD | Not started | - |

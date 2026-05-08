@@ -38,11 +38,11 @@
 
 | REQ-ID | Feature Area | Phase | Status |
 |--------|-------------|-------|--------|
-| PLAINTEXT-01 | Plain-text Estimate | TBD | Pending |
-| PLAINTEXT-02 | Plain-text Estimate | TBD | Pending |
-| PLAINTEXT-03 | Plain-text Estimate | TBD | Pending |
-| PLAINTEXT-04 | Plain-text Estimate | TBD | Pending |
-| PLAINTEXT-05 | Plain-text Estimate | TBD | Pending |
-| BULKPRICE-01 | Bulk Price Adjustment | TBD | Pending |
-| BULKPRICE-02 | Bulk Price Adjustment | TBD | Pending |
-| BULKPRICE-03 | Bulk Price Adjustment | TBD | Pending |
+| PLAINTEXT-01 | Plain-text Estimate | Phase 25 | Pending |
+| PLAINTEXT-02 | Plain-text Estimate | Phase 25 | Pending |
+| PLAINTEXT-03 | Plain-text Estimate | Phase 24 | Pending |
+| PLAINTEXT-04 | Plain-text Estimate | Phase 25 | Pending |
+| PLAINTEXT-05 | Plain-text Estimate | Phase 24 | Pending |
+| BULKPRICE-01 | Bulk Price Adjustment | Phase 26 | Pending |
+| BULKPRICE-02 | Bulk Price Adjustment | Phase 26 | Pending |
+| BULKPRICE-03 | Bulk Price Adjustment | Phase 26 | Pending |
