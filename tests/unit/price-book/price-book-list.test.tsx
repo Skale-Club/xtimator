@@ -27,6 +27,7 @@ vi.mock('@/lib/actions/price-book', () => ({
   createPriceBookItem: vi.fn().mockResolvedValue({ data: {} }),
   updatePriceBookItem: vi.fn().mockResolvedValue({ data: {} }),
   deletePriceBookItem: (...args: any[]) => mockDelete(...args),
+  bulkAdjustPriceBookCategory: vi.fn().mockResolvedValue({ data: { updated: 2 } }),
 }))
 
 vi.mock('@/components/price-book/price-book-item-dialog', () => ({
@@ -37,6 +38,11 @@ vi.mock('@/components/price-book/price-book-item-dialog', () => ({
 vi.mock('@/components/price-book/price-book-import-dialog', () => ({
   PriceBookImportDialog: ({ open }: { open: boolean }) =>
     open ? <div data-testid="price-book-import-dialog">Import Open</div> : null,
+}))
+
+vi.mock('@/components/price-book/bulk-adjust-dialog', () => ({
+  BulkAdjustDialog: ({ open, category }: { open: boolean; category: string }) =>
+    open ? <div data-testid="bulk-adjust-dialog">Bulk Adjust: {category}</div> : null,
 }))
 
 import { PriceBookList } from '@/components/price-book/price-book-list'
@@ -206,5 +212,29 @@ describe('PriceBookList', () => {
     render(<PriceBookList items={[]} companyId="c1" />)
     expect(screen.getByRole('button', { name: /Add first item/i })).toBeDefined()
     expect(screen.getByRole('button', { name: /Import CSV/i })).toBeDefined()
+  })
+})
+
+describe('Adjust % button', () => {
+  it('renders "Adjust %" button for each category header', () => {
+    render(<PriceBookList items={mockItems} companyId="c1" />)
+    // mockItems has Labor and Materials categories
+    const laborBtn = screen.getByTestId('adjust-btn-Labor')
+    expect(laborBtn).toBeDefined()
+    const materialsBtn = screen.getByTestId('adjust-btn-Materials')
+    expect(materialsBtn).toBeDefined()
+  })
+
+  it('button is enabled when category has items', () => {
+    render(<PriceBookList items={mockItems} companyId="c1" />)
+    const laborBtn = screen.getByTestId('adjust-btn-Labor')
+    expect((laborBtn as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it('clicking button opens BulkAdjustDialog for correct category', () => {
+    render(<PriceBookList items={mockItems} companyId="c1" />)
+    fireEvent.click(screen.getByTestId('adjust-btn-Labor'))
+    expect(screen.getByTestId('bulk-adjust-dialog')).toBeDefined()
+    expect(screen.getByText('Bulk Adjust: Labor')).toBeDefined()
   })
 })

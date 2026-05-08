@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { BookOpen, Search, MoreHorizontal, Plus, Upload } from 'lucide-react'
+import { BookOpen, Search, MoreHorizontal, Percent, Plus, Upload } from 'lucide-react'
 import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -33,6 +33,7 @@ import {
 import { EmptyState } from '@/components/dashboard/empty-state'
 import { PriceBookItemDialog } from '@/components/price-book/price-book-item-dialog'
 import { PriceBookImportDialog } from '@/components/price-book/price-book-import-dialog'
+import { BulkAdjustDialog } from '@/components/price-book/bulk-adjust-dialog'
 import { deletePriceBookItem } from '@/lib/actions/price-book'
 import type { PriceBookItem } from '@/lib/queries/price-book'
 
@@ -53,6 +54,8 @@ export function PriceBookList({ items, companyId }: PriceBookListProps) {
     name: string
   } | null>(null)
   const [isPending, startTransition] = useTransition()
+  const [adjustCategory, setAdjustCategory] = useState<string | null>(null)
+  const [adjustDialogOpen, setAdjustDialogOpen] = useState(false)
 
   // Filter FIRST (Pitfall 4: order matters — group depends on filtered)
   const filtered = useMemo(() => {
@@ -103,6 +106,16 @@ export function PriceBookList({ items, companyId }: PriceBookListProps) {
   function handleImportClose(open: boolean) {
     setImportDialogOpen(open)
     if (!open) router.refresh()
+  }
+
+  function handleAdjustCategory(category: string) {
+    setAdjustCategory(category)
+    setAdjustDialogOpen(true)
+  }
+
+  function handleAdjustClose(open: boolean) {
+    setAdjustDialogOpen(open)
+    if (!open) setAdjustCategory(null)
   }
 
   function handleDeletePrompt(item: PriceBookItem) {
@@ -200,9 +213,21 @@ export function PriceBookList({ items, companyId }: PriceBookListProps) {
         <div className="space-y-6">
           {grouped.map(([category, categoryItems]) => (
             <div key={category} className="space-y-2">
-              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-                {category}
-              </h3>
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                  {category}
+                </h3>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={categoryItems.length === 0}
+                  onClick={() => handleAdjustCategory(category)}
+                  data-testid={`adjust-btn-${category}`}
+                >
+                  <Percent className="h-3.5 w-3.5 mr-1.5" />
+                  Adjust %
+                </Button>
+              </div>
               <div className="rounded-md border">
                 <Table>
                   <TableHeader>
@@ -293,6 +318,16 @@ export function PriceBookList({ items, companyId }: PriceBookListProps) {
         open={importDialogOpen}
         onOpenChange={handleImportClose}
       />
+
+      {/* Bulk Adjust Dialog — items from UNFILTERED source (Pitfall 7) */}
+      {adjustCategory !== null && (
+        <BulkAdjustDialog
+          open={adjustDialogOpen}
+          onOpenChange={handleAdjustClose}
+          category={adjustCategory}
+          items={items.filter((i) => i.category === adjustCategory)}
+        />
+      )}
     </>
   )
 }
