@@ -18,14 +18,22 @@ A business owner can go from job site audio recording to a sent, professional es
 
 Plain-text estimate with configurable company template + copy-to-clipboard + bulk price adjustment by category. 3 phases, 7 plans, 1 day. All 8 requirements validated.
 
-## Current Milestone: —
+## Current Milestone: v1.5 Zero-friction Project Onboarding
 
-**Next milestone not yet defined.** Run `/gsd:new-milestone` to plan the next milestone.
+**Goal:** Business owners can start a project from any input modality — audio, text, or photos — with equal weight, and the client association happens automatically without a mandatory wizard step.
+
+**Target features:**
+- 3-way modal choice at project creation: Audio 🎙️ / Text ✍️ / Photos 📸 — same prominence, 1 tap each
+- Text path: textarea → saved as transcript → same AI estimate pipeline
+- Photos path: photo-first flow → generate estimate from photos only (no audio needed)
+- AI-inferred client: AI extracts client name from content → auto-links existing client or creates new
+- "New Project" button on client detail page → pre-links client, skips wizard
+- Client details (email, phone, address) added after project creation, not before
 
 ## Current State
 
-**Version:** v1.4 Estimate Plain Text & Pricing Tools — ✅ COMPLETE (3/3 phases)
-**Phases complete:** 26/26 | **Plans:** 76/76 | **Build:** passing
+**Version:** v1.5 Zero-friction Project Onboarding — 🔲 IN PROGRESS
+**Phases complete:** 26/26 (v1.4 complete) | **Build:** passing
 **Last shipped:** Phase 26 — Bulk Price Adjustment (2026-05-08)
 **Tech stack:** Next.js 16 (App Router), TypeScript strict, Tailwind 4, shadcn/ui (New York), Supabase (Auth + DB + Storage), @react-pdf/renderer, Resend, Anthropic Claude, OpenAI Whisper, next-themes
 **Test coverage:** 250+ unit tests passing, integration tests, E2E with Playwright (mobile + landing page + voice flow coverage)

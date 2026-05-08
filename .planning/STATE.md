@@ -1,8 +1,8 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.4
-milestone_name: Estimate Plain Text & Pricing Tools
-status: complete
+milestone: v1.5
+milestone_name: Zero-friction Project Onboarding
+status: planning
 last_updated: "2026-05-08T18:30:00.000Z"
 last_activity: 2026-05-08
 progress:
@@ -21,10 +21,10 @@ progress:
 
 ## Current Position
 
-Phase: 26 (complete — last phase of v1.4)
-Plan: All complete
-Status: Milestone complete — ready for /gsd:new-milestone
-Last activity: 2026-05-08
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements for v1.5
+Last activity: 2026-05-08 — Milestone v1.5 started
 
 ## Completed Phases
 
