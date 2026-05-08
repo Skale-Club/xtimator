@@ -1,8 +1,26 @@
 // lib/ai/normalize.ts
-// Wave 1 will implement normalizeOutput — Wave 0 creates this file as a stub
-// so that price-source-tagging.test.ts can import from '@/lib/ai/normalize'.
-import type { EstimateOutput } from './types'
+import type { EstimateOutput, LineItemOutput } from './types'
 
 export function normalizeOutput(raw: Record<string, unknown>): EstimateOutput {
-  throw new Error('not implemented')
+  const sections = (raw.sections as Array<{ title: string; items: Array<Record<string, unknown>> }>).map(section => ({
+    title: section.title,
+    items: section.items.map((item): LineItemOutput => ({
+      description: item.description as string,
+      quantity: item.quantity as number,
+      unit: item.unit as string | undefined,
+      unit_price: item.unit_price as number,
+      // D-15 defensive fallback: anything other than exact 'price_book' becomes 'ai_estimate'
+      // This covers undefined, null, missing field, and unexpected values from the model.
+      price_source: item.price_source === 'price_book' ? 'price_book' : 'ai_estimate',
+    })),
+  }))
+  return {
+    suggested_project_name: raw.suggested_project_name as string,
+    summary: raw.summary as string,
+    notes: raw.notes as string | undefined,
+    timeline: raw.timeline as string | undefined,
+    payment_terms: raw.payment_terms as string | undefined,
+    warranty_terms: raw.warranty_terms as string | undefined,
+    sections,
+  }
 }
