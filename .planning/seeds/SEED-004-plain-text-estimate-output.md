@@ -44,8 +44,6 @@ Let me know if you have any questions or would like to schedule an appointment. 
 Best regards,
 Ellen Laurino
 Skleanings.com
-
-(gerado e adaptado pela IA)
 ```
 
 ## When to Surface
@@ -62,21 +60,21 @@ Surface durante `/gsd:new-milestone` quando o escopo do próximo milestone tocar
 
 ## Scope Estimate
 
-**Large** — milestone próprio. Quebras esperadas:
+**Medium** — 3-4 fases. Quebras esperadas:
 
 1. **Geração do texto** — função pura que transforma o objeto `estimate` (line items, totals, company branding, client name) em string formatada. Reusa dados que já existem em `lib/queries/estimate.ts`.
-2. **Template configurável pela empresa** — cada empresa quer sua voz própria (Ellen formal, Bob informal, etc.). Tabela `company_estimate_templates` com:
+2. **Template configurável pela empresa** — cada empresa quer sua voz própria. Tabela `company_estimate_templates` com:
    - Saudação (`Hey {client_name}`, `Hi {client_name}`, `Olá {client_name}`)
    - Frase de abertura (`Thank you for reaching out to {company}!`)
    - Frase de fechamento (`Let me know if you have any questions...`)
    - Assinatura (`Best regards, {owner_name}` + `{company_domain}`)
-   - Disclaimer (default: "gerado e adaptado pela IA" / configurável on/off por preferência da empresa)
-3. **i18n do template** — disclaimer/strings respeitam idioma do orçamento (EN/PT-BR/ES, alinhado com Phase 12). IA pode traduzir o disclaimer ou usar mapping fixo.
-4. **UI de preview e edição rápida** — tela de orçamento ganha aba "Plain Text" ao lado de "PDF" e "Web Link". Owner vê preview, pode editar antes de copiar (override pontual sem mudar template). Botão `Copy to clipboard` proeminente.
+3. **i18n do template** — strings respeitam idioma do orçamento (EN/PT-BR/ES, alinhado com Phase 12).
+4. **UI de preview e cópia** — tela de orçamento ganha aba "Plain Text" ao lado de "PDF" e "Web Link". Owner vê preview, pode editar antes de copiar (override pontual sem mudar template). Botão `Copy to clipboard` proeminente.
 5. **Editor de template (settings)** — `/settings/estimate-templates` onde a empresa edita as partes do template uma vez e reusa em todos os orçamentos. Variáveis suportadas: `{client_name}`, `{company_name}`, `{owner_name}`, `{total}`, `{items_breakdown}`.
-6. **Stretch: integrações nativas** — botão "Send via SMS" (Twilio) e "Send via WhatsApp" (WhatsApp Business API) que enviam o texto direto pro cliente. Sai de "copy-paste manual" para "click-to-send".
 
-Estimativa grosseira: 4-6 fases (template engine, template config UI, output UI, i18n, integrações de mensageria opcionais).
+**Fora do escopo:** integrações com SMS (Twilio), WhatsApp Business API, ou qualquer envio direto. O usuário copia e cola onde quiser.
+
+Estimativa grosseira: 3-4 fases (template engine, template config UI, output UI + copy button, i18n).
 
 ## Breadcrumbs
 
@@ -92,9 +90,9 @@ Pontos de integração no código atual:
 
 ## Notes
 
-- **Decisão importante:** o disclaimer "(gerado e adaptado pela IA)" é importante para transparência regulatória e para gerenciar expectativa do cliente final ("não é um humano que digitou isso, é IA + humano"). Default ON, mas permitir empresa desligar.
+- **Sem disclaimer de IA** — o texto de saída não menciona que foi gerado por IA. O dono da empresa assina com seu nome e da empresa; é comunicação profissional normal.
 - Considerar **markdown variant** como subformato adicional (mesma fonte, output em `**bold**` para canais que renderizam markdown — Slack, Discord, alguns webmail).
 - Considerar **JSON export** como output separado (para empresas que querem mandar pro CRM próprio via API). Pode ser outro seed se ficar grande.
 - O exemplo ilustra o tom: caloroso, profissional, direto, com call-to-action de fechamento. Template default deve refletir isso.
-- Integrações com SMS/WhatsApp APIs são **stretch** — podem virar milestone separado se quisermos focar primeiro no formato texto + copy-to-clipboard puro.
+- **Sem integrações de mensageria** — copia e cola. Simples e suficiente.
 - Plantado durante v1.2 para não desviar foco do milestone atual (brand identity + i18n + voice-first recorder).
