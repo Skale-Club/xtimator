@@ -92,11 +92,14 @@ Plans:
 **Depends on**: Phase 24 (template engine must exist to drive text output)
 **Requirements**: PLAINTEXT-01, PLAINTEXT-02, PLAINTEXT-04
 **Success Criteria** (what must be TRUE):
-  1. "Plain Text" tab is visible in the estimate editor alongside PDF and Web Link tabs
-  2. Switching to the Plain Text tab shows the estimate rendered using the company template with all variables resolved (client name, totals, line items, etc.)
+  1. "Plain Text" card is visible in the Send tab below the EstimatePreview/SendForm grid
+  2. The card shows the estimate rendered using the company template with all variables resolved (client name, totals, line items, etc.)
   3. User can edit the rendered text directly in the preview without that edit affecting the saved template
   4. Clicking the copy button places the current text on the clipboard and shows a confirmation toast
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 25-01-PLAN.md — buildItemsBreakdown utility function + unit tests (TDD RED→GREEN)
+- [ ] 25-02-PLAN.md — PlainTextCard component + data chain wiring (page.tsx → ProjectWorkspace → SendTab → PlainTextCard)
 **UI hint**: yes
 
 ### Phase 26: Bulk Price Adjustment
@@ -137,5 +140,5 @@ Plans:
 | 22. AI Price Anchoring | v1.3 | 3/3 | Complete | 2026-05-08 |
 | 23. Estimate Editor Price Badges | v1.3 | 2/2 | Complete | 2026-05-08 |
 | 24. Estimate Template Engine + Settings Page | v1.4 | 3/3 | Complete    | 2026-05-08 |
-| 25. Plain Text Tab + Copy UI | v1.4 | 0/TBD | Not started | - |
+| 25. Plain Text Tab + Copy UI | v1.4 | 0/2 | Not started | - |
 | 26. Bulk Price Adjustment | v1.4 | 0/TBD | Not started | - |
