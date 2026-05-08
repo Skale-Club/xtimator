@@ -110,7 +110,10 @@ Plans:
   1. From the price book page, user can select a category and enter a percentage adjustment (positive or negative)
   2. Before confirming, user sees a table comparing current unit prices vs projected new prices for every item in that category
   3. After confirming, all item prices in that category update simultaneously — no partial saves leave some items at old prices
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 26-01-PLAN.md — bulkAdjustSchema + bulkAdjustPriceBookCategory server action (test-first: Wave 0 RED stubs + Wave 1 implementation)
+- [ ] 26-02-PLAN.md — BulkAdjustDialog component + PriceBookList wiring (Adjust % button + live preview table)
 
 ## Progress
 
@@ -141,4 +144,4 @@ Plans:
 | 23. Estimate Editor Price Badges | v1.3 | 2/2 | Complete | 2026-05-08 |
 | 24. Estimate Template Engine + Settings Page | v1.4 | 3/3 | Complete    | 2026-05-08 |
 | 25. Plain Text Tab + Copy UI | v1.4 | 2/2 | Complete    | 2026-05-08 |
-| 26. Bulk Price Adjustment | v1.4 | 0/TBD | Not started | - |
+| 26. Bulk Price Adjustment | v1.4 | 0/2 | Not started | - |
