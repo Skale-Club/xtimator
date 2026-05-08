@@ -65,7 +65,7 @@
 
 </details>
 
-- [ ] **Phase 24: Estimate Template Engine + Settings Page** — DB schema for company estimate templates + `/settings/estimate-templates` config UI
+- [x] **Phase 24: Estimate Template Engine + Settings Page** — DB schema for company estimate templates + `/settings/estimate-templates` config UI (completed 2026-05-08)
 - [ ] **Phase 25: Plain Text Tab + Copy UI** — "Plain Text" tab in estimate editor with editable preview and copy-to-clipboard
 - [ ] **Phase 26: Bulk Price Adjustment** — Category-scoped % adjustment with preview and atomic apply in the price book
 
@@ -84,7 +84,7 @@
 Plans:
 - [x] 24-01-PLAN.md — Migration + pure utility (resolveTemplate, TEMPLATE_DEFAULTS, zod schema, CompanySettings extension, query function) with TDD
 - [x] 24-02-PLAN.md — Server action (saveEstimateTemplate) + client form component (EstimateTemplateForm)
-- [ ] 24-03-PLAN.md — Settings sub-route page + loading skeleton + /settings entry card
+- [x] 24-03-PLAN.md — Settings sub-route page + loading skeleton + /settings entry card
 **UI hint**: yes
 
 ### Phase 25: Plain Text Tab + Copy UI
@@ -136,6 +136,6 @@ Plans:
 | 21. CSV Import | v1.3 | 3/3 | Complete | 2026-05-08 |
 | 22. AI Price Anchoring | v1.3 | 3/3 | Complete | 2026-05-08 |
 | 23. Estimate Editor Price Badges | v1.3 | 2/2 | Complete | 2026-05-08 |
-| 24. Estimate Template Engine + Settings Page | v1.4 | 2/3 | In Progress|  |
+| 24. Estimate Template Engine + Settings Page | v1.4 | 3/3 | Complete   | 2026-05-08 |
 | 25. Plain Text Tab + Copy UI | v1.4 | 0/TBD | Not started | - |
 | 26. Bulk Price Adjustment | v1.4 | 0/TBD | Not started | - |
