@@ -2,7 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
-import type { PriceBookItemFormValues } from '@/lib/schemas/price-book'
+import { priceBookItemSchema, type PriceBookItemFormValues } from '@/lib/schemas/price-book'
 
 async function getAuthContext() {
   const supabase = await createClient()
@@ -94,14 +94,61 @@ export async function importPriceBookItems(
   | { data: { imported: number; skipped: number } }
   | { error: string }
 > {
-  // Wave 0 stub — Wave 1 fills this in per RESEARCH Pattern 2:
-  //   1. getAuthContext()
-  //   2. server-side re-validate every row with priceBookItemSchema.safeParse
-  //   3. fetch existing (category, name) pairs for company → Set
-  //   4. filter rows against existing keys (case-insensitive)
-  //   5. supabase.from('company_price_book').insert(survivors) — single bulk insert
-  //   6. revalidatePath('/settings/price-book')
-  //   7. return { data: { imported, skipped } } | { error }
-  void rows // silence unused-arg warning in skeleton
-  return { error: 'not implemented (Wave 0 stub)' }
+  const ctx = await getAuthContext()
+  if ('error' in ctx) return { error: ctx.error }
+  const { supabase, company } = ctx
+
+  // Server-side re-validate every row (defense in depth)
+  const validatedRows: PriceBookItemFormValues[] = []
+  for (const row of rows) {
+    const result = priceBookItemSchema.safeParse(row)
+    if (result.success) validatedRows.push(result.data)
+  }
+  if (validatedRows.length === 0) {
+    return { error: 'No valid rows to import.' }
+  }
+
+  // Fetch existing (category, name) pairs for the company — one query
+  const { data: existing, error: existingErr } = await supabase
+    .from('company_price_book')
+    .select('category, name')
+    .eq('company_id', company.id)
+  if (existingErr) {
+    return { error: 'Could not check for duplicates. Please try again.' }
+  }
+
+  const existingKeys = new Set(
+    (existing ?? []).map((r: { category: string; name: string }) =>
+      `${r.category.toLowerCase()}::${r.name.toLowerCase()}`
+    )
+  )
+
+  const toInsert = validatedRows.filter((r) => {
+    const key = `${r.category.toLowerCase()}::${r.name.toLowerCase()}`
+    return !existingKeys.has(key)
+  })
+  const skipped = validatedRows.length - toInsert.length
+
+  if (toInsert.length === 0) {
+    return { data: { imported: 0, skipped } }
+  }
+
+  const { error: insertErr } = await supabase
+    .from('company_price_book')
+    .insert(
+      toInsert.map((r) => ({
+        company_id: company.id,
+        category: r.category,
+        name: r.name,
+        unit: r.unit || null,
+        unit_price: r.unit_price,
+        notes: r.notes || null,
+      }))
+    )
+  if (insertErr) {
+    return { error: 'Failed to import items. Please try again.' }
+  }
+
+  revalidatePath('/settings/price-book')
+  return { data: { imported: toInsert.length, skipped } }
 }
