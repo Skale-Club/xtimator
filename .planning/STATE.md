@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Smart Pricing
-status: executing
-last_updated: "2026-05-08T00:10:04.025Z"
+status: verifying
+last_updated: "2026-05-08T00:25:28.659Z"
 last_activity: 2026-05-08
 progress:
   total_phases: 5
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 8
-  completed_plans: 7
+  completed_plans: 8
 ---
 
 # Project State
@@ -23,7 +23,7 @@ progress:
 
 Phase: 21 (csv-import) — EXECUTING
 Plan: 3 of 3
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-05-08
 
 ## Completed Phases
@@ -180,6 +180,8 @@ Last activity: 2026-05-08
 - [Phase 21-csv-import]: parsePriceBookCsv uses extension-first validation (isCsvByName OR isCsvByType) — iOS Safari may report empty MIME for .csv files from Numbers/Excel
 - [Phase 21-csv-import]: In-file duplicate key uses case-insensitive category::name Set; only added to seenInFile when row has no errors
 - [Phase 21-csv-import]: Close dialog BEFORE router.refresh() (Pitfall 5 pattern): onOpenChange(false) then router.refresh() in importPriceBookItems success path
+- [Phase 21-csv-import]: Import CSV button positioned in header flex group (next to Add Item) using variant=outline; empty state Import CSV button rendered as separate div below EmptyState since EmptyState only supports one action prop
+- [Phase 21-csv-import]: handleImportClose pattern mirrors handleDialogChange (closes state, calls router.refresh) — consistent with Phase 20 close-then-refresh convention (Pitfall 5)
 
 ## Performance Metrics
 
@@ -237,6 +239,7 @@ Last activity: 2026-05-08
 | Phase 20-price-book-crud-ui P03 | 3min | 2 tasks | 3 files |
 | Phase 21-csv-import P01 | 4min | 3 tasks | 8 files |
 | Phase 21-csv-import P02 | 7min | 3 tasks | 6 files |
+| Phase 21-csv-import P03 | 11min | 3 tasks | 4 files |
 
 ## Project Reference
 
