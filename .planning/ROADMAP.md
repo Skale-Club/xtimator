@@ -144,4 +144,4 @@ Plans:
 | 23. Estimate Editor Price Badges | v1.3 | 2/2 | Complete | 2026-05-08 |
 | 24. Estimate Template Engine + Settings Page | v1.4 | 3/3 | Complete    | 2026-05-08 |
 | 25. Plain Text Tab + Copy UI | v1.4 | 2/2 | Complete    | 2026-05-08 |
-| 26. Bulk Price Adjustment | v1.4 | 2/2 | Complete   | 2026-05-08 |
+| 26. Bulk Price Adjustment | v1.4 | 2/2 | Complete    | 2026-05-08 |
