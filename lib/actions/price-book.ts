@@ -152,3 +152,48 @@ export async function importPriceBookItems(
   revalidatePath('/settings/price-book')
   return { data: { imported: toInsert.length, skipped } }
 }
+
+export async function bulkAdjustPriceBookCategory(
+  category: string,
+  adjustmentPercent: number
+): Promise<{ data: { updated: number } } | { error: string }> {
+  const ctx = await getAuthContext()
+  if ('error' in ctx) return { error: ctx.error as string }
+  const { supabase, company } = ctx
+
+  // Fetch all items in the category for this company (full row for upsert)
+  const { data: items, error: fetchErr } = await supabase
+    .from('company_price_book')
+    .select('id, company_id, category, name, unit, unit_price, notes')
+    .eq('company_id', company.id)
+    .eq('category', category)
+
+  if (fetchErr || !items || items.length === 0) {
+    return { error: 'No items found in that category.' }
+  }
+
+  // D-04: Round to 2 decimal places (NUMERIC(12,2) in Postgres)
+  const adjustedItems = (items as {
+    id: string; company_id: string; category: string;
+    name: string; unit: string | null; unit_price: number; notes: string | null
+  }[]).map((item) => ({
+    id: item.id,
+    company_id: item.company_id,
+    category: item.category,
+    name: item.name,
+    unit: item.unit,
+    unit_price: Math.round(item.unit_price * (1 + adjustmentPercent / 100) * 100) / 100,
+    notes: item.notes,
+  }))
+
+  // D-03: Single upsert — each row has its OWN computed unit_price (not a shared value)
+  // This is atomic: PostgREST wraps upsert in a single transaction
+  const { error: upsertErr } = await supabase
+    .from('company_price_book')
+    .upsert(adjustedItems)
+
+  if (upsertErr) return { error: 'Failed to apply price adjustment.' }
+
+  revalidatePath('/settings/price-book')
+  return { data: { updated: adjustedItems.length } }
+}

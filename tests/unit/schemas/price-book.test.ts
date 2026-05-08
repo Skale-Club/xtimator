@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { priceBookItemSchema } from '@/lib/schemas/price-book'
+import { priceBookItemSchema, bulkAdjustSchema } from '@/lib/schemas/price-book'
 
 describe('priceBookItemSchema', () => {
   it('valid item with category, name, unit_price passes', () => {
@@ -77,5 +77,36 @@ describe('priceBookItemSchema', () => {
       notes: '',
     })
     expect(result.success).toBe(true)
+  })
+})
+
+describe('bulkAdjustSchema', () => {
+  it('accepts valid positive percent 10', () => {
+    const r = bulkAdjustSchema.safeParse({ adjustmentPercent: 10 })
+    expect(r.success).toBe(true)
+    if (r.success) expect(r.data.adjustmentPercent).toBe(10)
+  })
+  it('accepts valid negative percent -50', () => {
+    const r = bulkAdjustSchema.safeParse({ adjustmentPercent: -50 })
+    expect(r.success).toBe(true)
+  })
+  it('rejects -101 with "Cannot reduce prices by more than 100%"', () => {
+    const r = bulkAdjustSchema.safeParse({ adjustmentPercent: -101 })
+    expect(r.success).toBe(false)
+    if (!r.success) {
+      expect(r.error.issues[0].message).toBe('Cannot reduce prices by more than 100%')
+    }
+  })
+  it('rejects 501 with "Maximum adjustment is 500%"', () => {
+    const r = bulkAdjustSchema.safeParse({ adjustmentPercent: 501 })
+    expect(r.success).toBe(false)
+    if (!r.success) {
+      expect(r.error.issues[0].message).toBe('Maximum adjustment is 500%')
+    }
+  })
+  it('coerces string "10" to number 10', () => {
+    const r = bulkAdjustSchema.safeParse({ adjustmentPercent: '10' })
+    expect(r.success).toBe(true)
+    if (r.success) expect(r.data.adjustmentPercent).toBe(10)
   })
 })

@@ -9,3 +9,12 @@ export const priceBookItemSchema = z.object({
 })
 
 export type PriceBookItemFormValues = z.infer<typeof priceBookItemSchema>
+
+export const bulkAdjustSchema = z.object({
+  adjustmentPercent: z
+    .coerce.number({ invalid_type_error: 'Enter a number' })
+    .min(-100, 'Cannot reduce prices by more than 100%')
+    .max(500, 'Maximum adjustment is 500%'),
+})
+
+export type BulkAdjustFormValues = z.infer<typeof bulkAdjustSchema>
