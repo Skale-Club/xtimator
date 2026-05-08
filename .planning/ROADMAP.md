@@ -132,7 +132,10 @@ Plans:
   1. Every line item in the estimate editor shows a badge — "Price book" (checkmark style) for `price_book` origin and "AI estimate" (lightning style) for `ai_estimate` origin — without requiring any user action
   2. When a user edits the unit price of any line item, the badge for that item is removed or replaced with a neutral "Edited" indicator to signal the price is now a manual override
   3. Badge rendering does not break on estimates generated before v1.3 (items with null `price_source` have no badge, not an error)
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 23-01-PLAN.md — Wave 0: extend EditorItem type + UPDATE_ITEM reducer side-effect + 6 RED test stubs
+- [ ] 23-02-PLAN.md — Wave 1: badge render in item-row.tsx + header column in section-card.tsx + saveEstimate price_source persistence + 6 stubs GREEN
 **UI hint**: yes
 
 ## Progress
@@ -161,4 +164,4 @@ Plans:
 | 20. Price Book CRUD UI | v1.3 | 3/3 | Complete    | 2026-05-07 |
 | 21. CSV Import | v1.3 | 3/3 | Complete    | 2026-05-08 |
 | 22. AI Price Anchoring | v1.3 | 3/3 | Complete    | 2026-05-08 |
-| 23. Estimate Editor Price Badges | v1.3 | 0/? | Not started | - |
+| 23. Estimate Editor Price Badges | v1.3 | 0/2 | Not started | - |
