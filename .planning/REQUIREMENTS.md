@@ -40,11 +40,11 @@
 
 | REQ-ID | Feature Area | Phase | Status |
 |--------|-------------|-------|--------|
-| CAPTURE-01 | Unified Capture Screen | TBD | Pending |
-| CAPTURE-02 | Unified Capture Screen | TBD | Pending |
-| CAPTURE-03 | Unified Capture Screen | TBD | Pending |
-| CAPTURE-04 | Unified Capture Screen | TBD | Pending |
-| CLIENTASSOC-01 | Client Association | TBD | Pending |
-| CLIENTASSOC-02 | Client Association | TBD | Pending |
-| CLIENTASSOC-03 | Client Association | TBD | Pending |
-| CLIENTASSOC-04 | Client Association | TBD | Pending |
+| CAPTURE-01 | Unified Capture Screen | Phase 28 | Pending |
+| CAPTURE-02 | Unified Capture Screen | Phase 28 | Pending |
+| CAPTURE-03 | Unified Capture Screen | Phase 28 | Pending |
+| CAPTURE-04 | Unified Capture Screen | Phase 28 | Pending |
+| CLIENTASSOC-01 | Client Association | Phase 29 | Pending |
+| CLIENTASSOC-02 | Client Association | Phase 29 | Pending |
+| CLIENTASSOC-03 | Client Association | Phase 30 | Pending |
+| CLIENTASSOC-04 | Client Association | Phase 29 | Pending |

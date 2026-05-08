@@ -7,6 +7,7 @@
 - ✅ **v1.2 Brand Identity & Global Reach** — Phases 10-18 (shipped 2026-05-06) · [archive](milestones/v1.2-ROADMAP.md)
 - ✅ **v1.3 Smart Pricing** — Phases 19-23 (shipped 2026-05-08) · [archive](milestones/v1.3-ROADMAP.md)
 - ✅ **v1.4 Estimate Plain Text & Pricing Tools** — Phases 24-26 (shipped 2026-05-08) · [archive](milestones/v1.4-ROADMAP.md)
+- 🔲 **v1.5 Zero-friction Project Onboarding** — Phases 27-30 (in progress)
 
 ## Phases
 
@@ -76,6 +77,13 @@
 
 </details>
 
+### v1.5 Zero-friction Project Onboarding (Phases 27-30)
+
+- [ ] **Phase 27: Capture Schema Migration** — Make `recordings.storage_path` nullable and `projects.client_id` optional so text-path and client-optional flows are unblocked
+- [ ] **Phase 28: Unified Capture Screen** — Redesign the capture screen with audio, text description, and photo upload as co-equal inputs; enable Generate Estimate from any combination
+- [ ] **Phase 29: Frictionless Project Creation & Client Linking** — Remove mandatory client step from project wizard; add New Project button on client detail page; show Link Client card in project Overview when no client is set
+- [ ] **Phase 30: AI Client Extraction** — After estimate generation, surface a non-blocking toast when AI detects a client name in content, letting the user accept or dismiss the suggested link
+
 ## Phase Details
 
 ### Phase 24: Estimate Template Engine + Settings Page
@@ -122,6 +130,50 @@ Plans:
 - [x] 26-01-PLAN.md — bulkAdjustSchema + bulkAdjustPriceBookCategory server action (test-first: Wave 0 RED stubs + Wave 1 implementation)
 - [x] 26-02-PLAN.md — BulkAdjustDialog component + PriceBookList wiring (Adjust % button + live preview table)
 
+### Phase 27: Capture Schema Migration
+**Goal**: The database schema supports text-only recordings (no audio file) and projects without a linked client
+**Depends on**: Phase 18 (capture route exists), Phase 4 (projects schema baseline)
+**Requirements**: (infrastructure prerequisite — unblocks CAPTURE-02, CAPTURE-04, CLIENTASSOC-01, CLIENTASSOC-04)
+**Success Criteria** (what must be TRUE):
+  1. A recording row can be inserted with a non-null transcript but a null storage_path, and the application does not error on such rows
+  2. A project can be created and saved without a client_id value, and no constraint violation is raised
+  3. Existing recordings with audio files and existing projects with clients continue to load and render correctly
+**Plans**: TBD
+
+### Phase 28: Unified Capture Screen
+**Goal**: Users can provide audio, typed description, or photos as co-equal inputs on the capture screen — alone or combined — and generate an estimate from any combination
+**Depends on**: Phase 27 (nullable storage_path and optional client_id must exist)
+**Requirements**: CAPTURE-01, CAPTURE-02, CAPTURE-03, CAPTURE-04
+**Success Criteria** (what must be TRUE):
+  1. The audio recorder remains the visually dominant element on the capture screen, with recording controls unchanged from the current full-screen UX
+  2. A user who types a job description and taps Generate Estimate — without recording any audio — gets a generated estimate using that text as the input
+  3. A user who uploads one or more photos — without recording audio or typing text — can tap Generate Estimate and receive an estimate derived from those photos
+  4. The Generate Estimate button is disabled when the capture screen has no transcript, no typed description, and no photos; it becomes enabled the moment any one of those inputs is present
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 29: Frictionless Project Creation & Client Linking
+**Goal**: Users can create a project without selecting a client upfront, and can link a client at any point from multiple entry surfaces
+**Depends on**: Phase 27 (optional client_id schema), Phase 28 (capture screen accepts client-less projects)
+**Requirements**: CLIENTASSOC-01, CLIENTASSOC-02, CLIENTASSOC-04
+**Success Criteria** (what must be TRUE):
+  1. A user can complete the new project wizard and reach the capture screen without selecting or creating a client — the client field is optional, not blocking
+  2. On any client detail page, a "New Project" button creates a new project pre-linked to that client and navigates directly to the capture screen without showing a client selection step
+  3. A project with no linked client shows a visible "Link client" card in the Overview tab, and the user can link a client from that card
+  4. A project that already has a linked client does not show the "Link client" card in Overview
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 30: AI Client Extraction
+**Goal**: After estimate generation, users are offered a non-blocking opportunity to link the AI-detected client name to an existing client record
+**Depends on**: Phase 28 (estimate generation must have run), Phase 29 (client linking surface must exist)
+**Requirements**: CLIENTASSOC-03
+**Success Criteria** (what must be TRUE):
+  1. When the AI detects a client name in the transcript, description, or photo analysis, a toast notification appears after estimate generation with the detected name — it does not interrupt or block the estimate editor
+  2. The user can accept the suggestion, which links the project to the matching existing client (or prompts to create one if no match exists), or dismiss it with no change to any record
+  3. If the AI does not detect a client name, no toast appears and the flow is identical to today
+**Plans**: TBD
+
 ## Progress
 
 | Phase | Milestone | Plans | Status | Completed |
@@ -152,3 +204,7 @@ Plans:
 | 24. Estimate Template Engine + Settings Page | v1.4 | 3/3 | Complete    | 2026-05-08 |
 | 25. Plain Text Tab + Copy UI | v1.4 | 2/2 | Complete    | 2026-05-08 |
 | 26. Bulk Price Adjustment | v1.4 | 2/2 | Complete    | 2026-05-08 |
+| 27. Capture Schema Migration | v1.5 | 0/TBD | Not started | - |
+| 28. Unified Capture Screen | v1.5 | 0/TBD | Not started | - |
+| 29. Frictionless Project Creation & Client Linking | v1.5 | 0/TBD | Not started | - |
+| 30. AI Client Extraction | v1.5 | 0/TBD | Not started | - |

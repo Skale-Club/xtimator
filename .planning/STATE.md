@@ -6,25 +6,25 @@ status: planning
 last_updated: "2026-05-08T18:30:00.000Z"
 last_activity: 2026-05-08
 progress:
-  total_phases: 3
-  completed_phases: 3
-  total_plans: 7
-  completed_plans: 7
+  total_phases: 4
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
 ---
 
 # Project State
 
 ## Current Status
 
-- **Milestone**: v1.4 Estimate Plain Text & Pricing Tools — ✅ COMPLETE (3/3 phases, 7/7 plans)
+- **Milestone**: v1.5 Zero-friction Project Onboarding — 🔲 IN PROGRESS (0/4 phases)
 - **Last updated**: 2026-05-08
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 27 — Capture Schema Migration
 Plan: —
-Status: Defining requirements for v1.5
-Last activity: 2026-05-08 — Milestone v1.5 started
+Status: Roadmap defined, ready to plan Phase 27
+Last activity: 2026-05-08 — v1.5 roadmap created (Phases 27-30)
 
 ## Completed Phases
 
@@ -293,10 +293,10 @@ Last activity: 2026-05-08 — Milestone v1.5 started
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-05-06)
+See: .planning/PROJECT.md (updated 2026-05-08)
 
 **Core value:** Business owner → job site audio recording → sent professional estimate in under 5 minutes
-**Current focus:** Phase 26 — bulk-price-adjustment
+**Current focus:** Phase 27 — Capture Schema Migration (v1.5 start)
 
 ## Notes
 
@@ -305,6 +305,7 @@ v1.0: 8 phases, 32 plans, 151+ commits. v1.1: Phase 9, 8 plans, 38 commits. YOLO
 v1.2: 3 phases (10-12), 16 requirements. Seeds: SEED-001 (i18n EN/PT-BR/ES), SEED-002 (landing page + #406EF1 brand identity).
 v1.3: 5 phases (19-23), 12 requirements. Price book DB + CRUD UI + CSV import + AI anchoring + editor badges.
 v1.4: 3 phases (24-26), 8 requirements. Estimate template engine + settings page + plain text tab + copy UI + bulk price adjustment.
+v1.5: 4 phases (27-30), 8 requirements. Capture schema migration + unified capture screen + frictionless project creation + AI client extraction.
 
 ## Accumulated Context
 
@@ -317,6 +318,7 @@ v1.4: 3 phases (24-26), 8 requirements. Estimate template engine + settings page
 - Phase 18 added: Voice-First Project Onboarding. Repositions the AI voice recorder as the centerpiece of new project creation. Wizard reduced to a single client-pick step; recorder becomes a full-screen primary surface (large timer, wide waveform, circular progress ring around mic). 10-minute hard cap optimized for Whisper + Claude (≤5MB upload, ~$0.06/recording, ≤2K transcript tokens) with neutral→amber→red timer escalation, 60s warning, auto-stop. Multi-stage progress stepper (Saving → Transcribing → Analyzing → Generating estimate) replaces the current tiny `Loader2` spinner, with the Whisper transcript revealed mid-flow. Estimate generation auto-fires post-transcript and lands the user in the editor with a populated draft. Escape hatch ("Skip recording") preserves manual-entry path. Closes UX gap identified during post-Phase-17 review: today the recorder is buried in an Audio tab and AI generation requires a manual click.
 - v1.3 phases 19-23: DB foundation (Phase 19) → CRUD UI (Phase 20) → CSV import (Phase 21) → AI anchoring (Phase 22) → editor badges (Phase 23). Key constraint: price book is optional — companies without entries continue working as before (AIPRICE-02 covers fallback with no regression). Phase 22 depends on Phase 19 (needs price_source column) but NOT on Phase 20/21 (AI integration doesn't require UI to be built first). Phase 23 depends on Phase 22 (needs price_source data on estimate_items).
 - v1.4 phases 24-26: Template engine + settings page (Phase 24) → Plain text tab + copy UI (Phase 25) → Bulk price adjustment (Phase 26). Key constraint: Phase 25 depends on Phase 24 (template engine must exist to drive text rendering). Phase 26 is independent of the plain-text phases — depends only on Phase 19-20 (price book infrastructure).
+- v1.5 phases 27-30: Schema migration (Phase 27) → Unified capture screen (Phase 28) → Frictionless creation + client linking UI (Phase 29) → AI client extraction (Phase 30). Key constraint: Phase 27 is a hard prerequisite for everything — nullable storage_path enables text-only recordings, optional client_id enables client-less projects. Phase 28 depends on Phase 27. Phase 29 depends on Phase 27 (optional client_id) and is informed by Phase 28 but not blocked by it. Phase 30 is highest risk (AI adapter changes) and ships last, depending on Phase 28 (estimate generation must have run first).
 
 ### Quick Tasks Completed
 
