@@ -34,6 +34,11 @@ vi.mock('@/components/price-book/price-book-item-dialog', () => ({
     open ? <div data-testid="price-book-dialog">Dialog Open</div> : null,
 }))
 
+vi.mock('@/components/price-book/price-book-import-dialog', () => ({
+  PriceBookImportDialog: ({ open }: { open: boolean }) =>
+    open ? <div data-testid="price-book-import-dialog">Import Open</div> : null,
+}))
+
 import { PriceBookList } from '@/components/price-book/price-book-list'
 
 const mockItems: PriceBookItem[] = [
@@ -190,5 +195,16 @@ describe('PriceBookList', () => {
 
     expect(mockDelete).toHaveBeenCalledWith('3')
     expect(mockRefresh).toHaveBeenCalled()
+  })
+
+  it('Import CSV button renders in header', () => {
+    render(<PriceBookList items={mockItems} companyId="c1" />)
+    expect(screen.getByRole('button', { name: /Import CSV/i })).toBeDefined()
+  })
+
+  it('empty state shows Import CSV alongside Add first item', () => {
+    render(<PriceBookList items={[]} companyId="c1" />)
+    expect(screen.getByRole('button', { name: /Add first item/i })).toBeDefined()
+    expect(screen.getByRole('button', { name: /Import CSV/i })).toBeDefined()
   })
 })

@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { BookOpen, Search, MoreHorizontal, Plus } from 'lucide-react'
+import { BookOpen, Search, MoreHorizontal, Plus, Upload } from 'lucide-react'
 import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -32,6 +32,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { EmptyState } from '@/components/dashboard/empty-state'
 import { PriceBookItemDialog } from '@/components/price-book/price-book-item-dialog'
+import { PriceBookImportDialog } from '@/components/price-book/price-book-import-dialog'
 import { deletePriceBookItem } from '@/lib/actions/price-book'
 import type { PriceBookItem } from '@/lib/queries/price-book'
 
@@ -45,6 +46,7 @@ export function PriceBookList({ items, companyId }: PriceBookListProps) {
   const [search, setSearch] = useState('')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<PriceBookItem | null>(null)
+  const [importDialogOpen, setImportDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [deletingItem, setDeletingItem] = useState<{
     id: string
@@ -98,6 +100,11 @@ export function PriceBookList({ items, companyId }: PriceBookListProps) {
     }
   }
 
+  function handleImportClose(open: boolean) {
+    setImportDialogOpen(open)
+    if (!open) router.refresh()
+  }
+
   function handleDeletePrompt(item: PriceBookItem) {
     setDeletingItem({ id: item.id, name: item.name })
     setDeleteDialogOpen(true)
@@ -130,12 +137,22 @@ export function PriceBookList({ items, companyId }: PriceBookListProps) {
           actionLabel="Add first item"
           onAction={handleAddItem}
         />
+        <div className="flex justify-center -mt-4">
+          <Button variant="outline" onClick={() => setImportDialogOpen(true)}>
+            <Upload className="h-4 w-4 mr-2" />
+            Import CSV
+          </Button>
+        </div>
         <PriceBookItemDialog
           open={dialogOpen}
           onOpenChange={handleDialogChange}
           item={editingItem}
           companyId={companyId}
           existingCategories={existingCategories}
+        />
+        <PriceBookImportDialog
+          open={importDialogOpen}
+          onOpenChange={handleImportClose}
         />
       </>
     )
@@ -145,10 +162,16 @@ export function PriceBookList({ items, companyId }: PriceBookListProps) {
     <>
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Price Book</h1>
-        <Button onClick={handleAddItem}>
-          <Plus className="h-4 w-4 mr-2" />
-          Add Item
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setImportDialogOpen(true)}>
+            <Upload className="h-4 w-4 mr-2" />
+            Import CSV
+          </Button>
+          <Button onClick={handleAddItem}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Item
+          </Button>
+        </div>
       </div>
 
       {/* Search */}
@@ -264,6 +287,12 @@ export function PriceBookList({ items, companyId }: PriceBookListProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Import CSV Dialog */}
+      <PriceBookImportDialog
+        open={importDialogOpen}
+        onOpenChange={handleImportClose}
+      />
     </>
   )
 }
