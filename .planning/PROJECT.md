@@ -30,9 +30,9 @@ Price book CRUD + CSV import + multi-provider AI anchoring (Claude/Gemini) + est
 
 ## Current State
 
-**Version:** v1.3 Smart Pricing — ✅ COMPLETE (5/5 phases)
-**Phases complete:** 23/23 | **Plans:** 67/67 (Phase 23: 2) | **Build:** passing
-**Last shipped:** Phase 23 — Estimate Editor Price Badges (2026-05-08)
+**Version:** v1.4 Estimate Plain Text & Pricing Tools — 🔲 IN PROGRESS (1/3 phases)
+**Phases complete:** 24/26 | **Plans:** 70/TBD (Phase 24: 3) | **Build:** passing
+**Last shipped:** Phase 24 — Estimate Template Engine + Settings Page (2026-05-08)
 **Tech stack:** Next.js 16 (App Router), TypeScript strict, Tailwind 4, shadcn/ui (New York), Supabase (Auth + DB + Storage), @react-pdf/renderer, Resend, Anthropic Claude, OpenAI Whisper, next-themes
 **Test coverage:** 250+ unit tests passing, integration tests, E2E with Playwright (mobile + landing page + voice flow coverage)
 **Deployment target:** Vercel
@@ -97,6 +97,10 @@ Price book CRUD + CSV import + multi-provider AI anchoring (Claude/Gemini) + est
 - ✓ PROJ-10–12: Sidebar projects panel — paginated list, active highlight, real-time sync on project creation — v1.2
 - ✓ PERF-01–03: Skeleton loading states, Suspense streaming, React cache() for auth/company, HoverPrefetchLink — v1.2
 - ✓ P18-01–09: Voice-first project onboarding — 1-step wizard, full-screen capture route, 10-min recording with color timer + SVG ring, multi-stage stepper, auto-estimate generation — v1.2
+
+### Validated (v1.4)
+
+- ✓ PLAINTEXT-03, PLAINTEXT-05: Estimate Template Engine — 4 nullable TEXT columns on `companies` (`estimate_template_greeting/opener/closer/signature`), `resolveTemplate()` pure utility with `TEMPLATE_DEFAULTS` fallback, zod schema, `getEstimateTemplateSettings()` query, `saveEstimateTemplate` server action (empty→null coercion), `EstimateTemplateForm` (4 textareas + variable docs + live preview), `/settings/estimate-templates` sub-route page, Estimate Templates card on `/settings` — Phase 24, 2026-05-08
 
 ### Validated (v1.3)
 
@@ -185,4 +189,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context
 
 ---
-*Last updated: 2026-05-06 — after v1.2 milestone (Phases 10-18 shipped)*
+*Last updated: 2026-05-08 — after Phase 24 (Estimate Template Engine + Settings Page shipped)*
