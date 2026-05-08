@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Smart Pricing
-status: executing
-last_updated: "2026-05-08T09:42:25.014Z"
+status: verifying
+last_updated: "2026-05-08T09:57:34.654Z"
 last_activity: 2026-05-08
 progress:
   total_phases: 5
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 13
-  completed_plans: 12
+  completed_plans: 13
 ---
 
 # Project State
@@ -23,7 +23,7 @@ progress:
 
 Phase: 23 (estimate-editor-price-badges) — EXECUTING
 Plan: 2 of 2
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-05-08
 
 ## Completed Phases
@@ -191,6 +191,8 @@ Last activity: 2026-05-08
 - [Phase 22-ai-price-anchoring]: ai_config row filtered from decrypt loop via .filter(r => r.provider !== 'ai_config') — null ciphertext would crash toBuffer()
 - [Phase 22-ai-price-anchoring]: generate-estimate-name-patch.test.ts updated to mock @/lib/ai (Rule 1 auto-fix) — old test mocked @anthropic-ai/sdk which is no longer used in route
 - [Phase 23-estimate-editor-price-badges]: EditorItem.price_source typed as literal union 'price_book' | 'ai_estimate' | null; isManuallyEdited client-only flag; UPDATE_ITEM sets isManuallyEdited true only for unit_price field (D-01/D-02/D-03)
+- [Phase 23-estimate-editor-price-badges]: isManuallyEdited checked first in badge JSX — Edited displaces price_source badge regardless of value (D-10)
+- [Phase 23-estimate-editor-price-badges]: saveEstimate nullifies price_source for edited items via isManuallyEdited ? null : (price_source ?? null) across all 3 DB write paths (D-04/D-11)
 
 ## Performance Metrics
 
@@ -253,6 +255,7 @@ Last activity: 2026-05-08
 | Phase 22-ai-price-anchoring P02 | 6min | 3 tasks | 13 files |
 | Phase 22-ai-price-anchoring P03 | 13min | 2 tasks | 5 files |
 | Phase 23-estimate-editor-price-badges P01 | 3min | 2 tasks | 3 files |
+| Phase 23-estimate-editor-price-badges P02 | 12min | 2 tasks | 5 files |
 
 ## Project Reference
 
