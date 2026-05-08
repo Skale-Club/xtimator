@@ -13,6 +13,7 @@ import type { ProjectDetail, ActivityEvent, ProjectQuickStats } from '@/lib/quer
 import type { Recording } from '@/lib/queries/recording'
 import type { Photo } from '@/lib/queries/photo'
 import type { EstimateWithSections, Estimate } from '@/lib/queries/estimate'
+import type { EstimateTemplate } from '@/lib/utils/estimate-template'
 
 const ALLOWED_TABS = ['overview', 'audio', 'photos', 'estimate', 'send'] as const
 type WorkspaceTab = (typeof ALLOWED_TABS)[number]
@@ -26,12 +27,15 @@ interface ProjectWorkspaceProps {
   currentEstimate: EstimateWithSections | null
   allVersions: Estimate[]
   companyName: string
+  ownerName: string
+  estimateTemplate: EstimateTemplate
   defaultTab?: WorkspaceTab
 }
 
 export function ProjectWorkspace({
   project, activity, stats, recordings, photos,
   currentEstimate, allVersions, companyName,
+  ownerName, estimateTemplate,
   defaultTab = 'overview',
 }: ProjectWorkspaceProps) {
   const searchParams = useSearchParams()
@@ -123,6 +127,9 @@ export function ProjectWorkspace({
           projectName={project.name}
           companyName={companyName}
           clientEmail={project.client?.email ?? null}
+          clientName={project.client?.name ?? ''}
+          ownerName={ownerName}
+          estimateTemplate={estimateTemplate}
         />
       </TabsContent>
     </Tabs>

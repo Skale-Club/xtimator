@@ -95,15 +95,22 @@ async function ProjectTabs({
     allVersionsPromise,
   ])
 
-  // Fetch company name for the Send tab
+  // Fetch company name + template fields for the Send tab
   const supabase = await createClient()
   const { data: company } = await supabase
     .from('companies')
-    .select('name')
+    .select('name, owner_name, estimate_template_greeting, estimate_template_opener, estimate_template_closer, estimate_template_signature')
     .eq('id', project.company_id)
     .single()
 
   const companyName = (company?.name as string) ?? ''
+  const ownerName = (company?.owner_name as string | null) ?? ''
+  const estimateTemplate = {
+    greeting: (company?.estimate_template_greeting as string | null) ?? null,
+    opener: (company?.estimate_template_opener as string | null) ?? null,
+    closer: (company?.estimate_template_closer as string | null) ?? null,
+    signature: (company?.estimate_template_signature as string | null) ?? null,
+  }
 
   return (
     <ProjectWorkspace
@@ -115,6 +122,8 @@ async function ProjectTabs({
       currentEstimate={currentEstimate}
       allVersions={allVersions}
       companyName={companyName}
+      ownerName={ownerName}
+      estimateTemplate={estimateTemplate}
       defaultTab={defaultTab}
     />
   )

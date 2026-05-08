@@ -5,15 +5,20 @@ import { FileText } from 'lucide-react'
 import { EstimatePreview } from './estimate-preview'
 import { SendForm } from './send-form'
 import type { EstimateWithSections } from '@/lib/queries/estimate'
+import type { EstimateTemplate } from '@/lib/utils/estimate-template'
+import { PlainTextCard } from './plain-text-card'
 
 interface SendTabProps {
   estimate: EstimateWithSections | null
   projectName: string
   companyName: string
   clientEmail: string | null
+  clientName: string
+  ownerName: string
+  estimateTemplate: EstimateTemplate
 }
 
-export function SendTab({ estimate, projectName, companyName, clientEmail }: SendTabProps) {
+export function SendTab({ estimate, projectName, companyName, clientEmail, clientName, ownerName, estimateTemplate }: SendTabProps) {
   if (!estimate) {
     return (
       <Card>
@@ -29,18 +34,28 @@ export function SendTab({ estimate, projectName, companyName, clientEmail }: Sen
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-2">
-      <EstimatePreview
+    <div className="space-y-6">
+      <div className="grid gap-6 lg:grid-cols-2">
+        <EstimatePreview
+          estimate={estimate}
+          projectName={projectName}
+          companyName={companyName}
+        />
+        <SendForm
+          estimateId={estimate.id}
+          clientEmail={clientEmail}
+          companyName={companyName}
+          projectName={projectName}
+          shareToken={estimate.share_token}
+        />
+      </div>
+      <PlainTextCard
+        key={estimate.id}
         estimate={estimate}
-        projectName={projectName}
+        clientName={clientName}
         companyName={companyName}
-      />
-      <SendForm
-        estimateId={estimate.id}
-        clientEmail={clientEmail}
-        companyName={companyName}
-        projectName={projectName}
-        shareToken={estimate.share_token}
+        ownerName={ownerName}
+        estimateTemplate={estimateTemplate}
       />
     </div>
   )
