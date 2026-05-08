@@ -95,7 +95,7 @@ export async function importPriceBookItems(
   | { error: string }
 > {
   const ctx = await getAuthContext()
-  if ('error' in ctx) return { error: ctx.error }
+  if ('error' in ctx) return { error: ctx.error as string }
   const { supabase, company } = ctx
 
   // Server-side re-validate every row (defense in depth)
