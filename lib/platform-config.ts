@@ -32,7 +32,7 @@ export type LandingContent = {
   }>
 }
 
-export type IntegrationProvider = 'resend' | 'anthropic' | 'openai'
+export type IntegrationProvider = 'resend' | 'anthropic' | 'openai' | 'gemini'
 
 const TTL_MS = 30_000
 
@@ -220,4 +220,17 @@ function toBuffer(value: unknown): Buffer {
 export function invalidatePlatformConfig(): void {
   brandingCache = null
   integrationCache.clear()
+}
+
+export type SelectedAIProvider = 'anthropic' | 'gemini'
+
+export async function getSelectedAIProvider(): Promise<SelectedAIProvider> {
+  const svc = createServiceClient()
+  const { data } = await svc
+    .from('platform_integrations')
+    .select('metadata')
+    .eq('provider', 'ai_config')
+    .maybeSingle()
+  const selected = (data?.metadata as { selected_ai_provider?: string } | null)?.selected_ai_provider
+  return selected === 'gemini' ? 'gemini' : 'anthropic'
 }
