@@ -6,9 +6,9 @@
 
 - [ ] **PLAINTEXT-01**: Usuário vê o orçamento em formato texto simples na aba "Plain Text" do editor de orçamento (ao lado de PDF e Web Link)
 - [ ] **PLAINTEXT-02**: Usuário copia o texto do orçamento com 1 clique (copy-to-clipboard); um toast de confirmação aparece após a cópia
-- [ ] **PLAINTEXT-03**: O texto gerado usa o template configurado pela empresa — saudação (`Hey {client_name}`), frase de abertura, listagem de categorias + itens + preços, total, frase de fechamento e assinatura (`{owner_name}`, `{company_name}`)
+- [x] **PLAINTEXT-03**: O texto gerado usa o template configurado pela empresa — saudação (`Hey {client_name}`), frase de abertura, listagem de categorias + itens + preços, total, frase de fechamento e assinatura (`{owner_name}`, `{company_name}`)
 - [ ] **PLAINTEXT-04**: Usuário pode editar o texto gerado diretamente no preview antes de copiar (override pontual — não altera o template salvo)
-- [ ] **PLAINTEXT-05**: Usuário configura o template da empresa em `/settings/estimate-templates` com variáveis suportadas: `{client_name}`, `{company_name}`, `{owner_name}`, `{total}`, `{items_breakdown}`
+- [x] **PLAINTEXT-05**: Usuário configura o template da empresa em `/settings/estimate-templates` com variáveis suportadas: `{client_name}`, `{company_name}`, `{owner_name}`, `{total}`, `{items_breakdown}`
 
 ### Bulk Price Adjustment
 

@@ -82,7 +82,7 @@
   4. A company with no saved template gets a sensible default so the plain-text feature works out of the box
 **Plans**: 3 plans
 Plans:
-- [ ] 24-01-PLAN.md — Migration + pure utility (resolveTemplate, TEMPLATE_DEFAULTS, zod schema, CompanySettings extension, query function) with TDD
+- [x] 24-01-PLAN.md — Migration + pure utility (resolveTemplate, TEMPLATE_DEFAULTS, zod schema, CompanySettings extension, query function) with TDD
 - [ ] 24-02-PLAN.md — Server action (saveEstimateTemplate) + client form component (EstimateTemplateForm)
 - [ ] 24-03-PLAN.md — Settings sub-route page + loading skeleton + /settings entry card
 **UI hint**: yes
@@ -136,6 +136,6 @@ Plans:
 | 21. CSV Import | v1.3 | 3/3 | Complete | 2026-05-08 |
 | 22. AI Price Anchoring | v1.3 | 3/3 | Complete | 2026-05-08 |
 | 23. Estimate Editor Price Badges | v1.3 | 2/2 | Complete | 2026-05-08 |
-| 24. Estimate Template Engine + Settings Page | v1.4 | 0/3 | Not started | - |
+| 24. Estimate Template Engine + Settings Page | v1.4 | 1/3 | In Progress|  |
 | 25. Plain Text Tab + Copy UI | v1.4 | 0/TBD | Not started | - |
 | 26. Bulk Price Adjustment | v1.4 | 0/TBD | Not started | - |

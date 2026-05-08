@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.4
-milestone_name: Estimate Plain Text & Pricing Tools
-status: planning
-last_updated: "2026-05-08T10:07:10.885Z"
+milestone: v1.0
+milestone_name: milestone
+status: executing
+last_updated: "2026-05-08T15:05:21.886Z"
 last_activity: 2026-05-08
 progress:
   total_phases: 3
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_plans: 3
+  completed_plans: 1
 ---
 
 # Project State
@@ -21,10 +21,10 @@ progress:
 
 ## Current Position
 
-Phase: 24 — Estimate Template Engine + Settings Page (not started)
-Plan: —
-Status: Roadmap approved, awaiting `/gsd:plan-phase 24`
-Last activity: 2026-05-08 — Roadmap for v1.4 created (3 phases, 8 requirements)
+Phase: 24 (estimate-template-engine-settings-page) — EXECUTING
+Plan: 2 of 3
+Status: Ready to execute
+Last activity: 2026-05-08
 
 ## Completed Phases
 
@@ -196,6 +196,9 @@ Last activity: 2026-05-08 — Roadmap for v1.4 created (3 phases, 8 requirements
 - [Phase 23-estimate-editor-price-badges]: EditorItem.price_source typed as literal union 'price_book' | 'ai_estimate' | null; isManuallyEdited client-only flag; UPDATE_ITEM sets isManuallyEdited true only for unit_price field (D-01/D-02/D-03)
 - [Phase 23-estimate-editor-price-badges]: isManuallyEdited checked first in badge JSX — Edited displaces price_source badge regardless of value (D-10)
 - [Phase 23-estimate-editor-price-badges]: saveEstimate nullifies price_source for edited items via isManuallyEdited ? null : (price_source ?? null) across all 3 DB write paths (D-04/D-11)
+- [Phase 24-estimate-template-engine-settings-page]: Template columns added to companies table (not a separate table) — 4 text fields don't warrant a join
+- [Phase 24-estimate-template-engine-settings-page]: NULL initial state with no SQL DEFAULT — defaults resolved at render time in pure utility, not at insert time
+- [Phase 24-estimate-template-engine-settings-page]: Empty string treated same as NULL in resolveTemplate() — (field || null) ?? default pattern
 
 ## Performance Metrics
 
@@ -259,13 +262,14 @@ Last activity: 2026-05-08 — Roadmap for v1.4 created (3 phases, 8 requirements
 | Phase 22-ai-price-anchoring P03 | 13min | 2 tasks | 5 files |
 | Phase 23-estimate-editor-price-badges P01 | 3min | 2 tasks | 3 files |
 | Phase 23-estimate-editor-price-badges P02 | 12min | 2 tasks | 5 files |
+| Phase 24-estimate-template-engine-settings-page P01 | 13min | 2 tasks | 5 files |
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-06)
 
 **Core value:** Business owner → job site audio recording → sent professional estimate in under 5 minutes
-**Current focus:** Phase 24 — Estimate Template Engine + Settings Page
+**Current focus:** Phase 24 — estimate-template-engine-settings-page
 
 ## Notes
 
