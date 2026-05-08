@@ -700,7 +700,7 @@ export type Database = {
           id: string
           project_id: string
           company_id: string
-          storage_path: string
+          storage_path: string | null
           duration_seconds: number | null
           transcript: string | null
           created_at: string
@@ -709,7 +709,7 @@ export type Database = {
           id?: string
           project_id: string
           company_id: string
-          storage_path: string
+          storage_path?: string | null
           duration_seconds?: number | null
           transcript?: string | null
           created_at?: string
