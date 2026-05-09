@@ -93,6 +93,7 @@
 - [ ] **Phase 32: Text Input Route** — New `/projects/[id]/describe` route with large textarea; save text as transcript; "Generate Estimate" button triggers same pipeline as audio (1 plan)
   - [x] 32-01-PLAN.md — Route shell + TextDescribe component + generate pipeline wiring
 - [ ] **Phase 33: Photos Input Route** — New `/projects/[id]/photos-input` route with direct upload; "Generate from Photos" button prominent when photos added; Claude Vision pipeline
+  - [x] 33-01-PLAN.md — Route shell + PhotosInput component + generate pipeline wiring
 
 ## Phase Details
 
@@ -230,8 +231,9 @@ Plans:
   3. A "Generate from Photos" button is visible and prominent as soon as at least 1 photo is uploaded
   4. Clicking the button runs the Claude Vision pipeline to analyze the photos and generate the estimate (no transcript required)
   5. The user lands in the estimate editor with the generated result, same as audio/text flows
-**Plans**: TBD
-**UI hint**: yes
+**Plans**: 1 plan
+Plans:
+- [x] 33-01-PLAN.md — Route shell + PhotosInput component + generate pipeline wiring
 
 ## Progress
 
@@ -269,4 +271,4 @@ Plans:
 | 30. AI Client Extraction | v1.5 | 1/1 | Complete    | 2026-05-09 |
 | 31. Wizard Modality Selection | v1.6 | 1/1 | Complete   | 2026-05-09 |
 | 32. Text Input Route | v1.6 | 1/1 | Complete    | 2026-05-09 |
-| 33. Photos Input Route | v1.6 | TBD | Not started | - |
+| 33. Photos Input Route | v1.6 | 1/1 | Complete    | 2026-05-09 |
