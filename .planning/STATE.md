@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Zero-friction Project Onboarding
 status: completed
-last_updated: "2026-05-09T22:36:53.676Z"
+last_updated: "2026-05-09T22:43:53.724Z"
 last_activity: 2026-05-09
 progress:
-  total_phases: 35
-  completed_phases: 33
-  total_plans: 96
-  completed_plans: 94
+  total_phases: 36
+  completed_phases: 34
+  total_plans: 97
+  completed_plans: 95
 ---
 
 # Project State
@@ -21,13 +21,15 @@ progress:
 
 ## Current Position
 
-Phase: 35
+Phase: 36
 Plan: 01
 Status: COMPLETE
 Last activity: 2026-05-09
 
 ## Completed Phases
 
+- Phase 36: Voice Refinement (36-voice-refinement) — COMPLETE 2026-05-09
+  - Plan 01: VoiceRefineRecorder component + voice refinement API route + panel wiring — COMPLETE (83b81a7, 0602d29, 4eee7ff)
 - Phase 26: Bulk Price Adjustment (26-bulk-price-adjustment) — COMPLETE 2026-05-08
   - Plan 01: bulkAdjustSchema + bulkAdjustPriceBookCategory server action (TDD, .upsert() atomicity) — COMPLETE
   - Plan 02: BulkAdjustDialog component + "Adjust %" button wired into PriceBookList category headers — COMPLETE
@@ -312,6 +314,7 @@ Last activity: 2026-05-09
 | Phase 29 P01 | 8 | 3 tasks | 8 files |
 | Phase 31 P01 | 1 | 5 tasks | 5 files |
 | Phase 35-text-refinement P01 | 2 | 4 tasks | 3 files |
+| Phase 36 P01 | 145 | 3 tasks | 4 files |
 
 ## Project Reference
 
