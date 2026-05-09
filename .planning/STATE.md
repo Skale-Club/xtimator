@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Zero-friction Project Onboarding
 status: verifying
-last_updated: "2026-05-08T20:11:28.652Z"
-last_activity: 2026-05-08
+last_updated: "2026-05-09T17:50:23.437Z"
+last_activity: 2026-05-09
 progress:
   total_phases: 7
-  completed_phases: 4
-  total_plans: 8
-  completed_plans: 8
+  completed_phases: 6
+  total_plans: 10
+  completed_plans: 10
 ---
 
 # Project State
@@ -21,16 +21,23 @@ progress:
 
 ## Current Position
 
-Phase: 28
-Plan: Not started
-Status: Phase complete — ready for verification
-Last activity: 2026-05-08
+Phase: 29
+Plan: 01
+Status: Plan complete — Phase complete — ready for verification
+Last activity: 2026-05-09
 
 ## Completed Phases
 
 - Phase 26: Bulk Price Adjustment (26-bulk-price-adjustment) — COMPLETE 2026-05-08
   - Plan 01: bulkAdjustSchema + bulkAdjustPriceBookCategory server action (TDD, .upsert() atomicity) — COMPLETE
   - Plan 02: BulkAdjustDialog component + "Adjust %" button wired into PriceBookList category headers — COMPLETE
+- Phase 27: Capture Schema Migration (27-capture-schema-migration) — COMPLETE 2026-05-09
+  - Plan 01: Migration to make storage_path nullable in recordings + client_id nullable in projects — COMPLETE
+- Phase 28: Unified Capture Screen (28-unified-capture-screen) — COMPLETE 2026-05-09
+  - Plan 01: Multi-modal capture (text + photos) as alternatives to audio — COMPLETE
+- Phase 29: Frictionless Project Creation & Client Linking (29-frictionless-project-creation-client-linking) — COMPLETE 2026-05-09
+  - Plan 01: client-optional wizard + new-project button + link-client card (CLIENTASSOC-01, CLIENTASSOC-02, CLIENTASSOC-04) — COMPLETE
+- Phase 30: [planned]
 - Phase 25: Plain Text Tab + Copy UI (25-plain-text-tab-copy-ui) — COMPLETE 2026-05-08
   - Plan 01: buildItemsBreakdown utility + unit tests (TDD RED→GREEN) — COMPLETE
   - Plan 02: PlainTextCard component + data chain wiring (page.tsx → ProjectWorkspace → SendTab) — COMPLETE
@@ -223,6 +230,11 @@ Last activity: 2026-05-08
 - [Phase 27-capture-schema-migration]: recordings.storage_path DROP NOT NULL via migration — non-destructive, existing rows unaffected
 - [Phase 27-capture-schema-migration]: projects.client_id already nullable in DB — only app-layer Zod schema change needed
 - [Phase 27-capture-schema-migration]: STEP_FIELDS[1] emptied — clientId optional means no required field validation at wizard step 1
+- [Phase 28 P01]: Multi-modal capture: text + photos as alternatives to audio
+- [Phase 29]: Client-optional project creation with linking from wizard, client detail, and project overview surfaces
+- [Phase 30]: [planned]
+- [Phase 29]: setValue(clientId, undefined) — undefined is treated as optional by zod, not empty string (which fails validation)
+- [Phase 29]: LinkClientCard uses lazy fetch with client state + loaded flag pattern to avoid SSR issues
 
 ## Performance Metrics
 
@@ -294,13 +306,15 @@ Last activity: 2026-05-08
 | Phase 25-plain-text-tab-copy-ui P02 | 39min | 2 tasks | 4 files |
 | Phase 26-bulk-price-adjustment P02 | 4min | 2 tasks | 4 files |
 | Phase 27-capture-schema-migration P01 | 3 | 2 tasks | 7 files |
+| Phase 28 P01 | 8 | 3 tasks | 3 files |
+| Phase 29 P01 | 8 | 3 tasks | 8 files |
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-08)
 
 **Core value:** Business owner → job site audio recording → sent professional estimate in under 5 minutes
-**Current focus:** Phase 27 — capture-schema-migration
+**Current focus:** Phase 30 — AI client extraction
 
 ## Notes
 
