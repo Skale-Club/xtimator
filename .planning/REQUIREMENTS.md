@@ -1,3 +1,27 @@
+# Requirements: v1.8 - Iterative Estimate Refinement
+
+## v1.8 Requirements (SEED-006)
+
+### Text Refinement (Phase 35)
+
+- [ ] **REFINE-01**: Estimate editor has a refinement panel below the sections with a text input field and send button
+- [ ] **REFINE-02**: API endpoint `POST /api/estimates/[id]/refine` accepts text instruction, calls AI with current estimate + instruction + price book, returns updated estimate JSON
+- [ ] **REFINE-03**: Refinement creates a new estimate version (preserves old version), updates editor to show new version, shows toast with version number
+
+### Voice Refinement (Phase 36)
+
+- [ ] **VOICE-REFINE-01**: Refinement panel has inline voice recorder button (~30s max)
+- [ ] **VOICE-REFINE-02**: Voice recording uses Whisper for transcription, then same pipeline as text refinement
+- [ ] **VOICE-REFINE-03**: Voice refinement creates new version same as text refinement
+
+### Photo Refinement (Phase 37)
+
+- [ ] **PHOTO-REFINE-01**: Refinement panel has photo upload button
+- [ ] **PHOTO-REFINE-02**: Photo upload triggers Claude Vision analysis, generates instruction automatically
+- [ ] **PHOTO-REFINE-03**: Photo refinement creates new version same as text refinement
+
+---
+
 # Requirements: v1.6 - Multi-modal Project Input
 
 ## v1.6 Requirements (SEED-005)
@@ -60,7 +84,7 @@
 - Video input - not accepted; processing complexity exceeds value
 - Exclusive 3-way modal picker (pick one, not combined) - user confirmed combined capture screen is correct
 - WhatsApp channel (SEED-008) - standalone milestone
-- Iterative estimate refinement (SEED-006) - next milestone candidate
+- Iterative estimate refinement (SEED-006) — v1.8 milestone
 - Silent AI client auto-creation without user confirmation - intentionally excluded to prevent client list pollution
 - Multi-number WhatsApp per company - out of scope
 

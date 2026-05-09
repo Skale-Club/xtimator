@@ -239,7 +239,14 @@ Plans:
 ### v1.7 Client-Project Quick Actions (Phase 34)
 
 - [ ] **Phase 34: Client-Project Quick Actions Verification** — Verify all CLIENTASSOC features work correctly; address any gaps
-  - [x] 34-01-PLAN.md — Verification plan (4 human checkpoint tasks)
+   - [x] 34-01-PLAN.md — Verification plan (4 human checkpoint tasks)
+
+### v1.8 Iterative Estimate Refinement (Phases 35-37)
+
+- [ ] **Phase 35: Text Refinement** — Add text input refinement panel to estimate editor, new API endpoint `/api/estimates/[id]/refine`, AI refinement prompt, new version creation
+  - [x] 35-01-PLAN.md — Text refinement panel + API endpoint + AI integration
+- [ ] **Phase 36: Voice Refinement** — Inline voice recorder (~30s), Whisper transcription, same refinement pipeline
+- [ ] **Phase 37: Photo Refinement** — Photo upload, Claude Vision analysis, auto-generate instruction
 
 ## Progress
 
