@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { Edit3, Loader2, Send, Mic, ChevronDown, ChevronUp } from 'lucide-react'
+import { Edit3, Loader2, Send, Mic, ChevronDown, ChevronUp, Camera } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Card } from '@/components/ui/card'
@@ -25,6 +25,9 @@ export function RefineEstimatePanel({
   const [instruction, setInstruction] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [voiceExpanded, setVoiceExpanded] = useState(false)
+  const [photoExpanded, setPhotoExpanded] = useState(false)
+  const [isUploadingPhotos, setIsUploadingPhotos] = useState(false)
+  const [selectedPhotos, setSelectedPhotos] = useState<File[]>([])
 
   const handleRefine = useCallback(async () => {
     if (!instruction.trim() || isLoading) return
@@ -54,6 +57,47 @@ export function RefineEstimatePanel({
       setIsLoading(false)
     }
   }, [instruction, isLoading, estimateId, onRefined, router])
+
+  const handlePhotoRefine = useCallback(async () => {
+    if (selectedPhotos.length === 0 || isUploadingPhotos) return
+
+    setIsUploadingPhotos(true)
+    try {
+      const formData = new FormData()
+      for (const photo of selectedPhotos) {
+        formData.append('photos', photo)
+      }
+
+      const res = await fetch(`/api/estimates/${estimateId}/refine/photo`, {
+        method: 'POST',
+        body: formData,
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.error ?? 'Photo refinement failed')
+      }
+
+      toast.success(`Estimate refined — v${data.newVersion}`)
+      setSelectedPhotos([])
+      setPhotoExpanded(false)
+      setIsOpen(false)
+      onRefined()
+      router.refresh()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Photo refinement failed')
+    } finally {
+      setIsUploadingPhotos(false)
+    }
+  }, [selectedPhotos, isUploadingPhotos, estimateId, onRefined, router])
+
+  const handlePhotoSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (files) {
+      setSelectedPhotos(Array.from(files).slice(0, 5)) // Max 5 photos
+    }
+  }, [])
 
   return (
     <Card className="p-4">
@@ -143,8 +187,74 @@ export function RefineEstimatePanel({
                     setIsLoading(false)
                   }
                 }}
-                disabled={isLoading}
+disabled={isLoading || isUploadingPhotos}
               />
+            </div>
+          )}
+
+          {/* Photo upload toggle */}
+          {!photoExpanded && !voiceExpanded && (
+            <button
+              type="button"
+              onClick={() => setPhotoExpanded(true)}
+              disabled={isLoading}
+              className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Camera className="h-4 w-4" />
+              <span>Or upload photos to refine</span>
+              <ChevronDown className="h-3.5 w-3.5" />
+            </button>
+          )}
+
+          {/* Photo upload section */}
+          {photoExpanded && (
+            <div className="space-y-3 rounded-md border border-dashed border-border p-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium">Photo instruction</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPhotoExpanded(false)
+                    setSelectedPhotos([])
+                  }}
+                  className="text-xs text-muted-foreground hover:text-foreground"
+                >
+                  <ChevronUp className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              <div className="space-y-2">
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={handlePhotoSelect}
+                  disabled={isUploadingPhotos}
+                  className="block w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
+                />
+                {selectedPhotos.length > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    {selectedPhotos.length} photo(s) selected (max 5)
+                  </p>
+                )}
+                <Button
+                  size="sm"
+                  onClick={handlePhotoRefine}
+                  disabled={selectedPhotos.length === 0 || isUploadingPhotos}
+                  className="gap-1.5 w-full"
+                >
+                  {isUploadingPhotos ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      Analyzing...
+                    </>
+                  ) : (
+                    <>
+                      <Camera className="h-3.5 w-3.5" />
+                      Refine with Photos
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
           )}
 
@@ -152,7 +262,7 @@ export function RefineEstimatePanel({
             <Button
               size="sm"
               onClick={handleRefine}
-              disabled={!instruction.trim() || isLoading}
+              disabled={!instruction.trim() || isLoading || isUploadingPhotos}
               className="gap-1.5"
             >
               {isLoading ? (
