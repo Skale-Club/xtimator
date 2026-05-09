@@ -8,6 +8,7 @@
 - ✅ **v1.3 Smart Pricing** — Phases 19-23 (shipped 2026-05-08) · [archive](milestones/v1.3-ROADMAP.md)
 - ✅ **v1.4 Estimate Plain Text & Pricing Tools** — Phases 24-26 (shipped 2026-05-08) · [archive](milestones/v1.4-ROADMAP.md)
 - [shipped] **v1.5 Zero-friction Project Onboarding** - Phases 27-30 (shipped 2026-05-09) - [archive](milestones/v1.5-ROADMAP.md)
+- **v1.6 Multi-modal Project Input** — Phases 31-33 (planned)
 
 ## Phases
 
@@ -85,6 +86,12 @@
  (completed 2026-05-09)
 - [x] **Phase 30: AI Client Extraction** — After estimate generation, surface a non-blocking toast when AI detects a client name in content, letting the user accept or dismiss the suggested link
  (completed 2026-05-09)
+
+### v1.6 Multi-modal Project Input (Phases 31-33)
+
+- [ ] **Phase 31: Wizard Modality Selection** — Add second step to project wizard with 3 modality choice cards (Audio/Text/Photos); redirect to appropriate route based on selection; store input_mode on project (1 plan)
+- [ ] **Phase 32: Text Input Route** — New `/projects/[id]/describe` route with large textarea; save text as transcript; "Generate Estimate" button triggers same pipeline as audio
+- [ ] **Phase 33: Photos Input Route** — New `/projects/[id]/photos-input` route with direct upload; "Generate from Photos" button prominent when photos added; Claude Vision pipeline
 
 ## Phase Details
 
@@ -183,6 +190,47 @@ Plans:
 Plans:
 - [x] 30-01-PLAN.md - AI client extraction output, conservative client matching, and non-blocking suggestion toast
 
+### Phase 31: Wizard Modality Selection
+**Goal**: Users choose their preferred input modality (audio, text, or photos) as the second step of project creation, with each choice leading to a dedicated capture route
+**Depends on**: Phase 28 (unified capture screen exists), Phase 29 (client-optional wizard exists)
+**Requirements**: WIZARD-01, WIZARD-02, WIZARD-03, WIZARD-04
+**Success Criteria** (what must be TRUE):
+  1. After selecting a client (or skipping), the user sees 3 large clickable cards labeled "Audio", "Text", and "Photos" — each with an icon and a one-line use case description
+  2. Clicking the Audio card navigates to `/projects/[id]/capture` (existing route)
+  3. Clicking the Text card navigates to `/projects/[id]/describe` (new route)
+  4. Clicking the Photos card navigates to `/projects/[id]/photos-input` (new route)
+  5. The selected modality is stored in the project record as `input_mode` and persists across sessions
+**Plans**: 1 plan
+Plans:
+- [ ] 31-01-PLAN.md — Database migration + types + schema + StepModalitySelect component + 2-step wizard + action updates
+**UI hint**: yes
+
+### Phase 32: Text Input Route
+**Goal**: Users can type a job description and generate an estimate without recording any audio
+**Depends on**: Phase 31 (wizard redirects to this route), Phase 27 (text-only recordings supported)
+**Requirements**: TEXT-01, TEXT-02, TEXT-03, TEXT-04, TEXT-05
+**Success Criteria** (what must be TRUE):
+  1. The `/projects/[id]/describe` route displays a textarea with placeholder text showing example job descriptions
+  2. The textarea is large enough for at least 10 lines of input with comfortable line height
+  3. Clicking "Save & Generate Estimate" creates a recording with the typed text as `transcript` (no storage_path, no duration_seconds)
+  4. The estimate generation pipeline runs identically to the audio route — the only difference is the text origin
+  5. The route is mobile-responsive with touch-friendly tap targets (minimum 44px)
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 33: Photos Input Route
+**Goal**: Users can upload photos and generate an estimate without recording audio or typing text
+**Depends on**: Phase 31 (wizard redirects to this route), Phase 27 (photos-only flow supported)
+**Requirements**: PHOTO-01, PHOTO-02, PHOTO-03, PHOTO-04
+**Success Criteria** (what must be TRUE):
+  1. The `/projects/[id]/photos-input` route displays a direct photo upload zone without requiring navigation through the workspace
+  2. The PhotoDropZone component is reused from the existing workspace
+  3. A "Generate from Photos" button is visible and prominent as soon as at least 1 photo is uploaded
+  4. Clicking the button runs the Claude Vision pipeline to analyze the photos and generate the estimate (no transcript required)
+  5. The user lands in the estimate editor with the generated result, same as audio/text flows
+**Plans**: TBD
+**UI hint**: yes
+
 ## Progress
 
 | Phase | Milestone | Plans | Status | Completed |
@@ -217,3 +265,6 @@ Plans:
 | 28. Unified Capture Screen | v1.5 | 1/1 | Complete | 2026-05-09 |
 | 29. Frictionless Project Creation & Client Linking | v1.5 | 1/TBD | Complete    | 2026-05-09 |
 | 30. AI Client Extraction | v1.5 | 1/1 | Complete    | 2026-05-09 |
+| 31. Wizard Modality Selection | v1.6 | TBD | Not started | - |
+| 32. Text Input Route | v1.6 | TBD | Not started | - |
+| 33. Photos Input Route | v1.6 | TBD | Not started | - |
