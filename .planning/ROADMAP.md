@@ -90,7 +90,8 @@
 ### v1.6 Multi-modal Project Input (Phases 31-33)
 
 - [x] **Phase 31: Wizard Modality Selection** — Add second step to project wizard with 3 modality choice cards (Audio/Text/Photos); redirect to appropriate route based on selection; store input_mode on project (1 plan) (completed 2026-05-09)
-- [ ] **Phase 32: Text Input Route** — New `/projects/[id]/describe` route with large textarea; save text as transcript; "Generate Estimate" button triggers same pipeline as audio
+- [ ] **Phase 32: Text Input Route** — New `/projects/[id]/describe` route with large textarea; save text as transcript; "Generate Estimate" button triggers same pipeline as audio (1 plan)
+  - [x] 32-01-PLAN.md — Route shell + TextDescribe component + generate pipeline wiring
 - [ ] **Phase 33: Photos Input Route** — New `/projects/[id]/photos-input` route with direct upload; "Generate from Photos" button prominent when photos added; Claude Vision pipeline
 
 ## Phase Details
@@ -215,8 +216,9 @@ Plans:
   3. Clicking "Save & Generate Estimate" creates a recording with the typed text as `transcript` (no storage_path, no duration_seconds)
   4. The estimate generation pipeline runs identically to the audio route — the only difference is the text origin
   5. The route is mobile-responsive with touch-friendly tap targets (minimum 44px)
-**Plans**: TBD
-**UI hint**: yes
+**Plans**: 1 plan
+Plans:
+- [x] 32-01-PLAN.md — Route shell + TextDescribe component + generate pipeline wiring
 
 ### Phase 33: Photos Input Route
 **Goal**: Users can upload photos and generate an estimate without recording audio or typing text
@@ -266,5 +268,5 @@ Plans:
 | 29. Frictionless Project Creation & Client Linking | v1.5 | 1/TBD | Complete    | 2026-05-09 |
 | 30. AI Client Extraction | v1.5 | 1/1 | Complete    | 2026-05-09 |
 | 31. Wizard Modality Selection | v1.6 | 1/1 | Complete   | 2026-05-09 |
-| 32. Text Input Route | v1.6 | TBD | Not started | - |
+| 32. Text Input Route | v1.6 | 1/1 | Complete    | 2026-05-09 |
 | 33. Photos Input Route | v1.6 | TBD | Not started | - |
