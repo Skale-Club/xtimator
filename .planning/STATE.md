@@ -2,28 +2,28 @@
 gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Zero-friction Project Onboarding
-status: verifying
-last_updated: "2026-05-09T19:34:23.684Z"
+status: Ready to start
+last_updated: "2026-05-09T21:21:11.219Z"
 last_activity: 2026-05-09
 progress:
-  total_phases: 7
-  completed_phases: 7
-  total_plans: 11
-  completed_plans: 11
+  total_phases: 31
+  completed_phases: 31
+  total_plans: 92
+  completed_plans: 92
 ---
 
 # Project State
 
 ## Current Status
 
-- **Milestone**: v1.5 Zero-friction Project Onboarding — 🔲 IN PROGRESS (0/4 phases)
-- **Last updated**: 2026-05-08
+- **Milestone**: v1.6 Multi-modal Project Input — 🔲 PLANNED (0/3 phases)
+- **Last updated**: 2026-05-09
 
 ## Current Position
 
-Phase: 30
+Phase: 31
 Plan: Not started
-Status: Plan complete — Phase complete — ready for verification
+Status: Ready to start
 Last activity: 2026-05-09
 
 ## Completed Phases
@@ -235,6 +235,7 @@ Last activity: 2026-05-09
 - [Phase 30]: [planned]
 - [Phase 29]: setValue(clientId, undefined) — undefined is treated as optional by zod, not empty string (which fails validation)
 - [Phase 29]: LinkClientCard uses lazy fetch with client state + loaded flag pattern to avoid SSR issues
+- [Phase 31]: Wizard step indicator: numbered circles (1, 2) with connector line, active step highlighted with bg-primary
 
 ## Performance Metrics
 
@@ -308,6 +309,7 @@ Last activity: 2026-05-09
 | Phase 27-capture-schema-migration P01 | 3 | 2 tasks | 7 files |
 | Phase 28 P01 | 8 | 3 tasks | 3 files |
 | Phase 29 P01 | 8 | 3 tasks | 8 files |
+| Phase 31 P01 | 1 | 5 tasks | 5 files |
 
 ## Project Reference
 
@@ -324,6 +326,7 @@ v1.2: 3 phases (10-12), 16 requirements. Seeds: SEED-001 (i18n EN/PT-BR/ES), SEE
 v1.3: 5 phases (19-23), 12 requirements. Price book DB + CRUD UI + CSV import + AI anchoring + editor badges.
 v1.4: 3 phases (24-26), 8 requirements. Estimate template engine + settings page + plain text tab + copy UI + bulk price adjustment.
 v1.5: 4 phases (27-30), 8 requirements. Capture schema migration + unified capture screen + frictionless project creation + AI client extraction.
+v1.6: 3 phases (31-33), 13 requirements. Wizard modality selection + text input route + photos input route (SEED-005).
 
 ## Accumulated Context
 
@@ -337,6 +340,7 @@ v1.5: 4 phases (27-30), 8 requirements. Capture schema migration + unified captu
 - v1.3 phases 19-23: DB foundation (Phase 19) → CRUD UI (Phase 20) → CSV import (Phase 21) → AI anchoring (Phase 22) → editor badges (Phase 23). Key constraint: price book is optional — companies without entries continue working as before (AIPRICE-02 covers fallback with no regression). Phase 22 depends on Phase 19 (needs price_source column) but NOT on Phase 20/21 (AI integration doesn't require UI to be built first). Phase 23 depends on Phase 22 (needs price_source data on estimate_items).
 - v1.4 phases 24-26: Template engine + settings page (Phase 24) → Plain text tab + copy UI (Phase 25) → Bulk price adjustment (Phase 26). Key constraint: Phase 25 depends on Phase 24 (template engine must exist to drive text rendering). Phase 26 is independent of the plain-text phases — depends only on Phase 19-20 (price book infrastructure).
 - v1.5 phases 27-30: Schema migration (Phase 27) → Unified capture screen (Phase 28) → Frictionless creation + client linking UI (Phase 29) → AI client extraction (Phase 30). Key constraint: Phase 27 is a hard prerequisite for everything — nullable storage_path enables text-only recordings, optional client_id enables client-less projects. Phase 28 depends on Phase 27. Phase 29 depends on Phase 27 (optional client_id) and is informed by Phase 28 but not blocked by it. Phase 30 is highest risk (AI adapter changes) and ships last, depending on Phase 28 (estimate generation must have run first).
+- v1.6 phases 31-33 (SEED-005): Wizard modality selection (Phase 31) → Text input route /describe (Phase 32) → Photos input route /photos-input (Phase 33). Key constraint: Phase 27 (nullable storage_path) already enables text-only and photos-only recordings. Phase 31 adds the wizard selection UI and input_mode storage. Phases 32-33 are independent entry points that reuse the existing generate-estimate pipeline.
 
 ### Quick Tasks Completed
 

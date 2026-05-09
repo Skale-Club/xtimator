@@ -89,7 +89,7 @@
 
 ### v1.6 Multi-modal Project Input (Phases 31-33)
 
-- [ ] **Phase 31: Wizard Modality Selection** — Add second step to project wizard with 3 modality choice cards (Audio/Text/Photos); redirect to appropriate route based on selection; store input_mode on project (1 plan)
+- [x] **Phase 31: Wizard Modality Selection** — Add second step to project wizard with 3 modality choice cards (Audio/Text/Photos); redirect to appropriate route based on selection; store input_mode on project (1 plan) (completed 2026-05-09)
 - [ ] **Phase 32: Text Input Route** — New `/projects/[id]/describe` route with large textarea; save text as transcript; "Generate Estimate" button triggers same pipeline as audio
 - [ ] **Phase 33: Photos Input Route** — New `/projects/[id]/photos-input` route with direct upload; "Generate from Photos" button prominent when photos added; Claude Vision pipeline
 
@@ -202,7 +202,7 @@ Plans:
   5. The selected modality is stored in the project record as `input_mode` and persists across sessions
 **Plans**: 1 plan
 Plans:
-- [ ] 31-01-PLAN.md — Database migration + types + schema + StepModalitySelect component + 2-step wizard + action updates
+- [x] 31-01-PLAN.md — Database migration + types + schema + StepModalitySelect component + 2-step wizard + action updates
 **UI hint**: yes
 
 ### Phase 32: Text Input Route
@@ -265,6 +265,6 @@ Plans:
 | 28. Unified Capture Screen | v1.5 | 1/1 | Complete | 2026-05-09 |
 | 29. Frictionless Project Creation & Client Linking | v1.5 | 1/TBD | Complete    | 2026-05-09 |
 | 30. AI Client Extraction | v1.5 | 1/1 | Complete    | 2026-05-09 |
-| 31. Wizard Modality Selection | v1.6 | TBD | Not started | - |
+| 31. Wizard Modality Selection | v1.6 | 1/1 | Complete   | 2026-05-09 |
 | 32. Text Input Route | v1.6 | TBD | Not started | - |
 | 33. Photos Input Route | v1.6 | TBD | Not started | - |
