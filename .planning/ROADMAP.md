@@ -247,7 +247,8 @@ Plans:
    - [x] 35-01-PLAN.md — Text refinement panel + API endpoint + AI integration (COMPLETE)
 - [x] **Phase 36: Voice Refinement** — Inline voice recorder (~30s), Whisper transcription, same refinement pipeline
    - [x] 36-01-PLAN.md — VoiceRefineRecorder + voice API route + panel wiring (COMPLETE 2026-05-09)
-- [ ] **Phase 37: Photo Refinement** — Photo upload, Claude Vision analysis, auto-generate instruction
+- [x] **Phase 37: Photo Refinement** — Photo upload, Claude Vision analysis, auto-generate instruction
+   - [x] 37-01-PLAN.md — Photo upload section in refine panel + Claude Vision API route
 
 ## Progress
 
