@@ -8,7 +8,8 @@
 - ✅ **v1.3 Smart Pricing** — Phases 19-23 (shipped 2026-05-08) · [archive](milestones/v1.3-ROADMAP.md)
 - ✅ **v1.4 Estimate Plain Text & Pricing Tools** — Phases 24-26 (shipped 2026-05-08) · [archive](milestones/v1.4-ROADMAP.md)
 - [shipped] **v1.5 Zero-friction Project Onboarding** - Phases 27-30 (shipped 2026-05-09) - [archive](milestones/v1.5-ROADMAP.md)
-- **v1.6 Multi-modal Project Input** — Phases 31-33 (planned)
+- [shipped] **v1.6 Multi-modal Project Input** — Phases 31-33 (shipped 2026-05-09) - [archive](milestones/v1.6-ROADMAP.md)
+- **v1.7 Client-Project Quick Actions** — Phase 34 (planned)
 
 ## Phases
 
@@ -235,6 +236,11 @@ Plans:
 Plans:
 - [x] 33-01-PLAN.md — Route shell + PhotosInput component + generate pipeline wiring
 
+### v1.7 Client-Project Quick Actions (Phase 34)
+
+- [ ] **Phase 34: Client-Project Quick Actions Verification** — Verify all CLIENTASSOC features work correctly; address any gaps
+  - [x] 34-01-PLAN.md — Verification plan (4 human checkpoint tasks)
+
 ## Progress
 
 | Phase | Milestone | Plans | Status | Completed |
@@ -272,3 +278,4 @@ Plans:
 | 31. Wizard Modality Selection | v1.6 | 1/1 | Complete   | 2026-05-09 |
 | 32. Text Input Route | v1.6 | 1/1 | Complete    | 2026-05-09 |
 | 33. Photos Input Route | v1.6 | 1/1 | Complete    | 2026-05-09 |
+| 34. Client-Project Quick Actions Verification | v1.7 | TBD | Planned | - |
