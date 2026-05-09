@@ -32,7 +32,7 @@ export function NewProjectWizard({ clients }: NewProjectWizardProps) {
     resolver: zodResolver(projectSchema) as any,
     mode: 'onBlur',
     defaultValues: {
-      clientId: '',
+      clientId: undefined,
       clientName: '',
     },
   })
@@ -40,10 +40,7 @@ export function NewProjectWizard({ clients }: NewProjectWizardProps) {
   function handleSubmit() {
     startTransition(async () => {
       const values = form.getValues()
-      // Trigger validation before submitting
-      const valid = await form.trigger(['clientId'])
-      if (!valid) return
-
+      // Client is optional - no validation trigger needed
       const result = await createProjectAction(values)
       if ('error' in result) {
         toast.error(result.error)

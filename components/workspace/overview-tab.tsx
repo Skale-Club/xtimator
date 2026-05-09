@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { StatusBadge } from '@/components/dashboard/status-badge'
 import { QuickStats } from './quick-stats'
 import { ActivityTimeline } from './activity-timeline'
+import { LinkClientCard } from './link-client-card'
 import type { ProjectDetail, ActivityEvent, ProjectQuickStats } from '@/lib/queries/project'
 
 interface OverviewTabProps {
@@ -15,6 +16,10 @@ interface OverviewTabProps {
 export function OverviewTab({ project, activity, stats }: OverviewTabProps) {
   return (
     <div className="space-y-6">
+      {/* Link Client Card — shown only when no client linked */}
+      {!project.client && (
+        <LinkClientCard projectId={project.id} />
+      )}
       {/* Project Summary Card */}
       <Card>
         <CardHeader>

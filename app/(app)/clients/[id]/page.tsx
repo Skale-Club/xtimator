@@ -1,6 +1,6 @@
 import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Mail, Phone, MapPin, FileText, FolderOpen } from 'lucide-react'
+import { ArrowLeft, Mail, Phone, MapPin, FileText, FolderOpen, Plus } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { getClientById, getClientProjects } from '@/lib/queries/clients'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -18,6 +18,7 @@ import {
 import { StatusBadge } from '@/components/dashboard/status-badge'
 import { EmptyState } from '@/components/dashboard/empty-state'
 import { ClientDetailActions } from '@/components/clients/client-detail-actions'
+import { ClientNewProjectButton } from '@/components/clients/client-new-project-button'
 
 export default async function ClientDetailPage({
   params,
@@ -81,6 +82,7 @@ export default async function ClientDetailPage({
                   </Badge>
                 </div>
                 <ClientDetailActions client={client} companyId={company.id} />
+                <ClientNewProjectButton clientId={client.id} clientName={client.name} />
               </div>
 
               <div className="space-y-2 text-sm">

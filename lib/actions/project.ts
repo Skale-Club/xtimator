@@ -116,3 +116,56 @@ export async function duplicateProjectAction(projectId: string) {
   revalidatePath('/', 'layout')
   return { data: newProject }
 }
+
+export async function createProjectWithClientAction(clientId: string) {
+  const ctx = await getAuthContext()
+  if ('error' in ctx) return { error: ctx.error }
+  const { supabase, company } = ctx
+
+  const placeholderName = `${PLACEHOLDER_PREFIX}${new Date().toLocaleDateString()}`
+
+  const { data: project, error: insertError } = await supabase
+    .from('projects')
+    .insert({
+      company_id: company.id,
+      client_id: clientId,
+      name: placeholderName,
+      project_type: null,
+      status: 'draft',
+      target_budget: null,
+      total: 0,
+    })
+    .select()
+    .single()
+
+  if (insertError || !project) {
+    return { error: 'Failed to create project. Please try again.' }
+  }
+
+  await supabase.from('estimate_activity').insert({
+    project_id: project.id,
+    company_id: company.id,
+    event_type: 'project_created',
+    metadata: { placeholder_name: placeholderName },
+  })
+
+  revalidatePath('/dashboard')
+  revalidatePath('/', 'layout')
+  return { data: project }
+}
+
+export async function linkProjectToClient(projectId: string, clientId: string) {
+  const ctx = await getAuthContext()
+  if ('error' in ctx) return { error: ctx.error }
+  const { supabase } = ctx
+
+  const { error } = await supabase
+    .from('projects')
+    .update({ client_id: clientId })
+    .eq('id', projectId)
+
+  if (error) return { error: 'Failed to link client. Please try again.' }
+
+  revalidatePath(`/projects/${projectId}`, 'layout')
+  return { data: { linked: true } }
+}

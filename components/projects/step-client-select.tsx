@@ -98,7 +98,7 @@ export function StepClientSelect({ form, clients: initialClients }: StepClientSe
 
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-semibold">Select a Client</h2>
+      <h2 className="text-lg font-semibold">Select a client (optional)</h2>
 
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
@@ -108,7 +108,7 @@ export function StepClientSelect({ form, clients: initialClients }: StepClientSe
             aria-expanded={open}
             className="min-h-[44px] w-full justify-between"
           >
-            {selectedClient ? selectedClient.name : 'Search clients...'}
+            {selectedClient ? selectedClient.name : 'No client'}
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
@@ -118,6 +118,16 @@ export function StepClientSelect({ form, clients: initialClients }: StepClientSe
             <CommandList>
               <CommandEmpty>No clients found.</CommandEmpty>
               <CommandGroup>
+                <CommandItem
+                  onSelect={() => {
+                    form.setValue('clientId', undefined, { shouldValidate: true })
+                    form.setValue('clientName', '')
+                    setOpen(false)
+                  }}
+                >
+                  <span className="mr-2 h-4 w-4 opacity-50">—</span>
+                  No client (continue without linking)
+                </CommandItem>
                 <CommandItem
                   onSelect={() => {
                     setShowInlineCreate(true)
