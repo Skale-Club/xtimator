@@ -648,6 +648,7 @@ export type Database = {
           client_id: string | null
           name: string
           project_type: string | null
+          input_mode: 'audio' | 'text' | 'photos' | 'mixed' | null
           status: string
           target_budget: number | null
           total: number
@@ -660,6 +661,7 @@ export type Database = {
           client_id?: string | null
           name: string
           project_type?: string | null
+          input_mode?: 'audio' | 'text' | 'photos' | 'mixed' | null
           status?: string
           target_budget?: number | null
           total?: number
@@ -672,6 +674,7 @@ export type Database = {
           client_id?: string | null
           name?: string
           project_type?: string | null
+          input_mode?: 'audio' | 'text' | 'photos' | 'mixed' | null
           status?: string
           target_budget?: number | null
           total?: number
