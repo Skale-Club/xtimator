@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Zero-friction Project Onboarding
 status: completed
-last_updated: "2026-05-09T22:43:53.724Z"
+last_updated: "2026-05-09T22:52:23.804Z"
 last_activity: 2026-05-09
 progress:
-  total_phases: 36
-  completed_phases: 34
-  total_plans: 97
-  completed_plans: 95
+  total_phases: 37
+  completed_phases: 35
+  total_plans: 98
+  completed_plans: 96
 ---
 
 # Project State
@@ -239,6 +239,7 @@ Last activity: 2026-05-09
 - [Phase 29]: LinkClientCard uses lazy fetch with client state + loaded flag pattern to avoid SSR issues
 - [Phase 31]: Wizard step indicator: numbered circles (1, 2) with connector line, active step highlighted with bg-primary
 - [Phase 35-text-refinement]: Refinement panel hidden on read-only old versions, shows new version number on success
+- [Phase 37]: Photo upload uses same collapsible pattern as voice recorder
 
 ## Performance Metrics
 
@@ -315,6 +316,7 @@ Last activity: 2026-05-09
 | Phase 31 P01 | 1 | 5 tasks | 5 files |
 | Phase 35-text-refinement P01 | 2 | 4 tasks | 3 files |
 | Phase 36 P01 | 145 | 3 tasks | 4 files |
+| Phase 37 P01 | 3 | 2 tasks | 2 files |
 
 ## Project Reference
 
