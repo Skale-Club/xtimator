@@ -31,6 +31,7 @@ import { EstimateHeader } from './estimate-header'
 import { SectionCard } from './section-card'
 import { EstimateTotals } from './estimate-totals'
 import { GenerationProgress } from './generation-progress'
+import { RefineEstimatePanel } from './refine-estimate-panel'
 import {
   showClientSuggestionToast,
   type GenerateEstimateResponse,
@@ -382,6 +383,15 @@ export function EstimateEditor({
 
       {/* Totals */}
       <EstimateTotals state={state} dispatch={dispatch} isReadOnly={isReadOnly} />
+
+      {/* Refinement panel — only on current (editable) version */}
+      {!isReadOnly && (
+        <RefineEstimatePanel
+          estimateId={estimate.id}
+          projectId={projectId}
+          onRefined={() => router.refresh()}
+        />
+      )}
     </div>
   )
 }
