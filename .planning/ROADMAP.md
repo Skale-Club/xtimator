@@ -164,7 +164,9 @@ Plans:
   2. On any client detail page, a "New Project" button creates a new project pre-linked to that client and navigates directly to the capture screen without showing a client selection step
   3. A project with no linked client shows a visible "Link client" card in the Overview tab, and the user can link a client from that card
   4. A project that already has a linked client does not show the "Link client" card in Overview
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 29-01-PLAN.md — Make client optional in wizard, add New Project button on client detail, add Link Client card in Overview
 **UI hint**: yes
 
 ### Phase 30: AI Client Extraction
@@ -208,6 +210,6 @@ Plans:
 | 25. Plain Text Tab + Copy UI | v1.4 | 2/2 | Complete    | 2026-05-08 |
 | 26. Bulk Price Adjustment | v1.4 | 2/2 | Complete    | 2026-05-08 |
 | 27. Capture Schema Migration | v1.5 | 1/1 | Complete    | 2026-05-08 |
-| 28. Unified Capture Screen | v1.5 | 1/1 | Not started | - |
-| 29. Frictionless Project Creation & Client Linking | v1.5 | 0/TBD | Not started | - |
+| 28. Unified Capture Screen | v1.5 | 1/1 | Complete | 2026-05-09 |
+| 29. Frictionless Project Creation & Client Linking | v1.5 | 1/TBD | Not started | - |
 | 30. AI Client Extraction | v1.5 | 0/TBD | Not started | - |
