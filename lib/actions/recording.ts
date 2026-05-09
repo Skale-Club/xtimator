@@ -22,6 +22,43 @@ async function getAuthContext() {
   return { supabase, company }
 }
 
+// Text-only recording — no audio file, transcript is the typed description
+export async function createTextRecording(
+  projectId: string,
+  description: string
+) {
+  const ctx = await getAuthContext()
+  if ('error' in ctx) return { error: ctx.error }
+  const { supabase, company } = ctx
+
+  const { data: recording, error: insertError } = await supabase
+    .from('recordings')
+    .insert({
+      project_id: projectId,
+      company_id: company.id,
+      storage_path: null, // text-only: no audio file
+      transcript: description,
+      duration_seconds: 0,
+    })
+    .select()
+    .single()
+
+  if (insertError || !recording) {
+    return { error: 'Failed to save description. Please try again.' }
+  }
+
+  // Log activity (skip status update — text-only has no audio to track)
+  await supabase.from('estimate_activity').insert({
+    project_id: projectId,
+    company_id: company.id,
+    event_type: 'description_added',
+    metadata: { source: 'text_input' },
+  })
+
+  revalidatePath(`/projects/${projectId}`)
+  return { data: recording }
+}
+
 export async function createRecording(
   projectId: string,
   storagePath: string,

@@ -72,18 +72,16 @@ export async function POST(request: Request) {
     // Load price book — 0 items means skip injection in prompt (D-10, AIPRICE-02)
     const priceBookItems = await getPriceBookItems(supabase, companyId)
 
-    // Prerequisite check (AI-01): need at least one transcript or analyzed photo
+    // Prerequisite check: need at least one transcript or photo
     const hasTranscripts = recordings.some(
       (r) => r.transcript && r.transcript.trim().length > 0
     )
-    const hasPhotoDescriptions = photos.some(
-      (p) => p.ai_description && p.ai_description.trim().length > 0
-    )
-    if (!hasTranscripts && !hasPhotoDescriptions) {
+    // Accept photos without AI descriptions — allow photos-only path (Phase 28-01)
+    const hasPhotos = photos.length > 0
+    if (!hasTranscripts && !hasPhotos) {
       return NextResponse.json(
         {
-          error:
-            'At least one transcript or analyzed photo is required',
+          error: 'At least one audio transcript or photo is required',
         },
         { status: 400 }
       )

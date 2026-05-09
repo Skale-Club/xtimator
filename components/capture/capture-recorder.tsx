@@ -11,10 +11,14 @@ import { CaptureTimer } from '@/components/capture/capture-timer'
 import { CaptureStepper } from '@/components/capture/capture-stepper'
 import { CaptureFailure } from '@/components/capture/capture-failure'
 import { WaveformVisualizer } from '@/components/workspace/audio/waveform-visualizer'
-import { createRecording, transcribeRecording } from '@/lib/actions/recording'
+import { createRecording, transcribeRecording, createTextRecording } from '@/lib/actions/recording'
+import { createPhoto } from '@/lib/actions/photo'
 import { createClient } from '@/lib/supabase/client'
 import { getSupportedAudioMimeType, getFileExtension } from '@/lib/utils/media-format'
+import { compressImage } from '@/lib/utils/image-compressor'
+import { Camera, Loader2 } from 'lucide-react'
 import type { ProjectDetail } from '@/lib/queries/project'
+import type { Photo } from '@/lib/queries/photo'
 
 // Duration constants — D-06, D-07
 export const HARD_CAP_MS  = 10 * 60 * 1000   // 600000  D-06 — auto-stop
@@ -48,6 +52,11 @@ export function CaptureRecorder({ project, companyId, projectId }: CaptureRecord
   const [transcript, setTranscript] = useState<string | undefined>(undefined)
   const [retriesUsed, setRetriesUsed] = useState(0)
 
+  // Multi-modal input state
+  const [descriptionText, setDescriptionText] = useState('')
+  const [uploadedPhotos, setUploadedPhotos] = useState<Photo[]>([])
+  const [isUploadingPhotos, setIsUploadingPhotos] = useState(false)
+
   // Refs
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioContextRef = useRef<AudioContext | null>(null)
@@ -58,6 +67,7 @@ export function CaptureRecorder({ project, companyId, projectId }: CaptureRecord
   const startTimeRef = useRef<number>(0)
   const warnedRef = useRef<boolean>(false)
   const abortControllerRef = useRef<AbortController>(new AbortController())
+  const photoInputRef = useRef<HTMLInputElement>(null)
 
   // Stop recording (memoized for use in callbacks)
   const stopRecording = useCallback(() => {
@@ -144,6 +154,59 @@ export function CaptureRecorder({ project, companyId, projectId }: CaptureRecord
     setErrorMessage(msg)
   }
 
+  // Multi-modal helpers
+  const hasAnyInput = !!audioBlob || descriptionText.trim().length > 0 || uploadedPhotos.length > 0
+
+  // Handle photo file selection
+  const handlePhotoFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+    setIsUploadingPhotos(true)
+    const newPhotos: Photo[] = []
+    for (const file of Array.from(files)) {
+      if (!file.type.startsWith('image/')) continue
+      try {
+        var blob = await compressImage(file, 2000, 0.85)
+      } catch {
+        blob = file
+      }
+      const photoId = crypto.randomUUID()
+      const storagePath = `${companyId}/${projectId}/${photoId}.jpg`
+      const supabase = createClient()
+      const { error: upErr } = await supabase.storage.from('photos').upload(storagePath, blob, { contentType: 'image/jpeg', upsert: false })
+      if (upErr) continue
+      const result = await createPhoto(projectId, storagePath, uploadedPhotos.length + newPhotos.length)
+      if ('error' in result) continue
+      newPhotos.push(result.data as Photo)
+    }
+    setIsUploadingPhotos(false)
+    setUploadedPhotos(prev => [...prev, ...newPhotos])
+    if (photoInputRef.current) photoInputRef.current.value = ''
+  }, [companyId, projectId, uploadedPhotos.length])
+
+  // Trigger estimate generation (shared by text-only and photos-only paths)
+  const triggerEstimateGeneration = useCallback(async () => {
+    try {
+      const res = await fetch('/api/generate-estimate', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ projectId }),
+        signal: abortControllerRef.current.signal,
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        failAt('generating', (body as { error?: string }).error ?? 'Estimate generation failed')
+        return
+      }
+      setStage('done')
+      const data = await res.json() as { estimateId: string; version: number }
+      router.push(`/projects/${projectId}?tab=estimate&estimate=${data.estimateId}`)
+    } catch (err) {
+      if ((err as Error).name === 'AbortError') return
+      failAt('generating', 'Estimate generation failed')
+    }
+  }, [projectId, router])
+
   // Full AI pipeline (RESEARCH Pattern 5)
   const runPipeline = useCallback(async (blob: Blob) => {
     abortControllerRef.current = new AbortController()
@@ -198,6 +261,28 @@ export function CaptureRecorder({ project, companyId, projectId }: CaptureRecord
       failAt('analyzing', 'Estimate generation failed')
     }
   }, [companyId, projectId, elapsedMs, router])
+
+  // Unified generation handler (text-only, audio, or photos-only)
+  const handleGenerate = useCallback(async () => {
+    abortControllerRef.current = new AbortController()
+    setFailedAt(undefined)
+    setErrorMessage(undefined)
+
+    if (descriptionText.trim() && !audioBlob && uploadedPhotos.length === 0) {
+      // Text-only path
+      setStage('generating')
+      const recording = await createTextRecording(projectId, descriptionText.trim())
+      if ('error' in recording) { failAt('generating', recording.error ?? 'Failed to save description'); return }
+      await triggerEstimateGeneration()
+    } else if (audioBlob) {
+      // Audio path (existing) — audio blob triggers runPipeline
+      runPipeline(audioBlob)
+    } else if (uploadedPhotos.length > 0) {
+      // Photos-only path
+      setStage('generating')
+      await triggerEstimateGeneration()
+    }
+  }, [descriptionText, audioBlob, uploadedPhotos, projectId, runPipeline, triggerEstimateGeneration])
 
   // Start recording
   const startRecording = useCallback(async () => {
@@ -279,8 +364,8 @@ export function CaptureRecorder({ project, companyId, projectId }: CaptureRecord
       {/* Header */}
       <header className="flex items-center justify-between px-4 py-3 border-b">
         <span className="text-sm text-muted-foreground truncate">{project.name}</span>
-        {/* Skip button only visible when idle and NOT recording and NO blob (Pitfall 4) */}
-        {stage === 'idle' && !isRecording && !audioBlob && (
+        {/* Skip button only visible when idle and NOT recording and NO inputs */}
+        {stage === 'idle' && !isRecording && !hasAnyInput && (
           <Button asChild variant="ghost" size="sm" data-testid="skip-recording">
             <Link href={`/projects/${projectId}`}>
               Skip recording
@@ -299,6 +384,15 @@ export function CaptureRecorder({ project, companyId, projectId }: CaptureRecord
           ringColorClass={ringColorClass}
           progress={progress}
           onToggle={handleToggleRecording}
+          // Multi-modal props
+          descriptionText={descriptionText}
+          setDescriptionText={setDescriptionText}
+          uploadedPhotos={uploadedPhotos}
+          isUploadingPhotos={isUploadingPhotos}
+          photoInputRef={photoInputRef}
+          onPhotoFileChange={handlePhotoFileChange}
+          hasAnyInput={hasAnyInput}
+          onGenerate={handleGenerate}
         />
       ) : (
         <div className="flex-1 flex items-center justify-center p-4">
@@ -333,14 +427,73 @@ interface RecorderBodyProps {
   ringColorClass: string
   progress: number
   onToggle: () => void
+  // Multi-modal props
+  descriptionText: string
+  setDescriptionText: React.Dispatch<React.SetStateAction<string>>
+  uploadedPhotos: Photo[]
+  isUploadingPhotos: boolean
+  photoInputRef: React.RefObject<HTMLInputElement | null>
+  onPhotoFileChange: (e: React.ChangeEvent<HTMLInputElement>) => Promise<void>
+  hasAnyInput: boolean
+  onGenerate: () => Promise<void>
 }
 
-function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progress, onToggle }: RecorderBodyProps) {
+function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progress, onToggle, descriptionText, setDescriptionText, uploadedPhotos, isUploadingPhotos, photoInputRef, onPhotoFileChange, hasAnyInput, onGenerate }: RecorderBodyProps) {
   return (
     <div className="flex-1 flex flex-col">
       {/* Full-width waveform at top (D-08) */}
       <div className="px-4 pt-4">
         <WaveformVisualizer analyser={analyser} isRecording={isRecording} height={120} />
+      </div>
+
+      {/* Text description */}
+      <div className="px-4 pt-4">
+        <textarea
+          value={descriptionText}
+          onChange={e => setDescriptionText(e.target.value)}
+          placeholder="Or describe the job here..."
+          className="w-full min-h-[80px] rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          data-testid="capture-description"
+        />
+      </div>
+
+      {/* Photo upload */}
+      <div className="px-4 pt-3">
+        <input
+          ref={photoInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          onChange={onPhotoFileChange}
+        />
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => photoInputRef.current?.click()}
+          disabled={isUploadingPhotos}
+          data-testid="capture-add-photos"
+        >
+          {isUploadingPhotos ? (
+            <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+          ) : (
+            <Camera className="h-4 w-4 mr-1.5" />
+          )}
+          {uploadedPhotos.length > 0 ? `${uploadedPhotos.length} photos` : 'Add Photos'}
+        </Button>
+      </div>
+
+      {/* Generate Estimate button */}
+      <div className="px-4 pt-6 pb-8">
+        <Button
+          onClick={onGenerate}
+          disabled={!hasAnyInput}
+          className="w-full"
+          size="lg"
+          data-testid="generate-estimate-btn"
+        >
+          Generate Estimate
+        </Button>
       </div>
 
       {/* Timer centered */}
