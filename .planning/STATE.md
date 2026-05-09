@@ -2,28 +2,28 @@
 gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Zero-friction Project Onboarding
-status: Ready to start
-last_updated: "2026-05-09T21:21:11.219Z"
+status: completed
+last_updated: "2026-05-09T22:36:53.676Z"
 last_activity: 2026-05-09
 progress:
-  total_phases: 32
-  completed_phases: 32
-  total_plans: 93
-  completed_plans: 93
+  total_phases: 35
+  completed_phases: 33
+  total_plans: 96
+  completed_plans: 94
 ---
 
 # Project State
 
 ## Current Status
 
-- **Milestone**: v1.6 Multi-modal Project Input — 🗺️ PLANNED (1/3 phases)
+- **Milestone**: v1.8 Iterative Estimate Refinement — 🔲 PLANNED
 - **Last updated**: 2026-05-09
 
 ## Current Position
 
-Phase: 33
-Plan: 01 (complete)
-Status: Ready to start next phase
+Phase: 35
+Plan: 01
+Status: COMPLETE
 Last activity: 2026-05-09
 
 ## Completed Phases
@@ -236,6 +236,7 @@ Last activity: 2026-05-09
 - [Phase 29]: setValue(clientId, undefined) — undefined is treated as optional by zod, not empty string (which fails validation)
 - [Phase 29]: LinkClientCard uses lazy fetch with client state + loaded flag pattern to avoid SSR issues
 - [Phase 31]: Wizard step indicator: numbered circles (1, 2) with connector line, active step highlighted with bg-primary
+- [Phase 35-text-refinement]: Refinement panel hidden on read-only old versions, shows new version number on success
 
 ## Performance Metrics
 
@@ -310,13 +311,14 @@ Last activity: 2026-05-09
 | Phase 28 P01 | 8 | 3 tasks | 3 files |
 | Phase 29 P01 | 8 | 3 tasks | 8 files |
 | Phase 31 P01 | 1 | 5 tasks | 5 files |
+| Phase 35-text-refinement P01 | 2 | 4 tasks | 3 files |
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-08)
 
 **Core value:** Business owner → job site audio recording → sent professional estimate in under 5 minutes
-**Current focus:** Phase 30 — AI client extraction
+**Current focus:** Phase 35 — SEED-006 Text Refinement
 
 ## Notes
 
@@ -327,6 +329,8 @@ v1.3: 5 phases (19-23), 12 requirements. Price book DB + CRUD UI + CSV import + 
 v1.4: 3 phases (24-26), 8 requirements. Estimate template engine + settings page + plain text tab + copy UI + bulk price adjustment.
 v1.5: 4 phases (27-30), 8 requirements. Capture schema migration + unified capture screen + frictionless project creation + AI client extraction.
 v1.6: 3 phases (31-33), 13 requirements. Wizard modality selection + text input route + photos input route (SEED-005).
+v1.7: Phase 34 (completed 2026-05-09). SEED-007 Client-Project Quick Actions verification.
+v1.8: Phases 35-37 (planned). SEED-006 Iterative Estimate Refinement — text/voice/photo refinement panel in estimate editor.
 
 ## Accumulated Context
 
