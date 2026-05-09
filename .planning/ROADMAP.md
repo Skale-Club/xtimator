@@ -81,7 +81,7 @@
 
 - [x] **Phase 27: Capture Schema Migration** — Make `recordings.storage_path` nullable and `projects.client_id` optional so text-path and client-optional flows are unblocked (completed 2026-05-08)
 - [ ] **Phase 28: Unified Capture Screen** — Redesign the capture screen with audio, text description, and photo upload as co-equal inputs; enable Generate Estimate from any combination
-- [ ] **Phase 29: Frictionless Project Creation & Client Linking** — Remove mandatory client step from project wizard; add New Project button on client detail page; show Link Client card in project Overview when no client is set
+- [x] **Phase 29: Frictionless Project Creation & Client Linking** — Remove mandatory client step from project wizard; add New Project button on client detail page; show Link Client card in project Overview when no client is set (completed 2026-05-09)
 - [ ] **Phase 30: AI Client Extraction** — After estimate generation, surface a non-blocking toast when AI detects a client name in content, letting the user accept or dismiss the suggested link
 
 ## Phase Details
@@ -211,5 +211,5 @@ Plans:
 | 26. Bulk Price Adjustment | v1.4 | 2/2 | Complete    | 2026-05-08 |
 | 27. Capture Schema Migration | v1.5 | 1/1 | Complete    | 2026-05-08 |
 | 28. Unified Capture Screen | v1.5 | 1/1 | Complete | 2026-05-09 |
-| 29. Frictionless Project Creation & Client Linking | v1.5 | 1/TBD | Not started | - |
+| 29. Frictionless Project Creation & Client Linking | v1.5 | 1/TBD | Complete    | 2026-05-09 |
 | 30. AI Client Extraction | v1.5 | 0/TBD | Not started | - |
