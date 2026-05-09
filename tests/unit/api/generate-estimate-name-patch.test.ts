@@ -3,6 +3,7 @@ import type { EstimateOutput } from '@/lib/ai/types'
 
 // Module-level mock function references
 const generateEstimateMock = vi.fn()
+const refineEstimateMock = vi.fn()
 
 // Auth client
 vi.mock('@/lib/supabase/server', () => ({
@@ -216,7 +217,8 @@ function makeSupabaseMock(projectName: string) {
 
 function setupDefaults() {
   generateEstimateMock.mockResolvedValue(DEFAULT_AI_OUTPUT)
-  vi.mocked(getAIProvider).mockResolvedValue({ generateEstimate: generateEstimateMock })
+  refineEstimateMock.mockResolvedValue(DEFAULT_AI_OUTPUT)
+  vi.mocked(getAIProvider).mockResolvedValue({ generateEstimate: generateEstimateMock, refineEstimate: refineEstimateMock })
   vi.mocked(getProjectRecordings).mockResolvedValue([
     { id: 'rec-1', transcript: 'Replace the kitchen cabinets and countertops' } as never,
   ])

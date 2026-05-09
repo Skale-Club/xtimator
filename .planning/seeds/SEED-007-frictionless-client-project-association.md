@@ -1,9 +1,10 @@
 ---
 id: SEED-007
-status: dormant
+status: active
 planted: 2026-05-08
 planted_during: v1.4 Estimate Plain Text & Pricing Tools (post-milestone cleanup)
-trigger_when: Próximo milestone focado em onboarding de projetos, fluxo de campo, ou UX do client management
+trigger_when: v1.5 Zero-friction Project Onboarding
+milestone: v1.7
 scope: Medium
 ---
 

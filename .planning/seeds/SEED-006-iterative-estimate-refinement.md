@@ -1,6 +1,6 @@
 ---
 id: SEED-006
-status: dormant
+status: active
 planted: 2026-05-08
 planted_during: v1.4 Estimate Plain Text & Pricing Tools (post-milestone cleanup)
 trigger_when: Próximo milestone focado em AI UX, qualidade do orçamento gerado, ou fluxo de revisão/aprovação do orçamento com o cliente

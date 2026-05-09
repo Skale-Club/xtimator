@@ -4,9 +4,9 @@
 
 ### Text Refinement (Phase 35)
 
-- [ ] **REFINE-01**: Estimate editor has a refinement panel below the sections with a text input field and send button
-- [ ] **REFINE-02**: API endpoint `POST /api/estimates/[id]/refine` accepts text instruction, calls AI with current estimate + instruction + price book, returns updated estimate JSON
-- [ ] **REFINE-03**: Refinement creates a new estimate version (preserves old version), updates editor to show new version, shows toast with version number
+- [x] **REFINE-01**: Estimate editor has a refinement panel below the sections with a text input field and send button
+- [x] **REFINE-02**: API endpoint `POST /api/estimates/[id]/refine` accepts text instruction, calls AI with current estimate + instruction + price book, returns updated estimate JSON
+- [x] **REFINE-03**: Refinement creates a new estimate version (preserves old version), updates editor to show new version, shows toast with version number
 
 ### Voice Refinement (Phase 36)
 
