@@ -3,7 +3,7 @@
 import { requireServiceClient } from '@/lib/supabase/service'
 import type { AIProvider } from './provider.interface'
 
-export type { EstimateInput, EstimateOutput, LineItemOutput, PriceBookEntry, EstimateSectionOutput } from './types'
+export type { EstimateInput, EstimateOutput, LineItemOutput, PriceBookEntry, EstimateSectionOutput, RefineEstimateInput } from './types'
 
 export async function getAIProvider(): Promise<AIProvider> {
   const svc = requireServiceClient()

@@ -44,3 +44,9 @@ export type EstimateInput = {
   defaultPaymentTerms: string | null
   defaultWarrantyTerms: string | null
 }
+
+export type RefineEstimateInput = {
+  existingEstimate: EstimateOutput  // Current estimate structure
+  instruction: string               // User's refinement request
+  priceBookItems: PriceBookEntry[]  // Company's price book
+}
