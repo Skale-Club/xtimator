@@ -151,8 +151,9 @@ Plans:
   2. A user who types a job description and taps Generate Estimate — without recording any audio — gets a generated estimate using that text as the input
   3. A user who uploads one or more photos — without recording audio or typing text — can tap Generate Estimate and receive an estimate derived from those photos
   4. The Generate Estimate button is disabled when the capture screen has no transcript, no typed description, and no photos; it becomes enabled the moment any one of those inputs is present
-**Plans**: TBD
-**UI hint**: yes
+**Plans**: 1 plan
+Plans:
+- [ ] 28-01-PLAN.md — Multi-modal capture UI: generate-estimate guard fix, createTextRecording, description textarea, photo upload, GenerateEstimate button
 
 ### Phase 29: Frictionless Project Creation & Client Linking
 **Goal**: Users can create a project without selecting a client upfront, and can link a client at any point from multiple entry surfaces
@@ -207,6 +208,6 @@ Plans:
 | 25. Plain Text Tab + Copy UI | v1.4 | 2/2 | Complete    | 2026-05-08 |
 | 26. Bulk Price Adjustment | v1.4 | 2/2 | Complete    | 2026-05-08 |
 | 27. Capture Schema Migration | v1.5 | 1/1 | Complete    | 2026-05-08 |
-| 28. Unified Capture Screen | v1.5 | 0/TBD | Not started | - |
+| 28. Unified Capture Screen | v1.5 | 1/1 | Not started | - |
 | 29. Frictionless Project Creation & Client Linking | v1.5 | 0/TBD | Not started | - |
 | 30. AI Client Extraction | v1.5 | 0/TBD | Not started | - |
