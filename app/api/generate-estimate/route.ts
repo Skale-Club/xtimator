@@ -7,6 +7,14 @@ import { PLACEHOLDER_PREFIX } from '@/lib/constants/project'
 import { getAIProvider, type EstimateInput } from '@/lib/ai'
 import { getPriceBookItems } from '@/lib/queries/price-book'
 
+function normalizeClientNameForMatch(name: string): string {
+  return name
+    .toLowerCase()
+    .trim()
+    .replace(/[.,]/g, '')
+    .replace(/\s+/g, ' ')
+}
+
 export async function POST(request: Request) {
   try {
     // Auth
@@ -128,6 +136,33 @@ export async function POST(request: Request) {
 
     const provider = await getAIProvider()
     const aiEstimate = await provider.generateEstimate(estimateInput)
+
+    let clientSuggestion: {
+      detectedName: string
+      matchedClientId: string | null
+      matchedClientName: string | null
+    } | null = null
+
+    const detectedClientName = aiEstimate.suggested_client_name?.trim()
+    if (!client && detectedClientName) {
+      const { data: existingClients } = await supabase
+        .from('clients')
+        .select('id, name')
+        .eq('company_id', companyId)
+
+      const normalizedDetectedName = normalizeClientNameForMatch(detectedClientName)
+      const matchedClient = (existingClients ?? []).find(
+        (existingClient) =>
+          normalizeClientNameForMatch(existingClient.name as string) ===
+          normalizedDetectedName
+      )
+
+      clientSuggestion = {
+        detectedName: detectedClientName,
+        matchedClientId: (matchedClient?.id as string | undefined) ?? null,
+        matchedClientName: (matchedClient?.name as string | undefined) ?? null,
+      }
+    }
 
     // D-05: patch project name only if it's still the eager-create placeholder
     if (aiEstimate.suggested_project_name?.trim()) {
@@ -300,7 +335,7 @@ export async function POST(request: Request) {
     revalidatePath('/', 'layout')
 
     // Step 9: Return response
-    return NextResponse.json({ estimateId, version: nextVersion })
+    return NextResponse.json({ estimateId, version: nextVersion, clientSuggestion })
   } catch (error) {
     console.error('Estimate generation failed:', error)
     return NextResponse.json(

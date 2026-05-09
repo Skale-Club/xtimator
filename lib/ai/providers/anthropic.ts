@@ -30,6 +30,10 @@ export class AnthropicAdapter implements AIProvider {
                 type: 'string',
                 description: 'A short, professional project name in 2-5 words derived from the work scope and client. Examples: "Smith Bathroom Remodel", "Garcia Driveway Repaving", "Patel Kitchen Reno". Avoid generic words like "Project" or "Estimate".',
               },
+              suggested_client_name: {
+                type: 'string',
+                description: 'The customer/homeowner/business name explicitly mentioned in the transcript, description, or photo analysis. Return an empty string or omit when no clear client name is present. Do not infer from generic project titles or addresses.',
+              },
               summary: {
                 type: 'string',
                 description: 'Brief summary of the work scope',

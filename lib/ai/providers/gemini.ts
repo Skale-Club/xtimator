@@ -21,6 +21,10 @@ export class GeminiAdapter implements AIProvider {
         required: ['summary', 'sections', 'suggested_project_name'],
         properties: {
           suggested_project_name: { type: Type.STRING, description: 'Short professional project name 2-5 words.' },
+          suggested_client_name: {
+            type: Type.STRING,
+            description: 'The customer/homeowner/business name explicitly mentioned in the transcript, description, or photo analysis. Return an empty string or omit when no clear client name is present. Do not infer from generic project titles or addresses.',
+          },
           summary: { type: Type.STRING, description: 'Brief summary of work scope' },
           notes: { type: Type.STRING },
           timeline: { type: Type.STRING },

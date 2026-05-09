@@ -22,6 +22,7 @@ export type EstimateSectionOutput = {
 
 export type EstimateOutput = {
   suggested_project_name: string
+  suggested_client_name?: string | null
   summary: string
   notes?: string
   timeline?: string

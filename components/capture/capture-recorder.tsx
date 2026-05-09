@@ -19,6 +19,10 @@ import { compressImage } from '@/lib/utils/image-compressor'
 import { Camera, Loader2 } from 'lucide-react'
 import type { ProjectDetail } from '@/lib/queries/project'
 import type { Photo } from '@/lib/queries/photo'
+import {
+  storeClientSuggestion,
+  type GenerateEstimateResponse,
+} from '@/components/workspace/estimate/client-suggestion-toast'
 
 // Duration constants — D-06, D-07
 export const HARD_CAP_MS  = 10 * 60 * 1000   // 600000  D-06 — auto-stop
@@ -199,7 +203,8 @@ export function CaptureRecorder({ project, companyId, projectId }: CaptureRecord
         return
       }
       setStage('done')
-      const data = await res.json() as { estimateId: string; version: number }
+      const data = await res.json() as GenerateEstimateResponse
+      storeClientSuggestion(projectId, data.clientSuggestion)
       router.push(`/projects/${projectId}?tab=estimate&estimate=${data.estimateId}`)
     } catch (err) {
       if ((err as Error).name === 'AbortError') return
@@ -253,7 +258,8 @@ export function CaptureRecorder({ project, companyId, projectId }: CaptureRecord
         return
       }
       setStage('generating')
-      const data = await res.json() as { estimateId: string; version: number }
+      const data = await res.json() as GenerateEstimateResponse
+      storeClientSuggestion(projectId, data.clientSuggestion)
       setStage('done')
       router.push(`/projects/${projectId}?tab=estimate&estimate=${data.estimateId}`)
     } catch (err) {

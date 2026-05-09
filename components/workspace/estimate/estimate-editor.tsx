@@ -31,6 +31,10 @@ import { EstimateHeader } from './estimate-header'
 import { SectionCard } from './section-card'
 import { EstimateTotals } from './estimate-totals'
 import { GenerationProgress } from './generation-progress'
+import {
+  showClientSuggestionToast,
+  type GenerateEstimateResponse,
+} from './client-suggestion-toast'
 
 // ---------------------------------------------------------------------------
 // Sortable section wrapper
@@ -235,6 +239,7 @@ export function EstimateEditor({
         body: JSON.stringify({ projectId }),
       })
       if (!genRes.ok) throw new Error('Estimate generation failed')
+      const generated = (await genRes.json()) as GenerateEstimateResponse
 
       // Step 2: Saving
       setRegenStep(2)
@@ -245,6 +250,11 @@ export function EstimateEditor({
       await new Promise((r) => setTimeout(r, 1000))
 
       router.refresh()
+      showClientSuggestionToast({
+        projectId,
+        router,
+        suggestion: generated.clientSuggestion,
+      })
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Generation failed')
     } finally {

@@ -2,6 +2,12 @@
 import type { EstimateOutput, LineItemOutput } from './types'
 
 export function normalizeOutput(raw: Record<string, unknown>): EstimateOutput {
+  const rawClientName = raw.suggested_client_name
+  const suggestedClientName =
+    typeof rawClientName === 'string' && rawClientName.trim().length > 0
+      ? rawClientName.trim()
+      : null
+
   const sections = (raw.sections as Array<{ title: string; items: Array<Record<string, unknown>> }>).map(section => ({
     title: section.title,
     items: section.items.map((item): LineItemOutput => ({
@@ -16,6 +22,7 @@ export function normalizeOutput(raw: Record<string, unknown>): EstimateOutput {
   }))
   return {
     suggested_project_name: raw.suggested_project_name as string,
+    suggested_client_name: suggestedClientName,
     summary: raw.summary as string,
     notes: raw.notes as string | undefined,
     timeline: raw.timeline as string | undefined,

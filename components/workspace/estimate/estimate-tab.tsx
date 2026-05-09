@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Sparkles, FileText } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -18,6 +18,11 @@ import type { Recording } from '@/lib/queries/recording'
 import type { Photo } from '@/lib/queries/photo'
 import { GenerationProgress } from './generation-progress'
 import { EstimateEditor } from './estimate-editor'
+import {
+  popStoredClientSuggestion,
+  showClientSuggestionToast,
+  type GenerateEstimateResponse,
+} from './client-suggestion-toast'
 
 interface EstimateTabProps {
   projectId: string
@@ -40,6 +45,15 @@ export function EstimateTab({
   const [isGenerating, setIsGenerating] = useState(false)
   const [generationStep, setGenerationStep] = useState(0)
   const [isCreatingBlank, setIsCreatingBlank] = useState(false)
+
+  useEffect(() => {
+    const suggestion = popStoredClientSuggestion(projectId)
+    if (suggestion) {
+      queueMicrotask(() => {
+        showClientSuggestionToast({ projectId, router, suggestion })
+      })
+    }
+  }, [projectId, router])
 
   // Check prerequisites: at least one transcript or one photo
   const hasTranscript = recordings.some((r) => r.transcript && r.transcript.trim().length > 0)
@@ -79,6 +93,7 @@ export function EstimateTab({
         const err = await genRes.json().catch(() => ({}))
         throw new Error(err.error || 'Estimate generation failed')
       }
+      const generated = (await genRes.json()) as GenerateEstimateResponse
 
       // Step 2: Saving
       setGenerationStep(2)
@@ -89,6 +104,11 @@ export function EstimateTab({
       await new Promise((r) => setTimeout(r, 1000))
 
       router.refresh()
+      showClientSuggestionToast({
+        projectId,
+        router,
+        suggestion: generated.clientSuggestion,
+      })
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Generation failed. Please try again.')
     } finally {
