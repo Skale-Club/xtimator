@@ -37,6 +37,7 @@ export async function createProjectAction(formData: ProjectFormValues) {
       client_id: formData.clientId ?? null,
       name: placeholderName,
       project_type: null,
+      input_mode: formData.inputMode ?? null,
       status: 'draft',
       target_budget: null,
       total: 0,
