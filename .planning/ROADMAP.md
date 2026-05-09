@@ -245,7 +245,8 @@ Plans:
 
 - [x] **Phase 35: Text Refinement** — Add text input refinement panel to estimate editor, new API endpoint `/api/estimates/[id]/refine`, AI refinement prompt, new version creation
    - [x] 35-01-PLAN.md — Text refinement panel + API endpoint + AI integration (COMPLETE)
-- [ ] **Phase 36: Voice Refinement** — Inline voice recorder (~30s), Whisper transcription, same refinement pipeline
+- [x] **Phase 36: Voice Refinement** — Inline voice recorder (~30s), Whisper transcription, same refinement pipeline
+   - [x] 36-01-PLAN.md — VoiceRefineRecorder + voice API route + panel wiring
 - [ ] **Phase 37: Photo Refinement** — Photo upload, Claude Vision analysis, auto-generate instruction
 
 ## Progress
@@ -285,4 +286,7 @@ Plans:
 | 31. Wizard Modality Selection | v1.6 | 1/1 | Complete   | 2026-05-09 |
 | 32. Text Input Route | v1.6 | 1/1 | Complete    | 2026-05-09 |
 | 33. Photos Input Route | v1.6 | 1/1 | Complete    | 2026-05-09 |
+| 35. Text Refinement | v1.8 | 1/1 | Complete    | 2026-05-09 |
+| 36. Voice Refinement | v1.8 | 1/1 | Planned     | - |
+| 37. Photo Refinement | v1.8 | TBD | Planned     | - |
 | 34. Client-Project Quick Actions Verification | v1.7 | TBD | Planned | - |
