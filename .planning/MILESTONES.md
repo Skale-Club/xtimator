@@ -1,5 +1,15 @@
 # Milestones
 
+## v1.5 Zero-friction Project Onboarding (Shipped: 2026-05-09)
+
+**Phases completed:** 7 phases, 11 plans, 22 tasks
+
+**Key accomplishments:**
+
+- AI-detected client suggestions after estimate generation
+
+---
+
 ## v1.3 Smart Pricing (Shipped: 2026-05-08)
 
 **Phases completed:** 5 phases, 13 plans, 30 tasks
