@@ -3,10 +3,24 @@ import { updateSession } from '@/lib/supabase/proxy'
 import { checkPlatformAdmin } from '@/lib/supabase/admin-gate'
 
 export async function proxy(request: NextRequest) {
+  const { pathname } = request.nextUrl
+
+  // Custom domain white-label pass-through (DOMAIN-03)
+  const host = request.headers.get('host') ?? ''
+  const appHost = process.env.NEXT_PUBLIC_APP_HOST ?? 'xtimator.com'
+  const isCustomHost =
+    !host.includes('localhost') &&
+    !host.endsWith('.vercel.app') &&
+    host !== appHost
+
+  if (isCustomHost && pathname.startsWith('/estimate/')) {
+    const requestHeaders = new Headers(request.headers)
+    requestHeaders.set('x-white-label', '1')
+    return NextResponse.next({ request: { headers: requestHeaders } })
+  }
+
   // Always refresh session first (existing behavior — preserved).
   const { claims, response } = await updateSession(request)
-
-  const { pathname } = request.nextUrl
 
   // Avoid loop: skip the admin gate when the request is already on /404 (R-06).
   if (pathname === '/404') return response
