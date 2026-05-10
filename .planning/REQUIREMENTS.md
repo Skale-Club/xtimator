@@ -53,21 +53,21 @@
 
 | REQ-ID | Phase | Status |
 |--------|-------|--------|
-| WA-01 | TBD | Planned |
-| WA-02 | TBD | Planned |
-| WA-03 | TBD | Planned |
-| WA-04 | TBD | Planned |
-| WA-05 | TBD | Planned |
-| WA-06 | TBD | Planned |
-| WA-07 | TBD | Planned |
-| WA-08 | TBD | Planned |
-| WA-09 | TBD | Planned |
-| WA-10 | TBD | Planned |
-| WA-11 | TBD | Planned |
-| WA-12 | TBD | Planned |
-| WA-13 | TBD | Planned |
-| WA-14 | TBD | Planned |
-| WA-15 | TBD | Planned |
+| WA-01 | Phase 40 | Planned |
+| WA-02 | Phase 40 | Planned |
+| WA-03 | Phase 40 | Planned |
+| WA-04 | Phase 40 | Planned |
+| WA-05 | Phase 45 | Planned |
+| WA-06 | Phase 45 | Planned |
+| WA-07 | Phase 42 | Planned |
+| WA-08 | Phase 42 | Planned |
+| WA-09 | Phase 42 | Planned |
+| WA-10 | Phase 42 | Planned |
+| WA-11 | Phase 43 | Planned |
+| WA-12 | Phase 43 | Planned |
+| WA-13 | Phase 43 | Planned |
+| WA-14 | Phase 44 | Planned |
+| WA-15 | Phase 44 | Planned |
 
 ---
 
