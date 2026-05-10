@@ -1,121 +1,268 @@
 # Domain Pitfalls
 
-**Domain:** Multi-modal project input + AI-inferred client association (v1.5)
-**Researched:** 2026-05-08
-**Scope:** Integration pitfalls for adding 3-way input choice (audio/text/photos) and AI-extracted client linking to the existing Next.js 14+ field-service app.
+**Domain:** Meta WhatsApp Cloud API channel — Adding to existing Next.js 16 / Supabase app
+**Milestone:** v2.0 WhatsApp Estimate Channel
+**Researched:** 2026-05-10
+**Confidence:** HIGH (Meta official docs + multiple verified community sources)
 
 ---
 
 ## Critical Pitfalls
 
-Mistakes that cause migrations, data corruption, broken AI pipelines, or complete rerewrites of a phase.
+These mistakes cause silent failures, security holes, or rewrites.
 
 ---
 
-### Pitfall 1: `storage_path NOT NULL` blocks text-input recording insert
+### Pitfall 1: Raw Body Consumed Before HMAC Verification
 
-**What goes wrong:** The text-input path saves a user's typed description as a `recordings.transcript` row without an audio file. The `recordings` table schema (`20260409000001_initial_schema.sql`, line 74) has `storage_path TEXT NOT NULL`. Inserting a transcript-only row with `storage_path: null` fails at the DB level with a constraint violation. The generate-estimate route reads `recordings.transcript`, so this insert is the only way to feed text into the existing pipeline.
+**What goes wrong:** The webhook route calls `await req.json()` to read the payload, then tries to verify the `X-Hub-Signature-256` header using the parsed object re-serialized to a string. HMAC breaks because JSON serialization is not byte-for-byte identical to what Meta sent (key ordering, Unicode escaping, whitespace may differ).
 
-**Why it happens:** The `createRecording` action signature (`lib/actions/recording.ts:26`) requires `storagePath: string` and `durationSeconds: number` — designed exclusively for Whisper flow. No path to create a transcript-only recording row exists.
+**Why it happens:** The instinct is to parse the body first and work with a typed object. Next.js App Router's `Request` object is a standard Web API — the body stream can only be consumed once. Calling `req.json()` exhausts it; there is nothing left to hash.
 
-**Consequences:** The text-input path either silently fails (user sees "Generate Estimate" remain disabled) or crashes with a 500. This is the single hardest blocker for the text path.
+**Consequences:** Every signature check fails. You either disable HMAC verification (leaving the endpoint open to forged requests) or the endpoint rejects all legitimate Meta traffic.
 
 **Prevention:**
-- Migrate `storage_path` to nullable: `ALTER TABLE recordings ALTER COLUMN storage_path DROP NOT NULL;`
-- Add a new server action `createTextTranscript(projectId, transcript)` that inserts with `storage_path: null, duration_seconds: null`. Keep the existing `createRecording` for audio.
-- The generate-estimate route (`route.ts:76-81`) already handles transcript-only correctly — it only needs `r.transcript && r.transcript.trim().length > 0`. No change needed there.
+```typescript
+// app/api/webhooks/whatsapp/route.ts
+export async function POST(req: Request) {
+  const rawBody = await req.text()           // read once as string
+  const valid = verifyHmac(rawBody, req.headers.get('x-hub-signature-256'))
+  if (!valid) return new Response('Forbidden', { status: 403 })
+  const payload = JSON.parse(rawBody)        // parse after verification
+  // ...
+}
+```
+Never use `req.json()` in a webhook handler. Always `req.text()` first.
 
-**Detection:** TypeScript will not catch this — `storage_path` is `string` in `lib/queries/recording.ts:8` (generated types reflect the NOT NULL DDL). The failure is a runtime Supabase insert error.
+**Detection:** 403 responses to every Meta POST during initial integration. Signature mismatch errors in logs.
 
-**Phase:** Must be resolved in the phase that introduces the text-input route, before any UI work.
+**Phase:** Phase 1 — Webhook Infrastructure.
 
 ---
 
-### Pitfall 2: Orphan-cleanup cron deletes text-only projects before estimate generation
+### Pitfall 2: WABA Not Subscribed to App (Silent Delivery Failure)
 
-**What goes wrong:** The cleanup cron (`20260505000001_phase18_cleanup_cron.sql`) deletes `status = 'draft'` projects older than 24 hours that have **no recordings AND no estimates**. If a user opens the text-input path, types their description, but does not yet generate the estimate (estimate is not created until `/api/generate-estimate` completes), the project is safe only if a recording row exists. However, if the text-input path is implemented using a `recordings` row, the cron is satisfied. The danger is if the implementation stores the text somewhere else (e.g., a new `project.description` column, or deferred recording creation), leaving the project temporarily recording-less.
+**What goes wrong:** The webhook URL passes GET verification. The Meta Developer dashboard shows green. But no messages ever arrive at `POST /api/webhooks/whatsapp`. The WABA is not subscribed to the Meta app.
 
-**Why it happens:** The cron predicate was written for the audio flow, where saving audio always creates a recording row immediately. The text flow has a different timing model.
+**Why it happens:** As of late 2025, Meta's developer UI no longer auto-subscribes the WABA when a phone number is added. Webhook configuration and WABA app subscription are separate steps shown in different UI panels. The GET challenge succeeds because that tests the URL, not the subscription.
 
-**Consequences:** A user types a description, saves it, gets distracted for 24h, comes back — project is gone with no warning.
+**Consequences:** Development grinds to a complete halt with no useful error. Developers spend hours debugging their handler when the root cause is a Meta portal configuration step.
 
 **Prevention:**
-- Use the `recordings` table row (with the nullable `storage_path` fix from Pitfall 1) as the anchor. As soon as the user submits text, insert the recording row. This satisfies the cron predicate.
-- Alternatively, update the cron predicate to also exclude projects with `recordings.storage_path IS NULL AND recordings.transcript IS NOT NULL` — but this is unnecessary if the recording row is always inserted on text save.
-- Do not defer the recording insert to "after estimate generation."
+After webhook URL configuration, explicitly POST to the Graph API:
+```
+POST https://graph.facebook.com/v21.0/{WABA_ID}/subscribed_apps
+Authorization: Bearer {SYSTEM_USER_TOKEN}
+```
+Verify with:
+```
+GET https://graph.facebook.com/v21.0/{WABA_ID}/subscribed_apps
+```
+Store this step in the integration setup checklist. If switching Meta apps (dev → staging → prod), re-run this POST for each app.
 
-**Phase:** Same phase as text-input route; the recording insert must happen before the generate step, not as part of it.
+**Detection:** Webhook URL verified (GET works), but zero POST events arrive. Sending a test message from Meta's "Test" panel shows delivery but nothing hits the handler.
+
+**Phase:** Phase 1 — Webhook Infrastructure.
 
 ---
 
-### Pitfall 3: `clientId` required in `projectSchema` and `createProjectAction` breaks the optional-client flow
+### Pitfall 3: Temporary Access Token Used in Production
 
-**What goes wrong:** The current `projectSchema` (`lib/schemas/project.ts:4`) enforces `clientId: z.string().min(1, 'Please select a client')`. The `createProjectAction` passes `client_id: formData.clientId` directly to the insert. If client selection is made optional (v1.5 goal: `client_id: null`), the schema validation fires before the insert and blocks project creation.
+**What goes wrong:** The Meta Developer console generates a temporary token good for ~24 hours. The team uses it in the `.env` file. The integration works during development, then silently breaks the next day when the token expires.
 
-**Why it happens:** The schema was authored for a mandatory client step. Making client optional in the wizard UI does nothing if the server action still rejects an empty `clientId`.
+**Why it happens:** The "Test" token is shown prominently in the Meta dashboard and is the easiest path to get started. There is no obvious warning that it expires.
 
-**Consequences:** Wizard submits → server action returns `{ error: "Please select a client" }` → user is stuck. The entire "zero-friction" milestone breaks on the first call.
+**Consequences:** All outbound message sends fail with 401 after 24 hours. Any cached sessions or in-progress estimates are abandoned without notifying the user.
 
-**Prevention:**
-- Change `projectSchema` to `clientId: z.string().optional()` (or allow empty string: `.optional().or(z.literal(''))`).
-- Change `createProjectAction` to `client_id: formData.clientId || null`.
-- The DB column is already nullable (`client_id UUID REFERENCES clients(id) ON DELETE SET NULL`) — no migration needed.
-- The `?clientId=` searchParam path (New Project from client card) must pass clientId as a pre-populated value so the insert still sets `client_id` correctly for that flow.
+**Prevention:** Before any production deploy, create a **System User** in Meta Business Manager, assign it Full Control of the WhatsApp app, and generate a permanent (non-expiring) System User access token. Store this in the `platform_integrations` table under the existing AES-256-GCM encrypted credentials pattern — same as Claude and OpenAI keys. Never use the temporary console token anywhere except local smoke tests.
 
-**Phase:** Must be the first change in whatever phase restructures the wizard. All other wizard changes depend on this.
+**Detection:** Outbound sends start failing exactly 24 hours after the token was generated. Error: `{"error":{"code":190,"type":"OAuthException"}}`.
+
+**Phase:** Phase 1 — Webhook Infrastructure (credential setup step).
 
 ---
 
-### Pitfall 4: AI client extraction runs inside generate-estimate but `detected_client_name` is not in the current tool schema
+### Pitfall 4: Missing HMAC Timing-Safe Comparison
 
-**What goes wrong:** The SEED-007 design calls for the Claude tool (`create_estimate`) to return a `detected_client_name` field. The current tool input_schema (`lib/ai/providers/anthropic.ts`) has no such field — Claude will never return it because it is not declared in the required/properties. Attempts to read `toolBlock.input.detected_client_name` will always be `undefined`.
+**What goes wrong:** Signature verification uses `===` or `==` for string comparison instead of `crypto.timingSafeEqual`. A timing oracle attack can recover the app secret byte-by-byte by measuring response time differences.
 
-**Why it happens:** The tool schema is a closed contract. Claude only emits fields that are in the schema.
+**Why it happens:** Standard string equality is the first instinct. The difference in behavior is invisible during testing.
 
-**Consequences:** Post-generation client-linking logic finds no name, always falls through to "no client" — the AI client inference feature appears to work (no errors) but does nothing.
+**Consequences:** App secret leaked over time, allowing forged webhooks from any source.
 
 **Prevention:**
-- Add `detected_client_name: { type: 'string', description: '...' }` (nullable-ish: make it optional in the schema, not required) to the tool properties in both `AnthropicAdapter` and `GeminiAdapter`.
-- Update `normalizeOutput` in `lib/ai/normalize.ts` to pass `detected_client_name` through to `EstimateOutput`.
-- Update `EstimateOutput` in `lib/ai/types.ts` to include `detected_client_name?: string | null`.
-- The Gemini adapter must mirror this — divergence between adapters will make the feature work on Anthropic but silently fail when the admin switches providers.
+```typescript
+import { createHmac, timingSafeEqual } from 'crypto'
 
-**Phase:** The AI extraction phase. Must update both adapters atomically.
+function verifyHmac(rawBody: string, signatureHeader: string | null): boolean {
+  if (!signatureHeader) return false
+  const appSecret = process.env.META_APP_SECRET!
+  const expected = createHmac('sha256', appSecret).update(rawBody).digest('hex')
+  const received = signatureHeader.replace('sha256=', '')
+  // Lengths must match before timingSafeEqual (it throws on mismatch)
+  if (expected.length !== received.length) return false
+  return timingSafeEqual(Buffer.from(expected), Buffer.from(received))
+}
+```
+
+**Phase:** Phase 1 — Webhook Infrastructure.
 
 ---
 
-### Pitfall 5: Post-generation client matching runs a case-insensitive search against the wrong scope
+### Pitfall 5: Message Deduplication Not Implemented (Duplicate Estimate Generation)
 
-**What goes wrong:** After estimate generation, the app needs to match `detected_client_name` against existing clients. If the query does not scope by `company_id`, it will match clients from other companies — an RLS bypass for reads that returns wrong data, or even links a project to another company's client (which RLS then makes invisible to the owner).
+**What goes wrong:** Meta uses at-least-once delivery. If the webhook handler returns non-200 (e.g., due to a transient Supabase error), Meta retries the same message for up to 7 days. Retries generate duplicate projects and duplicate AI estimates, inflating AI API costs and confusing owners who see two identical draft estimates.
 
-**Why it happens:** New code written in a server action context might use `supabase.from('clients').select().ilike('name', detected_client_name)` without the `eq('company_id', ...)` guard, especially since a copy-paste from an earlier query that already has company scoping is easy to miss.
+**Why it happens:** Serverless functions are stateless. Without a deduplication store, each retry is treated as a new inbound message.
 
-**Consequences:** Cross-tenant data confusion. Client B from company A appears to be linked to a project of company B (which then shows "No client" in the UI because RLS hides the row).
+**Consequences:** Duplicate projects in the owner's dashboard, duplicate AI calls (each costing ~$0.10–$0.40 per estimate), potentially duplicate sends to clients.
 
-**Prevention:**
-- Always include `.eq('company_id', companyId)` before any `ilike` on the clients table.
-- The existing `getAuthContext()` helper returns `company.id` — use that, never derive company_id from the project row alone.
-- Write a unit test for the matching function that asserts the `company_id` filter is present before the name match.
+**Prevention:** Use the message `wamid` (e.g., `wamid.HBgL...`) from the webhook payload as a deduplication key. Before processing any inbound message, check a `whatsapp_processed_messages` table (or Upstash Redis with a TTL of 48 hours):
 
-**Phase:** AI client extraction phase.
+```sql
+CREATE TABLE whatsapp_processed_messages (
+  wamid TEXT PRIMARY KEY,
+  processed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+-- Auto-purge after 48 hours via pg_cron or Supabase scheduled function
+```
+
+Return 200 immediately on duplicate detection without re-processing.
+
+**Detection:** Multiple identical projects created for same owner within minutes. Supabase logs show repeated inserts with identical content.
+
+**Phase:** Phase 2 — Inbound Processing.
 
 ---
 
-### Pitfall 6: Auto-created client from AI extraction skips the "confirm before create" step described in SEED-007
+### Pitfall 6: Status Webhook Flood Consuming Serverless Invocations
 
-**What goes wrong:** SEED-007 notes: *"The name detected by the AI should be shown to the user before creating the client automatically — avoid creating 'Maria' when the user said 'a Maria do apartamento 201' and 'Maria Aparecida' already exists."* If the post-generation hook silently calls `INSERT INTO clients` on any non-null `detected_client_name`, it will create duplicate or partial clients without user consent.
+**What goes wrong:** For every message the bot sends outbound, Meta fires three status webhooks back: `sent`, `delivered`, `read`. With a multi-company deployment where each company sends an estimate summary plus a confirmation, that is 6+ invocations per conversation on top of the inbound message. At Vercel Pro pricing, each function invocation counts toward limits. At scale this can consume 80% of monthly invocations on status noise.
 
-**Why it happens:** The generate-estimate route is a fire-and-forget API call. It is tempting to add the full match/create pipeline inside the route itself (it has all the data), but the user has no visibility into what is happening.
+**Why it happens:** Status webhooks arrive at the same `POST /api/webhooks/whatsapp` route as inbound messages. Not filtering them early means every status event runs the full handler logic.
 
-**Consequences:** Pollution of the client list with stub entries like "the building on Fifth", "Maria", "my friend John". These are hard to clean up and visible to the user in the combobox.
+**Consequences:** Inflated function invocation counts, unnecessary Supabase reads (company lookup, session lookup) per status event, potential throttling.
+
+**Prevention:** Add an early-exit guard as the first statement after signature verification:
+```typescript
+const entries = payload?.entry ?? []
+for (const entry of entries) {
+  for (const change of entry.changes ?? []) {
+    const statuses = change.value?.statuses
+    if (statuses?.length && !change.value?.messages?.length) {
+      return new Response('OK', { status: 200 }) // drop pure status events
+    }
+  }
+}
+```
+Only process events that contain a `messages` array. Log status events to a separate lightweight table if delivery tracking is needed.
+
+**Phase:** Phase 1 — Webhook Infrastructure.
+
+---
+
+### Pitfall 7: Media URL Expires Before Download
+
+**What goes wrong:** The webhook payload for audio or photo messages does not contain the binary media. It contains a `media_id`. The handler must call the Graph API to retrieve a temporary download URL, then download the binary from that URL. That temporary URL expires in **5 minutes**. If the webhook handler is queued behind other invocations or if any async step introduces delay, the download fails with a 410 Gone.
+
+**Why it happens:** Developers store the `media_id` and plan to process media asynchronously (e.g., via a queue). The media URL is only valid for 5 minutes, but this constraint is buried in the Media API documentation.
+
+**Consequences:** Audio messages cannot be transcribed, photos cannot be analyzed. The bot falls back to an error state or silently drops the media.
+
+**Prevention:** Download and persist media to Supabase Storage **synchronously within the webhook handler**, before returning 200. The sequence must be:
+1. Verify HMAC
+2. Return 200 immediately to Meta (using `waitUntil` if using Vercel's `after()` or background job pattern — see Pitfall 8)
+3. In background: call `GET https://graph.facebook.com/v21.0/{media_id}` → get URL → download binary with Bearer token → upload to Supabase Storage
+4. Trigger Whisper / Claude Vision pipeline only after media is in Supabase Storage
+
+Additionally, note the audio MIME type from WhatsApp is `audio/ogg; codecs=opus` — Whisper accepts this directly. Do not assume it is `audio/opus` (different MIME type, causes 131053 errors on some endpoints).
+
+**Detection:** 410 errors on media download URLs in logs. Errors appear intermittently, more often under load.
+
+**Phase:** Phase 2 — Inbound Processing.
+
+---
+
+### Pitfall 8: Long AI Pipeline Exceeds Vercel Function Timeout
+
+**What goes wrong:** A full inbound audio message handling sequence — download audio (Meta CDN) + Whisper transcription + Claude estimate generation — takes 30–90 seconds. Vercel Pro serverless functions have a 60-second hard timeout. The function is killed mid-pipeline. Meta receives a 5xx and retries, triggering the full pipeline again.
+
+**Why it happens:** The existing `generate-estimate` route runs synchronously (it is called from the app UI where the user waits for a response). The WhatsApp handler reuses the same synchronous pattern in a context where the caller (Meta) has a 5-second expectation for initial response.
+
+**Consequences:** Estimate generation fails silently. Meta retries, triggering Pitfall 5 (duplicates) unless deduplication is in place. Owner gets no estimate.
 
 **Prevention:**
-- Return `detected_client_name` in the generate-estimate API response body alongside `estimateId`.
-- Let the client — the capture page or a new text-input page — surface a dismissible toast or inline prompt: *"Client detected: Maria Silva — Link or Create?"* with a single confirm button.
-- Only auto-link (not auto-create) when an exact case-insensitive match exists in the company's client list.
-- Auto-create should be gated behind explicit user confirmation.
+- **Immediate 200 strategy:** Return `200 OK` to Meta within 2 seconds. Use Next.js 15's `after()` (or Vercel's `waitUntil`) to run the AI pipeline after the response is sent:
+  ```typescript
+  import { after } from 'next/server'
+  
+  export async function POST(req: Request) {
+    // verify HMAC, mark wamid as received
+    after(async () => {
+      // full pipeline: download media → Whisper → Claude → persist
+    })
+    return new Response('OK', { status: 200 })
+  }
+  ```
+- Use `maxDuration = 300` in the route segment config (Vercel Pro/Enterprise Fluid Compute supports up to 800 seconds).
+- If `after()` is not available, use Supabase Edge Functions or a queue (Upstash QStash) for the heavy work.
 
-**Phase:** AI client extraction phase; affects both the API route response shape and the calling UI component.
+**Detection:** `FUNCTION_INVOCATION_TIMEOUT` errors in Vercel logs. Estimates never created from WhatsApp but no error returned to owner.
+
+**Phase:** Phase 2 — Inbound Processing.
+
+---
+
+### Pitfall 9: Race Condition on Session State in Concurrent Webhooks
+
+**What goes wrong:** An owner sends an audio message AND immediately sends a text message (or the audio generates a status webhook that arrives concurrently). Two invocations of the webhook handler run simultaneously. Both read the `whatsapp_sessions` row and see no existing session. Both insert a new session row, violating the `UNIQUE(company_id, phone_number)` constraint — or worse, if no unique constraint exists, two sessions are created, splitting the conversation across them.
+
+**Why it happens:** Serverless functions are stateless and horizontally scaled. Two requests arriving within milliseconds spawn two independent function instances with no shared memory.
+
+**Consequences:** Duplicate session rows, conversation state corruption, owner gets two confirmation messages for one estimate.
+
+**Prevention:**
+- Add a database-level unique constraint: `UNIQUE (company_id, phone_number)` on `whatsapp_sessions`. Use an upsert pattern with conflict handling instead of insert.
+- Use Postgres advisory locks or `SELECT ... FOR UPDATE` when reading + writing session state atomically:
+  ```sql
+  -- Atomic upsert
+  INSERT INTO whatsapp_sessions (company_id, phone_number, state, expires_at)
+  VALUES ($1, $2, 'awaiting_input', NOW() + INTERVAL '30 minutes')
+  ON CONFLICT (company_id, phone_number)
+  DO UPDATE SET state = EXCLUDED.state, expires_at = EXCLUDED.expires_at
+  ```
+- Deduplicate by `wamid` first (Pitfall 5) — this eliminates most race triggers.
+
+**Detection:** Duplicate session rows in `whatsapp_sessions`. Owner receives two confirmation messages. Supabase logs show unique constraint violations.
+
+**Phase:** Phase 3 — Confirmation Flow.
+
+---
+
+### Pitfall 10: Webhook Supabase Client Uses Auth Cookie (Wrong Client)
+
+**What goes wrong:** The webhook handler imports the standard `createClient()` from `lib/supabase/server.ts` — the one that reads the `cookies()` store for user session auth. A webhook request from Meta carries no cookies, no user session. The Supabase client is initialized with the anon key and no auth context. All RLS-protected table queries return empty results. The company lookup by phone number fails silently, the handler drops the message, and there is no error in the logs.
+
+**Why it happens:** The existing `createClient()` is correct for all app routes (auth context present). The webhook route looks identical at a glance, so the same import is used without thinking.
+
+**Consequences:** All message routing fails. No company is found for any phone number. Every inbound message is silently dropped.
+
+**Prevention:** The webhook handler must use a separate **service role client** that bypasses RLS:
+```typescript
+import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+
+function createServiceClient() {
+  return createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+}
+```
+This is the same pattern already used by the PDF route and platform admin operations. Never expose this client outside server-side route handlers. Keep a clear naming convention: `createClient()` = auth-scoped, `createServiceClient()` = webhook/admin operations.
+
+**Detection:** `company_whatsapp` lookup returns null for every phone number, even after correct phone registration. No Supabase errors, just empty results.
+
+**Phase:** Phase 1 — Webhook Infrastructure.
 
 ---
 
@@ -123,88 +270,104 @@ Mistakes that cause migrations, data corruption, broken AI pipelines, or complet
 
 ---
 
-### Pitfall 7: The `?clientId=` searchParam is read server-side on a cached page, but `NewProjectWizard` needs it client-side
+### Pitfall 11: 24-Hour Messaging Window Violation
 
-**What goes wrong:** The "New Project" button on `/clients/[id]` navigates to `/projects/new?clientId=<uuid>`. The `app/(app)/projects/new/page.tsx` is a server component that currently reads nothing from `searchParams`. If the clientId is pre-populated by passing it as a prop to `NewProjectWizard`, the wizard needs to skip client selection. But `NewProjectWizard` is a `'use client'` component. If the server page uses `React.cache()` or any ISR, `searchParams` access makes the page dynamic — acceptable here but must be explicitly handled.
+**What goes wrong:** The bot sends an outbound estimate to a client's WhatsApp number that has never messaged the business. Or the owner's 30-minute confirmation session expires and the bot tries to re-contact the owner after more than 24 hours. Both are outbound-initiated messages outside an active conversation window and require an approved **Message Template**.
 
-**Why it happens:** Next.js App Router: reading `searchParams` in a server component opts the route into dynamic rendering. The existing `page.tsx` does not accept a `searchParams` prop at all.
+**Why it happens:** In the Xtimator flow, the owner initiates via WhatsApp (inbound), so the owner → bot direction stays within the 24-hour window. But sending the estimate to the **client's** WhatsApp number (Phase 4, outbound delivery) is a bot-initiated conversation that requires template approval if the client has never messaged the bot's phone number.
 
-**Consequences:** Either the clientId is ignored (button appears to do nothing special), or the page is accidentally left static and `searchParams` is always `{}`.
+**Consequences:** `131026` error from the Graph API: "Message undeliverable. The recipient hasn't opted in." Account quality score damaged with repeated violations. Potential WABA suspension.
 
 **Prevention:**
-- Add `searchParams: Promise<{ clientId?: string }>` to the page props signature (Next.js 16 async params pattern — already established in `clients/[id]/page.tsx`).
-- Pass `preselectedClientId` as a prop to `NewProjectWizard`.
-- In `createProjectAction`, accept an optional `preselectedClientId` that bypasses the form's `clientId` field if provided.
-- This does not need a modal route or any state management — pure URL prop passing.
+- For outbound delivery to clients: default delivery format must be **share link** or **email**, not WhatsApp direct. WhatsApp-direct-to-client should be clearly marked as an advanced option requiring the client to have first messaged the business number.
+- If WhatsApp-to-client is offered, create a pre-approved template (e.g., `estimate_ready`) and submit for Meta approval during Phase 5. Templates can only be used to initiate; free-form text requires the client to have messaged first.
+- The owner confirmation flow is safe as long as the bot responds within 24 hours of the owner's initial inbound message.
 
-**Phase:** "New Project from client card" phase.
+**Phase:** Phase 4 — Outbound Delivery.
 
 ---
 
-### Pitfall 8: The wizard removes client select but `NewProjectWizard`'s `clients` prop (and the `getClients` query) is still loaded unconditionally on every page visit
+### Pitfall 12: Phone Number Format Mismatch (E.164 vs. Meta's Internal Format)
 
-**What goes wrong:** `app/(app)/projects/new/page.tsx` always calls `getClients(supabase, company.id)` before rendering the wizard. If client selection is removed as a mandatory step, this query becomes dead weight for the audio and text paths (it's only needed for the "pre-select from client card" scenario, where the client is already known via `?clientId=`).
+**What goes wrong:** The `company_whatsapp.phone_number` column stores numbers in E.164 format with a leading `+` (e.g., `+15551234567`). The webhook payload's `from` field contains the number **without** the `+` prefix (e.g., `15551234567`). The lookup `WHERE phone_number = from_number` returns null for every message.
 
-**Why it happens:** The query was authored when the wizard had only one purpose: pick a client. After v1.5, the client list is only needed when no `clientId` is pre-supplied and the user wants to optionally link a client during onboarding.
+**Why it happens:** Meta's webhook delivers phone numbers in E.164 but without the `+`. The `to` field (your business number) also arrives without `+`. The stored format and the lookup value are off by one character.
 
-**Consequences:** An extra 50-200ms DB round-trip on every new project creation, loading a potentially large client list that the user never sees or uses.
+**Additionally:** Starting June 2026, Meta is rolling out WhatsApp Usernames. The `wa_id` / `from` field may contain a Business-Scoped User ID (BSUID) in the format `CC.alphanumeric` instead of a phone number for users who have set a username. Phone-number-based routing will fail for these users.
 
 **Prevention:**
-- Make the query conditional: only run `getClients` if `searchParams.clientId` is absent and the wizard's UI still offers optional client selection.
-- Or: defer client loading entirely and let the Overview tab's "Link client" card handle client assignment post-creation (which is the SEED-007 preferred model).
-- The simplest safe approach for the first phase: keep the query but make it optional in the wizard UI; defer optimization to a follow-up.
+- Normalize at both storage and lookup time. Always strip `+` before storage OR always add `+` before lookup. Pick one convention and enforce it at the boundary:
+  ```typescript
+  function normalizePhone(raw: string): string {
+    return raw.startsWith('+') ? raw : `+${raw}`
+  }
+  ```
+- For BSUID migration: design the `company_whatsapp` routing lookup to handle both phone numbers and BSUIDs. Track the `wa_id` Meta returns, not just the human-readable phone number.
 
-**Phase:** Wizard restructure phase.
+**Phase:** Phase 1 — Webhook Infrastructure.
 
 ---
 
-### Pitfall 9: Photos-first path bypasses photo analysis and finds no `ai_description` rows
+### Pitfall 13: Audio Format Mismatch Passed to Whisper
 
-**What goes wrong:** The `estimate-tab.tsx` `hasPhotos` check (`photos.length > 0`) returns `true` when photos exist, enabling the Generate button. But the generate-estimate route checks for `hasPhotoDescriptions = photos.some(p => p.ai_description && ...)` — photos without AI descriptions are not fed to the estimate. If the photos-first path uploads photos but does not trigger `/api/analyze-photos` first, the estimate is generated with zero photo context.
+**What goes wrong:** WhatsApp voice messages arrive as `audio/ogg` with Opus codec. The handler passes the raw bytes to the OpenAI Whisper API with MIME type `audio/opus`. Whisper returns a 400 error or a garbled transcription.
 
-**Why it happens:** The existing `handleGenerate()` in `estimate-tab.tsx` does call `/api/analyze-photos` if `hasPhotos` is true (lines 59-69), but this is only in the workspace Estimate tab. A new photos-first route that calls generate-estimate directly (without going through the workspace) would skip this step.
+**Why it happens:** The Meta documentation lists `audio/ogg; codecs=opus` as the received MIME type, but developers abbreviate it to `audio/opus` when constructing the Whisper API call — a different and invalid MIME type for that format.
 
-**Consequences:** Photos-first path generates an estimate identical to a blank estimate — no line items derived from the photos. The user sees a useless estimate and concludes the feature is broken.
+**Prevention:** Always set MIME type as `audio/ogg` (Whisper accepts OGG/Opus natively). If conversion is needed for any edge case, use FFmpeg to convert OGG/Opus → MP3 before sending. Verify correct Content-Type in the Whisper FormData upload:
+```typescript
+const formData = new FormData()
+formData.append('file', new Blob([audioBuffer], { type: 'audio/ogg' }), 'voice.ogg')
+formData.append('model', 'whisper-1')
+```
 
-**Prevention:**
-- Any new photos-first UI must call `/api/analyze-photos` and await its completion before calling `/api/generate-estimate`. This is already the correct ordering in `estimate-tab.tsx`.
-- Do not expose a "Generate from Photos" button that calls generate-estimate directly. Always go through analyze-photos first.
-- The generate-estimate route itself does not defensively call analyze-photos — it trusts the caller. This is intentional but means the caller must be correct.
-
-**Phase:** Photos-first input route phase.
-
----
-
-### Pitfall 10: Modal choice selection state lost if the user navigates back
-
-**What goes wrong:** If the wizard implements the 3-way modal choice as a second step (after project creation), the user may hit the browser Back button after selecting "Text" and creating the project. The project row exists (eager creation is confirmed at wizard step 1), but the user re-lands on a page with no knowledge that a draft project was already created. They might click "New Project" again, creating a second orphan project.
-
-**Why it happens:** Eager project creation (D-01, confirmed in STATE.md) fires at the first wizard step. If the modal choice is step 2 in the wizard UI, the project already exists before the user picks their input type.
-
-**Consequences:** Orphan draft accumulation (partially mitigated by the 24h cron, but the user sees two draft projects in the sidebar immediately).
-
-**Prevention:**
-- Move project creation to after modal choice, not before. The modal choice page does not need a project row — it just picks where to redirect.
-- Structure: show modal choice first (no DB write), then on selection create the project row and redirect to the input route.
-- Alternatively: make the 3-way modal choice the only thing on the wizard page, create the project row immediately when the user taps a modal card (single-tap-to-create). This minimizes the back-navigation window.
-
-**Phase:** Wizard redesign phase.
+**Phase:** Phase 2 — Inbound Processing.
 
 ---
 
-### Pitfall 11: `project_status` transitions do not account for the text path
+### Pitfall 14: Session Expiry Not Enforced at Query Time
 
-**What goes wrong:** `createRecording` in `lib/actions/recording.ts` sets `projects.status = 'recording'` when the first recording is added (line 51-57). If the text path inserts a recording row with `storage_path: null`, this same status transition fires — which is correct for the pipeline but semantically odd ("recording" status for a text-only project). More critically, if the text path does not use the `createRecording` action (uses a new `createTextTranscript` action instead), status is never updated from `draft`, and the project stays in `draft` status even after the estimate is ready.
+**What goes wrong:** The `whatsapp_sessions` table has an `expires_at` column, but the handler queries sessions without filtering expired ones: `WHERE company_id = $1 AND phone_number = $2`. An expired session from a conversation two hours ago is returned. The handler uses its stale `draft_estimate_id`, corrupting the new conversation.
 
-**Why it happens:** Status transitions are hard-coded in the recording action, not in a central state machine.
+**Why it happens:** The expiry column is added with good intentions but the WHERE clause omits the check during implementation.
 
-**Consequences:** Projects appear as `draft` in the dashboard long after the estimate is generated. Dashboard filters and stats are wrong. The sidebar shows draft projects that should show `estimate_ready`.
+**Prevention:** Every session read must include the expiry guard:
+```sql
+WHERE company_id = $1
+  AND phone_number = $2
+  AND expires_at > NOW()
+```
+Add a database index on `(company_id, phone_number, expires_at)`. Use the existing `pg_cron` pattern (already in the codebase for orphan cleanup) to purge expired sessions daily.
 
-**Prevention:**
-- Reuse or mirror the status transition logic in `createTextTranscript`. After inserting the transcript-only recording row, update `projects.status = 'recording'` (same trigger point as audio).
-- The generate-estimate route already updates status to `estimate_ready` on success (line 287) — this works for all paths, no change needed there.
+**Phase:** Phase 3 — Confirmation Flow.
 
-**Phase:** Text-input route phase.
+---
+
+### Pitfall 15: Meta App in Wrong Mode (Development vs. Live)
+
+**What goes wrong:** The Meta app is left in "Development" mode. In development mode, the app can only send messages to phone numbers explicitly added to the allowed list (max 5). Any message sent to a real customer's number returns error `131030: Recipient phone number not in allowed list`.
+
+**Why it happens:** The path from development → Live mode requires Meta Business Verification (uploading official documents, 2–10 business day review). Developers complete integration before starting this process, then cannot test with real phone numbers.
+
+**Consequences:** The entire production deployment is blocked until Business Verification completes. This review process cannot be expedited.
+
+**Prevention:** Start Meta Business Verification during Phase 1, in parallel with webhook infrastructure development. Do not wait until the feature is "done" to submit. Required documents: US business registration, EIN confirmation letter, or utility bill in the business name. Build with the test number for functional testing while waiting for verification.
+
+**Phase:** Phase 1 — Webhook Infrastructure (submit verification immediately).
+
+---
+
+### Pitfall 16: Opt-In Compliance for Owner Registration
+
+**What goes wrong:** A company phone number is added to `company_whatsapp` and "activated" by an admin without the actual phone number owner's explicit consent. Messages are sent from that number without opt-in. Meta's policy enforcement flags the account.
+
+**Why it happens:** The registration flow in `/settings/integrations` might allow any admin to register any phone number without proof of ownership.
+
+**Consequences:** WhatsApp Business Policy violation. Account quality score degraded. Potential WABA suspension.
+
+**Prevention:** The phone number registration flow must include a verification step where a code is sent via WhatsApp to the number being registered, and the owner confirms it in the UI. This proves the person registering the number is the one who controls it — this is already described in SEED-008's connection flow. Do not skip this verification step even in MVP.
+
+**Phase:** Phase 5 — Setup and Admin.
 
 ---
 
@@ -212,71 +375,98 @@ Mistakes that cause migrations, data corruption, broken AI pipelines, or complet
 
 ---
 
-### Pitfall 12: The photos-first input path creates a route-group collision risk
+### Pitfall 17: Verify Token Hardcoded or Weak
 
-**What goes wrong:** SEED-005 sketches `/projects/[id]/photos-input` as a new route for the photos-first flow. The existing workspace photos tab is at `/projects/[id]` (tab-based, no sub-route). Creating `/projects/[id]/photos-input` inside the `(app)` route group puts it under the app shell (sidebar + topbar), while `/projects/[id]/capture` is in the `(capture)` route group (full-screen, no shell). If the photos-first path should be a focused experience (no shell distractions), it needs to be in `(capture)` — but the existing `(capture)` layout is designed only for the recorder.
+**What goes wrong:** The GET webhook verification endpoint checks `hub.verify_token` against a hardcoded string like `"xtimator_verify"`. This string is visible in source code and could allow someone to register a fake webhook endpoint if Meta's portal is ever compromised.
 
-**Why it happens:** Route group architecture choices made in Phase 18 were audio-specific.
+**Prevention:** Store the verify token in the encrypted `platform_integrations` table alongside other API credentials. Use a cryptographically random string (32+ bytes, base64 encoded). Rotate it after initial setup.
 
-**Prevention:**
-- Decide early whether the photos-first path is a full-screen experience (add to `(capture)` group, extend the layout) or an in-shell experience (use the existing Photos workspace tab with a more prominent "Generate" CTA).
-- The simplest path: enhance the existing Photos workspace tab rather than creating a new route. Add a prominent "Generate from Photos" banner/button to the Photos tab when no estimate exists.
-
-**Phase:** Photos-first input phase; resolve before building any UI.
+**Phase:** Phase 1 — Webhook Infrastructure.
 
 ---
 
-### Pitfall 13: The text-input textarea has no minimum length validation and an LLM will hallucinate on very short input
+### Pitfall 18: No Guard Against Unknown Message Types
 
-**What goes wrong:** If the user types "paint house" (10 characters) and hits Generate, Claude receives a transcript of 10 characters with no other context. Claude will still return a structured estimate — it will hallucinate quantities, prices, and scope. The user gets a plausible-looking but entirely fabricated estimate that may be used for a real job.
+**What goes wrong:** The handler processes `text`, `audio`, `image` message types. A user sends a video, sticker, location, or contact card. The handler throws an unhandled case, returns 500, Meta retries, and the failure loop continues for 7 days.
 
-**Why it happens:** The generate-estimate route has no minimum transcript length check beyond `trim().length > 0`. This was acceptable for Whisper transcripts (which are always at least a few sentences) but is a real UX problem for typed input.
+**Prevention:** Add a default catch-all case that:
+1. Returns 200 (to stop Meta's retry loop)
+2. Optionally sends the owner a polite "I can't process videos yet" message
+3. Does not throw
 
-**Prevention:**
-- Add a client-side minimum length (e.g., 50 characters) with a visible character counter and disabled Generate button below the threshold.
-- Add a server-side guard in the generate-estimate route: if the only transcript is under 50 characters and there are no photos, return a 400 with `"Description is too short to generate a useful estimate."`.
-- SEED-005 suggests a minimum of 10 lines for the textarea — this is a UI constraint, not a character count, and is insufficient on its own.
+```typescript
+switch (msgType) {
+  case 'text': // handle
+  case 'audio': // handle
+  case 'image': // handle
+  default:
+    await sendTextMessage(from, "I can process audio, text, and photos. Video is not supported yet.")
+    return new Response('OK', { status: 200 })
+}
+```
 
-**Phase:** Text-input route phase.
+**Phase:** Phase 2 — Inbound Processing.
 
 ---
 
-### Pitfall 14: Auto-created clients (name-only) surface in all client-facing comboboxes and dropdown searches
+### Pitfall 19: Storing Media in `/tmp` Instead of Supabase Storage
 
-**What goes wrong:** If AI extraction auto-creates a client with only a name (no email, phone, address), that stub client appears in the client search combobox everywhere: the wizard client selector, the Overview tab link-client control, the share-estimate email field. Users may accidentally select the stub client for a different project.
+**What goes wrong:** The handler downloads WhatsApp media to the function's `/tmp` directory (available on Vercel up to 512 MB) and passes the file path to Whisper or Claude. Works in development. In production, the AI call runs in a different function instance that has no access to `/tmp` from the previous instance.
 
-**Why it happens:** The `getClients` query returns all clients for the company. There is no `is_stub` or `source` column to distinguish AI-created from user-created clients.
+**Prevention:** Always stream media bytes directly to the AI API call as a buffer, or persist to Supabase Storage first and pass the URL. Never rely on `/tmp` persistence across invocations.
 
-**Prevention:**
-- Only auto-link to existing clients (never auto-create) unless the user explicitly confirms.
-- If auto-create is implemented, consider adding a `source TEXT` column to `clients` (`'user'` vs `'ai_inferred'`) so stubs can be visually differentiated in the combobox with a "Incomplete" badge and easily cleaned up.
-- This is primarily a consequence of Pitfall 6 — preventing silent auto-creation prevents this pitfall entirely.
+**Phase:** Phase 2 — Inbound Processing.
 
-**Phase:** AI client extraction phase.
+---
+
+### Pitfall 20: Rate Limit on Per-User Outbound Messages
+
+**What goes wrong:** During the confirmation flow, the bot sends a summary message, then the owner replies "edit line 2 to $150", the bot updates and re-sends the summary. Multiple rapid edits trigger Meta's per-user rate limit: 1 message per 6 seconds to the same number (10 messages/minute).
+
+**Prevention:** Add a 1-second minimum delay between successive outbound messages to the same number. Queue outbound messages rather than sending inline. For the confirmation flow, this is unlikely to be a problem in normal use (owners rarely send more than 2–3 edit commands per estimate), but the handler should catch `131056` (rate limit) errors and retry after 7 seconds.
+
+**Phase:** Phase 3 — Confirmation Flow.
 
 ---
 
 ## Phase-Specific Warnings
 
-| Phase Topic | Likely Pitfall | Mitigation |
-|-------------|---------------|------------|
-| Wizard redesign (remove mandatory client select) | Pitfall 3: schema still requires clientId | Update `projectSchema` first, before any UI changes |
-| Wizard redesign (3-way modal choice) | Pitfall 10: eager project creation + back navigation creates orphans | Create project row on modal card tap, not on wizard load |
-| Text-input route | Pitfall 1: `storage_path NOT NULL` on recordings table | Migration to make `storage_path` nullable is a prerequisite |
-| Text-input route | Pitfall 2: orphan cron deletes text-only projects | Insert recording row immediately on text save, not after estimate generation |
-| Text-input route | Pitfall 11: project status stays `draft` after text save | Mirror status transition from `createRecording` in `createTextTranscript` |
-| Text-input route | Pitfall 13: LLM hallucination on very short input | Client + server minimum length guard |
-| Photos-first route | Pitfall 9: photos uploaded but not analyzed before generate | Always call analyze-photos, then generate-estimate, never skip analysis |
-| Photos-first route | Pitfall 12: route group placement (shell vs full-screen) | Decide before building; enhancing the Photos tab avoids new route entirely |
-| AI client extraction | Pitfall 4: `detected_client_name` not in tool schema | Update both Anthropic and Gemini adapter schemas atomically |
-| AI client extraction | Pitfall 5: client match not scoped by company_id | Add `.eq('company_id', companyId)` before ilike; unit test the filter |
-| AI client extraction | Pitfall 6: silent auto-create pollutes client list | Return `detected_client_name` in API response; let UI confirm before creating |
-| AI client extraction | Pitfall 14: stub clients in all comboboxes | Only auto-link, never auto-create without user confirmation |
-| New Project from client card | Pitfall 7: searchParams not read in page.tsx | Add `searchParams` prop to page; pass as `preselectedClientId` to wizard |
-| New Project from client card | Pitfall 8: `getClients` query runs even when client is pre-known | Conditionally skip the query when `clientId` is pre-supplied |
+| Phase | Topic | Likely Pitfall | Mitigation |
+|-------|-------|---------------|------------|
+| Phase 1 | Webhook handler | Raw body consumed before HMAC (#1) | Always `req.text()` first |
+| Phase 1 | Webhook handler | WABA not subscribed to app (#2) | POST to `/{WABA_ID}/subscribed_apps` immediately after URL verification |
+| Phase 1 | Credentials | Temporary token in production (#3) | System User token via Business Manager |
+| Phase 1 | Security | String equality for HMAC (#4) | `crypto.timingSafeEqual` only |
+| Phase 1 | Routing | Phone number format mismatch (#12) | Normalize at read/write boundary |
+| Phase 1 | Supabase | Auth-scoped client in webhook (#10) | Separate `createServiceClient()` |
+| Phase 1 | Meta setup | App left in Development mode (#15) | Submit Business Verification immediately |
+| Phase 2 | Media | 5-minute media URL expiry (#7) | Download synchronously before returning 200 |
+| Phase 2 | Performance | AI pipeline timeout (#8) | `after()` + `maxDuration` config |
+| Phase 2 | Dedup | Duplicate estimates (#5) | `wamid` dedup table before any processing |
+| Phase 2 | Status floods | Invocation waste (#6) | Early-exit for pure status events |
+| Phase 2 | Audio | Wrong MIME type to Whisper (#13) | `audio/ogg`, not `audio/opus` |
+| Phase 2 | Serverless | `/tmp` file persistence (#19) | Buffer to Supabase Storage, never `/tmp` |
+| Phase 3 | Concurrency | Race on session creation (#9) | DB unique constraint + upsert |
+| Phase 3 | Session | Expired session returned (#14) | Always filter `expires_at > NOW()` |
+| Phase 4 | Compliance | 24-hour window violation (#11) | Default outbound to link/email, not WhatsApp direct |
+| Phase 5 | Compliance | No opt-in verification (#16) | Require code verification in registration flow |
+
+---
 
 ## Sources
 
-- Codebase (direct inspection): `lib/schemas/project.ts`, `lib/actions/project.ts`, `lib/actions/recording.ts`, `app/api/generate-estimate/route.ts`, `lib/ai/providers/anthropic.ts`, `lib/ai/types.ts`, `lib/ai/prompt-builder.ts`, `supabase/migrations/20260409000001_initial_schema.sql`, `supabase/migrations/20260505000001_phase18_cleanup_cron.sql`, `components/projects/new-project-wizard.tsx`, `components/workspace/estimate/estimate-tab.tsx`, `components/workspace/overview-tab.tsx`, `app/(app)/clients/[id]/page.tsx`, `components/clients/client-detail-actions.tsx`
-- Seed documents: `.planning/seeds/SEED-005-multi-modal-project-input.md`, `.planning/seeds/SEED-007-frictionless-client-project-association.md`
-- Accumulated decisions: `.planning/STATE.md` (Decisions section, particularly Phase 18 voice-first onboarding decisions)
+- Meta Webhooks documentation: https://developers.facebook.com/docs/whatsapp/cloud-api/guides/set-up-webhooks/
+- Meta Media API documentation: https://developers.facebook.com/docs/whatsapp/cloud-api/reference/media/
+- Meta System User access tokens: https://developers.facebook.com/documentation/business-messaging/whatsapp/access-tokens/
+- Meta Business Messaging Policy: https://business.whatsapp.com/policy
+- Meta Policy Enforcement: https://developers.facebook.com/documentation/business-messaging/whatsapp/policy-enforcement
+- "Shadow Delivery" WABA subscription issue: https://medium.com/@siri.prasad/the-shadow-delivery-mystery-why-your-whatsapp-cloud-api-webhooks-silently-fail-and-how-to-fix-2c7383fec59f
+- Hookdeck WhatsApp Webhook Guide: https://hookdeck.com/webhooks/platforms/guide-to-whatsapp-webhooks-features-and-best-practices
+- Duplicate webhook handling with Redis: https://medium.com/@nkangprecious26/handling-duplicate-webhooks-in-whatsapp-api-using-redis-d7d117731f95
+- WhatsApp Cloud API + Next.js webhook setup: https://pons.chat/blog/whatsapp-cloud-api-webhook-nextjs
+- Vercel Function Duration configuration: https://vercel.com/docs/functions/configuring-functions/duration
+- BSUID migration (June 2026): https://github.com/chatwoot/chatwoot/issues/13837
+- WhatsApp audio/ogg Opus + Whisper: https://github.com/openai/whisper/discussions/294
+- Status webhook flood on n8n: https://community.n8n.io/t/how-to-stop-whatsapp-cloud-api-status-webhooks-from-eating-your-n8n-executions-using-a-cloudflare-worker-for-generic-webhook-node-users/294956
+- Next.js App Router issue — App Directory does not support disabling body parsing: https://github.com/vercel/next.js/issues/54090
+- Supabase service role + webhook pattern: https://github.com/hetref/whatsapp-chat

@@ -1,439 +1,733 @@
-# Architecture Research
+# Architecture: WhatsApp Estimate Channel (v2.0)
 
-**Domain:** Multi-modal project onboarding — v1.5 Zero-friction Project Onboarding
-**Researched:** 2026-05-08
-**Confidence:** HIGH (all findings derived from direct codebase inspection)
+**Domain:** WhatsApp channel integration via Meta Cloud API
+**Researched:** 2026-05-10
+**Confidence:** HIGH (codebase direct inspection + Meta official docs verification)
 
-## Standard Architecture
+---
 
-### System Overview
-
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                    Entry Points (Routes)                             │
-│                                                                      │
-│  /projects/new?clientId=   /clients/[id]   /projects/[id]/describe  │
-│  (app) group               (app) group     (capture) group           │
-│       │                        │                    │                │
-│       ▼                        ▼                    ▼                │
-│  NewProjectPage          ClientDetailPage    DescribePage (NEW)      │
-│  + NewProjectWizard v2   + ClientDetailActions  + DescribeClient     │
-├─────────────────────────────────────────────────────────────────────┤
-│                 Wizard State Machine (client component)              │
-│                                                                      │
-│   Step 0 removed          Step 1 → Modal Choice (SEED-005)          │
-│   (client optional)       [Audio] [Text] [Photos]                    │
-│                            ↓       ↓       ↓                         │
-│                        /capture /describe /photos-input              │
-├─────────────────────────────────────────────────────────────────────┤
-│                   Server Actions / API Routes                        │
-│                                                                      │
-│  createProjectAction (modified — client_id optional)                 │
-│  createTextTranscriptAction (NEW — saves text as recording row)      │
-│  linkClientAction (NEW — post-generation client match/create)        │
-│  POST /api/generate-estimate (modified — returns detected_client)    │
-├─────────────────────────────────────────────────────────────────────┤
-│                     AI Layer  (lib/ai/)                              │
-│                                                                      │
-│  prompt-builder.ts (modified — adds detected_client_name field)      │
-│  types.ts (modified — EstimateOutput gains detected_client_name)     │
-│  AnthropicAdapter / GeminiAdapter (modified — extract client name)   │
-├─────────────────────────────────────────────────────────────────────┤
-│                   Database (Supabase PostgreSQL)                     │
-│                                                                      │
-│  projects.client_id — already nullable (no migration needed)        │
-│  recordings.storage_path — needs to be nullable for text path        │
-│  projects.input_mode TEXT — optional new column (audio/text/photos)  │
-└─────────────────────────────────────────────────────────────────────┘
-```
-
-### Component Responsibilities
-
-| Component | Responsibility | Status |
-|-----------|----------------|--------|
-| `NewProjectWizard` | Multi-step wizard; step 1 now modal choice instead of client select | MODIFIED |
-| `StepModalChoice` | 3-card picker (Audio / Text / Photos); mobile-first tap targets | NEW |
-| `createProjectAction` | Creates project row; `clientId` becomes optional, defaults to null | MODIFIED |
-| `DescribePage` + `DescribeClient` | Full-page text input route in `(capture)` group; saves transcript; fires generate | NEW |
-| `PhotosInputPage` + `PhotosInputClient` | Full-page photos-first route in `(capture)` group; wraps PhotoDropZone; fires generate | NEW |
-| `ClientDetailActions` | Adds "+ New Project" button alongside Edit/Delete | MODIFIED |
-| `OverviewTab` | Adds "No client linked" card with link/create action when `client_id` is null | MODIFIED |
-| `linkClientAction` | Post-generation server action: fuzzy-match client name, create if no match, update project | NEW |
-| `generateEstimate` API route | After generation, extracts `detected_client_name` from AI response; calls linkClientAction | MODIFIED |
-| `prompt-builder.ts` | Adds client-name extraction instruction to user content prompt | MODIFIED |
-| `EstimateOutput` type | Adds optional `detected_client_name: string \| null` field | MODIFIED |
-
-## Recommended Project Structure
+## System Overview
 
 ```
-app/
-├── (capture)/
-│   └── projects/[id]/
-│       ├── capture/            # existing audio recorder (unchanged)
-│       ├── describe/           # NEW — text input path
-│       │   ├── page.tsx        # server: auth + project guard → DescribeClient
-│       │   ├── loading.tsx     # NEW
-│       │   └── describe-client.tsx  # NEW client component
-│       └── photos-input/       # NEW — photos-first path
-│           ├── page.tsx        # server: auth + project guard → PhotosInputClient
-│           ├── loading.tsx     # NEW
-│           └── photos-input-client.tsx  # NEW client component
-│
-├── (app)/
-│   └── projects/
-│       └── new/
-│           └── page.tsx        # MODIFIED — reads ?clientId= searchParam
-
-components/
-├── projects/
-│   ├── new-project-wizard.tsx  # MODIFIED — 2-step: modal choice (step removed: client select)
-│   ├── step-modal-choice.tsx   # NEW — 3-card Audio/Text/Photos picker
-│   └── step-client-select.tsx  # KEPT but now optional/skipped via clientId prop
-│
-├── workspace/
-│   └── overview-tab.tsx        # MODIFIED — adds "No client linked" card
-
-lib/
-├── actions/
-│   ├── project.ts              # MODIFIED — createProjectAction accepts optional clientId
-│   └── client-link.ts          # NEW — linkClientAction server action
-│
-├── ai/
-│   ├── types.ts                # MODIFIED — EstimateOutput.detected_client_name
-│   └── prompt-builder.ts       # MODIFIED — adds client extraction instruction
-│
-└── schemas/
-    └── project.ts              # MODIFIED — clientId optional, add inputMode field
-
-app/api/
-└── generate-estimate/
-    └── route.ts                # MODIFIED — calls linkClientAction after generation
+┌──────────────────────────────────────────────────────────────────────┐
+│  META CLOUD API                                                       │
+│  Graph API (send messages, upload media, download media)              │
+│  Webhook → POST /api/webhooks/whatsapp (HMAC-SHA256 verified)         │
+└──────────────┬──────────────────────────────┬────────────────────────┘
+               │ inbound                      │ outbound
+               ▼                              ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│  WEBHOOK HANDLER  app/api/webhooks/whatsapp/route.ts                  │
+│                                                                       │
+│  GET  → hub.mode/hub.verify_token/hub.challenge verification          │
+│  POST → HMAC-SHA256 validate X-Hub-Signature-256 (raw body)           │
+│         → extract from_number + message type                          │
+│         → lookup company_whatsapp WHERE phone_number = from_number    │
+│         → dispatch to WhatsAppMessageHandler                          │
+└────────────────────────┬─────────────────────────────────────────────┘
+                         │
+                         ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│  MESSAGE HANDLER  lib/whatsapp/handler.ts                             │
+│                                                                       │
+│  Session lookup/create (whatsapp_sessions table)                      │
+│  State machine:                                                       │
+│    awaiting_input  → collect media → fire AI pipeline                 │
+│    awaiting_confirm → parse "send"/"edit X"/"cancel"                  │
+│    awaiting_edit   → apply edit → return to confirm                   │
+└────────────────────────┬─────────────────────────────────────────────┘
+                         │ calls existing routes programmatically
+          ┌──────────────┼──────────────┐
+          ▼              ▼              ▼
+  Whisper API    Claude Vision    generate-estimate
+  (existing      (existing        pipeline (existing
+  /transcribe)   /analyze-photos) /generate-estimate)
+          │              │              │
+          └──────────────┴──────────────┘
+                         │
+                         ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│  OUTBOUND DELIVERY  lib/whatsapp/sender.ts                            │
+│                                                                       │
+│  WhatsAppProvider interface (mirrors lib/ai/ pattern)                  │
+│  MetaAdapter → Graph API /messages endpoint                           │
+│    - sendTextMessage(to, text)                                        │
+│    - sendDocumentMessage(to, pdfBuffer, filename)  [upload then send] │
+│    - sendShareLink(to, estimateToken)                                 │
+└──────────────────────────────────────────────────────────────────────┘
 ```
 
-### Structure Rationale
+---
 
-- **`(capture)` route group:** The full-screen escape-from-app-shell pattern already works for audio. Both new paths (`/describe` and `/photos-input`) use the same `(capture)` layout (`fixed inset-0 z-50 bg-background`). This keeps all single-purpose input flows isolated from the workspace tabs shell.
-- **`step-modal-choice.tsx` as separate component:** The wizard is already a controlled client component (`useForm`). The modal choice step is stateless UI (3 cards → callback). Keeping it in its own file makes each step independently testable and matches the existing `step-client-select.tsx` pattern.
-- **`client-link.ts` as a separate action module:** Client linking is a post-generation side effect, not part of project creation. A dedicated module keeps `project.ts` focused on CRUD and keeps the matching/creation logic independently testable. It is called from the API route after estimate persistence completes.
-- **No new route group needed for client association:** The `(app)` group already handles `/clients/[id]`, so the "New Project" button can simply push to `/projects/new?clientId=<id>` — no new layout required.
+## Decision: Meta Cloud API Only (Not Twilio)
 
-## Architectural Patterns
+**Verdict:** Build Meta Cloud API directly. Do NOT build a Twilio adapter for v2.0.
 
-### Pattern 1: Eager Project Creation + Redirect
+**Rationale:**
+- SEED-008 lists Meta Cloud API as the lower-cost, direct option. Twilio is listed as "better DX, sandbox" but adds a paid intermediary and a second vendor dependency.
+- The existing `lib/ai/` abstraction proved the interface pattern works — a `WhatsAppProvider` interface can accommodate Twilio later if the market requires it.
+- Meta Cloud API is free at the message-delivery layer (businesses pay Meta per conversation type at scale, but this is per-message at the BSP level — not a platform fee).
+- For a US-first SaaS product where cost per estimate matters, removing the Twilio layer from the critical path is the right call.
+- v2.0 ships Meta adapter. Interface is designed for extensibility (Twilio slot exists in the type system).
 
-**What:** The project row is created with a placeholder name before the user provides any content. The wizard redirects immediately to the content-input route after creation.
+**Confidence:** MEDIUM — Based on product reasoning + Meta API documentation. Twilio sandbox is genuinely easier to start with for dev, but the interface pattern makes the dev path manageable without it.
 
-**When to use:** This milestone keeps this pattern. All three branches (audio, text, photos) follow: create project → redirect to input route → user provides content → generate.
+---
 
-**Trade-offs:** Creates orphan draft projects if the user abandons after wizard but before generating. The codebase already has `pg_cron` + Vercel cron fallback for orphan cleanup — no new mechanism needed.
+## Decision: Session State → Supabase PostgreSQL (Not Redis)
 
-**Existing code:**
+**Verdict:** Use the `whatsapp_sessions` table in Supabase PostgreSQL. Do NOT add Redis/Vercel KV.
+
+**Rationale:**
+- Sessions expire in 30 minutes. A `pg_cron` cleanup job (same pattern as orphan project cleanup already shipped) handles expiry without Redis.
+- At Xtimator's current scale (hundreds to low-thousands of users), Redis adds infra complexity with no throughput benefit. WhatsApp sessions are low-frequency per user (one at a time per company).
+- A Supabase row query against `whatsapp_sessions WHERE company_id = ? AND expires_at > NOW()` with a proper index is sub-millisecond at this scale.
+- Webhook responses must be HTTP 200 within Meta's timeout window (roughly 20 seconds). The DB approach is fast enough; the actual latency bottleneck is the AI pipeline (Whisper + Claude), not the session lookup.
+- Redis can be added in v3 if multi-region deployment or sub-5ms session reads become requirements.
+
+**Confidence:** HIGH — Aligned with existing codebase pattern (no Redis anywhere), codebase already has pg_cron + Vercel cron dual pattern for cleanup.
+
+---
+
+## New Database Tables
+
+### `company_whatsapp`
+
+```sql
+-- Migration: supabase/migrations/20260510_phase40_whatsapp_channel.sql (or next date)
+CREATE TABLE public.company_whatsapp (
+  id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id          UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  phone_number        TEXT NOT NULL UNIQUE,     -- E.164: +15551234567
+  waba_id             TEXT,                     -- Meta WABA ID (nullable until verified)
+  phone_number_id     TEXT,                     -- Meta Phone Number ID for sending
+  status              TEXT NOT NULL DEFAULT 'pending'
+                      CHECK (status IN ('pending', 'verified', 'active', 'suspended')),
+  delivery_format     TEXT NOT NULL DEFAULT 'text_and_link'
+                      CHECK (delivery_format IN ('text_only', 'text_and_link', 'pdf_and_link')),
+  verified_at         TIMESTAMPTZ,
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE public.company_whatsapp ENABLE ROW LEVEL SECURITY;
+
+-- RLS: company owns its own row
+CREATE POLICY "company_whatsapp_select" ON company_whatsapp FOR SELECT TO authenticated
+  USING (company_id IN (SELECT id FROM companies WHERE user_id = (SELECT auth.uid())));
+CREATE POLICY "company_whatsapp_insert" ON company_whatsapp FOR INSERT TO authenticated
+  WITH CHECK (company_id IN (SELECT id FROM companies WHERE user_id = (SELECT auth.uid())));
+CREATE POLICY "company_whatsapp_update" ON company_whatsapp FOR UPDATE TO authenticated
+  USING (company_id IN (SELECT id FROM companies WHERE user_id = (SELECT auth.uid())))
+  WITH CHECK (company_id IN (SELECT id FROM companies WHERE user_id = (SELECT auth.uid())));
+CREATE POLICY "company_whatsapp_delete" ON company_whatsapp FOR DELETE TO authenticated
+  USING (company_id IN (SELECT id FROM companies WHERE user_id = (SELECT auth.uid())));
+
+-- Webhook handler reads by phone_number using service role (bypasses RLS)
+-- No additional policy needed — service role bypasses RLS by design
+```
+
+**Key fields:**
+- `phone_number_id` — Meta's internal ID for the business phone number; required for all outbound Graph API calls (NOT the user-visible phone number string)
+- `waba_id` — WhatsApp Business Account ID; needed for some admin API operations
+- `delivery_format` — per-company outbound format preference; drives what the bot sends to the client
+
+### `whatsapp_sessions`
+
+```sql
+CREATE TABLE public.whatsapp_sessions (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id        UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  phone_number      TEXT NOT NULL,              -- from_number of the owner's WhatsApp
+  state             TEXT NOT NULL DEFAULT 'awaiting_input'
+                    CHECK (state IN ('awaiting_input', 'awaiting_confirm', 'awaiting_edit')),
+  draft_project_id  UUID REFERENCES projects(id) ON DELETE SET NULL,
+  draft_estimate_id UUID REFERENCES estimates(id) ON DELETE SET NULL,
+  context           JSONB,                      -- ephemeral context blob (pending media IDs etc.)
+  expires_at        TIMESTAMPTZ NOT NULL,
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Index for fast webhook lookup (hot path)
+CREATE INDEX whatsapp_sessions_company_expires
+  ON whatsapp_sessions (company_id, expires_at DESC);
+
+ALTER TABLE public.whatsapp_sessions ENABLE ROW LEVEL SECURITY;
+
+-- Sessions are written/read exclusively via service role in the webhook handler
+-- No authenticated-user RLS policies needed — deny-all by omission
+-- (same pattern as platform_integrations / platform_admins)
+```
+
+**Deny-all RLS on `whatsapp_sessions`:** The webhook handler uses `requireServiceClient()`. No user-facing component ever reads session state directly. This is the same "platform table" posture as `platform_integrations`.
+
+### Migration File Naming
+
+Follow existing convention:
+```
+supabase/migrations/20260510000002_phase40_whatsapp_channel.sql
+```
+(use the next available date suffix after the Phase 38/39 migrations)
+
+---
+
+## New API Routes
+
+### `app/api/webhooks/whatsapp/route.ts`
+
+Two handlers in one file — Meta requires both GET and POST on the same URL.
+
+**GET handler — webhook registration verification:**
+
 ```typescript
-// lib/actions/project.ts — createProjectAction
-const { data: project } = await supabase
-  .from('projects')
-  .insert({ company_id, client_id: formData.clientId ?? null, name: placeholder, status: 'draft' })
-```
-
-**Change needed:** `formData.clientId` must change from `z.string().min(1)` to `z.string().optional()` in `lib/schemas/project.ts`.
-
-### Pattern 2: Recording Row as Generic Transcript Carrier
-
-**What:** The `recordings` table already stores `transcript TEXT` with `storage_path TEXT` and `duration_seconds INT` both nullable in the existing schema. The text path saves a recording row with `storage_path = null`, `duration_seconds = null`, and only `transcript` populated.
-
-**When to use:** Text input path. The AI pipeline in `app/api/generate-estimate/route.ts` already reads `recordings.transcript` without caring how the transcript was created.
-
-**Trade-offs:** A recording row without a storage_path is semantically odd. However, this is the lowest-friction integration — the entire downstream pipeline (estimate generation, `hasTranscript` checks) works unchanged. An `input_mode` column on `projects` (or a `type` column on `recordings`) can document the origin if needed.
-
-**Action to create:**
-```typescript
-// lib/actions/recording.ts — new function
-export async function createTextTranscript(projectId: string, text: string) {
-  // Insert recording with storage_path = null placeholder,
-  // duration_seconds = null, transcript = text
-  // Then revalidatePath(`/projects/${projectId}`)
+export async function GET(req: NextRequest) {
+  const params = req.nextUrl.searchParams
+  const mode      = params.get('hub.mode')
+  const token     = params.get('hub.verify_token')
+  const challenge = params.get('hub.challenge')
+  const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN
+  if (mode === 'subscribe' && token === verifyToken && challenge) {
+    return new NextResponse(challenge, { status: 200 })
+  }
+  return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 }
 ```
 
-The existing `createRecording` action requires `storagePath: string` and `durationSeconds: number` — it cannot be reused as-is. A new sibling function avoids changing the existing signature.
+**POST handler — inbound message processing:**
 
-**Schema note:** Verify that `recordings.storage_path` has a NOT NULL constraint in the actual DB migration files. If it does, a migration to make it nullable is required before the text path can ship. This is the one potential DB change.
-
-### Pattern 3: Post-Generation Client Linking
-
-**What:** AI client extraction happens after the estimate is persisted, not before. The `generate-estimate` API route calls a `linkClientAction` as a fire-and-forget step (or await, for reliability). The action fuzzy-matches against `clients` by name, creates a minimal client if no match, and updates `projects.client_id`.
-
-**When to use:** Always, when `project.client_id` is null and `detected_client_name` is non-null in the AI response.
-
-**Trade-offs:** A false-positive auto-link (wrong client matched) is worse UX than a missed link. The safest implementation: exact case-insensitive match for auto-link; anything fuzzy should surface a confirmation prompt in the Overview tab rather than silently linking. This is a product decision that must be captured in the phase plan.
-
-**Data flow:**
-```
-POST /api/generate-estimate
-  → AI provider.generateEstimate()
-  → aiEstimate.detected_client_name (new field in EstimateOutput)
-  → linkClientAction(projectId, companyId, detected_client_name)
-      → SELECT clients WHERE lower(name) = lower(detected) AND company_id = ?
-      → match found: UPDATE projects SET client_id = match.id
-      → no match: INSERT clients (name, company_id) + UPDATE projects SET client_id = new.id
-  → return { estimateId, version, clientLinked: bool, clientName: str | null }
-```
-
-### Pattern 4: SearchParam Client Pre-selection
-
-**What:** The "New Project" button on `ClientDetailPage` navigates to `/projects/new?clientId=<id>`. The `NewProjectPage` server component reads `searchParams.clientId` and passes it to the wizard as an initial value. The wizard skips the (now-optional) client selector and uses the pre-supplied ID.
-
-**When to use:** Any entry point that already knows the client — the client detail page today, potentially other surfaces in future.
-
-**Trade-offs:** Minimal — this is a standard Next.js App Router `searchParams` pattern already used for `?tab=` in the workspace page. No new state mechanism needed.
-
-**Code change in `app/(app)/projects/new/page.tsx`:**
 ```typescript
-export default async function NewProjectPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ clientId?: string }>
-}) {
-  const { clientId } = await searchParams
-  // pass clientId to NewProjectWizard; wizard creates project with client_id pre-filled
-  // and skips directly to modal choice step
-  return <NewProjectWizard clients={clients} preselectedClientId={clientId} />
+export async function POST(req: NextRequest) {
+  // 1. Read raw body FIRST (HMAC needs exact bytes before JSON parse)
+  const rawBody = await req.text()
+
+  // 2. Verify X-Hub-Signature-256 with timing-safe comparison
+  const signature = req.headers.get('x-hub-signature-256') ?? ''
+  const appSecret = process.env.WHATSAPP_APP_SECRET ?? ''
+  const expected  = 'sha256=' + createHmac('sha256', appSecret).update(rawBody).digest('hex')
+  if (!timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) {
+    return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
+  }
+
+  // 3. Parse and dispatch
+  const body = JSON.parse(rawBody)
+  const messages = body?.entry?.[0]?.changes?.[0]?.value?.messages ?? []
+  for (const message of messages) {
+    await handleInboundMessage(message)  // lib/whatsapp/handler.ts
+  }
+
+  // 4. Always return 200 immediately — Meta retries if not 200
+  return NextResponse.json({ status: 'ok' })
 }
 ```
 
-## Data Flow
+**Critical:** Return HTTP 200 before the AI pipeline completes. This means `handleInboundMessage` should be fire-and-forget for long operations (audio/photo processing), OR the webhook must respond immediately and queue work. See "Long Processing" section below.
 
-### Text Path Data Flow
+### `app/api/settings/whatsapp/route.ts`
 
-```
-User lands on /projects/new
-    ↓
-NewProjectWizard step 1: StepModalChoice → user picks "Text ✍️"
-    ↓
-createProjectAction({ clientId: null }) → project row created, status: 'draft'
-    ↓
-router.push(`/projects/${id}/describe`)
-    ↓
-DescribePage (server) → auth guard → DescribeClient
-    ↓
-User types description → clicks "Generate Estimate"
-    ↓
-createTextTranscript(projectId, text) [server action]
-  → INSERT recordings (project_id, company_id, storage_path=null, transcript=text)
-    ↓
-fetch('/api/generate-estimate', { projectId })
-    ↓
-API route: recordings[0].transcript → EstimateInput.transcripts
-    ↓
-AI provider → EstimateOutput (with detected_client_name)
-    ↓
-Estimate persisted → linkClientAction called
-    ↓
-router.push(`/projects/${id}?tab=estimate`)
-```
-
-### Photos-First Path Data Flow
+Settings API for the connect/verify flow from `/settings/integrations`.
 
 ```
-User lands on /projects/new
-    ↓
-NewProjectWizard → user picks "Photos 📸"
-    ↓
-createProjectAction({ clientId: null }) → project row created, status: 'draft'
-    ↓
-router.push(`/projects/${id}/photos-input`)
-    ↓
-PhotosInputPage (server) → auth guard → PhotosInputClient
-    ↓
-User uploads photos via PhotoDropZone (existing component, reused)
-    ↓
-Photos stored in Supabase Storage + photo rows created (existing pipeline)
-    ↓
-User clicks "Generate from Photos"
-    ↓
-fetch('/api/analyze-photos', { projectId })  [existing]
-fetch('/api/generate-estimate', { projectId })  [existing]
-    ↓
-estimate-tab.tsx hasPhotos logic already handles this case
-    ↓
-router.push(`/projects/${id}?tab=estimate`)
+POST /api/settings/whatsapp/connect   — register phone number, trigger OTP
+POST /api/settings/whatsapp/verify    — submit OTP, activate connection
+DELETE /api/settings/whatsapp         — disconnect number
+GET /api/settings/whatsapp/status     — current connection status
 ```
 
-### New Project from Client Detail
+These are authenticated routes (use `createClient()` + `getClaims()` pattern). They write to `company_whatsapp` via service role after auth check.
 
-```
-User on /clients/[id]
-    ↓
-ClientDetailActions: "+ New Project" button (new button added)
-    ↓
-router.push(`/projects/new?clientId=${client.id}`)
-    ↓
-NewProjectPage reads searchParams.clientId
-    ↓
-NewProjectWizard: preselectedClientId skips straight to StepModalChoice
-    ↓
-createProjectAction({ clientId: preselectedClientId })
-    ↓
-[chosen path: audio / text / photos]
-```
+---
 
-### AI Client Extraction Data Flow
+## Webhook Route Registration in `proxy.ts`
 
-```
-POST /api/generate-estimate
-    ↓
-buildUserContent(input) — prompt-builder adds:
-  "If a client name is mentioned, extract it as detected_client_name"
-    ↓
-AnthropicAdapter / GeminiAdapter returns EstimateOutput:
-  { ...existing fields, detected_client_name: "Maria Silva" | null }
-    ↓
-(After estimate persisted successfully)
-linkClientAction(projectId, companyId, "Maria Silva")
-    ↓
-  SELECT * FROM clients
-  WHERE company_id = $companyId
-    AND lower(name) = lower('Maria Silva')
-  ↓
-  Case A — exact match found:
-    UPDATE projects SET client_id = match.id WHERE id = projectId
-  Case B — no match:
-    INSERT INTO clients (company_id, name) VALUES (companyId, 'Maria Silva')
-    UPDATE projects SET client_id = new_client.id WHERE id = projectId
-  Case C — detected_client_name is null:
-    no-op; project stays client_id = null
-    ↓
-API route response includes: { ..., clientLinked: bool, detectedClientName: string | null }
-    ↓
-OverviewTab: if client_id still null, show "No client linked" card
+The webhook URL must be public — Meta sends unauthenticated GET and POST requests to it. Add it to the middleware bypass list:
+
+**Modified `proxy.ts`:**
+
+```typescript
+// In the isPublicRoute check (or equivalent early-return logic)
+// BEFORE updateSession() call — same pattern as /estimate/* pass-through
+if (pathname.startsWith('/api/webhooks/')) {
+  return NextResponse.next()
+}
 ```
 
-## Integration Points
+The existing `matcher` in `proxy.ts` config already excludes `_next/static`, etc. The webhook path `/api/webhooks/whatsapp` will hit the middleware. It must not be redirected to login. The early return `NextResponse.next()` skips all auth logic for webhook paths.
 
-### Files Modified vs New
+---
 
-| File | Change Type | What Changes |
-|------|------------|--------------|
-| `lib/schemas/project.ts` | MODIFIED | `clientId` → `z.string().optional()`; add `inputMode` enum |
-| `lib/actions/project.ts` | MODIFIED | `createProjectAction` — `client_id` defaults to null |
-| `app/(app)/projects/new/page.tsx` | MODIFIED | Read `?clientId` searchParam; pass to wizard |
-| `components/projects/new-project-wizard.tsx` | MODIFIED | Add `preselectedClientId` prop; replace step 1 with StepModalChoice; redirect by mode |
-| `components/projects/step-modal-choice.tsx` | NEW | 3-card Audio/Text/Photos picker |
-| `app/(capture)/projects/[id]/describe/page.tsx` | NEW | Server page for text path |
-| `app/(capture)/projects/[id]/describe/loading.tsx` | NEW | Loading state |
-| `app/(capture)/projects/[id]/describe/describe-client.tsx` | NEW | Client component: textarea + generate |
-| `app/(capture)/projects/[id]/photos-input/page.tsx` | NEW | Server page for photos-first path |
-| `app/(capture)/projects/[id]/photos-input/loading.tsx` | NEW | Loading state |
-| `app/(capture)/projects/[id]/photos-input/photos-input-client.tsx` | NEW | Client component: PhotoDropZone + generate button |
-| `lib/actions/recording.ts` | MODIFIED | Add `createTextTranscript(projectId, text)` sibling function |
-| `lib/actions/client-link.ts` | NEW | `linkClientAction(projectId, companyId, detectedName)` server action |
-| `app/api/generate-estimate/route.ts` | MODIFIED | Call `linkClientAction` after estimate persisted; return `detectedClientName` |
-| `lib/ai/types.ts` | MODIFIED | `EstimateOutput` gains `detected_client_name?: string \| null` |
-| `lib/ai/prompt-builder.ts` | MODIFIED | `buildUserContent` adds client-name extraction instruction |
-| `lib/ai/providers/anthropic.ts` | MODIFIED | Parse `detected_client_name` from tool_use response |
-| `lib/ai/providers/gemini.ts` | MODIFIED | Parse `detected_client_name` from response |
-| `components/clients/client-detail-actions.tsx` | MODIFIED | Add "+ New Project" button |
-| `components/workspace/overview-tab.tsx` | MODIFIED | Add "No client linked" card when `client_id` is null |
+## New Library Modules
 
-### External Service Boundaries
+### `lib/whatsapp/provider.interface.ts`
 
-| Boundary | Communication | Notes |
-|----------|---------------|-------|
-| Text path → AI pipeline | `recordings.transcript` field populated; same `/api/generate-estimate` route | No change to API route signature |
-| Photos-first → AI pipeline | Reuses `/api/analyze-photos` + `/api/generate-estimate`; `estimate-tab.tsx` `hasPhotos` logic already correct | No change needed |
-| Client linking → Supabase | Direct DB queries in server action using user-scoped Supabase client (RLS enforced) | Must select only `company_id`-scoped clients |
-| "New Project" button → wizard | URL searchParam `?clientId=` — no server state, no extra API call | Consistent with existing `?tab=` pattern in workspace |
+```typescript
+export interface WhatsAppProvider {
+  sendTextMessage(to: string, body: string): Promise<void>
+  sendDocumentMessage(to: string, pdfBuffer: Buffer, filename: string): Promise<void>
+  parseInboundMessage(raw: unknown): InboundWhatsAppMessage
+  downloadMedia(mediaId: string): Promise<Buffer>
+}
 
-### Internal Boundaries
+export type InboundWhatsAppMessage = {
+  from: string                  // E.164 phone number of sender
+  messageId: string
+  type: 'text' | 'audio' | 'image' | 'unsupported'
+  text?: string                 // type === 'text'
+  mediaId?: string              // type === 'audio' | 'image'
+  mimeType?: string
+  timestamp: number
+}
+```
 
-| Boundary | Communication | Notes |
-|----------|---------------|-------|
-| Wizard → capture/describe/photos-input | `router.push(url)` after project creation | Same as existing audio path |
-| DescribeClient → recording action | `createTextTranscript` server action (new function) | Do NOT reuse `createRecording` — signature mismatch |
-| PhotosInputClient → existing photo actions | `createPhoto` action + `PhotoDropZone` component reused as-is | Zero changes to photo pipeline |
-| generate-estimate route → link action | Direct server-side function call (same module boundary as other actions) | Runs after estimate is persisted to avoid partial-state |
-| AI adapters → EstimateOutput type | `detected_client_name` is optional — backward compatible | Null-safe everywhere downstream |
+### `lib/whatsapp/providers/meta.ts`
 
-## Scaling Considerations
+Meta Cloud API adapter. Calls `graph.facebook.com/v21.0/{phone_number_id}/messages`.
 
-| Scale | Architecture Adjustments |
-|-------|--------------------------|
-| Current (hundreds of users) | All new paths share the existing serverless API routes. No concurrency concerns. |
-| 1k-10k users | Client name matching uses a simple case-insensitive index on `clients.name`. Add `CREATE INDEX clients_name_lower_idx ON clients (lower(name))` if query latency becomes measurable. |
-| 10k+ users | Client linking is a post-generation side effect. If it needs to be async, a Supabase Edge Function or Vercel background job handles it. No architectural change required at current scale. |
+Key operations:
+1. **Send text:** POST `/messages` with `{ type: 'text', text: { body }, to, messaging_product: 'whatsapp' }`
+2. **Send PDF:**
+   - Upload: POST `/{phone_number_id}/media` with `multipart/form-data` — returns `{ id: mediaId }`
+   - Send: POST `/messages` with `{ type: 'document', document: { id: mediaId, filename }, to, messaging_product: 'whatsapp' }`
+3. **Download media:** GET `/{mediaId}` → returns URL → GET that URL with Authorization Bearer token → returns binary
+4. **Phone number ID:** Sourced from `company_whatsapp.phone_number_id` (not the human-readable number)
 
-## Anti-Patterns
+The Meta access token (permanent system user token or page access token) is stored in `platform_integrations` under provider `'whatsapp_meta'`, using the existing AES-256-GCM encryption + `getIntegrationKey()` pattern. A new `platform_integrations` row is needed.
 
-### Anti-Pattern 1: Adding Client Select Back as Optional Step
+### `lib/whatsapp/index.ts`
 
-**What people do:** Keep the client select step but mark it "optional" (skip button added).
+```typescript
+export async function getWhatsAppProvider(): Promise<WhatsAppProvider> {
+  // For v2.0, always return MetaAdapter
+  // Same dynamic import pattern as lib/ai/index.ts
+  const { MetaAdapter } = await import('./providers/meta')
+  return new MetaAdapter()
+}
+```
 
-**Why it's wrong:** "Optional" steps in mobile wizards still add friction. The SEED-007 intent is zero required steps before content capture — any additional tap before the content input is a regression on the core UX goal.
+### `lib/whatsapp/handler.ts`
 
-**Do this instead:** Remove the client select step entirely from the wizard. Client association happens either via pre-selected `?clientId=` (entry from client detail page) or via AI inference post-generation or via the Overview tab card post-creation.
+The core state machine. Called by the webhook POST handler.
 
-### Anti-Pattern 2: Creating a Separate `text_inputs` Table
+```typescript
+export async function handleInboundMessage(
+  raw: unknown,
+  fromNumber: string
+): Promise<void>
+```
 
-**What people do:** Create a new DB table for text inputs to avoid "polluting" the recordings table with rows that have no audio file.
+**State machine:**
 
-**Why it's wrong:** The entire downstream pipeline (generate-estimate route, `hasTranscript` check in estimate-tab, transcript editor) reads from `recordings.transcript`. Introducing a parallel table doubles the read paths and requires changes to every consumer.
+```
+LOOKUP: company_whatsapp WHERE phone_number = fromNumber
+  → not found: silently return (no error, no response — security)
 
-**Do this instead:** Use the existing `recordings` table with `storage_path = null` for text entries. If `storage_path` has a NOT NULL constraint in the migration, add a DB migration to make it nullable. This is a one-line migration, not a schema redesign.
+LOOKUP: whatsapp_sessions WHERE company_id = ? AND expires_at > NOW()
+  → not found OR expired: CREATE new session (state = 'awaiting_input')
 
-### Anti-Pattern 3: Calling `linkClientAction` Before Estimate Generation
+DISPATCH by session.state:
 
-**What people do:** Try to run client linking as part of wizard submission so the project already has a client before the workspace loads.
+  'awaiting_input':
+    audio  → downloadMedia() → buffer → Whisper transcription
+           → save recording row (storage_path = null, transcript = text)
+           → if session has no project yet: createProject() programmatically
+           → trigger generate-estimate pipeline
+           → on complete: update session.state = 'awaiting_confirm'
+           → sendConfirmationMessage(to, estimateSummary)
 
-**Why it's wrong:** Client name extraction requires the AI to analyze the content first. There is no content at wizard time — the project is just a draft row. Pre-generation, there is nothing to extract from.
+    image  → downloadMedia() → buffer → upload to Supabase Storage
+           → create photo row → run Claude Vision analysis
+           → accumulate in session.context (up to 5 photos then auto-generate)
+           → if text also received: combine with photos → generate
 
-**Do this instead:** Run `linkClientAction` as a post-generation step inside `app/api/generate-estimate/route.ts`, after the estimate rows are committed. The Overview tab handles the interim state with a "No client linked" card.
+    text   → if looks like content (not a command):
+               save as transcript → generate estimate
+             else:
+               sendHelpMessage()
 
-### Anti-Pattern 4: Duplicating the Capture Layout
+  'awaiting_confirm':
+    "send"   → trigger outbound delivery to client → session expires
+    "edit X" → apply edit to estimate → state = 'awaiting_confirm' (re-send summary)
+    "cancel" → delete draft project/estimate → session expires
+    other    → sendHelpMessage() with valid commands
 
-**What people do:** Create a new `(describe)` route group with its own layout file for the text and photos-first routes.
+  'awaiting_edit':
+    (future) — v2.0 treats edits inline in 'awaiting_confirm'
+```
 
-**Why it's wrong:** The `(capture)` layout provides exactly what these routes need: `fixed inset-0 z-50 bg-background flex flex-col`. Creating a second identical layout adds files for no benefit.
+### `lib/whatsapp/session.ts`
 
-**Do this instead:** Place `/describe` and `/photos-input` inside the existing `app/(capture)/projects/[id]/` directory. They inherit the full-screen layout automatically.
+CRUD helpers for `whatsapp_sessions`:
 
-## Build Order
+```typescript
+getActiveSession(companyId: string, phoneNumber: string): Promise<WhatsAppSession | null>
+createSession(companyId: string, phoneNumber: string): Promise<WhatsAppSession>
+updateSession(sessionId: string, patch: Partial<WhatsAppSession>): Promise<void>
+expireSession(sessionId: string): Promise<void>
+```
 
-Dependencies govern this order strictly:
+Uses `requireServiceClient()` — no user auth context exists in webhook handler.
 
-1. **DB migration (if needed)** — Verify `recordings.storage_path` nullability. If NOT NULL, run migration first. This unblocks the text path.
-2. **`lib/schemas/project.ts`** — Make `clientId` optional. This unblocks the modified `createProjectAction`.
-3. **`lib/actions/project.ts`** — Accept optional `clientId`. This unblocks the wizard changes.
-4. **`app/(app)/projects/new/page.tsx`** — Read `?clientId` searchParam. Unblocks client detail "New Project" button.
-5. **`components/projects/step-modal-choice.tsx`** (NEW) — Pure UI, no dependencies on later steps.
-6. **`components/projects/new-project-wizard.tsx`** — Wire in `StepModalChoice`, remove mandatory client select, add redirect by mode. Requires steps 2-5 complete.
-7. **`lib/actions/recording.ts`** — Add `createTextTranscript`. Unblocks describe route.
-8. **`app/(capture)/projects/[id]/describe/`** (NEW, 3 files) — Text input route. Requires steps 3, 6, 7.
-9. **`app/(capture)/projects/[id]/photos-input/`** (NEW, 3 files) — Photos-first route. Requires steps 3, 6. (Photo actions already exist.)
-10. **`components/clients/client-detail-actions.tsx`** — Add "+ New Project" button. Requires step 4.
-11. **`lib/ai/types.ts`** — Add `detected_client_name` to `EstimateOutput`. Unblocks adapter changes.
-12. **`lib/ai/prompt-builder.ts`** — Add client extraction instruction. Requires step 11.
-13. **`lib/ai/providers/anthropic.ts` + `gemini.ts`** — Parse `detected_client_name`. Requires steps 11-12.
-14. **`lib/actions/client-link.ts`** (NEW) — `linkClientAction`. Requires steps 11-13 conceptually, but can be written in parallel.
-15. **`app/api/generate-estimate/route.ts`** — Wire in `linkClientAction` after estimate persist. Requires steps 11-14.
-16. **`components/workspace/overview-tab.tsx`** — Add "No client linked" card. Can be built any time but most useful after step 15 is live.
+### `lib/whatsapp/formatter.ts`
+
+Formats the confirmation message using existing `buildItemsBreakdown()` + `resolveTemplate()` from `lib/utils/estimate-template.ts`. Pure function, no DB calls.
+
+```typescript
+export function buildConfirmationMessage(estimate: EstimateWithSections, clientName: string | null): string
+export function buildClientDeliveryText(estimate: EstimateWithSections, company: Company, shareToken: string | null): string
+```
+
+---
+
+## Existing Code Reused (Unchanged)
+
+| Existing Asset | Reused How |
+|----------------|-----------|
+| `app/api/generate-estimate/route.ts` | Called programmatically from `handler.ts` via internal fetch or direct function call |
+| `app/api/analyze-photos/route.ts` | Called programmatically for image messages |
+| `app/api/estimates/[id]/pdf/route.ts` | Called to generate PDF buffer for document delivery |
+| `lib/utils/estimate-template.ts` — `buildItemsBreakdown()` | Formats line items for confirmation and delivery messages |
+| `lib/utils/estimate-template.ts` — `resolveTemplate()` | Formats the client-facing plain text delivery |
+| `lib/supabase/service.ts` — `requireServiceClient()` | All webhook handler DB calls use service role |
+| `lib/platform-config.ts` — `getIntegrationKey()` | Fetch Meta access token from `platform_integrations` |
+| `lib/crypto/aes.ts` | Encrypt/decrypt Meta access token at rest |
+| `lib/actions/recording.ts` — `createTextTranscript()` | Save Whisper transcript from audio message |
+| `lib/actions/photo.ts` | Save photo after downloading from Meta CDN |
+| `supabase/migrations/*.sql` pattern | Follow for new migration file |
+| `company_price_book` RLS policy pattern | Replicated for `company_whatsapp` |
+
+**Important:** The `generate-estimate` route currently requires an authenticated user (`getClaims()` + company lookup by user_id). The webhook handler has no user session. Two options:
+
+**Option A (recommended):** Extract the generation logic into a shared service function in `lib/services/generate-estimate.ts` that accepts `(companyId, projectId)` directly, bypassing auth. The API route becomes a thin auth wrapper calling this function. The webhook handler calls the same function with the service-client-resolved `companyId`.
+
+**Option B:** The webhook handler calls `/api/generate-estimate` via internal fetch with a signed internal token (simpler initially but creates an internal HTTP call overhead on serverless).
+
+**Recommendation:** Option A. The codebase already has the pattern of extracting logic into `lib/actions/` and `lib/queries/` — the generate-estimate route is long overdue for this extraction. This is a prerequisite phase.
+
+---
+
+## New Settings UI
+
+### `/settings/integrations` (NEW route)
+
+New sub-route following the price-book and estimate-templates pattern:
+
+```
+app/(app)/settings/integrations/
+  page.tsx           — server component, loads company_whatsapp row
+  loading.tsx        — skeleton
+  whatsapp-connect-card.tsx  — client component (connect/verify flow)
+```
+
+The `/settings/page.tsx` gets a new Link card entry (below Custom Domain), same pattern as the existing Price Book and Estimate Templates cards.
+
+### WhatsApp Connect Card States
+
+```
+State 1: Not connected
+  [Connect WhatsApp] button
+  → opens dialog with phone number input
+
+State 2: Pending verification
+  Phone number shown, "Awaiting verification"
+  OTP input field + [Verify] button
+
+State 3: Active
+  Phone number shown, green status indicator
+  [Disconnect] button (with AlertDialog confirmation)
+  Delivery format selector (text + link / PDF + link / text only)
+```
+
+---
+
+## Integration Points Summary
+
+### New Components
+
+| Component | Type | Purpose |
+|-----------|------|---------|
+| `app/api/webhooks/whatsapp/route.ts` | NEW API route | Webhook registration GET + inbound message POST |
+| `app/api/settings/whatsapp/route.ts` | NEW API route | Settings CRUD for phone registration |
+| `lib/whatsapp/provider.interface.ts` | NEW | WhatsAppProvider interface |
+| `lib/whatsapp/providers/meta.ts` | NEW | Meta Cloud API adapter |
+| `lib/whatsapp/index.ts` | NEW | Factory function `getWhatsAppProvider()` |
+| `lib/whatsapp/handler.ts` | NEW | Inbound message state machine |
+| `lib/whatsapp/session.ts` | NEW | Session CRUD via service role |
+| `lib/whatsapp/formatter.ts` | NEW | Message text formatting (wraps existing utilities) |
+| `lib/services/generate-estimate.ts` | NEW | Extracted business logic from API route |
+| `app/(app)/settings/integrations/page.tsx` | NEW | Integrations settings page |
+| `app/(app)/settings/integrations/loading.tsx` | NEW | Skeleton |
+| `components/settings/whatsapp-connect-card.tsx` | NEW | Connect/verify/status UI |
+| Migration: `whatsapp_channel.sql` | NEW | `company_whatsapp` + `whatsapp_sessions` tables |
+
+### Modified Components
+
+| Component | What Changes |
+|-----------|-------------|
+| `proxy.ts` | Add `/api/webhooks/` early-return bypass before `updateSession()` |
+| `app/(app)/settings/page.tsx` | Add Link card for `/settings/integrations` |
+| `app/api/generate-estimate/route.ts` | Thin wrapper calling new `lib/services/generate-estimate.ts` |
+| `lib/platform-config.ts` — `IntegrationProvider` type | Add `'whatsapp_meta'` to the union |
+| `lib/schemas/admin.ts` (or equivalent) | Add `'whatsapp_meta'` to `integrationKeySchema` |
+| Admin panel `/admin/integrations` | Add WhatsApp Meta token card (same pattern as Anthropic/Gemini) |
+
+---
+
+## Data Flow: Full Inbound Estimate Generation
+
+```
+Owner sends audio via WhatsApp
+    ↓
+Meta Cloud API → POST /api/webhooks/whatsapp
+    ↓
+HMAC-SHA256 verification (X-Hub-Signature-256)
+    ↓
+Extract: from="+15551234567", type="audio", mediaId="abc123"
+    ↓
+requireServiceClient()
+SELECT * FROM company_whatsapp WHERE phone_number = '+15551234567'
+  → finds company_id
+    ↓
+SELECT * FROM whatsapp_sessions WHERE company_id = ? AND expires_at > NOW()
+  → no active session → CREATE session (state='awaiting_input', expires_at=NOW()+30min)
+    ↓
+[Return 200 to Meta immediately — fire-and-forget the pipeline below]
+    ↓
+downloadMedia(mediaId) → audio Buffer (ogg/opus or m4a)
+    ↓
+Whisper API → transcript text
+    ↓
+createProject(companyId, placeholderName) → projectId
+    ↓
+createTextTranscript(projectId, transcript) — saves recordings row (storage_path=null)
+    ↓
+generateEstimateForProject(companyId, projectId) — lib/services/generate-estimate.ts
+    ↓
+estimate persisted to DB (estimates + estimate_sections + estimate_items)
+    ↓
+buildConfirmationMessage(estimate, detectedClientName) — lib/whatsapp/formatter.ts
+    ↓
+getWhatsAppProvider().sendTextMessage(from, confirmationText)
+    ↓
+UPDATE whatsapp_sessions SET
+  state = 'awaiting_confirm',
+  draft_project_id = projectId,
+  draft_estimate_id = estimateId,
+  expires_at = NOW() + INTERVAL '30 minutes'
+```
+
+## Data Flow: Confirmation → Client Delivery
+
+```
+Owner replies "send" via WhatsApp
+    ↓
+Meta Cloud API → POST /api/webhooks/whatsapp
+    ↓
+HMAC verified → from="+15551234567", type="text", text="send"
+    ↓
+SELECT session WHERE company_id=? AND state='awaiting_confirm'
+    ↓
+Parse command: "send" detected
+    ↓
+Load estimate (draft_estimate_id) + company + client
+    ↓
+Load company delivery_format from company_whatsapp row
+    ↓
+if delivery_format includes 'text':
+  buildClientDeliveryText() → send text to client phone number
+if delivery_format includes 'link':
+  share token already exists (or create) → send /estimate/[token] link
+if delivery_format includes 'pdf':
+  renderToBuffer(EstimatePDF) → uploadMedia(pdfBuffer) → sendDocument(clientPhone)
+    ↓
+UPDATE estimate SET status = 'sent'
+UPDATE project SET status = 'sent'
+    ↓
+expireSession(sessionId)
+    ↓
+sendTextMessage(ownerPhone, "Estimate sent to [clientName] ✓")
+```
+
+---
+
+## Webhook Processing: Handling Meta's 20-Second Timeout
+
+Meta retries if it does not receive HTTP 200 within the timeout. The AI pipeline (Whisper + Claude) takes 5-15 seconds. This is a tight race.
+
+**Recommended approach for v2.0:** Respond 200 immediately, then process asynchronously.
+
+```typescript
+// In POST handler:
+// 1. Verify signature synchronously
+// 2. Parse message
+// 3. Return 200 immediately
+// 4. Use waitUntil() (Vercel) or fire-and-forget Promise (acceptable on serverless with care)
+
+export async function POST(req: NextRequest) {
+  // ... verify signature ...
+  const body = JSON.parse(rawBody)
+
+  // Respond to Meta immediately
+  const responsePromise = NextResponse.json({ status: 'ok' })
+
+  // Process in background (Vercel: NextResponse supports waitUntil via EdgeRuntime context)
+  // For Node.js runtime: fire-and-forget with error logging
+  handleInboundMessage(body).catch((err) =>
+    console.error('[whatsapp-webhook] handler error:', err)
+  )
+
+  return responsePromise
+}
+```
+
+**Note:** On Vercel, the Node.js runtime continues executing after the response is sent as long as the function has not been frozen. For short pipelines (text-only messages), this is fine. For audio messages, the Whisper transcription + Claude generation may outlive the function execution window on the free/hobby tier. On the Pro tier, functions can run up to 60 seconds (or 300s on Enterprise). This must be validated against Vercel plan limits and flagged in the phase plan.
+
+**Fallback:** If execution window is a concern, the webhook handler inserts a job row into a `whatsapp_jobs` queue table, and a separate cron endpoint processes pending jobs. This is a v2.1 concern — not needed for v2.0 at launch scale.
+
+---
+
+## Security Architecture
+
+### Signature Verification
+
+- Read raw body as text before JSON parse (HMAC requires exact bytes)
+- Use `crypto.timingSafeEqual()` — prevents timing oracle attacks
+- `WHATSAPP_APP_SECRET` stored as env var (NOT in `platform_integrations` — it's a platform-level secret, not a per-company key)
+- `WHATSAPP_VERIFY_TOKEN` stored as env var (used only for webhook registration)
+
+### Phone Number Routing
+
+- Only messages from a registered `company_whatsapp.phone_number` are processed
+- Unregistered numbers: silently drop (no response, no error, no log at INFO level — prevents enumeration)
+- The `company_whatsapp.phone_number` is the owner's number (the sender), not the Meta business number
+
+### Meta Access Token
+
+- Stored in `platform_integrations` under provider `'whatsapp_meta'`, encrypted with AES-256-GCM (existing `lib/crypto/aes.ts`)
+- Fetched via `getIntegrationKey('whatsapp_meta')` with the existing 30s TTL cache
+- Never exposed to browser — all Graph API calls are server-side only
+
+### Rate Limiting
+
+- Add `whatsapp_daily_usage` counter to `company_whatsapp` or a separate table
+- Check before processing: if count >= 20 (configurable), respond with a WhatsApp message explaining the daily limit
+- Increment atomically using Supabase's `rpc()` or a direct UPDATE with RETURNING
+
+---
+
+## Suggested Build Order (Phase Dependencies)
+
+Phase ordering is driven by three hard dependency chains:
+
+**Chain A: Infrastructure must precede everything**
+```
+Phase 40: Infrastructure
+  - company_whatsapp + whatsapp_sessions tables + migration
+  - WhatsAppProvider interface + MetaAdapter skeleton
+  - POST /api/webhooks/whatsapp (GET verification + POST signature check)
+  - proxy.ts webhook bypass
+  - WHATSAPP_APP_SECRET + WHATSAPP_VERIFY_TOKEN env vars
+  - Admin panel: Meta access token card
+```
+
+**Chain B: Extraction unlocks programmatic pipeline use**
+```
+Phase 41: Generate-Estimate Service Extraction
+  - lib/services/generate-estimate.ts (extracted from API route)
+  - app/api/generate-estimate/route.ts becomes thin wrapper
+  - Unit tests validate service function directly
+  [This is a refactor phase — no user-visible change]
+```
+
+**Chain C: Inbound processing requires Chain A + Chain B**
+```
+Phase 42: Inbound Processing
+  - lib/whatsapp/handler.ts state machine (awaiting_input only)
+  - lib/whatsapp/session.ts CRUD
+  - Audio message: downloadMedia → Whisper → createProject → generate-estimate
+  - Text message: save as transcript → generate-estimate
+  - Image message: downloadMedia → Supabase Storage → Claude Vision → generate-estimate
+  - sendConfirmationMessage to owner
+  - Session created + updated to awaiting_confirm
+```
+
+**Chain D: Confirmation flow requires Chain C**
+```
+Phase 43: Confirmation Flow
+  - lib/whatsapp/handler.ts awaiting_confirm state
+  - lib/whatsapp/formatter.ts buildConfirmationMessage()
+  - Parse "send" / "edit X" / "cancel" commands
+  - Session expiry logic
+  - Session cleanup cron (pg_cron or Vercel cron — same pattern as orphan project cleanup)
+```
+
+**Chain E: Outbound delivery requires Chain D**
+```
+Phase 44: Outbound Client Delivery
+  - lib/whatsapp/formatter.ts buildClientDeliveryText()
+  - MetaAdapter.sendDocumentMessage() (PDF upload + send)
+  - sendTextMessage to client phone
+  - sendShareLink to client
+  - delivery_format respected per company_whatsapp row
+```
+
+**Chain F: Settings UI can start in parallel with Chain B**
+```
+Phase 45: Settings UI + Admin
+  - /settings/integrations page + Link card on /settings/page.tsx
+  - WhatsAppConnectCard (connect/verify/disconnect/delivery format)
+  - POST /api/settings/whatsapp/connect + /verify + DELETE
+  - Admin panel usage visibility (optional for v2.0)
+```
+
+**Recommended phase order:**
+
+1. Phase 40: Infrastructure (blocks everything)
+2. Phase 41: Service extraction (blocks inbound)
+3. Phase 42: Inbound processing (core value — delivers end-to-end for text messages)
+4. Phase 45: Settings UI (can be built in parallel with 42 by sharing types from Phase 40)
+5. Phase 43: Confirmation flow (completes the conversational loop)
+6. Phase 44: Outbound delivery (delivers the estimate to the client)
+
+**Note:** Phase 45 (Settings UI) is listed before 43/44 because users need to connect their number before the feature is usable end-to-end. In practice, build Phases 40, 41, 42, and 45 in the same milestone pass — with 45 providing the connection mechanism for 42 to be testable.
+
+---
+
+## Environment Variables Required
+
+```bash
+# Webhook verification (set in Meta App Dashboard)
+WHATSAPP_VERIFY_TOKEN=<random-string-you-choose>
+
+# HMAC signature verification (from Meta App Dashboard > App Secret)
+WHATSAPP_APP_SECRET=<meta-app-secret>
+
+# Meta access token stored via platform_integrations (not a direct env var)
+# Managed through /admin/integrations UI — not committed to env
+```
+
+No new `NEXT_PUBLIC_*` variables are needed — all WhatsApp communication is server-side only.
+
+---
 
 ## Sources
 
-- Direct inspection of `components/projects/new-project-wizard.tsx` — 1-step wizard, `router.push` to `/capture`
-- Direct inspection of `lib/actions/project.ts` — `createProjectAction` currently requires `clientId`
-- Direct inspection of `lib/schemas/project.ts` — `clientId: z.string().min(1)` validation
-- Direct inspection of `app/(capture)/layout.tsx` — full-screen layout reusable for new routes
-- Direct inspection of `app/(capture)/projects/[id]/capture/page.tsx` + `capture-client.tsx` — server/client split pattern
-- Direct inspection of `app/api/generate-estimate/route.ts` — transcript + photo description pipeline, project name patching
-- Direct inspection of `lib/ai/types.ts` + `lib/ai/prompt-builder.ts` — `EstimateInput`/`EstimateOutput` type boundaries
-- Direct inspection of `components/workspace/estimate/estimate-tab.tsx` — `hasTranscript || hasPhotos` gate already correct
-- Direct inspection of `components/workspace/photos/photo-drop-zone.tsx` + `photos-tab.tsx` — reusable as-is
-- Direct inspection of `components/clients/client-detail-actions.tsx` — Edit/Delete button pattern; "New Project" slots here
-- Direct inspection of `app/(app)/clients/[id]/page.tsx` — server component structure, `ClientDetailActions` usage
-- Direct inspection of `lib/queries/recording.ts` — `Recording.storage_path: string` currently (not typed as nullable)
-- `.planning/seeds/SEED-005-multi-modal-project-input.md` — multi-modal UX intent
-- `.planning/seeds/SEED-007-frictionless-client-project-association.md` — AI client extraction + "New Project" button intent
+- Direct inspection of `app/api/generate-estimate/route.ts` — auth pattern, pipeline structure
+- Direct inspection of `lib/ai/index.ts`, `lib/ai/provider.interface.ts` — provider abstraction to replicate
+- Direct inspection of `lib/platform-config.ts` — `getIntegrationKey()`, `IntegrationProvider` union, TTL cache
+- Direct inspection of `lib/supabase/service.ts` — `requireServiceClient()` for webhook context
+- Direct inspection of `proxy.ts` — middleware structure, custom host bypass pattern
+- Direct inspection of `lib/utils/estimate-template.ts` — `buildItemsBreakdown()`, `resolveTemplate()` for reuse
+- Direct inspection of `supabase/migrations/20260506000001_phase19_price_book.sql` — RLS policy pattern to replicate
+- Direct inspection of `app/(app)/settings/page.tsx` — Link card pattern for new integrations entry
+- [pons.chat — WhatsApp Cloud API Webhook Next.js guide](https://pons.chat/blog/whatsapp-cloud-api-webhook-nextjs) — GET verification + POST HMAC implementation
+- [Meta for Developers — messages webhook reference](https://developers.facebook.com/documentation/business-messaging/whatsapp/webhooks/reference/messages/) — inbound payload structure
+- [Meta for Developers — audio messages](https://developers.facebook.com/documentation/business-messaging/whatsapp/messages/audio-messages/) — audio media handling
+- [Meta for Developers — document messages](https://developers.facebook.com/documentation/business-messaging/whatsapp/messages/document-messages/) — PDF send via media upload
+- [Meta for Developers — media reference](https://developers.facebook.com/docs/whatsapp/cloud-api/reference/media/) — upload/download endpoints
+- [hookdeck.com — WhatsApp webhooks guide](https://hookdeck.com/webhooks/platforms/guide-to-whatsapp-webhooks-features-and-best-practices) — signature verification best practices
+- [SEED-008 — WhatsApp Estimate Channel](..//seeds/SEED-008-whatsapp-estimate-channel.md) — product scope and breadcrumbs
+- .planning/PROJECT.md — existing tech stack constraints and key decisions
 
 ---
-*Architecture research for: v1.5 Zero-friction Project Onboarding*
-*Researched: 2026-05-08*
+*Architecture research for: v2.0 WhatsApp Estimate Channel*
+*Researched: 2026-05-10*
