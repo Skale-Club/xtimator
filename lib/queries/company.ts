@@ -68,3 +68,20 @@ export async function getEstimateTemplateSettings(
 
   return data ?? null
 }
+
+/**
+ * Fetch only the custom_domain column for a user's company.
+ * Per STATE.md Phase 24: use focused query, not getCompanySettings / select('*').
+ */
+export async function getCustomDomainSettings(
+  supabase: SupabaseClient,
+  userId: string
+): Promise<{ id: string; custom_domain: string | null } | null> {
+  const { data } = await supabase
+    .from('companies')
+    .select('id, custom_domain')
+    .eq('user_id', userId)
+    .single()
+
+  return data ?? null
+}
