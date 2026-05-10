@@ -5,7 +5,7 @@
 ### Domain Configuration
 
 - [x] **DOMAIN-01**: Owner can enter and save a custom domain for their company from the settings page
-- [ ] **DOMAIN-02**: After entering a domain, the owner sees DNS/CNAME setup instructions explaining what record to configure (pointing to Vercel)
+- [x] **DOMAIN-02**: After entering a domain, the owner sees DNS/CNAME setup instructions explaining what record to configure (pointing to Vercel)
 
 ### Routing
 

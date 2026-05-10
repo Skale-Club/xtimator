@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Zero-friction Project Onboarding
-status: executing
-last_updated: "2026-05-10T17:53:21.522Z"
+status: verifying
+last_updated: "2026-05-10T18:00:13.003Z"
 last_activity: 2026-05-10
 progress:
   total_phases: 38
-  completed_phases: 35
+  completed_phases: 36
   total_plans: 100
-  completed_plans: 97
+  completed_plans: 98
 ---
 
 # Project State
@@ -23,7 +23,7 @@ progress:
 
 Phase: 38 (Custom Domain DB + Settings UI) — EXECUTING
 Plan: 2 of 2
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-05-10
 
 ## Completed Phases
@@ -242,6 +242,8 @@ Last activity: 2026-05-10
 - [Phase 37]: Photo upload uses same collapsible pattern as voice recorder
 - [Phase 38-custom-domain-db-settings-ui]: NULL initial state with no DEFAULT clause for custom_domain — same pattern as Phase 24 estimate_template_* columns
 - [Phase 38-custom-domain-db-settings-ui]: Manual TypeScript type extension (not regeneration) for custom_domain — Docker unavailable on Windows, established since Phase 19
+- [Phase 38-custom-domain-db-settings-ui]: Local useState for savedDomain: updates DNS card immediately post-save before router.refresh() round-trip
+- [Phase 38-custom-domain-db-settings-ui]: Apex detection by split('.').length === 2 — 2 parts = apex (e.g. mycompany.com), 3+ = subdomain
 
 ## Performance Metrics
 
@@ -320,6 +322,7 @@ Last activity: 2026-05-10
 | Phase 36 P01 | 145 | 3 tasks | 4 files |
 | Phase 37 P01 | 3 | 2 tasks | 2 files |
 | Phase 38-custom-domain-db-settings-ui P01 | 20min | 3 tasks | 7 files |
+| Phase 38-custom-domain-db-settings-ui P02 | 5min | 2 tasks | 3 files |
 
 ## Project Reference
 
