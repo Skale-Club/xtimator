@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
+import { headers } from 'next/headers'
 import { getEstimateByShareToken } from '@/lib/queries/share'
 import { logEstimateView } from './actions'
 import { EstimateView } from '@/components/share/estimate-view'
@@ -40,6 +41,8 @@ export default async function SharePage({ params }: SharePageProps) {
 
   const alreadyResponded = !!data.estimate.client_response
   const branding = await getBranding()
+  const headersList = await headers()
+  const isWhiteLabel = headersList.get('x-white-label') === '1'
 
   return (
     <main className="max-w-4xl mx-auto px-4 py-8 sm:py-12">
@@ -49,6 +52,7 @@ export default async function SharePage({ params }: SharePageProps) {
         token={token}
         alreadyResponded={alreadyResponded}
         appName={branding.appName}
+        whiteLabelMode={isWhiteLabel}
       />
     </main>
   )
