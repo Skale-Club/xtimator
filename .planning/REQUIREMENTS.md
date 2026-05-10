@@ -4,9 +4,9 @@
 
 ### Infrastructure & Security
 
-- [ ] **WA-01**: Webhook `POST /api/webhooks/whatsapp` verifies Meta HMAC-SHA256 signature and returns HTTP 200 before processing (fire-and-forget via `after()`)
-- [ ] **WA-02**: Webhook `GET /api/webhooks/whatsapp` responds to Meta hub.challenge for initial verification
-- [ ] **WA-03**: Duplicate messages (same `wamid.*`) are silently discarded without generating a duplicate estimate
+- [x] **WA-01**: Webhook `POST /api/webhooks/whatsapp` verifies Meta HMAC-SHA256 signature and returns HTTP 200 before processing (fire-and-forget via `after()`)
+- [x] **WA-02**: Webhook `GET /api/webhooks/whatsapp` responds to Meta hub.challenge for initial verification
+- [x] **WA-03**: Duplicate messages (same `wamid.*`) are silently discarded without generating a duplicate estimate
 - [ ] **WA-04**: Meta webhook requests bypass the auth middleware in `proxy.ts`
 
 ### Phone Registration

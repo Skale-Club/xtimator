@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
-milestone: v2.0
-milestone_name: WhatsApp Estimate Channel
-status: in_progress
-last_updated: "2026-05-10T00:00:00.000Z"
+milestone: v1.5
+milestone_name: Zero-friction Project Onboarding
+status: executing
+last_updated: "2026-05-10T19:50:14.930Z"
 last_activity: 2026-05-10
 progress:
-  total_phases: 45
-  completed_phases: 39
-  total_plans: 101
-  completed_plans: 101
+  total_phases: 40
+  completed_phases: 37
+  total_plans: 103
+  completed_plans: 100
 ---
 
 # Project State
@@ -21,10 +21,10 @@ progress:
 
 ## Current Position
 
-Phase: 40 — Webhook Infrastructure
-Plan: —
-Status: Not started
-Last activity: 2026-05-10 — Roadmap created, Phase 40 queued
+Phase: 40 (Webhook Infrastructure) — EXECUTING
+Plan: 2 of 2
+Status: Ready to execute
+Last activity: 2026-05-10
 
 ## Completed Phases
 
@@ -248,6 +248,9 @@ Last activity: 2026-05-10 — Roadmap created, Phase 40 queued
 - [Phase 38-custom-domain-db-settings-ui]: Apex detection by split('.').length === 2 (2 parts = apex e.g. mycompany.com)
 - [Phase 39-subdomain-routing-white-label]: Custom host detection placed BEFORE updateSession() in proxy so unauthenticated estimate visitors are not redirected to login
 - [Phase 39-subdomain-routing-white-label]: No DB lookup to resolve company by host in proxy — estimate token uniqueness guarantees correct estimate is served without extra round-trip
+- [Phase 40-webhook-infrastructure]: verifyWebhookSignature catches timingSafeEqual exception for length mismatch — returns false instead of throwing (Pitfall 4)
+- [Phase 40-webhook-infrastructure]: whatsapp client.ts reads env vars at call time (not module init) — consistent with per-request getIntegrationKey() pattern
+- [Phase 40-webhook-infrastructure]: whatsapp_processed_messages uses message_id TEXT PRIMARY KEY (wamid from Meta) not UUID — dedup key is the Meta message ID
 
 ## Performance Metrics
 
@@ -329,13 +332,14 @@ Last activity: 2026-05-10 — Roadmap created, Phase 40 queued
 | Phase 38-custom-domain-db-settings-ui P02 | 5min | 2 tasks | 3 files |
 | Phase 38-custom-domain-db-settings-ui P02 | 5min | 3 tasks | 3 files |
 | Phase 39-subdomain-routing-white-label P01 | 8min | 5 tasks | 4 files |
+| Phase 40-webhook-infrastructure P01 | 4min | 2 tasks | 7 files |
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-10)
 
 **Core value:** Business owner → job site audio recording → sent professional estimate in under 5 minutes
-**Current focus:** Phase 40 — Webhook Infrastructure (v2.0 first phase)
+**Current focus:** Phase 40 — Webhook Infrastructure
 
 ## Notes
 
