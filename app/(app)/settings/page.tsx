@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { BookOpen, ChevronRight, FileText } from 'lucide-react'
+import { BookOpen, ChevronRight, FileText, Globe } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { getAuthClaims } from '@/lib/queries/auth'
 import { getCompanySettings } from '@/lib/queries/company'
@@ -70,6 +70,26 @@ export default async function SettingsPage() {
                 <CardTitle>Estimate Templates</CardTitle>
                 <CardDescription>
                   Customize the greeting, opener, and signature for your plain-text estimates.
+                </CardDescription>
+              </div>
+            </div>
+            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+        </Card>
+      </Link>
+
+      <Link
+        href="/settings/custom-domain"
+        className="block rounded-[var(--radius-md)] transition-colors hover:bg-accent/50 focus-visible:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <Card className="w-full rounded-[var(--radius-md)]">
+          <CardHeader className="flex flex-row items-center justify-between border-b border-border">
+            <div className="flex items-start gap-3">
+              <Globe className="mt-0.5 h-5 w-5 text-muted-foreground" />
+              <div>
+                <CardTitle>Custom Domain</CardTitle>
+                <CardDescription>
+                  Serve estimates from your own domain (e.g., estimates.mycompany.com).
                 </CardDescription>
               </div>
             </div>
