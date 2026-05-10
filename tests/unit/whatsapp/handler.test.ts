@@ -9,6 +9,10 @@ vi.mock('@/lib/whatsapp/client', () => ({
   downloadWhatsAppMedia: vi.fn(),
 }))
 
+vi.mock('@/lib/whatsapp/confirm', () => ({
+  processConfirmationReply: vi.fn(),
+}))
+
 vi.mock('@/lib/platform-config', () => ({
   getIntegrationKey: vi.fn(),
 }))
@@ -23,11 +27,13 @@ vi.mock('@anthropic-ai/sdk', () => ({
 import { processInboundMessage } from '@/lib/whatsapp/handler'
 import { generateEstimateForProject } from '@/lib/services/generate-estimate'
 import { sendWhatsAppMessage, downloadWhatsAppMedia } from '@/lib/whatsapp/client'
+import { processConfirmationReply } from '@/lib/whatsapp/confirm'
 import { getIntegrationKey } from '@/lib/platform-config'
 import type { WhatsAppMessage } from '@/lib/whatsapp/types'
 
 const mockGenerate = vi.mocked(generateEstimateForProject)
 const mockSend = vi.mocked(sendWhatsAppMessage)
+const mockConfirm = vi.mocked(processConfirmationReply)
 const mockDownload = vi.mocked(downloadWhatsAppMedia)
 const mockGetKey = vi.mocked(getIntegrationKey)
 
@@ -169,20 +175,32 @@ describe('processInboundMessage', () => {
       clientSuggestion: null,
     })
     mockSend.mockResolvedValue(undefined)
+    mockConfirm.mockResolvedValue(undefined)
     mockAnthropicCreate.mockReset()
   })
 
   describe('awaiting_confirm session gate', () => {
-    it('sends reminder and returns when owner already has pending session', async () => {
+    it('delegates text reply to processConfirmationReply and does not generate estimate', async () => {
+      mockConfirm.mockResolvedValue(undefined)
       const { client } = makeSupabase({
-        existingSession: { id: 'session-1', state: 'awaiting_confirm' },
+        existingSession: { id: 'session-1', state: 'awaiting_confirm', draft_project_id: 'p-1', draft_estimate_id: 'e-1' },
       })
 
       await processInboundMessage(TEXT_MESSAGE, 'company-1', '15551234567', client)
 
+      expect(mockConfirm).toHaveBeenCalledOnce()
+      expect(mockGenerate).not.toHaveBeenCalled()
+    })
+
+    it('sends reminder for non-text messages during awaiting_confirm', async () => {
+      const { client } = makeSupabase({
+        existingSession: { id: 'session-1', state: 'awaiting_confirm', draft_project_id: 'p-1', draft_estimate_id: 'e-1' },
+      })
+
+      const audioMsg: WhatsAppMessage = { id: 'wamid.x', from: '15551234567', timestamp: '0', type: 'audio', audio: { id: 'x', mime_type: 'audio/ogg' } }
+      await processInboundMessage(audioMsg, 'company-1', '15551234567', client)
+
       expect(mockSend).toHaveBeenCalledOnce()
-      const [, body] = mockSend.mock.calls[0]
-      expect((body as { text: { body: string } }).text.body).toMatch(/pending/)
       expect(mockGenerate).not.toHaveBeenCalled()
     })
   })

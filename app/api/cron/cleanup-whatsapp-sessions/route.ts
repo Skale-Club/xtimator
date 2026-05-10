@@ -1,0 +1,57 @@
+import { NextResponse } from 'next/server'
+import { requireServiceClient } from '@/lib/supabase/service'
+import { sendWhatsAppMessage } from '@/lib/whatsapp/client'
+
+export async function GET(request: Request) {
+  const cronSecret = process.env.CRON_SECRET
+  if (!cronSecret) {
+    return NextResponse.json({ error: 'CRON_SECRET not configured' }, { status: 503 })
+  }
+
+  const auth = request.headers.get('authorization')
+  if (auth !== `Bearer ${cronSecret}`) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  try {
+    const supabase = requireServiceClient()
+
+    // Find expired awaiting_confirm sessions
+    const { data: expiredSessions, error } = await supabase
+      .from('whatsapp_sessions')
+      .select('id, phone_number, draft_project_id')
+      .eq('state', 'awaiting_confirm')
+      .lt('expires_at', new Date().toISOString())
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    const sessions = expiredSessions ?? []
+
+    // Notify each owner and delete their session
+    await Promise.allSettled(
+      sessions.map(async (session) => {
+        try {
+          await sendWhatsAppMessage(session.phone_number as string, {
+            type: 'text',
+            text: {
+              body: '⏰ Your estimate confirmation window has expired.\n\nSend a new audio, text, or photo to create a fresh estimate.',
+            },
+          })
+        } catch {
+          // Non-fatal — still delete the session
+        }
+
+        await supabase.from('whatsapp_sessions').delete().eq('id', session.id)
+      })
+    )
+
+    return NextResponse.json({ cleaned: sessions.length }, { status: 200 })
+  } catch (err) {
+    return NextResponse.json(
+      { error: (err as Error).message ?? 'Cleanup failed' },
+      { status: 500 }
+    )
+  }
+}

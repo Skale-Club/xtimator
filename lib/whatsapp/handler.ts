@@ -9,6 +9,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import Anthropic from '@anthropic-ai/sdk'
 import { generateEstimateForProject } from '@/lib/services/generate-estimate'
 import { downloadWhatsAppMedia, sendWhatsAppMessage } from '@/lib/whatsapp/client'
+import { processConfirmationReply } from '@/lib/whatsapp/confirm'
 import { getIntegrationKey } from '@/lib/platform-config'
 import { PLACEHOLDER_PREFIX } from '@/lib/constants/project'
 import type { WhatsAppMessage } from '@/lib/whatsapp/types'
@@ -38,13 +39,22 @@ export async function processInboundMessage(
     .single()
 
   if (existingSession?.state === 'awaiting_confirm') {
-    // Phase 43 handles "send" / "cancel" parsing — for now, acknowledge
-    await sendWhatsAppMessage(ownerPhone, {
-      type: 'text',
-      text: {
-        body: 'You have an estimate pending. Reply *send* to deliver it or *cancel* to discard.',
-      },
-    })
+    if (message.type === 'text' && message.text?.body) {
+      await processConfirmationReply(
+        message.text.body,
+        existingSession as { id: string; state: string; draft_project_id: string | null; draft_estimate_id: string | null },
+        companyId,
+        ownerPhone,
+        supabase
+      )
+    } else {
+      await sendWhatsAppMessage(ownerPhone, {
+        type: 'text',
+        text: {
+          body: 'Reply *send* to deliver your estimate or *cancel* to discard it.',
+        },
+      })
+    }
     return
   }
 

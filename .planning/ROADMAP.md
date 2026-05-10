@@ -429,6 +429,6 @@ Plans:
 | 40. Webhook Infrastructure | v2.0 | 2/2 | Complete    | 2026-05-10 |
 | 41. Generate-Estimate Service Extraction | v2.0 | 1/1 | Complete | 2026-05-10 |
 | 42. Inbound Processing | v2.0 | 1/1 | Complete | 2026-05-10 |
-| 43. Confirmation Flow | v2.0 | 0/TBD | Not started | - |
+| 43. Confirmation Flow | v2.0 | 2/2 | Complete | 2026-05-10 |
 | 44. Outbound Client Delivery | v2.0 | 0/TBD | Not started | - |
 | 45. Settings UI + Admin Token | v2.0 | 0/TBD | Not started | - |

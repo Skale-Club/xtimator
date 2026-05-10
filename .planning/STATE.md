@@ -7,9 +7,9 @@ last_updated: "2026-05-10T22:25:00.000Z"
 last_activity: 2026-05-10
 progress:
   total_phases: 45
-  completed_phases: 42
-  total_plans: 106
-  completed_plans: 104
+  completed_phases: 43
+  total_plans: 108
+  completed_plans: 106
 ---
 
 # Project State
@@ -21,13 +21,16 @@ progress:
 
 ## Current Position
 
-Phase: 42
-Plan: 01 — complete
+Phase: 43
+Plan: 02 — complete
 Status: Phase complete — ready for verification
 Last activity: 2026-05-10
 
 ## Completed Phases
 
+- Phase 43: Confirmation Flow (43-confirmation-flow) — COMPLETE 2026-05-10
+  - Plan 01: lib/whatsapp/confirm.ts (send/cancel parser + basic share-link delivery + handler wiring) — COMPLETE
+  - Plan 02: /api/cron/cleanup-whatsapp-sessions + pg_cron migration + vercel.json — COMPLETE
 - Phase 42: Inbound Processing (42-inbound-processing) — COMPLETE 2026-05-10
   - Plan 01: lib/whatsapp/handler.ts (text/audio/image dispatch, session create, confirm reply) + webhook wiring + unit tests — COMPLETE
 - Phase 41: Generate-Estimate Service Extraction (41-generate-estimate-service-extraction) — COMPLETE 2026-05-10
@@ -264,6 +267,10 @@ Last activity: 2026-05-10
 - [Phase 42-inbound-processing]: Audio transcription passes audio/ogg to Whisper (WhatsApp voice notes are OGG/Opus) — no storage_path persisted for WhatsApp recordings (consistent with Phase 27 nullable pattern)
 - [Phase 42-inbound-processing]: Image handler uploads to photos bucket before Claude Vision — storage_path required by photos table NOT NULL constraint; upload before insert to avoid orphan rows
 - [Phase 42-inbound-processing]: Class-based MockAnthropic with module-level mockAnthropicCreate — consistent with admin-test-button.test.ts pattern (D decision)
+- [Phase 43-confirmation-flow]: parseCommand strips non-word chars before matching — handles "cancel!" and "SEND" without extra branches
+- [Phase 43-confirmation-flow]: "send" delivers to client phone if found; non-fatal catch on WhatsApp send failure so owner always gets the share link regardless
+- [Phase 43-confirmation-flow]: pg_cron purge runs at */10 (safety net); Vercel cron runs at */5 (primary — sends expiry notifications before pg_cron deletes rows)
+- [Phase 43-confirmation-flow]: handler.ts mocks processConfirmationReply in tests — handler unit tests only verify routing, confirm.test.ts owns the command logic
 
 ## Performance Metrics
 
@@ -349,6 +356,8 @@ Last activity: 2026-05-10
 | Phase 40-webhook-infrastructure P02 | 3 | 2 tasks | 3 files |
 | Phase 41-generate-estimate-service-extraction P01 | 10min | 4 tasks | 5 files |
 | Phase 42-inbound-processing P01 | 12min | 4 tasks | 5 files |
+| Phase 43-confirmation-flow P01 | 8min | 2 tasks | 3 files |
+| Phase 43-confirmation-flow P02 | 5min | 3 tasks | 4 files |
 
 ## Project Reference
 
