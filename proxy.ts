@@ -19,6 +19,13 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next({ request: { headers: requestHeaders } })
   }
 
+  // Webhook bypass: Meta Cloud API cannot send auth cookies.
+  // /api/webhooks/* must be reachable unauthenticated. (WA-04)
+  // Verification is handled inside each webhook route via HMAC signature check.
+  if (pathname.startsWith('/api/webhooks/')) {
+    return NextResponse.next()
+  }
+
   // Always refresh session first (existing behavior — preserved).
   const { claims, response } = await updateSession(request)
 
