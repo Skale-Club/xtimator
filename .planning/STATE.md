@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.5
-milestone_name: Zero-friction Project Onboarding
-status: verifying
-last_updated: "2026-05-10T19:58:56.742Z"
+milestone: v2.0
+milestone_name: WhatsApp Estimate Channel
+status: in_progress
+last_updated: "2026-05-10T22:25:00.000Z"
 last_activity: 2026-05-10
 progress:
-  total_phases: 40
-  completed_phases: 38
-  total_plans: 103
-  completed_plans: 101
+  total_phases: 45
+  completed_phases: 41
+  total_plans: 105
+  completed_plans: 103
 ---
 
 # Project State
@@ -21,13 +21,15 @@ progress:
 
 ## Current Position
 
-Phase: 40
-Plan: Not started
+Phase: 41
+Plan: 01 — complete
 Status: Phase complete — ready for verification
 Last activity: 2026-05-10
 
 ## Completed Phases
 
+- Phase 41: Generate-Estimate Service Extraction (41-generate-estimate-service-extraction) — COMPLETE 2026-05-10
+  - Plan 01: lib/services/generate-estimate.ts + slim route + unit tests — COMPLETE
 - Phase 36: Voice Refinement (36-voice-refinement) — COMPLETE 2026-05-09
   - Plan 01: VoiceRefineRecorder component + voice refinement API route + panel wiring — COMPLETE (83b81a7, 0602d29, 4eee7ff)
 - Phase 26: Bulk Price Adjustment (26-bulk-price-adjustment) — COMPLETE 2026-05-08
@@ -254,6 +256,8 @@ Last activity: 2026-05-10
 - [Phase 40-webhook-infrastructure]: requireServiceClient (non-nullable) used in webhook handler — runtime-only context, nullable createServiceClient is wrong variant
 - [Phase 40-webhook-infrastructure]: new URL(request.url) in GET handler for searchParams — works in both NextRequest and plain Request test environment
 - [Phase 40-webhook-infrastructure]: proxy.ts early return for /api/webhooks/ placed before updateSession — Meta Cloud API cannot send auth cookies (WA-04)
+- [Phase 41-generate-estimate-service-extraction]: generateEstimateForProject uses requireServiceClient (not createClient) — no auth cookies available in webhook/cron context; service role bypasses RLS and companyId scopes the query
+- [Phase 41-generate-estimate-service-extraction]: Route catches named error messages to distinguish 400 client errors from 500 server errors — avoids leaking DB internals while returning meaningful status codes
 
 ## Performance Metrics
 
@@ -337,6 +341,7 @@ Last activity: 2026-05-10
 | Phase 39-subdomain-routing-white-label P01 | 8min | 5 tasks | 4 files |
 | Phase 40-webhook-infrastructure P01 | 4min | 2 tasks | 7 files |
 | Phase 40-webhook-infrastructure P02 | 3 | 2 tasks | 3 files |
+| Phase 41-generate-estimate-service-extraction P01 | 10min | 4 tasks | 5 files |
 
 ## Project Reference
 
