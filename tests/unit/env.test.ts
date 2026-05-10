@@ -18,4 +18,13 @@ describe('Environment variable type declarations', () => {
     const key = 'NEXT_PUBLIC_SUPABASE_ANON_KEY' as keyof NodeJS.ProcessEnv
     expect(key).toBe('NEXT_PUBLIC_SUPABASE_ANON_KEY')
   })
+
+  it('new Supabase publishable and secret key types are declared', () => {
+    const publishableKey =
+      'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY' satisfies keyof NodeJS.ProcessEnv
+    const secretKey = 'SUPABASE_SECRET_KEY' satisfies keyof NodeJS.ProcessEnv
+
+    expect(publishableKey).toBe('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY')
+    expect(secretKey.startsWith('NEXT_PUBLIC_')).toBe(false)
+  })
 })

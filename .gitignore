@@ -8,6 +8,8 @@ node_modules/
 .env.*
 !.env.example
 !.env*.example
+env.download
+*.env.download
 
 # Logs
 logs/
