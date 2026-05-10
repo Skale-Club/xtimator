@@ -106,7 +106,7 @@
 
 ### v2.0 WhatsApp Estimate Channel (Phases 40-45)
 
-- [ ] **Phase 40: Webhook Infrastructure** — DB tables (`company_whatsapp`, `whatsapp_sessions`, deduplication), `WhatsAppProvider` interface + `MetaAdapter` skeleton, `POST /api/webhooks/whatsapp` with HMAC-SHA256, `GET` hub.challenge verification, proxy.ts bypass, admin panel Meta token card
+- [x] **Phase 40: Webhook Infrastructure** — DB tables (`company_whatsapp`, `whatsapp_sessions`, deduplication), `WhatsAppProvider` interface + `MetaAdapter` skeleton, `POST /api/webhooks/whatsapp` with HMAC-SHA256, `GET` hub.challenge verification, proxy.ts bypass, admin panel Meta token card (completed 2026-05-10)
 - [ ] **Phase 41: Generate-Estimate Service Extraction** — Extract business logic from `app/api/generate-estimate/route.ts` into `lib/services/generate-estimate.ts` callable with `(companyId, projectId)` — no auth context required; API route becomes a thin wrapper; enables webhook handler to invoke the pipeline directly
 - [ ] **Phase 42: Inbound Processing** — `lib/whatsapp/handler.ts` state machine (awaiting_input state); audio messages → Whisper → estimate; text messages → transcript → estimate; photo messages → Claude Vision → estimate; sends confirmation summary to owner; session created and transitioned to awaiting_confirm
 - [ ] **Phase 43: Confirmation Flow** — `awaiting_confirm` state machine — "send" / "cancel" command parsing; session expiry at 30 minutes with expiry notification; `pg_cron` or Vercel cron cleanup; `lib/whatsapp/formatter.ts` confirmation message builder
@@ -280,7 +280,7 @@ Plans:
 
 Plans:
 - [x] 40-01-PLAN.md — DB migration (3 WA tables + RLS + purge) + lib/whatsapp/ modules (types, verify, client) + unit tests
-- [ ] 40-02-PLAN.md — Webhook route (GET challenge + POST HMAC handler + dedup stub) + proxy.ts bypass
+- [x] 40-02-PLAN.md — Webhook route (GET challenge + POST HMAC handler + dedup stub) + proxy.ts bypass
 **UI hint**: yes
 
 ### Phase 39: Subdomain Routing + White-label Estimate View
@@ -308,7 +308,7 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 40-01-PLAN.md — DB migration (3 WA tables + RLS + purge) + lib/whatsapp/ modules (types, verify, client) + unit tests
+- [x] 40-01-PLAN.md — DB migration (3 WA tables + RLS + purge) + lib/whatsapp/ modules (types, verify, client) + unit tests
 - [ ] 40-02-PLAN.md — Webhook route (GET challenge + POST HMAC handler + dedup stub) + proxy.ts bypass
 
 ### Phase 41: Generate-Estimate Service Extraction
@@ -426,7 +426,7 @@ Plans:
 | 34. Client-Project Quick Actions Verification | v1.7 | 1/1 | Complete | 2026-05-09 |
 | 38. Custom Domain DB + Settings UI | v1.9 | 2/2 | Complete   | 2026-05-10 |
 | 39. Subdomain Routing + White-label Estimate View | v1.9 | 1/1 | Complete    | 2026-05-10 |
-| 40. Webhook Infrastructure | v2.0 | 1/2 | In Progress|  |
+| 40. Webhook Infrastructure | v2.0 | 2/2 | Complete   | 2026-05-10 |
 | 41. Generate-Estimate Service Extraction | v2.0 | 0/TBD | Not started | - |
 | 42. Inbound Processing | v2.0 | 0/TBD | Not started | - |
 | 43. Confirmation Flow | v2.0 | 0/TBD | Not started | - |

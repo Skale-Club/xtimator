@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Zero-friction Project Onboarding
-status: executing
-last_updated: "2026-05-10T19:50:14.930Z"
+status: verifying
+last_updated: "2026-05-10T19:55:58.290Z"
 last_activity: 2026-05-10
 progress:
   total_phases: 40
-  completed_phases: 37
+  completed_phases: 38
   total_plans: 103
-  completed_plans: 100
+  completed_plans: 101
 ---
 
 # Project State
@@ -23,7 +23,7 @@ progress:
 
 Phase: 40 (Webhook Infrastructure) — EXECUTING
 Plan: 2 of 2
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-05-10
 
 ## Completed Phases
@@ -251,6 +251,9 @@ Last activity: 2026-05-10
 - [Phase 40-webhook-infrastructure]: verifyWebhookSignature catches timingSafeEqual exception for length mismatch — returns false instead of throwing (Pitfall 4)
 - [Phase 40-webhook-infrastructure]: whatsapp client.ts reads env vars at call time (not module init) — consistent with per-request getIntegrationKey() pattern
 - [Phase 40-webhook-infrastructure]: whatsapp_processed_messages uses message_id TEXT PRIMARY KEY (wamid from Meta) not UUID — dedup key is the Meta message ID
+- [Phase 40-webhook-infrastructure]: requireServiceClient (non-nullable) used in webhook handler — runtime-only context, nullable createServiceClient is wrong variant
+- [Phase 40-webhook-infrastructure]: new URL(request.url) in GET handler for searchParams — works in both NextRequest and plain Request test environment
+- [Phase 40-webhook-infrastructure]: proxy.ts early return for /api/webhooks/ placed before updateSession — Meta Cloud API cannot send auth cookies (WA-04)
 
 ## Performance Metrics
 
@@ -333,6 +336,7 @@ Last activity: 2026-05-10
 | Phase 38-custom-domain-db-settings-ui P02 | 5min | 3 tasks | 3 files |
 | Phase 39-subdomain-routing-white-label P01 | 8min | 5 tasks | 4 files |
 | Phase 40-webhook-infrastructure P01 | 4min | 2 tasks | 7 files |
+| Phase 40-webhook-infrastructure P02 | 3 | 2 tasks | 3 files |
 
 ## Project Reference
 
