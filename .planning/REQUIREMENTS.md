@@ -1,3 +1,76 @@
+# Requirements: v2.0 - WhatsApp Estimate Channel
+
+## v2.0 Requirements (SEED-008)
+
+### Infrastructure & Security
+
+- [ ] **WA-01**: Webhook `POST /api/webhooks/whatsapp` verifies Meta HMAC-SHA256 signature and returns HTTP 200 before processing (fire-and-forget via `after()`)
+- [ ] **WA-02**: Webhook `GET /api/webhooks/whatsapp` responds to Meta hub.challenge for initial verification
+- [ ] **WA-03**: Duplicate messages (same `wamid.*`) are silently discarded without generating a duplicate estimate
+- [ ] **WA-04**: Meta webhook requests bypass the auth middleware in `proxy.ts`
+
+### Phone Registration
+
+- [ ] **WA-05**: Owner can connect their WhatsApp Business number in `/settings/integrations` — enters phone number, receives verification code, confirms
+- [ ] **WA-06**: Owner can disconnect their number at any time; messages from disconnected numbers are silently ignored
+
+### Inbound Processing
+
+- [ ] **WA-07**: Owner sends text via WhatsApp → bot generates estimate and replies with a confirmation summary
+- [ ] **WA-08**: Owner sends a voice note via WhatsApp → bot transcribes via Whisper → generates estimate → replies with confirmation summary
+- [ ] **WA-09**: Owner sends photo(s) via WhatsApp → bot analyzes via Claude Vision → generates estimate → replies with confirmation summary
+
+### Confirmation Flow
+
+- [ ] **WA-10**: Bot presents estimate summary to owner with "send" and "cancel" options
+- [ ] **WA-11**: Owner replies "send" → bot delivers estimate to client and confirms to owner
+- [ ] **WA-12**: Owner replies "cancel" → estimate discarded, bot confirms cancellation
+- [ ] **WA-13**: Confirmation session expires after 30 minutes with no response; bot sends expiry message
+
+### Outbound Delivery
+
+- [ ] **WA-14**: Estimate sent to client as share link (`xtimator.com/estimate/{token}`) — no template approval required
+- [ ] **WA-15**: Owner can configure default delivery format (formatted text / share link) in `/settings/integrations`
+
+## Future Requirements
+
+- **"edit [item]" command** — owner can correct line items before sending without opening the app
+- **PDF attachment outbound** — send estimate as PDF attachment to client via WhatsApp (requires media upload API + content template)
+- **WhatsApp direct-to-client text** — free-form WhatsApp message to client (requires UTILITY template approval)
+- **Multi-input accumulation** — owner sends audio + photos in sequence before triggering estimate generation
+- **Embedded Signup multi-tenant** — each company connects their own WABA via OAuth; requires Xtimator Meta Business Verification
+
+## Out of Scope
+
+- **Twilio** — user has Meta Cloud API approved; no intermediary needed
+- **Edit command in v2.0** — "edit [item]" adds command parsing + refinement pipeline complexity; deferred
+- **WhatsApp-direct-to-client text** — requires pre-approved UTILITY template; deferred to v2.1
+- **Multi-number per company** — one company, one WhatsApp number in v2.0
+- **Video messages** — not accepted (complexity vs value)
+- **Chatbot conversational AI** — bot follows a predictable script, not a free-form LLM
+
+## Traceability
+
+| REQ-ID | Phase | Status |
+|--------|-------|--------|
+| WA-01 | TBD | Planned |
+| WA-02 | TBD | Planned |
+| WA-03 | TBD | Planned |
+| WA-04 | TBD | Planned |
+| WA-05 | TBD | Planned |
+| WA-06 | TBD | Planned |
+| WA-07 | TBD | Planned |
+| WA-08 | TBD | Planned |
+| WA-09 | TBD | Planned |
+| WA-10 | TBD | Planned |
+| WA-11 | TBD | Planned |
+| WA-12 | TBD | Planned |
+| WA-13 | TBD | Planned |
+| WA-14 | TBD | Planned |
+| WA-15 | TBD | Planned |
+
+---
+
 # Requirements: v1.9 - Custom Domain Support
 
 ## v1.9 Requirements (SEED-009)
