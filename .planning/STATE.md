@@ -7,9 +7,9 @@ last_updated: "2026-05-10T22:25:00.000Z"
 last_activity: 2026-05-10
 progress:
   total_phases: 45
-  completed_phases: 43
-  total_plans: 108
-  completed_plans: 106
+  completed_phases: 44
+  total_plans: 109
+  completed_plans: 107
 ---
 
 # Project State
@@ -21,13 +21,15 @@ progress:
 
 ## Current Position
 
-Phase: 43
-Plan: 02 — complete
+Phase: 44
+Plan: 01 — complete
 Status: Phase complete — ready for verification
 Last activity: 2026-05-10
 
 ## Completed Phases
 
+- Phase 44: Outbound Client Delivery (44-outbound-client-delivery) — COMPLETE 2026-05-10
+  - Plan 01: delivery_format migration + formatter.ts + confirm.ts delivery branching + tests — COMPLETE
 - Phase 43: Confirmation Flow (43-confirmation-flow) — COMPLETE 2026-05-10
   - Plan 01: lib/whatsapp/confirm.ts (send/cancel parser + basic share-link delivery + handler wiring) — COMPLETE
   - Plan 02: /api/cron/cleanup-whatsapp-sessions + pg_cron migration + vercel.json — COMPLETE
@@ -271,6 +273,9 @@ Last activity: 2026-05-10
 - [Phase 43-confirmation-flow]: "send" delivers to client phone if found; non-fatal catch on WhatsApp send failure so owner always gets the share link regardless
 - [Phase 43-confirmation-flow]: pg_cron purge runs at */10 (safety net); Vercel cron runs at */5 (primary — sends expiry notifications before pg_cron deletes rows)
 - [Phase 43-confirmation-flow]: handler.ts mocks processConfirmationReply in tests — handler unit tests only verify routing, confirm.test.ts owns the command logic
+- [Phase 44-outbound-client-delivery]: confirm.ts loads company_whatsapp.delivery_format + companies.name in the same Promise.all as estimate + project — single round-trip
+- [Phase 44-outbound-client-delivery]: formatted_text path passes full estimate (sections+items) to formatEstimateForWhatsApp; share_link path only needs share_token — both share the same estimate query (superset select)
+- [Phase 44-outbound-client-delivery]: delivery_format defaults to 'share_link' when company_whatsapp row has no config or query fails — safe fallback, no crash
 
 ## Performance Metrics
 
@@ -358,6 +363,7 @@ Last activity: 2026-05-10
 | Phase 42-inbound-processing P01 | 12min | 4 tasks | 5 files |
 | Phase 43-confirmation-flow P01 | 8min | 2 tasks | 3 files |
 | Phase 43-confirmation-flow P02 | 5min | 3 tasks | 4 files |
+| Phase 44-outbound-client-delivery P01 | 8min | 5 tasks | 5 files |
 
 ## Project Reference
 

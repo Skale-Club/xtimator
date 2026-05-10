@@ -19,9 +19,29 @@ const BASE_SESSION = {
   draft_estimate_id: 'estimate-1',
 }
 
+const BASE_ESTIMATE = {
+  id: 'estimate-1',
+  share_token: 'tok-abc',
+  total: 2750,
+  subtotal: 2500,
+  tax_rate: 0.1,
+  tax_amount: 250,
+  summary: 'Kitchen reno',
+  payment_terms: 'Net 30',
+  timeline: '2 weeks',
+  sections: [
+    {
+      title: 'Labor',
+      subtotal: 2500,
+      items: [{ description: 'Demo', quantity: 1, unit: null, unit_price: 2500, total: 2500 }],
+    },
+  ],
+}
+
 function makeSupabase({
   clientPhone = null as string | null,
   clientName = 'Johnson' as string | null,
+  deliveryFormat = 'share_link' as string,
 } = {}) {
   const deleteSpy = vi.fn().mockReturnValue({
     eq: vi.fn().mockResolvedValue({ error: null }),
@@ -35,10 +55,7 @@ function makeSupabase({
       return {
         select: vi.fn().mockReturnValue({
           eq: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({
-              data: { id: 'estimate-1', share_token: 'tok-abc', total: 2500, summary: 'Reno' },
-              error: null,
-            }),
+            single: vi.fn().mockResolvedValue({ data: BASE_ESTIMATE, error: null }),
           }),
         }),
         update: updateSpy,
@@ -64,6 +81,30 @@ function makeSupabase({
           eq: vi.fn().mockReturnValue({
             single: vi.fn().mockResolvedValue({
               data: { phone: clientPhone, name: clientName },
+              error: null,
+            }),
+          }),
+        }),
+      }
+    }
+    if (table === 'company_whatsapp') {
+      return {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({
+              data: { delivery_format: deliveryFormat },
+              error: null,
+            }),
+          }),
+        }),
+      }
+    }
+    if (table === 'companies') {
+      return {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({
+              data: { name: 'Acme Builders' },
               error: null,
             }),
           }),
@@ -99,7 +140,6 @@ describe('processConfirmationReply', () => {
     it('handles "send" with different casing', async () => {
       const { client } = makeSupabase()
       await processConfirmationReply('SEND', BASE_SESSION, COMPANY_ID, OWNER_PHONE, client)
-      // Should not send help message — should send owner confirmation
       const body = (mockSend.mock.calls[mockSend.mock.calls.length - 1][1] as { text: { body: string } }).text.body
       expect(body).not.toMatch(/valid command/i)
       expect(body).toMatch(/estimate/i)
@@ -113,42 +153,61 @@ describe('processConfirmationReply', () => {
     })
   })
 
-  describe('"send" command — no client phone', () => {
+  describe('"send" — share_link format (default)', () => {
     it('marks estimate+project as sent, deletes session, sends share link to owner', async () => {
       const { client, deleteSpy, updateSpy } = makeSupabase({ clientPhone: null })
 
       await processConfirmationReply('send', BASE_SESSION, COMPANY_ID, OWNER_PHONE, client)
 
-      // estimate + project updated to "sent"
       expect(updateSpy).toHaveBeenCalledWith({ status: 'sent' })
-
-      // session deleted
       expect(deleteSpy).toHaveBeenCalled()
 
-      // owner notified with share link
       const ownerMsg = (mockSend.mock.calls[mockSend.mock.calls.length - 1][1] as { text: { body: string } }).text.body
       expect(ownerMsg).toMatch(/estimate ready/i)
       expect(ownerMsg).toMatch(/xtimator\.com\/estimate\/tok-abc/)
     })
-  })
 
-  describe('"send" command — client has phone', () => {
     it('delivers share link to client phone and confirms to owner', async () => {
-      const { client, updateSpy } = makeSupabase({ clientPhone: '+15559876543', clientName: 'Johnson' })
+      const { client, updateSpy } = makeSupabase({
+        clientPhone: '+15559876543',
+        clientName: 'Johnson',
+        deliveryFormat: 'share_link',
+      })
 
       await processConfirmationReply('send', BASE_SESSION, COMPANY_ID, OWNER_PHONE, client)
 
-      // Client receives message
       const clientCall = mockSend.mock.calls.find(([to]) => to === '+15559876543')
       expect(clientCall).toBeDefined()
-      expect((clientCall![1] as { text: { body: string } }).text.body).toMatch(/Johnson/)
-      expect((clientCall![1] as { text: { body: string } }).text.body).toMatch(/xtimator\.com\/estimate\/tok-abc/)
+      const clientBody = (clientCall![1] as { text: { body: string } }).text.body
+      expect(clientBody).toMatch(/Johnson/)
+      expect(clientBody).toMatch(/xtimator\.com\/estimate\/tok-abc/)
+      // share_link should NOT contain section breakdowns
+      expect(clientBody).not.toMatch(/Labor/)
 
-      // Owner gets delivery confirmation
       const ownerMsg = (mockSend.mock.calls[mockSend.mock.calls.length - 1][1] as { text: { body: string } }).text.body
       expect(ownerMsg).toMatch(/sent/i)
-
       expect(updateSpy).toHaveBeenCalledWith({ status: 'sent' })
+    })
+  })
+
+  describe('"send" — formatted_text delivery format', () => {
+    it('sends full formatted estimate to client instead of share link', async () => {
+      const { client } = makeSupabase({
+        clientPhone: '+15559876543',
+        clientName: 'Johnson',
+        deliveryFormat: 'formatted_text',
+      })
+
+      await processConfirmationReply('send', BASE_SESSION, COMPANY_ID, OWNER_PHONE, client)
+
+      const clientCall = mockSend.mock.calls.find(([to]) => to === '+15559876543')
+      expect(clientCall).toBeDefined()
+      const clientBody = (clientCall![1] as { text: { body: string } }).text.body
+      // Formatted text includes section title and total
+      expect(clientBody).toMatch(/Labor/)
+      expect(clientBody).toMatch(/Total/)
+      // Formatted text includes company name
+      expect(clientBody).toMatch(/Acme Builders/)
     })
   })
 
@@ -158,15 +217,12 @@ describe('processConfirmationReply', () => {
 
       await processConfirmationReply('cancel', BASE_SESSION, COMPANY_ID, OWNER_PHONE, client)
 
-      // project deleted
       expect(deleteSpy).toHaveBeenCalled()
-
-      // owner notified
       const body = (mockSend.mock.calls[0][1] as { text: { body: string } }).text.body
       expect(body).toMatch(/discarded/i)
     })
 
-    it('does not call generate or update estimate status on cancel', async () => {
+    it('does not update estimate or project status on cancel', async () => {
       const { client, updateSpy } = makeSupabase()
 
       await processConfirmationReply('cancel', BASE_SESSION, COMPANY_ID, OWNER_PHONE, client)
