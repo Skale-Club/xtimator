@@ -36,6 +36,11 @@ const PROVIDERS: ReadonlyArray<{
     title: 'OpenAI',
     description: 'Whisper API for audio transcription.',
   },
+  {
+    id: 'meta_whatsapp',
+    title: 'Meta WhatsApp',
+    description: 'WhatsApp Cloud API token for inbound message handling and estimate delivery.',
+  },
 ]
 
 type IntegrationRow = {

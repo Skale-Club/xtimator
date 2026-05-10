@@ -159,6 +159,24 @@ export async function testIntegrationKey(input: {
       return { ok: true, message: `Verified. Gemini responded in ${ms}ms.` }
     }
 
+    if (input.provider === 'meta_whatsapp') {
+      const res = await fetch('https://graph.facebook.com/v21.0/me', {
+        headers: { Authorization: `Bearer ${key}` },
+      })
+      if (!res.ok) {
+        const body = await res.text().catch(() => '')
+        return {
+          ok: false,
+          message: `Meta rejected the token (${res.status}). ${body.slice(0, 200)}`.trim(),
+        }
+      }
+      const json = (await res.json()) as { name?: string; id?: string }
+      return {
+        ok: true,
+        message: `Verified. Token belongs to "${json.name ?? json.id ?? 'unknown'}".`,
+      }
+    }
+
     // Exhaustiveness fallback (TS narrows above; defensive)
     return { ok: false, message: `Unknown provider: ${String(input.provider)}` }
   } catch (e) {

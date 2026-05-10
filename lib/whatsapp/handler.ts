@@ -202,7 +202,7 @@ async function handleAudioMessage(
 
   // Transcribe via Whisper (direct fetch — no SDK dependency)
   const whisperForm = new FormData()
-  whisperForm.append('file', new Blob([audioBuffer], { type: 'audio/ogg' }), 'audio.ogg')
+  whisperForm.append('file', new Blob([new Uint8Array(audioBuffer)], { type: 'audio/ogg' }), 'audio.ogg')
   whisperForm.append('model', 'whisper-1')
   whisperForm.append('response_format', 'text')
 
