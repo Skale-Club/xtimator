@@ -12,7 +12,7 @@
 - ✅ **v1.7 Client-Project Quick Actions** — Phase 34 (shipped 2026-05-09)
 - ✅ **v1.8 Iterative Estimate Refinement** — Phases 35-37 (shipped 2026-05-09)
 - ✅ **v1.9 Custom Domain Support** — Phases 38-39 (shipped 2026-05-10)
-- 🔲 **v2.0 WhatsApp Estimate Channel** — Phases 40-45 (in progress)
+- ✅ **v2.0 WhatsApp Estimate Channel** — Phases 40-45 (shipped 2026-05-10)
 
 ## Phases
 
@@ -431,4 +431,4 @@ Plans:
 | 42. Inbound Processing | v2.0 | 1/1 | Complete | 2026-05-10 |
 | 43. Confirmation Flow | v2.0 | 2/2 | Complete | 2026-05-10 |
 | 44. Outbound Client Delivery | v2.0 | 1/1 | Complete | 2026-05-10 |
-| 45. Settings UI + Admin Token | v2.0 | 0/TBD | Not started | - |
+| 45. Settings UI + Admin Token | v2.0 | 1/1 | Complete | 2026-05-10 |

@@ -2,32 +2,34 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: WhatsApp Estimate Channel
-status: in_progress
-last_updated: "2026-05-10T22:25:00.000Z"
+status: complete
+last_updated: "2026-05-10T23:00:00.000Z"
 last_activity: 2026-05-10
 progress:
   total_phases: 45
-  completed_phases: 44
+  completed_phases: 45
   total_plans: 109
-  completed_plans: 107
+  completed_plans: 109
 ---
 
 # Project State
 
 ## Current Status
 
-- **Milestone**: v2.0 WhatsApp Estimate Channel — 🔲 IN PROGRESS
+- **Milestone**: v2.0 WhatsApp Estimate Channel — ✅ COMPLETE
 - **Last updated**: 2026-05-10
 
 ## Current Position
 
-Phase: 44
+Phase: 45
 Plan: 01 — complete
-Status: Phase complete — ready for verification
+Status: Milestone complete — all 45 phases shipped
 Last activity: 2026-05-10
 
 ## Completed Phases
 
+- Phase 45: Settings UI + Admin Token (45-settings-ui-admin-token) — COMPLETE 2026-05-10
+  - Plan 01: meta_whatsapp IntegrationProvider + admin integrations card + testIntegrationKey (graph.facebook.com/v21.0/me) + lib/actions/whatsapp-settings.ts + WhatsAppConnectCard + /settings/integrations page + settings entry card — COMPLETE
 - Phase 44: Outbound Client Delivery (44-outbound-client-delivery) — COMPLETE 2026-05-10
   - Plan 01: delivery_format migration + formatter.ts + confirm.ts delivery branching + tests — COMPLETE
 - Phase 43: Confirmation Flow (43-confirmation-flow) — COMPLETE 2026-05-10
@@ -276,6 +278,12 @@ Last activity: 2026-05-10
 - [Phase 44-outbound-client-delivery]: confirm.ts loads company_whatsapp.delivery_format + companies.name in the same Promise.all as estimate + project — single round-trip
 - [Phase 44-outbound-client-delivery]: formatted_text path passes full estimate (sections+items) to formatEstimateForWhatsApp; share_link path only needs share_token — both share the same estimate query (superset select)
 - [Phase 44-outbound-client-delivery]: delivery_format defaults to 'share_link' when company_whatsapp row has no config or query fails — safe fallback, no crash
+- [Phase 45-settings-ui-admin-token]: meta_whatsapp added to IntegrationProvider union, integrationKeySchema enum, and PROVIDERS array in admin page
+- [Phase 45-settings-ui-admin-token]: testIntegrationKey meta_whatsapp case hits graph.facebook.com/v21.0/me with Bearer token — returns token owner name on success
+- [Phase 45-settings-ui-admin-token]: getAuthContext in whatsapp-settings.ts uses explicit discriminated union return type (AuthSuccess | AuthFailure) to avoid TypeScript 'in' narrowing pitfall with string | undefined
+- [Phase 45-settings-ui-admin-token]: WhatsAppConnectCard uses local useState(initial) for optimistic UI — connect/disconnect update local state immediately without waiting for router.refresh()
+- [Phase 45-settings-ui-admin-token]: connectWhatsApp upserts on company_id conflict (onConflict: 'company_id') — allows re-configuration without delete-then-insert
+- [Phase 45-settings-ui-admin-token]: Buffer→Uint8Array cast in handler.ts Whisper FormData fixed (tsc was clean but not for SharedArrayBuffer compatibility)
 
 ## Performance Metrics
 
