@@ -142,6 +142,7 @@ export type Database = {
           estimate_template_opener: string | null
           estimate_template_closer: string | null
           estimate_template_signature: string | null
+          custom_domain: string | null
         }
         Insert: {
           id?: string
@@ -174,6 +175,7 @@ export type Database = {
           estimate_template_opener?: string | null
           estimate_template_closer?: string | null
           estimate_template_signature?: string | null
+          custom_domain?: string | null
         }
         Update: {
           id?: string
@@ -206,6 +208,7 @@ export type Database = {
           estimate_template_opener?: string | null
           estimate_template_closer?: string | null
           estimate_template_signature?: string | null
+          custom_domain?: string | null
         }
         Relationships: []
       }
