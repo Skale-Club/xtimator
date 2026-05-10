@@ -10,6 +10,10 @@ vi.mock('@/lib/supabase/service', () => ({
   requireServiceClient: vi.fn(),
 }))
 
+vi.mock('@/lib/whatsapp/handler', () => ({
+  processInboundMessage: vi.fn(),
+}))
+
 // Mock next/server after() to be a no-op in tests
 vi.mock('next/server', async (importOriginal) => {
   const actual = await importOriginal<typeof import('next/server')>()

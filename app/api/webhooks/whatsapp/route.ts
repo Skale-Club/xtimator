@@ -2,6 +2,7 @@ import { type NextRequest } from 'next/server'
 import { after } from 'next/server'
 import { verifyWebhookSignature } from '@/lib/whatsapp/verify'
 import { requireServiceClient } from '@/lib/supabase/service'
+import { processInboundMessage } from '@/lib/whatsapp/handler'
 import type { WhatsAppPayload } from '@/lib/whatsapp/types'
 
 // ------------------------------------------------------------------
@@ -101,9 +102,12 @@ async function handleInboundMessage(payload: WhatsAppPayload): Promise<void> {
       return
     }
 
-    // Phase 42 will implement full message dispatch here
-    console.log(
-      `[WhatsApp] Received message ${messageId} from +${fromPhone} for company ${whatsappConfig.company_id} (type: ${message.type})`
+    // Phase 42: full inbound processing
+    await processInboundMessage(
+      message,
+      whatsappConfig.company_id as string,
+      fromPhone,
+      supabase
     )
   } catch (err) {
     // Never let errors propagate — after() runs post-response, uncaught errors are silent

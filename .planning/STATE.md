@@ -7,9 +7,9 @@ last_updated: "2026-05-10T22:25:00.000Z"
 last_activity: 2026-05-10
 progress:
   total_phases: 45
-  completed_phases: 41
-  total_plans: 105
-  completed_plans: 103
+  completed_phases: 42
+  total_plans: 106
+  completed_plans: 104
 ---
 
 # Project State
@@ -21,13 +21,15 @@ progress:
 
 ## Current Position
 
-Phase: 41
+Phase: 42
 Plan: 01 — complete
 Status: Phase complete — ready for verification
 Last activity: 2026-05-10
 
 ## Completed Phases
 
+- Phase 42: Inbound Processing (42-inbound-processing) — COMPLETE 2026-05-10
+  - Plan 01: lib/whatsapp/handler.ts (text/audio/image dispatch, session create, confirm reply) + webhook wiring + unit tests — COMPLETE
 - Phase 41: Generate-Estimate Service Extraction (41-generate-estimate-service-extraction) — COMPLETE 2026-05-10
   - Plan 01: lib/services/generate-estimate.ts + slim route + unit tests — COMPLETE
 - Phase 36: Voice Refinement (36-voice-refinement) — COMPLETE 2026-05-09
@@ -258,6 +260,10 @@ Last activity: 2026-05-10
 - [Phase 40-webhook-infrastructure]: proxy.ts early return for /api/webhooks/ placed before updateSession — Meta Cloud API cannot send auth cookies (WA-04)
 - [Phase 41-generate-estimate-service-extraction]: generateEstimateForProject uses requireServiceClient (not createClient) — no auth cookies available in webhook/cron context; service role bypasses RLS and companyId scopes the query
 - [Phase 41-generate-estimate-service-extraction]: Route catches named error messages to distinguish 400 client errors from 500 server errors — avoids leaking DB internals while returning meaningful status codes
+- [Phase 42-inbound-processing]: processInboundMessage checks awaiting_confirm session first — Phase 43 will handle "send"/"cancel" parsing; Phase 42 sends reminder and returns to avoid duplicate processing
+- [Phase 42-inbound-processing]: Audio transcription passes audio/ogg to Whisper (WhatsApp voice notes are OGG/Opus) — no storage_path persisted for WhatsApp recordings (consistent with Phase 27 nullable pattern)
+- [Phase 42-inbound-processing]: Image handler uploads to photos bucket before Claude Vision — storage_path required by photos table NOT NULL constraint; upload before insert to avoid orphan rows
+- [Phase 42-inbound-processing]: Class-based MockAnthropic with module-level mockAnthropicCreate — consistent with admin-test-button.test.ts pattern (D decision)
 
 ## Performance Metrics
 
@@ -342,6 +348,7 @@ Last activity: 2026-05-10
 | Phase 40-webhook-infrastructure P01 | 4min | 2 tasks | 7 files |
 | Phase 40-webhook-infrastructure P02 | 3 | 2 tasks | 3 files |
 | Phase 41-generate-estimate-service-extraction P01 | 10min | 4 tasks | 5 files |
+| Phase 42-inbound-processing P01 | 12min | 4 tasks | 5 files |
 
 ## Project Reference
 
