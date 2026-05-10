@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.9
-milestone_name: Custom Domain Support
-status: in_progress
-last_updated: "2026-05-10T00:00:00.000Z"
+milestone: v1.5
+milestone_name: Zero-friction Project Onboarding
+status: executing
+last_updated: "2026-05-10T17:53:21.522Z"
 last_activity: 2026-05-10
 progress:
-  total_phases: 39
-  completed_phases: 37
+  total_phases: 38
+  completed_phases: 35
   total_plans: 100
-  completed_plans: 100
+  completed_plans: 97
 ---
 
 # Project State
@@ -21,10 +21,10 @@ progress:
 
 ## Current Position
 
-Phase: 38 — Custom Domain DB + Settings UI (not started)
-Plan: —
-Status: Roadmap defined, ready for planning
-Last activity: 2026-05-10 — v1.9 roadmap created (Phases 38-39, 5 requirements mapped)
+Phase: 38 (Custom Domain DB + Settings UI) — EXECUTING
+Plan: 2 of 2
+Status: Ready to execute
+Last activity: 2026-05-10
 
 ## Completed Phases
 
@@ -240,6 +240,8 @@ Last activity: 2026-05-10 — v1.9 roadmap created (Phases 38-39, 5 requirements
 - [Phase 31]: Wizard step indicator: numbered circles (1, 2) with connector line, active step highlighted with bg-primary
 - [Phase 35-text-refinement]: Refinement panel hidden on read-only old versions, shows new version number on success
 - [Phase 37]: Photo upload uses same collapsible pattern as voice recorder
+- [Phase 38-custom-domain-db-settings-ui]: NULL initial state with no DEFAULT clause for custom_domain — same pattern as Phase 24 estimate_template_* columns
+- [Phase 38-custom-domain-db-settings-ui]: Manual TypeScript type extension (not regeneration) for custom_domain — Docker unavailable on Windows, established since Phase 19
 
 ## Performance Metrics
 
@@ -317,13 +319,14 @@ Last activity: 2026-05-10 — v1.9 roadmap created (Phases 38-39, 5 requirements
 | Phase 35-text-refinement P01 | 2 | 4 tasks | 3 files |
 | Phase 36 P01 | 145 | 3 tasks | 4 files |
 | Phase 37 P01 | 3 | 2 tasks | 2 files |
+| Phase 38-custom-domain-db-settings-ui P01 | 20min | 3 tasks | 7 files |
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-10)
 
 **Core value:** Business owner → job site audio recording → sent professional estimate in under 5 minutes
-**Current focus:** Phase 38 — Custom Domain DB + Settings UI (v1.9)
+**Current focus:** Phase 38 — Custom Domain DB + Settings UI
 
 ## Notes
 

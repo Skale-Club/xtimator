@@ -321,5 +321,5 @@ Plans:
 | 36. Voice Refinement | v1.8 | 1/1 | Complete    | 2026-05-09 |
 | 37. Photo Refinement | v1.8 | 1/1 | Complete   | 2026-05-09 |
 | 34. Client-Project Quick Actions Verification | v1.7 | 1/1 | Complete | 2026-05-09 |
-| 38. Custom Domain DB + Settings UI | v1.9 | 0/TBD | Not started | - |
+| 38. Custom Domain DB + Settings UI | v1.9 | 1/2 | In Progress|  |
 | 39. Subdomain Routing + White-label Estimate View | v1.9 | 0/TBD | Not started | - |
