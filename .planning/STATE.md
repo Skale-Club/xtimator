@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Zero-friction Project Onboarding
 status: verifying
-last_updated: "2026-05-10T18:00:13.003Z"
+last_updated: "2026-05-10T18:03:10.008Z"
 last_activity: 2026-05-10
 progress:
   total_phases: 38
@@ -244,6 +244,8 @@ Last activity: 2026-05-10
 - [Phase 38-custom-domain-db-settings-ui]: Manual TypeScript type extension (not regeneration) for custom_domain — Docker unavailable on Windows, established since Phase 19
 - [Phase 38-custom-domain-db-settings-ui]: Local useState for savedDomain: updates DNS card immediately post-save before router.refresh() round-trip
 - [Phase 38-custom-domain-db-settings-ui]: Apex detection by split('.').length === 2 — 2 parts = apex (e.g. mycompany.com), 3+ = subdomain
+- [Phase 38-custom-domain-db-settings-ui]: Local useState for savedDomain: updates DNS card immediately post-save before router.refresh() round-trip
+- [Phase 38-custom-domain-db-settings-ui]: Apex detection by split('.').length === 2 (2 parts = apex e.g. mycompany.com)
 
 ## Performance Metrics
 
@@ -323,6 +325,7 @@ Last activity: 2026-05-10
 | Phase 37 P01 | 3 | 2 tasks | 2 files |
 | Phase 38-custom-domain-db-settings-ui P01 | 20min | 3 tasks | 7 files |
 | Phase 38-custom-domain-db-settings-ui P02 | 5min | 2 tasks | 3 files |
+| Phase 38-custom-domain-db-settings-ui P02 | 5min | 3 tasks | 3 files |
 
 ## Project Reference
 
