@@ -1,8 +1,10 @@
 ---
 id: SEED-002
-status: sprouted
+status: harvested
 planted: 2026-04-22
 planted_during: v1.1 — Dark-first UX & Modern Redesign (all 9 phases complete)
+harvested_during: v1.2 Brand Identity & Global Reach (Phases 10-11)
+harvested: 2026-04-24
 trigger_when: when starting a milestone that includes public launch prep, marketing, or brand identity consolidation
 scope: Medium
 ---

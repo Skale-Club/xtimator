@@ -1,8 +1,10 @@
 ---
 id: SEED-006
-status: active
+status: harvested
 planted: 2026-05-08
 planted_during: v1.4 Estimate Plain Text & Pricing Tools (post-milestone cleanup)
+harvested_during: v1.8 Iterative Estimate Refinement (Phases 35-37)
+harvested: 2026-05-09
 trigger_when: Próximo milestone focado em AI UX, qualidade do orçamento gerado, ou fluxo de revisão/aprovação do orçamento com o cliente
 scope: Medium
 ---

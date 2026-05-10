@@ -1,8 +1,10 @@
 ---
 id: SEED-007
-status: active
+status: harvested
 planted: 2026-05-08
 planted_during: v1.4 Estimate Plain Text & Pricing Tools (post-milestone cleanup)
+harvested_during: v1.5–v1.7 (Phases 27-30, 34)
+harvested: 2026-05-09
 trigger_when: v1.5 Zero-friction Project Onboarding
 milestone: v1.7
 scope: Medium

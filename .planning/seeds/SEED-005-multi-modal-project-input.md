@@ -1,8 +1,10 @@
 ---
 id: SEED-005
-status: dormant
+status: harvested
 planted: 2026-05-08
 planted_during: v1.4 Estimate Plain Text & Pricing Tools (post-milestone cleanup)
+harvested_during: v1.5 Zero-friction Project Onboarding + v1.6 Multi-modal Project Input (Phases 27-33)
+harvested: 2026-05-09
 trigger_when: Próximo milestone focado em onboarding de projetos, experiência do usuário no campo, ou expansão das modalidades de entrada de dados
 scope: Medium
 ---
