@@ -6,7 +6,7 @@ status: in_progress
 last_updated: "2026-05-10T00:00:00.000Z"
 last_activity: 2026-05-10
 progress:
-  total_phases: 37
+  total_phases: 39
   completed_phases: 37
   total_plans: 100
   completed_plans: 100
@@ -21,10 +21,10 @@ progress:
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 38 — Custom Domain DB + Settings UI (not started)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-05-10 — Milestone v1.9 started
+Status: Roadmap defined, ready for planning
+Last activity: 2026-05-10 — v1.9 roadmap created (Phases 38-39, 5 requirements mapped)
 
 ## Completed Phases
 
@@ -320,22 +320,23 @@ Last activity: 2026-05-10 — Milestone v1.9 started
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-05-08)
+See: .planning/PROJECT.md (updated 2026-05-10)
 
 **Core value:** Business owner → job site audio recording → sent professional estimate in under 5 minutes
-**Current focus:** Phase 35 — SEED-006 Text Refinement
+**Current focus:** Phase 38 — Custom Domain DB + Settings UI (v1.9)
 
 ## Notes
 
 Project initialized from comprehensive spec on 2026-04-09.
 v1.0: 8 phases, 32 plans, 151+ commits. v1.1: Phase 9, 8 plans, 38 commits. YOLO mode, standard granularity.
-v1.2: 3 phases (10-12), 16 requirements. Seeds: SEED-001 (i18n EN/PT-BR/ES), SEED-002 (landing page + #406EF1 brand identity).
+v1.2: 3 phases (10-12), 16 requirements. Seeds: SEED-001 (i18n EN/PT-BR/ES), SEED-002 (brand identity → v1.2), SEED-003 (price book → v1.3), SEED-004 (plain-text estimate → v1.4), SEED-005 (multi-modal input → v1.5/v1.6), SEED-006 (iterative refinement → v1.8), SEED-007 (frictionless client → v1.5/v1.7). SEED-009 (custom domain → v1.9 — active).
 v1.3: 5 phases (19-23), 12 requirements. Price book DB + CRUD UI + CSV import + AI anchoring + editor badges.
 v1.4: 3 phases (24-26), 8 requirements. Estimate template engine + settings page + plain text tab + copy UI + bulk price adjustment.
 v1.5: 4 phases (27-30), 8 requirements. Capture schema migration + unified capture screen + frictionless project creation + AI client extraction.
 v1.6: 3 phases (31-33), 13 requirements. Wizard modality selection + text input route + photos input route (SEED-005).
 v1.7: Phase 34 (completed 2026-05-09). SEED-007 Client-Project Quick Actions verification.
-v1.8: Phases 35-37 (planned). SEED-006 Iterative Estimate Refinement — text/voice/photo refinement panel in estimate editor.
+v1.8: Phases 35-37 (completed 2026-05-09). SEED-006 Iterative Estimate Refinement — text/voice/photo refinement panel in estimate editor.
+v1.9: Phases 38-39 (started 2026-05-10). SEED-009 Custom Domain Support — per-company domain configuration + subdomain routing + white-label estimate view.
 
 ## Accumulated Context
 
@@ -350,6 +351,7 @@ v1.8: Phases 35-37 (planned). SEED-006 Iterative Estimate Refinement — text/vo
 - v1.4 phases 24-26: Template engine + settings page (Phase 24) → Plain text tab + copy UI (Phase 25) → Bulk price adjustment (Phase 26). Key constraint: Phase 25 depends on Phase 24 (template engine must exist to drive text rendering). Phase 26 is independent of the plain-text phases — depends only on Phase 19-20 (price book infrastructure).
 - v1.5 phases 27-30: Schema migration (Phase 27) → Unified capture screen (Phase 28) → Frictionless creation + client linking UI (Phase 29) → AI client extraction (Phase 30). Key constraint: Phase 27 is a hard prerequisite for everything — nullable storage_path enables text-only recordings, optional client_id enables client-less projects. Phase 28 depends on Phase 27. Phase 29 depends on Phase 27 (optional client_id) and is informed by Phase 28 but not blocked by it. Phase 30 is highest risk (AI adapter changes) and ships last, depending on Phase 28 (estimate generation must have run first).
 - v1.6 phases 31-33 (SEED-005): Wizard modality selection (Phase 31) → Text input route /describe (Phase 32) → Photos input route /photos-input (Phase 33). Key constraint: Phase 27 (nullable storage_path) already enables text-only and photos-only recordings. Phase 31 adds the wizard selection UI and input_mode storage. Phases 32-33 are independent entry points that reuse the existing generate-estimate pipeline.
+- v1.9 phases 38-39 (SEED-009): Domain config + settings UI (Phase 38) → Subdomain routing + white-label (Phase 39). Key constraint: Phase 38 must ship first — Phase 39 reads the custom_domain column that Phase 38 creates. DOMAIN-05 (no regression) is validated in Phase 38 by ensuring companies with no domain see no change. custom_domain goes on companies table (not platform_branding — that is platform-level config). proxy.ts hosts the subdomain detection (no middleware.ts exists).
 
 ### Quick Tasks Completed
 

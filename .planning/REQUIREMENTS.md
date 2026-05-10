@@ -36,11 +36,11 @@
 
 | REQ-ID | Phase | Status |
 |--------|-------|--------|
-| DOMAIN-01 | TBD | Planned |
-| DOMAIN-02 | TBD | Planned |
-| DOMAIN-03 | TBD | Planned |
-| DOMAIN-04 | TBD | Planned |
-| DOMAIN-05 | TBD | Planned |
+| DOMAIN-01 | Phase 38 | Planned |
+| DOMAIN-02 | Phase 38 | Planned |
+| DOMAIN-03 | Phase 39 | Planned |
+| DOMAIN-04 | Phase 39 | Planned |
+| DOMAIN-05 | Phase 38 | Planned |
 
 ---
 
