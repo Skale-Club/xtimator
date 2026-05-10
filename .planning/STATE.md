@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Zero-friction Project Onboarding
 status: verifying
-last_updated: "2026-05-10T18:03:10.008Z"
+last_updated: "2026-05-10T18:29:30.898Z"
 last_activity: 2026-05-10
 progress:
-  total_phases: 38
-  completed_phases: 36
-  total_plans: 100
-  completed_plans: 98
+  total_phases: 39
+  completed_phases: 37
+  total_plans: 101
+  completed_plans: 99
 ---
 
 # Project State
@@ -21,8 +21,8 @@ progress:
 
 ## Current Position
 
-Phase: 38 (Custom Domain DB + Settings UI) — EXECUTING
-Plan: 2 of 2
+Phase: 39 (Subdomain Routing + White-label Estimate View) — EXECUTING
+Plan: 1 of 1
 Status: Phase complete — ready for verification
 Last activity: 2026-05-10
 
@@ -246,6 +246,8 @@ Last activity: 2026-05-10
 - [Phase 38-custom-domain-db-settings-ui]: Apex detection by split('.').length === 2 — 2 parts = apex (e.g. mycompany.com), 3+ = subdomain
 - [Phase 38-custom-domain-db-settings-ui]: Local useState for savedDomain: updates DNS card immediately post-save before router.refresh() round-trip
 - [Phase 38-custom-domain-db-settings-ui]: Apex detection by split('.').length === 2 (2 parts = apex e.g. mycompany.com)
+- [Phase 39-subdomain-routing-white-label]: Custom host detection placed BEFORE updateSession() in proxy so unauthenticated estimate visitors are not redirected to login
+- [Phase 39-subdomain-routing-white-label]: No DB lookup to resolve company by host in proxy — estimate token uniqueness guarantees correct estimate is served without extra round-trip
 
 ## Performance Metrics
 
@@ -326,13 +328,14 @@ Last activity: 2026-05-10
 | Phase 38-custom-domain-db-settings-ui P01 | 20min | 3 tasks | 7 files |
 | Phase 38-custom-domain-db-settings-ui P02 | 5min | 2 tasks | 3 files |
 | Phase 38-custom-domain-db-settings-ui P02 | 5min | 3 tasks | 3 files |
+| Phase 39-subdomain-routing-white-label P01 | 8min | 5 tasks | 4 files |
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-10)
 
 **Core value:** Business owner → job site audio recording → sent professional estimate in under 5 minutes
-**Current focus:** Phase 38 — Custom Domain DB + Settings UI
+**Current focus:** Phase 39 — Subdomain Routing + White-label Estimate View
 
 ## Notes
 
