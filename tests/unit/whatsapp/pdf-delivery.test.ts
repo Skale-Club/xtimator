@@ -37,8 +37,12 @@ const MOCK_ESTIMATE_CONTEXT = {
 
 function makeSupabase(overrides: { uploadError?: object; signedUrl?: string | null } = {}) {
   const uploadMock = vi.fn().mockResolvedValue({ error: overrides.uploadError ?? null })
+  // Use 'signedUrl' in overrides to distinguish explicit null from missing key
+  const resolvedSignedUrl = 'signedUrl' in overrides
+    ? overrides.signedUrl
+    : 'https://supabase.co/storage/v1/sign/pdfs/path.pdf?token=abc'
   const createSignedUrlMock = vi.fn().mockResolvedValue({
-    data: { signedUrl: overrides.signedUrl ?? 'https://supabase.co/storage/v1/sign/pdfs/path.pdf?token=abc' },
+    data: resolvedSignedUrl !== null ? { signedUrl: resolvedSignedUrl } : null,
     error: null,
   })
   const storage = {
