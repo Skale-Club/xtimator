@@ -3,17 +3,28 @@ import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@/lib/supabase/server'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { getIntegrationKey } from '@/lib/platform-config'
+import { rateLimit } from '@/lib/ratelimit'
 
 export async function POST(request: Request) {
-  // 1. Auth check (lightweight — rate-limit protection only, no companyId needed)
+  // 1. Auth check + rate limit
+  let userId: string
   try {
     const supabase = await createClient()
     const { data: claimsData } = await supabase.auth.getClaims()
     if (!claimsData?.claims) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
     }
+    userId = claimsData.claims.sub
   } catch {
     return NextResponse.json({ error: 'Auth check failed' }, { status: 401 })
+  }
+
+  const rl = await rateLimit('translatePerMinute', userId)
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: 'Too many translation requests', code: 'rate_limit:translate' },
+      { status: 429, headers: { 'Retry-After': String(rl.retryAfter ?? 60) } }
+    )
   }
 
   // 2. Parse and validate body

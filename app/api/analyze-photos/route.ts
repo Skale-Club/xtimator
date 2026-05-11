@@ -3,6 +3,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@/lib/supabase/server'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { getIntegrationKey } from '@/lib/platform-config'
+import { rateLimit } from '@/lib/ratelimit'
 import type { Photo } from '@/lib/queries/photo'
 
 type ImageMediaType = 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif'
@@ -105,6 +106,15 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: 'Not authenticated' },
         { status: 401 }
+      )
+    }
+
+    // Rate limit (Vision is expensive)
+    const rl = await rateLimit('photoAnalysisPerMinute', claims.sub)
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: 'Too many photo analysis requests', code: 'rate_limit:photos' },
+        { status: 429, headers: { 'Retry-After': String(rl.retryAfter ?? 60) } }
       )
     }
 

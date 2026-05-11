@@ -4,6 +4,7 @@ import { verifyWebhookSignature } from '@/lib/whatsapp/verify'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { processInboundMessage } from '@/lib/whatsapp/handler'
 import type { WhatsAppPayload } from '@/lib/whatsapp/types'
+import { rateLimit } from '@/lib/ratelimit'
 
 // ------------------------------------------------------------------
 // GET: Meta webhook challenge verification (WA-02)
@@ -69,6 +70,18 @@ async function handleInboundMessage(payload: WhatsAppPayload): Promise<void> {
 
     const messageId = message.id  // wamid.* — deduplication key (WA-03)
     const fromPhone = message.from // E.164 without leading +
+
+    // Rate limit per phone (anti-abuse before any DB work or AI cost)
+    const hourly = await rateLimit('whatsappPerHour', fromPhone)
+    if (!hourly.allowed) {
+      console.warn('[WhatsApp] rate limit hit (hour):', fromPhone, hourly)
+      return
+    }
+    const daily = await rateLimit('whatsappPerDay', fromPhone)
+    if (!daily.allowed) {
+      console.warn('[WhatsApp] rate limit hit (day):', fromPhone, daily)
+      return
+    }
 
     const supabase = requireServiceClient()
 
