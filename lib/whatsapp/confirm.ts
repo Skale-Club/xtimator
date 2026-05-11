@@ -19,6 +19,7 @@ import { sendWhatsAppMessage } from '@/lib/whatsapp/client'
 import { formatEstimateForWhatsApp, type FormatterEstimate } from '@/lib/whatsapp/formatter'
 import { parseEditCommand, EDIT_HELP_MESSAGE, type ParsedCommand } from '@/lib/whatsapp/edit-commands'
 import { generateEstimateForProject } from '@/lib/services/generate-estimate'
+import { generateAndUploadEstimatePDF } from '@/lib/whatsapp/pdf-delivery'
 
 type Session = {
   id: string
@@ -378,19 +379,59 @@ async function handleSend(
 
   let deliveredToClient = false
   if (clientPhone) {
-    const clientMessageBody =
-      deliveryFormat === 'formatted_text'
-        ? formatEstimateForWhatsApp(estimate as FormatterEstimate, clientName, companyName)
-        : buildShareLinkMessage(shareUrl, clientName)
+    if (deliveryFormat === 'pdf_attachment') {
+      // WAPDF-02/03: Generate PDF, upload to Supabase Storage, send via Meta document API
+      // WAPDF-04: On any failure, fall back to share_link — owner always gets confirmation
+      let pdfDelivered = false
+      try {
+        const { signedUrl, filename } = await generateAndUploadEstimatePDF(
+          draft_estimate_id,
+          companyId,
+          supabase,
+          clientName,
+        )
+        await sendWhatsAppMessage(clientPhone, {
+          type: 'document',
+          document: {
+            link: signedUrl,
+            filename,
+            caption: companyName ? `Your estimate from ${companyName}` : 'Your estimate',
+          },
+        })
+        pdfDelivered = true
+        deliveredToClient = true
+      } catch (err) {
+        console.error('[WhatsApp] PDF delivery failed, falling back to share_link:', err)
+      }
 
-    try {
-      await sendWhatsAppMessage(clientPhone, {
-        type: 'text',
-        text: { body: clientMessageBody },
-      })
-      deliveredToClient = true
-    } catch {
-      // Non-fatal — owner still gets the share link
+      if (!pdfDelivered) {
+        // Fallback: share_link when pdf_attachment generation fails (WAPDF-04)
+        try {
+          await sendWhatsAppMessage(clientPhone, {
+            type: 'text',
+            text: { body: buildShareLinkMessage(shareUrl, clientName) },
+          })
+          deliveredToClient = true
+        } catch {
+          // Non-fatal — owner still gets the share link in owner message
+        }
+      }
+    } else {
+      // Existing behavior: share_link (default) or formatted_text
+      const clientMessageBody =
+        deliveryFormat === 'formatted_text'
+          ? formatEstimateForWhatsApp(estimate as FormatterEstimate, clientName, companyName)
+          : buildShareLinkMessage(shareUrl, clientName)
+
+      try {
+        await sendWhatsAppMessage(clientPhone, {
+          type: 'text',
+          text: { body: clientMessageBody },
+        })
+        deliveredToClient = true
+      } catch {
+        // Non-fatal — owner still gets the share link
+      }
     }
   }
 

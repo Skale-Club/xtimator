@@ -4,10 +4,16 @@ vi.mock('@/lib/whatsapp/client', () => ({
   sendWhatsAppMessage: vi.fn(),
 }))
 
+vi.mock('@/lib/whatsapp/pdf-delivery', () => ({
+  generateAndUploadEstimatePDF: vi.fn(),
+}))
+
 import { processConfirmationReply } from '@/lib/whatsapp/confirm'
 import { sendWhatsAppMessage } from '@/lib/whatsapp/client'
+import { generateAndUploadEstimatePDF } from '@/lib/whatsapp/pdf-delivery'
 
 const mockSend = vi.mocked(sendWhatsAppMessage)
+const mockGeneratePdf = vi.mocked(generateAndUploadEstimatePDF)
 
 const OWNER_PHONE = '+15551234567'
 const COMPANY_ID = 'company-1'
@@ -124,6 +130,10 @@ describe('processConfirmationReply', () => {
   beforeEach(() => {
     vi.resetAllMocks()
     mockSend.mockResolvedValue(undefined)
+    mockGeneratePdf.mockResolvedValue({
+      signedUrl: 'https://supabase.co/storage/v1/sign/pdfs/co/wa-pdf/est-123.pdf?token=abc',
+      filename: 'Estimate-Johnson-2026-05-11.pdf',
+    })
     process.env.NEXT_PUBLIC_APP_URL = 'https://xtimator.com'
   })
 
@@ -229,6 +239,44 @@ describe('processConfirmationReply', () => {
       await processConfirmationReply('cancel', BASE_SESSION, COMPANY_ID, OWNER_PHONE, client)
 
       expect(updateSpy).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('"send" — pdf_attachment format (WAPDF-03 + WAPDF-04)', () => {
+    it('sends document message to client when pdf_attachment format succeeds (WAPDF-03)', async () => {
+      const { client } = makeSupabase({ clientPhone: '+15559876543', clientName: 'Johnson', deliveryFormat: 'pdf_attachment' })
+
+      await processConfirmationReply('send', BASE_SESSION, COMPANY_ID, OWNER_PHONE, client)
+
+      const documentCall = mockSend.mock.calls.find(
+        ([, body]) => (body as { type: string }).type === 'document'
+      )
+      expect(documentCall).toBeDefined()
+      const doc = (documentCall![1] as { document: { link: string; filename: string; caption: string } }).document
+      expect(doc.link).toMatch(/https:\/\//)
+      expect(doc.filename).toMatch(/^Estimate-/)
+      expect(doc.caption).toMatch(/Acme Builders/)
+    })
+
+    it('falls back to share_link when PDF generation throws (WAPDF-04)', async () => {
+      mockGeneratePdf.mockRejectedValue(new Error('Bucket full'))
+      const { client } = makeSupabase({ clientPhone: '+15559876543', deliveryFormat: 'pdf_attachment' })
+
+      await processConfirmationReply('send', BASE_SESSION, COMPANY_ID, OWNER_PHONE, client)
+
+      // No document message should have been sent
+      const documentCall = mockSend.mock.calls.find(
+        ([, body]) => (body as { type: string }).type === 'document'
+      )
+      expect(documentCall).toBeUndefined()
+
+      // A text message with share link should have been sent to client
+      const textToClientCall = mockSend.mock.calls.find(
+        ([to, body]) => to === '+15559876543' && (body as { type: string }).type === 'text'
+      )
+      expect(textToClientCall).toBeDefined()
+      const body = (textToClientCall![1] as { text: { body: string } }).text.body
+      expect(body).toMatch(/xtimator\.com\/estimate\//)
     })
   })
 })
