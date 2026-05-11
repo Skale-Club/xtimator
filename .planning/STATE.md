@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
-milestone: v2.1
-milestone_name: WhatsApp Launch-Readiness
-status: complete
-last_updated: "2026-05-11T04:00:00.000Z"
+milestone: v1.5
+milestone_name: Zero-friction Project Onboarding
+status: All 7 v2.1 phases shipped. 170/170 tests passing. Production build clean.
+last_updated: "2026-05-11T11:23:54.895Z"
 last_activity: 2026-05-11
 progress:
-  total_phases: 52
-  completed_phases: 52
-  total_plans: 116
-  completed_plans: 116
+  total_phases: 48
+  completed_phases: 38
+  total_plans: 103
+  completed_plans: 109
 ---
 
 # Project State
@@ -294,6 +294,8 @@ Last activity: 2026-05-11
 - [Phase 45-settings-ui-admin-token]: WhatsAppConnectCard uses local useState(initial) for optimistic UI — connect/disconnect update local state immediately without waiting for router.refresh()
 - [Phase 45-settings-ui-admin-token]: connectWhatsApp upserts on company_id conflict (onConflict: 'company_id') — allows re-configuration without delete-then-insert
 - [Phase 45-settings-ui-admin-token]: Buffer→Uint8Array cast in handler.ts Whisper FormData fixed (tsc was clean but not for SharedArrayBuffer compatibility)
+- [Phase 54-whatsapp-status-flow]: vi.waitFor used for WASTATUS-04 active-path assertion — after() in webhook route is fire-and-forget (not awaited)
+- [Phase 54-whatsapp-status-flow]: updateWhatsAppStatus follows identical getAuthContext + supabase.update pattern as updateDeliveryFormat
 
 ## Performance Metrics
 
@@ -382,6 +384,7 @@ Last activity: 2026-05-11
 | Phase 43-confirmation-flow P01 | 8min | 2 tasks | 3 files |
 | Phase 43-confirmation-flow P02 | 5min | 3 tasks | 4 files |
 | Phase 44-outbound-client-delivery P01 | 8min | 5 tasks | 5 files |
+| Phase 54-whatsapp-status-flow P01 | 16min | 2 tasks | 2 files |
 
 ## Project Reference
 
