@@ -153,7 +153,10 @@ Plans:
   2. After OTP verification completes (Phase 50 flow), the status automatically transitions to `active` without requiring a separate admin approval step
   3. An owner (or admin) can set the connection status to `suspended` from the settings UI, and a suspended connection can be reactivated back to `active` — both actions persist correctly and are reflected immediately in the UI
   4. An inbound WhatsApp message from a number whose `company_whatsapp.status` is `pending`, `verified`, or `suspended` is silently ignored by the handler — no estimate is created, no reply is sent
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 54-01-PLAN.md — updateWhatsAppStatus server action + unit tests (WASTATUS-02, WASTATUS-03, WASTATUS-04)
+- [ ] 54-02-PLAN.md — WhatsAppConnectCard: StatusBadge + Suspend/Reactivate buttons (WASTATUS-01, WASTATUS-03)
 
 ## Phase Details
 
