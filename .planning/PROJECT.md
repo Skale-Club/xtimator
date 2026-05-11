@@ -18,7 +18,13 @@ A business owner can go from job site audio recording to a sent, professional es
 
 Closed the launch-blocking gaps in v2.0's WhatsApp MVP. Multi-message debounce, OTP number verification, pre-send edit commands, typing/read receipts, Redis rate limiting, typed error handling, and per-estimate language selection (English-first cascade). 7 phases, 170/170 tests passing, production build clean.
 
-## Current Milestone: (none — awaiting next priorities)
+## Current Milestone: v2.2 WhatsApp Channel Polish
+
+**Goal:** Completar os gaps de produção do canal WhatsApp — entrega de PDF como attachment e status flow real.
+
+**Target features:**
+- PDF attachment delivery via Meta API (`pdf_attachment` como terceira opção de `delivery_format`)
+- Status flow real: `pending → verified → active → suspended` (wiring pós-OTP da Phase 50)
 
 **Last shipped:** Phase 52 — Per-Estimate Language Selection (2026-05-11)
 
@@ -136,7 +142,7 @@ Closed the launch-blocking gaps in v2.0's WhatsApp MVP. Multi-message debounce, 
 - **Theme system:** `next-themes` with `eb-theme` cookie SSR hydration; `[data-theme]` scoped-dark CSS-var pattern for admin/auth; `[data-theme="light"]` forced-light wrapper for public estimate view.
 - **i18n:** `LanguageContext` + `useTranslation()` hook, 192-entry static `translations.ts`, `/api/translate` with Claude Haiku + DB cache (translations table, unique index on source_text+lang pair).
 - **Seeds harvested:** SEED-001 (i18n → v1.2), SEED-002 (brand identity → v1.2), SEED-003 (price book → v1.3), SEED-004 (plain-text estimate → v1.4), SEED-005 (multi-modal input → v1.5/v1.6), SEED-006 (iterative refinement → v1.8), SEED-007 (frictionless client → v1.5/v1.7), SEED-009 (custom domain → v1.9). SEED-008 (WhatsApp → v2.0 — active).
-- **Seeds dormant:** none.
+- **Seeds dormant:** SEED-013 (Monetização — aguarda tração de usuários), SEED-015 Gap 4 (Twilio provider abstraction — v3.x).
 
 ## Constraints
 
@@ -184,4 +190,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context
 
 ---
-*Last updated: 2026-05-10 — v2.0 WhatsApp Estimate Channel milestone started*
+*Last updated: 2026-05-11 — v2.2 WhatsApp Channel Polish milestone started*
