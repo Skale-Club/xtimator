@@ -1,216 +1,47 @@
-# Requirements: v2.0 - WhatsApp Estimate Channel
+# Requirements: v2.2 - WhatsApp Channel Polish
 
-## v2.0 Requirements (SEED-008)
+## v2.2 Requirements (SEED-015 Gaps 3 & 5)
 
-### Infrastructure & Security
+### PDF Attachment Delivery (WAPDF)
 
-- [x] **WA-01**: Webhook `POST /api/webhooks/whatsapp` verifies Meta HMAC-SHA256 signature and returns HTTP 200 before processing (fire-and-forget via `after()`)
-- [x] **WA-02**: Webhook `GET /api/webhooks/whatsapp` responds to Meta hub.challenge for initial verification
-- [x] **WA-03**: Duplicate messages (same `wamid.*`) are silently discarded without generating a duplicate estimate
-- [x] **WA-04**: Meta webhook requests bypass the auth middleware in `proxy.ts`
+- [ ] **WAPDF-01**: User can select "PDF attachment" as a third delivery format option in WhatsApp settings (alongside existing share_link and formatted_text)
+- [ ] **WAPDF-02**: System generates the estimate PDF using the existing `/api/estimates/[id]/pdf` endpoint and uploads to Supabase Storage (bucket: `estimates-pdf`) with a 24h signed URL on send
+- [ ] **WAPDF-03**: Client receives the estimate as a WhatsApp document message (Meta API `type: "document"`) with a descriptive filename (e.g. `Estimate-ClientName-2026-05-11.pdf`) and caption from the company name
+- [ ] **WAPDF-04**: PDF delivery failure (generation error, upload error, Meta API error) degrades gracefully to `share_link` fallback — no crash, send always completes
 
-### Phone Registration
+### WhatsApp Status Flow (WASTATUS)
 
-- [ ] **WA-05**: Owner can connect their WhatsApp Business number in `/settings/integrations` — enters phone number, receives verification code, confirms
-- [ ] **WA-06**: Owner can disconnect their number at any time; messages from disconnected numbers are silently ignored
-
-### Inbound Processing
-
-- [ ] **WA-07**: Owner sends text via WhatsApp → bot generates estimate and replies with a confirmation summary
-- [ ] **WA-08**: Owner sends a voice note via WhatsApp → bot transcribes via Whisper → generates estimate → replies with confirmation summary
-- [ ] **WA-09**: Owner sends photo(s) via WhatsApp → bot analyzes via Claude Vision → generates estimate → replies with confirmation summary
-
-### Confirmation Flow
-
-- [ ] **WA-10**: Bot presents estimate summary to owner with "send" and "cancel" options
-- [ ] **WA-11**: Owner replies "send" → bot delivers estimate to client and confirms to owner
-- [ ] **WA-12**: Owner replies "cancel" → estimate discarded, bot confirms cancellation
-- [ ] **WA-13**: Confirmation session expires after 30 minutes with no response; bot sends expiry message
-
-### Outbound Delivery
-
-- [ ] **WA-14**: Estimate sent to client as share link (`xtimator.com/estimate/{token}`) — no template approval required
-- [ ] **WA-15**: Owner can configure default delivery format (formatted text / share link) in `/settings/integrations`
-
-## Future Requirements
-
-- **"edit [item]" command** — owner can correct line items before sending without opening the app
-- **PDF attachment outbound** — send estimate as PDF attachment to client via WhatsApp (requires media upload API + content template)
-- **WhatsApp direct-to-client text** — free-form WhatsApp message to client (requires UTILITY template approval)
-- **Multi-input accumulation** — owner sends audio + photos in sequence before triggering estimate generation
-- **Embedded Signup multi-tenant** — each company connects their own WABA via OAuth; requires Xtimator Meta Business Verification
-
-## Out of Scope
-
-- **Twilio** — user has Meta Cloud API approved; no intermediary needed
-- **Edit command in v2.0** — "edit [item]" adds command parsing + refinement pipeline complexity; deferred
-- **WhatsApp-direct-to-client text** — requires pre-approved UTILITY template; deferred to v2.1
-- **Multi-number per company** — one company, one WhatsApp number in v2.0
-- **Video messages** — not accepted (complexity vs value)
-- **Chatbot conversational AI** — bot follows a predictable script, not a free-form LLM
+- [ ] **WASTATUS-01**: WhatsApp connection settings UI displays current status with clear human-readable labels: Pending, Verified, Active, Suspended
+- [ ] **WASTATUS-02**: Status transitions follow the full pipeline: `pending` (credentials submitted, awaiting OTP) → `verified` (OTP confirmed) → `active` (auto-approved post-verification) → `suspended` (admin-controlled)
+- [ ] **WASTATUS-03**: Admin (or owner) can suspend and reactivate a WhatsApp connection — setting `status = 'suspended'` or back to `active`
+- [ ] **WASTATUS-04**: Inbound message handler enforces `status = 'active'` gate — connections in `pending`, `verified`, or `suspended` state are silently ignored
 
 ## Traceability
 
-| REQ-ID | Phase | Status |
-|--------|-------|--------|
-| WA-01 | Phase 40 | Planned |
-| WA-02 | Phase 40 | Planned |
-| WA-03 | Phase 40 | Planned |
-| WA-04 | Phase 40 | Planned |
-| WA-05 | Phase 45 | Planned |
-| WA-06 | Phase 45 | Planned |
-| WA-07 | Phase 42 | Planned |
-| WA-08 | Phase 42 | Planned |
-| WA-09 | Phase 42 | Planned |
-| WA-10 | Phase 42 | Planned |
-| WA-11 | Phase 43 | Planned |
-| WA-12 | Phase 43 | Planned |
-| WA-13 | Phase 43 | Planned |
-| WA-14 | Phase 44 | Planned |
-| WA-15 | Phase 44 | Planned |
+| Requirement | Phase |
+|-------------|-------|
+| WAPDF-01 | TBD |
+| WAPDF-02 | TBD |
+| WAPDF-03 | TBD |
+| WAPDF-04 | TBD |
+| WASTATUS-01 | TBD |
+| WASTATUS-02 | TBD |
+| WASTATUS-03 | TBD |
+| WASTATUS-04 | TBD |
+
+## Future Requirements (deferred)
+
+- Gap 4: WhatsApp provider abstraction (`WhatsAppProvider` interface + `TwilioWhatsAppProvider`) — only needed if Meta becomes a problem (v3.x)
+- Section/item-level edit commands in pre-send flow (deferred from Phase 51 MVP subset)
+
+## Out of Scope (v2.2)
+
+- Twilio provider support — low priority, no current pain point
+- Per-company `verified → active` manual approval gate — auto-approve after OTP keeps friction low
+- Admin MRR/suspension tooling — covered by SEED-013 (v3.0 Monetization)
 
 ---
 
-# Requirements: v1.9 - Custom Domain Support
+## Prior Milestone Requirements (v2.0 / v2.1 — archived)
 
-## v1.9 Requirements (SEED-009)
-
-### Domain Configuration
-
-- [x] **DOMAIN-01**: Owner can enter and save a custom domain for their company from the settings page
-- [x] **DOMAIN-02**: After entering a domain, the owner sees DNS/CNAME setup instructions explaining what record to configure (pointing to Vercel)
-
-### Routing
-
-- [x] **DOMAIN-03**: A request arriving at a custom domain (e.g., `estimates.mycompany.com/estimate/{token}`) renders the correct estimate without redirecting to xtimator.com and without requiring authentication
-
-### White-label
-
-- [x] **DOMAIN-04**: When the estimate is served from a custom domain, the "Generated by Xtimator" footer is hidden and only the company's own branding (logo, name, color) is shown
-- [x] **DOMAIN-05**: Companies without a custom domain configured continue to receive share links on xtimator.com — no regression in existing behavior
-
-## Future Requirements
-
-- **Multi-domain per company** — one custom domain per company is sufficient for v1; allow multiple in future (e.g., regional subdomains)
-- **Domain verification badge** — UI indicator confirming DNS is correctly configured (requires polling or webhook from Vercel/Cloudflare)
-- **Custom domain for PDF links** — PDF currently embeds share URL; update embedded URL when custom domain is active
-- **Per-language subdomain** — e.g., `en.estimates.mycompany.com` vs `pt.estimates.mycompany.com`
-
-## Out of Scope
-
-- **TLS/SSL management** — Vercel handles certificates automatically for custom domains added to the project
-- **Multi-domain per company** — one company, one custom domain in this milestone
-- **Domain verification/health check UI** — DNS propagation can take hours; v1 provides instructions only, no live check
-- **Auth on custom domain** — `/estimate/{token}` is already public (no auth); custom domain just changes the host
-- **Custom domain for authenticated app routes** — only estimate share pages, not `/dashboard`, `/projects`, etc.
-- **WhatsApp / SMS delivery via custom domain** — out of scope (SEED-008)
-
-## Traceability
-
-| REQ-ID | Phase | Status |
-|--------|-------|--------|
-| DOMAIN-01 | Phase 38 | Planned |
-| DOMAIN-02 | Phase 38 | Planned |
-| DOMAIN-03 | Phase 39 | Planned |
-| DOMAIN-04 | Phase 39 | Planned |
-| DOMAIN-05 | Phase 38 | Planned |
-
----
-
-# Requirements: v1.8 - Iterative Estimate Refinement
-
-## v1.8 Requirements (SEED-006)
-
-### Text Refinement (Phase 35)
-
-- [x] **REFINE-01**: Estimate editor has a refinement panel below the sections with a text input field and send button
-- [x] **REFINE-02**: API endpoint `POST /api/estimates/[id]/refine` accepts text instruction, calls AI with current estimate + instruction + price book, returns updated estimate JSON
-- [x] **REFINE-03**: Refinement creates a new estimate version (preserves old version), updates editor to show new version, shows toast with version number
-
-### Voice Refinement (Phase 36)
-
-- [x] **VOICE-REFINE-01**: Refinement panel has inline voice recorder button (~30s max)
-- [x] **VOICE-REFINE-02**: Voice recording uses Whisper for transcription, then same pipeline as text refinement
-- [x] **VOICE-REFINE-03**: Voice refinement creates new version same as text refinement
-
-### Photo Refinement (Phase 37)
-
-- [x] **PHOTO-REFINE-01**: Refinement panel has photo upload button
-- [x] **PHOTO-REFINE-02**: Photo upload triggers Claude Vision analysis, generates instruction automatically
-- [x] **PHOTO-REFINE-03**: Photo refinement creates new version same as text refinement
-
----
-
-# Requirements: v1.6 - Multi-modal Project Input
-
-## v1.6 Requirements (SEED-005)
-
-### Wizard Modality Selection
-
-- [x] **WIZARD-01**: Wizard has a second step for modality selection with 3 large clickable cards: Audio, Text, Photos
-- [x] **WIZARD-02**: Each card shows an icon, label, and brief description of the use case
-- [x] **WIZARD-03**: Selecting a card redirects to the appropriate route based on modality
-- [x] **WIZARD-04**: Project stores `input_mode` as optional field (`audio | text | photos | mixed | null`)
-
-### Text Input Route
-
-- [x] **TEXT-01**: Route `/projects/[id]/describe` exists with a large textarea (minimum 10 lines)
-- [x] **TEXT-02**: Textarea has a placeholder with example job description
-- [x] **TEXT-03**: User can save text as recording transcript (storage_path null, duration_seconds null)
-- [x] **TEXT-04**: "Save & Generate Estimate" runs same AI pipeline as audio route
-- [x] **TEXT-05**: Route is mobile-responsive with minimum 44px tap targets
-
-### Photos Input Route
-
-- [x] **PHOTO-01**: Route `/projects/[id]/photos-input` exists with direct photo upload zone
-- [x] **PHOTO-02**: PhotoDropZone component is reused from workspace
-- [x] **PHOTO-03**: "Generate from Photos" button visible and prominent when at least 1 photo is uploaded
-- [x] **PHOTO-04**: Clicking button runs Claude Vision pipeline and lands user in estimate editor
-
----
-
-# Requirements: v1.5 - Zero-friction Project Onboarding
-
-## v1.5 Requirements (SEED-007 + SEED-005 prereq)
-
-### Capture Schema Migration
-
-- [x] **SCHEMA-01**: `recordings.storage_path` is nullable — text-only recordings supported
-- [x] **SCHEMA-02**: `projects.client_id` is optional — projects can exist without a linked client
-
-### Unified Capture Screen
-
-- [x] **CAPTURE-01**: Audio recorder remains dominant element; recording controls unchanged
-- [x] **CAPTURE-02**: User can type a job description without audio and generate an estimate
-- [x] **CAPTURE-03**: User can upload photos without audio or text and generate an estimate
-- [x] **CAPTURE-04**: Generate Estimate button disabled until at least one input present
-
-### Frictionless Client Association
-
-- [x] **CLIENTASSOC-01**: User can complete project wizard and reach capture screen without selecting a client
-- [x] **CLIENTASSOC-02**: Client detail page has a "New Project" button that pre-links the client
-- [x] **CLIENTASSOC-03**: After estimate generation, AI-detected client name shown as non-blocking toast suggestion
-- [x] **CLIENTASSOC-04**: Project with no linked client shows visible "Link client" card in Overview tab
-
----
-
-# Requirements: v1.4 - Estimate Plain Text & Pricing Tools
-
-## v1.4 Requirements (SEED-004 + SEED-003 extension)
-
-### Estimate Template Engine
-
-- [x] **PLAINTEXT-03**: Company can define and save a plain-text template with configurable greeting, opener, closer, and signature
-- [x] **PLAINTEXT-05**: Template supports named variables: `{client_name}`, `{company_name}`, `{owner_name}`, `{total}`, `{items_breakdown}`
-
-### Plain Text Copy UI
-
-- [x] **PLAINTEXT-01**: Estimate Send tab shows a "Plain Text" card with rendered estimate text
-- [x] **PLAINTEXT-02**: Text is editable before copying (one-time override, does not modify saved template)
-- [x] **PLAINTEXT-04**: "Copy to clipboard" button copies current text and shows confirmation toast
-
-### Bulk Price Adjustment
-
-- [x] **BULKPRICE-01**: User can select a price book category and enter a percentage adjustment
-- [x] **BULKPRICE-02**: Preview shows current vs projected prices for every item in the category before confirming
-- [x] **BULKPRICE-03**: On confirm, all item prices in the category update simultaneously (atomic)
+See `.planning/milestones/` for v2.0 and v2.1 requirement history.
