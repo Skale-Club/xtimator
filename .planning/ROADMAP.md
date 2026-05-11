@@ -141,7 +141,7 @@
   4. If PDF generation, Supabase Storage upload, or the Meta document API call fails for any reason, the send completes anyway using the share_link fallback — the owner is not left with a failed delivery
 **Plans**: 2 plans
 Plans:
-- [ ] 53-01-PLAN.md — Wave 0 test stubs + DB migration (extend delivery_format CHECK) + lib/whatsapp/pdf-delivery.ts helper (generateAndUploadEstimatePDF + buildPdfFilename)
+- [x] 53-01-PLAN.md — Wave 0 test stubs + DB migration (extend delivery_format CHECK) + lib/whatsapp/pdf-delivery.ts helper (generateAndUploadEstimatePDF + buildPdfFilename)
 - [ ] 53-02-PLAN.md — confirm.ts handleSend pdf_attachment branch + WhatsAppConnectCard third SelectItem
 
 ### Phase 54: WhatsApp Status Flow
@@ -560,5 +560,5 @@ Plans:
 | 50. WhatsApp OTP Number Verification | v2.1 | 1/1 | Complete | 2026-05-11 |
 | 51. WhatsApp Pre-Send Edit Commands | v2.1 | 1/1 | Complete | 2026-05-11 |
 | 52. Per-Estimate Language Selection | v2.1 | 1/1 | Complete | 2026-05-11 |
-| 53. PDF Attachment Delivery | v2.2 | 0/2 | Not started | - |
+| 53. PDF Attachment Delivery | v2.2 | 1/2 | In Progress|  |
 | 54. WhatsApp Status Flow | v2.2 | 0/TBD | Not started | - |

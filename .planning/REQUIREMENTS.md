@@ -4,10 +4,10 @@
 
 ### PDF Attachment Delivery (WAPDF)
 
-- [ ] **WAPDF-01**: User can select "PDF attachment" as a third delivery format option in WhatsApp settings (alongside existing share_link and formatted_text)
-- [ ] **WAPDF-02**: System generates the estimate PDF using the existing `/api/estimates/[id]/pdf` endpoint and uploads to Supabase Storage (bucket: `estimates-pdf`) with a 24h signed URL on send
+- [x] **WAPDF-01**: User can select "PDF attachment" as a third delivery format option in WhatsApp settings (alongside existing share_link and formatted_text)
+- [x] **WAPDF-02**: System generates the estimate PDF using the existing `/api/estimates/[id]/pdf` endpoint and uploads to Supabase Storage (bucket: `estimates-pdf`) with a 24h signed URL on send
 - [ ] **WAPDF-03**: Client receives the estimate as a WhatsApp document message (Meta API `type: "document"`) with a descriptive filename (e.g. `Estimate-ClientName-2026-05-11.pdf`) and caption from the company name
-- [ ] **WAPDF-04**: PDF delivery failure (generation error, upload error, Meta API error) degrades gracefully to `share_link` fallback — no crash, send always completes
+- [x] **WAPDF-04**: PDF delivery failure (generation error, upload error, Meta API error) degrades gracefully to `share_link` fallback — no crash, send always completes
 
 ### WhatsApp Status Flow (WASTATUS)
 

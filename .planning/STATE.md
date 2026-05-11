@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
-milestone: v2.2
-milestone_name: WhatsApp Channel Polish
-status: in_progress
-last_updated: "2026-05-11T00:00:00.000Z"
+milestone: v1.5
+milestone_name: Zero-friction Project Onboarding
+status: executing
+last_updated: "2026-05-11T10:35:31.862Z"
 last_activity: 2026-05-11
 progress:
-  total_phases: 54
-  completed_phases: 52
-  total_plans: 116
-  completed_plans: 116
+  total_phases: 48
+  completed_phases: 38
+  total_plans: 105
+  completed_plans: 109
 ---
 
 # Project State
@@ -21,10 +21,10 @@ progress:
 
 ## Current Position
 
-Phase: 53 — PDF Attachment Delivery (not started)
-Plan: —
-Status: Roadmap created; ready for Phase 53 planning
-Last activity: 2026-05-11 — v2.2 roadmap created (Phases 53-54)
+Phase: 53 (PDF Attachment Delivery) — EXECUTING
+Plan: 2 of 2
+Status: Ready to execute
+Last activity: 2026-05-11
 
 ## v2.2 Phases
 
@@ -299,6 +299,9 @@ Last activity: 2026-05-11 — v2.2 roadmap created (Phases 53-54)
 - [Phase 45-settings-ui-admin-token]: WhatsAppConnectCard uses local useState(initial) for optimistic UI — connect/disconnect update local state immediately without waiting for router.refresh()
 - [Phase 45-settings-ui-admin-token]: connectWhatsApp upserts on company_id conflict (onConflict: 'company_id') — allows re-configuration without delete-then-insert
 - [Phase 45-settings-ui-admin-token]: Buffer→Uint8Array cast in handler.ts Whisper FormData fixed (tsc was clean but not for SharedArrayBuffer compatibility)
+- [Phase 53-pdf-attachment-delivery]: supabase injected by caller in pdf-delivery.ts — not created internally; consistent with Phase 41 webhook context pattern
+- [Phase 53-pdf-attachment-delivery]: 86400s signed URL TTL for WhatsApp PDF delivery; timestamp-suffix in storage path prevents Meta URL cache reuse
+- [Phase 53-pdf-attachment-delivery]: Space-first sanitization in buildPdfFilename: spaces→hyphens before stripping non-alphanumeric so OBrien & Sons → OBrien--Sons
 
 ## Performance Metrics
 
@@ -387,6 +390,7 @@ Last activity: 2026-05-11 — v2.2 roadmap created (Phases 53-54)
 | Phase 43-confirmation-flow P01 | 8min | 2 tasks | 3 files |
 | Phase 43-confirmation-flow P02 | 5min | 3 tasks | 4 files |
 | Phase 44-outbound-client-delivery P01 | 8min | 5 tasks | 5 files |
+| Phase 53-pdf-attachment-delivery P01 | 9min | 3 tasks | 3 files |
 
 ## Project Reference
 
