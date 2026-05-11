@@ -1,8 +1,11 @@
 ---
 id: SEED-010
-status: dormant
+status: harvested
 planted: 2026-05-10
 planted_during: v2.0 WhatsApp Estimate Channel (post-milestone analysis)
+harvested: 2026-05-11
+harvested_in: v2.1 Phase 48 (WhatsApp Multi-Message Debounce)
+harvest_completeness: Full — Redis buffer + 5s debounce + processInboundMessages (plural) + fail-open to single-message when Redis unavailable
 trigger_when: When iterating on WhatsApp UX, planning a v2.x WhatsApp milestone, or addressing user complaints about "second message blocked"
 scope: Medium
 ---

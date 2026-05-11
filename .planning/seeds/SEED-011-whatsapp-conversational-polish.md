@@ -1,8 +1,11 @@
 ---
 id: SEED-011
-status: dormant
+status: harvested
 planted: 2026-05-10
 planted_during: v2.0 WhatsApp Estimate Channel (post-milestone analysis)
+harvested: 2026-05-11
+harvested_in: v2.1 Phase 49 (WhatsApp Typing + Read Receipts)
+harvest_completeness: Full — markMessageAsRead + sendTypingIndicator called on entry; typing re-sent before AI generation
 trigger_when: When polishing WhatsApp UX, addressing perceived latency complaints, or planning a WhatsApp UX iteration milestone
 scope: Small
 ---

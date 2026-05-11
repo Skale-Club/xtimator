@@ -13,7 +13,7 @@
 - ✅ **v1.8 Iterative Estimate Refinement** — Phases 35-37 (shipped 2026-05-09)
 - ✅ **v1.9 Custom Domain Support** — Phases 38-39 (shipped 2026-05-10)
 - ✅ **v2.0 WhatsApp Estimate Channel** — Phases 40-45 (shipped 2026-05-10)
-- 🚧 **v2.1 WhatsApp Launch-Readiness** — Phases 46-52 (in progress)
+- ✅ **v2.1 WhatsApp Launch-Readiness** — Phases 46-52 (shipped 2026-05-11)
 
 ## Phases
 
@@ -114,15 +114,15 @@
 - [ ] **Phase 44: Outbound Client Delivery** — Deliver estimate to client as share link (default) or formatted text per `company_whatsapp.delivery_format`; update estimate + project status to "sent"; confirm delivery to owner via WhatsApp
 - [ ] **Phase 45: Settings UI + Admin Token** — `/settings/integrations` page with WhatsApp Connect Card (connect / verify OTP / disconnect / delivery format selector); Settings entry card; admin panel Meta access token card; `POST /api/settings/whatsapp` connect/verify/delete routes
 
-### v2.1 WhatsApp Launch-Readiness (Phases 46-52)
+### v2.1 WhatsApp Launch-Readiness (Phases 46-52) — ✅ SHIPPED 2026-05-11
 
-- [ ] **Phase 46: Typed Error Handling Foundation** — `lib/errors/` with `XtimatorError` class, type+surface composite codes, `asResponse()` wrapper, WhatsApp adapter (`handleWhatsAppError`), `throwIf*` helpers; foundation for all other v2.1 phases (SEED-014)
-- [ ] **Phase 47: Redis + Rate Limiting Infrastructure** — Upstash Redis client in `lib/redis.ts`; `lib/ratelimit.ts` with `rateLimit(limitName, identifier)`; applied to generate-estimate, webhooks/whatsapp, analyze-photos, translate; per-IP middleware in proxy.ts (SEED-012)
-- [ ] **Phase 48: WhatsApp Multi-Message Debounce** — Redis-backed buffer per phone_number; PUSH on inbound, 5s silence wait, GET+process all together; refactor `processInboundMessage()` to accept array; generate ONE estimate from aggregated input (SEED-010)
-- [ ] **Phase 49: WhatsApp Typing + Read Receipts** — `markMessageAsRead()` + `sendTypingIndicator()` in `lib/whatsapp/client.ts`; called after dedup pass and before heavy processing; re-send typing before 25s timeout (SEED-011)
-- [ ] **Phase 50: WhatsApp OTP Number Verification** — Two-step setup flow: submit credentials → status=pending → 6-digit code via WhatsApp → verify → status=active; schema columns (verification_code, attempts, expires); UI second step in `WhatsAppConnectCard` (SEED-015 Gap 2)
-- [ ] **Phase 51: WhatsApp Pre-Send Edit Commands** — Structured parser for `edit`, `add`, `remove`, `regenerate`, `client` commands; mutations on estimate/sections/items; re-send updated summary; session stays in awaiting_confirm; optional Claude Haiku for ambiguous natural-language commands (SEED-015 Gap 1)
-- [ ] **Phase 52: Per-Estimate Language Selection** — `language` column on estimates (default 'en'), `preferred_language` on clients, `default_estimate_language` on companies; cascade resolver (estimate→client→company→user→'en'); AI prompt parameterized; `EstimatePDF` i18n-aware; WhatsApp formatter respects estimate language (SEED-016)
+- [x] **Phase 46: Typed Error Handling Foundation** — `lib/errors/` with `XtimatorError` class, type+surface composite codes, `asResponse()` wrapper, WhatsApp adapter (`handleWhatsAppError`), `throwIf*` helpers; foundation for all other v2.1 phases (SEED-014 harvested)
+- [x] **Phase 47: Redis + Rate Limiting Infrastructure** — Upstash Redis client in `lib/redis.ts`; `lib/ratelimit.ts` with `rateLimit(limitName, identifier)`; applied to generate-estimate, webhooks/whatsapp, analyze-photos, translate (SEED-012 harvested)
+- [x] **Phase 48: WhatsApp Multi-Message Debounce** — Redis-backed buffer per phone_number; PUSH on inbound, 5s silence wait, GET+process all together; new `processInboundMessages()` accepts array; generate ONE estimate from aggregated input (SEED-010 harvested)
+- [x] **Phase 49: WhatsApp Typing + Read Receipts** — `markMessageAsRead()` + `sendTypingIndicator()` in `lib/whatsapp/client.ts`; called after dedup pass and before heavy processing; re-send typing before 25s timeout (SEED-011 harvested)
+- [x] **Phase 50: WhatsApp OTP Number Verification** — Two-step setup flow: submit credentials → status=pending → 6-digit code via WhatsApp → verify → status=active; schema columns (verification_code, attempts, expires); UI second step in `WhatsAppConnectCard` (SEED-015 Gap 2 harvested)
+- [x] **Phase 51: WhatsApp Pre-Send Edit Commands** — Structured parser for `edit total/timeline/payment/summary`, `client`, `regenerate` commands; mutations on estimate; re-send updated summary; session stays in awaiting_confirm. Section/item-level edits deferred (SEED-015 Gap 1 partial)
+- [x] **Phase 52: Per-Estimate Language Selection** — `language` column on estimates (default 'en'), `preferred_language` on clients, `default_estimate_language` on companies; cascade resolver; AI prompt parameterized; WhatsApp formatter localized; auto-learn client preference after send (SEED-016 backend harvested)
 
 ## Phase Details
 

@@ -1,8 +1,11 @@
 ---
 id: SEED-012
-status: dormant
+status: harvested
 planted: 2026-05-10
 planted_during: v2.0 WhatsApp Estimate Channel (post-milestone analysis)
+harvested: 2026-05-11
+harvested_in: v2.1 Phase 47 (Redis + Rate Limiting Infrastructure)
+harvest_completeness: Full — Upstash client + sliding-window rateLimit() applied to 4 expensive endpoints. Per-IP middleware in proxy.ts deferred (low priority, Vercel edge already provides some DDoS protection)
 trigger_when: When introducing usage tiers, monetization, abuse prevention, or whenever the first paid plan is introduced
 scope: Small
 ---

@@ -1,8 +1,11 @@
 ---
 id: SEED-016
-status: dormant
+status: harvested
 planted: 2026-05-10
 planted_during: v2.0 WhatsApp Estimate Channel (launch readiness analysis)
+harvested: 2026-05-11
+harvested_in: v2.1 Phase 52 (Per-Estimate Language Selection)
+harvest_completeness: Backend complete (schema + resolver + AI prompt + service layer + WhatsApp formatter + auto-learn). Deferred: web UI dropdown, EstimatePDF i18n, /api/generate-estimate body parameter
 trigger_when: When planning the WhatsApp launch-readiness milestone, when adding the first non-English-speaking customer cohort, when a user complains that their estimate goes out in the wrong language, or when expanding into LatAm / Brazilian markets
 scope: Medium
 ---

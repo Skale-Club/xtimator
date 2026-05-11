@@ -1,8 +1,11 @@
 ---
 id: SEED-014
-status: dormant
+status: harvested
 planted: 2026-05-10
 planted_during: v2.0 WhatsApp Estimate Channel (post-milestone analysis)
+harvested: 2026-05-11
+harvested_in: v2.1 Phase 46 (Typed Error Handling Foundation)
+harvest_completeness: Foundation complete — XtimatorError + asResponse() + handleWhatsAppError() + throwIf helpers shipped. Refactoring existing endpoints is deferred (coexists peacefully; refactor per-endpoint as touched)
 trigger_when: When addressing error handling debt, preparing for public launch, after the first user-reported "weird error message" bug, or as part of a code quality milestone
 scope: Small
 ---
