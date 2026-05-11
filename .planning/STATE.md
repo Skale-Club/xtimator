@@ -1,7 +1,7 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.5
-milestone_name: Zero-friction Project Onboarding
+milestone: v2.2
+milestone_name: WhatsApp Channel Polish
 status: verifying
 last_updated: "2026-05-11T10:54:29.269Z"
 last_activity: 2026-05-11
