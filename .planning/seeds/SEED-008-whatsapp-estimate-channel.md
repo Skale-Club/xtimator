@@ -12,29 +12,29 @@ scope: Large
 
 ## Harvest Notes (2026-05-10)
 
-A v2.0 entregou um **MVP funcional** do canal WhatsApp. Comparando o que esse seed propôs vs. o que foi efetivamente implementado:
+v2.0 delivered a **functional MVP** of the WhatsApp channel. Comparing what this seed proposed vs. what was effectively implemented:
 
-**Entregue:**
-- ✅ Webhook central (`POST/GET /api/webhooks/whatsapp`) com HMAC-SHA256
-- ✅ Roteamento por número (`company_whatsapp` table)
-- ✅ Inbound processing: áudio (Whisper) + texto + foto (Claude Vision)
-- ✅ Session management básico (state machine 1 estado: `awaiting_confirm`)
-- ✅ Outbound delivery: share link + formatted text (configurável)
-- ✅ Setup UI em `/settings/integrations` (form de phone + phoneNumberId + wabaId)
-- ✅ Session expiry de 30 minutos com Vercel Cron + pg_cron safety net
+**Delivered:**
+- ✅ Central webhook (`POST/GET /api/webhooks/whatsapp`) with HMAC-SHA256
+- ✅ Routing by number (`company_whatsapp` table)
+- ✅ Inbound processing: audio (Whisper) + text + photo (Claude Vision)
+- ✅ Basic session management (state machine with 1 state: `awaiting_confirm`)
+- ✅ Outbound delivery: share link + formatted text (configurable)
+- ✅ Setup UI at `/settings/integrations` (phone + phoneNumberId + wabaId form)
+- ✅ 30-minute session expiry with Vercel Cron + pg_cron safety net
 - ✅ Admin panel: Meta access token card
 
-**Não entregue (deferred):**
-- ❌ Edit commands pré-envio (`edit [item]`, `client [name]`) — só `send`/`cancel` aceitos
-- ❌ Estado `awaiting_edit` no state machine — promesso, ausente
-- ❌ PDF attachment como formato de delivery — só share link + formatted text
-- ❌ Provider abstraction (`TwilioAdapter` + `MetaAdapter`) — só Meta hardcoded
-- ❌ OTP verification do número durante setup — credenciais salvas sem proof of ownership
-- ❌ Status flow completo (`pending → verified → active → suspended`) — pula direto pra `active`
-- ❌ Coluna `provider` em `company_whatsapp` — apenas Meta suportado
-- ❌ Rate limiting (mencionado como "20 projetos/dia") — coberto pelo SEED-012
+**Not delivered (deferred):**
+- ❌ Pre-send edit commands (`edit [item]`, `client [name]`) — only `send`/`cancel` accepted
+- ❌ `awaiting_edit` state in the state machine — promised, absent
+- ❌ PDF attachment as a delivery format — only share link + formatted text
+- ❌ Provider abstraction (`TwilioAdapter` + `MetaAdapter`) — Meta only, hardcoded
+- ❌ Number OTP verification during setup — credentials saved without proof of ownership
+- ❌ Complete status flow (`pending → verified → active → suspended`) — jumps straight to `active`
+- ❌ `provider` column in `company_whatsapp` — only Meta supported
+- ❌ Rate limiting (mentioned as "20 projects/day") — covered by SEED-012
 
-Os gaps estão consolidados no **SEED-015: WhatsApp Channel Completeness**. O seed original permanece preservado como referência da visão completa.
+These gaps are consolidated in **SEED-015: WhatsApp Channel Completeness**. The original seed is preserved as reference for the complete vision.
 
 # SEED-008: WhatsApp Estimate Channel
 

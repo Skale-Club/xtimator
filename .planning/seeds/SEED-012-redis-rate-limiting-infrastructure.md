@@ -11,16 +11,16 @@ scope: Small
 
 ## Why This Matters
 
-Hoje o Xtimator **não tem rate limiting em lugar nenhum** — nem no app web, nem no WhatsApp webhook, nem nos endpoints de IA. Isso é tolerável enquanto a base de usuários é pequena e confiável, mas é um problema sério para:
+Today, Xtimator has **no rate limiting anywhere** — not in the web app, not in the WhatsApp webhook, not in the AI endpoints. This is tolerable while the user base is small and trusted, but it's a serious problem for:
 
-1. **Lançamento público** — um usuário malicioso (ou um bug do cliente) pode gerar centenas de estimativas em segundos, queimando créditos do Anthropic/OpenAI.
-2. **Planos pagos** (ver SEED-013) — sem rate limiting, "máximo 10 estimativas/mês no plano free" é declarativo, não enforcement.
-3. **WhatsApp abuse** — um usuário mal-intencionado pode spammar o webhook com mensagens, gerando custo de Whisper/Vision sem nada bloqueando.
-4. **Compliance** — endpoints sem rate limit são red flag em audit de segurança.
+1. **Public launch** — a malicious user (or a buggy client) can generate hundreds of estimates in seconds, burning through Anthropic/OpenAI credits.
+2. **Paid plans** (see SEED-013) — without rate limiting, "max 10 estimates/month on the free plan" is declarative, not enforcement.
+3. **WhatsApp abuse** — a bad actor can spam the webhook with messages, racking up Whisper/Vision costs with nothing blocking it.
+4. **Compliance** — endpoints without rate limit are a red flag in security audits.
 
-## A Solução: Padrão do Chatbot
+## The Solution: Chatbot Pattern
 
-O projeto antigo `C:\Users\Vanildo\Dev\chatbot` tem uma implementação enxuta em `/lib/ratelimit.ts`:
+The legacy `C:\Users\Vanildo\Dev\chatbot` project has a lean implementation in `/lib/ratelimit.ts`:
 
 ```typescript
 const MAX = 10
@@ -35,37 +35,37 @@ const [count] = await redis.multi()
 if (count > MAX) throw new RateLimitError()
 ```
 
-Padrão **sliding window aproximado** — simples, performático, suficiente para 99% dos casos. O `EXPIRE NX` garante que o TTL só é setado na primeira vez, preservando o janela mesmo com reqs concorrentes.
+**Approximate sliding window pattern** — simple, performant, sufficient for 99% of cases. The `EXPIRE NX` ensures the TTL is only set on first call, preserving the window even under concurrent requests.
 
-## Camadas de Rate Limiting
+## Rate Limiting Layers
 
 ```typescript
 // lib/ratelimit.ts
 export const limits = {
-  // Por IP (anti-DDoS básico)
+  // Per IP (basic anti-DDoS)
   ipPerMinute:        { max: 60,   window: 60 },
   ipPerHour:          { max: 600,  window: 3600 },
 
-  // Por usuário autenticado (uso normal)
+  // Per authenticated user (normal use)
   userEstimatePerHour:  { max: 30,  window: 3600 },
   userEstimatePerDay:   { max: 100, window: 86400 },
 
-  // Por número de WhatsApp
+  // Per WhatsApp number
   whatsappPerHour:    { max: 20,   window: 3600 },
   whatsappPerDay:     { max: 50,   window: 86400 },
 
-  // Endpoints caros
+  // Expensive endpoints
   photoAnalysisPerMinute: { max: 10, window: 60 },
   translatePerMinute:     { max: 20, window: 60 },
 }
 ```
 
-Os limites concretos vêm de SEED-013 (entitlements por plano). Esse seed apenas constrói o **mecanismo**.
+The concrete limits come from SEED-013 (per-plan entitlements). This seed only builds the **mechanism**.
 
-## API Pública
+## Public API
 
 ```typescript
-// Uso típico em qualquer route handler
+// Typical usage in any route handler
 import { rateLimit } from '@/lib/ratelimit'
 
 export async function POST(req: Request) {
@@ -76,56 +76,56 @@ export async function POST(req: Request) {
       { status: 429, headers: { 'Retry-After': String(retryAfter) } }
     )
   }
-  // ... resto do handler
+  // ... rest of handler
 }
 ```
 
-Helper para WhatsApp:
+WhatsApp helper:
 ```typescript
 await rateLimit('whatsappPerHour', phoneNumber, {
   onLimit: () => sendWhatsAppMessage(phoneNumber, '⏸️ Hold on — you reached your hourly limit. Try again in 1h.')
 })
 ```
 
-## Estrutura
+## Structure
 
 ```
 lib/
-├── redis.ts              ← cliente Upstash compartilhado
-└── ratelimit.ts          ← API rateLimit() + config dos limits
+├── redis.ts              ← shared Upstash client
+└── ratelimit.ts          ← rateLimit() API + limits config
 ```
 
-O `redis.ts` é o mesmo cliente usado por SEED-010 (debounce buffer) — uma única instância Upstash serve para os dois usos com keys namespaced (`rate:`, `buffer:`).
+`redis.ts` is the same client used by SEED-010 (debounce buffer) — a single Upstash instance serves both uses with namespaced keys (`rate:`, `buffer:`).
 
 ## Scope Estimate
 
-**Small** — 1 fase, ~1-2 dias:
+**Small** — 1 phase, ~1-2 days:
 
-1. Setup Upstash (se SEED-010 não já fez): vars de ambiente, cliente `lib/redis.ts`
-2. `lib/ratelimit.ts` com função `rateLimit(limitName, identifier)`
-3. Aplicar nos endpoints críticos:
+1. Setup Upstash (if SEED-010 hasn't already): environment variables, `lib/redis.ts` client
+2. `lib/ratelimit.ts` with `rateLimit(limitName, identifier)` function
+3. Apply to critical endpoints:
    - `app/api/webhooks/whatsapp/route.ts` — `whatsappPerHour`
    - `app/api/generate-estimate/route.ts` — `userEstimatePerHour`
    - `app/api/analyze-photos/route.ts` — `photoAnalysisPerMinute`
-   - `app/api/translate/route.ts` — `translatePerMinute` (já tem o TODO comment lá)
-4. Middleware global para `ipPerMinute` em `proxy.ts`
-5. Testes: simular reqs em loop, verificar 429 após N
-6. Observability: log de quem está hitting limits (sinal de abuso ou bug)
+   - `app/api/translate/route.ts` — `translatePerMinute` (already has TODO comment there)
+4. Global middleware for `ipPerMinute` in `proxy.ts`
+5. Tests: simulate requests in a loop, verify 429 after N
+6. Observability: log who is hitting limits (signal of abuse or bug)
 
 ## Breadcrumbs
 
-- `app/api/translate/route.ts:8` — comment "rate-limit protection only" indica intenção mas não há implementação
-- `app/api/generate-estimate/route.ts` — endpoint mais caro (Claude + processamento); maior beneficiário
-- `app/api/analyze-photos/route.ts` — Vision API é cara; precisa proteção
-- `app/api/webhooks/whatsapp/route.ts:91-98` — dedup já tem padrão similar (insert + unique violation); rate limit é a próxima camada de defesa
-- `proxy.ts` — middleware global; bom lugar pra rate limit por IP antes de qualquer rota
+- `app/api/translate/route.ts:8` — comment "rate-limit protection only" indicates intent but no implementation
+- `app/api/generate-estimate/route.ts` — most expensive endpoint (Claude + processing); biggest beneficiary
+- `app/api/analyze-photos/route.ts` — Vision API is expensive; needs protection
+- `app/api/webhooks/whatsapp/route.ts:91-98` — dedup already has a similar pattern (insert + unique violation); rate limit is the next defense layer
+- `proxy.ts` — global middleware; good place for per-IP rate limit before any route
 - Reference impl: `C:\Users\Vanildo\Dev\chatbot\lib\ratelimit.ts`
 
 ## Notes
 
-- **Por que Redis e não Postgres?** Postgres dá conta, mas: latência ~10x maior, contention em writes concorrentes, e poluição da hot path de queries do app. Redis é a ferramenta certa para counters efêmeros.
-- **Por que Upstash?** Serverless-first, integra direto com Vercel, free tier generoso (10k reqs/dia), pricing previsível. Já é o provider escolhido em SEED-010.
-- **Distributed lock vs counter**: para rate limit, counter é suficiente. Lock seria over-engineering.
-- **Sliding window aproximado vs preciso**: o padrão de `INCR + EXPIRE NX` cria "janela tumbling" — pode permitir burst no momento do reset. Para preciso, usar sliding window com sorted set (mais caro). 99% dos casos toleram a imprecisão.
-- **429 com Retry-After**: header padrão HTTP — clientes bem-comportados (incluindo navegadores e curl) respeitam automaticamente.
-- Esse seed é **pré-requisito** para SEED-013 (entitlements). Não há como enforce planos sem rate limit funcionando.
+- **Why Redis and not Postgres?** Postgres can handle it, but: ~10x higher latency, contention on concurrent writes, and pollution of the app's hot query path. Redis is the right tool for ephemeral counters.
+- **Why Upstash?** Serverless-first, integrates directly with Vercel, generous free tier (10k requests/day), predictable pricing. Already the chosen provider in SEED-010.
+- **Distributed lock vs counter**: for rate limit, a counter is sufficient. Lock would be over-engineering.
+- **Approximate sliding window vs precise**: the `INCR + EXPIRE NX` pattern creates a "tumbling window" — can allow a burst at reset time. For precision, use sliding window with sorted sets (more expensive). 99% of cases tolerate the imprecision.
+- **429 with Retry-After**: standard HTTP header — well-behaved clients (including browsers and curl) respect it automatically.
+- This seed is a **prerequisite** for SEED-013 (entitlements). There's no way to enforce plans without rate limiting working first.

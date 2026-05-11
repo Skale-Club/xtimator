@@ -3,7 +3,7 @@ id: SEED-014
 status: dormant
 planted: 2026-05-10
 planted_during: v2.0 WhatsApp Estimate Channel (post-milestone analysis)
-trigger_when: When addressing error handling debt, preparing for public launch, after first user-reported "weird error message" bug, or as part of a code quality milestone
+trigger_when: When addressing error handling debt, preparing for public launch, after the first user-reported "weird error message" bug, or as part of a code quality milestone
 scope: Small
 ---
 
@@ -11,10 +11,10 @@ scope: Small
 
 ## Why This Matters
 
-O Xtimator hoje trata erros de forma **ad-hoc** em cada endpoint:
+Xtimator today handles errors **ad-hoc** in every endpoint:
 
 ```typescript
-// Padrão atual em vários lugares
+// Current pattern in several places
 try {
   // ... work
 } catch (err) {
@@ -23,16 +23,16 @@ try {
 }
 ```
 
-Problemas:
-1. **Mensagens genéricas** — usuário vê "Something went wrong" para tudo, do timeout ao limit reached.
-2. **Sem distinção log vs response** — stack traces vazam, ou erros úteis ficam escondidos no log.
-3. **Status codes inconsistentes** — alguns endpoints retornam 500 para erros que deveriam ser 400/403/429/402.
-4. **Frontend não consegue tratar** — sem código de erro estruturado, UI não sabe se deve mostrar "tente de novo" ou "faça upgrade".
-5. **WhatsApp handler** — `lib/whatsapp/handler.ts:111-118` faz catch-all e manda "An error occurred while processing your message" pra usuário, perdendo todo contexto.
+Problems:
+1. **Generic messages** — user sees "Something went wrong" for everything, from timeout to limit reached.
+2. **No log vs response distinction** — stack traces leak, or useful errors get buried in logs.
+3. **Inconsistent status codes** — some endpoints return 500 for errors that should be 400/403/429/402.
+4. **Frontend can't react** — without structured error codes, UI doesn't know whether to show "try again" or "upgrade".
+5. **WhatsApp handler** — `lib/whatsapp/handler.ts:111-118` does a catch-all and sends "An error occurred while processing your message" to the user, losing all context.
 
-## A Solução: Padrão do Chatbot
+## The Solution: Chatbot Pattern
 
-O projeto `C:\Users\Vanildo\Dev\chatbot\lib\errors.ts` tem um sistema enxuto e tipado:
+The `C:\Users\Vanildo\Dev\chatbot\lib\errors.ts` project has a lean and typed system:
 
 ```typescript
 type ErrorType =
@@ -55,7 +55,7 @@ type Surface =
   | 'billing'
   | 'database'
 
-// Código composto: "${type}:${surface}"
+// Composite code: "${type}:${surface}"
 export class XtimatorError extends Error {
   constructor(
     public type: ErrorType,
@@ -80,7 +80,7 @@ export class XtimatorError extends Error {
 }
 ```
 
-Mapeamentos:
+Mappings:
 ```typescript
 const statusByType: Record<ErrorType, number> = {
   bad_request: 400,
@@ -102,36 +102,36 @@ const userMessageByCode: Partial<Record<string, string>> = {
 }
 ```
 
-## Uso
+## Usage
 
 ```typescript
-// Em endpoints
+// In endpoints
 throw new XtimatorError('tier_limit', 'estimates', 'Monthly quota exceeded', undefined, {
   used: 10,
   limit: 10,
   upgradeUrl: '/settings/billing'
 })
 
-// Catch padrão (vira um wrapper):
+// Default catch (becomes a wrapper):
 import { asResponse } from '@/lib/errors'
 
 export async function POST(req: Request) {
   try {
     // ... work that may throw XtimatorError
   } catch (err) {
-    return asResponse(err)  // sabe lidar com XtimatorError e Error normal
+    return asResponse(err)  // handles XtimatorError and regular Error
   }
 }
 ```
 
-`asResponse()` transforma:
-- `XtimatorError` → resposta tipada com user message
-- `Error` normal → 500 com "Internal error" (log full no console)
-- `ZodError` → 400 com lista de fields inválidos
+`asResponse()` transforms:
+- `XtimatorError` → typed response with user message
+- Regular `Error` → 500 with "Internal error" (full log to console)
+- `ZodError` → 400 with list of invalid fields
 
 ## WhatsApp Adaptation
 
-`lib/whatsapp/handler.ts` precisa de uma versão que **manda erro pelo WhatsApp** em vez de retornar JSON:
+`lib/whatsapp/handler.ts` needs a version that **sends errors via WhatsApp** instead of returning JSON:
 
 ```typescript
 import { handleWhatsAppError } from '@/lib/errors/whatsapp'
@@ -144,13 +144,13 @@ try {
 }
 ```
 
-Mensagens contextuais via WhatsApp:
+Contextual messages via WhatsApp:
 - `tier_limit:estimates` → "⚠️ You reached 10 estimates this month. Upgrade: {url}"
 - `bad_request:audio` → "🎙️ Audio couldn't be processed. Try recording again."
 - `rate_limit:whatsapp` → "⏸️ Too many messages — try again in 5min."
 - `internal:*` → "❌ Something went wrong on our side. We're looking into it."
 
-## Estrutura
+## Structure
 
 ```
 lib/errors/
@@ -173,33 +173,33 @@ export function throwIfNotFound<T>(
 
 ## Scope Estimate
 
-**Small** — 1 phase, ~1-2 dias:
+**Small** — 1 phase, ~1-2 days:
 
-1. `lib/errors/index.ts` + `codes.ts` com tipos e mapeamentos
-2. `asResponse()` para use em route handlers
+1. `lib/errors/index.ts` + `codes.ts` with types and mappings
+2. `asResponse()` for use in route handlers
 3. `handleWhatsAppError()` adapter
 4. Helpers (`throwIfNotFound`, `throwIfForbidden`, `throwIfBadRequest`)
-5. Refatorar endpoints críticos (não precisa ser todos no Day 1):
+5. Refactor critical endpoints (doesn't need to be all on Day 1):
    - `app/api/generate-estimate/route.ts`
    - `app/api/webhooks/whatsapp/route.ts`
    - `app/api/analyze-photos/route.ts`
    - `lib/whatsapp/handler.ts`
-6. Adicionar testes: garantir que `XtimatorError` produz status correto e user message correta para cada code
+6. Add tests: ensure `XtimatorError` produces correct status and correct user message for each code
 
 ## Breadcrumbs
 
-- `lib/whatsapp/handler.ts:111-118` — catch-all atual; primeiro candidato a refator com `handleWhatsAppError`
-- `app/api/generate-estimate/route.ts` — múltiplos try/catch ad-hoc
-- `app/api/analyze-photos/route.ts` — usa Zod (sirva como teste de integração com ZodError)
-- `lib/services/generate-estimate.ts` — throws genéricos que viram XtimatorError com surface = 'estimates'
-- `lib/queries/share.ts` — retorna `null` para "not found"; bom candidato a `throwIfNotFound`
+- `lib/whatsapp/handler.ts:111-118` — current catch-all; first candidate to refactor with `handleWhatsAppError`
+- `app/api/generate-estimate/route.ts` — multiple ad-hoc try/catch
+- `app/api/analyze-photos/route.ts` — uses Zod (serves as integration test with ZodError)
+- `lib/services/generate-estimate.ts` — generic throws that become XtimatorError with surface = 'estimates'
+- `lib/queries/share.ts` — returns `null` for "not found"; good candidate for `throwIfNotFound`
 - Reference impl: `C:\Users\Vanildo\Dev\chatbot\lib\errors.ts`
 
 ## Notes
 
-- **Vai contra o instinto de "não over-engineer"** — mas o ganho é tangível: bugs mais rastreáveis, mensagens melhores pra usuário, frontend pode tratar erros específicos.
-- **Não precisa migrar tudo de uma vez** — coexiste pacificamente com try/catch antigo. Refatorar por endpoint conforme tocar.
-- **Sentry/observability integration**: `XtimatorError` com `cause` e `meta` é input perfeito para Sentry. Já está estruturado pra isso.
-- **WhatsApp UX win**: hoje qualquer falha vira "An error occurred" — com codes, usuário recebe "Photo too blurry — try better lighting" ou "Audio too long — max 5 minutes". Massive difference.
-- **i18n-ready**: `userMessageByCode` aceita lookup por idioma facilmente. Integra com SEED-001 (i18n) sem trabalho extra.
-- Combina muito bem com SEED-013 (entitlements) — `tier_limit` é um type dedicado, com 402 status e CTA de upgrade.
+- **Goes against the "don't over-engineer" instinct** — but the gain is tangible: more traceable bugs, better user messages, frontend can handle specific errors.
+- **No need to migrate everything at once** — coexists peacefully with old try/catch. Refactor per endpoint as you touch each.
+- **Sentry/observability integration**: `XtimatorError` with `cause` and `meta` is perfect input for Sentry. Already structured for it.
+- **WhatsApp UX win**: today any failure becomes "An error occurred" — with codes, the user gets "Photo too blurry — try better lighting" or "Audio too long — max 5 minutes". Massive difference.
+- **i18n-ready**: `userMessageByCode` accepts language lookup easily. Integrates with SEED-001 (i18n) at no extra cost.
+- Pairs very well with SEED-013 (entitlements) — `tier_limit` is a dedicated type, with 402 status and CTA to upgrade.

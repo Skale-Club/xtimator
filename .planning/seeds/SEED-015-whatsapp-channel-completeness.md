@@ -3,7 +3,7 @@ id: SEED-015
 status: dormant
 planted: 2026-05-10
 planted_during: v2.0 WhatsApp Estimate Channel (post-milestone audit of SEED-008 vs delivered MVP)
-trigger_when: When iterating on WhatsApp UX after v2.0, when first paying customers complain about not being able to edit estimates before sending, when adding alternate WhatsApp provider (Twilio), or when tightening number verification security
+trigger_when: When iterating on WhatsApp UX after v2.0, when first paying customers complain about not being able to edit estimates before sending, when adding an alternate WhatsApp provider (Twilio), or when tightening number verification security
 scope: Medium
 ---
 
@@ -11,23 +11,23 @@ scope: Medium
 
 ## Why This Matters
 
-A v2.0 (Phases 40-45) entregou um MVP funcional do canal WhatsApp, mas **deixou de fora vários elementos que o SEED-008 original propôs**. O resultado é um sistema utilizável mas com limitações sérias para uso de produção:
+v2.0 (Phases 40-45) delivered a functional MVP of the WhatsApp channel, but **left out several elements that the original SEED-008 proposed**. The result is a usable system with serious limitations for production use:
 
-1. **Sem edit pré-envio** — o dono não pode corrigir a estimativa antes do cliente receber. Se viu um erro, precisa cancelar e refazer todo o input (gravando áudios, tirando fotos de novo). UX brutalmente quebrada.
-2. **Sem OTP verification** — qualquer um com `phoneNumberId` + `wabaId` (público no Meta Business Suite) pode reivindicar um número no Xtimator. Sem proof of ownership, isso é vulnerabilidade.
-3. **Sem PDF attachment** — clientes que preferem documento formal (especialmente segmento high-ticket: construction, HVAC commercial) só recebem texto ou link.
-4. **Sem provider abstraction** — se a conta Meta for suspensa ou se a Meta mudar termos, não há fallback para Twilio. Lock-in arriscado.
-5. **Status pula direto para 'active'** — o flow `pending → verified → active → suspended` foi promessa do schema mas nunca usado. Status é cosmético.
+1. **No pre-send edit** — the owner can't fix the estimate before the client receives it. If they spot a mistake, they have to cancel and redo all the input (re-recording audios, retaking photos). Brutally broken UX.
+2. **No OTP verification** — anyone with `phoneNumberId` + `wabaId` (public in Meta Business Suite) can claim a number in Xtimator. Without proof of ownership, this is a vulnerability.
+3. **No PDF attachment** — clients who prefer formal documents (especially high-ticket segments: construction, commercial HVAC) only get text or links.
+4. **No provider abstraction** — if the Meta account gets suspended or Meta changes terms, there's no fallback to Twilio. Risky lock-in.
+5. **Status jumps straight to 'active'** — the `pending → verified → active → suspended` flow was a schema promise but never used. Status is cosmetic.
 
-Este seed **não duplica o SEED-008** — ele completa o que ficou de fora. Os gaps abaixo são independentes entre si e podem ser atacados em ordem de prioridade.
+This seed **does not duplicate SEED-008** — it completes what was left out. The gaps below are independent of each other and can be tackled in priority order.
 
-## Os Gaps em Detalhe
+## The Gaps in Detail
 
-### Gap 1: Edit Commands Pré-Envio (PRIORIDADE ALTA)
+### Gap 1: Pre-Send Edit Commands (HIGH PRIORITY)
 
-**Estado atual:** `lib/whatsapp/confirm.ts:49-54` aceita só `send` / `cancel`.
+**Current state:** `lib/whatsapp/confirm.ts:49-54` only accepts `send` / `cancel`.
 
-**Estado promissor:** parser reconhece comandos estruturados:
+**Promising state:** parser recognizes structured commands:
 
 ```
 edit total 450
@@ -38,36 +38,36 @@ edit payment "50% upfront, 50% on completion"
 client "Maria Silva" 5551234567
 add item kitchen "Stove cleaning" 60
 remove item 1.2
-regenerate         ← refaz a estimativa do zero com mesmo input
+regenerate         ← rebuild estimate from scratch with same input
 ```
 
-Cada comando dispara mutation no Supabase (estimate/sections/items/project tables) e re-envia o resumo atualizado. Sessão **permanece em `awaiting_confirm`** — não muda de estado.
+Each command triggers a mutation in Supabase (estimate/sections/items/project tables) and re-sends the updated summary. The session **stays in `awaiting_confirm`** — it doesn't change state.
 
-Para comandos ambíguos ou inválidos, agente leve (Claude Haiku) interpreta:
+For ambiguous or invalid commands, a lightweight agent (Claude Haiku) interprets:
 ```
-"aumenta o preço dos quartos em 10%"
-"tira a cozinha"
-"o cliente é o João, telefone 555..."
+"increase the bedroom prices by 10%"
+"remove the kitchen"
+"the client is João, phone 555..."
 ```
 
-Esse approach respeita o padrão LLM-first do Xtimator (estimate gen já usa Claude), mas mantém comandos diretos como atalhos sem dependência de IA.
+This approach respects Xtimator's LLM-first pattern (estimate gen already uses Claude), but keeps direct commands as shortcuts without AI dependency.
 
-### Gap 2: OTP Verification Durante Setup (PRIORIDADE ALTA)
+### Gap 2: OTP Verification During Setup (HIGH PRIORITY)
 
-**Estado atual:** `lib/actions/whatsapp-settings.ts → connectWhatsApp()` faz upsert direto com status='active'. Zero prova de que o usuário controla aquele número.
+**Current state:** `lib/actions/whatsapp-settings.ts → connectWhatsApp()` upserts directly with status='active'. Zero proof that the user controls that number.
 
-**Estado promissor:** flow de duas etapas:
+**Promising state:** two-step flow:
 
 ```
-[1] User submete phoneNumber + phoneNumberId + wabaId
+[1] User submits phoneNumber + phoneNumberId + wabaId
    → status='pending'
-   → gera código de 6 dígitos
-   → envia código via WhatsApp para phoneNumber
-   → retorna sucesso pra UI
+   → generates 6-digit code
+   → sends code via WhatsApp to phoneNumber
+   → returns success to UI
 
-[2] User digita código recebido no celular
-   → server valida código (TTL 10min, max 3 tentativas)
-   → se OK: status='verified' → 'active'
+[2] User enters code received on phone
+   → server validates code (10min TTL, max 3 attempts)
+   → if OK: status='verified' → 'active'
    → revalidate cache
 ```
 
@@ -79,25 +79,25 @@ ALTER TABLE company_whatsapp
   ADD COLUMN verification_expires_at TIMESTAMPTZ;
 ```
 
-UI: dois cards no `WhatsAppConnectCard`:
-- Conexão (atual) → muda label de botão pra "Send verification code"
-- Verificação (novo) → input de 6 dígitos + "Verify"
+UI: two cards in `WhatsAppConnectCard`:
+- Connection (current) → change button label to "Send verification code"
+- Verification (new) → 6-digit input + "Verify"
 
-### Gap 3: PDF Attachment Delivery (PRIORIDADE MÉDIA)
+### Gap 3: PDF Attachment Delivery (MEDIUM PRIORITY)
 
-**Estado atual:** `lib/whatsapp/confirm.ts → handleSend` envia share link ou texto formatado. Tabela `company_whatsapp.delivery_format` é enum `share_link | formatted_text`.
+**Current state:** `lib/whatsapp/confirm.ts → handleSend` sends share link or formatted text. The `company_whatsapp.delivery_format` column is enum `share_link | formatted_text`.
 
-**Estado promissor:** terceira opção `pdf_attachment`:
+**Promising state:** third option `pdf_attachment`:
 
 ```typescript
 const PDF_DELIVERY_FORMATS = ['share_link', 'formatted_text', 'pdf_attachment'] as const
 ```
 
 Pipeline:
-1. Gerar PDF reutilizando `app/api/estimates/[id]/pdf/route.ts`
-2. Upload do PDF no Supabase Storage (bucket `estimates-pdf`, 24h TTL)
-3. Obter signed URL
-4. Meta API call com `type: "document"`:
+1. Generate PDF reusing `app/api/estimates/[id]/pdf/route.ts`
+2. Upload PDF to Supabase Storage (bucket `estimates-pdf`, 24h TTL)
+3. Get signed URL
+4. Meta API call with `type: "document"`:
 ```json
 {
   "messaging_product": "whatsapp",
@@ -111,13 +111,13 @@ Pipeline:
 }
 ```
 
-UI: adicionar opção no select de `delivery_format` em `WhatsAppConnectCard`.
+UI: add option to `delivery_format` select in `WhatsAppConnectCard`.
 
-### Gap 4: Provider Abstraction (PRIORIDADE BAIXA)
+### Gap 4: Provider Abstraction (LOW PRIORITY)
 
-**Estado atual:** `lib/whatsapp/client.ts` chama Meta Graph API hardcoded. Token vem de `platform_integrations`.
+**Current state:** `lib/whatsapp/client.ts` calls Meta Graph API hardcoded. Token comes from `platform_integrations`.
 
-**Estado promissor:** interface `WhatsAppProvider`:
+**Promising state:** `WhatsAppProvider` interface:
 
 ```typescript
 interface WhatsAppProvider {
@@ -128,8 +128,8 @@ interface WhatsAppProvider {
   parseInboundPayload(payload: unknown): InboundMessage[]
 }
 
-class MetaWhatsAppProvider implements WhatsAppProvider { /* atual */ }
-class TwilioWhatsAppProvider implements WhatsAppProvider { /* novo */ }
+class MetaWhatsAppProvider implements WhatsAppProvider { /* current */ }
+class TwilioWhatsAppProvider implements WhatsAppProvider { /* new */ }
 
 // lib/whatsapp/index.ts
 export function getProvider(companyId: string): WhatsAppProvider {
@@ -143,83 +143,83 @@ Schema:
 ALTER TABLE company_whatsapp ADD COLUMN provider TEXT NOT NULL DEFAULT 'meta';
 ```
 
-Webhook handler precisa rotear por `provider` (Twilio e Meta têm payloads diferentes).
+The webhook handler needs to route by `provider` (Twilio and Meta have different payloads).
 
-### Gap 5: Status Flow Real (PRIORIDADE BAIXA)
+### Gap 5: Real Status Flow (LOW PRIORITY)
 
-**Estado atual:** SQL aceita 4 valores (`pending | verified | active | suspended`) mas só `active` é usado. Mortos:
-- `pending` deveria ser estado inicial pré-OTP (Gap 2 resolve)
-- `verified` deveria ser pós-OTP, pré-ativação manual em admin
-- `suspended` deveria ser estado controlado por admin (abuse, payment failure)
+**Current state:** SQL accepts 4 values (`pending | verified | active | suspended`) but only `active` is used. Dead values:
+- `pending` should be the initial state pre-OTP (Gap 2 resolves this)
+- `verified` should be post-OTP, pre-admin activation
+- `suspended` should be admin-controlled (abuse, payment failure)
 
-Após resolver Gap 2, o flow natural é:
+After resolving Gap 2, the natural flow is:
 ```
-pending  → user inseriu credenciais, aguardando OTP
-verified → OTP confirmado, pronto pra ativar
-active   → admin/billing aprovou (ou auto-aprova em planos pagos)
-suspended → admin pausou por abuse ou plano cancelado
+pending  → user entered credentials, awaiting OTP
+verified → OTP confirmed, ready to activate
+active   → admin/billing approved (or auto-approves on paid plans)
+suspended → admin paused for abuse or cancelled plan
 ```
 
-Inbound webhook só processa mensagens de números com status='active'. Já é assim — a mudança é no setup, não no runtime.
+The inbound webhook only processes messages from numbers with status='active'. Already the case — the change is in setup, not runtime.
 
-## Sequência Sugerida
+## Suggested Sequence
 
 ```
-v2.1 (Hotfix UX)
-├── Gap 1: Edit commands ← maior impacto, conecta com SEED-006 e SEED-010
-└── Gap 2: OTP verification ← segurança crítica, bloqueia escalation
+v2.1 (UX Hotfix)
+├── Gap 1: Edit commands ← biggest impact, connects with SEED-006 and SEED-010
+└── Gap 2: OTP verification ← critical security, blocks escalation
 
 v2.2 (Polish & Reliability)
-├── Gap 3: PDF attachment ← demanda específica de segmentos high-ticket
-└── Gap 5: Status flow real ← depende de Gap 2
+├── Gap 3: PDF attachment ← specific demand from high-ticket segments
+└── Gap 5: Real status flow ← depends on Gap 2
 
-v3.x (Hedge contra lock-in)
-└── Gap 4: Provider abstraction ← só relevante se Meta virar problema
+v3.x (Hedge against lock-in)
+└── Gap 4: Provider abstraction ← only relevant if Meta becomes a problem
 ```
 
 ## Scope Estimate
 
-**Medium** — 2-3 fases distribuídas em milestones:
+**Medium** — 2-3 phases distributed across milestones:
 
-- **Gap 1 (Edit)** — 1 fase, 2-3 dias. Parser + mutations + re-envio do resumo. Optional: agente Claude Haiku para comandos ambíguos.
-- **Gap 2 (OTP)** — 1 fase, 1-2 dias. Schema migration + send-code action + verify-code action + UI atualizada.
-- **Gap 3 (PDF)** — 0.5 fase, 1 dia. Reutiliza pipeline PDF existente, adiciona signed URL + Meta API call.
-- **Gap 4 (Provider)** — 1 fase, 2-3 dias. Refactor + TwilioAdapter implementação.
-- **Gap 5 (Status flow)** — 0.5 fase, 0.5 dia. Wiring após Gap 2.
+- **Gap 1 (Edit)** — 1 phase, 2-3 days. Parser + mutations + summary re-send. Optional: Claude Haiku agent for ambiguous commands.
+- **Gap 2 (OTP)** — 1 phase, 1-2 days. Schema migration + send-code action + verify-code action + updated UI.
+- **Gap 3 (PDF)** — 0.5 phase, 1 day. Reuses existing PDF pipeline, adds signed URL + Meta API call.
+- **Gap 4 (Provider)** — 1 phase, 2-3 days. Refactor + TwilioAdapter implementation.
+- **Gap 5 (Status flow)** — 0.5 phase, 0.5 day. Wiring after Gap 2.
 
 ## Breadcrumbs
 
 **Gap 1 (Edit):**
-- `lib/whatsapp/confirm.ts:49-54` — `parseCommand()` precisa virar parser estruturado
-- `lib/whatsapp/confirm.ts:23-44` — `processConfirmationReply()` dispatcher; adicionar branches para edit/add/remove/regenerate/client
-- `lib/queries/estimate.ts` — mutations existentes podem ser reutilizadas
-- `app/api/estimates/[id]/refine/` — referência de refinement pipeline (web-side); padrão a portar pra WhatsApp
+- `lib/whatsapp/confirm.ts:49-54` — `parseCommand()` needs to become a structured parser
+- `lib/whatsapp/confirm.ts:23-44` — `processConfirmationReply()` dispatcher; add branches for edit/add/remove/regenerate/client
+- `lib/queries/estimate.ts` — existing mutations can be reused
+- `app/api/estimates/[id]/refine/` — reference for refinement pipeline (web-side); pattern to port to WhatsApp
 
 **Gap 2 (OTP):**
-- `lib/actions/whatsapp-settings.ts:connectWhatsApp` — split em `requestVerification()` + `confirmVerification()`
-- `components/settings/whatsapp-connect-card.tsx:76+` — adicionar segundo step de UI
-- `lib/whatsapp/client.ts:sendWhatsAppMessage` — função existente serve para mandar o código
-- `supabase/migrations/` — nova migration para colunas de verification
+- `lib/actions/whatsapp-settings.ts:connectWhatsApp` — split into `requestVerification()` + `confirmVerification()`
+- `components/settings/whatsapp-connect-card.tsx:76+` — add second UI step
+- `lib/whatsapp/client.ts:sendWhatsAppMessage` — existing function works for sending the code
+- `supabase/migrations/` — new migration for verification columns
 
 **Gap 3 (PDF):**
-- `app/api/estimates/[id]/pdf/route.ts` — endpoint PDF existente; chamar internamente
-- `lib/whatsapp/confirm.ts:handleSend` — ramo `if (deliveryFormat === 'pdf_attachment')`
-- Supabase Storage bucket `estimates-pdf` — provisionar com TTL 24h ou usar signed URL
+- `app/api/estimates/[id]/pdf/route.ts` — existing PDF endpoint; call internally
+- `lib/whatsapp/confirm.ts:handleSend` — `if (deliveryFormat === 'pdf_attachment')` branch
+- Supabase Storage bucket `estimates-pdf` — provision with 24h TTL or use signed URL
 
 **Gap 4 (Provider):**
-- `lib/whatsapp/client.ts` — refatorar inteiro como `MetaWhatsAppProvider`
-- `lib/whatsapp/verify.ts` — `verifyWebhookSignature()` vira método da interface
-- `app/api/webhooks/whatsapp/route.ts` — roteamento por provider antes de parsing
+- `lib/whatsapp/client.ts` — refactor entirely as `MetaWhatsAppProvider`
+- `lib/whatsapp/verify.ts` — `verifyWebhookSignature()` becomes interface method
+- `app/api/webhooks/whatsapp/route.ts` — provider routing before parsing
 - Twilio docs: https://www.twilio.com/docs/whatsapp/api
 
 **Gap 5 (Status flow):**
-- `lib/whatsapp/handler.ts:33-39` — query filtra `status='active'`; já está correto, só precisa do flow real upstream
-- `app/admin/integrations/` — UI admin pra forçar status=suspended (abuse)
+- `lib/whatsapp/handler.ts:33-39` — query filters `status='active'`; already correct, just needs the real flow upstream
+- `app/admin/integrations/` — admin UI to force status=suspended (abuse)
 
 ## Notes
 
-- **Conexão com SEED-010 (debounce buffer):** edit commands e debounce buffer são features adjacentes. Implementar juntos faz sentido — o usuário envia 5 mensagens (debounce agrega), recebe resumo, então pode editar antes de enviar.
-- **Conexão com SEED-013 (entitlements):** PDF attachment pode ser feature de tier pago (Business only). Provider choice (Twilio) também pode ser premium.
-- **Conexão com SEED-014 (errors):** edit commands inválidos são candidatos perfeitos para `XtimatorError('bad_request', 'whatsapp', ...)` com user message contextual.
-- **Por que dividir SEED-008 em SEED-015?** O SEED-008 foi harvested oficialmente — sua história precisa ser preservada como "vision document" da v2.0. Reabrir o status seria revisionismo histórico. SEED-015 é a continuação natural, marcando o que ficou de fora explicitamente.
-- **Decisão deliberada vs esquecimento?** Os gaps acima provavelmente foram cortes conscientes de escopo durante o planejamento da v2.0 (entregar MVP em 6 fases). Esse seed apenas torna explícito o que ficou em backlog implícito.
+- **Connection with SEED-010 (debounce buffer):** edit commands and debounce buffer are adjacent features. Implementing them together makes sense — the user sends 5 messages (debounce aggregates), receives summary, then can edit before sending.
+- **Connection with SEED-013 (entitlements):** PDF attachment could be a paid-tier feature (Business only). Provider choice (Twilio) could also be premium.
+- **Connection with SEED-014 (errors):** invalid edit commands are perfect candidates for `XtimatorError('bad_request', 'whatsapp', ...)` with contextual user message.
+- **Why split SEED-008 into SEED-015?** SEED-008 was officially harvested — its history should be preserved as the v2.0 "vision document". Reopening the status would be historical revisionism. SEED-015 is the natural continuation, explicitly marking what was left out.
+- **Deliberate decision vs oversight?** The gaps above were probably conscious scope cuts during v2.0 planning (deliver MVP in 6 phases). This seed just makes explicit what was in implicit backlog.

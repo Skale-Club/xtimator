@@ -11,29 +11,29 @@ scope: Small
 
 ## Why This Matters
 
-A geração de uma estimativa via WhatsApp leva **20-40 segundos**:
-- Download do áudio da Meta (~2s)
-- Transcrição Whisper (~5-10s)
-- Download e análise Vision das fotos (~5-15s)
-- Geração da estimativa pelo Claude (~8-15s)
+Generating an estimate via WhatsApp takes **20-40 seconds**:
+- Audio download from Meta (~2s)
+- Whisper transcription (~5-10s)
+- Photo download and Vision analysis (~5-15s)
+- Estimate generation by Claude (~8-15s)
 
-Durante esse tempo, do ponto de vista do usuário, **nada acontece**. Não há check de "mensagem entregue", não há "digitando…", apenas silêncio. Em conversas de WhatsApp esse silêncio sinaliza que a outra parte não viu ou não está respondendo — o usuário começa a enviar mais mensagens, achando que a primeira foi perdida.
+During that time, from the user's perspective, **nothing happens**. No "message delivered" check, no "typing…", just silence. In WhatsApp conversations that silence signals that the other side hasn't seen the message or isn't responding — the user starts sending more messages, thinking the first one was lost.
 
-Dois calls simples à Meta API resolvem isso completamente:
+Two simple Meta API calls solve this completely:
 
-## A Implementação
+## The Implementation
 
 ### 1. Mark as Read
 
-Logo no início de `handleInboundMessage()`, antes de processar:
+Right at the start of `handleInboundMessage()`, before any processing:
 
 ```typescript
 await markMessageAsRead(message.id, phoneNumberId)
 ```
 
-Resultado: o ✓ azul do WhatsApp aparece no celular do usuário em <1s — confirma que a Xtimator recebeu.
+Result: WhatsApp's blue checkmark appears on the user's phone in <1s — confirms Xtimator received it.
 
-Endpoint Meta:
+Meta endpoint:
 ```
 POST /{phone-number-id}/messages
 {
@@ -45,15 +45,15 @@ POST /{phone-number-id}/messages
 
 ### 2. Typing Indicator
 
-Após o read receipt, enviar typing indicator antes de começar o processamento pesado:
+After the read receipt, send the typing indicator before starting heavy processing:
 
 ```typescript
 await sendTypingIndicator(message.id, phoneNumberId)
 ```
 
-Resultado: "typing…" aparece em baixo do nome no chat — sinaliza que a Xtimator está "pensando".
+Result: "typing…" appears under the name in the chat — signals that Xtimator is "thinking".
 
-Endpoint Meta (mesma chamada do read, com campo extra):
+Meta endpoint (same call as read, with extra field):
 ```
 POST /{phone-number-id}/messages
 {
@@ -64,40 +64,40 @@ POST /{phone-number-id}/messages
 }
 ```
 
-O indicator dura ~25s ou até a primeira mensagem ser enviada. Se o processamento passar disso, enviar de novo antes do timeout.
+The indicator lasts ~25s or until the first message is sent. If processing takes longer than that, send it again before timeout.
 
-## Casos de Borda
+## Edge Cases
 
-- **Erro no processamento**: ainda enviar resposta de erro (cancela o typing automaticamente).
-- **Mensagem duplicada (já processada)**: pular tudo (já respondemos antes; mandar read seria estranho).
-- **Status webhook**: já é ignorado em `route.ts:48` — sem mudança.
-- **Múltiplos read receipts no debounce buffer (SEED-010)**: marcar todas as msgs do buffer como lidas em batch ao processar.
+- **Processing error**: still send error response (cancels typing automatically).
+- **Duplicate message (already processed)**: skip everything (we already responded; sending read would be weird).
+- **Status webhook**: already ignored in `route.ts:48` — no change.
+- **Multiple read receipts in debounce buffer (SEED-010)**: mark all buffered messages as read in batch when processing.
 
 ## Scope Estimate
 
-**Small** — algumas horas, 1 phase ou até parte de outra:
+**Small** — a few hours, 1 phase or even part of another:
 
-1. Adicionar 2 funções em `lib/whatsapp/client.ts`:
+1. Add 2 functions in `lib/whatsapp/client.ts`:
    - `markMessageAsRead(messageId, phoneNumberId)`
    - `sendTypingIndicator(messageId, phoneNumberId)`
-2. Chamar `markMessageAsRead()` em `handler.ts` logo após dedup check passar
-3. Chamar `sendTypingIndicator()` antes de operações de download/Whisper/Vision
-4. Re-enviar typing indicator antes do timeout (25s) para processamentos longos
-5. Testes unitários: mock Meta API, garantir que read é chamado antes de processar, typing é chamado antes do work pesado
+2. Call `markMessageAsRead()` in `handler.ts` right after dedup check passes
+3. Call `sendTypingIndicator()` before download/Whisper/Vision operations
+4. Re-send typing indicator before timeout (25s) for long processing
+5. Unit tests: mock Meta API, ensure read is called before processing, typing is called before heavy work
 
 ## Breadcrumbs
 
-- `lib/whatsapp/client.ts` — adicionar funções aqui; já tem `sendWhatsAppMessage()` como referência de auth/POST pattern
-- `lib/whatsapp/handler.ts:80-86` — atual início de `processInboundMessage()`; ponto de inserção do mark-as-read após dedup
-- `lib/whatsapp/handler.ts:87-110` — switch por tipo de mensagem; inserir typing indicator antes
-- `app/api/webhooks/whatsapp/route.ts:91-98` — dedup check; após confirmar que NÃO é duplicata, então marca como read
+- `lib/whatsapp/client.ts` — add functions here; already has `sendWhatsAppMessage()` as auth/POST pattern reference
+- `lib/whatsapp/handler.ts:80-86` — current start of `processInboundMessage()`; insertion point for mark-as-read after dedup
+- `lib/whatsapp/handler.ts:87-110` — switch by message type; insert typing indicator before
+- `app/api/webhooks/whatsapp/route.ts:91-98` — dedup check; only mark as read after confirming it's NOT a duplicate
 - Meta API docs: https://developers.facebook.com/docs/whatsapp/cloud-api/guides/mark-message-as-read
 - Meta API docs: https://developers.facebook.com/docs/whatsapp/cloud-api/guides/send-message-reaction (typing)
 
 ## Notes
 
-- Esse seed é **independente** do SEED-010 (debounce), mas combina muito bem com ele — durante o buffer de 5s+ é exatamente quando typing indicator faz mais diferença.
-- Mark-as-read **deve vir antes** do typing — ordem natural do WhatsApp (mensagem recebida → lida → outra parte digitando resposta).
-- Custo: zero. Esses calls não contam contra o limite de mensagens da Meta — são metadata.
-- Risco: nenhum. Se Meta API falhar, o envio do read/typing é fire-and-forget — não bloqueia processamento.
-- Polish de qualidade enterprise — diferença sutil mas perceptível entre "bot funcional" e "bot polido".
+- This seed is **independent** of SEED-010 (debounce), but pairs very well with it — during the 5s+ buffer is exactly when the typing indicator makes the biggest difference.
+- Mark-as-read **must come before** typing — natural WhatsApp order (message received → read → other side typing reply).
+- Cost: zero. These calls don't count against Meta's message limit — they're metadata.
+- Risk: none. If Meta API fails, the read/typing send is fire-and-forget — doesn't block processing.
+- Enterprise-quality polish — subtle but perceptible difference between "functional bot" and "polished bot".

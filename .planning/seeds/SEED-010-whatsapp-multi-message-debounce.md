@@ -3,7 +3,7 @@ id: SEED-010
 status: dormant
 planted: 2026-05-10
 planted_during: v2.0 WhatsApp Estimate Channel (post-milestone analysis)
-trigger_when: When iterating on WhatsApp UX, planning a v2.x WhatsApp milestone, or addressing user complaints about "blocked second message"
+trigger_when: When iterating on WhatsApp UX, planning a v2.x WhatsApp milestone, or addressing user complaints about "second message blocked"
 scope: Medium
 ---
 
@@ -11,96 +11,96 @@ scope: Medium
 
 ## Why This Matters
 
-O fluxo WhatsApp atual do Xtimator **assume que o usuário envia uma única mensagem por estimativa**. Na realidade, um empreiteiro andando por uma obra envia naturalmente uma sequência:
+The current Xtimator WhatsApp flow **assumes the user sends a single message per estimate**. In reality, a contractor walking through a job site naturally sends a sequence:
 
 ```
-[18:32:01] 🎙️ áudio descrevendo a cozinha
-[18:32:18] 📸 foto da pia
-[18:32:34] 📸 foto do balcão
-[18:33:02] 🎙️ áudio descrevendo a sala
-[18:33:24] ✍️ "esqueci, tem azulejo quebrado no banheiro"
+[18:32:01] 🎙️ audio describing the kitchen
+[18:32:18] 📸 photo of the sink
+[18:32:34] 📸 photo of the counter
+[18:33:02] 🎙️ audio describing the living room
+[18:33:24] ✍️ "forgot — there's a broken tile in the bathroom"
 ```
 
-**O que o sistema faz hoje** (`lib/whatsapp/handler.ts:126`):
-1. Primeira mensagem (áudio) chega → cria projeto → transcreve → gera estimativa imediatamente
-2. Sessão entra em `awaiting_confirm`
-3. Todas as mensagens seguintes são **bloqueadas** com "Reply *send* or *cancel*"
+**What the system does today** (`lib/whatsapp/handler.ts:126`):
+1. First message (audio) arrives → creates project → transcribes → generates estimate immediately
+2. Session enters `awaiting_confirm`
+3. All subsequent messages are **blocked** with "Reply *send* or *cancel*"
 
-O empreiteiro recebe a estimativa baseada **só na cozinha**, e as outras 4 mensagens são desperdiçadas. Para gerar a estimativa completa, ele precisa cancelar e recomeçar — repetindo todo o input. UX quebrada para o caso de uso real.
+The contractor receives an estimate based **only on the kitchen**, and the other 4 messages are wasted. To get the complete estimate, they have to cancel and start over — repeating all the input. UX is broken for the real use case.
 
-## A Solução: Debounce com Redis
+## The Solution: Redis Debounce
 
-Inspirado no padrão do projeto antigo (n8n + Chatwoot + Upstash), o webhook não processa cada mensagem imediatamente. Em vez disso:
+Inspired by the legacy n8n + Chatwoot + Upstash project, the webhook doesn't process each message immediately. Instead:
 
 ```
-Mensagem chega
+Message arrives
   ↓
-PUSH no buffer Redis (key = phone_number)
+PUSH to Redis buffer (key = phone_number)
   ↓
-Wait 500ms (deixa Redis estabilizar)
+Wait 500ms (let Redis stabilize)
   ↓
 GET buffer
   ↓
-É a mensagem mais recente? (id == last(buffer).id)
-  ├─ Não → discard (uma mais nova vai processar)
-  └─ Sim → A última msg tem >5s? (usuário parou de digitar?)
-      ├─ Não → wait + loop
-      └─ Sim → DELETE buffer + processa TODAS as msgs juntas
+Is this the latest message? (id == last(buffer).id)
+  ├─ No → discard (a newer one will process)
+  └─ Yes → Is last msg >5s old? (user stopped typing?)
+      ├─ No → wait + loop
+      └─ Yes → DELETE buffer + process ALL messages together
 ```
 
-O processamento agregado:
-- Concatena todos os áudios transcritos
-- Inclui todas as fotos analisadas
-- Inclui todos os textos
-- Gera **uma única estimativa completa** a partir de tudo
+Aggregated processing:
+- Concatenate all transcribed audios
+- Include all analyzed photos
+- Include all texts
+- Generate **one complete estimate** from everything
 
-## Configurações
+## Configuration
 
 ```typescript
-const DEBOUNCE_WAIT_MS = 5_000   // tempo de silêncio antes de processar
-const BUFFER_TTL_SECONDS = 120   // expira buffer se algo der errado
-const STABILIZE_WAIT_MS = 500    // wait inicial antes do primeiro check
+const DEBOUNCE_WAIT_MS = 5_000   // silence time before processing
+const BUFFER_TTL_SECONDS = 120   // expire buffer if something goes wrong
+const STABILIZE_WAIT_MS = 500    // initial wait before first check
 ```
 
-5 segundos é o sweet spot do n8n original — longo o suficiente para o usuário terminar de gravar/tirar fotos, curto o suficiente para não parecer travado.
+5 seconds is the sweet spot from the original n8n setup — long enough for the user to finish recording/taking photos, short enough to not feel stuck.
 
-## Casos de Borda
+## Edge Cases
 
-- **Cancelamento durante buffer**: se chegar a palavra "cancel" enquanto estiver bufferizando, processa imediatamente o cancel.
-- **Buffer órfão**: TTL de 2 minutos no Redis garante que buffers travados são limpos automaticamente.
-- **Múltiplos workers**: usar `Redis WATCH/MULTI` ou lock distribuído para evitar dois workers processarem o mesmo buffer.
-- **Confirmação durante buffer ativo**: se sessão já está em `awaiting_confirm` e chega nova mensagem que não é "send"/"cancel" — atualmente bloqueia. Com debounce, considerar tratar como input para refinement (integra com SEED-006).
+- **Cancellation during buffer**: if "cancel" arrives while buffering, process the cancel immediately.
+- **Orphaned buffer**: 2-minute TTL on Redis ensures stuck buffers get cleaned automatically.
+- **Multiple workers**: use `Redis WATCH/MULTI` or a distributed lock to prevent two workers processing the same buffer.
+- **Confirmation during active buffer**: if session is already `awaiting_confirm` and a new non-send/cancel message arrives — currently blocked. With debounce, consider treating it as input for refinement (integrates with SEED-006).
 
 ## Stack
 
-- **Upstash Redis** — managed, serverless, integra direto com Vercel
-- Cliente já tem padrão de uso no projeto antigo
-- Variáveis de ambiente: `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`
+- **Upstash Redis** — managed, serverless, integrates directly with Vercel
+- Client already has a usage pattern from the legacy project
+- Environment variables: `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`
 
 ## Scope Estimate
 
-**Medium** — 1 fase, ~2-3 dias:
+**Medium** — 1 phase, ~2-3 days:
 
-1. Setup Upstash Redis + cliente em `lib/redis.ts`
-2. Refatorar `app/api/webhooks/whatsapp/route.ts` para PUSH em vez de processar direto
-3. Criar `lib/whatsapp/buffer.ts` com lógica de debounce
-4. Refatorar `processInboundMessage()` para aceitar **array** de mensagens
-5. Refatorar `generate-estimate` para aceitar input agregado (texto + áudios + fotos juntos)
-6. Testes: simular sequência de mensagens, garantir 1 estimativa final
-7. Observability: log de quantas mensagens cada buffer agregou (métrica de uso)
+1. Setup Upstash Redis + client in `lib/redis.ts`
+2. Refactor `app/api/webhooks/whatsapp/route.ts` to PUSH instead of processing directly
+3. Create `lib/whatsapp/buffer.ts` with debounce logic
+4. Refactor `processInboundMessage()` to accept an **array** of messages
+5. Refactor `generate-estimate` to accept aggregated input (text + audios + photos together)
+6. Tests: simulate sequence of messages, ensure 1 final estimate
+7. Observability: log how many messages each buffer aggregated (usage metric)
 
 ## Breadcrumbs
 
-- `lib/whatsapp/handler.ts:30-55` — atual lógica de session check; ponto onde o early-return de "responda send/cancel" precisa virar agregação
-- `lib/whatsapp/handler.ts:87-110` — switch por tipo de mensagem (text/audio/image); virar loop sobre array
-- `lib/whatsapp/handler.ts:126` — `generateEstimateForProject()` chamado uma vez por mensagem; vira uma vez por buffer
-- `lib/services/generate-estimate.ts` — aceita projeto com múltiplos recordings + photos; já é compatível com input agregado, só precisa garantir que use TUDO
-- `app/api/webhooks/whatsapp/route.ts:53` — `after()` fire-and-forget; manter, mas chamar `processBuffer()` em vez de `handleInboundMessage()`
-- `lib/whatsapp/confirm.ts` — sessão `awaiting_confirm` continua igual; debounce só afeta input antes da confirmação
+- `lib/whatsapp/handler.ts:30-55` — current session check logic; point where the "reply send/cancel" early return needs to become aggregation
+- `lib/whatsapp/handler.ts:87-110` — switch by message type (text/audio/image); becomes a loop over the array
+- `lib/whatsapp/handler.ts:126` — `generateEstimateForProject()` called once per message; becomes once per buffer
+- `lib/services/generate-estimate.ts` — accepts a project with multiple recordings + photos; already compatible with aggregated input, just needs to actually use EVERYTHING
+- `app/api/webhooks/whatsapp/route.ts:53` — `after()` fire-and-forget; keep it, but call `processBuffer()` instead of `handleInboundMessage()`
+- `lib/whatsapp/confirm.ts` — `awaiting_confirm` session stays the same; debounce only affects input before confirmation
 
 ## Notes
 
-- Esse seed **conserta** comportamento — não é feature nova. Pode entrar como hotfix em v2.1.
-- Considerar combinar com SEED-011 (typing indicator) — durante o buffer (5s+), enviar `typing_indicator` mantém o usuário tranquilo de que algo está acontecendo.
-- A estimativa gerada a partir de input agregado vai ser **muito melhor** do que a atual — o Claude tem mais contexto. Isso é um upside além de só consertar a UX.
-- Integração com SEED-006 (refinement iterativo): após confirmação, mensagens adicionais entram em modo refine. Antes da confirmação, entram no buffer.
+- This seed **fixes** broken behavior — it's not a new feature. Could ship as a hotfix in v2.1.
+- Consider combining with SEED-011 (typing indicator) — during the buffer (5s+), sending `typing_indicator` keeps the user reassured that something is happening.
+- The estimate generated from aggregated input will be **much better** than the current one — Claude has more context. That's an upside beyond just fixing the UX.
+- Integration with SEED-006 (iterative refinement): after confirmation, additional messages enter refine mode. Before confirmation, they enter the buffer.
