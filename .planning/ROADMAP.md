@@ -560,5 +560,5 @@ Plans:
 | 50. WhatsApp OTP Number Verification | v2.1 | 1/1 | Complete | 2026-05-11 |
 | 51. WhatsApp Pre-Send Edit Commands | v2.1 | 1/1 | Complete | 2026-05-11 |
 | 52. Per-Estimate Language Selection | v2.1 | 1/1 | Complete | 2026-05-11 |
-| 53. PDF Attachment Delivery | v2.2 | 2/2 | Complete   | 2026-05-11 |
+| 53. PDF Attachment Delivery | v2.2 | 2/2 | Complete    | 2026-05-11 |
 | 54. WhatsApp Status Flow | v2.2 | 0/TBD | Not started | - |
