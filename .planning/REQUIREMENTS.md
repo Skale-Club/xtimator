@@ -20,14 +20,14 @@
 
 | Requirement | Phase |
 |-------------|-------|
-| WAPDF-01 | TBD |
-| WAPDF-02 | TBD |
-| WAPDF-03 | TBD |
-| WAPDF-04 | TBD |
-| WASTATUS-01 | TBD |
-| WASTATUS-02 | TBD |
-| WASTATUS-03 | TBD |
-| WASTATUS-04 | TBD |
+| WAPDF-01 | Phase 53 |
+| WAPDF-02 | Phase 53 |
+| WAPDF-03 | Phase 53 |
+| WAPDF-04 | Phase 53 |
+| WASTATUS-01 | Phase 54 |
+| WASTATUS-02 | Phase 54 |
+| WASTATUS-03 | Phase 54 |
+| WASTATUS-04 | Phase 54 |
 
 ## Future Requirements (deferred)
 

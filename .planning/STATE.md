@@ -1,12 +1,12 @@
 ---
 gsd_state_version: 1.0
-milestone: v2.1
-milestone_name: WhatsApp Launch-Readiness
-status: complete
-last_updated: "2026-05-11T04:00:00.000Z"
+milestone: v2.2
+milestone_name: WhatsApp Channel Polish
+status: in_progress
+last_updated: "2026-05-11T00:00:00.000Z"
 last_activity: 2026-05-11
 progress:
-  total_phases: 52
+  total_phases: 54
   completed_phases: 52
   total_plans: 116
   completed_plans: 116
@@ -16,15 +16,20 @@ progress:
 
 ## Current Status
 
-- **Milestone**: v2.1 WhatsApp Launch-Readiness — ✅ COMPLETE
+- **Milestone**: v2.2 WhatsApp Channel Polish — In Progress
 - **Last updated**: 2026-05-11
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 53 — PDF Attachment Delivery (not started)
 Plan: —
-Status: Defining requirements for v2.2
-Last activity: 2026-05-11 — Milestone v2.2 WhatsApp Channel Polish started
+Status: Roadmap created; ready for Phase 53 planning
+Last activity: 2026-05-11 — v2.2 roadmap created (Phases 53-54)
+
+## v2.2 Phases
+
+- Phase 53: PDF Attachment Delivery (WAPDF-01..04) — Not started
+- Phase 54: WhatsApp Status Flow (WASTATUS-01..04) — Not started
 
 ## v2.1 Phases Shipped
 
@@ -385,10 +390,10 @@ Last activity: 2026-05-11 — Milestone v2.2 WhatsApp Channel Polish started
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-05-10)
+See: .planning/PROJECT.md (updated 2026-05-11)
 
 **Core value:** Business owner → job site audio recording → sent professional estimate in under 5 minutes
-**Current focus:** Phase 40 — Webhook Infrastructure
+**Current focus:** Phase 53 — PDF Attachment Delivery
 
 ## Notes
 
@@ -402,6 +407,9 @@ v1.6: 3 phases (31-33), 13 requirements. Wizard modality selection + text input 
 v1.7: Phase 34 (completed 2026-05-09). SEED-007 Client-Project Quick Actions verification.
 v1.8: Phases 35-37 (completed 2026-05-09). SEED-006 Iterative Estimate Refinement — text/voice/photo refinement panel in estimate editor.
 v1.9: Phases 38-39 (started 2026-05-10). SEED-009 Custom Domain Support — per-company domain configuration + subdomain routing + white-label estimate view.
+v2.0: Phases 40-45 (shipped 2026-05-10). SEED-008 WhatsApp Estimate Channel MVP.
+v2.1: Phases 46-52 (shipped 2026-05-11). WhatsApp Launch-Readiness — 7 phases, typed errors, Redis rate limiting, debounce, typing indicators, OTP verification, pre-send edit commands, per-estimate language selection.
+v2.2: Phases 53-54 (started 2026-05-11). WhatsApp Channel Polish — PDF attachment delivery (Gap 3) + real status flow (Gap 5).
 
 ## Accumulated Context
 
@@ -417,6 +425,7 @@ v1.9: Phases 38-39 (started 2026-05-10). SEED-009 Custom Domain Support — per-
 - v1.5 phases 27-30: Schema migration (Phase 27) → Unified capture screen (Phase 28) → Frictionless creation + client linking UI (Phase 29) → AI client extraction (Phase 30). Key constraint: Phase 27 is a hard prerequisite for everything — nullable storage_path enables text-only recordings, optional client_id enables client-less projects. Phase 28 depends on Phase 27. Phase 29 depends on Phase 27 (optional client_id) and is informed by Phase 28 but not blocked by it. Phase 30 is highest risk (AI adapter changes) and ships last, depending on Phase 28 (estimate generation must have run first).
 - v1.6 phases 31-33 (SEED-005): Wizard modality selection (Phase 31) → Text input route /describe (Phase 32) → Photos input route /photos-input (Phase 33). Key constraint: Phase 27 (nullable storage_path) already enables text-only and photos-only recordings. Phase 31 adds the wizard selection UI and input_mode storage. Phases 32-33 are independent entry points that reuse the existing generate-estimate pipeline.
 - v1.9 phases 38-39 (SEED-009): Domain config + settings UI (Phase 38) → Subdomain routing + white-label (Phase 39). Key constraint: Phase 38 must ship first — Phase 39 reads the custom_domain column that Phase 38 creates. DOMAIN-05 (no regression) is validated in Phase 38 by ensuring companies with no domain see no change. custom_domain goes on companies table (not platform_branding — that is platform-level config). proxy.ts hosts the subdomain detection (no middleware.ts exists).
+- v2.2 phases 53-54 (SEED-015 Gaps 3 & 5): PDF attachment delivery (Phase 53) → WhatsApp status flow (Phase 54). Key constraint: Phase 53 touches confirm.ts delivery branching and adds pdf_attachment to delivery_format enum — complete that before Phase 54 also touches the same UI selector to add suspend/reactivate. Both phases build on Phase 50 (OTP verification) which established the pending→active transition. Phase 54 closes the status flow loop by wiring verified→active auto-promotion and adding the suspended state with admin controls.
 
 ### Quick Tasks Completed
 
