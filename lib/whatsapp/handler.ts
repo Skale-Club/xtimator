@@ -8,7 +8,12 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import Anthropic from '@anthropic-ai/sdk'
 import { generateEstimateForProject } from '@/lib/services/generate-estimate'
-import { downloadWhatsAppMedia, sendWhatsAppMessage } from '@/lib/whatsapp/client'
+import {
+  downloadWhatsAppMedia,
+  sendWhatsAppMessage,
+  markMessageAsRead,
+  sendTypingIndicator,
+} from '@/lib/whatsapp/client'
 import { processConfirmationReply } from '@/lib/whatsapp/confirm'
 import { getIntegrationKey } from '@/lib/platform-config'
 import { PLACEHOLDER_PREFIX } from '@/lib/constants/project'
@@ -26,6 +31,12 @@ export async function processInboundMessage(
   supabase: SupabaseClient
 ): Promise<void> {
   const ownerPhone = `+${fromPhone}`
+
+  // 0. UX feedback: mark as read + show typing indicator (fire-and-forget)
+  // These keep the user reassured during the 20-40s of AI work that follows.
+  // Meta API failures are swallowed inside markMessageAsRead/sendTypingIndicator.
+  await markMessageAsRead(message.id)
+  await sendTypingIndicator(message.id)
 
   // 1. Check for active awaiting_confirm session — Phase 43 handles confirm/cancel replies
   const { data: existingSession } = await supabase
@@ -120,7 +131,11 @@ export async function processInboundMessage(
 
   if (!inputReady) return
 
-  // 4. Generate estimate
+  // 4. Refresh typing indicator before AI generation — it lasts ~25s and Claude can
+  // take longer for big estimates. Re-send so user sees "typing..." continuously.
+  await sendTypingIndicator(message.id)
+
+  // 5. Generate estimate
   let result: Awaited<ReturnType<typeof generateEstimateForProject>>
   try {
     result = await generateEstimateForProject(companyId, projectId)

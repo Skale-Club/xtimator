@@ -27,6 +27,68 @@ export async function sendWhatsAppMessage(to: string, body: object): Promise<voi
 }
 
 /**
+ * Mark an inbound message as read (blue checks appear on user's phone).
+ * Fire-and-forget — failures are swallowed and logged. Never blocks processing.
+ *
+ * Meta docs: https://developers.facebook.com/docs/whatsapp/cloud-api/guides/mark-message-as-read
+ */
+export async function markMessageAsRead(messageId: string): Promise<void> {
+  const token = process.env.META_WHATSAPP_ACCESS_TOKEN
+  const phoneNumberId = process.env.META_WHATSAPP_PHONE_NUMBER_ID
+  try {
+    const res = await fetch(`${GRAPH_BASE}/${phoneNumberId}/messages`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        status: 'read',
+        message_id: messageId,
+      }),
+    })
+    if (!res.ok) {
+      console.warn('[WhatsApp] markMessageAsRead failed', res.status, await res.text())
+    }
+  } catch (err) {
+    console.warn('[WhatsApp] markMessageAsRead error', err)
+  }
+}
+
+/**
+ * Send "typing…" indicator to the user. Lasts ~25s on Meta's side or until the next
+ * outbound message replaces it. Re-send before the 25s mark for long-running work.
+ *
+ * Combines mark-as-read with typing — Meta's API uses a single call.
+ * Fire-and-forget — failures swallowed.
+ */
+export async function sendTypingIndicator(messageId: string): Promise<void> {
+  const token = process.env.META_WHATSAPP_ACCESS_TOKEN
+  const phoneNumberId = process.env.META_WHATSAPP_PHONE_NUMBER_ID
+  try {
+    const res = await fetch(`${GRAPH_BASE}/${phoneNumberId}/messages`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        status: 'read',
+        message_id: messageId,
+        typing_indicator: { type: 'text' },
+      }),
+    })
+    if (!res.ok) {
+      console.warn('[WhatsApp] sendTypingIndicator failed', res.status, await res.text())
+    }
+  } catch (err) {
+    console.warn('[WhatsApp] sendTypingIndicator error', err)
+  }
+}
+
+/**
  * Download a media file from WhatsApp Cloud API.
  * Two-step: (1) resolve media URL via mediaId, (2) download binary.
  */

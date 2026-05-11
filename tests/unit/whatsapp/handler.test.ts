@@ -7,6 +7,8 @@ vi.mock('@/lib/services/generate-estimate', () => ({
 vi.mock('@/lib/whatsapp/client', () => ({
   sendWhatsAppMessage: vi.fn(),
   downloadWhatsAppMedia: vi.fn(),
+  markMessageAsRead: vi.fn().mockResolvedValue(undefined),
+  sendTypingIndicator: vi.fn().mockResolvedValue(undefined),
 }))
 
 vi.mock('@/lib/whatsapp/confirm', () => ({

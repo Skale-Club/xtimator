@@ -8,7 +8,12 @@ vi.stubGlobal('fetch', fetchMock)
 process.env.META_WHATSAPP_ACCESS_TOKEN = 'test-token'
 process.env.META_WHATSAPP_PHONE_NUMBER_ID = 'phone-123'
 
-import { sendWhatsAppMessage, downloadWhatsAppMedia } from '@/lib/whatsapp/client'
+import {
+  sendWhatsAppMessage,
+  downloadWhatsAppMedia,
+  markMessageAsRead,
+  sendTypingIndicator,
+} from '@/lib/whatsapp/client'
 
 describe('sendWhatsAppMessage', () => {
   beforeEach(() => fetchMock.mockReset())
@@ -35,5 +40,58 @@ describe('downloadWhatsAppMedia', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2)
     expect(fetchMock.mock.calls[0][0]).toContain('graph.facebook.com/v21.0/media-id-abc')
     expect(Buffer.isBuffer(buf)).toBe(true)
+  })
+})
+
+describe('markMessageAsRead', () => {
+  beforeEach(() => {
+    fetchMock.mockReset()
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+  })
+
+  it('sends status=read with the message_id', async () => {
+    fetchMock.mockResolvedValueOnce(new Response('{}', { status: 200 }))
+    await markMessageAsRead('wamid.XYZ')
+    expect(fetchMock).toHaveBeenCalledOnce()
+    const [url, opts] = fetchMock.mock.calls[0]
+    expect(url).toContain('graph.facebook.com/v21.0/phone-123/messages')
+    expect(opts.method).toBe('POST')
+    const body = JSON.parse(opts.body as string)
+    expect(body.messaging_product).toBe('whatsapp')
+    expect(body.status).toBe('read')
+    expect(body.message_id).toBe('wamid.XYZ')
+    expect(body.typing_indicator).toBeUndefined()
+  })
+
+  it('swallows Meta API errors (fire-and-forget)', async () => {
+    fetchMock.mockResolvedValueOnce(new Response('error', { status: 500 }))
+    await expect(markMessageAsRead('wamid.XYZ')).resolves.toBeUndefined()
+  })
+
+  it('swallows network errors', async () => {
+    fetchMock.mockRejectedValueOnce(new Error('network down'))
+    await expect(markMessageAsRead('wamid.XYZ')).resolves.toBeUndefined()
+  })
+})
+
+describe('sendTypingIndicator', () => {
+  beforeEach(() => {
+    fetchMock.mockReset()
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+  })
+
+  it('sends typing_indicator alongside read receipt', async () => {
+    fetchMock.mockResolvedValueOnce(new Response('{}', { status: 200 }))
+    await sendTypingIndicator('wamid.XYZ')
+    const [, opts] = fetchMock.mock.calls[0]
+    const body = JSON.parse(opts.body as string)
+    expect(body.status).toBe('read')
+    expect(body.message_id).toBe('wamid.XYZ')
+    expect(body.typing_indicator).toEqual({ type: 'text' })
+  })
+
+  it('swallows Meta API errors', async () => {
+    fetchMock.mockResolvedValueOnce(new Response('error', { status: 500 }))
+    await expect(sendTypingIndicator('wamid.XYZ')).resolves.toBeUndefined()
   })
 })
