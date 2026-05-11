@@ -13,7 +13,10 @@ import {
   confirmWhatsAppVerification,
   disconnectWhatsApp,
   updateDeliveryFormat,
+  updateWhatsAppStatus,
 } from '@/lib/actions/whatsapp-settings'
+
+import { Badge } from '@/components/ui/badge'
 
 import {
   Card,
@@ -51,6 +54,28 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
+
+const STATUS_LABELS: Record<string, string> = {
+  pending: 'Pending',
+  verified: 'Verified',
+  active: 'Active',
+  suspended: 'Suspended',
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const label = STATUS_LABELS[status] ?? status
+  if (status === 'active') {
+    return <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 border-0">{label}</Badge>
+  }
+  if (status === 'suspended') {
+    return <Badge variant="destructive">{label}</Badge>
+  }
+  if (status === 'pending') {
+    return <Badge variant="secondary">{label}</Badge>
+  }
+  // 'verified' and unknown values
+  return <Badge variant="outline">{label}</Badge>
+}
 
 const connectSchema = z.object({
   phoneNumber: z
@@ -166,6 +191,20 @@ export function WhatsAppConnectCard({ initial }: WhatsAppConnectCardProps) {
     })
   }
 
+  function onUpdateStatus(newStatus: 'active' | 'suspended') {
+    startTransition(async () => {
+      const result = await updateWhatsAppStatus(newStatus)
+      if (!result.ok) {
+        toast.error(result.error)
+        return
+      }
+      if (current) setCurrent({ ...current, status: newStatus })
+      const msg = newStatus === 'suspended' ? 'WhatsApp connection suspended.' : 'WhatsApp connection reactivated.'
+      toast.success(msg)
+      router.refresh()
+    })
+  }
+
   return (
     <Card className="w-full rounded-[var(--radius-md)]">
       <CardHeader className="border-b border-border">
@@ -232,10 +271,12 @@ export function WhatsAppConnectCard({ initial }: WhatsAppConnectCardProps) {
           <>
             <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
               <CheckCircle2 className="h-4 w-4" />
-              <span>
-                Connected: <strong>{current.phoneNumber}</strong>{' '}
-                <span className="text-muted-foreground">({current.status})</span>
-              </span>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm">
+                  Connected: <strong>{current.phoneNumber}</strong>
+                </span>
+                <StatusBadge status={current.status} />
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -260,6 +301,30 @@ export function WhatsAppConnectCard({ initial }: WhatsAppConnectCardProps) {
                 falls back to share link if generation fails.
               </p>
             </div>
+
+            {/* Suspend / Reactivate — only show for active or suspended/verified connections */}
+            {current.status === 'active' && (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={isPending}
+                onClick={() => onUpdateStatus('suspended')}
+              >
+                {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Suspend
+              </Button>
+            )}
+            {(current.status === 'suspended' || current.status === 'verified') && (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={isPending}
+                onClick={() => onUpdateStatus('active')}
+              >
+                {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Reactivate
+              </Button>
+            )}
 
             <AlertDialog>
               <AlertDialogTrigger asChild>

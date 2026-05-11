@@ -218,7 +218,7 @@ export async function disconnectWhatsApp(): Promise<WhatsAppSettingsResult> {
 }
 
 export async function updateDeliveryFormat(
-  format: 'share_link' | 'formatted_text'
+  format: 'share_link' | 'formatted_text' | 'pdf_attachment'
 ): Promise<WhatsAppSettingsResult> {
   const ctx = await getAuthContext()
   if (!ctx.ok) return { ok: false, error: ctx.errorMsg }
