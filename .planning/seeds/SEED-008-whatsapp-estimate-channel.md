@@ -1,11 +1,40 @@
 ---
 id: SEED-008
-status: dormant
+status: harvested
 planted: 2026-05-08
 planted_during: v1.4 Estimate Plain Text & Pricing Tools (post-milestone cleanup)
+harvested: 2026-05-10
+harvested_in: v2.0 WhatsApp Estimate Channel (Phases 40-45)
+harvest_completeness: MVP — see Harvest Notes for gaps tracked in SEED-015
 trigger_when: Milestone dedicado a canais de integração externos — WhatsApp, SMS, ou automação de comunicação com cliente
 scope: Large
 ---
+
+## Harvest Notes (2026-05-10)
+
+A v2.0 entregou um **MVP funcional** do canal WhatsApp. Comparando o que esse seed propôs vs. o que foi efetivamente implementado:
+
+**Entregue:**
+- ✅ Webhook central (`POST/GET /api/webhooks/whatsapp`) com HMAC-SHA256
+- ✅ Roteamento por número (`company_whatsapp` table)
+- ✅ Inbound processing: áudio (Whisper) + texto + foto (Claude Vision)
+- ✅ Session management básico (state machine 1 estado: `awaiting_confirm`)
+- ✅ Outbound delivery: share link + formatted text (configurável)
+- ✅ Setup UI em `/settings/integrations` (form de phone + phoneNumberId + wabaId)
+- ✅ Session expiry de 30 minutos com Vercel Cron + pg_cron safety net
+- ✅ Admin panel: Meta access token card
+
+**Não entregue (deferred):**
+- ❌ Edit commands pré-envio (`edit [item]`, `client [name]`) — só `send`/`cancel` aceitos
+- ❌ Estado `awaiting_edit` no state machine — promesso, ausente
+- ❌ PDF attachment como formato de delivery — só share link + formatted text
+- ❌ Provider abstraction (`TwilioAdapter` + `MetaAdapter`) — só Meta hardcoded
+- ❌ OTP verification do número durante setup — credenciais salvas sem proof of ownership
+- ❌ Status flow completo (`pending → verified → active → suspended`) — pula direto pra `active`
+- ❌ Coluna `provider` em `company_whatsapp` — apenas Meta suportado
+- ❌ Rate limiting (mencionado como "20 projetos/dia") — coberto pelo SEED-012
+
+Os gaps estão consolidados no **SEED-015: WhatsApp Channel Completeness**. O seed original permanece preservado como referência da visão completa.
 
 # SEED-008: WhatsApp Estimate Channel
 

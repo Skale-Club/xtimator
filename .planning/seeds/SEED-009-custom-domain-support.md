@@ -1,8 +1,11 @@
 ---
 id: SEED-009
-status: dormant
+status: harvested
 planted: 2026-05-10
 planted_during: v1.8 Iterative Estimate Refinement
+harvested: 2026-05-10
+harvested_in: Phases 38-39 (v2.0 milestone)
+harvest_completeness: Full — DB column, settings UI with DNS/CNAME instructions, subdomain routing in proxy.ts, white-label estimate view (footer hidden on custom domain)
 trigger_when: "when adding multi-tenant / white-label / client branding features"
 scope: Small
 ---
