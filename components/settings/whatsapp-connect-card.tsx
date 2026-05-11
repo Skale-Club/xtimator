@@ -67,7 +67,7 @@ export type WhatsAppStatus = {
   phoneNumberId: string
   wabaId: string
   status: string
-  deliveryFormat: 'share_link' | 'formatted_text'
+  deliveryFormat: 'share_link' | 'formatted_text' | 'pdf_attachment'
 } | null
 
 interface WhatsAppConnectCardProps {
@@ -154,7 +154,7 @@ export function WhatsAppConnectCard({ initial }: WhatsAppConnectCardProps) {
   }
 
   function onFormatChange(value: string) {
-    const format = value as 'share_link' | 'formatted_text'
+    const format = value as 'share_link' | 'formatted_text' | 'pdf_attachment'
     startTransition(async () => {
       const result = await updateDeliveryFormat(format)
       if (!result.ok) {
@@ -251,11 +251,13 @@ export function WhatsAppConnectCard({ initial }: WhatsAppConnectCardProps) {
                 <SelectContent>
                   <SelectItem value="share_link">Share link (recommended)</SelectItem>
                   <SelectItem value="formatted_text">Formatted text (inline)</SelectItem>
+                  <SelectItem value="pdf_attachment">PDF attachment</SelectItem>
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
                 Share link sends a URL to the estimate page. Formatted text sends the
-                full breakdown inline in the WhatsApp message.
+                full breakdown inline. PDF attachment sends a branded PDF document —
+                falls back to share link if generation fails.
               </p>
             </div>
 
