@@ -14,26 +14,28 @@ The platform includes:
 
 A business owner can go from job site audio recording to a sent, professional estimate in under 5 minutes without touching a keyboard.
 
-## Last Milestone: v1.9 Custom Domain Support ✅ (shipped 2026-05-10)
+## Last Milestone: v2.0 WhatsApp Estimate Channel ✅ (shipped 2026-05-10)
 
-Custom domain per empresa — owners configuram `estimates.mycompany.com`, proxy.ts detecta o host e passa `whiteLabelMode` para o EstimateView ocultar o footer do Xtimator. 2 phases, 2 plans.
+Webhook infrastructure + inbound processing + confirmation flow + outbound delivery + settings UI. MVP entregue — funcional mas com gaps de UX (multi-message broken, sem typing/read, sem edit pré-envio, sem OTP) endereçados na v2.1.
 
-## Current Milestone: v2.0 WhatsApp Estimate Channel
+## Current Milestone: v2.1 WhatsApp Launch-Readiness
 
-**Goal:** O dono da empresa nunca precisa abrir o Xtimator para gerar um orçamento — manda áudio, texto ou foto pelo WhatsApp, confirma, e o bot envia o orçamento ao cliente.
+**Goal:** Xtimator nasce com WhatsApp funcionando de verdade — multi-mensagem, edit pré-envio, OTP verification, typing/read receipts, rate limiting, error handling tipado, e seleção de idioma por estimativa (Brazilian user pode mandar estimativa em inglês).
 
 **Target features:**
-- Webhook infrastructure — `POST /api/webhooks/whatsapp` with Meta HMAC-SHA256 signature verification, phone→company routing
-- Phone number registration — `/settings/integrations` WhatsApp card, connect + verify flow
-- Inbound processing — audio/text/photo received via WhatsApp, routed through Whisper + Claude Vision + generate-estimate pipeline
-- Confirmation flow — bot sends estimate summary, owner replies "send" / "edit X" / "cancel", session expires in 30min
-- Outbound delivery — sends estimate to client as formatted text, PDF attachment, or share link (configurable per company)
+- **Typed error handling foundation** (SEED-014) — XtimatorError class, type+surface codes, asResponse() + handleWhatsAppError() adapters
+- **Redis + rate limiting** (SEED-012) — Upstash client + sliding window rate limit on all expensive endpoints
+- **WhatsApp multi-message debounce** (SEED-010) — buffer messages, process aggregated batch as one estimate
+- **WhatsApp typing + read receipts** (SEED-011) — Meta API calls for blue checks and "typing..." during processing
+- **WhatsApp OTP number verification** (SEED-015 Gap 2) — 6-digit code sent via WhatsApp before activation
+- **WhatsApp pre-send edit commands** (SEED-015 Gap 1) — structured commands to edit estimate before sending
+- **Per-estimate language selection** (SEED-016) — English-first cascade; estimate language independent of app language
 
 ## Current State
 
-**Version:** v2.0 WhatsApp Estimate Channel — 🔲 IN PROGRESS
-**Phases complete:** 39/39 (v1.9 complete) | **Build:** passing
-**Last shipped:** Phase 39 — Subdomain Routing + White-label (2026-05-10)
+**Version:** v2.1 WhatsApp Launch-Readiness — 🚧 IN PROGRESS
+**Phases complete:** 45/45 (v2.0 complete) | **Build:** passing
+**Last shipped:** Phase 45 — Settings UI + Admin Token (2026-05-10)
 **Tech stack:** Next.js 16 (App Router), TypeScript strict, Tailwind 4, shadcn/ui (New York), Supabase (Auth + DB + Storage), @react-pdf/renderer, Resend, Anthropic Claude, OpenAI Whisper, next-themes
 **Test coverage:** 250+ unit tests passing, integration tests, E2E with Playwright (mobile + landing page + voice flow coverage)
 **Deployment target:** Vercel

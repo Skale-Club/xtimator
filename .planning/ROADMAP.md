@@ -13,6 +13,7 @@
 - ✅ **v1.8 Iterative Estimate Refinement** — Phases 35-37 (shipped 2026-05-09)
 - ✅ **v1.9 Custom Domain Support** — Phases 38-39 (shipped 2026-05-10)
 - ✅ **v2.0 WhatsApp Estimate Channel** — Phases 40-45 (shipped 2026-05-10)
+- 🚧 **v2.1 WhatsApp Launch-Readiness** — Phases 46-52 (in progress)
 
 ## Phases
 
@@ -112,6 +113,16 @@
 - [ ] **Phase 43: Confirmation Flow** — `awaiting_confirm` state machine — "send" / "cancel" command parsing; session expiry at 30 minutes with expiry notification; `pg_cron` or Vercel cron cleanup; `lib/whatsapp/formatter.ts` confirmation message builder
 - [ ] **Phase 44: Outbound Client Delivery** — Deliver estimate to client as share link (default) or formatted text per `company_whatsapp.delivery_format`; update estimate + project status to "sent"; confirm delivery to owner via WhatsApp
 - [ ] **Phase 45: Settings UI + Admin Token** — `/settings/integrations` page with WhatsApp Connect Card (connect / verify OTP / disconnect / delivery format selector); Settings entry card; admin panel Meta access token card; `POST /api/settings/whatsapp` connect/verify/delete routes
+
+### v2.1 WhatsApp Launch-Readiness (Phases 46-52)
+
+- [ ] **Phase 46: Typed Error Handling Foundation** — `lib/errors/` with `XtimatorError` class, type+surface composite codes, `asResponse()` wrapper, WhatsApp adapter (`handleWhatsAppError`), `throwIf*` helpers; foundation for all other v2.1 phases (SEED-014)
+- [ ] **Phase 47: Redis + Rate Limiting Infrastructure** — Upstash Redis client in `lib/redis.ts`; `lib/ratelimit.ts` with `rateLimit(limitName, identifier)`; applied to generate-estimate, webhooks/whatsapp, analyze-photos, translate; per-IP middleware in proxy.ts (SEED-012)
+- [ ] **Phase 48: WhatsApp Multi-Message Debounce** — Redis-backed buffer per phone_number; PUSH on inbound, 5s silence wait, GET+process all together; refactor `processInboundMessage()` to accept array; generate ONE estimate from aggregated input (SEED-010)
+- [ ] **Phase 49: WhatsApp Typing + Read Receipts** — `markMessageAsRead()` + `sendTypingIndicator()` in `lib/whatsapp/client.ts`; called after dedup pass and before heavy processing; re-send typing before 25s timeout (SEED-011)
+- [ ] **Phase 50: WhatsApp OTP Number Verification** — Two-step setup flow: submit credentials → status=pending → 6-digit code via WhatsApp → verify → status=active; schema columns (verification_code, attempts, expires); UI second step in `WhatsAppConnectCard` (SEED-015 Gap 2)
+- [ ] **Phase 51: WhatsApp Pre-Send Edit Commands** — Structured parser for `edit`, `add`, `remove`, `regenerate`, `client` commands; mutations on estimate/sections/items; re-send updated summary; session stays in awaiting_confirm; optional Claude Haiku for ambiguous natural-language commands (SEED-015 Gap 1)
+- [ ] **Phase 52: Per-Estimate Language Selection** — `language` column on estimates (default 'en'), `preferred_language` on clients, `default_estimate_language` on companies; cascade resolver (estimate→client→company→user→'en'); AI prompt parameterized; `EstimatePDF` i18n-aware; WhatsApp formatter respects estimate language (SEED-016)
 
 ## Phase Details
 
@@ -382,6 +393,85 @@ Plans:
 - [ ] 40-01-PLAN.md — DB migration (3 WA tables + RLS + purge) + lib/whatsapp/ modules (types, verify, client) + unit tests
 - [ ] 40-02-PLAN.md — Webhook route (GET challenge + POST HMAC handler + dedup stub) + proxy.ts bypass
 **UI hint**: yes
+
+### Phase 46: Typed Error Handling Foundation
+**Goal**: Establish a typed error class with type+surface composite codes, status mappings, user message lookup, and adapters for HTTP responses and WhatsApp messages
+**Depends on**: None (foundational)
+**Requirements**: Derived from SEED-014
+**Success Criteria** (what must be TRUE):
+  1. Any handler can `throw new XtimatorError('tier_limit', 'estimates', 'msg', cause?, meta?)` and the caller wrapping with `asResponse(err)` gets correct HTTP status + JSON body
+  2. WhatsApp handler can `handleWhatsAppError(err, fromPhone)` and the user receives a contextual message based on the error code
+  3. ZodError is auto-translated to 400 with the invalid fields list
+  4. Internal errors return generic message to user but log full stack server-side
+**Plans**: 1 plan
+
+### Phase 47: Redis + Rate Limiting Infrastructure
+**Goal**: Provision Upstash Redis and ship `rateLimit(name, identifier)` applied to the four most-expensive endpoints + a per-IP middleware in proxy.ts
+**Depends on**: Phase 46 (uses XtimatorError for 429 responses)
+**Requirements**: Derived from SEED-012
+**Success Criteria**:
+  1. `lib/redis.ts` exposes a single Upstash client; env vars validated at startup
+  2. `rateLimit('userEstimatePerHour', userId)` returns `{ allowed, retryAfter }` via sliding window (INCR + EXPIRE NX)
+  3. Hitting an endpoint past the limit returns HTTP 429 with `Retry-After` header
+  4. Per-IP middleware in proxy.ts blocks abusive bursts before they reach any route
+**Plans**: 1 plan
+
+### Phase 48: WhatsApp Multi-Message Debounce
+**Goal**: When a user sends multiple messages within 5 seconds, buffer them in Redis and process the entire batch as one estimate
+**Depends on**: Phase 47 (Redis client must exist)
+**Requirements**: Derived from SEED-010
+**Success Criteria**:
+  1. User sends 5 messages in quick succession — system waits 5s after the last, then processes ALL together
+  2. `processInboundMessage()` accepts an array of messages and generates ONE estimate
+  3. If a message arrives during processing, it starts a new buffer (no data loss)
+  4. Buffer has 2-minute TTL safety net
+**Plans**: 1 plan
+
+### Phase 49: WhatsApp Typing + Read Receipts
+**Goal**: Mark inbound messages as read (blue checks) and show typing indicator during AI processing
+**Depends on**: Phase 46 (errors)
+**Requirements**: Derived from SEED-011
+**Success Criteria**:
+  1. Immediately after dedup passes, blue checks appear on the user's phone (<1s)
+  2. Before heavy processing, typing indicator appears in the chat
+  3. If processing exceeds 25s, typing indicator is re-sent before timeout
+  4. Meta API failures on these calls are silently swallowed (fire-and-forget)
+**Plans**: 1 plan
+
+### Phase 50: WhatsApp OTP Number Verification
+**Goal**: Require proof of ownership via WhatsApp-delivered code before activating a number
+**Depends on**: Phase 46 (errors), Phase 49 (sendWhatsAppMessage)
+**Requirements**: Derived from SEED-015 Gap 2
+**Success Criteria**:
+  1. User submits credentials → status='pending' → 6-digit code sent via WhatsApp
+  2. User enters code → server validates (10min TTL, max 3 attempts) → status='active'
+  3. Wrong/expired code shows clear error; after 3 attempts, row is reset
+  4. Inbound webhook only accepts messages from numbers with status='active'
+**Plans**: 1 plan
+
+### Phase 51: WhatsApp Pre-Send Edit Commands
+**Goal**: Owner can edit the estimate via structured WhatsApp commands while in awaiting_confirm, instead of canceling and starting over
+**Depends on**: Phase 46 (errors), Phase 48 (debounce)
+**Requirements**: Derived from SEED-015 Gap 1
+**Success Criteria**:
+  1. Owner can `edit total 450` / `edit section 1 "X"` / `edit item 2.3 price 85`
+  2. Owner can `add item ...` / `remove item ...` / `regenerate` / `client "Name" 555...`
+  3. After every successful edit, the updated summary is re-sent; session stays in awaiting_confirm
+  4. Invalid commands return a contextual error explaining the right syntax
+**Plans**: 1 plan
+
+### Phase 52: Per-Estimate Language Selection
+**Goal**: An estimate can be generated in EN, PT-BR, or ES regardless of the user's app language; English-first cascade resolves the default
+**Depends on**: Phase 46 (errors)
+**Requirements**: Derived from SEED-016
+**Success Criteria**:
+  1. Schema adds `estimates.language` (required, default 'en'), `clients.preferred_language` (nullable), `companies.default_estimate_language` (nullable)
+  2. `generateEstimateForProject()` accepts a language parameter; AI prompt generates in target language with locale-aware formatting
+  3. `EstimatePDF` is i18n-aware; renders in the estimate's language
+  4. WhatsApp formatter uses estimate.language for client-facing message
+  5. Generate-estimate UI exposes a "Generate in:" dropdown with cascade-resolved default
+  6. After sending, if `clients.preferred_language` is null, auto-set to the estimate's language
+**Plans**: 1 plan
 
 ## Progress
 
