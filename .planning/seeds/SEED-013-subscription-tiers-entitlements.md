@@ -213,6 +213,61 @@ Em-app gating:
 - Reference impl: `C:\Users\Vanildo\Dev\chatbot\lib\ai\entitlements.ts`
 - Stripe docs: https://docs.stripe.com/billing/subscriptions/overview
 
+## Open Questions
+
+Decisões que precisam ser tomadas durante `/gsd:discuss-milestone` quando esse seed for ativado. O seed propõe uma direção, mas estas escolhas afetam schema, UX e arquitetura — não devem ser tomadas implicitamente no execute-phase.
+
+### Critical — decidir antes de `plan-milestone`
+
+1. **Pricing model: per-company flat, per-seat, ou hybrid?**
+   O seed assume per-company (consistente com `companies.user_id` 1:1 atual). Mas se Xtimator quer crescer pra agências/franquias, **per-seat** é o padrão B2B — exige tabela `company_members` que não existe hoje. Decisão impacta schema, Stripe products, e UI de billing.
+
+2. **Quota consumption: check→execute→record (não consume→execute)**
+   O exemplo do seed (`consumeQuota()` antes da execução) cobra o usuário mesmo se Whisper/Vision falhar. Correto é `checkQuota()` antes (throws if denied) + `recordUsage()` depois (só em sucesso). API deve refletir esse padrão.
+
+3. **Idempotência de `recordUsage()`**
+   WhatsApp webhook é re-tentado pela Meta. Sem idempotency key, mesma mensagem conta 2-3x na quota. Usar `message_id` (já existe em `whatsapp_processed_messages`) como dedup natural. Para web app, gerar `request_id` por estimativa.
+
+4. **Ciclo de vida de estimativas após downgrade**
+   Usuário Pro gera 100 estimativas → cancela → vira free (10/mês). Os 100 links `/estimate/{token}` antigos continuam ativos? Opções:
+   - **Manter ativos sempre** (boa UX, perdoa abuso)
+   - **Quebrar após N dias** (força retenção, péssima UX)
+   - **Read-only mas sem edição** (compromisso)
+
+5. **WhatsApp gating: onde no pipeline?**
+   `lib/whatsapp/handler.ts` faz download de áudio (Meta) + Whisper + Vision **antes** de qualquer check de tier. Em plano free com `whatsappEnabled=false`, isso significa gastar $$ pra rejeitar no final. Check tem que ser **antes** do primeiro download — possivelmente no webhook route handler, não no handler.
+
+### Important — decidir durante `plan-milestone`
+
+6. **Storage costs nos limites de tier**
+   Fotos vão pra Supabase Storage e ficam lá indefinidamente. Tier "50 fotos/estimativa × 100 estimativas/mês × 12 meses" = 60k fotos retidas. Adicionar `maxStorageGB` ou política de retenção (free: 30 dias, pro: 1 ano, business: forever).
+
+7. **Stripe Tax para compliance US**
+   Vários estados americanos exigem coleta de sales tax em SaaS. Stripe Tax resolve mas exige ativação e configuração de nexus. Decidir: ativar de cara ou só quando MRR justificar?
+
+8. **Multi-currency: USD-only ou USD + BRL?**
+   O Xtimator suporta PT-BR (SEED-001) — implica intenção de servir mercado brasileiro. Stripe handles multi-currency, mas precisa decidir pricing em BRL (R$ 79/mês = ~$15? Ou R$ 149/mês = ~$29?).
+
+9. **Admin tooling: forçar tier vs conceder créditos**
+   Suporte vai precisar resolver casos como "trial expirou, cliente legítimo, estende mais 7 dias". Granularidade:
+   - **Coarse**: admin força tier (`tier='pro'` por X dias)
+   - **Fine**: créditos extras (`bonus_estimates: 20`)
+   - **Híbrido**: ambos
+
+10. **Grandfathering policy**
+    "Pro legacy gratuito" pra todos os usuários atuais sai caro se houver power users. Alternativas:
+    - **Free + 30 dias Pro grátis** (força conversão consciente)
+    - **Pro 50% off para sempre** (compensa lealdade sem perder margem)
+    - **Pro grátis até X estimativas/mês, depois upgrade obrigatório**
+
+### Minor — resolver durante execute-phase
+
+11. **Status code: 402 vs 403 + code body**
+    402 Payment Required é "correto" mas raro. Muitos clientes (incluindo SDKs) tratam 403 melhor. Decisão de baixo nível, mas afeta DX da API.
+
+12. **JSON serialization de "unlimited"**
+    `Infinity` não vai em JSON. Usar `null` (semântico: "sem limite") ou número alto (`999999`)? Afeta tipo TypeScript e checks no frontend.
+
 ## Notes
 
 - **Quando triggar:** quando o produto tiver >50 usuários ativos OU quando alguém pedir pra pagar. Antes disso, free ilimitado é melhor pra growth.
