@@ -2,7 +2,7 @@ import { type NextRequest } from 'next/server'
 import { after } from 'next/server'
 import { verifyWebhookSignature } from '@/lib/whatsapp/verify'
 import { requireServiceClient } from '@/lib/supabase/service'
-import { processInboundMessage } from '@/lib/whatsapp/handler'
+import { processInboundWithDebounce } from '@/lib/whatsapp/handler'
 import type { WhatsAppPayload } from '@/lib/whatsapp/types'
 import { rateLimit } from '@/lib/ratelimit'
 
@@ -115,8 +115,8 @@ async function handleInboundMessage(payload: WhatsAppPayload): Promise<void> {
       return
     }
 
-    // Phase 42: full inbound processing
-    await processInboundMessage(
+    // Phase 42 + Phase 48: routes through debounce buffer when no session exists
+    await processInboundWithDebounce(
       message,
       whatsappConfig.company_id as string,
       fromPhone,

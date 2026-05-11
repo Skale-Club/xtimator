@@ -1,5 +1,7 @@
 /**
  * Phase 42: WhatsApp Inbound Processing
+ * Phase 48: Multi-message debounce (SEED-010) — aggregates messages within a
+ *           5-second window into a single estimate.
  *
  * Processes inbound WhatsApp messages from business owners.
  * Audio → Whisper → estimate, Text → estimate, Image → Claude Vision → estimate.
@@ -18,11 +20,84 @@ import { processConfirmationReply } from '@/lib/whatsapp/confirm'
 import { getIntegrationKey } from '@/lib/platform-config'
 import { PLACEHOLDER_PREFIX } from '@/lib/constants/project'
 import type { WhatsAppMessage } from '@/lib/whatsapp/types'
+import {
+  pushToBuffer,
+  tryClaimBuffer,
+  debounceWait,
+  type BufferedMessage,
+} from '@/lib/whatsapp/buffer'
 
 const SESSION_TTL_MINUTES = 30
 
 // -------------------------------------------------------------------------
-// Entry point — called fire-and-forget from the webhook route
+// Entry point — webhook route calls this fire-and-forget.
+//
+// Phase 48: routes to debounce buffer when no session exists (so multiple
+// messages collapse into one estimate). When a session exists, the message
+// goes straight to the legacy single-message path which delegates to confirm.
+// -------------------------------------------------------------------------
+export async function processInboundWithDebounce(
+  message: WhatsAppMessage,
+  companyId: string,
+  fromPhone: string,
+  supabase: SupabaseClient
+): Promise<void> {
+  const ownerPhone = `+${fromPhone}`
+
+  // UX feedback first — both paths benefit
+  await markMessageAsRead(message.id)
+  await sendTypingIndicator(message.id)
+
+  // Check for active session — if found, skip debounce (confirmation flow)
+  const { data: existingSession } = await supabase
+    .from('whatsapp_sessions')
+    .select('id, state, draft_project_id, draft_estimate_id')
+    .eq('company_id', companyId)
+    .eq('phone_number', ownerPhone)
+    .gt('expires_at', new Date().toISOString())
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single()
+
+  if (existingSession?.state === 'awaiting_confirm') {
+    // Session exists → no debounce, process this single message immediately
+    return processSingleMessageWithSession(
+      message,
+      existingSession as { id: string; state: string; draft_project_id: string | null; draft_estimate_id: string | null },
+      companyId,
+      ownerPhone,
+      supabase
+    )
+  }
+
+  // No session → debounce path
+  const pushed = await pushToBuffer(fromPhone, message)
+  if (!pushed) {
+    // Redis unavailable — fall back to immediate single-message processing
+    return processInboundMessages([message], companyId, fromPhone, supabase)
+  }
+
+  // Wait for the debounce window. If a newer message arrives during the wait,
+  // its own worker will become the winner and ours will exit silently below.
+  await debounceWait()
+
+  // Refresh typing indicator (the original one is expiring on Meta's side)
+  await sendTypingIndicator(message.id)
+
+  const batch = await tryClaimBuffer(fromPhone, message.id)
+  if (!batch) return  // Someone newer is processing
+
+  await processInboundMessages(
+    batch.map((b) => b.message),
+    companyId,
+    fromPhone,
+    supabase
+  )
+}
+
+// -------------------------------------------------------------------------
+// Backwards-compat entry — calls processInboundWithDebounce internally.
+// Kept so existing tests / direct callers don't break.
 // -------------------------------------------------------------------------
 export async function processInboundMessage(
   message: WhatsAppMessage,
@@ -50,26 +125,58 @@ export async function processInboundMessage(
     .single()
 
   if (existingSession?.state === 'awaiting_confirm') {
-    if (message.type === 'text' && message.text?.body) {
-      await processConfirmationReply(
-        message.text.body,
-        existingSession as { id: string; state: string; draft_project_id: string | null; draft_estimate_id: string | null },
-        companyId,
-        ownerPhone,
-        supabase
-      )
-    } else {
-      await sendWhatsAppMessage(ownerPhone, {
-        type: 'text',
-        text: {
-          body: 'Reply *send* to deliver your estimate or *cancel* to discard it.',
-        },
-      })
-    }
-    return
+    return processSingleMessageWithSession(
+      message,
+      existingSession as { id: string; state: string; draft_project_id: string | null; draft_estimate_id: string | null },
+      companyId,
+      ownerPhone,
+      supabase
+    )
   }
 
-  // 2. Create a draft project for this conversation
+  // No session → process this single message directly (used by legacy paths and
+  // by the Redis-unavailable fallback in processInboundWithDebounce)
+  return processInboundMessages([message], companyId, fromPhone, supabase)
+}
+
+// -------------------------------------------------------------------------
+// Single-message handler for the awaiting_confirm path.
+// -------------------------------------------------------------------------
+async function processSingleMessageWithSession(
+  message: WhatsAppMessage,
+  session: { id: string; state: string; draft_project_id: string | null; draft_estimate_id: string | null },
+  companyId: string,
+  ownerPhone: string,
+  supabase: SupabaseClient
+): Promise<void> {
+  if (message.type === 'text' && message.text?.body) {
+    await processConfirmationReply(message.text.body, session, companyId, ownerPhone, supabase)
+  } else {
+    await sendWhatsAppMessage(ownerPhone, {
+      type: 'text',
+      text: {
+        body: 'Reply *send* to deliver your estimate or *cancel* to discard it.',
+      },
+    })
+  }
+}
+
+// -------------------------------------------------------------------------
+// Multi-message processor — creates ONE project from N messages, generates
+// ONE estimate, sends ONE confirmation. Used by the debounce path AND by
+// the single-message fallback (when there's no session).
+// -------------------------------------------------------------------------
+export async function processInboundMessages(
+  messages: WhatsAppMessage[],
+  companyId: string,
+  fromPhone: string,
+  supabase: SupabaseClient
+): Promise<void> {
+  if (messages.length === 0) return
+  const ownerPhone = `+${fromPhone}`
+  const lastMessageId = messages[messages.length - 1].id
+
+  // Create a single draft project for the entire batch
   const placeholderName = `${PLACEHOLDER_PREFIX}WhatsApp`
   const { data: project, error: projectError } = await supabase
     .from('projects')
@@ -92,50 +199,48 @@ export async function processInboundMessage(
   }
   const projectId = project.id as string
 
-  // 3. Dispatch by message type
-  let inputReady = false
-  try {
-    switch (message.type) {
-      case 'text':
-        await handleTextMessage(message, projectId, companyId, supabase)
-        inputReady = true
-        break
-      case 'audio':
-        await handleAudioMessage(message, projectId, companyId, supabase)
-        inputReady = true
-        break
-      case 'image':
-        await handleImageMessage(message, projectId, companyId, supabase)
-        inputReady = true
-        break
-      default:
-        await sendWhatsAppMessage(ownerPhone, {
-          type: 'text',
-          text: {
-            body: 'I can process audio recordings, text descriptions, and photos. Please send one of those to generate an estimate.',
-          },
-        })
-        // Clean up the empty project
-        await supabase.from('projects').delete().eq('id', projectId)
-        return
+  // Dispatch each message by type, accumulating into the same project.
+  // Errors on any single message are logged but don't kill the whole batch —
+  // best-effort aggregation. If NOTHING succeeds, we abort below.
+  let successfulInputs = 0
+  let unsupportedCount = 0
+  for (const message of messages) {
+    try {
+      switch (message.type) {
+        case 'text':
+          await handleTextMessage(message, projectId, companyId, supabase)
+          successfulInputs++
+          break
+        case 'audio':
+          await handleAudioMessage(message, projectId, companyId, supabase)
+          successfulInputs++
+          break
+        case 'image':
+          await handleImageMessage(message, projectId, companyId, supabase)
+          successfulInputs++
+          break
+        default:
+          unsupportedCount++
+      }
+    } catch (err) {
+      console.error('[WhatsApp] Input processing failed for message', message.id, err)
     }
-  } catch (err) {
-    console.error('[WhatsApp] Input processing failed:', err)
-    await sendWhatsAppMessage(ownerPhone, {
-      type: 'text',
-      text: { body: 'Sorry, I had trouble processing your message. Please try again.' },
-    })
+  }
+
+  if (successfulInputs === 0) {
+    const text =
+      unsupportedCount > 0
+        ? 'I can process audio recordings, text descriptions, and photos. Please send one of those to generate an estimate.'
+        : 'Sorry, I had trouble processing your message. Please try again.'
+    await sendWhatsAppMessage(ownerPhone, { type: 'text', text: { body: text } })
     await supabase.from('projects').delete().eq('id', projectId)
     return
   }
 
-  if (!inputReady) return
+  // Refresh typing indicator before AI generation (the 25s window is closing)
+  await sendTypingIndicator(lastMessageId)
 
-  // 4. Refresh typing indicator before AI generation — it lasts ~25s and Claude can
-  // take longer for big estimates. Re-send so user sees "typing..." continuously.
-  await sendTypingIndicator(message.id)
-
-  // 5. Generate estimate
+  // Generate estimate from the aggregated project
   let result: Awaited<ReturnType<typeof generateEstimateForProject>>
   try {
     result = await generateEstimateForProject(companyId, projectId)
@@ -151,14 +256,14 @@ export async function processInboundMessage(
 
   const { estimateId } = result
 
-  // 5. Load estimate for summary
+  // Load estimate for summary
   const { data: estimate } = await supabase
     .from('estimates')
     .select('total, summary, sections:estimate_sections(title, subtotal)')
     .eq('id', estimateId)
     .single()
 
-  // 6. Create awaiting_confirm session
+  // Create awaiting_confirm session
   const expiresAt = new Date(Date.now() + SESSION_TTL_MINUTES * 60 * 1000).toISOString()
   await supabase.from('whatsapp_sessions').insert({
     company_id: companyId,
@@ -169,7 +274,7 @@ export async function processInboundMessage(
     expires_at: expiresAt,
   })
 
-  // 7. Send confirmation summary
+  // Send confirmation summary
   const confirmationText = buildConfirmationMessage(estimate)
   await sendWhatsAppMessage(ownerPhone, {
     type: 'text',
