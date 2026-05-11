@@ -26,13 +26,13 @@ Closed the launch-blocking gaps in v2.0's WhatsApp MVP. Multi-message debounce, 
 - PDF attachment delivery via Meta API (`pdf_attachment` como terceira opção de `delivery_format`)
 - Status flow real: `pending → verified → active → suspended` (wiring pós-OTP da Phase 50)
 
-**Last shipped:** Phase 52 — Per-Estimate Language Selection (2026-05-11)
+**Last shipped:** Phase 53 — PDF Attachment Delivery (2026-05-11)
 
 ## Current State
 
 **Version:** v2.1 WhatsApp Launch-Readiness — ✅ COMPLETE
 **Phases complete:** 52/52 | **Build:** passing | **Tests:** 170/170 passing across all v2.1 suites
-**Last shipped:** Phase 52 — Per-Estimate Language Selection (2026-05-11)
+**Last shipped:** Phase 53 — PDF Attachment Delivery (2026-05-11)
 **Tech stack:** Next.js 16 (App Router), TypeScript strict, Tailwind 4, shadcn/ui (New York), Supabase (Auth + DB + Storage), @react-pdf/renderer, Resend, Anthropic Claude, OpenAI Whisper, next-themes
 **Test coverage:** 250+ unit tests passing, integration tests, E2E with Playwright (mobile + landing page + voice flow coverage)
 **Deployment target:** Vercel
@@ -190,4 +190,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context
 
 ---
-*Last updated: 2026-05-11 — v2.2 WhatsApp Channel Polish milestone started*
+*Last updated: 2026-05-11 — Phase 53 PDF Attachment Delivery complete*
