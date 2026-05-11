@@ -88,6 +88,7 @@ describe('generate-estimate route (HTTP layer)', () => {
       estimateId: 'estimate-1',
       version: 1,
       clientSuggestion: null,
+      language: 'en',
     })
 
     const res = await POST(makeRequest('project-1'))

@@ -321,7 +321,7 @@ async function handleSend(
       .from('estimates')
       .select(`
         id, share_token, total, subtotal, tax_rate, tax_amount, summary,
-        payment_terms, timeline,
+        payment_terms, timeline, language,
         sections:estimate_sections(
           title, subtotal,
           items:estimate_items(description, quantity, unit, unit_price, total)
@@ -364,14 +364,16 @@ async function handleSend(
 
   let clientPhone: string | null = null
   let clientName: string | null = null
+  let clientPreferredLanguage: string | null = null
   if (project.client_id) {
     const { data: client } = await supabase
       .from('clients')
-      .select('phone, name')
+      .select('phone, name, preferred_language')
       .eq('id', project.client_id)
       .single()
     clientPhone = (client?.phone as string | null) ?? null
     clientName = (client?.name as string | null) ?? null
+    clientPreferredLanguage = (client?.preferred_language as string | null) ?? null
   }
 
   let deliveredToClient = false
@@ -396,6 +398,16 @@ async function handleSend(
     supabase.from('estimates').update({ status: 'sent' }).eq('id', draft_estimate_id),
     supabase.from('projects').update({ status: 'sent' }).eq('id', draft_project_id),
   ])
+
+  // Phase 52 auto-learn: if client has no preferred_language yet, write the
+  // estimate's language. Future estimates default to this preference via
+  // the cascade resolver. Non-fatal — failure doesn't block the send.
+  if (project.client_id && !clientPreferredLanguage && estimate.language) {
+    await supabase
+      .from('clients')
+      .update({ preferred_language: estimate.language })
+      .eq('id', project.client_id)
+  }
 
   await supabase.from('whatsapp_sessions').delete().eq('id', session.id)
 

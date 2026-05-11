@@ -5,6 +5,10 @@ import { getProjectPhotos } from '@/lib/queries/photo'
 import { PLACEHOLDER_PREFIX } from '@/lib/constants/project'
 import { getAIProvider, type EstimateInput } from '@/lib/ai'
 import { getPriceBookItems } from '@/lib/queries/price-book'
+import {
+  resolveEstimateLanguage,
+  type EstimateLanguage,
+} from '@/lib/i18n/resolve-estimate-language'
 
 export type ClientSuggestion = {
   detectedName: string
@@ -16,6 +20,14 @@ export type GenerateEstimateResult = {
   estimateId: string
   version: number
   clientSuggestion: ClientSuggestion | null
+  language: EstimateLanguage
+}
+
+export interface GenerateEstimateOptions {
+  /** Explicit override from the caller (UI dropdown, WhatsApp command). */
+  language?: EstimateLanguage
+  /** User app language to consider in the cascade (rarely set from server). */
+  userAppLanguage?: EstimateLanguage
 }
 
 function normalizeClientNameForMatch(name: string): string {
@@ -35,7 +47,8 @@ function normalizeClientNameForMatch(name: string): string {
  */
 export async function generateEstimateForProject(
   companyId: string,
-  projectId: string
+  projectId: string,
+  options: GenerateEstimateOptions = {}
 ): Promise<GenerateEstimateResult> {
   const supabase = requireServiceClient()
 
@@ -43,7 +56,9 @@ export async function generateEstimateForProject(
   const [projectResult, recordings, photos, companyResult] = await Promise.all([
     supabase
       .from('projects')
-      .select('*, client:clients(name, email, phone, address, city, state, zip)')
+      .select(
+        '*, client:clients(name, email, phone, address, city, state, zip, preferred_language)'
+      )
       .eq('id', projectId)
       .single(),
     getProjectRecordings(supabase, projectId),
@@ -51,7 +66,7 @@ export async function generateEstimateForProject(
     supabase
       .from('companies')
       .select(
-        'industry, default_tax_rate, default_payment_terms, default_warranty_terms, name'
+        'industry, default_tax_rate, default_payment_terms, default_warranty_terms, name, default_estimate_language'
       )
       .eq('id', companyId)
       .single(),
@@ -81,7 +96,17 @@ export async function generateEstimateForProject(
     city: string | null
     state: string | null
     zip: string | null
+    preferred_language: EstimateLanguage | null
   } | null
+
+  // Phase 52: resolve target language via cascade
+  const language = resolveEstimateLanguage({
+    override: options.language ?? null,
+    clientPreferred: client?.preferred_language ?? null,
+    companyDefault:
+      (company.default_estimate_language as EstimateLanguage | null) ?? null,
+    userAppLanguage: options.userAppLanguage ?? null,
+  })
 
   const clientAddress = client
     ? [client.address, client.city, client.state, client.zip]
@@ -109,6 +134,7 @@ export async function generateEstimateForProject(
     priceBookItems,
     defaultPaymentTerms: company.default_payment_terms ?? null,
     defaultWarrantyTerms: company.default_warranty_terms ?? null,
+    language,
   }
 
   const provider = await getAIProvider()
@@ -215,6 +241,7 @@ export async function generateEstimateForProject(
       tax_rate: taxRate,
       tax_amount: taxAmount,
       total: grandTotal,
+      language,
     })
     .select('id')
     .single()
@@ -289,5 +316,5 @@ export async function generateEstimateForProject(
   revalidatePath(`/projects/${projectId}`)
   revalidatePath('/', 'layout')
 
-  return { estimateId, version: nextVersion, clientSuggestion }
+  return { estimateId, version: nextVersion, clientSuggestion, language }
 }

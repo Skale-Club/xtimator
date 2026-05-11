@@ -1,8 +1,13 @@
 /**
  * Phase 44: WhatsApp formatted-text estimate builder.
+ * Phase 52: i18n labels per estimate language (SEED-016).
  *
  * Produces a WhatsApp-friendly plain-text estimate that works without
  * Meta template approval (free-form messages to opted-in contacts).
+ *
+ * AI-generated content (summary, item descriptions) is already in the
+ * target language because the AI prompt was language-aware. This formatter
+ * only translates the structural labels (Subtotal, Total, Timeline, etc.).
  */
 
 export type FormatterItem = {
@@ -28,10 +33,74 @@ export type FormatterEstimate = {
   payment_terms: string | null
   timeline: string | null
   sections: FormatterSection[]
+  /** Phase 52: language of AI-generated content; drives label translation */
+  language?: 'en' | 'pt' | 'es'
 }
 
-const usd = (n: number) =>
-  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
+interface FormatterLabels {
+  greetingWithName: (name: string) => string
+  greetingAnon: string
+  fromCompany: (name: string) => string
+  fromAnon: string
+  subtotal: string
+  tax: (pct: string) => string
+  total: string
+  timeline: string
+  payment: string
+  closing: string
+}
+
+const LABELS: Record<'en' | 'pt' | 'es', FormatterLabels> = {
+  en: {
+    greetingWithName: (n) => `Hi ${n},`,
+    greetingAnon: 'Hi,',
+    fromCompany: (c) => `*${c}* has prepared an estimate for you:`,
+    fromAnon: 'Here is your estimate:',
+    subtotal: 'Subtotal',
+    tax: (pct) => `Tax (${pct}%)`,
+    total: 'Total',
+    timeline: 'Timeline',
+    payment: 'Payment',
+    closing: 'Questions? Just reply to this message.',
+  },
+  pt: {
+    greetingWithName: (n) => `Olá ${n},`,
+    greetingAnon: 'Olá,',
+    fromCompany: (c) => `*${c}* preparou um orçamento para você:`,
+    fromAnon: 'Aqui está seu orçamento:',
+    subtotal: 'Subtotal',
+    tax: (pct) => `Imposto (${pct}%)`,
+    total: 'Total',
+    timeline: 'Prazo',
+    payment: 'Pagamento',
+    closing: 'Dúvidas? É só responder esta mensagem.',
+  },
+  es: {
+    greetingWithName: (n) => `Hola ${n},`,
+    greetingAnon: 'Hola,',
+    fromCompany: (c) => `*${c}* ha preparado un presupuesto para usted:`,
+    fromAnon: 'Aquí está su presupuesto:',
+    subtotal: 'Subtotal',
+    tax: (pct) => `Impuesto (${pct}%)`,
+    total: 'Total',
+    timeline: 'Plazo',
+    payment: 'Pago',
+    closing: '¿Preguntas? Solo responda este mensaje.',
+  },
+}
+
+/**
+ * Locale-aware currency formatter.
+ * USD remains the system currency; the locale affects format only.
+ */
+function formatCurrency(value: number, language: 'en' | 'pt' | 'es'): string {
+  const locale =
+    language === 'pt' ? 'pt-BR' : language === 'es' ? 'es-MX' : 'en-US'
+  return new Intl.NumberFormat(locale, {
+    style: 'currency',
+    currency: 'USD',
+  }).format(value)
+}
 
 /**
  * Build a WhatsApp message body for the full estimate.
@@ -42,14 +111,14 @@ export function formatEstimateForWhatsApp(
   clientName: string | null,
   companyName: string | null
 ): string {
+  const language = estimate.language ?? 'en'
+  const L = LABELS[language]
+  const money = (n: number) => formatCurrency(n, language)
   const lines: string[] = []
 
-  const greeting = clientName ? `Hi ${clientName},` : 'Hi,'
-  lines.push(greeting)
+  lines.push(clientName ? L.greetingWithName(clientName) : L.greetingAnon)
   lines.push('')
-
-  const from = companyName ? `*${companyName}* has prepared an estimate for you:` : 'Here is your estimate:'
-  lines.push(from)
+  lines.push(companyName ? L.fromCompany(companyName) : L.fromAnon)
 
   if (estimate.summary) {
     lines.push('')
@@ -61,10 +130,12 @@ export function formatEstimateForWhatsApp(
 
   for (const section of estimate.sections) {
     lines.push('')
-    lines.push(`*${section.title}* — ${usd(section.subtotal)}`)
+    lines.push(`*${section.title}* — ${money(section.subtotal)}`)
     for (const item of section.items) {
       const unitLabel = item.unit ? ` ${item.unit}` : ''
-      lines.push(`  • ${item.description} — ${item.quantity}${unitLabel} × ${usd(item.unit_price)} = ${usd(item.total)}`)
+      lines.push(
+        `  • ${item.description} — ${item.quantity}${unitLabel} × ${money(item.unit_price)} = ${money(item.total)}`
+      )
     }
   }
 
@@ -72,21 +143,21 @@ export function formatEstimateForWhatsApp(
   lines.push('─────────────────')
 
   if (estimate.tax_rate > 0) {
-    lines.push(`Subtotal: ${usd(estimate.subtotal)}`)
-    lines.push(`Tax (${(estimate.tax_rate * 100).toFixed(0)}%): ${usd(estimate.tax_amount)}`)
+    lines.push(`${L.subtotal}: ${money(estimate.subtotal)}`)
+    lines.push(`${L.tax((estimate.tax_rate * 100).toFixed(0))}: ${money(estimate.tax_amount)}`)
   }
-  lines.push(`*Total: ${usd(estimate.total)}*`)
+  lines.push(`*${L.total}: ${money(estimate.total)}*`)
 
   if (estimate.timeline) {
     lines.push('')
-    lines.push(`Timeline: ${estimate.timeline}`)
+    lines.push(`${L.timeline}: ${estimate.timeline}`)
   }
   if (estimate.payment_terms) {
-    lines.push(`Payment: ${estimate.payment_terms}`)
+    lines.push(`${L.payment}: ${estimate.payment_terms}`)
   }
 
   lines.push('')
-  lines.push('Questions? Just reply to this message.')
+  lines.push(L.closing)
 
   return lines.join('\n')
 }

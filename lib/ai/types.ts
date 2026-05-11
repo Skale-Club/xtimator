@@ -43,6 +43,11 @@ export type EstimateInput = {
   priceBookItems: PriceBookEntry[]  // empty array = no injection (D-10)
   defaultPaymentTerms: string | null
   defaultWarrantyTerms: string | null
+  /**
+   * Phase 52 (SEED-016): target language for AI-generated copy.
+   * Defaults to 'en'. EstimateOutput must be in this language.
+   */
+  language?: 'en' | 'pt' | 'es'
 }
 
 export type RefineEstimateInput = {

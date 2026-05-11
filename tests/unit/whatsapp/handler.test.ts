@@ -175,6 +175,7 @@ describe('processInboundMessage', () => {
       estimateId: 'estimate-wa-1',
       version: 1,
       clientSuggestion: null,
+      language: 'en',
     })
     mockSend.mockResolvedValue(undefined)
     mockConfirm.mockResolvedValue(undefined)
