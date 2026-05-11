@@ -127,7 +127,7 @@
 
 ### v2.2 WhatsApp Channel Polish (Phases 53-54)
 
-- [ ] **Phase 53: PDF Attachment Delivery** — Add `pdf_attachment` as a third `delivery_format` option; generate PDF via existing `/api/estimates/[id]/pdf` endpoint; upload to `estimates-pdf` Supabase Storage with 24h signed URL; send to client via Meta API `type: "document"`; degrade to `share_link` on any failure (SEED-015 Gap 3)
+- [x] **Phase 53: PDF Attachment Delivery** — Add `pdf_attachment` as a third `delivery_format` option; generate PDF via existing `/api/estimates/[id]/pdf` endpoint; upload to `estimates-pdf` Supabase Storage with 24h signed URL; send to client via Meta API `type: "document"`; degrade to `share_link` on any failure (SEED-015 Gap 3) (completed 2026-05-11)
 - [ ] **Phase 54: WhatsApp Status Flow** — Wire full `pending → verified → active → suspended` pipeline post-OTP; clear UI labels in `WhatsAppConnectCard`; admin/owner suspend and reactivate action; `handler.ts` gate enforces `status = 'active'` (SEED-015 Gap 5)
 
 ### Phase 53: PDF Attachment Delivery
@@ -142,7 +142,7 @@
 **Plans**: 2 plans
 Plans:
 - [x] 53-01-PLAN.md — Wave 0 test stubs + DB migration (extend delivery_format CHECK) + lib/whatsapp/pdf-delivery.ts helper (generateAndUploadEstimatePDF + buildPdfFilename)
-- [ ] 53-02-PLAN.md — confirm.ts handleSend pdf_attachment branch + WhatsAppConnectCard third SelectItem
+- [x] 53-02-PLAN.md — confirm.ts handleSend pdf_attachment branch + WhatsAppConnectCard third SelectItem
 
 ### Phase 54: WhatsApp Status Flow
 **Goal**: The WhatsApp connection status pipeline is fully wired — UI shows accurate labels, transitions follow the correct sequence, admins can suspend and reactivate, and the message handler enforces the active gate
@@ -560,5 +560,5 @@ Plans:
 | 50. WhatsApp OTP Number Verification | v2.1 | 1/1 | Complete | 2026-05-11 |
 | 51. WhatsApp Pre-Send Edit Commands | v2.1 | 1/1 | Complete | 2026-05-11 |
 | 52. Per-Estimate Language Selection | v2.1 | 1/1 | Complete | 2026-05-11 |
-| 53. PDF Attachment Delivery | v2.2 | 1/2 | In Progress|  |
+| 53. PDF Attachment Delivery | v2.2 | 2/2 | Complete   | 2026-05-11 |
 | 54. WhatsApp Status Flow | v2.2 | 0/TBD | Not started | - |

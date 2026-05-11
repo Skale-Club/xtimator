@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Zero-friction Project Onboarding
-status: executing
-last_updated: "2026-05-11T10:35:31.862Z"
+status: verifying
+last_updated: "2026-05-11T10:46:52.440Z"
 last_activity: 2026-05-11
 progress:
   total_phases: 48
-  completed_phases: 38
+  completed_phases: 39
   total_plans: 105
-  completed_plans: 109
+  completed_plans: 110
 ---
 
 # Project State
@@ -23,7 +23,7 @@ progress:
 
 Phase: 53 (PDF Attachment Delivery) — EXECUTING
 Plan: 2 of 2
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-05-11
 
 ## v2.2 Phases
@@ -302,6 +302,9 @@ Last activity: 2026-05-11
 - [Phase 53-pdf-attachment-delivery]: supabase injected by caller in pdf-delivery.ts — not created internally; consistent with Phase 41 webhook context pattern
 - [Phase 53-pdf-attachment-delivery]: 86400s signed URL TTL for WhatsApp PDF delivery; timestamp-suffix in storage path prevents Meta URL cache reuse
 - [Phase 53-pdf-attachment-delivery]: Space-first sanitization in buildPdfFilename: spaces→hyphens before stripping non-alphanumeric so OBrien & Sons → OBrien--Sons
+- [Phase 53-pdf-attachment-delivery]: pdfDelivered boolean flag separates PDF success from fallback path — avoids re-querying state after try/catch
+- [Phase 53-pdf-attachment-delivery]: pdf_attachment branch is an if/else with existing two formats — keeps existing behavior untouched and fallback structurally separate
+- [Phase 53-pdf-attachment-delivery]: WhatsAppStatus.deliveryFormat type extended inline (not a separate DeliveryFormat alias) — consistent with existing component pattern
 
 ## Performance Metrics
 
@@ -391,6 +394,7 @@ Last activity: 2026-05-11
 | Phase 43-confirmation-flow P02 | 5min | 3 tasks | 4 files |
 | Phase 44-outbound-client-delivery P01 | 8min | 5 tasks | 5 files |
 | Phase 53-pdf-attachment-delivery P01 | 9min | 3 tasks | 3 files |
+| Phase 53-pdf-attachment-delivery P02 | 7min | 2 tasks | 3 files |
 
 ## Project Reference
 
