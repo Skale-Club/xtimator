@@ -1,14 +1,24 @@
 /**
  * Phase 43/44: WhatsApp Confirmation Flow + Outbound Delivery
+ * Phase 51: Pre-send edit commands (SEED-015 Gap 1)
  *
- * Handles "send" / "cancel" replies from owners who have an awaiting_confirm session.
- * "send"   → deliver estimate to client per company's delivery_format + notify owner
- * "cancel" → delete draft project (cascade) + delete session + notify owner
- * Other    → remind owner of valid commands
+ * Handles replies from owners who have an awaiting_confirm session.
+ *
+ *   send                                 → deliver to client + clean up session
+ *   cancel                               → discard draft + clean up session
+ *   edit total 450                       → mutate estimate.total, re-send summary
+ *   edit timeline "..."                  → mutate estimate.timeline, re-send summary
+ *   edit payment "..."                   → mutate estimate.payment_terms, re-send summary
+ *   edit summary "..."                   → mutate estimate.summary, re-send summary
+ *   client "Maria" +15552223333          → upsert client + link to project
+ *   regenerate                           → call generateEstimateForProject again
+ *   anything else                        → send help message
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { sendWhatsAppMessage } from '@/lib/whatsapp/client'
 import { formatEstimateForWhatsApp, type FormatterEstimate } from '@/lib/whatsapp/formatter'
+import { parseEditCommand, EDIT_HELP_MESSAGE, type ParsedCommand } from '@/lib/whatsapp/edit-commands'
+import { generateEstimateForProject } from '@/lib/services/generate-estimate'
 
 type Session = {
   id: string
@@ -24,37 +34,270 @@ export async function processConfirmationReply(
   textBody: string,
   session: Session,
   companyId: string,
-  ownerPhone: string,  // E.164 with leading +
+  ownerPhone: string,
   supabase: SupabaseClient
 ): Promise<void> {
-  const command = parseCommand(textBody)
+  const command = parseEditCommand(textBody)
 
-  if (command === 'send') {
-    await handleSend(session, companyId, ownerPhone, supabase)
-  } else if (command === 'cancel') {
-    await handleCancel(session, ownerPhone, supabase)
-  } else {
-    await sendWhatsAppMessage(ownerPhone, {
-      type: 'text',
-      text: {
-        body: 'Reply *send* to deliver the estimate to your client, or *cancel* to discard it.',
-      },
-    })
+  switch (command.kind) {
+    case 'send':
+      await handleSend(session, companyId, ownerPhone, supabase)
+      return
+    case 'cancel':
+      await handleCancel(session, ownerPhone, supabase)
+      return
+    case 'edit-total':
+      await handleEditField(session, ownerPhone, supabase, { total: command.value })
+      return
+    case 'edit-timeline':
+      await handleEditField(session, ownerPhone, supabase, { timeline: command.value })
+      return
+    case 'edit-payment':
+      await handleEditField(session, ownerPhone, supabase, { payment_terms: command.value })
+      return
+    case 'edit-summary':
+      await handleEditField(session, ownerPhone, supabase, { summary: command.value })
+      return
+    case 'set-client':
+      await handleSetClient(session, companyId, ownerPhone, supabase, command.name, command.phone)
+      return
+    case 'regenerate':
+      await handleRegenerate(session, companyId, ownerPhone, supabase)
+      return
+    case 'help':
+    default:
+      await sendWhatsAppMessage(ownerPhone, {
+        type: 'text',
+        text: { body: EDIT_HELP_MESSAGE },
+      })
   }
 }
 
-// -------------------------------------------------------------------------
-// Command parser — "send" / "cancel" / null
-// -------------------------------------------------------------------------
-function parseCommand(text: string): 'send' | 'cancel' | null {
-  const normalized = text.toLowerCase().trim().replace(/[^\w\s]/g, '').trim()
-  if (normalized === 'send') return 'send'
-  if (normalized === 'cancel') return 'cancel'
+// Re-export for back-compat tests
+export function parseCommand(text: string): 'send' | 'cancel' | null {
+  const c = parseEditCommand(text)
+  if (c.kind === 'send') return 'send'
+  if (c.kind === 'cancel') return 'cancel'
   return null
 }
 
 // -------------------------------------------------------------------------
-// "send" handler
+// Edit field handlers — generic mutation + re-send summary
+// -------------------------------------------------------------------------
+
+type EditableFields = {
+  total?: number
+  timeline?: string
+  payment_terms?: string
+  summary?: string
+}
+
+async function handleEditField(
+  session: Session,
+  ownerPhone: string,
+  supabase: SupabaseClient,
+  patch: EditableFields
+): Promise<void> {
+  if (!session.draft_estimate_id) {
+    await sendWhatsAppMessage(ownerPhone, {
+      type: 'text',
+      text: { body: 'No estimate to edit. Please start a new one.' },
+    })
+    return
+  }
+
+  const { error } = await supabase
+    .from('estimates')
+    .update(patch)
+    .eq('id', session.draft_estimate_id)
+
+  if (error) {
+    console.error('[WhatsApp] edit failed:', error)
+    await sendWhatsAppMessage(ownerPhone, {
+      type: 'text',
+      text: { body: 'Could not apply that edit. Please try again.' },
+    })
+    return
+  }
+
+  await resendSummary(session.draft_estimate_id, ownerPhone, supabase, '✏️ *Updated*')
+}
+
+async function handleSetClient(
+  session: Session,
+  companyId: string,
+  ownerPhone: string,
+  supabase: SupabaseClient,
+  name: string,
+  phone: string
+): Promise<void> {
+  if (!session.draft_project_id) {
+    await sendWhatsAppMessage(ownerPhone, {
+      type: 'text',
+      text: { body: 'No project to attach a client to. Please start a new estimate.' },
+    })
+    return
+  }
+
+  // Look up existing client by phone (within this company)
+  const { data: existing } = await supabase
+    .from('clients')
+    .select('id, name, phone')
+    .eq('company_id', companyId)
+    .eq('phone', phone)
+    .maybeSingle()
+
+  let clientId: string
+  if (existing) {
+    clientId = existing.id as string
+    if ((existing.name as string | null) !== name) {
+      await supabase.from('clients').update({ name }).eq('id', clientId)
+    }
+  } else {
+    const { data: created, error: createErr } = await supabase
+      .from('clients')
+      .insert({
+        company_id: companyId,
+        name,
+        phone,
+      })
+      .select('id')
+      .single()
+    if (createErr || !created) {
+      console.error('[WhatsApp] client create failed:', createErr)
+      await sendWhatsAppMessage(ownerPhone, {
+        type: 'text',
+        text: { body: 'Could not save that client. Please try again.' },
+      })
+      return
+    }
+    clientId = created.id as string
+  }
+
+  // Link the client to the project
+  const { error: updateErr } = await supabase
+    .from('projects')
+    .update({ client_id: clientId })
+    .eq('id', session.draft_project_id)
+
+  if (updateErr) {
+    console.error('[WhatsApp] project-client link failed:', updateErr)
+    await sendWhatsAppMessage(ownerPhone, {
+      type: 'text',
+      text: { body: 'Could not link client. Please try again.' },
+    })
+    return
+  }
+
+  await sendWhatsAppMessage(ownerPhone, {
+    type: 'text',
+    text: {
+      body: `👤 Client set to *${name}* (${phone}).\n\nReply *send* to deliver, *cancel* to discard, or use *edit* commands to adjust the estimate.`,
+    },
+  })
+}
+
+async function handleRegenerate(
+  session: Session,
+  companyId: string,
+  ownerPhone: string,
+  supabase: SupabaseClient
+): Promise<void> {
+  if (!session.draft_project_id) {
+    await sendWhatsAppMessage(ownerPhone, {
+      type: 'text',
+      text: { body: 'No project to regenerate. Please start a new estimate.' },
+    })
+    return
+  }
+
+  // Delete the current estimate (cascade removes sections/items)
+  if (session.draft_estimate_id) {
+    await supabase.from('estimates').delete().eq('id', session.draft_estimate_id)
+  }
+
+  let newEstimateId: string
+  try {
+    const result = await generateEstimateForProject(companyId, session.draft_project_id)
+    newEstimateId = result.estimateId
+  } catch (err) {
+    console.error('[WhatsApp] regenerate failed:', err)
+    await sendWhatsAppMessage(ownerPhone, {
+      type: 'text',
+      text: { body: 'Regeneration failed. Please try again.' },
+    })
+    return
+  }
+
+  // Update the session to point at the new estimate
+  await supabase
+    .from('whatsapp_sessions')
+    .update({ draft_estimate_id: newEstimateId })
+    .eq('id', session.id)
+
+  await resendSummary(newEstimateId, ownerPhone, supabase, '🔄 *Regenerated*')
+}
+
+// Helper: reload estimate + re-send summary text after any edit
+async function resendSummary(
+  estimateId: string,
+  ownerPhone: string,
+  supabase: SupabaseClient,
+  prefix: string
+): Promise<void> {
+  const { data: estimate } = await supabase
+    .from('estimates')
+    .select('total, summary, sections:estimate_sections(title, subtotal)')
+    .eq('id', estimateId)
+    .single()
+
+  const body = buildConfirmationMessage(estimate, prefix)
+  await sendWhatsAppMessage(ownerPhone, {
+    type: 'text',
+    text: { body },
+  })
+}
+
+function buildConfirmationMessage(
+  estimate: {
+    total: number | null
+    summary: string | null
+    sections: Array<{ title: string; subtotal: number }> | null
+  } | null,
+  prefix = '✅ *Estimate ready*'
+): string {
+  if (!estimate) {
+    return `${prefix}\n\nReply *send* to deliver to your client, or *cancel* to discard.`
+  }
+
+  const total = new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+  }).format(estimate.total ?? 0)
+
+  const sections = (estimate.sections ?? [])
+    .map((s) => {
+      const subtotal = new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD',
+      }).format(s.subtotal)
+      return `• ${s.title}: ${subtotal}`
+    })
+    .join('\n')
+
+  return [
+    `${prefix} — ${total}`,
+    '',
+    sections,
+    '',
+    'Reply *send* to deliver, *cancel* to discard, or use *edit* commands to adjust.',
+  ]
+    .filter((s) => s !== null)
+    .join('\n')
+}
+
+// -------------------------------------------------------------------------
+// "send" handler (unchanged from Phase 43/44)
 // -------------------------------------------------------------------------
 async function handleSend(
   session: Session,
@@ -73,7 +316,6 @@ async function handleSend(
     return
   }
 
-  // Load estimate (full data for formatted_text), project (client_id), and delivery config
   const [estimateResult, projectResult, waConfigResult, companyResult] = await Promise.all([
     supabase
       .from('estimates')
@@ -120,7 +362,6 @@ async function handleSend(
 
   const shareUrl = buildShareUrl(estimate.share_token as string)
 
-  // Load client info if project has a linked client
   let clientPhone: string | null = null
   let clientName: string | null = null
   if (project.client_id) {
@@ -133,7 +374,6 @@ async function handleSend(
     clientName = (client?.name as string | null) ?? null
   }
 
-  // Deliver to client based on format
   let deliveredToClient = false
   if (clientPhone) {
     const clientMessageBody =
@@ -152,16 +392,13 @@ async function handleSend(
     }
   }
 
-  // Update estimate + project to "sent"
   await Promise.all([
     supabase.from('estimates').update({ status: 'sent' }).eq('id', draft_estimate_id),
     supabase.from('projects').update({ status: 'sent' }).eq('id', draft_project_id),
   ])
 
-  // Delete session (delivery complete)
   await supabase.from('whatsapp_sessions').delete().eq('id', session.id)
 
-  // Notify owner
   const ownerMessage = deliveredToClient
     ? `✅ *Estimate sent!*\n\nYour client received the estimate via WhatsApp.\n\nShare link: ${shareUrl}`
     : `✅ *Estimate ready!*\n\nShare link: ${shareUrl}\n\n_(No client phone on file — send the link manually)_`
@@ -172,9 +409,6 @@ async function handleSend(
   })
 }
 
-// -------------------------------------------------------------------------
-// "cancel" handler
-// -------------------------------------------------------------------------
 async function handleCancel(
   session: Session,
   ownerPhone: string,
@@ -182,7 +416,6 @@ async function handleCancel(
 ): Promise<void> {
   const { draft_project_id } = session
 
-  // Cascade-delete project → estimate → sections → items → recordings → photos
   if (draft_project_id) {
     await supabase.from('projects').delete().eq('id', draft_project_id)
   }
@@ -195,9 +428,6 @@ async function handleCancel(
   })
 }
 
-// -------------------------------------------------------------------------
-// Helpers
-// -------------------------------------------------------------------------
 function buildShareUrl(shareToken: string): string {
   const base = process.env.NEXT_PUBLIC_APP_URL ?? 'https://xtimator.com'
   return `${base}/estimate/${shareToken}`

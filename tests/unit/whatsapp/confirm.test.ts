@@ -134,7 +134,8 @@ describe('processConfirmationReply', () => {
 
       expect(mockSend).toHaveBeenCalledOnce()
       const body = (mockSend.mock.calls[0][1] as { text: { body: string } }).text.body
-      expect(body).toMatch(/send.*cancel/i)
+      expect(body).toMatch(/send/i)
+      expect(body).toMatch(/cancel/i)
     })
 
     it('handles "send" with different casing', async () => {
