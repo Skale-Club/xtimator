@@ -9,7 +9,8 @@ import { Loader2, MessageSquare, CheckCircle2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import {
-  connectWhatsApp,
+  requestWhatsAppVerification,
+  confirmWhatsAppVerification,
   disconnectWhatsApp,
   updateDeliveryFormat,
 } from '@/lib/actions/whatsapp-settings'
@@ -87,9 +88,11 @@ export function WhatsAppConnectCard({ initial }: WhatsAppConnectCardProps) {
     },
   })
 
+  const [verificationCode, setVerificationCode] = useState('')
+
   function onConnect(values: ConnectFormValues) {
     startTransition(async () => {
-      const result = await connectWhatsApp(values)
+      const result = await requestWhatsAppVerification(values)
       if (!result.ok) {
         toast.error(result.error)
         return
@@ -98,10 +101,40 @@ export function WhatsAppConnectCard({ initial }: WhatsAppConnectCardProps) {
         phoneNumber: values.phoneNumber,
         phoneNumberId: values.phoneNumberId,
         wabaId: values.wabaId,
-        status: 'active',
+        status: 'pending',
         deliveryFormat: 'share_link',
       })
-      toast.success('WhatsApp number connected.')
+      toast.success(`Verification code sent to ${values.phoneNumber} via WhatsApp.`)
+      router.refresh()
+    })
+  }
+
+  function onVerifyCode() {
+    const code = verificationCode.trim()
+    if (code.length !== 6) {
+      toast.error('Please enter the 6-digit code.')
+      return
+    }
+    startTransition(async () => {
+      const result = await confirmWhatsAppVerification(code)
+      if (!result.ok) {
+        toast.error(result.error)
+        // If the action wiped the row (too many attempts / expired), reset UI
+        if (
+          result.error.includes('start over') ||
+          result.error.includes('Too many') ||
+          result.error.includes('expired')
+        ) {
+          setCurrent(null)
+          setVerificationCode('')
+        }
+        return
+      }
+      if (current) {
+        setCurrent({ ...current, status: 'active' })
+      }
+      setVerificationCode('')
+      toast.success('WhatsApp number verified and active.')
       router.refresh()
     })
   }
@@ -149,7 +182,53 @@ export function WhatsAppConnectCard({ initial }: WhatsAppConnectCardProps) {
       </CardHeader>
 
       <CardContent className="py-6 space-y-6">
-        {current ? (
+        {current && current.status === 'pending' ? (
+          <div className="space-y-4">
+            <div className="text-sm">
+              <p className="font-medium">
+                Verification code sent to <strong>{current.phoneNumber}</strong>
+              </p>
+              <p className="text-muted-foreground mt-1">
+                Check WhatsApp on that number and enter the 6-digit code below.
+                The code expires in 10 minutes.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium" htmlFor="verification-code">
+                Verification code
+              </label>
+              <Input
+                id="verification-code"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={6}
+                placeholder="123456"
+                className="w-40 text-center tracking-widest text-lg"
+                value={verificationCode}
+                onChange={(e) =>
+                  setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))
+                }
+                disabled={isPending}
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button
+                onClick={onVerifyCode}
+                disabled={isPending || verificationCode.length !== 6}
+              >
+                {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Verify
+              </Button>
+              <Button
+                variant="outline"
+                onClick={onDisconnect}
+                disabled={isPending}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        ) : current ? (
           <>
             <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
               <CheckCircle2 className="h-4 w-4" />
@@ -255,7 +334,7 @@ export function WhatsAppConnectCard({ initial }: WhatsAppConnectCardProps) {
 
               <Button type="submit" disabled={isPending} className="min-w-40">
                 {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Connect
+                Send verification code
               </Button>
             </form>
           </Form>
