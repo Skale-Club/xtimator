@@ -234,3 +234,27 @@ export async function updateDeliveryFormat(
   revalidatePath('/settings/integrations')
   return { ok: true }
 }
+
+/**
+ * Phase 54: Suspend or reactivate a WhatsApp connection.
+ * status='suspended' → owner stops receiving inbound processing.
+ * status='active'    → resumes normal inbound processing.
+ * Both transitions are reversible; only owner (authenticated) may call this.
+ */
+export async function updateWhatsAppStatus(
+  status: 'active' | 'suspended'
+): Promise<WhatsAppSettingsResult> {
+  const ctx = await getAuthContext()
+  if (!ctx.ok) return { ok: false, error: ctx.errorMsg }
+  const { supabase, companyId } = ctx
+
+  const { error } = await supabase
+    .from('company_whatsapp')
+    .update({ status })
+    .eq('company_id', companyId)
+
+  if (error) return { ok: false, error: error.message }
+
+  revalidatePath('/settings/integrations')
+  return { ok: true }
+}
