@@ -46,32 +46,32 @@
 
 ## Traceability
 
-| Requirement | Phase |
-|-------------|-------|
-| TIER-01 | TBD |
-| TIER-02 | TBD |
-| TIER-03 | TBD |
-| TIER-04 | TBD |
-| QUOTA-01 | TBD |
-| QUOTA-02 | TBD |
-| QUOTA-03 | TBD |
-| QUOTA-04 | TBD |
-| QUOTA-05 | TBD |
-| QUOTA-06 | TBD |
-| STRIPE-01 | TBD |
-| STRIPE-02 | TBD |
-| STRIPE-03 | TBD |
-| STRIPE-04 | TBD |
-| BILLING-01 | TBD |
-| BILLING-02 | TBD |
-| BILLING-03 | TBD |
-| BILLING-04 | TBD |
-| BILLING-05 | TBD |
-| TRIAL-01 | TBD |
-| TRIAL-02 | TBD |
-| ADMIN-BILLING-01 | TBD |
-| ADMIN-BILLING-02 | TBD |
-| ADMIN-BILLING-03 | TBD |
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| TIER-01 | Phase 55 | Pending |
+| TIER-02 | Phase 55 | Pending |
+| TIER-03 | Phase 55 | Pending |
+| TIER-04 | Phase 55 | Pending |
+| QUOTA-01 | Phase 56 | Pending |
+| QUOTA-02 | Phase 56 | Pending |
+| QUOTA-03 | Phase 57 | Pending |
+| QUOTA-04 | Phase 57 | Pending |
+| QUOTA-05 | Phase 57 | Pending |
+| QUOTA-06 | Phase 57 | Pending |
+| STRIPE-01 | Phase 58 | Pending |
+| STRIPE-02 | Phase 58 | Pending |
+| STRIPE-03 | Phase 58 | Pending |
+| STRIPE-04 | Phase 58 | Pending |
+| BILLING-01 | Phase 59 | Pending |
+| BILLING-02 | Phase 59 | Pending |
+| BILLING-03 | Phase 59 | Pending |
+| BILLING-04 | Phase 59 | Pending |
+| BILLING-05 | Phase 59 | Pending |
+| TRIAL-01 | Phase 60 | Pending |
+| TRIAL-02 | Phase 60 | Pending |
+| ADMIN-BILLING-01 | Phase 60 | Pending |
+| ADMIN-BILLING-02 | Phase 60 | Pending |
+| ADMIN-BILLING-03 | Phase 60 | Pending |
 
 ## Key Decisions (locked)
 

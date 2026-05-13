@@ -3,33 +3,42 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Monetization
 status: planning
-last_updated: "2026-05-13T22:41:14.963Z"
+last_updated: "2026-05-13T00:00:00.000Z"
 last_activity: 2026-05-13
 progress:
-  total_phases: 12
-  completed_phases: 11
-  total_plans: 18
-  completed_plans: 17
+  total_phases: 6
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
 ---
 
 # Project State
 
 ## Current Status
 
-- **Milestone**: v2.2 WhatsApp Channel Polish — In Progress
-- **Last updated**: 2026-05-11
+- **Milestone**: v3.0 Monetization — Planning
+- **Last updated**: 2026-05-13
 
 ## Current Position
 
-Phase: 54
+Phase: 55
 Plan: Not started
 Status: Ready to execute
 Last activity: 2026-05-13
 
-## v2.2 Phases
+## v3.0 Phases
 
-- Phase 53: PDF Attachment Delivery (WAPDF-01..04) — Not started
-- Phase 54: WhatsApp Status Flow (WASTATUS-01..04) — Not started
+- Phase 55: Schema + Tier Definitions (TIER-01..04) — Not started
+- Phase 56: Usage Tracking (QUOTA-01..02) — Not started
+- Phase 57: Enforcement Layer (QUOTA-03..06) — Not started
+- Phase 58: Stripe Integration (STRIPE-01..04) — Not started
+- Phase 59: Billing UI (BILLING-01..05) — Not started
+- Phase 60: Trial Automation + Admin Tooling (TRIAL-01..02, ADMIN-BILLING-01..03) — Not started
+
+## v2.2 Phases Shipped
+
+- Phase 53: PDF Attachment Delivery (WAPDF-01..04) — COMPLETE 2026-05-11
+- Phase 54: WhatsApp Status Flow (WASTATUS-01..04) — COMPLETE 2026-05-13
 
 ## v2.1 Phases Shipped
 
@@ -43,6 +52,12 @@ Last activity: 2026-05-13
 
 ## Completed Phases
 
+- Phase 54: WhatsApp Status Flow (54-whatsapp-status-flow) — COMPLETE 2026-05-13
+  - Plan 01: updateWhatsAppStatus server action + unit tests (WASTATUS-02, WASTATUS-03, WASTATUS-04) — COMPLETE
+  - Plan 02: WhatsAppConnectCard: StatusBadge + Suspend/Reactivate buttons (WASTATUS-01, WASTATUS-03) — COMPLETE
+- Phase 53: PDF Attachment Delivery (53-pdf-attachment-delivery) — COMPLETE 2026-05-11
+  - Plan 01: Wave 0 test stubs + DB migration + lib/whatsapp/pdf-delivery.ts helper — COMPLETE
+  - Plan 02: confirm.ts handleSend pdf_attachment branch + WhatsAppConnectCard third SelectItem — COMPLETE
 - Phase 45: Settings UI + Admin Token (45-settings-ui-admin-token) — COMPLETE 2026-05-10
   - Plan 01: meta_whatsapp IntegrationProvider + admin integrations card + testIntegrationKey (graph.facebook.com/v21.0/me) + lib/actions/whatsapp-settings.ts + WhatsAppConnectCard + /settings/integrations page + settings entry card — COMPLETE
 - Phase 44: Outbound Client Delivery (44-outbound-client-delivery) — COMPLETE 2026-05-10
@@ -307,6 +322,15 @@ Last activity: 2026-05-13
 - [Phase 53-pdf-attachment-delivery]: WhatsAppStatus.deliveryFormat type extended inline (not a separate DeliveryFormat alias) — consistent with existing component pattern
 - [Phase 54-whatsapp-status-flow]: StatusBadge pattern: collocated helper function + LABELS map above component for clean inline badge rendering without export
 - [Phase 54-whatsapp-status-flow]: onUpdateStatus optimistic pattern: setCurrent before server confirmation, toast on both success and error paths
+- [v3.0 monetization]: Per-company flat pricing (not per-seat) — matches current 1:1 user→company model
+- [v3.0 monetization]: checkQuota() before AI call → recordUsage() after success only (never charge for failed calls)
+- [v3.0 monetization]: recordUsage() deduplicates by idempotency key (WhatsApp: message_id; web: request_id)
+- [v3.0 monetization]: WhatsApp entitlement checked BEFORE first Meta download — not after Whisper; free tier with whatsappEnabled:false pays nothing
+- [v3.0 monetization]: Existing estimates after downgrade remain read-only forever (good UX — share links never break)
+- [v3.0 monetization]: Redis (Phase 47) used for hourly rate limiting; tier limits handled via usage_events
+- [v3.0 monetization]: Stripe for US-first SaaS billing; USD-only for v3.0 (BRL deferred to LatAm expansion)
+- [v3.0 monetization]: Admin granularity is hybrid — force tier (coarse) + bonus credits (fine)
+- [v3.0 monetization]: HTTP 402 for quota-exceeded responses (not 403) per REQUIREMENTS.md key decisions
 
 ## Performance Metrics
 
@@ -401,10 +425,10 @@ Last activity: 2026-05-13
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-05-11)
+See: .planning/PROJECT.md (updated 2026-05-13)
 
 **Core value:** Business owner → job site audio recording → sent professional estimate in under 5 minutes
-**Current focus:** Phase 54 — WhatsApp Status Flow
+**Current focus:** Phase 55 — Schema + Tier Definitions
 
 ## Notes
 
@@ -420,7 +444,8 @@ v1.8: Phases 35-37 (completed 2026-05-09). SEED-006 Iterative Estimate Refinemen
 v1.9: Phases 38-39 (started 2026-05-10). SEED-009 Custom Domain Support — per-company domain configuration + subdomain routing + white-label estimate view.
 v2.0: Phases 40-45 (shipped 2026-05-10). SEED-008 WhatsApp Estimate Channel MVP.
 v2.1: Phases 46-52 (shipped 2026-05-11). WhatsApp Launch-Readiness — 7 phases, typed errors, Redis rate limiting, debounce, typing indicators, OTP verification, pre-send edit commands, per-estimate language selection.
-v2.2: Phases 53-54 (started 2026-05-11). WhatsApp Channel Polish — PDF attachment delivery (Gap 3) + real status flow (Gap 5).
+v2.2: Phases 53-54 (shipped 2026-05-13). WhatsApp Channel Polish — PDF attachment delivery (Gap 3) + real status flow (Gap 5).
+v3.0: Phases 55-60 (started 2026-05-13). Monetization — SEED-013 harvested. 24 requirements: tier schema + entitlements, usage tracking, enforcement, Stripe billing, billing UI, trial automation + admin tooling.
 
 ## Accumulated Context
 
@@ -437,6 +462,7 @@ v2.2: Phases 53-54 (started 2026-05-11). WhatsApp Channel Polish — PDF attachm
 - v1.6 phases 31-33 (SEED-005): Wizard modality selection (Phase 31) → Text input route /describe (Phase 32) → Photos input route /photos-input (Phase 33). Key constraint: Phase 27 (nullable storage_path) already enables text-only and photos-only recordings. Phase 31 adds the wizard selection UI and input_mode storage. Phases 32-33 are independent entry points that reuse the existing generate-estimate pipeline.
 - v1.9 phases 38-39 (SEED-009): Domain config + settings UI (Phase 38) → Subdomain routing + white-label (Phase 39). Key constraint: Phase 38 must ship first — Phase 39 reads the custom_domain column that Phase 38 creates. DOMAIN-05 (no regression) is validated in Phase 38 by ensuring companies with no domain see no change. custom_domain goes on companies table (not platform_branding — that is platform-level config). proxy.ts hosts the subdomain detection (no middleware.ts exists).
 - v2.2 phases 53-54 (SEED-015 Gaps 3 & 5): PDF attachment delivery (Phase 53) → WhatsApp status flow (Phase 54). Key constraint: Phase 53 touches confirm.ts delivery branching and adds pdf_attachment to delivery_format enum — complete that before Phase 54 also touches the same UI selector to add suspend/reactivate. Both phases build on Phase 50 (OTP verification) which established the pending→active transition. Phase 54 closes the status flow loop by wiring verified→active auto-promotion and adding the suspended state with admin controls.
+- v3.0 phases 55-60 (SEED-013): Schema + tier definitions (Phase 55) → Usage tracking helpers (Phase 56) → Enforcement wiring (Phase 57) → Stripe integration (Phase 58) → Billing UI (Phase 59) → Trial automation + admin tooling (Phase 60). Key constraint: Phase 55 is a hard prerequisite for all others — tier columns and usage_events table must exist. Phase 56 builds the quota library; Phase 57 wires it to routes. Phase 58 is independent of 56-57 (depends only on Phase 55 tier columns). Phase 59 requires both Phase 57 (usage data) and Phase 58 (Stripe endpoints). Phase 60 depends on Phase 55 (tier columns) and Phase 58 (Stripe state) but not on Phase 59 UI.
 
 ### Quick Tasks Completed
 
