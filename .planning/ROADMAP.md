@@ -151,7 +151,7 @@
   4. A new company created through the signup flow has `tier='free'` and `tier_trial_ends_at` set to 14 days from creation — observable by querying the row in Supabase
 **Plans**: 2 plans
 Plans:
-- [ ] 55-01-PLAN.md — Migration SQL (TIER-01, TIER-02) + lib/entitlements.ts (TIER-03) + Wave 0 test stubs
+- [x] 55-01-PLAN.md — Migration SQL (TIER-01, TIER-02) + lib/entitlements.ts (TIER-03) + Wave 0 test stubs
 - [ ] 55-02-PLAN.md — types/database.types.ts extension + createOrUpdateCompany() trial start patch + getCompanyTier() query (TIER-04)
 
 ### Phase 56: Usage Tracking
@@ -648,7 +648,7 @@ Plans:
 | 52. Per-Estimate Language Selection | v2.1 | 1/1 | Complete | 2026-05-11 |
 | 53. PDF Attachment Delivery | v2.2 | 2/2 | Complete    | 2026-05-11 |
 | 54. WhatsApp Status Flow | v2.2 | 2/2 | Complete    | 2026-05-13 |
-| 55. Schema + Tier Definitions | v3.0 | 0/2 | Not started | - |
+| 55. Schema + Tier Definitions | v3.0 | 1/2 | In Progress|  |
 | 56. Usage Tracking | v3.0 | TBD | Not started | - |
 | 57. Enforcement Layer | v3.0 | TBD | Not started | - |
 | 58. Stripe Integration | v3.0 | TBD | Not started | - |

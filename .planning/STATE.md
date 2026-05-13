@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
-milestone: v3.0
-milestone_name: Monetization
-status: planning
-last_updated: "2026-05-13T00:00:00.000Z"
+milestone: v1.5
+milestone_name: Zero-friction Project Onboarding
+status: executing
+last_updated: "2026-05-13T23:34:06.565Z"
 last_activity: 2026-05-13
 progress:
-  total_phases: 6
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_phases: 50
+  completed_phases: 40
+  total_plans: 109
+  completed_plans: 113
 ---
 
 # Project State
@@ -21,8 +21,8 @@ progress:
 
 ## Current Position
 
-Phase: 55
-Plan: Not started
+Phase: 55 (Schema + Tier Definitions) — EXECUTING
+Plan: 2 of 2
 Status: Ready to execute
 Last activity: 2026-05-13
 
@@ -331,6 +331,8 @@ Last activity: 2026-05-13
 - [v3.0 monetization]: Stripe for US-first SaaS billing; USD-only for v3.0 (BRL deferred to LatAm expansion)
 - [v3.0 monetization]: Admin granularity is hybrid — force tier (coarse) + bonus credits (fine)
 - [v3.0 monetization]: HTTP 402 for quota-exceeded responses (not 403) per REQUIREMENTS.md key decisions
+- [Phase 55-schema-tier-definitions]: Use null (not Infinity) for unlimited tier quotas — JSON.stringify(Infinity) === null silently
+- [Phase 55-schema-tier-definitions]: TEXT + CHECK for companies.tier (no Postgres enum — D-07/D-08 pattern); deny-all RLS on usage_events (service role writes only)
 
 ## Performance Metrics
 
@@ -422,6 +424,7 @@ Last activity: 2026-05-13
 | Phase 53-pdf-attachment-delivery P01 | 9min | 3 tasks | 3 files |
 | Phase 53-pdf-attachment-delivery P02 | 7min | 2 tasks | 3 files |
 | Phase 54-whatsapp-status-flow P02 | 10min | 2 tasks | 2 files |
+| Phase 55-schema-tier-definitions P01 | 3 | 3 tasks | 4 files |
 
 ## Project Reference
 
