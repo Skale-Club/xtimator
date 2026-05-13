@@ -1,14 +1,18 @@
 ---
 id: SEED-015
-status: dormant
+status: cancelled
 planted: 2026-05-10
 planted_during: v2.0 WhatsApp Estimate Channel (post-milestone audit of SEED-008 vs delivered MVP)
 partial_harvest: 2026-05-11
 partial_harvest_in:
   - v2.1 Phase 50 (OTP Verification — Gap 2)
   - v2.1 Phase 51 (Pre-Send Edit Commands — Gap 1, MVP subset)
-remaining_gaps: Gap 3 (PDF attachment), Gap 4 (Twilio provider abstraction), Gap 5 (real status flow), plus section/item-level edit commands (deferred from Gap 1)
-trigger_when: When iterating on WhatsApp UX after v2.0, when first paying customers complain about not being able to edit estimates before sending, when adding an alternate WhatsApp provider (Twilio), or when tightening number verification security
+  - v2.2 Phase 53 (PDF Attachment Delivery — Gap 3)
+  - v2.2 Phase 54 (WhatsApp Status Flow — Gap 5)
+cancelled: 2026-05-13
+cancellation_reason: Gap 4 (Twilio provider abstraction) deferred indefinitely — no active pain point with Meta. All other gaps harvested.
+remaining_gaps: Gap 4 (Twilio provider abstraction) — cancelled
+trigger_when: n/a — cancelled
 scope: Medium
 ---
 
