@@ -1,8 +1,8 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.5
-milestone_name: Zero-friction Project Onboarding
-status: executing
+milestone: v3.0
+milestone_name: Monetization
+status: planning
 last_updated: "2026-05-13T22:41:14.963Z"
 last_activity: 2026-05-13
 progress:

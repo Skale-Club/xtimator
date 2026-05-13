@@ -14,17 +14,22 @@ The platform includes:
 
 A business owner can go from job site audio recording to a sent, professional estimate in under 5 minutes without touching a keyboard.
 
-## Last Milestone: v2.1 WhatsApp Launch-Readiness ✅ (shipped 2026-05-11)
+## Last Milestone: v2.2 WhatsApp Channel Polish ✅ (shipped 2026-05-13)
 
-Closed the launch-blocking gaps in v2.0's WhatsApp MVP. Multi-message debounce, OTP number verification, pre-send edit commands, typing/read receipts, Redis rate limiting, typed error handling, and per-estimate language selection (English-first cascade). 7 phases, 170/170 tests passing, production build clean.
+Completed the remaining WhatsApp channel gaps: PDF attachment delivery via Meta API (third `delivery_format` option with Supabase Storage + signed URL + graceful fallback) and full status flow UI (StatusBadge, suspend/reactivate buttons, `updateWhatsAppStatus` server action). 2 phases, all WAPDF + WASTATUS requirements satisfied.
 
-## Current Milestone: v2.2 WhatsApp Channel Polish
+## Current Milestone: v3.0 Monetization
 
-**Goal:** Completar os gaps de produção do canal WhatsApp — entrega de PDF como attachment e status flow real.
+**Goal:** Turn Xtimator into a sustainable SaaS with tiered plans, usage enforcement, Stripe billing, and admin controls.
 
 **Target features:**
-- PDF attachment delivery via Meta API (`pdf_attachment` como terceira opção de `delivery_format`)
-- Status flow real: `pending → verified → active → suspended` (wiring pós-OTP da Phase 50)
+- Tier system: Free / Pro ($29/mo) / Business ($99/mo) + 14-day trial
+- Usage tracking: estimates, photos, audio minutes per company (`usage_events` table)
+- Enforcement: `checkQuota()` before AI calls → `recordUsage()` after success, across all AI endpoints
+- Stripe integration: checkout session, customer portal, webhook handler (checkout.session.completed, invoice.paid, invoice.payment_failed, customer.subscription.deleted)
+- Billing UI: `/settings/billing` with usage graph and upgrade CTA
+- Trial automation: cron downgrade on expiry + warning emails (3-day and day-of)
+- Admin tooling: force tier, grant bonus credits, view MRR
 
 **Last shipped:** Phase 54 — WhatsApp Status Flow (2026-05-13)
 
@@ -142,7 +147,7 @@ Closed the launch-blocking gaps in v2.0's WhatsApp MVP. Multi-message debounce, 
 - **Theme system:** `next-themes` with `eb-theme` cookie SSR hydration; `[data-theme]` scoped-dark CSS-var pattern for admin/auth; `[data-theme="light"]` forced-light wrapper for public estimate view.
 - **i18n:** `LanguageContext` + `useTranslation()` hook, 192-entry static `translations.ts`, `/api/translate` with Claude Haiku + DB cache (translations table, unique index on source_text+lang pair).
 - **Seeds harvested:** SEED-001 (i18n → v1.2), SEED-002 (brand identity → v1.2), SEED-003 (price book → v1.3), SEED-004 (plain-text estimate → v1.4), SEED-005 (multi-modal input → v1.5/v1.6), SEED-006 (iterative refinement → v1.8), SEED-007 (frictionless client → v1.5/v1.7), SEED-009 (custom domain → v1.9). SEED-008 (WhatsApp → v2.0 — active).
-- **Seeds dormant:** SEED-013 (Monetização — aguarda tração de usuários), SEED-015 Gap 4 (Twilio provider abstraction — v3.x).
+- **Seeds dormant:** none. SEED-013 harvested → v3.0. SEED-015 cancelled (Gap 4 deferred indefinitely).
 
 ## Constraints
 
@@ -190,4 +195,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context
 
 ---
-*Last updated: 2026-05-13 — Phase 54 WhatsApp Status Flow complete — v2.2 all phases done*
+*Last updated: 2026-05-13 — v3.0 Monetization milestone started*
