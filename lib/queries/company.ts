@@ -85,3 +85,21 @@ export async function getCustomDomainSettings(
 
   return data ?? null
 }
+
+/**
+ * Fetch the tier and trial expiry for a user's company.
+ * Used by Phase 56 checkQuota() and Phase 57 enforcement.
+ * Focused query — does not pull all 25+ company columns (anti-pattern: select('*')).
+ */
+export async function getCompanyTier(
+  supabase: SupabaseClient,
+  userId: string
+): Promise<{ id: string; tier: string; tier_trial_ends_at: string | null } | null> {
+  const { data } = await supabase
+    .from('companies')
+    .select('id, tier, tier_trial_ends_at')
+    .eq('user_id', userId)
+    .single()
+
+  return data ?? null
+}

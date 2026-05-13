@@ -83,7 +83,16 @@ export async function createOrUpdateCompany(data: CompanyFormData) {
     }
   } else {
     // Insert new company
-    const { error } = await supabase.from('companies').insert(row)
+    // TIER-04: new companies start with a 14-day trial clock.
+    // tier itself uses the DB DEFAULT 'free' — no need to pass it explicitly.
+    // tier_trial_ends_at is set ONLY in INSERT, never in UPDATE, to avoid resetting on settings saves.
+    const trialEndsAt = new Date()
+    trialEndsAt.setDate(trialEndsAt.getDate() + 14)
+
+    const { error } = await supabase.from('companies').insert({
+      ...row,
+      tier_trial_ends_at: trialEndsAt.toISOString(),
+    })
 
     if (error) {
       return {
