@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Zero-friction Project Onboarding
-status: executing
-last_updated: "2026-05-13T23:34:06.565Z"
+status: verifying
+last_updated: "2026-05-13T23:42:48.915Z"
 last_activity: 2026-05-13
 progress:
   total_phases: 50
-  completed_phases: 40
+  completed_phases: 41
   total_plans: 109
-  completed_plans: 113
+  completed_plans: 114
 ---
 
 # Project State
@@ -23,7 +23,7 @@ progress:
 
 Phase: 55 (Schema + Tier Definitions) — EXECUTING
 Plan: 2 of 2
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-05-13
 
 ## v3.0 Phases
@@ -333,6 +333,8 @@ Last activity: 2026-05-13
 - [v3.0 monetization]: HTTP 402 for quota-exceeded responses (not 403) per REQUIREMENTS.md key decisions
 - [Phase 55-schema-tier-definitions]: Use null (not Infinity) for unlimited tier quotas — JSON.stringify(Infinity) === null silently
 - [Phase 55-schema-tier-definitions]: TEXT + CHECK for companies.tier (no Postgres enum — D-07/D-08 pattern); deny-all RLS on usage_events (service role writes only)
+- [Phase 55-schema-tier-definitions]: tier_trial_ends_at spread via {...row, tier_trial_ends_at} in INSERT — keeps shared row clean, trial-start field stays INSERT-only
+- [Phase 55-schema-tier-definitions]: getCompanyTier() focused query (id, tier, tier_trial_ends_at) — not select('*') anti-pattern, for Phase 56/57 quota checks
 
 ## Performance Metrics
 
@@ -425,6 +427,7 @@ Last activity: 2026-05-13
 | Phase 53-pdf-attachment-delivery P02 | 7min | 2 tasks | 3 files |
 | Phase 54-whatsapp-status-flow P02 | 10min | 2 tasks | 2 files |
 | Phase 55-schema-tier-definitions P01 | 3 | 3 tasks | 4 files |
+| Phase 55-schema-tier-definitions P02 | 10min | 3 tasks | 3 files |
 
 ## Project Reference
 

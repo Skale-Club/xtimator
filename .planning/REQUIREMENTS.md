@@ -7,7 +7,7 @@
 - [x] **TIER-01**: `companies` table gains columns: `tier` (TEXT NOT NULL DEFAULT 'free'), `tier_trial_ends_at` (TIMESTAMPTZ), `stripe_customer_id` (TEXT), `stripe_subscription_id` (TEXT), `tier_renews_at` (TIMESTAMPTZ), `tier_cancelled_at` (TIMESTAMPTZ)
 - [x] **TIER-02**: `usage_events` table created: `(id UUID PK, company_id UUID FK, event_type TEXT, units NUMERIC, metadata JSONB, created_at TIMESTAMPTZ DEFAULT NOW())` with index on `(company_id, created_at DESC)`
 - [x] **TIER-03**: `lib/entitlements.ts` exports tier definitions (free / trial / pro / business) with per-tier limits: `maxEstimatesPerMonth`, `maxEstimatesPerDay`, `maxPhotosPerEstimate`, `maxAudioMinutesPerEstimate`, `whatsappEnabled`, `pdfEnabled`, `priceBookEnabled`
-- [ ] **TIER-04**: New companies start with `tier='free'` and `tier_trial_ends_at = now() + interval '14 days'`
+- [x] **TIER-04**: New companies start with `tier='free'` and `tier_trial_ends_at = now() + interval '14 days'`
 
 ### Usage Enforcement (QUOTA)
 
@@ -51,7 +51,7 @@
 | TIER-01 | Phase 55 | Complete |
 | TIER-02 | Phase 55 | Complete |
 | TIER-03 | Phase 55 | Complete |
-| TIER-04 | Phase 55 | Pending |
+| TIER-04 | Phase 55 | Complete |
 | QUOTA-01 | Phase 56 | Pending |
 | QUOTA-02 | Phase 56 | Pending |
 | QUOTA-03 | Phase 57 | Pending |

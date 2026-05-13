@@ -133,7 +133,7 @@
 
 ### v3.0 Monetization (Phases 55-60)
 
-- [ ] **Phase 55: Schema + Tier Definitions** — DB migration adding tier columns to `companies` + `usage_events` table; `lib/entitlements.ts` with Free/Trial/Pro/Business definitions; new companies seeded with `tier='free'` and 14-day trial
+- [x] **Phase 55: Schema + Tier Definitions** — DB migration adding tier columns to `companies` + `usage_events` table; `lib/entitlements.ts` with Free/Trial/Pro/Business definitions; new companies seeded with `tier='free'` and 14-day trial (completed 2026-05-13)
 - [ ] **Phase 56: Usage Tracking** — `checkQuota()` and `recordUsage()` helpers with idempotency key deduplication; plugged into nothing yet — pure library layer ready for enforcement
 - [ ] **Phase 57: Enforcement Layer** — Plug `checkQuota`/`recordUsage` into `generate-estimate`, `analyze-photos`, and WhatsApp handler; quota-exceeded responses return HTTP 402 with upgrade URL
 - [ ] **Phase 58: Stripe Integration** — Checkout session API, Customer Portal API, webhook handler for subscription lifecycle events; idempotent event processing
@@ -152,7 +152,7 @@
 **Plans**: 2 plans
 Plans:
 - [x] 55-01-PLAN.md — Migration SQL (TIER-01, TIER-02) + lib/entitlements.ts (TIER-03) + Wave 0 test stubs
-- [ ] 55-02-PLAN.md — types/database.types.ts extension + createOrUpdateCompany() trial start patch + getCompanyTier() query (TIER-04)
+- [x] 55-02-PLAN.md — types/database.types.ts extension + createOrUpdateCompany() trial start patch + getCompanyTier() query (TIER-04)
 
 ### Phase 56: Usage Tracking
 **Goal**: Every AI operation that counts against a quota can be checked before execution and recorded after success — the enforcement API exists even before it is wired to any route
@@ -648,7 +648,7 @@ Plans:
 | 52. Per-Estimate Language Selection | v2.1 | 1/1 | Complete | 2026-05-11 |
 | 53. PDF Attachment Delivery | v2.2 | 2/2 | Complete    | 2026-05-11 |
 | 54. WhatsApp Status Flow | v2.2 | 2/2 | Complete    | 2026-05-13 |
-| 55. Schema + Tier Definitions | v3.0 | 1/2 | In Progress|  |
+| 55. Schema + Tier Definitions | v3.0 | 2/2 | Complete   | 2026-05-13 |
 | 56. Usage Tracking | v3.0 | TBD | Not started | - |
 | 57. Enforcement Layer | v3.0 | TBD | Not started | - |
 | 58. Stripe Integration | v3.0 | TBD | Not started | - |
