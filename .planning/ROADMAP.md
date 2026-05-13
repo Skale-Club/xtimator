@@ -128,7 +128,7 @@
 ### v2.2 WhatsApp Channel Polish (Phases 53-54)
 
 - [x] **Phase 53: PDF Attachment Delivery** — Add `pdf_attachment` as a third `delivery_format` option; generate PDF via existing `/api/estimates/[id]/pdf` endpoint; upload to `estimates-pdf` Supabase Storage with 24h signed URL; send to client via Meta API `type: "document"`; degrade to `share_link` on any failure (SEED-015 Gap 3) (completed 2026-05-11)
-- [ ] **Phase 54: WhatsApp Status Flow** — Wire full `pending → verified → active → suspended` pipeline post-OTP; clear UI labels in `WhatsAppConnectCard`; admin/owner suspend and reactivate action; `handler.ts` gate enforces `status = 'active'` (SEED-015 Gap 5)
+- [x] **Phase 54: WhatsApp Status Flow** — Wire full `pending → verified → active → suspended` pipeline post-OTP; clear UI labels in `WhatsAppConnectCard`; admin/owner suspend and reactivate action; `handler.ts` gate enforces `status = 'active'` (SEED-015 Gap 5) (completed 2026-05-13)
 
 ### Phase 53: PDF Attachment Delivery
 **Goal**: Clients can receive their estimate as a PDF document via WhatsApp — a third delivery option alongside share link and formatted text
@@ -155,8 +155,8 @@ Plans:
   4. An inbound WhatsApp message from a number whose `company_whatsapp.status` is `pending`, `verified`, or `suspended` is silently ignored by the handler — no estimate is created, no reply is sent
 **Plans**: 2 plans
 Plans:
-- [ ] 54-01-PLAN.md — updateWhatsAppStatus server action + unit tests (WASTATUS-02, WASTATUS-03, WASTATUS-04)
-- [ ] 54-02-PLAN.md — WhatsAppConnectCard: StatusBadge + Suspend/Reactivate buttons (WASTATUS-01, WASTATUS-03)
+- [x] 54-01-PLAN.md — updateWhatsAppStatus server action + unit tests (WASTATUS-02, WASTATUS-03, WASTATUS-04)
+- [x] 54-02-PLAN.md — WhatsAppConnectCard: StatusBadge + Suspend/Reactivate buttons (WASTATUS-01, WASTATUS-03)
 
 ## Phase Details
 
@@ -564,4 +564,4 @@ Plans:
 | 51. WhatsApp Pre-Send Edit Commands | v2.1 | 1/1 | Complete | 2026-05-11 |
 | 52. Per-Estimate Language Selection | v2.1 | 1/1 | Complete | 2026-05-11 |
 | 53. PDF Attachment Delivery | v2.2 | 2/2 | Complete    | 2026-05-11 |
-| 54. WhatsApp Status Flow | v2.2 | 0/TBD | Not started | - |
+| 54. WhatsApp Status Flow | v2.2 | 2/2 | Complete   | 2026-05-13 |
