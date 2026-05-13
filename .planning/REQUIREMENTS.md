@@ -12,9 +12,9 @@
 ### WhatsApp Status Flow (WASTATUS)
 
 - [x] **WASTATUS-01**: WhatsApp connection settings UI displays current status with clear human-readable labels: Pending, Verified, Active, Suspended
-- [ ] **WASTATUS-02**: Status transitions follow the full pipeline: `pending` (credentials submitted, awaiting OTP) → `verified` (OTP confirmed) → `active` (auto-approved post-verification) → `suspended` (admin-controlled)
+- [x] **WASTATUS-02**: Status transitions follow the full pipeline: `pending` (credentials submitted, awaiting OTP) → `verified` (OTP confirmed) → `active` (auto-approved post-verification) → `suspended` (admin-controlled)
 - [x] **WASTATUS-03**: Admin (or owner) can suspend and reactivate a WhatsApp connection — setting `status = 'suspended'` or back to `active`
-- [ ] **WASTATUS-04**: Inbound message handler enforces `status = 'active'` gate — connections in `pending`, `verified`, or `suspended` state are silently ignored
+- [x] **WASTATUS-04**: Inbound message handler enforces `status = 'active'` gate — connections in `pending`, `verified`, or `suspended` state are silently ignored
 
 ## Traceability
 
