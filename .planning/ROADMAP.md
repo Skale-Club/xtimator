@@ -133,7 +133,7 @@
 
 ### v3.0 Monetization (Phases 55-60)
 
-- [x] **Phase 55: Schema + Tier Definitions** — DB migration adding tier columns to `companies` + `usage_events` table; `lib/entitlements.ts` with Free/Trial/Pro/Business definitions; new companies seeded with `tier='free'` and 14-day trial (completed 2026-05-13)
+- [x] **Phase 55: Schema + Tier Definitions** — DB migration adding tier columns to `companies` + `usage_events` table; `lib/entitlements.ts` with Free/Trial/Pro/Business definitions; new companies seeded with `tier='free'` and 14-day trial (completed 2026-05-13)
 - [ ] **Phase 56: Usage Tracking** — `checkQuota()` and `recordUsage()` helpers with idempotency key deduplication; plugged into nothing yet — pure library layer ready for enforcement
 - [ ] **Phase 57: Enforcement Layer** — Plug `checkQuota`/`recordUsage` into `generate-estimate`, `analyze-photos`, and WhatsApp handler; quota-exceeded responses return HTTP 402 with upgrade URL
 - [ ] **Phase 58: Stripe Integration** — Checkout session API, Customer Portal API, webhook handler for subscription lifecycle events; idempotent event processing
@@ -163,7 +163,9 @@ Plans:
   2. Calling `checkQuota(companyId, 'estimate')` for a company that has reached its monthly limit returns `{ allowed: false, remaining: 0 }` — no false positives, no false negatives
   3. Calling `recordUsage(companyId, 'estimate_generated', 1, idempotencyKey)` inserts a row in `usage_events`; calling it again with the same idempotency key does not insert a duplicate row
   4. Unit tests cover the check and record functions without a live database
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 56-01-PLAN.md — Migration (idempotency_key + unique index) + lib/quota.ts (checkQuota + recordUsage) + unit tests (QUOTA-01, QUOTA-02)
 
 ### Phase 57: Enforcement Layer
 **Goal**: AI operations are gated — a company over its limit cannot generate estimates or analyze photos, and the WhatsApp handler rejects processing before any paid API call is made
@@ -649,7 +651,7 @@ Plans:
 | 53. PDF Attachment Delivery | v2.2 | 2/2 | Complete    | 2026-05-11 |
 | 54. WhatsApp Status Flow | v2.2 | 2/2 | Complete    | 2026-05-13 |
 | 55. Schema + Tier Definitions | v3.0 | 2/2 | Complete    | 2026-05-13 |
-| 56. Usage Tracking | v3.0 | TBD | Not started | - |
+| 56. Usage Tracking | v3.0 | 1/1 | Not started | - |
 | 57. Enforcement Layer | v3.0 | TBD | Not started | - |
 | 58. Stripe Integration | v3.0 | TBD | Not started | - |
 | 59. Billing UI | v3.0 | TBD | Not started | - |
