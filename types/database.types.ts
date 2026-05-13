@@ -143,6 +143,12 @@ export type Database = {
           estimate_template_closer: string | null
           estimate_template_signature: string | null
           custom_domain: string | null
+          tier: string
+          tier_trial_ends_at: string | null
+          stripe_customer_id: string | null
+          stripe_subscription_id: string | null
+          tier_renews_at: string | null
+          tier_cancelled_at: string | null
         }
         Insert: {
           id?: string
@@ -176,6 +182,12 @@ export type Database = {
           estimate_template_closer?: string | null
           estimate_template_signature?: string | null
           custom_domain?: string | null
+          tier?: string
+          tier_trial_ends_at?: string | null
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          tier_renews_at?: string | null
+          tier_cancelled_at?: string | null
         }
         Update: {
           id?: string
@@ -209,8 +221,49 @@ export type Database = {
           estimate_template_closer?: string | null
           estimate_template_signature?: string | null
           custom_domain?: string | null
+          tier?: string
+          tier_trial_ends_at?: string | null
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          tier_renews_at?: string | null
+          tier_cancelled_at?: string | null
         }
         Relationships: []
+      }
+      usage_events: {
+        Row: {
+          id: string
+          company_id: string
+          event_type: string
+          units: number | null
+          metadata: Json | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          event_type: string
+          units?: number | null
+          metadata?: Json | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          company_id?: string
+          event_type?: string
+          units?: number | null
+          metadata?: Json | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "usage_events_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          }
+        ]
       }
       company_price_book: {
         Row: {
