@@ -648,7 +648,7 @@ Plans:
 | 52. Per-Estimate Language Selection | v2.1 | 1/1 | Complete | 2026-05-11 |
 | 53. PDF Attachment Delivery | v2.2 | 2/2 | Complete    | 2026-05-11 |
 | 54. WhatsApp Status Flow | v2.2 | 2/2 | Complete    | 2026-05-13 |
-| 55. Schema + Tier Definitions | v3.0 | 2/2 | Complete   | 2026-05-13 |
+| 55. Schema + Tier Definitions | v3.0 | 2/2 | Complete    | 2026-05-13 |
 | 56. Usage Tracking | v3.0 | TBD | Not started | - |
 | 57. Enforcement Layer | v3.0 | TBD | Not started | - |
 | 58. Stripe Integration | v3.0 | TBD | Not started | - |
