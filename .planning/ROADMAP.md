@@ -190,7 +190,10 @@ Plans:
   2. After a successful payment in Stripe's test mode, the `checkout.session.completed` webhook updates the company's `tier`, `stripe_customer_id`, `stripe_subscription_id`, and `tier_renews_at` columns — observable by querying the row
   3. `POST /api/billing/create-portal-session` returns a Stripe Customer Portal URL; opening it lets the subscriber manage or cancel their subscription
   4. Sending the same Stripe webhook event twice does not update the company row twice — the handler is idempotent and processes duplicate events without side effects
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 58-01-PLAN.md — stripe install + IntegrationProvider + migration + stripe-client + checkout + portal routes + Wave 0 stubs (STRIPE-01, STRIPE-03, STRIPE-04)
+- [ ] 58-02-PLAN.md — Stripe webhook handler + idempotency + lifecycle events + tests GREEN (STRIPE-02, STRIPE-04)
 
 ### Phase 59: Billing UI
 **Goal**: A company owner can see their current plan, remaining usage, and upgrade path from a single settings page — and is warned when quota is exhausted or trial is about to expire
