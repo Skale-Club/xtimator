@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Zero-friction Project Onboarding
-status: executing
-last_updated: "2026-05-14T01:40:52.832Z"
+status: verifying
+last_updated: "2026-05-14T11:39:03.911Z"
 last_activity: 2026-05-14
 progress:
   total_phases: 53
-  completed_phases: 43
+  completed_phases: 44
   total_plans: 114
-  completed_plans: 118
+  completed_plans: 119
 ---
 
 # Project State
@@ -23,7 +23,7 @@ progress:
 
 Phase: 58 (Stripe Integration) — EXECUTING
 Plan: 2 of 2
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-05-14
 
 ## v3.0 Phases
@@ -344,6 +344,8 @@ Last activity: 2026-05-14
 - [Phase 58-stripe-integration]: stripe@22.1.1 API version is 2026-04-22.dahlia (not 2025-04-30.basil as planned — auto-fixed)
 - [Phase 58-stripe-integration]: getStripeClient() per-request factory follows ADMIN-06 — no module-level Stripe instance
 - [Phase 58-stripe-integration]: checkout/portal routes use supabase.auth.getClaims() pattern (established codebase convention)
+- [Phase 58-stripe-integration]: invoice.paid subscription ID extracted via legacy field cast + parent.subscription_details fallback (Stripe API 2026-04-22 moved subscription to nested structure)
+- [Phase 58-stripe-integration]: invoice.payment_failed makes zero DB writes — Stripe dunning handles retries; customer.subscription.deleted triggers tier=free downgrade
 
 ## Performance Metrics
 
@@ -441,6 +443,7 @@ Last activity: 2026-05-14
 | Phase 57-enforcement-layer P01 | 8min | 3 tasks | 4 files |
 | Phase 57-enforcement-layer P02 | 8min | 2 tasks | 2 files |
 | Phase 58-stripe-integration P01 | 5min | 3 tasks | 11 files |
+| Phase 58-stripe-integration P02 | 25 | 2 tasks | 4 files |
 
 ## Project Reference
 

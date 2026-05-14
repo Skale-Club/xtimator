@@ -136,7 +136,7 @@
 - [x] **Phase 55: Schema + Tier Definitions** — DB migration adding tier columns to `companies` + `usage_events` table; `lib/entitlements.ts` with Free/Trial/Pro/Business definitions; new companies seeded with `tier='free'` and 14-day trial (completed 2026-05-13)
 - [x] **Phase 56: Usage Tracking** — `checkQuota()` and `recordUsage()` helpers with idempotency key deduplication; plugged into nothing yet — pure library layer ready for enforcement (completed 2026-05-14)
 - [x] **Phase 57: Enforcement Layer** — Plug `checkQuota`/`recordUsage` into `generate-estimate`, `analyze-photos`, and WhatsApp handler; quota-exceeded responses return HTTP 402 with upgrade URL (completed 2026-05-14)
-- [ ] **Phase 58: Stripe Integration** — Checkout session API, Customer Portal API, webhook handler for subscription lifecycle events; idempotent event processing
+- [x] **Phase 58: Stripe Integration** — Checkout session API, Customer Portal API, webhook handler for subscription lifecycle events; idempotent event processing (completed 2026-05-14)
 - [ ] **Phase 59: Billing UI** — `/settings/billing` page with plan card, usage meters, upgrade CTA; trial banner; 402 upgrade modal
 - [ ] **Phase 60: Trial Automation + Admin Tooling** — Cron downgrade on trial expiry; T-3 and T-0 warning emails; admin force-tier, bonus credits, MRR view
 
@@ -193,7 +193,7 @@ Plans:
 **Plans**: 2 plans
 Plans:
 - [x] 58-01-PLAN.md — stripe install + IntegrationProvider + migration + stripe-client + checkout + portal routes + Wave 0 stubs (STRIPE-01, STRIPE-03, STRIPE-04)
-- [ ] 58-02-PLAN.md — Stripe webhook handler + idempotency + lifecycle events + tests GREEN (STRIPE-02, STRIPE-04)
+- [x] 58-02-PLAN.md — Stripe webhook handler + idempotency + lifecycle events + tests GREEN (STRIPE-02, STRIPE-04)
 
 ### Phase 59: Billing UI
 **Goal**: A company owner can see their current plan, remaining usage, and upgrade path from a single settings page — and is warned when quota is exhausted or trial is about to expire
@@ -659,6 +659,6 @@ Plans:
 | 55. Schema + Tier Definitions | v3.0 | 2/2 | Complete    | 2026-05-13 |
 | 56. Usage Tracking | v3.0 | 1/1 | Complete    | 2026-05-14 |
 | 57. Enforcement Layer | v3.0 | 1/2 | Complete    | 2026-05-14 |
-| 58. Stripe Integration | v3.0 | 1/2 | In Progress|  |
+| 58. Stripe Integration | v3.0 | 2/2 | Complete   | 2026-05-14 |
 | 59. Billing UI | v3.0 | TBD | Not started | - |
 | 60. Trial Automation + Admin Tooling | v3.0 | TBD | Not started | - |
