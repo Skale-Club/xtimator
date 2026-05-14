@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Zero-friction Project Onboarding
-status: executing
-last_updated: "2026-05-14T00:49:39.535Z"
+status: verifying
+last_updated: "2026-05-14T01:01:20.110Z"
 last_activity: 2026-05-14
 progress:
   total_phases: 52
@@ -23,7 +23,7 @@ progress:
 
 Phase: 57 (Enforcement Layer) — EXECUTING
 Plan: 2 of 2
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-05-14
 
 ## v3.0 Phases
@@ -340,6 +340,7 @@ Last activity: 2026-05-14
 - [Phase 56-usage-tracking]: Partial unique index (WHERE idempotency_key IS NOT NULL) allows multiple NULL rows while enforcing uniqueness for non-null keys
 - [Phase 57-enforcement-layer]: requestId generated at handler top via crypto.randomUUID() — available only in success path, never in catch block
 - [Phase 57-enforcement-layer]: Authenticated supabase client (not service role) used for checkQuota/recordUsage in web routes — companyId scoping via RLS is sufficient
+- [Phase 57-enforcement-layer]: Entitlement gate in processInboundMessages queries companies.tier before any message dispatch — blocks free-tier WhatsApp before Whisper/Vision costs
 
 ## Performance Metrics
 
@@ -435,6 +436,7 @@ Last activity: 2026-05-14
 | Phase 55-schema-tier-definitions P02 | 10min | 3 tasks | 3 files |
 | Phase 56-usage-tracking P01 | 6min | 3 tasks | 3 files |
 | Phase 57-enforcement-layer P01 | 8min | 3 tasks | 4 files |
+| Phase 57-enforcement-layer P02 | 8min | 2 tasks | 2 files |
 
 ## Project Reference
 
