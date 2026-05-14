@@ -176,7 +176,10 @@ Plans:
   2. A request to `POST /api/analyze-photos` from a company over its photo limit receives the same HTTP 402 response — no Claude Vision call is made
   3. An inbound WhatsApp message for a company with `whatsappEnabled: false` on its current tier is rejected before any audio or image is downloaded from Meta — the owner receives no estimate and no API cost is incurred
   4. For requests that pass the quota check, `recordUsage()` is called after the AI call succeeds — a failed AI call does not consume quota
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 57-01-PLAN.md — Wave 0 test stubs + generate-estimate quota enforcement (QUOTA-03, QUOTA-06) + analyze-photos quota enforcement (QUOTA-04, QUOTA-06)
+- [ ] 57-02-PLAN.md — WhatsApp handler entitlement gate before Meta download (QUOTA-05, QUOTA-06)
 
 ### Phase 58: Stripe Integration
 **Goal**: A company can subscribe to a paid plan via Stripe Checkout, manage their subscription via the Customer Portal, and subscription lifecycle events automatically update the company's tier in the database
@@ -652,7 +655,7 @@ Plans:
 | 54. WhatsApp Status Flow | v2.2 | 2/2 | Complete    | 2026-05-13 |
 | 55. Schema + Tier Definitions | v3.0 | 2/2 | Complete    | 2026-05-13 |
 | 56. Usage Tracking | v3.0 | 1/1 | Complete    | 2026-05-14 |
-| 57. Enforcement Layer | v3.0 | TBD | Not started | - |
+| 57. Enforcement Layer | v3.0 | 2 plans | Not started | - |
 | 58. Stripe Integration | v3.0 | TBD | Not started | - |
 | 59. Billing UI | v3.0 | TBD | Not started | - |
 | 60. Trial Automation + Admin Tooling | v3.0 | TBD | Not started | - |
