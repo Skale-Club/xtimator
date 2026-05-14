@@ -192,7 +192,7 @@ Plans:
   4. Sending the same Stripe webhook event twice does not update the company row twice — the handler is idempotent and processes duplicate events without side effects
 **Plans**: 2 plans
 Plans:
-- [ ] 58-01-PLAN.md — stripe install + IntegrationProvider + migration + stripe-client + checkout + portal routes + Wave 0 stubs (STRIPE-01, STRIPE-03, STRIPE-04)
+- [x] 58-01-PLAN.md — stripe install + IntegrationProvider + migration + stripe-client + checkout + portal routes + Wave 0 stubs (STRIPE-01, STRIPE-03, STRIPE-04)
 - [ ] 58-02-PLAN.md — Stripe webhook handler + idempotency + lifecycle events + tests GREEN (STRIPE-02, STRIPE-04)
 
 ### Phase 59: Billing UI
@@ -659,6 +659,6 @@ Plans:
 | 55. Schema + Tier Definitions | v3.0 | 2/2 | Complete    | 2026-05-13 |
 | 56. Usage Tracking | v3.0 | 1/1 | Complete    | 2026-05-14 |
 | 57. Enforcement Layer | v3.0 | 1/2 | Complete    | 2026-05-14 |
-| 58. Stripe Integration | v3.0 | TBD | Not started | - |
+| 58. Stripe Integration | v3.0 | 1/2 | In Progress|  |
 | 59. Billing UI | v3.0 | TBD | Not started | - |
 | 60. Trial Automation + Admin Tooling | v3.0 | TBD | Not started | - |

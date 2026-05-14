@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
-milestone: v3.0
-milestone_name: Monetization
-status: verifying
-last_updated: "2026-05-14T01:05:34.656Z"
+milestone: v1.5
+milestone_name: Zero-friction Project Onboarding
+status: executing
+last_updated: "2026-05-14T01:40:52.832Z"
 last_activity: 2026-05-14
 progress:
-  total_phases: 16
-  completed_phases: 12
-  total_plans: 19
-  completed_plans: 18
+  total_phases: 53
+  completed_phases: 43
+  total_plans: 114
+  completed_plans: 118
 ---
 
 # Project State
@@ -21,9 +21,9 @@ progress:
 
 ## Current Position
 
-Phase: 58
-Plan: Not started
-Status: Phase complete — ready for verification
+Phase: 58 (Stripe Integration) — EXECUTING
+Plan: 2 of 2
+Status: Ready to execute
 Last activity: 2026-05-14
 
 ## v3.0 Phases
@@ -341,6 +341,9 @@ Last activity: 2026-05-14
 - [Phase 57-enforcement-layer]: requestId generated at handler top via crypto.randomUUID() — available only in success path, never in catch block
 - [Phase 57-enforcement-layer]: Authenticated supabase client (not service role) used for checkQuota/recordUsage in web routes — companyId scoping via RLS is sufficient
 - [Phase 57-enforcement-layer]: Entitlement gate in processInboundMessages queries companies.tier before any message dispatch — blocks free-tier WhatsApp before Whisper/Vision costs
+- [Phase 58-stripe-integration]: stripe@22.1.1 API version is 2026-04-22.dahlia (not 2025-04-30.basil as planned — auto-fixed)
+- [Phase 58-stripe-integration]: getStripeClient() per-request factory follows ADMIN-06 — no module-level Stripe instance
+- [Phase 58-stripe-integration]: checkout/portal routes use supabase.auth.getClaims() pattern (established codebase convention)
 
 ## Performance Metrics
 
@@ -437,13 +440,14 @@ Last activity: 2026-05-14
 | Phase 56-usage-tracking P01 | 6min | 3 tasks | 3 files |
 | Phase 57-enforcement-layer P01 | 8min | 3 tasks | 4 files |
 | Phase 57-enforcement-layer P02 | 8min | 2 tasks | 2 files |
+| Phase 58-stripe-integration P01 | 5min | 3 tasks | 11 files |
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-13)
 
 **Core value:** Business owner → job site audio recording → sent professional estimate in under 5 minutes
-**Current focus:** Phase 57 — Enforcement Layer
+**Current focus:** Phase 58 — Stripe Integration
 
 ## Notes
 

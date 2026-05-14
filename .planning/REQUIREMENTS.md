@@ -20,10 +20,10 @@
 
 ### Stripe Integration (STRIPE)
 
-- [ ] **STRIPE-01**: `POST /api/billing/create-checkout-session` creates a Stripe Checkout session for the selected plan and returns redirect URL
+- [x] **STRIPE-01**: `POST /api/billing/create-checkout-session` creates a Stripe Checkout session for the selected plan and returns redirect URL
 - [ ] **STRIPE-02**: `POST /api/webhooks/stripe` handles `checkout.session.completed`, `invoice.paid`, `invoice.payment_failed`, `customer.subscription.deleted` — updates `companies` tier columns accordingly
-- [ ] **STRIPE-03**: `POST /api/billing/create-portal-session` creates a Stripe Customer Portal session for subscription management
-- [ ] **STRIPE-04**: Stripe webhook handler is idempotent — duplicate events do not double-update tier state
+- [x] **STRIPE-03**: `POST /api/billing/create-portal-session` creates a Stripe Customer Portal session for subscription management
+- [x] **STRIPE-04**: Stripe webhook handler is idempotent — duplicate events do not double-update tier state
 
 ### Billing UI (BILLING)
 
@@ -58,10 +58,10 @@
 | QUOTA-04 | Phase 57 | Complete |
 | QUOTA-05 | Phase 57 | Complete |
 | QUOTA-06 | Phase 57 | Complete |
-| STRIPE-01 | Phase 58 | Pending |
+| STRIPE-01 | Phase 58 | Complete |
 | STRIPE-02 | Phase 58 | Pending |
-| STRIPE-03 | Phase 58 | Pending |
-| STRIPE-04 | Phase 58 | Pending |
+| STRIPE-03 | Phase 58 | Complete |
+| STRIPE-04 | Phase 58 | Complete |
 | BILLING-01 | Phase 59 | Pending |
 | BILLING-02 | Phase 59 | Pending |
 | BILLING-03 | Phase 59 | Pending |
