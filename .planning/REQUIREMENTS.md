@@ -27,7 +27,7 @@
 
 ### Billing UI (BILLING)
 
-- [ ] **BILLING-01**: `/settings/billing` page shows current plan card (tier name, renewal date or trial end), usage meters (estimates used/limit, photos used/limit), and upgrade CTA
+- [x] **BILLING-01**: `/settings/billing` page shows current plan card (tier name, renewal date or trial end), usage meters (estimates used/limit, photos used/limit), and upgrade CTA
 - [ ] **BILLING-02**: Upgrade button initiates Stripe Checkout flow for Pro or Business plan
 - [ ] **BILLING-03**: Active paid subscriber sees "Manage Subscription" button that opens Stripe Customer Portal
 - [ ] **BILLING-04**: Persistent banner shown when trial has < 3 days remaining, linking to `/settings/billing`
@@ -62,7 +62,7 @@
 | STRIPE-02 | Phase 58 | Complete |
 | STRIPE-03 | Phase 58 | Complete |
 | STRIPE-04 | Phase 58 | Complete |
-| BILLING-01 | Phase 59 | Pending |
+| BILLING-01 | Phase 59 | Complete |
 | BILLING-02 | Phase 59 | Pending |
 | BILLING-03 | Phase 59 | Pending |
 | BILLING-04 | Phase 59 | Pending |

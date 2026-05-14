@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
-milestone: v3.0
-milestone_name: Monetization
-status: verifying
-last_updated: "2026-05-14T11:45:57.109Z"
-last_activity: 2026-05-14
+milestone: v1.5
+milestone_name: Zero-friction Project Onboarding
+status: executing
+last_updated: "2026-05-14T13:32:00.000Z"
+last_activity: 2026-05-14 -- Phase 59 Plan 01 complete
 progress:
   total_phases: 16
   completed_phases: 13
-  total_plans: 21
-  completed_plans: 20
+  total_plans: 23
+  completed_plans: 21
 ---
 
 # Project State
@@ -17,14 +17,14 @@ progress:
 ## Current Status
 
 - **Milestone**: v3.0 Monetization — Planning
-- **Last updated**: 2026-05-13
+- **Last updated**: 2026-05-14
 
 ## Current Position
 
-Phase: 59
-Plan: Not started
-Status: Phase complete — ready for verification
-Last activity: 2026-05-14
+Phase: 59 (Billing UI) — EXECUTING
+Plan: 2 of 2
+Status: Completed Phase 59 Plan 01 — Plan 02 next
+Last activity: 2026-05-14 -- Phase 59 Plan 01 complete
 
 ## v3.0 Phases
 
@@ -32,7 +32,7 @@ Last activity: 2026-05-14
 - Phase 56: Usage Tracking (QUOTA-01..02) — Not started
 - Phase 57: Enforcement Layer (QUOTA-03..06) — Not started
 - Phase 58: Stripe Integration (STRIPE-01..04) — Not started
-- Phase 59: Billing UI (BILLING-01..05) — Not started
+- Phase 59: Billing UI (BILLING-01..05) — IN PROGRESS (Plan 01 complete)
 - Phase 60: Trial Automation + Admin Tooling (TRIAL-01..02, ADMIN-BILLING-01..03) — Not started
 
 ## v2.2 Phases Shipped
@@ -124,6 +124,8 @@ Last activity: 2026-05-14
 
 ## Decisions
 
+- [Phase 59-billing-ui 59-01]: requireServiceClient (not createClient) for usage_events — deny-all RLS requires service role bypass; single event_type query counted in JS to avoid N+1
+- [Phase 59-billing-ui 59-01]: Billing entry card placed before Price Book on /settings — billing is a top-level business concern; Plan 02 owns interactive checkout/portal buttons (no client components in Plan 01 page)
 - shadcn/ui New York style (D-09 locked) with neutral base color and CSS variables
 - SUPABASE_SERVICE_ROLE_KEY declared without NEXT_PUBLIC_ prefix (SEC-03)
 - vitest include pattern explicitly set to tests/unit/** to avoid Playwright import collisions
@@ -450,7 +452,7 @@ Last activity: 2026-05-14
 See: .planning/PROJECT.md (updated 2026-05-13)
 
 **Core value:** Business owner → job site audio recording → sent professional estimate in under 5 minutes
-**Current focus:** Phase 58 — Stripe Integration
+**Current focus:** Phase 59 — Billing UI
 
 ## Notes
 
