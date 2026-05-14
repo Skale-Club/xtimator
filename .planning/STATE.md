@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
-milestone: v3.0
-milestone_name: Monetization
+milestone: v1.5
+milestone_name: Zero-friction Project Onboarding
 status: verifying
-last_updated: "2026-05-13T23:48:18.304Z"
-last_activity: 2026-05-13
+last_updated: "2026-05-14T00:11:39.084Z"
+last_activity: 2026-05-14
 progress:
-  total_phases: 16
-  completed_phases: 10
-  total_plans: 16
-  completed_plans: 15
+  total_phases: 51
+  completed_phases: 42
+  total_plans: 110
+  completed_plans: 115
 ---
 
 # Project State
@@ -21,10 +21,10 @@ progress:
 
 ## Current Position
 
-Phase: 56
-Plan: Not started
+Phase: 56 (Usage Tracking) — EXECUTING
+Plan: 1 of 1
 Status: Phase complete — ready for verification
-Last activity: 2026-05-13
+Last activity: 2026-05-14
 
 ## v3.0 Phases
 
@@ -335,6 +335,9 @@ Last activity: 2026-05-13
 - [Phase 55-schema-tier-definitions]: TEXT + CHECK for companies.tier (no Postgres enum — D-07/D-08 pattern); deny-all RLS on usage_events (service role writes only)
 - [Phase 55-schema-tier-definitions]: tier_trial_ends_at spread via {...row, tier_trial_ends_at} in INSERT — keeps shared row clean, trial-start field stays INSERT-only
 - [Phase 55-schema-tier-definitions]: getCompanyTier() focused query (id, tier, tier_trial_ends_at) — not select('*') anti-pattern, for Phase 56/57 quota checks
+- [Phase 56-usage-tracking]: checkQuota queries companies by id directly (not via getCompanyTier) — avoids userId lookup in pure library layer
+- [Phase 56-usage-tracking]: photo_batch and audio_minutes return { allowed: true, remaining: null } in Phase 56 — per-estimate enforcement deferred to Phase 57
+- [Phase 56-usage-tracking]: Partial unique index (WHERE idempotency_key IS NOT NULL) allows multiple NULL rows while enforcing uniqueness for non-null keys
 
 ## Performance Metrics
 
@@ -428,13 +431,14 @@ Last activity: 2026-05-13
 | Phase 54-whatsapp-status-flow P02 | 10min | 2 tasks | 2 files |
 | Phase 55-schema-tier-definitions P01 | 3 | 3 tasks | 4 files |
 | Phase 55-schema-tier-definitions P02 | 10min | 3 tasks | 3 files |
+| Phase 56-usage-tracking P01 | 6min | 3 tasks | 3 files |
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-13)
 
 **Core value:** Business owner → job site audio recording → sent professional estimate in under 5 minutes
-**Current focus:** Phase 55 — Schema + Tier Definitions
+**Current focus:** Phase 56 — Usage Tracking
 
 ## Notes
 

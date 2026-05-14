@@ -134,7 +134,7 @@
 ### v3.0 Monetization (Phases 55-60)
 
 - [x] **Phase 55: Schema + Tier Definitions** — DB migration adding tier columns to `companies` + `usage_events` table; `lib/entitlements.ts` with Free/Trial/Pro/Business definitions; new companies seeded with `tier='free'` and 14-day trial (completed 2026-05-13)
-- [ ] **Phase 56: Usage Tracking** — `checkQuota()` and `recordUsage()` helpers with idempotency key deduplication; plugged into nothing yet — pure library layer ready for enforcement
+- [x] **Phase 56: Usage Tracking** — `checkQuota()` and `recordUsage()` helpers with idempotency key deduplication; plugged into nothing yet — pure library layer ready for enforcement (completed 2026-05-14)
 - [ ] **Phase 57: Enforcement Layer** — Plug `checkQuota`/`recordUsage` into `generate-estimate`, `analyze-photos`, and WhatsApp handler; quota-exceeded responses return HTTP 402 with upgrade URL
 - [ ] **Phase 58: Stripe Integration** — Checkout session API, Customer Portal API, webhook handler for subscription lifecycle events; idempotent event processing
 - [ ] **Phase 59: Billing UI** — `/settings/billing` page with plan card, usage meters, upgrade CTA; trial banner; 402 upgrade modal
@@ -165,7 +165,7 @@ Plans:
   4. Unit tests cover the check and record functions without a live database
 **Plans**: 1 plan
 Plans:
-- [ ] 56-01-PLAN.md — Migration (idempotency_key + unique index) + lib/quota.ts (checkQuota + recordUsage) + unit tests (QUOTA-01, QUOTA-02)
+- [x] 56-01-PLAN.md — Migration (idempotency_key + unique index) + lib/quota.ts (checkQuota + recordUsage) + unit tests (QUOTA-01, QUOTA-02)
 
 ### Phase 57: Enforcement Layer
 **Goal**: AI operations are gated — a company over its limit cannot generate estimates or analyze photos, and the WhatsApp handler rejects processing before any paid API call is made
@@ -651,7 +651,7 @@ Plans:
 | 53. PDF Attachment Delivery | v2.2 | 2/2 | Complete    | 2026-05-11 |
 | 54. WhatsApp Status Flow | v2.2 | 2/2 | Complete    | 2026-05-13 |
 | 55. Schema + Tier Definitions | v3.0 | 2/2 | Complete    | 2026-05-13 |
-| 56. Usage Tracking | v3.0 | 1/1 | Not started | - |
+| 56. Usage Tracking | v3.0 | 1/1 | Complete   | 2026-05-14 |
 | 57. Enforcement Layer | v3.0 | TBD | Not started | - |
 | 58. Stripe Integration | v3.0 | TBD | Not started | - |
 | 59. Billing UI | v3.0 | TBD | Not started | - |
