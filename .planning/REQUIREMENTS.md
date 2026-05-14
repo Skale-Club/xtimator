@@ -40,9 +40,9 @@
 
 ### Admin Tooling (ADMIN-BILLING)
 
-- [ ] **ADMIN-BILLING-01**: Admin can force a company's tier from the admin panel (override to any tier, optionally set expiry)
-- [ ] **ADMIN-BILLING-02**: Admin can grant bonus quota credits (extra estimates or extra trial days) to a specific company
-- [ ] **ADMIN-BILLING-03**: Admin panel shows basic MRR metric (count of active Pro + Business subscribers × plan price)
+- [x] **ADMIN-BILLING-01**: Admin can force a company's tier from the admin panel (override to any tier, optionally set expiry)
+- [x] **ADMIN-BILLING-02**: Admin can grant bonus quota credits (extra estimates or extra trial days) to a specific company
+- [x] **ADMIN-BILLING-03**: Admin panel shows basic MRR metric (count of active Pro + Business subscribers × plan price)
 
 ## Traceability
 
@@ -69,9 +69,9 @@
 | BILLING-05 | Phase 59 | Complete |
 | TRIAL-01 | Phase 60 | Complete |
 | TRIAL-02 | Phase 60 | Complete |
-| ADMIN-BILLING-01 | Phase 60 | Pending |
-| ADMIN-BILLING-02 | Phase 60 | Pending |
-| ADMIN-BILLING-03 | Phase 60 | Pending |
+| ADMIN-BILLING-01 | Phase 60 | Complete |
+| ADMIN-BILLING-02 | Phase 60 | Complete |
+| ADMIN-BILLING-03 | Phase 60 | Complete |
 
 ## Key Decisions (locked)
 

@@ -138,7 +138,7 @@
 - [x] **Phase 57: Enforcement Layer** — Plug `checkQuota`/`recordUsage` into `generate-estimate`, `analyze-photos`, and WhatsApp handler; quota-exceeded responses return HTTP 402 with upgrade URL (completed 2026-05-14)
 - [x] **Phase 58: Stripe Integration** — Checkout session API, Customer Portal API, webhook handler for subscription lifecycle events; idempotent event processing (completed 2026-05-14)
 - [x] **Phase 59: Billing UI** — `/settings/billing` page with plan card, usage meters, upgrade CTA; trial banner; 402 upgrade modal (completed 2026-05-14)
-- [ ] **Phase 60: Trial Automation + Admin Tooling** — Cron downgrade on trial expiry; T-3 and T-0 warning emails; admin force-tier, bonus credits, MRR view
+- [x] **Phase 60: Trial Automation + Admin Tooling** — Cron downgrade on trial expiry; T-3 and T-0 warning emails; admin force-tier, bonus credits, MRR view (completed 2026-05-14)
 
 ### Phase 55: Schema + Tier Definitions
 **Goal**: The database has the full subscription schema and the codebase has a single authoritative entitlements definition — every subsequent phase can read tier data and limits without guessing
@@ -664,4 +664,4 @@ Plans:
 | 57. Enforcement Layer | v3.0 | 1/2 | Complete    | 2026-05-14 |
 | 58. Stripe Integration | v3.0 | 2/2 | Complete    | 2026-05-14 |
 | 59. Billing UI | v3.0 | 1/2 | Complete    | 2026-05-14 |
-| 60. Trial Automation + Admin Tooling | v3.0 | 1/2 | In Progress|  |
+| 60. Trial Automation + Admin Tooling | v3.0 | 1/2 | Complete    | 2026-05-14 |
