@@ -3,8 +3,10 @@ import { createClient } from '@/lib/supabase/server'
 import { generateEstimateForProject } from '@/lib/services/generate-estimate'
 import { rateLimit } from '@/lib/ratelimit'
 import { XtimatorError, asResponse } from '@/lib/errors'
+import { checkQuota, recordUsage } from '@/lib/quota'
 
 export async function POST(request: Request) {
+  const requestId = crypto.randomUUID()
   try {
     // Auth
     const supabase = await createClient()
@@ -48,6 +50,15 @@ export async function POST(request: Request) {
     }
     const companyId = companyRow.id as string
 
+    // QUOTA-03: Check estimate quota before any AI call
+    const { allowed } = await checkQuota(supabase, companyId, 'estimate')
+    if (!allowed) {
+      return NextResponse.json(
+        { error: 'plan_limit_reached', upgradeUrl: '/settings/billing' },
+        { status: 402 }
+      )
+    }
+
     // Parse body
     const body = await request.json().catch(() => null)
     if (!body?.projectId) {
@@ -56,6 +67,8 @@ export async function POST(request: Request) {
     const projectId = body.projectId as string
 
     const result = await generateEstimateForProject(companyId, projectId)
+    // QUOTA-03: Record usage only after successful AI call (not on failure)
+    await recordUsage(supabase, companyId, 'estimate_generated', 1, requestId)
     return NextResponse.json(result)
   } catch (error) {
     // Pre-existing string-based error classification preserved for backwards compat

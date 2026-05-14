@@ -65,11 +65,11 @@ function makeSupabaseMock(companyId = 'company-1') {
 }
 
 describe('generate-estimate route — quota enforcement', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.resetAllMocks()
-    // Re-apply default for rateLimit mock after reset
-    const { rateLimit } = vi.mocked({ rateLimit: vi.fn() })
-    void rateLimit
+    // Re-apply defaults that vi.resetAllMocks() clears
+    const { rateLimit } = await import('@/lib/ratelimit')
+    vi.mocked(rateLimit).mockResolvedValue({ allowed: true, count: 0, max: 100, retryAfter: null })
     vi.mocked(recordUsage).mockResolvedValue(undefined)
   })
 
