@@ -5,6 +5,7 @@ import { requireServiceClient } from '@/lib/supabase/service'
 import { getIntegrationKey } from '@/lib/platform-config'
 import { rateLimit } from '@/lib/ratelimit'
 import type { Photo } from '@/lib/queries/photo'
+import { checkQuota, recordUsage } from '@/lib/quota'
 
 type ImageMediaType = 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif'
 
@@ -88,6 +89,8 @@ async function analyzePhoto(
 
 export async function POST(request: Request) {
   try {
+    const requestId = crypto.randomUUID()
+
     // Parse body
     const body = await request.json().catch(() => null)
     if (!body?.projectId || typeof body.projectId !== 'string') {
@@ -131,6 +134,16 @@ export async function POST(request: Request) {
         { status: 401 }
       )
     }
+    const companyId = company.id as string
+
+    // QUOTA-04: Check photo_batch quota before any Claude Vision call
+    const { allowed } = await checkQuota(supabase, companyId, 'photo_batch')
+    if (!allowed) {
+      return NextResponse.json(
+        { error: 'plan_limit_reached', upgradeUrl: '/settings/billing' },
+        { status: 402 }
+      )
+    }
 
     // Fetch photos for this project
     const { data: photos } = await supabase
@@ -165,6 +178,9 @@ export async function POST(request: Request) {
         analyzePhoto(serviceClient, supabase, photo, anthropic)
       )
     )
+
+    // QUOTA-04: Record usage after AI calls complete (photo count = photos submitted)
+    await recordUsage(supabase, companyId, 'photo_analyzed', typedPhotos.length, requestId)
 
     // Build response
     const response = {

@@ -104,8 +104,13 @@ function makeServiceClientMock() {
 }
 
 describe('analyze-photos route — quota enforcement', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.resetAllMocks()
+    // Re-apply defaults that vi.resetAllMocks() clears
+    const { rateLimit } = await import('@/lib/ratelimit')
+    vi.mocked(rateLimit).mockResolvedValue({ allowed: true, count: 0, max: 100, retryAfter: null })
+    const { getIntegrationKey } = await import('@/lib/platform-config')
+    vi.mocked(getIntegrationKey).mockResolvedValue('test-anthropic-key')
     vi.mocked(recordUsage).mockResolvedValue(undefined)
   })
 
