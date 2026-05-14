@@ -7,6 +7,8 @@ import { Topbar } from '@/components/app-shell/topbar'
 import { BottomNav } from '@/components/app-shell/bottom-nav'
 import { MobileHeader } from '@/components/app-shell/mobile-header'
 import { TranslationLoadingOverlay } from '@/components/i18n/translation-loading-overlay'
+import { TrialBanner } from '@/components/billing/trial-banner'
+import { UpgradeModal } from '@/components/billing/upgrade-modal'
 
 export default async function AppShellLayout({
   children,
@@ -25,15 +27,29 @@ export default async function AppShellLayout({
     redirect('/onboarding')
   }
 
-  const [branding, adminRow] = await Promise.all([
+  const [branding, adminRow, billingRow] = await Promise.all([
     getBranding(),
     requireServiceClient()
       .from('platform_admins')
       .select('user_id')
       .eq('user_id', claims.sub)
       .maybeSingle(),
+    // Inline trial check — getCachedCompany (AppCompany) doesn't include tier columns
+    requireServiceClient()
+      .from('companies')
+      .select('tier, tier_trial_ends_at')
+      .eq('user_id', claims.sub)
+      .single(),
   ])
   const isAdmin = !!adminRow.data
+
+  const trialDaysRemaining =
+    billingRow.data?.tier === 'free' && billingRow.data?.tier_trial_ends_at
+      ? Math.ceil(
+          (new Date(billingRow.data.tier_trial_ends_at).getTime() - Date.now()) /
+            (1000 * 60 * 60 * 24)
+        )
+      : null
 
   return (
     <div className="flex h-screen">
@@ -47,12 +63,16 @@ export default async function AppShellLayout({
       <div className="flex flex-1 flex-col overflow-hidden">
         <Topbar company={company} isAdmin={isAdmin} />
         <MobileHeader />
+        {trialDaysRemaining !== null && trialDaysRemaining < 3 && (
+          <TrialBanner daysRemaining={trialDaysRemaining} />
+        )}
         <main className="flex-1 overflow-y-auto p-4 md:p-6 pb-20 md:pb-6">
           {children}
         </main>
       </div>
       <BottomNav />
       <TranslationLoadingOverlay />
+      <UpgradeModal />
     </div>
   )
 }
