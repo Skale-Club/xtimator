@@ -150,7 +150,7 @@ Complete subscription system: Free/Trial/Pro/Business tiers, `usage_events` trac
 - **Theme system:** `next-themes` with `eb-theme` cookie SSR hydration; `[data-theme]` scoped-dark CSS-var pattern for admin/auth; `[data-theme="light"]` forced-light wrapper for public estimate view.
 - **i18n:** `LanguageContext` + `useTranslation()` hook, 192-entry static `translations.ts`, `/api/translate` with Claude Haiku + DB cache (translations table, unique index on source_text+lang pair).
 - **Seeds harvested:** SEED-001 (i18n → v1.2), SEED-002 (brand identity → v1.2), SEED-003 (price book → v1.3), SEED-004 (plain-text estimate → v1.4), SEED-005 (multi-modal input → v1.5/v1.6), SEED-006 (iterative refinement → v1.8), SEED-007 (frictionless client → v1.5/v1.7), SEED-008 (WhatsApp → v2.0), SEED-009 (custom domain → v1.9), SEED-010 (debounce → v2.1), SEED-011 (WhatsApp polish → v2.1), SEED-012 (Redis rate limiting → v2.1), SEED-013 (monetization → v3.0), SEED-014 (error handling → v2.1), SEED-016 (per-estimate language → v2.1).
-- **Seeds cancelled:** SEED-015 (WhatsApp channel completeness — Gaps 1-3+5 harvested across v2.1/v2.2, Gap 4 Twilio abstraction deferred indefinitely).
+- **Seeds cancelled:** SEED-015 (WhatsApp channel completeness — all gaps harvested across v2.1/v2.2; provider abstraction gap dropped as unnecessary).
 - **Seeds dormant:** none — all 16 seeds resolved.
 
 ## Constraints
