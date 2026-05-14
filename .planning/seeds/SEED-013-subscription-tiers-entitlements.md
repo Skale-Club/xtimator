@@ -1,8 +1,10 @@
 ---
 id: SEED-013
-status: dormant
+status: harvested
 planted: 2026-05-10
 planted_during: v2.0 WhatsApp Estimate Channel (post-milestone analysis)
+harvested: 2026-05-14
+harvested_in: v3.0 Monetization (Phases 55-60)
 trigger_when: When introducing paid plans, billing integration (Stripe), trial flows, or any milestone focused on monetization
 scope: Large
 ---
