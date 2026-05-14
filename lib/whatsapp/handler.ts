@@ -18,6 +18,7 @@ import {
 } from '@/lib/whatsapp/client'
 import { processConfirmationReply } from '@/lib/whatsapp/confirm'
 import { getIntegrationKey } from '@/lib/platform-config'
+import { getEntitlements } from '@/lib/entitlements'
 import { PLACEHOLDER_PREFIX } from '@/lib/constants/project'
 import type { WhatsAppMessage } from '@/lib/whatsapp/types'
 import {
@@ -174,6 +175,27 @@ export async function processInboundMessages(
 ): Promise<void> {
   if (messages.length === 0) return
   const ownerPhone = `+${fromPhone}`
+
+  // QUOTA-05: Check WhatsApp entitlement BEFORE any Meta download or AI call.
+  // Free tier has whatsappEnabled: false — reject here to avoid Whisper/Vision costs.
+  const { data: companyRow } = await supabase
+    .from('companies')
+    .select('tier')
+    .eq('id', companyId)
+    .single()
+  const tier = (companyRow as { tier: string } | null)?.tier ?? 'free'
+  const entitlements = getEntitlements(tier)
+
+  if (!entitlements.whatsappEnabled) {
+    await sendWhatsAppMessage(ownerPhone, {
+      type: 'text',
+      text: {
+        body: 'WhatsApp channel is not available on your current plan. Upgrade at /settings/billing',
+      },
+    })
+    return
+  }
+
   const lastMessageId = messages[messages.length - 1].id
 
   // Create a single draft project for the entire batch
