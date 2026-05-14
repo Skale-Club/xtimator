@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { CreditCard, TrendingUp, AlertCircle } from 'lucide-react'
+import { CreditCard, TrendingUp } from 'lucide-react'
 import { getAuthClaims } from '@/lib/queries/auth'
 import { getBillingData } from '@/lib/queries/billing'
 import {
@@ -9,6 +9,8 @@ import {
   CardDescription,
   CardContent,
 } from '@/components/ui/card'
+import { UpgradeButtons } from '@/components/billing/upgrade-buttons'
+import { ManageSubscriptionButton } from '@/components/billing/manage-subscription-button'
 
 export const metadata = { title: 'Billing' }
 
@@ -110,17 +112,24 @@ export default async function BillingPage() {
         </CardContent>
       </Card>
 
-      {/* Action area — interactive buttons added in Plan 02 */}
-      <div className="rounded-[var(--radius-md)] border border-border bg-muted/30 p-4 text-sm text-muted-foreground">
-        <div className="flex items-start gap-2">
-          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-          <p>
+      {/* Plan actions */}
+      <Card>
+        <CardHeader className="border-b border-border">
+          <CardTitle>Plan Actions</CardTitle>
+          <CardDescription>
             {data.tier === 'pro' || data.tier === 'business'
-              ? 'Subscription management available below.'
+              ? 'Manage your active subscription via the Stripe portal.'
               : 'Upgrade your plan to unlock higher limits and premium features.'}
-          </p>
-        </div>
-      </div>
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pt-4">
+          {data.tier === 'pro' || data.tier === 'business' ? (
+            <ManageSubscriptionButton />
+          ) : (
+            <UpgradeButtons />
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }
