@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Zero-friction Project Onboarding
-status: verifying
-last_updated: "2026-05-14T00:18:08.673Z"
+status: executing
+last_updated: "2026-05-14T00:49:39.535Z"
 last_activity: 2026-05-14
 progress:
-  total_phases: 16
-  completed_phases: 11
-  total_plans: 17
-  completed_plans: 16
+  total_phases: 52
+  completed_phases: 42
+  total_plans: 112
+  completed_plans: 116
 ---
 
 # Project State
@@ -21,9 +21,9 @@ progress:
 
 ## Current Position
 
-Phase: 57
-Plan: Not started
-Status: Phase complete — ready for verification
+Phase: 57 (Enforcement Layer) — EXECUTING
+Plan: 2 of 2
+Status: Ready to execute
 Last activity: 2026-05-14
 
 ## v3.0 Phases
@@ -338,6 +338,8 @@ Last activity: 2026-05-14
 - [Phase 56-usage-tracking]: checkQuota queries companies by id directly (not via getCompanyTier) — avoids userId lookup in pure library layer
 - [Phase 56-usage-tracking]: photo_batch and audio_minutes return { allowed: true, remaining: null } in Phase 56 — per-estimate enforcement deferred to Phase 57
 - [Phase 56-usage-tracking]: Partial unique index (WHERE idempotency_key IS NOT NULL) allows multiple NULL rows while enforcing uniqueness for non-null keys
+- [Phase 57-enforcement-layer]: requestId generated at handler top via crypto.randomUUID() — available only in success path, never in catch block
+- [Phase 57-enforcement-layer]: Authenticated supabase client (not service role) used for checkQuota/recordUsage in web routes — companyId scoping via RLS is sufficient
 
 ## Performance Metrics
 
@@ -432,13 +434,14 @@ Last activity: 2026-05-14
 | Phase 55-schema-tier-definitions P01 | 3 | 3 tasks | 4 files |
 | Phase 55-schema-tier-definitions P02 | 10min | 3 tasks | 3 files |
 | Phase 56-usage-tracking P01 | 6min | 3 tasks | 3 files |
+| Phase 57-enforcement-layer P01 | 8min | 3 tasks | 4 files |
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-13)
 
 **Core value:** Business owner → job site audio recording → sent professional estimate in under 5 minutes
-**Current focus:** Phase 56 — Usage Tracking
+**Current focus:** Phase 57 — Enforcement Layer
 
 ## Notes
 

@@ -13,10 +13,10 @@
 
 - [x] **QUOTA-01**: `checkQuota(companyId, quotaType)` returns `{ allowed: boolean, remaining: number }` — called BEFORE any AI operation; returns `allowed: false` when monthly or daily limit exceeded
 - [x] **QUOTA-02**: `recordUsage(companyId, eventType, units, idempotencyKey)` persists to `usage_events` after successful AI call; deduplicates by idempotency key to handle retries
-- [ ] **QUOTA-03**: `generate-estimate` route enforces estimate quota (checkQuota before → recordUsage after success)
-- [ ] **QUOTA-04**: `analyze-photos` route enforces photo quota
+- [x] **QUOTA-03**: `generate-estimate` route enforces estimate quota (checkQuota before → recordUsage after success)
+- [x] **QUOTA-04**: `analyze-photos` route enforces photo quota
 - [ ] **QUOTA-05**: WhatsApp inbound handler checks `whatsappEnabled` entitlement BEFORE first audio/image download from Meta
-- [ ] **QUOTA-06**: Quota-exceeded responses return HTTP 402 with `{ error: 'plan_limit_reached', upgradeUrl: '/settings/billing' }`
+- [x] **QUOTA-06**: Quota-exceeded responses return HTTP 402 with `{ error: 'plan_limit_reached', upgradeUrl: '/settings/billing' }`
 
 ### Stripe Integration (STRIPE)
 
@@ -54,10 +54,10 @@
 | TIER-04 | Phase 55 | Complete |
 | QUOTA-01 | Phase 56 | Complete |
 | QUOTA-02 | Phase 56 | Complete |
-| QUOTA-03 | Phase 57 | Pending |
-| QUOTA-04 | Phase 57 | Pending |
+| QUOTA-03 | Phase 57 | Complete |
+| QUOTA-04 | Phase 57 | Complete |
 | QUOTA-05 | Phase 57 | Pending |
-| QUOTA-06 | Phase 57 | Pending |
+| QUOTA-06 | Phase 57 | Complete |
 | STRIPE-01 | Phase 58 | Pending |
 | STRIPE-02 | Phase 58 | Pending |
 | STRIPE-03 | Phase 58 | Pending |

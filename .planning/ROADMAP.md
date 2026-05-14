@@ -178,7 +178,7 @@ Plans:
   4. For requests that pass the quota check, `recordUsage()` is called after the AI call succeeds — a failed AI call does not consume quota
 **Plans**: 2 plans
 Plans:
-- [ ] 57-01-PLAN.md — Wave 0 test stubs + generate-estimate quota enforcement (QUOTA-03, QUOTA-06) + analyze-photos quota enforcement (QUOTA-04, QUOTA-06)
+- [x] 57-01-PLAN.md — Wave 0 test stubs + generate-estimate quota enforcement (QUOTA-03, QUOTA-06) + analyze-photos quota enforcement (QUOTA-04, QUOTA-06)
 - [ ] 57-02-PLAN.md — WhatsApp handler entitlement gate before Meta download (QUOTA-05, QUOTA-06)
 
 ### Phase 58: Stripe Integration
@@ -655,7 +655,7 @@ Plans:
 | 54. WhatsApp Status Flow | v2.2 | 2/2 | Complete    | 2026-05-13 |
 | 55. Schema + Tier Definitions | v3.0 | 2/2 | Complete    | 2026-05-13 |
 | 56. Usage Tracking | v3.0 | 1/1 | Complete    | 2026-05-14 |
-| 57. Enforcement Layer | v3.0 | 2 plans | Not started | - |
+| 57. Enforcement Layer | v3.0 | 1/2 | In Progress|  |
 | 58. Stripe Integration | v3.0 | TBD | Not started | - |
 | 59. Billing UI | v3.0 | TBD | Not started | - |
 | 60. Trial Automation + Admin Tooling | v3.0 | TBD | Not started | - |
