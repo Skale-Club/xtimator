@@ -10,7 +10,7 @@ import { SYSTEM_COLORS } from '@/lib/system-colors'
  */
 
 export const integrationKeySchema = z.object({
-  provider: z.enum(['resend', 'anthropic', 'openai', 'gemini', 'meta_whatsapp']),
+  provider: z.enum(['resend', 'anthropic', 'openai', 'gemini', 'meta_whatsapp', 'stripe']),
   apiKey: z.string().min(1, 'API key is required'),
 })
 

@@ -177,6 +177,17 @@ export async function testIntegrationKey(input: {
       }
     }
 
+    if (input.provider === 'stripe') {
+      const Stripe = (await import('stripe')).default
+      const stripe = new Stripe(key, { apiVersion: '2026-04-22.dahlia' })
+      const balance = await stripe.balance.retrieve()
+      const available = balance.available[0]
+      return {
+        ok: true,
+        message: `Verified. Available balance: ${available?.currency?.toUpperCase() ?? 'USD'}.`,
+      }
+    }
+
     // Exhaustiveness fallback (TS narrows above; defensive)
     return { ok: false, message: `Unknown provider: ${String(input.provider)}` }
   } catch (e) {

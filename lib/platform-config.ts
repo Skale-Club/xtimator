@@ -32,7 +32,7 @@ export type LandingContent = {
   }>
 }
 
-export type IntegrationProvider = 'resend' | 'anthropic' | 'openai' | 'gemini' | 'meta_whatsapp'
+export type IntegrationProvider = 'resend' | 'anthropic' | 'openai' | 'gemini' | 'meta_whatsapp' | 'stripe'
 
 const TTL_MS = 30_000
 
