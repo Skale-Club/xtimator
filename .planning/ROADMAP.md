@@ -659,6 +659,6 @@ Plans:
 | 55. Schema + Tier Definitions | v3.0 | 2/2 | Complete    | 2026-05-13 |
 | 56. Usage Tracking | v3.0 | 1/1 | Complete    | 2026-05-14 |
 | 57. Enforcement Layer | v3.0 | 1/2 | Complete    | 2026-05-14 |
-| 58. Stripe Integration | v3.0 | 2/2 | Complete   | 2026-05-14 |
+| 58. Stripe Integration | v3.0 | 2/2 | Complete    | 2026-05-14 |
 | 59. Billing UI | v3.0 | TBD | Not started | - |
 | 60. Trial Automation + Admin Tooling | v3.0 | TBD | Not started | - |
