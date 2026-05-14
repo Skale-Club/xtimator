@@ -220,7 +220,7 @@ Plans:
   5. The admin panel shows an MRR figure calculated from the count of active Pro and Business subscribers multiplied by their respective plan prices
 **Plans**: 2 plans
 Plans:
-- [ ] 60-01-PLAN.md — Cron routes: expire-trials (TRIAL-01) + trial-warning-emails (TRIAL-02) + pg_cron migration + vercel.json
+- [x] 60-01-PLAN.md — Cron routes: expire-trials (TRIAL-01) + trial-warning-emails (TRIAL-02) + pg_cron migration + vercel.json
 - [ ] 60-02-PLAN.md — Admin billing page: company list + force tier + bonus credits + MRR metric (ADMIN-BILLING-01, ADMIN-BILLING-02, ADMIN-BILLING-03) + nav entry
 **UI hint**: yes
 
@@ -664,4 +664,4 @@ Plans:
 | 57. Enforcement Layer | v3.0 | 1/2 | Complete    | 2026-05-14 |
 | 58. Stripe Integration | v3.0 | 2/2 | Complete    | 2026-05-14 |
 | 59. Billing UI | v3.0 | 1/2 | Complete    | 2026-05-14 |
-| 60. Trial Automation + Admin Tooling | v3.0 | 0/2 | Not started | - |
+| 60. Trial Automation + Admin Tooling | v3.0 | 1/2 | In Progress|  |

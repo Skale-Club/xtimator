@@ -35,8 +35,8 @@
 
 ### Trial Automation (TRIAL)
 
-- [ ] **TRIAL-01**: Cron job (pg_cron or Vercel cron) downgrades companies with `tier='free'` and expired `tier_trial_ends_at` — sets `tier='free'`, clears trial columns
-- [ ] **TRIAL-02**: Warning email sent at trial T-3 days and T-0 (day of expiry) via Resend
+- [x] **TRIAL-01**: Cron job (pg_cron or Vercel cron) downgrades companies with `tier='free'` and expired `tier_trial_ends_at` — sets `tier='free'`, clears trial columns
+- [x] **TRIAL-02**: Warning email sent at trial T-3 days and T-0 (day of expiry) via Resend
 
 ### Admin Tooling (ADMIN-BILLING)
 
@@ -67,8 +67,8 @@
 | BILLING-03 | Phase 59 | Complete |
 | BILLING-04 | Phase 59 | Complete |
 | BILLING-05 | Phase 59 | Complete |
-| TRIAL-01 | Phase 60 | Pending |
-| TRIAL-02 | Phase 60 | Pending |
+| TRIAL-01 | Phase 60 | Complete |
+| TRIAL-02 | Phase 60 | Complete |
 | ADMIN-BILLING-01 | Phase 60 | Pending |
 | ADMIN-BILLING-02 | Phase 60 | Pending |
 | ADMIN-BILLING-03 | Phase 60 | Pending |

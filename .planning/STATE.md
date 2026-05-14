@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
-milestone: v3.0
-milestone_name: Monetization
-status: verifying
-last_updated: "2026-05-14T13:44:13.630Z"
+milestone: v1.5
+milestone_name: Zero-friction Project Onboarding
+status: executing
+last_updated: "2026-05-14T14:37:38.078Z"
 last_activity: 2026-05-14
 progress:
-  total_phases: 16
-  completed_phases: 13
-  total_plans: 23
-  completed_plans: 20
+  total_phases: 55
+  completed_phases: 44
+  total_plans: 118
+  completed_plans: 120
 ---
 
 # Project State
@@ -21,9 +21,9 @@ progress:
 
 ## Current Position
 
-Phase: 60
-Plan: Not started
-Status: Phase complete — ready for verification
+Phase: 60 (Trial Automation + Admin Tooling) — EXECUTING
+Plan: 2 of 2
+Status: Ready to execute
 Last activity: 2026-05-14
 
 ## v3.0 Phases
@@ -351,6 +351,7 @@ Last activity: 2026-05-14
 - [Phase 59-billing-ui]: TrialBanner is a server component (no use client) accepting daysRemaining prop — layout server component does inline Supabase query for tier + tier_trial_ends_at only to keep layout fast
 - [Phase 59-billing-ui]: UpgradeModal uses window.fetch monkey-patch returning null — invisible effect-only component intercepts 402 from AI routes without modifying call sites
 - [Phase 59-billing-ui]: billingRow added to existing Promise.all in layout.tsx — branding + adminRow + billingRow all fetched concurrently, no sequential blocking
+- [Phase 60-trial-automation-admin-tooling]: pg_cron trial-warning-emails entry is SELECT 1 no-op — Resend API requires Node.js runtime unavailable in pg_cron; only expire-trials has a real pg_cron SQL implementation
 
 ## Performance Metrics
 
@@ -450,13 +451,14 @@ Last activity: 2026-05-14
 | Phase 58-stripe-integration P01 | 5min | 3 tasks | 11 files |
 | Phase 58-stripe-integration P02 | 25 | 2 tasks | 4 files |
 | Phase 59-billing-ui P02 | 3 | 2 tasks | 6 files |
+| Phase 60-trial-automation-admin-tooling P01 | 2min | 2 tasks | 4 files |
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-13)
 
 **Core value:** Business owner → job site audio recording → sent professional estimate in under 5 minutes
-**Current focus:** Phase 59 — Billing UI
+**Current focus:** Phase 60 — Trial Automation + Admin Tooling
 
 ## Notes
 
