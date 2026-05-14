@@ -15,7 +15,7 @@
 - ✅ **v2.0 WhatsApp Estimate Channel** — Phases 40-45 (shipped 2026-05-10)
 - ✅ **v2.1 WhatsApp Launch-Readiness** — Phases 46-52 (shipped 2026-05-11)
 - ✅ **v2.2 WhatsApp Channel Polish** — Phases 53-54 (shipped 2026-05-13)
-- **v3.0 Monetization** — Phases 55-60 (started 2026-05-13)
+- ✅ **v3.0 Monetization** — Phases 55-60 (shipped 2026-05-14) · [archive](milestones/v3.0-ROADMAP.md)
 
 ## Phases
 
@@ -131,98 +131,20 @@
 - [x] **Phase 53: PDF Attachment Delivery** — Add `pdf_attachment` as a third `delivery_format` option; generate PDF via existing `/api/estimates/[id]/pdf` endpoint; upload to `estimates-pdf` Supabase Storage with 24h signed URL; send to client via Meta API `type: "document"`; degrade to `share_link` on any failure (SEED-015 Gap 3) (completed 2026-05-11)
 - [x] **Phase 54: WhatsApp Status Flow** — Wire full `pending → verified → active → suspended` pipeline post-OTP; clear UI labels in `WhatsAppConnectCard`; admin/owner suspend and reactivate action; `handler.ts` gate enforces `status = 'active'` (SEED-015 Gap 5) (completed 2026-05-13)
 
-### v3.0 Monetization (Phases 55-60)
+<details>
+<summary>✅ v3.0 Monetization (Phases 55-60) — SHIPPED 2026-05-14</summary>
 
-- [x] **Phase 55: Schema + Tier Definitions** — DB migration adding tier columns to `companies` + `usage_events` table; `lib/entitlements.ts` with Free/Trial/Pro/Business definitions; new companies seeded with `tier='free'` and 14-day trial (completed 2026-05-13)
-- [x] **Phase 56: Usage Tracking** — `checkQuota()` and `recordUsage()` helpers with idempotency key deduplication; plugged into nothing yet — pure library layer ready for enforcement (completed 2026-05-14)
-- [x] **Phase 57: Enforcement Layer** — Plug `checkQuota`/`recordUsage` into `generate-estimate`, `analyze-photos`, and WhatsApp handler; quota-exceeded responses return HTTP 402 with upgrade URL (completed 2026-05-14)
-- [x] **Phase 58: Stripe Integration** — Checkout session API, Customer Portal API, webhook handler for subscription lifecycle events; idempotent event processing (completed 2026-05-14)
-- [x] **Phase 59: Billing UI** — `/settings/billing` page with plan card, usage meters, upgrade CTA; trial banner; 402 upgrade modal (completed 2026-05-14)
-- [x] **Phase 60: Trial Automation + Admin Tooling** — Cron downgrade on trial expiry; T-3 and T-0 warning emails; admin force-tier, bonus credits, MRR view (completed 2026-05-14)
+| Phase | Name | Plans | Completed |
+|-------|------|-------|-----------|
+| 55 | Schema + Tier Definitions | 2/2 | 2026-05-13 |
+| 56 | Usage Tracking | 1/1 | 2026-05-14 |
+| 57 | Enforcement Layer | 2/2 | 2026-05-14 |
+| 58 | Stripe Integration | 2/2 | 2026-05-14 |
+| 59 | Billing UI | 2/2 | 2026-05-14 |
+| 60 | Trial Automation + Admin Tooling | 2/2 | 2026-05-14 |
 
-### Phase 55: Schema + Tier Definitions
-**Goal**: The database has the full subscription schema and the codebase has a single authoritative entitlements definition — every subsequent phase can read tier data and limits without guessing
-**Depends on**: Phase 54 (last shipped phase; no functional dependency)
-**Requirements**: TIER-01, TIER-02, TIER-03, TIER-04
-**Success Criteria** (what must be TRUE):
-  1. The `companies` table has six new columns (`tier`, `tier_trial_ends_at`, `stripe_customer_id`, `stripe_subscription_id`, `tier_renews_at`, `tier_cancelled_at`) and existing rows are unaffected by the migration
-  2. The `usage_events` table exists with the correct schema and an index on `(company_id, created_at DESC)` — a row can be inserted and queried without error
-  3. `lib/entitlements.ts` exports a `tiers` record with four entries (free, trial, pro, business), each specifying numeric limits and boolean feature flags; importing the file in any server-side module does not trigger a runtime error
-  4. A new company created through the signup flow has `tier='free'` and `tier_trial_ends_at` set to 14 days from creation — observable by querying the row in Supabase
-**Plans**: 2 plans
-Plans:
-- [x] 55-01-PLAN.md — Migration SQL (TIER-01, TIER-02) + lib/entitlements.ts (TIER-03) + Wave 0 test stubs
-- [x] 55-02-PLAN.md — types/database.types.ts extension + createOrUpdateCompany() trial start patch + getCompanyTier() query (TIER-04)
+</details>
 
-### Phase 56: Usage Tracking
-**Goal**: Every AI operation that counts against a quota can be checked before execution and recorded after success — the enforcement API exists even before it is wired to any route
-**Depends on**: Phase 55 (usage_events table and entitlements.ts must exist)
-**Requirements**: QUOTA-01, QUOTA-02
-**Success Criteria** (what must be TRUE):
-  1. Calling `checkQuota(companyId, 'estimate')` for a company under its monthly and daily limits returns `{ allowed: true, remaining: N }` where N reflects actual usage from `usage_events` this month
-  2. Calling `checkQuota(companyId, 'estimate')` for a company that has reached its monthly limit returns `{ allowed: false, remaining: 0 }` — no false positives, no false negatives
-  3. Calling `recordUsage(companyId, 'estimate_generated', 1, idempotencyKey)` inserts a row in `usage_events`; calling it again with the same idempotency key does not insert a duplicate row
-  4. Unit tests cover the check and record functions without a live database
-**Plans**: 1 plan
-Plans:
-- [x] 56-01-PLAN.md — Migration (idempotency_key + unique index) + lib/quota.ts (checkQuota + recordUsage) + unit tests (QUOTA-01, QUOTA-02)
-
-### Phase 57: Enforcement Layer
-**Goal**: AI operations are gated — a company over its limit cannot generate estimates or analyze photos, and the WhatsApp handler rejects processing before any paid API call is made
-**Depends on**: Phase 56 (checkQuota and recordUsage must exist and be tested)
-**Requirements**: QUOTA-03, QUOTA-04, QUOTA-05, QUOTA-06
-**Success Criteria** (what must be TRUE):
-  1. A request to `POST /api/generate-estimate` from a company that has exhausted its monthly estimate quota receives HTTP 402 with body `{ error: 'plan_limit_reached', upgradeUrl: '/settings/billing' }` — no Anthropic API call is made
-  2. A request to `POST /api/analyze-photos` from a company over its photo limit receives the same HTTP 402 response — no Claude Vision call is made
-  3. An inbound WhatsApp message for a company with `whatsappEnabled: false` on its current tier is rejected before any audio or image is downloaded from Meta — the owner receives no estimate and no API cost is incurred
-  4. For requests that pass the quota check, `recordUsage()` is called after the AI call succeeds — a failed AI call does not consume quota
-**Plans**: 2 plans
-Plans:
-- [x] 57-01-PLAN.md — Wave 0 test stubs + generate-estimate quota enforcement (QUOTA-03, QUOTA-06) + analyze-photos quota enforcement (QUOTA-04, QUOTA-06)
-- [ ] 57-02-PLAN.md — WhatsApp handler entitlement gate before Meta download (QUOTA-05, QUOTA-06)
-
-### Phase 58: Stripe Integration
-**Goal**: A company can subscribe to a paid plan via Stripe Checkout, manage their subscription via the Customer Portal, and subscription lifecycle events automatically update the company's tier in the database
-**Depends on**: Phase 55 (tier columns on companies must exist)
-**Requirements**: STRIPE-01, STRIPE-02, STRIPE-03, STRIPE-04
-**Success Criteria** (what must be TRUE):
-  1. `POST /api/billing/create-checkout-session` returns a Stripe Checkout URL for the selected plan; opening that URL in a browser reaches the Stripe-hosted payment page
-  2. After a successful payment in Stripe's test mode, the `checkout.session.completed` webhook updates the company's `tier`, `stripe_customer_id`, `stripe_subscription_id`, and `tier_renews_at` columns — observable by querying the row
-  3. `POST /api/billing/create-portal-session` returns a Stripe Customer Portal URL; opening it lets the subscriber manage or cancel their subscription
-  4. Sending the same Stripe webhook event twice does not update the company row twice — the handler is idempotent and processes duplicate events without side effects
-**Plans**: 2 plans
-Plans:
-- [x] 58-01-PLAN.md — stripe install + IntegrationProvider + migration + stripe-client + checkout + portal routes + Wave 0 stubs (STRIPE-01, STRIPE-03, STRIPE-04)
-- [x] 58-02-PLAN.md — Stripe webhook handler + idempotency + lifecycle events + tests GREEN (STRIPE-02, STRIPE-04)
-
-### Phase 59: Billing UI
-**Goal**: A company owner can see their current plan, remaining usage, and upgrade path from a single settings page — and is warned when quota is exhausted or trial is about to expire
-**Depends on**: Phase 55 (tier data), Phase 57 (usage data from usage_events), Phase 58 (Stripe session creation endpoints)
-**Requirements**: BILLING-01, BILLING-02, BILLING-03, BILLING-04, BILLING-05
-**Success Criteria** (what must be TRUE):
-  1. Navigating to `/settings/billing` shows the current plan name, renewal date (or trial expiry date), and usage meters for estimates and photos this month — with actual numbers, not placeholders
-  2. Clicking the upgrade button on a Free or Trial plan initiates a Stripe Checkout redirect for the selected plan (Pro or Business)
-  3. An active paid subscriber sees a "Manage Subscription" button that opens the Stripe Customer Portal — the upgrade CTA is not shown to active subscribers
-  4. When `tier_trial_ends_at` is within 3 days of the current date, a persistent banner appears on every authenticated page with a link to `/settings/billing` — the banner disappears once the company is on a paid plan
-  5. When any AI route returns HTTP 402, the app displays a modal or toast with an "Upgrade" CTA linking to `/settings/billing` — the user is not left with a silent failure
-**Plans**: TBD
-**UI hint**: yes
-
-### Phase 60: Trial Automation + Admin Tooling
-**Goal**: Trial expiry is handled automatically without manual intervention, and admins can intervene in any company's billing state directly from the admin panel
-**Depends on**: Phase 55 (tier columns), Phase 58 (Stripe subscription state), Phase 59 (billing page exists so admin links resolve)
-**Requirements**: TRIAL-01, TRIAL-02, ADMIN-BILLING-01, ADMIN-BILLING-02, ADMIN-BILLING-03
-**Success Criteria** (what must be TRUE):
-  1. A company with `tier='free'` and an expired `tier_trial_ends_at` is automatically downgraded — its `tier_trial_ends_at` is cleared and its effective entitlements become those of the free tier — without any manual admin action
-  2. At T-3 days before trial expiry, the company owner receives a warning email; at T-0 (day of expiry), they receive a final warning email — both sent via Resend
-  3. An admin can select any company from the admin panel and force its tier to any value (free, trial, pro, business) with an optional custom expiry date — the change takes effect immediately
-  4. An admin can grant bonus quota to a company (extra estimate credits or extra trial days) — the next `checkQuota()` call for that company reflects the bonus
-  5. The admin panel shows an MRR figure calculated from the count of active Pro and Business subscribers multiplied by their respective plan prices
-**Plans**: 2 plans
-Plans:
-- [x] 60-01-PLAN.md — Cron routes: expire-trials (TRIAL-01) + trial-warning-emails (TRIAL-02) + pg_cron migration + vercel.json
-- [ ] 60-02-PLAN.md — Admin billing page: company list + force tier + bonus credits + MRR metric (ADMIN-BILLING-01, ADMIN-BILLING-02, ADMIN-BILLING-03) + nav entry
-**UI hint**: yes
 
 ## Phase Details
 

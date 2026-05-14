@@ -1,5 +1,23 @@
 # Milestones
 
+## v3.0 Monetization (Shipped: 2026-05-14)
+
+**Phases completed:** 16 phases, 25 plans, 39 tasks
+
+**Key accomplishments:**
+
+- AI-detected client suggestions after estimate generation
+- One-liner:
+- Migration + entitlements module: 6 new companies columns, usage_events table with deny-all RLS, and null-safe tier definitions covering free/trial/pro/business — foundation for all v3.0 quota enforcement
+- TypeScript tier types + 14-day trial INSERT logic + getCompanyTier() query — Phase 55 type system alignment complete
+- Quota enforcement library (checkQuota + recordUsage) with idempotency deduplication — all 7 behaviors validated by unit tests passing without a live database.
+- One-liner:
+- stripe@22.1.1 SDK
+- getBillingData() query using requireServiceClient for usage_events + /settings/billing server component showing plan card and usage meters
+- Interactive billing controls — UpgradeButtons + ManageSubscriptionButton in /settings/billing, TrialBanner strip + UpgradeModal 402 interceptor wired into every authenticated page via app layout
+
+---
+
 ## v1.5 Zero-friction Project Onboarding (Shipped: 2026-05-09)
 
 **Phases completed:** 7 phases, 11 plans, 22 tasks

@@ -216,3 +216,53 @@
 - Sessions: multiple across 12 days
 - Model: Claude Opus 4.7 (orchestrator) + executor subagents
 - Notable: Parallel Wave 3 (4 agents simultaneously) completed all 4 plans without merge conflicts — git worktrees and  commit discipline kept the index clean
+
+## Milestone: v3.0 — Monetization
+
+**Shipped:** 2026-05-14
+**Phases:** 6 (Phases 55-60) | **Plans:** 11 | **Tasks:** ~22
+**Timeline:** 2026-05-13 → 2026-05-14 (2 days)
+**Files changed:** 46 files, ~2,870 lines added
+
+### What Was Built
+
+1. **Phase 55 — Schema + Tier Definitions:** 6 new `companies` columns + `usage_events` table (deny-all RLS, partial unique index for idempotency). `lib/entitlements.ts` with `number | null` limits (not `Infinity`). Trial start wired to INSERT branch of `createOrUpdateCompany()` only.
+2. **Phase 56 — Usage Tracking:** `lib/quota.ts` — `checkQuota()` (monthly + daily DB count) + `recordUsage()` (upsert ON CONFLICT DO NOTHING via idempotency key). 7 unit tests, no live DB needed.
+3. **Phase 57 — Enforcement Layer:** `checkQuota` before + `recordUsage` after in `generate-estimate` and `analyze-photos` routes. WhatsApp handler gates on `whatsappEnabled` entitlement before first Meta download. HTTP 402 with `{ error: 'plan_limit_reached', upgradeUrl: '/settings/billing' }` across all endpoints.
+4. **Phase 58 — Stripe Integration:** `stripe@22.1.1` installed. `IntegrationProvider` extended with `'stripe'`. Checkout + portal routes. Webhook handler with `processed_stripe_events` idempotency table (mirrors `whatsapp_processed_messages`). 4 lifecycle events: `checkout.session.completed`, `invoice.paid`, `invoice.payment_failed` (no DB write), `customer.subscription.deleted`.
+5. **Phase 59 — Billing UI:** `getBillingData()` with service-role for deny-all `usage_events`. `/settings/billing` page + settings entry card. `UpgradeButtons` + `ManageSubscriptionButton` → Stripe. `TrialBanner` (server-side, < 3 days). `UpgradeModal` (`window.fetch` interceptor → sonner toast on 402).
+6. **Phase 60 — Trial Automation + Admin Tooling:** `expire-trials` cron (hourly) + `trial-warning-emails` cron (daily 9am UTC). `forceTier` + `grantBonusCredits` server actions. `/admin/billing` page with MRR stat and company table.
+
+### What Worked
+
+- **STATE.md milestone field reversion:** A recurring issue where worktree executor agents reverted STATE.md `milestone:` to an old value. Pattern identified: always fix STATE.md milestone before init on every phase. Could be automated in the workflow.
+- **Parallel Wave 1 in Phase 60:** Both plans (cron routes + admin page) ran in parallel with no conflicts — completely independent file sets.
+- **`number | null` instead of `Infinity`:** Critical research finding that saved a silent JSON serialization bug.
+- **Proxy bypass pre-wired:** `/api/webhooks/stripe` already covered by existing `pathname.startsWith('/api/webhooks/')` bypass — zero proxy.ts changes needed.
+
+### What Was Inefficient
+
+- **STATE.md milestone drift:** Every phase start required manually fixing `milestone: v1.5 → v3.0` due to worktree isolation. Cost ~2-3 minutes per phase (15 phases = ~30-45 minutes lost).
+- **ROADMAP.md gsd-tools parser issue:** Phase detail sections placed outside the current milestone's extraction window caused `get-phase` to fail. Required manual ROADMAP restructuring for Phases 53 and 54 before planning could proceed.
+- **SUMMARY.md file loss in worktree merges:** Phase 59 SUMMARY files were present in git history but missing from working tree after merge conflict resolution. Recovery required `git checkout HEAD --` to restore.
+
+### Patterns Established
+
+- `number | null` (not `Infinity`) for unlimited tier limits — JSON-safe, semantically clear
+- `processed_stripe_events` idempotency table pattern (mirrors `whatsapp_processed_messages`)
+- Stripe SDK initialized per-request via `getIntegrationKey('stripe')` — not module-level (ADMIN-06 pattern)
+- Phase detail sections must be placed immediately after their milestone checklist in ROADMAP.md for gsd-tools extraction to work correctly
+- Bonus credits via negative `usage_events` rows (stays within existing CHECK constraint)
+
+### Key Lessons
+
+- Fix STATE.md milestone before every init call when worktrees are in use
+- Phase detail sections in ROADMAP.md belong inside the current milestone section, not in a global Phase Details area
+- `request.text()` must be the absolute first await in Stripe webhook handlers (before any JSON parsing)
+- Stripe Checkout metadata (`plan: 'pro' | 'business'`) is more reliable than `line_items` in webhook payloads
+
+### Cost Observations
+
+- Sessions: 2 sessions across 2 days
+- Model: Claude Sonnet 4.6 (orchestrator + executors)
+- Notable: 6 phases executed with research + planning + execution + verification cycle in ~2 days — monetization system from zero to complete

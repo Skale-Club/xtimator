@@ -14,21 +14,13 @@ The platform includes:
 
 A business owner can go from job site audio recording to a sent, professional estimate in under 5 minutes without touching a keyboard.
 
-## Last Milestone: v2.2 WhatsApp Channel Polish ✅ (shipped 2026-05-13)
+## Last Milestone: v3.0 Monetization ✅ (shipped 2026-05-14)
 
-Completed the remaining WhatsApp channel gaps: PDF attachment delivery via Meta API (third `delivery_format` option with Supabase Storage + signed URL + graceful fallback) and full status flow UI (StatusBadge, suspend/reactivate buttons, `updateWhatsAppStatus` server action). 2 phases, all WAPDF + WASTATUS requirements satisfied.
+Complete subscription system: Free/Trial/Pro/Business tiers, `usage_events` tracking, `checkQuota`/`recordUsage` enforcement across all AI routes and WhatsApp handler, Stripe checkout + portal + webhook lifecycle, `/settings/billing` UI with trial banner and 402 upgrade modal, hourly trial expiry cron + T-3/T-0 warning emails, admin force-tier + bonus credits + MRR view. 6 phases, 24/24 requirements satisfied.
 
-## Current Milestone: v3.0 Monetization
+## Current Milestone: (none — awaiting next priorities)
 
-**Goal:** Turn Xtimator into a sustainable SaaS with tiered plans, usage enforcement, Stripe billing, and admin controls.
-
-**Target features:**
-- Tier system: Free / Pro ($29/mo) / Business ($99/mo) + 14-day trial
-- Usage tracking: estimates, photos, audio minutes per company (`usage_events` table)
-- Enforcement: `checkQuota()` before AI calls → `recordUsage()` after success, across all AI endpoints
-- Stripe integration: checkout session, customer portal, webhook handler (checkout.session.completed, invoice.paid, invoice.payment_failed, customer.subscription.deleted)
-- Billing UI: `/settings/billing` with usage graph and upgrade CTA
-- Trial automation: cron downgrade on expiry + warning emails (3-day and day-of)
+**Last shipped:** Phase 60 — Trial Automation + Admin Tooling (2026-05-14)
 - Admin tooling: force tier, grant bonus credits, view MRR
 
 **Last shipped:** Phase 54 — WhatsApp Status Flow (2026-05-13)
@@ -117,9 +109,20 @@ Completed the remaining WhatsApp channel gaps: PDF attachment delivery via Meta 
 - ✓ AIPRICE-01/02/03: AI Price Anchoring — multi-provider layer (Claude + Gemini), price book injected as prompt context, price_source tagged + persisted, fallback to market rates when empty, admin provider selector — Phase 22, 2026-05-08
 - ✓ EDITPRICE-01/02: Estimate Editor Price Badges — "Price book" (CheckCircle2, secondary) + "AI estimate" (Zap, outline) badges per line item; "Edited" badge on manual override; price_source=null on save; null-safe for pre-v1.3 estimates — Phase 23, 2026-05-08
 
+### Validated (v3.0)
+
+- ✓ TIER-01..04: Subscription schema (6 companies columns + usage_events table) + lib/entitlements.ts (Free/Trial/Pro/Business, number|null limits) + 14-day trial on signup — Phases 55-56, 2026-05-13
+- ✓ QUOTA-01..06: checkQuota + recordUsage with idempotency; enforced in generate-estimate, analyze-photos, WhatsApp handler; HTTP 402 on quota exceeded — Phases 56-57, 2026-05-14
+- ✓ STRIPE-01..04: Checkout session + Customer Portal + webhook handler (4 lifecycle events, idempotent via processed_stripe_events) — Phase 58, 2026-05-14
+- ✓ BILLING-01..05: /settings/billing page (plan card + usage meters + upgrade CTA) + trial banner (<3 days) + 402 upgrade toast — Phase 59, 2026-05-14
+- ✓ TRIAL-01..02: Hourly cron trial expiry + daily T-3/T-0 Resend warning emails — Phase 60, 2026-05-14
+- ✓ ADMIN-BILLING-01..03: Admin force-tier + bonus credits + MRR view at /admin/billing — Phase 60, 2026-05-14
+
 ### Pending (production infra)
 
-- [ ] Production Supabase migrations applied (Phase 19 price book table + Phase 24 estimate_template_* columns)
+- [ ] Production Supabase migrations applied (all phases 19–60)
+- [ ] Stripe products + price IDs configured in Stripe Dashboard (STRIPE_PRO_PRICE_ID, STRIPE_BUSINESS_PRICE_ID env vars)
+- [ ] Stripe webhook endpoint registered and STRIPE_WEBHOOK_SECRET set
 - [ ] First super-admin bootstrapped in production
 - [ ] Vercel deployment pipeline configured and first production deploy successful
 
@@ -195,4 +198,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context
 
 ---
-*Last updated: 2026-05-13 — v3.0 Monetization milestone started*
+*Last updated: 2026-05-14 — v3.0 Monetization milestone complete*
