@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Zero-friction Project Onboarding
-status: executing
-last_updated: "2026-05-14T13:32:00.000Z"
-last_activity: 2026-05-14 -- Phase 59 Plan 01 complete
+status: verifying
+last_updated: "2026-05-14T13:40:14.385Z"
+last_activity: 2026-05-14
 progress:
-  total_phases: 16
-  completed_phases: 13
-  total_plans: 23
-  completed_plans: 21
+  total_phases: 54
+  completed_phases: 44
+  total_plans: 116
+  completed_plans: 120
 ---
 
 # Project State
@@ -23,8 +23,8 @@ progress:
 
 Phase: 59 (Billing UI) — EXECUTING
 Plan: 2 of 2
-Status: Completed Phase 59 Plan 01 — Plan 02 next
-Last activity: 2026-05-14 -- Phase 59 Plan 01 complete
+Status: Phase complete — ready for verification
+Last activity: 2026-05-14
 
 ## v3.0 Phases
 
@@ -348,6 +348,9 @@ Last activity: 2026-05-14 -- Phase 59 Plan 01 complete
 - [Phase 58-stripe-integration]: checkout/portal routes use supabase.auth.getClaims() pattern (established codebase convention)
 - [Phase 58-stripe-integration]: invoice.paid subscription ID extracted via legacy field cast + parent.subscription_details fallback (Stripe API 2026-04-22 moved subscription to nested structure)
 - [Phase 58-stripe-integration]: invoice.payment_failed makes zero DB writes — Stripe dunning handles retries; customer.subscription.deleted triggers tier=free downgrade
+- [Phase 59-billing-ui]: TrialBanner is a server component (no use client) accepting daysRemaining prop — layout server component does inline Supabase query for tier + tier_trial_ends_at only to keep layout fast
+- [Phase 59-billing-ui]: UpgradeModal uses window.fetch monkey-patch returning null — invisible effect-only component intercepts 402 from AI routes without modifying call sites
+- [Phase 59-billing-ui]: billingRow added to existing Promise.all in layout.tsx — branding + adminRow + billingRow all fetched concurrently, no sequential blocking
 
 ## Performance Metrics
 
@@ -446,6 +449,7 @@ Last activity: 2026-05-14 -- Phase 59 Plan 01 complete
 | Phase 57-enforcement-layer P02 | 8min | 2 tasks | 2 files |
 | Phase 58-stripe-integration P01 | 5min | 3 tasks | 11 files |
 | Phase 58-stripe-integration P02 | 25 | 2 tasks | 4 files |
+| Phase 59-billing-ui P02 | 3 | 2 tasks | 6 files |
 
 ## Project Reference
 
