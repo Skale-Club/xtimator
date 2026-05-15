@@ -1,30 +1,30 @@
 ---
 gsd_state_version: 1.0
-milestone: v3.1
-milestone_name: Production Go-Live (rescoped)
-status: complete
-last_updated: "2026-05-15T16:00:29.408Z"
+milestone: v3.1.1
+milestone_name: Quality & Polish + Hetzner Readiness
+status: planning
+last_updated: "2026-05-15T18:00:00.000Z"
 last_activity: 2026-05-15
 progress:
-  total_phases: 15
-  completed_phases: 11
-  total_plans: 19
-  completed_plans: 19
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
 ---
 
 # Project State
 
 ## Current Status
 
-- **Milestone**: v3.1 Production Go-Live — Roadmapped (Phases 61-65)
+- **Milestone**: v3.1.1 Quality & Polish + Hetzner Readiness — Defining requirements
 - **Last updated**: 2026-05-15
 
 ## Current Position
 
-Phase: 62
-Plan: Not started
-Status: Executing Phase 61
-Last activity: 2026-05-15
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-05-15 — Milestone v3.1.1 started
 
 ## v3.1 Phases
 

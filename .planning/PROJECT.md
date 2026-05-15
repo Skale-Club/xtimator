@@ -22,10 +22,20 @@ Phase 61 only — production database foundation. Built cross-platform RLS audit
 
 Complete subscription system: Free/Trial/Pro/Business tiers, `usage_events` tracking, `checkQuota`/`recordUsage` enforcement across all AI routes and WhatsApp handler, Stripe checkout + portal + webhook lifecycle, `/settings/billing` UI with trial banner and 402 upgrade modal, hourly trial expiry cron + T-3/T-0 warning emails, admin force-tier + bonus credits + MRR view. 6 phases, 24/24 requirements satisfied.
 
-## Current Milestone: (none — awaiting next priorities)
+## Current Milestone: v3.1.1 Quality & Polish + Hetzner Readiness
+
+**Goal:** Validate the entire app stack against the recovered DB schema (v3.0 monetization was never functionally tested before Phase 61), fix any bugs that surface, and ship the deploy artifacts (Dockerfile + `/api/health` + runbook) needed to make the future Hetzner Cloud migration mechanical instead of exploratory.
+
+**Target features:**
+- **UAT v2.2** — manual exercise of PDF attachment delivery + WhatsApp status flow against localhost
+- **UAT v3.0** — manual exercise of tier enforcement, Stripe checkout (test mode), billing UI, trial banner, 402 upgrade modal, trial expiry cron, admin force-tier
+- **End-to-end smoke** — signup → onboarding → audio capture → AI estimate → share link
+- **Bug triage** — every bug found gets fixed (critical) or documented in `.planning/known-issues.md` (non-critical)
+- **Hetzner readiness** — `Dockerfile` + `/api/health` endpoint + `HETZNER-DEPLOY.md` runbook so v3.2 (deploy) is mostly mechanical
+
+**Hosting decision (locked for v3.2):** Hetzner Cloud VPS (CX22/CX32, ~€4-7/mo). Coolify or Docker + Caddy for the Next.js host + cron + reverse proxy. Supabase stays managed (no DB migration needed). See **SEED-018**.
 
 **Last shipped:** Phase 61 — Production Database Foundation (2026-05-15)
-**Open seeds blocking go-live:** SEED-017 (Stripe live webhook) + SEED-018 (commercial hosting decision)
 
 ## Current State
 
@@ -201,4 +211,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context
 
 ---
-*Last updated: 2026-05-15 — v3.1 Production Go-Live (rescoped, Phase 61 only) shipped; awaiting next milestone*
+*Last updated: 2026-05-15 — v3.1.1 Quality & Polish + Hetzner Readiness milestone started*
