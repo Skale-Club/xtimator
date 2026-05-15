@@ -37,6 +37,83 @@
 
 ---
 
+## Phase 69 — UAT Validation (2026-05-15)
+
+**All 13 UAT requirements DEFERRED to v3.2 first deploy.**
+
+**Rationale:** Manual UAT against localhost requires real WhatsApp Business connection, real Stripe Checkout interaction, real audio recording with multiple takes, real client phone numbers, and ~1-2 hours of focused human time. User chose to defer the validation pass to coincide naturally with the v3.2 first deploy on Hetzner Cloud — testing the deployed app is more meaningful than testing localhost anyway, and avoids running the same UAT twice.
+
+**v3.2 dependency:** Phase 69 work (the test plans 69-01/02/03) carries forward verbatim — same 13 UAT tests, just executed against `https://xtimator.com` instead of `http://localhost:3000`. Test plans remain in `.planning/phases/69-uat-validation-bug-triage-perf-audit/` for re-use.
+
+### UAT-V22-01 — PDF Attachment Delivery: SKIPPED → v3.2
+- Reason: requires real WhatsApp Business connection + real client phone
+- Re-test in v3.2: Phase 64 UAT against `https://xtimator.com`
+
+### UAT-V22-02 — WhatsApp Status Flow: SKIPPED → v3.2
+- Reason: requires real WhatsApp Business connection
+- Re-test in v3.2
+
+### UAT-V30-01 — Tier Enforcement: SKIPPED → v3.2
+- Reason: needs full setup (3 terminals, real Stripe, real signup flow); deferring with v22 since they share session
+- Code is unit-tested (Phase 57); UAT validates real-world behavior in prod
+
+### UAT-V30-02 — Stripe Checkout (test mode): SKIPPED → v3.2
+- Reason: requires interactive Stripe Checkout with test card; deferring to prod where it'll be live mode anyway
+
+### UAT-V30-03 — Trial Automation: SKIPPED → v3.2
+- Reason: requires waiting for real cron timing or manual DB date manipulation; deferring
+
+### UAT-V30-04 — Stripe Customer Portal: SKIPPED → v3.2
+- Reason: same Stripe interactive blocker
+
+### UAT-V30-05 — Admin Tooling: SKIPPED → v3.2
+- Reason: needs full setup; deferred with batch
+
+### UAT-V30-06 — 402 Upgrade Modal: SKIPPED → v3.2
+- Reason: needs quota-exhausted state; deferred with batch
+
+### UAT-INNGEST-01 — 2-min audio: SKIPPED → v3.2
+- Reason: requires Inngest dev running + real audio recording
+- Code is unit-tested (Phase 67, 17 GREEN tests); real flow validated in v3.2
+
+### UAT-INNGEST-02 — 8-min audio (timeout-killer): SKIPPED → v3.2
+- Reason: same as above; the critical "would-have-timed-out-on-Vercel-Free" assertion happens naturally in v3.2 first paying customer flow
+
+### UAT-STORAGE-01 — All upload paths post-refactor: SKIPPED → v3.2
+- Reason: 7 sub-paths × ~2 min each = ~15 min UAT; deferring with batch
+- Code is unit-tested (Phase 66, 45 GREEN tests across 4 providers); refactor mechanical and grep-verified
+
+### UAT-E2E-01 — Full happy path: SKIPPED → v3.2
+- Reason: needs end-to-end signup flow; deferring to prod
+
+### UAT-E2E-02 — Multi-modal capture: SKIPPED → v3.2
+- Reason: 3 capture modes × estimate generation; deferring
+
+### UAT-E2E-03 — i18n smoke (PT-BR + ES): SKIPPED → v3.2
+- Reason: deferring with batch
+
+### FIX-01 — Critical bug fixes: N/A (no UAT bugs to triage)
+### FIX-02 — known-issues.md exists: PASS (this file)
+
+---
+
+## Milestone v3.1.1 Closeout
+
+- **Total UAT tests:** 13 (UAT-V22 ×2, UAT-V30 ×6, UAT-INNGEST ×2, UAT-STORAGE ×1, UAT-E2E ×3)
+- **PASS:** 0
+- **FAIL→FIXED:** 0
+- **DEFERRED → v3.2:** 13 (all UAT — explicit user choice 2026-05-15)
+- **DEFERRED → v3.2 (Phase 68):** 3 (HETZNER-06, PERF-01, PERF-02 — Docker/Lighthouse/build env unavailable)
+- **Critical bugs at milestone close:** ZERO observed (no UAT performed)
+
+**v3.1.1 ships its code artifacts (Inngest + Storage + Hetzner Docker + /api/health + runbook).** The validation gate that proves these work end-to-end is consciously moved to v3.2 first deploy — a single UAT pass against the real Hetzner-deployed `https://xtimator.com` covers both the runtime artifact validation (Phase 68 deferrals) AND the feature UAT (Phase 69 deferrals) with the same effort.
+
+**Risk acknowledged:** code may have undiscovered bugs that would have been caught by localhost UAT but won't surface until v3.2 deploy. Mitigation: known-issues.md inherits cleanly to v3.2; first deploy includes a smoke pass; Hetzner runbook supports rapid rollback (`docker compose down`).
+
+**Milestone v3.1.1 ready to archive: YES (with explicit UAT debt logged).**
+
+---
+
 ## Triage rules
 
 - **PASS** — verified working, no follow-up
