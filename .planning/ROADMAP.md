@@ -166,7 +166,7 @@
   5. An automated RLS audit query confirms every tenant table has policies scoped to `companies.user_id` and every platform table is deny-all by omission
 **Plans**: 5 plans
 Plans:
-- [ ] 61-01-PLAN.md — Validation infra: rls-audit.sql + EXPECTED-POSTURE.md + run-prod-readiness.sh (validated against dev)
+- [x] 61-01-PLAN.md — Validation infra: rls-audit.sql + EXPECTED-POSTURE.md + run-prod-readiness.sh (validated against dev)
 - [ ] 61-02-PLAN.md — Provision prod Supabase project (us-east-1, Free tier, pg_cron) + capture secrets to .env.production + invite super-admin
 - [ ] 61-03-PLAN.md — Apply all 21 migrations via bunx supabase db push + verify 5 storage buckets + seed result
 - [ ] 61-04-PLAN.md — Verify super-admin seed (fallback re-run if needed) + document PROD-DB-04 PITR deferral (Free tier daily backups)
@@ -660,7 +660,7 @@ Plans:
 | 58. Stripe Integration | v3.0 | 2/2 | Complete    | 2026-05-14 |
 | 59. Billing UI | v3.0 | 1/2 | Complete    | 2026-05-14 |
 | 60. Trial Automation + Admin Tooling | v3.0 | 1/2 | Complete    | 2026-05-14 |
-| 61. Production Database Foundation | v3.1 | 0/5 | Not started | - |
+| 61. Production Database Foundation | v3.1 | 1/5 | In Progress|  |
 | 62. Vercel Deployment + Custom Domain | v3.1 | 0/TBD | Not started | - |
 | 63. Stripe Live Mode Activation | v3.1 | 0/TBD | Not started | - |
 | 64. Monitoring + Backup & Resilience | v3.1 | 0/TBD | Not started | - |
