@@ -43,9 +43,9 @@ Doing both refactors before any production deploy means the launch (separate v3.
 
 ### HETZNER — Hetzner Cloud Deploy Readiness
 
-- [ ] **HETZNER-01**: `Dockerfile` ships at repo root — multi-stage build (deps → build → runtime), Node 22 alpine base, builds Next.js standalone output, exposes port 3000, runs as non-root user, image size under 500MB
-- [ ] **HETZNER-02**: `next.config.mjs` set to `output: 'standalone'` — verified `npm run build` produces `.next/standalone/server.js`
-- [ ] **HETZNER-03**: `docker-compose.yml` ships at repo root — Next.js service + Caddy reverse proxy with automatic HTTPS via Let's Encrypt, env file mounted, restart policy unless-stopped
+- [x] **HETZNER-01**: `Dockerfile` ships at repo root — multi-stage build (deps → build → runtime), Node 22 alpine base, builds Next.js standalone output, exposes port 3000, runs as non-root user, image size under 500MB
+- [x] **HETZNER-02**: `next.config.mjs` set to `output: 'standalone'` — verified `npm run build` produces `.next/standalone/server.js`
+- [x] **HETZNER-03**: `docker-compose.yml` ships at repo root — Next.js service + Caddy reverse proxy with automatic HTTPS via Let's Encrypt, env file mounted, restart policy unless-stopped
 - [ ] **HETZNER-04**: `app/api/health/route.ts` returns 200 with JSON body `{ ok: true, db: 'ok', storage: 'ok', commit: '<sha>' }` — DB connectivity via SELECT against `companies`, storage via list-bucket call, commit SHA from `process.env.GIT_SHA`
 - [ ] **HETZNER-05**: `docs/HETZNER-DEPLOY.md` runbook ships — provisioning CX22, install Docker + Caddy, DNS A record, populate `.env.production` on server, `docker compose up -d`, verify `/api/health`, UFW firewall, cert renewal verification, daily off-server backup of `.env.production`
 - [ ] **HETZNER-06**: Local Docker build validated — `docker build -t xtimator . && docker run -p 3000:3000 --env-file .env.local xtimator` boots the app, `/api/health` returns 200, signup + login work against the dev Supabase
@@ -132,9 +132,9 @@ Coverage: 39/39 (100%) — every v1 requirement maps to exactly one phase, no or
 | INNGEST-06 | Phase 67 | Pending |
 | INNGEST-07 | Phase 67 | Complete |
 | INNGEST-08 | Phase 67 | Complete |
-| HETZNER-01 | Phase 68 | Pending |
-| HETZNER-02 | Phase 68 | Pending |
-| HETZNER-03 | Phase 68 | Pending |
+| HETZNER-01 | Phase 68 | Complete |
+| HETZNER-02 | Phase 68 | Complete |
+| HETZNER-03 | Phase 68 | Complete |
 | HETZNER-04 | Phase 68 | Pending |
 | HETZNER-05 | Phase 68 | Pending |
 | HETZNER-06 | Phase 68 | Pending |
