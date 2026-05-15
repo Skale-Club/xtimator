@@ -243,14 +243,24 @@ export function CaptureRecorder({ project, companyId, projectId }: CaptureRecord
     if ('error' in created) { failAt('saving', created.error ?? 'Failed to save recording'); return }
 
     // Transcribe
+    // NOTE: Phase 67 — `transcribeRecording` now dispatches to Inngest and returns
+    // { jobId } instead of { transcript }. Plan 67-05 will replace this block
+    // with a polling hook against GET /api/jobs/{jobId}. For now we keep the
+    // dispatch and read back the recording row to get the transcript once the
+    // worker has updated it. Until Plan 05 ships, this path is best-effort —
+    // the worker may not have finished yet when we read.
     setStage('transcribing')
     const transcribed = await transcribeRecording(created.data.id as string)
     if ('error' in transcribed) { failAt('transcribing', transcribed.error ?? 'Transcription failed'); return }
-    if (!transcribed.data.transcript?.trim()) {
+    // TODO(67-05): poll GET /api/jobs/{transcribed.data.jobId} until status=Completed
+    // then read transcript from the recording row.
+    const transcribedData = transcribed.data as { jobId?: string; transcript?: string }
+    const transcript = transcribedData.transcript
+    if (!transcript?.trim()) {
       failAt('transcribing', "We couldn't catch your description — please try again or edit manually.")
       return
     }
-    setTranscript(transcribed.data.transcript)
+    setTranscript(transcript)
 
     // Generate estimate
     setStage('analyzing')

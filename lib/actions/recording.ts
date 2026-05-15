@@ -109,12 +109,25 @@ export async function createRecording(
   return { data: recording }
 }
 
+/**
+ * Phase 67 refactor: dispatches Whisper work to Inngest instead of awaiting inline.
+ *
+ * Auth/ownership semantics are preserved (RLS via authenticated supabase client).
+ * Return shape CHANGED: was `{ data: { transcript } }`, now `{ data: { jobId } }`.
+ * Callers should poll `GET /api/jobs/{jobId}` to discover completion. The
+ * canonical dispatch surface is the NEW `POST /api/transcribe` route; this
+ * server action is kept as a thin wrapper for backwards compatibility with
+ * the existing `components/capture/capture-recorder.tsx` + `components/workspace/audio/audio-recorder.tsx`
+ * call sites (Plan 67-05 will rewire those to the route + polling hook).
+ *
+ * Implements: INNGEST-03.
+ */
 export async function transcribeRecording(recordingId: string) {
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error }
   const { supabase } = ctx
 
-  // Get recording row
+  // Get recording row (RLS-enforced via authenticated client)
   const { data: recording } = await supabase
     .from('recordings')
     .select('storage_path, company_id, project_id')
@@ -122,55 +135,28 @@ export async function transcribeRecording(recordingId: string) {
     .single()
 
   if (!recording) return { error: 'Recording not found' }
-
   if (!recording.storage_path) {
     return { error: 'This recording has no audio file to transcribe.' }
   }
 
-  // Download audio with service role (bypasses RLS for Storage)
-  const serviceClient = requireServiceClient()
-  let fileData: Blob
-  try {
-    fileData = await createStorage(serviceClient).download('audio', recording.storage_path)
-  } catch {
-    return { error: 'Failed to download audio' }
-  }
+  // Dispatch via Inngest. Importing inngest client + events here is safe —
+  // server actions already run server-side. Lazy-imported to keep this module
+  // pure at the top level (matches the existing import-on-demand style used
+  // elsewhere in the codebase for cross-layer deps).
+  const { inngest } = await import('@/lib/inngest/client')
+  const { EVENT_TRANSCRIBE_AUDIO } = await import('@/lib/inngest/events')
 
-  // Send to Whisper API
-  const formData = new FormData()
-  const ext = recording.storage_path.split('.').pop() ?? 'webm'
-  formData.append('file', fileData, `recording.${ext}`)
-  formData.append('model', 'whisper-1')
-  formData.append('response_format', 'text')
-
-  // Load OpenAI key from DB-backed loader (ADMIN-06)
-  const openaiKey = await getIntegrationKey('openai')
-  if (!openaiKey) {
-    return { error: "Audio transcription isn't available right now. Contact your platform administrator. You can still save and manually edit this recording's transcript." }
-  }
-
-  const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${openaiKey}` },
-    body: formData,
+  const { ids } = await inngest.send({
+    name: EVENT_TRANSCRIBE_AUDIO,
+    id: `transcribe-${recordingId}`,
+    data: {
+      companyId: recording.company_id as string,
+      recordingId,
+      storagePath: recording.storage_path as string,
+    },
   })
 
-  if (!response.ok) {
-    const errorText = await response.text().catch(() => 'Unknown error')
-    return { error: `Transcription failed: ${errorText}` }
-  }
-
-  const transcript = await response.text()
-
-  // Update recording with transcript
-  const { error: updateError } = await supabase
-    .from('recordings')
-    .update({ transcript })
-    .eq('id', recordingId)
-
-  if (updateError) return { error: 'Failed to save transcript' }
-
-  return { data: { transcript } }
+  return { data: { jobId: ids[0] } }
 }
 
 export async function updateTranscript(recordingId: string, transcript: string) {
