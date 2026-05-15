@@ -1,8 +1,16 @@
 // tests/unit/api/generate-estimate-quota.test.ts
-// Phase 57: Quota enforcement tests for generate-estimate route.
-// RED: Tests will fail until checkQuota/recordUsage are wired into the route.
+// Phase 67: After Inngest refactor, recordUsage moved into the Inngest function
+// (see tests/unit/inngest/generate-estimate-job.test.ts). The route is now a
+// dispatcher — it only enforces the quota GATE (402 when exceeded). The
+// usage-recording contract is verified at the worker layer.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+
+vi.mock('@/lib/inngest/client', () => ({
+  inngest: {
+    send: vi.fn().mockResolvedValue({ ids: ['evt_test'] }),
+  },
+}))
 
 vi.mock('@/lib/quota', () => ({
   checkQuota: vi.fn(),
@@ -14,16 +22,7 @@ vi.mock('@/lib/services/generate-estimate', () => ({
 }))
 
 vi.mock('@/lib/ratelimit', () => ({
-  rateLimit: vi.fn().mockResolvedValue({ allowed: true, count: 0, max: 100, retryAfter: null }),
-}))
-
-vi.mock('@/lib/errors', () => ({
-  XtimatorError: class XtimatorError extends Error {
-    constructor(public code: string, public surface: string, message: string) {
-      super(message)
-    }
-  },
-  asResponse: vi.fn((err) => Response.json({ error: String(err) }, { status: 500 })),
+  rateLimit: vi.fn().mockResolvedValue({ allowed: true, count: 0, max: 100 }),
 }))
 
 vi.mock('@/lib/supabase/server', () => ({
@@ -34,10 +33,12 @@ import { POST } from '@/app/api/generate-estimate/route'
 import { createClient } from '@/lib/supabase/server'
 import { generateEstimateForProject } from '@/lib/services/generate-estimate'
 import { checkQuota, recordUsage } from '@/lib/quota'
+import { inngest } from '@/lib/inngest/client'
 
 const mockCheckQuota = vi.mocked(checkQuota)
 const mockRecordUsage = vi.mocked(recordUsage)
 const mockGenerate = vi.mocked(generateEstimateForProject)
+const mockSend = vi.mocked(inngest.send)
 
 function makeRequest(projectId?: string) {
   return new Request('http://localhost/api/generate-estimate', {
@@ -64,13 +65,13 @@ function makeSupabaseMock(companyId = 'company-1') {
   }
 }
 
-describe('generate-estimate route — quota enforcement', () => {
+describe('generate-estimate route — quota enforcement (dispatcher contract)', () => {
   beforeEach(async () => {
     vi.resetAllMocks()
-    // Re-apply defaults that vi.resetAllMocks() clears
     const { rateLimit } = await import('@/lib/ratelimit')
-    vi.mocked(rateLimit).mockResolvedValue({ allowed: true, count: 0, max: 100, retryAfter: null })
+    vi.mocked(rateLimit).mockResolvedValue({ allowed: true, count: 0, max: 100 })
     vi.mocked(recordUsage).mockResolvedValue(undefined)
+    mockSend.mockResolvedValue({ ids: ['evt_test'] } as never)
   })
 
   // Test A: quota exceeded → 402
@@ -85,48 +86,27 @@ describe('generate-estimate route — quota enforcement', () => {
     expect(body).toEqual({ error: 'plan_limit_reached', upgradeUrl: '/settings/billing' })
   })
 
-  // Test B: quota exceeded → generateEstimateForProject NOT called
-  it('does not call generateEstimateForProject when quota is exceeded', async () => {
+  // Test B: quota exceeded → no dispatch and no direct AI call
+  it('does not dispatch (or call AI) when quota is exceeded', async () => {
     vi.mocked(createClient).mockResolvedValue(makeSupabaseMock() as never)
     mockCheckQuota.mockResolvedValue({ allowed: false, remaining: 0 })
 
     await POST(makeRequest('proj-1'))
 
     expect(mockGenerate).not.toHaveBeenCalled()
+    expect(mockSend).not.toHaveBeenCalled()
   })
 
-  // Test C: allowed → recordUsage called after success
-  it('calls recordUsage with correct args after successful estimate generation', async () => {
-    const supabaseMock = makeSupabaseMock('company-1')
-    vi.mocked(createClient).mockResolvedValue(supabaseMock as never)
-    mockCheckQuota.mockResolvedValue({ allowed: true, remaining: 5 })
-    mockGenerate.mockResolvedValue({
-      estimateId: 'est-1',
-      version: 1,
-      clientSuggestion: null,
-      language: 'en',
-    })
-
-    await POST(makeRequest('proj-1'))
-
-    expect(mockRecordUsage).toHaveBeenCalledOnce()
-    expect(mockRecordUsage).toHaveBeenCalledWith(
-      supabaseMock,
-      'company-1',
-      'estimate_generated',
-      1,
-      expect.any(String)
-    )
-  })
-
-  // Test D: allowed but AI fails → recordUsage NOT called
-  it('does not call recordUsage when generateEstimateForProject throws', async () => {
+  // Test C: allowed → dispatches via Inngest (recordUsage now in worker, not route)
+  it('dispatches to Inngest and does NOT call recordUsage inline (route is now dispatcher only)', async () => {
     vi.mocked(createClient).mockResolvedValue(makeSupabaseMock() as never)
     mockCheckQuota.mockResolvedValue({ allowed: true, remaining: 5 })
-    mockGenerate.mockRejectedValue(new Error('Project not found'))
 
-    await POST(makeRequest('proj-1'))
+    const res = await POST(makeRequest('proj-1'))
 
+    expect(res.status).toBe(202)
+    expect(mockSend).toHaveBeenCalledOnce()
+    // recordUsage runs inside the Inngest function (see tests/unit/inngest/generate-estimate-job.test.ts)
     expect(mockRecordUsage).not.toHaveBeenCalled()
   })
 })

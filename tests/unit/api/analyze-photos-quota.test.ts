@@ -1,14 +1,21 @@
 // tests/unit/api/analyze-photos-quota.test.ts
-// Phase 57: Quota enforcement tests for analyze-photos route.
-// RED: Tests will fail until checkQuota/recordUsage are wired into the route.
+// Phase 67: After Inngest refactor, Anthropic Vision + recordUsage moved into
+// the Inngest function (see tests/unit/inngest/analyze-photos-job.test.ts).
+// The route is now a dispatcher — it only enforces auth/rate-limit/quota gates
+// and dispatches the event. Vision/recordUsage assertions live at the worker layer.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-// Class-based factory — matches handler.test.ts pattern
 const mockAnthropicCreate = vi.fn()
 vi.mock('@anthropic-ai/sdk', () => ({
   default: class MockAnthropic {
     messages = { create: (...args: unknown[]) => mockAnthropicCreate(...args) }
+  },
+}))
+
+vi.mock('@/lib/inngest/client', () => ({
+  inngest: {
+    send: vi.fn().mockResolvedValue({ ids: ['evt_test'] }),
   },
 }))
 
@@ -18,7 +25,7 @@ vi.mock('@/lib/quota', () => ({
 }))
 
 vi.mock('@/lib/ratelimit', () => ({
-  rateLimit: vi.fn().mockResolvedValue({ allowed: true, count: 0, max: 100, retryAfter: null }),
+  rateLimit: vi.fn().mockResolvedValue({ allowed: true, count: 0, max: 100 }),
 }))
 
 vi.mock('@/lib/platform-config', () => ({
@@ -35,11 +42,12 @@ vi.mock('@/lib/supabase/service', () => ({
 
 import { POST } from '@/app/api/analyze-photos/route'
 import { createClient } from '@/lib/supabase/server'
-import { requireServiceClient } from '@/lib/supabase/service'
 import { checkQuota, recordUsage } from '@/lib/quota'
+import { inngest } from '@/lib/inngest/client'
 
 const mockCheckQuota = vi.mocked(checkQuota)
 const mockRecordUsage = vi.mocked(recordUsage)
+const mockSend = vi.mocked(inngest.send)
 
 function makeRequest(projectId?: string) {
   return new Request('http://localhost/api/analyze-photos', {
@@ -49,75 +57,47 @@ function makeRequest(projectId?: string) {
   })
 }
 
-const PHOTO_ROWS = [
-  { id: 'photo-1', storage_path: 'company-1/proj-1/photo1.jpg', sort_order: 0, project_id: 'proj-1', ai_description: null },
-  { id: 'photo-2', storage_path: 'company-1/proj-1/photo2.jpg', sort_order: 1, project_id: 'proj-1', ai_description: null },
-]
-
-function makeSupabaseMock() {
-  const updateChain = {
-    eq: vi.fn().mockResolvedValue({ error: null }),
-  }
-  const fromMock = vi.fn().mockImplementation((table: string) => {
-    if (table === 'companies') {
-      return {
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({ data: { id: 'company-1' }, error: null }),
-          }),
-        }),
-      }
-    }
-    if (table === 'photos') {
-      return {
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            order: vi.fn().mockResolvedValue({ data: PHOTO_ROWS, error: null }),
-          }),
-        }),
-        update: vi.fn().mockReturnValue(updateChain),
-      }
-    }
-    return {}
-  })
+function makeSupabaseMock(photoCount = 2) {
   return {
     auth: {
       getClaims: vi.fn().mockResolvedValue({
         data: { claims: { sub: 'user-1' } },
       }),
     },
-    from: fromMock,
+    from: vi.fn().mockImplementation((table: string) => {
+      if (table === 'companies') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({ data: { id: 'company-1' }, error: null }),
+            }),
+          }),
+        }
+      }
+      if (table === 'photos') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockResolvedValue({ count: photoCount, data: null, error: null }),
+          }),
+        }
+      }
+      return {}
+    }),
   }
 }
 
-function makeServiceClientMock() {
-  return {
-    storage: {
-      from: vi.fn().mockReturnValue({
-        download: vi.fn().mockResolvedValue({
-          data: new Blob(['fake image data'], { type: 'image/jpeg' }),
-          error: null,
-        }),
-      }),
-    },
-  }
-}
-
-describe('analyze-photos route — quota enforcement', () => {
+describe('analyze-photos route — quota enforcement (dispatcher contract)', () => {
   beforeEach(async () => {
     vi.resetAllMocks()
-    // Re-apply defaults that vi.resetAllMocks() clears
     const { rateLimit } = await import('@/lib/ratelimit')
-    vi.mocked(rateLimit).mockResolvedValue({ allowed: true, count: 0, max: 100, retryAfter: null })
-    const { getIntegrationKey } = await import('@/lib/platform-config')
-    vi.mocked(getIntegrationKey).mockResolvedValue('test-anthropic-key')
+    vi.mocked(rateLimit).mockResolvedValue({ allowed: true, count: 0, max: 100 })
     vi.mocked(recordUsage).mockResolvedValue(undefined)
+    mockSend.mockResolvedValue({ ids: ['evt_photos_test'] } as never)
   })
 
   // Test A: quota exceeded → 402
   it('returns 402 with plan_limit_reached body when quota is exceeded', async () => {
     vi.mocked(createClient).mockResolvedValue(makeSupabaseMock() as never)
-    vi.mocked(requireServiceClient).mockReturnValue(makeServiceClientMock() as never)
     mockCheckQuota.mockResolvedValue({ allowed: false, remaining: 0 })
 
     const res = await POST(makeRequest('proj-1'))
@@ -127,36 +107,26 @@ describe('analyze-photos route — quota enforcement', () => {
     expect(body).toEqual({ error: 'plan_limit_reached', upgradeUrl: '/settings/billing' })
   })
 
-  // Test B: quota exceeded → Anthropic NOT called
-  it('does not call anthropic.messages.create when quota is exceeded', async () => {
+  // Test B: quota exceeded → no Anthropic call and no dispatch
+  it('does not call Anthropic or dispatch when quota is exceeded', async () => {
     vi.mocked(createClient).mockResolvedValue(makeSupabaseMock() as never)
-    vi.mocked(requireServiceClient).mockReturnValue(makeServiceClientMock() as never)
     mockCheckQuota.mockResolvedValue({ allowed: false, remaining: 0 })
 
     await POST(makeRequest('proj-1'))
 
     expect(mockAnthropicCreate).not.toHaveBeenCalled()
+    expect(mockSend).not.toHaveBeenCalled()
   })
 
-  // Test C: allowed → recordUsage called with photo count
-  it('calls recordUsage with photo_analyzed and correct photo count after successful analysis', async () => {
-    const supabaseMock = makeSupabaseMock()
-    vi.mocked(createClient).mockResolvedValue(supabaseMock as never)
-    vi.mocked(requireServiceClient).mockReturnValue(makeServiceClientMock() as never)
+  // Test C: allowed → dispatches via Inngest; route does NOT call recordUsage inline
+  it('dispatches to Inngest and does NOT call recordUsage inline (lives in worker now)', async () => {
+    vi.mocked(createClient).mockResolvedValue(makeSupabaseMock() as never)
     mockCheckQuota.mockResolvedValue({ allowed: true, remaining: null })
-    mockAnthropicCreate.mockResolvedValue({
-      content: [{ type: 'text', text: 'Photo description from Claude Vision.' }],
-    })
 
-    await POST(makeRequest('proj-1'))
+    const res = await POST(makeRequest('proj-1'))
 
-    expect(mockRecordUsage).toHaveBeenCalledOnce()
-    expect(mockRecordUsage).toHaveBeenCalledWith(
-      supabaseMock,
-      'company-1',
-      'photo_analyzed',
-      2, // PHOTO_ROWS.length
-      expect.any(String)
-    )
+    expect(res.status).toBe(202)
+    expect(mockSend).toHaveBeenCalledOnce()
+    expect(mockRecordUsage).not.toHaveBeenCalled()
   })
 })

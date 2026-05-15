@@ -1,14 +1,28 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { generateEstimateForProject } from '@/lib/services/generate-estimate'
+import { inngest } from '@/lib/inngest/client'
+import {
+  EVENT_ESTIMATE_GENERATE,
+  type EstimateGeneratePayload,
+} from '@/lib/inngest/events'
 import { rateLimit } from '@/lib/ratelimit'
 import { XtimatorError, asResponse } from '@/lib/errors'
-import { checkQuota, recordUsage } from '@/lib/quota'
+import { checkQuota } from '@/lib/quota'
 
+/**
+ * Phase 67: route refactor. Returns { jobId } in <1s.
+ *
+ * The actual AI work (generateEstimateForProject + recordUsage) now runs
+ * inside lib/inngest/functions/generate-estimate.ts:generateEstimateJob.
+ * This route only performs synchronous pre-flight (auth + rate limit + quota)
+ * and dispatches the event.
+ *
+ * Implements: INNGEST-02.
+ */
 export async function POST(request: Request) {
   const requestId = crypto.randomUUID()
   try {
-    // Auth
+    // Auth (synchronous, fast)
     const supabase = await createClient()
     const { data: claimsData } = await supabase.auth.getClaims()
     const claims = claimsData?.claims ?? null
@@ -16,7 +30,7 @@ export async function POST(request: Request) {
       throw new XtimatorError('unauthorized', 'auth', 'Not authenticated')
     }
 
-    // Rate limit (per user, hour + day)
+    // Rate limits (synchronous, Upstash Redis — typically <100ms)
     const userId = claims.sub
     const hourly = await rateLimit('userEstimatePerHour', userId)
     if (!hourly.allowed) {
@@ -39,18 +53,18 @@ export async function POST(request: Request) {
       )
     }
 
+    // Company lookup
     const { data: companyRow } = await supabase
       .from('companies')
       .select('id')
       .eq('user_id', userId)
       .single()
-
     if (!companyRow) {
       throw new XtimatorError('not_found', 'company', 'No company found')
     }
-    const companyId = companyRow.id as string
+    const companyId = (companyRow as { id: string }).id
 
-    // QUOTA-03: Check estimate quota before any AI call
+    // QUOTA-03: gate dispatch — recordUsage now lives inside the Inngest function
     const { allowed } = await checkQuota(supabase, companyId, 'estimate')
     if (!allowed) {
       return NextResponse.json(
@@ -59,31 +73,28 @@ export async function POST(request: Request) {
       )
     }
 
-    // Parse body
+    // Body
     const body = await request.json().catch(() => null)
     if (!body?.projectId) {
-      throw new XtimatorError('bad_request', 'estimates', 'projectId is required')
+      throw new XtimatorError(
+        'bad_request',
+        'estimates',
+        'projectId is required'
+      )
     }
     const projectId = body.projectId as string
 
-    const result = await generateEstimateForProject(companyId, projectId)
-    // QUOTA-03: Record usage only after successful AI call (not on failure)
-    await recordUsage(supabase, companyId, 'estimate_generated', 1, requestId)
-    return NextResponse.json(result)
+    // Dispatch to Inngest. Event-level idempotency via `id` field — same
+    // request never executes twice in 24h.
+    const payload: EstimateGeneratePayload = { companyId, projectId, requestId }
+    const { ids } = await inngest.send({
+      name: EVENT_ESTIMATE_GENERATE,
+      id: `estimate-${projectId}-${requestId}`,
+      data: payload,
+    })
+
+    return NextResponse.json({ jobId: ids[0] }, { status: 202 })
   } catch (error) {
-    // Pre-existing string-based error classification preserved for backwards compat
-    // with callers checking for these specific messages.
-    if (error instanceof Error && !(error instanceof XtimatorError)) {
-      const knownClientErrors = [
-        'Project not found',
-        'Company not found',
-        'At least one audio transcript or photo is required',
-      ]
-      if (knownClientErrors.includes(error.message)) {
-        console.error('Estimate generation failed:', error)
-        return NextResponse.json({ error: error.message }, { status: 400 })
-      }
-    }
     return asResponse(error)
   }
 }
