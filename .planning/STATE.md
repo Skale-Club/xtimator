@@ -6,7 +6,7 @@ status: planning
 last_updated: "2026-05-15T00:00:00.000Z"
 last_activity: 2026-05-15
 progress:
-  total_phases: 0
+  total_phases: 5
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -16,15 +16,23 @@ progress:
 
 ## Current Status
 
-- **Milestone**: v3.1 Production Go-Live — Defining requirements
+- **Milestone**: v3.1 Production Go-Live — Roadmapped (Phases 61-65)
 - **Last updated**: 2026-05-15
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-05-15 — Milestone v3.1 started
+Phase: Phase 61 (next) — Production Database Foundation
+Plan: TBD
+Status: Roadmapped — 5 phases (61-65), 27/27 requirements mapped
+Last activity: 2026-05-15 — Milestone v3.1 roadmap created (Phases 61-65)
+
+## v3.1 Phases
+
+- Phase 61: Production Database Foundation (PROD-DB-01..05) — Not started
+- Phase 62: Vercel Deployment + Custom Domain (PROD-DEPLOY-01..05) — Not started
+- Phase 63: Stripe Live Mode Activation (PROD-STRIPE-01..05) — Not started
+- Phase 64: Monitoring + Backup & Resilience (PROD-MONITOR-01..05, PROD-BACKUP-01..03) — Not started
+- Phase 65: Production UAT + Bug Triage (PROD-UAT-01..04) — Not started
 
 ## v3.0 Phases
 
@@ -475,7 +483,8 @@ v1.9: Phases 38-39 (started 2026-05-10). SEED-009 Custom Domain Support — per-
 v2.0: Phases 40-45 (shipped 2026-05-10). SEED-008 WhatsApp Estimate Channel MVP.
 v2.1: Phases 46-52 (shipped 2026-05-11). WhatsApp Launch-Readiness — 7 phases, typed errors, Redis rate limiting, debounce, typing indicators, OTP verification, pre-send edit commands, per-estimate language selection.
 v2.2: Phases 53-54 (shipped 2026-05-13). WhatsApp Channel Polish — PDF attachment delivery (Gap 3) + real status flow (Gap 5).
-v3.0: Phases 55-60 (started 2026-05-13). Monetization — SEED-013 harvested. 24 requirements: tier schema + entitlements, usage tracking, enforcement, Stripe billing, billing UI, trial automation + admin tooling.
+v3.0: Phases 55-60 (shipped 2026-05-14). Monetization — SEED-013 harvested. 24 requirements: tier schema + entitlements, usage tracking, enforcement, Stripe billing, billing UI, trial automation + admin tooling.
+v3.1: Phases 61-65 (started 2026-05-15). Production Go-Live — 27 requirements across 5 phases: production DB foundation, Vercel deploy + custom domain, Stripe live mode, monitoring + backup + resilience, end-to-end UAT + bug triage. Unblocks first paying customer.
 
 ## Accumulated Context
 
@@ -493,6 +502,7 @@ v3.0: Phases 55-60 (started 2026-05-13). Monetization — SEED-013 harvested. 24
 - v1.9 phases 38-39 (SEED-009): Domain config + settings UI (Phase 38) → Subdomain routing + white-label (Phase 39). Key constraint: Phase 38 must ship first — Phase 39 reads the custom_domain column that Phase 38 creates. DOMAIN-05 (no regression) is validated in Phase 38 by ensuring companies with no domain see no change. custom_domain goes on companies table (not platform_branding — that is platform-level config). proxy.ts hosts the subdomain detection (no middleware.ts exists).
 - v2.2 phases 53-54 (SEED-015 Gaps 3 & 5): PDF attachment delivery (Phase 53) → WhatsApp status flow (Phase 54). Key constraint: Phase 53 touches confirm.ts delivery branching and adds pdf_attachment to delivery_format enum — complete that before Phase 54 also touches the same UI selector to add suspend/reactivate. Both phases build on Phase 50 (OTP verification) which established the pending→active transition. Phase 54 closes the status flow loop by wiring verified→active auto-promotion and adding the suspended state with admin controls.
 - v3.0 phases 55-60 (SEED-013): Schema + tier definitions (Phase 55) → Usage tracking helpers (Phase 56) → Enforcement wiring (Phase 57) → Stripe integration (Phase 58) → Billing UI (Phase 59) → Trial automation + admin tooling (Phase 60). Key constraint: Phase 55 is a hard prerequisite for all others — tier columns and usage_events table must exist. Phase 56 builds the quota library; Phase 57 wires it to routes. Phase 58 is independent of 56-57 (depends only on Phase 55 tier columns). Phase 59 requires both Phase 57 (usage data) and Phase 58 (Stripe endpoints). Phase 60 depends on Phase 55 (tier columns) and Phase 58 (Stripe state) but not on Phase 59 UI.
+- v3.1 phases 61-65 (Production Go-Live): Production DB foundation (Phase 61) → Vercel deploy + custom domain (Phase 62) → Stripe live mode activation (Phase 63) → Monitoring + backup + resilience (Phase 64) → Production UAT + bug triage (Phase 65). Hard dep order: Phase 61 (DB) before Phase 62 (deployed app needs DB). Phase 62 before Phase 63 (Stripe live webhook URL needs reachable production endpoint). Phase 64 depends on both 61 (health endpoint DB check) and 62 (Sentry/uptime point at deployed app). Phase 65 ships last — UAT only meaningful after all infra + payments are live. PROD-BACKUP grouped with PROD-MONITOR in Phase 64 because both are post-deploy ops concerns sharing the runbook surface.
 
 ### Quick Tasks Completed
 

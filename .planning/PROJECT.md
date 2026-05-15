@@ -20,15 +20,15 @@ Complete subscription system: Free/Trial/Pro/Business tiers, `usage_events` trac
 
 ## Current Milestone: v3.1 Production Go-Live
 
-**Goal:** Tirar o Xtimator do dev/test e colocar em produção real, com pagamentos reais, monitoring e UAT completo — destrava o primeiro cliente pagante.
+**Goal:** Move Xtimator from dev/test into real production — real payments, monitoring, and complete UAT — unlocking the first paying customer.
 
 **Target features:**
-- **Stripe live mode** — webhook live em xtimator.com (SEED-017 ativado), products + price IDs criados, env var `STRIPE_WEBHOOK_SECRET` no Vercel produção
-- **Production deployment** — Vercel pipeline configurado, custom domain xtimator.com apontado (DNS + SSL), env vars completos em prod
-- **Database production** — todas migrações Supabase aplicadas em prod (fases 19-60), primeiro super-admin bootstrapado, Supabase PITR ativado
-- **Monitoring & observability** — Sentry (errors), Vercel Analytics (perf/web vitals), uptime check externo
-- **UAT completo** — smoke test end-to-end de v2.2 + v3.0 (audio→estimate→share→trial→upgrade→pay), bug fixes encontrados durante UAT
-- **Backup & resilience** — Supabase PITR, status page mínima, runbook de incidentes
+- **Stripe live mode** — live webhook on xtimator.com (SEED-017 activated), products + price IDs created, `STRIPE_WEBHOOK_SECRET` env var on Vercel production
+- **Production deployment** — Vercel pipeline configured, custom domain xtimator.com pointed (DNS + SSL), full env vars in prod
+- **Production database** — all Supabase migrations applied to prod (phases 19-60), first super-admin bootstrapped, Supabase PITR enabled
+- **Monitoring & observability** — Sentry (errors), Vercel Analytics (perf/web vitals), external uptime check
+- **Complete UAT** — end-to-end smoke test of v2.2 + v3.0 (audio→estimate→share→trial→upgrade→pay), bug fixes from UAT
+- **Backup & resilience** — Supabase PITR, minimal status page, incident runbook
 
 **Last shipped:** Phase 60 — Trial Automation + Admin Tooling (2026-05-14)
 
@@ -206,4 +206,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context
 
 ---
-*Last updated: 2026-05-15 — v3.1 Production Go-Live milestone started*
+*Last updated: 2026-05-15 — v3.1 Production Go-Live milestone started (5 phases, 27 requirements)*

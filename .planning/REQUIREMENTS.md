@@ -1,9 +1,9 @@
 # Requirements: v3.1 Production Go-Live
 
-**Goal:** Tirar o Xtimator do dev/test e colocar em produção real, com pagamentos reais, monitoring e UAT completo — destrava o primeiro cliente pagante.
+**Goal:** Move Xtimator from dev/test into real production — real payments, monitoring, and complete UAT — unlocking the first paying customer.
 
 **Started:** 2026-05-15
-**Status:** Defining requirements
+**Status:** Roadmapped — 5 phases (61–65)
 
 ---
 
@@ -77,6 +77,36 @@
 
 ---
 
-## Traceability (filled by roadmap)
+## Traceability
 
-To be populated by `/gsd:new-milestone` roadmapper agent.
+Every v1 requirement is mapped to exactly one phase. Coverage: 27/27 (100%).
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| PROD-DB-01 | Phase 61 | Pending |
+| PROD-DB-02 | Phase 61 | Pending |
+| PROD-DB-03 | Phase 61 | Pending |
+| PROD-DB-04 | Phase 61 | Pending |
+| PROD-DB-05 | Phase 61 | Pending |
+| PROD-DEPLOY-01 | Phase 62 | Pending |
+| PROD-DEPLOY-02 | Phase 62 | Pending |
+| PROD-DEPLOY-03 | Phase 62 | Pending |
+| PROD-DEPLOY-04 | Phase 62 | Pending |
+| PROD-DEPLOY-05 | Phase 62 | Pending |
+| PROD-STRIPE-01 | Phase 63 | Pending |
+| PROD-STRIPE-02 | Phase 63 | Pending |
+| PROD-STRIPE-03 | Phase 63 | Pending |
+| PROD-STRIPE-04 | Phase 63 | Pending |
+| PROD-STRIPE-05 | Phase 63 | Pending |
+| PROD-MONITOR-01 | Phase 64 | Pending |
+| PROD-MONITOR-02 | Phase 64 | Pending |
+| PROD-MONITOR-03 | Phase 64 | Pending |
+| PROD-MONITOR-04 | Phase 64 | Pending |
+| PROD-MONITOR-05 | Phase 64 | Pending |
+| PROD-BACKUP-01 | Phase 64 | Pending |
+| PROD-BACKUP-02 | Phase 64 | Pending |
+| PROD-BACKUP-03 | Phase 64 | Pending |
+| PROD-UAT-01 | Phase 65 | Pending |
+| PROD-UAT-02 | Phase 65 | Pending |
+| PROD-UAT-03 | Phase 65 | Pending |
+| PROD-UAT-04 | Phase 65 | Pending |
