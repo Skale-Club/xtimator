@@ -22,7 +22,7 @@
 - [ ] **PROD-DB-01**: Production Supabase project provisioned (separate org/project from dev)
 - [ ] **PROD-DB-02**: All migrations from phases 1-60 applied successfully to production database
 - [ ] **PROD-DB-03**: First super-admin (skale.club@gmail.com) bootstrapped in `platform_admins` production table
-- [ ] **PROD-DB-04**: PITR (Point-in-Time Recovery) enabled with 7-day retention minimum
+- [ ] **PROD-DB-04**: PITR (Point-in-Time Recovery) configured — **DEFERRED to paid tier upgrade**. Free tier provides automatic daily backups (Supabase default, 2-day retention). Document upgrade path; do not block go-live on this.
 - [ ] **PROD-DB-05**: RLS policies verified active on all tables via automated check (deny-all on platform tables, scoped to `companies.user_id` on tenant tables)
 
 ### PROD-STRIPE — Live Mode Activation
