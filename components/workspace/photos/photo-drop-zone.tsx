@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
 import { compressImage } from '@/lib/utils/image-compressor'
 import { createClient } from '@/lib/supabase/client'
+import { createStorage } from '@/lib/storage'
 import { createPhoto } from '@/lib/actions/photo'
 import type { Photo } from '@/lib/queries/photo'
 
@@ -51,6 +52,7 @@ export function PhotoDropZone({
       setUploadProgress({ completed: 0, total: fileArray.length })
 
       const supabase = createClient()
+      const storage = createStorage(supabase)
       const newPhotos: Photo[] = []
 
       for (let i = 0; i < fileArray.length; i++) {
@@ -69,15 +71,14 @@ export function PhotoDropZone({
         const storagePath = `${companyId}/${projectId}/${photoId}.jpg`
 
         // Upload to Supabase Storage
-        const { error: uploadError } = await supabase.storage
-          .from('photos')
-          .upload(storagePath, blob, {
+        try {
+          await storage.upload('photos', storagePath, blob, {
             contentType: 'image/jpeg',
             upsert: false,
           })
-
-        if (uploadError) {
-          toast.error(`Failed to upload photo ${i + 1}: ${uploadError.message}`)
+        } catch (err) {
+          const message = err instanceof Error ? err.message : 'unknown error'
+          toast.error(`Failed to upload photo ${i + 1}: ${message}`)
           continue
         }
 

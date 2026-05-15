@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { createStorage } from '@/lib/storage'
 import { revalidatePath } from 'next/cache'
 
 async function getAuthContext() {
@@ -107,12 +108,9 @@ export async function deletePhoto(photoId: string) {
   if (!photo) return { error: 'Photo not found' }
 
   // Delete from Storage photos bucket
-  const { error: storageError } = await supabase
-    .storage
-    .from('photos')
-    .remove([photo.storage_path])
-
-  if (storageError) {
+  try {
+    await createStorage(supabase).delete('photos', photo.storage_path)
+  } catch {
     return { error: 'Failed to delete photo file' }
   }
 

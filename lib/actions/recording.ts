@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { requireServiceClient } from '@/lib/supabase/service'
+import { createStorage } from '@/lib/storage'
 import { revalidatePath } from 'next/cache'
 import { getIntegrationKey } from '@/lib/platform-config'
 
@@ -128,12 +129,12 @@ export async function transcribeRecording(recordingId: string) {
 
   // Download audio with service role (bypasses RLS for Storage)
   const serviceClient = requireServiceClient()
-  const { data: fileData, error: downloadError } = await serviceClient
-    .storage
-    .from('audio')
-    .download(recording.storage_path)
-
-  if (downloadError || !fileData) return { error: 'Failed to download audio' }
+  let fileData: Blob
+  try {
+    fileData = await createStorage(serviceClient).download('audio', recording.storage_path)
+  } catch {
+    return { error: 'Failed to download audio' }
+  }
 
   // Send to Whisper API
   const formData = new FormData()
@@ -203,12 +204,9 @@ export async function deleteRecording(recordingId: string) {
 
   // Delete from Storage audio bucket (skip for text-only recordings with no audio file)
   if (recording.storage_path) {
-    const { error: storageError } = await supabase
-      .storage
-      .from('audio')
-      .remove([recording.storage_path])
-
-    if (storageError) {
+    try {
+      await createStorage(supabase).delete('audio', recording.storage_path)
+    } catch {
       return { error: 'Failed to delete audio file' }
     }
   }

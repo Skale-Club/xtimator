@@ -11,6 +11,7 @@ import type { OnboardingValues } from '@/lib/schemas/onboarding'
 import { createOrUpdateCompany } from '@/lib/actions/company'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
 import { createClient } from '@/lib/supabase/client'
+import { createStorage } from '@/lib/storage'
 
 import { Form } from '@/components/ui/form'
 import { Button } from '@/components/ui/button'
@@ -135,18 +136,14 @@ export function OnboardingWizard({ appName }: { appName: string }) {
               const ext = logoFile.name.split('.').pop() || 'png'
               const path = `${userData.user.id}/logo.${ext}`
 
-              const { error: uploadError } = await supabase.storage
-                .from('logos')
-                .upload(path, logoFile, {
-                  cacheControl: '3600',
+              try {
+                await createStorage(supabase).upload('logos', path, logoFile, {
                   upsert: true,
                 })
-
-              if (uploadError) {
-                toast.error('Logo upload failed. Your company will be saved without a logo.')
-              } else {
                 // Store the storage path (not public URL) -- bucket is private (Pitfall 2)
                 logoUrl = path
+              } catch {
+                toast.error('Logo upload failed. Your company will be saved without a logo.')
               }
             }
           } catch {

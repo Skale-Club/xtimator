@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@/lib/supabase/server'
 import { requireServiceClient } from '@/lib/supabase/service'
+import { createStorage } from '@/lib/storage'
 import { getIntegrationKey } from '@/lib/platform-config'
 import { rateLimit } from '@/lib/ratelimit'
 import type { Photo } from '@/lib/queries/photo'
@@ -32,13 +33,12 @@ async function analyzePhoto(
   anthropic: Anthropic
 ): Promise<string> {
   // Download photo from Supabase Storage using service role client
-  const { data: fileData, error: downloadError } = await serviceClient
-    .storage
-    .from('photos')
-    .download(photo.storage_path)
-
-  if (downloadError || !fileData) {
-    throw new Error(`Failed to download photo: ${downloadError?.message ?? 'No data'}`)
+  let fileData: Blob
+  try {
+    fileData = await createStorage(serviceClient).download('photos', photo.storage_path)
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'No data'
+    throw new Error(`Failed to download photo: ${message}`)
   }
 
   // Convert Blob to base64

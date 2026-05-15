@@ -7,6 +7,7 @@ import { SurveyShell } from '@/components/onboarding/survey/survey-shell'
 import { createOrUpdateCompany } from '@/lib/actions/company'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
 import { createClient } from '@/lib/supabase/client'
+import { createStorage } from '@/lib/storage'
 import type { OnboardingValues } from '@/lib/schemas/onboarding'
 
 const INITIAL: OnboardingValues = {
@@ -45,15 +46,12 @@ export function OnboardingSurvey({ appName }: { appName: string }) {
             if (userData?.user) {
               const ext = state.logoFile.name.split('.').pop() || 'png'
               const path = `${userData.user.id}/logo.${ext}`
-              const { error } = await supabase.storage
-                .from('logos')
-                .upload(path, state.logoFile, {
-                  cacheControl: '3600',
+              try {
+                await createStorage(supabase).upload('logos', path, state.logoFile, {
                   upsert: true,
                 })
-              if (!error) {
                 logoUrl = path
-              } else {
+              } catch {
                 toast.error(
                   'Logo upload failed. Continuing without a logo.'
                 )

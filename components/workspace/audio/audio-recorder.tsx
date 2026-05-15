@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { WaveformVisualizer } from './waveform-visualizer'
 import { getSupportedAudioMimeType, getFileExtension, formatDuration } from '@/lib/utils/media-format'
 import { createClient } from '@/lib/supabase/client'
+import { createStorage } from '@/lib/storage'
 import { createRecording, transcribeRecording } from '@/lib/actions/recording'
 import type { Recording } from '@/lib/queries/recording'
 
@@ -229,14 +230,12 @@ export function AudioRecorder({ projectId, companyId, onRecordingCreated, onTran
       const storagePath = `${companyId}/${projectId}/${recordingId}.${ext}`
 
       // Upload to Supabase Storage
-      const { error: uploadError } = await supabase.storage
-        .from('audio')
-        .upload(storagePath, audioBlob, {
+      try {
+        await createStorage(supabase).upload('audio', storagePath, audioBlob, {
           contentType: mimeTypeRef.current || 'audio/webm',
           upsert: false,
         })
-
-      if (uploadError) {
+      } catch {
         throw new Error('Failed to upload audio file')
       }
 

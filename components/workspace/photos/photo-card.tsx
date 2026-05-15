@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { X } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { createClient } from '@/lib/supabase/client'
+import { createStorage } from '@/lib/storage'
 import { updatePhotoCaption, deletePhoto } from '@/lib/actions/photo'
 import type { Photo } from '@/lib/queries/photo'
 
@@ -22,13 +23,13 @@ export function PhotoCard({ photo, onClick, onDelete }: PhotoCardProps) {
 
   useEffect(() => {
     const supabase = createClient()
-    supabase.storage
-      .from('photos')
-      .createSignedUrl(photo.storage_path, 3600)
-      .then(({ data }) => {
-        if (data?.signedUrl) {
-          setImageUrl(data.signedUrl)
-        }
+    createStorage(supabase)
+      .getSignedUrl('photos', photo.storage_path, 3600)
+      .then((signedUrl) => {
+        setImageUrl(signedUrl)
+      })
+      .catch(() => {
+        // signed URL failed — leave skeleton in place
       })
   }, [photo.storage_path])
 

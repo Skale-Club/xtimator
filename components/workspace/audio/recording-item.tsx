@@ -9,6 +9,7 @@ import { TranscriptEditor } from './transcript-editor'
 import { formatDuration } from '@/lib/utils/media-format'
 import { deleteRecording } from '@/lib/actions/recording'
 import { createClient } from '@/lib/supabase/client'
+import { createStorage } from '@/lib/storage'
 import type { Recording } from '@/lib/queries/recording'
 
 interface RecordingItemProps {
@@ -30,12 +31,15 @@ export function RecordingItem({ recording, onDelete, isTranscribing }: Recording
     async function fetchSignedUrl() {
       if (!recording.storage_path) return   // text-only recording — no audio file
       const supabase = createClient()
-      const { data } = await supabase.storage
-        .from('audio')
-        .createSignedUrl(recording.storage_path, 3600)
-
-      if (!cancelled && data?.signedUrl) {
-        setAudioUrl(data.signedUrl)
+      try {
+        const signedUrl = await createStorage(supabase).getSignedUrl(
+          'audio',
+          recording.storage_path,
+          3600,
+        )
+        if (!cancelled) setAudioUrl(signedUrl)
+      } catch {
+        // signed URL fetch failed — leave audioUrl null (UI shows disabled play)
       }
     }
 

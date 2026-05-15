@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase/client'
+import { createStorage } from '@/lib/storage'
 import type { Photo } from '@/lib/queries/photo'
 
 interface PhotoLightboxProps {
@@ -38,13 +39,13 @@ export function PhotoLightbox({
 
     setImageUrl(null)
     const supabase = createClient()
-    supabase.storage
-      .from('photos')
-      .createSignedUrl(photo.storage_path, 3600)
-      .then(({ data }) => {
-        if (data?.signedUrl) {
-          setImageUrl(data.signedUrl)
-        }
+    createStorage(supabase)
+      .getSignedUrl('photos', photo.storage_path, 3600)
+      .then((signedUrl) => {
+        setImageUrl(signedUrl)
+      })
+      .catch(() => {
+        // signed URL failed — leave loading placeholder
       })
   }, [currentIndex, open, photos])
 
