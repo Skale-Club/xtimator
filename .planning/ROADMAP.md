@@ -149,10 +149,10 @@
 ### v3.1 Production Go-Live (Phases 61-65)
 
 - [x] **Phase 61: Production Database Foundation** — Provision production Supabase project, apply all migrations from phases 1-60, bootstrap first super-admin, enable PITR, verify RLS active across all tables (PROD-DB-01..05) (completed 2026-05-15)
-- [ ] **Phase 62: Vercel Deployment + Custom Domain** — Link Vercel project to GitHub `Skale-Club/xtimator`, configure auto-deploy on `main`, attach `xtimator.com` with SSL, populate all env vars in production, enable PR preview deployments (PROD-DEPLOY-01..05)
-- [ ] **Phase 63: Stripe Live Mode Activation** — Create Stripe live products + recurring prices for Pro/Business, register live webhook on `xtimator.com/api/webhooks/stripe`, configure live secret key in admin panel, set webhook secret + price IDs in Vercel env (PROD-STRIPE-01..05)
-- [ ] **Phase 64: Monitoring + Backup & Resilience** — Integrate Sentry + Vercel Analytics, ship `/api/health` endpoint, register external uptime monitor with email alerts, verify daily Supabase backups, ship status page, write incident runbook (PROD-MONITOR-01..05, PROD-BACKUP-01..03)
-- [ ] **Phase 65: Production UAT + Bug Triage** — Manually validate v2.2 + v3.0 features in prod, run end-to-end smoke test (signup → audio → estimate → upgrade → real payment), triage every bug found, fix criticals, document non-criticals (PROD-UAT-01..04)
+- [ ] ~~**Phase 62: Vercel Deployment + Custom Domain**~~ — **DEFERRED to v3.2** — Vercel Free ToS prohibits commercial use + 10s function timeout breaks AI routes ([SEED-018](seeds/SEED-018-production-hosting-deployment.md))
+- [ ] ~~**Phase 63: Stripe Live Mode Activation**~~ — **DEFERRED to v3.2** — depends on Phase 62 (live webhook needs reachable URL)
+- [ ] ~~**Phase 64: Monitoring + Backup & Resilience**~~ — **DEFERRED to v3.2** — depends on Phase 62 (Sentry/uptime need deployed app)
+- [ ] ~~**Phase 65: Production UAT + Bug Triage**~~ — **DEFERRED to v3.2** — depends on Phase 62 (UAT needs production env)
 
 ### Phase 61: Production Database Foundation
 **Goal**: The production Supabase project exists with full schema, the first super-admin can sign in, point-in-time recovery is on, and RLS posture is verified — every downstream phase has a real database to talk to

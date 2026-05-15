@@ -3,7 +3,16 @@
 **Goal:** Move Xtimator from dev/test into real production — real payments, monitoring, and complete UAT — unlocking the first paying customer.
 
 **Started:** 2026-05-15
-**Status:** Roadmapped — 5 phases (61–65)
+**Rescoped:** 2026-05-15 — Phases 62–65 deferred to v3.2 (commercial hosting needed). v3.1 closes with Phase 61 only.
+**Status:** Phase 61 complete; Phases 62–65 deferred (see [SEED-018](seeds/SEED-018-production-hosting-deployment.md))
+
+## Why rescoped
+
+Vercel Free (Hobby) plan is not viable for Xtimator:
+- ToS prohibits commercial use (Xtimator is a paid SaaS)
+- 10s function timeout — `/api/generate-estimate` (Claude) and Whisper transcription routinely exceed this
+
+Going to production requires either Vercel Pro (~$20/mo) or alternative commercial host. Decision deferred until budget allows OR first paying customer signal. Tracked in **SEED-018**.
 
 ---
 
@@ -83,30 +92,30 @@ Every v1 requirement is mapped to exactly one phase. Coverage: 27/27 (100%).
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PROD-DB-01 | Phase 61 | Pending |
-| PROD-DB-02 | Phase 61 | Pending |
-| PROD-DB-03 | Phase 61 | Pending |
-| PROD-DB-04 | Phase 61 | Pending |
-| PROD-DB-05 | Phase 61 | Pending |
-| PROD-DEPLOY-01 | Phase 62 | Pending |
-| PROD-DEPLOY-02 | Phase 62 | Pending |
-| PROD-DEPLOY-03 | Phase 62 | Pending |
-| PROD-DEPLOY-04 | Phase 62 | Pending |
-| PROD-DEPLOY-05 | Phase 62 | Pending |
-| PROD-STRIPE-01 | Phase 63 | Pending |
-| PROD-STRIPE-02 | Phase 63 | Pending |
-| PROD-STRIPE-03 | Phase 63 | Pending |
-| PROD-STRIPE-04 | Phase 63 | Pending |
-| PROD-STRIPE-05 | Phase 63 | Pending |
-| PROD-MONITOR-01 | Phase 64 | Pending |
-| PROD-MONITOR-02 | Phase 64 | Pending |
-| PROD-MONITOR-03 | Phase 64 | Pending |
-| PROD-MONITOR-04 | Phase 64 | Pending |
-| PROD-MONITOR-05 | Phase 64 | Pending |
-| PROD-BACKUP-01 | Phase 64 | Pending |
-| PROD-BACKUP-02 | Phase 64 | Pending |
-| PROD-BACKUP-03 | Phase 64 | Pending |
-| PROD-UAT-01 | Phase 65 | Pending |
-| PROD-UAT-02 | Phase 65 | Pending |
-| PROD-UAT-03 | Phase 65 | Pending |
-| PROD-UAT-04 | Phase 65 | Pending |
+| PROD-DB-01 | Phase 61 | ✓ Complete |
+| PROD-DB-02 | Phase 61 | ✓ Complete |
+| PROD-DB-03 | Phase 61 | ✓ Complete |
+| PROD-DB-04 | Phase 61 | ✓ Complete |
+| PROD-DB-05 | Phase 61 | ✓ Complete |
+| PROD-DEPLOY-01 | Phase 62 | DEFERRED → v3.2 |
+| PROD-DEPLOY-02 | Phase 62 | DEFERRED → v3.2 |
+| PROD-DEPLOY-03 | Phase 62 | DEFERRED → v3.2 |
+| PROD-DEPLOY-04 | Phase 62 | DEFERRED → v3.2 |
+| PROD-DEPLOY-05 | Phase 62 | DEFERRED → v3.2 |
+| PROD-STRIPE-01 | Phase 63 | DEFERRED → v3.2 |
+| PROD-STRIPE-02 | Phase 63 | DEFERRED → v3.2 |
+| PROD-STRIPE-03 | Phase 63 | DEFERRED → v3.2 |
+| PROD-STRIPE-04 | Phase 63 | DEFERRED → v3.2 |
+| PROD-STRIPE-05 | Phase 63 | DEFERRED → v3.2 |
+| PROD-MONITOR-01 | Phase 64 | DEFERRED → v3.2 |
+| PROD-MONITOR-02 | Phase 64 | DEFERRED → v3.2 |
+| PROD-MONITOR-03 | Phase 64 | DEFERRED → v3.2 |
+| PROD-MONITOR-04 | Phase 64 | DEFERRED → v3.2 |
+| PROD-MONITOR-05 | Phase 64 | DEFERRED → v3.2 |
+| PROD-BACKUP-01 | Phase 64 | DEFERRED → v3.2 |
+| PROD-BACKUP-02 | Phase 64 | DEFERRED → v3.2 |
+| PROD-BACKUP-03 | Phase 64 | DEFERRED → v3.2 |
+| PROD-UAT-01 | Phase 65 | DEFERRED → v3.2 |
+| PROD-UAT-02 | Phase 65 | DEFERRED → v3.2 |
+| PROD-UAT-03 | Phase 65 | DEFERRED → v3.2 |
+| PROD-UAT-04 | Phase 65 | DEFERRED → v3.2 |
