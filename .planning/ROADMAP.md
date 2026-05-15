@@ -16,7 +16,7 @@
 - ✅ **v2.1 WhatsApp Launch-Readiness** — Phases 46-52 (shipped 2026-05-11)
 - ✅ **v2.2 WhatsApp Channel Polish** — Phases 53-54 (shipped 2026-05-13)
 - ✅ **v3.0 Monetization** — Phases 55-60 (shipped 2026-05-14) · [archive](milestones/v3.0-ROADMAP.md)
-- 🚧 **v3.1 Production Go-Live** — Phases 61-65 (started 2026-05-15)
+- ✅ **v3.1 Production Go-Live (rescoped)** — Phase 61 only (shipped 2026-05-15) · 4 phases deferred to v3.2 · [archive](milestones/v3.1-ROADMAP.md)
 
 ## Phases
 
@@ -146,78 +146,20 @@
 
 </details>
 
-### v3.1 Production Go-Live (Phases 61-65)
+<details>
+<summary>✅ v3.1 Production Go-Live (rescoped) — Phase 61 only · SHIPPED 2026-05-15</summary>
 
-- [x] **Phase 61: Production Database Foundation** — Provision production Supabase project, apply all migrations from phases 1-60, bootstrap first super-admin, enable PITR, verify RLS active across all tables (PROD-DB-01..05) (completed 2026-05-15)
-- [ ] ~~**Phase 62: Vercel Deployment + Custom Domain**~~ — **DEFERRED to v3.2** — Vercel Free ToS prohibits commercial use + 10s function timeout breaks AI routes ([SEED-018](seeds/SEED-018-production-hosting-deployment.md))
-- [ ] ~~**Phase 63: Stripe Live Mode Activation**~~ — **DEFERRED to v3.2** — depends on Phase 62 (live webhook needs reachable URL)
-- [ ] ~~**Phase 64: Monitoring + Backup & Resilience**~~ — **DEFERRED to v3.2** — depends on Phase 62 (Sentry/uptime need deployed app)
-- [ ] ~~**Phase 65: Production UAT + Bug Triage**~~ — **DEFERRED to v3.2** — depends on Phase 62 (UAT needs production env)
+| Phase | Name | Plans | Status |
+|-------|------|-------|--------|
+| 61 | Production Database Foundation | 5/5 | Complete 2026-05-15 |
+| 62 | Vercel Deployment + Custom Domain | — | DEFERRED → v3.2 |
+| 63 | Stripe Live Mode Activation | — | DEFERRED → v3.2 |
+| 64 | Monitoring + Backup & Resilience | — | DEFERRED → v3.2 |
+| 65 | Production UAT + Bug Triage | — | DEFERRED → v3.2 |
 
-### Phase 61: Production Database Foundation
-**Goal**: The production Supabase project exists with full schema, the first super-admin can sign in, point-in-time recovery is on, and RLS posture is verified — every downstream phase has a real database to talk to
-**Depends on**: None (foundational; first phase of v3.1)
-**Requirements**: PROD-DB-01, PROD-DB-02, PROD-DB-03, PROD-DB-04, PROD-DB-05
-**Success Criteria** (what must be TRUE):
-  1. A new Supabase project (separate from dev) is provisioned and the connection string + service role key are recorded in a secure secrets store
-  2. Every migration from phases 1 through 60 has been applied to the production database — `supabase migration list --db-url <PROD_URL>` shows zero pending migrations and the schema matches dev
-  3. The email `skale.club@gmail.com` exists in `platform_admins` in production and can sign in to `/admin` once the app is deployed
-  4. PITR is visibly enabled in the Supabase dashboard with at least 7 days of retention
-  5. An automated RLS audit query confirms every tenant table has policies scoped to `companies.user_id` and every platform table is deny-all by omission
-**Plans**: 5 plans
-Plans:
-- [x] 61-01-PLAN.md — Validation infra: rls-audit.sql + EXPECTED-POSTURE.md + run-prod-readiness.sh (validated against dev)
-- [ ] 61-02-PLAN.md — Provision prod Supabase project (us-east-1, Free tier, pg_cron) + capture secrets to .env.production + invite super-admin
-- [ ] 61-03-PLAN.md — Apply all 21 migrations via bunx supabase db push + verify 5 storage buckets + seed result
-- [ ] 61-04-PLAN.md — Verify super-admin seed (fallback re-run if needed) + document PROD-DB-04 PITR deferral (Free tier daily backups)
-- [ ] 61-05-PLAN.md — Run RLS audit against prod, commit snapshot + PROD-BOOTSTRAP.md runbook + composite readiness pass
+[Full archive: milestones/v3.1-ROADMAP.md](milestones/v3.1-ROADMAP.md)
 
-### Phase 62: Vercel Deployment + Custom Domain
-**Goal**: Pushing to `main` deploys the app to `https://xtimator.com` with HTTPS, the production environment carries every secret the app needs, and PRs get preview URLs automatically
-**Depends on**: Phase 61 (the deployed app needs a real production database to talk to)
-**Requirements**: PROD-DEPLOY-01, PROD-DEPLOY-02, PROD-DEPLOY-03, PROD-DEPLOY-04, PROD-DEPLOY-05
-**Success Criteria** (what must be TRUE):
-  1. Pushing a commit to `main` on `Skale-Club/xtimator` triggers a Vercel production build that succeeds and serves the new commit
-  2. Visiting `https://xtimator.com` in a browser loads the marketing landing page over HTTPS with a valid SSL certificate
-  3. The production deployment has every required env var set (Supabase URL + anon + service role, Anthropic key, OpenAI key, Resend key, Stripe webhook secret, encryption key, app URL) — verified by a successful production build that does not throw startup env validation errors
-  4. The production build passes `bunx tsc --noEmit` and `bunx next lint` without errors
-  5. Opening a pull request on the repo automatically creates a Vercel preview deployment whose URL is posted as a PR comment
-
-### Phase 63: Stripe Live Mode Activation
-**Goal**: The deployed app accepts real payments — Pro and Business subscriptions can be purchased, the live webhook fires successfully, and tier upgrades persist to the database
-**Depends on**: Phase 62 (the live webhook URL `https://xtimator.com/api/webhooks/stripe` must be reachable before Stripe will accept it)
-**Requirements**: PROD-STRIPE-01, PROD-STRIPE-02, PROD-STRIPE-03, PROD-STRIPE-04, PROD-STRIPE-05
-**Success Criteria** (what must be TRUE):
-  1. Stripe Pro ($29/mo) and Business ($99/mo) products with recurring monthly prices exist in the Stripe live dashboard, and their `price_*` IDs are recorded
-  2. A live webhook endpoint pointing to `https://xtimator.com/api/webhooks/stripe` is registered in Stripe with the four lifecycle events (`checkout.session.completed`, `invoice.paid`, `invoice.payment_failed`, `customer.subscription.deleted`) and shows status "Enabled"
-  3. `STRIPE_WEBHOOK_SECRET` (whsec_*), `STRIPE_PRO_PRICE_ID`, and `STRIPE_BUSINESS_PRICE_ID` are set in the Vercel production environment and a redeploy has picked them up
-  4. The Stripe live secret key (`sk_live_*`) is stored encrypted in `platform_integrations` via `/admin/integrations` — production database contains zero `sk_test_*` rows
-  5. Sending a Stripe CLI test event (`stripe events resend <event_id>` from live mode) to the production webhook returns HTTP 200 and updates the corresponding `companies.tier` row
-
-### Phase 64: Monitoring + Backup & Resilience
-**Goal**: Production failures are visible (Sentry + uptime alerts + Vercel Analytics), data loss is recoverable (verified backups + PITR), and the operator has a runbook + status page for the first incident
-**Depends on**: Phase 61 (DB must exist for /api/health DB check), Phase 62 (deployed app must exist for Sentry + uptime monitor to point at)
-**Requirements**: PROD-MONITOR-01, PROD-MONITOR-02, PROD-MONITOR-03, PROD-MONITOR-04, PROD-MONITOR-05, PROD-BACKUP-01, PROD-BACKUP-02, PROD-BACKUP-03
-**Success Criteria** (what must be TRUE):
-  1. A thrown error in any production server action or API route appears in the Sentry dashboard with a readable stack trace pointing at the original TypeScript source (source maps uploaded)
-  2. Vercel Analytics shows live Core Web Vitals (LCP, FID/INP, CLS) for `xtimator.com` within 24 hours of first traffic
-  3. An external uptime monitor (UptimeRobot or BetterStack) is hitting `https://xtimator.com/api/health` every 5 minutes, and a forced 5xx (or domain takedown drill) sends an alert email to the operator within 2 minutes
-  4. `GET /api/health` returns HTTP 200 with a JSON body confirming database connectivity (e.g. `{ ok: true, db: "ok" }`)
-  5. The Supabase dashboard shows daily snapshot retention plus PITR; a sample restore-readiness check (verifying a recent snapshot exists and is downloadable) passes
-  6. A status page is reachable at `xtimator.com/status` (or `status.xtimator.com`) showing API + DB + payment system health from the same `/api/health` signal
-  7. `.planning/runbook.md` exists and covers deploy rollback, secret rotation, DB restore from PITR, Stripe webhook resync, and super-admin lockout recovery — each section has executable commands, not prose
-
-### Phase 65: Production UAT + Bug Triage
-**Goal**: A real user can complete the full Xtimator journey on production — signup through real payment — with every v2.2 and v3.0 feature working, and any bugs found are either fixed or documented
-**Depends on**: Phase 61 (DB), Phase 62 (deployed app), Phase 63 (live payments), Phase 64 (monitoring catches anything UAT misses)
-**Requirements**: PROD-UAT-01, PROD-UAT-02, PROD-UAT-03, PROD-UAT-04
-**Success Criteria** (what must be TRUE):
-  1. Every v2.2 feature has been manually exercised in production and works — WhatsApp PDF attachment delivery is received by a real client phone, WhatsApp status flow shows correct labels and the suspend/reactivate action persists
-  2. Every v3.0 feature has been manually exercised in production and works — quota enforcement returns 402 on AI routes when exceeded, Stripe checkout completes with a real card, billing UI reflects the new tier, trial banner shows for new accounts, trial expiry cron downgrades a fixture account, admin force-tier and bonus credits update the right rows
-  3. A complete end-to-end smoke run is documented: a brand-new account signs up on `xtimator.com`, completes onboarding, captures audio at a real or mock job site, gets an AI-generated estimate, sends a share link, watches trial countdown, hits the upgrade modal, completes a real Stripe payment, and lands back in the app on the Pro tier
-  4. `.planning/known-issues.md` exists; every UAT-discovered bug is in it; every bug marked critical has a linked fix commit on `main`; non-critical bugs are scoped, prioritized, or explicitly deferred — the milestone does not close with unresolved criticals
-
-
+</details>
 
 ## Phase Details
 

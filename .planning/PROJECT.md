@@ -14,23 +14,18 @@ The platform includes:
 
 A business owner can go from job site audio recording to a sent, professional estimate in under 5 minutes without touching a keyboard.
 
+## Last Milestone: v3.1 Production Go-Live (rescoped) ✅ (shipped 2026-05-15)
+
+Phase 61 only — production database foundation. Built cross-platform RLS audit infrastructure (`supabase/audits/`), recovered 9 missing migrations (entire v3.0 monetization schema was on disk but never applied to DB!), wrote production bootstrap runbook (`supabase/PROD-BOOTSTRAP.md`). Phases 62-65 (Vercel deploy + Stripe live + monitoring + UAT) **deferred to v3.2** — Vercel Free Hobby plan blocks commercial SaaS use AND has 10s function timeout that breaks AI routes. Tracked in **SEED-018: Production Hosting + Deployment**.
+
 ## Last Milestone: v3.0 Monetization ✅ (shipped 2026-05-14)
 
 Complete subscription system: Free/Trial/Pro/Business tiers, `usage_events` tracking, `checkQuota`/`recordUsage` enforcement across all AI routes and WhatsApp handler, Stripe checkout + portal + webhook lifecycle, `/settings/billing` UI with trial banner and 402 upgrade modal, hourly trial expiry cron + T-3/T-0 warning emails, admin force-tier + bonus credits + MRR view. 6 phases, 24/24 requirements satisfied.
 
-## Current Milestone: v3.1 Production Go-Live
+## Current Milestone: (none — awaiting next priorities)
 
-**Goal:** Move Xtimator from dev/test into real production — real payments, monitoring, and complete UAT — unlocking the first paying customer.
-
-**Target features:**
-- **Stripe live mode** — live webhook on xtimator.com (SEED-017 activated), products + price IDs created, `STRIPE_WEBHOOK_SECRET` env var on Vercel production
-- **Production deployment** — Vercel pipeline configured, custom domain xtimator.com pointed (DNS + SSL), full env vars in prod
-- **Production database** — all Supabase migrations applied to prod (phases 19-60), first super-admin bootstrapped, Supabase PITR enabled
-- **Monitoring & observability** — Sentry (errors), Vercel Analytics (perf/web vitals), external uptime check
-- **Complete UAT** — end-to-end smoke test of v2.2 + v3.0 (audio→estimate→share→trial→upgrade→pay), bug fixes from UAT
-- **Backup & resilience** — Supabase PITR, minimal status page, incident runbook
-
-**Last shipped:** Phase 60 — Trial Automation + Admin Tooling (2026-05-14)
+**Last shipped:** Phase 61 — Production Database Foundation (2026-05-15)
+**Open seeds blocking go-live:** SEED-017 (Stripe live webhook) + SEED-018 (commercial hosting decision)
 
 ## Current State
 
@@ -206,4 +201,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context
 
 ---
-*Last updated: 2026-05-15 — v3.1 Production Go-Live milestone started (5 phases, 27 requirements)*
+*Last updated: 2026-05-15 — v3.1 Production Go-Live (rescoped, Phase 61 only) shipped; awaiting next milestone*

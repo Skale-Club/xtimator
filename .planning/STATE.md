@@ -1,8 +1,8 @@
 ---
 gsd_state_version: 1.0
 milestone: v3.1
-milestone_name: Production Go-Live
-status: executing
+milestone_name: Production Go-Live (rescoped)
+status: complete
 last_updated: "2026-05-15T16:00:29.408Z"
 last_activity: 2026-05-15
 progress:
