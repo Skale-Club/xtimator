@@ -3,93 +3,102 @@ id: SEED-018
 status: dormant
 planted: 2026-05-15
 planted_during: v3.1 Production Go-Live (Phase 61 complete)
-trigger_when: When budget allows commercial hosting OR when first paying customer signals readiness for production
+trigger_when: When Vercel Free limits hurt the product OR first paying customer signals serious revenue OR ToS enforcement scare
 scope: Medium
+target_host: Hetzner Cloud (decided 2026-05-15)
+mvp_path: Vercel Free + Inngest (decided 2026-05-15)
 ---
 
-# SEED-018: Production Hosting + Deployment
+# SEED-018: Hetzner Cloud Migration (post-MVP)
 
-## Why This Matters
+> **Two decisions captured (2026-05-15):**
+>
+> **MVP path:** Vercel Free + Inngest background jobs. Inngest unblocks the 10s function timeout for AI routes (`/api/generate-estimate`, `/api/transcribe`, `/api/analyze-photos`) and is forward-compatible with any future host. ToS risk on Hobby plan accepted while user count is zero / pre-revenue.
+>
+> **Future target:** Hetzner Cloud VPS (CX22/CX32, ~€4-7/mo) + Docker + Caddy. Inngest stays (their value isn't just timeout-bypass — it's retries, observability, step functions). Supabase stays managed. Hetzner Object Storage for files (see SEED-019).
 
-The entire v3.0 monetization work (and v2.x WhatsApp features) cannot reach real users without a commercial-grade hosting environment. **Vercel Free (Hobby) plan is not viable for Xtimator** — two hard blockers:
+## Why This Seed Exists
 
-1. **Commercial use prohibited by ToS** — Hobby is "personal, non-commercial projects only". Xtimator is a paid SaaS. Using Hobby = ToS violation.
-2. **10-second function timeout** — `/api/generate-estimate` (Claude) routinely takes 20–60s; Whisper transcription of long audio idem. Routes will time out.
+The Vercel Free + Inngest MVP path works but has 3 latent risks:
 
-Result: Phase 62 (deploy) and dependents (63 Stripe live, 64 Sentry/uptime, 65 UAT in prod) are blocked until hosting is decided.
+1. **ToS violation** — Hobby is "personal, non-commercial". When you have a paying customer, you're operating in violation. Vercel rarely enforces, but the risk is real.
+2. **Bandwidth cap** — 100 GB/mo. With first wave of users + WhatsApp media + PDFs, this can be hit faster than expected.
+3. **No SLA** — Hobby has no support. Production incident at 2am = problem.
+
+Hetzner migration removes all three at €4-7/mo (vs Vercel Pro $20/mo).
 
 ## When to Surface
 
-**Trigger:** When you're ready to commit ~$20–50/mo recurring for hosting, OR when the first paying customer is in motion (revenue justifies infra).
+**Trigger (any of):**
+- Vercel sends warning email about commercial use OR Hobby limits hit
+- First paying customer + you want SLA peace of mind
+- Bandwidth or function-invocation count crosses 70% of Free limits
+- v3.2 milestone explicitly named "self-host migration"
 
 This seed should surface during `/gsd:new-milestone` when:
-- Milestone involves production go-live or launch
-- Milestone involves first paying customer
-- Milestone explicitly named "production deployment" or similar
+- Milestone involves production scaling
+- Milestone involves cost optimization
+- Milestone explicitly named "hosting migration"
 
-## Hosting Options Evaluated
+## Migration Pre-Work (already done in v3.1.1)
 
-| Option | Pros | Cons | Cost |
-|--------|------|------|------|
-| **Vercel Pro** | Same dev experience as today; preview deployments; 60s function timeout; Fluid Compute (5min); team features | Most expensive option | $20/mo per member |
-| **Cloudflare Workers + Pages** | Generous free tier; sub-50ms cold start; 30s CPU time; pay-per-use | Different runtime (Workers vs Node.js); some Next.js features need adapter; learning curve | $0–5/mo for low traffic |
-| **Render** | Simple Docker-style deploys; persistent disk option; good for hybrid (Next + workers); free static + paid backend | Function cold starts higher than Vercel; less Next.js polish | $7/mo (web service) |
-| **Railway** | Easy multi-service (Next + workers + cron); good DX; usage-based | No CDN; not optimized for Next.js | $5+ usage |
-| **Self-hosted (Hetzner/Fly.io)** | Cheapest at scale; full control | Requires ops competence; no managed Postgres tier; CI/CD work | $5–20/mo for VPS |
+Before this seed graduates, v3.1.1 will have shipped:
+- ✅ `Dockerfile` + `docker-compose.yml` + Caddy reverse proxy config
+- ✅ `app/api/health/route.ts` returning DB + storage health
+- ✅ `docs/HETZNER-DEPLOY.md` runbook
+- ✅ Inngest integration (zero code change to migrate — just update Inngest dashboard URL)
+- ✅ Storage abstraction layer (`lib/storage/`) — swap Supabase Storage for Hetzner Object Storage in 1 line (see SEED-019)
 
-**Recommendation when ready: Vercel Pro** ($20/mo). Same DX as dev, zero migration, longest function timeout, best Next.js integration. Cost easily covered by the first 1 paying Pro customer ($29/mo).
+This means migration day is "follow the runbook" not "figure out how to deploy".
 
 ## What Needs to Be Done (when triggered)
 
-This seed graduates into a milestone (v3.2 or similar) covering the deferred Phase 62-65 work:
+Single phase, ~1 day of work given the prep:
 
-### Phase 62: Vercel Deployment + Custom Domain
-- Sign up Vercel Pro
-- Connect Vercel to `Skale-Club/xtimator` repo
-- Configure auto-deploy on `main`
-- Attach `xtimator.com` domain (DNS A/CNAME records)
-- Enable HTTPS (auto via Vercel)
-- Populate ALL env vars in production (Supabase, Stripe, Anthropic, OpenAI, Resend, encryption key, app URL)
-- Verify production build passes
-- Enable PR preview deployments
+1. Provision Hetzner CX22 (or CX32) in Falkenstein/Helsinki
+2. Install Docker + Docker Compose + Caddy via cloud-init or runbook steps
+3. Set DNS A record (`xtimator.com` → server IP)
+4. Copy `.env.production` to server (NEVER via git — use scp + secrets manager)
+5. `docker compose up -d` — Next.js + Caddy come up, HTTPS auto-provisions via Let's Encrypt
+6. Update Inngest dashboard: callback URL → new Hetzner domain
+7. Smoke test: `curl https://xtimator.com/api/health` returns 200, signup + estimate flow works
+8. Update Vercel webhook integrations to point at new domain (if any external services)
+9. Configure UFW firewall (allow 22, 80, 443; drop rest)
+10. Set up automated `.env.production` backup to off-server location
+11. Configure Vercel project to "redirect" or 410 — optional, depends on traffic split strategy
+12. Monitor for 48h, then decommission Vercel project
 
-### Phase 63: Stripe Live Mode Activation (SEED-017)
-- See SEED-017 for full procedure
-- Live products + price IDs in Stripe Dashboard
-- Live webhook on `https://xtimator.com/api/webhooks/stripe`
-- Live secret key in `/admin/integrations`
-- Vercel env vars: `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRO_PRICE_ID`, `STRIPE_BUSINESS_PRICE_ID`
+## Hosting Options (re-evaluated 2026-05-15)
 
-### Phase 64: Monitoring + Backup & Resilience
-- Sentry integration (errors)
-- Vercel Analytics (web vitals)
-- External uptime monitor (UptimeRobot or BetterStack) hitting `/api/health`
-- Email alerts on 5xx/downtime
-- ~~Supabase backup verification~~ (will be done before this seed graduates — see "Partial work done now")
-- ~~Incident runbook~~ (already exists at `supabase/PROD-BOOTSTRAP.md`)
+| Option | Pros | Cons | Cost |
+|--------|------|------|------|
+| Vercel Pro | Same DX as today; preview deployments; 60s timeout (Fluid Compute 5min); team features | Most expensive | $20/mo per member |
+| **Hetzner Cloud (chosen for v3.2)** | Cheapest at scale; full control; EU-friendly | Requires ops competence (mitigated by runbook) | **€4-7/mo VPS** |
+| Cloudflare Workers + Pages | Generous free tier; sub-50ms cold start | Different runtime; some Next.js features need adapter | $0–5/mo |
+| Render | Simple Docker-style deploys; persistent disk | Higher cold starts | $7/mo (web service) |
+| Railway | Easy multi-service; good DX | No CDN; not optimized for Next.js | $5+ usage |
 
-### Phase 65: Production UAT + Bug Triage
-- Manually validate v2.2 + v3.0 features in prod
-- End-to-end smoke test (signup → audio → estimate → upgrade → real payment)
-- Triage discovered bugs into known-issues.md
+**Decision rationale:** Hetzner is the cheapest viable option, has zero vendor lock-in (Docker is portable to any VPS), and the artifacts shipping in v3.1.1 make it mechanical. Vercel Pro would also work but $20/mo vs €5/mo over 12 months = $180 saved, with the only cost being one day of migration work that's already pre-planned.
 
 ## Scope Estimate
 
-**Medium** — 3-4 phases (62, 63, 64.partial, 65), 1-2 weeks once hosting is signed up. Small if Vercel Pro is chosen (no migration). Larger if alternative host requires Next.js adapter work.
+**Small** — single phase, ~1 day of work, since v3.1.1 ships all the artifacts. Without that prep this would be Medium-Large (3-5 days).
 
 ## Breadcrumbs
 
-- `app/api/generate-estimate/route.ts` — long-running route that needs >10s timeout
-- `app/api/transcribe/route.ts` — Whisper call, also long-running
-- `vercel.json` — already has cron job definitions referenced in code
-- `supabase/PROD-BOOTSTRAP.md` — runbook (Phase 61) covers DB side
-- SEED-017 — the Stripe live webhook seed that's also waiting on this
-- `.env.local` — current env var set; Vercel needs same keys (minus DATABASE_URL which is in `.env.production`)
-- `next.config.js` / `next.config.mjs` — may need adapter config if non-Vercel host chosen
+- `Dockerfile`, `docker-compose.yml` (will exist after v3.1.1 Phase 68)
+- `docs/HETZNER-DEPLOY.md` (will exist after v3.1.1 Phase 68)
+- `app/api/health/route.ts` (will exist after v3.1.1 Phase 68)
+- `lib/storage/` (will exist after v3.1.1 Phase 67) — already abstracted, just swap provider
+- `app/api/inngest/route.ts` (will exist after v3.1.1 Phase 66) — Inngest config takes a callback URL change only
+- SEED-017 — Stripe live webhook (also waits for production URL — happens same day as Hetzner go-live)
+- SEED-019 — Hetzner Object Storage migration (sibling, can happen same day or later)
+- `.env.local` — current env var set; Hetzner needs same keys via `.env.production` on the server
 
 ## Notes
 
-- **Don't host on Vercel Free.** ToS violation + 10s timeout. Either upgrade or pick alternative.
-- **Stripe Tax** — when activating live mode, also enable Stripe Tax for US sales tax compliance (ties to SEED-013 open question 7).
+- **Vercel Free risk is acceptable PRE-revenue.** Once first paying customer signs up, this seed jumps to top priority.
+- **Stripe Tax** — when activating live mode (separate seed), enable Stripe Tax for US sales tax compliance.
 - **DNS** — `xtimator.com` is currently parked / pointing where? Confirm before scheduling deploy work.
-- **Phase 61 readiness gate** (`node supabase/audits/run-prod-readiness.mjs`) should be re-run as the first step of Phase 62 to confirm DB hasn't drifted.
+- **Phase 61 readiness gate** (`node supabase/audits/run-prod-readiness.mjs`) re-run at start of migration to confirm DB hasn't drifted.
+- **No DB migration** — Supabase stays managed throughout. Hetzner hosts only the Next.js app + Caddy + cron.

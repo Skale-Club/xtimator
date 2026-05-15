@@ -1,12 +1,12 @@
 ---
 gsd_state_version: 1.0
 milestone: v3.1.1
-milestone_name: Quality & Polish + Hetzner Readiness
-status: roadmap_complete
-last_updated: "2026-05-15T20:00:00.000Z"
+milestone_name: MVP Launch Prep + Future-Proofing
+status: planning
+last_updated: "2026-05-15T20:30:00.000Z"
 last_activity: 2026-05-15
 progress:
-  total_phases: 3
+  total_phases: 5
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -16,7 +16,7 @@ progress:
 
 ## Current Status
 
-- **Milestone**: v3.1.1 Quality & Polish + Hetzner Readiness — Roadmap complete, ready to plan Phase 66
+- **Milestone**: v3.1.1 MVP Launch Prep + Future-Proofing — Roadmap complete (5 phases), ready to plan Phase 66
 - **Last updated**: 2026-05-15
 
 ## Current Position
@@ -24,13 +24,15 @@ progress:
 Phase: 66 (not started)
 Plan: —
 Status: Roadmap defined; awaiting `/gsd:plan-phase 66`
-Last activity: 2026-05-15 — Roadmap created (Phases 66, 67, 68; 21/21 requirements mapped)
+Last activity: 2026-05-15 — Roadmap rescoped (Phases 66-70; 39 requirements mapped; added Inngest + Storage abstraction)
 
 ## v3.1.1 Phases
 
-- Phase 66: Hetzner Deploy Artifacts + Perf Audit (HETZNER-01..06, PERF-01..02) — Not started
-- Phase 67: v2.2 + v3.0 Manual UAT (UAT-V22-01..03, UAT-V30-01..07) — Not started
-- Phase 68: End-to-End Smoke + Bug Triage Closeout (UAT-E2E-01..03, FIX-01..02) — Not started
+- Phase 66: Inngest Background AI Jobs (INNGEST-01..08) — Not started
+- Phase 67: Storage Provider Abstraction (STORAGE-01..07) — Not started
+- Phase 68: Hetzner Deploy Artifacts + Perf Audit (HETZNER-01..06, PERF-01..02) — Not started
+- Phase 69: v2.2 + v3.0 + Inngest + Storage Manual UAT (UAT-V22-01..02, UAT-V30-01..06, UAT-INNGEST-01..02, UAT-STORAGE-01) — Not started
+- Phase 70: E2E Smoke + Bug Triage Closeout (UAT-E2E-01..03, FIX-01..02) — Not started
 
 > **Numbering note:** v3.1.1 starts at Phase 66 (not 62) because Phases 62-65 are reserved as DEFERRED placeholders for v3.2 (Vercel→Hetzner deploy, Stripe live, monitoring, prod UAT). Skipping past keeps the global phase counter unambiguous.
 

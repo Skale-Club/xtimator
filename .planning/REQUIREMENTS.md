@@ -1,55 +1,76 @@
-# Requirements: v3.1.1 Quality & Polish + Hetzner Readiness
+# Requirements: v3.1.1 MVP Launch Prep + Future-Proofing
 
-**Goal:** Validate the entire app stack against the recovered DB schema (v3.0 monetization was never functionally tested before Phase 61), fix any bugs that surface, and ship the deploy artifacts (Dockerfile + `/api/health` + runbook) needed to make the future Hetzner Cloud migration mechanical instead of exploratory.
+**Goal:** Make the codebase ready to deploy on Vercel Free as MVP (Inngest unblocks AI timeouts, storage abstraction unblocks future migration), validate everything still works after the refactors, and ship the Hetzner Cloud artifacts so the eventual self-hosted migration is mechanical.
 
 **Started:** 2026-05-15
-**Status:** Roadmap complete — phases 66, 67, 68 defined
+**Status:** Defining requirements (rescoped after Inngest + Storage decisions)
 
-## Why this milestone (the gap Phase 61 exposed)
+## Why this milestone (the gap Phase 61 exposed + decisions made during discuss)
 
-Phase 61 discovered that 9 migrations from phases 43-60 — including the entire v3.0 monetization schema (`companies.tier`, `usage_events`, `processed_stripe_events`, etc.) — **were never applied to the database**. The features "shipped" but never functioned end-to-end. With migrations now applied, the v3.0 work can be validated for the first time. Doing this BEFORE paying for hosting and exposing real customers protects the launch.
+Phase 61 discovered that 9 migrations from phases 43-60 — including the entire v3.0 monetization schema — were never applied to the database. With migrations now applied, the v3.0 work can finally be validated.
 
-In parallel, the v3.2 hosting decision is locked: **Hetzner Cloud VPS** (~€4-7/mo). Producing the Docker artifacts + health endpoint + runbook now means v3.2 is "follow the runbook" not "figure out how to deploy" — typically a 1-day vs 1-week difference.
+Two architectural decisions during discuss expanded the scope from "pure UAT" to "MVP launch prep":
+
+1. **Vercel Free for MVP** (user choice) → AI routes (`/api/generate-estimate`, `/api/transcribe`, `/api/analyze-photos`) will hit the 10s function timeout. **Inngest** background jobs is the only viable fix that's also forward-compatible with Hetzner.
+2. **Hetzner future migration** (target_host locked in SEED-018) → Storage abstraction layer now (instead of refactoring later under launch pressure) makes the Supabase Storage → Hetzner Object Storage swap trivial.
+
+Doing both refactors before any production deploy means the launch (separate v3.2 milestone) is "ship + smoke" not "build new things in front of customers".
 
 ---
 
 ## v1 Requirements (this milestone)
 
-### UAT-V22 — v2.2 Manual Validation (WhatsApp Channel Polish)
+### INNGEST — Background AI Job Processing
 
-- [ ] **UAT-V22-01**: PDF attachment delivery exercised end-to-end against localhost — owner sets `delivery_format=pdf_attachment`, sends estimate via WhatsApp, real client phone receives the PDF attachment and a follow-up share link
-- [ ] **UAT-V22-02**: WhatsApp status flow exercised — verified→active auto-promotion fires, suspend/reactivate buttons work and persist, status badge reflects current state
-- [ ] **UAT-V22-03**: Bug or no-bug verdict captured for every UAT-V22 test in `.planning/known-issues.md`
+- [ ] **INNGEST-01**: `inngest` SDK installed; `lib/inngest/client.ts` exports configured client; `app/api/inngest/route.ts` registers worker functions and is publicly reachable
+- [ ] **INNGEST-02**: `/api/generate-estimate` POST returns `{ jobId }` in <1s — actual estimate generation moved to `generateEstimateJob` Inngest function (no timeout); `usage_events` recorded only on job success
+- [ ] **INNGEST-03**: `/api/transcribe` POST returns `{ jobId }` in <1s — Whisper call moved to `transcribeAudioJob` Inngest function; result polled via `GET /api/jobs/:id` or pushed via SSE
+- [ ] **INNGEST-04**: `/api/analyze-photos` POST returns `{ jobId }` — Vision call moved to `analyzePhotosJob` Inngest function
+- [ ] **INNGEST-05**: Frontend polls job status via `GET /api/jobs/[jobId]` — capture flow shows "Processing… (Saving / Transcribing / Analyzing / Generating)" stepper with real Inngest status feed
+- [ ] **INNGEST-06**: Inngest functions are idempotent — `step.run()` blocks used for each external call so retries don't double-charge AI providers; explicit `idempotencyKey` per job
+- [ ] **INNGEST-07**: WhatsApp inbound handler refactored — long-running Whisper/Vision calls in `lib/whatsapp/handler.ts` dispatched via Inngest, not awaited inline (still <10s for the webhook ack)
+- [ ] **INNGEST-08**: Local dev workflow documented — `npx inngest-cli dev` runs alongside `npm run dev`, jobs visible in dashboard at `localhost:8288`
 
-### UAT-V30 — v3.0 Manual Validation (Monetization)
+### STORAGE — Storage Provider Abstraction (forward-compat with Hetzner Object Storage)
 
-- [ ] **UAT-V30-01**: Tier enforcement validated — free tier hits 402 on AI routes when monthly quota exhausted; pro/business tier respect their higher caps; WhatsApp gate blocks free tier BEFORE any Meta download
-- [ ] **UAT-V30-02**: Stripe checkout (test mode) flow completes — `/settings/billing` → upgrade modal → Stripe Checkout → webhook fires → `companies.tier` updates → user redirected back to billing page showing new tier
-- [ ] **UAT-V30-03**: Trial flow validated — new signup gets 14-day trial with Pro entitlements, trial banner appears <3 days remaining, trial expiry cron downgrades to free at T-0, T-3 + T-0 warning emails actually arrive in inbox
-- [ ] **UAT-V30-04**: Stripe Customer Portal works — user can change subscription, cancel, view invoices via "Manage Subscription" button
-- [ ] **UAT-V30-05**: Admin tooling validated — super-admin can force-tier any company, grant bonus credits, MRR view at `/admin/billing` shows correct totals
-- [ ] **UAT-V30-06**: 402 upgrade modal triggers correctly — any AI route returning 402 shows the upgrade toast/modal in the UI, not a raw error
-- [ ] **UAT-V30-07**: Bug or no-bug verdict captured for every UAT-V30 test in `.planning/known-issues.md`
-
-### UAT-E2E — End-to-End Smoke Test
-
-- [ ] **UAT-E2E-01**: Full happy path executed against localhost — brand-new account signs up, completes onboarding (business info + industry + color + logo), captures audio at fixture job site, AI generates estimate, owner sends share link to fixture client email, client opens share page and accepts
-- [ ] **UAT-E2E-02**: Multi-modal capture validated — text-only project, photos-only project, and audio+photos+text combined all produce sensible estimates
-- [ ] **UAT-E2E-03**: i18n smoke — switch language to PT-BR and ES, confirm critical surfaces (dashboard, capture, billing) translate without crashes
-
-### FIX — Bug Triage
-
-- [ ] **FIX-01**: All bugs found in UAT triaged: critical (blocks core flow) → fixed in this milestone with linked commit; non-critical → captured in `.planning/known-issues.md` with severity, repro steps, and proposed fix direction
-- [ ] **FIX-02**: `.planning/known-issues.md` exists at milestone close, regardless of zero-bug or N-bug outcome
+- [ ] **STORAGE-01**: `lib/storage/index.ts` exports `StorageProvider` interface — methods: `upload(bucket, path, body, opts)`, `download(bucket, path)`, `getSignedUrl(bucket, path, expiresInSeconds)`, `delete(bucket, path)`, `list(bucket, prefix)`
+- [ ] **STORAGE-02**: `lib/storage/supabase-provider.ts` implements `StorageProvider` against `supabase.storage` — used by default `storage` export
+- [ ] **STORAGE-03**: All call sites migrated from `supabase.storage.from(...)` direct calls to the new `storage.*` API — verified by `grep -r "supabase.storage.from" app/ lib/ components/` returning zero hits outside `lib/storage/`
+- [ ] **STORAGE-04**: S3-friendly conventions enforced — key naming `{company_id}/{type}/{timestamp}-{filename}`, all signed URLs use explicit `expiresInSeconds`, no use of Supabase `transformOptions` or on-the-fly resize endpoints
+- [ ] **STORAGE-05**: `lib/storage/s3-provider.ts` skeleton implements the same interface against `@aws-sdk/client-s3` — gated behind feature flag `STORAGE_PROVIDER=s3` env var, not active by default
+- [ ] **STORAGE-06**: `docs/STORAGE-MIGRATION.md` documents the future Supabase → Hetzner Object Storage migration — provisioning steps, exact `aws s3 sync` command, endpoint swap procedure, threshold to trigger (800 MB Supabase storage usage)
+- [ ] **STORAGE-07**: Smoke test — temporarily set `STORAGE_PROVIDER=s3` pointing to a local MinIO container, confirm upload + signed URL + download + delete work, then restore Supabase as default
 
 ### HETZNER — Hetzner Cloud Deploy Readiness
 
 - [ ] **HETZNER-01**: `Dockerfile` ships at repo root — multi-stage build (deps → build → runtime), Node 22 alpine base, builds Next.js standalone output, exposes port 3000, runs as non-root user, image size under 500MB
 - [ ] **HETZNER-02**: `next.config.mjs` set to `output: 'standalone'` — verified `npm run build` produces `.next/standalone/server.js`
 - [ ] **HETZNER-03**: `docker-compose.yml` ships at repo root — Next.js service + Caddy reverse proxy with automatic HTTPS via Let's Encrypt, env file mounted, restart policy unless-stopped
-- [ ] **HETZNER-04**: `app/api/health/route.ts` returns 200 with JSON body `{ ok: true, db: 'ok', commit: '<sha>' }` — DB connectivity verified by a single SELECT against `companies`; commit SHA from `process.env.GIT_SHA` (set at build time)
-- [ ] **HETZNER-05**: `HETZNER-DEPLOY.md` runbook ships under `docs/` — step-by-step: provision CX22, install Docker + Caddy, set DNS A record, populate `.env.production` on server, `docker compose up -d`, verify `/api/health` returns 200, configure UFW firewall, set up automated cert renewal verification, daily off-server backup of `.env.production`
+- [ ] **HETZNER-04**: `app/api/health/route.ts` returns 200 with JSON body `{ ok: true, db: 'ok', storage: 'ok', commit: '<sha>' }` — DB connectivity via SELECT against `companies`, storage via list-bucket call, commit SHA from `process.env.GIT_SHA`
+- [ ] **HETZNER-05**: `docs/HETZNER-DEPLOY.md` runbook ships — provisioning CX22, install Docker + Caddy, DNS A record, populate `.env.production` on server, `docker compose up -d`, verify `/api/health`, UFW firewall, cert renewal verification, daily off-server backup of `.env.production`
 - [ ] **HETZNER-06**: Local Docker build validated — `docker build -t xtimator . && docker run -p 3000:3000 --env-file .env.local xtimator` boots the app, `/api/health` returns 200, signup + login work against the dev Supabase
+
+### UAT — Validation Against Refactored Stack
+
+- [ ] **UAT-V22-01**: PDF attachment delivery exercised end-to-end against localhost — owner sets `delivery_format=pdf_attachment`, sends estimate via WhatsApp, real client phone receives the PDF attachment and a follow-up share link
+- [ ] **UAT-V22-02**: WhatsApp status flow exercised — verified→active auto-promotion fires, suspend/reactivate buttons work and persist, status badge reflects current state
+- [ ] **UAT-V30-01**: Tier enforcement validated — free tier hits 402 on AI routes when monthly quota exhausted; pro/business tier respect their higher caps; WhatsApp gate blocks free tier BEFORE any Meta download
+- [ ] **UAT-V30-02**: Stripe checkout (test mode) flow completes — `/settings/billing` → upgrade modal → Stripe Checkout → webhook fires → `companies.tier` updates → user redirected back to billing page showing new tier
+- [ ] **UAT-V30-03**: Trial flow validated — new signup gets 14-day trial with Pro entitlements, trial banner appears <3 days remaining, trial expiry cron downgrades to free at T-0, T-3 + T-0 warning emails actually arrive in inbox
+- [ ] **UAT-V30-04**: Stripe Customer Portal works — user can change subscription, cancel, view invoices via "Manage Subscription" button
+- [ ] **UAT-V30-05**: Admin tooling validated — super-admin can force-tier any company, grant bonus credits, MRR view at `/admin/billing` shows correct totals
+- [ ] **UAT-V30-06**: 402 upgrade modal triggers correctly — any AI route returning 402 shows the upgrade toast/modal in the UI, not a raw error
+- [ ] **UAT-INNGEST-01**: Audio capture happy path — record 2-min audio at fixture job site, observe Inngest dashboard show `transcribeAudioJob` then `generateEstimateJob` complete, capture stepper UI updates accordingly, estimate appears in editor
+- [ ] **UAT-INNGEST-02**: Long audio (8-min) — confirms estimate generation completes (would have timed out on Vercel Free without Inngest)
+- [ ] **UAT-STORAGE-01**: All storage paths validated post-refactor — audio upload + photo upload + PDF generation + logo upload + WhatsApp inbound media — every flow uses new `storage.*` API and works against Supabase
+- [ ] **UAT-E2E-01**: Full happy path — brand-new account signs up, completes onboarding, captures audio, AI generates estimate (via Inngest), owner sends share link, fixture client opens share page and accepts
+- [ ] **UAT-E2E-02**: Multi-modal capture validated — text-only, photos-only, audio+photos+text combined all produce sensible estimates
+- [ ] **UAT-E2E-03**: i18n smoke — switch language to PT-BR and ES, confirm critical surfaces (dashboard, capture, billing) translate without crashes
+
+### FIX — Bug Triage
+
+- [ ] **FIX-01**: All bugs found in UAT triaged — critical (blocks core flow) → fixed in this milestone with linked commit; non-critical → captured in `.planning/known-issues.md` with severity, repro steps, proposed fix direction
+- [ ] **FIX-02**: `.planning/known-issues.md` exists at milestone close, regardless of zero-bug or N-bug outcome
 
 ### PERF — Performance Audit (light-touch)
 
@@ -58,71 +79,80 @@ In parallel, the v3.2 hosting decision is locked: **Hetzner Cloud VPS** (~€4-7
 
 ---
 
-## Out of Scope (deferred)
+## Out of Scope (deferred to v3.2 / future)
 
-- **Vercel deployment** (v3.2 — see SEED-018; we're not deploying to Vercel)
-- **Stripe live mode webhook** (v3.2 — see SEED-017; depends on real public URL)
+- **Actual Vercel deploy** (v3.2 — separate milestone "MVP Launch"; this milestone is prep only, no production deploy)
+- **Stripe live mode webhook** (v3.2 — depends on real public URL)
 - **Sentry / external uptime monitoring** (v3.2 — needs deployed app)
 - **Status page** (v3.2)
 - **Production UAT against real domain** (v3.2)
-- **Onboarding & Growth features** (pricing landing section, email drip, conversion metrics — separate milestone post v3.2)
-- **Team accounts / multi-seat** (v4.0 — major schema rewrite, defer until customer demand validates it)
-- **Test coverage push to >80%** (deferred; UAT in this milestone is the pragmatic check)
+- **Migration to Hetzner Object Storage** (deferred — abstraction layer is in place; trigger is 800 MB Supabase storage usage)
+- **Migration to Hetzner Cloud VPS** (deferred — runbook ships in this milestone; trigger is when Vercel Free limits hurt)
+- **BullMQ + Redis** (alternative to Inngest, considered for far-future Hetzner setup; not now)
+- **Onboarding & Growth features** (separate milestone post v3.2)
+- **Team accounts / multi-seat** (v4.0)
+- **Test coverage push to >80%** (UAT in this milestone is the pragmatic check)
 - **Accessibility WCAG-AA full audit** (light-touch only in PERF-01)
-- **Load testing** (defer to v3.2+)
+- **Load testing** (v3.2+)
+- **Supabase backup automation** (Phase 61 confirmed daily backups exist on Free tier)
 
 ---
 
 ## Key Decisions (Critical)
 
-1. **No new features** — pure validation + deploy prep. Any "while we're here" feature work goes to a separate milestone.
-2. **Hetzner Cloud locked as v3.2 host** — Docker artifacts in this milestone are Hetzner-shaped (multi-stage Dockerfile + docker-compose + Caddy), not Vercel-shaped (vercel.json stays for the cron job definitions but won't be the deploy target).
-3. **Supabase stays managed** — no DB migration to self-hosted Postgres in v3.2. Hetzner hosts the Next.js app + cron + Caddy only.
-4. **`output: 'standalone'`** for Next.js — required for the Docker image to be small and self-contained without `node_modules`.
-5. **`/api/health` is part of v3.1.1, not v3.2** — health endpoint must exist before deploy so the runbook can use it as the smoke check.
-6. **`known-issues.md` is the milestone's source of truth** — every UAT test produces an entry (pass or fail). No silent "I tested it and it works".
-7. **UAT against localhost is enough** — no staging environment yet; the Hetzner deploy in v3.2 is itself the staging validation.
-8. **Phase numbering skips 62-65** — v3.1.1 starts at Phase 66. Phases 62-65 are reserved as DEFERRED placeholders for v3.2 (Vercel→Hetzner deploy, Stripe live, monitoring, production UAT). Skipping past keeps the global counter unambiguous and prevents number reuse confusion when v3.2 begins.
-9. **Track ordering: Hetzner artifacts FIRST, then UAT against the Dockerized build** — Phase 66 ships the Dockerfile so Phase 67 UAT exercises the same artifact that will deploy to Hetzner. Catches "works on host machine, breaks in container" issues before they become production problems.
+1. **Vercel Free is the MVP host** — user choice, accepted ToS risk + Inngest mitigates the 10s timeout. Stripe live mode requires real domain so it stays deferred to v3.2.
+2. **Inngest is the AI timeout fix and stays even after Hetzner migration** — because it gives retries, observability, concurrency limits, step functions. Future option to swap for BullMQ + Redis on Hetzner is explicitly deferred.
+3. **Storage abstraction is mandatory before production deploy** — refactoring storage calls under live customer load is much riskier than doing it now during a clean refactor.
+4. **Hetzner artifacts ship now but don't activate** — Dockerfile, docker-compose, runbook all in repo so v3.2 deploy is "follow the doc" not "figure it out".
+5. **No actual deploy in this milestone** — every UAT runs against localhost. v3.2 is the milestone where the bits actually leave the laptop.
+6. **`output: 'standalone'`** for Next.js — required for the Docker image to be small and self-contained.
+7. **`known-issues.md` is the milestone's source of truth** — every UAT test produces an entry (pass or fail). No silent "I tested it and it works".
+8. **Numbering skips 62-65** — those slots are reserved as DEFERRED placeholders for the v3.2 deploy milestone (Vercel deploy + Stripe live + monitoring + production UAT).
 
 ---
 
 ## Traceability
 
-All 21 v1 requirements are mapped to exactly one phase. Coverage: 21/21.
+Coverage: 33/33 (100%).
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| HETZNER-01 | Phase 66 | Pending |
-| HETZNER-02 | Phase 66 | Pending |
-| HETZNER-03 | Phase 66 | Pending |
-| HETZNER-04 | Phase 66 | Pending |
-| HETZNER-05 | Phase 66 | Pending |
-| HETZNER-06 | Phase 66 | Pending |
-| PERF-01 | Phase 66 | Pending |
-| PERF-02 | Phase 66 | Pending |
-| UAT-V22-01 | Phase 67 | Pending |
-| UAT-V22-02 | Phase 67 | Pending |
-| UAT-V22-03 | Phase 67 | Pending |
-| UAT-V30-01 | Phase 67 | Pending |
-| UAT-V30-02 | Phase 67 | Pending |
-| UAT-V30-03 | Phase 67 | Pending |
-| UAT-V30-04 | Phase 67 | Pending |
-| UAT-V30-05 | Phase 67 | Pending |
-| UAT-V30-06 | Phase 67 | Pending |
-| UAT-V30-07 | Phase 67 | Pending |
-| UAT-E2E-01 | Phase 68 | Pending |
-| UAT-E2E-02 | Phase 68 | Pending |
-| UAT-E2E-03 | Phase 68 | Pending |
-| FIX-01 | Phase 68 | Pending |
-| FIX-02 | Phase 68 | Pending |
-
-### Coverage Summary
-
-- **Phase 66 (Hetzner Deploy Artifacts + Perf Audit):** 8 requirements (HETZNER-01..06, PERF-01..02) — all autonomous code work
-- **Phase 67 (v2.2 + v3.0 Manual UAT):** 10 requirements (UAT-V22-01..03, UAT-V30-01..07) — all human-driven validation with checkpoint tasks
-- **Phase 68 (End-to-End Smoke + Bug Triage Closeout):** 5 requirements (UAT-E2E-01..03, FIX-01..02) — mixed: human smoke + bug fix code work + closeout doc
-
-**Total mapped:** 23 requirement entries (21 unique requirements; UAT-V22-03 and UAT-V30-07 close out their own categories, FIX-01 and FIX-02 cross-cut Phases 67-68 outputs but are owned by Phase 68 as the closeout phase).
-
-> **Note:** UAT-V22-03 and UAT-V30-07 are bookkeeping requirements ("verdict captured for every test in known-issues.md") and live in Phase 67 because that's where the verdicts are produced. FIX-01 and FIX-02 are owned by Phase 68 because that's the milestone-close phase that owns the final state of `known-issues.md`.
+| INNGEST-01 | Phase 66 | Pending |
+| INNGEST-02 | Phase 66 | Pending |
+| INNGEST-03 | Phase 66 | Pending |
+| INNGEST-04 | Phase 66 | Pending |
+| INNGEST-05 | Phase 66 | Pending |
+| INNGEST-06 | Phase 66 | Pending |
+| INNGEST-07 | Phase 66 | Pending |
+| INNGEST-08 | Phase 66 | Pending |
+| STORAGE-01 | Phase 67 | Pending |
+| STORAGE-02 | Phase 67 | Pending |
+| STORAGE-03 | Phase 67 | Pending |
+| STORAGE-04 | Phase 67 | Pending |
+| STORAGE-05 | Phase 67 | Pending |
+| STORAGE-06 | Phase 67 | Pending |
+| STORAGE-07 | Phase 67 | Pending |
+| HETZNER-01 | Phase 68 | Pending |
+| HETZNER-02 | Phase 68 | Pending |
+| HETZNER-03 | Phase 68 | Pending |
+| HETZNER-04 | Phase 68 | Pending |
+| HETZNER-05 | Phase 68 | Pending |
+| HETZNER-06 | Phase 68 | Pending |
+| PERF-01 | Phase 68 | Pending |
+| PERF-02 | Phase 68 | Pending |
+| UAT-V22-01 | Phase 69 | Pending |
+| UAT-V22-02 | Phase 69 | Pending |
+| UAT-V30-01 | Phase 69 | Pending |
+| UAT-V30-02 | Phase 69 | Pending |
+| UAT-V30-03 | Phase 69 | Pending |
+| UAT-V30-04 | Phase 69 | Pending |
+| UAT-V30-05 | Phase 69 | Pending |
+| UAT-V30-06 | Phase 69 | Pending |
+| UAT-INNGEST-01 | Phase 69 | Pending |
+| UAT-INNGEST-02 | Phase 69 | Pending |
+| UAT-STORAGE-01 | Phase 69 | Pending |
+| UAT-E2E-01 | Phase 70 | Pending |
+| UAT-E2E-02 | Phase 70 | Pending |
+| UAT-E2E-03 | Phase 70 | Pending |
+| FIX-01 | Phase 70 | Pending |
+| FIX-02 | Phase 70 | Pending |
