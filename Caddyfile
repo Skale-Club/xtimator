@@ -1,0 +1,52 @@
+# Caddyfile — Hetzner Cloud VPS production
+# Caddy v2 with automatic HTTPS via Let's Encrypt.
+#
+# The {$DOMAIN} placeholder is substituted at startup from the env var
+# set in docker-compose.yml. Set DOMAIN=xtimator.com in /opt/xtimator/.env.
+
+{
+	# Caddy global options.
+	# email: contact for Let's Encrypt expiration warnings. Override
+	# via /opt/xtimator/.env if desired.
+	email {$ACME_EMAIL:admin@{$DOMAIN}}
+
+	# Disable the admin API on production — reduces attack surface.
+	admin off
+}
+
+{$DOMAIN} {
+	# Reverse proxy to the Next.js standalone server inside the
+	# `xtimator` container. Docker DNS resolves `xtimator` to the
+	# service IP on the `web` bridge network.
+	reverse_proxy xtimator:3000 {
+		# Pass real client IP + protocol to Next so request.headers
+		# see the original values, not the proxy's.
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+	}
+
+	# Compress responses for smaller transfers.
+	encode zstd gzip
+
+	# Security headers — match the existing Next defaults plus a few
+	# Caddy-level additions.
+	header {
+		# Strict-Transport-Security: 1 year, all subdomains, preload-eligible
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		# Remove the default "Server: Caddy" reveal
+		-Server
+	}
+
+	# Logs to Docker stdout so `docker compose logs caddy` shows them.
+	log {
+		output stdout
+		format json
+	}
+}
+
+# HTTP -> HTTPS redirect handled implicitly by Caddy when the site
+# block declares a domain (no explicit :80 block needed).

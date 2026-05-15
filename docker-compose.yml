@@ -1,0 +1,74 @@
+# docker-compose.yml — Hetzner Cloud VPS production deploy
+# Brings up the Next.js app behind a Caddy reverse proxy with automatic
+# Let's Encrypt HTTPS. Both services restart automatically.
+#
+# Usage on the VPS:
+#   1. Populate /opt/xtimator/.env.production (see .env.production.example)
+#   2. Set DOMAIN=xtimator.com in /opt/xtimator/.env (Caddy reads this)
+#   3. docker compose up -d
+#
+# NOTE: This compose file is for the VPS, NOT for local dev. Local dev
+# still uses `npm run dev` + `npm run dev:inngest`. Local Docker
+# validation (Plan 03 / HETZNER-06) uses `docker build` + `docker run`
+# directly with --env-file .env.local — Caddy is not needed there.
+
+services:
+  xtimator:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: xtimator:latest
+    container_name: xtimator
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - HOSTNAME=0.0.0.0
+      # GIT_SHA is wired by the deploy script — see docs/HETZNER-DEPLOY.md
+      # (Plan 02). Falls back to 'unknown' if not set.
+      - GIT_SHA=${GIT_SHA:-unknown}
+    expose:
+      - "3000"
+    # Health check — curls /api/health (the route Plan 02 ships).
+    # 30s start_period gives Next time to warm up before the first probe.
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - web
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"  # HTTP/3
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data       # Let's Encrypt certs persist here
+      - caddy_config:/config
+    environment:
+      # DOMAIN comes from /opt/xtimator/.env (separate from
+      # .env.production which is Next-app secrets). Caddy substitutes
+      # ${DOMAIN} into Caddyfile at startup.
+      - DOMAIN=${DOMAIN:?DOMAIN env var is required for Caddy HTTPS}
+    depends_on:
+      xtimator:
+        condition: service_healthy
+    networks:
+      - web
+
+networks:
+  web:
+    driver: bridge
+
+volumes:
+  caddy_data:
+  caddy_config:
