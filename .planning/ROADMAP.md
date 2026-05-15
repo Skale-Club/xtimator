@@ -181,7 +181,11 @@
   3. All signed URLs include an explicit `expiresInSeconds` value, all keys follow the `{company_id}/{type}/{timestamp}-{filename}` convention, and no caller relies on Supabase-specific `transformOptions` or on-the-fly resize endpoints
   4. With `STORAGE_PROVIDER=s3` set against a local MinIO container, upload + signed URL + download + delete all complete successfully end-to-end (smoke proof the abstraction holds), then Supabase is restored as the default
   5. `docs/STORAGE-MIGRATION.md` ships with provisioning steps, the exact `aws s3 sync` command, the endpoint swap procedure, and the documented 800 MB Supabase storage usage trigger threshold
-**Plans**: TBD
+**Plans**: 3 plans in `.planning/phases/66-storage-abstraction-layer/`
+Plans:
+- [ ] 66-01-PLAN.md — Wave 0 RED contract tests + StorageProvider interface + Supabase provider + buildStorageKey helper (STORAGE-01, STORAGE-02, STORAGE-04)
+- [ ] 66-02-PLAN.md — Migrate all 8 production call sites (logos → audio → photos → pdfs → wa-media) + 3 affected tests (STORAGE-03, STORAGE-04)
+- [ ] 66-03-PLAN.md — S3 provider skeleton + STORAGE_PROVIDER env gate + MinIO smoke script + docs/STORAGE-MIGRATION.md runbook (STORAGE-05, STORAGE-06, STORAGE-07)
 
 ### Phase 67: Inngest Background AI Job Processing
 **Goal**: All long-running AI calls (estimate generation, audio transcription, photo analysis) run as Inngest background jobs so the API routes return in under 1 second — unblocking the Vercel Free 10-second function timeout while keeping the same UX (live "Saving / Transcribing / Analyzing / Generating" progress) via job-status polling. Inngest is forward-compatible with the future Hetzner host (no swap needed at migration time).
