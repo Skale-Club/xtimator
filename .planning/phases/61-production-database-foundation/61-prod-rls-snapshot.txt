@@ -1,0 +1,35 @@
+# RLS Posture Audit — DEV
+# Captured: 2026-05-15T15:56:50.556Z
+
+schema     | table                          | rls   | policies | posture
+-----------+--------------------------------+-------+----------+--------
+public     | blog_posts                     | true  |        1 | OK
+public     | clients                        | true  |        4 | OK
+public     | companies                      | true  |        4 | OK
+public     | company_price_book             | true  |        4 | OK
+public     | company_whatsapp               | true  |        0 | OK
+public     | estimate_activity              | true  |        3 | OK
+public     | estimate_items                 | true  |        4 | OK
+public     | estimate_sections              | true  |        4 | OK
+public     | estimates                      | true  |        5 | OK
+public     | photos                         | true  |        4 | OK
+public     | platform_admins                | true  |        3 | OK
+public     | platform_branding              | true  |        0 | OK
+public     | platform_integrations          | true  |        0 | OK
+public     | processed_stripe_events        | true  |        0 | OK
+public     | projects                       | true  |        4 | OK
+public     | recordings                     | true  |        4 | OK
+public     | translations                   | true  |        1 | OK
+public     | usage_events                   | true  |        0 | OK
+public     | whatsapp_processed_messages    | true  |        0 | OK
+public     | whatsapp_sessions              | true  |        0 | OK
+storage    | buckets                        | true  |        0 | OK
+storage    | buckets_analytics              | true  |        0 | OK
+storage    | buckets_vectors                | true  |        0 | OK
+storage    | migrations                     | true  |        0 | OK
+storage    | objects                        | true  |       15 | OK
+storage    | s3_multipart_uploads           | true  |        0 | OK
+storage    | s3_multipart_uploads_parts     | true  |        0 | OK
+storage    | vector_indexes                 | true  |        0 | OK
+
+SUMMARY: TOTAL=28 OK=28 WARN=0 FAIL=0

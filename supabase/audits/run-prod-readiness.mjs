@@ -37,7 +37,7 @@ const EXPECTED_MIGRATIONS = readdirSync(resolve(repoRoot, 'supabase', 'migration
   .filter(f => /^\d{14}.*\.sql$/.test(f))
   .length;
 
-const EXPECTED_BUCKETS = ['audio', 'photos', 'pdfs', 'logos', 'platform_brand_assets'];
+const EXPECTED_BUCKETS = ['audio', 'photos', 'pdfs', 'logos', 'platform-brand'];
 const SUPER_ADMIN_EMAIL = 'skale.club@gmail.com';
 
 const client = new pg.Client({ connectionString: PROD_DB_URL, ssl: { rejectUnauthorized: false } });
@@ -85,10 +85,10 @@ try {
   }
   console.log(`  OK (${EXPECTED_BUCKETS.length} buckets present)`);
 
-  // 4. Super-admin presence
+  // 4. Super-admin presence (platform_admins has no email column — JOIN auth.users)
   console.log('[4/4] Super-admin bootstrap...');
   const admin = await client.query(
-    `SELECT pa.email FROM platform_admins pa
+    `SELECT u.email FROM platform_admins pa
        JOIN auth.users u ON u.id = pa.user_id
       WHERE u.email = $1`,
     [SUPER_ADMIN_EMAIL]
