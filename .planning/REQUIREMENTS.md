@@ -113,33 +113,31 @@ Doing both refactors before any production deploy means the launch (separate v3.
 
 ## Traceability
 
-Coverage: 33/33 (100%).
+Coverage: 39/39 (100%) — every v1 requirement maps to exactly one phase, no orphans, no duplicates.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| INNGEST-01 | Phase 66 | Pending |
-| INNGEST-02 | Phase 66 | Pending |
-| INNGEST-03 | Phase 66 | Pending |
-| INNGEST-04 | Phase 66 | Pending |
-| INNGEST-05 | Phase 66 | Pending |
-| INNGEST-06 | Phase 66 | Pending |
-| INNGEST-07 | Phase 66 | Pending |
-| INNGEST-08 | Phase 66 | Pending |
-| STORAGE-01 | Phase 67 | Pending |
-| STORAGE-02 | Phase 67 | Pending |
-| STORAGE-03 | Phase 67 | Pending |
-| STORAGE-04 | Phase 67 | Pending |
-| STORAGE-05 | Phase 67 | Pending |
-| STORAGE-06 | Phase 67 | Pending |
-| STORAGE-07 | Phase 67 | Pending |
+| STORAGE-01 | Phase 66 | Pending |
+| STORAGE-02 | Phase 66 | Pending |
+| STORAGE-03 | Phase 66 | Pending |
+| STORAGE-04 | Phase 66 | Pending |
+| STORAGE-05 | Phase 66 | Pending |
+| STORAGE-06 | Phase 66 | Pending |
+| STORAGE-07 | Phase 66 | Pending |
+| INNGEST-01 | Phase 67 | Pending |
+| INNGEST-02 | Phase 67 | Pending |
+| INNGEST-03 | Phase 67 | Pending |
+| INNGEST-04 | Phase 67 | Pending |
+| INNGEST-05 | Phase 67 | Pending |
+| INNGEST-06 | Phase 67 | Pending |
+| INNGEST-07 | Phase 67 | Pending |
+| INNGEST-08 | Phase 67 | Pending |
 | HETZNER-01 | Phase 68 | Pending |
 | HETZNER-02 | Phase 68 | Pending |
 | HETZNER-03 | Phase 68 | Pending |
 | HETZNER-04 | Phase 68 | Pending |
 | HETZNER-05 | Phase 68 | Pending |
 | HETZNER-06 | Phase 68 | Pending |
-| PERF-01 | Phase 68 | Pending |
-| PERF-02 | Phase 68 | Pending |
 | UAT-V22-01 | Phase 69 | Pending |
 | UAT-V22-02 | Phase 69 | Pending |
 | UAT-V30-01 | Phase 69 | Pending |
@@ -151,8 +149,10 @@ Coverage: 33/33 (100%).
 | UAT-INNGEST-01 | Phase 69 | Pending |
 | UAT-INNGEST-02 | Phase 69 | Pending |
 | UAT-STORAGE-01 | Phase 69 | Pending |
-| UAT-E2E-01 | Phase 70 | Pending |
-| UAT-E2E-02 | Phase 70 | Pending |
-| UAT-E2E-03 | Phase 70 | Pending |
-| FIX-01 | Phase 70 | Pending |
-| FIX-02 | Phase 70 | Pending |
+| UAT-E2E-01 | Phase 69 | Pending |
+| UAT-E2E-02 | Phase 69 | Pending |
+| UAT-E2E-03 | Phase 69 | Pending |
+| FIX-01 | Phase 69 | Pending |
+| FIX-02 | Phase 69 | Pending |
+| PERF-01 | Phase 69 | Pending |
+| PERF-02 | Phase 69 | Pending |
