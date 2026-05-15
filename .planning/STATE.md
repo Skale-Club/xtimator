@@ -16,20 +16,20 @@ progress:
 
 ## Current Status
 
-- **Milestone**: v3.1.1 MVP Launch Prep + Future-Proofing — Roadmap complete (4 phases), ready to plan Phase 66
+- **Milestone**: v3.1.1 MVP Launch Prep + Future-Proofing — Roadmap complete (4 phases); Phase 67 (Inngest) plans ready; Phase 66 (Storage) needs planning next
 - **Last updated**: 2026-05-15
 
 ## Current Position
 
-Phase: 66 (not started)
+Phase: 66 (Storage Abstraction — needs planning before execution)
 Plan: —
-Status: Roadmap defined; awaiting `/gsd:plan-phase 66`
-Last activity: 2026-05-15 — Roadmap rewritten (Phases 66-69; 39 requirements mapped; Storage-first sequencing so Inngest workers consume new storage API from day one)
+Status: Phase 67 (Inngest) plans done in advance (5 plans renamed from /66 to /67 dir after roadmap reorder); Phase 66 (Storage) is the next blocker — `/gsd:plan-phase 66`
+Last activity: 2026-05-15 — Phase 67 (Inngest) plans created and renamed to match roadmap order
 
 ## v3.1.1 Phases
 
-- Phase 66: Storage Abstraction Layer (STORAGE-01..07) — Not started
-- Phase 67: Inngest Background AI Job Processing (INNGEST-01..08) — Not started
+- Phase 66: Storage Abstraction Layer (STORAGE-01..07) — Not started (needs `/gsd:plan-phase 66`)
+- Phase 67: Inngest Background AI Job Processing (INNGEST-01..08) — Plans ready (5 plans in `.planning/phases/67-inngest-background-ai-jobs/`)
 - Phase 68: Hetzner Cloud Deploy-Readiness Artifacts (HETZNER-01..06) — Not started
 - Phase 69: UAT Validation + Bug Triage + Perf Audit (UAT-V22-01..02, UAT-V30-01..06, UAT-INNGEST-01..02, UAT-STORAGE-01, UAT-E2E-01..03, FIX-01..02, PERF-01..02) — Not started
 
