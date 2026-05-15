@@ -3,7 +3,7 @@
 **Goal:** Validate the entire app stack against the recovered DB schema (v3.0 monetization was never functionally tested before Phase 61), fix any bugs that surface, and ship the deploy artifacts (Dockerfile + `/api/health` + runbook) needed to make the future Hetzner Cloud migration mechanical instead of exploratory.
 
 **Started:** 2026-05-15
-**Status:** Defining requirements
+**Status:** Roadmap complete — phases 66, 67, 68 defined
 
 ## Why this milestone (the gap Phase 61 exposed)
 
@@ -82,9 +82,47 @@ In parallel, the v3.2 hosting decision is locked: **Hetzner Cloud VPS** (~€4-7
 5. **`/api/health` is part of v3.1.1, not v3.2** — health endpoint must exist before deploy so the runbook can use it as the smoke check.
 6. **`known-issues.md` is the milestone's source of truth** — every UAT test produces an entry (pass or fail). No silent "I tested it and it works".
 7. **UAT against localhost is enough** — no staging environment yet; the Hetzner deploy in v3.2 is itself the staging validation.
+8. **Phase numbering skips 62-65** — v3.1.1 starts at Phase 66. Phases 62-65 are reserved as DEFERRED placeholders for v3.2 (Vercel→Hetzner deploy, Stripe live, monitoring, production UAT). Skipping past keeps the global counter unambiguous and prevents number reuse confusion when v3.2 begins.
+9. **Track ordering: Hetzner artifacts FIRST, then UAT against the Dockerized build** — Phase 66 ships the Dockerfile so Phase 67 UAT exercises the same artifact that will deploy to Hetzner. Catches "works on host machine, breaks in container" issues before they become production problems.
 
 ---
 
 ## Traceability
 
-To be filled in during roadmap creation.
+All 21 v1 requirements are mapped to exactly one phase. Coverage: 21/21.
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| HETZNER-01 | Phase 66 | Pending |
+| HETZNER-02 | Phase 66 | Pending |
+| HETZNER-03 | Phase 66 | Pending |
+| HETZNER-04 | Phase 66 | Pending |
+| HETZNER-05 | Phase 66 | Pending |
+| HETZNER-06 | Phase 66 | Pending |
+| PERF-01 | Phase 66 | Pending |
+| PERF-02 | Phase 66 | Pending |
+| UAT-V22-01 | Phase 67 | Pending |
+| UAT-V22-02 | Phase 67 | Pending |
+| UAT-V22-03 | Phase 67 | Pending |
+| UAT-V30-01 | Phase 67 | Pending |
+| UAT-V30-02 | Phase 67 | Pending |
+| UAT-V30-03 | Phase 67 | Pending |
+| UAT-V30-04 | Phase 67 | Pending |
+| UAT-V30-05 | Phase 67 | Pending |
+| UAT-V30-06 | Phase 67 | Pending |
+| UAT-V30-07 | Phase 67 | Pending |
+| UAT-E2E-01 | Phase 68 | Pending |
+| UAT-E2E-02 | Phase 68 | Pending |
+| UAT-E2E-03 | Phase 68 | Pending |
+| FIX-01 | Phase 68 | Pending |
+| FIX-02 | Phase 68 | Pending |
+
+### Coverage Summary
+
+- **Phase 66 (Hetzner Deploy Artifacts + Perf Audit):** 8 requirements (HETZNER-01..06, PERF-01..02) — all autonomous code work
+- **Phase 67 (v2.2 + v3.0 Manual UAT):** 10 requirements (UAT-V22-01..03, UAT-V30-01..07) — all human-driven validation with checkpoint tasks
+- **Phase 68 (End-to-End Smoke + Bug Triage Closeout):** 5 requirements (UAT-E2E-01..03, FIX-01..02) — mixed: human smoke + bug fix code work + closeout doc
+
+**Total mapped:** 23 requirement entries (21 unique requirements; UAT-V22-03 and UAT-V30-07 close out their own categories, FIX-01 and FIX-02 cross-cut Phases 67-68 outputs but are owned by Phase 68 as the closeout phase).
+
+> **Note:** UAT-V22-03 and UAT-V30-07 are bookkeeping requirements ("verdict captured for every test in known-issues.md") and live in Phase 67 because that's where the verdicts are produced. FIX-01 and FIX-02 are owned by Phase 68 because that's the milestone-close phase that owns the final state of `known-issues.md`.

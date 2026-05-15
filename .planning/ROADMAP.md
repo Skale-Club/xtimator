@@ -17,6 +17,9 @@
 - ✅ **v2.2 WhatsApp Channel Polish** — Phases 53-54 (shipped 2026-05-13)
 - ✅ **v3.0 Monetization** — Phases 55-60 (shipped 2026-05-14) · [archive](milestones/v3.0-ROADMAP.md)
 - ✅ **v3.1 Production Go-Live (rescoped)** — Phase 61 only (shipped 2026-05-15) · 4 phases deferred to v3.2 · [archive](milestones/v3.1-ROADMAP.md)
+- 🚧 **v3.1.1 Quality & Polish + Hetzner Readiness** — Phases 66-68 (started 2026-05-15)
+
+> **Phase numbering note:** v3.1.1 starts at **Phase 66**, not 62. Phases 62-65 are reserved as DEFERRED placeholders for the v3.2 Production Deploy milestone (Vercel→Hetzner deploy + Stripe live + monitoring + UAT in prod). Skipping past 62-65 keeps the global phase counter unambiguous and prevents number reuse confusion when v3.2 begins.
 
 ## Phases
 
@@ -160,6 +163,12 @@
 [Full archive: milestones/v3.1-ROADMAP.md](milestones/v3.1-ROADMAP.md)
 
 </details>
+
+### v3.1.1 Quality & Polish + Hetzner Readiness (Phases 66-68)
+
+- [ ] **Phase 66: Hetzner Deploy Artifacts + Perf Audit** — Ship the Docker artifacts (`Dockerfile`, `docker-compose.yml` with Caddy reverse proxy, `output: 'standalone'`), `/api/health` endpoint, `HETZNER-DEPLOY.md` runbook, and validate locally with `docker build` + `docker run`. Run Lighthouse + bundle size check while we're here.
+- [ ] **Phase 67: v2.2 + v3.0 Manual UAT** — Owner manually exercises the WhatsApp channel polish (PDF attachment, status flow) and the entire v3.0 monetization stack (tier enforcement, Stripe checkout test mode, billing UI, trial banner, trial expiry cron, T-3/T-0 emails, Customer Portal, admin force-tier, MRR view, 402 upgrade modal) against the Hetzner-Dockerized localhost build. Every test produces a verdict in `.planning/known-issues.md`.
+- [ ] **Phase 68: End-to-End Smoke + Bug Triage Closeout** — Run the full happy path (signup → onboarding → audio capture → AI estimate → share link → accept), validate multi-modal input combinations, smoke i18n PT-BR/ES, fix any critical bugs surfaced across Phases 67-68, document all non-critical findings in `.planning/known-issues.md`. Milestone complete when known-issues.md exists with one entry per UAT test.
 
 ## Phase Details
 
@@ -538,6 +547,45 @@ Plans:
 - [x] 54-01-PLAN.md — updateWhatsAppStatus server action + unit tests (WASTATUS-02, WASTATUS-03, WASTATUS-04)
 - [x] 54-02-PLAN.md — WhatsAppConnectCard: StatusBadge + Suspend/Reactivate buttons (WASTATUS-01, WASTATUS-03)
 
+### Phase 66: Hetzner Deploy Artifacts + Perf Audit
+**Goal**: The repository ships every artifact required to deploy to a Hetzner Cloud VPS — Dockerfile, docker-compose with Caddy, `/api/health`, and a step-by-step runbook — and the local Docker build is proven to boot the app correctly. Light-touch perf audit captures any regressions before deploy.
+**Depends on**: Phase 61 (production database foundation; `supabase/audits/run-prod-readiness.mjs` must stay green)
+**Requirements**: HETZNER-01, HETZNER-02, HETZNER-03, HETZNER-04, HETZNER-05, HETZNER-06, PERF-01, PERF-02
+**Success Criteria** (what must be TRUE):
+  1. A developer can run `docker build -t xtimator . && docker run -p 3000:3000 --env-file .env.local xtimator` and the app boots — `/api/health` returns 200 with `{ ok, db, commit }`, and a fresh signup + login flow completes against dev Supabase
+  2. The Docker image is under 500MB, runs as a non-root user, builds via Next.js standalone output (`next.config.mjs` set to `output: 'standalone'`), and exposes port 3000
+  3. `docker-compose.yml` at the repo root brings up the Next.js service plus a Caddy reverse proxy with automatic Let's Encrypt HTTPS, an env file mount, and `restart: unless-stopped`
+  4. `docs/HETZNER-DEPLOY.md` is a runbook a developer can follow end-to-end (provision CX22 → Docker + Caddy install → DNS → `.env.production` → `docker compose up -d` → `/api/health` smoke → UFW firewall → cert renewal verification → daily off-server backup of `.env.production`) — no improvisation required
+  5. Lighthouse scores >= 80 in Performance and Accessibility on `/` (landing) and `/dashboard` (authenticated); `npm run build` reports First Load JS for `/dashboard` under 500 KB (or the rationale is captured in `.planning/known-issues.md`)
+**Plans**: TBD
+**UI hint**: no
+
+### Phase 67: v2.2 + v3.0 Manual UAT
+**Goal**: Every v2.2 (WhatsApp polish) and v3.0 (monetization) feature is exercised by a human against the Hetzner-Dockerized localhost build. Each test produces a pass/fail verdict in `.planning/known-issues.md` — no silent "I tested it and it works".
+**Depends on**: Phase 66 (UAT runs against the validated Docker image so we exercise the same artifact that will deploy to Hetzner)
+**Requirements**: UAT-V22-01, UAT-V22-02, UAT-V22-03, UAT-V30-01, UAT-V30-02, UAT-V30-03, UAT-V30-04, UAT-V30-05, UAT-V30-06, UAT-V30-07
+**Success Criteria** (what must be TRUE):
+  1. PDF attachment delivery is exercised end-to-end — owner sets `delivery_format=pdf_attachment`, sends an estimate via WhatsApp, a real client phone receives the PDF document plus a follow-up share link
+  2. WhatsApp status flow is exercised — pending→verified→active auto-promotion fires after OTP, suspend/reactivate buttons persist correctly, status badge always reflects the current DB state
+  3. Tier enforcement is validated — free tier hits HTTP 402 on AI routes when monthly quota is exhausted; pro/business tiers respect their higher caps; WhatsApp inbound is gated for free tier BEFORE any Meta media download
+  4. Stripe test-mode happy path completes end-to-end — `/settings/billing` → upgrade modal → Stripe Checkout → webhook fires → `companies.tier` updates → user lands back on billing page showing the new tier; Customer Portal lets the user change/cancel/view invoices
+  5. Trial automation is observable — new signup gets 14-day Pro entitlements, trial banner appears <3 days before expiry, hourly cron downgrades to free at T-0, and T-3 + T-0 warning emails actually arrive in the test inbox
+  6. Admin tooling works — super-admin can force-tier any company, grant bonus credits, and the `/admin/billing` MRR view shows correct totals against seeded test data
+  7. Every UAT-V22 and UAT-V30 test has a pass-or-fail verdict line in `.planning/known-issues.md` (no silent successes)
+**Plans**: TBD
+
+### Phase 68: End-to-End Smoke + Bug Triage Closeout
+**Goal**: The full happy path works for a brand-new user, multi-modal capture combinations all produce sensible estimates, i18n surfaces translate without crashes, every critical bug surfaced across this milestone is fixed (with a linked commit), and every non-critical finding is documented in `.planning/known-issues.md`. Milestone exits clean.
+**Depends on**: Phase 67 (UAT must have surfaced bugs to triage; UAT-V22 and UAT-V30 verdicts must be in known-issues.md before this phase closes the file out)
+**Requirements**: UAT-E2E-01, UAT-E2E-02, UAT-E2E-03, FIX-01, FIX-02
+**Success Criteria** (what must be TRUE):
+  1. A brand-new account signs up, completes onboarding (business info + industry + color + logo), captures audio at a fixture job site, the AI generates an estimate, the owner sends a share link to a fixture client email, and the client opens the share page and accepts — full happy path observed in one sitting
+  2. Three multi-modal variants all produce sensible estimates: text-only project, photos-only project, and audio+photos+text combined
+  3. Switching app language to PT-BR and ES produces translated copy on the dashboard, capture screen, and billing page without rendering errors or crashes
+  4. Every bug surfaced in Phases 67-68 is either (a) fixed in this milestone with a linked commit reference, or (b) captured in `.planning/known-issues.md` with severity, repro steps, and a proposed fix direction
+  5. `.planning/known-issues.md` exists at milestone close — even a "zero bugs found" outcome produces the file with that statement
+**Plans**: TBD
+
 ## Progress
 
 | Phase | Milestone | Plans | Status | Completed |
@@ -603,7 +651,10 @@ Plans:
 | 59. Billing UI | v3.0 | 1/2 | Complete    | 2026-05-14 |
 | 60. Trial Automation + Admin Tooling | v3.0 | 1/2 | Complete    | 2026-05-14 |
 | 61. Production Database Foundation | v3.1 | 1/5 | Complete    | 2026-05-15 |
-| 62. Vercel Deployment + Custom Domain | v3.1 | 0/TBD | Not started | - |
-| 63. Stripe Live Mode Activation | v3.1 | 0/TBD | Not started | - |
-| 64. Monitoring + Backup & Resilience | v3.1 | 0/TBD | Not started | - |
-| 65. Production UAT + Bug Triage | v3.1 | 0/TBD | Not started | - |
+| 62. Vercel Deployment + Custom Domain | v3.1 | 0/TBD | DEFERRED → v3.2 | - |
+| 63. Stripe Live Mode Activation | v3.1 | 0/TBD | DEFERRED → v3.2 | - |
+| 64. Monitoring + Backup & Resilience | v3.1 | 0/TBD | DEFERRED → v3.2 | - |
+| 65. Production UAT + Bug Triage | v3.1 | 0/TBD | DEFERRED → v3.2 | - |
+| 66. Hetzner Deploy Artifacts + Perf Audit | v3.1.1 | 0/TBD | Not started | - |
+| 67. v2.2 + v3.0 Manual UAT | v3.1.1 | 0/TBD | Not started | - |
+| 68. End-to-End Smoke + Bug Triage Closeout | v3.1.1 | 0/TBD | Not started | - |

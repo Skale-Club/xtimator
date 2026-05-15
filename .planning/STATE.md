@@ -2,11 +2,11 @@
 gsd_state_version: 1.0
 milestone: v3.1.1
 milestone_name: Quality & Polish + Hetzner Readiness
-status: planning
-last_updated: "2026-05-15T18:00:00.000Z"
+status: roadmap_complete
+last_updated: "2026-05-15T20:00:00.000Z"
 last_activity: 2026-05-15
 progress:
-  total_phases: 0
+  total_phases: 3
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -16,23 +16,31 @@ progress:
 
 ## Current Status
 
-- **Milestone**: v3.1.1 Quality & Polish + Hetzner Readiness — Defining requirements
+- **Milestone**: v3.1.1 Quality & Polish + Hetzner Readiness — Roadmap complete, ready to plan Phase 66
 - **Last updated**: 2026-05-15
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 66 (not started)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-05-15 — Milestone v3.1.1 started
+Status: Roadmap defined; awaiting `/gsd:plan-phase 66`
+Last activity: 2026-05-15 — Roadmap created (Phases 66, 67, 68; 21/21 requirements mapped)
 
-## v3.1 Phases
+## v3.1.1 Phases
 
-- Phase 61: Production Database Foundation (PROD-DB-01..05) — Not started
-- Phase 62: Vercel Deployment + Custom Domain (PROD-DEPLOY-01..05) — Not started
-- Phase 63: Stripe Live Mode Activation (PROD-STRIPE-01..05) — Not started
-- Phase 64: Monitoring + Backup & Resilience (PROD-MONITOR-01..05, PROD-BACKUP-01..03) — Not started
-- Phase 65: Production UAT + Bug Triage (PROD-UAT-01..04) — Not started
+- Phase 66: Hetzner Deploy Artifacts + Perf Audit (HETZNER-01..06, PERF-01..02) — Not started
+- Phase 67: v2.2 + v3.0 Manual UAT (UAT-V22-01..03, UAT-V30-01..07) — Not started
+- Phase 68: End-to-End Smoke + Bug Triage Closeout (UAT-E2E-01..03, FIX-01..02) — Not started
+
+> **Numbering note:** v3.1.1 starts at Phase 66 (not 62) because Phases 62-65 are reserved as DEFERRED placeholders for v3.2 (Vercel→Hetzner deploy, Stripe live, monitoring, prod UAT). Skipping past keeps the global phase counter unambiguous.
+
+## v3.1 Phases (predecessor milestone)
+
+- Phase 61: Production Database Foundation — COMPLETE 2026-05-15
+- Phase 62: Vercel Deployment + Custom Domain — DEFERRED → v3.2
+- Phase 63: Stripe Live Mode Activation — DEFERRED → v3.2
+- Phase 64: Monitoring + Backup & Resilience — DEFERRED → v3.2
+- Phase 65: Production UAT + Bug Triage — DEFERRED → v3.2
 
 ## v3.0 Phases
 
