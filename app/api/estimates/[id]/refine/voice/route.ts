@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireServiceClient } from '@/lib/supabase/service'
+import { createStorage } from '@/lib/storage'
 import { revalidatePath } from 'next/cache'
 import { getEstimateById } from '@/lib/queries/estimate'
 import { getPriceBookItems } from '@/lib/queries/price-book'
@@ -78,17 +79,16 @@ export async function POST(
 
     // Upload audio to Supabase Storage for Whisper transcription
     const serviceClient = requireServiceClient()
+    const storage = createStorage(serviceClient)
     const timestamp = Date.now()
     const storagePath = `${companyId}/refine-voice/${estimateId}-${timestamp}.webm`
 
-    const { error: uploadError } = await serviceClient.storage
-      .from('audio')
-      .upload(storagePath, audioFile, {
+    try {
+      await storage.upload('audio', storagePath, audioFile, {
         contentType: audioFile.type || 'audio/webm',
         upsert: false,
       })
-
-    if (uploadError) {
+    } catch {
       return NextResponse.json(
         { error: 'Failed to upload audio file for transcription' },
         { status: 500 }
@@ -99,7 +99,7 @@ export async function POST(
     const openaiKey = await getIntegrationKey('openai')
     if (!openaiKey) {
       // Cleanup: delete the uploaded file
-      await serviceClient.storage.from('audio').remove([storagePath])
+      await storage.delete('audio', storagePath).catch(() => {})
       return NextResponse.json(
         { error: "Audio transcription isn't available right now. Contact your platform administrator." },
         { status: 503 }
@@ -107,12 +107,11 @@ export async function POST(
     }
 
     // Download audio for transcription (Whisper needs the raw file)
-    const { data: fileData, error: downloadError } = await serviceClient.storage
-      .from('audio')
-      .download(storagePath)
-
-    if (downloadError || !fileData) {
-      await serviceClient.storage.from('audio').remove([storagePath])
+    let fileData: Blob
+    try {
+      fileData = await storage.download('audio', storagePath)
+    } catch {
+      await storage.delete('audio', storagePath).catch(() => {})
       return NextResponse.json(
         { error: 'Failed to read audio file for transcription' },
         { status: 500 }
@@ -132,7 +131,7 @@ export async function POST(
     })
 
     // Always cleanup the storage file after transcription attempt
-    const cleanupPromise = serviceClient.storage.from('audio').remove([storagePath])
+    const cleanupPromise = storage.delete('audio', storagePath)
     cleanupPromise.catch(() => {}) // non-blocking
 
     if (!whisperResponse.ok) {

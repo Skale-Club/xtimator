@@ -14,6 +14,7 @@ import { WaveformVisualizer } from '@/components/workspace/audio/waveform-visual
 import { createRecording, transcribeRecording, createTextRecording } from '@/lib/actions/recording'
 import { createPhoto } from '@/lib/actions/photo'
 import { createClient } from '@/lib/supabase/client'
+import { createStorage } from '@/lib/storage'
 import { getSupportedAudioMimeType, getFileExtension } from '@/lib/utils/media-format'
 import { compressImage } from '@/lib/utils/image-compressor'
 import { Camera, Loader2 } from 'lucide-react'
@@ -177,8 +178,12 @@ export function CaptureRecorder({ project, companyId, projectId }: CaptureRecord
       const photoId = crypto.randomUUID()
       const storagePath = `${companyId}/${projectId}/${photoId}.jpg`
       const supabase = createClient()
-      const { error: upErr } = await supabase.storage.from('photos').upload(storagePath, blob, { contentType: 'image/jpeg', upsert: false })
-      if (upErr) continue
+      const storage = createStorage(supabase)
+      try {
+        await storage.upload('photos', storagePath, blob, { contentType: 'image/jpeg', upsert: false })
+      } catch {
+        continue
+      }
       const result = await createPhoto(projectId, storagePath, uploadedPhotos.length + newPhotos.length)
       if ('error' in result) continue
       newPhotos.push(result.data as Photo)
@@ -220,14 +225,18 @@ export function CaptureRecorder({ project, companyId, projectId }: CaptureRecord
     setErrorMessage(undefined)
 
     const supabase = createClient()
+    const storage = createStorage(supabase)
     const recordingId = crypto.randomUUID()
     const ext = getFileExtension(mimeTypeRef.current)
     const storagePath = `${companyId}/${projectId}/${recordingId}.${ext}`
 
     // Upload to Supabase Storage
-    const { error: upErr } = await supabase.storage.from('audio')
-      .upload(storagePath, blob, { contentType: mimeTypeRef.current || 'audio/webm', upsert: false })
-    if (upErr) { failAt('saving', 'Failed to upload audio file'); return }
+    try {
+      await storage.upload('audio', storagePath, blob, { contentType: mimeTypeRef.current || 'audio/webm', upsert: false })
+    } catch {
+      failAt('saving', 'Failed to upload audio file')
+      return
+    }
 
     // Create recording row
     const created = await createRecording(projectId, storagePath, Math.floor(elapsedMs / 1000))

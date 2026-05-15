@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireServiceClient } from '@/lib/supabase/service'
+import { createStorage } from '@/lib/storage'
 import { revalidatePath } from 'next/cache'
 import { getEstimateById } from '@/lib/queries/estimate'
 import { getPriceBookItems } from '@/lib/queries/price-book'
@@ -164,6 +165,7 @@ export async function POST(
 
     // Upload photos to Supabase Storage and analyze with Claude Vision
     const serviceClient = requireServiceClient()
+    const storage = createStorage(serviceClient)
     const timestamp = Date.now()
     const photoDescriptions: string[] = []
 
@@ -173,15 +175,13 @@ export async function POST(
       const mimeType = getMimeType(storagePath)
 
       // Upload to storage
-      const { error: uploadError } = await serviceClient.storage
-        .from('photos')
-        .upload(storagePath, photo, {
+      try {
+        await storage.upload('photos', storagePath, photo, {
           contentType: mimeType,
           upsert: false,
         })
-
-      if (uploadError) {
-        console.error('Photo upload error:', uploadError)
+      } catch (err) {
+        console.error('Photo upload error:', err)
         return NextResponse.json(
           { error: 'Failed to upload photo' },
           { status: 500 }
@@ -189,21 +189,23 @@ export async function POST(
       }
 
       // Download for Claude Vision analysis
-      const { data: fileData, error: downloadError } = await serviceClient.storage
-        .from('photos')
-        .download(storagePath)
-
-      // Clean up uploaded file (non-blocking)
-      const cleanupPromise = serviceClient.storage.from('photos').remove([storagePath])
-      cleanupPromise.catch(() => {})
-
-      if (downloadError || !fileData) {
-        console.error('Photo download error:', downloadError)
+      let fileData: Blob
+      try {
+        fileData = await storage.download('photos', storagePath)
+      } catch (err) {
+        // Clean up uploaded file (non-blocking) before returning
+        const cleanupPromise = storage.delete('photos', storagePath)
+        cleanupPromise.catch(() => {})
+        console.error('Photo download error:', err)
         return NextResponse.json(
           { error: 'Failed to read photo for analysis' },
           { status: 500 }
         )
       }
+
+      // Clean up uploaded file (non-blocking)
+      const cleanupPromise = storage.delete('photos', storagePath)
+      cleanupPromise.catch(() => {})
 
       // Analyze with Claude Vision
       const description = await analyzePhotoWithVision(anthropic, fileData, mimeType)
