@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v3.1.1
 milestone_name: MVP Launch Prep + Future-Proofing
-status: executing
-last_updated: "2026-05-15T20:32:28.263Z"
+status: verifying
+last_updated: "2026-05-15T20:48:59.800Z"
 last_activity: 2026-05-15
 progress:
   total_phases: 14
-  completed_phases: 10
+  completed_phases: 11
   total_plans: 22
-  completed_plans: 16
+  completed_plans: 17
 ---
 
 # Project State
@@ -23,7 +23,7 @@ progress:
 
 Phase: 66 (Storage Abstraction Layer) — EXECUTING
 Plan: 3 of 3
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-05-15
 
 ## v3.1.1 Phases
@@ -373,6 +373,9 @@ Last activity: 2026-05-15
 - [Phase 66]: getSignedUrl(bucket, path, expiresInSeconds) requires explicit expiry — no implicit default that hides expiry behavior (STORAGE-04)
 - [Phase 66-storage-abstraction-layer]: Plan 02: Migrated 10 additional discovered call sites inline (Rule 3) — the 8 in plan + 10 discovered = 18 production files; STORAGE-03 grep gate is binding so splitting was not viable
 - [Phase 66-storage-abstraction-layer]: Plan 02: StorageProvider.UploadOptions intentionally restricted to contentType + upsert — dropped cacheControl: '3600' from logo uploads to keep abstraction storage-agnostic (Hetzner/S3 don't have a uniform cacheControl shape)
+- [Phase 66-storage-abstraction-layer]: S3 PutObject does not enforce upsert: false — documented as known behavioral diff (callers either use timestamped keys or want overwrite)
+- [Phase 66-storage-abstraction-layer]: Lazy require for S3 provider inside getServerStorage() — keeps AWS SDK off cold-start path while STORAGE_PROVIDER unset (Supabase remains default)
+- [Phase 66-storage-abstraction-layer]: MinIO smoke executed against in-process pure-Node S3 mock (Docker unavailable in dev env) — real @aws-sdk/client-s3 over real socket, functionally equivalent for the 4 ops we use
 
 ## Performance Metrics
 
@@ -475,6 +478,7 @@ Last activity: 2026-05-15
 | Phase 60-trial-automation-admin-tooling P01 | 2min | 2 tasks | 4 files |
 | Phase 66 P01 | 7m | 3 tasks | 7 files |
 | Phase 66-storage-abstraction-layer P02 | 22min | 3 tasks | 21 files |
+| Phase 66-storage-abstraction-layer P03 | 11min | 3 tasks | 5 files |
 
 ## Project Reference
 

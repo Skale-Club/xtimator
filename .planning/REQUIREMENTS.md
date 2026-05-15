@@ -37,9 +37,9 @@ Doing both refactors before any production deploy means the launch (separate v3.
 - [x] **STORAGE-02**: `lib/storage/supabase-provider.ts` implements `StorageProvider` against `supabase.storage` — used by default `storage` export
 - [x] **STORAGE-03**: All call sites migrated from `supabase.storage.from(...)` direct calls to the new `storage.*` API — verified by `grep -r "supabase.storage.from" app/ lib/ components/` returning zero hits outside `lib/storage/`
 - [x] **STORAGE-04**: S3-friendly conventions enforced — key naming `{company_id}/{type}/{timestamp}-{filename}`, all signed URLs use explicit `expiresInSeconds`, no use of Supabase `transformOptions` or on-the-fly resize endpoints
-- [ ] **STORAGE-05**: `lib/storage/s3-provider.ts` skeleton implements the same interface against `@aws-sdk/client-s3` — gated behind feature flag `STORAGE_PROVIDER=s3` env var, not active by default
-- [ ] **STORAGE-06**: `docs/STORAGE-MIGRATION.md` documents the future Supabase → Hetzner Object Storage migration — provisioning steps, exact `aws s3 sync` command, endpoint swap procedure, threshold to trigger (800 MB Supabase storage usage)
-- [ ] **STORAGE-07**: Smoke test — temporarily set `STORAGE_PROVIDER=s3` pointing to a local MinIO container, confirm upload + signed URL + download + delete work, then restore Supabase as default
+- [x] **STORAGE-05**: `lib/storage/s3-provider.ts` skeleton implements the same interface against `@aws-sdk/client-s3` — gated behind feature flag `STORAGE_PROVIDER=s3` env var, not active by default
+- [x] **STORAGE-06**: `docs/STORAGE-MIGRATION.md` documents the future Supabase → Hetzner Object Storage migration — provisioning steps, exact `aws s3 sync` command, endpoint swap procedure, threshold to trigger (800 MB Supabase storage usage)
+- [x] **STORAGE-07**: Smoke test — temporarily set `STORAGE_PROVIDER=s3` pointing to a local MinIO container, confirm upload + signed URL + download + delete work, then restore Supabase as default
 
 ### HETZNER — Hetzner Cloud Deploy Readiness
 
@@ -121,9 +121,9 @@ Coverage: 39/39 (100%) — every v1 requirement maps to exactly one phase, no or
 | STORAGE-02 | Phase 66 | Complete |
 | STORAGE-03 | Phase 66 | Complete |
 | STORAGE-04 | Phase 66 | Complete |
-| STORAGE-05 | Phase 66 | Pending |
-| STORAGE-06 | Phase 66 | Pending |
-| STORAGE-07 | Phase 66 | Pending |
+| STORAGE-05 | Phase 66 | Complete |
+| STORAGE-06 | Phase 66 | Complete |
+| STORAGE-07 | Phase 66 | Complete |
 | INNGEST-01 | Phase 67 | Pending |
 | INNGEST-02 | Phase 67 | Pending |
 | INNGEST-03 | Phase 67 | Pending |

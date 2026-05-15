@@ -166,7 +166,7 @@
 
 ### v3.1.1 MVP Launch Prep + Future-Proofing (Phases 66-69)
 
-- [ ] **Phase 66: Storage Abstraction Layer** — Ship `lib/storage/` with a `StorageProvider` interface, a Supabase implementation (default), and an S3-compatible skeleton (`@aws-sdk/client-s3`) gated behind `STORAGE_PROVIDER=s3`. Migrate every `supabase.storage.from(...)` call site (audio, photos, PDFs, logos, WhatsApp inbound media, branding assets) to the new `storage.*` API. Validate the S3 path with a local MinIO smoke test. Ship `docs/STORAGE-MIGRATION.md` so the future Hetzner Object Storage swap is a 1-line provider change. (STORAGE-01..07)
+- [x] **Phase 66: Storage Abstraction Layer** — Ship `lib/storage/` with a `StorageProvider` interface, a Supabase implementation (default), and an S3-compatible skeleton (`@aws-sdk/client-s3`) gated behind `STORAGE_PROVIDER=s3`. Migrate every `supabase.storage.from(...)` call site (audio, photos, PDFs, logos, WhatsApp inbound media, branding assets) to the new `storage.*` API. Validate the S3 path with a local MinIO smoke test. Ship `docs/STORAGE-MIGRATION.md` so the future Hetzner Object Storage swap is a 1-line provider change. (STORAGE-01..07) (completed 2026-05-15)
 - [ ] **Phase 67: Inngest Background AI Job Processing** — Install Inngest, register worker functions at `/api/inngest`, and refactor the three AI routes (`generate-estimate`, `transcribe`, `analyze-photos`) plus the WhatsApp inbound handler so the long-running Anthropic / OpenAI / Vision calls run as Inngest jobs (idempotent via `step.run()` + `idempotencyKey`). Frontend polls job status via `GET /api/jobs/[jobId]` so the capture stepper UI shows live "Saving / Transcribing / Analyzing / Generating" progress. Document the local dev workflow (`npx inngest-cli dev` alongside `npm run dev`). (INNGEST-01..08)
 - [ ] **Phase 68: Hetzner Cloud Deploy-Readiness Artifacts** — Ship the future-Hetzner deploy artifacts but do not activate them: `Dockerfile` (multi-stage, Node 22 alpine, non-root, <500 MB), `next.config.mjs` set to `output: 'standalone'`, `docker-compose.yml` with Caddy reverse proxy + automatic Let's Encrypt HTTPS, `app/api/health/route.ts` returning `{ ok, db, storage, commit }` (uses the new `storage.*` API for the storage check), and `docs/HETZNER-DEPLOY.md` runbook. Validate locally with `docker build` + `docker run`. (HETZNER-01..06)
 - [ ] **Phase 69: UAT Validation + Bug Triage + Perf Audit** — Owner manually exercises every refactored surface against localhost: v2.2 WhatsApp polish (PDF + status flow), v3.0 monetization (tiers, Stripe test mode, billing UI, trial automation, admin tooling, 402 modal), Inngest happy path + 8-min long-audio (the timeout-killer test that would have failed on Vercel Free without Inngest), every storage path post-refactor, end-to-end happy path, multi-modal capture, i18n smoke. Critical bugs get fixed in this milestone with linked commits; non-critical findings land in `.planning/known-issues.md`. Lighthouse + bundle-size audit captured. (UAT-V22-01..02 + UAT-V30-01..06 + UAT-INNGEST-01..02 + UAT-STORAGE-01 + UAT-E2E-01..03 + FIX-01..02 + PERF-01..02)
@@ -185,7 +185,7 @@
 Plans:
 - [x] 66-01-PLAN.md — Wave 0 RED contract tests + StorageProvider interface + Supabase provider + buildStorageKey helper (STORAGE-01, STORAGE-02, STORAGE-04)
 - [x] 66-02-PLAN.md — Migrate all 8 production call sites (logos → audio → photos → pdfs → wa-media) + 3 affected tests (STORAGE-03, STORAGE-04)
-- [ ] 66-03-PLAN.md — S3 provider skeleton + STORAGE_PROVIDER env gate + MinIO smoke script + docs/STORAGE-MIGRATION.md runbook (STORAGE-05, STORAGE-06, STORAGE-07)
+- [x] 66-03-PLAN.md — S3 provider skeleton + STORAGE_PROVIDER env gate + MinIO smoke script + docs/STORAGE-MIGRATION.md runbook (STORAGE-05, STORAGE-06, STORAGE-07)
 
 ### Phase 67: Inngest Background AI Job Processing
 **Goal**: All long-running AI calls (estimate generation, audio transcription, photo analysis) run as Inngest background jobs so the API routes return in under 1 second — unblocking the Vercel Free 10-second function timeout while keeping the same UX (live "Saving / Transcribing / Analyzing / Generating" progress) via job-status polling. Inngest is forward-compatible with the future Hetzner host (no swap needed at migration time).
@@ -200,7 +200,7 @@ Plans:
 **Plans**: 5 plans in `.planning/phases/67-inngest-background-ai-jobs/`
 Plans:
 - [x] 66-01-PLAN.md — Wave 0 RED test stubs + verify usage_events idempotency UNIQUE index
-- [ ] 66-02-PLAN.md — Inngest install + client + serve handler + 4 worker functions (generateEstimateJob, transcribeAudioJob, analyzePhotosJob, whatsAppProcessJob)
+- [x] 66-02-PLAN.md — Inngest install + client + serve handler + 4 worker functions (generateEstimateJob, transcribeAudioJob, analyzePhotosJob, whatsAppProcessJob)
 - [ ] 66-03-PLAN.md — Refactor 3 AI routes to dispatch + create new /api/transcribe + /api/jobs/[jobId] proxy
 - [ ] 66-04-PLAN.md — Refactor lib/whatsapp/handler.ts:processInboundMessages to dispatch via Inngest
 - [ ] 66-05-PLAN.md — useJobStatus hook + capture-recorder.tsx polling + docs/INNGEST-LOCAL-DEV.md
@@ -680,7 +680,7 @@ Plans:
 | 63. Stripe Live Mode Activation | v3.1 | 0/TBD | DEFERRED → v3.2 | - |
 | 64. Monitoring + Backup & Resilience | v3.1 | 0/TBD | DEFERRED → v3.2 | - |
 | 65. Production UAT + Bug Triage | v3.1 | 0/TBD | DEFERRED → v3.2 | - |
-| 66. Storage Abstraction Layer | v3.1.1 | 2/3 | In Progress|  |
+| 66. Storage Abstraction Layer | v3.1.1 | 3/3 | Complete   | 2026-05-15 |
 | 67. Inngest Background AI Job Processing | v3.1.1 | 0/TBD | Not started | - |
 | 68. Hetzner Cloud Deploy-Readiness Artifacts | v3.1.1 | 0/TBD | Not started | - |
 | 69. UAT Validation + Bug Triage + Perf Audit | v3.1.1 | 0/TBD | Not started | - |
