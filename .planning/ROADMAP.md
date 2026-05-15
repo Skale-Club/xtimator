@@ -681,6 +681,6 @@ Plans:
 | 64. Monitoring + Backup & Resilience | v3.1 | 0/TBD | DEFERRED → v3.2 | - |
 | 65. Production UAT + Bug Triage | v3.1 | 0/TBD | DEFERRED → v3.2 | - |
 | 66. Storage Abstraction Layer | v3.1.1 | 3/3 | Complete    | 2026-05-15 |
-| 67. Inngest Background AI Job Processing | v3.1.1 | 0/TBD | Not started | - |
+| 67. Inngest Background AI Job Processing | v3.1.1 | 1/5 | In Progress|  |
 | 68. Hetzner Cloud Deploy-Readiness Artifacts | v3.1.1 | 0/TBD | Not started | - |
 | 69. UAT Validation + Bug Triage + Perf Audit | v3.1.1 | 0/TBD | Not started | - |

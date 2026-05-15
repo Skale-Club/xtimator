@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v3.1.1
 milestone_name: MVP Launch Prep + Future-Proofing
-status: verifying
-last_updated: "2026-05-15T20:54:54.910Z"
+status: executing
+last_updated: "2026-05-15T21:10:39.779Z"
 last_activity: 2026-05-15
 progress:
   total_phases: 14
   completed_phases: 11
   total_plans: 22
-  completed_plans: 17
+  completed_plans: 18
 ---
 
 # Project State
@@ -21,9 +21,9 @@ progress:
 
 ## Current Position
 
-Phase: 67
-Plan: Not started
-Status: Phase complete — ready for verification
+Phase: 67 (Inngest Background AI Jobs) — EXECUTING
+Plan: 2 of 5
+Status: Ready to execute
 Last activity: 2026-05-15
 
 ## v3.1.1 Phases
@@ -376,6 +376,9 @@ Last activity: 2026-05-15
 - [Phase 66-storage-abstraction-layer]: S3 PutObject does not enforce upsert: false — documented as known behavioral diff (callers either use timestamped keys or want overwrite)
 - [Phase 66-storage-abstraction-layer]: Lazy require for S3 provider inside getServerStorage() — keeps AWS SDK off cold-start path while STORAGE_PROVIDER unset (Supabase remains default)
 - [Phase 66-storage-abstraction-layer]: MinIO smoke executed against in-process pure-Node S3 mock (Docker unavailable in dev env) — real @aws-sdk/client-s3 over real socket, functionally equivalent for the 4 ops we use
+- [Phase 67-inngest-background-ai-jobs]: [Phase 67-01]: Wave 0 RED stubs use bare expect.fail() rather than importing not-yet-existent production modules — keeps Wave 0 commit non-breaking and avoids module-resolution failures before implementation lands
+- [Phase 67-inngest-background-ai-jobs]: [Phase 67-01]: describe() titles prefixed with INNGEST-XX requirement ID for grep-based traceability across waves
+- [Phase 67-inngest-background-ai-jobs]: [Phase 67-01]: usage_events_idempotency partial UNIQUE index verified via Phase 56 migration source-of-truth (live psql skipped — .env.local target offline); no follow-up migration needed since the original is intact
 
 ## Performance Metrics
 
@@ -479,13 +482,14 @@ Last activity: 2026-05-15
 | Phase 66 P01 | 7m | 3 tasks | 7 files |
 | Phase 66-storage-abstraction-layer P02 | 22min | 3 tasks | 21 files |
 | Phase 66-storage-abstraction-layer P03 | 11min | 3 tasks | 5 files |
+| Phase 67-inngest-background-ai-jobs P01 | 30min | 1 tasks | 16 files |
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-13)
 
 **Core value:** Business owner → job site audio recording → sent professional estimate in under 5 minutes
-**Current focus:** Phase 66 — Storage Abstraction Layer
+**Current focus:** Phase 67 — Inngest Background AI Jobs
 
 ## Notes
 
