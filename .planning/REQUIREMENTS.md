@@ -29,7 +29,7 @@ Doing both refactors before any production deploy means the launch (separate v3.
 - [x] **INNGEST-05**: Frontend polls job status via `GET /api/jobs/[jobId]` — capture flow shows "Processing… (Saving / Transcribing / Analyzing / Generating)" stepper with real Inngest status feed
 - [ ] **INNGEST-06**: Inngest functions are idempotent — `step.run()` blocks used for each external call so retries don't double-charge AI providers; explicit `idempotencyKey` per job
 - [x] **INNGEST-07**: WhatsApp inbound handler refactored — long-running Whisper/Vision calls in `lib/whatsapp/handler.ts` dispatched via Inngest, not awaited inline (still <10s for the webhook ack)
-- [ ] **INNGEST-08**: Local dev workflow documented — `npx inngest-cli dev` runs alongside `npm run dev`, jobs visible in dashboard at `localhost:8288`
+- [x] **INNGEST-08**: Local dev workflow documented — `npx inngest-cli dev` runs alongside `npm run dev`, jobs visible in dashboard at `localhost:8288`
 
 ### STORAGE — Storage Provider Abstraction (forward-compat with Hetzner Object Storage)
 
@@ -131,7 +131,7 @@ Coverage: 39/39 (100%) — every v1 requirement maps to exactly one phase, no or
 | INNGEST-05 | Phase 67 | Complete |
 | INNGEST-06 | Phase 67 | Pending |
 | INNGEST-07 | Phase 67 | Complete |
-| INNGEST-08 | Phase 67 | Pending |
+| INNGEST-08 | Phase 67 | Complete |
 | HETZNER-01 | Phase 68 | Pending |
 | HETZNER-02 | Phase 68 | Pending |
 | HETZNER-03 | Phase 68 | Pending |

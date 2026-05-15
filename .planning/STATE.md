@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v3.1.1
 milestone_name: MVP Launch Prep + Future-Proofing
 status: executing
-last_updated: "2026-05-15T22:18:50.193Z"
+last_updated: "2026-05-15T22:29:08.065Z"
 last_activity: 2026-05-15
 progress:
   total_phases: 14
-  completed_phases: 11
+  completed_phases: 12
   total_plans: 22
-  completed_plans: 21
+  completed_plans: 22
 ---
 
 # Project State
@@ -22,7 +22,7 @@ progress:
 ## Current Position
 
 Phase: 67 (Inngest Background AI Jobs) — EXECUTING
-Plan: 4 of 5
+Plan: 5 of 5
 Status: Ready to execute
 Last activity: 2026-05-15
 
@@ -384,6 +384,8 @@ Last activity: 2026-05-15
 - [Phase 67-inngest-background-ai-jobs]: transcribeRecording shape changed from { transcript } to { jobId }; capture-recorder.tsx shim with TODO(67-05) for polling rewire
 - [Phase 67-inngest-background-ai-jobs]: Lazy await-import of inngest client inside processInboundMessages — keeps handler import graph slim and decouples future Inngest function additions from the webhook hot path
 - [Phase 67-inngest-background-ai-jobs]: Pre-flight (entitlements + draft project insert) stays in handler.ts; only AI work moves to Inngest — guarantees free-tier rejection is synchronous and avoids orphan drafts from worker races
+- [Phase 67]: useJobStatus hook + standalone pollJob helper exported from hooks/use-job-status.ts — React vs imperative consumers
+- [Phase 67]: Stage progression: setStage('analyzing') BEFORE dispatch, setStage('generating') AFTER receiving { jobId } — visible distinction between dispatch wait and worker execution
 
 ## Performance Metrics
 
@@ -490,6 +492,7 @@ Last activity: 2026-05-15
 | Phase 67-inngest-background-ai-jobs P01 | 30min | 1 tasks | 16 files |
 | Phase 67-inngest-background-ai-jobs P03 | 8 | 3 tasks | 13 files |
 | Phase 67-inngest-background-ai-jobs P04 | 3 | 1 tasks | 3 files |
+| Phase 67 P05 | 6m | 3 tasks | 6 files |
 
 ## Project Reference
 
