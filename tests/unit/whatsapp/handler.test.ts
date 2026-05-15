@@ -1,15 +1,32 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
+/**
+ * Phase 67 (INNGEST-07): handler.ts is dispatch-only.
+ *
+ * After Plan 67-04 refactor, processInboundMessage:
+ *   1. UX feedback (markMessageAsRead + sendTypingIndicator)
+ *   2. Session gate — if awaiting_confirm, delegate to processConfirmationReply
+ *   3. Otherwise delegate to processInboundMessages([msg]) which:
+ *      - Entitlement gate (free tier rejection — no orphan drafts)
+ *      - Draft project insert
+ *      - inngest.send({ name: 'whatsapp/process.requested', ... })
+ *
+ * Inline Whisper / Vision / generate-estimate / session-create / confirmation-reply
+ * moved to the whatsAppProcessJob Inngest function (Plan 67-02). Those flows are
+ * covered by tests/unit/inngest/* — not retested here.
+ */
+
+const mockInngestSend = vi.fn().mockResolvedValue({ ids: ['evt-1'] })
+vi.mock('@/lib/inngest/client', () => ({
+  inngest: { send: (...args: unknown[]) => mockInngestSend(...args) },
+}))
+
 vi.mock('@/lib/entitlements', () => ({
   getEntitlements: vi.fn(),
 }))
 
-vi.mock('@/lib/services/generate-estimate', () => ({
-  generateEstimateForProject: vi.fn(),
-}))
-
 vi.mock('@/lib/whatsapp/client', () => ({
-  sendWhatsAppMessage: vi.fn(),
+  sendWhatsAppMessage: vi.fn().mockResolvedValue(undefined),
   downloadWhatsAppMedia: vi.fn(),
   markMessageAsRead: vi.fn().mockResolvedValue(undefined),
   sendTypingIndicator: vi.fn().mockResolvedValue(undefined),
@@ -19,52 +36,39 @@ vi.mock('@/lib/whatsapp/confirm', () => ({
   processConfirmationReply: vi.fn(),
 }))
 
-vi.mock('@/lib/platform-config', () => ({
-  getIntegrationKey: vi.fn(),
-}))
-
-const mockAnthropicCreate = vi.fn()
-vi.mock('@anthropic-ai/sdk', () => ({
-  default: class MockAnthropic {
-    messages = { create: (...args: unknown[]) => mockAnthropicCreate(...args) }
-  },
-}))
-
 import { processInboundMessage } from '@/lib/whatsapp/handler'
-import { generateEstimateForProject } from '@/lib/services/generate-estimate'
-import { sendWhatsAppMessage, downloadWhatsAppMedia } from '@/lib/whatsapp/client'
+import { sendWhatsAppMessage } from '@/lib/whatsapp/client'
 import { processConfirmationReply } from '@/lib/whatsapp/confirm'
-import { getIntegrationKey } from '@/lib/platform-config'
 import { getEntitlements } from '@/lib/entitlements'
 import type { WhatsAppMessage } from '@/lib/whatsapp/types'
 
-const mockGenerate = vi.mocked(generateEstimateForProject)
 const mockSend = vi.mocked(sendWhatsAppMessage)
 const mockConfirm = vi.mocked(processConfirmationReply)
-const mockDownload = vi.mocked(downloadWhatsAppMedia)
-const mockGetKey = vi.mocked(getIntegrationKey)
 const mockGetEntitlements = vi.mocked(getEntitlements)
 
 function makeSupabaseMock({
   existingSession = null,
   projectId = 'project-wa-1',
-  estimateId = 'estimate-wa-1',
   companyTier = 'trial',
 }: {
   existingSession?: object | null
   projectId?: string
-  estimateId?: string
   companyTier?: string
 } = {}) {
-  const insertSpy = vi.fn().mockResolvedValue({ error: null })
-  const deleteSpy = vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) })
+  const projectInsertSpy = vi.fn().mockReturnValue({
+    select: vi.fn().mockReturnValue({
+      single: vi.fn().mockResolvedValue({ data: { id: projectId }, error: null }),
+    }),
+  })
 
   const fromMock = vi.fn().mockImplementation((table: string) => {
     if (table === 'companies') {
       return {
         select: vi.fn().mockReturnValue({
           eq: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({ data: { tier: companyTier }, error: null }),
+            single: vi
+              .fn()
+              .mockResolvedValue({ data: { tier: companyTier }, error: null }),
           }),
         }),
       }
@@ -78,88 +82,26 @@ function makeSupabaseMock({
               gt: vi.fn().mockReturnValue({
                 order: vi.fn().mockReturnValue({
                   limit: vi.fn().mockReturnValue({
-                    single: vi.fn().mockResolvedValue({ data: existingSession, error: null }),
+                    single: vi
+                      .fn()
+                      .mockResolvedValue({ data: existingSession, error: null }),
                   }),
                 }),
               }),
             }),
           }),
         }),
-        insert: insertSpy,
       }
     }
 
     if (table === 'projects') {
-      return {
-        insert: vi.fn().mockReturnValue({
-          select: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({
-              data: { id: projectId },
-              error: null,
-            }),
-          }),
-        }),
-        delete: deleteSpy,
-      }
+      return { insert: projectInsertSpy }
     }
 
-    if (table === 'recordings') {
-      return { insert: insertSpy }
-    }
-
-    if (table === 'photos') {
-      return {
-        insert: insertSpy,
-        storage: {
-          from: vi.fn().mockReturnValue({
-            upload: vi.fn().mockResolvedValue({ error: null }),
-          }),
-        },
-      }
-    }
-
-    if (table === 'estimates') {
-      return {
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({
-              data: {
-                total: 2500,
-                summary: 'Kitchen renovation',
-                sections: [{ title: 'Labor', subtotal: 1500 }, { title: 'Materials', subtotal: 1000 }],
-              },
-              error: null,
-            }),
-          }),
-        }),
-      }
-    }
-
-    return {
-      insert: insertSpy,
-      select: vi.fn().mockReturnValue({
-        eq: vi.fn().mockResolvedValue({ data: null, error: null }),
-      }),
-    }
+    return { insert: vi.fn().mockResolvedValue({ error: null }) }
   })
 
-  // Storage mock at top-level supabase
-  const storageMock = {
-    from: vi.fn().mockReturnValue({
-      upload: vi.fn().mockResolvedValue({ error: null }),
-    }),
-  }
-
-  return { fromMock, insertSpy, deleteSpy, storageMock }
-}
-
-function makeSupabase(opts?: Parameters<typeof makeSupabaseMock>[0]) {
-  const { fromMock, storageMock, insertSpy, deleteSpy } = makeSupabaseMock(opts)
-  return {
-    client: { from: fromMock, storage: storageMock } as never,
-    insertSpy,
-    deleteSpy,
-  }
+  return { client: { from: fromMock } as never, projectInsertSpy }
 }
 
 const TEXT_MESSAGE: WhatsAppMessage = {
@@ -186,19 +128,10 @@ const IMAGE_MESSAGE: WhatsAppMessage = {
   image: { id: 'media-img-id', mime_type: 'image/jpeg', caption: 'broken tile' },
 }
 
-describe('processInboundMessage', () => {
+describe('processInboundMessage (handler.ts — dispatch-only after Plan 67-04)', () => {
   beforeEach(() => {
-    vi.resetAllMocks()
-    mockGenerate.mockResolvedValue({
-      estimateId: 'estimate-wa-1',
-      version: 1,
-      clientSuggestion: null,
-      language: 'en',
-    })
-    mockSend.mockResolvedValue(undefined)
-    mockConfirm.mockResolvedValue(undefined)
-    mockAnthropicCreate.mockReset()
-    // Default: WhatsApp-enabled tier (trial)
+    vi.clearAllMocks()
+    mockInngestSend.mockResolvedValue({ ids: ['evt-1'] })
     mockGetEntitlements.mockReturnValue({
       whatsappEnabled: true,
       maxEstimatesPerMonth: null,
@@ -212,146 +145,103 @@ describe('processInboundMessage', () => {
   })
 
   describe('awaiting_confirm session gate', () => {
-    it('delegates text reply to processConfirmationReply and does not generate estimate', async () => {
+    it('delegates text reply to processConfirmationReply and does not dispatch', async () => {
       mockConfirm.mockResolvedValue(undefined)
-      const { client } = makeSupabase({
-        existingSession: { id: 'session-1', state: 'awaiting_confirm', draft_project_id: 'p-1', draft_estimate_id: 'e-1' },
+      const { client } = makeSupabaseMock({
+        existingSession: {
+          id: 'session-1',
+          state: 'awaiting_confirm',
+          draft_project_id: 'p-1',
+          draft_estimate_id: 'e-1',
+        },
       })
 
       await processInboundMessage(TEXT_MESSAGE, 'company-1', '15551234567', client)
 
       expect(mockConfirm).toHaveBeenCalledOnce()
-      expect(mockGenerate).not.toHaveBeenCalled()
+      expect(mockInngestSend).not.toHaveBeenCalled()
     })
 
     it('sends reminder for non-text messages during awaiting_confirm', async () => {
-      const { client } = makeSupabase({
-        existingSession: { id: 'session-1', state: 'awaiting_confirm', draft_project_id: 'p-1', draft_estimate_id: 'e-1' },
+      const { client } = makeSupabaseMock({
+        existingSession: {
+          id: 'session-1',
+          state: 'awaiting_confirm',
+          draft_project_id: 'p-1',
+          draft_estimate_id: 'e-1',
+        },
       })
 
-      const audioMsg: WhatsAppMessage = { id: 'wamid.x', from: '15551234567', timestamp: '0', type: 'audio', audio: { id: 'x', mime_type: 'audio/ogg' } }
-      await processInboundMessage(audioMsg, 'company-1', '15551234567', client)
+      await processInboundMessage(AUDIO_MESSAGE, 'company-1', '15551234567', client)
 
       expect(mockSend).toHaveBeenCalledOnce()
-      expect(mockGenerate).not.toHaveBeenCalled()
+      expect(mockInngestSend).not.toHaveBeenCalled()
     })
   })
 
-  describe('text message', () => {
-    it('creates recording from text body, generates estimate, creates session, sends summary', async () => {
-      const { client, insertSpy } = makeSupabase()
+  describe('dispatch path (no session)', () => {
+    it('dispatches text message via inngest.send with batch payload', async () => {
+      const { client } = makeSupabaseMock({ projectId: 'proj-text' })
 
       await processInboundMessage(TEXT_MESSAGE, 'company-1', '15551234567', client)
 
-      // Recording inserted
-      expect(insertSpy).toHaveBeenCalledWith(
-        expect.objectContaining({ transcript: TEXT_MESSAGE.text!.body })
-      )
-
-      // Estimate generated
-      expect(mockGenerate).toHaveBeenCalledWith('company-1', 'project-wa-1')
-
-      // Session created with awaiting_confirm
-      expect(insertSpy).toHaveBeenCalledWith(
-        expect.objectContaining({ state: 'awaiting_confirm' })
-      )
-
-      // Confirmation sent to owner
-      expect(mockSend).toHaveBeenCalledWith('+15551234567', expect.any(Object))
-      const confirmBody = (mockSend.mock.calls[0][1] as { text: { body: string } }).text.body
-      expect(confirmBody).toMatch(/\$2,500/)
-      expect(confirmBody).toMatch(/send/)
+      expect(mockInngestSend).toHaveBeenCalledOnce()
+      const event = mockInngestSend.mock.calls[0][0] as {
+        name: string
+        id: string
+        data: {
+          companyId: string
+          projectId: string
+          ownerPhone: string
+          messages: unknown[]
+        }
+      }
+      expect(event.name).toBe('whatsapp/process.requested')
+      expect(event.id).toBe('wa-batch-wamid.abc')
+      expect(event.data.companyId).toBe('company-1')
+      expect(event.data.projectId).toBe('proj-text')
+      expect(event.data.ownerPhone).toBe('+15551234567')
+      expect(event.data.messages).toHaveLength(1)
     })
-  })
 
-  describe('audio message', () => {
-    it('transcribes audio via Whisper, creates recording, generates estimate', async () => {
-      mockGetKey.mockResolvedValue('sk-openai-test')
-      mockDownload.mockResolvedValue(Buffer.from('fake-audio'))
-
+    it('dispatches audio message without any inline Whisper / OpenAI fetch', async () => {
       const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue({
         ok: true,
-        text: async () => 'Replace the kitchen cabinets',
+        text: async () => '',
       } as Response)
 
-      const { client } = makeSupabase()
-
+      const { client } = makeSupabaseMock()
       await processInboundMessage(AUDIO_MESSAGE, 'company-1', '15551234567', client)
 
-      expect(mockDownload).toHaveBeenCalledWith('media-audio-id')
-      expect(fetchSpy).toHaveBeenCalledWith(
-        'https://api.openai.com/v1/audio/transcriptions',
-        expect.any(Object)
+      const openaiCalls = fetchSpy.mock.calls.filter((c) =>
+        String(c[0]).includes('api.openai.com')
       )
-      expect(mockGenerate).toHaveBeenCalledWith('company-1', 'project-wa-1')
-      expect(mockSend).toHaveBeenCalledWith('+15551234567', expect.any(Object))
+      expect(openaiCalls.length).toBe(0)
+      expect(mockInngestSend).toHaveBeenCalledOnce()
 
       fetchSpy.mockRestore()
     })
 
-    it('sends error and cleans up project when Whisper fails', async () => {
-      mockGetKey.mockResolvedValue('sk-openai-test')
-      mockDownload.mockResolvedValue(Buffer.from('fake-audio'))
-
-      const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue({
-        ok: false,
-        text: async () => 'Rate limit',
-      } as Response)
-
-      const { client, deleteSpy } = makeSupabase()
-
-      await processInboundMessage(AUDIO_MESSAGE, 'company-1', '15551234567', client)
-
-      expect(mockGenerate).not.toHaveBeenCalled()
-      const sentBody = (mockSend.mock.calls[0][1] as { text: { body: string } }).text.body
-      expect(sentBody).toMatch(/trouble/)
-      expect(deleteSpy).toHaveBeenCalled()
-
-      fetchSpy.mockRestore()
-    })
-  })
-
-  describe('image message', () => {
-    it('downloads image, runs Claude Vision, saves photo, generates estimate', async () => {
-      mockGetKey.mockResolvedValue('anthropic-key-test')
-      mockDownload.mockResolvedValue(Buffer.from('fake-image'))
-      mockAnthropicCreate.mockResolvedValue({
-        content: [{ type: 'text', text: 'Cracked tile near window, needs replacement.' }],
-      })
-
-      const { client } = makeSupabase()
-
+    it('dispatches image message without any inline Vision / Anthropic call', async () => {
+      const { client } = makeSupabaseMock()
       await processInboundMessage(IMAGE_MESSAGE, 'company-1', '15551234567', client)
 
-      expect(mockDownload).toHaveBeenCalledWith('media-img-id')
-      expect(mockAnthropicCreate).toHaveBeenCalledOnce()
-      expect(mockGenerate).toHaveBeenCalledWith('company-1', 'project-wa-1')
-      expect(mockSend).toHaveBeenCalledWith('+15551234567', expect.any(Object))
-    })
-  })
-
-  describe('unknown message type', () => {
-    it('sends help message and does not generate estimate', async () => {
-      const unknownMessage: WhatsAppMessage = {
-        id: 'wamid.unknown',
-        from: '15551234567',
-        timestamp: '1234567890',
-        type: 'unknown',
+      expect(mockInngestSend).toHaveBeenCalledOnce()
+      const event = mockInngestSend.mock.calls[0][0] as {
+        data: { messages: WhatsAppMessage[] }
       }
+      expect(event.data.messages[0]?.type).toBe('image')
+    })
 
-      const { client, deleteSpy } = makeSupabase()
-
-      await processInboundMessage(unknownMessage, 'company-1', '15551234567', client)
-
-      expect(mockGenerate).not.toHaveBeenCalled()
-      const sentBody = (mockSend.mock.calls[0][1] as { text: { body: string } }).text.body
-      expect(sentBody).toMatch(/audio|text|photo/i)
-      expect(deleteSpy).toHaveBeenCalled()
+    it('creates one draft project before dispatch (pre-flight stays)', async () => {
+      const { client, projectInsertSpy } = makeSupabaseMock()
+      await processInboundMessage(TEXT_MESSAGE, 'company-1', '15551234567', client)
+      expect(projectInsertSpy).toHaveBeenCalledOnce()
     })
   })
 
   describe('WhatsApp entitlement gate', () => {
-    it('rejects processing before any download when whatsappEnabled is false', async () => {
+    it('rejects free tier before any dispatch and sends upgrade message', async () => {
       mockGetEntitlements.mockReturnValue({
         whatsappEnabled: false,
         maxEstimatesPerMonth: 10,
@@ -362,16 +252,19 @@ describe('processInboundMessage', () => {
         priceBookEnabled: false,
         customDomainEnabled: false,
       })
-      const { client } = makeSupabase({ companyTier: 'free' })
-      const audioMessage: WhatsAppMessage = { id: 'msg-1', from: '15551234567', timestamp: '0', type: 'audio', audio: { id: 'aud-1', mime_type: 'audio/ogg' } }
-      await processInboundMessage(audioMessage, 'company-1', '15551234567', client)
-      expect(mockDownload).not.toHaveBeenCalled()
-      expect(mockGenerate).not.toHaveBeenCalled()
+
+      const { client, projectInsertSpy } = makeSupabaseMock({ companyTier: 'free' })
+      await processInboundMessage(AUDIO_MESSAGE, 'company-1', '15551234567', client)
+
+      expect(projectInsertSpy).not.toHaveBeenCalled()
+      expect(mockInngestSend).not.toHaveBeenCalled()
       expect(mockSend).toHaveBeenCalledWith(
         '+15551234567',
         expect.objectContaining({
           type: 'text',
-          text: expect.objectContaining({ body: expect.stringContaining('/settings/billing') }),
+          text: expect.objectContaining({
+            body: expect.stringContaining('/settings/billing'),
+          }),
         })
       )
     })
