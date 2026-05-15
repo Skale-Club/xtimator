@@ -18,12 +18,19 @@ A business owner can go from job site audio recording to a sent, professional es
 
 Complete subscription system: Free/Trial/Pro/Business tiers, `usage_events` tracking, `checkQuota`/`recordUsage` enforcement across all AI routes and WhatsApp handler, Stripe checkout + portal + webhook lifecycle, `/settings/billing` UI with trial banner and 402 upgrade modal, hourly trial expiry cron + T-3/T-0 warning emails, admin force-tier + bonus credits + MRR view. 6 phases, 24/24 requirements satisfied.
 
-## Current Milestone: (none — awaiting next priorities)
+## Current Milestone: v3.1 Production Go-Live
+
+**Goal:** Tirar o Xtimator do dev/test e colocar em produção real, com pagamentos reais, monitoring e UAT completo — destrava o primeiro cliente pagante.
+
+**Target features:**
+- **Stripe live mode** — webhook live em xtimator.com (SEED-017 ativado), products + price IDs criados, env var `STRIPE_WEBHOOK_SECRET` no Vercel produção
+- **Production deployment** — Vercel pipeline configurado, custom domain xtimator.com apontado (DNS + SSL), env vars completos em prod
+- **Database production** — todas migrações Supabase aplicadas em prod (fases 19-60), primeiro super-admin bootstrapado, Supabase PITR ativado
+- **Monitoring & observability** — Sentry (errors), Vercel Analytics (perf/web vitals), uptime check externo
+- **UAT completo** — smoke test end-to-end de v2.2 + v3.0 (audio→estimate→share→trial→upgrade→pay), bug fixes encontrados durante UAT
+- **Backup & resilience** — Supabase PITR, status page mínima, runbook de incidentes
 
 **Last shipped:** Phase 60 — Trial Automation + Admin Tooling (2026-05-14)
-- Admin tooling: force tier, grant bonus credits, view MRR
-
-**Last shipped:** Phase 54 — WhatsApp Status Flow (2026-05-13)
 
 ## Current State
 
@@ -199,4 +206,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context
 
 ---
-*Last updated: 2026-05-14 — v3.0 Monetization milestone complete*
+*Last updated: 2026-05-15 — v3.1 Production Go-Live milestone started*
