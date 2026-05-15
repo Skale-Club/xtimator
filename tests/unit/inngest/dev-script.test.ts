@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 
 /**
- * INNGEST-08: package.json dev:inngest script (Wave 0 RED stub).
+ * INNGEST-08: package.json dev:inngest script (Wave 1 GREEN).
  *
  * Plan 67-02 adds a `dev:inngest` script to package.json that runs the
  * inngest-cli dev server pointed at the Next.js dev port. Contract:
@@ -12,6 +14,12 @@ import { describe, it, expect } from 'vitest'
  */
 describe('INNGEST-08: package.json dev:inngest script', () => {
   it('package.json scripts.dev:inngest contains the URL "http://localhost:9633/api/inngest"', () => {
-    expect.fail('not implemented — Wave 1 (Plan 67-02) adds dev:inngest script to package.json')
+    const pkgPath = resolve(process.cwd(), 'package.json')
+    const pkg = JSON.parse(readFileSync(pkgPath, 'utf8')) as {
+      scripts: Record<string, string>
+    }
+    expect(pkg.scripts).toBeDefined()
+    expect(pkg.scripts['dev:inngest']).toBeDefined()
+    expect(pkg.scripts['dev:inngest']).toContain('http://localhost:9633/api/inngest')
   })
 })
