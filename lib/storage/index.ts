@@ -84,3 +84,55 @@ import { createSupabaseStorageProvider } from './supabase-provider'
 export function createStorage(client: SupabaseClient): StorageProvider {
   return createSupabaseStorageProvider(client)
 }
+
+/**
+ * STORAGE-05/07: server-side default storage provider.
+ *
+ * Reads `process.env.STORAGE_PROVIDER`:
+ *   - 'supabase' (default, omitted, or any other value): wraps the
+ *     service-role Supabase client.
+ *   - 's3': uses createS3StorageProvider() with S3_* env vars
+ *     (see .env.local.example for the full set; see
+ *     docs/STORAGE-MIGRATION.md for the runbook).
+ *
+ * Use this in server-only contexts where the Supabase client isn't
+ * already in hand — e.g. health check, smoke script, future Inngest
+ * workers (Phase 67), `/api/health` storage probe (Phase 68).
+ *
+ * Browser code MUST continue using `createStorage(supabaseBrowserClient)` —
+ * the env-var path is server-only because S3 credentials must never reach
+ * the browser.
+ */
+export function getServerStorage(): StorageProvider {
+  const provider = process.env.STORAGE_PROVIDER ?? 'supabase'
+  if (provider === 's3') {
+    // Lazy require so the AWS SDK isn't loaded unless actually needed.
+    // Keeps the cold-start cost off the Supabase default path.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { createS3StorageProvider } =
+      require('./s3-provider') as typeof import('./s3-provider')
+    return createS3StorageProvider({
+      endpoint: requireEnv('S3_ENDPOINT'),
+      region: requireEnv('S3_REGION'),
+      accessKeyId: requireEnv('S3_ACCESS_KEY_ID'),
+      secretAccessKey: requireEnv('S3_SECRET_ACCESS_KEY'),
+      forcePathStyle: process.env.S3_FORCE_PATH_STYLE !== 'false',
+      publicUrlBase: process.env.S3_PUBLIC_URL_BASE,
+    })
+  }
+  // Default: Supabase via service-role client.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { requireServiceClient } =
+    require('@/lib/supabase/service') as typeof import('@/lib/supabase/service')
+  return createStorage(requireServiceClient())
+}
+
+function requireEnv(name: string): string {
+  const v = process.env[name]
+  if (!v) {
+    throw new Error(
+      `getServerStorage: missing required env var ${name} (STORAGE_PROVIDER=s3)`,
+    )
+  }
+  return v
+}
