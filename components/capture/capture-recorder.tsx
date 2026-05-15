@@ -24,6 +24,7 @@ import {
   storeClientSuggestion,
   type GenerateEstimateResponse,
 } from '@/components/workspace/estimate/client-suggestion-toast'
+import { pollJob } from '@/hooks/use-job-status'
 
 // Duration constants — D-06, D-07
 export const HARD_CAP_MS  = 10 * 60 * 1000   // 600000  D-06 — auto-stop
@@ -194,26 +195,30 @@ export function CaptureRecorder({ project, companyId, projectId }: CaptureRecord
   }, [companyId, projectId, uploadedPhotos.length])
 
   // Trigger estimate generation (shared by text-only and photos-only paths)
+  // Phase 67: route now returns { jobId }; poll until terminal, then read output.
   const triggerEstimateGeneration = useCallback(async () => {
     try {
-      const res = await fetch('/api/generate-estimate', {
+      const dispatchRes = await fetch('/api/generate-estimate', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ projectId }),
         signal: abortControllerRef.current.signal,
       })
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
+      if (!dispatchRes.ok) {
+        const body = await dispatchRes.json().catch(() => ({}))
         failAt('generating', (body as { error?: string }).error ?? 'Estimate generation failed')
         return
       }
+      const { jobId } = (await dispatchRes.json()) as { jobId: string }
+
+      // Poll Inngest until the function reports terminal status.
+      const output = (await pollJob(jobId, abortControllerRef.current.signal)) as GenerateEstimateResponse
       setStage('done')
-      const data = await res.json() as GenerateEstimateResponse
-      storeClientSuggestion(projectId, data.clientSuggestion)
-      router.push(`/projects/${projectId}?tab=estimate&estimate=${data.estimateId}`)
+      storeClientSuggestion(projectId, output.clientSuggestion)
+      router.push(`/projects/${projectId}?tab=estimate&estimate=${output.estimateId}`)
     } catch (err) {
       if ((err as Error).name === 'AbortError') return
-      failAt('generating', 'Estimate generation failed')
+      failAt('generating', (err as Error).message ?? 'Estimate generation failed')
     }
   }, [projectId, router])
 
@@ -242,48 +247,55 @@ export function CaptureRecorder({ project, companyId, projectId }: CaptureRecord
     const created = await createRecording(projectId, storagePath, Math.floor(elapsedMs / 1000))
     if ('error' in created) { failAt('saving', created.error ?? 'Failed to save recording'); return }
 
-    // Transcribe
-    // NOTE: Phase 67 — `transcribeRecording` now dispatches to Inngest and returns
-    // { jobId } instead of { transcript }. Plan 67-05 will replace this block
-    // with a polling hook against GET /api/jobs/{jobId}. For now we keep the
-    // dispatch and read back the recording row to get the transcript once the
-    // worker has updated it. Until Plan 05 ships, this path is best-effort —
-    // the worker may not have finished yet when we read.
+    // Transcribe — Phase 67: dispatch returns { jobId }, poll until terminal.
     setStage('transcribing')
-    const transcribed = await transcribeRecording(created.data.id as string)
-    if ('error' in transcribed) { failAt('transcribing', transcribed.error ?? 'Transcription failed'); return }
-    // TODO(67-05): poll GET /api/jobs/{transcribed.data.jobId} until status=Completed
-    // then read transcript from the recording row.
-    const transcribedData = transcribed.data as { jobId?: string; transcript?: string }
-    const transcript = transcribedData.transcript
-    if (!transcript?.trim()) {
-      failAt('transcribing', "We couldn't catch your description — please try again or edit manually.")
+    const dispatched = await transcribeRecording(created.data.id as string)
+    if ('error' in dispatched) {
+      failAt('transcribing', dispatched.error ?? 'Transcription dispatch failed')
       return
     }
-    setTranscript(transcript)
+    try {
+      const transcribeOutput = (await pollJob(
+        (dispatched.data as { jobId: string }).jobId,
+        abortControllerRef.current.signal
+      )) as { transcript: string }
+      if (!transcribeOutput.transcript?.trim()) {
+        failAt('transcribing', "We couldn't catch your description — please try again or edit manually.")
+        return
+      }
+      setTranscript(transcribeOutput.transcript)
+    } catch (err) {
+      if ((err as Error).name === 'AbortError') return
+      failAt('transcribing', (err as Error).message ?? 'Transcription failed')
+      return
+    }
 
-    // Generate estimate
+    // Generate estimate — Phase 67: dispatch + poll.
     setStage('analyzing')
     try {
-      const res = await fetch('/api/generate-estimate', {
+      const dispatchRes = await fetch('/api/generate-estimate', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ projectId }),
         signal: abortControllerRef.current.signal,
       })
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
+      if (!dispatchRes.ok) {
+        const body = await dispatchRes.json().catch(() => ({}))
         failAt('analyzing', (body as { error?: string }).error ?? 'Estimate generation failed')
         return
       }
+      const { jobId } = (await dispatchRes.json()) as { jobId: string }
+
+      // Stepper progression: dispatch accepted → flip to "generating" while we poll.
       setStage('generating')
-      const data = await res.json() as GenerateEstimateResponse
-      storeClientSuggestion(projectId, data.clientSuggestion)
+
+      const output = (await pollJob(jobId, abortControllerRef.current.signal)) as GenerateEstimateResponse
+      storeClientSuggestion(projectId, output.clientSuggestion)
       setStage('done')
-      router.push(`/projects/${projectId}?tab=estimate&estimate=${data.estimateId}`)
+      router.push(`/projects/${projectId}?tab=estimate&estimate=${output.estimateId}`)
     } catch (err) {
       if ((err as Error).name === 'AbortError') return  // unmount; not a user-facing failure
-      failAt('analyzing', 'Estimate generation failed')
+      failAt('analyzing', (err as Error).message ?? 'Estimate generation failed')
     }
   }, [companyId, projectId, elapsedMs, router])
 

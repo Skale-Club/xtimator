@@ -15,8 +15,7 @@ import { useJobStatus, pollJob } from '@/hooks/use-job-status'
 describe('INNGEST-05: useJobStatus hook', () => {
   beforeEach(() => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
-    // @ts-expect-error — replace global fetch in tests
-    globalThis.fetch = vi.fn()
+    globalThis.fetch = vi.fn() as unknown as typeof fetch
   })
 
   afterEach(() => {

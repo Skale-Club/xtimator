@@ -9,6 +9,7 @@ import { getSupportedAudioMimeType, getFileExtension, formatDuration } from '@/l
 import { createClient } from '@/lib/supabase/client'
 import { createStorage } from '@/lib/storage'
 import { createRecording, transcribeRecording } from '@/lib/actions/recording'
+import { pollJob } from '@/hooks/use-job-status'
 import type { Recording } from '@/lib/queries/recording'
 
 interface AudioRecorderProps {
@@ -259,15 +260,29 @@ export function AudioRecorder({ projectId, companyId, onRecordingCreated, onTran
       // Notify parent about new recording (with null transcript for now)
       onRecordingCreated(result.data as Recording)
 
-      // Transcribe in background
+      // Phase 67: transcribeRecording now dispatches to Inngest and returns { jobId }.
+      // Show "queued" toast immediately, then poll until terminal so the
+      // success/failure toast reflects actual completion.
       const transcribeResult = await transcribeRecording(result.data.id)
-      setIsTranscribing(false)
-      onTranscribing?.(null)
 
       if ('error' in transcribeResult) {
+        setIsTranscribing(false)
+        onTranscribing?.(null)
         toast.error('Transcription failed. You can retry from the recording.')
       } else {
-        toast.success('Recording transcribed successfully!')
+        toast.info('Transcription queued...')
+        try {
+          const controller = new AbortController()
+          await pollJob(transcribeResult.data.jobId, controller.signal)
+          toast.success('Recording transcribed successfully!')
+        } catch (err) {
+          if ((err as Error).name !== 'AbortError') {
+            toast.error('Transcription failed. You can retry from the recording.')
+          }
+        } finally {
+          setIsTranscribing(false)
+          onTranscribing?.(null)
+        }
       }
 
       // Reset recorder state for next recording
