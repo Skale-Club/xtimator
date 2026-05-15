@@ -570,7 +570,13 @@ Plans:
   3. Every external AI call inside an Inngest function is wrapped in `step.run()` with an explicit `idempotencyKey` so a retry never double-charges Anthropic / OpenAI
   4. The WhatsApp inbound handler dispatches Whisper / Vision work via Inngest instead of awaiting it inline — the webhook ack returns to Meta in well under 10 seconds even on long voice notes
   5. A developer running `npx inngest-cli dev` alongside `npm run dev` sees jobs land at `localhost:8288` with full execution traces; the local workflow is documented in repo (e.g. `docs/INNGEST-LOCAL-DEV.md` or README addendum)
-**Plans**: TBD
+**Plans**: 5 plans (directory: `.planning/phases/66-inngest-background-ai-jobs/` — orchestrator framed as Phase 66 in the active workflow)
+Plans:
+- [ ] 66-01-PLAN.md — Wave 0 RED test stubs + verify usage_events idempotency UNIQUE index
+- [ ] 66-02-PLAN.md — Inngest install + client + serve handler + 4 worker functions (generateEstimateJob, transcribeAudioJob, analyzePhotosJob, whatsAppProcessJob)
+- [ ] 66-03-PLAN.md — Refactor 3 AI routes to dispatch + create new /api/transcribe + /api/jobs/[jobId] proxy
+- [ ] 66-04-PLAN.md — Refactor lib/whatsapp/handler.ts:processInboundMessages to dispatch via Inngest
+- [ ] 66-05-PLAN.md — useJobStatus hook + capture-recorder.tsx polling + docs/INNGEST-LOCAL-DEV.md
 **UI hint**: yes
 
 ### Phase 68: Hetzner Cloud Deploy-Readiness Artifacts
