@@ -23,10 +23,10 @@ Doing both refactors before any production deploy means the launch (separate v3.
 ### INNGEST — Background AI Job Processing
 
 - [ ] **INNGEST-01**: `inngest` SDK installed; `lib/inngest/client.ts` exports configured client; `app/api/inngest/route.ts` registers worker functions and is publicly reachable
-- [ ] **INNGEST-02**: `/api/generate-estimate` POST returns `{ jobId }` in <1s — actual estimate generation moved to `generateEstimateJob` Inngest function (no timeout); `usage_events` recorded only on job success
-- [ ] **INNGEST-03**: `/api/transcribe` POST returns `{ jobId }` in <1s — Whisper call moved to `transcribeAudioJob` Inngest function; result polled via `GET /api/jobs/:id` or pushed via SSE
-- [ ] **INNGEST-04**: `/api/analyze-photos` POST returns `{ jobId }` — Vision call moved to `analyzePhotosJob` Inngest function
-- [ ] **INNGEST-05**: Frontend polls job status via `GET /api/jobs/[jobId]` — capture flow shows "Processing… (Saving / Transcribing / Analyzing / Generating)" stepper with real Inngest status feed
+- [x] **INNGEST-02**: `/api/generate-estimate` POST returns `{ jobId }` in <1s — actual estimate generation moved to `generateEstimateJob` Inngest function (no timeout); `usage_events` recorded only on job success
+- [x] **INNGEST-03**: `/api/transcribe` POST returns `{ jobId }` in <1s — Whisper call moved to `transcribeAudioJob` Inngest function; result polled via `GET /api/jobs/:id` or pushed via SSE
+- [x] **INNGEST-04**: `/api/analyze-photos` POST returns `{ jobId }` — Vision call moved to `analyzePhotosJob` Inngest function
+- [x] **INNGEST-05**: Frontend polls job status via `GET /api/jobs/[jobId]` — capture flow shows "Processing… (Saving / Transcribing / Analyzing / Generating)" stepper with real Inngest status feed
 - [ ] **INNGEST-06**: Inngest functions are idempotent — `step.run()` blocks used for each external call so retries don't double-charge AI providers; explicit `idempotencyKey` per job
 - [ ] **INNGEST-07**: WhatsApp inbound handler refactored — long-running Whisper/Vision calls in `lib/whatsapp/handler.ts` dispatched via Inngest, not awaited inline (still <10s for the webhook ack)
 - [ ] **INNGEST-08**: Local dev workflow documented — `npx inngest-cli dev` runs alongside `npm run dev`, jobs visible in dashboard at `localhost:8288`
@@ -125,10 +125,10 @@ Coverage: 39/39 (100%) — every v1 requirement maps to exactly one phase, no or
 | STORAGE-06 | Phase 66 | Complete |
 | STORAGE-07 | Phase 66 | Complete |
 | INNGEST-01 | Phase 67 | Pending |
-| INNGEST-02 | Phase 67 | Pending |
-| INNGEST-03 | Phase 67 | Pending |
-| INNGEST-04 | Phase 67 | Pending |
-| INNGEST-05 | Phase 67 | Pending |
+| INNGEST-02 | Phase 67 | Complete |
+| INNGEST-03 | Phase 67 | Complete |
+| INNGEST-04 | Phase 67 | Complete |
+| INNGEST-05 | Phase 67 | Complete |
 | INNGEST-06 | Phase 67 | Pending |
 | INNGEST-07 | Phase 67 | Pending |
 | INNGEST-08 | Phase 67 | Pending |
