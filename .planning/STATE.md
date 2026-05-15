@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v3.1.1
 milestone_name: MVP Launch Prep + Future-Proofing
 status: executing
-last_updated: "2026-05-15T23:29:00.228Z"
+last_updated: "2026-05-15T23:37:07.183Z"
 last_activity: 2026-05-15
 progress:
   total_phases: 14
   completed_phases: 12
   total_plans: 25
-  completed_plans: 23
+  completed_plans: 24
 ---
 
 # Project State
@@ -22,7 +22,7 @@ progress:
 ## Current Position
 
 Phase: 68 (Hetzner Deploy Readiness Artifacts) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
 Last activity: 2026-05-15
 
@@ -387,6 +387,8 @@ Last activity: 2026-05-15
 - [Phase 67]: useJobStatus hook + standalone pollJob helper exported from hooks/use-job-status.ts — React vs imperative consumers
 - [Phase 67]: Stage progression: setStage('analyzing') BEFORE dispatch, setStage('generating') AFTER receiving { jobId } — visible distinction between dispatch wait and worker execution
 - [Phase 68]: Deploy artifacts use multi-stage Node 22 alpine Dockerfile + Caddy reverse proxy on Hetzner Cloud VPS — Next.js standalone output keeps runtime image at 150-300 MB target
+- [Phase 68]: Health endpoint contract: { ok, db, storage, commit, error? } — 503 on probe failure, errorMessage() helper to handle PostgrestError plain-object shape (not Error subclass)
+- [Phase 68]: Storage probe via getServerStorage().list('logos','') (Phase 66 abstraction) — never raw supabase.storage.from; works for both STORAGE_PROVIDER=supabase and =s3 backends
 
 ## Performance Metrics
 
@@ -495,6 +497,7 @@ Last activity: 2026-05-15
 | Phase 67-inngest-background-ai-jobs P04 | 3 | 1 tasks | 3 files |
 | Phase 67 P05 | 6m | 3 tasks | 6 files |
 | Phase 68 P01 | 7min | 3 tasks | 6 files |
+| Phase 68 P02 | 4min | 2 tasks | 3 files |
 
 ## Project Reference
 
