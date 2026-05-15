@@ -184,7 +184,7 @@
 **Plans**: 3 plans in `.planning/phases/66-storage-abstraction-layer/`
 Plans:
 - [x] 66-01-PLAN.md — Wave 0 RED contract tests + StorageProvider interface + Supabase provider + buildStorageKey helper (STORAGE-01, STORAGE-02, STORAGE-04)
-- [ ] 66-02-PLAN.md — Migrate all 8 production call sites (logos → audio → photos → pdfs → wa-media) + 3 affected tests (STORAGE-03, STORAGE-04)
+- [x] 66-02-PLAN.md — Migrate all 8 production call sites (logos → audio → photos → pdfs → wa-media) + 3 affected tests (STORAGE-03, STORAGE-04)
 - [ ] 66-03-PLAN.md — S3 provider skeleton + STORAGE_PROVIDER env gate + MinIO smoke script + docs/STORAGE-MIGRATION.md runbook (STORAGE-05, STORAGE-06, STORAGE-07)
 
 ### Phase 67: Inngest Background AI Job Processing
@@ -199,7 +199,7 @@ Plans:
   5. A developer running `npx inngest-cli dev` alongside `npm run dev` sees jobs land at `localhost:8288` with full execution traces; the local workflow is documented in repo (e.g. `docs/INNGEST-LOCAL-DEV.md` or README addendum)
 **Plans**: 5 plans in `.planning/phases/67-inngest-background-ai-jobs/`
 Plans:
-- [ ] 66-01-PLAN.md — Wave 0 RED test stubs + verify usage_events idempotency UNIQUE index
+- [x] 66-01-PLAN.md — Wave 0 RED test stubs + verify usage_events idempotency UNIQUE index
 - [ ] 66-02-PLAN.md — Inngest install + client + serve handler + 4 worker functions (generateEstimateJob, transcribeAudioJob, analyzePhotosJob, whatsAppProcessJob)
 - [ ] 66-03-PLAN.md — Refactor 3 AI routes to dispatch + create new /api/transcribe + /api/jobs/[jobId] proxy
 - [ ] 66-04-PLAN.md — Refactor lib/whatsapp/handler.ts:processInboundMessages to dispatch via Inngest
@@ -680,7 +680,7 @@ Plans:
 | 63. Stripe Live Mode Activation | v3.1 | 0/TBD | DEFERRED → v3.2 | - |
 | 64. Monitoring + Backup & Resilience | v3.1 | 0/TBD | DEFERRED → v3.2 | - |
 | 65. Production UAT + Bug Triage | v3.1 | 0/TBD | DEFERRED → v3.2 | - |
-| 66. Storage Abstraction Layer | v3.1.1 | 1/3 | In Progress|  |
+| 66. Storage Abstraction Layer | v3.1.1 | 2/3 | In Progress|  |
 | 67. Inngest Background AI Job Processing | v3.1.1 | 0/TBD | Not started | - |
 | 68. Hetzner Cloud Deploy-Readiness Artifacts | v3.1.1 | 0/TBD | Not started | - |
 | 69. UAT Validation + Bug Triage + Perf Audit | v3.1.1 | 0/TBD | Not started | - |

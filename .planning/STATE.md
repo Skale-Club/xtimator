@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v3.1.1
 milestone_name: MVP Launch Prep + Future-Proofing
 status: executing
-last_updated: "2026-05-15T20:07:54.680Z"
+last_updated: "2026-05-15T20:32:28.263Z"
 last_activity: 2026-05-15
 progress:
   total_phases: 14
   completed_phases: 10
   total_plans: 22
-  completed_plans: 15
+  completed_plans: 16
 ---
 
 # Project State
@@ -22,7 +22,7 @@ progress:
 ## Current Position
 
 Phase: 66 (Storage Abstraction Layer) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
 Last activity: 2026-05-15
 
@@ -371,6 +371,8 @@ Last activity: 2026-05-15
 - [Phase 60-trial-automation-admin-tooling]: pg_cron trial-warning-emails entry is SELECT 1 no-op — Resend API requires Node.js runtime unavailable in pg_cron; only expire-trials has a real pg_cron SQL implementation
 - [Phase 66]: Storage abstraction: createStorage(client) factory per-call-site (no singleton) — caller owns auth context (server/browser/service-role)
 - [Phase 66]: getSignedUrl(bucket, path, expiresInSeconds) requires explicit expiry — no implicit default that hides expiry behavior (STORAGE-04)
+- [Phase 66-storage-abstraction-layer]: Plan 02: Migrated 10 additional discovered call sites inline (Rule 3) — the 8 in plan + 10 discovered = 18 production files; STORAGE-03 grep gate is binding so splitting was not viable
+- [Phase 66-storage-abstraction-layer]: Plan 02: StorageProvider.UploadOptions intentionally restricted to contentType + upsert — dropped cacheControl: '3600' from logo uploads to keep abstraction storage-agnostic (Hetzner/S3 don't have a uniform cacheControl shape)
 
 ## Performance Metrics
 
@@ -472,6 +474,7 @@ Last activity: 2026-05-15
 | Phase 59-billing-ui P02 | 3 | 2 tasks | 6 files |
 | Phase 60-trial-automation-admin-tooling P01 | 2min | 2 tasks | 4 files |
 | Phase 66 P01 | 7m | 3 tasks | 7 files |
+| Phase 66-storage-abstraction-layer P02 | 22min | 3 tasks | 21 files |
 
 ## Project Reference
 
