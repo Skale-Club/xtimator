@@ -1,0 +1,56 @@
+# Dependencies — installed inside Docker via npm ci
+node_modules
+npm-debug.log*
+
+# Build output — produced inside Docker
+.next
+out
+build
+dist
+
+# Local env — secrets must come from --env-file at run time, NEVER baked into image
+.env
+.env.local
+.env.production
+.env*.local
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Editor / OS
+.vscode
+.idea
+.DS_Store
+Thumbs.db
+
+# Test artifacts
+coverage
+playwright-report
+test-results
+.nyc_output
+
+# Tests / docs / planning — not needed at runtime
+tests
+docs
+.planning
+README.md
+*.md
+!public/**/*.md
+
+# Supabase — DB-side artifacts, not app runtime
+supabase
+
+# Scripts — dev tooling, not runtime
+scripts
+
+# Docker artifacts themselves (recursive build context)
+Dockerfile
+.dockerignore
+docker-compose.yml
+Caddyfile
+
+# CI / config
+.github
+.husky
