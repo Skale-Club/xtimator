@@ -30,3 +30,24 @@ CREATE UNIQUE INDEX IF NOT EXISTS usage_events_idempotency
 - `tests/unit/admin-actions.test.ts`, `admin-dashboard.test.ts`, `admin-gate.test.ts`, `blog-actions.test.ts`, `cleanup-route-auth.test.ts`, `landing-actions.test.ts`, `seo-actions.test.ts`, `wizard-client-only.test.ts`, `api/generate-estimate-name-patch.test.ts`
 
 None of these tests touch files that this plan modifies. Out of scope per the executor's scope boundary rule. To be triaged in Phase 69 (UAT Validation + Bug Triage).
+
+## Plan 67-02 (2026-05-15)
+
+### 3. Pre-existing tsc errors in tests/unit/api/*-quota.test.ts (2 errors)
+
+`npx tsc --noEmit` after Plan 67-02 reports 2 pre-existing errors:
+
+- `tests/unit/api/analyze-photos-quota.test.ts(111,81): error TS2322: Type 'null' is not assignable to type 'number | undefined'.`
+- `tests/unit/api/generate-estimate-quota.test.ts(72,81): error TS2322: Type 'null' is not assignable to type 'number | undefined'.`
+
+Both relate to the quota mock object shape (`number | undefined` field receiving `null`). They predate this phase — the quota module was finalized in Phase 56 — and do NOT touch any Inngest files. Verified clean: `npx tsc --noEmit 2>&1 | grep -E "(lib/inngest|app/api/inngest|tests/unit/inngest)"` returns zero matches.
+
+Out of scope per the executor's scope boundary rule. Triaged for Phase 69.
+
+### 4. Plan PLAN.md used Inngest 3.x createFunction signature
+
+The plan's code samples use `createFunction({ id, ... }, { event }, handler)` (3-arg). Inngest 4.x renamed this to `createFunction({ id, triggers: [{ event }], ... }, handler)` (2-arg with `triggers` array in the opts object).
+
+**Mitigation applied (Rule 3 — blocking issue):** All 4 functions wired with the 4.x signature. Verified at runtime: `node -e "const fn = i.createFunction({...,triggers:[{event:'foo'}]},async()=>1); console.log(fn.opts.triggers)"` returns the registered trigger.
+
+This is the inngest@4.4.0 API as shipped 2026-05-13. Plan was written against the older sample in RESEARCH.md.
