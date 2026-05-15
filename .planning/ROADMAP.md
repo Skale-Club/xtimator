@@ -148,7 +148,7 @@
 
 ### v3.1 Production Go-Live (Phases 61-65)
 
-- [ ] **Phase 61: Production Database Foundation** — Provision production Supabase project, apply all migrations from phases 1-60, bootstrap first super-admin, enable PITR, verify RLS active across all tables (PROD-DB-01..05)
+- [x] **Phase 61: Production Database Foundation** — Provision production Supabase project, apply all migrations from phases 1-60, bootstrap first super-admin, enable PITR, verify RLS active across all tables (PROD-DB-01..05) (completed 2026-05-15)
 - [ ] **Phase 62: Vercel Deployment + Custom Domain** — Link Vercel project to GitHub `Skale-Club/xtimator`, configure auto-deploy on `main`, attach `xtimator.com` with SSL, populate all env vars in production, enable PR preview deployments (PROD-DEPLOY-01..05)
 - [ ] **Phase 63: Stripe Live Mode Activation** — Create Stripe live products + recurring prices for Pro/Business, register live webhook on `xtimator.com/api/webhooks/stripe`, configure live secret key in admin panel, set webhook secret + price IDs in Vercel env (PROD-STRIPE-01..05)
 - [ ] **Phase 64: Monitoring + Backup & Resilience** — Integrate Sentry + Vercel Analytics, ship `/api/health` endpoint, register external uptime monitor with email alerts, verify daily Supabase backups, ship status page, write incident runbook (PROD-MONITOR-01..05, PROD-BACKUP-01..03)
@@ -660,7 +660,7 @@ Plans:
 | 58. Stripe Integration | v3.0 | 2/2 | Complete    | 2026-05-14 |
 | 59. Billing UI | v3.0 | 1/2 | Complete    | 2026-05-14 |
 | 60. Trial Automation + Admin Tooling | v3.0 | 1/2 | Complete    | 2026-05-14 |
-| 61. Production Database Foundation | v3.1 | 1/5 | In Progress|  |
+| 61. Production Database Foundation | v3.1 | 1/5 | Complete    | 2026-05-15 |
 | 62. Vercel Deployment + Custom Domain | v3.1 | 0/TBD | Not started | - |
 | 63. Stripe Live Mode Activation | v3.1 | 0/TBD | Not started | - |
 | 64. Monitoring + Backup & Resilience | v3.1 | 0/TBD | Not started | - |
