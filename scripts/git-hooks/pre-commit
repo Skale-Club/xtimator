@@ -1,0 +1,39 @@
+#!/bin/sh
+# Pre-commit hook: scan staged changes for secrets with gitleaks
+# Bypass with: git commit --no-verify (NEVER do this for secrets — fix the leak)
+
+# Resolve gitleaks: try PATH first, fall back to winget Windows install location
+if command -v gitleaks >/dev/null 2>&1; then
+  GITLEAKS=gitleaks
+elif [ -x "/c/Users/$USER/AppData/Local/Microsoft/WinGet/Links/gitleaks.exe" ]; then
+  GITLEAKS="/c/Users/$USER/AppData/Local/Microsoft/WinGet/Links/gitleaks.exe"
+elif [ -x "$HOME/AppData/Local/Microsoft/WinGet/Links/gitleaks.exe" ]; then
+  GITLEAKS="$HOME/AppData/Local/Microsoft/WinGet/Links/gitleaks.exe"
+else
+  echo "⚠️  gitleaks not installed — secret scan SKIPPED"
+  echo "   Install: winget install gitleaks.gitleaks (Windows) or brew install gitleaks (Mac)"
+  exit 0
+fi
+
+echo "🔍 gitleaks: scanning staged changes for secrets..."
+
+"$GITLEAKS" protect --staged --redact --config .gitleaks.toml --no-banner
+status=$?
+
+if [ $status -ne 0 ]; then
+  echo ""
+  echo "❌ COMMIT BLOCKED — secret(s) detected in staged changes"
+  echo ""
+  echo "   What to do:"
+  echo "   1. Remove the secret from the file (move to .env.local or Vercel env vars)"
+  echo "   2. If the secret was real, ROTATE IT immediately at the provider"
+  echo "   3. Re-stage and commit"
+  echo ""
+  echo "   To override (NEVER for real secrets — only false positives):"
+  echo "   git commit --no-verify"
+  echo ""
+  exit 1
+fi
+
+echo "✓ no secrets detected"
+exit 0

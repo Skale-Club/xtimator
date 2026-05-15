@@ -1,0 +1,65 @@
+title = "Xtimator gitleaks config"
+
+# Extends the default gitleaks ruleset
+[extend]
+useDefault = true
+
+# Custom rules for project-specific secrets
+[[rules]]
+id = "stripe-webhook-secret"
+description = "Stripe webhook signing secret"
+regex = '''whsec_[a-zA-Z0-9]{32,}'''
+tags = ["stripe", "secret"]
+
+[[rules]]
+id = "stripe-api-key"
+description = "Stripe API key (test or live)"
+regex = '''sk_(test|live)_[a-zA-Z0-9]{24,}'''
+tags = ["stripe", "secret"]
+
+[[rules]]
+id = "stripe-restricted-key"
+description = "Stripe restricted API key"
+regex = '''rk_(test|live)_[a-zA-Z0-9]{24,}'''
+tags = ["stripe", "secret"]
+
+[[rules]]
+id = "supabase-service-role-key"
+description = "Supabase service role / secret key"
+regex = '''sb_secret_[a-zA-Z0-9_-]{20,}'''
+tags = ["supabase", "secret"]
+
+[[rules]]
+id = "anthropic-api-key"
+description = "Anthropic Claude API key"
+regex = '''sk-ant-[a-zA-Z0-9_-]{20,}'''
+tags = ["anthropic", "secret"]
+
+[[rules]]
+id = "openai-api-key"
+description = "OpenAI API key"
+regex = '''sk-(?:proj-)?[a-zA-Z0-9_-]{40,}'''
+tags = ["openai", "secret"]
+
+[[rules]]
+id = "resend-api-key"
+description = "Resend API key"
+regex = '''re_[a-zA-Z0-9]{20,}'''
+tags = ["resend", "secret"]
+
+[allowlist]
+description = "Files and paths to ignore"
+paths = [
+  '''\.env\.example$''',
+  '''\.env\.local$''',
+  '''node_modules/''',
+  '''\.next/''',
+  '''dist/''',
+  '''\.git/''',
+]
+# Allow placeholder/documentation patterns
+regexes = [
+  '''whsec_(your-|placeholder|XXX|example)''',
+  '''sk_(test|live)_(your-|placeholder|XXX|example)''',
+  '''sb_secret_(your-|placeholder|XXX|example)''',
+]

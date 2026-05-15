@@ -16,6 +16,16 @@ Xtimator is a SaaS web application for US-based service businesses (construction
 - **PDF**: @react-pdf/renderer or puppeteer (server-side generation)
 - **Mobile**: Audio recording and camera capture must work on iOS Safari and Android Chrome
 - **Security**: Service role key never exposed to browser; all AI calls server-side via API routes
+
+### Secret Handling (CRITICAL)
+
+**NEVER commit secrets, API keys, or signing secrets to git — including in markdown, comments, examples, or planning docs (`.planning/`, seeds, summaries).**
+
+- All secrets go in `.env.local` (gitignored) for local dev, or in Vercel env vars for staging/prod
+- Documenting setup? Use placeholders like `whsec_<your-secret>` or `sk_live_<your-key>`
+- Pre-commit hook (`gitleaks`) blocks commits containing patterns matching: `whsec_*`, `sk_(test|live)_*`, `rk_(test|live)_*`, `sb_secret_*`, `sk-ant-*`, `sk-proj-*`, `re_*`
+- After cloning, install hooks once: `bash scripts/install-git-hooks.sh`
+- If a secret leaks: **rotate at the provider FIRST**, then rewrite history (`git commit --amend` + `git push --force-with-lease`)
 <!-- GSD:project-end -->
 
 <!-- GSD:stack-start source:STACK.md -->
