@@ -11,6 +11,7 @@ import { renderToBuffer } from '@react-pdf/renderer'
 import { createElement } from 'react'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getEstimateWithContext } from '@/lib/queries/estimate'
+import { createStorage } from '@/lib/storage'
 import EstimatePDF from '@/components/pdf/estimate-pdf'
 
 /**
@@ -54,26 +55,29 @@ export async function generateAndUploadEstimatePDF(
   // 3. Upload to pdfs bucket (service role bypasses RLS)
   //    Path: {companyId}/whatsapp-pdf/{estimateId}-{timestamp}.pdf
   //    Timestamp ensures Meta URL cache uniqueness (Meta caches by URL string ~10min)
+  const storage = createStorage(supabase)
   const storagePath = `${companyId}/whatsapp-pdf/${estimateId}-${Date.now()}.pdf`
-  const { error: uploadError } = await supabase.storage
-    .from('pdfs')
-    .upload(storagePath, Buffer.from(pdfBuffer), { contentType: 'application/pdf', upsert: false })
 
-  if (uploadError) {
-    throw new Error(`PDF upload failed: ${uploadError.message}`)
+  try {
+    await storage.upload('pdfs', storagePath, Buffer.from(pdfBuffer), {
+      contentType: 'application/pdf',
+      upsert: false,
+    })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'unknown error'
+    throw new Error(`PDF upload failed: ${message}`)
   }
 
-  // 4. Create 24-hour signed URL (86400 seconds)
-  const { data: signedData } = await supabase.storage
-    .from('pdfs')
-    .createSignedUrl(storagePath, 86400)
-
-  if (!signedData?.signedUrl) {
+  // 4. Create 24-hour signed URL (86400 seconds) — STORAGE-04: explicit expiry
+  let signedUrl: string
+  try {
+    signedUrl = await storage.getSignedUrl('pdfs', storagePath, 86400)
+  } catch {
     throw new Error('Failed to create signed URL for PDF')
   }
 
   const filename = buildPdfFilename(clientName)
-  return { signedUrl: signedData.signedUrl, filename }
+  return { signedUrl, filename }
 }
 
 /**

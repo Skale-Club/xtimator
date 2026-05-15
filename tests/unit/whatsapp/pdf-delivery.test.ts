@@ -22,6 +22,7 @@ vi.mock('@/components/pdf/estimate-pdf', () => ({
 import { generateAndUploadEstimatePDF, buildPdfFilename } from '@/lib/whatsapp/pdf-delivery'
 import { getEstimateWithContext } from '@/lib/queries/estimate'
 import { renderToBuffer } from '@react-pdf/renderer'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 const mockGetEstimate = vi.mocked(getEstimateWithContext)
 const mockRenderToBuffer = vi.mocked(renderToBuffer)
@@ -35,15 +36,26 @@ const MOCK_ESTIMATE_CONTEXT = {
   company: { id: COMPANY_ID, name: 'Acme Builders' } as never,
 }
 
-function makeSupabase(overrides: { uploadError?: object; signedUrl?: string | null } = {}) {
-  const uploadMock = vi.fn().mockResolvedValue({ error: overrides.uploadError ?? null })
+type MockSupabase = {
+  storage: {
+    from: ReturnType<typeof vi.fn> & {
+      (): { upload: ReturnType<typeof vi.fn>; createSignedUrl: ReturnType<typeof vi.fn> }
+    }
+  }
+}
+
+function makeSupabase(overrides: { uploadError?: object; signedUrl?: string | null } = {}): MockSupabase {
+  const uploadMock = vi.fn().mockResolvedValue({
+    data: overrides.uploadError ? null : { path: 'mock-path' },
+    error: overrides.uploadError ?? null,
+  })
   // Use 'signedUrl' in overrides to distinguish explicit null from missing key
   const resolvedSignedUrl = 'signedUrl' in overrides
     ? overrides.signedUrl
     : 'https://supabase.co/storage/v1/sign/pdfs/path.pdf?token=abc'
   const createSignedUrlMock = vi.fn().mockResolvedValue({
     data: resolvedSignedUrl !== null ? { signedUrl: resolvedSignedUrl } : null,
-    error: null,
+    error: resolvedSignedUrl !== null ? null : { message: 'no signed URL' },
   })
   const storage = {
     from: vi.fn().mockReturnValue({
@@ -51,7 +63,7 @@ function makeSupabase(overrides: { uploadError?: object; signedUrl?: string | nu
       createSignedUrl: createSignedUrlMock,
     }),
   }
-  return { storage } as never
+  return { storage } as unknown as MockSupabase
 }
 
 describe('generateAndUploadEstimatePDF', () => {
@@ -64,7 +76,7 @@ describe('generateAndUploadEstimatePDF', () => {
     mockGetEstimate.mockResolvedValue(MOCK_ESTIMATE_CONTEXT)
     const supabase = makeSupabase()
 
-    const result = await generateAndUploadEstimatePDF(ESTIMATE_ID, COMPANY_ID, supabase, 'Johnson')
+    const result = await generateAndUploadEstimatePDF(ESTIMATE_ID, COMPANY_ID, supabase as unknown as SupabaseClient, 'Johnson')
 
     expect(result.signedUrl).toMatch(/https:\/\//)
     expect(result.filename).toMatch(/^Estimate-Johnson-\d{4}-\d{2}-\d{2}\.pdf$/)
@@ -75,7 +87,7 @@ describe('generateAndUploadEstimatePDF', () => {
     const supabase = makeSupabase({ uploadError: { message: 'Bucket full' } })
 
     await expect(
-      generateAndUploadEstimatePDF(ESTIMATE_ID, COMPANY_ID, supabase, null)
+      generateAndUploadEstimatePDF(ESTIMATE_ID, COMPANY_ID, supabase as unknown as SupabaseClient, null)
     ).rejects.toThrow('PDF upload failed')
   })
 
@@ -84,7 +96,7 @@ describe('generateAndUploadEstimatePDF', () => {
     const supabase = makeSupabase({ signedUrl: null })
 
     await expect(
-      generateAndUploadEstimatePDF(ESTIMATE_ID, COMPANY_ID, supabase, null)
+      generateAndUploadEstimatePDF(ESTIMATE_ID, COMPANY_ID, supabase as unknown as SupabaseClient, null)
     ).rejects.toThrow('signed URL')
   })
 
@@ -93,7 +105,7 @@ describe('generateAndUploadEstimatePDF', () => {
     const supabase = makeSupabase()
 
     await expect(
-      generateAndUploadEstimatePDF(ESTIMATE_ID, COMPANY_ID, supabase, null)
+      generateAndUploadEstimatePDF(ESTIMATE_ID, COMPANY_ID, supabase as unknown as SupabaseClient, null)
     ).rejects.toThrow()
   })
 
@@ -101,7 +113,7 @@ describe('generateAndUploadEstimatePDF', () => {
     mockGetEstimate.mockResolvedValue(MOCK_ESTIMATE_CONTEXT)
     const supabase = makeSupabase()
 
-    await generateAndUploadEstimatePDF(ESTIMATE_ID, COMPANY_ID, supabase, null)
+    await generateAndUploadEstimatePDF(ESTIMATE_ID, COMPANY_ID, supabase as unknown as SupabaseClient, null)
 
     const fromCall = supabase.storage.from.mock.calls[0][0]
     expect(fromCall).toBe('pdfs')

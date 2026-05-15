@@ -10,6 +10,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import Anthropic from '@anthropic-ai/sdk'
 import { generateEstimateForProject } from '@/lib/services/generate-estimate'
+import { createStorage } from '@/lib/storage'
 import {
   downloadWhatsAppMedia,
   sendWhatsAppMessage,
@@ -396,11 +397,13 @@ async function handleImageMessage(
   const ext = mimeType.split('/')[1] ?? 'jpg'
   const storagePath = `${companyId}/whatsapp/${projectId}-${imageId}.${ext}`
 
-  const { error: uploadError } = await supabase.storage
-    .from('photos')
-    .upload(storagePath, imageBuffer, { contentType: mimeType, upsert: false })
-
-  if (uploadError) throw new Error(`Photo upload failed: ${uploadError.message}`)
+  const storage = createStorage(supabase)
+  try {
+    await storage.upload('photos', storagePath, imageBuffer, { contentType: mimeType, upsert: false })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'unknown error'
+    throw new Error(`Photo upload failed: ${message}`)
+  }
 
   // Analyze with Claude Vision
   const anthropic = new Anthropic({ apiKey: anthropicKey })
