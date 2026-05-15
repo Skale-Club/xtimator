@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { requireServiceClient } from '@/lib/supabase/service'
+import { createStorage } from '@/lib/storage'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
 import { revalidatePath, revalidateTag } from 'next/cache'
 
@@ -50,19 +51,14 @@ export async function updateCompanySettings(formData: FormData) {
     const ext = logoFile.name.split('.').pop() ?? 'png'
     const storagePath = `${claims.sub}/logo.${ext}`
 
-    const { error: uploadError } = await supabase.storage
-      .from('logos')
-      .upload(storagePath, logoFile, { upsert: true })
-
-    if (uploadError) {
+    const storage = createStorage(supabase)
+    try {
+      await storage.upload('logos', storagePath, logoFile, { upsert: true })
+    } catch {
       return { error: 'Failed to upload logo. Please try again.' }
     }
 
-    const { data: publicUrlData } = supabase.storage
-      .from('logos')
-      .getPublicUrl(storagePath)
-
-    logoUrl = publicUrlData.publicUrl
+    logoUrl = storage.getPublicUrl('logos', storagePath)
   }
 
   const { error } = await supabase

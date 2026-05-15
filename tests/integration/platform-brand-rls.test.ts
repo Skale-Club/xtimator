@@ -6,6 +6,7 @@
  */
 import { describe, it, expect, afterAll } from 'vitest'
 import { createClient } from '@supabase/supabase-js'
+import { createStorage } from '@/lib/storage'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -31,7 +32,7 @@ d('platform-brand Storage bucket RLS (ADMIN-09)', () => {
   afterAll(async () => {
     // Cleanup: remove the test file if it landed
     try {
-      await serviceClient.storage.from('platform-brand').remove([TEST_PATH])
+      await createStorage(serviceClient).delete('platform-brand', TEST_PATH)
     } catch {
       // ignore
     }

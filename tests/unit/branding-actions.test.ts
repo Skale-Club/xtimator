@@ -21,6 +21,7 @@ vi.mock('@/lib/auth/admin-context', () => ({
 
 vi.mock('@/lib/supabase/service', () => ({
   createServiceClient: vi.fn(),
+  requireServiceClient: vi.fn(),
 }))
 
 vi.mock('@/lib/platform-config', () => ({
@@ -97,6 +98,7 @@ describe('app/admin/branding/actions saveBranding (ADMIN-08)', () => {
 
     const svc = await import('@/lib/supabase/service')
     ;(svc.createServiceClient as unknown as ReturnType<typeof vi.fn>).mockReset()
+    ;(svc.requireServiceClient as unknown as ReturnType<typeof vi.fn>).mockReset()
 
     const cfg = await import('@/lib/platform-config')
     ;(cfg.invalidatePlatformConfig as unknown as ReturnType<typeof vi.fn>).mockReset()
@@ -111,6 +113,7 @@ describe('app/admin/branding/actions saveBranding (ADMIN-08)', () => {
     const cfg = await import('@/lib/platform-config')
     const client = makeServiceClient({})
     ;(svc.createServiceClient as unknown as ReturnType<typeof vi.fn>).mockReturnValue(client)
+    ;(svc.requireServiceClient as unknown as ReturnType<typeof vi.fn>).mockReturnValue(client)
 
     const fd = new FormData()
     fd.set('appName', 'X')
@@ -146,6 +149,7 @@ describe('app/admin/branding/actions saveBranding (ADMIN-08)', () => {
       publicUrl: 'https://example.test/storage/v1/object/public/platform-brand/logo-12345.png',
     })
     ;(svc.createServiceClient as unknown as ReturnType<typeof vi.fn>).mockReturnValue(client)
+    ;(svc.requireServiceClient as unknown as ReturnType<typeof vi.fn>).mockReturnValue(client)
 
     // Tiny PNG file (1x1 transparent)
     const pngBytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
@@ -180,6 +184,7 @@ describe('app/admin/branding/actions saveBranding (ADMIN-08)', () => {
     const cfg = await import('@/lib/platform-config')
     const client = makeServiceClient({})
     ;(svc.createServiceClient as unknown as ReturnType<typeof vi.fn>).mockReturnValue(client)
+    ;(svc.requireServiceClient as unknown as ReturnType<typeof vi.fn>).mockReturnValue(client)
 
     const fd = new FormData()
     fd.set('appName', '')
@@ -202,6 +207,7 @@ describe('app/admin/branding/actions saveBranding (ADMIN-08)', () => {
       uploadResponse: { data: null, error: { message: 'bucket not found' } },
     })
     ;(svc.createServiceClient as unknown as ReturnType<typeof vi.fn>).mockReturnValue(client)
+    ;(svc.requireServiceClient as unknown as ReturnType<typeof vi.fn>).mockReturnValue(client)
 
     const pngBytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47])
     const file = new File([pngBytes], 'brand.png', { type: 'image/png' })

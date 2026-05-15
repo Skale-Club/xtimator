@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { requireAdmin } from '@/lib/auth/admin-context'
 import { requireServiceClient } from '@/lib/supabase/service'
+import { createStorage } from '@/lib/storage'
 import { invalidatePlatformConfig } from '@/lib/platform-config'
 import { brandingSchema } from '@/lib/schemas/admin'
 
@@ -36,6 +37,7 @@ export async function saveBranding(formData: FormData): Promise<SaveBrandingResu
   }
 
   const svc = requireServiceClient()
+  const storage = createStorage(svc)
 
   let logoUrl: string | undefined = undefined
   const logoFile = parsed.data.logoFile
@@ -43,14 +45,18 @@ export async function saveBranding(formData: FormData): Promise<SaveBrandingResu
     const ext = (logoFile.name.split('.').pop() || 'png').toLowerCase()
     const path = `logo-${Date.now()}.${ext}`
     const body = Buffer.from(await logoFile.arrayBuffer())
-    const { data: up, error: upErr } = await svc.storage
-      .from('platform-brand')
-      .upload(path, body, { contentType: logoFile.type, upsert: true })
-    if (upErr || !up) {
-      return { ok: false, message: upErr?.message ?? 'Upload failed.' }
+    let uploadedPath: string
+    try {
+      const result = await storage.upload('platform-brand', path, body, {
+        contentType: logoFile.type,
+        upsert: true,
+      })
+      uploadedPath = result.path
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Upload failed.'
+      return { ok: false, message }
     }
-    const { data: pub } = svc.storage.from('platform-brand').getPublicUrl(up.path)
-    logoUrl = pub.publicUrl
+    logoUrl = storage.getPublicUrl('platform-brand', uploadedPath)
   }
 
   // Favicon upload — same pattern as logo upload.
@@ -61,14 +67,18 @@ export async function saveBranding(formData: FormData): Promise<SaveBrandingResu
     const ext = (faviconFile.name.split('.').pop() || 'ico').toLowerCase()
     const path = `favicon-${Date.now()}.${ext}`
     const body = Buffer.from(await faviconFile.arrayBuffer())
-    const { data: up, error: upErr } = await svc.storage
-      .from('platform-brand')
-      .upload(path, body, { contentType: faviconFile.type, upsert: true })
-    if (upErr || !up) {
-      return { ok: false, message: upErr?.message ?? 'Favicon upload failed.' }
+    let uploadedPath: string
+    try {
+      const result = await storage.upload('platform-brand', path, body, {
+        contentType: faviconFile.type,
+        upsert: true,
+      })
+      uploadedPath = result.path
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Favicon upload failed.'
+      return { ok: false, message }
     }
-    const { data: pub } = svc.storage.from('platform-brand').getPublicUrl(up.path)
-    faviconUrl = pub.publicUrl
+    faviconUrl = storage.getPublicUrl('platform-brand', uploadedPath)
   }
 
   const upsertPayload: Record<string, unknown> = {

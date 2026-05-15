@@ -27,6 +27,7 @@ import { ClientLogoUploader } from '@/components/clients/client-logo-uploader'
 import { clientSchema, type ClientFormValues } from '@/lib/schemas/client'
 import { createClientAction, updateClientAction } from '@/lib/actions/client'
 import { createClient as createBrowserClient } from '@/lib/supabase/client'
+import { createStorage } from '@/lib/storage'
 import type { ClientDetail } from '@/lib/queries/clients'
 
 interface ClientSheetProps {
@@ -94,20 +95,18 @@ export function ClientSheet({
 
   async function uploadLogo(clientId: string, file: File): Promise<string | null> {
     const supabase = createBrowserClient()
+    const storage = createStorage(supabase)
     const ext = file.name.split('.').pop() ?? 'jpg'
     const path = `${companyId}/clients/${clientId}/logo.${ext}`
 
-    const { error } = await supabase.storage
-      .from('logos')
-      .upload(path, file, { upsert: true })
-
-    if (error) {
-      console.error('Logo upload error:', error)
+    try {
+      await storage.upload('logos', path, file, { upsert: true })
+    } catch (err) {
+      console.error('Logo upload error:', err)
       return null
     }
 
-    const { data } = supabase.storage.from('logos').getPublicUrl(path)
-    return data.publicUrl
+    return storage.getPublicUrl('logos', path)
   }
 
   function onSubmit(values: ClientFormValues) {
