@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v3.1.1
 milestone_name: MVP Launch Prep + Future-Proofing
-status: roadmap_complete
-last_updated: "2026-05-15T20:30:00.000Z"
+status: executing
+last_updated: "2026-05-15T20:07:54.680Z"
 last_activity: 2026-05-15
 progress:
-  total_phases: 4
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_phases: 14
+  completed_phases: 10
+  total_plans: 22
+  completed_plans: 15
 ---
 
 # Project State
@@ -21,10 +21,10 @@ progress:
 
 ## Current Position
 
-Phase: 66 (Storage Abstraction — needs planning before execution)
-Plan: —
-Status: Phase 67 (Inngest) plans done in advance (5 plans renamed from /66 to /67 dir after roadmap reorder); Phase 66 (Storage) is the next blocker — `/gsd:plan-phase 66`
-Last activity: 2026-05-15 — Phase 67 (Inngest) plans created and renamed to match roadmap order
+Phase: 66 (Storage Abstraction Layer) — EXECUTING
+Plan: 2 of 3
+Status: Ready to execute
+Last activity: 2026-05-15
 
 ## v3.1.1 Phases
 
@@ -369,6 +369,8 @@ Last activity: 2026-05-15 — Phase 67 (Inngest) plans created and renamed to ma
 - [Phase 59-billing-ui]: UpgradeModal uses window.fetch monkey-patch returning null — invisible effect-only component intercepts 402 from AI routes without modifying call sites
 - [Phase 59-billing-ui]: billingRow added to existing Promise.all in layout.tsx — branding + adminRow + billingRow all fetched concurrently, no sequential blocking
 - [Phase 60-trial-automation-admin-tooling]: pg_cron trial-warning-emails entry is SELECT 1 no-op — Resend API requires Node.js runtime unavailable in pg_cron; only expire-trials has a real pg_cron SQL implementation
+- [Phase 66]: Storage abstraction: createStorage(client) factory per-call-site (no singleton) — caller owns auth context (server/browser/service-role)
+- [Phase 66]: getSignedUrl(bucket, path, expiresInSeconds) requires explicit expiry — no implicit default that hides expiry behavior (STORAGE-04)
 
 ## Performance Metrics
 
@@ -469,13 +471,14 @@ Last activity: 2026-05-15 — Phase 67 (Inngest) plans created and renamed to ma
 | Phase 58-stripe-integration P02 | 25 | 2 tasks | 4 files |
 | Phase 59-billing-ui P02 | 3 | 2 tasks | 6 files |
 | Phase 60-trial-automation-admin-tooling P01 | 2min | 2 tasks | 4 files |
+| Phase 66 P01 | 7m | 3 tasks | 7 files |
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-13)
 
 **Core value:** Business owner → job site audio recording → sent professional estimate in under 5 minutes
-**Current focus:** Phase 61 — Production Database Foundation
+**Current focus:** Phase 66 — Storage Abstraction Layer
 
 ## Notes
 
