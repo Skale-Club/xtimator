@@ -172,6 +172,76 @@
 - [ ] **Phase 69: v2.2 + v3.0 + Inngest + Storage Manual UAT** — Owner manually exercises WhatsApp polish (PDF attachment, status flow), v3.0 monetization (tier enforcement, Stripe checkout test mode, billing UI, trial banner, expiry cron, T-3/T-0 emails, Customer Portal, admin force-tier, MRR, 402 modal), Inngest happy path (2-min audio + 8-min audio that would have timed out), storage refactor (every upload path still works) against the Dockerized localhost build. Every test produces a verdict in `.planning/known-issues.md` (UAT-V22-01..02 + UAT-V30-01..06 + UAT-INNGEST-01..02 + UAT-STORAGE-01)
 - [ ] **Phase 70: E2E Smoke + Bug Triage Closeout** — Full happy path (signup → onboarding → audio → Inngest-backed AI → share → accept), multi-modal input combinations, i18n PT-BR/ES smoke; fix critical bugs surfaced across Phases 69-70; document non-critical in `.planning/known-issues.md`. Milestone complete when `known-issues.md` has one entry per UAT test (UAT-E2E-01..03 + FIX-01..02)
 
+### Phase 66: Inngest Background AI Jobs
+**Goal**: AI routes (`/api/generate-estimate`, `/api/transcribe`, `/api/analyze-photos`) and the WhatsApp inbound handler dispatch long work to Inngest functions and return job IDs in <1s, bypassing Vercel Free's 10s function timeout. Same code runs unchanged on Hetzner Cloud later.
+**Depends on**: Phase 61 (production database foundation; `supabase/audits/run-prod-readiness.mjs` must stay green)
+**Requirements**: INNGEST-01, INNGEST-02, INNGEST-03, INNGEST-04, INNGEST-05, INNGEST-06, INNGEST-07, INNGEST-08
+**Success Criteria** (what must be TRUE):
+  1. `inngest` package installed; `lib/inngest/client.ts` exports a configured client; `app/api/inngest/route.ts` registers all worker functions and is publicly reachable at the registered path
+  2. POST to `/api/generate-estimate`, `/api/transcribe`, `/api/analyze-photos` each returns `{ jobId }` in under 1 second; the actual AI call runs inside an Inngest function (verifiable from the Inngest dashboard)
+  3. `lib/whatsapp/handler.ts` dispatches Whisper/Vision calls via Inngest — the WhatsApp webhook ack returns in well under 10 seconds even for long audio
+  4. Frontend capture flow polls `GET /api/jobs/:jobId` and shows a real Inngest-driven stepper (Saving → Transcribing → Analyzing → Generating); the existing voice flow looks unchanged from the user's perspective
+  5. Each Inngest function uses `step.run()` blocks per external API call so retries don't double-bill AI providers; explicit `idempotencyKey` on every job event
+  6. `npx inngest-cli dev` runs locally alongside `npm run dev`; jobs visible in dashboard at `localhost:8288`; documented in README + new `dev:inngest` package script
+**Plans**: TBD
+**UI hint**: yes (capture flow stepper)
+
+### Phase 67: Storage Provider Abstraction
+**Goal**: Every storage operation flows through a `storage.*` provider interface instead of `supabase.storage.from(...)` direct calls — making the future Hetzner Object Storage migration "swap one provider" not "rewrite every upload path under launch pressure".
+**Depends on**: Phase 66 (Inngest functions also touch storage; cleaner to refactor with Inngest already in place)
+**Requirements**: STORAGE-01, STORAGE-02, STORAGE-03, STORAGE-04, STORAGE-05, STORAGE-06, STORAGE-07
+**Success Criteria** (what must be TRUE):
+  1. `lib/storage/index.ts` exports a `StorageProvider` interface with `upload`, `download`, `getSignedUrl`, `delete`, `list` methods; default export is a configured Supabase-backed provider
+  2. `lib/storage/supabase-provider.ts` implements the interface against `supabase.storage`; `lib/storage/s3-provider.ts` skeleton implements the same interface against `@aws-sdk/client-s3` (gated behind `STORAGE_PROVIDER=s3` env var, not active by default)
+  3. `grep -r "supabase.storage.from" app/ lib/ components/` returns zero hits outside `lib/storage/` — every upload, download, signed-URL, list, delete migrated to the new API
+  4. Every upload uses the `{company_id}/{type}/{timestamp}-{filename}` key convention; every signed URL uses an explicit `expiresInSeconds`; no Supabase `transformOptions` or render endpoints anywhere in the codebase
+  5. `docs/STORAGE-MIGRATION.md` documents the future Supabase → Hetzner Object Storage migration with provisioning steps, the exact `aws s3 sync` command, the endpoint swap procedure, and the 800 MB usage trigger threshold
+  6. Smoke test passes — temporarily setting `STORAGE_PROVIDER=s3` against a local MinIO container, upload + signed URL + download + delete all succeed; revert to Supabase as default
+**Plans**: TBD
+
+### Phase 68: Hetzner Deploy Artifacts + Perf Audit
+**Goal**: The repository ships every artifact required to deploy to a Hetzner Cloud VPS — Dockerfile, docker-compose with Caddy, `/api/health`, and a step-by-step runbook — and the local Docker build is proven to boot the app correctly. Light-touch perf audit captures regressions before any deploy.
+**Depends on**: Phase 67 (storage abstraction must exist before `/api/health` can do a meaningful storage check)
+**Requirements**: HETZNER-01, HETZNER-02, HETZNER-03, HETZNER-04, HETZNER-05, HETZNER-06, PERF-01, PERF-02
+**Success Criteria** (what must be TRUE):
+  1. A developer can run `docker build -t xtimator . && docker run -p 3000:3000 --env-file .env.local xtimator` and the app boots — `/api/health` returns 200 with `{ ok, db, storage, commit }`, and a fresh signup + login flow completes against dev Supabase
+  2. The Docker image is under 500MB, runs as a non-root user, builds via Next.js standalone output (`next.config.mjs` set to `output: 'standalone'`), and exposes port 3000
+  3. `docker-compose.yml` at the repo root brings up the Next.js service plus a Caddy reverse proxy with automatic Let's Encrypt HTTPS, an env file mount, and `restart: unless-stopped`
+  4. `docs/HETZNER-DEPLOY.md` is a runbook a developer can follow end-to-end (provision CX22 → Docker + Caddy install → DNS → `.env.production` → `docker compose up -d` → `/api/health` smoke → UFW firewall → cert renewal verification → daily off-server backup of `.env.production`) — no improvisation required
+  5. Lighthouse scores >= 80 in Performance and Accessibility on `/` (landing) and `/dashboard` (authenticated); `npm run build` reports First Load JS for `/dashboard` under 500 KB (or the rationale is captured in `.planning/known-issues.md`)
+**Plans**: TBD
+**UI hint**: no
+
+### Phase 69: v2.2 + v3.0 + Inngest + Storage Manual UAT
+**Goal**: Every v2.2 (WhatsApp polish), v3.0 (monetization), Inngest (background AI), and storage-refactor surface is exercised by a human against the Dockerized localhost build. Each test produces a pass/fail verdict in `.planning/known-issues.md` — no silent "I tested it and it works".
+**Depends on**: Phase 68 (UAT runs against the validated Docker image so we exercise the same artifact that will deploy)
+**Requirements**: UAT-V22-01, UAT-V22-02, UAT-V30-01, UAT-V30-02, UAT-V30-03, UAT-V30-04, UAT-V30-05, UAT-V30-06, UAT-INNGEST-01, UAT-INNGEST-02, UAT-STORAGE-01
+**Success Criteria** (what must be TRUE):
+  1. PDF attachment delivery is exercised end-to-end — owner sets `delivery_format=pdf_attachment`, sends an estimate via WhatsApp, a real client phone receives the PDF document plus a follow-up share link
+  2. WhatsApp status flow is exercised — pending→verified→active auto-promotion fires after OTP, suspend/reactivate buttons persist, status badge always reflects current DB state
+  3. Tier enforcement validated — free tier hits HTTP 402 on AI routes when monthly quota is exhausted; pro/business tiers respect higher caps; WhatsApp inbound gated for free tier BEFORE any Meta media download
+  4. Stripe test-mode happy path completes end-to-end — `/settings/billing` → upgrade modal → Stripe Checkout → webhook fires → `companies.tier` updates → user lands back on billing showing the new tier; Customer Portal lets user change/cancel/view invoices
+  5. Trial automation observable — new signup gets 14-day Pro entitlements, trial banner appears <3 days before expiry, hourly cron downgrades at T-0, T-3 + T-0 warning emails actually arrive in test inbox
+  6. Admin tooling works — super-admin can force-tier any company, grant bonus credits, `/admin/billing` MRR view shows correct totals against seeded test data
+  7. Inngest happy path observable — record a 2-minute audio, watch the Inngest dashboard show `transcribeAudioJob` then `generateEstimateJob` complete, capture stepper UI updates accordingly, estimate appears in editor
+  8. Long audio (8+ minutes) generates an estimate end-to-end — proves the Vercel-Free 10s timeout is no longer in the path
+  9. Every storage path (audio upload, photo upload, PDF generation, logo upload, WhatsApp inbound media) works post-refactor through the new `storage.*` API
+  10. Every UAT test (UAT-V22, UAT-V30, UAT-INNGEST, UAT-STORAGE) has a pass-or-fail verdict line in `.planning/known-issues.md`
+**Plans**: TBD
+
+### Phase 70: E2E Smoke + Bug Triage Closeout
+**Goal**: The full happy path works for a brand-new user, multi-modal capture combinations all produce sensible estimates, i18n surfaces translate without crashes, every critical bug surfaced across Phases 69-70 is fixed (with a linked commit), every non-critical finding is documented in `.planning/known-issues.md`. Milestone exits clean.
+**Depends on**: Phase 69 (UAT must have surfaced bugs to triage; verdicts must be in known-issues.md before this phase closes the file out)
+**Requirements**: UAT-E2E-01, UAT-E2E-02, UAT-E2E-03, FIX-01, FIX-02
+**Success Criteria** (what must be TRUE):
+  1. A brand-new account signs up, completes onboarding (business info + industry + color + logo), captures audio at a fixture job site, the AI generates an estimate via Inngest background job, the owner sends a share link, the fixture client opens the share page and accepts — full happy path observed in one sitting
+  2. Three multi-modal variants all produce sensible estimates via Inngest: text-only project, photos-only project, and audio+photos+text combined
+  3. Switching app language to PT-BR and ES produces translated copy on the dashboard, capture screen, and billing page without rendering errors or crashes
+  4. Every bug surfaced in Phases 69-70 is either (a) fixed in this milestone with a linked commit reference, or (b) captured in `.planning/known-issues.md` with severity, repro steps, and a proposed fix direction
+  5. `.planning/known-issues.md` exists at milestone close — even a "zero bugs found" outcome produces the file with that statement
+**Plans**: TBD
+
+
 ## Phase Details
 
 ### Phase 24: Estimate Template Engine + Settings Page
@@ -549,74 +619,6 @@ Plans:
 - [x] 54-01-PLAN.md — updateWhatsAppStatus server action + unit tests (WASTATUS-02, WASTATUS-03, WASTATUS-04)
 - [x] 54-02-PLAN.md — WhatsAppConnectCard: StatusBadge + Suspend/Reactivate buttons (WASTATUS-01, WASTATUS-03)
 
-### Phase 66: Inngest Background AI Jobs
-**Goal**: AI routes (`/api/generate-estimate`, `/api/transcribe`, `/api/analyze-photos`) and the WhatsApp inbound handler dispatch long work to Inngest functions and return job IDs in <1s, bypassing Vercel Free's 10s function timeout. Same code runs unchanged on Hetzner Cloud later.
-**Depends on**: Phase 61 (production database foundation; `supabase/audits/run-prod-readiness.mjs` must stay green)
-**Requirements**: INNGEST-01, INNGEST-02, INNGEST-03, INNGEST-04, INNGEST-05, INNGEST-06, INNGEST-07, INNGEST-08
-**Success Criteria** (what must be TRUE):
-  1. `inngest` package installed; `lib/inngest/client.ts` exports a configured client; `app/api/inngest/route.ts` registers all worker functions and is publicly reachable at the registered path
-  2. POST to `/api/generate-estimate`, `/api/transcribe`, `/api/analyze-photos` each returns `{ jobId }` in under 1 second; the actual AI call runs inside an Inngest function (verifiable from the Inngest dashboard)
-  3. `lib/whatsapp/handler.ts` dispatches Whisper/Vision calls via Inngest — the WhatsApp webhook ack returns in well under 10 seconds even for long audio
-  4. Frontend capture flow polls `GET /api/jobs/:jobId` and shows a real Inngest-driven stepper (Saving → Transcribing → Analyzing → Generating); the existing voice flow looks unchanged from the user's perspective
-  5. Each Inngest function uses `step.run()` blocks per external API call so retries don't double-bill AI providers; explicit `idempotencyKey` on every job event
-  6. `npx inngest-cli dev` runs locally alongside `npm run dev`; jobs visible in dashboard at `localhost:8288`; documented in README + new `dev:inngest` package script
-**Plans**: TBD
-**UI hint**: yes (capture flow stepper)
-
-### Phase 67: Storage Provider Abstraction
-**Goal**: Every storage operation flows through a `storage.*` provider interface instead of `supabase.storage.from(...)` direct calls — making the future Hetzner Object Storage migration "swap one provider" not "rewrite every upload path under launch pressure".
-**Depends on**: Phase 66 (Inngest functions also touch storage; cleaner to refactor with Inngest already in place)
-**Requirements**: STORAGE-01, STORAGE-02, STORAGE-03, STORAGE-04, STORAGE-05, STORAGE-06, STORAGE-07
-**Success Criteria** (what must be TRUE):
-  1. `lib/storage/index.ts` exports a `StorageProvider` interface with `upload`, `download`, `getSignedUrl`, `delete`, `list` methods; default export is a configured Supabase-backed provider
-  2. `lib/storage/supabase-provider.ts` implements the interface against `supabase.storage`; `lib/storage/s3-provider.ts` skeleton implements the same interface against `@aws-sdk/client-s3` (gated behind `STORAGE_PROVIDER=s3` env var, not active by default)
-  3. `grep -r "supabase.storage.from" app/ lib/ components/` returns zero hits outside `lib/storage/` — every upload, download, signed-URL, list, delete migrated to the new API
-  4. Every upload uses the `{company_id}/{type}/{timestamp}-{filename}` key convention; every signed URL uses an explicit `expiresInSeconds`; no Supabase `transformOptions` or render endpoints anywhere in the codebase
-  5. `docs/STORAGE-MIGRATION.md` documents the future Supabase → Hetzner Object Storage migration with provisioning steps, the exact `aws s3 sync` command, the endpoint swap procedure, and the 800 MB usage trigger threshold
-  6. Smoke test passes — temporarily setting `STORAGE_PROVIDER=s3` against a local MinIO container, upload + signed URL + download + delete all succeed; revert to Supabase as default
-**Plans**: TBD
-
-### Phase 68: Hetzner Deploy Artifacts + Perf Audit
-**Goal**: The repository ships every artifact required to deploy to a Hetzner Cloud VPS — Dockerfile, docker-compose with Caddy, `/api/health`, and a step-by-step runbook — and the local Docker build is proven to boot the app correctly. Light-touch perf audit captures regressions before any deploy.
-**Depends on**: Phase 67 (storage abstraction must exist before `/api/health` can do a meaningful storage check)
-**Requirements**: HETZNER-01, HETZNER-02, HETZNER-03, HETZNER-04, HETZNER-05, HETZNER-06, PERF-01, PERF-02
-**Success Criteria** (what must be TRUE):
-  1. A developer can run `docker build -t xtimator . && docker run -p 3000:3000 --env-file .env.local xtimator` and the app boots — `/api/health` returns 200 with `{ ok, db, storage, commit }`, and a fresh signup + login flow completes against dev Supabase
-  2. The Docker image is under 500MB, runs as a non-root user, builds via Next.js standalone output (`next.config.mjs` set to `output: 'standalone'`), and exposes port 3000
-  3. `docker-compose.yml` at the repo root brings up the Next.js service plus a Caddy reverse proxy with automatic Let's Encrypt HTTPS, an env file mount, and `restart: unless-stopped`
-  4. `docs/HETZNER-DEPLOY.md` is a runbook a developer can follow end-to-end (provision CX22 → Docker + Caddy install → DNS → `.env.production` → `docker compose up -d` → `/api/health` smoke → UFW firewall → cert renewal verification → daily off-server backup of `.env.production`) — no improvisation required
-  5. Lighthouse scores >= 80 in Performance and Accessibility on `/` (landing) and `/dashboard` (authenticated); `npm run build` reports First Load JS for `/dashboard` under 500 KB (or the rationale is captured in `.planning/known-issues.md`)
-**Plans**: TBD
-**UI hint**: no
-
-### Phase 69: v2.2 + v3.0 + Inngest + Storage Manual UAT
-**Goal**: Every v2.2 (WhatsApp polish), v3.0 (monetization), Inngest (background AI), and storage-refactor surface is exercised by a human against the Dockerized localhost build. Each test produces a pass/fail verdict in `.planning/known-issues.md` — no silent "I tested it and it works".
-**Depends on**: Phase 68 (UAT runs against the validated Docker image so we exercise the same artifact that will deploy)
-**Requirements**: UAT-V22-01, UAT-V22-02, UAT-V30-01, UAT-V30-02, UAT-V30-03, UAT-V30-04, UAT-V30-05, UAT-V30-06, UAT-INNGEST-01, UAT-INNGEST-02, UAT-STORAGE-01
-**Success Criteria** (what must be TRUE):
-  1. PDF attachment delivery is exercised end-to-end — owner sets `delivery_format=pdf_attachment`, sends an estimate via WhatsApp, a real client phone receives the PDF document plus a follow-up share link
-  2. WhatsApp status flow is exercised — pending→verified→active auto-promotion fires after OTP, suspend/reactivate buttons persist, status badge always reflects current DB state
-  3. Tier enforcement validated — free tier hits HTTP 402 on AI routes when monthly quota is exhausted; pro/business tiers respect higher caps; WhatsApp inbound gated for free tier BEFORE any Meta media download
-  4. Stripe test-mode happy path completes end-to-end — `/settings/billing` → upgrade modal → Stripe Checkout → webhook fires → `companies.tier` updates → user lands back on billing showing the new tier; Customer Portal lets user change/cancel/view invoices
-  5. Trial automation observable — new signup gets 14-day Pro entitlements, trial banner appears <3 days before expiry, hourly cron downgrades at T-0, T-3 + T-0 warning emails actually arrive in test inbox
-  6. Admin tooling works — super-admin can force-tier any company, grant bonus credits, `/admin/billing` MRR view shows correct totals against seeded test data
-  7. Inngest happy path observable — record a 2-minute audio, watch the Inngest dashboard show `transcribeAudioJob` then `generateEstimateJob` complete, capture stepper UI updates accordingly, estimate appears in editor
-  8. Long audio (8+ minutes) generates an estimate end-to-end — proves the Vercel-Free 10s timeout is no longer in the path
-  9. Every storage path (audio upload, photo upload, PDF generation, logo upload, WhatsApp inbound media) works post-refactor through the new `storage.*` API
-  10. Every UAT test (UAT-V22, UAT-V30, UAT-INNGEST, UAT-STORAGE) has a pass-or-fail verdict line in `.planning/known-issues.md`
-**Plans**: TBD
-
-### Phase 70: E2E Smoke + Bug Triage Closeout
-**Goal**: The full happy path works for a brand-new user, multi-modal capture combinations all produce sensible estimates, i18n surfaces translate without crashes, every critical bug surfaced across Phases 69-70 is fixed (with a linked commit), every non-critical finding is documented in `.planning/known-issues.md`. Milestone exits clean.
-**Depends on**: Phase 69 (UAT must have surfaced bugs to triage; verdicts must be in known-issues.md before this phase closes the file out)
-**Requirements**: UAT-E2E-01, UAT-E2E-02, UAT-E2E-03, FIX-01, FIX-02
-**Success Criteria** (what must be TRUE):
-  1. A brand-new account signs up, completes onboarding (business info + industry + color + logo), captures audio at a fixture job site, the AI generates an estimate via Inngest background job, the owner sends a share link, the fixture client opens the share page and accepts — full happy path observed in one sitting
-  2. Three multi-modal variants all produce sensible estimates via Inngest: text-only project, photos-only project, and audio+photos+text combined
-  3. Switching app language to PT-BR and ES produces translated copy on the dashboard, capture screen, and billing page without rendering errors or crashes
-  4. Every bug surfaced in Phases 69-70 is either (a) fixed in this milestone with a linked commit reference, or (b) captured in `.planning/known-issues.md` with severity, repro steps, and a proposed fix direction
-  5. `.planning/known-issues.md` exists at milestone close — even a "zero bugs found" outcome produces the file with that statement
-**Plans**: TBD
 
 ## Progress
 
