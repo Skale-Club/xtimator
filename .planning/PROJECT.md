@@ -35,7 +35,17 @@ Complete subscription system: Free/Trial/Pro/Business tiers, `usage_events` trac
 
 **Hosting decision (locked for v3.2):** Hetzner Cloud VPS (CX22/CX32, ~€4-7/mo). Coolify or Docker + Caddy for the Next.js host + cron + reverse proxy. Supabase stays managed (no DB migration needed). See **SEED-018**.
 
-**Last shipped:** Phase 61 — Production Database Foundation (2026-05-15)
+**Last shipped:** Phase 70 — Stripe Connect Customer Payments (2026-05-17)
+
+### What Phase 70 Adds (opt-in only — zero impact on companies that don't connect)
+- **Settings → Payments** sub-page with one-click "Connect Stripe Account" (OAuth Standard) + Disconnect
+- **"Pay $X" button** on shared estimates when company has Stripe connected (and estimate is unpaid)
+- **Stripe Checkout** on the business's connected account (direct charges, 0% application fee, funds settle to business's Stripe balance)
+- **Webhook auto-marks** estimates as paid (`payment_status`, `paid_at`, `payment_amount_cents`) on `checkout.session.completed` from connected accounts
+- **Branded emails** via Resend: business owner receives "You received $X" notification, customer receives "Payment confirmation" receipt
+- **Success/cancel banners** on share page after Stripe redirect; "Paid" badge on dashboard estimate list
+- **Admin gate**: platform owner adds `stripe_connect_client_id` via `/admin/integrations`; without it, feature degrades gracefully to "contact support" message
+- **Setup runbook**: `docs/STRIPE-CONNECT-OWNER-SETUP.md` (8 sections, 184 lines) for the manual Stripe Dashboard configuration the owner does once
 
 ## Current State
 
