@@ -80,7 +80,7 @@ export function HeroSection({ content }: { content: HeroContent }) {
                 asChild
                 size="lg"
                 variant="outline"
-                className="h-10 w-full border-white/10 bg-white/5 text-sm font-semibold text-foreground transition-all hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:w-auto sm:min-w-36"
+                className="w-full border-white/10 bg-white/5 font-semibold text-foreground transition-all hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:w-auto sm:min-w-36"
               >
                 <Link href="/login">
                   Log in
