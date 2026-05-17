@@ -23,24 +23,44 @@ export default async function DashboardPage() {
     redirect('/onboarding')
   }
 
+  const firstName = (company.owner_name ?? '').split(' ')[0] || company.name
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Dashboard</h1>
-        <Button asChild>
-          <Link href="/projects/new">
-            <Plus className="h-4 w-4 mr-2" />
-            New Project
-          </Link>
-        </Button>
-      </div>
+    <div className="pb-12">
+      {/* Hero zone — gradient-hero radial backdrop, display headline + primary CTA */}
+      <section className="relative isolate px-6 pt-[clamp(48px,8vw,96px)] pb-12">
+        <div
+          aria-hidden
+          className="absolute inset-0 -z-10 gradient-hero"
+        />
+        <h1 className="text-[clamp(36px,5vw,56px)] font-semibold tracking-[-0.025em] leading-[1.05]">
+          Welcome back, {firstName}
+        </h1>
+        <p className="mt-3 text-base text-muted-foreground max-w-xl">
+          Track active projects, monitor estimate health, and start new work.
+        </p>
+        <div className="mt-6 flex gap-3">
+          <Button variant="primary" size="lg" asChild>
+            <Link href="/projects/new">
+              <Plus className="h-4 w-4 mr-2" />
+              New project
+            </Link>
+          </Button>
+        </div>
+      </section>
 
       <Suspense fallback={<StatCardsSkeleton />}>
         <DashboardStats companyId={company.id} />
       </Suspense>
-      <Suspense fallback={<ProjectListSkeleton />}>
-        <DashboardProjects companyId={company.id} />
-      </Suspense>
+
+      <section className="px-6 mt-12">
+        <h2 className="text-2xl font-semibold tracking-[-0.015em] mb-4">
+          Recent projects
+        </h2>
+        <Suspense fallback={<ProjectListSkeleton />}>
+          <DashboardProjects companyId={company.id} />
+        </Suspense>
+      </section>
     </div>
   )
 }
@@ -59,9 +79,9 @@ async function DashboardProjects({ companyId }: { companyId: string }) {
 
 function StatCardsSkeleton() {
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+    <div className="px-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
       {Array.from({ length: 4 }).map((_, i) => (
-        <Skeleton key={i} className="h-24 rounded-lg" />
+        <Skeleton key={i} className="h-[120px] rounded-lg" />
       ))}
     </div>
   )

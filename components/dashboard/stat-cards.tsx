@@ -14,15 +14,15 @@ interface StatCardsProps {
 
 export function StatCards({ stats }: StatCardsProps) {
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+    <section className="px-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
       <StatCard
         icon={FolderOpen}
-        label="Total Projects"
+        label="Total projects"
         value={stats.totalProjects}
       />
       <StatCard
         icon={Clock}
-        label="Pending Estimates"
+        label="Pending estimates"
         value={stats.pendingEstimates}
       />
       <StatCard
@@ -32,9 +32,9 @@ export function StatCards({ stats }: StatCardsProps) {
       />
       <StatCard
         icon={DollarSign}
-        label="Total Revenue"
+        label="Total revenue"
         value={currencyFormatter.format(stats.totalRevenue)}
       />
-    </div>
+    </section>
   )
 }
