@@ -86,7 +86,7 @@ Doing both refactors before any production deploy means the launch (separate v3.
 - [x] **CONNECT-05**: Disconnect action (`POST /api/stripe/connect/disconnect`) clears `stripe_account_id`, sets `stripe_connect_status = 'disconnected'`, optionally calls Stripe OAuth deauthorize endpoint. Existing paid estimates retain their paid status; the company simply loses the ability to accept new payments until reconnecting.
 - [x] **CONNECT-06**: Public estimate share page (`/estimate/[token]`) conditionally renders a "Pay $X" button when (company has `stripe_account_id` AND `estimate.payment_status != 'paid'`); button is absent in all other cases (no Stripe, already paid). Two snapshot/component tests cover both branches.
 - [x] **CONNECT-07**: `POST /api/estimate/[token]/pay` creates a Stripe Checkout Session on the connected account (using `stripeAccount` header option), with `line_items` derived from estimate total, `metadata.estimate_id`, `success_url = /estimate/[token]?stripe=success&session_id={CHECKOUT_SESSION_ID}`, `cancel_url = /estimate/[token]?stripe=canceled`. Returns redirect URL; client redirects customer to Stripe.
-- [ ] **CONNECT-08**: Existing `/api/webhooks/stripe` handler branches on `event.account` — when present, treats as a connected-account event, finds company by `stripe_account_id`, finds estimate by `metadata.estimate_id`, updates estimate columns (`payment_status='paid'`, `stripe_checkout_session_id`, `stripe_payment_intent_id`, `paid_at`, `payment_amount_cents`), and dispatches two Resend emails (business owner notification + customer branded receipt). Idempotent via existing `stripe_processed_events` table.
+- [x] **CONNECT-08**: Existing `/api/webhooks/stripe` handler branches on `event.account` — when present, treats as a connected-account event, finds company by `stripe_account_id`, finds estimate by `metadata.estimate_id`, updates estimate columns (`payment_status='paid'`, `stripe_checkout_session_id`, `stripe_payment_intent_id`, `paid_at`, `payment_amount_cents`), and dispatches two Resend emails (business owner notification + customer branded receipt). Idempotent via existing `stripe_processed_events` table.
 - [x] **CONNECT-09**: After successful payment, customer is redirected to `/estimate/[token]?stripe=success` where a green banner ("✓ Payment received — thank you!") renders, the Pay Now button is gone, and the page is otherwise unchanged. A separate cancel path (`?stripe=canceled`) shows a neutral "Payment canceled — you can try again anytime" inline message without altering estimate state.
 
 ---
@@ -175,5 +175,5 @@ Coverage: 39/39 (100%) — every v1 requirement maps to exactly one phase, no or
 | CONNECT-05 | Phase 70 | Complete |
 | CONNECT-06 | Phase 70 | Complete |
 | CONNECT-07 | Phase 70 | Complete |
-| CONNECT-08 | Phase 70 | Pending |
+| CONNECT-08 | Phase 70 | Complete |
 | CONNECT-09 | Phase 70 | Complete |
