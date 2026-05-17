@@ -12,6 +12,49 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 
+const SUB_PAGES = [
+  {
+    href: '/settings/billing',
+    title: 'Billing',
+    description: 'Manage your subscription plan, usage, and upgrade options.',
+    Icon: CreditCard,
+  },
+  {
+    href: '/settings/payments',
+    title: 'Payments',
+    description:
+      'Connect Stripe to accept card payments from customers directly on your estimates.',
+    Icon: Wallet,
+  },
+  {
+    href: '/settings/price-book',
+    title: 'Price Book',
+    description: 'Manage your standard pricing for AI-powered estimates.',
+    Icon: BookOpen,
+  },
+  {
+    href: '/settings/estimate-templates',
+    title: 'Estimate Templates',
+    description:
+      'Customize the greeting, opener, and signature for your plain-text estimates.',
+    Icon: FileText,
+  },
+  {
+    href: '/settings/custom-domain',
+    title: 'Custom Domain',
+    description:
+      'Serve estimates from your own domain (e.g., estimates.mycompany.com).',
+    Icon: Globe,
+  },
+  {
+    href: '/settings/integrations',
+    title: 'Integrations',
+    description:
+      'Connect WhatsApp to receive voice and photo estimates from the field.',
+    Icon: MessageSquare,
+  },
+] as const
+
 export default async function SettingsPage() {
   const claims = await getAuthClaims()
 
@@ -27,136 +70,46 @@ export default async function SettingsPage() {
   }
 
   return (
-    <div className="w-full max-w-none space-y-6">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
+    <div className="w-full max-w-none space-y-8 px-6 py-8">
+      <header className="flex flex-col gap-2">
+        <h1 className="text-[clamp(28px,3.5vw,40px)] font-semibold tracking-tight">
+          Settings
+        </h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
           Manage company profile, estimate behavior, notifications, appearance,
           and account access from one full-width workspace.
         </p>
-      </div>
+      </header>
 
       <SettingsTabs company={company} />
 
-      <Link
-        href="/settings/billing"
-        className="block rounded-[var(--radius-md)] transition-colors hover:bg-accent/50 focus-visible:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        <Card className="w-full rounded-[var(--radius-md)]">
-          <CardHeader className="flex flex-row items-center justify-between border-b border-border">
-            <div className="flex items-start gap-3">
-              <CreditCard className="mt-0.5 h-5 w-5 text-muted-foreground" />
-              <div>
-                <CardTitle>Billing</CardTitle>
-                <CardDescription>
-                  Manage your subscription plan, usage, and upgrade options.
-                </CardDescription>
-              </div>
-            </div>
-            <ChevronRight className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-        </Card>
-      </Link>
-
-      <Link
-        href="/settings/payments"
-        className="block rounded-[var(--radius-md)] transition-colors hover:bg-accent/50 focus-visible:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        <Card className="w-full rounded-[var(--radius-md)]">
-          <CardHeader className="flex flex-row items-center justify-between border-b border-border">
-            <div className="flex items-start gap-3">
-              <Wallet className="mt-0.5 h-5 w-5 text-muted-foreground" />
-              <div>
-                <CardTitle>Payments</CardTitle>
-                <CardDescription>
-                  Connect Stripe to accept card payments from customers directly on your estimates.
-                </CardDescription>
-              </div>
-            </div>
-            <ChevronRight className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-        </Card>
-      </Link>
-
-      <Link
-        href="/settings/price-book"
-        className="block rounded-[var(--radius-md)] transition-colors hover:bg-accent/50 focus-visible:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        <Card className="w-full rounded-[var(--radius-md)]">
-          <CardHeader className="flex flex-row items-center justify-between border-b border-border">
-            <div className="flex items-start gap-3">
-              <BookOpen className="mt-0.5 h-5 w-5 text-muted-foreground" />
-              <div>
-                <CardTitle>Price Book</CardTitle>
-                <CardDescription>
-                  Manage your standard pricing for AI-powered estimates.
-                </CardDescription>
-              </div>
-            </div>
-            <ChevronRight className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-        </Card>
-      </Link>
-
-      <Link
-        href="/settings/estimate-templates"
-        className="block rounded-[var(--radius-md)] transition-colors hover:bg-accent/50 focus-visible:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        <Card className="w-full rounded-[var(--radius-md)]">
-          <CardHeader className="flex flex-row items-center justify-between border-b border-border">
-            <div className="flex items-start gap-3">
-              <FileText className="mt-0.5 h-5 w-5 text-muted-foreground" />
-              <div>
-                <CardTitle>Estimate Templates</CardTitle>
-                <CardDescription>
-                  Customize the greeting, opener, and signature for your plain-text estimates.
-                </CardDescription>
-              </div>
-            </div>
-            <ChevronRight className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-        </Card>
-      </Link>
-
-      <Link
-        href="/settings/custom-domain"
-        className="block rounded-[var(--radius-md)] transition-colors hover:bg-accent/50 focus-visible:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        <Card className="w-full rounded-[var(--radius-md)]">
-          <CardHeader className="flex flex-row items-center justify-between border-b border-border">
-            <div className="flex items-start gap-3">
-              <Globe className="mt-0.5 h-5 w-5 text-muted-foreground" />
-              <div>
-                <CardTitle>Custom Domain</CardTitle>
-                <CardDescription>
-                  Serve estimates from your own domain (e.g., estimates.mycompany.com).
-                </CardDescription>
-              </div>
-            </div>
-            <ChevronRight className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-        </Card>
-      </Link>
-
-      <Link
-        href="/settings/integrations"
-        className="block rounded-[var(--radius-md)] transition-colors hover:bg-accent/50 focus-visible:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        <Card className="w-full rounded-[var(--radius-md)]">
-          <CardHeader className="flex flex-row items-center justify-between border-b border-border">
-            <div className="flex items-start gap-3">
-              <MessageSquare className="mt-0.5 h-5 w-5 text-muted-foreground" />
-              <div>
-                <CardTitle>Integrations</CardTitle>
-                <CardDescription>
-                  Connect WhatsApp to receive voice and photo estimates from the field.
-                </CardDescription>
-              </div>
-            </div>
-            <ChevronRight className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-        </Card>
-      </Link>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        {SUB_PAGES.map(({ href, title, description, Icon }) => (
+          <Link
+            key={href}
+            href={href}
+            className="block rounded-[var(--radius-lg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <Card
+              variant="glass"
+              className="h-full p-6 transition-shadow hover:shadow-glow-brand"
+            >
+              <CardHeader className="flex flex-row items-start justify-between p-0">
+                <div className="flex items-start gap-3">
+                  <Icon className="mt-0.5 h-5 w-5 text-[hsl(var(--primary))]" />
+                  <div>
+                    <CardTitle className="text-lg">{title}</CardTitle>
+                    <CardDescription className="mt-1">
+                      {description}
+                    </CardDescription>
+                  </div>
+                </div>
+                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+            </Card>
+          </Link>
+        ))}
+      </div>
     </div>
   )
 }

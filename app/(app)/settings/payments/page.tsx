@@ -6,6 +6,7 @@ import {
   StripeConnectCard,
   type ConnectState,
 } from '@/components/settings/stripe-connect-card'
+import { Card } from '@/components/ui/card'
 
 /**
  * /settings/payments — owner-facing page for the Stripe Connect lifecycle.
@@ -14,6 +15,9 @@ import {
  * presence and (b) the company's stripe_account_id + status. Shows toast
  * banners on `?connected=1` (success after OAuth return) and `?error=...`
  * (any failure code from initiate/callback).
+ *
+ * Phase 71-10: wrapped the StripeConnectCard surface in <Card variant="glass">
+ * and turned status banners into glass cards with gradient-left accent.
  */
 export default async function PaymentsSettingsPage({
   searchParams,
@@ -58,24 +62,32 @@ export default async function PaymentsSettingsPage({
   const toastConnected = sp.connected === '1'
 
   return (
-    <div className="w-full max-w-3xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Payments</h1>
+    <div className="mx-auto max-w-3xl space-y-6 px-6 py-8">
+      <header className="flex flex-col gap-1">
+        <h1 className="text-[clamp(28px,3.5vw,40px)] font-semibold tracking-tight">
+          Payments
+        </h1>
         <p className="text-sm text-muted-foreground">
           Connect Stripe to let customers pay estimates online.
         </p>
-      </div>
+      </header>
       {toastConnected && (
-        <div className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+        <Card
+          variant="glass"
+          className="border-l-[3px] border-l-emerald-500 p-4 text-sm"
+        >
           Stripe account connected successfully.
-        </div>
+        </Card>
       )}
       {toastError && (
-        <div className="rounded-md border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+        <Card
+          variant="glass"
+          className="border-l-[3px] border-l-[hsl(var(--destructive))] p-4 text-sm text-destructive"
+        >
           {toastError === 'platform_not_configured'
             ? 'Stripe Connect is not yet enabled on the platform.'
             : `Connection failed: ${toastError}`}
-        </div>
+        </Card>
       )}
       <StripeConnectCard state={state} />
     </div>

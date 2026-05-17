@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getAuthClaims } from '@/lib/queries/auth'
 import { getCustomDomainSettings } from '@/lib/queries/company'
 import { CustomDomainForm } from '@/components/settings/custom-domain-form'
+import { Card } from '@/components/ui/card'
 
 export const metadata = { title: 'Custom Domain' }
 
@@ -15,14 +16,18 @@ export default async function CustomDomainPage() {
   if (!settings) redirect('/onboarding')
 
   return (
-    <div className="w-full max-w-none space-y-6">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-bold tracking-tight">Custom Domain</h1>
+    <div className="mx-auto max-w-3xl space-y-8 px-6 py-8">
+      <header className="flex flex-col gap-1">
+        <h1 className="text-[clamp(28px,3.5vw,40px)] font-semibold tracking-tight">
+          Custom Domain
+        </h1>
         <p className="text-sm text-muted-foreground">
           Serve estimate share links from your own domain instead of xtimator.com.
         </p>
-      </div>
-      <CustomDomainForm settings={settings} />
+      </header>
+      <Card variant="glass" className="p-8">
+        <CustomDomainForm settings={settings} />
+      </Card>
     </div>
   )
 }

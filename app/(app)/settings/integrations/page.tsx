@@ -5,6 +5,7 @@ import {
   WhatsAppConnectCard,
   type WhatsAppStatus,
 } from '@/components/settings/whatsapp-connect-card'
+import { Card } from '@/components/ui/card'
 
 export default async function SettingsIntegrationsPage() {
   const claims = await getAuthClaims()
@@ -37,15 +38,19 @@ export default async function SettingsIntegrationsPage() {
     : null
 
   return (
-    <div className="w-full max-w-none space-y-6">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-2xl font-bold tracking-tight">Integrations</h1>
+    <div className="mx-auto max-w-3xl space-y-8 px-6 py-8">
+      <header className="flex flex-col gap-2">
+        <h1 className="text-[clamp(28px,3.5vw,40px)] font-semibold tracking-tight">
+          Integrations
+        </h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
           Connect third-party services to extend how estimates are created and delivered.
         </p>
-      </div>
+      </header>
 
-      <WhatsAppConnectCard initial={whatsAppStatus} />
+      <Card variant="glass" className="p-6 md:p-8">
+        <WhatsAppConnectCard initial={whatsAppStatus} />
+      </Card>
     </div>
   )
 }

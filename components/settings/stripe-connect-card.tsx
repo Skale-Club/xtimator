@@ -46,7 +46,7 @@ export function StripeConnectCard({ state }: { state: ConnectState }) {
   }
 
   return (
-    <Card>
+    <Card variant="glass" className="p-2 md:p-4">
       <CardHeader>
         <CardTitle>Stripe payments</CardTitle>
         <CardDescription>
@@ -83,7 +83,7 @@ export function StripeConnectCard({ state }: { state: ConnectState }) {
       <CardFooter>
         {state.kind === 'not_connected' && (
           <a href="/api/stripe/connect/initiate">
-            <Button className="bg-[#406EF1] hover:bg-[#3558c2] text-white">
+            <Button variant="primary">
               Connect Stripe Account
             </Button>
           </a>
