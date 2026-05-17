@@ -13,6 +13,32 @@ card payments on their shared estimates.
 - **Owner of this doc:** Xtimator platform owner. Re-read this whenever you
   promote Connect from staging → production.
 
+---
+
+## ✅ TEST MODE — Already Done Automatically (2026-05-17)
+
+The following steps were executed via `supabase` and `stripe` CLIs during ship,
+so **test mode is ready to use out of the box**:
+
+| Step | What was done | Artifact |
+|------|---------------|----------|
+| ✅ Migration applied | `supabase db push --db-url $DATABASE_URL` ran the Phase 70 migration against production DB | All Connect columns now exist on `companies` + `estimates` |
+| ✅ Connect verified enabled | `stripe accounts list` returned 200 (Connect is active on `acct_1OLXrgFNcPC8Pzz0`) | — |
+| ✅ Connect webhook created | `stripe webhook_endpoints create --connect --url https://xtimator.com/api/webhooks/stripe` | Webhook ID: `we_<your-connect-webhook-id>` |
+| ✅ Test mode Connect Client ID captured | Returned in webhook creation response (`application` field) | `ca_<your-connect-client-id>` |
+| ✅ Test mode Connect webhook secret captured | Returned in webhook creation response (`secret` field) | `whsec_<your-connect-webhook-secret>` (stored in `.env.local`, never committed) |
+| ✅ Credentials added to `.env.local` | `STRIPE_CONNECT_CLIENT_ID_API_KEY` + `STRIPE_CONNECT_WEBHOOK_SECRET` | (gitignored) |
+| ✅ Webhook handler updated | Now verifies signature against BOTH platform secret AND Connect secret (try-each pattern) | `app/api/webhooks/stripe/route.ts` |
+
+**You can skip directly to Section 7 (smoke test) for test mode** — sections 1-6 below are reference / for go-live to LIVE mode.
+
+For **production live mode**, you still need to:
+1. Repeat steps via Dashboard in live mode (Stripe issues separate `ca_live_...` and live-mode webhook secrets)
+2. Set the live values on Vercel/Hetzner env vars
+3. Configure the Connect platform branding (logo, color) in Dashboard for end-user OAuth pages
+
+---
+
 ## 1. Enable Connect in the Stripe Dashboard
 
 1. Log into [dashboard.stripe.com](https://dashboard.stripe.com) (top-left

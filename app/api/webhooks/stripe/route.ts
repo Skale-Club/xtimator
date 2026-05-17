@@ -18,18 +18,32 @@ export async function POST(request: NextRequest) {
   // Step 1: raw body MUST come before any parsing (RESEARCH Pitfall 1)
   const rawBody = await request.text()
   const sig = request.headers.get('stripe-signature') ?? ''
-  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET ?? ''
+
+  // Two webhook endpoints share this URL: the platform endpoint (subscription
+  // events) and the Connect endpoint (connected-account events). Each has its
+  // own signing secret. Try each in turn so a single handler serves both.
+  const platformSecret = process.env.STRIPE_WEBHOOK_SECRET ?? ''
+  const connectSecret = process.env.STRIPE_CONNECT_WEBHOOK_SECRET ?? ''
 
   const stripe = await getStripeClient()
 
-  // Step 2: verify signature — throws on failure
-  let event: Stripe.Event
-  try {
-    event = stripe.webhooks.constructEvent(rawBody, sig, webhookSecret)
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Unknown error'
-    console.warn('[Stripe] Webhook signature verification failed:', message)
-    return new Response(`Webhook error: ${message}`, { status: 400 })
+  // Step 2: verify signature — try platform secret first, then connect secret
+  let event: Stripe.Event | null = null
+  let lastErrorMessage = 'No webhook secrets configured'
+
+  for (const secret of [platformSecret, connectSecret]) {
+    if (!secret) continue
+    try {
+      event = stripe.webhooks.constructEvent(rawBody, sig, secret)
+      break
+    } catch (err) {
+      lastErrorMessage = err instanceof Error ? err.message : 'Unknown error'
+    }
+  }
+
+  if (!event) {
+    console.warn('[Stripe] Webhook signature verification failed:', lastErrorMessage)
+    return new Response(`Webhook error: ${lastErrorMessage}`, { status: 400 })
   }
 
   // Step 3: idempotency — insert event_id; 23505 = already processed
