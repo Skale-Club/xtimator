@@ -82,7 +82,7 @@ export function SignupForm() {
                     placeholder="you@example.com"
                     autoComplete="email"
                     disabled={isPending}
-                    className="min-h-[44px]"
+                    className="input-glow-strong min-h-[44px] transition-all"
                     {...field}
                   />
                 </FormControl>
@@ -103,7 +103,7 @@ export function SignupForm() {
                       placeholder="••••••••"
                       autoComplete="new-password"
                       disabled={isPending}
-                      className="min-h-[44px] pr-10"
+                      className="input-glow-strong min-h-[44px] pr-10 transition-all"
                       {...field}
                     />
                     <button
@@ -134,7 +134,7 @@ export function SignupForm() {
                       placeholder="••••••••"
                       autoComplete="new-password"
                       disabled={isPending}
-                      className="min-h-[44px] pr-10"
+                      className="input-glow-strong min-h-[44px] pr-10 transition-all"
                       {...field}
                     />
                     <button
@@ -153,7 +153,7 @@ export function SignupForm() {
             )}
           />
 
-          <Button type="submit" variant="primary" size="lg" className="w-full" disabled={isPending}>
+          <Button type="submit" variant="primary" size="lg" className="auth-submit-shimmer mt-2 w-full text-base font-semibold transition-transform duration-200 hover:scale-[1.015] active:scale-100" disabled={isPending}>
             {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Create account
           </Button>

@@ -74,7 +74,7 @@ export function LoginForm() {
                     placeholder="you@example.com"
                     autoComplete="email"
                     disabled={isPending}
-                    className="min-h-[48px] border-white/10 bg-white/5 px-4 text-white transition-colors focus-visible:border-primary focus-visible:bg-white/10 focus-visible:ring-1 focus-visible:ring-primary"
+                    className="input-glow-strong min-h-[48px] border-white/10 bg-white/5 px-4 text-white transition-all focus-visible:bg-white/10"
                     {...field}
                   />
                 </FormControl>
@@ -95,7 +95,7 @@ export function LoginForm() {
                       placeholder="••••••••"
                       autoComplete="current-password"
                       disabled={isPending}
-                      className="min-h-[48px] border-white/10 bg-white/5 px-4 pr-12 text-white transition-colors focus-visible:border-primary focus-visible:bg-white/10 focus-visible:ring-1 focus-visible:ring-primary"
+                      className="input-glow-strong min-h-[48px] border-white/10 bg-white/5 px-4 pr-12 text-white transition-all focus-visible:bg-white/10"
                       {...field}
                     />
                     <button
@@ -114,7 +114,7 @@ export function LoginForm() {
             )}
           />
 
-          <Button type="submit" variant="primary" size="lg" className="mt-2 w-full text-base font-semibold" disabled={isPending}>
+          <Button type="submit" variant="primary" size="lg" className="auth-submit-shimmer mt-2 w-full text-base font-semibold transition-transform duration-200 hover:scale-[1.015] active:scale-100" disabled={isPending}>
             {isPending && <Loader2 className="mr-2 size-5 animate-spin" />}
             Sign in to Xtimator
           </Button>
