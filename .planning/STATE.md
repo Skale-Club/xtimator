@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v3.1.1
 milestone_name: MVP Launch Prep + Future-Proofing
 status: executing
-last_updated: "2026-05-17T06:17:42.792Z"
+last_updated: "2026-05-17T15:02:35.505Z"
 last_activity: 2026-05-17
 progress:
-  total_phases: 15
+  total_phases: 16
   completed_phases: 15
-  total_plans: 33
-  completed_plans: 33
+  total_plans: 43
+  completed_plans: 34
 ---
 
 # Project State
@@ -399,6 +399,9 @@ Last activity: 2026-05-17
 - [Phase 70]: Snapshot baselines minted by CI on first run with --update-snapshots, not committed from laptop (font/AA differences)
 - [Phase 70]: Dashboard Paid pill on project rows (not estimate rows) — joins is_current estimate into projects query to avoid N+1
 - [Phase 70]: Owner runbook expanded from 6 to 8 sections — explicit migration apply + 9-row troubleshooting table
+- [Phase 71]: Inter font retained (overrides SEED's Geist suggestion per RESEARCH G1)
+- [Phase 71]: Brand gradient uses hsl(var(--primary)) for tenant white-label cascade
+- [Phase 71]: Glow shadows namespaced --glow-* (not --shadow-*) to avoid Tailwind v4 wildcard collision
 
 ## Performance Metrics
 
@@ -513,6 +516,7 @@ Last activity: 2026-05-17
 | Phase 70 P03 | 7 min | 3 tasks | 10 files |
 | Phase 70 P04 | 4min | 2 tasks | 4 files |
 | Phase 70 P05 | ~8 min | 3 tasks | 7 files |
+| Phase 71 P01 | 326 | 4 tasks | 8 files |
 
 ## Project Reference
 
