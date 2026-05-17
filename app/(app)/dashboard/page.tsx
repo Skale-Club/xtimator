@@ -28,10 +28,11 @@ export default async function DashboardPage() {
   return (
     <div className="pb-12">
       {/* Hero zone — gradient-hero radial backdrop, display headline + primary CTA */}
-      <section className="relative isolate px-6 pt-[clamp(48px,8vw,96px)] pb-12">
+      <section className="relative isolate px-6 pt-[clamp(32px,5vw,56px)] pb-12">
+        {/* Gradient extends -top-16 to bleed under the glass topbar — backdrop-blur fuses the two surfaces */}
         <div
           aria-hidden
-          className="absolute inset-0 -z-10 gradient-hero"
+          className="pointer-events-none absolute -top-16 inset-x-0 bottom-0 -z-10 gradient-hero"
         />
         <h1 className="text-[clamp(36px,5vw,56px)] font-semibold tracking-[-0.025em] leading-[1.05]">
           Welcome back, {firstName}
