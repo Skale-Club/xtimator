@@ -1,32 +1,43 @@
 import { getBlogPosts } from '@/lib/queries/blog'
 import Link from 'next/link'
+import { Card } from '@/components/ui/card'
 
 export const dynamic = 'force-dynamic'
 
 export default async function BlogListPage() {
   const posts = await getBlogPosts(0)
   return (
-    <main className="mx-auto max-w-4xl px-6 py-16">
-      <h1 className="text-3xl font-bold mb-10">Blog</h1>
-      {posts.length === 0 && <p className="text-muted-foreground">No posts yet.</p>}
-      <div className="flex flex-col gap-8">
-        {posts.map(post => (
-          <article key={post.id} className="flex flex-col gap-2">
-            {post.cover_image_url && (
-              <img src={post.cover_image_url} alt="" className="rounded-xl w-full h-48 object-cover" />
-            )}
-            <h2 className="text-xl font-semibold">
-              <Link href={`/blog/${post.slug}`} className="hover:underline">{post.title}</Link>
-            </h2>
-            {post.excerpt && <p className="text-muted-foreground">{post.excerpt}</p>}
-            {post.published_at && (
-              <time className="text-xs text-muted-foreground">
-                {new Date(post.published_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
-              </time>
-            )}
-          </article>
-        ))}
-      </div>
-    </main>
+    <div className="relative isolate min-h-screen">
+      <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[480px] gradient-hero" />
+      <main className="mx-auto max-w-4xl px-6 py-[clamp(48px,10vw,96px)]">
+        <header className="mb-12">
+          <h1 className="text-[clamp(40px,7vw,64px)] font-semibold leading-[1.05] tracking-[-0.025em]">Blog</h1>
+        </header>
+        {posts.length === 0 && <p className="text-muted-foreground">No posts yet.</p>}
+        <div className="flex flex-col gap-8">
+          {posts.map(post => (
+            <article key={post.id}>
+              <Card variant="glass" className="overflow-hidden p-0">
+                {post.cover_image_url && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={post.cover_image_url} alt="" className="w-full h-48 object-cover" />
+                )}
+                <div className="flex flex-col gap-2 p-6">
+                  <h2 className="text-2xl font-semibold tracking-tight">
+                    <Link href={`/blog/${post.slug}`} className="hover:underline">{post.title}</Link>
+                  </h2>
+                  {post.excerpt && <p className="text-muted-foreground leading-[1.55]">{post.excerpt}</p>}
+                  {post.published_at && (
+                    <time className="text-xs text-muted-foreground">
+                      {new Date(post.published_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+                    </time>
+                  )}
+                </div>
+              </Card>
+            </article>
+          ))}
+        </div>
+      </main>
+    </div>
   )
 }
