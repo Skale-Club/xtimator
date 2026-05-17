@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v3.1.1
 milestone_name: MVP Launch Prep + Future-Proofing
 status: executing
-last_updated: "2026-05-17T15:29:07.968Z"
+last_updated: "2026-05-17T15:30:23.129Z"
 last_activity: 2026-05-17
 progress:
   total_phases: 16
@@ -404,6 +404,7 @@ Last activity: 2026-05-17
 - [Phase 71]: Glow shadows namespaced --glow-* (not --shadow-*) to avoid Tailwind v4 wildcard collision
 - [Phase 71]: Card gets CVA from scratch (RESEARCH G3) — chose this over parallel <GlassCard> wrapper so hundreds of existing call sites stay untouched via backward-compat default variant
 - [Phase 71]: Input/Textarea focus migrated from --focus-shadow to gradient-brand glow (shadow-glow-brand)
+- [Phase 71]: 71-04: AuthCard switched from ad-hoc bg-black/40 to Card variant=glass primitive (single source of truth via 71-02)
 
 ## Performance Metrics
 
@@ -521,6 +522,7 @@ Last activity: 2026-05-17
 | Phase 71 P01 | 326 | 4 tasks | 8 files |
 | Phase 71 P02 | 716 | 4 tasks | 16 files |
 | Phase 71 P03 | 360 | 4 tasks | 8 files |
+| Phase 71 P04 | 480 | 4 tasks | 12 files |
 
 ## Project Reference
 
