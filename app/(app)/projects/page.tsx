@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getAuthClaims, getCachedCompany } from '@/lib/queries/auth'
 import { FolderPlus, FolderOpen } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { EmptyState } from '@/components/dashboard/empty-state'
 import { cn } from '@/lib/utils'
 
 const STATUS_LABEL: Record<string, string> = {
@@ -39,70 +40,72 @@ export default async function ProjectsPage() {
   const list = projects ?? []
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="px-6 py-8 space-y-6">
+      <header className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Projects</h1>
+          <h1 className="text-[clamp(28px,3.5vw,40px)] font-semibold tracking-[-0.02em] leading-[1.1]">
+            Projects
+          </h1>
           <p className="text-sm text-muted-foreground mt-1">
             {list.length} {list.length === 1 ? 'project' : 'projects'}
           </p>
         </div>
-        <Button asChild>
+        <Button variant="primary" asChild>
           <Link href="/projects/new">
             <FolderPlus className="h-4 w-4 mr-2" />
             New project
           </Link>
         </Button>
-      </div>
+      </header>
 
       {list.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-20 gap-4 text-center">
-          <FolderOpen className="h-10 w-10 text-muted-foreground/40" />
-          <div className="space-y-1">
-            <p className="text-sm font-medium">No projects yet</p>
-            <p className="text-sm text-muted-foreground">Create your first project to get started.</p>
-          </div>
-          <Button asChild variant="outline">
-            <Link href="/projects/new">Create project</Link>
-          </Button>
-        </div>
+        <EmptyState
+          icon={FolderOpen}
+          title="No projects yet"
+          description="Create your first project to get started."
+          actionLabel="Create project"
+          actionHref="/projects/new"
+        />
       ) : (
-        <div className="flex flex-col divide-y divide-border rounded-xl border border-border overflow-hidden">
+        <ul className="divide-y divide-border rounded-lg border border-border bg-card overflow-hidden">
           {list.map((project) => {
             const label = STATUS_LABEL[project.status] ?? project.status
             const color = STATUS_COLOR[project.status] ?? STATUS_COLOR.draft
             const clientName = (project.client as { name?: string } | null)?.name
 
             return (
-              <Link
-                key={project.id}
-                href={`/projects/${project.id}`}
-                className="flex items-center justify-between px-5 py-4 bg-card hover:bg-accent/50 transition-colors group"
-              >
-                <div className="flex flex-col gap-0.5 min-w-0">
-                  <span className="text-sm font-medium truncate group-hover:text-foreground">
-                    {project.name}
-                  </span>
-                  {clientName && (
-                    <span className="text-xs text-muted-foreground truncate">{clientName}</span>
-                  )}
-                </div>
-                <div className="flex items-center gap-4 shrink-0 ml-4">
-                  <span className="text-xs text-muted-foreground">
-                    {new Date(project.created_at).toLocaleDateString('en-US', {
-                      month: 'short',
-                      day: 'numeric',
-                      year: 'numeric',
-                    })}
-                  </span>
-                  <span className={cn('text-xs font-medium px-2 py-0.5 rounded-full', color)}>
-                    {label}
-                  </span>
-                </div>
-              </Link>
+              <li key={project.id}>
+                <Link
+                  href={`/projects/${project.id}`}
+                  className="flex items-center justify-between h-10 px-4 hover:bg-[var(--glass-bg-light)] transition-colors group"
+                >
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-sm font-medium truncate group-hover:text-foreground">
+                      {project.name}
+                    </span>
+                    {clientName && (
+                      <span className="text-xs text-muted-foreground truncate">
+                        {clientName}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-4 shrink-0 ml-4">
+                    <span className="text-xs text-muted-foreground">
+                      {new Date(project.created_at).toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric',
+                      })}
+                    </span>
+                    <span className={cn('text-xs font-medium px-2 py-0.5 rounded-full', color)}>
+                      {label}
+                    </span>
+                  </div>
+                </Link>
+              </li>
             )
           })}
-        </div>
+        </ul>
       )}
     </div>
   )

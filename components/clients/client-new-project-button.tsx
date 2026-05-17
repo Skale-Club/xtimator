@@ -30,6 +30,7 @@ export function ClientNewProjectButton({ clientId, clientName }: ClientNewProjec
 
   return (
     <Button
+      variant="primary"
       size="sm"
       onClick={handleNewProject}
       disabled={isPending}

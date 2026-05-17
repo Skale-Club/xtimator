@@ -50,7 +50,7 @@ export default async function ClientDetailPage({
   const fullAddress = addressParts.length > 0 ? addressParts.join(', ') : null
 
   return (
-    <div className="space-y-6">
+    <div className="px-6 py-8 space-y-6">
       {/* Back link */}
       <Link
         href="/clients"
@@ -60,8 +60,8 @@ export default async function ClientDetailPage({
         Back to Clients
       </Link>
 
-      {/* Client info card */}
-      <Card>
+      {/* Client info card — glass surface */}
+      <Card variant="glass">
         <CardContent className="p-6">
           <div className="flex flex-col sm:flex-row items-start gap-6">
             <Avatar className="h-16 w-16 shrink-0">
@@ -76,7 +76,7 @@ export default async function ClientDetailPage({
             <div className="flex-1 min-w-0 space-y-3">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <h1 className="text-2xl font-bold">{client.name}</h1>
+                  <h1 className="text-[clamp(24px,3vw,32px)] font-semibold tracking-[-0.02em] leading-[1.15]">{client.name}</h1>
                   <Badge variant="secondary" className="mt-1">
                     {client.project_count} project{client.project_count !== 1 ? 's' : ''}
                   </Badge>
@@ -119,9 +119,10 @@ export default async function ClientDetailPage({
         </CardContent>
       </Card>
 
-      {/* Associated projects */}
-      <div className="space-y-4">
-        <h2 className="text-lg font-semibold">Projects</h2>
+      {/* Associated projects — glass section card grouping */}
+      <Card variant="glass">
+        <CardContent className="p-6 space-y-4">
+          <h2 className="text-xl font-semibold tracking-[-0.015em]">Projects</h2>
 
         {projects.length === 0 ? (
           <EmptyState
@@ -202,7 +203,8 @@ export default async function ClientDetailPage({
             </div>
           </>
         )}
-      </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }

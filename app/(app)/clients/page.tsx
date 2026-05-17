@@ -17,7 +17,7 @@ export default async function ClientsPage() {
   const clients = await getClients(supabase, company.id)
 
   return (
-    <div className="space-y-6">
+    <div className="px-6 py-8 space-y-6">
       <ClientList clients={clients} companyId={company.id} />
     </div>
   )
