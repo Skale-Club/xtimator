@@ -62,13 +62,15 @@ export function EstimateView({
   }
 
   return (
-    <div className="space-y-8">
-      {/* Header with company branding */}
-      <div
-        className="border-t-4 rounded-t-lg"
-        style={{ borderTopColor: brandColor }}
+    <div className="space-y-6">
+      {/* Phase 71-09: glass header card with 3px gradient-brand top edge that
+          cascades tenant --platform-primary (overrides the previous solid
+          border-t-4 styled by inline brandColor). */}
+      <Card
+        variant="glass"
+        className="relative overflow-hidden before:content-[''] before:absolute before:inset-x-0 before:top-0 before:h-[3px] before:gradient-brand"
       >
-        <div className="p-6 sm:p-8">
+        <CardContent className="p-6 sm:p-8">
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
             <div className="flex items-start gap-4">
               {company.logo_url && (
@@ -82,13 +84,13 @@ export function EstimateView({
               )}
               <div>
                 <h1
-                  className="text-2xl font-bold"
+                  className="text-3xl font-semibold tracking-[-0.02em]"
                   style={{ color: brandColor }}
                 >
                   {company.name}
                 </h1>
                 {company.owner_name && (
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-sm text-muted-foreground mt-1">
                     {company.owner_name}
                   </p>
                 )}
@@ -108,12 +110,12 @@ export function EstimateView({
               )}
             </div>
           </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
       {/* Client info bar */}
       {client && (
-        <Card>
+        <Card variant="glass">
           <CardContent className="p-4 sm:p-6">
             <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">
               Prepared For
@@ -136,7 +138,7 @@ export function EstimateView({
       )}
 
       {/* Project info */}
-      <Card>
+      <Card variant="glass">
         <CardContent className="p-4 sm:p-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <div>
@@ -164,7 +166,7 @@ export function EstimateView({
 
       {/* Summary */}
       {estimate.summary && (
-        <Card>
+        <Card variant="glass">
           <CardContent className="p-4 sm:p-6">
             <h2
               className="text-sm font-semibold uppercase tracking-wider mb-2"
@@ -323,7 +325,7 @@ export function EstimateView({
         estimate.notes) && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {estimate.payment_terms && (
-            <Card>
+            <Card variant="glass">
               <CardContent className="p-4 sm:p-6">
                 <h3
                   className="text-sm font-semibold uppercase tracking-wider mb-2"
@@ -339,7 +341,7 @@ export function EstimateView({
           )}
 
           {estimate.warranty_terms && (
-            <Card>
+            <Card variant="glass">
               <CardContent className="p-4 sm:p-6">
                 <h3
                   className="text-sm font-semibold uppercase tracking-wider mb-2"
@@ -355,7 +357,7 @@ export function EstimateView({
           )}
 
           {estimate.timeline && (
-            <Card>
+            <Card variant="glass">
               <CardContent className="p-4 sm:p-6">
                 <h3
                   className="text-sm font-semibold uppercase tracking-wider mb-2"
@@ -371,7 +373,7 @@ export function EstimateView({
           )}
 
           {estimate.notes && (
-            <Card>
+            <Card variant="glass">
               <CardContent className="p-4 sm:p-6">
                 <h3
                   className="text-sm font-semibold uppercase tracking-wider mb-2"
@@ -394,7 +396,7 @@ export function EstimateView({
           estimate.company.stripe_connect_status === 'active' &&
           estimate.payment_status !== 'paid' &&
           estimate.total_amount_cents > 0)) && (
-        <Card>
+        <Card variant="glass">
           <CardContent className="p-6 sm:p-8 space-y-4">
             {stripeState === 'success' && <PaymentSuccessBanner />}
             {stripeState === 'canceled' && <PaymentCanceledNotice />}
@@ -414,7 +416,7 @@ export function EstimateView({
       )}
 
       {/* Accept / Decline buttons */}
-      <Card>
+      <Card variant="glass">
         <CardContent className="p-6 sm:p-8">
           {responded ? (
             <div className="text-center space-y-2">
