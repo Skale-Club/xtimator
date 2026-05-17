@@ -28,24 +28,27 @@ export function HowItWorksSection({ steps }: { steps: Array<{ eyebrow: string; t
           <div className="space-y-12 md:space-y-20">
             {steps.map(({ eyebrow, title, description }, index) => {
               const Icon = STEP_ICONS[index] ?? Mic
+              const stepNumber = String(index + 1).padStart(2, '0')
               return (
                 <motion.div
                   key={title}
-                  initial={reduce ? false : { opacity: 0, y: 20 }}
+                  initial={reduce ? false : { opacity: 0, y: 24 }}
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true, margin: '-100px' }}
-                  transition={{ duration: 0.5, delay: index * 0.1 }}
+                  transition={{ duration: 0.55, delay: index * 0.12, ease: 'easeOut' }}
                   className="relative flex flex-col gap-6 md:flex-row md:items-start md:gap-12"
                 >
-                  {/* Gradient brand circle that sits on the vertical line */}
-                  <div className="relative z-10 inline-flex size-16 shrink-0 items-center justify-center rounded-full gradient-brand text-white shadow-[0_0_24px_hsl(var(--primary)/0.45)]">
-                    <Icon className="size-6" aria-hidden="true" />
+                  {/* Number badge — gradient-brand fill with glow ring (UI-SPEC empty-state recipe) */}
+                  <div className="relative z-10 inline-flex size-16 shrink-0 flex-col items-center justify-center rounded-full gradient-brand text-white shadow-[0_0_32px_hsl(var(--primary)/0.55)] ring-1 ring-white/15">
+                    <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/75 leading-none">Step</span>
+                    <span className="mt-0.5 text-xl font-semibold leading-none tracking-tight">{stepNumber}</span>
+                    <Icon className="absolute -right-1 -bottom-1 size-5 rounded-full bg-background/90 p-0.5 text-primary ring-1 ring-white/10" aria-hidden="true" />
                   </div>
 
-                  {/* Card Content — glass token, NO blur (landing perf gate) */}
+                  {/* Card Content — glass token, NO blur (landing perf gate), hover lift + glow intensify */}
                   <Card
                     variant="glass"
-                    className="group relative flex-1 rounded-2xl p-8 backdrop-blur-none transition-colors"
+                    className="group relative flex-1 rounded-2xl p-8 backdrop-blur-none transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[0_0_50px_hsl(var(--primary)/0.18)]"
                   >
                     <div className="pointer-events-none absolute inset-0 rounded-2xl bg-gradient-to-br from-primary/10 via-transparent to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
                     <p className="mb-2 text-sm font-bold uppercase tracking-[0.12em] text-primary">{eyebrow}</p>

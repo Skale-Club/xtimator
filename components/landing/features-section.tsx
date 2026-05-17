@@ -36,19 +36,19 @@ export function FeaturesSection({ features }: { features: Array<{ icon: string; 
             return (
               <motion.div
                 key={title}
-                initial={reduce ? false : { opacity: 0, y: 20 }}
+                initial={reduce ? false : { opacity: 0, y: 24 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: '-50px' }}
-                transition={{ duration: 0.5, delay: index * 0.1 }}
+                transition={{ duration: 0.55, delay: index * 0.12, ease: 'easeOut' }}
                 className={bentoClass}
               >
                 {/*
                   Glass surface tokens WITHOUT backdrop-blur (perf gate for landing scroll).
-                  Override the variant="glass" blur with backdrop-blur-none.
+                  Polish: hover lift 2px + glow intensifies + border tints brand.
                 */}
                 <Card
                   variant="glass"
-                  className="group relative h-full overflow-hidden rounded-3xl p-8 backdrop-blur-none transition-all hover:shadow-[0_0_40px_hsl(var(--primary)/0.1)]"
+                  className="group relative h-full overflow-hidden rounded-3xl p-8 backdrop-blur-none transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[0_0_60px_hsl(var(--primary)/0.22)]"
                 >
                   <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
                   <span className="mb-6 inline-flex size-12 items-center justify-center rounded-full gradient-brand text-white shadow-[inset_0_0_20px_hsl(var(--primary)/0.1)] transition-transform duration-500 group-hover:scale-110">
