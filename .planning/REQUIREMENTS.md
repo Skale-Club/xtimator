@@ -77,6 +77,19 @@ Doing both refactors before any production deploy means the launch (separate v3.
 - [ ] **PERF-01**: Lighthouse run against landing page (`/`) and one authenticated page (`/dashboard`) — score >= 80 in Performance and Accessibility on both, regressions documented in `.planning/known-issues.md` if not
 - [ ] **PERF-02**: Bundle size check — `npm run build` output, total First Load JS for `/dashboard` under 500 KB or noted with rationale
 
+### REDESIGN — Glassmorphism Structural Redesign (Phase 71)
+
+- [ ] **REDESIGN-01**: New design system layer ships in `app/globals.css` — glass surface tokens (`--glass-bg`, `--glass-bg-strong`, `--glass-bg-light`, `--glass-border`, `--glass-blur`, `--glass-blur-strong`) and vibrant gradient palette (`--gradient-brand`, `--gradient-hero`, `--gradient-success`, `--gradient-warning`, `--gradient-danger`) added ON TOP of existing semantic tokens (no replacement, no breakage of scoped themes)
+- [ ] **REDESIGN-02**: Every shadcn primitive in `components/ui/*` gains optional glass/gradient variants without breaking existing call sites; new `<Card variant="glass">`, `<Button variant="primary">` with gradient bg + shimmer hover, `<Dialog>` with backdrop-blur, `<Input>` with gradient focus border, `<Badge>` gradient status variants, `<Tabs>` with gradient indicator
+- [ ] **REDESIGN-03**: `/admin/design-system` reference page renders every primitive variant + every glass pattern (hero zone, stat card, modal, sidebar, toast, empty state, loading skeleton) so designers/devs can audit at a glance
+- [ ] **REDESIGN-04**: Marketing + auth surfaces redesigned — `/`, `/blog/[slug]`, `/login`, `/signup`, `/reset-password`, `/onboarding/*` 5-step wizard all use the new glass + gradient system; hero zones use `--gradient-hero` radial backdrop; auth pages get glass card on gradient backdrop
+- [ ] **REDESIGN-05**: App shell + collections redesigned — sidebar (glass surface + gradient active nav highlight), top bar, bottom-nav, dashboard (glass stat cards + gradient top borders), `/clients`, `/projects` (glass list rows)
+- [ ] **REDESIGN-06**: Project surfaces redesigned — `/projects/[id]` workspace 5 tabs, capture screens (`/capture` gradient progress ring + glass stepper, `/describe`, `/photos-input`), estimate editor inline (glass row cards)
+- [ ] **REDESIGN-07**: Customer-facing surfaces redesigned — `/estimate/[token]` share page with glass overall + gradient Pay Now button (brand gradient + shimmer) + glass success banner (success gradient); PDF preview pane glass-styled
+- [ ] **REDESIGN-08**: Settings + admin + billing redesigned — every `/settings/*` sub-page (including `/settings/payments` from Phase 70), every `/admin/*` sub-page; `/settings/billing` tier cards get prominent per-tier gradients (Free neutral, Pro brand, Business premium)
+- [ ] **REDESIGN-09**: Playwright visual snapshot baselines updated for every redesigned surface — all existing snapshots WILL break and are re-minted in this phase; CI shows zero false-positive visual regressions after wave 5 lands
+- [ ] **REDESIGN-10**: Performance + accessibility gates — Lighthouse Performance + Accessibility scores stay ≥ 80 on `/` and `/dashboard` after redesign; First Load JS for `/dashboard` stays under 500 KB; `backdrop-filter: blur()` restricted to top surfaces only (hero, modals, sidebar) so mid-range mobile GPUs stay smooth; `prefers-reduced-transparency` honored with solid-bg fallback; brand identity unchanged (#406EF1 primary, dark-first default, logo + wordmark byte-identical, scoped themes still work)
+
 ### CONNECT — Stripe Connect Customer Payments (optional integration)
 
 - [x] **CONNECT-01**: DB migration adds `companies.stripe_account_id` (TEXT NULL), `stripe_connect_status` (TEXT NULL, values: `pending`|`active`|`disconnected`), `stripe_connected_at` (TIMESTAMPTZ NULL), `stripe_account_email` (TEXT NULL), `stripe_account_display_name` (TEXT NULL); and `estimates.payment_status` (TEXT NOT NULL DEFAULT `'unpaid'`), `stripe_checkout_session_id` (TEXT NULL), `stripe_payment_intent_id` (TEXT NULL), `paid_at` (TIMESTAMPTZ NULL), `payment_amount_cents` (INTEGER NULL). RLS unchanged (company-scoped via existing policies). Supabase TypeScript types regenerated.
@@ -177,3 +190,13 @@ Coverage: 39/39 (100%) — every v1 requirement maps to exactly one phase, no or
 | CONNECT-07 | Phase 70 | Complete |
 | CONNECT-08 | Phase 70 | Complete |
 | CONNECT-09 | Phase 70 | Complete |
+| REDESIGN-01 | Phase 71 | Pending |
+| REDESIGN-02 | Phase 71 | Pending |
+| REDESIGN-03 | Phase 71 | Pending |
+| REDESIGN-04 | Phase 71 | Pending |
+| REDESIGN-05 | Phase 71 | Pending |
+| REDESIGN-06 | Phase 71 | Pending |
+| REDESIGN-07 | Phase 71 | Pending |
+| REDESIGN-08 | Phase 71 | Pending |
+| REDESIGN-09 | Phase 71 | Pending |
+| REDESIGN-10 | Phase 71 | Pending |
