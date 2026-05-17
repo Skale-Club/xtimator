@@ -429,10 +429,10 @@
   pointer-events: none;
   z-index: -1;
   background-image:
-    radial-gradient(circle at 20% 25%, hsl(var(--primary) / 0.32) 0%, transparent 38%),
-    radial-gradient(circle at 80% 15%, hsl(var(--secondary) / 0.22) 0%, transparent 42%),
-    radial-gradient(circle at 60% 85%, hsl(var(--primary) / 0.18) 0%, transparent 45%),
-    radial-gradient(circle at 10% 90%, hsl(var(--secondary) / 0.14) 0%, transparent 40%);
+    radial-gradient(circle at 20% 25%, hsl(var(--primary) / 0.14) 0%, transparent 38%),
+    radial-gradient(circle at 80% 15%, hsl(var(--secondary) / 0.09) 0%, transparent 42%),
+    radial-gradient(circle at 60% 85%, hsl(var(--primary) / 0.08) 0%, transparent 45%),
+    radial-gradient(circle at 10% 90%, hsl(var(--secondary) / 0.06) 0%, transparent 40%);
   filter: blur(2px);
 }
 .hero-mesh::before,
@@ -441,7 +441,7 @@
   position: absolute;
   inset: 0;
   background: inherit;
-  opacity: 0.6;
+  opacity: 0.3;
 }
 @media (prefers-reduced-motion: no-preference) {
   .hero-mesh        { animation: mesh-float-a 28s ease-in-out infinite; }
