@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import { createTextRecording } from '@/lib/actions/recording'
 import {
   storeClientSuggestion,
@@ -79,11 +80,11 @@ export function TextDescribe({ project, companyId, projectId }: TextDescribeProp
         </span>
       </header>
 
-      {/* Main content */}
+      {/* Main content — Phase 71-08: glass card wrapper with primary CTA */}
       <main className="flex-1 flex flex-col px-4 py-6 gap-6 min-h-0">
-        {/* Textarea section */}
-        <div className="flex-1 flex flex-col min-h-0">
-          <label htmlFor="job-description" className="block text-sm font-medium text-foreground mb-2">
+        {/* Textarea wrapped in glass card */}
+        <Card variant="glass" className="flex-1 flex flex-col min-h-0 px-6 mx-auto w-full max-w-2xl">
+          <label htmlFor="job-description" className="block text-sm font-medium text-foreground">
             Job Description
           </label>
           <textarea
@@ -93,16 +94,17 @@ export function TextDescribe({ project, companyId, projectId }: TextDescribeProp
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder="Describe the job here — for example: 'Pressure wash the driveway and two-car garage, remove mold from the north-facing fascia boards, and seal all concrete surfaces. Approximately 1,800 sq ft total.'"
-            className="flex-1 min-h-[200px] w-full resize-none rounded-md border border-input bg-background px-4 py-3 text-sm leading-relaxed text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1 focus:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex-1 min-h-[200px] w-full resize-none rounded-md border border-[var(--glass-border)] bg-[var(--glass-bg-light)] px-4 py-3 text-sm leading-relaxed text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-[hsl(var(--primary))] focus-visible:shadow-glow-brand disabled:cursor-not-allowed disabled:opacity-50"
             disabled={isGenerating}
           />
-        </div>
+        </Card>
 
-        {/* Footer button */}
-        <div className="shrink-0">
+        {/* Footer primary (gradient) CTA */}
+        <div className="shrink-0 mx-auto w-full max-w-2xl">
           <Button
             onClick={handleTextGenerate}
             disabled={!text.trim() || isGenerating}
+            variant="primary"
             size="lg"
             className="w-full h-12 text-base font-semibold"
           >

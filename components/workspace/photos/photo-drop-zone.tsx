@@ -154,12 +154,12 @@ export function PhotoDropZone({
         onChange={handleFileChange}
       />
 
-      {/* Drop zone */}
+      {/* Drop zone — Phase 71-08: glass border + gradient-accent empty state */}
       <div
         className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
           isDragging
-            ? 'border-primary bg-primary/5'
-            : 'border-muted-foreground/25 hover:border-muted-foreground/50'
+            ? 'border-[hsl(var(--primary))] bg-[var(--glass-bg-light)]'
+            : 'border-[var(--glass-border)] hover:border-[hsl(var(--primary))]/60'
         }`}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -174,7 +174,10 @@ export function PhotoDropZone({
           </div>
         ) : (
           <div className="flex flex-col items-center gap-3">
-            <Upload className="h-8 w-8 text-muted-foreground" />
+            {/* Gradient-brand accent circle (UI-SPEC empty-state pattern) */}
+            <div className="flex h-12 w-12 items-center justify-center rounded-full gradient-brand shadow-glow-brand">
+              <Upload className="h-6 w-6 text-white" />
+            </div>
             <p className="text-sm text-muted-foreground">
               Drop photos here or click to upload
             </p>

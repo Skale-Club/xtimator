@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import { PhotoDropZone } from '@/components/workspace/photos/photo-drop-zone'
 import {
   storeClientSuggestion,
@@ -76,10 +77,10 @@ export function PhotosInput({ project, companyId, projectId }: PhotosInputProps)
         </span>
       </header>
 
-      {/* Main content */}
+      {/* Main content — Phase 71-08: glass card wrapper + primary CTA */}
       <main className="flex-1 flex flex-col px-4 py-6 gap-6 min-h-0 overflow-y-auto">
-        {/* Photo upload section */}
-        <div className="flex-1 flex flex-col min-h-0">
+        {/* Photo upload section wrapped in glass card */}
+        <Card variant="glass" className="flex-1 flex flex-col min-h-0 px-6 mx-auto w-full max-w-2xl">
           <PhotoDropZone
             projectId={projectId}
             companyId={companyId}
@@ -87,30 +88,31 @@ export function PhotosInput({ project, companyId, projectId }: PhotosInputProps)
             maxPhotos={20}
             onPhotosUploaded={handlePhotosUploaded}
           />
-        </div>
 
-        {/* Photo thumbnails */}
-        {photos.length > 0 && (
-          <div className="grid grid-cols-4 gap-2">
-            {photos.map((photo) => (
-              <div
-                key={photo.id}
-                className="relative aspect-square rounded-md overflow-hidden bg-muted border"
-              >
-                {/* Placeholder for thumbnail - will show actual image with proper URL in production */}
-                <div className="absolute inset-0 flex items-center justify-center text-xs text-muted-foreground">
-                  Photo
+          {/* Photo thumbnails */}
+          {photos.length > 0 && (
+            <div className="grid grid-cols-4 gap-2 mt-4">
+              {photos.map((photo) => (
+                <div
+                  key={photo.id}
+                  className="relative aspect-square rounded-md overflow-hidden bg-[var(--glass-bg-light)] border border-[var(--glass-border)]"
+                >
+                  {/* Placeholder for thumbnail - will show actual image with proper URL in production */}
+                  <div className="absolute inset-0 flex items-center justify-center text-xs text-muted-foreground">
+                    Photo
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          )}
+        </Card>
 
-        {/* Footer button */}
-        <div className="shrink-0">
+        {/* Footer primary (gradient) CTA */}
+        <div className="shrink-0 mx-auto w-full max-w-2xl">
           <Button
             onClick={handleGenerateFromPhotos}
             disabled={photos.length === 0 || isGenerating}
+            variant="primary"
             size="lg"
             className="w-full h-12 text-base font-semibold"
           >
