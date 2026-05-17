@@ -84,7 +84,7 @@ Doing both refactors before any production deploy means the launch (separate v3.
 - [x] **REDESIGN-03**: `/admin/design-system` reference page renders every primitive variant + every glass pattern (hero zone, stat card, modal, sidebar, toast, empty state, loading skeleton) so designers/devs can audit at a glance
 - [x] **REDESIGN-04**: Marketing + auth surfaces redesigned — `/`, `/blog/[slug]`, `/login`, `/signup`, `/reset-password`, `/onboarding/*` 5-step wizard all use the new glass + gradient system; hero zones use `--gradient-hero` radial backdrop; auth pages get glass card on gradient backdrop. **Marketing portion complete in 71-03; auth/onboarding portion complete in 71-04.**
 - [x] **REDESIGN-05**: App shell + collections redesigned — sidebar (glass surface + gradient active nav highlight), top bar, bottom-nav, dashboard (glass stat cards + gradient top borders), `/clients`, `/projects` (glass list rows). **App shell portion complete in 71-05 (sidebar glass + gradient active bar, topbar/mobile-header glass, bottom-nav solid with gradient-text active, all dropdowns glass-strong); collections portion pending in 71-06.**
-- [ ] **REDESIGN-06**: Project surfaces redesigned — `/projects/[id]` workspace 5 tabs, capture screens (`/capture` gradient progress ring + glass stepper, `/describe`, `/photos-input`), estimate editor inline (glass row cards)
+- [x] **REDESIGN-06**: Project surfaces redesigned — `/projects/[id]` workspace 5 tabs, capture screens (`/capture` gradient progress ring + glass stepper, `/describe`, `/photos-input`), estimate editor inline (glass row cards)
 - [ ] **REDESIGN-07**: Customer-facing surfaces redesigned — `/estimate/[token]` share page with glass overall + gradient Pay Now button (brand gradient + shimmer) + glass success banner (success gradient); PDF preview pane glass-styled
 - [ ] **REDESIGN-08**: Settings + admin + billing redesigned — every `/settings/*` sub-page (including `/settings/payments` from Phase 70), every `/admin/*` sub-page; `/settings/billing` tier cards get prominent per-tier gradients (Free neutral, Pro brand, Business premium)
 - [x] **REDESIGN-09**: Playwright visual snapshot baselines updated for every redesigned surface — all existing snapshots WILL break and are re-minted in this phase; CI shows zero false-positive visual regressions after wave 5 lands
@@ -195,7 +195,7 @@ Coverage: 39/39 (100%) — every v1 requirement maps to exactly one phase, no or
 | REDESIGN-03 | Phase 71 | Complete |
 | REDESIGN-04 | Phase 71 | Complete |
 | REDESIGN-05 | Phase 71 | Partial (71-05 shell; 71-06 collections pending) |
-| REDESIGN-06 | Phase 71 | Pending |
+| REDESIGN-06 | Phase 71 | Complete |
 | REDESIGN-07 | Phase 71 | Pending |
 | REDESIGN-08 | Phase 71 | Pending |
 | REDESIGN-09 | Phase 71 | Complete |
