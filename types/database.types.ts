@@ -149,6 +149,11 @@ export type Database = {
           stripe_subscription_id: string | null
           tier_renews_at: string | null
           tier_cancelled_at: string | null
+          stripe_account_id: string | null
+          stripe_connect_status: string | null
+          stripe_connected_at: string | null
+          stripe_account_email: string | null
+          stripe_account_display_name: string | null
         }
         Insert: {
           id?: string
@@ -188,6 +193,11 @@ export type Database = {
           stripe_subscription_id?: string | null
           tier_renews_at?: string | null
           tier_cancelled_at?: string | null
+          stripe_account_id?: string | null
+          stripe_connect_status?: string | null
+          stripe_connected_at?: string | null
+          stripe_account_email?: string | null
+          stripe_account_display_name?: string | null
         }
         Update: {
           id?: string
@@ -227,6 +237,11 @@ export type Database = {
           stripe_subscription_id?: string | null
           tier_renews_at?: string | null
           tier_cancelled_at?: string | null
+          stripe_account_id?: string | null
+          stripe_connect_status?: string | null
+          stripe_connected_at?: string | null
+          stripe_account_email?: string | null
+          stripe_account_display_name?: string | null
         }
         Relationships: []
       }
@@ -481,6 +496,11 @@ export type Database = {
           client_response: string | null
           created_at: string
           updated_at: string
+          payment_status: string
+          stripe_checkout_session_id: string | null
+          stripe_payment_intent_id: string | null
+          paid_at: string | null
+          payment_amount_cents: number | null
         }
         Insert: {
           id?: string
@@ -508,6 +528,11 @@ export type Database = {
           client_response?: string | null
           created_at?: string
           updated_at?: string
+          payment_status?: string
+          stripe_checkout_session_id?: string | null
+          stripe_payment_intent_id?: string | null
+          paid_at?: string | null
+          payment_amount_cents?: number | null
         }
         Update: {
           id?: string
@@ -535,6 +560,11 @@ export type Database = {
           client_response?: string | null
           created_at?: string
           updated_at?: string
+          payment_status?: string
+          stripe_checkout_session_id?: string | null
+          stripe_payment_intent_id?: string | null
+          paid_at?: string | null
+          payment_amount_cents?: number | null
         }
         Relationships: [
           {
