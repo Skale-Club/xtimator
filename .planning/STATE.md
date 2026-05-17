@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v3.1.1
 milestone_name: MVP Launch Prep + Future-Proofing
 status: executing
-last_updated: "2026-05-17T15:02:35.505Z"
+last_updated: "2026-05-17T15:19:20.460Z"
 last_activity: 2026-05-17
 progress:
   total_phases: 16
   completed_phases: 15
   total_plans: 43
-  completed_plans: 34
+  completed_plans: 35
 ---
 
 # Project State
@@ -402,6 +402,8 @@ Last activity: 2026-05-17
 - [Phase 71]: Inter font retained (overrides SEED's Geist suggestion per RESEARCH G1)
 - [Phase 71]: Brand gradient uses hsl(var(--primary)) for tenant white-label cascade
 - [Phase 71]: Glow shadows namespaced --glow-* (not --shadow-*) to avoid Tailwind v4 wildcard collision
+- [Phase 71]: Card gets CVA from scratch (RESEARCH G3) — chose this over parallel <GlassCard> wrapper so hundreds of existing call sites stay untouched via backward-compat default variant
+- [Phase 71]: Input/Textarea focus migrated from --focus-shadow to gradient-brand glow (shadow-glow-brand)
 
 ## Performance Metrics
 
@@ -517,6 +519,7 @@ Last activity: 2026-05-17
 | Phase 70 P04 | 4min | 2 tasks | 4 files |
 | Phase 70 P05 | ~8 min | 3 tasks | 7 files |
 | Phase 71 P01 | 326 | 4 tasks | 8 files |
+| Phase 71 P02 | 716 | 4 tasks | 16 files |
 
 ## Project Reference
 

@@ -80,8 +80,8 @@ Doing both refactors before any production deploy means the launch (separate v3.
 ### REDESIGN — Glassmorphism Structural Redesign (Phase 71)
 
 - [x] **REDESIGN-01**: New design system layer ships in `app/globals.css` — glass surface tokens (`--glass-bg`, `--glass-bg-strong`, `--glass-bg-light`, `--glass-border`, `--glass-blur`, `--glass-blur-strong`) and vibrant gradient palette (`--gradient-brand`, `--gradient-hero`, `--gradient-success`, `--gradient-warning`, `--gradient-danger`) added ON TOP of existing semantic tokens (no replacement, no breakage of scoped themes)
-- [ ] **REDESIGN-02**: Every shadcn primitive in `components/ui/*` gains optional glass/gradient variants without breaking existing call sites; new `<Card variant="glass">`, `<Button variant="primary">` with gradient bg + shimmer hover, `<Dialog>` with backdrop-blur, `<Input>` with gradient focus border, `<Badge>` gradient status variants, `<Tabs>` with gradient indicator
-- [ ] **REDESIGN-03**: `/admin/design-system` reference page renders every primitive variant + every glass pattern (hero zone, stat card, modal, sidebar, toast, empty state, loading skeleton) so designers/devs can audit at a glance
+- [x] **REDESIGN-02**: Every shadcn primitive in `components/ui/*` gains optional glass/gradient variants without breaking existing call sites; new `<Card variant="glass">`, `<Button variant="primary">` with gradient bg + shimmer hover, `<Dialog>` with backdrop-blur, `<Input>` with gradient focus border, `<Badge>` gradient status variants, `<Tabs>` with gradient indicator
+- [x] **REDESIGN-03**: `/admin/design-system` reference page renders every primitive variant + every glass pattern (hero zone, stat card, modal, sidebar, toast, empty state, loading skeleton) so designers/devs can audit at a glance
 - [ ] **REDESIGN-04**: Marketing + auth surfaces redesigned — `/`, `/blog/[slug]`, `/login`, `/signup`, `/reset-password`, `/onboarding/*` 5-step wizard all use the new glass + gradient system; hero zones use `--gradient-hero` radial backdrop; auth pages get glass card on gradient backdrop
 - [ ] **REDESIGN-05**: App shell + collections redesigned — sidebar (glass surface + gradient active nav highlight), top bar, bottom-nav, dashboard (glass stat cards + gradient top borders), `/clients`, `/projects` (glass list rows)
 - [ ] **REDESIGN-06**: Project surfaces redesigned — `/projects/[id]` workspace 5 tabs, capture screens (`/capture` gradient progress ring + glass stepper, `/describe`, `/photos-input`), estimate editor inline (glass row cards)
@@ -191,8 +191,8 @@ Coverage: 39/39 (100%) — every v1 requirement maps to exactly one phase, no or
 | CONNECT-08 | Phase 70 | Complete |
 | CONNECT-09 | Phase 70 | Complete |
 | REDESIGN-01 | Phase 71 | Complete |
-| REDESIGN-02 | Phase 71 | Pending |
-| REDESIGN-03 | Phase 71 | Pending |
+| REDESIGN-02 | Phase 71 | Complete |
+| REDESIGN-03 | Phase 71 | Complete |
 | REDESIGN-04 | Phase 71 | Pending |
 | REDESIGN-05 | Phase 71 | Pending |
 | REDESIGN-06 | Phase 71 | Pending |
