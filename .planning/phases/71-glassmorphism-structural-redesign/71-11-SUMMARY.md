@@ -1,12 +1,18 @@
 ---
-phase: 71
-task: landing-auth-polish
-type: inline-polish
+phase: 71-glassmorphism-structural-redesign
+plan: 11
+type: summary
+wave: 6
+polish_pass: true
+status: complete
 created: 2026-05-17
+commits: [cad9d40, f6900b7, 5439586, 3a55b4b]
 tags: [polish, landing, auth, glassmorphism, first-impression]
 ---
 
-# Phase 71 — Landing + Auth Polish Pass
+# Phase 71 — Plan 11 Summary: Landing + Auth Premium Polish
+
+> **Note:** This plan was retroactively documented. The work was executed inline (commits `cad9d40` → `3a55b4b`) before `71-11-PLAN.md` was created. PLAN.md was backfilled afterward for GSD audit-trail integrity — the contents match what was actually executed.
 
 Premium upgrade on the two first-impression surfaces (landing + auth). Coherent with the Phase 71 token system established in 71-01..04, but pushed visually further than the baseline 71-03 / 71-04 redesigns.
 
