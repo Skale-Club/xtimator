@@ -42,13 +42,16 @@ export default async function ProjectPage({
   const allVersionsPromise = getProjectEstimates(supabase, id)
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">{project.name}</h1>
+    <div className="space-y-6 px-6 py-8">
+      <header className="space-y-1">
+        <p className="text-xs uppercase tracking-[0.08em] text-muted-foreground">Project</p>
+        <h1 className="text-[clamp(28px,3.5vw,40px)] font-semibold tracking-[-0.02em] leading-[1.1]">
+          {project.name}
+        </h1>
         {project.client && (
-          <p className="text-muted-foreground">{project.client.name}</p>
+          <p className="text-sm text-muted-foreground">{project.client.name}</p>
         )}
-      </div>
+      </header>
       <Suspense fallback={<ProjectWorkspaceSkeleton />}>
         <ProjectTabs
           project={project}

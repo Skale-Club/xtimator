@@ -55,7 +55,7 @@ export function LinkClientCard({ projectId }: LinkClientCardProps) {
   }
 
   return (
-    <Card>
+    <Card variant="glass">
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="text-base">Link a Client</CardTitle>

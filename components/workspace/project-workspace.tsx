@@ -73,7 +73,7 @@ export function ProjectWorkspace({
       <div className="border-b border-border">
         <TabsList
           variant="line"
-          className="w-auto h-auto bg-transparent p-0 gap-0 rounded-none justify-start"
+          className="w-auto h-auto bg-transparent p-0 gap-1 rounded-none justify-start overflow-x-auto"
         >
           {[
             { value: 'overview',  Icon: ClipboardList, label: 'Overview'    },
@@ -86,13 +86,11 @@ export function ProjectWorkspace({
               key={value}
               value={value}
               className="
-                h-auto rounded-none border-0 border-b-2 border-transparent bg-transparent px-4 py-3
+                h-auto rounded-none border-0 bg-transparent px-4 py-3
                 gap-2 text-sm font-medium text-muted-foreground
                 hover:text-foreground
-                data-[state=active]:border-primary dark:data-[state=active]:border-primary
                 data-[state=active]:text-foreground data-[state=active]:shadow-none
                 data-[state=active]:bg-transparent dark:data-[state=active]:bg-transparent dark:data-[state=active]:text-foreground
-                after:hidden
                 transition-colors
               "
             >
@@ -102,16 +100,16 @@ export function ProjectWorkspace({
           ))}
         </TabsList>
       </div>
-      <TabsContent value="overview">
+      <TabsContent value="overview" className="mt-6">
         <OverviewTab project={project} activity={activity} stats={stats} />
       </TabsContent>
-      <TabsContent value="audio">
+      <TabsContent value="audio" className="mt-6">
         <AudioTab projectId={project.id} companyId={project.company_id} initialRecordings={recordings} />
       </TabsContent>
-      <TabsContent value="photos">
+      <TabsContent value="photos" className="mt-6">
         <PhotosTab projectId={project.id} companyId={project.company_id} initialPhotos={photos} />
       </TabsContent>
-      <TabsContent value="estimate">
+      <TabsContent value="estimate" className="mt-6">
         <EstimateTab
           projectId={project.id}
           companyId={project.company_id}
@@ -121,7 +119,7 @@ export function ProjectWorkspace({
           photos={photos}
         />
       </TabsContent>
-      <TabsContent value="send">
+      <TabsContent value="send" className="mt-6">
         <SendTab
           estimate={currentEstimate}
           projectName={project.name}

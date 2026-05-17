@@ -31,7 +31,7 @@ interface ActivityTimelineProps {
 
 export function ActivityTimeline({ events }: ActivityTimelineProps) {
   return (
-    <Card>
+    <Card variant="glass">
       <CardHeader>
         <CardTitle className="text-base">Activity</CardTitle>
       </CardHeader>

@@ -21,7 +21,7 @@ export function OverviewTab({ project, activity, stats }: OverviewTabProps) {
         <LinkClientCard projectId={project.id} />
       )}
       {/* Project Summary Card */}
-      <Card>
+      <Card variant="glass">
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle>Project Summary</CardTitle>

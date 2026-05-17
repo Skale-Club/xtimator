@@ -18,14 +18,14 @@ export function QuickStats({ stats }: QuickStatsProps) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
       {STAT_ITEMS.map(({ key, label, icon: Icon }) => (
-        <Card key={key}>
-          <CardContent className="flex items-center gap-4 pt-6">
-            <div className="rounded-full bg-muted p-2.5">
+        <Card key={key} variant="stat" className="p-6 min-h-[120px] overflow-hidden">
+          <CardContent className="flex items-center gap-4 p-0">
+            <div className="rounded-full bg-[var(--glass-bg-light)] p-2.5">
               <Icon className="h-5 w-5 text-muted-foreground" />
             </div>
-            <div>
-              <p className="text-2xl font-bold">{stats[key]}</p>
-              <p className="text-sm text-muted-foreground">{label}</p>
+            <div className="space-y-1">
+              <p className="font-mono text-3xl tabular-nums leading-none">{stats[key]}</p>
+              <p className="text-xs uppercase tracking-[0.08em] text-muted-foreground">{label}</p>
             </div>
           </CardContent>
         </Card>
