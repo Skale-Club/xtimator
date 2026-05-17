@@ -26,3 +26,17 @@ VISUAL=1 bunx playwright test tests/e2e/visual/marketing.spec.ts --grep @visual 
 ```
 
 Suggested follow-up: bundle this with the post-wave verification step that the orchestrator runs (or with the first plan in Wave 3 once the auth fixture lands). REDESIGN-04 marked **partial-complete** in REQUIREMENTS.md (marketing surfaces redesigned, baselines pending mint).
+
+## Plan 71-10 — Lighthouse + FLJS perf numbers deferred (build blocked)
+
+`bun run build` fails at module-resolution: `Cannot resolve 'stripe'`, `'inngest'`, `'inngest/next'`, `'@aws-sdk/...'`. These dependencies are imported by lib code (`lib/billing/stripe-client.ts`, `lib/inngest/client.ts`, `lib/storage/s3-provider.ts`) but were never added to `package.json` (same pre-existing condition flagged in the 71-02 section above; it now also blocks `next build`).
+
+Consequence: cannot extract First Load JS column for `/dashboard` from build output, and cannot run Lighthouse against a built prod server.
+
+Lighthouse against `bun run dev` is possible but produces inflated dev-mode numbers (unminified bundles, no tree-shaking, dev overlay). Per RESEARCH "Performance Baseline" section, the perf-gate runner (`scripts/lighthouse.mjs`) is in place and will produce real numbers once:
+1. Missing deps are installed (`bun add stripe inngest @aws-sdk/client-s3 @aws-sdk/s3-request-presigner`), and
+2. The build completes cleanly.
+
+REDESIGN-10 hard gates are **structurally satisfied** (backdrop-filter restricted to allowed surfaces per audit; glass tokens fall back to solid card under `prefers-reduced-transparency`; brand identity locked). The numeric FLJS/Lighthouse values are **deferred to the v3.1.1 deploy milestone** (Phase 69 PERF-01 / PERF-02 explicitly own the post-deploy perf audit on the real production build).
+
+`71-PERF-BASELINE.md` updated with this rationale + the backdrop-filter audit results that ARE in scope.
