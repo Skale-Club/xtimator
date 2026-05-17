@@ -289,3 +289,112 @@
     to   { transform: scaleY(1); }
   }
 }
+
+/* ============================================================
+   Phase 71 — Glassmorphism Structural Redesign
+   Glass surface tokens, gradient palette, glow shadows.
+   Additive only. Existing semantic tokens untouched.
+   Brand-tinted gradients reference hsl(var(--primary)) so tenant
+   white-label override via --platform-primary cascades (RESEARCH G6).
+   ============================================================ */
+
+@layer base {
+  :root {
+    /* Glass — light defaults (also used by [data-theme="light"] forced-light /estimate/*) */
+    --glass-bg:        rgba(255, 255, 255, 0.65);
+    --glass-bg-strong: rgba(255, 255, 255, 0.85);
+    --glass-bg-light:  rgba(15, 23, 42, 0.04);
+    --glass-border:    rgba(15, 23, 42, 0.08);
+    --glass-blur:        16px;
+    --glass-blur-strong: 24px;
+
+    /* Brand-tinted gradients (cascade with tenant --platform-primary) */
+    --gradient-brand:   linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--secondary)) 100%);
+    --gradient-hero:    radial-gradient(circle at top, hsl(var(--primary) / 0.18) 0%, transparent 65%);
+
+    /* Status gradients — semantic constants, hex is acceptable per planner constraint */
+    --gradient-success: linear-gradient(135deg, #10B981 0%, #34D399 100%);
+    --gradient-warning: linear-gradient(135deg, #F59E0B 0%, #FCD34D 100%);
+    --gradient-danger:  linear-gradient(135deg, #EF4444 0%, #F87171 100%);
+    --gradient-premium: linear-gradient(135deg, hsl(var(--primary)) 0%, #A855F7 60%, #EC4899 100%);
+
+    /* Glow shadows — namespaced --glow-* not --shadow-* to avoid Tailwind v4 wildcard
+       --shadow-* utility generation collision (RESEARCH G9) */
+    --glow-brand:   0 0 24px hsl(var(--primary) / 0.45);
+    --glow-success: 0 0 24px hsl(var(--success) / 0.45);
+    --shadow-glass: 0 8px 32px -8px rgba(0, 0, 0, 0.35);
+
+    --shimmer-duration: 1.2s;
+  }
+
+  /* Dark-mode glass — applies to next-themes .dark class AND the two data-theme dark scopes */
+  .dark,
+  [data-theme="admin-dark"],
+  [data-theme="dark-auth"] {
+    --glass-bg:        rgba(20, 24, 33, 0.60);
+    --glass-bg-strong: rgba(20, 24, 33, 0.85);
+    --glass-bg-light:  rgba(255, 255, 255, 0.04);
+    --glass-border:    rgba(255, 255, 255, 0.08);
+    /* Hero radial deeper on dark surfaces */
+    --gradient-hero:   radial-gradient(circle at top, hsl(var(--primary) / 0.28) 0%, transparent 70%);
+    --shadow-glass:    0 8px 32px -8px rgba(0, 0, 0, 0.6);
+  }
+
+  /* Forced-light scope (RESEARCH G7) — /estimate/* + PDF preview need light-mode glass */
+  [data-theme="light"] {
+    --glass-bg:        rgba(255, 255, 255, 0.65);
+    --glass-bg-strong: rgba(255, 255, 255, 0.85);
+    --glass-bg-light:  rgba(15, 23, 42, 0.04);
+    --glass-border:    rgba(15, 23, 42, 0.08);
+  }
+
+  /* prefers-reduced-transparency → solid card bg + zero blur (RESEARCH a11y) */
+  @media (prefers-reduced-transparency: reduce) {
+    :root,
+    .dark,
+    [data-theme="admin-dark"],
+    [data-theme="dark-auth"],
+    [data-theme="light"] {
+      --glass-bg:        hsl(var(--card));
+      --glass-bg-strong: hsl(var(--card));
+      --glass-blur:        0px;
+      --glass-blur-strong: 0px;
+    }
+  }
+}
+
+/* Utility classes — Tailwind v4 way. Use arbitrary-value classes
+   (bg-[var(--glass-bg)], backdrop-blur-[var(--glass-blur)]) in components,
+   or apply these shorthand utilities. */
+@layer utilities {
+  .glass {
+    background-color: var(--glass-bg);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    border: 1px solid var(--glass-border);
+  }
+  .glass-strong {
+    background-color: var(--glass-bg-strong);
+    backdrop-filter: blur(var(--glass-blur-strong));
+    -webkit-backdrop-filter: blur(var(--glass-blur-strong));
+    border: 1px solid var(--glass-border);
+  }
+  .gradient-brand   { background-image: var(--gradient-brand); }
+  .gradient-hero    { background-image: var(--gradient-hero); }
+  .gradient-success { background-image: var(--gradient-success); }
+  .gradient-warning { background-image: var(--gradient-warning); }
+  .gradient-danger  { background-image: var(--gradient-danger); }
+  .gradient-premium { background-image: var(--gradient-premium); }
+  .shadow-glow-brand   { box-shadow: var(--glow-brand); }
+  .shadow-glow-success { box-shadow: var(--glow-success); }
+  .shadow-glass        { box-shadow: var(--shadow-glass); }
+}
+
+/* Button shimmer keyframe — gated on prefers-reduced-motion (RESEARCH motion gate) */
+@keyframes button-shimmer-sweep {
+  0%   { transform: translateX(-100%) skewX(-12deg); }
+  100% { transform: translateX(200%)  skewX(-12deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .btn-shimmer::before { animation: none !important; display: none !important; }
+}

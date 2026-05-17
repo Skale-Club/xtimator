@@ -39,8 +39,12 @@ describe('Phase 71 — design system tokens', () => {
   })
 
   it('declares forced-light glass (RESEARCH G7)', () => {
-    const lightBlock = css.split(/\[data-theme="light"\]/)[1] ?? ''
-    expect(lightBlock).toMatch(/--glass-bg:\s*rgba\(255,\s*255,\s*255/)
+    // `[data-theme="light"]` appears multiple times (Phase 9 block + Phase 71 glass block).
+    // Check that AT LEAST ONE such block declares the white-rgba glass-bg by scanning all segments.
+    const segments = css.split(/\[data-theme="light"\]/).slice(1)
+    expect(segments.length).toBeGreaterThan(0)
+    const hasWhiteGlass = segments.some((seg) => /--glass-bg:\s*rgba\(255,\s*255,\s*255/.test(seg))
+    expect(hasWhiteGlass, 'a [data-theme="light"] block declares --glass-bg: rgba(255,255,255,...)').toBe(true)
   })
 
   it('declares dark glass on .dark / admin-dark / dark-auth', () => {
