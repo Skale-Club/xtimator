@@ -125,6 +125,24 @@ export async function loadCategoryInitials(
     .select('provider, ciphertext, iv, auth_tag, updated_at, updated_by')
     .in('provider', ids)
 
+  // Collect unique non-null updated_by user IDs from all rows
+  const updatedByIds = [
+    ...new Set(
+      (rows ?? [])
+        .filter((r): r is typeof r & { updated_by: string } => !!r.updated_by)
+        .map((r) => r.updated_by)
+    ),
+  ]
+
+  // One getUserById call per unique admin (typically 1-2 across all integrations)
+  const userEmailMap = new Map<string, string>()
+  await Promise.all(
+    updatedByIds.map(async (uid) => {
+      const { data: u } = await svc.auth.admin.getUserById(uid)
+      if (u?.user?.email) userEmailMap.set(uid, u.user.email)
+    })
+  )
+
   const result = new Map<IntegrationProvider, IntegrationCardInitial>()
   await Promise.all(
     (rows ?? []).map(async (r) => {
@@ -140,8 +158,7 @@ export async function loadCategoryInitials(
         })
         let updatedByEmail = ''
         if (r.updated_by) {
-          const { data: u } = await svc.auth.admin.getUserById(r.updated_by)
-          updatedByEmail = u?.user?.email ?? ''
+          updatedByEmail = userEmailMap.get(r.updated_by) ?? ''
         }
         result.set(r.provider as IntegrationProvider, {
           configured: true,
