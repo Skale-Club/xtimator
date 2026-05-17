@@ -32,7 +32,18 @@ export type LandingContent = {
   }>
 }
 
-export type IntegrationProvider = 'resend' | 'anthropic' | 'openai' | 'gemini' | 'meta_whatsapp' | 'stripe'
+export type IntegrationProvider =
+  | 'resend'
+  | 'anthropic'
+  | 'openai'
+  | 'gemini'
+  | 'meta_whatsapp'
+  | 'stripe'
+  // Stripe Connect Client ID (ca_...) — admin-managed; enables tenant OAuth
+  // flow for customer payments on estimates (Phase 70). Not technically a
+  // secret per Stripe docs (appears in browser OAuth URLs) but stored via the
+  // same encrypted platform_integrations path so admin UX stays uniform.
+  | 'stripe_connect_client_id'
 
 const TTL_MS = 30_000
 

@@ -41,6 +41,12 @@ const PROVIDERS: ReadonlyArray<{
     title: 'Meta WhatsApp',
     description: 'WhatsApp Cloud API token for inbound message handling and estimate delivery.',
   },
+  {
+    id: 'stripe_connect_client_id',
+    title: 'Stripe Connect Client ID',
+    description:
+      'ca_... value from Stripe Dashboard → Connect → Settings. Enables tenant Stripe connections for customer payments on estimates.',
+  },
 ]
 
 type IntegrationRow = {

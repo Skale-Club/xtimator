@@ -177,6 +177,16 @@ export async function testIntegrationKey(input: {
       }
     }
 
+    if (input.provider === 'stripe_connect_client_id') {
+      // No test endpoint — the Client ID is a public identifier, not a
+      // credential. Verification happens implicitly via the OAuth flow
+      // (Settings → Payments → Connect).
+      return {
+        ok: true,
+        message: 'Client ID stored. No test endpoint — verify via Settings → Payments OAuth flow.',
+      }
+    }
+
     if (input.provider === 'stripe') {
       const Stripe = (await import('stripe')).default
       const stripe = new Stripe(key, { apiVersion: '2026-04-22.dahlia' })
