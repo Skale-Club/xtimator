@@ -16,6 +16,10 @@ import { formatUSD } from '@/lib/utils/format'
  *
  * Any failure of these returns null (no broken UI, no upsell — Phase 70 hard
  * constraint: zero new Stripe surface for non-connected tenants).
+ *
+ * Phase 71-09 — styled with <Button variant="primary"> (gradient-brand +
+ * shimmer sweep) + shadow-glow-brand. Brand gradient cascades tenant
+ * --platform-primary on /estimate/* (RESEARCH G6). Behavior unchanged.
  */
 export interface PayNowButtonProps {
   token: string
@@ -42,8 +46,9 @@ export function PayNowButton(props: PayNowButtonProps) {
     >
       <Button
         type="submit"
+        variant="primary"
         size="lg"
-        className="w-full bg-[#406EF1] hover:bg-[#3558c2] text-white"
+        className="w-full shadow-glow-brand"
       >
         Pay {formatUSD(props.totalAmountCents)}
       </Button>
