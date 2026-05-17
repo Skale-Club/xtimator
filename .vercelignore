@@ -1,0 +1,5 @@
+# Local dev symlink — points to per-machine path, breaks Vercel build
+.gsd
+
+# GSD planning artifacts — not needed in production deploy
+.planning/
