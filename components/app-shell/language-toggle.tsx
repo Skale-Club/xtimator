@@ -43,7 +43,10 @@ export function LanguageToggle() {
         </Button>
       </DropdownMenuTrigger>
 
-      <DropdownMenuContent align="end" className="w-44">
+      <DropdownMenuContent
+        align="end"
+        className="w-44 glass-strong border border-[var(--glass-border)] shadow-glass"
+      >
         {LANGUAGES.map(({ value, label, Flag }) => (
           <DropdownMenuItem
             key={value}

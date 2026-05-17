@@ -58,7 +58,10 @@ export function ThemeToggle() {
           <Icon className="h-4 w-4" aria-hidden={!mounted} />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
+      <DropdownMenuContent
+        align="end"
+        className="glass-strong border border-[var(--glass-border)] shadow-glass"
+      >
         {ITEMS.map(({ value, label, Icon: ItemIcon }) => (
           <DropdownMenuItem
             key={value}

@@ -31,7 +31,10 @@ export function Topbar({ company, isAdmin }: TopbarProps) {
   const { t } = useTranslation()
 
   return (
-    <header data-testid="app-topbar" className="hidden md:flex items-center justify-between border-b border-border bg-background px-6 h-16">
+    <header
+      data-testid="app-topbar"
+      className="hidden md:flex sticky top-0 z-40 items-center justify-between glass border-b border-[var(--glass-border)] px-6 h-16"
+    >
       <CompanySelector company={company} />
       <div className="flex items-center gap-1">
         {isAdmin && (
@@ -53,7 +56,10 @@ export function Topbar({ company, isAdmin }: TopbarProps) {
               </Avatar>
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
+          <DropdownMenuContent
+            align="end"
+            className="w-48 glass-strong border border-[var(--glass-border)] shadow-glass"
+          >
             <DropdownMenuItem asChild className="cursor-pointer">
               <Link href="/settings" className="flex items-center gap-2">
                 <Settings className="h-4 w-4" />

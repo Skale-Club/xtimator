@@ -39,7 +39,10 @@ export function CompanySelector({ company }: CompanySelectorProps) {
         </button>
       </DropdownMenuTrigger>
 
-      <DropdownMenuContent align="start" className="w-56">
+      <DropdownMenuContent
+        align="start"
+        className="w-56 glass-strong border border-[var(--glass-border)] shadow-glass"
+      >
         <DropdownMenuLabel className="text-xs text-muted-foreground font-normal">
           Companies
         </DropdownMenuLabel>

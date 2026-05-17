@@ -30,7 +30,10 @@ export function MobileHeader() {
   const title = getTitleFromPathname(pathname)
 
   return (
-    <header data-testid="mobile-header" className="flex items-center justify-between border-b border-border bg-background px-4 py-4 md:hidden">
+    <header
+      data-testid="mobile-header"
+      className="sticky top-0 z-40 flex items-center justify-between glass border-b border-[var(--glass-border)] px-4 py-4 md:hidden"
+    >
       <h1 className="text-lg font-[var(--font-weight-semibold)] tracking-[var(--tracking-tight)]">{title}</h1>
       <ThemeToggle />
     </header>
