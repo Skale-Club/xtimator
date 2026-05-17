@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v3.1.1
 milestone_name: MVP Launch Prep + Future-Proofing
 status: executing
-last_updated: "2026-05-17T05:39:29.877Z"
+last_updated: "2026-05-17T05:49:54.829Z"
 last_activity: 2026-05-17
 progress:
   total_phases: 15
   completed_phases: 14
   total_plans: 33
-  completed_plans: 29
+  completed_plans: 31
 ---
 
 # Project State
@@ -22,7 +22,7 @@ progress:
 ## Current Position
 
 Phase: 70 (stripe-connect-customer-payments) — EXECUTING
-Plan: 2 of 5
+Plan: 3 of 5
 Status: Ready to execute
 Last activity: 2026-05-17
 
@@ -391,6 +391,10 @@ Last activity: 2026-05-17
 - [Phase 68]: Storage probe via getServerStorage().list('logos','') (Phase 66 abstraction) — never raw supabase.storage.from; works for both STORAGE_PROVIDER=supabase and =s3 backends
 - [Phase 70]: Stateless HMAC-signed OAuth state (no DB) chosen over DB-nonce for Stripe Connect — 10-min TTL keeps replay surface tight
 - [Phase 70]: stripe_connect_client_id stored via existing platform_integrations AES-GCM path despite being non-secret — uniform admin UX wins over schema purity
+- [Phase 70]: Callback IDEMPOTENCY: check stripe_account_id before exchangeCode to prevent OAuth-spec connection revocation on re-run (RESEARCH Pitfall 3)
+- [Phase 70]: Callback always redirects (302/307) with ?error=... query — never returns 4xx — so user lands on /settings/payments with a banner
+- [Phase 70]: Disconnect preserves stripe_account_email + stripe_account_display_name as audit trail (clears only account_id + status)
+- [Phase 70]: Pay Now flow: per-request stripeAccount + Direct Charges + omitted application_fee_amount (Pitfall 2) + URL-driven banners (Plan 70-03)
 
 ## Performance Metrics
 
@@ -501,6 +505,8 @@ Last activity: 2026-05-17
 | Phase 68 P01 | 7min | 3 tasks | 6 files |
 | Phase 68 P02 | 4min | 2 tasks | 3 files |
 | Phase 70 P01 | 35 min | 3 tasks | 14 files |
+| Phase 70 P02 | 6 min | 3 tasks | 9 files |
+| Phase 70 P03 | 7 min | 3 tasks | 10 files |
 
 ## Project Reference
 
