@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v3.1.1
 milestone_name: MVP Launch Prep + Future-Proofing
 status: executing
-last_updated: "2026-05-17T05:59:31.521Z"
+last_updated: "2026-05-17T06:11:14.199Z"
 last_activity: 2026-05-17
 progress:
   total_phases: 15
-  completed_phases: 14
+  completed_phases: 15
   total_plans: 33
-  completed_plans: 32
+  completed_plans: 33
 ---
 
 # Project State
@@ -22,7 +22,7 @@ progress:
 ## Current Position
 
 Phase: 70 (stripe-connect-customer-payments) — EXECUTING
-Plan: 4 of 5
+Plan: 5 of 5
 Status: Ready to execute
 Last activity: 2026-05-17
 
@@ -396,6 +396,9 @@ Last activity: 2026-05-17
 - [Phase 70]: Disconnect preserves stripe_account_email + stripe_account_display_name as audit trail (clears only account_id + status)
 - [Phase 70]: Pay Now flow: per-request stripeAccount + Direct Charges + omitted application_fee_amount (Pitfall 2) + URL-driven banners (Plan 70-03)
 - [Phase 70]: Plan 70-04: Connect handler extracted to lib/billing/connect-webhook.ts (vs inlined); plain-text emails for ship-fast; Promise.allSettled wrapper + never-throw email helpers so webhook never 5xx's on Resend outages
+- [Phase 70]: Snapshot baselines minted by CI on first run with --update-snapshots, not committed from laptop (font/AA differences)
+- [Phase 70]: Dashboard Paid pill on project rows (not estimate rows) — joins is_current estimate into projects query to avoid N+1
+- [Phase 70]: Owner runbook expanded from 6 to 8 sections — explicit migration apply + 9-row troubleshooting table
 
 ## Performance Metrics
 
@@ -509,6 +512,7 @@ Last activity: 2026-05-17
 | Phase 70 P02 | 6 min | 3 tasks | 9 files |
 | Phase 70 P03 | 7 min | 3 tasks | 10 files |
 | Phase 70 P04 | 4min | 2 tasks | 4 files |
+| Phase 70 P05 | ~8 min | 3 tasks | 7 files |
 
 ## Project Reference
 
