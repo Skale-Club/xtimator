@@ -1,5 +1,6 @@
 import 'server-only'
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
+import { getIntegrationKey } from '@/lib/platform-config'
 
 /**
  * HMAC-signed OAuth state helpers for the Stripe Connect Standard authorize
@@ -82,4 +83,100 @@ export function verifyOAuthState(
   // malformed signature returns `false` instead of throwing.
   if (a.length !== b.length) return false
   return timingSafeEqual(a, b)
+}
+
+/**
+ * Build the `connect.stripe.com/oauth/authorize` URL for Stripe Connect Standard.
+ * Caller is responsible for setting the HMAC state cookie and minting `state`
+ * via `mintOAuthState`.
+ */
+export function buildAuthorizeUrl(opts: {
+  clientId: string
+  redirectUri: string
+  state: string
+  prefillEmail?: string | null
+}): string {
+  const url = new URL('https://connect.stripe.com/oauth/authorize')
+  url.searchParams.set('response_type', 'code')
+  url.searchParams.set('client_id', opts.clientId)
+  url.searchParams.set('scope', 'read_write')
+  url.searchParams.set('redirect_uri', opts.redirectUri)
+  url.searchParams.set('state', opts.state)
+  if (opts.prefillEmail) {
+    url.searchParams.set('stripe_user[email]', opts.prefillEmail)
+  }
+  return url.toString()
+}
+
+/**
+ * Exchange an authorization code returned from Stripe's OAuth flow for a
+ * `stripe_user_id` (acct_xxx). Uses the platform's secret key as HTTP Basic
+ * auth username (password empty), per Stripe Connect OAuth docs.
+ *
+ * Throws on missing key or non-2xx response. The OAuth code is single-use and
+ * expires in 5 minutes — callers MUST NOT retry on transient errors and MUST
+ * guard against re-exchange (see callback route idempotency).
+ */
+export async function exchangeCode(code: string): Promise<{
+  stripe_user_id: string
+  livemode: boolean
+  scope: 'read_write' | 'read_only'
+}> {
+  const secretKey = await getIntegrationKey('stripe')
+  if (!secretKey) {
+    throw new Error('[connect-oauth] STRIPE secret key not configured')
+  }
+  const res = await fetch('https://connect.stripe.com/oauth/token', {
+    method: 'POST',
+    headers: {
+      Authorization: `Basic ${Buffer.from(secretKey + ':').toString('base64')}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams({ grant_type: 'authorization_code', code }),
+  })
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    throw new Error(
+      `[connect-oauth] Token exchange failed (${res.status}): ${body.slice(0, 200)}`
+    )
+  }
+  const json = (await res.json()) as {
+    stripe_user_id: string
+    livemode: boolean
+    scope: 'read_write' | 'read_only'
+  }
+  return {
+    stripe_user_id: json.stripe_user_id,
+    livemode: json.livemode,
+    scope: json.scope,
+  }
+}
+
+/**
+ * Best-effort POST to `/oauth/deauthorize` to revoke the platform's access on
+ * the Stripe side after a company disconnects. Errors are swallowed: the
+ * company-side disconnect (clearing `stripe_account_id`) is the source of
+ * truth — user intent wins even if the Stripe round-trip fails.
+ */
+export async function deauthorize(opts: {
+  clientId: string
+  stripeUserId: string
+}): Promise<void> {
+  try {
+    const secretKey = await getIntegrationKey('stripe')
+    if (!secretKey) return
+    await fetch('https://connect.stripe.com/oauth/deauthorize', {
+      method: 'POST',
+      headers: {
+        Authorization: `Basic ${Buffer.from(secretKey + ':').toString('base64')}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        client_id: opts.clientId,
+        stripe_user_id: opts.stripeUserId,
+      }),
+    })
+  } catch (e) {
+    console.warn('[connect-oauth] deauthorize failed (continuing):', e)
+  }
 }
