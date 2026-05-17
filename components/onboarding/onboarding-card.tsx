@@ -9,7 +9,10 @@ interface OnboardingCardProps {
 export function OnboardingCard({ children, skipAction, appName }: OnboardingCardProps) {
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-muted/40 px-4">
+    <div className="relative isolate flex min-h-screen flex-col items-center justify-center bg-background px-4 py-12">
+      {/* Phase 71 gradient-hero radial backdrop */}
+      <div aria-hidden className="absolute inset-0 -z-10 gradient-hero" />
+
       {/* Logo + wordmark above card (D-05) */}
       <div className="mb-12 flex flex-col items-center gap-2">
         <svg
@@ -29,9 +32,9 @@ export function OnboardingCard({ children, skipAction, appName }: OnboardingCard
         </span>
       </div>
 
-      {/* Wizard card (D-02 -- 600px variant) */}
-      <Card className="w-full max-w-[600px] rounded-xl shadow-sm">
-        <CardContent className="p-6">
+      {/* Wizard card (D-02 -- 600px variant) — Phase 71 glass */}
+      <Card variant="glass" className="w-full max-w-[600px] rounded-xl">
+        <CardContent className="p-6 md:p-8">
           {children}
         </CardContent>
       </Card>

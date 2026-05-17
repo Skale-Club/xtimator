@@ -232,6 +232,7 @@ export function OnboardingWizard({ appName }: { appName: string }) {
             {currentStep < 3 ? (
               <Button
                 type="button"
+                variant="primary"
                 className="min-h-[44px]"
                 onClick={handleNext}
                 disabled={isPending}
@@ -241,6 +242,7 @@ export function OnboardingWizard({ appName }: { appName: string }) {
             ) : (
               <Button
                 type="button"
+                variant="primary"
                 className="min-h-[44px]"
                 onClick={handleComplete}
                 disabled={isPending}

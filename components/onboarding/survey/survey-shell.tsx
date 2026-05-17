@@ -2,6 +2,7 @@
 
 import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
 import { SurveyProgress } from './survey-progress'
 import { SurveyStep } from './survey-step'
 import type { UseSurveyStateReturn } from './use-survey-state'
@@ -122,7 +123,10 @@ export function SurveyShell({
   }
 
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-lg flex-col bg-background px-4 py-6">
+    <div className="relative isolate mx-auto flex min-h-screen w-full max-w-2xl flex-col bg-background px-4 py-6">
+      {/* Phase 71 gradient-hero radial backdrop */}
+      <div aria-hidden className="absolute inset-0 -z-10 gradient-hero" />
+
       {/* Header: logo + wordmark */}
       <header className="mb-8 flex flex-col items-center gap-2">
         <svg
@@ -153,63 +157,69 @@ export function SurveyShell({
         </span>
       </header>
 
-      <SurveyProgress current={stepIndex} total={totalSteps} />
+      <Card variant="glass" className="mx-auto w-full max-w-2xl">
+        <CardContent className="p-6 md:p-10">
+          <SurveyProgress current={stepIndex} total={totalSteps} />
 
-      <div
-        key={stepIndex}
-        className="mt-6 flex-1 opacity-100 transition-all duration-150 ease-in-out motion-safe:animate-[surveyFadeIn_150ms_ease-out]"
-      >
-        <SurveyStep
-          label={currentStep.label}
-          helper={currentStep.helper}
-          error={error}
-        >
-          {renderStep()}
-        </SurveyStep>
-      </div>
+          <div
+            key={stepIndex}
+            className="mt-6 opacity-100 transition-all duration-150 ease-in-out motion-safe:animate-[surveyFadeIn_150ms_ease-out]"
+          >
+            <SurveyStep
+              label={currentStep.label}
+              helper={currentStep.helper}
+              error={error}
+            >
+              {renderStep()}
+            </SurveyStep>
+          </div>
 
-      <footer className="mt-6 flex items-center justify-between gap-3 pt-6">
-        <Button
-          type="button"
-          variant="ghost"
-          disabled={isFirst || isSubmitting}
-          onClick={goBack}
-        >
-          Back
-        </Button>
-        <div className="flex gap-2">
-          {!currentStep.required && !isLast ? (
+          <footer className="mt-8 flex items-center justify-between gap-3 pt-6">
             <Button
               type="button"
-              variant="outline"
-              onClick={handleSkip}
-              disabled={isSubmitting}
+              variant="ghost"
+              disabled={isFirst || isSubmitting}
+              onClick={goBack}
             >
-              Skip
+              Back
             </Button>
-          ) : null}
-          {!isLast ? (
-            <Button
-              type="button"
-              onClick={goNext}
-              disabled={isSubmitting}
-            >
-              Next
-            </Button>
-          ) : (
-            <Button
-              type="button"
-              onClick={onComplete}
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            <div className="flex gap-2">
+              {!currentStep.required && !isLast ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleSkip}
+                  disabled={isSubmitting}
+                >
+                  Skip
+                </Button>
               ) : null}
-              Complete setup
-            </Button>
-          )}
-        </div>
-      </footer>
+              {!isLast ? (
+                <Button
+                  type="button"
+                  variant="primary"
+                  onClick={goNext}
+                  disabled={isSubmitting}
+                >
+                  Next
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  variant="primary"
+                  onClick={onComplete}
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : null}
+                  Complete setup
+                </Button>
+              )}
+            </div>
+          </footer>
+        </CardContent>
+      </Card>
 
       <style jsx>{`
         @keyframes surveyFadeIn {

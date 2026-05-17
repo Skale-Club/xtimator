@@ -21,9 +21,9 @@ export function SurveyProgress({ current, total }: SurveyProgressProps) {
         </span>
         <span>{pct}%</span>
       </div>
-      <div className="h-1 w-full overflow-hidden rounded-full bg-muted">
+      <div className="h-1 w-full overflow-hidden rounded-full bg-[var(--glass-bg-light)]">
         <div
-          className="h-full bg-primary transition-all duration-200"
+          className="h-full rounded-full gradient-brand transition-all duration-200"
           style={{ width: `${pct}%` }}
         />
       </div>

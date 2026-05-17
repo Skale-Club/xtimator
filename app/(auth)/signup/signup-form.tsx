@@ -153,7 +153,7 @@ export function SignupForm() {
             )}
           />
 
-          <Button type="submit" className="w-full min-h-[44px]" disabled={isPending}>
+          <Button type="submit" variant="primary" size="lg" className="w-full" disabled={isPending}>
             {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Create account
           </Button>

@@ -40,11 +40,11 @@ export function AuthCard({ branding, title, children }: AuthCardProps) {
         </span>
       </div>
 
-      <div className="relative w-full max-w-[420px]">
-        <Card className="rounded-[1.5rem] border border-white/10 bg-black/40 shadow-2xl backdrop-blur-xl">
+      <div className="relative z-10 w-full max-w-[420px]">
+        <Card variant="glass" className="rounded-[1.5rem]">
           <CardContent className="p-8">
             {title && (
-              <h1 className="mb-8 text-center text-2xl font-bold tracking-tight text-white">{title}</h1>
+              <h1 className="mb-8 text-center text-2xl font-semibold tracking-tight text-white">{title}</h1>
             )}
             {children}
           </CardContent>

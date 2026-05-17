@@ -114,7 +114,7 @@ export function LoginForm() {
             )}
           />
 
-          <Button type="submit" className="mt-2 min-h-[48px] w-full bg-primary text-base font-semibold text-primary-foreground shadow-[0_0_20px_hsl(var(--primary)/0.3)] transition-all hover:bg-primary/90 hover:shadow-[0_0_30px_hsl(var(--primary)/0.5)]" disabled={isPending}>
+          <Button type="submit" variant="primary" size="lg" className="mt-2 w-full text-base font-semibold" disabled={isPending}>
             {isPending && <Loader2 className="mr-2 size-5 animate-spin" />}
             Sign in to Xtimator
           </Button>

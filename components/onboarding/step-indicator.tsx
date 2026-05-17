@@ -32,8 +32,8 @@ export function StepIndicator({ currentStep, onStepClick }: StepIndicatorProps) 
               aria-current={isActive ? 'step' : undefined}
               className={cn(
                 'flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-medium transition-colors',
-                isActive && 'bg-primary text-primary-foreground',
-                isCompleted && 'bg-primary text-primary-foreground',
+                isActive && 'gradient-brand text-white shadow-glow-brand',
+                isCompleted && 'gradient-brand text-white',
                 !isActive && !isCompleted && 'border border-border text-muted-foreground'
               )}
             >
@@ -49,7 +49,7 @@ export function StepIndicator({ currentStep, onStepClick }: StepIndicatorProps) 
               <div
                 className={cn(
                   'mx-2 h-px flex-1',
-                  step < currentStep ? 'bg-primary' : 'bg-border'
+                  step < currentStep ? 'gradient-brand' : 'bg-border'
                 )}
               />
             )}
