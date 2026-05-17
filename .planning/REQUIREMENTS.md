@@ -79,8 +79,8 @@ Doing both refactors before any production deploy means the launch (separate v3.
 
 ### CONNECT — Stripe Connect Customer Payments (optional integration)
 
-- [ ] **CONNECT-01**: DB migration adds `companies.stripe_account_id` (TEXT NULL), `stripe_connect_status` (TEXT NULL, values: `pending`|`active`|`disconnected`), `stripe_connected_at` (TIMESTAMPTZ NULL), `stripe_account_email` (TEXT NULL), `stripe_account_display_name` (TEXT NULL); and `estimates.payment_status` (TEXT NOT NULL DEFAULT `'unpaid'`), `stripe_checkout_session_id` (TEXT NULL), `stripe_payment_intent_id` (TEXT NULL), `paid_at` (TIMESTAMPTZ NULL), `payment_amount_cents` (INTEGER NULL). RLS unchanged (company-scoped via existing policies). Supabase TypeScript types regenerated.
-- [ ] **CONNECT-02**: Platform integration key `stripe_connect_client_id` (`ca_...`) is settable via `/admin/integrations` (encrypted via existing AES-GCM platform_config pattern); when null, all Connect UI surfaces show a friendly "Stripe Connect not yet enabled on the platform — contact support" state and never redirect to a broken OAuth URL.
+- [x] **CONNECT-01**: DB migration adds `companies.stripe_account_id` (TEXT NULL), `stripe_connect_status` (TEXT NULL, values: `pending`|`active`|`disconnected`), `stripe_connected_at` (TIMESTAMPTZ NULL), `stripe_account_email` (TEXT NULL), `stripe_account_display_name` (TEXT NULL); and `estimates.payment_status` (TEXT NOT NULL DEFAULT `'unpaid'`), `stripe_checkout_session_id` (TEXT NULL), `stripe_payment_intent_id` (TEXT NULL), `paid_at` (TIMESTAMPTZ NULL), `payment_amount_cents` (INTEGER NULL). RLS unchanged (company-scoped via existing policies). Supabase TypeScript types regenerated.
+- [x] **CONNECT-02**: Platform integration key `stripe_connect_client_id` (`ca_...`) is settable via `/admin/integrations` (encrypted via existing AES-GCM platform_config pattern); when null, all Connect UI surfaces show a friendly "Stripe Connect not yet enabled on the platform — contact support" state and never redirect to a broken OAuth URL.
 - [ ] **CONNECT-03**: Settings → Payments page (`/settings/payments`) renders one of three states: (a) not connected → "Connect Stripe Account" button that initiates OAuth, (b) connected → "Connected ✓ as [display name]" + email + Disconnect button, (c) platform not configured → friendly message. Linked from main Settings page.
 - [ ] **CONNECT-04**: OAuth flow works end-to-end against Stripe test mode: `GET /api/stripe/connect/initiate` generates a CSRF state token (signed/stored), redirects to `connect.stripe.com/oauth/authorize`; `GET /api/stripe/connect/callback` verifies state, exchanges code for `stripe_user_id`, fetches account details (`email`, `display_name`), persists to companies row, redirects back to Settings → Payments with success toast.
 - [ ] **CONNECT-05**: Disconnect action (`POST /api/stripe/connect/disconnect`) clears `stripe_account_id`, sets `stripe_connect_status = 'disconnected'`, optionally calls Stripe OAuth deauthorize endpoint. Existing paid estimates retain their paid status; the company simply loses the ability to accept new payments until reconnecting.
@@ -168,8 +168,8 @@ Coverage: 39/39 (100%) — every v1 requirement maps to exactly one phase, no or
 | FIX-02 | Phase 69 | Pending |
 | PERF-01 | Phase 69 | Pending |
 | PERF-02 | Phase 69 | Pending |
-| CONNECT-01 | Phase 70 | Pending |
-| CONNECT-02 | Phase 70 | Pending |
+| CONNECT-01 | Phase 70 | Complete |
+| CONNECT-02 | Phase 70 | Complete |
 | CONNECT-03 | Phase 70 | Pending |
 | CONNECT-04 | Phase 70 | Pending |
 | CONNECT-05 | Phase 70 | Pending |

@@ -699,4 +699,4 @@ Plans:
 | 67. Inngest Background AI Job Processing | v3.1.1 | 5/5 | Complete    | 2026-05-15 |
 | 68. Hetzner Cloud Deploy-Readiness Artifacts | v3.1.1 | 2/3 | Complete    | 2026-05-15 |
 | 69. UAT Validation + Bug Triage + Perf Audit | v3.1.1 | 0/TBD | Complete    | 2026-05-15 |
-| 70. Stripe Connect — Customer Payments | v3.1.1 | 0/TBD | In Progress | - |
+| 70. Stripe Connect — Customer Payments | v3.1.1 | 1/5 | In Progress|  |

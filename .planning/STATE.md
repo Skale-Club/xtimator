@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v3.1.1
 milestone_name: MVP Launch Prep + Future-Proofing
 status: executing
-last_updated: "2026-05-17T05:06:25.412Z"
-last_activity: 2026-05-17 -- Phase 70 execution started
+last_updated: "2026-05-17T05:39:29.877Z"
+last_activity: 2026-05-17
 progress:
   total_phases: 15
   completed_phases: 14
-  total_plans: 28
-  completed_plans: 28
+  total_plans: 33
+  completed_plans: 29
 ---
 
 # Project State
@@ -22,9 +22,9 @@ progress:
 ## Current Position
 
 Phase: 70 (stripe-connect-customer-payments) — EXECUTING
-Plan: 1 of 5
-Status: Executing Phase 70
-Last activity: 2026-05-17 -- Phase 70 execution started
+Plan: 2 of 5
+Status: Ready to execute
+Last activity: 2026-05-17
 
 ## v3.1.1 Phases
 
@@ -389,6 +389,8 @@ Last activity: 2026-05-17 -- Phase 70 execution started
 - [Phase 68]: Deploy artifacts use multi-stage Node 22 alpine Dockerfile + Caddy reverse proxy on Hetzner Cloud VPS — Next.js standalone output keeps runtime image at 150-300 MB target
 - [Phase 68]: Health endpoint contract: { ok, db, storage, commit, error? } — 503 on probe failure, errorMessage() helper to handle PostgrestError plain-object shape (not Error subclass)
 - [Phase 68]: Storage probe via getServerStorage().list('logos','') (Phase 66 abstraction) — never raw supabase.storage.from; works for both STORAGE_PROVIDER=supabase and =s3 backends
+- [Phase 70]: Stateless HMAC-signed OAuth state (no DB) chosen over DB-nonce for Stripe Connect — 10-min TTL keeps replay surface tight
+- [Phase 70]: stripe_connect_client_id stored via existing platform_integrations AES-GCM path despite being non-secret — uniform admin UX wins over schema purity
 
 ## Performance Metrics
 
@@ -498,6 +500,7 @@ Last activity: 2026-05-17 -- Phase 70 execution started
 | Phase 67 P05 | 6m | 3 tasks | 6 files |
 | Phase 68 P01 | 7min | 3 tasks | 6 files |
 | Phase 68 P02 | 4min | 2 tasks | 3 files |
+| Phase 70 P01 | 35 min | 3 tasks | 14 files |
 
 ## Project Reference
 
