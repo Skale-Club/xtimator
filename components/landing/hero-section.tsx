@@ -7,6 +7,14 @@ import { motion, useReducedMotion, type Variants } from 'framer-motion'
 
 type HeroContent = { heroHeadline: string; heroSubheadline: string; ctaLabel: string }
 
+// Trust band copy — placeholder strings, i18n-ready (centralize here so a
+// future t() wiring is a 1-line swap per entry).
+const TRUST_BAND = {
+  contractors: 'Used by 500+ contractors',
+  estimates:   '12,000+ estimates sent',
+  rating:      '4.9/5 average rating',
+}
+
 const FADE_UP_ANIMATION_VARIANTS: Variants = {
   hidden: { opacity: 0, y: 30 },
   show: { opacity: 1, y: 0, transition: { type: 'spring', duration: 1 } },
@@ -15,8 +23,11 @@ const FADE_UP_ANIMATION_VARIANTS: Variants = {
 export function HeroSection({ content }: { content: HeroContent }) {
   const reduce = useReducedMotion()
   return (
-    <section className="relative isolate overflow-hidden border-b border-white/5 bg-transparent py-[clamp(64px,12vw,96px)]">
-      {/* Phase 71 gradient-hero radial backdrop (NO blur — perf gate for landing) */}
+    <section className="relative isolate overflow-hidden border-b border-white/5 bg-transparent py-[clamp(64px,12vw,112px)]">
+      {/* Phase 71 — animated gradient mesh + dot overlay backdrop (motion-gated via CSS). */}
+      <div aria-hidden className="hero-mesh" />
+      <div aria-hidden className="hero-dots" />
+      {/* Keep original gradient-hero radial for token cascade. */}
       <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 gradient-hero" />
       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,transparent,hsl(var(--primary)/0.5),transparent)]" />
 
@@ -31,18 +42,19 @@ export function HeroSection({ content }: { content: HeroContent }) {
               hidden: {},
               show: { transition: { staggerChildren: 0.15 } },
             }}
-            className="max-w-2xl space-y-5"
+            className="max-w-2xl space-y-6"
           >
             <motion.div variants={FADE_UP_ANIMATION_VARIANTS} className="flex justify-start">
-              <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-medium text-secondary">
+              <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-medium text-secondary backdrop-blur-sm">
                 <Sparkles className="size-3.5" aria-hidden="true" />
                 Built for contractors &amp; field crews
               </div>
             </motion.div>
 
+            {/* GIGANTIC display headline — clamp(56,10vw,96), tracking -0.04em */}
             <motion.h1
               variants={FADE_UP_ANIMATION_VARIANTS}
-              className="text-balance text-[clamp(40px,8vw,72px)] font-semibold leading-[1.05] tracking-[-0.025em]"
+              className="text-balance text-[clamp(44px,10vw,96px)] font-semibold leading-[0.98] tracking-[-0.04em]"
             >
               {content.heroHeadline}
             </motion.h1>
@@ -55,12 +67,15 @@ export function HeroSection({ content }: { content: HeroContent }) {
             </motion.p>
 
             <motion.div variants={FADE_UP_ANIMATION_VARIANTS} className="flex flex-col gap-3 sm:flex-row">
-              <Button asChild variant="primary" size="lg" className="sm:min-w-36">
-                <Link href="/signup">
-                  {content.ctaLabel}
-                  <ArrowRight className="ml-2 size-4" aria-hidden="true" />
-                </Link>
-              </Button>
+              {/* Glow ring on primary CTA — breathing pulse, motion-gated via CSS */}
+              <div className="cta-glow inline-flex">
+                <Button asChild variant="primary" size="lg" className="sm:min-w-40">
+                  <Link href="/signup">
+                    {content.ctaLabel}
+                    <ArrowRight className="ml-2 size-4" aria-hidden="true" />
+                  </Link>
+                </Button>
+              </div>
               <Button
                 asChild
                 size="lg"
@@ -78,6 +93,19 @@ export function HeroSection({ content }: { content: HeroContent }) {
               <span className="flex items-center gap-1.5"><CheckCircle2 className="size-3.5 text-primary" /> No credit card required</span>
               <span className="flex items-center gap-1.5"><CheckCircle2 className="size-3.5 text-primary" /> iPhone &amp; Android</span>
             </motion.div>
+
+            {/* Trust band — placeholder stats, i18n-ready via TRUST_BAND constants. */}
+            <motion.div
+              variants={FADE_UP_ANIMATION_VARIANTS}
+              className="mt-6 flex flex-col gap-4 border-t border-white/10 pt-6 sm:flex-row sm:items-center sm:gap-8"
+            >
+              {[TRUST_BAND.contractors, TRUST_BAND.estimates, TRUST_BAND.rating].map((stat) => (
+                <div key={stat} className="flex items-center gap-2 text-xs font-medium text-muted-foreground/90">
+                  <span className="size-1.5 rounded-full bg-gradient-to-br from-primary to-secondary" />
+                  {stat}
+                </div>
+              ))}
+            </motion.div>
           </motion.div>
 
           {/* Right: Mockup Panel */}
@@ -87,7 +115,7 @@ export function HeroSection({ content }: { content: HeroContent }) {
             transition={{ duration: 1, type: 'spring', delay: 0.3 }}
             className="hidden w-full max-w-md lg:block lg:shrink-0"
           >
-            <div className="relative rounded-2xl border border-white/10 bg-black/40 p-2 shadow-[0_0_60px_hsl(var(--primary)/0.15)]">
+            <div className="relative rounded-2xl border border-white/10 bg-black/40 p-2 shadow-[0_0_80px_hsl(var(--primary)/0.25)]">
               <div className="absolute inset-0 -z-10 rounded-2xl bg-gradient-to-tr from-primary/20 via-transparent to-secondary/20 blur-xl" />
               <div className="rounded-xl border border-white/5 bg-background p-6 shadow-2xl">
                 <div className="mb-6 flex items-center justify-between border-b border-white/5 pb-4">
