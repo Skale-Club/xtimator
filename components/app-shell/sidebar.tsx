@@ -25,9 +25,12 @@ export function Sidebar({ branding, company: _company }: SidebarProps) {
   const logoUrl = branding.logoUrl
 
   return (
-    <aside data-testid="app-sidebar" className="hidden md:flex flex-col border-r border-border bg-background w-16 lg:w-64 transition-all">
+    <aside
+      data-testid="app-sidebar"
+      className="hidden md:flex flex-col w-16 lg:w-64 transition-all glass border-r border-[var(--glass-border)]"
+    >
       {/* Product branding */}
-      <div className="flex items-center gap-3 border-b border-border px-3 h-16">
+      <div className="flex items-center gap-3 border-b border-[var(--glass-border)] px-3 h-16">
         <div className="h-9 w-9 shrink-0 flex items-center justify-center">
           {logoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -59,13 +62,16 @@ export function Sidebar({ branding, company: _company }: SidebarProps) {
             <HoverPrefetchLink
               key={item.href}
               href={item.href}
+              data-active={isActive || undefined}
               className={cn(
-                'flex items-center gap-3 rounded-[var(--radius-md)] px-3 py-2 text-sm font-[var(--font-weight-medium)] transition-colors duration-150',
-                isActive
-                  ? 'bg-accent text-accent-foreground'
-                  : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
+                'group relative flex items-center gap-3 rounded-[var(--radius-md)] px-3 py-2 text-sm font-[var(--font-weight-medium)] transition-colors duration-150',
+                'text-muted-foreground hover:bg-[var(--glass-bg-light)] hover:text-foreground',
+                'data-[active]:bg-[var(--glass-bg-light)] data-[active]:text-foreground',
+                // 1.5px gradient-brand left bar on active item (UI-SPEC pattern 4)
+                'data-[active]:before:content-[""] data-[active]:before:absolute data-[active]:before:left-0 data-[active]:before:top-2 data-[active]:before:bottom-2 data-[active]:before:w-[1.5px] data-[active]:before:rounded-full data-[active]:before:bg-[image:var(--gradient-brand)]',
                 item.primary && !isActive && 'text-primary',
-                item.primary && 'border border-primary/20 bg-primary/5 hover:bg-primary/10'
+                item.primary &&
+                  'border border-primary/20 bg-primary/5 hover:bg-primary/10'
               )}
             >
               <Icon className="h-5 w-5 shrink-0" />
