@@ -8,6 +8,7 @@ import { getBranding } from '@/lib/platform-config'
 
 interface SharePageProps {
   params: Promise<{ token: string }>
+  searchParams: Promise<{ stripe?: string }>
 }
 
 export async function generateMetadata({
@@ -26,8 +27,9 @@ export async function generateMetadata({
   }
 }
 
-export default async function SharePage({ params }: SharePageProps) {
+export default async function SharePage({ params, searchParams }: SharePageProps) {
   const { token } = await params
+  const sp = await searchParams
   const data = await getEstimateByShareToken(token)
 
   if (!data) {
@@ -44,6 +46,16 @@ export default async function SharePage({ params }: SharePageProps) {
   const headersList = await headers()
   const isWhiteLabel = headersList.get('x-white-label') === '1'
 
+  // Phase 70 — Stripe Connect payment return state. The URL is the source of
+  // truth for the banner; the DB payment_status is updated by the webhook
+  // (Plan 70-04) which may land a few seconds after this redirect.
+  const stripeState: 'success' | 'canceled' | null =
+    sp.stripe === 'success'
+      ? 'success'
+      : sp.stripe === 'canceled'
+        ? 'canceled'
+        : null
+
   return (
     <main className="max-w-4xl mx-auto px-4 py-8 sm:py-12">
       <EstimateView
@@ -53,6 +65,7 @@ export default async function SharePage({ params }: SharePageProps) {
         alreadyResponded={alreadyResponded}
         appName={branding.appName}
         whiteLabelMode={isWhiteLabel}
+        stripeState={stripeState}
       />
     </main>
   )
