@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { ArrowRight, LogIn, Sparkles, CheckCircle2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { motion, type Variants } from 'framer-motion'
+import { motion, useReducedMotion, type Variants } from 'framer-motion'
 
 type HeroContent = { heroHeadline: string; heroSubheadline: string; ctaLabel: string }
 
@@ -13,15 +13,18 @@ const FADE_UP_ANIMATION_VARIANTS: Variants = {
 }
 
 export function HeroSection({ content }: { content: HeroContent }) {
+  const reduce = useReducedMotion()
   return (
-    <section className="relative overflow-hidden border-b border-white/5 bg-transparent pt-8 md:pt-11">
+    <section className="relative isolate overflow-hidden border-b border-white/5 bg-transparent py-[clamp(64px,12vw,96px)]">
+      {/* Phase 71 gradient-hero radial backdrop (NO blur — perf gate for landing) */}
+      <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 gradient-hero" />
       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,transparent,hsl(var(--primary)/0.5),transparent)]" />
 
-      <div className="relative mx-auto max-w-6xl px-6 py-6 sm:px-8 sm:py-8 lg:px-10 lg:py-11">
+      <div className="relative mx-auto max-w-6xl px-6 sm:px-8 lg:px-10">
         <div className="flex flex-col gap-11 lg:flex-row lg:items-center lg:justify-between lg:gap-8">
           {/* Left: headline + CTAs */}
           <motion.div
-            initial="hidden"
+            initial={reduce ? false : 'hidden'}
             animate="show"
             viewport={{ once: true }}
             variants={{
@@ -37,20 +40,22 @@ export function HeroSection({ content }: { content: HeroContent }) {
               </div>
             </motion.div>
 
-            <motion.h1 variants={FADE_UP_ANIMATION_VARIANTS} className="text-balance text-3xl font-extrabold leading-[1.05] tracking-tight sm:text-4xl lg:text-5xl">
+            <motion.h1
+              variants={FADE_UP_ANIMATION_VARIANTS}
+              className="text-balance text-[clamp(40px,8vw,72px)] font-semibold leading-[1.05] tracking-[-0.025em]"
+            >
               {content.heroHeadline}
             </motion.h1>
 
-            <motion.p variants={FADE_UP_ANIMATION_VARIANTS} className="max-w-xl text-sm leading-relaxed text-muted-foreground sm:text-base">
+            <motion.p
+              variants={FADE_UP_ANIMATION_VARIANTS}
+              className="max-w-2xl text-base leading-[1.55] text-muted-foreground sm:text-lg"
+            >
               {content.heroSubheadline}
             </motion.p>
 
             <motion.div variants={FADE_UP_ANIMATION_VARIANTS} className="flex flex-col gap-3 sm:flex-row">
-              <Button
-                asChild
-                size="lg"
-                className="h-10 bg-primary text-sm font-semibold text-primary-foreground transition-all hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:min-w-36"
-              >
+              <Button asChild variant="primary" size="lg" className="sm:min-w-36">
                 <Link href="/signup">
                   {content.ctaLabel}
                   <ArrowRight className="ml-2 size-4" aria-hidden="true" />
@@ -77,12 +82,12 @@ export function HeroSection({ content }: { content: HeroContent }) {
 
           {/* Right: Mockup Panel */}
           <motion.div
-            initial={{ opacity: 0, scale: 0.95, rotate: -2 }}
+            initial={reduce ? false : { opacity: 0, scale: 0.95, rotate: -2 }}
             animate={{ opacity: 1, scale: 1, rotate: 0 }}
-            transition={{ duration: 1, type: "spring", delay: 0.3 }}
+            transition={{ duration: 1, type: 'spring', delay: 0.3 }}
             className="hidden w-full max-w-md lg:block lg:shrink-0"
           >
-            <div className="relative rounded-2xl border border-white/10 bg-black/40 p-2 shadow-[0_0_60px_hsl(var(--primary)/0.15)] backdrop-blur-md">
+            <div className="relative rounded-2xl border border-white/10 bg-black/40 p-2 shadow-[0_0_60px_hsl(var(--primary)/0.15)]">
               <div className="absolute inset-0 -z-10 rounded-2xl bg-gradient-to-tr from-primary/20 via-transparent to-secondary/20 blur-xl" />
               <div className="rounded-xl border border-white/5 bg-background p-6 shadow-2xl">
                 <div className="mb-6 flex items-center justify-between border-b border-white/5 pb-4">
