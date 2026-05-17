@@ -203,7 +203,11 @@
   4. `app/admin/admins/page.tsx` drops the `listUsers({ perPage: 1000 })` call; replaced with a paginated fetch (first 50) + server-side search, or a cached count query — no unbounded user list load on every nav
   5. Every admin page (`/admin/*`) and every app-shell nav transition shows a skeleton within 100ms — measured by adding `loading.tsx` to every admin route segment that lacks one
   6. No regressions: all existing admin CRUD actions (invite admin, suspend/reactivate, branding update, billing view) continue to work correctly after the caching and query changes
-**Plans**: TBD (estimated 4-6 plans)
+**Plans**: 3 plans in `.planning/phases/72-admin-menu-performance/`
+Plans:
+- [ ] 72-01-PLAN.md — 10 loading.tsx skeleton files for all admin routes + revalidate=60 ISR on 4 stable admin pages (PERF-ADMIN-01, PERF-ADMIN-02)
+- [ ] 72-02-PLAN.md — Admin layout Suspense boundary + app shell getBranding parallelized with getCachedCompany (PERF-ADMIN-03, PERF-ADMIN-06)
+- [ ] 72-03-PLAN.md — integrations N+1 getUserById batch fix + admins page listUsers(1000) replaced with bounded getUserById per row (PERF-ADMIN-04, PERF-ADMIN-05, PERF-ADMIN-06)
 
 ### Phase 66: Storage Abstraction Layer
 **Goal**: Every storage call site in the app routes through a `lib/storage/` provider interface so swapping Supabase Storage for an S3-compatible backend (Hetzner Object Storage, MinIO, etc.) is a 1-line provider change. Default provider stays Supabase; the S3 path ships as a working skeleton validated against MinIO. Sequenced first because doing the refactor under live customer load (post-launch) is much riskier than now during a clean window — and Phase 67 (Inngest) workers can use the new `storage.*` API from day one with no follow-up refactor.
