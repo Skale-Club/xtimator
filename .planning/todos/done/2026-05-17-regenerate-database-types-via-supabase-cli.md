@@ -41,3 +41,17 @@ Two blockers prevent regen today:
 2. Run `supabase gen types typescript --db-url "$DATABASE_URL" --schema public > types/database.types.ts`
 
 **No urgency.** The hand-edited file works (33/33 tests passing, TypeScript baseline unchanged). Only matters next time schema changes.
+
+
+## Resolution (2026-05-17)
+
+Owner provided a Supabase Personal Access Token, persisted to `.env.local` as `SUPABASE_ACCESS_TOKEN`. Token-based login bypassed Docker entirely:
+
+```bash
+supabase login --token sbp_***
+supabase gen types typescript --project-id prmqgcrnpuvpzruyzvuv --schema public 2>/dev/null > types/database.types.ts
+```
+
+Result: 985 → 1165 lines (regen contains more comprehensive metadata). All Phase 70 columns present. TypeScript baseline error count unchanged (22 = same as before regen). Zero new test regressions.
+
+PAT saved persistently so future regens are a single command.
