@@ -1,6 +1,7 @@
 import { type NextRequest } from 'next/server'
 import type Stripe from 'stripe'
 import { getStripeClient } from '@/lib/billing/stripe-client'
+import { handleConnectEvent } from '@/lib/billing/connect-webhook'
 import { requireServiceClient } from '@/lib/supabase/service'
 
 // ------------------------------------------------------------------
@@ -55,9 +56,27 @@ export async function POST(request: NextRequest) {
 }
 
 // ------------------------------------------------------------------
-// Event handlers — one case per Stripe lifecycle event (STRIPE-02)
+// Top-level dispatch: Connect events carry `event.account` (acct_xxx);
+// platform (subscription) events do not. Plan 70-04 wires the Connect
+// branch — existing platform event handling is untouched (zero regression).
 // ------------------------------------------------------------------
 async function handleStripeEvent(
+  event: Stripe.Event,
+  stripe: Stripe,
+  svc: ReturnType<typeof requireServiceClient>
+): Promise<void> {
+  if (event.account) {
+    return handleConnectEvent(event, stripe, svc)
+  }
+  return handlePlatformEvent(event, stripe, svc)
+}
+
+// ------------------------------------------------------------------
+// Platform event handler — subscription/billing lifecycle (STRIPE-02)
+// (Originally the body of handleStripeEvent; renamed verbatim for the
+// Connect branch in plan 70-04.)
+// ------------------------------------------------------------------
+async function handlePlatformEvent(
   event: Stripe.Event,
   stripe: Stripe,
   svc: ReturnType<typeof requireServiceClient>
