@@ -51,10 +51,10 @@ export function HeroSection({ content }: { content: HeroContent }) {
               </div>
             </motion.div>
 
-            {/* GIGANTIC display headline — clamp(56,10vw,96), tracking -0.04em */}
+            {/* Display headline — clamp(40,7vw,68), tracking -0.03em */}
             <motion.h1
               variants={FADE_UP_ANIMATION_VARIANTS}
-              className="text-balance text-[clamp(44px,10vw,96px)] font-semibold leading-[0.98] tracking-[-0.04em]"
+              className="text-balance text-[clamp(40px,7vw,68px)] font-semibold leading-[1.02] tracking-[-0.03em]"
             >
               {content.heroHeadline}
             </motion.h1>
