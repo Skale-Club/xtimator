@@ -163,10 +163,10 @@ export function EstimateTab({
 
   return (
     <div className="flex items-center justify-center py-16">
-      <Card className="w-full max-w-md">
+      <Card variant="glass" className="w-full max-w-md">
         <CardContent className="flex flex-col items-center text-center pt-8 pb-6 space-y-4">
-          <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center">
-            <Sparkles className="h-7 w-7 text-primary" />
+          <div className="h-14 w-14 rounded-full gradient-brand shadow-glow-brand flex items-center justify-center">
+            <Sparkles className="h-7 w-7 text-white" />
           </div>
           <div>
             <h3 className="text-lg font-semibold">Generate AI Estimate</h3>
@@ -176,7 +176,7 @@ export function EstimateTab({
           </div>
 
           {hasPrerequisites ? (
-            <Button size="lg" onClick={handleGenerate} className="gap-2 min-h-[44px]">
+            <Button variant="primary" size="lg" onClick={handleGenerate} className="gap-2 min-h-[44px]">
               <Sparkles className="h-4 w-4" />
               Generate Estimate
             </Button>
@@ -185,7 +185,7 @@ export function EstimateTab({
               <Tooltip>
                 <TooltipTrigger asChild>
                   <span tabIndex={0}>
-                    <Button size="lg" disabled className="gap-2 min-h-[44px]">
+                    <Button variant="primary" size="lg" disabled className="gap-2 min-h-[44px]">
                       <Sparkles className="h-4 w-4" />
                       Generate Estimate
                     </Button>

@@ -118,10 +118,10 @@ export function EstimateTotals({ state, dispatch, isReadOnly }: EstimateTotalsPr
         {/* Divider */}
         <div className="border-t pt-2" />
 
-        {/* Grand Total */}
-        <div className="flex items-center justify-between">
+        {/* Grand Total — highlighted glass row, mono numerics */}
+        <div className="flex items-center justify-between rounded-md bg-[var(--glass-bg-light)] px-3 py-2">
           <span className="text-base font-semibold">Grand Total</span>
-          <span className="text-xl font-bold tabular-nums">${formatCurrency(state.total)}</span>
+          <span className="font-mono text-xl font-semibold tabular-nums">${formatCurrency(state.total)}</span>
         </div>
       </div>
     </div>

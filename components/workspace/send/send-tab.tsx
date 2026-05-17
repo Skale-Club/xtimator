@@ -21,7 +21,7 @@ interface SendTabProps {
 export function SendTab({ estimate, projectName, companyName, clientEmail, clientName, ownerName, estimateTemplate }: SendTabProps) {
   if (!estimate) {
     return (
-      <Card>
+      <Card variant="glass">
         <CardContent className="flex flex-col items-center justify-center py-12 text-center">
           <FileText className="mb-4 h-12 w-12 text-muted-foreground" />
           <h3 className="text-lg font-semibold">No estimate available</h3>

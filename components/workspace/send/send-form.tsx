@@ -104,7 +104,7 @@ export function SendForm({
   }
 
   return (
-    <Card>
+    <Card variant="glass">
       <CardHeader>
         <CardTitle className="text-lg">Send Estimate</CardTitle>
       </CardHeader>
@@ -179,7 +179,7 @@ export function SendForm({
               )}
             />
 
-            <Button type="submit" className="w-full" disabled={sending}>
+            <Button type="submit" variant="primary" size="lg" className="w-full" disabled={sending}>
               {sending ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (

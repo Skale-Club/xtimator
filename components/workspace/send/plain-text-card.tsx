@@ -61,7 +61,7 @@ export function PlainTextCard({
   }
 
   return (
-    <Card>
+    <Card variant="glass">
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
@@ -81,7 +81,7 @@ export function PlainTextCard({
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
-            <Button onClick={handleCopy}>
+            <Button variant="primary" onClick={handleCopy}>
               {copied ? (
                 <Check className="mr-2 h-4 w-4" />
               ) : (
@@ -110,7 +110,7 @@ interface PlainTextCardEmptyProps {
 
 export function PlainTextCardEmpty({ className }: PlainTextCardEmptyProps) {
   return (
-    <Card className={className}>
+    <Card variant="glass" className={className}>
       <CardContent className="flex flex-col items-center justify-center py-12 text-center">
         <FileText className="mb-4 h-12 w-12 text-muted-foreground" />
         <p className="text-sm text-muted-foreground">

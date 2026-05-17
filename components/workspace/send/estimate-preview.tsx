@@ -64,7 +64,7 @@ export function EstimatePreview({ estimate, projectName, companyName }: Estimate
   }
 
   return (
-    <Card>
+    <Card variant="glass">
       <CardHeader>
         <CardTitle className="text-lg">Estimate Preview</CardTitle>
       </CardHeader>
