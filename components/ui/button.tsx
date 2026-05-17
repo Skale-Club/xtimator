@@ -11,6 +11,12 @@ const buttonVariants = cva(
       variant: {
         default:
           "bg-primary text-primary-foreground shadow-xs hover:bg-primary/90 hover:shadow-sm hover:-translate-y-[0.5px] active:translate-y-0 active:shadow-xs",
+        primary:
+          "relative overflow-hidden btn-shimmer gradient-brand text-white shadow-xs hover:shadow-glow-brand hover:-translate-y-[0.5px] active:translate-y-0 " +
+          "before:content-[''] before:absolute before:inset-0 before:-translate-x-full before:bg-gradient-to-r before:from-transparent before:via-white/20 before:to-transparent " +
+          "hover:before:translate-x-full before:transition-transform before:duration-[var(--shimmer-duration)] motion-reduce:before:hidden",
+        premium:
+          "gradient-premium text-white shadow-xs hover:shadow-glow-brand hover:-translate-y-[0.5px] active:translate-y-0",
         destructive:
           "bg-destructive text-white shadow-xs hover:bg-destructive/90 focus-visible:ring-destructive/40",
         outline:

@@ -27,13 +27,14 @@ describe('UI primitives — Phase 9 redesign', () => {
     expect(btn.className).toContain('text-white')
   })
 
-  it('Input uses h-10 + radius-md + shadow-xs + shadow-focus', () => {
+  it('Input uses h-10 + radius-md + shadow-xs + glow-brand focus (Phase 71)', () => {
     render(<Input placeholder="p" />)
     const input = screen.getByPlaceholderText('p')
     expect(input.className).toContain('h-10')
     expect(input.className).toContain('rounded-[var(--radius-md)]')
     expect(input.className).toContain('shadow-xs')
-    expect(input.className).toContain('shadow-[var(--focus-shadow)]')
+    // Phase 71: focus shadow shifted from --focus-shadow to gradient-brand glow
+    expect(input.className).toContain('shadow-glow-brand')
   })
 
   it('Card uses --radius-lg + shadow-sm', () => {

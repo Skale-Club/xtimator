@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/table'
 
 describe('UI overlays — Phase 9 redesign', () => {
-  it('DialogContent uses --radius-lg + --shadow-lg', () => {
+  it('DialogContent uses --radius-lg + glass-strong surface (Phase 71)', () => {
     render(
       <Dialog open>
         <DialogTrigger>open</DialogTrigger>
@@ -28,8 +28,10 @@ describe('UI overlays — Phase 9 redesign', () => {
     )
     const content = screen.getByTestId('dialog-content')
     expect(content.className).toContain('rounded-[var(--radius-lg)]')
-    expect(content.className).toContain('shadow-lg')
-    expect(content.className).toContain('border-border')
+    // Phase 71: shadow-lg → shadow-glass, border-border → border-[var(--glass-border)]
+    expect(content.className).toContain('shadow-glass')
+    expect(content.className).toContain('border-[var(--glass-border)]')
+    expect(content.className).toContain('bg-[var(--glass-bg-strong)]')
   })
 
   it('DropdownMenuContent uses --radius-md + --shadow-md and items use --radius-sm', () => {
