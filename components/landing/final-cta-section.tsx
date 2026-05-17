@@ -8,7 +8,7 @@ import { motion, useReducedMotion } from 'framer-motion'
 export function FinalCtaSection() {
   const reduce = useReducedMotion()
   return (
-    <section className="relative isolate bg-transparent py-[clamp(64px,12vw,96px)]">
+    <section className="relative isolate bg-transparent py-[clamp(40px,7vw,64px)]">
       {/* Phase 71 gradient-hero radial backdrop (NO blur on landing — perf gate) */}
       <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 gradient-hero" />
       <div className="mx-auto max-w-6xl px-6 sm:px-8 lg:px-10">
@@ -17,7 +17,7 @@ export function FinalCtaSection() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: '-100px' }}
           transition={{ duration: 0.7 }}
-          className="relative overflow-hidden rounded-[2.5rem] border border-white/10 bg-black/40 px-6 py-16 shadow-[0_0_80px_hsl(var(--primary)/0.15)] sm:px-12 sm:py-20 lg:flex lg:items-center lg:justify-between lg:gap-8"
+          className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-black/40 px-6 py-10 shadow-[0_0_80px_hsl(var(--primary)/0.15)] sm:px-12 sm:py-12 lg:flex lg:items-center lg:justify-between lg:gap-8"
         >
           {/* Background glows */}
           <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_50%_50%_at_50%_120%,hsl(var(--primary)/0.3),transparent)]" aria-hidden="true" />
@@ -25,7 +25,7 @@ export function FinalCtaSection() {
 
           <div className="relative z-10 max-w-2xl space-y-4">
             <p className="text-sm font-bold uppercase tracking-[0.14em] text-primary">Ready to try it live?</p>
-            <h2 className="text-[clamp(40px,7vw,64px)] font-semibold leading-[1.05] tracking-[-0.025em] text-white">
+            <h2 className="text-[clamp(28px,4.5vw,44px)] font-semibold leading-[1.1] tracking-[-0.02em] text-white">
               Start your next estimate <br className="hidden sm:block" />
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-secondary">before you leave the property.</span>
             </h2>
@@ -35,7 +35,7 @@ export function FinalCtaSection() {
           </div>
 
           <div className="relative z-10 mt-10 flex shrink-0 flex-col gap-4 sm:flex-row lg:mt-0">
-            <Button asChild variant="primary" size="lg" className="h-14 text-lg sm:min-w-44">
+            <Button asChild variant="primary" size="lg" className="sm:min-w-44">
               <Link href="/signup">
                 Create account
                 <ArrowRight className="ml-2 size-5 transition-transform group-hover:translate-x-1" aria-hidden="true" />
