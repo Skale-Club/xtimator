@@ -15,6 +15,9 @@ export interface ProjectWithClient {
   total: number
   created_at: string
   client: { id: string; name: string } | null
+  /** Phase 70: payment status pulled from the project's current estimate. */
+  payment_status: 'unpaid' | 'paid' | 'refunded' | null
+  paid_at: string | null
 }
 
 export async function getDashboardStats(
@@ -68,19 +71,37 @@ export async function getProjects(
   supabase: SupabaseClient,
   companyId: string
 ): Promise<ProjectWithClient[]> {
+  // Pull the current estimate's payment_status + paid_at alongside the
+  // project so the dashboard list can render a "Paid" badge without an
+  // N+1 round-trip (Phase 70-05 polish — CONTEXT.md "Claude's Discretion"
+  // green-lit this micro-feature).
   const { data } = await supabase
     .from('projects')
-    .select('id, name, project_type, status, total, created_at, client:clients(id, name)')
+    .select(
+      `id, name, project_type, status, total, created_at,
+       client:clients(id, name),
+       estimates!estimates_project_id_fkey(payment_status, paid_at, is_current)`
+    )
     .eq('company_id', companyId)
     .order('created_at', { ascending: false })
 
-  return (data ?? []).map((row: Record<string, unknown>) => ({
-    id: row.id as string,
-    name: row.name as string,
-    project_type: row.project_type as string | null,
-    status: row.status as string,
-    total: Number(row.total) || 0,
-    created_at: row.created_at as string,
-    client: row.client as { id: string; name: string } | null,
-  }))
+  return (data ?? []).map((row: Record<string, unknown>) => {
+    const estimates = (row.estimates as Array<{
+      payment_status: 'unpaid' | 'paid' | 'refunded' | null
+      paid_at: string | null
+      is_current: boolean | null
+    }> | null) ?? []
+    const current = estimates.find((e) => e.is_current) ?? null
+    return {
+      id: row.id as string,
+      name: row.name as string,
+      project_type: row.project_type as string | null,
+      status: row.status as string,
+      total: Number(row.total) || 0,
+      created_at: row.created_at as string,
+      client: row.client as { id: string; name: string } | null,
+      payment_status: current?.payment_status ?? null,
+      paid_at: current?.paid_at ?? null,
+    }
+  })
 }

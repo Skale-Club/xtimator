@@ -21,6 +21,18 @@ export function ProjectTableRow({ project }: ProjectTableRowProps) {
         <Link href={`/projects/${project.id}`} className="hover:underline">
           {project.name}
         </Link>
+        {project.payment_status === 'paid' && (
+          <span
+            title={
+              project.paid_at
+                ? `Paid ${new Date(project.paid_at).toLocaleDateString()}`
+                : 'Paid'
+            }
+            className="ml-2 inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800"
+          >
+            Paid
+          </span>
+        )}
       </TableCell>
       <TableCell className="text-muted-foreground">
         {project.client?.name ?? '\u2014'}

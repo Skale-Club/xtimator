@@ -30,6 +30,8 @@ function makeProject(overrides: Partial<ProjectWithClient> = {}): ProjectWithCli
     total: 2500,
     created_at: '2026-04-01T00:00:00Z',
     client: { id: 'client-1', name: 'John Smith' },
+    payment_status: null,
+    paid_at: null,
     ...overrides,
   }
 }

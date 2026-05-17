@@ -19,12 +19,26 @@ export function ProjectCard({ project }: ProjectCardProps) {
     <Card>
       <CardContent className="p-4">
         <div className="flex items-start justify-between mb-2">
-          <Link
-            href={`/projects/${project.id}`}
-            className="font-medium hover:underline"
-          >
-            {project.name}
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link
+              href={`/projects/${project.id}`}
+              className="font-medium hover:underline"
+            >
+              {project.name}
+            </Link>
+            {project.payment_status === 'paid' && (
+              <span
+                title={
+                  project.paid_at
+                    ? `Paid ${new Date(project.paid_at).toLocaleDateString()}`
+                    : 'Paid'
+                }
+                className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800"
+              >
+                Paid
+              </span>
+            )}
+          </div>
           <ProjectActions projectId={project.id} projectName={project.name} />
         </div>
         <div className="space-y-1 text-sm text-muted-foreground mb-3">
