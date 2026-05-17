@@ -23,7 +23,7 @@ const FADE_UP_ANIMATION_VARIANTS: Variants = {
 export function HeroSection({ content }: { content: HeroContent }) {
   const reduce = useReducedMotion()
   return (
-    <section className="relative isolate overflow-hidden border-b border-white/5 bg-transparent py-[clamp(64px,12vw,112px)]">
+    <section className="relative isolate overflow-hidden border-b border-white/5 bg-transparent py-[clamp(40px,7vw,72px)]">
       {/* Phase 71 — animated gradient mesh + dot overlay backdrop (motion-gated via CSS). */}
       <div aria-hidden className="hero-mesh" />
       <div aria-hidden className="hero-dots" />
