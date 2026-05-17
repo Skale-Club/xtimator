@@ -57,7 +57,7 @@ export function AdminNav({ appName, logoUrl, adminEmail }: AdminNavProps) {
   return (
     <nav
       aria-label="Platform admin navigation"
-      className="w-[240px] flex-shrink-0 border-r border-border bg-card flex flex-col"
+      className="w-[240px] flex-shrink-0 border-r border-[var(--glass-border)] bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] flex flex-col"
     >
       <div className="px-4 pt-6 pb-6 flex items-center gap-2">
         {logoUrl ? (
@@ -85,10 +85,10 @@ export function AdminNav({ appName, logoUrl, adminEmail }: AdminNavProps) {
                 href={href}
                 aria-current={isActive ? 'page' : undefined}
                 className={[
-                  'flex items-center gap-3 h-[44px] px-4 rounded-md text-sm',
+                  'relative flex items-center gap-3 h-[40px] px-4 rounded-md text-sm transition-colors',
                   isActive
-                    ? 'bg-primary/12 border-l-2 border-primary text-foreground'
-                    : 'hover:bg-accent text-muted-foreground hover:text-foreground',
+                    ? "bg-[var(--glass-bg-light)] text-foreground before:absolute before:left-0 before:top-2 before:bottom-2 before:w-[1.5px] before:rounded-full before:bg-[image:var(--gradient-brand)] before:content-['']"
+                    : 'hover:bg-[var(--glass-bg-light)] text-muted-foreground hover:text-foreground',
                 ].join(' ')}
               >
                 <Icon size={16} /> {label}

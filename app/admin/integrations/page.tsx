@@ -7,6 +7,7 @@ import { getSelectedAIProvider } from '@/lib/platform-config'
 import type { IntegrationCardInitial } from './integration-card'
 import { IntegrationsTabs } from './integrations-tabs'
 import { AIProviderSelector } from './ai-provider-selector'
+import { Card } from '@/components/ui/card'
 
 const PROVIDERS: ReadonlyArray<{
   id: IntegrationProvider
@@ -60,11 +61,9 @@ type IntegrationRow = {
 
 function toBuffer(value: ArrayBuffer | Uint8Array | string): Buffer {
   if (typeof value === 'string') {
-    // Supabase returns BYTEA as `\xHEX...` over PostgREST.
     if (value.startsWith('\\x')) {
       return Buffer.from(value.slice(2), 'hex')
     }
-    // Fallback: base64
     return Buffer.from(value, 'base64')
   }
   return Buffer.from(value as ArrayBuffer)
@@ -85,7 +84,7 @@ export default async function IntegrationsPage() {
 
   await Promise.all(
     (rows ?? [] as IntegrationRow[])
-      .filter(r => r.provider !== 'ai_config')  // ai_config row has null ciphertext — skip decrypt (Pitfall 6)
+      .filter(r => r.provider !== 'ai_config')
       .map(async (r) => {
         try {
           const plaintext = decrypt({
@@ -111,20 +110,24 @@ export default async function IntegrationsPage() {
   )
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-8">
       <div>
-        <h1 className="text-xl font-semibold">Integrations</h1>
+        <h1 className="text-[clamp(28px,3.5vw,40px)] font-semibold tracking-tight">Integrations</h1>
         <p className="text-muted-foreground mt-1">
           Manage API keys for services shared across all tenants. Changes take effect within 60 seconds.
         </p>
       </div>
-      <IntegrationsTabs
-        providers={PROVIDERS.map((p) => ({
-          ...p,
-          initial: byProvider.get(p.id) ?? { configured: false },
-        }))}
-      />
-      <AIProviderSelector current={activeProvider} />
+      <Card variant="glass" className="p-6 md:p-8">
+        <IntegrationsTabs
+          providers={PROVIDERS.map((p) => ({
+            ...p,
+            initial: byProvider.get(p.id) ?? { configured: false },
+          }))}
+        />
+      </Card>
+      <Card variant="glass" className="p-6 md:p-8">
+        <AIProviderSelector current={activeProvider} />
+      </Card>
     </div>
   )
 }

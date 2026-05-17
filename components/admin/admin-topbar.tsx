@@ -22,7 +22,7 @@ export function AdminTopbar({ adminEmail }: AdminTopbarProps) {
   const initial = adminEmail.charAt(0).toUpperCase()
 
   return (
-    <header className="h-16 flex items-center justify-between border-b border-border bg-card px-6 flex-shrink-0">
+    <header className="h-16 flex items-center justify-between border-b border-[var(--glass-border)] bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] px-6 flex-shrink-0 sticky top-0 z-30">
       <Link
         href="/dashboard"
         className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"

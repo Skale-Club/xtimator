@@ -1,6 +1,7 @@
 import { requireAdmin } from '@/lib/auth/admin-context'
 import { getPlatformStats } from '@/lib/queries/admin-stats'
 import { Building2, Users, FileText } from 'lucide-react'
+import { Card } from '@/components/ui/card'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,25 +31,22 @@ export default async function AdminDashboardPage() {
   ]
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-8">
       <div className="flex flex-col gap-2">
-        <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
+        <h1 className="text-[clamp(28px,3.5vw,40px)] font-semibold tracking-tight">Dashboard</h1>
         <p className="text-sm text-muted-foreground">Platform-wide stats at a glance.</p>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         {cards.map(({ label, value, Icon, description }) => (
-          <div
-            key={label}
-            className="rounded-xl border border-border bg-card p-6 flex flex-col gap-3"
-          >
+          <Card key={label} variant="stat" className="p-6 flex flex-col gap-3 min-h-[120px]">
             <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-muted-foreground">{label}</span>
+              <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</span>
               <Icon className="size-4 text-muted-foreground" aria-hidden="true" />
             </div>
-            <p className="text-3xl font-bold tracking-tight">{value.toLocaleString()}</p>
+            <p className="font-mono text-3xl font-semibold tracking-tight">{value.toLocaleString()}</p>
             <p className="text-xs text-muted-foreground">{description}</p>
-          </div>
+          </Card>
         ))}
       </div>
     </div>
