@@ -1,0 +1,34 @@
+name: gitleaks
+
+# Defense in depth: the pre-commit hook (scripts/git-hooks/pre-commit) is the
+# first line; this workflow catches anything that slipped past it (e.g. the
+# hook wasn't installed locally, or someone used --no-verify).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    name: Scan for secrets
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (full history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install gitleaks
+        run: |
+          GITLEAKS_VERSION=8.30.1
+          curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar -xz -C /usr/local/bin gitleaks
+          gitleaks version
+
+      - name: Scan full history
+        run: gitleaks detect --config .gitleaks.toml --redact --no-banner --verbose

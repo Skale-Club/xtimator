@@ -56,10 +56,20 @@ paths = [
   '''\.next/''',
   '''dist/''',
   '''\.git/''',
+  # Test fixtures: deterministic high-entropy values used only in tests, never real secrets
+  '''tests/fixtures/test-encryption-key\.ts$''',
 ]
 # Allow placeholder/documentation patterns
 regexes = [
-  '''whsec_(your-|placeholder|XXX|example)''',
-  '''sk_(test|live)_(your-|placeholder|XXX|example)''',
-  '''sb_secret_(your-|placeholder|XXX|example)''',
+  '''whsec_(your-|placeholder|XXX|example|<)''',
+  '''sk_(test|live)_(your-|placeholder|XXX|example|<)''',
+  '''sb_secret_(your-|placeholder|XXX|example|<)''',
+  # TEST_ENCRYPTION_KEY assignment — deterministic test fixtures, never real secrets
+  '''TEST_ENCRYPTION_KEY\s*=\s*['"][A-Za-z0-9+/=]+['"]''',
+]
+
+# stopwords match against the detected secret text directly (not the full line)
+stopwords = [
+  "ef0exbvvYVla+w6WJDY9k3H0s8pO5pAbGnTd1g7rGpc=",
+  "dGVzdC1rZXktMzItYnl0ZXMtZm9yLXRlc3Rpbmctb25seQ==",
 ]
