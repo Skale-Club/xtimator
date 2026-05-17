@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useRef, useState, useTransition } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import Link from 'next/link'
 import { Eye, EyeOff, Loader2 } from 'lucide-react'
 import { GoogleOAuthButton } from '@/components/auth/google-oauth-button'
+import { TurnstileWidget, type TurnstileWidgetRef } from '@/components/auth/turnstile-widget'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
@@ -33,7 +34,9 @@ export function SignupForm() {
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
+  const turnstileRef = useRef<TurnstileWidgetRef>(null)
 
   const form = useForm<SignupValues>({
     resolver: zodResolver(signupSchema),
@@ -41,13 +44,22 @@ export function SignupForm() {
   })
 
   function onSubmit(values: SignupValues) {
+    if (!captchaToken) {
+      setFormError('Please complete the CAPTCHA before continuing.')
+      return
+    }
     setFormError(null)
     startTransition(async () => {
       const formData = new FormData()
       formData.append('email', values.email)
       formData.append('password', values.password)
+      formData.append('captchaToken', captchaToken)
       const result = await signUp(formData)
-      if (result?.error) setFormError(result.error)
+      if (result?.error) {
+        setFormError(result.error)
+        turnstileRef.current?.reset() // tokens are single-use
+        setCaptchaToken(null)
+      }
     })
   }
 
@@ -153,7 +165,13 @@ export function SignupForm() {
             )}
           />
 
-          <Button type="submit" variant="primary" size="lg" className="auth-submit-shimmer mt-2 w-full text-base font-semibold transition-transform duration-200 hover:scale-[1.015] active:scale-100" disabled={isPending}>
+          <TurnstileWidget
+            ref={turnstileRef}
+            onToken={setCaptchaToken}
+            onExpire={() => setCaptchaToken(null)}
+          />
+
+          <Button type="submit" variant="primary" size="lg" className="auth-submit-shimmer mt-2 w-full text-base font-semibold transition-transform duration-200 hover:scale-[1.015] active:scale-100" disabled={isPending || !captchaToken}>
             {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Create account
           </Button>

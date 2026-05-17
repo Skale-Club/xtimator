@@ -8,8 +8,13 @@ export async function signUp(formData: FormData) {
   const supabase = await createClient()
   const email = formData.get('email') as string
   const password = formData.get('password') as string
+  const captchaToken = formData.get('captchaToken') as string | null
 
-  const { error } = await supabase.auth.signUp({ email, password })
+  const { error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: captchaToken ? { captchaToken } : undefined,
+  })
 
   if (error) {
     logAuthEvent({ event: 'sign_up_attempt', success: false, email, error: error.message })
@@ -28,8 +33,13 @@ export async function signIn(formData: FormData) {
   const supabase = await createClient()
   const email = formData.get('email') as string
   const password = formData.get('password') as string
+  const captchaToken = formData.get('captchaToken') as string | null
 
-  const { error } = await supabase.auth.signInWithPassword({ email, password })
+  const { error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+    options: captchaToken ? { captchaToken } : undefined,
+  })
 
   if (error) {
     logAuthEvent({ event: 'sign_in_attempt', success: false, email, error: error.message })
@@ -69,10 +79,12 @@ export async function signOut() {
 export async function resetPassword(formData: FormData) {
   const supabase = await createClient()
   const email = formData.get('email') as string
+  const captchaToken = formData.get('captchaToken') as string | null
   const origin = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:9633'
 
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
     redirectTo: `${origin}/callback?type=recovery`,
+    ...(captchaToken ? { captchaToken } : {}),
   })
 
   if (error) {

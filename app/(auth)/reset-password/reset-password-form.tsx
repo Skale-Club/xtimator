@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, Suspense } from 'react'
+import { useRef, useState, useTransition, Suspense } from 'react'
 import { useForm } from 'react-hook-form'
 import { useSearchParams } from 'next/navigation'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -11,6 +11,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { TurnstileWidget, type TurnstileWidgetRef } from '@/components/auth/turnstile-widget'
 import {
   Form, FormControl, FormField, FormItem, FormLabel, FormMessage
 } from '@/components/ui/form'
@@ -37,7 +38,9 @@ type UpdateValues = z.infer<typeof updateSchema>
 
 function RequestResetForm() {
   const [formError, setFormError] = useState<string | null>(null)
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
+  const turnstileRef = useRef<TurnstileWidgetRef>(null)
 
   const form = useForm<RequestValues>({
     resolver: zodResolver(requestSchema),
@@ -45,16 +48,25 @@ function RequestResetForm() {
   })
 
   function onSubmit(values: RequestValues) {
+    if (!captchaToken) {
+      setFormError('Please complete the CAPTCHA before continuing.')
+      return
+    }
     setFormError(null)
     startTransition(async () => {
       const formData = new FormData()
       formData.append('email', values.email)
+      formData.append('captchaToken', captchaToken)
       const result = await resetPassword(formData)
       if (result?.error) {
         setFormError(result.error)
+        turnstileRef.current?.reset()
+        setCaptchaToken(null)
       } else if (result?.success) {
         toast.success(result.success)
         form.reset()
+        turnstileRef.current?.reset()
+        setCaptchaToken(null)
       }
     })
   }
@@ -92,7 +104,13 @@ function RequestResetForm() {
             )}
           />
 
-          <Button type="submit" variant="primary" size="lg" className="auth-submit-shimmer mt-2 w-full text-base font-semibold transition-transform duration-200 hover:scale-[1.015] active:scale-100" disabled={isPending}>
+          <TurnstileWidget
+            ref={turnstileRef}
+            onToken={setCaptchaToken}
+            onExpire={() => setCaptchaToken(null)}
+          />
+
+          <Button type="submit" variant="primary" size="lg" className="auth-submit-shimmer mt-2 w-full text-base font-semibold transition-transform duration-200 hover:scale-[1.015] active:scale-100" disabled={isPending || !captchaToken}>
             {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Send reset link
           </Button>
