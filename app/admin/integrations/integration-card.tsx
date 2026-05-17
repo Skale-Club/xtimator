@@ -86,6 +86,9 @@ export function IntegrationCard({
 
   const isConfigured = initial.configured
   const last4 = isConfigured ? initial.last4 : null
+  const apiKeyDraft = form.watch('apiKey')?.trim() ?? ''
+  const hasUnsavedKey = apiKeyDraft.length >= 10
+  const canTest = isConfigured || hasUnsavedKey
 
   function onSubmit(values: IntegrationKeyInput) {
     setSaveError(null)
@@ -169,8 +172,13 @@ export function IntegrationCard({
                 {isSaving ? 'Saving\u2026' : 'Save key'}
               </Button>
               <TestButton
-                disabled={!isConfigured}
-                onRun={() => testIntegrationKey({ provider })}
+                disabled={!canTest}
+                onRun={() =>
+                  testIntegrationKey({
+                    provider,
+                    ...(hasUnsavedKey ? { key: apiKeyDraft } : {}),
+                  })
+                }
               />
             </div>
           </form>

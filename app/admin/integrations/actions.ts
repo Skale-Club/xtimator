@@ -93,9 +93,11 @@ export async function deleteIntegrationKey(input: {
  */
 export async function testIntegrationKey(input: {
   provider: IntegrationProvider
+  /** Optional — test this unsaved key directly (skips DB read) so admins can validate before saving */
+  key?: string
 }): Promise<ActionResult> {
   const ctx = await requireAdmin()
-  const key = await getIntegrationKey(input.provider)
+  const key = input.key?.trim() || (await getIntegrationKey(input.provider))
   if (!key) {
     return { ok: false, message: 'No key configured' }
   }
