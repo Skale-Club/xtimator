@@ -55,7 +55,6 @@ function friendlyMessage(fatal: string, detail: string): string {
 
 function rowErrorLabel(error: ParsedRow['errors'][number]): string {
   switch (error) {
-    case 'missing_category': return 'missing category'
     case 'missing_name': return 'missing name'
     case 'missing_unit_price': return 'missing price'
     case 'invalid_unit_price': return 'invalid price (remove commas/symbols)'

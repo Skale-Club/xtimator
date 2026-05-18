@@ -41,7 +41,7 @@ const makeValidRow = (name: string, category = 'Labor') => ({
 const makeInvalidRow = (name: string) => ({
   rowNumber: 3,
   values: { category: '', name, unit: '', unit_price: 0, notes: '' },
-  errors: ['missing_category'] as string[],
+  errors: ['missing_unit_price'] as string[],
   isDuplicateInFile: false,
 })
 
@@ -123,7 +123,7 @@ describe('PriceBookImportDialog', () => {
       rows: [
         { rowNumber: 2, values: { category: 'Labor', name: 'A', unit: 'hr', unit_price: 75, notes: '' }, errors: [], isDuplicateInFile: false },
         { rowNumber: 3, values: { category: 'Labor', name: 'B', unit: 'hr', unit_price: 80, notes: '' }, errors: [], isDuplicateInFile: false },
-        { rowNumber: 4, values: { category: '', name: 'C', unit: '', unit_price: 0, notes: '' }, errors: ['missing_category'], isDuplicateInFile: false },
+        { rowNumber: 4, values: { category: '', name: 'C', unit: '', unit_price: 0, notes: '' }, errors: ['missing_unit_price'], isDuplicateInFile: false },
       ],
       validCount: 2,
       invalidCount: 1,

@@ -87,7 +87,7 @@ export function PriceBookItemDialog({
   useEffect(() => {
     if (item) {
       form.reset({
-        category: item.category,
+        category: item.category ?? '',
         name: item.name,
         unit: item.unit ?? '',
         unit_price: item.unit_price,

@@ -6,7 +6,6 @@ export const MAX_ROWS = 1000
 export const MAX_BYTES = 1024 * 1024 // 1 MB
 
 export type RowError =
-  | 'missing_category'
   | 'missing_name'
   | 'missing_unit_price'
   | 'invalid_unit_price'
@@ -89,7 +88,6 @@ export function parsePriceBookCsv(file: File): Promise<ParseOutcome> {
           const rawUnit = (raw.unit ?? '').trim()
           const rawPrice = (raw.unit_price ?? '').trim()
 
-          if (!rawCategory) errors.push('missing_category')
           if (!rawName) errors.push('missing_name')
           if (!rawPrice) errors.push('missing_unit_price')
 
@@ -97,7 +95,7 @@ export function parsePriceBookCsv(file: File): Promise<ParseOutcome> {
           if (rawPrice && Number.isNaN(priceNum)) errors.push('invalid_unit_price')
           if (rawPrice && !Number.isNaN(priceNum) && priceNum < 0) errors.push('negative_unit_price')
 
-          const dedupKey = `${rawCategory.toLowerCase()}::${rawName.toLowerCase()}`
+          const dedupKey = `${(rawCategory || '').toLowerCase()}::${rawName.toLowerCase()}`
           const isDup = errors.length === 0 && seenInFile.has(dedupKey)
           if (errors.length === 0) seenInFile.add(dedupKey)
 

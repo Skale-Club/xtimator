@@ -64,24 +64,29 @@ export function PriceBookList({ items, companyId }: PriceBookListProps) {
     return items.filter(
       (item) =>
         item.name.toLowerCase().includes(q) ||
-        item.category.toLowerCase().includes(q)
+        (item.category ?? '').toLowerCase().includes(q)
     )
   }, [items, search])
 
-  // Group filtered items by category, sort categories alphabetically
+  // Group filtered items by category, sort categories alphabetically; null = Uncategorized (rendered last)
   const grouped = useMemo(() => {
-    const map = new Map<string, PriceBookItem[]>()
+    const map = new Map<string | null, PriceBookItem[]>()
     for (const item of filtered) {
-      const list = map.get(item.category) ?? []
+      const key = item.category || null
+      const list = map.get(key) ?? []
       list.push(item)
-      map.set(item.category, list)
+      map.set(key, list)
     }
-    return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b))
+    return Array.from(map.entries()).sort(([a], [b]) => {
+      if (a === null) return 1   // nulls last
+      if (b === null) return -1
+      return a.localeCompare(b)
+    })
   }, [filtered])
 
-  // Distinct existing categories for dialog autocomplete
+  // Distinct existing categories for dialog autocomplete (exclude null/empty)
   const existingCategories = useMemo(
-    () => [...new Set(items.map((i) => i.category))].sort(),
+    () => [...new Set(items.map((i) => i.category).filter(Boolean) as string[])].sort(),
     [items]
   )
 
@@ -108,7 +113,8 @@ export function PriceBookList({ items, companyId }: PriceBookListProps) {
     if (!open) router.refresh()
   }
 
-  function handleAdjustCategory(category: string) {
+  function handleAdjustCategory(category: string | null) {
+    if (!category) return
     setAdjustCategory(category)
     setAdjustDialogOpen(true)
   }
@@ -212,17 +218,17 @@ export function PriceBookList({ items, companyId }: PriceBookListProps) {
       {grouped.length > 0 && (
         <div className="space-y-6">
           {grouped.map(([category, categoryItems]) => (
-            <div key={category} className="space-y-2">
+            <div key={category ?? '__uncategorized__'} className="space-y-2">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-                  {category}
+                  {category ?? 'Uncategorized'}
                 </h3>
                 <Button
                   variant="outline"
                   size="sm"
-                  disabled={categoryItems.length === 0}
+                  disabled={category === null || categoryItems.length === 0}
                   onClick={() => handleAdjustCategory(category)}
-                  data-testid={`adjust-btn-${category}`}
+                  data-testid={`adjust-btn-${category ?? 'uncategorized'}`}
                 >
                   <Percent className="h-3.5 w-3.5 mr-1.5" />
                   Adjust %

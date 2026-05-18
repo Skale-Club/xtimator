@@ -30,7 +30,7 @@ export async function createPriceBookItem(formData: PriceBookItemFormValues) {
     .from('company_price_book')
     .insert({
       company_id: company.id,
-      category: formData.category,
+      category: formData.category || null,
       name: formData.name,
       unit: formData.unit || null,
       unit_price: formData.unit_price,
@@ -56,7 +56,7 @@ export async function updatePriceBookItem(
   const { data, error } = await supabase
     .from('company_price_book')
     .update({
-      category: formData.category,
+      category: formData.category || null,
       name: formData.name,
       unit: formData.unit || null,
       unit_price: formData.unit_price,
@@ -118,13 +118,13 @@ export async function importPriceBookItems(
   }
 
   const existingKeys = new Set(
-    (existing ?? []).map((r: { category: string; name: string }) =>
-      `${r.category.toLowerCase()}::${r.name.toLowerCase()}`
+    (existing ?? []).map((r: { category: string | null; name: string }) =>
+      `${(r.category?.toLowerCase() ?? '')}::${r.name.toLowerCase()}`
     )
   )
 
   const toInsert = validatedRows.filter((r) => {
-    const key = `${r.category.toLowerCase()}::${r.name.toLowerCase()}`
+    const key = `${(r.category?.toLowerCase() ?? '')}::${r.name.toLowerCase()}`
     return !existingKeys.has(key)
   })
   const skipped = validatedRows.length - toInsert.length
@@ -138,7 +138,7 @@ export async function importPriceBookItems(
     .insert(
       toInsert.map((r) => ({
         company_id: company.id,
-        category: r.category,
+        category: r.category || null,
         name: r.name,
         unit: r.unit || null,
         unit_price: r.unit_price,
