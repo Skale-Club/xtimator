@@ -112,7 +112,7 @@ export function CompanyInfoForm({ company }: CompanyInfoFormProps) {
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
             <div className="grid gap-8 xl:grid-cols-[280px_minmax(0,1fr)]">
-              <div className="flex items-center justify-center rounded-[var(--radius-md)] border border-dashed border-border bg-muted/30 p-6 xl:items-start">
+              <div className="flex items-center justify-center rounded-[var(--radius-md)] border border-dashed border-border bg-muted/30 p-6">
                 <LogoUploader
                   preview={logoPreview}
                   companyInitial={companyName?.[0] || 'C'}
