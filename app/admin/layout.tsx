@@ -1,7 +1,8 @@
 import type { CSSProperties } from 'react'
+import { Suspense } from 'react'
 import { notFound } from 'next/navigation'
 import { getAdminContext } from '@/lib/auth/admin-context'
-import { getBranding } from '@/lib/platform-config'
+import { getCachedBranding } from '@/lib/platform-config'
 import { hexToHslTriplet } from '@/lib/color'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
 import { AdminNav } from '@/components/admin/admin-nav'
@@ -12,7 +13,7 @@ export default async function AdminLayout({
 }: {
   children: React.ReactNode
 }) {
-  const [adminCtx, branding] = await Promise.all([getAdminContext(), getBranding()])
+  const [adminCtx, branding] = await Promise.all([getAdminContext(), getCachedBranding()])
   if (!adminCtx) notFound()
   const ctx = adminCtx
   const triplet = branding.primaryColor
@@ -36,7 +37,7 @@ export default async function AdminLayout({
       <div className="flex flex-1 flex-col overflow-hidden">
         <AdminTopbar adminEmail={ctx.email} />
         <main className="flex-1 overflow-y-auto px-8 py-8">
-          {children}
+          <Suspense>{children}</Suspense>
         </main>
       </div>
     </div>
