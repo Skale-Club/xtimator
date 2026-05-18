@@ -205,7 +205,7 @@
   6. No regressions: all existing admin CRUD actions (invite admin, suspend/reactivate, branding update, billing view) continue to work correctly after the caching and query changes
 **Plans**: 3 plans in `.planning/phases/72-admin-menu-performance/`
 Plans:
-- [ ] 72-01-PLAN.md — 10 loading.tsx skeleton files for all admin routes + revalidate=60 ISR on 4 stable admin pages (PERF-ADMIN-01, PERF-ADMIN-02)
+- [x] 72-01-PLAN.md — 10 loading.tsx skeleton files for all admin routes + revalidate=60 ISR on 4 stable admin pages (PERF-ADMIN-01, PERF-ADMIN-02)
 - [ ] 72-02-PLAN.md — Admin layout Suspense boundary + app shell getBranding parallelized with getCachedCompany (PERF-ADMIN-03, PERF-ADMIN-06)
 - [x] 72-03-PLAN.md — integrations N+1 getUserById batch fix + admins page listUsers(1000) replaced with bounded getUserById per row (PERF-ADMIN-04, PERF-ADMIN-05, PERF-ADMIN-06)
 
