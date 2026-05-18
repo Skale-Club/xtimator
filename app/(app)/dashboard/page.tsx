@@ -29,10 +29,14 @@ export default async function DashboardPage() {
     <div className="pb-12">
       {/* Hero zone — gradient-hero radial backdrop, display headline + primary CTA */}
       <section className="relative isolate px-6 pt-[clamp(32px,5vw,56px)] pb-12">
-        {/* Gradient extends -top-16 to bleed under the glass topbar — backdrop-blur fuses the two surfaces */}
+        {/* Gradient extends -top-16 to bleed under the glass topbar — backdrop-blur fuses the two surfaces.
+            Bottom mask fades the gradient to alpha 0 so it dissolves smoothly into the page bg
+            (instead of cutting off with a visible edge). */}
         <div
           aria-hidden
-          className="pointer-events-none absolute -top-16 inset-x-0 bottom-0 -z-10 gradient-hero"
+          className="pointer-events-none absolute -top-16 inset-x-0 bottom-0 -z-10 gradient-hero
+                     [mask-image:linear-gradient(to_bottom,black_55%,transparent_100%)]
+                     [-webkit-mask-image:linear-gradient(to_bottom,black_55%,transparent_100%)]"
         />
         <h1 className="text-[clamp(36px,5vw,56px)] font-semibold tracking-[-0.025em] leading-[1.05]">
           Welcome back, {firstName}
