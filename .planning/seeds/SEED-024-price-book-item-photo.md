@@ -1,8 +1,10 @@
 ---
 id: SEED-024
-status: active
+status: harvested
 planted: 2026-05-18
 planted_during: v3.1.1 — MVP Launch Prep + Future-Proofing
+harvested: 2026-05-18
+harvested_in: quick-260518-gxy
 trigger_when: Next milestone touching price book UX, estimate quality, or media/photo features
 scope: medium
 ---
