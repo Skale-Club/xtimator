@@ -3,7 +3,7 @@ import { getLandingContent } from '@/lib/platform-config'
 import { LandingEditor } from './landing-editor'
 import { Card } from '@/components/ui/card'
 
-export const dynamic = 'force-dynamic'
+export const revalidate = 60
 
 export default async function LandingAdminPage() {
   await requireAdmin()

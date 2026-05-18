@@ -3,7 +3,7 @@ import { getBranding } from '@/lib/platform-config'
 import { BrandingEditor, type EditorBranding } from './branding-editor'
 import { Card } from '@/components/ui/card'
 
-export const dynamic = 'force-dynamic'
+export const revalidate = 60
 
 export default async function BrandingPage() {
   await requireAdmin()

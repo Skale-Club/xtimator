@@ -3,7 +3,7 @@ import { getBranding } from '@/lib/platform-config'
 import { SeoEditor } from './seo-editor'
 import { Card } from '@/components/ui/card'
 
-export const dynamic = 'force-dynamic'
+export const revalidate = 60
 
 export default async function SeoPage() {
   await requireAdmin()

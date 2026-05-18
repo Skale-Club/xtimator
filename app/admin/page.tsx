@@ -3,7 +3,7 @@ import { getPlatformStats } from '@/lib/queries/admin-stats'
 import { Building2, Users, FileText } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 
-export const dynamic = 'force-dynamic'
+export const revalidate = 60
 
 export default async function AdminDashboardPage() {
   await requireAdmin()
