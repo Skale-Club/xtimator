@@ -24,7 +24,7 @@ progress:
 Phase: 72
 Plan: Not started
 Status: Phase complete — ready for verification
-Last activity: 2026-05-18
+Last activity: 2026-05-18 - Completed quick task 260518-gf3: price book category optional (SEED-010)
 
 ## v3.1.1 Phases
 
@@ -588,3 +588,4 @@ v3.1: Phases 61-65 (started 2026-05-15). Production Go-Live — 27 requirements 
 |---|-------------|------|--------|-----------|
 | 260421-tqz | Add login event logging | 2026-04-22 | e5ba1c5 | [260421-tqz-add-login-event-logging](.planning/quick/260421-tqz-add-login-event-logging/) |
 | 260422-o7y | Rename project from EstimateBuilder Pro to Xtimator | 2026-04-22 | bafcb2c | [260422-o7y-rename-project-from-estimatebuilder-pro-](.planning/quick/260422-o7y-rename-project-from-estimatebuilder-pro-/) |
+| 260518-gf3 | Price book category optional (SEED-010) | 2026-05-18 | 59447d2 | [260518-gf3-price-book-optional-category](.planning/quick/260518-gf3-price-book-optional-category/) |
