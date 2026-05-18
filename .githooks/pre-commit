@@ -1,0 +1,20 @@
+#!/usr/bin/env sh
+# Gitleaks pre-commit hook — blocks commits containing secrets (API keys, tokens, etc.)
+#
+# Scans only staged changes (fast, ~100ms). Bypass once with --no-verify if needed.
+# Setup: `git config core.hooksPath .githooks` (run once per clone)
+
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo "⚠️  gitleaks not installed — skipping secret scan."
+  echo "    Install: winget install gitleaks.gitleaks  (Windows)"
+  echo "             brew install gitleaks             (macOS)"
+  exit 0
+fi
+
+gitleaks protect --staged --no-banner --redact || {
+  echo ""
+  echo "🚫 Commit blocked — gitleaks found a potential secret in your staged changes."
+  echo "   Review the finding above, remove the secret, and try again."
+  echo "   To bypass intentionally (use sparingly): git commit --no-verify"
+  exit 1
+}
