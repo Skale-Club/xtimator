@@ -1,6 +1,6 @@
 ---
 id: SEED-022
-status: harvesting
+status: harvested
 planted: 2026-05-17
 planted_during: post-Phase-70 (Stripe Connect customer payments shipped)
 harvested_in: Phase 71

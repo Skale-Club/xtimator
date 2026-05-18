@@ -24,7 +24,7 @@ progress:
 Phase: 72
 Plan: Not started
 Status: Phase complete — ready for verification
-Last activity: 2026-05-18 - Marked SEED-020 (Stripe Connect customer payments / Phase 70) as harvested — all 5 plans and 9 CONNECT-* requirements confirmed complete
+Last activity: 2026-05-18 - Marked SEED-022 (Glassmorphism Structural Redesign / Phase 71) as harvested — 11 plans, 10/10 truths verified; deferred items (snapshot baselines, Lighthouse perf) owned by Phase 69 deploy milestone
 
 ## v3.1.1 Phases
 
