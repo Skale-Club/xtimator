@@ -305,7 +305,7 @@
   :root {
     /* Glass — light defaults (also used by [data-theme="light"] forced-light /estimate/*) */
     --glass-bg:        rgba(255, 255, 255, 0.65);
-    --glass-bg-strong: rgba(255, 255, 255, 0.85);
+    --glass-bg-strong: rgba(255, 255, 255, 0.97);
     --glass-bg-light:  rgba(15, 23, 42, 0.04);
     --glass-border:    rgba(15, 23, 42, 0.08);
     --glass-blur:        16px;
@@ -335,7 +335,7 @@
   [data-theme="admin-dark"],
   [data-theme="dark-auth"] {
     --glass-bg:        rgba(20, 24, 33, 0.60);
-    --glass-bg-strong: rgba(20, 24, 33, 0.85);
+    --glass-bg-strong: rgba(20, 24, 33, 0.97);
     --glass-bg-light:  rgba(255, 255, 255, 0.04);
     --glass-border:    rgba(255, 255, 255, 0.08);
     /* Hero radial deeper on dark surfaces */
@@ -346,7 +346,7 @@
   /* Forced-light scope (RESEARCH G7) — /estimate/* + PDF preview need light-mode glass */
   [data-theme="light"] {
     --glass-bg:        rgba(255, 255, 255, 0.65);
-    --glass-bg-strong: rgba(255, 255, 255, 0.85);
+    --glass-bg-strong: rgba(255, 255, 255, 0.97);
     --glass-bg-light:  rgba(15, 23, 42, 0.04);
     --glass-border:    rgba(15, 23, 42, 0.08);
   }
