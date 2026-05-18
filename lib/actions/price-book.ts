@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { priceBookItemSchema, type PriceBookItemFormValues } from '@/lib/schemas/price-book'
+import { createStorage, buildStorageKey } from '@/lib/storage'
 
 async function getAuthContext() {
   const supabase = await createClient()
@@ -21,7 +22,10 @@ async function getAuthContext() {
   return { supabase, company }
 }
 
-export async function createPriceBookItem(formData: PriceBookItemFormValues) {
+export async function createPriceBookItem(
+  formData: PriceBookItemFormValues,
+  imageFile?: File | null
+) {
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error }
   const { supabase, company } = ctx
@@ -35,11 +39,33 @@ export async function createPriceBookItem(formData: PriceBookItemFormValues) {
       unit: formData.unit || null,
       unit_price: formData.unit_price,
       notes: formData.notes || null,
+      image_url: formData.image_url || null,
     })
     .select()
     .single()
 
   if (error) return { error: 'Failed to create item. Please try again.' }
+
+  // Upload image if provided — create-then-update pattern (Phase 03 logo)
+  if (imageFile && imageFile.size > 0 && data) {
+    const ext = imageFile.name.split('.').pop() ?? 'jpg'
+    const key = buildStorageKey({
+      companyId: company.id,
+      type: 'price-book',
+      filename: `${data.id}.${ext}`,
+    })
+    const storage = createStorage(supabase)
+    try {
+      await storage.upload('photos', key, imageFile, { upsert: true })
+      const imageUrl = storage.getPublicUrl('photos', key)
+      await supabase
+        .from('company_price_book')
+        .update({ image_url: imageUrl })
+        .eq('id', data.id)
+    } catch {
+      // Non-fatal: item created, image upload failed — return item without image_url
+    }
+  }
 
   revalidatePath('/settings/price-book')
   return { data }
@@ -47,11 +73,12 @@ export async function createPriceBookItem(formData: PriceBookItemFormValues) {
 
 export async function updatePriceBookItem(
   itemId: string,
-  formData: PriceBookItemFormValues
+  formData: PriceBookItemFormValues,
+  imageFile?: File | null
 ) {
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error }
-  const { supabase } = ctx
+  const { supabase, company } = ctx
 
   const { data, error } = await supabase
     .from('company_price_book')
@@ -61,12 +88,34 @@ export async function updatePriceBookItem(
       unit: formData.unit || null,
       unit_price: formData.unit_price,
       notes: formData.notes || null,
+      image_url: formData.image_url || null,
     })
     .eq('id', itemId)
     .select()
     .single()
 
   if (error) return { error: 'Failed to update item. Please try again.' }
+
+  // Upload new image if provided
+  if (imageFile && imageFile.size > 0 && data) {
+    const ext = imageFile.name.split('.').pop() ?? 'jpg'
+    const key = buildStorageKey({
+      companyId: company.id,
+      type: 'price-book',
+      filename: `${itemId}.${ext}`,
+    })
+    const storage = createStorage(supabase)
+    try {
+      await storage.upload('photos', key, imageFile, { upsert: true })
+      const imageUrl = storage.getPublicUrl('photos', key)
+      await supabase
+        .from('company_price_book')
+        .update({ image_url: imageUrl })
+        .eq('id', itemId)
+    } catch {
+      // Non-fatal — item updated, image optional
+    }
+  }
 
   revalidatePath('/settings/price-book')
   return { data }
