@@ -100,8 +100,8 @@ export function NewProjectWizard({ clients }: NewProjectWizardProps) {
       : 'Continue'
 
   return (
-    <Card>
-      <CardContent className="p-6">
+    <Card variant="glass">
+      <CardContent className="p-6 sm:p-8">
         {/* Step indicator */}
         <div className="flex items-center gap-2 mb-6">
           <div
