@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v3.1.1
 milestone_name: MVP Launch Prep + Future-Proofing
-status: executing
-last_updated: "2026-05-18T00:04:07.982Z"
+status: verifying
+last_updated: "2026-05-18T00:10:08.881Z"
 last_activity: 2026-05-18
 progress:
   total_phases: 17
-  completed_phases: 16
+  completed_phases: 17
   total_plans: 47
-  completed_plans: 46
+  completed_plans: 47
 ---
 
 # Project State
@@ -23,7 +23,7 @@ progress:
 
 Phase: 72 (Admin Menu Performance — Instant Navigation) — EXECUTING
 Plan: 3 of 3
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-05-18
 
 ## v3.1.1 Phases
@@ -410,6 +410,9 @@ Last activity: 2026-05-18
 - [Phase 72-admin-menu-performance]: listUsers(perPage:1000) replaced with Promise.all getUserById per platform_admins row — research confirmed table has 1-5 rows, paginated listUsers adds complexity with zero perf benefit
 - [Phase 72-admin-menu-performance]: loading.tsx at every admin route segment + animate-pulse/glass-bg skeletons for streaming without blank flash
 - [Phase 72-admin-menu-performance]: ISR revalidate=60 for stable admin pages (dashboard/branding/seo/landing); force-dynamic kept for billing/blog/admins
+- [Phase 72-admin-menu-performance]: getCachedBranding = cache(getBranding) added as new export; original getBranding preserved for non-layout callers
+- [Phase 72-admin-menu-performance]: Admin layout Suspense has no explicit fallback — loading.tsx (Plan 01) serves as App Router automatic fallback
+- [Phase 72-admin-menu-performance]: brandingPromise starts immediately after getAuthClaims resolves; getBranding has no dependency on company data
 
 ## Performance Metrics
 
@@ -534,6 +537,7 @@ Last activity: 2026-05-18
 | Phase 71 P10 | 660 | 5 tasks | 27 files |
 | Phase 72-admin-menu-performance P03 | 2min | 2 tasks | 2 files |
 | Phase 72-admin-menu-performance P01 | 4min | 2 tasks | 14 files |
+| Phase 72-admin-menu-performance P02 | 2.5min | 3 tasks | 3 files |
 
 ## Project Reference
 
