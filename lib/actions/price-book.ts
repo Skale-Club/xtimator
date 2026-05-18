@@ -22,6 +22,91 @@ async function getAuthContext() {
   return { supabase, company }
 }
 
+// ── Folder CRUD ────────────────────────────────────────────────
+
+export async function createFolder(name: string) {
+  const ctx = await getAuthContext()
+  if ('error' in ctx) return { error: ctx.error }
+  const { supabase, company } = ctx
+  const { data, error } = await supabase
+    .from('price_book_folders')
+    .insert({ company_id: company.id, name: name.trim() })
+    .select()
+    .single()
+  if (error) return { error: 'Failed to create folder.' }
+  revalidatePath('/settings/price-book')
+  return { data }
+}
+
+export async function updateFolder(folderId: string, name: string) {
+  const ctx = await getAuthContext()
+  if ('error' in ctx) return { error: ctx.error }
+  const { supabase } = ctx
+  const { error } = await supabase
+    .from('price_book_folders')
+    .update({ name: name.trim() })
+    .eq('id', folderId)
+  if (error) return { error: 'Failed to rename folder.' }
+  revalidatePath('/settings/price-book')
+  return { data: { updated: true } }
+}
+
+export async function deleteFolder(folderId: string) {
+  const ctx = await getAuthContext()
+  if ('error' in ctx) return { error: ctx.error }
+  const { supabase, company } = ctx
+  // Guard: deny delete if any items reference this folder
+  const { count, error: countErr } = await supabase
+    .from('company_price_book')
+    .select('id', { count: 'exact', head: true })
+    .eq('company_id', company.id)
+    .eq('folder_id', folderId)
+  if (countErr) return { error: 'Could not check folder contents.' }
+  if ((count ?? 0) > 0) return { error: 'Remove all items from this folder before deleting it.' }
+  const { error } = await supabase
+    .from('price_book_folders')
+    .delete()
+    .eq('id', folderId)
+  if (error) return { error: 'Failed to delete folder.' }
+  revalidatePath('/settings/price-book')
+  return { data: { deleted: true } }
+}
+
+export async function resolveOrCreateFolders(
+  names: string[]
+): Promise<{ data: Map<string, string> } | { error: string }> {
+  const ctx = await getAuthContext()
+  if ('error' in ctx) return { error: ctx.error as string }
+  const { supabase, company } = ctx
+  if (names.length === 0) return { data: new Map() }
+  // Fetch existing
+  const { data: existing } = await supabase
+    .from('price_book_folders')
+    .select('id, name')
+    .eq('company_id', company.id)
+    .in('name', names)
+  const map = new Map<string, string>()
+  const existingNames = new Set<string>()
+  for (const row of existing ?? []) {
+    map.set(row.name.toLowerCase(), row.id)
+    existingNames.add(row.name.toLowerCase())
+  }
+  // Create missing
+  const toCreate = names.filter((n) => !existingNames.has(n.toLowerCase()))
+  if (toCreate.length > 0) {
+    const { data: created } = await supabase
+      .from('price_book_folders')
+      .insert(toCreate.map((name) => ({ company_id: company.id, name })))
+      .select('id, name')
+    for (const row of created ?? []) {
+      map.set(row.name.toLowerCase(), row.id)
+    }
+  }
+  return { data: map }
+}
+
+// ── Item CRUD ────────────────────────────────────────────────
+
 export async function createPriceBookItem(
   formData: PriceBookItemFormValues,
   imageFile?: File | null
@@ -34,6 +119,7 @@ export async function createPriceBookItem(
     .from('company_price_book')
     .insert({
       company_id: company.id,
+      folder_id: formData.folder_id ?? null,
       category: formData.category || null,
       name: formData.name,
       unit: formData.unit || null,
@@ -83,6 +169,7 @@ export async function updatePriceBookItem(
   const { data, error } = await supabase
     .from('company_price_book')
     .update({
+      folder_id: formData.folder_id ?? null,
       category: formData.category || null,
       name: formData.name,
       unit: formData.unit || null,
@@ -138,7 +225,8 @@ export async function deletePriceBookItem(itemId: string) {
 }
 
 export async function importPriceBookItems(
-  rows: PriceBookItemFormValues[]
+  rows: PriceBookItemFormValues[],
+  folderNameMap?: Map<string, string>
 ): Promise<
   | { data: { imported: number; skipped: number } }
   | { error: string }
@@ -187,6 +275,9 @@ export async function importPriceBookItems(
     .insert(
       toInsert.map((r) => ({
         company_id: company.id,
+        folder_id: (r as any).folder_name
+          ? (folderNameMap?.get(((r as any).folder_name as string).toLowerCase()) ?? null)
+          : null,
         category: r.category || null,
         name: r.name,
         unit: r.unit || null,

@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getAuthClaims, getCachedCompany } from '@/lib/queries/auth'
 import { createClient } from '@/lib/supabase/server'
-import { getPriceBookItems } from '@/lib/queries/price-book'
+import { getPriceBookItems, getFolders } from '@/lib/queries/price-book'
 import { PriceBookList } from '@/components/price-book/price-book-list'
 import { Card } from '@/components/ui/card'
 import { T } from '@/components/i18n/t'
@@ -16,7 +16,10 @@ export default async function PriceBookPage() {
   if (!company) redirect('/onboarding')
 
   const supabase = await createClient()
-  const items = await getPriceBookItems(supabase, company.id)
+  const [items, folders] = await Promise.all([
+    getPriceBookItems(supabase, company.id),
+    getFolders(supabase, company.id),
+  ])
 
   return (
     <div className="w-full max-w-none space-y-8 px-6 py-8">
@@ -31,7 +34,7 @@ export default async function PriceBookPage() {
         )}
       </header>
       <Card variant="glass" className="p-6 md:p-8">
-        <PriceBookList items={items} companyId={company.id} />
+        <PriceBookList items={items} folders={folders} companyId={company.id} />
       </Card>
     </div>
   )
