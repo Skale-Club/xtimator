@@ -1,8 +1,10 @@
 ---
 id: SEED-025
-status: active
+status: harvested
 planted: 2026-05-18
 planted_during: v3.1.1 — MVP Launch Prep + Future-Proofing
+harvested: 2026-05-18
+harvested_in: quick-260518-hkp
 trigger_when: Milestone dedicated to price book organization, catalogue management, or advanced settings UX
 scope: large
 ---
