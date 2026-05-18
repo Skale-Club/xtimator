@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/select'
 import { forceTier, grantBonusCredits } from './actions'
 import type { TierName } from '@/lib/entitlements'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 type Company = {
   id: string
@@ -33,6 +34,7 @@ type Company = {
 const TIER_OPTIONS: TierName[] = ['free', 'trial', 'pro', 'business']
 
 function TierBadge({ tier }: { tier: string }) {
+  const { t } = useTranslation()
   const colors: Record<string, string> = {
     free: 'bg-muted text-muted-foreground',
     trial: 'bg-blue-500/15 text-blue-400',
@@ -43,7 +45,7 @@ function TierBadge({ tier }: { tier: string }) {
     <span
       className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${colors[tier] ?? colors.free}`}
     >
-      {tier}
+      {t(tier)}
     </span>
   )
 }
@@ -54,30 +56,31 @@ function CompanyRow({ company }: { company: Company }) {
   const [expiresAt, setExpiresAt] = useState('')
   const [bonusUnits, setBonusUnits] = useState('')
   const [msg, setMsg] = useState('')
+  const { t } = useTranslation()
 
   const handleForceTier = () => {
     startTransition(async () => {
       const result = await forceTier(company.id, selectedTier, expiresAt || undefined)
-      setMsg(result.ok ? (result.message ?? 'Saved') : result.message)
+      setMsg(result.ok ? (result.message ?? t('Saved')) : result.message)
     })
   }
 
   const handleGrantCredits = () => {
     const n = parseInt(bonusUnits, 10)
     if (!n || n <= 0) {
-      setMsg('Enter a positive number')
+      setMsg(t('Enter a positive number'))
       return
     }
     startTransition(async () => {
       const result = await grantBonusCredits(company.id, n)
-      setMsg(result.ok ? (result.message ?? 'Granted') : result.message)
+      setMsg(result.ok ? (result.message ?? t('Granted')) : result.message)
       if (result.ok) setBonusUnits('')
     })
   }
 
   return (
     <TableRow>
-      <TableCell className="font-medium">{company.name ?? '(unnamed)'}</TableCell>
+      <TableCell className="font-medium">{company.name ?? t('(unnamed)')}</TableCell>
       <TableCell>
         <TierBadge tier={company.tier} />
       </TableCell>
@@ -97,9 +100,9 @@ function CompanyRow({ company }: { company: Company }) {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {TIER_OPTIONS.map((t) => (
-                <SelectItem key={t} value={t}>
-                  {t}
+              {TIER_OPTIONS.map((opt) => (
+                <SelectItem key={opt} value={opt}>
+                  {t(opt)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -109,10 +112,10 @@ function CompanyRow({ company }: { company: Company }) {
             value={expiresAt}
             onChange={(e) => setExpiresAt(e.target.value)}
             className="w-36 h-8 text-xs"
-            placeholder="Expiry (opt.)"
+            placeholder={t('Expiry (opt.)')}
           />
           <Button size="sm" variant="outline" className="h-8 text-xs" onClick={handleForceTier}>
-            Force
+            {t('Force')}
           </Button>
         </div>
       </TableCell>
@@ -125,10 +128,10 @@ function CompanyRow({ company }: { company: Company }) {
             value={bonusUnits}
             onChange={(e) => setBonusUnits(e.target.value)}
             className="w-20 h-8 text-xs"
-            placeholder="Credits"
+            placeholder={t('Credits')}
           />
           <Button size="sm" variant="outline" className="h-8 text-xs" onClick={handleGrantCredits}>
-            Grant
+            {t('Grant')}
           </Button>
         </div>
       </TableCell>
@@ -138,17 +141,18 @@ function CompanyRow({ company }: { company: Company }) {
 }
 
 export function BillingTable({ companies }: { companies: Company[] }) {
+  const { t } = useTranslation()
   return (
     <div className="rounded-xl border border-border overflow-hidden">
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Company</TableHead>
-            <TableHead>Tier</TableHead>
-            <TableHead>Trial ends</TableHead>
-            <TableHead>Stripe sub</TableHead>
-            <TableHead>Force tier</TableHead>
-            <TableHead>Grant credits</TableHead>
+            <TableHead>{t('Company')}</TableHead>
+            <TableHead>{t('Tier')}</TableHead>
+            <TableHead>{t('Trial ends')}</TableHead>
+            <TableHead>{t('Stripe sub')}</TableHead>
+            <TableHead>{t('Force tier')}</TableHead>
+            <TableHead>{t('Grant credits')}</TableHead>
             <TableHead></TableHead>
           </TableRow>
         </TableHeader>
@@ -156,7 +160,7 @@ export function BillingTable({ companies }: { companies: Company[] }) {
           {companies.length === 0 ? (
             <TableRow>
               <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
-                No companies found.
+                {t('No companies found.')}
               </TableCell>
             </TableRow>
           ) : (

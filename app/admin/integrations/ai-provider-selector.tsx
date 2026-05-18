@@ -3,19 +3,21 @@
 import { useState, useTransition } from 'react'
 import { setActiveAIProvider } from './actions'
 import { toast } from 'sonner'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 type Props = { current: 'anthropic' | 'gemini' }
 
 export function AIProviderSelector({ current }: Props) {
   const [selected, setSelected] = useState(current)
   const [isPending, startTransition] = useTransition()
+  const { t } = useTranslation()
 
   function handleChange(provider: 'anthropic' | 'gemini') {
     setSelected(provider)
     startTransition(async () => {
       const result = await setActiveAIProvider(provider)
       if (result.ok) {
-        toast.success(result.message ?? 'Provider updated')
+        toast.success(result.message ?? t('Provider updated'))
       } else {
         toast.error(result.message)
         setSelected(current)  // revert on error
@@ -26,9 +28,9 @@ export function AIProviderSelector({ current }: Props) {
   return (
     <div className="rounded-lg border p-4 space-y-3">
       <div>
-        <h3 className="font-medium text-sm">Active AI Provider</h3>
+        <h3 className="font-medium text-sm">{t('Active AI Provider')}</h3>
         <p className="text-xs text-muted-foreground mt-0.5">
-          Controls which AI is used for estimate generation. Takes effect immediately — no restart required.
+          {t('Controls which AI is used for estimate generation. Takes effect immediately — no restart required.')}
         </p>
       </div>
       <div className="flex flex-col gap-2">
@@ -47,7 +49,7 @@ export function AIProviderSelector({ current }: Props) {
               {provider === 'anthropic' ? 'Anthropic (Claude)' : 'Google Gemini'}
             </span>
             {selected === provider && (
-              <span className="text-xs bg-primary/10 text-primary rounded px-1.5 py-0.5">Active</span>
+              <span className="text-xs bg-primary/10 text-primary rounded px-1.5 py-0.5">{t('Active')}</span>
             )}
           </label>
         ))}

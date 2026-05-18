@@ -21,6 +21,7 @@ import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 import { saveLandingContent } from './actions'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface LandingEditorProps {
   initial: LandingContentInput
@@ -28,6 +29,7 @@ interface LandingEditorProps {
 
 export function LandingEditor({ initial }: LandingEditorProps) {
   const [isPending, startTransition] = useTransition()
+  const { t } = useTranslation()
 
   const form = useForm<LandingContentInput>({
     resolver: zodResolver(landingContentSchema) as never,
@@ -43,7 +45,7 @@ export function LandingEditor({ initial }: LandingEditorProps) {
     startTransition(async () => {
       const result = await saveLandingContent(values)
       if (result.ok) {
-        toast.success('Landing page updated.')
+        toast.success(t('Landing page updated.'))
       } else {
         toast.error(result.message)
       }
@@ -62,7 +64,7 @@ export function LandingEditor({ initial }: LandingEditorProps) {
                   value={tab}
                   className="h-auto rounded-none border-0 border-b-2 border-transparent bg-transparent px-4 py-3 gap-2 text-sm font-medium text-muted-foreground hover:text-foreground data-[state=active]:border-primary dark:data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none data-[state=active]:bg-transparent dark:data-[state=active]:bg-transparent dark:data-[state=active]:text-foreground after:hidden transition-colors"
                 >
-                  {{ hero: 'Hero', 'how-it-works': 'How It Works', features: 'Features' }[tab]}
+                  {t({ hero: 'Hero', 'how-it-works': 'How It Works', features: 'Features' }[tab])}
                 </TabsTrigger>
               ))}
             </TabsList>
@@ -75,9 +77,9 @@ export function LandingEditor({ initial }: LandingEditorProps) {
               name="heroHeadline"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Headline</FormLabel>
+                  <FormLabel>{t('Headline')}</FormLabel>
                   <FormControl>
-                    <Input placeholder="Professional estimates in 5 minutes." {...field} />
+                    <Input placeholder={t('Professional estimates in 5 minutes.')} {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -88,9 +90,9 @@ export function LandingEditor({ initial }: LandingEditorProps) {
               name="heroSubheadline"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Subheadline</FormLabel>
+                  <FormLabel>{t('Subheadline')}</FormLabel>
                   <FormControl>
-                    <Textarea rows={4} placeholder="Record a site walkthrough..." {...field} />
+                    <Textarea rows={4} placeholder={t('Record a site walkthrough...')} {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -101,9 +103,9 @@ export function LandingEditor({ initial }: LandingEditorProps) {
               name="ctaLabel"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>CTA Button Label</FormLabel>
+                  <FormLabel>{t('CTA Button Label')}</FormLabel>
                   <FormControl>
-                    <Input placeholder="Start free" {...field} />
+                    <Input placeholder={t('Start free')} {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -134,15 +136,15 @@ export function LandingEditor({ initial }: LandingEditorProps) {
                 <div key={field.id} className="flex flex-col gap-4">
                   <FormField control={form.control} name={`howItWorksSteps.${index}.eyebrow`}
                     render={({ field: f }) => (
-                      <FormItem><FormLabel>Eyebrow</FormLabel><FormControl><Input placeholder={`Step ${index + 1}`} {...f} /></FormControl><FormMessage /></FormItem>
+                      <FormItem><FormLabel>{t('Eyebrow')}</FormLabel><FormControl><Input placeholder={`${t('Step')} ${index + 1}`} {...f} /></FormControl><FormMessage /></FormItem>
                     )} />
                   <FormField control={form.control} name={`howItWorksSteps.${index}.title`}
                     render={({ field: f }) => (
-                      <FormItem><FormLabel>Title</FormLabel><FormControl><Input placeholder="Step title" {...f} /></FormControl><FormMessage /></FormItem>
+                      <FormItem><FormLabel>{t('Title')}</FormLabel><FormControl><Input placeholder={t('Step title')} {...f} /></FormControl><FormMessage /></FormItem>
                     )} />
                   <FormField control={form.control} name={`howItWorksSteps.${index}.description`}
                     render={({ field: f }) => (
-                      <FormItem><FormLabel>Description</FormLabel><FormControl><Textarea rows={3} placeholder="Step description" {...f} /></FormControl><FormMessage /></FormItem>
+                      <FormItem><FormLabel>{t('Description')}</FormLabel><FormControl><Textarea rows={3} placeholder={t('Step description')} {...f} /></FormControl><FormMessage /></FormItem>
                     )} />
                 </div>
               )
@@ -172,15 +174,15 @@ export function LandingEditor({ initial }: LandingEditorProps) {
                 <div key={field.id} className="flex flex-col gap-4">
                   <FormField control={form.control} name={`features.${index}.title`}
                     render={({ field: f }) => (
-                      <FormItem><FormLabel>Title</FormLabel><FormControl><Input placeholder="Feature title" {...f} /></FormControl><FormMessage /></FormItem>
+                      <FormItem><FormLabel>{t('Title')}</FormLabel><FormControl><Input placeholder={t('Feature title')} {...f} /></FormControl><FormMessage /></FormItem>
                     )} />
                   <FormField control={form.control} name={`features.${index}.description`}
                     render={({ field: f }) => (
-                      <FormItem><FormLabel>Description</FormLabel><FormControl><Textarea rows={3} placeholder="Feature description" {...f} /></FormControl><FormMessage /></FormItem>
+                      <FormItem><FormLabel>{t('Description')}</FormLabel><FormControl><Textarea rows={3} placeholder={t('Feature description')} {...f} /></FormControl><FormMessage /></FormItem>
                     )} />
                   <FormField control={form.control} name={`features.${index}.benefit`}
                     render={({ field: f }) => (
-                      <FormItem><FormLabel>Benefit Tag</FormLabel><FormControl><Input placeholder="Benefit label" {...f} /></FormControl><FormMessage /></FormItem>
+                      <FormItem><FormLabel>{t('Benefit Tag')}</FormLabel><FormControl><Input placeholder={t('Benefit label')} {...f} /></FormControl><FormMessage /></FormItem>
                     )} />
                 </div>
               )
@@ -191,7 +193,7 @@ export function LandingEditor({ initial }: LandingEditorProps) {
         <div>
           <Button type="submit" disabled={isPending}>
             {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Save landing page
+            {t('Save landing page')}
           </Button>
         </div>
       </form>

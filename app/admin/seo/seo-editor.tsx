@@ -21,6 +21,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 
 import { saveSeo } from './actions'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 export type SeoInitial = {
   siteTitle: string
@@ -35,6 +36,7 @@ interface SeoEditorProps {
 
 export function SeoEditor({ initial }: SeoEditorProps) {
   const [isPending, startTransition] = useTransition()
+  const { t } = useTranslation()
 
   const form = useForm<SeoInput>({
     resolver: zodResolver(seoSchema) as never,
@@ -56,9 +58,9 @@ export function SeoEditor({ initial }: SeoEditorProps) {
 
       const result = await saveSeo(fd)
       if (result.ok) {
-        toast.success('SEO settings saved.')
+        toast.success(t('SEO settings saved.'))
       } else {
-        toast.error(`Couldn't save SEO settings. ${result.message}`)
+        toast.error(`${t("Couldn't save SEO settings.")} ${result.message}`)
       }
     })
   }
@@ -71,7 +73,7 @@ export function SeoEditor({ initial }: SeoEditorProps) {
           name="siteTitle"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Site title</FormLabel>
+              <FormLabel>{t('Site title')}</FormLabel>
               <FormControl>
                 <Input
                   placeholder="Xtimator"
@@ -81,7 +83,7 @@ export function SeoEditor({ initial }: SeoEditorProps) {
                 />
               </FormControl>
               <FormDescription>
-                Overrides app name in browser tabs and search results.
+                {t('Overrides app name in browser tabs and search results.')}
               </FormDescription>
               <FormMessage />
             </FormItem>
@@ -93,10 +95,10 @@ export function SeoEditor({ initial }: SeoEditorProps) {
           name="metaDescription"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Meta description</FormLabel>
+              <FormLabel>{t('Meta description')}</FormLabel>
               <FormControl>
                 <Textarea
-                  placeholder="Professional AI-powered estimates for service businesses."
+                  placeholder={t('Professional AI-powered estimates for service businesses.')}
                   rows={3}
                   {...field}
                   value={field.value ?? ''}
@@ -104,7 +106,7 @@ export function SeoEditor({ initial }: SeoEditorProps) {
                 />
               </FormControl>
               <FormDescription>
-                Summary shown in search result snippets (max 300 chars).
+                {t('Summary shown in search result snippets (max 300 chars).')}
               </FormDescription>
               <FormMessage />
             </FormItem>
@@ -116,7 +118,7 @@ export function SeoEditor({ initial }: SeoEditorProps) {
           name="ogImageUrl"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>OG image URL</FormLabel>
+              <FormLabel>{t('OG image URL')}</FormLabel>
               <FormControl>
                 <Input
                   placeholder="https://xtimator.com/og-image.png"
@@ -126,7 +128,7 @@ export function SeoEditor({ initial }: SeoEditorProps) {
                 />
               </FormControl>
               <FormDescription>
-                Full URL to image shown when sharing links on social media.
+                {t('Full URL to image shown when sharing links on social media.')}
               </FormDescription>
               <FormMessage />
             </FormItem>
@@ -138,7 +140,7 @@ export function SeoEditor({ initial }: SeoEditorProps) {
           name="canonicalBaseUrl"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Canonical base URL</FormLabel>
+              <FormLabel>{t('Canonical base URL')}</FormLabel>
               <FormControl>
                 <Input
                   placeholder="https://xtimator.com"
@@ -148,8 +150,7 @@ export function SeoEditor({ initial }: SeoEditorProps) {
                 />
               </FormControl>
               <FormDescription>
-                Your domain (e.g. https://xtimator.com) — required for correct OG image
-                resolution.
+                {t('Your domain (e.g. https://xtimator.com) — required for correct OG image resolution.')}
               </FormDescription>
               <FormMessage />
             </FormItem>
@@ -159,7 +160,7 @@ export function SeoEditor({ initial }: SeoEditorProps) {
         <div>
           <Button type="submit" disabled={isPending}>
             {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Save SEO settings
+            {t('Save SEO settings')}
           </Button>
         </div>
       </form>

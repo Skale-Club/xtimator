@@ -2,6 +2,7 @@ import { requireAdmin } from '@/lib/auth/admin-context'
 import { CATEGORIES } from '@/lib/admin/integrations-providers'
 import { Card } from '@/components/ui/card'
 import { IntegrationsNav } from './integrations-nav'
+import { T } from '@/components/i18n/t'
 
 /**
  * Shared shell for /admin/integrations/* — page header, nav (Link-based, one URL
@@ -20,9 +21,9 @@ export default async function IntegrationsLayout({
   return (
     <div className="flex flex-col gap-8">
       <div>
-        <h1 className="text-[clamp(28px,3.5vw,40px)] font-semibold tracking-tight">Integrations</h1>
+        <h1 className="text-[clamp(28px,3.5vw,40px)] font-semibold tracking-tight"><T>Integrations</T></h1>
         <p className="text-muted-foreground mt-1">
-          Manage API keys for services shared across all tenants. Changes take effect within 60 seconds.
+          <T>Manage API keys for services shared across all tenants. Changes take effect within 60 seconds.</T>
         </p>
       </div>
       <Card variant="glass" className="p-6 md:p-8">

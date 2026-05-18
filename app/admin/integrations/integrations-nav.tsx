@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import type { Category } from '@/lib/admin/integrations-providers'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface Props {
   categories: ReadonlyArray<Pick<Category, 'slug' | 'title' | 'navLabel'>>
@@ -17,9 +18,10 @@ interface Props {
  */
 export function IntegrationsNav({ categories }: Props) {
   const pathname = usePathname()
+  const { t } = useTranslation()
   return (
     <div className="border-b border-border">
-      <nav className="-mb-px flex items-center gap-0 overflow-x-auto" aria-label="Integration categories">
+      <nav className="-mb-px flex items-center gap-0 overflow-x-auto" aria-label={t('Integration categories')}>
         {categories.map((c) => {
           const href = `/admin/integrations/${c.slug}`
           const isActive = pathname === href || pathname.startsWith(`${href}/`)
@@ -36,7 +38,7 @@ export function IntegrationsNav({ categories }: Props) {
                   : 'border-transparent text-muted-foreground hover:text-foreground',
               ].join(' ')}
             >
-              {c.navLabel ?? c.title}
+              {t(c.navLabel ?? c.title)}
             </Link>
           )
         })}

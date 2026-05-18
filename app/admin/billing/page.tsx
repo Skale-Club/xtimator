@@ -2,6 +2,7 @@ import { requireAdmin } from '@/lib/auth/admin-context'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { BillingTable } from './billing-table'
 import { Card } from '@/components/ui/card'
+import { T } from '@/components/i18n/t'
 
 export const dynamic = 'force-dynamic'
 
@@ -24,22 +25,22 @@ export default async function AdminBillingPage() {
   return (
     <div className="space-y-8">
       <div className="flex flex-col gap-2">
-        <h1 className="text-[clamp(28px,3.5vw,40px)] font-semibold tracking-tight">Billing</h1>
+        <h1 className="text-[clamp(28px,3.5vw,40px)] font-semibold tracking-tight"><T>Billing</T></h1>
         <p className="text-muted-foreground">
-          Manage company tiers, grant credits, and view revenue metrics.
+          <T>Manage company tiers, grant credits, and view revenue metrics.</T>
         </p>
       </div>
 
       {/* MRR stat card with gradient top edge */}
       <Card variant="stat" className="p-6 flex flex-col gap-3 max-w-sm min-h-[120px]">
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          Monthly Recurring Revenue
+          <T>Monthly Recurring Revenue</T>
         </span>
         <p className="font-mono text-3xl font-semibold tracking-tight">
           ${mrr.toLocaleString()}
         </p>
         <p className="text-xs text-muted-foreground">
-          {proCount ?? 0} Pro × $29 + {bizCount ?? 0} Business × $99
+          {proCount ?? 0} <T>Pro</T> × $29 + {bizCount ?? 0} <T>Business</T> × $99
         </p>
       </Card>
 

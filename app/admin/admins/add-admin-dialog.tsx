@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/dialog'
 import { addAdminSchema } from '@/lib/schemas/admin'
 import { addPlatformAdmin } from './actions'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 type FormValues = { email: string }
 
@@ -36,6 +37,7 @@ export function AddAdminDialog() {
   const [open, setOpen] = useState(false)
   const [serverError, setServerError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
+  const { t } = useTranslation()
 
   const form = useForm<FormValues>({
     // zodResolver cast to any matches the project-wide pattern for zod v4
@@ -50,7 +52,7 @@ export function AddAdminDialog() {
     startTransition(async () => {
       const result = await addPlatformAdmin({ email: values.email })
       if (result.ok) {
-        toast.success(`${values.email} is now a platform admin.`)
+        toast.success(`${values.email} ${t('is now a platform admin.')}`)
         form.reset()
         setOpen(false)
       } else {
@@ -73,20 +75,19 @@ export function AddAdminDialog() {
       <DialogTrigger asChild>
         <Button>
           <UserPlus className="mr-2 h-4 w-4" />
-          Add admin
+          {t('Add admin')}
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Add platform admin</DialogTitle>
+          <DialogTitle>{t('Add platform admin')}</DialogTitle>
           <DialogDescription>
-            Enter the email of a user who has already signed up. They&apos;ll gain
-            access to /admin on their next navigation.
+            {t("Enter the email of a user who has already signed up. They'll gain access to /admin on their next navigation.")}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={onSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">{t('Email')}</Label>
             <Input
               id="email"
               type="email"
@@ -112,10 +113,10 @@ export function AddAdminDialog() {
               onClick={() => setOpen(false)}
               disabled={isPending}
             >
-              Cancel
+              {t('Cancel')}
             </Button>
             <Button type="submit" disabled={isPending}>
-              {isPending ? 'Adding…' : 'Add admin'}
+              {isPending ? t('Adding…') : t('Add admin')}
             </Button>
           </DialogFooter>
         </form>

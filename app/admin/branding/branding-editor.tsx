@@ -24,6 +24,7 @@ import { LogoUploader } from '@/components/onboarding/logo-uploader'
 
 import { saveBranding } from './actions'
 import { BrandingPreviewCard, type PreviewBranding } from './branding-preview-card'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 export type EditorBranding = {
   appName: string
@@ -42,6 +43,7 @@ const DEFAULT_COLOR = SYSTEM_COLORS.primary
 export function BrandingEditor({ initial }: BrandingEditorProps) {
   const [isPending, startTransition] = useTransition()
   const router = useRouter()
+  const { t } = useTranslation()
 
   // Lifted state for live preview + logo file (kept outside RHF so the
   // uploader's local objectURL flow can drive the preview before submit).
@@ -95,12 +97,12 @@ export function BrandingEditor({ initial }: BrandingEditorProps) {
 
       const result = await saveBranding(fd)
       if (result.ok) {
-        toast.success('Branding updated.')
+        toast.success(t('Branding updated.'))
         router.refresh()
       } else if ('errors' in result) {
-        toast.error('Couldn’t save branding. Check the form for errors.')
+        toast.error(t('Couldn’t save branding. Check the form for errors.'))
       } else {
-        toast.error(`Couldn’t save branding. ${result.message}`)
+        toast.error(`${t('Couldn’t save branding.')} ${result.message}`)
       }
     })
   }
@@ -116,7 +118,7 @@ export function BrandingEditor({ initial }: BrandingEditorProps) {
             name="appName"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Application name</FormLabel>
+                <FormLabel>{t('Application name')}</FormLabel>
                 <FormControl>
                   <Input
                     id="appName"
@@ -127,8 +129,7 @@ export function BrandingEditor({ initial }: BrandingEditorProps) {
                   />
                 </FormControl>
                 <FormDescription>
-                  Shown on auth pages, admin header, browser tab, and platform email
-                  headers.
+                  {t('Shown on auth pages, admin header, browser tab, and platform email headers.')}
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -136,7 +137,7 @@ export function BrandingEditor({ initial }: BrandingEditorProps) {
           />
 
           <FormItem>
-            <FormLabel>Logo</FormLabel>
+            <FormLabel>{t('Logo')}</FormLabel>
             <FormControl>
               <LogoUploader
                 preview={logoPreview}
@@ -146,13 +147,12 @@ export function BrandingEditor({ initial }: BrandingEditorProps) {
               />
             </FormControl>
             <FormDescription>
-              Square PNG or JPG, under 2MB. Shown above the sign-in form and in the
-              admin header.
+              {t('Square PNG or JPG, under 2MB. Shown above the sign-in form and in the admin header.')}
             </FormDescription>
           </FormItem>
 
           <FormItem>
-            <FormLabel>Favicon</FormLabel>
+            <FormLabel>{t('Favicon')}</FormLabel>
             <FormControl>
               <input
                 type="file"
@@ -162,8 +162,7 @@ export function BrandingEditor({ initial }: BrandingEditorProps) {
               />
             </FormControl>
             <FormDescription>
-              ICO or PNG, under 1MB. Shown in browser tabs. If set, overrides the
-              static favicon file.
+              {t('ICO or PNG, under 1MB. Shown in browser tabs. If set, overrides the static favicon file.')}
             </FormDescription>
             {initial.faviconUrl && (
               <a
@@ -172,7 +171,7 @@ export function BrandingEditor({ initial }: BrandingEditorProps) {
                 rel="noopener noreferrer"
                 className="text-xs text-primary underline"
               >
-                Current favicon
+                {t('Current favicon')}
               </a>
             )}
           </FormItem>
@@ -182,7 +181,7 @@ export function BrandingEditor({ initial }: BrandingEditorProps) {
             name="primaryColor"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Primary color</FormLabel>
+                <FormLabel>{t('Primary color')}</FormLabel>
                 <div className="flex items-center gap-3">
                   <FormControl>
                     <input
@@ -201,7 +200,7 @@ export function BrandingEditor({ initial }: BrandingEditorProps) {
                   />
                 </div>
                 <FormDescription>
-                  Accents buttons and focus rings on auth pages and admin tools.
+                  {t('Accents buttons and focus rings on auth pages and admin tools.')}
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -213,7 +212,7 @@ export function BrandingEditor({ initial }: BrandingEditorProps) {
             name="emailFromName"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Email sender name</FormLabel>
+                <FormLabel>{t('Email sender name')}</FormLabel>
                 <FormControl>
                   <Input
                     placeholder="Xtimator Team"
@@ -222,8 +221,7 @@ export function BrandingEditor({ initial }: BrandingEditorProps) {
                   />
                 </FormControl>
                 <FormDescription>
-                  Appears as the sender on platform emails (welcome, password reset).
-                  Tenant estimates still send under each company&apos;s name.
+                  {t("Appears as the sender on platform emails (welcome, password reset). Tenant estimates still send under each company's name.")}
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -233,7 +231,7 @@ export function BrandingEditor({ initial }: BrandingEditorProps) {
           <div>
             <Button type="submit" disabled={isPending}>
               {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Save branding
+              {t('Save branding')}
             </Button>
           </div>
         </form>

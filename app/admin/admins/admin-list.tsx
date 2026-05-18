@@ -25,6 +25,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { removePlatformAdmin } from './actions'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 export type AdminRow = {
   user_id: string
@@ -51,6 +52,7 @@ type Props = {
 export function AdminList({ admins, currentUserId }: Props) {
   const [pendingRow, setPendingRow] = useState<AdminRow | null>(null)
   const [isPending, startTransition] = useTransition()
+  const { t } = useTranslation()
 
   const onlyAdmin = admins.length === 1
 
@@ -59,7 +61,7 @@ export function AdminList({ admins, currentUserId }: Props) {
       const result = await removePlatformAdmin({ userId: row.user_id })
       setPendingRow(null)
       if (result.ok) {
-        toast.success(`${row.email} removed as platform admin.`)
+        toast.success(`${row.email} ${t('removed as platform admin.')}`)
       } else {
         toast.error(result.message)
       }
@@ -72,9 +74,9 @@ export function AdminList({ admins, currentUserId }: Props) {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Admin</TableHead>
-              <TableHead>Joined</TableHead>
-              <TableHead className="w-[120px] text-right">Actions</TableHead>
+              <TableHead>{t('Admin')}</TableHead>
+              <TableHead>{t('Joined')}</TableHead>
+              <TableHead className="w-[120px] text-right">{t('Actions')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -92,14 +94,14 @@ export function AdminList({ admins, currentUserId }: Props) {
                       <div className="flex flex-col">
                         <span className="font-medium">{row.email}</span>
                         {isSelf ? (
-                          <span className="text-xs text-muted-foreground">You</span>
+                          <span className="text-xs text-muted-foreground">{t('You')}</span>
                         ) : null}
                       </div>
                     </div>
                   </TableCell>
                   <TableCell>
                     <Badge variant="secondary" className="font-normal">
-                      Admin since {format(new Date(row.created_at), 'MMM d, yyyy')}
+                      {t('Admin since')} {format(new Date(row.created_at), 'MMM d, yyyy')}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">
@@ -110,13 +112,12 @@ export function AdminList({ admins, currentUserId }: Props) {
                           <span tabIndex={0}>
                             <Button variant="destructive" size="sm" disabled>
                               <Trash2 className="mr-2 h-4 w-4" />
-                              Remove
+                              {t('Remove')}
                             </Button>
                           </span>
                         </TooltipTrigger>
                         <TooltipContent>
-                          You are the only admin. Add another admin before removing
-                          yourself.
+                          {t('You are the only admin. Add another admin before removing yourself.')}
                         </TooltipContent>
                       </Tooltip>
                     ) : (
@@ -126,7 +127,7 @@ export function AdminList({ admins, currentUserId }: Props) {
                         onClick={() => setPendingRow(row)}
                       >
                         <Trash2 className="mr-2 h-4 w-4" />
-                        Remove
+                        {t('Remove')}
                       </Button>
                     )}
                   </TableCell>
@@ -145,14 +146,13 @@ export function AdminList({ admins, currentUserId }: Props) {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Remove platform admin?</AlertDialogTitle>
+            <AlertDialogTitle>{t('Remove platform admin?')}</AlertDialogTitle>
             <AlertDialogDescription>
-              {pendingRow?.email} will lose access to the admin panel. Their user
-              account is not affected.
+              {pendingRow?.email} {t('will lose access to the admin panel. Their user account is not affected.')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={isPending}>{t('Cancel')}</AlertDialogCancel>
             <AlertDialogAction
               disabled={isPending}
               onClick={(e) => {
@@ -161,7 +161,7 @@ export function AdminList({ admins, currentUserId }: Props) {
               }}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {isPending ? 'Removing…' : 'Remove admin'}
+              {isPending ? t('Removing…') : t('Remove admin')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

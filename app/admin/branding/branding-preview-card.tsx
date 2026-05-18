@@ -4,6 +4,7 @@ import type { CSSProperties } from 'react'
 import { hexToHslTriplet } from '@/lib/color'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
 import { LogoFallback } from '@/components/auth/auth-card'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 export type PreviewBranding = {
   appName: string
@@ -28,6 +29,7 @@ interface BrandingPreviewCardProps {
  * primary color).
  */
 export function BrandingPreviewCard({ branding }: BrandingPreviewCardProps) {
+  const { t } = useTranslation()
   const triplet =
     hexToHslTriplet(branding.primaryColor ?? '') ?? SYSTEM_COLORS.primaryHsl
   const platformPrimary = `hsl(var(--platform-primary, ${SYSTEM_COLORS.primaryHsl}))`
@@ -38,7 +40,7 @@ export function BrandingPreviewCard({ branding }: BrandingPreviewCardProps) {
   return (
     <div className="flex flex-col gap-3">
       <h2 className="text-sm font-semibold tracking-wide uppercase text-muted-foreground">
-        Preview
+        {t('Preview')}
       </h2>
 
       <div
@@ -48,7 +50,7 @@ export function BrandingPreviewCard({ branding }: BrandingPreviewCardProps) {
       >
         {/* Auth dark mini-preview */}
         <div
-          aria-label="Auth page preview"
+          aria-label={t('Auth page preview')}
           className="flex h-[200px] flex-col items-center justify-center gap-3 bg-background p-6 text-foreground"
         >
           <div className="flex flex-col items-center gap-2">
@@ -66,7 +68,7 @@ export function BrandingPreviewCard({ branding }: BrandingPreviewCardProps) {
               <LogoFallback />
             )}
             <span className="text-base font-semibold leading-tight tracking-tight">
-              {branding.appName || 'Untitled'}
+              {branding.appName || t('Untitled')}
             </span>
           </div>
           <button
@@ -78,13 +80,13 @@ export function BrandingPreviewCard({ branding }: BrandingPreviewCardProps) {
               color: 'white',
             }}
           >
-            Sign in
+            {t('Sign in')}
           </button>
         </div>
 
         {/* Admin nav mini-preview */}
         <div
-          aria-label="Admin nav preview"
+          aria-label={t('Admin nav preview')}
           data-theme="admin-dark"
           className="flex gap-0 border-t border-border bg-background"
         >
@@ -106,16 +108,16 @@ export function BrandingPreviewCard({ branding }: BrandingPreviewCardProps) {
                       : { color: 'hsl(var(--muted-foreground))' }
                   }
                 >
-                  {label}
+                  {t(label)}
                 </div>
               )
             })}
           </nav>
           <div className="flex-1 p-3 text-xs text-muted-foreground">
             <div className="mb-2 text-sm font-semibold text-foreground">
-              Branding
+              {t('Branding')}
             </div>
-            <div>Sample admin content</div>
+            <div>{t('Sample admin content')}</div>
           </div>
         </div>
       </div>

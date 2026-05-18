@@ -51,6 +51,7 @@ import {
   deleteIntegrationKey,
   testIntegrationKey,
 } from './actions'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 export type IntegrationCardInitial =
   | { configured: false }
@@ -78,6 +79,7 @@ export function IntegrationCard({
   const [isDeleting, startDeleting] = useTransition()
   const [saveError, setSaveError] = useState<string | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const { t } = useTranslation()
 
   const form = useForm<IntegrationKeyInput>({
     resolver: zodResolver(integrationKeySchema),
@@ -96,10 +98,10 @@ export function IntegrationCard({
       const result = await saveIntegrationKey(values)
       if (!result.ok) {
         setSaveError(result.message)
-        toast.error(`Couldn't save ${title} key.`)
+        toast.error(`${t("Couldn't save")} ${title} ${t('key.')}`)
         return
       }
-      toast.success(`${title} key saved.`)
+      toast.success(`${title} ${t('key saved.')}`)
       form.reset({ provider, apiKey: '' })
     })
   }
@@ -108,10 +110,10 @@ export function IntegrationCard({
     startDeleting(async () => {
       const result = await deleteIntegrationKey({ provider })
       if (!result.ok) {
-        toast.error(`Couldn't remove ${title} key.`)
+        toast.error(`${t("Couldn't remove")} ${title} ${t('key.')}`)
         return
       }
-      toast.success(`${title} key removed.`)
+      toast.success(`${title} ${t('key removed.')}`)
       setConfirmOpen(false)
     })
   }
@@ -122,10 +124,10 @@ export function IntegrationCard({
         <div className="flex items-center justify-between gap-2">
           <CardTitle className="text-base">{title}</CardTitle>
           <Badge variant={isConfigured ? 'default' : 'secondary'}>
-            {isConfigured ? 'Connected' : 'Not configured'}
+            {isConfigured ? t('Connected') : t('Not configured')}
           </Badge>
         </div>
-        <CardDescription>{description}</CardDescription>
+        <CardDescription>{t(description)}</CardDescription>
       </CardHeader>
       <CardContent>
         <Form {...form}>
@@ -138,10 +140,10 @@ export function IntegrationCard({
               name="apiKey"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>API key</FormLabel>
+                  <FormLabel>{t('API key')}</FormLabel>
                   <FormControl>
                     <MaskedKeyInput
-                      placeholder={`Paste your ${title} API key`}
+                      placeholder={`${t('Paste your')} ${title} ${t('API key')}`}
                       initialLast4={last4}
                       autoComplete="off"
                       spellCheck={false}
@@ -169,7 +171,7 @@ export function IntegrationCard({
                 ) : (
                   <Save className="mr-2 h-4 w-4" />
                 )}
-                {isSaving ? 'Saving\u2026' : 'Save key'}
+                {isSaving ? t('Saving\u2026') : t('Save key')}
               </Button>
               <TestButton
                 disabled={!canTest}
@@ -187,9 +189,9 @@ export function IntegrationCard({
       {isConfigured && (
         <CardFooter className="flex items-center justify-between text-xs text-muted-foreground">
           <span>
-            Last updated by{' '}
+            {t('Last updated by')}{' '}
             <span className="text-foreground">
-              {initial.updatedByEmail || 'unknown'}
+              {initial.updatedByEmail || t('unknown')}
             </span>
             ,{' '}
             {(() => {
@@ -209,19 +211,19 @@ export function IntegrationCard({
                 className="inline-flex items-center gap-1 text-destructive hover:underline disabled:opacity-50"
                 disabled={isDeleting}
               >
-                <Trash2 className="h-3 w-3" /> Delete key
+                <Trash2 className="h-3 w-3" /> {t('Delete key')}
               </button>
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Delete {title} key?</AlertDialogTitle>
+                <AlertDialogTitle>{t('Delete')} {title} {t('key?')}</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Features that use this provider will stop working immediately.
+                  {t('Features that use this provider will stop working immediately.')}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel disabled={isDeleting}>
-                  Cancel
+                  {t('Cancel')}
                 </AlertDialogCancel>
                 <AlertDialogAction
                   onClick={(e) => {
@@ -234,7 +236,7 @@ export function IntegrationCard({
                   {isDeleting && (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   )}
-                  Delete key
+                  {t('Delete key')}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>

@@ -15,6 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 function slugify(s: string): string {
   return s.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
@@ -27,6 +28,7 @@ type PostFormProps = {
 }
 
 export function PostForm({ initial, onSave, isPending }: PostFormProps) {
+  const { t } = useTranslation()
   const {
     register,
     handleSubmit,
@@ -59,12 +61,12 @@ export function PostForm({ initial, onSave, isPending }: PostFormProps) {
   return (
     <form onSubmit={handleSubmit(onSave)} className="flex flex-col gap-6">
       <div className="flex flex-col gap-2">
-        <Label htmlFor="title">Title</Label>
+        <Label htmlFor="title">{t('Title')}</Label>
         <Input
           id="title"
           {...register('title')}
           onBlur={handleTitleBlur}
-          placeholder="Post title"
+          placeholder={t('Post title')}
         />
         {errors.title && (
           <p className="text-sm text-destructive">{errors.title.message}</p>
@@ -72,7 +74,7 @@ export function PostForm({ initial, onSave, isPending }: PostFormProps) {
       </div>
 
       <div className="flex flex-col gap-2">
-        <Label htmlFor="slug">Slug</Label>
+        <Label htmlFor="slug">{t('Slug')}</Label>
         <Input
           id="slug"
           {...register('slug')}
@@ -85,12 +87,12 @@ export function PostForm({ initial, onSave, isPending }: PostFormProps) {
       </div>
 
       <div className="flex flex-col gap-2">
-        <Label htmlFor="content">Content</Label>
+        <Label htmlFor="content">{t('Content')}</Label>
         <Textarea
           id="content"
           {...register('content')}
           className="min-h-[300px]"
-          placeholder="Write in Markdown…"
+          placeholder={t('Write in Markdown…')}
         />
         {errors.content && (
           <p className="text-sm text-destructive">{errors.content.message}</p>
@@ -98,12 +100,12 @@ export function PostForm({ initial, onSave, isPending }: PostFormProps) {
       </div>
 
       <div className="flex flex-col gap-2">
-        <Label htmlFor="excerpt">Excerpt (optional)</Label>
+        <Label htmlFor="excerpt">{t('Excerpt (optional)')}</Label>
         <Textarea
           id="excerpt"
           {...register('excerpt')}
           className="max-h-[120px]"
-          placeholder="Short summary of the post"
+          placeholder={t('Short summary of the post')}
         />
         {errors.excerpt && (
           <p className="text-sm text-destructive">{errors.excerpt.message}</p>
@@ -111,7 +113,7 @@ export function PostForm({ initial, onSave, isPending }: PostFormProps) {
       </div>
 
       <div className="flex flex-col gap-2">
-        <Label htmlFor="coverImageUrl">Cover image URL (optional)</Label>
+        <Label htmlFor="coverImageUrl">{t('Cover image URL (optional)')}</Label>
         <Input
           id="coverImageUrl"
           {...register('coverImageUrl')}
@@ -123,17 +125,17 @@ export function PostForm({ initial, onSave, isPending }: PostFormProps) {
       </div>
 
       <div className="flex flex-col gap-2">
-        <Label htmlFor="status">Status</Label>
+        <Label htmlFor="status">{t('Status')}</Label>
         <Select
           value={status}
           onValueChange={(val) => setValue('status', val as 'draft' | 'published')}
         >
           <SelectTrigger id="status">
-            <SelectValue placeholder="Select status" />
+            <SelectValue placeholder={t('Select status')} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="draft">Draft</SelectItem>
-            <SelectItem value="published">Published</SelectItem>
+            <SelectItem value="draft">{t('Draft')}</SelectItem>
+            <SelectItem value="published">{t('Published')}</SelectItem>
           </SelectContent>
         </Select>
         {errors.status && (
@@ -143,26 +145,26 @@ export function PostForm({ initial, onSave, isPending }: PostFormProps) {
 
       <details>
         <summary className="cursor-pointer text-sm font-medium text-muted-foreground hover:text-foreground">
-          SEO (optional)
+          {t('SEO (optional)')}
         </summary>
         <div className="mt-4 flex flex-col gap-4 pl-2">
           <div className="flex flex-col gap-2">
-            <Label htmlFor="metaTitle">Meta title</Label>
+            <Label htmlFor="metaTitle">{t('Meta title')}</Label>
             <Input
               id="metaTitle"
               {...register('metaTitle')}
-              placeholder="Override page title for search engines"
+              placeholder={t('Override page title for search engines')}
             />
             {errors.metaTitle && (
               <p className="text-sm text-destructive">{errors.metaTitle.message}</p>
             )}
           </div>
           <div className="flex flex-col gap-2">
-            <Label htmlFor="metaDescription">Meta description</Label>
+            <Label htmlFor="metaDescription">{t('Meta description')}</Label>
             <Textarea
               id="metaDescription"
               {...register('metaDescription')}
-              placeholder="Search engine description (max 300 chars)"
+              placeholder={t('Search engine description (max 300 chars)')}
             />
             {errors.metaDescription && (
               <p className="text-sm text-destructive">{errors.metaDescription.message}</p>
@@ -172,7 +174,7 @@ export function PostForm({ initial, onSave, isPending }: PostFormProps) {
       </details>
 
       <Button type="submit" disabled={isPending} className="self-start">
-        {status === 'published' ? 'Publish' : 'Save draft'}
+        {status === 'published' ? t('Publish') : t('Save draft')}
       </Button>
     </form>
   )

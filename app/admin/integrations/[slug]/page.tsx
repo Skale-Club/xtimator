@@ -7,6 +7,7 @@ import {
 import { getSelectedAIProvider } from '@/lib/platform-config'
 import { IntegrationCard } from '../integration-card'
 import { AIProviderSelector } from '../ai-provider-selector'
+import { T } from '@/components/i18n/t'
 
 export function generateStaticParams() {
   return CATEGORIES.map((c) => ({ slug: c.slug }))
@@ -29,7 +30,7 @@ export default async function IntegrationCategoryPage({
   return (
     <div className="flex flex-col gap-6">
       {category.description && (
-        <p className="text-sm text-muted-foreground max-w-3xl">{category.description}</p>
+        <p className="text-sm text-muted-foreground max-w-3xl"><T text={category.description} /></p>
       )}
 
       <div className="flex flex-col gap-4">

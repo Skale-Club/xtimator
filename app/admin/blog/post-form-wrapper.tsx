@@ -5,15 +5,17 @@ import { toast } from 'sonner'
 import { PostForm } from './post-form'
 import { createPost } from './actions'
 import type { BlogPostInput } from '@/lib/schemas/admin'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 export function PostFormWrapper() {
   const [isPending, startTransition] = useTransition()
   const router = useRouter()
+  const { t } = useTranslation()
   async function handleSave(data: BlogPostInput) {
     startTransition(async () => {
       const result = await createPost(data)
       if (result.ok) {
-        toast.success('Post created.')
+        toast.success(t('Post created.'))
         router.push('/admin/blog')
       } else {
         toast.error(result.message)

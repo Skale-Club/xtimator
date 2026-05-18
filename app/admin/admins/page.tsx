@@ -3,6 +3,7 @@ import { requireServiceClient } from '@/lib/supabase/service'
 import { AdminList, type AdminRow } from './admin-list'
 import { AddAdminDialog } from './add-admin-dialog'
 import { Card } from '@/components/ui/card'
+import { T } from '@/components/i18n/t'
 
 export default async function AdminAdminsPage() {
   const ctx = await requireAdmin()
@@ -28,10 +29,9 @@ export default async function AdminAdminsPage() {
     <div className="space-y-8">
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-2">
-          <h1 className="text-[clamp(28px,3.5vw,40px)] font-semibold tracking-tight">Platform admins</h1>
+          <h1 className="text-[clamp(28px,3.5vw,40px)] font-semibold tracking-tight"><T>Platform admins</T></h1>
           <p className="text-muted-foreground">
-            Users who can access this admin panel. Admins can add and remove other
-            admins.
+            <T>Users who can access this admin panel. Admins can add and remove other admins.</T>
           </p>
         </div>
         <AddAdminDialog />
@@ -40,7 +40,7 @@ export default async function AdminAdminsPage() {
       <Card variant="glass" className="p-6 md:p-8">
         {admins.length === 0 ? (
           <div className="rounded-lg border border-dashed p-8 text-center text-muted-foreground">
-            No admins found. Run the bootstrap SQL in supabase/ADMIN-BOOTSTRAP.md.
+            <T>No admins found. Run the bootstrap SQL in supabase/ADMIN-BOOTSTRAP.md.</T>
           </div>
         ) : (
           <AdminList admins={admins} currentUserId={ctx.userId} />

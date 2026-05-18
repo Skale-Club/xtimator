@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useTransition } from 'react'
 import { ArrowLeft, LogOut, Loader2 } from 'lucide-react'
 import { signOut } from '@/lib/actions/auth'
+import { useTranslation } from '@/lib/i18n/use-translation'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import {
   DropdownMenu,
@@ -19,6 +20,7 @@ interface AdminTopbarProps {
 
 export function AdminTopbar({ adminEmail }: AdminTopbarProps) {
   const [isPending, startTransition] = useTransition()
+  const { t } = useTranslation()
   const initial = adminEmail.charAt(0).toUpperCase()
 
   return (
@@ -28,7 +30,7 @@ export function AdminTopbar({ adminEmail }: AdminTopbarProps) {
         className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
       >
         <ArrowLeft className="h-4 w-4" />
-        Back to App
+        {t('Back to App')}
       </Link>
 
       <div className="flex items-center gap-3">
@@ -45,7 +47,7 @@ export function AdminTopbar({ adminEmail }: AdminTopbarProps) {
             <DropdownMenuItem asChild className="cursor-pointer">
               <Link href="/dashboard" className="flex items-center gap-2">
                 <ArrowLeft className="h-4 w-4" />
-                Back to App
+                {t('Back to App')}
               </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
@@ -59,7 +61,7 @@ export function AdminTopbar({ adminEmail }: AdminTopbarProps) {
               ) : (
                 <LogOut className="h-4 w-4" />
               )}
-              Sign Out
+              {t('Sign Out')}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

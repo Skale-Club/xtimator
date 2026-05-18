@@ -3,6 +3,7 @@
 import { useState, forwardRef } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
 import { Input } from '@/components/ui/input'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface MaskedKeyInputProps
   extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'type'> {
@@ -26,6 +27,7 @@ export const MaskedKeyInput = forwardRef<HTMLInputElement, MaskedKeyInputProps>(
   ) {
     const [reveal, setReveal] = useState(false)
     const [touched, setTouched] = useState(false)
+    const { t } = useTranslation()
 
     const showPreview = !!initialLast4 && !touched
     const previewPlaceholder = showPreview
@@ -51,7 +53,7 @@ export const MaskedKeyInput = forwardRef<HTMLInputElement, MaskedKeyInputProps>(
           type="button"
           className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
           onClick={() => setReveal((v) => !v)}
-          aria-label={reveal ? 'Hide API key' : 'Show API key'}
+          aria-label={reveal ? t('Hide API key') : t('Show API key')}
           tabIndex={-1}
         >
           {reveal ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}

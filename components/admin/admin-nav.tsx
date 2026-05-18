@@ -4,6 +4,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { Settings2, Palette, Users, LayoutDashboard, Globe, Layout, FileText, CreditCard } from 'lucide-react'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 const NAV_ITEMS = [
   { href: '/admin',              label: 'Dashboard',    Icon: LayoutDashboard },
@@ -53,10 +54,11 @@ interface AdminNavProps {
 
 export function AdminNav({ appName, logoUrl, adminEmail }: AdminNavProps) {
   const pathname = usePathname()
+  const { t } = useTranslation()
 
   return (
     <nav
-      aria-label="Platform admin navigation"
+      aria-label={t('Platform admin navigation')}
       className="w-[240px] flex-shrink-0 border-r border-[var(--glass-border)] bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] flex flex-col"
     >
       <div className="px-4 pt-6 pb-6 flex items-center gap-2">
@@ -71,7 +73,7 @@ export function AdminNav({ appName, logoUrl, adminEmail }: AdminNavProps) {
         ) : (
           <LogoFallbackSvg />
         )}
-        <span className="font-semibold text-sm">{appName} Admin</span>
+        <span className="font-semibold text-sm">{appName} {t('Admin')}</span>
       </div>
       <ul className="flex-1 flex flex-col gap-1 px-2">
         {NAV_ITEMS.map(({ href, label, Icon }) => {
@@ -91,7 +93,7 @@ export function AdminNav({ appName, logoUrl, adminEmail }: AdminNavProps) {
                     : 'hover:bg-[var(--glass-bg-light)] text-muted-foreground hover:text-foreground',
                 ].join(' ')}
               >
-                <Icon size={16} /> {label}
+                <Icon size={16} /> {t(label)}
               </Link>
             </li>
           )

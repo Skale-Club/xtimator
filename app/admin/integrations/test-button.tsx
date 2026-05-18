@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from 'react'
 import { Loader2, FlaskConical } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 export type TestResult = { ok: boolean; message?: string }
 
@@ -24,6 +25,7 @@ interface TestButtonProps {
 export function TestButton({ disabled, onRun }: TestButtonProps) {
   const [isPending, startTransition] = useTransition()
   const [result, setResult] = useState<TestResult | null>(null)
+  const { t } = useTranslation()
 
   useEffect(() => {
     if (!result) return
@@ -39,7 +41,7 @@ export function TestButton({ disabled, onRun }: TestButtonProps) {
       } catch (e) {
         setResult({
           ok: false,
-          message: e instanceof Error ? e.message : 'Unexpected error',
+          message: e instanceof Error ? e.message : t('Unexpected error'),
         })
       }
     })
@@ -59,14 +61,14 @@ export function TestButton({ disabled, onRun }: TestButtonProps) {
         ) : (
           <FlaskConical className="mr-2 h-4 w-4" />
         )}
-        {isPending ? 'Testing\u2026' : 'Test'}
+        {isPending ? t('Testing\u2026') : t('Test')}
       </Button>
       {result && (
         <Alert
           variant={result.ok ? 'default' : 'destructive'}
           aria-live="polite"
         >
-          <AlertDescription>{result.message ?? (result.ok ? 'Verified.' : 'Failed.')}</AlertDescription>
+          <AlertDescription>{result.message ?? (result.ok ? t('Verified.') : t('Failed.'))}</AlertDescription>
         </Alert>
       )}
     </div>
