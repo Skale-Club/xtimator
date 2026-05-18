@@ -1,4 +1,5 @@
 import 'server-only'
+import { cache } from 'react'
 import { createServiceClient } from '@/lib/supabase/service'
 import { decrypt } from '@/lib/crypto/aes'
 
@@ -159,6 +160,13 @@ export async function getBranding(): Promise<Branding> {
   brandingCache = { value: branding, fetchedAt: now }
   return branding
 }
+
+/**
+ * React cache()-wrapped getBranding.
+ * Deduplicates calls within a single render pass (D-06).
+ * Use this in layout.tsx files instead of getBranding directly.
+ */
+export const getCachedBranding = cache(getBranding)
 
 export async function getLandingContent(): Promise<LandingContent> {
   const branding = await getBranding()
