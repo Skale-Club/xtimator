@@ -25,7 +25,8 @@ import {
   type ParseOutcome,
   type ParsedRow,
 } from '@/lib/csv/price-book-import'
-import { importPriceBookItems } from '@/lib/actions/price-book'
+import { importPriceBookItems, resolveOrCreateFolders } from '@/lib/actions/price-book'
+import type { ImportRow } from '@/lib/csv/price-book-import'
 
 export interface PriceBookImportDialogProps {
   open: boolean
@@ -93,10 +94,30 @@ export function PriceBookImportDialog({ open, onOpenChange }: PriceBookImportDia
     if (stage.kind !== 'preview') return
     const validRows = stage.outcome.rows
       .filter((r) => r.errors.length === 0 && !r.isDuplicateInFile)
-      .map((r) => r.values)
+      .map((r) => r.values as ImportRow)
 
     startTransition(async () => {
-      const result = await importPriceBookItems(validRows)
+      // Collect unique folder names from valid rows
+      const folderNames = [
+        ...new Set(
+          validRows
+            .map((r) => r.folder_name)
+            .filter(Boolean) as string[]
+        ),
+      ]
+
+      // Resolve or create folders, build folderNameMap
+      let folderNameMap: Map<string, string> | undefined
+      if (folderNames.length > 0) {
+        const folderResult = await resolveOrCreateFolders(folderNames)
+        if ('error' in folderResult) {
+          toast.error(folderResult.error)
+          return
+        }
+        folderNameMap = folderResult.data
+      }
+
+      const result = await importPriceBookItems(validRows, folderNameMap)
       if ('error' in result) {
         toast.error(result.error)
         return

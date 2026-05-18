@@ -45,7 +45,7 @@ import {
   createPriceBookItem,
   updatePriceBookItem,
 } from '@/lib/actions/price-book'
-import type { PriceBookItem } from '@/lib/queries/price-book'
+import type { PriceBookItem, PriceBookFolder } from '@/lib/queries/price-book'
 
 interface PriceBookItemDialogProps {
   open: boolean
@@ -56,9 +56,11 @@ interface PriceBookItemDialogProps {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   companyId: string
   existingCategories: string[]
+  folders: PriceBookFolder[]
 }
 
 const EMPTY_FORM: PriceBookItemFormValues = {
+  folder_id: null,
   category: '',
   name: '',
   unit: '',
@@ -72,10 +74,12 @@ export function PriceBookItemDialog({
   item,
   companyId: _companyId,
   existingCategories,
+  folders,
 }: PriceBookItemDialogProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [categoryOpen, setCategoryOpen] = useState(false)
+  const [folderOpen, setFolderOpen] = useState(false)
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const isEditing = !!item
@@ -89,6 +93,7 @@ export function PriceBookItemDialog({
   useEffect(() => {
     if (item) {
       form.reset({
+        folder_id: item.folder_id ?? null,
         category: item.category ?? '',
         name: item.name,
         unit: item.unit ?? '',
@@ -135,6 +140,63 @@ export function PriceBookItemDialog({
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            {/* Folder (optional) */}
+            <FormField
+              control={form.control}
+              name="folder_id"
+              render={({ field }) => {
+                const selectedFolder = folders.find((f) => f.id === field.value) ?? null
+                return (
+                  <FormItem className="flex flex-col">
+                    <FormLabel>Folder (optional)</FormLabel>
+                    <Popover open={folderOpen} onOpenChange={setFolderOpen}>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            role="combobox"
+                            className="w-full justify-between font-normal"
+                          >
+                            <span className={selectedFolder ? '' : 'text-muted-foreground'}>
+                              {selectedFolder?.name ?? 'No folder'}
+                            </span>
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                        <Command>
+                          <CommandInput placeholder="Search folders..." />
+                          <CommandList>
+                            <CommandEmpty>No folders found.</CommandEmpty>
+                            <CommandGroup>
+                              <CommandItem
+                                value=""
+                                onSelect={() => { field.onChange(null); setFolderOpen(false) }}
+                              >
+                                No folder
+                              </CommandItem>
+                              {folders.map((folder) => (
+                                <CommandItem
+                                  key={folder.id}
+                                  value={folder.name}
+                                  onSelect={() => { field.onChange(folder.id); setFolderOpen(false) }}
+                                >
+                                  {folder.name}
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                  </FormItem>
+                )
+              }}
+            />
+
             {/* Category — Combobox (Popover + Command) */}
             <FormField
               control={form.control}

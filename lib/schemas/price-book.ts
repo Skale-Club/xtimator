@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 export const priceBookItemSchema = z.object({
+  folder_id: z.string().uuid().optional().nullable(),
   category: z.string().optional().or(z.literal('')),
   name: z.string().min(1, 'Item name is required').max(200),
   unit: z.string().optional().or(z.literal('')),

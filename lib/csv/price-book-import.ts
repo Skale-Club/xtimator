@@ -11,9 +11,13 @@ export type RowError =
   | 'invalid_unit_price'
   | 'negative_unit_price'
 
+// Extend PriceBookItemFormValues with a transient folder_name for import
+// folder_name is NOT in the Zod schema — resolved to folder_id by the action layer
+export type ImportRow = PriceBookItemFormValues & { folder_name?: string }
+
 export interface ParsedRow {
   rowNumber: number
-  values: PriceBookItemFormValues
+  values: ImportRow
   errors: RowError[]
   isDuplicateInFile: boolean
 }
@@ -83,6 +87,7 @@ export function parsePriceBookCsv(file: File): Promise<ParseOutcome> {
         const seenInFile = new Set<string>()
         const rows: ParsedRow[] = results.data.map((raw, i) => {
           const errors: RowError[] = []
+          const rawFolder = (raw.folder ?? '').trim()
           const rawCategory = (raw.category ?? '').trim()
           const rawName = (raw.name ?? '').trim()
           const rawUnit = (raw.unit ?? '').trim()
@@ -102,12 +107,13 @@ export function parsePriceBookCsv(file: File): Promise<ParseOutcome> {
           return {
             rowNumber: i + 2, // header is row 1, first data row is row 2
             values: {
+              folder_name: rawFolder || undefined, // transient — not in Zod schema
               category: rawCategory,
               name: rawName,
               unit: rawUnit,
               unit_price: Number.isNaN(priceNum) ? 0 : priceNum,
               notes: '',
-            },
+            } as ImportRow,
             errors,
             isDuplicateInFile: isDup,
           }

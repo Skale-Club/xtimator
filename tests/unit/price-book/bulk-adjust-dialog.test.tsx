@@ -22,6 +22,8 @@ const mockItems: PriceBookItem[] = [
   {
     id: '1',
     company_id: 'c1',
+    folder_id: null,
+    folder_name: null,
     category: 'Labor',
     name: 'General Labor',
     unit: 'hr',
@@ -33,6 +35,8 @@ const mockItems: PriceBookItem[] = [
   {
     id: '2',
     company_id: 'c1',
+    folder_id: null,
+    folder_name: null,
     category: 'Labor',
     name: 'Supervisor',
     unit: 'hr',

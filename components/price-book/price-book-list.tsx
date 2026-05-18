@@ -2,7 +2,21 @@
 
 import { useState, useMemo, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { BookOpen, Search, MoreHorizontal, Percent, Plus, Upload, ImageIcon } from 'lucide-react'
+import {
+  BookOpen,
+  Search,
+  MoreHorizontal,
+  Percent,
+  Plus,
+  Upload,
+  ImageIcon,
+  ChevronDown,
+  ChevronRight,
+  Pencil,
+  Trash2,
+  FolderPlus,
+  FolderOpen,
+} from 'lucide-react'
 import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -30,19 +44,47 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { EmptyState } from '@/components/dashboard/empty-state'
 import { PriceBookItemDialog } from '@/components/price-book/price-book-item-dialog'
 import { PriceBookImportDialog } from '@/components/price-book/price-book-import-dialog'
 import { BulkAdjustDialog } from '@/components/price-book/bulk-adjust-dialog'
-import { deletePriceBookItem } from '@/lib/actions/price-book'
-import type { PriceBookItem } from '@/lib/queries/price-book'
+import {
+  deletePriceBookItem,
+  createFolder,
+  updateFolder,
+  deleteFolder,
+} from '@/lib/actions/price-book'
+import type { PriceBookItem, PriceBookFolder } from '@/lib/queries/price-book'
 
 interface PriceBookListProps {
   items: PriceBookItem[]
+  folders: PriceBookFolder[]
   companyId: string
 }
 
-export function PriceBookList({ items, companyId }: PriceBookListProps) {
+function groupByCategory(items: PriceBookItem[]) {
+  const map = new Map<string | null, PriceBookItem[]>()
+  for (const item of items) {
+    const key = item.category || null
+    const list = map.get(key) ?? []
+    list.push(item)
+    map.set(key, list)
+  }
+  return Array.from(map.entries()).sort(([a], [b]) => {
+    if (a === null) return 1
+    if (b === null) return -1
+    return a.localeCompare(b)
+  })
+}
+
+export function PriceBookList({ items, folders, companyId }: PriceBookListProps) {
   const router = useRouter()
   const [search, setSearch] = useState('')
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -57,6 +99,15 @@ export function PriceBookList({ items, companyId }: PriceBookListProps) {
   const [adjustCategory, setAdjustCategory] = useState<string | null>(null)
   const [adjustDialogOpen, setAdjustDialogOpen] = useState(false)
 
+  // Folder state
+  const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set())
+  const [renamingFolderId, setRenamingFolderId] = useState<string | null>(null)
+  const [renamingFolderValue, setRenamingFolderValue] = useState('')
+  const [newFolderDialogOpen, setNewFolderDialogOpen] = useState(false)
+  const [newFolderName, setNewFolderName] = useState('')
+  const [deletingFolderId, setDeletingFolderId] = useState<string | null>(null)
+  const [deleteFolderDialogOpen, setDeleteFolderDialogOpen] = useState(false)
+
   // Filter FIRST (Pitfall 4: order matters — group depends on filtered)
   const filtered = useMemo(() => {
     if (!search.trim()) return items
@@ -64,25 +115,43 @@ export function PriceBookList({ items, companyId }: PriceBookListProps) {
     return items.filter(
       (item) =>
         item.name.toLowerCase().includes(q) ||
-        (item.category ?? '').toLowerCase().includes(q)
+        (item.category ?? '').toLowerCase().includes(q) ||
+        (item.folder_name ?? '').toLowerCase().includes(q)
     )
   }, [items, search])
 
-  // Group filtered items by category, sort categories alphabetically; null = Uncategorized (rendered last)
-  const grouped = useMemo(() => {
+  // Group filtered items by folder_id
+  const groupedByFolder = useMemo(() => {
     const map = new Map<string | null, PriceBookItem[]>()
     for (const item of filtered) {
-      const key = item.category || null
+      const key = item.folder_id ?? null
       const list = map.get(key) ?? []
       list.push(item)
       map.set(key, list)
     }
-    return Array.from(map.entries()).sort(([a], [b]) => {
-      if (a === null) return 1   // nulls last
-      if (b === null) return -1
-      return a.localeCompare(b)
-    })
+    return map
   }, [filtered])
+
+  // Build display-order folder sections: named folders first (sorted by sort_order/name), Uncategorized last
+  const folderSections = useMemo(() => {
+    const sections: Array<{
+      id: string | null
+      name: string
+      items: PriceBookItem[]
+      isVirtual: boolean
+    }> = []
+    // Named folders in sort_order
+    for (const folder of folders) {
+      const folderItems = groupedByFolder.get(folder.id) ?? []
+      sections.push({ id: folder.id, name: folder.name, items: folderItems, isVirtual: false })
+    }
+    // Virtual uncategorized — items with folder_id === null
+    const uncatItems = groupedByFolder.get(null) ?? []
+    if (uncatItems.length > 0) {
+      sections.push({ id: null, name: 'Uncategorized', items: uncatItems, isVirtual: true })
+    }
+    return sections
+  }, [folders, groupedByFolder])
 
   // Distinct existing categories for dialog autocomplete (exclude null/empty)
   const existingCategories = useMemo(
@@ -145,8 +214,43 @@ export function PriceBookList({ items, companyId }: PriceBookListProps) {
     })
   }
 
+  function handleRenameConfirm(folderId: string) {
+    const trimmed = renamingFolderValue.trim()
+    setRenamingFolderId(null)
+    if (!trimmed) return
+    startTransition(async () => {
+      const result = await updateFolder(folderId, trimmed)
+      if (result.error) toast.error(result.error)
+      else router.refresh()
+    })
+  }
+
+  function handleCreateFolder() {
+    const trimmed = newFolderName.trim()
+    if (!trimmed) return
+    startTransition(async () => {
+      const result = await createFolder(trimmed)
+      if (result.error) { toast.error(result.error); return }
+      setNewFolderName('')
+      setNewFolderDialogOpen(false)
+      router.refresh()
+    })
+  }
+
+  function handleConfirmDeleteFolder() {
+    if (!deletingFolderId) return
+    startTransition(async () => {
+      const result = await deleteFolder(deletingFolderId)
+      if (result.error) { toast.error(result.error); return }
+      toast.success('Folder deleted')
+      setDeleteFolderDialogOpen(false)
+      setDeletingFolderId(null)
+      router.refresh()
+    })
+  }
+
   // Empty state — no items at all
-  if (items.length === 0) {
+  if (items.length === 0 && folders.length === 0) {
     return (
       <>
         <EmptyState
@@ -168,6 +272,7 @@ export function PriceBookList({ items, companyId }: PriceBookListProps) {
           item={editingItem}
           companyId={companyId}
           existingCategories={existingCategories}
+          folders={folders}
         />
         <PriceBookImportDialog
           open={importDialogOpen}
@@ -182,6 +287,10 @@ export function PriceBookList({ items, companyId }: PriceBookListProps) {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Price Book</h1>
         <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setNewFolderDialogOpen(true)}>
+            <FolderPlus className="h-4 w-4 mr-2" />
+            New Folder
+          </Button>
           <Button variant="outline" onClick={() => setImportDialogOpen(true)}>
             <Upload className="h-4 w-4 mr-2" />
             Import CSV
@@ -214,90 +323,169 @@ export function PriceBookList({ items, companyId }: PriceBookListProps) {
         />
       )}
 
-      {/* Category sections — always-expanded, alphabetical */}
-      {grouped.length > 0 && (
+      {/* Folder sections */}
+      {folderSections.length > 0 && (
         <div className="space-y-6">
-          {grouped.map(([category, categoryItems]) => (
-            <div key={category ?? '__uncategorized__'} className="space-y-2">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-                  {category ?? 'Uncategorized'}
-                </h3>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={category === null || categoryItems.length === 0}
-                  onClick={() => handleAdjustCategory(category)}
-                  data-testid={`adjust-btn-${category ?? 'uncategorized'}`}
-                >
-                  <Percent className="h-3.5 w-3.5 mr-1.5" />
-                  Adjust %
-                </Button>
-              </div>
-              <div className="rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Item</TableHead>
-                      <TableHead>Unit</TableHead>
-                      <TableHead>Unit Price</TableHead>
-                      <TableHead className="w-[50px]" />
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {categoryItems.map((item) => (
-                      <TableRow key={item.id}>
-                        <TableCell className="font-medium">
-                          <div className="flex items-center gap-2">
-                            {item.image_url ? (
-                              <img
-                                src={item.image_url}
-                                alt={item.name}
-                                className="h-8 w-8 rounded object-cover shrink-0"
-                              />
-                            ) : (
-                              <div className="h-8 w-8 rounded bg-muted flex items-center justify-center shrink-0">
-                                <ImageIcon className="h-4 w-4 text-muted-foreground" />
-                              </div>
-                            )}
-                            {item.name}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {item.unit || '—'}
-                        </TableCell>
-                        <TableCell>${item.unit_price.toFixed(2)}</TableCell>
-                        <TableCell>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                              >
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => handleEditItem(item)}>
-                                Edit
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                className="text-destructive"
-                                onClick={() => handleDeletePrompt(item)}
-                              >
-                                Delete
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                      </TableRow>
+          {folderSections.map(({ id: folderId, name: folderName, items: folderItems, isVirtual }) => {
+            const isCollapsed = folderId ? collapsedFolders.has(folderId) : false
+            const isRenaming = folderId === renamingFolderId
+
+            return (
+              <div key={folderId ?? '__uncategorized__'} className="space-y-4">
+                {/* Folder header */}
+                <div className="flex items-center gap-2 border-b pb-2">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    onClick={() => {
+                      if (!folderId) return
+                      setCollapsedFolders((prev) => {
+                        const next = new Set(prev)
+                        next.has(folderId) ? next.delete(folderId) : next.add(folderId)
+                        return next
+                      })
+                    }}
+                    disabled={!folderId}
+                  >
+                    {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  </Button>
+
+                  {isRenaming ? (
+                    <Input
+                      autoFocus
+                      className="h-7 w-40 text-sm"
+                      value={renamingFolderValue}
+                      onChange={(e) => setRenamingFolderValue(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleRenameConfirm(folderId!)
+                        if (e.key === 'Escape') setRenamingFolderId(null)
+                      }}
+                      onBlur={() => handleRenameConfirm(folderId!)}
+                    />
+                  ) : (
+                    <span className="font-semibold text-sm flex items-center gap-1.5">
+                      <FolderOpen className="h-4 w-4 text-muted-foreground" />
+                      {folderName}
+                      <span className="text-muted-foreground font-normal ml-1">
+                        ({folderItems.length})
+                      </span>
+                    </span>
+                  )}
+
+                  {!isVirtual && !isRenaming && (
+                    <div className="ml-auto flex items-center gap-1">
+                      <Button
+                        variant="ghost" size="icon" className="h-6 w-6"
+                        onClick={() => {
+                          setRenamingFolderId(folderId!)
+                          setRenamingFolderValue(folderName)
+                        }}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost" size="icon" className="h-6 w-6 text-destructive hover:text-destructive"
+                        onClick={() => {
+                          setDeletingFolderId(folderId!)
+                          setDeleteFolderDialogOpen(true)
+                        }}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Category groups inside folder */}
+                {!isCollapsed && (
+                  <div className="space-y-6 pl-4">
+                    {groupByCategory(folderItems).map(([category, categoryItems]) => (
+                      <div key={category ?? '__uncategorized__'} className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                            {category ?? 'Uncategorized'}
+                          </h3>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={category === null || categoryItems.length === 0}
+                            onClick={() => handleAdjustCategory(category)}
+                            data-testid={`adjust-btn-${category ?? 'uncategorized'}`}
+                          >
+                            <Percent className="h-3.5 w-3.5 mr-1.5" />
+                            Adjust %
+                          </Button>
+                        </div>
+                        <div className="rounded-md border">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Item</TableHead>
+                                <TableHead>Unit</TableHead>
+                                <TableHead>Unit Price</TableHead>
+                                <TableHead className="w-[50px]" />
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {categoryItems.map((item) => (
+                                <TableRow key={item.id}>
+                                  <TableCell className="font-medium">
+                                    <div className="flex items-center gap-2">
+                                      {item.image_url ? (
+                                        <img
+                                          src={item.image_url}
+                                          alt={item.name}
+                                          className="h-8 w-8 rounded object-cover shrink-0"
+                                        />
+                                      ) : (
+                                        <div className="h-8 w-8 rounded bg-muted flex items-center justify-center shrink-0">
+                                          <ImageIcon className="h-4 w-4 text-muted-foreground" />
+                                        </div>
+                                      )}
+                                      {item.name}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="text-muted-foreground">
+                                    {item.unit || '—'}
+                                  </TableCell>
+                                  <TableCell>${item.unit_price.toFixed(2)}</TableCell>
+                                  <TableCell>
+                                    <DropdownMenu>
+                                      <DropdownMenuTrigger asChild>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-8 w-8"
+                                        >
+                                          <MoreHorizontal className="h-4 w-4" />
+                                        </Button>
+                                      </DropdownMenuTrigger>
+                                      <DropdownMenuContent align="end">
+                                        <DropdownMenuItem onClick={() => handleEditItem(item)}>
+                                          Edit
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem
+                                          className="text-destructive"
+                                          onClick={() => handleDeletePrompt(item)}
+                                        >
+                                          Delete
+                                        </DropdownMenuItem>
+                                      </DropdownMenuContent>
+                                    </DropdownMenu>
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      </div>
                     ))}
-                  </TableBody>
-                </Table>
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
 
@@ -308,9 +496,10 @@ export function PriceBookList({ items, companyId }: PriceBookListProps) {
         item={editingItem}
         companyId={companyId}
         existingCategories={existingCategories}
+        folders={folders}
       />
 
-      {/* Delete Confirmation */}
+      {/* Delete Item Confirmation */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -333,6 +522,52 @@ export function PriceBookList({ items, companyId }: PriceBookListProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Delete Folder Confirmation */}
+      <AlertDialog open={deleteFolderDialogOpen} onOpenChange={setDeleteFolderDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Folder</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will delete the folder. Items in this folder must be moved or deleted first.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDeleteFolder}
+              disabled={isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isPending ? 'Deleting...' : 'Delete Folder'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* New Folder Dialog */}
+      <Dialog open={newFolderDialogOpen} onOpenChange={setNewFolderDialogOpen}>
+        <DialogContent className="sm:max-w-xs">
+          <DialogHeader>
+            <DialogTitle>New Folder</DialogTitle>
+          </DialogHeader>
+          <Input
+            placeholder="Folder name..."
+            value={newFolderName}
+            onChange={(e) => setNewFolderName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleCreateFolder() }}
+            autoFocus
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNewFolderDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleCreateFolder} disabled={!newFolderName.trim() || isPending}>
+              Create
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Import CSV Dialog */}
       <PriceBookImportDialog

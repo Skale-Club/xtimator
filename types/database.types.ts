@@ -258,9 +258,10 @@ export type Database = {
       }
       company_price_book: {
         Row: {
-          category: string
+          category: string | null
           company_id: string
           created_at: string
+          folder_id: string | null
           id: string
           image_url: string | null
           name: string
@@ -269,9 +270,10 @@ export type Database = {
           unit_price: number
         }
         Insert: {
-          category: string
+          category?: string | null
           company_id: string
           created_at?: string
+          folder_id?: string | null
           id?: string
           image_url?: string | null
           name: string
@@ -280,9 +282,10 @@ export type Database = {
           unit_price?: number
         }
         Update: {
-          category?: string
+          category?: string | null
           company_id?: string
           created_at?: string
+          folder_id?: string | null
           id?: string
           image_url?: string | null
           name?: string
@@ -293,6 +296,45 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "company_price_book_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_price_book_folder_id_fkey"
+            columns: ["folder_id"]
+            isOneToOne: false
+            referencedRelation: "price_book_folders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      price_book_folders: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          name: string
+          sort_order: number
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          name: string
+          sort_order?: number
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          name?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "price_book_folders_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
