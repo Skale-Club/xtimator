@@ -1,8 +1,6 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { ArrowLeft } from 'lucide-react'
-import { createClient } from '@/lib/supabase/server'
-import { getClients } from '@/lib/queries/clients'
 import { getAuthClaims, getCachedCompany } from '@/lib/queries/auth'
 import { NewProjectWizard } from '@/components/projects/new-project-wizard'
 
@@ -12,9 +10,6 @@ export default async function NewProjectPage() {
 
   const company = await getCachedCompany(claims.sub)
   if (!company) redirect('/onboarding')
-
-  const supabase = await createClient()
-  const clients = await getClients(supabase, company.id)
 
   return (
     <div className="w-full max-w-4xl mx-auto px-6 py-8 space-y-6">
@@ -30,12 +25,12 @@ export default async function NewProjectPage() {
           New project
         </h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Pick a client (or skip for now) and choose how you want to describe the
-          job. You can change everything later from the project workspace.
+          Pick how you want to describe the job — audio, text, or photos. You can
+          link a client later from the project workspace.
         </p>
       </div>
 
-      <NewProjectWizard clients={clients} />
+      <NewProjectWizard />
     </div>
   )
 }
