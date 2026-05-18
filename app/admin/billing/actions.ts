@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { requireAdmin } from '@/lib/auth/admin-context'
+import { logAdminAction } from '@/lib/admin/audit-log'
 import { requireServiceClient } from '@/lib/supabase/service'
 import type { TierName } from '@/lib/entitlements'
 
@@ -19,7 +20,7 @@ export async function forceTier(
   tier: TierName,
   expiresAt?: string, // ISO string or undefined
 ): Promise<ActionResult> {
-  await requireAdmin()
+  const ctx = await requireAdmin()
 
   if (!companyId || !tier) return { ok: false, message: 'companyId and tier are required' }
 
@@ -41,6 +42,16 @@ export async function forceTier(
   if (error) return { ok: false, message: error.message }
 
   revalidatePath('/admin/billing')
+
+  void logAdminAction({
+    actorId: ctx.userId,
+    actorEmail: ctx.email,
+    action: 'tier.force',
+    targetType: 'company',
+    targetId: companyId,
+    metadata: { tier, expires_at: expiresAt ?? null },
+  })
+
   return { ok: true, message: `Tier set to ${tier}` }
 }
 
@@ -80,5 +91,15 @@ export async function grantBonusCredits(
   if (error) return { ok: false, message: error.message }
 
   revalidatePath('/admin/billing')
+
+  void logAdminAction({
+    actorId: ctx.userId,
+    actorEmail: ctx.email,
+    action: 'bonus_credits.grant',
+    targetType: 'company',
+    targetId: companyId,
+    metadata: { units },
+  })
+
   return { ok: true, message: `Granted ${units} bonus estimate credits` }
 }

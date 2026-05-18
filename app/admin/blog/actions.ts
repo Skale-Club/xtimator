@@ -1,6 +1,7 @@
 'use server'
 import { revalidatePath } from 'next/cache'
 import { requireAdmin } from '@/lib/auth/admin-context'
+import { logAdminAction } from '@/lib/admin/audit-log'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { blogPostSchema, type BlogPostInput } from '@/lib/schemas/admin'
 
@@ -11,14 +12,15 @@ function slugify(s: string): string {
 }
 
 export async function createPost(data: BlogPostInput): Promise<BlogActionResult> {
-  await requireAdmin()
+  const ctx = await requireAdmin()
   const parsed = blogPostSchema.safeParse(data)
   if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? 'Validation failed' }
   const svc = requireServiceClient()
   const now = new Date().toISOString()
+  const finalSlug = parsed.data.slug || slugify(parsed.data.title)
   const { error } = await svc.from('blog_posts').insert({
     title: parsed.data.title,
-    slug: parsed.data.slug || slugify(parsed.data.title),
+    slug: finalSlug,
     content: parsed.data.content,
     excerpt: parsed.data.excerpt,
     cover_image_url: parsed.data.coverImageUrl,
@@ -33,11 +35,21 @@ export async function createPost(data: BlogPostInput): Promise<BlogActionResult>
   }
   revalidatePath('/admin/blog')
   revalidatePath('/blog')
+
+  void logAdminAction({
+    actorId: ctx.userId,
+    actorEmail: ctx.email,
+    action: 'blog.create',
+    targetType: 'blog_post',
+    targetId: finalSlug,
+    metadata: { status: parsed.data.status },
+  })
+
   return { ok: true }
 }
 
 export async function updatePost(id: string, data: BlogPostInput): Promise<BlogActionResult> {
-  await requireAdmin()
+  const ctx = await requireAdmin()
   const parsed = blogPostSchema.safeParse(data)
   if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? 'Validation failed' }
   const svc = requireServiceClient()
@@ -62,24 +74,58 @@ export async function updatePost(id: string, data: BlogPostInput): Promise<BlogA
   if (existing?.status === 'published' || parsed.data.status === 'published') {
     revalidatePath(`/blog/${parsed.data.slug}`)
   }
+
+  void logAdminAction({
+    actorId: ctx.userId,
+    actorEmail: ctx.email,
+    action: 'blog.update',
+    targetType: 'blog_post',
+    targetId: parsed.data.slug,
+    metadata: {
+      status: parsed.data.status,
+      previous_status: existing?.status ?? null,
+    },
+  })
+
   return { ok: true }
 }
 
 export async function deletePost(id: string): Promise<BlogActionResult> {
-  await requireAdmin()
+  const ctx = await requireAdmin()
   const svc = requireServiceClient()
+  // Capture the slug before deletion so the audit row references it (not the UUID).
+  const { data: existing } = await svc
+    .from('blog_posts')
+    .select('slug')
+    .eq('id', id)
+    .maybeSingle()
   const { error } = await svc.from('blog_posts').delete().eq('id', id)
   if (error) return { ok: false, message: error.message }
   revalidatePath('/admin/blog')
   revalidatePath('/blog')
+
+  void logAdminAction({
+    actorId: ctx.userId,
+    actorEmail: ctx.email,
+    action: 'blog.delete',
+    targetType: 'blog_post',
+    targetId: existing?.slug ?? id,
+  })
+
   return { ok: true }
 }
 
 export async function togglePostStatus(id: string, currentStatus: 'draft' | 'published'): Promise<BlogActionResult> {
-  await requireAdmin()
+  const ctx = await requireAdmin()
   const svc = requireServiceClient()
   const newStatus = currentStatus === 'draft' ? 'published' : 'draft'
   const now = new Date().toISOString()
+  // Capture slug for the audit row.
+  const { data: existing } = await svc
+    .from('blog_posts')
+    .select('slug')
+    .eq('id', id)
+    .maybeSingle()
   const { error } = await svc.from('blog_posts').update({
     status: newStatus,
     published_at: newStatus === 'published' ? now : null,
@@ -88,5 +134,15 @@ export async function togglePostStatus(id: string, currentStatus: 'draft' | 'pub
   if (error) return { ok: false, message: error.message }
   revalidatePath('/admin/blog')
   revalidatePath('/blog')
+
+  void logAdminAction({
+    actorId: ctx.userId,
+    actorEmail: ctx.email,
+    action: 'blog.publish',
+    targetType: 'blog_post',
+    targetId: existing?.slug ?? id,
+    metadata: { new_status: newStatus, previous_status: currentStatus },
+  })
+
   return { ok: true }
 }

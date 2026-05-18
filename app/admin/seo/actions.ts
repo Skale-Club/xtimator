@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { requireAdmin } from '@/lib/auth/admin-context'
+import { logAdminAction } from '@/lib/admin/audit-log'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { invalidatePlatformConfig } from '@/lib/platform-config'
 import { seoSchema } from '@/lib/schemas/admin'
@@ -9,7 +10,7 @@ import { seoSchema } from '@/lib/schemas/admin'
 export type SaveSeoResult = { ok: true } | { ok: false; message: string }
 
 export async function saveSeo(formData: FormData): Promise<SaveSeoResult> {
-  await requireAdmin()
+  const ctx = await requireAdmin()
 
   const raw = {
     siteTitle: formData.get('siteTitle') || null,
@@ -38,5 +39,18 @@ export async function saveSeo(formData: FormData): Promise<SaveSeoResult> {
   invalidatePlatformConfig()
   revalidatePath('/admin/seo')
   revalidatePath('/', 'layout')
+
+  void logAdminAction({
+    actorId: ctx.userId,
+    actorEmail: ctx.email,
+    action: 'seo.save',
+    metadata: {
+      site_title_set: !!parsed.data.siteTitle,
+      meta_description_set: !!parsed.data.metaDescription,
+      og_image_set: !!parsed.data.ogImageUrl,
+      canonical_set: !!parsed.data.canonicalBaseUrl,
+    },
+  })
+
   return { ok: true }
 }

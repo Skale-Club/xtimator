@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { requireAdmin } from '@/lib/auth/admin-context'
+import { logAdminAction } from '@/lib/admin/audit-log'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { createStorage } from '@/lib/storage'
 import { invalidatePlatformConfig } from '@/lib/platform-config'
@@ -104,5 +105,19 @@ export async function saveBranding(formData: FormData): Promise<SaveBrandingResu
   invalidatePlatformConfig()
   revalidatePath('/admin/branding')
   revalidatePath('/', 'layout')
+
+  void logAdminAction({
+    actorId: ctx.userId,
+    actorEmail: ctx.email,
+    action: 'branding.save',
+    metadata: {
+      app_name_set: !!parsed.data.appName,
+      primary_color_set: !!parsed.data.primaryColor,
+      email_from_name_set: !!parsed.data.emailFromName,
+      logo_uploaded: logoUrl !== undefined,
+      favicon_uploaded: faviconUrl !== undefined,
+    },
+  })
+
   return { ok: true }
 }

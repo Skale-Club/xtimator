@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { requireAdmin } from '@/lib/auth/admin-context'
+import { logAdminAction } from '@/lib/admin/audit-log'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { addAdminSchema } from '@/lib/schemas/admin'
 
@@ -19,7 +20,7 @@ import { addAdminSchema } from '@/lib/schemas/admin'
 type ActionResult = { ok: true } | { ok: false; message: string }
 
 export async function addPlatformAdmin(input: { email: string }): Promise<ActionResult> {
-  await requireAdmin()
+  const ctx = await requireAdmin()
 
   const parsed = addAdminSchema.safeParse(input)
   if (!parsed.success) {
@@ -60,11 +61,21 @@ export async function addPlatformAdmin(input: { email: string }): Promise<Action
   }
 
   revalidatePath('/admin/admins')
+
+  void logAdminAction({
+    actorId: ctx.userId,
+    actorEmail: ctx.email,
+    action: 'admin.add',
+    targetType: 'user',
+    targetId: user.id,
+    metadata: { email: parsed.data.email },
+  })
+
   return { ok: true }
 }
 
 export async function removePlatformAdmin(input: { userId: string }): Promise<ActionResult> {
-  await requireAdmin()
+  const ctx = await requireAdmin()
 
   const svc = requireServiceClient()
   const { error } = await svc.from('platform_admins').delete().eq('user_id', input.userId)
@@ -79,5 +90,14 @@ export async function removePlatformAdmin(input: { userId: string }): Promise<Ac
   }
 
   revalidatePath('/admin/admins')
+
+  void logAdminAction({
+    actorId: ctx.userId,
+    actorEmail: ctx.email,
+    action: 'admin.remove',
+    targetType: 'user',
+    targetId: input.userId,
+  })
+
   return { ok: true }
 }

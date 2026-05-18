@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { Resend } from 'resend'
 import Anthropic from '@anthropic-ai/sdk'
 import { requireAdmin } from '@/lib/auth/admin-context'
+import { logAdminAction } from '@/lib/admin/audit-log'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { encrypt } from '@/lib/crypto/aes'
 import {
@@ -57,6 +58,17 @@ export async function saveIntegrationKey(input: {
 
   invalidatePlatformConfig()
   revalidatePath('/admin/integrations')
+
+  const last4 = parsed.data.apiKey.slice(-4)
+  void logAdminAction({
+    actorId: ctx.userId,
+    actorEmail: ctx.email,
+    action: 'integration.save',
+    targetType: 'integration',
+    targetId: parsed.data.provider,
+    metadata: { last4 },
+  })
+
   return { ok: true }
 }
 
@@ -67,7 +79,7 @@ export async function saveIntegrationKey(input: {
 export async function deleteIntegrationKey(input: {
   provider: IntegrationProvider
 }): Promise<ActionResult> {
-  await requireAdmin()
+  const ctx = await requireAdmin()
   const svc = requireServiceClient()
   const { error } = await svc
     .from('platform_integrations')
@@ -78,6 +90,15 @@ export async function deleteIntegrationKey(input: {
   }
   invalidatePlatformConfig()
   revalidatePath('/admin/integrations')
+
+  void logAdminAction({
+    actorId: ctx.userId,
+    actorEmail: ctx.email,
+    action: 'integration.delete',
+    targetType: 'integration',
+    targetId: input.provider,
+  })
+
   return { ok: true }
 }
 
@@ -97,6 +118,22 @@ export async function testIntegrationKey(input: {
   key?: string
 }): Promise<ActionResult> {
   const ctx = await requireAdmin()
+  const result = await runTestIntegrationKey(ctx, input)
+  void logAdminAction({
+    actorId: ctx.userId,
+    actorEmail: ctx.email,
+    action: 'integration.test',
+    targetType: 'integration',
+    targetId: input.provider,
+    metadata: { ok: result.ok },
+  })
+  return result
+}
+
+async function runTestIntegrationKey(
+  ctx: { userId: string; email: string },
+  input: { provider: IntegrationProvider; key?: string }
+): Promise<ActionResult> {
   const key = input.key?.trim() || (await getIntegrationKey(input.provider))
   if (!key) {
     return { ok: false, message: 'No key configured' }
@@ -218,6 +255,21 @@ export async function setActiveAIProvider(
 ): Promise<ActionResult> {
   const ctx = await requireAdmin()
   const svc = requireServiceClient()
+
+  // Best-effort read of previous selection so we can record it in audit metadata.
+  let previous: string | null = null
+  try {
+    const { data: prev } = await svc
+      .from('platform_integrations')
+      .select('metadata')
+      .eq('provider', 'ai_config')
+      .maybeSingle()
+    const meta = (prev?.metadata ?? null) as { selected_ai_provider?: string } | null
+    previous = meta?.selected_ai_provider ?? null
+  } catch {
+    // non-fatal — audit row will just record { new } without previous
+  }
+
   const { error } = await svc.from('platform_integrations').upsert(
     {
       provider: 'ai_config',
@@ -235,5 +287,15 @@ export async function setActiveAIProvider(
   }
   invalidatePlatformConfig()
   revalidatePath('/admin/integrations')
+
+  void logAdminAction({
+    actorId: ctx.userId,
+    actorEmail: ctx.email,
+    action: 'ai_provider.set',
+    targetType: 'ai_config',
+    targetId: provider,
+    metadata: { new: provider, previous },
+  })
+
   return { ok: true, message: `Active AI provider set to ${provider}.` }
 }
