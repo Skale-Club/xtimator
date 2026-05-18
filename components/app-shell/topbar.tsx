@@ -1,6 +1,8 @@
 'use client'
 
+import { useEffect } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import {
   DropdownMenu,
@@ -29,6 +31,21 @@ interface TopbarProps {
 export function Topbar({ company, isAdmin }: TopbarProps) {
   const initial = (company.owner_name ?? company.name).charAt(0).toUpperCase()
   const { t } = useTranslation()
+  const router = useRouter()
+
+  // Cmd+Shift+A (or Ctrl+Shift+A) → jump to /admin (admin-only)
+  useEffect(() => {
+    if (!isAdmin) return
+    const handler = (e: KeyboardEvent) => {
+      const mod = e.metaKey || e.ctrlKey
+      if (mod && e.shiftKey && e.key.toLowerCase() === 'a') {
+        e.preventDefault()
+        router.push('/admin')
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [isAdmin, router])
 
   return (
     <header
@@ -41,7 +58,8 @@ export function Topbar({ company, isAdmin }: TopbarProps) {
           <Link
             href="/admin"
             className="inline-flex items-center justify-center h-9 w-9 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
-            title="Admin Panel"
+            title={t('Admin Panel') + ' (⌘⇧A)'}
+            aria-label={t('Open Super Admin Panel')}
           >
             <ShieldCheck className="h-4 w-4" />
           </Link>
