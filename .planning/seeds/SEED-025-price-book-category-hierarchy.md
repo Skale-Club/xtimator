@@ -1,5 +1,5 @@
 ---
-id: SEED-012
+id: SEED-025
 status: dormant
 planted: 2026-05-18
 planted_during: v3.1.1 — MVP Launch Prep + Future-Proofing
@@ -7,7 +7,7 @@ trigger_when: Milestone dedicated to price book organization, catalogue manageme
 scope: large
 ---
 
-# SEED-012: Price book category hierarchy (folders)
+# SEED-025: Price book category hierarchy (folders)
 
 ## Why This Matters
 

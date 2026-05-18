@@ -1,13 +1,15 @@
 ---
-id: SEED-010
-status: dormant
+id: SEED-023
+status: harvested
 planted: 2026-05-18
 planted_during: v3.1.1 — MVP Launch Prep + Future-Proofing
+harvested: 2026-05-18
+harvested_in: quick-260518-gf3
 trigger_when: Next milestone touching price book UX or general data-entry friction reduction
 scope: small
 ---
 
-# SEED-010: Make price book category optional
+# SEED-023: Make price book category optional
 
 ## Why This Matters
 

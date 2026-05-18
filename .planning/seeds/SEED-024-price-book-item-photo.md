@@ -1,5 +1,5 @@
 ---
-id: SEED-011
+id: SEED-024
 status: dormant
 planted: 2026-05-18
 planted_during: v3.1.1 — MVP Launch Prep + Future-Proofing
@@ -7,7 +7,7 @@ trigger_when: Next milestone touching price book UX, estimate quality, or media/
 scope: medium
 ---
 
-# SEED-011: Photo attached to price book item
+# SEED-024: Photo attached to price book item
 
 ## Why This Matters
 
