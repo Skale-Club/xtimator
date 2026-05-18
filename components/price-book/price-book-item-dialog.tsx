@@ -4,7 +4,7 @@ import { useEffect, useState, useTransition } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useRouter } from 'next/navigation'
-import { ChevronsUpDown } from 'lucide-react'
+import { ChevronsUpDown, ImageIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   Dialog,
@@ -76,6 +76,8 @@ export function PriceBookItemDialog({
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [categoryOpen, setCategoryOpen] = useState(false)
+  const [imageFile, setImageFile] = useState<File | null>(null)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
   const isEditing = !!item
 
   const form = useForm<PriceBookItemFormValues>({
@@ -92,17 +94,20 @@ export function PriceBookItemDialog({
         unit: item.unit ?? '',
         unit_price: item.unit_price,
         notes: item.notes ?? '',
+        image_url: item.image_url ?? '',
       })
     } else {
       form.reset(EMPTY_FORM)
     }
+    setImageFile(null)
+    setImagePreview(item?.image_url ?? null)
   }, [item, open, form])
 
   function onSubmit(values: PriceBookItemFormValues) {
     startTransition(async () => {
       const result = item
-        ? await updatePriceBookItem(item.id, values)
-        : await createPriceBookItem(values)
+        ? await updatePriceBookItem(item.id, values, imageFile)
+        : await createPriceBookItem(values, imageFile)
 
       if (result.error) {
         toast.error(result.error)
@@ -262,6 +267,58 @@ export function PriceBookItemDialog({
                 </FormItem>
               )}
             />
+
+            {/* Photo (optional) */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium leading-none">Photo (optional)</label>
+              <div className="flex items-center gap-3">
+                {imagePreview ? (
+                  <img
+                    src={imagePreview}
+                    alt="Item preview"
+                    className="h-10 w-10 rounded object-cover border border-border shrink-0"
+                  />
+                ) : (
+                  <div className="h-10 w-10 rounded border border-dashed border-border flex items-center justify-center shrink-0 bg-muted">
+                    <ImageIcon className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                )}
+                <div className="flex gap-2 flex-1">
+                  <label htmlFor="price-book-image-upload" className="cursor-pointer flex-1">
+                    <div className="flex items-center justify-center h-9 rounded-md border border-input bg-background px-3 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors">
+                      {imagePreview ? 'Change photo' : 'Add photo'}
+                    </div>
+                    <input
+                      id="price-book-image-upload"
+                      type="file"
+                      accept="image/*"
+                      className="sr-only"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] ?? null
+                        setImageFile(file)
+                        if (file) {
+                          const url = URL.createObjectURL(file)
+                          setImagePreview(url)
+                        }
+                      }}
+                    />
+                  </label>
+                  {imagePreview && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setImageFile(null)
+                        setImagePreview(null)
+                      }}
+                    >
+                      Remove
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
 
             <Button type="submit" className="w-full" disabled={isPending}>
               {isPending

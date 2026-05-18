@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { BookOpen, Search, MoreHorizontal, Percent, Plus, Upload } from 'lucide-react'
+import { BookOpen, Search, MoreHorizontal, Percent, Plus, Upload, ImageIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -247,7 +247,22 @@ export function PriceBookList({ items, companyId }: PriceBookListProps) {
                   <TableBody>
                     {categoryItems.map((item) => (
                       <TableRow key={item.id}>
-                        <TableCell className="font-medium">{item.name}</TableCell>
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-2">
+                            {item.image_url ? (
+                              <img
+                                src={item.image_url}
+                                alt={item.name}
+                                className="h-8 w-8 rounded object-cover shrink-0"
+                              />
+                            ) : (
+                              <div className="h-8 w-8 rounded bg-muted flex items-center justify-center shrink-0">
+                                <ImageIcon className="h-4 w-4 text-muted-foreground" />
+                              </div>
+                            )}
+                            {item.name}
+                          </div>
+                        </TableCell>
                         <TableCell className="text-muted-foreground">
                           {item.unit || '—'}
                         </TableCell>
