@@ -3,7 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 export interface PriceBookItem {
   id: string
   company_id: string
-  category: string
+  category: string | null
   name: string
   unit: string | null
   unit_price: number

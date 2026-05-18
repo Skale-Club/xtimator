@@ -1,7 +1,7 @@
 // lib/ai/types.ts
 
 export type PriceBookEntry = {
-  category: string
+  category: string | null
   name: string
   unit: string | null
   unit_price: number
