@@ -19,6 +19,7 @@ import { StatusBadge } from '@/components/dashboard/status-badge'
 import { EmptyState } from '@/components/dashboard/empty-state'
 import { ClientDetailActions } from '@/components/clients/client-detail-actions'
 import { ClientNewProjectButton } from '@/components/clients/client-new-project-button'
+import { T } from '@/components/i18n/t'
 
 export default async function ClientDetailPage({
   params,
@@ -122,7 +123,7 @@ export default async function ClientDetailPage({
       {/* Associated projects — glass section card grouping */}
       <Card variant="glass">
         <CardContent className="p-6 space-y-4">
-          <h2 className="text-xl font-semibold tracking-[-0.015em]">Projects</h2>
+          <h2 className="text-xl font-semibold tracking-[-0.015em]"><T>Projects</T></h2>
 
         {projects.length === 0 ? (
           <EmptyState
@@ -137,11 +138,11 @@ export default async function ClientDetailPage({
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Total</TableHead>
-                    <TableHead>Date</TableHead>
+                    <TableHead><T>Name</T></TableHead>
+                    <TableHead><T>Type</T></TableHead>
+                    <TableHead><T>Status</T></TableHead>
+                    <TableHead className="text-right"><T>Total</T></TableHead>
+                    <TableHead><T>Date</T></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

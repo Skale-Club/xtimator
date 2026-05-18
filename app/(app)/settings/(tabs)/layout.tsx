@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { BookOpen, ChevronRight, CreditCard, FileText, Globe, MessageSquare, Wallet } from 'lucide-react'
 import { SettingsNav } from '@/components/settings/settings-nav'
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { T } from '@/components/i18n/t'
 
 /**
  * Layout for the 5 main settings tabs (Company, Defaults, Notifications,
@@ -59,11 +60,10 @@ export default function SettingsTabsLayout({ children }: { children: React.React
     <div className="w-full max-w-none space-y-8 px-6 py-8">
       <header className="flex flex-col gap-2">
         <h1 className="text-[clamp(28px,3.5vw,40px)] font-semibold tracking-tight">
-          Settings
+          <T>Settings</T>
         </h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Manage company profile, estimate behavior, notifications, appearance,
-          and account access from one full-width workspace.
+          <T>Manage company profile, estimate behavior, notifications, appearance, and account access from one full-width workspace.</T>
         </p>
       </header>
 
@@ -73,7 +73,7 @@ export default function SettingsTabsLayout({ children }: { children: React.React
 
       <section aria-label="Other settings">
         <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-          More
+          <T>More</T>
         </h2>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {SUB_PAGES.map(({ href, title, description, Icon }) => (
@@ -90,8 +90,8 @@ export default function SettingsTabsLayout({ children }: { children: React.React
                   <div className="flex items-start gap-3">
                     <Icon className="mt-0.5 h-5 w-5 text-[hsl(var(--primary))]" />
                     <div>
-                      <CardTitle className="text-lg">{title}</CardTitle>
-                      <CardDescription className="mt-1">{description}</CardDescription>
+                      <CardTitle className="text-lg"><T text={title} /></CardTitle>
+                      <CardDescription className="mt-1"><T text={description} /></CardDescription>
                     </div>
                   </div>
                   <ChevronRight className="h-4 w-4 text-muted-foreground" />

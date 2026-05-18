@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import type { LucideIcon } from 'lucide-react'
+import { T } from '@/components/i18n/t'
 
 interface EmptyStateProps {
   icon: LucideIcon
@@ -30,22 +31,22 @@ export function EmptyState({
       <div className="mb-5 inline-flex h-12 w-12 items-center justify-center rounded-full gradient-brand shadow-glow-brand">
         <Icon className="h-6 w-6 text-white" aria-hidden />
       </div>
-      <h3 className="text-lg font-semibold mb-1">{title}</h3>
-      <p className="text-sm text-muted-foreground mb-6">{description}</p>
+      <h3 className="text-lg font-semibold mb-1"><T text={title} /></h3>
+      <p className="text-sm text-muted-foreground mb-6"><T text={description} /></p>
 
       {actionLabel && actionHref && (
         <Button variant="primary" asChild>
-          <Link href={actionHref}>{actionLabel}</Link>
+          <Link href={actionHref}><T text={actionLabel} /></Link>
         </Button>
       )}
 
       {actionLabel && onAction && !actionHref && (
-        <Button variant="primary" onClick={onAction}>{actionLabel}</Button>
+        <Button variant="primary" onClick={onAction}><T text={actionLabel} /></Button>
       )}
 
       {onClearFilter && (
         <Button variant="ghost" onClick={onClearFilter} className="mt-2">
-          Clear filters
+          <T>Clear filters</T>
         </Button>
       )}
     </div>

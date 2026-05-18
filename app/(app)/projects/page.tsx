@@ -6,6 +6,7 @@ import { FolderPlus, FolderOpen } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/dashboard/empty-state'
 import { cn } from '@/lib/utils'
+import { T } from '@/components/i18n/t'
 
 const STATUS_LABEL: Record<string, string> = {
   draft:          'Draft',
@@ -44,16 +45,16 @@ export default async function ProjectsPage() {
       <header className="flex items-center justify-between">
         <div>
           <h1 className="text-[clamp(28px,3.5vw,40px)] font-semibold tracking-[-0.02em] leading-[1.1]">
-            Projects
+            <T>Projects</T>
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            {list.length} {list.length === 1 ? 'project' : 'projects'}
+            <T text={`${list.length} ${list.length === 1 ? 'project' : 'projects'}`} />
           </p>
         </div>
         <Button variant="primary" asChild>
           <Link href="/projects/new">
             <FolderPlus className="h-4 w-4 mr-2" />
-            New project
+            <T>New project</T>
           </Link>
         </Button>
       </header>

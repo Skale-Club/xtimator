@@ -9,6 +9,7 @@ import { ProjectList } from '@/components/dashboard/project-list'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { Plus } from 'lucide-react'
+import { T } from '@/components/i18n/t'
 
 export default async function DashboardPage() {
   const claims = await getAuthClaims()
@@ -39,16 +40,16 @@ export default async function DashboardPage() {
                      [-webkit-mask-image:linear-gradient(to_bottom,black_55%,transparent_100%)]"
         />
         <h1 className="text-[clamp(36px,5vw,56px)] font-semibold tracking-[-0.025em] leading-[1.05]">
-          Welcome back, {firstName}
+          <T text={`Welcome back, ${firstName}`} />
         </h1>
         <p className="mt-3 text-base text-muted-foreground max-w-xl">
-          Track active projects, monitor estimate health, and start new work.
+          <T>Track active projects, monitor estimate health, and start new work.</T>
         </p>
         <div className="mt-6 flex gap-3">
           <Button variant="primary" size="lg" asChild>
             <Link href="/projects/new">
               <Plus className="h-4 w-4 mr-2" />
-              New project
+              <T>New project</T>
             </Link>
           </Button>
         </div>
@@ -60,7 +61,7 @@ export default async function DashboardPage() {
 
       <section className="px-6 mt-12">
         <h2 className="text-2xl font-semibold tracking-[-0.015em] mb-4">
-          Recent projects
+          <T>Recent projects</T>
         </h2>
         <Suspense fallback={<ProjectListSkeleton />}>
           <DashboardProjects companyId={company.id} />

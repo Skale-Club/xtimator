@@ -1,6 +1,7 @@
 import { Card } from '@/components/ui/card'
 import type { LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { T } from '@/components/i18n/t'
 
 interface StatCardProps {
   icon: LucideIcon
@@ -21,7 +22,7 @@ export function StatCard({ icon: Icon, label, value, delta, className }: StatCar
       <div className="flex items-center gap-2">
         <Icon className="h-4 w-4 text-muted-foreground" />
         <span className="text-xs uppercase tracking-[0.01em] text-muted-foreground">
-          {label}
+          <T text={label} />
         </span>
       </div>
       <p className="mt-3 font-mono text-3xl tabular-nums leading-none">{value}</p>
