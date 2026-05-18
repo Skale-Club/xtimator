@@ -1,6 +1,6 @@
 'use client'
 
-import { HoverPrefetchLink } from './hover-prefetch-link'
+import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { NAV_ITEMS } from './nav-items'
@@ -59,7 +59,7 @@ export function Sidebar({ branding, company: _company }: SidebarProps) {
           const Icon = item.icon
 
           return (
-            <HoverPrefetchLink
+            <Link
               key={item.href}
               href={item.href}
               data-active={isActive || undefined}
@@ -76,7 +76,7 @@ export function Sidebar({ branding, company: _company }: SidebarProps) {
             >
               <Icon className="h-5 w-5 shrink-0" />
               <span className="hidden lg:block">{t(item.label)}</span>
-            </HoverPrefetchLink>
+            </Link>
           )
         })}
       </nav>
