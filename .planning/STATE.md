@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v3.1.1
 milestone_name: MVP Launch Prep + Future-Proofing
 status: executing
-last_updated: "2026-05-17T18:48:42.191Z"
-last_activity: 2026-05-17
+last_updated: "2026-05-18T00:01:58.289Z"
+last_activity: 2026-05-18
 progress:
-  total_phases: 16
+  total_phases: 17
   completed_phases: 16
-  total_plans: 43
-  completed_plans: 43
+  total_plans: 47
+  completed_plans: 45
 ---
 
 # Project State
@@ -21,10 +21,10 @@ progress:
 
 ## Current Position
 
-Phase: 71
-Plan: Not started
+Phase: 72 (Admin Menu Performance — Instant Navigation) — EXECUTING
+Plan: 2 of 3
 Status: Ready to execute
-Last activity: 2026-05-17
+Last activity: 2026-05-18
 
 ## v3.1.1 Phases
 
@@ -406,6 +406,8 @@ Last activity: 2026-05-17
 - [Phase 71]: Input/Textarea focus migrated from --focus-shadow to gradient-brand glow (shadow-glow-brand)
 - [Phase 71]: 71-04: AuthCard switched from ad-hoc bg-black/40 to Card variant=glass primitive (single source of truth via 71-02)
 - [Phase 71]: Plan 71-07: removed per-trigger after:hidden override that was hiding the gradient tab indicator from 71-02
+- [Phase 72-admin-menu-performance]: getUserById batched by unique updated_by Set in loadCategoryInitials — 1-2 API calls instead of N per integration row
+- [Phase 72-admin-menu-performance]: listUsers(perPage:1000) replaced with Promise.all getUserById per platform_admins row — research confirmed table has 1-5 rows, paginated listUsers adds complexity with zero perf benefit
 
 ## Performance Metrics
 
@@ -528,13 +530,14 @@ Last activity: 2026-05-17
 | Phase 71 P08 | 480 | 3 tasks | 5 files |
 | Phase 71 P07 | 228 | 4 tasks | 13 files |
 | Phase 71 P10 | 660 | 5 tasks | 27 files |
+| Phase 72-admin-menu-performance P03 | 2min | 2 tasks | 2 files |
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-13)
 
 **Core value:** Business owner → job site audio recording → sent professional estimate in under 5 minutes
-**Current focus:** Phase 70 — stripe-connect-customer-payments
+**Current focus:** Phase 72 — Admin Menu Performance — Instant Navigation
 
 ## Notes
 
