@@ -1,6 +1,6 @@
 ---
 id: SEED-025
-status: dormant
+status: active
 planted: 2026-05-18
 planted_during: v3.1.1 — MVP Launch Prep + Future-Proofing
 trigger_when: Milestone dedicated to price book organization, catalogue management, or advanced settings UX

@@ -1,6 +1,6 @@
 ---
 id: SEED-024
-status: dormant
+status: active
 planted: 2026-05-18
 planted_during: v3.1.1 — MVP Launch Prep + Future-Proofing
 trigger_when: Next milestone touching price book UX, estimate quality, or media/photo features
