@@ -1,4 +1,4 @@
-import { LayoutDashboard, Users, FolderPlus, FolderOpen, Settings, type LucideIcon } from 'lucide-react'
+import { LayoutDashboard, Users, FolderPlus, FolderOpen, BookOpen, Settings, type LucideIcon } from 'lucide-react'
 
 export interface NavItem {
   label: string
@@ -13,5 +13,6 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Dashboard',   href: '/dashboard',    icon: LayoutDashboard },
   { label: 'Projects',    href: '/projects',     icon: FolderOpen },
   { label: 'Clients',     href: '/clients',      icon: Users },
+  { label: 'Price Book',  href: '/settings/price-book', icon: BookOpen },
   { label: 'Settings',    href: '/settings',     icon: Settings },
 ]
