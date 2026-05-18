@@ -9,6 +9,7 @@ import { createClient } from '@/lib/supabase/client'
 import { createStorage } from '@/lib/storage'
 import { createPhoto } from '@/lib/actions/photo'
 import type { Photo } from '@/lib/queries/photo'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface PhotoDropZoneProps {
   projectId: string
@@ -25,6 +26,7 @@ export function PhotoDropZone({
   maxPhotos = 20,
   onPhotosUploaded,
 }: PhotoDropZoneProps) {
+  const { t } = useTranslation()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const [isDragging, setIsDragging] = useState(false)
@@ -35,7 +37,7 @@ export function PhotoDropZone({
     async (files: FileList | File[]) => {
       const fileArray = Array.from(files).filter((f) => f.type.startsWith('image/'))
       if (fileArray.length === 0) {
-        toast.error('No image files selected')
+        toast.error(t('No image files selected'))
         return
       }
 
@@ -43,7 +45,7 @@ export function PhotoDropZone({
       if (currentCount + fileArray.length > maxPhotos) {
         const remaining = maxPhotos - currentCount
         toast.error(
-          `Maximum ${maxPhotos} photos per project. You can add ${remaining} more.`
+          t(`Maximum ${maxPhotos} photos per project. You can add ${remaining} more.`)
         )
         return
       }
@@ -77,15 +79,15 @@ export function PhotoDropZone({
             upsert: false,
           })
         } catch (err) {
-          const message = err instanceof Error ? err.message : 'unknown error'
-          toast.error(`Failed to upload photo ${i + 1}: ${message}`)
+          const message = err instanceof Error ? err.message : t('unknown error')
+          toast.error(t(`Failed to upload photo ${i + 1}: ${message}`))
           continue
         }
 
         // Create DB record
         const result = await createPhoto(projectId, storagePath, currentCount + i)
         if ('error' in result) {
-          toast.error(`Failed to save photo ${i + 1}`)
+          toast.error(t(`Failed to save photo ${i + 1}`))
           continue
         }
 
@@ -96,7 +98,7 @@ export function PhotoDropZone({
       setIsUploading(false)
       if (newPhotos.length > 0) {
         onPhotosUploaded(newPhotos)
-        toast.success(`${newPhotos.length} photo${newPhotos.length > 1 ? 's' : ''} uploaded`)
+        toast.success(t(`${newPhotos.length} photo${newPhotos.length > 1 ? 's' : ''} uploaded`))
       }
     },
     [projectId, companyId, currentCount, maxPhotos, onPhotosUploaded]
@@ -169,7 +171,7 @@ export function PhotoDropZone({
           <div className="flex flex-col items-center gap-2">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
             <p className="text-sm text-muted-foreground">
-              Uploading {uploadProgress.completed}/{uploadProgress.total}...
+              {t('Uploading')} {uploadProgress.completed}/{uploadProgress.total}...
             </p>
           </div>
         ) : (
@@ -179,11 +181,11 @@ export function PhotoDropZone({
               <Upload className="h-6 w-6 text-white" />
             </div>
             <p className="text-sm text-muted-foreground">
-              Drop photos here or click to upload
+              {t('Drop photos here or click to upload')}
             </p>
             <p className="text-xs text-muted-foreground">
-              {currentCount} / {maxPhotos} photos
-              {remaining > 0 && remaining < maxPhotos && ` (${remaining} remaining)`}
+              {currentCount} / {maxPhotos} {t('photos')}
+              {remaining > 0 && remaining < maxPhotos && ` (${t(`${remaining} remaining`)})`}
             </p>
             <div className="flex gap-2">
               <Button
@@ -193,7 +195,7 @@ export function PhotoDropZone({
                 disabled={remaining <= 0}
               >
                 <Upload className="h-4 w-4 mr-1.5" />
-                Upload Photos
+                {t('Upload Photos')}
               </Button>
               <Button
                 variant="outline"
@@ -202,7 +204,7 @@ export function PhotoDropZone({
                 disabled={remaining <= 0}
               >
                 <CameraIcon className="h-4 w-4 mr-1.5" />
-                Take Photo
+                {t('Take Photo')}
               </Button>
             </div>
           </div>

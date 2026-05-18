@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase/client'
 import { createStorage } from '@/lib/storage'
 import type { Photo } from '@/lib/queries/photo'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface PhotoLightboxProps {
   photos: Photo[]
@@ -21,6 +22,7 @@ export function PhotoLightbox({
   open,
   onOpenChange,
 }: PhotoLightboxProps) {
+  const { t } = useTranslation()
   const [currentIndex, setCurrentIndex] = useState(selectedIndex)
   const [imageUrl, setImageUrl] = useState<string | null>(null)
 
@@ -80,12 +82,12 @@ export function PhotoLightbox({
           {imageUrl ? (
             <img
               src={imageUrl}
-              alt={currentPhoto?.caption ?? 'Photo'}
+              alt={currentPhoto?.caption ?? t('Photo')}
               className="object-contain max-h-[80vh] w-auto mx-auto"
             />
           ) : (
             <div className="h-[50vh] flex items-center justify-center">
-              <div className="animate-pulse text-white/50">Loading...</div>
+              <div className="animate-pulse text-white/50">{t('Loading...')}</div>
             </div>
           )}
 

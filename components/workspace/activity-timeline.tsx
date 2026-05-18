@@ -14,6 +14,7 @@ import {
 import type { LucideIcon } from 'lucide-react'
 import { relativeTime } from '@/lib/utils/relative-time'
 import type { ActivityEvent } from '@/lib/queries/project'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 const EVENT_CONFIG: Record<string, { icon: LucideIcon; label: string }> = {
   project_created: { icon: FolderPlus, label: 'Project created' },
@@ -30,15 +31,16 @@ interface ActivityTimelineProps {
 }
 
 export function ActivityTimeline({ events }: ActivityTimelineProps) {
+  const { t } = useTranslation()
   return (
     <Card variant="glass">
       <CardHeader>
-        <CardTitle className="text-base">Activity</CardTitle>
+        <CardTitle className="text-base">{t('Activity')}</CardTitle>
       </CardHeader>
       <CardContent>
         {events.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-4">
-            No activity yet
+            {t('No activity yet')}
           </p>
         ) : (
           <div className="space-y-4">
@@ -54,7 +56,7 @@ export function ActivityTimeline({ events }: ActivityTimelineProps) {
                     <Icon className="h-3.5 w-3.5 text-muted-foreground" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium">{config.label}</p>
+                    <p className="text-sm font-medium">{t(config.label)}</p>
                     <p className="text-xs text-muted-foreground">
                       {relativeTime(event.created_at)}
                     </p>

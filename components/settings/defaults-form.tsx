@@ -15,6 +15,7 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 const defaultsSchema = z.object({
   defaultTaxRate: z.coerce.number().min(0, 'Must be 0 or more').max(100, 'Must be 100 or less'),
@@ -30,6 +31,7 @@ interface DefaultsFormProps {
 }
 
 export function DefaultsForm({ company }: DefaultsFormProps) {
+  const { t } = useTranslation()
   const [isPending, startTransition] = useTransition()
 
   const form = useForm<DefaultsValues>({
@@ -54,7 +56,7 @@ export function DefaultsForm({ company }: DefaultsFormProps) {
       if (result.error) {
         toast.error(result.error)
       } else {
-        toast.success('Estimate defaults saved.')
+        toast.success(t('Estimate defaults saved.'))
       }
     })
   }
@@ -62,10 +64,9 @@ export function DefaultsForm({ company }: DefaultsFormProps) {
   return (
     <Card className="w-full rounded-[var(--radius-md)]">
       <CardHeader className="border-b border-border">
-        <CardTitle>Estimate Defaults</CardTitle>
+        <CardTitle>{t('Estimate Defaults')}</CardTitle>
         <CardDescription>
-          Set the reusable terms and calculation defaults applied when new
-          estimates are created.
+          {t('Set the reusable terms and calculation defaults applied when new estimates are created.')}
         </CardDescription>
       </CardHeader>
       <CardContent className="py-6">
@@ -78,7 +79,7 @@ export function DefaultsForm({ company }: DefaultsFormProps) {
                 name="defaultTaxRate"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Default Tax Rate (%)</FormLabel>
+                    <FormLabel>{t('Default Tax Rate (%)')}</FormLabel>
                     <FormControl>
                       <div className="relative">
                         <Input
@@ -94,7 +95,7 @@ export function DefaultsForm({ company }: DefaultsFormProps) {
                         </span>
                       </div>
                     </FormControl>
-                    <FormDescription>Applied to new estimates by default.</FormDescription>
+                    <FormDescription>{t('Applied to new estimates by default.')}</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -106,7 +107,7 @@ export function DefaultsForm({ company }: DefaultsFormProps) {
                 name="defaultValidityDays"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Estimate Validity Period</FormLabel>
+                    <FormLabel>{t('Estimate Validity Period')}</FormLabel>
                     <FormControl>
                       <div className="relative">
                         <Input
@@ -116,11 +117,11 @@ export function DefaultsForm({ company }: DefaultsFormProps) {
                           {...field}
                         />
                         <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                          days
+                          {t('days')}
                         </span>
                       </div>
                     </FormControl>
-                    <FormDescription>How long estimates are valid after creation.</FormDescription>
+                    <FormDescription>{t('How long estimates are valid after creation.')}</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -132,10 +133,10 @@ export function DefaultsForm({ company }: DefaultsFormProps) {
                 name="defaultPaymentTerms"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Payment Terms</FormLabel>
+                    <FormLabel>{t('Payment Terms')}</FormLabel>
                     <FormControl>
                       <Textarea
-                        placeholder="Net 30"
+                        placeholder={t('Net 30')}
                         rows={6}
                         {...field}
                       />
@@ -151,10 +152,10 @@ export function DefaultsForm({ company }: DefaultsFormProps) {
                 name="defaultWarrantyTerms"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Warranty Terms</FormLabel>
+                    <FormLabel>{t('Warranty Terms')}</FormLabel>
                     <FormControl>
                       <Textarea
-                        placeholder="1 year warranty on labor and materials"
+                        placeholder={t('1 year warranty on labor and materials')}
                         rows={6}
                         {...field}
                       />
@@ -167,7 +168,7 @@ export function DefaultsForm({ company }: DefaultsFormProps) {
 
             <Button type="submit" disabled={isPending} className="min-w-40">
               {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Save Defaults
+              {t('Save Defaults')}
             </Button>
           </form>
         </Form>

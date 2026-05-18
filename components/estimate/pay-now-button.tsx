@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/button'
 import { formatUSD } from '@/lib/utils/format'
+import { T } from '@/components/i18n/t'
 
 /**
  * Phase 70 — Stripe Connect customer payments (CONNECT-06).
@@ -50,10 +51,10 @@ export function PayNowButton(props: PayNowButtonProps) {
         size="lg"
         className="w-full shadow-glow-brand"
       >
-        Pay {formatUSD(props.totalAmountCents)}
+        <T text={`Pay ${formatUSD(props.totalAmountCents)}`} />
       </Button>
       <p className="text-xs text-muted-foreground mt-2 text-center">
-        Powered by Stripe · Secure payment
+        <T>Powered by Stripe · Secure payment</T>
       </p>
     </form>
   )

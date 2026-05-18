@@ -1,6 +1,7 @@
 'use client'
 import { Check, Loader2, AlertCircle } from 'lucide-react'
 import { Card } from '@/components/ui/card'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 export const STAGES = ['saving', 'transcribing', 'analyzing', 'generating'] as const
 export type StageKey = typeof STAGES[number]
@@ -18,6 +19,7 @@ export interface CaptureStepperProps {
 }
 
 export function CaptureStepper({ currentStage, failedAt, transcript }: CaptureStepperProps) {
+  const { t } = useTranslation()
   const currentIdx =
     currentStage === 'done' ? STAGES.length :
     currentStage === 'idle' ? -1 :
@@ -57,7 +59,7 @@ export function CaptureStepper({ currentStage, failedAt, transcript }: CaptureSt
                 {status === 'pending' && <span className="h-2 w-2 rounded-full bg-muted" data-testid={`stage-${s}-pending`} />}
               </span>
               <span className={status === 'pending' ? 'text-muted-foreground' : 'text-foreground'}>
-                {STAGE_LABELS[s]}
+                {t(STAGE_LABELS[s])}
               </span>
             </div>
           )
@@ -70,7 +72,7 @@ export function CaptureStepper({ currentStage, failedAt, transcript }: CaptureSt
           className="rounded-md border border-[var(--glass-border)] bg-[var(--glass-bg-light)] p-3 max-h-40 overflow-y-auto"
           data-testid="capture-transcript"
         >
-          <p className="text-xs text-muted-foreground mb-1">Transcript</p>
+          <p className="text-xs text-muted-foreground mb-1">{t('Transcript')}</p>
           <p className="text-sm whitespace-pre-wrap">{transcript}</p>
         </div>
       )}

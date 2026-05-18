@@ -3,6 +3,7 @@
 import { Card, CardContent } from '@/components/ui/card'
 import { Mic, Camera, FileText } from 'lucide-react'
 import type { ProjectQuickStats } from '@/lib/queries/project'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface QuickStatsProps {
   stats: ProjectQuickStats
@@ -15,6 +16,7 @@ const STAT_ITEMS = [
 ]
 
 export function QuickStats({ stats }: QuickStatsProps) {
+  const { t } = useTranslation()
   return (
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
       {STAT_ITEMS.map(({ key, label, icon: Icon }) => (
@@ -25,7 +27,7 @@ export function QuickStats({ stats }: QuickStatsProps) {
             </div>
             <div className="space-y-1">
               <p className="font-mono text-3xl tabular-nums leading-none">{stats[key]}</p>
-              <p className="text-xs uppercase tracking-[0.08em] text-muted-foreground">{label}</p>
+              <p className="text-xs uppercase tracking-[0.08em] text-muted-foreground">{t(label)}</p>
             </div>
           </CardContent>
         </Card>

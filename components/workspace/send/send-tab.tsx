@@ -7,6 +7,7 @@ import { SendForm } from './send-form'
 import type { EstimateWithSections } from '@/lib/queries/estimate'
 import type { EstimateTemplate } from '@/lib/utils/estimate-template'
 import { PlainTextCard } from './plain-text-card'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface SendTabProps {
   estimate: EstimateWithSections | null
@@ -19,14 +20,15 @@ interface SendTabProps {
 }
 
 export function SendTab({ estimate, projectName, companyName, clientEmail, clientName, ownerName, estimateTemplate }: SendTabProps) {
+  const { t } = useTranslation()
   if (!estimate) {
     return (
       <Card variant="glass">
         <CardContent className="flex flex-col items-center justify-center py-12 text-center">
           <FileText className="mb-4 h-12 w-12 text-muted-foreground" />
-          <h3 className="text-lg font-semibold">No estimate available</h3>
+          <h3 className="text-lg font-semibold">{t('No estimate available')}</h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            Generate an estimate first from the AI Estimate tab, then come back here to preview and send it.
+            {t('Generate an estimate first from the AI Estimate tab, then come back here to preview and send it.')}
           </p>
         </CardContent>
       </Card>

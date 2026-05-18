@@ -18,6 +18,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { LogoUploader } from '@/components/onboarding/logo-uploader'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 const companyInfoSchema = z.object({
   name: z.string().min(1, 'Company name is required'),
@@ -42,6 +43,7 @@ interface CompanyInfoFormProps {
 }
 
 export function CompanyInfoForm({ company }: CompanyInfoFormProps) {
+  const { t } = useTranslation()
   const [logoFile, setLogoFile] = useState<File | null>(null)
   const [logoPreview, setLogoPreview] = useState<string | null>(company.logo_url)
   const [isPending, startTransition] = useTransition()
@@ -93,7 +95,7 @@ export function CompanyInfoForm({ company }: CompanyInfoFormProps) {
       if (result.error) {
         toast.error(result.error)
       } else {
-        toast.success('Company information saved.')
+        toast.success(t('Company information saved.'))
       }
     })
   }
@@ -101,10 +103,9 @@ export function CompanyInfoForm({ company }: CompanyInfoFormProps) {
   return (
     <Card className="w-full rounded-[var(--radius-md)]">
       <CardHeader className="border-b border-border">
-        <CardTitle>Company Information</CardTitle>
+        <CardTitle>{t('Company Information')}</CardTitle>
         <CardDescription>
-          Keep the business details that appear across estimates, client links,
-          and generated documents up to date.
+          {t('Keep the business details that appear across estimates, client links, and generated documents up to date.')}
         </CardDescription>
       </CardHeader>
       <CardContent className="py-6">
@@ -133,9 +134,9 @@ export function CompanyInfoForm({ company }: CompanyInfoFormProps) {
                   name="name"
                   render={({ field }) => (
                     <FormItem className="lg:col-span-2">
-                      <FormLabel>Company Name *</FormLabel>
+                      <FormLabel>{t('Company Name')} *</FormLabel>
                       <FormControl>
-                        <Input placeholder="Your Company" {...field} />
+                        <Input placeholder={t('Your Company')} {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -148,7 +149,7 @@ export function CompanyInfoForm({ company }: CompanyInfoFormProps) {
                   name="ownerName"
                   render={({ field }) => (
                     <FormItem className="lg:col-span-2">
-                      <FormLabel>Owner Name</FormLabel>
+                      <FormLabel>{t('Owner Name')}</FormLabel>
                       <FormControl>
                         <Input placeholder="John Doe" {...field} />
                       </FormControl>
@@ -163,7 +164,7 @@ export function CompanyInfoForm({ company }: CompanyInfoFormProps) {
                   name="phone"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Phone</FormLabel>
+                      <FormLabel>{t('Phone')}</FormLabel>
                       <FormControl>
                         <Input placeholder="(555) 123-4567" {...field} />
                       </FormControl>
@@ -176,7 +177,7 @@ export function CompanyInfoForm({ company }: CompanyInfoFormProps) {
                   name="email"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Email</FormLabel>
+                      <FormLabel>{t('Email')}</FormLabel>
                       <FormControl>
                         <Input placeholder="info@company.com" {...field} />
                       </FormControl>
@@ -191,7 +192,7 @@ export function CompanyInfoForm({ company }: CompanyInfoFormProps) {
                   name="website"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Website</FormLabel>
+                      <FormLabel>{t('Website')}</FormLabel>
                       <FormControl>
                         <Input placeholder="https://company.com" {...field} />
                       </FormControl>
@@ -206,23 +207,23 @@ export function CompanyInfoForm({ company }: CompanyInfoFormProps) {
                   name="industry"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Industry</FormLabel>
+                      <FormLabel>{t('Industry')}</FormLabel>
                       <Select
                         onValueChange={field.onChange}
                         defaultValue={field.value}
                       >
                         <FormControl>
                           <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Select industry" />
+                            <SelectValue placeholder={t('Select industry')} />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
                           {INDUSTRIES.map((ind) => (
                             <SelectItem key={ind.id} value={ind.id}>
-                              {ind.label}
+                              {t(ind.label)}
                             </SelectItem>
                           ))}
-                          <SelectItem value="other">Other</SelectItem>
+                          <SelectItem value="other">{t('Other')}</SelectItem>
                         </SelectContent>
                       </Select>
                       <FormMessage />
@@ -238,7 +239,7 @@ export function CompanyInfoForm({ company }: CompanyInfoFormProps) {
               name="address"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Address</FormLabel>
+                  <FormLabel>{t('Address')}</FormLabel>
                   <FormControl>
                     <Input placeholder="123 Main St" {...field} />
                   </FormControl>
@@ -254,9 +255,9 @@ export function CompanyInfoForm({ company }: CompanyInfoFormProps) {
                 name="city"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>City</FormLabel>
+                    <FormLabel>{t('City')}</FormLabel>
                     <FormControl>
-                      <Input placeholder="City" {...field} />
+                      <Input placeholder={t('City')} {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -267,7 +268,7 @@ export function CompanyInfoForm({ company }: CompanyInfoFormProps) {
                 name="state"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>State</FormLabel>
+                    <FormLabel>{t('State')}</FormLabel>
                     <FormControl>
                       <Input placeholder="CA" {...field} />
                     </FormControl>
@@ -280,7 +281,7 @@ export function CompanyInfoForm({ company }: CompanyInfoFormProps) {
                 name="zip"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Zip</FormLabel>
+                    <FormLabel>{t('Zip')}</FormLabel>
                     <FormControl>
                       <Input placeholder="90210" {...field} />
                     </FormControl>
@@ -297,9 +298,9 @@ export function CompanyInfoForm({ company }: CompanyInfoFormProps) {
                 name="licenseNumber"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>License Number</FormLabel>
+                    <FormLabel>{t('License Number')}</FormLabel>
                     <FormControl>
-                      <Input placeholder="License #" {...field} />
+                      <Input placeholder={t('License #')} {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -310,9 +311,9 @@ export function CompanyInfoForm({ company }: CompanyInfoFormProps) {
                 name="insuranceInfo"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Insurance Info</FormLabel>
+                    <FormLabel>{t('Insurance Info')}</FormLabel>
                     <FormControl>
-                      <Input placeholder="Insurance details" {...field} />
+                      <Input placeholder={t('Insurance details')} {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -326,7 +327,7 @@ export function CompanyInfoForm({ company }: CompanyInfoFormProps) {
               name="brandPrimaryColor"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Brand Color</FormLabel>
+                  <FormLabel>{t('Brand Color')}</FormLabel>
                   <div className="flex items-center gap-3">
                     <FormControl>
                       <input
@@ -347,7 +348,7 @@ export function CompanyInfoForm({ company }: CompanyInfoFormProps) {
 
             <Button type="submit" disabled={isPending} className="min-w-40">
               {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Save Company Info
+              {t('Save Company Info')}
             </Button>
           </form>
         </Form>

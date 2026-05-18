@@ -25,6 +25,7 @@ import {
   type GenerateEstimateResponse,
 } from '@/components/workspace/estimate/client-suggestion-toast'
 import { pollJob } from '@/hooks/use-job-status'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 // Duration constants — D-06, D-07
 export const HARD_CAP_MS  = 10 * 60 * 1000   // 600000  D-06 — auto-stop
@@ -43,6 +44,7 @@ interface CaptureRecorderProps {
 }
 
 export function CaptureRecorder({ project, companyId, projectId }: CaptureRecorderProps) {
+  const { t } = useTranslation()
   const router = useRouter()
 
   // Recording state
@@ -101,12 +103,12 @@ export function CaptureRecorder({ project, companyId, projectId }: CaptureRecord
     setElapsedMs(elapsed)
     if (elapsed >= WARN_AT_MS && !warnedRef.current) {
       warnedRef.current = true
-      toast.warning('60 seconds remaining', {
-        description: 'Recording will auto-stop at 10 minutes.',
+      toast.warning(t('60 seconds remaining'), {
+        description: t('Recording will auto-stop at 10 minutes.'),
       })
     }
     if (elapsed >= HARD_CAP_MS) {
-      toast.info('Time limit reached', { description: 'Recording stopped at 10 minutes.' })
+      toast.info(t('Time limit reached'), { description: t('Recording stopped at 10 minutes.') })
       stopRecording()
     }
   }, [stopRecording])
@@ -133,7 +135,7 @@ export function CaptureRecorder({ project, companyId, projectId }: CaptureRecord
     const track = stream.getAudioTracks()[0]
     if (!track) return
     const onMute = () => {
-      toast.error('Microphone permission was revoked')
+      toast.error(t('Microphone permission was revoked'))
       stopRecording()
     }
     track.addEventListener('mute', onMute)
@@ -206,7 +208,7 @@ export function CaptureRecorder({ project, companyId, projectId }: CaptureRecord
       })
       if (!dispatchRes.ok) {
         const body = await dispatchRes.json().catch(() => ({}))
-        failAt('generating', (body as { error?: string }).error ?? 'Estimate generation failed')
+        failAt('generating', (body as { error?: string }).error ?? t('Estimate generation failed'))
         return
       }
       const { jobId } = (await dispatchRes.json()) as { jobId: string }
@@ -218,9 +220,9 @@ export function CaptureRecorder({ project, companyId, projectId }: CaptureRecord
       router.push(`/projects/${projectId}?tab=estimate&estimate=${output.estimateId}`)
     } catch (err) {
       if ((err as Error).name === 'AbortError') return
-      failAt('generating', (err as Error).message ?? 'Estimate generation failed')
+      failAt('generating', (err as Error).message ?? t('Estimate generation failed'))
     }
-  }, [projectId, router])
+  }, [projectId, router, t])
 
   // Full AI pipeline (RESEARCH Pattern 5)
   const runPipeline = useCallback(async (blob: Blob) => {
@@ -239,19 +241,19 @@ export function CaptureRecorder({ project, companyId, projectId }: CaptureRecord
     try {
       await storage.upload('audio', storagePath, blob, { contentType: mimeTypeRef.current || 'audio/webm', upsert: false })
     } catch {
-      failAt('saving', 'Failed to upload audio file')
+      failAt('saving', t('Failed to upload audio file'))
       return
     }
 
     // Create recording row
     const created = await createRecording(projectId, storagePath, Math.floor(elapsedMs / 1000))
-    if ('error' in created) { failAt('saving', created.error ?? 'Failed to save recording'); return }
+    if ('error' in created) { failAt('saving', created.error ?? t('Failed to save recording')); return }
 
     // Transcribe — Phase 67: dispatch returns { jobId }, poll until terminal.
     setStage('transcribing')
     const dispatched = await transcribeRecording(created.data.id as string)
     if ('error' in dispatched) {
-      failAt('transcribing', dispatched.error ?? 'Transcription dispatch failed')
+      failAt('transcribing', dispatched.error ?? t('Transcription dispatch failed'))
       return
     }
     try {
@@ -260,13 +262,13 @@ export function CaptureRecorder({ project, companyId, projectId }: CaptureRecord
         abortControllerRef.current.signal
       )) as { transcript: string }
       if (!transcribeOutput.transcript?.trim()) {
-        failAt('transcribing', "We couldn't catch your description — please try again or edit manually.")
+        failAt('transcribing', t("We couldn't catch your description — please try again or edit manually."))
         return
       }
       setTranscript(transcribeOutput.transcript)
     } catch (err) {
       if ((err as Error).name === 'AbortError') return
-      failAt('transcribing', (err as Error).message ?? 'Transcription failed')
+      failAt('transcribing', (err as Error).message ?? t('Transcription failed'))
       return
     }
 
@@ -281,7 +283,7 @@ export function CaptureRecorder({ project, companyId, projectId }: CaptureRecord
       })
       if (!dispatchRes.ok) {
         const body = await dispatchRes.json().catch(() => ({}))
-        failAt('analyzing', (body as { error?: string }).error ?? 'Estimate generation failed')
+        failAt('analyzing', (body as { error?: string }).error ?? t('Estimate generation failed'))
         return
       }
       const { jobId } = (await dispatchRes.json()) as { jobId: string }
@@ -295,7 +297,7 @@ export function CaptureRecorder({ project, companyId, projectId }: CaptureRecord
       router.push(`/projects/${projectId}?tab=estimate&estimate=${output.estimateId}`)
     } catch (err) {
       if ((err as Error).name === 'AbortError') return  // unmount; not a user-facing failure
-      failAt('analyzing', (err as Error).message ?? 'Estimate generation failed')
+      failAt('analyzing', (err as Error).message ?? t('Estimate generation failed'))
     }
   }, [companyId, projectId, elapsedMs, router])
 
@@ -309,7 +311,7 @@ export function CaptureRecorder({ project, companyId, projectId }: CaptureRecord
       // Text-only path
       setStage('generating')
       const recording = await createTextRecording(projectId, descriptionText.trim())
-      if ('error' in recording) { failAt('generating', recording.error ?? 'Failed to save description'); return }
+      if ('error' in recording) { failAt('generating', recording.error ?? t('Failed to save description')); return }
       await triggerEstimateGeneration()
     } else if (audioBlob) {
       // Audio path (existing) — audio blob triggers runPipeline
@@ -368,11 +370,11 @@ export function CaptureRecorder({ project, companyId, projectId }: CaptureRecord
     } catch (err: unknown) {
       const error = err as { name?: string }
       if (error?.name === 'NotAllowedError') {
-        toast.error('Microphone permission denied. Please allow microphone access and try again.')
+        toast.error(t('Microphone permission denied. Please allow microphone access and try again.'))
       } else if (error?.name === 'NotFoundError') {
-        toast.error('No microphone found. Please connect a microphone and try again.')
+        toast.error(t('No microphone found. Please connect a microphone and try again.'))
       } else {
-        toast.error('Failed to start recording. Please try again.')
+        toast.error(t('Failed to start recording. Please try again.'))
       }
     }
   }, [tick, runPipeline])
@@ -405,7 +407,7 @@ export function CaptureRecorder({ project, companyId, projectId }: CaptureRecord
         {stage === 'idle' && !isRecording && !hasAnyInput && (
           <Button asChild variant="ghost" size="sm" data-testid="skip-recording">
             <Link href={`/projects/${projectId}`}>
-              Skip recording
+              {t('Skip recording')}
               <X className="ml-2 h-4 w-4" />
             </Link>
           </Button>
@@ -437,14 +439,14 @@ export function CaptureRecorder({ project, companyId, projectId }: CaptureRecord
             <CaptureStepper currentStage={stage} failedAt={failedAt} transcript={transcript} />
             {failedAt && (
               <CaptureFailure
-                errorMessage={errorMessage ?? 'Something went wrong'}
+                errorMessage={errorMessage ?? t('Something went wrong')}
                 retriesUsed={retriesUsed}
                 onRetry={audioBlob ? () => {
                   setRetriesUsed(r => r + 1)
                   runPipeline(audioBlob)
                 } : undefined}
                 onEditManually={() => {
-                  toast.info('Continue manually in the workspace tabs.')
+                  toast.info(t('Continue manually in the workspace tabs.'))
                   router.push(`/projects/${projectId}`)
                 }}
               />
@@ -476,6 +478,7 @@ interface RecorderBodyProps {
 }
 
 function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progress, onToggle, descriptionText, setDescriptionText, uploadedPhotos, isUploadingPhotos, photoInputRef, onPhotoFileChange, hasAnyInput, onGenerate }: RecorderBodyProps) {
+  const { t } = useTranslation()
   return (
     <div className="flex-1 flex flex-col">
       {/* Full-width waveform at top (D-08) */}
@@ -488,7 +491,7 @@ function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progre
         <textarea
           value={descriptionText}
           onChange={e => setDescriptionText(e.target.value)}
-          placeholder="Or describe the job here..."
+          placeholder={t('Or describe the job here...')}
           className="w-full min-h-[80px] rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
           data-testid="capture-description"
         />
@@ -516,7 +519,7 @@ function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progre
           ) : (
             <Camera className="h-4 w-4 mr-1.5" />
           )}
-          {uploadedPhotos.length > 0 ? `${uploadedPhotos.length} photos` : 'Add Photos'}
+          {uploadedPhotos.length > 0 ? `${uploadedPhotos.length} ${t('photos')}` : t('Add Photos')}
         </Button>
       </div>
 
@@ -529,7 +532,7 @@ function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progre
           size="lg"
           data-testid="generate-estimate-btn"
         >
-          Generate Estimate
+          {t('Generate Estimate')}
         </Button>
       </div>
 
@@ -551,7 +554,7 @@ function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progre
                 ? 'bg-red-500 animate-pulse hover:bg-red-600'
                 : 'bg-primary hover:bg-primary/90'
             }`}
-            aria-label={isRecording ? 'Stop recording' : 'Start recording'}
+            aria-label={isRecording ? t('Stop recording') : t('Start recording')}
             data-testid="capture-mic"
           >
             {isRecording ? (

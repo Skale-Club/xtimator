@@ -16,6 +16,7 @@ import { resolveTemplate, buildItemsBreakdown } from '@/lib/utils/estimate-templ
 import { formatCurrency } from '@/lib/utils/format'
 import type { EstimateWithSections } from '@/lib/queries/estimate'
 import type { EstimateTemplate } from '@/lib/utils/estimate-template'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface PlainTextCardProps {
   estimate: EstimateWithSections
@@ -32,6 +33,7 @@ export function PlainTextCard({
   ownerName,
   estimateTemplate,
 }: PlainTextCardProps) {
+  const { t } = useTranslation()
   function generateText(): string {
     return resolveTemplate(estimateTemplate, {
       client_name: clientName,
@@ -49,10 +51,10 @@ export function PlainTextCard({
     try {
       await navigator.clipboard.writeText(text)
       setCopied(true)
-      toast.success('Copied to clipboard!')
+      toast.success(t('Copied to clipboard!'))
       setTimeout(() => setCopied(false), 2000)
     } catch {
-      toast.error('Failed to copy')
+      toast.error(t('Failed to copy'))
     }
   }
 
@@ -65,19 +67,19 @@ export function PlainTextCard({
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle className="text-lg">Plain Text</CardTitle>
-            <CardDescription>Paste into WhatsApp, SMS, or email</CardDescription>
+            <CardTitle className="text-lg">{t('Plain Text')}</CardTitle>
+            <CardDescription>{t('Paste into WhatsApp, SMS, or email')}</CardDescription>
           </div>
           <div className="flex items-center gap-2">
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" onClick={handleReset} aria-label="Reset to generated text">
+                  <Button variant="ghost" size="icon" onClick={handleReset} aria-label={t('Reset to generated text')}>
                     <RotateCcw className="h-4 w-4" />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p>Reset to generated text</p>
+                  <p>{t('Reset to generated text')}</p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
@@ -87,7 +89,7 @@ export function PlainTextCard({
               ) : (
                 <Copy className="mr-2 h-4 w-4" />
               )}
-              {copied ? 'Copied!' : 'Copy'}
+              {copied ? t('Copied!') : t('Copy')}
             </Button>
           </div>
         </div>
@@ -109,12 +111,13 @@ interface PlainTextCardEmptyProps {
 }
 
 export function PlainTextCardEmpty({ className }: PlainTextCardEmptyProps) {
+  const { t } = useTranslation()
   return (
     <Card variant="glass" className={className}>
       <CardContent className="flex flex-col items-center justify-center py-12 text-center">
         <FileText className="mb-4 h-12 w-12 text-muted-foreground" />
         <p className="text-sm text-muted-foreground">
-          Generate an estimate first — then come back here to copy the plain text version.
+          {t('Generate an estimate first — then come back here to copy the plain text version.')}
         </p>
       </CardContent>
     </Card>

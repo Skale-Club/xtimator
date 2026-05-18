@@ -2,6 +2,7 @@ import { cn } from '@/lib/utils'
 import { Card, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { T } from '@/components/i18n/t'
 
 export type Tier = 'free' | 'pro' | 'business'
 
@@ -59,15 +60,15 @@ export function TierCard({
           variant="brand"
           className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap"
         >
-          {popularLabel}
+          <T text={popularLabel} />
         </Badge>
       )}
       <CardHeader className="p-0">
-        <CardTitle className="text-2xl">{name}</CardTitle>
+        <CardTitle className="text-2xl"><T text={name} /></CardTitle>
       </CardHeader>
       <div className="flex items-baseline gap-1">
         <span className="font-mono text-4xl font-semibold">{price}</span>
-        <span className="text-sm text-muted-foreground">/ {period}</span>
+        <span className="text-sm text-muted-foreground">/ <T text={period} /></span>
       </div>
       <ul className="flex-1 space-y-2 text-sm">
         {features.map((f) => (
@@ -75,7 +76,7 @@ export function TierCard({
             <span aria-hidden className="text-[hsl(var(--primary))]">
               ✓
             </span>
-            <span>{f}</span>
+            <span><T text={f} /></span>
           </li>
         ))}
       </ul>
@@ -85,7 +86,7 @@ export function TierCard({
         disabled={current}
         className="w-full"
       >
-        {current ? currentLabel : ctaLabel}
+        <T text={current ? currentLabel : ctaLabel} />
       </Button>
     </Card>
   )

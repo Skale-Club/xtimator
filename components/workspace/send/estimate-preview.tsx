@@ -7,6 +7,7 @@ import { Separator } from '@/components/ui/separator'
 import { Download, Link2, Check } from 'lucide-react'
 import { toast } from 'sonner'
 import type { EstimateWithSections } from '@/lib/queries/estimate'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface EstimatePreviewProps {
   estimate: EstimateWithSections
@@ -24,6 +25,7 @@ function formatCurrency(value: number): string {
 }
 
 export function EstimatePreview({ estimate, projectName, companyName }: EstimatePreviewProps) {
+  const { t } = useTranslation()
   const [downloading, setDownloading] = useState(false)
   const [copied, setCopied] = useState(false)
 
@@ -32,7 +34,7 @@ export function EstimatePreview({ estimate, projectName, companyName }: Estimate
     try {
       const response = await fetch(`/api/estimates/${estimate.id}/pdf`)
       if (!response.ok) {
-        throw new Error('Failed to generate PDF')
+        throw new Error(t('Failed to generate PDF'))
       }
       const blob = await response.blob()
       const url = URL.createObjectURL(blob)
@@ -43,9 +45,9 @@ export function EstimatePreview({ estimate, projectName, companyName }: Estimate
       a.click()
       document.body.removeChild(a)
       URL.revokeObjectURL(url)
-      toast.success('PDF downloaded')
+      toast.success(t('PDF downloaded'))
     } catch {
-      toast.error('Failed to download PDF. Please try again.')
+      toast.error(t('Failed to download PDF. Please try again.'))
     } finally {
       setDownloading(false)
     }
@@ -56,17 +58,17 @@ export function EstimatePreview({ estimate, projectName, companyName }: Estimate
     try {
       await navigator.clipboard.writeText(shareLink)
       setCopied(true)
-      toast.success('Link copied!')
+      toast.success(t('Link copied!'))
       setTimeout(() => setCopied(false), 2000)
     } catch {
-      toast.error('Failed to copy link')
+      toast.error(t('Failed to copy link'))
     }
   }
 
   return (
     <Card variant="glass">
       <CardHeader>
-        <CardTitle className="text-lg">Estimate Preview</CardTitle>
+        <CardTitle className="text-lg">{t('Estimate Preview')}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Summary */}
@@ -84,12 +86,12 @@ export function EstimatePreview({ estimate, projectName, companyName }: Estimate
         {/* Sections */}
         {estimate.sections.map((section) => (
           <div key={section.id} className="space-y-2">
-            <h4 className="text-sm font-semibold">{section.title}</h4>
+            <h4 className="text-sm font-semibold">{t(section.title)}</h4>
             <div className="space-y-1">
               {section.items.map((item) => (
                 <div key={item.id} className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">
-                    {item.description || 'Untitled item'}
+                    {item.description || t('Untitled item')}
                     {item.quantity > 1 && (
                       <span className="ml-1">
                         ({item.quantity} {item.unit ?? 'x'})
@@ -103,7 +105,7 @@ export function EstimatePreview({ estimate, projectName, companyName }: Estimate
               ))}
             </div>
             <div className="flex justify-end text-sm font-medium">
-              Section: {formatCurrency(section.subtotal)}
+              {t('Section:')} {formatCurrency(section.subtotal)}
             </div>
           </div>
         ))}
@@ -113,13 +115,13 @@ export function EstimatePreview({ estimate, projectName, companyName }: Estimate
         {/* Totals */}
         <div className="space-y-1 text-sm">
           <div className="flex justify-between">
-            <span className="text-muted-foreground">Subtotal</span>
+            <span className="text-muted-foreground">{t('Subtotal')}</span>
             <span className="tabular-nums">{formatCurrency(estimate.subtotal)}</span>
           </div>
           {estimate.discount_amount > 0 && (
             <div className="flex justify-between">
               <span className="text-muted-foreground">
-                Discount
+                {t('Discount')}
                 {estimate.discount_type === 'percentage'
                   ? ` (${estimate.discount_value}%)`
                   : ''}
@@ -132,14 +134,14 @@ export function EstimatePreview({ estimate, projectName, companyName }: Estimate
           {estimate.tax_amount > 0 && (
             <div className="flex justify-between">
               <span className="text-muted-foreground">
-                Tax ({(estimate.tax_rate * 100).toFixed(1)}%)
+                {t('Tax')} ({(estimate.tax_rate * 100).toFixed(1)}%)
               </span>
               <span className="tabular-nums">{formatCurrency(estimate.tax_amount)}</span>
             </div>
           )}
           <Separator />
           <div className="flex justify-between text-base font-bold">
-            <span>Total</span>
+            <span>{t('Total')}</span>
             <span className="tabular-nums">{formatCurrency(estimate.total)}</span>
           </div>
         </div>
@@ -155,7 +157,7 @@ export function EstimatePreview({ estimate, projectName, companyName }: Estimate
             disabled={downloading}
           >
             <Download className="mr-2 h-4 w-4" />
-            {downloading ? 'Generating...' : 'Download PDF'}
+            {downloading ? t('Generating...') : t('Download PDF')}
           </Button>
           <Button
             variant="outline"
@@ -167,7 +169,7 @@ export function EstimatePreview({ estimate, projectName, companyName }: Estimate
             ) : (
               <Link2 className="mr-2 h-4 w-4" />
             )}
-            {copied ? 'Copied!' : 'Copy Share Link'}
+            {copied ? t('Copied!') : t('Copy Share Link')}
           </Button>
         </div>
       </CardContent>

@@ -10,6 +10,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import type { EstimateEditorState, EstimateAction } from './use-estimate-reducer'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 function formatCurrency(value: number): string {
   return value.toLocaleString('en-US', {
@@ -25,6 +26,7 @@ interface EstimateTotalsProps {
 }
 
 export function EstimateTotals({ state, dispatch, isReadOnly }: EstimateTotalsProps) {
+  const { t } = useTranslation()
   const discountTypeValue = state.discount_type ?? 'none'
   const taxPercent = Math.round(state.tax_rate * 10000) / 100
 
@@ -33,14 +35,14 @@ export function EstimateTotals({ state, dispatch, isReadOnly }: EstimateTotalsPr
       <div className="w-full max-w-sm space-y-2">
         {/* Subtotal */}
         <div className="flex items-center justify-between text-sm">
-          <span className="text-muted-foreground">Subtotal</span>
+          <span className="text-muted-foreground">{t('Subtotal')}</span>
           <span className="font-medium tabular-nums">${formatCurrency(state.subtotal)}</span>
         </div>
 
         {/* Discount */}
         <div className="flex items-center justify-between gap-3 text-sm">
           <div className="flex items-center gap-2">
-            <span className="text-muted-foreground whitespace-nowrap">Discount</span>
+            <span className="text-muted-foreground whitespace-nowrap">{t('Discount')}</span>
             <Select
               value={discountTypeValue}
               onValueChange={(val) => {
@@ -57,9 +59,9 @@ export function EstimateTotals({ state, dispatch, isReadOnly }: EstimateTotalsPr
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="none">None</SelectItem>
-                <SelectItem value="percentage">Percentage</SelectItem>
-                <SelectItem value="fixed">Fixed Amount</SelectItem>
+                <SelectItem value="none">{t('None')}</SelectItem>
+                <SelectItem value="percentage">{t('Percentage')}</SelectItem>
+                <SelectItem value="fixed">{t('Fixed Amount')}</SelectItem>
               </SelectContent>
             </Select>
             {state.discount_type && (
@@ -95,7 +97,7 @@ export function EstimateTotals({ state, dispatch, isReadOnly }: EstimateTotalsPr
         {/* Tax */}
         <div className="flex items-center justify-between gap-3 text-sm">
           <div className="flex items-center gap-2">
-            <span className="text-muted-foreground whitespace-nowrap">Tax</span>
+            <span className="text-muted-foreground whitespace-nowrap">{t('Tax')}</span>
             <div className="relative">
               <Input
                 type="number"
@@ -120,7 +122,7 @@ export function EstimateTotals({ state, dispatch, isReadOnly }: EstimateTotalsPr
 
         {/* Grand Total — highlighted glass row, mono numerics */}
         <div className="flex items-center justify-between rounded-md bg-[var(--glass-bg-light)] px-3 py-2">
-          <span className="text-base font-semibold">Grand Total</span>
+          <span className="text-base font-semibold">{t('Grand Total')}</span>
           <span className="font-mono text-xl font-semibold tabular-nums">${formatCurrency(state.total)}</span>
         </div>
       </div>

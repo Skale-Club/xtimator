@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import { createStorage } from '@/lib/storage'
 import { updatePhotoCaption, deletePhoto } from '@/lib/actions/photo'
 import type { Photo } from '@/lib/queries/photo'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface PhotoCardProps {
   photo: Photo
@@ -15,6 +16,7 @@ interface PhotoCardProps {
 }
 
 export function PhotoCard({ photo, onClick, onDelete }: PhotoCardProps) {
+  const { t } = useTranslation()
   const [imageUrl, setImageUrl] = useState<string | null>(null)
   const [isEditingCaption, setIsEditingCaption] = useState(false)
   const [caption, setCaption] = useState(photo.caption ?? '')
@@ -74,7 +76,7 @@ export function PhotoCard({ photo, onClick, onDelete }: PhotoCardProps) {
       {imageUrl ? (
         <img
           src={imageUrl}
-          alt={photo.caption ?? 'Photo'}
+          alt={photo.caption ?? t('Photo')}
           className="object-cover w-full h-full cursor-pointer"
           onClick={onClick}
         />
@@ -87,7 +89,7 @@ export function PhotoCard({ photo, onClick, onDelete }: PhotoCardProps) {
         onClick={handleDelete}
         disabled={isDeleting}
         className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-destructive text-destructive-foreground rounded-full p-1 hover:bg-destructive/90"
-        aria-label="Delete photo"
+        aria-label={t('Delete photo')}
       >
         <X className="h-3.5 w-3.5" />
       </button>
@@ -111,13 +113,13 @@ export function PhotoCard({ photo, onClick, onDelete }: PhotoCardProps) {
             onBlur={handleCaptionSave}
             onKeyDown={handleCaptionKeyDown}
             className="w-full bg-transparent text-white text-xs border-b border-white/50 outline-none placeholder:text-white/50"
-            placeholder="Add caption..."
+            placeholder={t('Add caption...')}
             maxLength={200}
           />
         ) : (
           <p className="text-white text-xs truncate cursor-text">
             {caption || (
-              <span className="text-white/50">Add caption...</span>
+              <span className="text-white/50">{t('Add caption...')}</span>
             )}
           </p>
         )}

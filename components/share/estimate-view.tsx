@@ -14,6 +14,7 @@ import {
   PaymentSuccessBanner,
   PaymentCanceledNotice,
 } from '@/components/estimate/payment-success-banner'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface EstimateViewProps {
   estimate: ShareEstimateData['estimate']
@@ -35,6 +36,7 @@ export function EstimateView({
   whiteLabelMode = false,
   stripeState = null,
 }: EstimateViewProps) {
+  const { t } = useTranslation()
   const [responding, setResponding] = useState<'accepted' | 'declined' | null>(null)
   const [responded, setResponded] = useState(alreadyResponded)
   const [responseValue, setResponseValue] = useState<string | null>(
@@ -55,7 +57,7 @@ export function EstimateView({
       setResponded(true)
       setResponseValue(response)
     } else {
-      setError(result.error ?? 'Something went wrong')
+      setError(result.error ?? t('Something went wrong'))
     }
 
     setResponding(null)
@@ -118,7 +120,7 @@ export function EstimateView({
         <Card variant="glass">
           <CardContent className="p-4 sm:p-6">
             <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-              Prepared For
+              {t('Prepared For')}
             </h2>
             <p className="font-medium">{client.name}</p>
             <div className="text-sm text-muted-foreground space-y-0.5 mt-1">
@@ -151,14 +153,14 @@ export function EstimateView({
             </div>
             <div className="text-sm text-muted-foreground">
               <p>
-                Estimate Date:{' '}
+                {t('Estimate Date:')}{' '}
                 {new Date(estimate.created_at).toLocaleDateString('en-US', {
                   year: 'numeric',
                   month: 'long',
                   day: 'numeric',
                 })}
               </p>
-              <p>Version {estimate.version}</p>
+              <p>{t('Version')} {estimate.version}</p>
             </div>
           </div>
         </CardContent>
@@ -172,7 +174,7 @@ export function EstimateView({
               className="text-sm font-semibold uppercase tracking-wider mb-2"
               style={{ color: brandColor }}
             >
-              Summary
+              {t('Summary')}
             </h2>
             <p className="text-sm text-muted-foreground whitespace-pre-line">
               {estimate.summary}
@@ -189,7 +191,7 @@ export function EstimateView({
               className="text-base font-semibold mb-4 pb-2 border-b-2"
               style={{ borderBottomColor: brandColor, color: brandColor }}
             >
-              {section.title}
+              {t(section.title)}
             </h2>
 
             {/* Desktop table */}
@@ -197,13 +199,13 @@ export function EstimateView({
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b text-left text-muted-foreground">
-                    <th className="pb-2 font-medium">Description</th>
-                    <th className="pb-2 font-medium text-right w-16">Qty</th>
-                    <th className="pb-2 font-medium text-right w-20">Unit</th>
+                    <th className="pb-2 font-medium">{t('Description')}</th>
+                    <th className="pb-2 font-medium text-right w-16">{t('Qty')}</th>
+                    <th className="pb-2 font-medium text-right w-20">{t('Unit')}</th>
                     <th className="pb-2 font-medium text-right w-28">
-                      Unit Price
+                      {t('Unit Price')}
                     </th>
-                    <th className="pb-2 font-medium text-right w-28">Total</th>
+                    <th className="pb-2 font-medium text-right w-28">{t('Total')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -256,7 +258,7 @@ export function EstimateView({
             <div className="flex justify-end mt-4 pt-2 border-t">
               <div className="text-sm">
                 <span className="text-muted-foreground mr-4">
-                  Section Subtotal:
+                  {t('Section Subtotal:')}
                 </span>
                 <span className="font-semibold tabular-nums">
                   {formatCurrency(section.subtotal)}
@@ -273,7 +275,7 @@ export function EstimateView({
           <div className="flex flex-col items-end space-y-2">
             <div className="w-full sm:w-72 space-y-2">
               <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Subtotal</span>
+                <span className="text-muted-foreground">{t('Subtotal')}</span>
                 <span className="tabular-nums">
                   {formatCurrency(estimate.subtotal)}
                 </span>
@@ -282,7 +284,7 @@ export function EstimateView({
               {estimate.discount_amount > 0 && (
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">
-                    Discount
+                    {t('Discount')}
                     {estimate.discount_type === 'percentage'
                       ? ` (${estimate.discount_value}%)`
                       : ''}
@@ -296,7 +298,7 @@ export function EstimateView({
               {estimate.tax_amount > 0 && (
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">
-                    Tax ({estimate.tax_rate}%)
+                    {t('Tax')} ({estimate.tax_rate}%)
                   </span>
                   <span className="tabular-nums">
                     {formatCurrency(estimate.tax_amount)}
@@ -305,7 +307,7 @@ export function EstimateView({
               )}
 
               <div className="flex justify-between pt-2 border-t-2 border-foreground">
-                <span className="text-lg font-bold">Total</span>
+                <span className="text-lg font-bold">{t('Total')}</span>
                 <span
                   className="text-lg font-bold tabular-nums"
                   style={{ color: brandColor }}
@@ -331,7 +333,7 @@ export function EstimateView({
                   className="text-sm font-semibold uppercase tracking-wider mb-2"
                   style={{ color: brandColor }}
                 >
-                  Payment Terms
+                  {t('Payment Terms')}
                 </h3>
                 <p className="text-sm text-muted-foreground whitespace-pre-line">
                   {estimate.payment_terms}
@@ -347,7 +349,7 @@ export function EstimateView({
                   className="text-sm font-semibold uppercase tracking-wider mb-2"
                   style={{ color: brandColor }}
                 >
-                  Warranty
+                  {t('Warranty')}
                 </h3>
                 <p className="text-sm text-muted-foreground whitespace-pre-line">
                   {estimate.warranty_terms}
@@ -363,7 +365,7 @@ export function EstimateView({
                   className="text-sm font-semibold uppercase tracking-wider mb-2"
                   style={{ color: brandColor }}
                 >
-                  Timeline
+                  {t('Timeline')}
                 </h3>
                 <p className="text-sm text-muted-foreground whitespace-pre-line">
                   {estimate.timeline}
@@ -379,7 +381,7 @@ export function EstimateView({
                   className="text-sm font-semibold uppercase tracking-wider mb-2"
                   style={{ color: brandColor }}
                 >
-                  Notes
+                  {t('Notes')}
                 </h3>
                 <p className="text-sm text-muted-foreground whitespace-pre-line">
                   {estimate.notes}
@@ -424,36 +426,36 @@ export function EstimateView({
                 <>
                   <CheckCircle className="mx-auto h-12 w-12 text-green-500" />
                   <p className="text-lg font-semibold text-green-700">
-                    Estimate Accepted
+                    {t('Estimate Accepted')}
                   </p>
                   <p className="text-sm text-muted-foreground">
                     {estimate.responded_at
-                      ? `You accepted this estimate on ${new Date(
+                      ? t(`You accepted this estimate on ${new Date(
                           estimate.responded_at
                         ).toLocaleDateString('en-US', {
                           year: 'numeric',
                           month: 'long',
                           day: 'numeric',
-                        })}`
-                      : 'Thank you for accepting this estimate'}
+                        })}`)
+                      : t('Thank you for accepting this estimate')}
                   </p>
                 </>
               ) : (
                 <>
                   <XCircle className="mx-auto h-12 w-12 text-red-500" />
                   <p className="text-lg font-semibold text-red-700">
-                    Estimate Declined
+                    {t('Estimate Declined')}
                   </p>
                   <p className="text-sm text-muted-foreground">
                     {estimate.responded_at
-                      ? `You declined this estimate on ${new Date(
+                      ? t(`You declined this estimate on ${new Date(
                           estimate.responded_at
                         ).toLocaleDateString('en-US', {
                           year: 'numeric',
                           month: 'long',
                           day: 'numeric',
-                        })}`
-                      : 'This estimate has been declined'}
+                        })}`)
+                      : t('This estimate has been declined')}
                   </p>
                 </>
               )}
@@ -461,7 +463,7 @@ export function EstimateView({
           ) : (
             <div className="text-center space-y-4">
               <p className="text-muted-foreground">
-                Please review the estimate above and accept or decline.
+                {t('Please review the estimate above and accept or decline.')}
               </p>
 
               {error && (
@@ -480,7 +482,7 @@ export function EstimateView({
                   ) : (
                     <CheckCircle className="mr-2 h-4 w-4" />
                   )}
-                  Accept Estimate
+                  {t('Accept Estimate')}
                 </Button>
                 <Button
                   size="lg"
@@ -494,7 +496,7 @@ export function EstimateView({
                   ) : (
                     <XCircle className="mr-2 h-4 w-4" />
                   )}
-                  Decline Estimate
+                  {t('Decline Estimate')}
                 </Button>
               </div>
             </div>
@@ -506,7 +508,7 @@ export function EstimateView({
       {!whiteLabelMode && (
         <div className="text-center text-xs text-muted-foreground pb-8">
           <p>
-            Generated by{' '}
+            {t('Generated by')}{' '}
             <span className="font-medium">{appName}</span>
           </p>
         </div>

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { TierCard, type Tier } from './tier-card'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface TierCardsGridProps {
   currentTier: Tier | 'trial'
@@ -58,6 +59,7 @@ const TIERS: Array<{
 ]
 
 export function TierCardsGrid({ currentTier }: TierCardsGridProps) {
+  const { t } = useTranslation()
   const [loading, setLoading] = useState<Tier | null>(null)
 
   async function handleSelect(tier: Tier) {
@@ -71,12 +73,12 @@ export function TierCardsGrid({ currentTier }: TierCardsGridProps) {
       })
       const data = await res.json()
       if (!res.ok || !data.url) {
-        toast.error('Could not start checkout. Please try again.')
+        toast.error(t('Could not start checkout. Please try again.'))
         return
       }
       window.location.href = data.url
     } catch {
-      toast.error('Could not start checkout. Please try again.')
+      toast.error(t('Could not start checkout. Please try again.'))
     } finally {
       setLoading(null)
     }
@@ -103,6 +105,8 @@ export function TierCardsGrid({ currentTier }: TierCardsGridProps) {
                 ? 'Get started'
                 : `Upgrade to ${t.name}`
           }
+          currentLabel="Current plan"
+          popularLabel="Most popular"
           onSelect={() => handleSelect(t.tier)}
         />
       ))}

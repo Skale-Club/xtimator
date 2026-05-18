@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/card'
 import { ManageSubscriptionButton } from '@/components/billing/manage-subscription-button'
 import { TierCardsGrid } from '@/components/billing/tier-cards-grid'
+import { T } from '@/components/i18n/t'
 
 export const metadata = { title: 'Billing' }
 
@@ -50,11 +51,10 @@ export default async function BillingPage() {
           className="absolute inset-0 -z-10 gradient-hero"
         />
         <h1 className="text-[clamp(36px,5vw,56px)] font-semibold tracking-[-0.025em]">
-          Billing
+          <T>Billing</T>
         </h1>
         <p className="mx-auto mt-3 max-w-xl text-base text-muted-foreground">
-          You&rsquo;re on the <strong className="text-foreground">{tierDisplay}</strong> plan. Choose
-          the tier that fits your business — upgrade or downgrade anytime.
+          <T>You&rsquo;re on the</T> <strong className="text-foreground"><T text={tierDisplay} /></strong> <T>plan. Choose the tier that fits your business — upgrade or downgrade anytime.</T>
         </p>
       </section>
 
@@ -66,26 +66,26 @@ export default async function BillingPage() {
               <div className="flex items-start gap-3">
                 <CreditCard className="mt-0.5 h-5 w-5 text-[hsl(var(--primary))]" />
                 <div>
-                  <CardTitle>{tierDisplay} Plan</CardTitle>
-                  <CardDescription>Current subscription plan</CardDescription>
+                  <CardTitle><T text={`${tierDisplay} Plan`} /></CardTitle>
+                  <CardDescription><T>Current subscription plan</T></CardDescription>
                 </div>
               </div>
             </CardHeader>
             <CardContent className="space-y-2 px-0 pt-4 text-sm">
               {data.tier === 'trial' && data.tierTrialEndsAt && (
                 <p className="text-muted-foreground">
-                  <span className="font-medium text-foreground">Trial ends:</span>{' '}
+                  <span className="font-medium text-foreground"><T>Trial ends:</T></span>{' '}
                   {formatDate(data.tierTrialEndsAt)}
                 </p>
               )}
               {isPaid && data.tierRenewsAt && (
                 <p className="text-muted-foreground">
-                  <span className="font-medium text-foreground">Renews:</span>{' '}
+                  <span className="font-medium text-foreground"><T>Renews:</T></span>{' '}
                   {formatDate(data.tierRenewsAt)}
                 </p>
               )}
               {data.tier === 'free' && !data.tierTrialEndsAt && (
-                <p className="text-muted-foreground">No active trial</p>
+                <p className="text-muted-foreground"><T>No active trial</T></p>
               )}
             </CardContent>
           </Card>
@@ -95,32 +95,32 @@ export default async function BillingPage() {
               <div className="flex items-start gap-3">
                 <TrendingUp className="mt-0.5 h-5 w-5 text-[hsl(var(--primary))]" />
                 <div>
-                  <CardTitle>Usage This Month</CardTitle>
+                  <CardTitle><T>Usage This Month</T></CardTitle>
                   <CardDescription>
-                    Counts reset at the start of each UTC calendar month.
+                    <T>Counts reset at the start of each UTC calendar month.</T>
                   </CardDescription>
                 </div>
               </div>
             </CardHeader>
             <CardContent className="space-y-3 px-0 pt-4 text-sm">
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Estimates</span>
+                <span className="text-muted-foreground"><T>Estimates</T></span>
                 <span className="font-mono font-medium">
                   {data.estimatesThisMonth}
                   {' / '}
                   {data.entitlements.maxEstimatesPerMonth !== null
                     ? data.entitlements.maxEstimatesPerMonth
-                    : 'Unlimited'}
+                    : <T>Unlimited</T>}
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Photos analyzed</span>
+                <span className="text-muted-foreground"><T>Photos analyzed</T></span>
                 <span className="font-mono font-medium">
                   {data.photosThisMonth}
                   {' / '}
                   {data.entitlements.maxPhotosPerEstimate !== null
-                    ? `${data.entitlements.maxPhotosPerEstimate} per estimate`
-                    : 'Unlimited'}
+                    ? <T text={`${data.entitlements.maxPhotosPerEstimate} per estimate`} />
+                    : <T>Unlimited</T>}
                 </span>
               </div>
             </CardContent>
@@ -129,7 +129,7 @@ export default async function BillingPage() {
 
         {/* Tier cards grid (Free / Pro / Business with per-tier gradient escalation) */}
         <div className="space-y-4">
-          <h2 className="text-2xl font-semibold tracking-tight">Choose your plan</h2>
+          <h2 className="text-2xl font-semibold tracking-tight"><T>Choose your plan</T></h2>
           <TierCardsGrid currentTier={data.tier as 'free' | 'trial' | 'pro' | 'business'} />
         </div>
 
@@ -137,9 +137,9 @@ export default async function BillingPage() {
         {isPaid && (
           <Card variant="glass" className="p-6">
             <CardHeader className="p-0">
-              <CardTitle>Manage subscription</CardTitle>
+              <CardTitle><T>Manage subscription</T></CardTitle>
               <CardDescription>
-                Update payment method, view invoices, or cancel via the Stripe portal.
+                <T>Update payment method, view invoices, or cancel via the Stripe portal.</T>
               </CardDescription>
             </CardHeader>
             <CardContent className="px-0 pt-4">

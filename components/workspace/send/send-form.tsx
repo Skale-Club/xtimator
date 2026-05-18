@@ -21,6 +21,7 @@ import {
 import { Send, CheckCircle2, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { markAsSentAction } from '@/lib/actions/estimate'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 const sendSchema = z.object({
   to: z.string().email('Valid email required'),
@@ -46,6 +47,7 @@ export function SendForm({
   projectName,
   shareToken,
 }: SendFormProps) {
+  const { t } = useTranslation()
   const [sending, setSending] = useState(false)
   const [marking, setMarking] = useState(false)
 
@@ -75,13 +77,13 @@ export function SendForm({
       const data = await response.json()
 
       if (!response.ok) {
-        toast.error(data.error ?? 'Failed to send email')
+        toast.error(data.error ?? t('Failed to send email'))
         return
       }
 
-      toast.success('Estimate sent successfully!')
+      toast.success(t('Estimate sent successfully!'))
     } catch {
-      toast.error('Failed to send email. Please try again.')
+      toast.error(t('Failed to send email. Please try again.'))
     } finally {
       setSending(false)
     }
@@ -95,9 +97,9 @@ export function SendForm({
         toast.error(result.error)
         return
       }
-      toast.success('Estimate marked as sent')
+      toast.success(t('Estimate marked as sent'))
     } catch {
-      toast.error('Failed to mark as sent')
+      toast.error(t('Failed to mark as sent'))
     } finally {
       setMarking(false)
     }
@@ -106,7 +108,7 @@ export function SendForm({
   return (
     <Card variant="glass">
       <CardHeader>
-        <CardTitle className="text-lg">Send Estimate</CardTitle>
+        <CardTitle className="text-lg">{t('Send Estimate')}</CardTitle>
       </CardHeader>
       <CardContent>
         <Form {...form}>
@@ -116,7 +118,7 @@ export function SendForm({
               name="to"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>To</FormLabel>
+                  <FormLabel>{t('To')}</FormLabel>
                   <FormControl>
                     <Input
                       type="email"
@@ -134,9 +136,9 @@ export function SendForm({
               name="subject"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Subject</FormLabel>
+                  <FormLabel>{t('Subject')}</FormLabel>
                   <FormControl>
-                    <Input placeholder="Email subject" {...field} />
+                    <Input placeholder={t('Email subject')} {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -148,11 +150,11 @@ export function SendForm({
               name="body"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Message</FormLabel>
+                  <FormLabel>{t('Message')}</FormLabel>
                   <FormControl>
                     <Textarea
                       rows={6}
-                      placeholder="Write your message..."
+                      placeholder={t('Write your message...')}
                       {...field}
                     />
                   </FormControl>
@@ -173,7 +175,7 @@ export function SendForm({
                     />
                   </FormControl>
                   <FormLabel className="text-sm font-normal">
-                    Attach PDF to email
+                    {t('Attach PDF to email')}
                   </FormLabel>
                 </FormItem>
               )}
@@ -185,7 +187,7 @@ export function SendForm({
               ) : (
                 <Send className="mr-2 h-4 w-4" />
               )}
-              {sending ? 'Sending...' : 'Send Email'}
+              {sending ? t('Sending...') : t('Send Email')}
             </Button>
           </form>
         </Form>
@@ -194,7 +196,7 @@ export function SendForm({
 
         <div className="space-y-2">
           <p className="text-sm text-muted-foreground">
-            Delivering in person? Mark the estimate as sent without emailing.
+            {t('Delivering in person? Mark the estimate as sent without emailing.')}
           </p>
           <Button
             variant="outline"
@@ -207,7 +209,7 @@ export function SendForm({
             ) : (
               <CheckCircle2 className="mr-2 h-4 w-4" />
             )}
-            {marking ? 'Updating...' : 'Mark as Sent'}
+            {marking ? t('Updating...') : t('Mark as Sent')}
           </Button>
         </div>
       </CardContent>

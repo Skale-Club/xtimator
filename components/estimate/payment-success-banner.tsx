@@ -13,6 +13,7 @@
 
 import { CheckCircle2, Info } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
+import { T } from '@/components/i18n/t'
 
 export function PaymentSuccessBanner() {
   return (
@@ -26,10 +27,10 @@ export function PaymentSuccessBanner() {
         <CheckCircle2 className="size-5 text-emerald-500 shrink-0 mt-0.5" />
         <div>
           <p className="text-sm font-semibold">
-            Payment received — thank you!
+            <T>Payment received — thank you!</T>
           </p>
           <p className="text-xs text-muted-foreground mt-1">
-            A receipt has been sent to your email. You can close this page.
+            <T>A receipt has been sent to your email. You can close this page.</T>
           </p>
         </div>
       </CardContent>
@@ -44,7 +45,7 @@ export function PaymentCanceledNotice() {
         <Info className="size-5 text-muted-foreground shrink-0 mt-0.5" />
         <div>
           <p className="text-sm font-medium">
-            Payment canceled — you can try again anytime.
+            <T>Payment canceled — you can try again anytime.</T>
           </p>
         </div>
       </CardContent>

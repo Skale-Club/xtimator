@@ -11,6 +11,7 @@ import { deleteRecording } from '@/lib/actions/recording'
 import { createClient } from '@/lib/supabase/client'
 import { createStorage } from '@/lib/storage'
 import type { Recording } from '@/lib/queries/recording'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface RecordingItemProps {
   recording: Recording
@@ -19,6 +20,7 @@ interface RecordingItemProps {
 }
 
 export function RecordingItem({ recording, onDelete, isTranscribing }: RecordingItemProps) {
+  const { t } = useTranslation()
   const [isPlaying, setIsPlaying] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [audioUrl, setAudioUrl] = useState<string | null>(null)
@@ -69,7 +71,7 @@ export function RecordingItem({ recording, onDelete, isTranscribing }: Recording
   }, [audioUrl, isPlaying])
 
   const handleDelete = useCallback(async () => {
-    if (!window.confirm('Delete this recording? This cannot be undone.')) return
+    if (!window.confirm(t('Delete this recording? This cannot be undone.'))) return
 
     setIsDeleting(true)
     const result = await deleteRecording(recording.id)
@@ -151,7 +153,7 @@ function getRelativeTime(date: Date): string {
   const diffHours = Math.floor(diffMs / 3600000)
   const diffDays = Math.floor(diffMs / 86400000)
 
-  if (diffMins < 1) return 'Just now'
+  if (diffMins < 1) return 'Just now' // TODO: i18n for relative time labels
   if (diffMins < 60) return `${diffMins}m ago`
   if (diffHours < 24) return `${diffHours}h ago`
   if (diffDays < 7) return `${diffDays}d ago`

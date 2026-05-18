@@ -7,6 +7,7 @@ import { getProjectPhotos } from '@/lib/queries/photo'
 import { getCurrentEstimate, getProjectEstimates } from '@/lib/queries/estimate'
 import { ProjectWorkspace } from '@/components/workspace/project-workspace'
 import { Skeleton } from '@/components/ui/skeleton'
+import { T } from '@/components/i18n/t'
 
 const ALLOWED_TABS = ['overview', 'audio', 'photos', 'estimate', 'send'] as const
 type AllowedTab = (typeof ALLOWED_TABS)[number]
@@ -44,7 +45,7 @@ export default async function ProjectPage({
   return (
     <div className="space-y-6 px-6 py-8">
       <header className="space-y-1">
-        <p className="text-xs uppercase tracking-[0.08em] text-muted-foreground">Project</p>
+        <p className="text-xs uppercase tracking-[0.08em] text-muted-foreground"><T>Project</T></p>
         <h1 className="text-[clamp(28px,3.5vw,40px)] font-semibold tracking-[-0.02em] leading-[1.1]">
           {project.name}
         </h1>

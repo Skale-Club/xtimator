@@ -23,6 +23,7 @@ import {
   showClientSuggestionToast,
   type GenerateEstimateResponse,
 } from './client-suggestion-toast'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface EstimateTabProps {
   projectId: string
@@ -41,6 +42,7 @@ export function EstimateTab({
   recordings,
   photos,
 }: EstimateTabProps) {
+  const { t } = useTranslation()
   const router = useRouter()
   const [isGenerating, setIsGenerating] = useState(false)
   const [generationStep, setGenerationStep] = useState(0)
@@ -78,7 +80,7 @@ export function EstimateTab({
         })
         if (!photoRes.ok) {
           const err = await photoRes.json().catch(() => ({}))
-          throw new Error(err.error || 'Photo analysis failed')
+          throw new Error(err.error || t('Photo analysis failed'))
         }
       }
 
@@ -91,7 +93,7 @@ export function EstimateTab({
       })
       if (!genRes.ok) {
         const err = await genRes.json().catch(() => ({}))
-        throw new Error(err.error || 'Estimate generation failed')
+        throw new Error(err.error || t('Estimate generation failed'))
       }
       const generated = (await genRes.json()) as GenerateEstimateResponse
 
@@ -110,7 +112,7 @@ export function EstimateTab({
         suggestion: generated.clientSuggestion,
       })
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Generation failed. Please try again.')
+      toast.error(err instanceof Error ? err.message : t('Generation failed. Please try again.'))
     } finally {
       setIsGenerating(false)
     }
@@ -126,7 +128,7 @@ export function EstimateTab({
     if (result.error) {
       toast.error(result.error)
     } else {
-      toast.success('Blank estimate created')
+      toast.success(t('Blank estimate created'))
       router.refresh()
     }
     setIsCreatingBlank(false)
@@ -169,16 +171,16 @@ export function EstimateTab({
             <Sparkles className="h-7 w-7 text-white" />
           </div>
           <div>
-            <h3 className="text-lg font-semibold">Generate AI Estimate</h3>
+            <h3 className="text-lg font-semibold">{t('Generate AI Estimate')}</h3>
             <p className="text-sm text-muted-foreground mt-1">
-              Create a professional estimate from your audio recordings and photos using AI.
+              {t('Create a professional estimate from your audio recordings and photos using AI.')}
             </p>
           </div>
 
           {hasPrerequisites ? (
             <Button variant="primary" size="lg" onClick={handleGenerate} className="gap-2 min-h-[44px]">
               <Sparkles className="h-4 w-4" />
-              Generate Estimate
+              {t('Generate Estimate')}
             </Button>
           ) : (
             <TooltipProvider>
@@ -187,12 +189,12 @@ export function EstimateTab({
                   <span tabIndex={0}>
                     <Button variant="primary" size="lg" disabled className="gap-2 min-h-[44px]">
                       <Sparkles className="h-4 w-4" />
-                      Generate Estimate
+                      {t('Generate Estimate')}
                     </Button>
                   </span>
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p>Add at least one audio recording or photo before generating an estimate.</p>
+                  <p>{t('Add at least one audio recording or photo before generating an estimate.')}</p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
@@ -206,7 +208,7 @@ export function EstimateTab({
             className="gap-1.5 text-muted-foreground"
           >
             <FileText className="h-3.5 w-3.5" />
-            {isCreatingBlank ? 'Creating...' : 'Create Blank Estimate'}
+            {isCreatingBlank ? t('Creating...') : t('Create Blank Estimate')}
           </Button>
         </CardContent>
       </Card>

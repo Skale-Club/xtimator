@@ -9,6 +9,7 @@ import { PhotoLightbox } from './photo-lightbox'
 import { EmptyState } from '@/components/dashboard/empty-state'
 import { reorderPhotos } from '@/lib/actions/photo'
 import type { Photo } from '@/lib/queries/photo'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface PhotosTabProps {
   projectId: string
@@ -21,6 +22,7 @@ export function PhotosTab({
   companyId,
   initialPhotos,
 }: PhotosTabProps) {
+  const { t } = useTranslation()
   const [photos, setPhotos] = useState<Photo[]>(initialPhotos)
   const [lightboxOpen, setLightboxOpen] = useState(false)
   const [lightboxIndex, setLightboxIndex] = useState(0)
@@ -41,7 +43,7 @@ export function PhotosTab({
 
       const result = await reorderPhotos(reorderedPhotos.map((p) => p.id))
       if ('error' in result) {
-        toast.error('Failed to save photo order')
+        toast.error(t('Failed to save photo order'))
         setPhotos(previousPhotos)
       }
     },
@@ -65,8 +67,8 @@ export function PhotosTab({
       {photos.length === 0 ? (
         <EmptyState
           icon={Camera}
-          title="No photos yet"
-          description="Upload photos of the job site to help generate an accurate estimate"
+          title={t('No photos yet')}
+          description={t('Upload photos of the job site to help generate an accurate estimate')}
         />
       ) : (
         <PhotoGrid

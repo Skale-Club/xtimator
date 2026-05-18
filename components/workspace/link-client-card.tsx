@@ -23,6 +23,7 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/ui/command'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface LinkClientCardProps {
   projectId: string
@@ -36,6 +37,7 @@ interface ClientSearchItem {
 }
 
 export function LinkClientCard({ projectId }: LinkClientCardProps) {
+  const { t } = useTranslation()
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [open, setOpen] = useState(false)
@@ -48,7 +50,7 @@ export function LinkClientCard({ projectId }: LinkClientCardProps) {
         toast.error(result.error)
         return
       }
-      toast.success('Client linked successfully')
+      toast.success(t('Client linked successfully'))
       setOpen(false)
       router.refresh()
     })
@@ -58,25 +60,25 @@ export function LinkClientCard({ projectId }: LinkClientCardProps) {
     <Card variant="glass">
       <CardHeader>
         <div className="flex items-center justify-between">
-          <CardTitle className="text-base">Link a Client</CardTitle>
+          <CardTitle className="text-base">{t('Link a Client')}</CardTitle>
           <UserPlus className="h-5 w-5 text-muted-foreground" />
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-sm text-muted-foreground">
-          This project is not linked to a client. Link a client to keep track of who&apos;s requesting the work.
+          {t('This project is not linked to a client. Link a client to keep track of who’s requesting the work.')}
         </p>
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
             <Button variant="outline" size="sm" className="w-full">
               <UserPlus className="mr-2 h-4 w-4" />
-              Link Client
+              {t('Link Client')}
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-[350px] p-0" align="start">
             <Command>
               <CommandInput
-                placeholder="Search clients..."
+                placeholder={t('Search clients...')}
                 value={search}
                 onValueChange={setSearch}
               />
@@ -96,6 +98,7 @@ function ClientList({
   search: string
   onSelect: (id: string) => void
 }) {
+  const { t } = useTranslation()
   const [clients, setClients] = useState<ClientSearchItem[] | null>(null)
   const [loaded, setLoaded] = useState(false)
 
@@ -108,7 +111,7 @@ function ClientList({
   }
 
   if (clients === null) {
-    return <CommandEmpty>Loading clients...</CommandEmpty>
+    return <CommandEmpty>{t('Loading clients...')}</CommandEmpty>
   }
 
   const filtered = clients.filter(
@@ -118,7 +121,7 @@ function ClientList({
   )
 
   if (filtered.length === 0) {
-    return <CommandEmpty>No clients found.</CommandEmpty>
+    return <CommandEmpty>{t('No clients found.')}</CommandEmpty>
   }
 
   return (

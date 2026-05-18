@@ -11,6 +11,7 @@ import { createStorage } from '@/lib/storage'
 import { createRecording, transcribeRecording } from '@/lib/actions/recording'
 import { pollJob } from '@/hooks/use-job-status'
 import type { Recording } from '@/lib/queries/recording'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface AudioRecorderProps {
   projectId: string
@@ -20,6 +21,7 @@ interface AudioRecorderProps {
 }
 
 export function AudioRecorder({ projectId, companyId, onRecordingCreated, onTranscribing }: AudioRecorderProps) {
+  const { t } = useTranslation()
   const [isRecording, setIsRecording] = useState(false)
   const [duration, setDuration] = useState(0)
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null)
@@ -119,11 +121,11 @@ export function AudioRecorder({ projectId, companyId, onRecordingCreated, onTran
       }
     } catch (err: any) {
       if (err?.name === 'NotAllowedError') {
-        setError('Microphone permission denied. Please allow microphone access and try again.')
+        setError(t('Microphone permission denied. Please allow microphone access and try again.'))
       } else if (err?.name === 'NotFoundError') {
-        setError('No microphone found. Please connect a microphone and try again.')
+        setError(t('No microphone found. Please connect a microphone and try again.'))
       } else {
-        setError('Failed to start recording. Please try again.')
+        setError(t('Failed to start recording. Please try again.'))
       }
     }
   }, [])
@@ -237,7 +239,7 @@ export function AudioRecorder({ projectId, companyId, onRecordingCreated, onTran
           upsert: false,
         })
       } catch {
-        throw new Error('Failed to upload audio file')
+        throw new Error(t('Failed to upload audio file'))
       }
 
       // Create recording in DB
@@ -268,16 +270,16 @@ export function AudioRecorder({ projectId, companyId, onRecordingCreated, onTran
       if ('error' in transcribeResult) {
         setIsTranscribing(false)
         onTranscribing?.(null)
-        toast.error('Transcription failed. You can retry from the recording.')
+        toast.error(t('Transcription failed. You can retry from the recording.'))
       } else {
-        toast.info('Transcription queued...')
+        toast.info(t('Transcription queued...'))
         try {
           const controller = new AbortController()
           await pollJob(transcribeResult.data.jobId, controller.signal)
-          toast.success('Recording transcribed successfully!')
+          toast.success(t('Recording transcribed successfully!'))
         } catch (err) {
           if ((err as Error).name !== 'AbortError') {
-            toast.error('Transcription failed. You can retry from the recording.')
+            toast.error(t('Transcription failed. You can retry from the recording.'))
           }
         } finally {
           setIsTranscribing(false)
@@ -292,8 +294,8 @@ export function AudioRecorder({ projectId, companyId, onRecordingCreated, onTran
       setIsUploading(false)
       setIsTranscribing(false)
       onTranscribing?.(null)
-      setError(err.message || 'Failed to save recording')
-      toast.error('Failed to save recording')
+      setError(err.message || t('Failed to save recording'))
+      toast.error(t('Failed to save recording'))
     }
   }, [audioBlob, companyId, projectId, duration, onRecordingCreated, onTranscribing])
 
@@ -322,7 +324,7 @@ export function AudioRecorder({ projectId, companyId, onRecordingCreated, onTran
               ? 'bg-red-500 animate-pulse hover:bg-red-600'
               : 'bg-primary hover:bg-primary/90'
           }`}
-          aria-label={isRecording ? 'Stop recording' : 'Start recording'}
+          aria-label={isRecording ? t('Stop recording') : t('Start recording')}
         >
           {isRecording ? (
             <MicOff className="h-8 w-8 text-white" />
@@ -341,7 +343,7 @@ export function AudioRecorder({ projectId, companyId, onRecordingCreated, onTran
 
       {isRecording && speechSupported === false && (
         <p className="text-xs text-muted-foreground text-center">
-          Live preview not available on this browser
+          {t('Live preview not available on this browser')}
         </p>
       )}
 
@@ -350,16 +352,16 @@ export function AudioRecorder({ projectId, companyId, onRecordingCreated, onTran
         <div className="flex items-center justify-center gap-3">
           <Button variant="outline" size="sm" onClick={handlePlay}>
             {isPlaying ? (
-              <><Pause className="h-4 w-4 mr-1" /> Pause</>
+              <><Pause className="h-4 w-4 mr-1" /> {t('Pause')}</>
             ) : (
-              <><Play className="h-4 w-4 mr-1" /> Play</>
+              <><Play className="h-4 w-4 mr-1" /> {t('Play')}</>
             )}
           </Button>
           <Button variant="destructive" size="sm" onClick={handleDelete}>
-            <Trash2 className="h-4 w-4 mr-1" /> Delete
+            <Trash2 className="h-4 w-4 mr-1" /> {t('Delete')}
           </Button>
           <Button size="sm" onClick={handleSaveAndTranscribe}>
-            <Upload className="h-4 w-4 mr-1" /> Save &amp; Transcribe
+            <Upload className="h-4 w-4 mr-1" /> {t('Save & Transcribe')}
           </Button>
         </div>
       )}
@@ -368,14 +370,14 @@ export function AudioRecorder({ projectId, companyId, onRecordingCreated, onTran
       {isUploading && (
         <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" />
-          Uploading...
+          {t('Uploading...')}
         </div>
       )}
 
       {isTranscribing && (
         <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" />
-          Transcribing with AI...
+          {t('Transcribing with AI...')}
         </div>
       )}
 
@@ -391,8 +393,7 @@ export function AudioRecorder({ projectId, companyId, onRecordingCreated, onTran
         <div className="flex items-start gap-2 bg-[hsl(var(--info-muted))] text-[hsl(var(--info))] text-xs rounded-md p-3">
           <Info className="h-4 w-4 flex-shrink-0 mt-0.5" />
           <span>
-            Live transcript preview is only available on Chrome and Edge browsers.
-            Your recording will still be transcribed by AI after saving.
+            {t('Live transcript preview is only available on Chrome and Edge browsers. Your recording will still be transcribed by AI after saving.')}
           </span>
         </div>
       )}

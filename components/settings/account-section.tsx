@@ -26,6 +26,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 // Password schema
 const passwordSchema = z
@@ -49,6 +50,7 @@ const emailSchema = z.object({
 type EmailValues = z.infer<typeof emailSchema>
 
 export function AccountSection() {
+  const { t } = useTranslation()
   const router = useRouter()
   const [isPendingPassword, startPasswordTransition] = useTransition()
   const [isPendingEmail, startEmailTransition] = useTransition()
@@ -79,7 +81,7 @@ export function AccountSection() {
       if (result.error) {
         toast.error(result.error)
       } else {
-        toast.success('Password changed successfully.')
+        toast.success(t('Password changed successfully.'))
         passwordForm.reset()
       }
     })
@@ -91,7 +93,7 @@ export function AccountSection() {
       if (result.error) {
         toast.error(result.error)
       } else {
-        toast.success(result.message || 'Confirmation email sent to your new address.')
+        toast.success(result.message || t('Confirmation email sent to your new address.'))
         emailForm.reset()
       }
     })
@@ -103,7 +105,7 @@ export function AccountSection() {
       if (result.error) {
         toast.error(result.error)
       } else {
-        toast.success('Account deleted.')
+        toast.success(t('Account deleted.'))
         router.push(result.redirect || '/login')
       }
     })
@@ -112,18 +114,18 @@ export function AccountSection() {
   return (
     <Card className="w-full rounded-[var(--radius-md)]">
       <CardHeader className="border-b border-border">
-        <CardTitle>Account</CardTitle>
+        <CardTitle>{t('Account')}</CardTitle>
         <CardDescription>
-          Update login credentials and manage irreversible account actions.
+          {t('Update login credentials and manage irreversible account actions.')}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-8 py-6">
         {/* Change Password */}
         <div className="grid gap-6 xl:grid-cols-[260px_minmax(0,1fr)]">
           <div>
-            <h3 className="text-sm font-medium">Change Password</h3>
+            <h3 className="text-sm font-medium">{t('Change Password')}</h3>
             <p className="mt-1 text-sm text-muted-foreground">
-              Use a strong password that is not shared with other services.
+              {t('Use a strong password that is not shared with other services.')}
             </p>
           </div>
           <Form {...passwordForm}>
@@ -133,7 +135,7 @@ export function AccountSection() {
                 name="currentPassword"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Current Password</FormLabel>
+                    <FormLabel>{t('Current Password')}</FormLabel>
                     <FormControl>
                       <Input type="password" autoComplete="current-password" {...field} />
                     </FormControl>
@@ -146,7 +148,7 @@ export function AccountSection() {
                 name="newPassword"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>New Password</FormLabel>
+                    <FormLabel>{t('New Password')}</FormLabel>
                     <FormControl>
                       <Input type="password" autoComplete="new-password" {...field} />
                     </FormControl>
@@ -159,7 +161,7 @@ export function AccountSection() {
                 name="confirmPassword"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Confirm New Password</FormLabel>
+                    <FormLabel>{t('Confirm New Password')}</FormLabel>
                     <FormControl>
                       <Input type="password" autoComplete="new-password" {...field} />
                     </FormControl>
@@ -169,7 +171,7 @@ export function AccountSection() {
               />
               <Button type="submit" disabled={isPendingPassword} className="min-w-40">
                 {isPendingPassword && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Change Password
+                {t('Change Password')}
               </Button>
             </form>
           </Form>
@@ -180,9 +182,9 @@ export function AccountSection() {
         {/* Change Email */}
         <div className="grid gap-6 xl:grid-cols-[260px_minmax(0,1fr)]">
           <div>
-            <h3 className="text-sm font-medium">Change Email</h3>
+            <h3 className="text-sm font-medium">{t('Change Email')}</h3>
             <p className="mt-1 text-sm text-muted-foreground">
-              A confirmation message will be sent to the new address.
+              {t('A confirmation message will be sent to the new address.')}
             </p>
           </div>
           <Form {...emailForm}>
@@ -192,7 +194,7 @@ export function AccountSection() {
                 name="newEmail"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>New Email Address</FormLabel>
+                    <FormLabel>{t('New Email Address')}</FormLabel>
                     <FormControl>
                       <Input type="email" placeholder="new@email.com" {...field} />
                     </FormControl>
@@ -202,7 +204,7 @@ export function AccountSection() {
               />
               <Button type="submit" disabled={isPendingEmail} className="min-w-40">
                 {isPendingEmail && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Change Email
+                {t('Change Email')}
               </Button>
             </form>
           </Form>
@@ -213,33 +215,32 @@ export function AccountSection() {
         {/* Delete Account */}
         <div className="grid gap-6 xl:grid-cols-[260px_minmax(0,1fr)]">
           <div>
-            <h3 className="text-sm font-medium text-destructive">Danger Zone</h3>
+            <h3 className="text-sm font-medium text-destructive">{t('Danger Zone')}</h3>
             <p className="mt-1 text-sm text-muted-foreground">
-              This permanently removes your company profile, projects, and
-              account access.
+              {t('This permanently removes your company profile, projects, and account access.')}
             </p>
           </div>
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button variant="destructive" disabled={isPendingDelete}>
                 {isPendingDelete && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Delete Account
+                {t('Delete Account')}
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                <AlertDialogTitle>{t('Are you absolutely sure?')}</AlertDialogTitle>
                 <AlertDialogDescription>
-                  This will permanently delete your account, company, and all projects. This action cannot be undone.
+                  {t('This will permanently delete your account, company, and all projects. This action cannot be undone.')}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogCancel>{t('Cancel')}</AlertDialogCancel>
                 <AlertDialogAction
                   onClick={onDeleteAccount}
                   className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                 >
-                  Delete Account
+                  {t('Delete Account')}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>

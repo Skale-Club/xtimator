@@ -7,6 +7,7 @@ import {
   type ConnectState,
 } from '@/components/settings/stripe-connect-card'
 import { Card } from '@/components/ui/card'
+import { T } from '@/components/i18n/t'
 
 /**
  * /settings/payments — owner-facing page for the Stripe Connect lifecycle.
@@ -65,10 +66,10 @@ export default async function PaymentsSettingsPage({
     <div className="mx-auto max-w-3xl space-y-6 px-6 py-8">
       <header className="flex flex-col gap-1">
         <h1 className="text-[clamp(28px,3.5vw,40px)] font-semibold tracking-tight">
-          Payments
+          <T>Payments</T>
         </h1>
         <p className="text-sm text-muted-foreground">
-          Connect Stripe to let customers pay estimates online.
+          <T>Connect Stripe to let customers pay estimates online.</T>
         </p>
       </header>
       {toastConnected && (
@@ -76,7 +77,7 @@ export default async function PaymentsSettingsPage({
           variant="glass"
           className="border-l-[3px] border-l-emerald-500 p-4 text-sm"
         >
-          Stripe account connected successfully.
+          <T>Stripe account connected successfully.</T>
         </Card>
       )}
       {toastError && (
@@ -85,8 +86,8 @@ export default async function PaymentsSettingsPage({
           className="border-l-[3px] border-l-[hsl(var(--destructive))] p-4 text-sm text-destructive"
         >
           {toastError === 'platform_not_configured'
-            ? 'Stripe Connect is not yet enabled on the platform.'
-            : `Connection failed: ${toastError}`}
+            ? <T>Stripe Connect is not yet enabled on the platform.</T>
+            : <T text={`Connection failed: ${toastError}`} />}
         </Card>
       )}
       <StripeConnectCard state={state} />

@@ -6,6 +6,7 @@ import {
   type WhatsAppStatus,
 } from '@/components/settings/whatsapp-connect-card'
 import { Card } from '@/components/ui/card'
+import { T } from '@/components/i18n/t'
 
 export default async function SettingsIntegrationsPage() {
   const claims = await getAuthClaims()
@@ -41,10 +42,10 @@ export default async function SettingsIntegrationsPage() {
     <div className="mx-auto max-w-3xl space-y-8 px-6 py-8">
       <header className="flex flex-col gap-2">
         <h1 className="text-[clamp(28px,3.5vw,40px)] font-semibold tracking-tight">
-          Integrations
+          <T>Integrations</T>
         </h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Connect third-party services to extend how estimates are created and delivered.
+          <T>Connect third-party services to extend how estimates are created and delivered.</T>
         </p>
       </header>
 

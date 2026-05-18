@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import { Loader2, Check } from 'lucide-react'
 import { Textarea } from '@/components/ui/textarea'
 import { updateTranscript } from '@/lib/actions/recording'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface TranscriptEditorProps {
   recordingId: string
@@ -12,6 +13,7 @@ interface TranscriptEditorProps {
 }
 
 export function TranscriptEditor({ recordingId, initialTranscript, isTranscribing }: TranscriptEditorProps) {
+  const { t } = useTranslation()
   const [transcript, setTranscript] = useState(initialTranscript ?? '')
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -56,7 +58,7 @@ export function TranscriptEditor({ recordingId, initialTranscript, isTranscribin
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground py-3">
         <Loader2 className="h-4 w-4 animate-spin" />
-        Transcribing...
+        {t('Transcribing...')}
       </div>
     )
   }
@@ -64,22 +66,22 @@ export function TranscriptEditor({ recordingId, initialTranscript, isTranscribin
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between">
-        <label className="text-xs font-medium text-muted-foreground">Transcript</label>
+        <label className="text-xs font-medium text-muted-foreground">{t('Transcript')}</label>
         {saveStatus === 'saving' && (
           <span className="text-xs text-muted-foreground flex items-center gap-1">
-            <Loader2 className="h-3 w-3 animate-spin" /> Saving...
+            <Loader2 className="h-3 w-3 animate-spin" /> {t('Saving...')}
           </span>
         )}
         {saveStatus === 'saved' && (
           <span className="text-xs text-[hsl(var(--success))] flex items-center gap-1">
-            <Check className="h-3 w-3" /> Saved
+            <Check className="h-3 w-3" /> {t('Saved')}
           </span>
         )}
       </div>
       <Textarea
         value={transcript}
         onChange={(e) => handleChange(e.target.value)}
-        placeholder="Transcript will appear here after processing..."
+        placeholder={t('Transcript will appear here after processing...')}
         className="min-h-[80px] text-sm"
         rows={3}
       />

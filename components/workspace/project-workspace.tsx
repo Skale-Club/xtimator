@@ -14,6 +14,7 @@ import type { Recording } from '@/lib/queries/recording'
 import type { Photo } from '@/lib/queries/photo'
 import type { EstimateWithSections, Estimate } from '@/lib/queries/estimate'
 import type { EstimateTemplate } from '@/lib/utils/estimate-template'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 const ALLOWED_TABS = ['overview', 'audio', 'photos', 'estimate', 'send'] as const
 type WorkspaceTab = (typeof ALLOWED_TABS)[number]
@@ -38,6 +39,7 @@ export function ProjectWorkspace({
   ownerName, estimateTemplate,
   defaultTab = 'overview',
 }: ProjectWorkspaceProps) {
+  const { t } = useTranslation()
   const searchParams = useSearchParams()
   const router = useRouter()
   const pathname = usePathname()
@@ -95,7 +97,7 @@ export function ProjectWorkspace({
               "
             >
               <Icon className="h-4 w-4 shrink-0" />
-              <span className="hidden sm:inline">{label}</span>
+              <span className="hidden sm:inline">{t(label)}</span>
             </TabsTrigger>
           ))}
         </TabsList>

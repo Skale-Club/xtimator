@@ -14,6 +14,7 @@ import {
 import { ArrowLeft, Loader2 } from 'lucide-react'
 import type { Photo } from '@/lib/queries/photo'
 import type { ProjectDetail } from '@/lib/queries/project'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface PhotosInputProps {
   project: ProjectDetail
@@ -22,6 +23,7 @@ interface PhotosInputProps {
 }
 
 export function PhotosInput({ project, companyId, projectId }: PhotosInputProps) {
+  const { t } = useTranslation()
   const router = useRouter()
   const [photos, setPhotos] = useState<Photo[]>([])
   const [isGenerating, setIsGenerating] = useState(false)
@@ -44,7 +46,7 @@ export function PhotosInput({ project, companyId, projectId }: PhotosInputProps)
 
       if (!res.ok) {
         const data = await res.json()
-        toast.error(data.error ?? 'Failed to generate estimate')
+        toast.error(data.error ?? t('Failed to generate estimate'))
         setIsGenerating(false)
         return
       }
@@ -56,7 +58,7 @@ export function PhotosInput({ project, companyId, projectId }: PhotosInputProps)
       router.push(`/projects/${projectId}?tab=estimate&estimate=${data.estimateId}`)
     } catch (err) {
       console.error('Photos input error:', err)
-      toast.error('Something went wrong. Please try again.')
+      toast.error(t('Something went wrong. Please try again.'))
       setIsGenerating(false)
     }
   }
@@ -68,7 +70,7 @@ export function PhotosInput({ project, companyId, projectId }: PhotosInputProps)
         <Link
           href={`/projects/${projectId}`}
           className="flex items-center justify-center w-10 h-10 rounded-md hover:bg-muted transition-colors"
-          aria-label="Back to project"
+          aria-label={t('Back to project')}
         >
           <ArrowLeft className="w-5 h-5 text-foreground" />
         </Link>
@@ -99,7 +101,7 @@ export function PhotosInput({ project, companyId, projectId }: PhotosInputProps)
                 >
                   {/* Placeholder for thumbnail - will show actual image with proper URL in production */}
                   <div className="absolute inset-0 flex items-center justify-center text-xs text-muted-foreground">
-                    Photo
+                    {t('Photo')}
                   </div>
                 </div>
               ))}
@@ -119,10 +121,10 @@ export function PhotosInput({ project, companyId, projectId }: PhotosInputProps)
             {isGenerating ? (
               <>
                 <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                Analyzing Photos & Generating…
+                {t('Analyzing Photos & Generating…')}
               </>
             ) : (
-              'Generate from Photos'
+              t('Generate from Photos')
             )}
           </Button>
         </div>

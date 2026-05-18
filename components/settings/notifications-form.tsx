@@ -12,6 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface NotificationsFormProps {
   company: CompanySettings
@@ -24,6 +25,7 @@ interface NotificationValues {
 }
 
 export function NotificationsForm({ company }: NotificationsFormProps) {
+  const { t } = useTranslation()
   const [isPending, startTransition] = useTransition()
 
   const form = useForm<NotificationValues>({
@@ -41,7 +43,7 @@ export function NotificationsForm({ company }: NotificationsFormProps) {
       if (result.error) {
         toast.error(result.error)
       } else {
-        toast.success('Notification preferences saved.')
+        toast.success(t('Notification preferences saved.'))
       }
     })
   }
@@ -49,9 +51,9 @@ export function NotificationsForm({ company }: NotificationsFormProps) {
   return (
     <Card className="w-full rounded-[var(--radius-md)]">
       <CardHeader className="border-b border-border">
-        <CardTitle>Email Notifications</CardTitle>
+        <CardTitle>{t('Email Notifications')}</CardTitle>
         <CardDescription>
-          Choose which estimate activity should notify you by email.
+          {t('Choose which estimate activity should notify you by email.')}
         </CardDescription>
       </CardHeader>
       <CardContent className="py-6">
@@ -59,9 +61,9 @@ export function NotificationsForm({ company }: NotificationsFormProps) {
           <div className="grid gap-3 lg:grid-cols-3">
             <div className="flex min-h-24 items-center justify-between gap-4 rounded-[var(--radius-md)] border border-border bg-background p-4">
               <Label htmlFor="notify-view" className="grid flex-1 gap-1">
-                <span>Estimate viewed</span>
+                <span>{t('Estimate viewed')}</span>
                 <span className="text-sm font-normal text-muted-foreground">
-                  Know when a client opens the shared estimate.
+                  {t('Know when a client opens the shared estimate.')}
                 </span>
               </Label>
               <Switch
@@ -73,9 +75,9 @@ export function NotificationsForm({ company }: NotificationsFormProps) {
 
             <div className="flex min-h-24 items-center justify-between gap-4 rounded-[var(--radius-md)] border border-border bg-background p-4">
               <Label htmlFor="notify-accept" className="grid flex-1 gap-1">
-                <span>Estimate accepted</span>
+                <span>{t('Estimate accepted')}</span>
                 <span className="text-sm font-normal text-muted-foreground">
-                  Get notified as soon as work is approved.
+                  {t('Get notified as soon as work is approved.')}
                 </span>
               </Label>
               <Switch
@@ -87,9 +89,9 @@ export function NotificationsForm({ company }: NotificationsFormProps) {
 
             <div className="flex min-h-24 items-center justify-between gap-4 rounded-[var(--radius-md)] border border-border bg-background p-4">
               <Label htmlFor="notify-decline" className="grid flex-1 gap-1">
-                <span>Estimate declined</span>
+                <span>{t('Estimate declined')}</span>
                 <span className="text-sm font-normal text-muted-foreground">
-                  See declines quickly so follow-up stays timely.
+                  {t('See declines quickly so follow-up stays timely.')}
                 </span>
               </Label>
               <Switch
@@ -102,7 +104,7 @@ export function NotificationsForm({ company }: NotificationsFormProps) {
 
           <Button type="submit" disabled={isPending} className="min-w-40">
             {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Save Notifications
+            {t('Save Notifications')}
           </Button>
         </form>
       </CardContent>

@@ -10,6 +10,7 @@ import {
   CardFooter,
 } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 export type ConnectState =
   | { kind: 'not_configured' }
@@ -23,6 +24,7 @@ export type ConnectState =
  * the linked Stripe account + a Disconnect button (POST to disconnect API).
  */
 export function StripeConnectCard({ state }: { state: ConnectState }) {
+  const { t } = useTranslation()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
 
@@ -48,28 +50,27 @@ export function StripeConnectCard({ state }: { state: ConnectState }) {
   return (
     <Card variant="glass" className="p-2 md:p-4">
       <CardHeader>
-        <CardTitle>Stripe payments</CardTitle>
+        <CardTitle>{t('Stripe payments')}</CardTitle>
         <CardDescription>
-          Accept card payments from customers directly on your shared estimates.
-          Funds settle to your own Stripe account — Xtimator never holds your money.
+          {t('Accept card payments from customers directly on your shared estimates. Funds settle to your own Stripe account — Xtimator never holds your money.')}
         </CardDescription>
       </CardHeader>
       <CardContent>
         {state.kind === 'not_configured' && (
           <p className="text-sm text-muted-foreground">
-            Stripe Connect is not yet enabled on this platform. Please contact support.
+            {t('Stripe Connect is not yet enabled on this platform. Please contact support.')}
           </p>
         )}
         {state.kind === 'not_connected' && (
           <p className="text-sm text-muted-foreground">
-            Connect your Stripe account in one click. Test mode works for setup.
+            {t('Connect your Stripe account in one click. Test mode works for setup.')}
           </p>
         )}
         {state.kind === 'connected' && (
           <div className="text-sm">
             <p className="flex items-center">
               <span className="inline-flex h-2 w-2 rounded-full bg-emerald-500 mr-2" />
-              Connected as <strong className="ml-1">{state.displayName}</strong>
+              {t('Connected as')} <strong className="ml-1">{state.displayName}</strong>
             </p>
             {state.email && (
               <p className="text-muted-foreground mt-1">{state.email}</p>
@@ -84,7 +85,7 @@ export function StripeConnectCard({ state }: { state: ConnectState }) {
         {state.kind === 'not_connected' && (
           <a href="/api/stripe/connect/initiate">
             <Button variant="primary">
-              Connect Stripe Account
+              {t('Connect Stripe Account')}
             </Button>
           </a>
         )}
@@ -94,7 +95,7 @@ export function StripeConnectCard({ state }: { state: ConnectState }) {
             onClick={handleDisconnect}
             disabled={isPending}
           >
-            {isPending ? 'Disconnecting…' : 'Disconnect'}
+            {isPending ? t('Disconnecting…') : t('Disconnect')}
           </Button>
         )}
       </CardFooter>
