@@ -13,17 +13,16 @@ export default async function AdminAdminsPage() {
     .select('user_id, created_at')
     .order('created_at', { ascending: true })
 
-  const { data: list } = await svc.auth.admin.listUsers({ perPage: 1000 })
-  const emailById = new Map<string, string>()
-  for (const u of list?.users ?? []) {
-    if (u.email) emailById.set(u.id, u.email)
-  }
-
-  const admins: AdminRow[] = (rows ?? []).map((row) => ({
-    user_id: row.user_id as string,
-    email: emailById.get(row.user_id as string) ?? '(unknown email)',
-    created_at: row.created_at as string,
-  }))
+  const admins: AdminRow[] = await Promise.all(
+    (rows ?? []).map(async (row) => {
+      const { data: u } = await svc.auth.admin.getUserById(row.user_id as string)
+      return {
+        user_id: row.user_id as string,
+        email: u?.user?.email ?? '(unknown email)',
+        created_at: row.created_at as string,
+      }
+    })
+  )
 
   return (
     <div className="space-y-8">
