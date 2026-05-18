@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { getBranding } from '@/lib/platform-config'
+import { getCachedBranding } from '@/lib/platform-config'
 import { getAuthClaims, getCachedCompany } from '@/lib/queries/auth'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { Sidebar } from '@/components/app-shell/sidebar'
@@ -21,6 +21,8 @@ export default async function AppShellLayout({
     redirect('/login')
   }
 
+  // Start branding immediately — no dependency on company (D-06, D-09)
+  const brandingPromise = getCachedBranding()
   const company = await getCachedCompany(claims.sub)
 
   if (!company) {
@@ -28,7 +30,7 @@ export default async function AppShellLayout({
   }
 
   const [branding, adminRow, billingRow] = await Promise.all([
-    getBranding(),
+    brandingPromise, // already in flight
     requireServiceClient()
       .from('platform_admins')
       .select('user_id')
