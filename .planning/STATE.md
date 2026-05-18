@@ -24,7 +24,7 @@ progress:
 Phase: 72
 Plan: Not started
 Status: Phase complete — ready for verification
-Last activity: 2026-05-18 - Completed quick task 260518-hkp: price book category hierarchy — folders (SEED-025)
+Last activity: 2026-05-18 - Marked SEED-020 (Stripe Connect customer payments / Phase 70) as harvested — all 5 plans and 9 CONNECT-* requirements confirmed complete
 
 ## v3.1.1 Phases
 
