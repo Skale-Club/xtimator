@@ -6,6 +6,7 @@ export const priceBookItemSchema = z.object({
   unit: z.string().optional().or(z.literal('')),
   unit_price: z.coerce.number().min(0, 'Price must be 0 or greater'),
   notes: z.string().optional().or(z.literal('')),
+  image_url: z.string().url().optional().or(z.literal('')),
 })
 
 export type PriceBookItemFormValues = z.infer<typeof priceBookItemSchema>

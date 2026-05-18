@@ -57,6 +57,7 @@ const mockItems: PriceBookItem[] = [
     unit_price: 75,
     notes: null,
     created_at: '2026-01-01',
+    image_url: null,
   },
   {
     id: '2',
@@ -67,6 +68,7 @@ const mockItems: PriceBookItem[] = [
     unit_price: 120,
     notes: 'Lead only',
     created_at: '2026-01-02',
+    image_url: null,
   },
   {
     id: '3',
@@ -77,6 +79,7 @@ const mockItems: PriceBookItem[] = [
     unit_price: 3.5,
     notes: null,
     created_at: '2026-01-03',
+    image_url: null,
   },
 ]
 

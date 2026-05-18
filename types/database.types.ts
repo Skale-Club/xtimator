@@ -262,6 +262,7 @@ export type Database = {
           company_id: string
           created_at: string
           id: string
+          image_url: string | null
           name: string
           notes: string | null
           unit: string | null
@@ -272,6 +273,7 @@ export type Database = {
           company_id: string
           created_at?: string
           id?: string
+          image_url?: string | null
           name: string
           notes?: string | null
           unit?: string | null
@@ -282,6 +284,7 @@ export type Database = {
           company_id?: string
           created_at?: string
           id?: string
+          image_url?: string | null
           name?: string
           notes?: string | null
           unit?: string | null

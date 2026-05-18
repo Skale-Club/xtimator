@@ -9,6 +9,7 @@ export interface PriceBookItem {
   unit_price: number
   notes: string | null
   created_at: string
+  image_url: string | null
 }
 
 export async function getPriceBookItems(
@@ -17,7 +18,7 @@ export async function getPriceBookItems(
 ): Promise<PriceBookItem[]> {
   const { data } = await supabase
     .from('company_price_book')
-    .select('id, company_id, category, name, unit, unit_price, notes, created_at')
+    .select('id, company_id, category, name, unit, unit_price, notes, created_at, image_url')
     .eq('company_id', companyId)
     .order('category')
     .order('name')
