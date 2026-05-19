@@ -7,6 +7,14 @@ import { NAV_ITEMS } from './nav-items'
 import { LanguageToggle } from '@/components/app-shell/language-toggle'
 import { useTranslation } from '@/lib/i18n/use-translation'
 
+// Map from href to data-tour value — mirrors sidebar targets for mobile (Phase 74)
+const TOUR_TARGET: Record<string, string> = {
+  '/projects/new':        'new-project',
+  '/projects':            'projects',
+  '/clients':             'clients',
+  '/settings/price-book': 'price-book',
+}
+
 export function BottomNav() {
   const pathname = usePathname()
   const { t } = useTranslation()
@@ -27,6 +35,7 @@ export function BottomNav() {
           <Link
             key={item.href}
             href={item.href}
+            data-tour={TOUR_TARGET[item.href] ?? undefined}
             data-active={isActive || undefined}
             className={cn(
               'flex min-h-[44px] min-w-[44px] flex-col items-center justify-center gap-0.5 px-2 py-1.5 text-xs transition-colors duration-150',
@@ -62,7 +71,7 @@ export function BottomNav() {
           </Link>
         )
       })}
-      <div className="flex min-h-[44px] min-w-[44px] items-center justify-center">
+      <div className="flex min-h-[44px] min-w-[44px] items-center justify-center" data-tour="language-toggle">
         <LanguageToggle />
       </div>
     </nav>

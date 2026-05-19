@@ -19,6 +19,14 @@ interface SidebarProps {
   }
 }
 
+// Map from href to data-tour value — used by the guided spotlight tour (Phase 74)
+const TOUR_TARGET: Record<string, string> = {
+  '/projects/new':        'new-project',
+  '/projects':            'projects',
+  '/clients':             'clients',
+  '/settings/price-book': 'price-book',
+}
+
 export function Sidebar({ branding, company: _company }: SidebarProps) {
   const pathname = usePathname()
   const { t } = useTranslation()
@@ -65,6 +73,7 @@ export function Sidebar({ branding, company: _company }: SidebarProps) {
             <Link
               key={item.href}
               href={item.href}
+              data-tour={TOUR_TARGET[item.href] ?? undefined}
               data-active={isActive || undefined}
               className={
                 item.primary

@@ -64,7 +64,9 @@ export function Topbar({ company, isAdmin }: TopbarProps) {
             <ShieldCheck className="h-4 w-4" />
           </Link>
         )}
-        <LanguageToggle />
+        <span data-tour="language-toggle">
+          <LanguageToggle />
+        </span>
         <ThemeToggle />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
