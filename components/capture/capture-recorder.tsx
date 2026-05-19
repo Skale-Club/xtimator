@@ -497,12 +497,52 @@ function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progre
   const { t } = useTranslation()
   return (
     <div className="flex-1 flex flex-col overflow-y-auto min-h-0">
-      {/* Full-width waveform at top (D-08) */}
+      {/* Waveform — visualization for recording (D-08) */}
       <div className="px-4 pt-4">
-        <WaveformVisualizer analyser={analyser} isRecording={isRecording} height={120} />
+        <WaveformVisualizer analyser={analyser} isRecording={isRecording} height={80} />
       </div>
 
-      {/* Text description */}
+      {/* PRIMARY ACTION: Timer + Mic button — front and center, the reason user is on this screen */}
+      <div className="flex flex-col items-center gap-4 pt-4 pb-6">
+        <CaptureTimer elapsedMs={elapsedMs} />
+
+        <CircularProgressRing
+          progress={progress}
+          size={180}
+          strokeWidth={8}
+          colorClass={ringColorClass}
+        >
+          <button
+            onClick={onToggle}
+            className={`w-20 h-20 rounded-full flex items-center justify-center transition-colors ${
+              isRecording
+                ? 'bg-red-500 animate-pulse hover:bg-red-600'
+                : 'bg-primary hover:bg-primary/90'
+            }`}
+            aria-label={isRecording ? t('Stop recording') : t('Start recording')}
+            data-testid="capture-mic"
+          >
+            {isRecording ? (
+              <MicOff className="h-8 w-8 text-white" />
+            ) : (
+              <Mic className="h-8 w-8 text-primary-foreground" />
+            )}
+          </button>
+        </CircularProgressRing>
+
+        <p className="text-sm text-muted-foreground">
+          {isRecording ? t('Tap to stop recording') : t('Tap to start recording')}
+        </p>
+      </div>
+
+      {/* "OR" divider — separates primary mic action from secondary text/photo path */}
+      <div className="px-4 flex items-center gap-3">
+        <div className="flex-1 h-px bg-border" />
+        <span className="text-xs text-muted-foreground uppercase tracking-wider">{t('or')}</span>
+        <div className="flex-1 h-px bg-border" />
+      </div>
+
+      {/* Secondary inputs: text + photos */}
       <div className="px-4 pt-4">
         <textarea
           value={descriptionText}
@@ -513,7 +553,6 @@ function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progre
         />
       </div>
 
-      {/* Photo upload */}
       <div className="px-4 pt-3">
         <input
           ref={photoInputRef}
@@ -539,14 +578,14 @@ function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progre
         </Button>
       </div>
 
-      {/* Language selector + Generate Estimate button */}
+      {/* Language selector + Generate Estimate (only meaningful for text/photo-only paths) */}
       <div className="px-4 pt-4 pb-2">
         <EstimateLanguageSelector
           value={estimateLanguage}
           onChange={setEstimateLanguage}
         />
       </div>
-      <div className="px-4 pt-2 pb-8">
+      <div className="px-4 pt-2 pb-6 sm:pb-8 mt-auto">
         <Button
           onClick={onGenerate}
           disabled={!hasAnyInput}
@@ -556,36 +595,6 @@ function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progre
         >
           {t('Generate Estimate')}
         </Button>
-      </div>
-
-      {/* Timer + mic — anchored bottom on tall screens, follows natural flow + scroll on shorter ones */}
-      <div className="mt-auto flex flex-col items-center pt-6 pb-8 sm:pb-10 gap-6">
-        <CaptureTimer elapsedMs={elapsedMs} />
-
-        {/* Mic button wrapped in progress ring (D-08) */}
-        <CircularProgressRing
-          progress={progress}
-          size={220}
-          strokeWidth={8}
-          colorClass={ringColorClass}
-        >
-          <button
-            onClick={onToggle}
-            className={`w-20 h-20 rounded-full flex items-center justify-center transition-colors ${
-              isRecording
-                ? 'bg-red-500 animate-pulse hover:bg-red-600'
-                : 'bg-primary hover:bg-primary/90'
-            }`}
-            aria-label={isRecording ? t('Stop recording') : t('Start recording')}
-            data-testid="capture-mic"
-          >
-            {isRecording ? (
-              <MicOff className="h-8 w-8 text-white" />
-            ) : (
-              <Mic className="h-8 w-8 text-primary-foreground" />
-            )}
-          </button>
-        </CircularProgressRing>
       </div>
     </div>
   )
