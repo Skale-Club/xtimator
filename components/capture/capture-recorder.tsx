@@ -508,13 +508,13 @@ function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progre
 
         <CircularProgressRing
           progress={progress}
-          size={180}
-          strokeWidth={8}
+          size={120}
+          strokeWidth={6}
           colorClass={ringColorClass}
         >
           <button
             onClick={onToggle}
-            className={`w-20 h-20 rounded-full flex items-center justify-center transition-colors ${
+            className={`w-14 h-14 rounded-full flex items-center justify-center transition-colors ${
               isRecording
                 ? 'bg-red-500 animate-pulse hover:bg-red-600'
                 : 'bg-primary hover:bg-primary/90'
@@ -523,9 +523,9 @@ function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progre
             data-testid="capture-mic"
           >
             {isRecording ? (
-              <MicOff className="h-8 w-8 text-white" />
+              <MicOff className="h-6 w-6 text-white" />
             ) : (
-              <Mic className="h-8 w-8 text-primary-foreground" />
+              <Mic className="h-6 w-6 text-primary-foreground" />
             )}
           </button>
         </CircularProgressRing>
