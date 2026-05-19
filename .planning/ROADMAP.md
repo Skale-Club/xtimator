@@ -189,9 +189,9 @@
 **Plans**: 4 plans in 
 Plans:
 - [x] 74-01-PLAN.md — Tour infrastructure (TourProvider, use-tour hook, welcome modal, onboarding cookie wiring)
-- [ ] 74-02-PLAN.md — Spotlight walkthrough (5-step overlay, TourSpotlight, data-tour attributes on 5 targets)
+- [x] 74-02-PLAN.md — Spotlight walkthrough (5-step overlay, TourSpotlight, data-tour attributes on 5 targets)
 - [x] 74-03-PLAN.md — Contextual first-visit tooltips (ContextualTooltip component, 5 tooltip placements)
-- [ ] 74-04-PLAN.md — '?' floating button + WelcomeModal review mode + final wiring + TypeScript clean pass
+- [x] 74-04-PLAN.md — '?' floating button + WelcomeModal review mode + final wiring + TypeScript clean pass
 
 ### Phase 71: Glassmorphism Structural Redesign — All Surfaces
 **Goal**: Every surface a paying Xtimator customer touches feels premium and modern — frosted-glass cards, vibrant brand-tinted gradients on hero zones, stronger typography hierarchy, generous whitespace — without changing information architecture, navigation, or copy. Information stays where it is; presentation gets a Stripe-Dashboard-tier overhaul.
@@ -759,4 +759,4 @@ Plans:
 | 71. Glassmorphism Structural Redesign | v3.1.1 | 11/11 | Complete    | 2026-05-17 |
 | 72. Admin Menu Performance | v3.1.1 | 3/3 | Complete    | 2026-05-18 |
 | 73. Language Onboarding + Estimate Language UI | v3.1.1 | 5/5 | Complete    | 2026-05-19 |
-| 74. Post-Onboarding App Feature Tour | v3.1.1 | 2/4 | In Progress|  |
+| 74. Post-Onboarding App Feature Tour | v3.1.1 | 4/4 | Complete   | 2026-05-19 |
