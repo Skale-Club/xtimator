@@ -11,6 +11,13 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { toast } from 'sonner'
 import { createBlankEstimate } from '@/lib/actions/estimate'
 import type { EstimateWithSections, Estimate } from '@/lib/queries/estimate'
@@ -24,6 +31,13 @@ import {
   type GenerateEstimateResponse,
 } from './client-suggestion-toast'
 import { useTranslation } from '@/lib/i18n/use-translation'
+import { useLanguage } from '@/lib/i18n/language-context'
+import {
+  resolveEstimateLanguageWithSource,
+  LANGUAGE_LABELS,
+  type EstimateLanguage,
+} from '@/lib/i18n/resolve-estimate-language'
+import { FlagUS, FlagBR, FlagES } from '@/components/app-shell/flags'
 
 interface EstimateTabProps {
   projectId: string
@@ -32,6 +46,20 @@ interface EstimateTabProps {
   allVersions: Estimate[]
   recordings: Recording[]
   photos: Photo[]
+}
+
+const CASCADE_HINT: Record<string, string> = {
+  user:     'Defaulted from your app language',
+  company:  'Defaulted from your company settings',
+  client:   'Defaulted from client preference',
+  fallback: 'Defaulting to English',
+  override: '',  // no hint when user explicitly chose
+}
+
+const FLAG_MAP: Record<EstimateLanguage, React.ComponentType<{ className?: string }>> = {
+  en: FlagUS,
+  pt: FlagBR,
+  es: FlagES,
 }
 
 export function EstimateTab({
@@ -43,10 +71,18 @@ export function EstimateTab({
   photos,
 }: EstimateTabProps) {
   const { t } = useTranslation()
+  const { language: appLanguage } = useLanguage()
   const router = useRouter()
   const [isGenerating, setIsGenerating] = useState(false)
   const [generationStep, setGenerationStep] = useState(0)
   const [isCreatingBlank, setIsCreatingBlank] = useState(false)
+
+  // Resolve cascade default (app language layer only — company/client layers need props, TODO LANG-ONBOARD-03)
+  const cascadeResult = resolveEstimateLanguageWithSource({
+    userAppLanguage: appLanguage as EstimateLanguage,
+  })
+
+  const [selectedLanguage, setSelectedLanguage] = useState<EstimateLanguage>(cascadeResult.language)
 
   useEffect(() => {
     const suggestion = popStoredClientSuggestion(projectId)
@@ -84,12 +120,12 @@ export function EstimateTab({
         }
       }
 
-      // Step 1: Generate estimate
+      // Step 1: Generate estimate (forward language override to cascade)
       setGenerationStep(1)
       const genRes = await fetch('/api/generate-estimate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId }),
+        body: JSON.stringify({ projectId, language: selectedLanguage }),
       })
       if (!genRes.ok) {
         const err = await genRes.json().catch(() => ({}))
@@ -175,6 +211,44 @@ export function EstimateTab({
             <p className="text-sm text-muted-foreground mt-1">
               {t('Create a professional estimate from your audio recordings and photos using AI.')}
             </p>
+          </div>
+
+          {/* Language selector */}
+          <div className="flex flex-col gap-1 w-full">
+            <label className="text-sm font-medium text-foreground">
+              Estimate language
+            </label>
+            <Select
+              value={selectedLanguage}
+              onValueChange={(v) => setSelectedLanguage(v as EstimateLanguage)}
+            >
+              <SelectTrigger className="w-full sm:w-56">
+                <SelectValue>
+                  <span className="flex items-center gap-2">
+                    {(() => { const F = FLAG_MAP[selectedLanguage]; return <F className="h-4 w-4 rounded-[2px]" /> })()}
+                    {LANGUAGE_LABELS[selectedLanguage]}
+                  </span>
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {(['en', 'pt', 'es'] as EstimateLanguage[]).map((lang) => {
+                  const F = FLAG_MAP[lang]
+                  return (
+                    <SelectItem key={lang} value={lang}>
+                      <span className="flex items-center gap-2">
+                        <F className="h-4 w-4 rounded-[2px]" />
+                        {LANGUAGE_LABELS[lang]}
+                      </span>
+                    </SelectItem>
+                  )
+                })}
+              </SelectContent>
+            </Select>
+            {cascadeResult.source !== 'override' && cascadeResult.source !== 'fallback' && (
+              <p className="text-xs text-muted-foreground">
+                {CASCADE_HINT[cascadeResult.source]}
+              </p>
+            )}
           </div>
 
           {hasPrerequisites ? (
