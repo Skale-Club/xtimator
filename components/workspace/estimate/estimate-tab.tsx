@@ -26,7 +26,10 @@ import {
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { useLanguage } from '@/lib/i18n/language-context'
 import { EstimateLanguageSelector } from '@/components/estimate/estimate-language-selector'
-import { type EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
+import {
+  type EstimateLanguage,
+  resolveEstimateLanguageWithSource,
+} from '@/lib/i18n/resolve-estimate-language'
 
 interface EstimateTabProps {
   projectId: string
@@ -51,10 +54,18 @@ export function EstimateTab({
   const [isGenerating, setIsGenerating] = useState(false)
   const [generationStep, setGenerationStep] = useState(0)
   const [isCreatingBlank, setIsCreatingBlank] = useState(false)
-  // Language for the estimate — default from the app language (cascade layer 4)
-  const [estimateLanguage, setEstimateLanguage] = useState<EstimateLanguage>(
-    appLanguage === 'pt' || appLanguage === 'es' ? appLanguage : 'en'
-  )
+
+  // Resolve estimate language via cascade (layers 4+5 available client-side)
+  const cascadeResult = resolveEstimateLanguageWithSource({
+    userAppLanguage: appLanguage as EstimateLanguage,
+  })
+  const [estimateLanguage, setEstimateLanguage] = useState<EstimateLanguage>(cascadeResult.language)
+
+  const CASCADE_HINT: Partial<Record<typeof cascadeResult.source, string>> = {
+    user: t('Defaulted from your app language'),
+    company: t('Defaulted from your company settings'),
+    client: t('Defaulted from client preference'),
+  }
 
   useEffect(() => {
     const suggestion = popStoredClientSuggestion(projectId)
@@ -188,6 +199,7 @@ export function EstimateTab({
           <EstimateLanguageSelector
             value={estimateLanguage}
             onChange={setEstimateLanguage}
+            hint={CASCADE_HINT[cascadeResult.source]}
           />
 
           {hasPrerequisites ? (
