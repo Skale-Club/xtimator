@@ -24,7 +24,7 @@ progress:
 Phase: 72
 Plan: Not started
 Status: Phase complete — ready for verification
-Last activity: 2026-05-18 - Marked SEED-022 (Glassmorphism Structural Redesign / Phase 71) as harvested — 11 plans, 10/10 truths verified; deferred items (snapshot baselines, Lighthouse perf) owned by Phase 69 deploy milestone
+Last activity: 2026-05-19 - Completed quick task 260518-v0z: Unify folder + category in price book (folder is sole taxonomy)
 
 ## v3.1.1 Phases
 
@@ -591,5 +591,6 @@ v3.1: Phases 61-65 (started 2026-05-15). Production Go-Live — 27 requirements 
 | 260518-gf3 | Price book category optional (SEED-010) | 2026-05-18 | 59447d2 | [260518-gf3-price-book-optional-category](.planning/quick/260518-gf3-price-book-optional-category/) |
 | 260518-gxy | Price book item photo (SEED-024) | 2026-05-18 | 3cacc15 | [260518-gxy-price-book-item-photo](.planning/quick/260518-gxy-price-book-item-photo/) |
 | 260518-hkp | Price book category hierarchy — folders (SEED-025) | 2026-05-18 | 3a79b52 | [260518-hkp-price-book-category-hierarchy](.planning/quick/260518-hkp-price-book-category-hierarchy/) |
+| 260518-v0z | Unify folder + category in price book (folder is sole taxonomy) | 2026-05-19 | 45f98d0 | [260518-v0z-unificar-folder-e-category-no-price-book](.planning/quick/260518-v0z-unificar-folder-e-category-no-price-book/) |
 | 2026-05-18 | fast | Center auth card logo+wordmark | done |
 | 2026-05-18 | fast | Restyle sidebar New Project as filled gradient, remove dashboard CTA | done |
