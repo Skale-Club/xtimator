@@ -14,12 +14,14 @@ interface SendTabProps {
   projectName: string
   companyName: string
   clientEmail: string | null
+  clientPhone: string | null
   clientName: string
   ownerName: string
   estimateTemplate: EstimateTemplate
+  smsDeliveryEnabled: boolean
 }
 
-export function SendTab({ estimate, projectName, companyName, clientEmail, clientName, ownerName, estimateTemplate }: SendTabProps) {
+export function SendTab({ estimate, projectName, companyName, clientEmail, clientPhone, clientName, ownerName, estimateTemplate, smsDeliveryEnabled }: SendTabProps) {
   const { t } = useTranslation()
   if (!estimate) {
     return (
@@ -46,9 +48,11 @@ export function SendTab({ estimate, projectName, companyName, clientEmail, clien
         <SendForm
           estimateId={estimate.id}
           clientEmail={clientEmail}
+          clientPhone={clientPhone}
           companyName={companyName}
           projectName={projectName}
           shareToken={estimate.share_token}
+          smsDeliveryEnabled={smsDeliveryEnabled}
         />
       </div>
       <PlainTextCard

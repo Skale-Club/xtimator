@@ -26,6 +26,8 @@ export type Category = {
   providers: ReadonlyArray<Provider>
   /** AI category renders the active-provider selector below the cards. */
   showAISelector?: boolean
+  /** SMS/Twilio category renders the from-phone field below the cards. */
+  showFromPhone?: boolean
 }
 
 export const CATEGORIES: ReadonlyArray<Category> = [
@@ -102,6 +104,7 @@ export const CATEGORIES: ReadonlyArray<Category> = [
     slug: 'sms',
     title: 'SMS',
     description: 'Send estimate share links to clients via SMS.',
+    showFromPhone: true,
     providers: [
       {
         id: 'twilio' as IntegrationProvider,

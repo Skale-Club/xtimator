@@ -262,6 +262,56 @@ async function runTestIntegrationKey(
 }
 
 /**
+ * Save the Twilio outbound phone number into the platform_integrations metadata.
+ * Stored as { from_phone: "+1..." } alongside the existing encrypted key.
+ */
+export async function saveTwilioFromPhone(
+  fromPhone: string
+): Promise<ActionResult> {
+  const ctx = await requireAdmin()
+  const trimmed = fromPhone.trim()
+  if (trimmed && !/^\+[1-9]\d{7,14}$/.test(trimmed)) {
+    return { ok: false, message: 'Phone must be in E.164 format (e.g. +15551234567)' }
+  }
+
+  const svc = requireServiceClient()
+  const { data: existing } = await svc
+    .from('platform_integrations')
+    .select('ciphertext, iv, auth_tag, metadata')
+    .eq('provider', 'twilio')
+    .maybeSingle()
+
+  const { error } = await svc.from('platform_integrations').upsert(
+    {
+      provider: 'twilio',
+      ciphertext: existing?.ciphertext ?? null,
+      iv: existing?.iv ?? null,
+      auth_tag: existing?.auth_tag ?? null,
+      metadata: { ...((existing?.metadata as object) ?? {}), from_phone: trimmed },
+      updated_at: new Date().toISOString(),
+      updated_by: ctx.userId,
+    },
+    { onConflict: 'provider' }
+  )
+
+  if (error) return { ok: false, message: error.message }
+
+  invalidatePlatformConfig()
+  revalidatePath('/admin/integrations')
+
+  void logAdminAction({
+    actorId: ctx.userId,
+    actorEmail: ctx.email,
+    action: 'integration.save',
+    targetType: 'integration',
+    targetId: 'twilio_from_phone',
+    metadata: { from_phone: trimmed },
+  })
+
+  return { ok: true }
+}
+
+/**
  * Upsert the ai_config row in platform_integrations to switch the active AI
  * provider platform-wide. No redeploy required — factory reads from DB on every
  * request (D-04, D-19).

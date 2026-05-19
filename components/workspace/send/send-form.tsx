@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Separator } from '@/components/ui/separator'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Form,
   FormControl,
@@ -18,34 +19,44 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
-import { Send, CheckCircle2, Loader2 } from 'lucide-react'
+import { Send, CheckCircle2, Loader2, MessageSquare, Mail } from 'lucide-react'
 import { toast } from 'sonner'
 import { markAsSentAction } from '@/lib/actions/estimate'
 import { useTranslation } from '@/lib/i18n/use-translation'
 
-const sendSchema = z.object({
+const sendEmailSchema = z.object({
   to: z.string().email('Valid email required'),
   subject: z.string().min(1, 'Subject required'),
   body: z.string().min(1, 'Message required'),
   attachPdf: z.boolean(),
 })
 
-type SendFormValues = z.infer<typeof sendSchema>
+const sendSmsSchema = z.object({
+  to: z.string().regex(/^\+[1-9]\d{7,14}$/, 'Phone must be in E.164 format (e.g. +15551234567)'),
+  message: z.string().optional(),
+})
+
+type SendEmailValues = z.infer<typeof sendEmailSchema>
+type SendSmsValues = z.infer<typeof sendSmsSchema>
 
 interface SendFormProps {
   estimateId: string
   clientEmail: string | null
+  clientPhone: string | null
   companyName: string
   projectName: string
   shareToken: string
+  smsDeliveryEnabled: boolean
 }
 
 export function SendForm({
   estimateId,
   clientEmail,
+  clientPhone,
   companyName,
   projectName,
   shareToken,
+  smsDeliveryEnabled,
 }: SendFormProps) {
   const { t } = useTranslation()
   const [sending, setSending] = useState(false)
@@ -55,8 +66,8 @@ export function SendForm({
     ? `${window.location.origin}/estimate/${shareToken}`
     : `/estimate/${shareToken}`
 
-  const form = useForm<SendFormValues>({
-    resolver: zodResolver(sendSchema) as any,
+  const emailForm = useForm<SendEmailValues>({
+    resolver: zodResolver(sendEmailSchema) as any,
     defaultValues: {
       to: clientEmail ?? '',
       subject: `Estimate from ${companyName} - ${projectName}`,
@@ -65,7 +76,15 @@ export function SendForm({
     },
   })
 
-  async function onSubmit(values: SendFormValues) {
+  const smsForm = useForm<SendSmsValues>({
+    resolver: zodResolver(sendSmsSchema) as any,
+    defaultValues: {
+      to: clientPhone ?? '',
+      message: '',
+    },
+  })
+
+  async function onEmailSubmit(values: SendEmailValues) {
     setSending(true)
     try {
       const response = await fetch(`/api/estimates/${estimateId}/send`, {
@@ -73,17 +92,35 @@ export function SendForm({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(values),
       })
-
       const data = await response.json()
-
       if (!response.ok) {
         toast.error(data.error ?? t('Failed to send email'))
         return
       }
-
       toast.success(t('Estimate sent successfully!'))
     } catch {
       toast.error(t('Failed to send email. Please try again.'))
+    } finally {
+      setSending(false)
+    }
+  }
+
+  async function onSmsSubmit(values: SendSmsValues) {
+    setSending(true)
+    try {
+      const response = await fetch(`/api/estimates/${estimateId}/send-sms`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: values.to, message: values.message }),
+      })
+      const data = await response.json()
+      if (!response.ok) {
+        toast.error(data.error ?? 'Failed to send SMS')
+        return
+      }
+      toast.success('Estimate sent via SMS!')
+    } catch {
+      toast.error('Failed to send SMS. Please try again.')
     } finally {
       setSending(false)
     }
@@ -111,86 +148,135 @@ export function SendForm({
         <CardTitle className="text-lg">{t('Send Estimate')}</CardTitle>
       </CardHeader>
       <CardContent>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="to"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('To')}</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="email"
-                      placeholder="client@example.com"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+        <Tabs defaultValue="email">
+          <TabsList className="mb-4">
+            <TabsTrigger value="email" className="gap-2">
+              <Mail className="h-4 w-4" />
+              Email
+            </TabsTrigger>
+            {smsDeliveryEnabled && (
+              <TabsTrigger value="sms" className="gap-2">
+                <MessageSquare className="h-4 w-4" />
+                SMS
+              </TabsTrigger>
+            )}
+          </TabsList>
 
-            <FormField
-              control={form.control}
-              name="subject"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('Subject')}</FormLabel>
-                  <FormControl>
-                    <Input placeholder={t('Email subject')} {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+          <TabsContent value="email">
+            <Form {...emailForm}>
+              <form onSubmit={emailForm.handleSubmit(onEmailSubmit)} className="space-y-4">
+                <FormField
+                  control={emailForm.control}
+                  name="to"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('To')}</FormLabel>
+                      <FormControl>
+                        <Input type="email" placeholder="client@example.com" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={emailForm.control}
+                  name="subject"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Subject')}</FormLabel>
+                      <FormControl>
+                        <Input placeholder={t('Email subject')} {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={emailForm.control}
+                  name="body"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Message')}</FormLabel>
+                      <FormControl>
+                        <Textarea rows={6} placeholder={t('Write your message...')} {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={emailForm.control}
+                  name="attachPdf"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center space-x-2 space-y-0">
+                      <FormControl>
+                        <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                      </FormControl>
+                      <FormLabel className="text-sm font-normal">
+                        {t('Attach PDF to email')}
+                      </FormLabel>
+                    </FormItem>
+                  )}
+                />
+                <Button type="submit" variant="primary" size="lg" className="w-full" disabled={sending}>
+                  {sending ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Send className="mr-2 h-4 w-4" />
+                  )}
+                  {sending ? t('Sending...') : t('Send Email')}
+                </Button>
+              </form>
+            </Form>
+          </TabsContent>
 
-            <FormField
-              control={form.control}
-              name="body"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('Message')}</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      rows={6}
-                      placeholder={t('Write your message...')}
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="attachPdf"
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-center space-x-2 space-y-0">
-                  <FormControl>
-                    <Checkbox
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  </FormControl>
-                  <FormLabel className="text-sm font-normal">
-                    {t('Attach PDF to email')}
-                  </FormLabel>
-                </FormItem>
-              )}
-            />
-
-            <Button type="submit" variant="primary" size="lg" className="w-full" disabled={sending}>
-              {sending ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Send className="mr-2 h-4 w-4" />
-              )}
-              {sending ? t('Sending...') : t('Send Email')}
-            </Button>
-          </form>
-        </Form>
+          {smsDeliveryEnabled && (
+            <TabsContent value="sms">
+              <Form {...smsForm}>
+                <form onSubmit={smsForm.handleSubmit(onSmsSubmit)} className="space-y-4">
+                  <FormField
+                    control={smsForm.control}
+                    name="to"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Phone number</FormLabel>
+                        <FormControl>
+                          <Input placeholder="+15551234567" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={smsForm.control}
+                    name="message"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Custom message (optional)</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            rows={3}
+                            placeholder={`${companyName} sent you an estimate. Review and approve it here: ${shareLink}`}
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <Button type="submit" variant="primary" size="lg" className="w-full" disabled={sending}>
+                    {sending ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <MessageSquare className="mr-2 h-4 w-4" />
+                    )}
+                    {sending ? 'Sending...' : 'Send SMS'}
+                  </Button>
+                </form>
+              </Form>
+            </TabsContent>
+          )}
+        </Tabs>
 
         <Separator className="my-4" />
 
@@ -198,12 +284,7 @@ export function SendForm({
           <p className="text-sm text-muted-foreground">
             {t('Delivering in person? Mark the estimate as sent without emailing.')}
           </p>
-          <Button
-            variant="outline"
-            className="w-full"
-            onClick={handleMarkAsSent}
-            disabled={marking}
-          >
+          <Button variant="outline" className="w-full" onClick={handleMarkAsSent} disabled={marking}>
             {marking ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             ) : (

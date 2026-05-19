@@ -1,10 +1,12 @@
 import { getOpenRouterDefaultModel, getSelectedAIProvider } from '@/lib/platform-config'
 import type { Category } from '@/lib/admin/integrations-providers'
 import { loadCategoryInitials } from '@/lib/admin/integrations-providers'
+import { requireServiceClient } from '@/lib/supabase/service'
 import { T } from '@/components/i18n/t'
 
 import { AIProviderSelector } from './ai-provider-selector'
 import { IntegrationCard } from './integration-card'
+import { TwilioFromPhoneForm } from './twilio-from-phone-form'
 
 type IntegrationCategoryContentProps = {
   category: Category
@@ -18,6 +20,17 @@ export async function IntegrationCategoryContent({
     category.showAISelector ? getSelectedAIProvider() : Promise.resolve(null),
     category.showAISelector ? getOpenRouterDefaultModel() : Promise.resolve(null),
   ])
+
+  let twilioFromPhone = ''
+  if (category.showFromPhone) {
+    const svc = requireServiceClient()
+    const { data } = await svc
+      .from('platform_integrations')
+      .select('metadata')
+      .eq('provider', 'twilio')
+      .maybeSingle()
+    twilioFromPhone = (data?.metadata as { from_phone?: string } | null)?.from_phone ?? ''
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -46,6 +59,10 @@ export async function IntegrationCategoryContent({
             currentOpenRouterModel={openRouterModel}
           />
         </div>
+      )}
+
+      {category.showFromPhone && (
+        <TwilioFromPhoneForm current={twilioFromPhone} />
       )}
     </div>
   )
