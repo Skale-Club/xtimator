@@ -9,6 +9,8 @@ import { MobileHeader } from '@/components/app-shell/mobile-header'
 import { TranslationLoadingOverlay } from '@/components/i18n/translation-loading-overlay'
 import { TrialBanner } from '@/components/billing/trial-banner'
 import { UpgradeModal } from '@/components/billing/upgrade-modal'
+import { TourProvider } from '@/components/tour/tour-provider'
+import { WelcomeModal } from '@/components/tour/welcome-modal'
 
 export default async function AppShellLayout({
   children,
@@ -54,27 +56,30 @@ export default async function AppShellLayout({
       : null
 
   return (
-    <div className="flex h-screen">
-      <Sidebar
-        branding={{
-          appName: branding.appName,
-          logoUrl: branding.logoUrl,
-        }}
-        company={company}
-      />
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <Topbar company={company} isAdmin={isAdmin} />
-        <MobileHeader />
-        {trialDaysRemaining !== null && trialDaysRemaining < 3 && (
-          <TrialBanner daysRemaining={trialDaysRemaining} />
-        )}
-        <main className="flex-1 overflow-y-auto p-4 md:p-6 pb-20 md:pb-6">
-          {children}
-        </main>
+    <TourProvider>
+      <div className="flex h-screen">
+        <Sidebar
+          branding={{
+            appName: branding.appName,
+            logoUrl: branding.logoUrl,
+          }}
+          company={company}
+        />
+        <div className="flex flex-1 flex-col overflow-hidden">
+          <Topbar company={company} isAdmin={isAdmin} />
+          <MobileHeader />
+          {trialDaysRemaining !== null && trialDaysRemaining < 3 && (
+            <TrialBanner daysRemaining={trialDaysRemaining} />
+          )}
+          <main className="flex-1 overflow-y-auto p-4 md:p-6 pb-20 md:pb-6">
+            {children}
+          </main>
+        </div>
+        <BottomNav />
+        <TranslationLoadingOverlay />
+        <UpgradeModal />
+        <WelcomeModal />
       </div>
-      <BottomNav />
-      <TranslationLoadingOverlay />
-      <UpgradeModal />
-    </div>
+    </TourProvider>
   )
 }
