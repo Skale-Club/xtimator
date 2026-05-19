@@ -193,7 +193,8 @@ export function CaptureRecorder({ project, companyId, projectId }: CaptureRecord
       const storage = createStorage(supabase)
       try {
         await storage.upload('photos', storagePath, blob, { contentType: 'image/jpeg', upsert: false })
-      } catch {
+      } catch (err) {
+        console.error('[capture] photo upload failed:', err)
         continue
       }
       const result = await createPhoto(projectId, storagePath, uploadedPhotos.length + newPhotos.length)
@@ -250,8 +251,9 @@ export function CaptureRecorder({ project, companyId, projectId }: CaptureRecord
     // Upload to Supabase Storage
     try {
       await storage.upload('audio', storagePath, blob, { contentType: mimeTypeRef.current || 'audio/webm', upsert: false })
-    } catch {
-      failAt('saving', t('Failed to upload audio file'))
+    } catch (err) {
+      console.error('[capture] audio upload failed:', err)
+      failAt('saving', err instanceof Error ? err.message : t('Failed to upload audio file'))
       return
     }
 
