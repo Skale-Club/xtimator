@@ -2,35 +2,22 @@ import { describe, it, expect } from 'vitest'
 import { priceBookItemSchema, bulkAdjustSchema } from '@/lib/schemas/price-book'
 
 describe('priceBookItemSchema', () => {
-  it('valid item with category, name, unit_price passes', () => {
+  it('valid item with name, unit_price passes (no category field)', () => {
     const result = priceBookItemSchema.safeParse({
-      category: 'Labor',
       name: 'General Labor',
       unit: 'hr',
       unit_price: 75,
       notes: '',
     })
     expect(result.success).toBe(true)
-  })
-
-  it('missing category fails with "Category is required"', () => {
-    const result = priceBookItemSchema.safeParse({
-      category: '',
-      name: 'General Labor',
-      unit_price: 75,
-    })
-    expect(result.success).toBe(false)
-    if (!result.success) {
-      const categoryError = result.error.issues.find((i) =>
-        i.path.includes('category')
-      )
-      expect(categoryError?.message).toBe('Category is required')
+    if (result.success) {
+      // Schema no longer carries a category field
+      expect((result.data as Record<string, unknown>).category).toBeUndefined()
     }
   })
 
   it('missing name fails with "Item name is required"', () => {
     const result = priceBookItemSchema.safeParse({
-      category: 'Labor',
       name: '',
       unit_price: 75,
     })
@@ -43,7 +30,6 @@ describe('priceBookItemSchema', () => {
 
   it('unit_price coerces string "42.50" to number 42.5', () => {
     const result = priceBookItemSchema.safeParse({
-      category: 'Materials',
       name: 'Pipe',
       unit_price: '42.50',
     })
@@ -55,7 +41,6 @@ describe('priceBookItemSchema', () => {
 
   it('unit_price of -1 fails with "Price must be 0 or greater"', () => {
     const result = priceBookItemSchema.safeParse({
-      category: 'Labor',
       name: 'General Labor',
       unit_price: -1,
     })
@@ -70,7 +55,6 @@ describe('priceBookItemSchema', () => {
 
   it('unit and notes can be empty string (optional fields)', () => {
     const result = priceBookItemSchema.safeParse({
-      category: 'Labor',
       name: 'General Labor',
       unit: '',
       unit_price: 75,

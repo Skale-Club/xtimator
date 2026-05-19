@@ -98,7 +98,7 @@ export class OpenRouterAdapter implements AIProvider {
           input.priceBookItems
             .map(
               (item) =>
-                `- ${item.category ?? 'Uncategorized'} | ${item.name} | $${item.unit_price.toFixed(
+                `- ${item.folder_name ?? 'Uncategorized'} | ${item.name} | $${item.unit_price.toFixed(
                   2
                 )}/${item.unit ?? 'each'}`
             )
