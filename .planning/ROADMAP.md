@@ -189,8 +189,8 @@
 **Plans**: 4 plans in 
 Plans:
 - [x] 74-01-PLAN.md — Tour infrastructure (TourProvider, use-tour hook, welcome modal, onboarding cookie wiring)
-- [x] 74-02-PLAN.md — Spotlight walkthrough (5-step overlay, TourSpotlight, data-tour attributes on 5 targets)
-- [ ] 74-03-PLAN.md — Contextual first-visit tooltips (ContextualTooltip component, 5 tooltip placements)
+- [ ] 74-02-PLAN.md — Spotlight walkthrough (5-step overlay, TourSpotlight, data-tour attributes on 5 targets)
+- [x] 74-03-PLAN.md — Contextual first-visit tooltips (ContextualTooltip component, 5 tooltip placements)
 - [ ] 74-04-PLAN.md — '?' floating button + WelcomeModal review mode + final wiring + TypeScript clean pass
 
 ### Phase 71: Glassmorphism Structural Redesign — All Surfaces

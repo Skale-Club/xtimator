@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v3.1.1
 milestone_name: MVP Launch Prep + Future-Proofing
 status: executing
-last_updated: "2026-05-19T11:24:19.220Z"
+last_updated: "2026-05-19T11:24:25.201Z"
 last_activity: 2026-05-19
 progress:
   total_phases: 18
@@ -417,8 +417,8 @@ Last activity: 2026-05-19
 - [Phase 73-language-onboarding-estimate-language-ui]: LANG_INDICATOR uses plain text (EN/PT/ES) not emoji flags — react-pdf emoji rendering is unreliable cross-platform; CURRENCY_CODE map added with BRL for PT (was missing from 73-02 implementation)
 - [Phase 74-post-onboarding-app-feature-tour]: onboarding_complete cookie is httpOnly:false with 60s maxAge — TourProvider reads via document.cookie, cleared immediately after detection to prevent retrigger on page reload
 - [Phase 74-post-onboarding-app-feature-tour]: startTour() calls completeTour() internally so tour_completed=true regardless of which CTA the user clicks (Show me around or Start estimating)
-- [Phase 74-post-onboarding-app-feature-tour]: TOUR_TARGET Record collocated in each nav component — avoids coupling nav components to tour internals; map is trivial to duplicate
-- [Phase 74-post-onboarding-app-feature-tour]: rAF loop chosen over IntersectionObserver/ResizeObserver for TourSpotlight positioning — simpler cross-browser support including iOS Safari (TOUR-02)
+- [Phase 74-post-onboarding-app-feature-tour]: TOOLTIP_MAP defined inside NAV_ITEMS.map() body — static Record keyed by href, keeps tooltip config co-located with rendering logic
+- [Phase 74-post-onboarding-app-feature-tour]: ContextualTooltip renders children as React.Fragment when not visible — zero overhead after dismissal; text passed as raw English string through t() inside component
 
 ## Performance Metrics
 
@@ -547,7 +547,7 @@ Last activity: 2026-05-19
 | Phase 73-language-onboarding-estimate-language-ui P03 | 5 | 1 tasks | 1 files |
 | Phase 73-language-onboarding-estimate-language-ui P05 | 2min | 1 tasks | 1 files |
 | Phase 74-post-onboarding-app-feature-tour P01 | 5min | 2 tasks | 5 files |
-| Phase 74-post-onboarding-app-feature-tour P02 | 3min | 2 tasks | 7 files |
+| Phase 74-post-onboarding-app-feature-tour P03 | 4min | 2 tasks | 5 files |
 
 ## Project Reference
 

@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/select'
 import type { EstimateEditorState, EstimateAction } from './use-estimate-reducer'
 import { useTranslation } from '@/lib/i18n/use-translation'
+import { ContextualTooltip, TOOLTIP_KEYS } from '@/components/tour/contextual-tooltip'
 
 function formatCurrency(value: number): string {
   return value.toLocaleString('en-US', {
@@ -122,7 +123,13 @@ export function EstimateTotals({ state, dispatch, isReadOnly }: EstimateTotalsPr
 
         {/* Grand Total — highlighted glass row, mono numerics */}
         <div className="flex items-center justify-between rounded-md bg-[var(--glass-bg-light)] px-3 py-2">
-          <span className="text-base font-semibold">{t('Grand Total')}</span>
+          <ContextualTooltip
+            tooltipKey={TOOLTIP_KEYS.estimateTotal}
+            text="Tap any line to edit, add, or remove items"
+            side="top"
+          >
+            <span className="text-base font-semibold">{t('Grand Total')}</span>
+          </ContextualTooltip>
           <span className="font-mono text-xl font-semibold tabular-nums">${formatCurrency(state.total)}</span>
         </div>
       </div>

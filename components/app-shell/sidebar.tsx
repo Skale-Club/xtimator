@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { NAV_ITEMS } from './nav-items'
 import { useTranslation } from '@/lib/i18n/use-translation'
+import { ContextualTooltip, TOOLTIP_KEYS } from '@/components/tour/contextual-tooltip'
 
 interface SidebarProps {
   branding: {
@@ -69,26 +70,54 @@ export function Sidebar({ branding, company: _company }: SidebarProps) {
           const baseLayout =
             'group relative flex items-center gap-3 rounded-[var(--radius-md)] px-3 py-2 text-sm font-[var(--font-weight-medium)] transition-all duration-150'
 
-          return (
+          const linkClassName = item.primary
+            ? cn(
+                baseLayout,
+                'gradient-brand text-white shadow-xs hover:shadow-glow-brand hover:-translate-y-[0.5px] active:translate-y-0'
+              )
+            : cn(
+                baseLayout,
+                'text-muted-foreground hover:bg-[var(--glass-bg-light)] hover:text-foreground',
+                'data-[active]:bg-[var(--glass-bg-light)] data-[active]:text-foreground',
+                'data-[active]:before:content-[""] data-[active]:before:absolute data-[active]:before:left-0 data-[active]:before:top-2 data-[active]:before:bottom-2 data-[active]:before:w-[1.5px] data-[active]:before:rounded-full data-[active]:before:bg-[image:var(--gradient-brand)]'
+              )
+
+          const TOOLTIP_MAP: Record<string, { key: (typeof TOOLTIP_KEYS)[keyof typeof TOOLTIP_KEYS]; text: string }> = {
+            '/clients':             { key: TOOLTIP_KEYS.clients,   text: 'Clients are saved automatically when you send an estimate' },
+            '/settings/price-book': { key: TOOLTIP_KEYS.priceBook, text: 'Save your most-used items to speed up future estimates' },
+          }
+
+          const tooltipConfig = TOOLTIP_MAP[item.href]
+          const dataTour = TOUR_TARGET[item.href]
+
+          const linkEl = (
+            <Link
+              href={item.href}
+              data-tour={dataTour ?? undefined}
+              data-active={isActive || undefined}
+              className={linkClassName}
+            >
+              <Icon className="h-5 w-5 shrink-0" />
+              <span className="hidden lg:block">{t(item.label)}</span>
+            </Link>
+          )
+
+          return tooltipConfig ? (
+            <ContextualTooltip
+              key={item.href}
+              tooltipKey={tooltipConfig.key}
+              text={tooltipConfig.text}
+              side="right"
+            >
+              {linkEl}
+            </ContextualTooltip>
+          ) : (
             <Link
               key={item.href}
               href={item.href}
-              data-tour={TOUR_TARGET[item.href] ?? undefined}
+              data-tour={dataTour ?? undefined}
               data-active={isActive || undefined}
-              className={
-                item.primary
-                  ? cn(
-                      baseLayout,
-                      'gradient-brand text-white shadow-xs hover:shadow-glow-brand hover:-translate-y-[0.5px] active:translate-y-0'
-                    )
-                  : cn(
-                      baseLayout,
-                      'text-muted-foreground hover:bg-[var(--glass-bg-light)] hover:text-foreground',
-                      'data-[active]:bg-[var(--glass-bg-light)] data-[active]:text-foreground',
-                      // 1.5px gradient-brand left bar on active item (UI-SPEC pattern 4)
-                      'data-[active]:before:content-[""] data-[active]:before:absolute data-[active]:before:left-0 data-[active]:before:top-2 data-[active]:before:bottom-2 data-[active]:before:w-[1.5px] data-[active]:before:rounded-full data-[active]:before:bg-[image:var(--gradient-brand)]'
-                    )
-              }
+              className={linkClassName}
             >
               <Icon className="h-5 w-5 shrink-0" />
               <span className="hidden lg:block">{t(item.label)}</span>
