@@ -19,6 +19,7 @@ export const integrationKeySchema = z.object({
     'meta_whatsapp',
     'stripe',
     'stripe_connect_client_id',
+    'twilio',
   ]),
   apiKey: z.string().min(1, 'API key is required'),
 })

@@ -52,7 +52,7 @@ export function SignaturePad({
     e.preventDefault()
     setIsDrawing(true)
     const point = 'touches' in e
-      ? getPos(canvas, e.touches[0])
+      ? getPos(canvas, e.nativeEvent.touches[0])
       : getPos(canvas, e.nativeEvent as MouseEvent)
     lastPos.current = point
   }, [])
@@ -66,7 +66,7 @@ export function SignaturePad({
     if (!ctx || !lastPos.current) return
 
     const point = 'touches' in e
-      ? getPos(canvas, e.touches[0])
+      ? getPos(canvas, e.nativeEvent.touches[0])
       : getPos(canvas, e.nativeEvent as MouseEvent)
 
     ctx.beginPath()
