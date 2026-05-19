@@ -17,6 +17,7 @@ import { ThemeToggle } from '@/components/app-shell/theme-toggle'
 import { LanguageToggle } from '@/components/app-shell/language-toggle'
 import { CompanySelector } from '@/components/app-shell/company-selector'
 import { useTranslation } from '@/lib/i18n/use-translation'
+import { ContextualTooltip, TOOLTIP_KEYS } from '@/components/tour/contextual-tooltip'
 
 interface TopbarProps {
   company: {
@@ -64,7 +65,15 @@ export function Topbar({ company, isAdmin }: TopbarProps) {
             <ShieldCheck className="h-4 w-4" />
           </Link>
         )}
-        <LanguageToggle />
+        <ContextualTooltip
+          tooltipKey={TOOLTIP_KEYS.languageToggle}
+          text="Switch languages — estimates can be sent in EN, PT, or ES"
+          side="bottom"
+        >
+          <span data-tour="language-toggle">
+            <LanguageToggle />
+          </span>
+        </ContextualTooltip>
         <ThemeToggle />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
