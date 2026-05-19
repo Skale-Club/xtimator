@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { useTour } from './use-tour'
 
 interface TourContextValue {
@@ -8,6 +8,8 @@ interface TourContextValue {
   setShowWelcome: (v: boolean) => void
   showSpotlight: boolean
   setShowSpotlight: (v: boolean) => void
+  isReviewModeRef: React.MutableRefObject<boolean>
+  setIsReviewMode: (v: boolean) => void
 }
 
 const TourContext = createContext<TourContextValue>({
@@ -15,6 +17,8 @@ const TourContext = createContext<TourContextValue>({
   setShowWelcome: () => {},
   showSpotlight: false,
   setShowSpotlight: () => {},
+  isReviewModeRef: { current: false },
+  setIsReviewMode: () => {},
 })
 
 export function useTourContext() {
@@ -24,7 +28,12 @@ export function useTourContext() {
 export function TourProvider({ children }: { children: React.ReactNode }) {
   const [showWelcome, setShowWelcome] = useState(false)
   const [showSpotlight, setShowSpotlight] = useState(false)
+  const isReviewModeRef = useRef(false)
   const { isTourCompleted, isSpotlightPending } = useTour()
+
+  function setIsReviewMode(v: boolean) {
+    isReviewModeRef.current = v
+  }
 
   useEffect(() => {
     // Read the httpOnly:false cookie set by createOrUpdateCompany server action
@@ -43,7 +52,7 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <TourContext.Provider value={{ showWelcome, setShowWelcome, showSpotlight, setShowSpotlight }}>
+    <TourContext.Provider value={{ showWelcome, setShowWelcome, showSpotlight, setShowSpotlight, isReviewModeRef, setIsReviewMode }}>
       {children}
     </TourContext.Provider>
   )

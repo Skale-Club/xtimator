@@ -8,7 +8,7 @@ import { useTour } from './use-tour'
 import { useTranslation } from '@/lib/i18n/use-translation'
 
 export function WelcomeModal() {
-  const { showWelcome, setShowWelcome, setShowSpotlight } = useTourContext()
+  const { showWelcome, setShowWelcome, setShowSpotlight, isReviewModeRef, setIsReviewMode } = useTourContext()
   const { completeTour, startTour } = useTour()
   const { t } = useTranslation()
 
@@ -19,15 +19,31 @@ export function WelcomeModal() {
 
   function handleShowMeAround() {
     startTour()            // sets tour_spotlight_pending in localStorage; also calls completeTour
+    setIsReviewMode(false) // leaving modal via spotlight — clear review mode
     setShowWelcome(false)
     setShowSpotlight(true) // Wave 2 spotlight reads this context value
+  }
+
+  function handleClose() {
+    // IMPORTANT: do NOT call completeTour() here — review mode must not touch localStorage
+    setIsReviewMode(false)
+    setShowWelcome(false)
   }
 
   return (
     <Dialog
       open={showWelcome}
       onOpenChange={(open) => {
-        if (!open) handleStartEstimating() // X button = same as "Start estimating"
+        if (!open) {
+          if (isReviewModeRef.current) {
+            // Review mode: just close, no localStorage side-effects
+            setIsReviewMode(false)
+            setShowWelcome(false)
+          } else {
+            // First-time flow: X button = same as "Start estimating"
+            handleStartEstimating()
+          }
+        }
       }}
     >
       <DialogContent className="glass-strong max-w-md">
@@ -63,12 +79,22 @@ export function WelcomeModal() {
           >
             {t('Show me around')}
           </Button>
-          <Button
-            className="flex-1 gradient-brand text-white"
-            onClick={handleStartEstimating}
-          >
-            {t('Start estimating')} →
-          </Button>
+          {isReviewModeRef.current ? (
+            <Button
+              variant="outline"
+              className="flex-1"
+              onClick={handleClose}
+            >
+              {t('Close')}
+            </Button>
+          ) : (
+            <Button
+              className="flex-1 gradient-brand text-white"
+              onClick={handleStartEstimating}
+            >
+              {t('Start estimating')} →
+            </Button>
+          )}
         </div>
       </DialogContent>
     </Dialog>
