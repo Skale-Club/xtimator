@@ -496,7 +496,7 @@ interface RecorderBodyProps {
 function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progress, onToggle, descriptionText, setDescriptionText, uploadedPhotos, isUploadingPhotos, photoInputRef, onPhotoFileChange, hasAnyInput, onGenerate, estimateLanguage, setEstimateLanguage }: RecorderBodyProps) {
   const { t } = useTranslation()
   return (
-    <div className="flex-1 flex flex-col">
+    <div className="flex-1 flex flex-col overflow-y-auto min-h-0">
       {/* Full-width waveform at top (D-08) */}
       <div className="px-4 pt-4">
         <WaveformVisualizer analyser={analyser} isRecording={isRecording} height={120} />
@@ -558,8 +558,8 @@ function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progre
         </Button>
       </div>
 
-      {/* Timer centered */}
-      <div className="flex-1 flex flex-col items-center justify-end pb-[20vh] sm:pb-[15vh] gap-8">
+      {/* Timer + mic — anchored bottom on tall screens, follows natural flow + scroll on shorter ones */}
+      <div className="mt-auto flex flex-col items-center pt-6 pb-8 sm:pb-10 gap-6">
         <CaptureTimer elapsedMs={elapsedMs} />
 
         {/* Mic button wrapped in progress ring (D-08) */}
