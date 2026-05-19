@@ -96,7 +96,7 @@ export default async function ClientDetailPage({
                 {client.phone && (
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <Phone className="h-4 w-4 shrink-0" />
-                    <span>{client.phone}</span>
+                    <a href={`tel:${client.phone}`} className="hover:underline">{client.phone}</a>
                   </div>
                 )}
                 {fullAddress && (
