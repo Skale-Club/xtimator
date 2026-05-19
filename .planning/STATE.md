@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v3.1.1
 milestone_name: MVP Launch Prep + Future-Proofing
-status: verifying
-last_updated: "2026-05-19T10:48:46.766Z"
+status: executing
+last_updated: "2026-05-19T11:16:16.392Z"
 last_activity: 2026-05-19
 progress:
-  total_phases: 17
+  total_phases: 18
   completed_phases: 17
-  total_plans: 47
-  completed_plans: 47
+  total_plans: 51
+  completed_plans: 48
 ---
 
 # Project State
@@ -21,9 +21,9 @@ progress:
 
 ## Current Position
 
-Phase: 73
-Plan: Not started
-Status: Phase complete — ready for verification
+Phase: 74 (Post-Onboarding App Feature Tour) — EXECUTING
+Plan: 2 of 4
+Status: Ready to execute
 Last activity: 2026-05-19
 
 ## v3.1.1 Phases
@@ -415,6 +415,8 @@ Last activity: 2026-05-19
 - [Phase 72-admin-menu-performance]: brandingPromise starts immediately after getAuthClaims resolves; getBranding has no dependency on company data
 - [Phase 73-language-onboarding-estimate-language-ui]: resolveEstimateLanguageWithSource used with userAppLanguage only in EstimateTab — company/client layers need props not yet available as props (TODO LANG-ONBOARD-03)
 - [Phase 73-language-onboarding-estimate-language-ui]: LANG_INDICATOR uses plain text (EN/PT/ES) not emoji flags — react-pdf emoji rendering is unreliable cross-platform; CURRENCY_CODE map added with BRL for PT (was missing from 73-02 implementation)
+- [Phase 74-post-onboarding-app-feature-tour]: onboarding_complete cookie is httpOnly:false with 60s maxAge — TourProvider reads via document.cookie, cleared immediately after detection to prevent retrigger on page reload
+- [Phase 74-post-onboarding-app-feature-tour]: startTour() calls completeTour() internally so tour_completed=true regardless of which CTA the user clicks (Show me around or Start estimating)
 
 ## Performance Metrics
 
@@ -542,13 +544,14 @@ Last activity: 2026-05-19
 | Phase 72-admin-menu-performance P02 | 2.5min | 3 tasks | 3 files |
 | Phase 73-language-onboarding-estimate-language-ui P03 | 5 | 1 tasks | 1 files |
 | Phase 73-language-onboarding-estimate-language-ui P05 | 2min | 1 tasks | 1 files |
+| Phase 74-post-onboarding-app-feature-tour P01 | 5min | 2 tasks | 5 files |
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-13)
 
 **Core value:** Business owner → job site audio recording → sent professional estimate in under 5 minutes
-**Current focus:** Phase 72 — Admin Menu Performance — Instant Navigation
+**Current focus:** Phase 74 — Post-Onboarding App Feature Tour
 
 ## Notes
 

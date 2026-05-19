@@ -188,7 +188,7 @@
   5. A '?' floating button (fixed bottom-right) reopens the welcome modal in review mode ('Show me around' + 'Close' — no 'Start estimating') at any time; button is hidden during spotlight
 **Plans**: 4 plans in 
 Plans:
-- [ ] 74-01-PLAN.md — Tour infrastructure (TourProvider, use-tour hook, welcome modal, onboarding cookie wiring)
+- [x] 74-01-PLAN.md — Tour infrastructure (TourProvider, use-tour hook, welcome modal, onboarding cookie wiring)
 - [ ] 74-02-PLAN.md — Spotlight walkthrough (5-step overlay, TourSpotlight, data-tour attributes on 5 targets)
 - [ ] 74-03-PLAN.md — Contextual first-visit tooltips (ContextualTooltip component, 5 tooltip placements)
 - [ ] 74-04-PLAN.md — '?' floating button + WelcomeModal review mode + final wiring + TypeScript clean pass
@@ -759,4 +759,4 @@ Plans:
 | 71. Glassmorphism Structural Redesign | v3.1.1 | 11/11 | Complete    | 2026-05-17 |
 | 72. Admin Menu Performance | v3.1.1 | 3/3 | Complete    | 2026-05-18 |
 | 73. Language Onboarding + Estimate Language UI | v3.1.1 | 5/5 | Complete    | 2026-05-19 |
-| 74. Post-Onboarding App Feature Tour | v3.1.1 | 0/4 | Planning    | — |
+| 74. Post-Onboarding App Feature Tour | v3.1.1 | 1/4 | In Progress|  |
