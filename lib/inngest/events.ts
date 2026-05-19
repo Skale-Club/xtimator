@@ -16,6 +16,8 @@ export type EstimateGeneratePayload = {
   companyId: string
   projectId: string
   requestId: string
+  /** Optional language override — forwarded from the UI language selector. */
+  language?: 'en' | 'pt' | 'es'
 }
 
 export type TranscribeAudioPayload = {
