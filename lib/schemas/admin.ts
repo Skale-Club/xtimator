@@ -15,6 +15,7 @@ export const integrationKeySchema = z.object({
     'anthropic',
     'openai',
     'gemini',
+    'openrouter',
     'meta_whatsapp',
     'stripe',
     'stripe_connect_client_id',

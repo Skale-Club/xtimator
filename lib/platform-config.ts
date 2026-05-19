@@ -38,6 +38,7 @@ export type IntegrationProvider =
   | 'anthropic'
   | 'openai'
   | 'gemini'
+  | 'openrouter'
   | 'meta_whatsapp'
   | 'stripe'
   // Stripe Connect Client ID (ca_...) — admin-managed; enables tenant OAuth

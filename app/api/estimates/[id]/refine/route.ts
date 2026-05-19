@@ -84,7 +84,7 @@ export async function POST(
     }
 
     // Call AI provider
-    const provider = await getAIProvider()
+    const provider = await getAIProvider(companyId)
     const refineInput: RefineEstimateInput = {
       existingEstimate,
       instruction,

@@ -121,6 +121,7 @@ export type Database = {
       companies: {
         Row: {
           address: string | null
+          ai_model_override: string | null
           brand_primary_color: string | null
           city: string | null
           created_at: string
@@ -166,6 +167,7 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          ai_model_override?: string | null
           brand_primary_color?: string | null
           city?: string | null
           created_at?: string
@@ -211,6 +213,7 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          ai_model_override?: string | null
           brand_primary_color?: string | null
           city?: string | null
           created_at?: string

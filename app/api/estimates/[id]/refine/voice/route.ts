@@ -175,7 +175,7 @@ export async function POST(
     }
 
     // Call AI provider for refinement
-    const provider = await getAIProvider()
+    const provider = await getAIProvider(companyId)
     const refineInput: RefineEstimateInput = {
       existingEstimate,
       instruction: transcript.trim(),
