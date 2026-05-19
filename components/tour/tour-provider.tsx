@@ -24,7 +24,7 @@ export function useTourContext() {
 export function TourProvider({ children }: { children: React.ReactNode }) {
   const [showWelcome, setShowWelcome] = useState(false)
   const [showSpotlight, setShowSpotlight] = useState(false)
-  const { isTourCompleted } = useTour()
+  const { isTourCompleted, isSpotlightPending } = useTour()
 
   useEffect(() => {
     // Read the httpOnly:false cookie set by createOrUpdateCompany server action
@@ -36,6 +36,9 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
       // Clear the cookie immediately so a page reload won't retrigger the modal
       document.cookie = 'onboarding_complete=; path=/; max-age=0'
       setShowWelcome(true)
+    } else if (isSpotlightPending() && !isTourCompleted()) {
+      // Restore spotlight on page refresh mid-tour
+      setShowSpotlight(true)
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
