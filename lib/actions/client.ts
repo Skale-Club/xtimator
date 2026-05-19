@@ -38,6 +38,7 @@ export async function createClientAction(formData: ClientFormValues) {
       state: formData.state || null,
       zip: formData.zip || null,
       notes: formData.notes || null,
+      preferred_language: formData.preferred_language || null,
     })
     .select()
     .single()
@@ -64,6 +65,7 @@ export async function updateClientAction(clientId: string, formData: ClientFormV
       state: formData.state || null,
       zip: formData.zip || null,
       notes: formData.notes || null,
+      preferred_language: formData.preferred_language || null,
     })
     .eq('id', clientId)
     .select()

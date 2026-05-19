@@ -34,6 +34,7 @@ const companyInfoSchema = z.object({
   licenseNumber: z.string().optional().or(z.literal('')),
   insuranceInfo: z.string().optional().or(z.literal('')),
   brandPrimaryColor: z.string().optional(),
+  defaultEstimateLanguage: z.enum(['en', 'pt', 'es']).optional().or(z.literal('')),
 })
 
 type CompanyInfoValues = z.infer<typeof companyInfoSchema>
@@ -64,6 +65,7 @@ export function CompanyInfoForm({ company }: CompanyInfoFormProps) {
       licenseNumber: company.license_number || '',
       insuranceInfo: company.insurance_info || '',
       brandPrimaryColor: company.brand_primary_color || SYSTEM_COLORS.primary,
+      defaultEstimateLanguage: (company.default_estimate_language ?? '') as 'en' | 'pt' | 'es' | '',
     },
   })
 
@@ -85,6 +87,7 @@ export function CompanyInfoForm({ company }: CompanyInfoFormProps) {
       fd.set('licenseNumber', values.licenseNumber || '')
       fd.set('insuranceInfo', values.insuranceInfo || '')
       fd.set('brandPrimaryColor', values.brandPrimaryColor || SYSTEM_COLORS.primary)
+      fd.set('defaultEstimateLanguage', values.defaultEstimateLanguage || '')
       fd.set('existingLogoUrl', logoPreview && !logoFile ? company.logo_url || '' : '')
 
       if (logoFile) {
@@ -224,6 +227,30 @@ export function CompanyInfoForm({ company }: CompanyInfoFormProps) {
                             </SelectItem>
                           ))}
                           <SelectItem value="other">{t('Other')}</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Default Estimate Language */}
+                <FormField
+                  control={form.control}
+                  name="defaultEstimateLanguage"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Default estimate language')}</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value ?? ''}>
+                        <FormControl>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder={t('English (default)')} />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="">{t('English (default)')}</SelectItem>
+                          <SelectItem value="pt">Português (Brazil)</SelectItem>
+                          <SelectItem value="es">Español</SelectItem>
                         </SelectContent>
                       </Select>
                       <FormMessage />
