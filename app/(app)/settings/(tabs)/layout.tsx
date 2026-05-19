@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { BookOpen, ChevronRight, CreditCard, FileText, Globe, MessageSquare, Wallet } from 'lucide-react'
+import { BookOpen, ChevronRight, CreditCard, FileText, Globe, MessageSquare, Send, Wallet } from 'lucide-react'
 import { SettingsNav } from '@/components/settings/settings-nav'
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { T } from '@/components/i18n/t'
@@ -52,6 +52,12 @@ const SUB_PAGES = [
     title: 'Integrations',
     description: 'Connect WhatsApp to receive voice and photo estimates from the field.',
     Icon: MessageSquare,
+  },
+  {
+    href: '/settings/delivery',
+    title: 'Delivery',
+    description: 'Enable email and SMS delivery of estimates, and require digital signatures from clients.',
+    Icon: Send,
   },
 ] as const
 

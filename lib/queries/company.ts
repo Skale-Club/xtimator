@@ -64,10 +64,12 @@ export async function getEstimateTemplateSettings(
   estimate_template_opener: string | null
   estimate_template_closer: string | null
   estimate_template_signature: string | null
+  estimate_terms_enabled: boolean
+  estimate_terms_text: string | null
 } | null> {
   const { data } = await supabase
     .from('companies')
-    .select('id, estimate_template_greeting, estimate_template_opener, estimate_template_closer, estimate_template_signature')
+    .select('id, estimate_template_greeting, estimate_template_opener, estimate_template_closer, estimate_template_signature, estimate_terms_enabled, estimate_terms_text')
     .eq('user_id', userId)
     .single()
 
