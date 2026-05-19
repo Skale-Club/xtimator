@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v3.1.1
 milestone_name: MVP Launch Prep + Future-Proofing
-status: executing
-last_updated: "2026-05-19T10:25:45.389Z"
-last_activity: "2026-05-19 - Completed 73-02: Estimate language UI (language selector + PDF i18n)"
+status: verifying
+last_updated: "2026-05-19T10:21:23.803Z"
+last_activity: "2026-05-19 - Completed quick task 260518-v0z: Unify folder + category in price book (folder is sole taxonomy)"
 progress:
   total_phases: 17
   completed_phases: 17
@@ -21,10 +21,10 @@ progress:
 
 ## Current Position
 
-Phase: 73
-Plan: 02 complete
-Status: In progress — Plan 02 complete; Phase 73 has 2 plans
-Last activity: 2026-05-19 - Completed 73-02: Estimate language UI (language selector + PDF i18n)
+Phase: 72
+Plan: Not started
+Status: Phase complete — ready for verification
+Last activity: 2026-05-19 - Completed quick task 260518-v0z: Unify folder + category in price book (folder is sole taxonomy)
 
 ## v3.1.1 Phases
 
@@ -413,9 +413,7 @@ Last activity: 2026-05-19 - Completed 73-02: Estimate language UI (language sele
 - [Phase 72-admin-menu-performance]: getCachedBranding = cache(getBranding) added as new export; original getBranding preserved for non-layout callers
 - [Phase 72-admin-menu-performance]: Admin layout Suspense has no explicit fallback — loading.tsx (Plan 01) serves as App Router automatic fallback
 - [Phase 72-admin-menu-performance]: brandingPromise starts immediately after getAuthClaims resolves; getBranding has no dependency on company data
-- [Phase 73-language-onboarding-estimate-language-ui]: PDF_LABELS static map (not React context) — @react-pdf/renderer runs server-side; language prop added to EstimatePDFProps
-- [Phase 73-language-onboarding-estimate-language-ui]: EstimateLanguageSelector seeds default from app language (layer 4 SEED-016 cascade); language field missing from Estimate TypeScript type auto-fixed
-- [Phase 73-language-onboarding-estimate-language-ui]: Flag chip defined inline per consuming file (estimate-view, estimate-preview) — keeps change minimal without shared file overhead
+- [Phase 73-language-onboarding-estimate-language-ui]: resolveEstimateLanguageWithSource used with userAppLanguage only in EstimateTab — company/client layers need props not yet available as props (TODO LANG-ONBOARD-03)
 
 ## Performance Metrics
 
@@ -541,8 +539,7 @@ Last activity: 2026-05-19 - Completed 73-02: Estimate language UI (language sele
 | Phase 72-admin-menu-performance P03 | 2min | 2 tasks | 2 files |
 | Phase 72-admin-menu-performance P01 | 4min | 2 tasks | 14 files |
 | Phase 72-admin-menu-performance P02 | 2.5min | 3 tasks | 3 files |
-| Phase 73-language-onboarding-estimate-language-ui P02 | 11 | 3 tasks | 12 files |
-| Phase 73-language-onboarding-estimate-language-ui P04 | 8min | 2 tasks | 9 files |
+| Phase 73-language-onboarding-estimate-language-ui P03 | 5 | 1 tasks | 1 files |
 
 ## Project Reference
 
