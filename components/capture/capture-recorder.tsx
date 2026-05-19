@@ -409,7 +409,7 @@ export function CaptureRecorder({ project, companyId, projectId }: CaptureRecord
   const showRecorderUI = isIdle || stage === 'done'
 
   return (
-    <div className="flex flex-1 flex-col" data-testid="capture-screen">
+    <div className="flex flex-1 flex-col min-h-0" data-testid="capture-screen">
       {/* Header */}
       <header className="flex items-center justify-between px-4 py-3 border-b">
         <span className="text-sm text-muted-foreground truncate">{project.name}</span>
