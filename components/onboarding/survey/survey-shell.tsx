@@ -11,6 +11,7 @@ import { OwnerNameStep } from './steps/owner-name-step'
 import { PhoneStep } from './steps/phone-step'
 import { EmailStep } from './steps/email-step'
 import { IndustryStep } from './steps/industry-step'
+import { LanguageStep } from './steps/language-step'
 import { BrandColorStep } from './steps/brand-color-step'
 import { LogoStep } from './steps/logo-step'
 import { LocationStep } from './steps/location-step'
@@ -69,6 +70,13 @@ export function SurveyShell({
         return <EmailStep {...stepProps} />
       case 'industry':
         return <IndustryStep {...stepProps} />
+      case 'language':
+        return (
+          <LanguageStep
+            value={values.language}
+            onChange={(lang) => setValue('language', lang)}
+          />
+        )
       case 'brandColor':
         return <BrandColorStep {...stepProps} />
       case 'logo':
@@ -99,6 +107,9 @@ export function SurveyShell({
       case 'industry':
         setValue('industry', '')
         setValue('customIndustry', '')
+        break
+      case 'language':
+        setValue('language', 'en')
         break
       case 'brandColor':
         // keep default — no skip change

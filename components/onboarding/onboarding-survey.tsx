@@ -16,6 +16,7 @@ const INITIAL: OnboardingValues = {
   phone: '',
   email: '',
   website: '',
+  language: 'en',
   industry: '',
   customIndustry: '',
   brandPrimaryColor: SYSTEM_COLORS.primary,

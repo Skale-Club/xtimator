@@ -24,6 +24,7 @@ interface CompanyFormData {
   defaultWarrantyTerms?: string
   defaultValidityDays?: number
   logoUrl?: string
+  language?: string
 }
 
 export async function createOrUpdateCompany(data: CompanyFormData) {
@@ -59,6 +60,7 @@ export async function createOrUpdateCompany(data: CompanyFormData) {
     default_payment_terms: data.defaultPaymentTerms || 'Net 30',
     default_warranty_terms: data.defaultWarrantyTerms || '1 year',
     default_validity_days: data.defaultValidityDays ?? 30,
+    default_estimate_language: data.language && data.language !== 'en' ? data.language : null,
   }
 
   // SELECT-then-INSERT/UPDATE pattern (Pitfall 6: no UNIQUE constraint on user_id)

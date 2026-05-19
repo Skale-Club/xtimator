@@ -11,6 +11,7 @@ const INITIAL: OnboardingValues = {
   phone: '',
   email: '',
   website: '',
+  language: 'en',
   industry: '',
   customIndustry: '',
   brandPrimaryColor: '#0D9488',
@@ -27,8 +28,8 @@ const INITIAL: OnboardingValues = {
 }
 
 describe('SURVEY_STEPS configuration', () => {
-  it('exports exactly 10 ordered steps', () => {
-    expect(SURVEY_STEPS).toHaveLength(10)
+  it('exports exactly 11 ordered steps', () => {
+    expect(SURVEY_STEPS).toHaveLength(11)
   })
 
   it('lists step keys in the documented order', () => {
@@ -38,6 +39,7 @@ describe('SURVEY_STEPS configuration', () => {
       'phone',
       'email',
       'industry',
+      'language',
       'brandColor',
       'logo',
       'location',
@@ -56,7 +58,7 @@ describe('useSurveyState', () => {
   it('starts at step 0 with the initial values', () => {
     const { result } = renderHook(() => useSurveyState(INITIAL))
     expect(result.current.stepIndex).toBe(0)
-    expect(result.current.totalSteps).toBe(10)
+    expect(result.current.totalSteps).toBe(11)
     expect(result.current.values.companyName).toBe('')
     expect(result.current.isFirst).toBe(true)
     expect(result.current.isLast).toBe(false)
