@@ -26,6 +26,9 @@ import {
 } from '@/components/workspace/estimate/client-suggestion-toast'
 import { pollJob } from '@/hooks/use-job-status'
 import { useTranslation } from '@/lib/i18n/use-translation'
+import { useLanguage } from '@/lib/i18n/language-context'
+import { EstimateLanguageSelector } from '@/components/estimate/estimate-language-selector'
+import { type EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
 
 // Duration constants — D-06, D-07
 export const HARD_CAP_MS  = 10 * 60 * 1000   // 600000  D-06 — auto-stop
@@ -45,6 +48,7 @@ interface CaptureRecorderProps {
 
 export function CaptureRecorder({ project, companyId, projectId }: CaptureRecorderProps) {
   const { t } = useTranslation()
+  const { language: appLanguage } = useLanguage()
   const router = useRouter()
 
   // Recording state
@@ -64,6 +68,11 @@ export function CaptureRecorder({ project, companyId, projectId }: CaptureRecord
   const [descriptionText, setDescriptionText] = useState('')
   const [uploadedPhotos, setUploadedPhotos] = useState<Photo[]>([])
   const [isUploadingPhotos, setIsUploadingPhotos] = useState(false)
+
+  // Language for the estimate — default from app language (cascade layer 4)
+  const [estimateLanguage, setEstimateLanguage] = useState<EstimateLanguage>(
+    appLanguage === 'pt' || appLanguage === 'es' ? appLanguage : 'en'
+  )
 
   // Refs
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
@@ -198,12 +207,13 @@ export function CaptureRecorder({ project, companyId, projectId }: CaptureRecord
 
   // Trigger estimate generation (shared by text-only and photos-only paths)
   // Phase 67: route now returns { jobId }; poll until terminal, then read output.
+  // Phase 73-02: forward estimateLanguage so cascade uses the user's selection.
   const triggerEstimateGeneration = useCallback(async () => {
     try {
       const dispatchRes = await fetch('/api/generate-estimate', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ projectId }),
+        body: JSON.stringify({ projectId, language: estimateLanguage }),
         signal: abortControllerRef.current.signal,
       })
       if (!dispatchRes.ok) {
@@ -222,7 +232,7 @@ export function CaptureRecorder({ project, companyId, projectId }: CaptureRecord
       if ((err as Error).name === 'AbortError') return
       failAt('generating', (err as Error).message ?? t('Estimate generation failed'))
     }
-  }, [projectId, router, t])
+  }, [projectId, router, t, estimateLanguage])
 
   // Full AI pipeline (RESEARCH Pattern 5)
   const runPipeline = useCallback(async (blob: Blob) => {
@@ -278,7 +288,7 @@ export function CaptureRecorder({ project, companyId, projectId }: CaptureRecord
       const dispatchRes = await fetch('/api/generate-estimate', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ projectId }),
+        body: JSON.stringify({ projectId, language: estimateLanguage }),
         signal: abortControllerRef.current.signal,
       })
       if (!dispatchRes.ok) {
@@ -299,7 +309,7 @@ export function CaptureRecorder({ project, companyId, projectId }: CaptureRecord
       if ((err as Error).name === 'AbortError') return  // unmount; not a user-facing failure
       failAt('analyzing', (err as Error).message ?? t('Estimate generation failed'))
     }
-  }, [companyId, projectId, elapsedMs, router])
+  }, [companyId, projectId, elapsedMs, router, estimateLanguage])
 
   // Unified generation handler (text-only, audio, or photos-only)
   const handleGenerate = useCallback(async () => {
@@ -432,6 +442,9 @@ export function CaptureRecorder({ project, companyId, projectId }: CaptureRecord
           onPhotoFileChange={handlePhotoFileChange}
           hasAnyInput={hasAnyInput}
           onGenerate={handleGenerate}
+          // Language selector
+          estimateLanguage={estimateLanguage}
+          setEstimateLanguage={setEstimateLanguage}
         />
       ) : (
         <div className="flex-1 flex items-center justify-center p-4">
@@ -475,9 +488,12 @@ interface RecorderBodyProps {
   onPhotoFileChange: (e: React.ChangeEvent<HTMLInputElement>) => Promise<void>
   hasAnyInput: boolean
   onGenerate: () => Promise<void>
+  // Language selector props
+  estimateLanguage: EstimateLanguage
+  setEstimateLanguage: (lang: EstimateLanguage) => void
 }
 
-function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progress, onToggle, descriptionText, setDescriptionText, uploadedPhotos, isUploadingPhotos, photoInputRef, onPhotoFileChange, hasAnyInput, onGenerate }: RecorderBodyProps) {
+function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progress, onToggle, descriptionText, setDescriptionText, uploadedPhotos, isUploadingPhotos, photoInputRef, onPhotoFileChange, hasAnyInput, onGenerate, estimateLanguage, setEstimateLanguage }: RecorderBodyProps) {
   const { t } = useTranslation()
   return (
     <div className="flex-1 flex flex-col">
@@ -523,8 +539,14 @@ function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progre
         </Button>
       </div>
 
-      {/* Generate Estimate button */}
-      <div className="px-4 pt-6 pb-8">
+      {/* Language selector + Generate Estimate button */}
+      <div className="px-4 pt-4 pb-2">
+        <EstimateLanguageSelector
+          value={estimateLanguage}
+          onChange={setEstimateLanguage}
+        />
+      </div>
+      <div className="px-4 pt-2 pb-8">
         <Button
           onClick={onGenerate}
           disabled={!hasAnyInput}

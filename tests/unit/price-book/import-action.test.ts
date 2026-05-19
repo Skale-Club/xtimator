@@ -13,7 +13,7 @@ import type { PriceBookItemFormValues } from '@/lib/schemas/price-book'
 function makeSupabase(opts: {
   claims: { sub: string } | null
   company: { id: string } | null
-  existing: { category: string; name: string }[]
+  existing: { folder_id: string | null; name: string }[]
   insertResult: { error: { message: string } | null }
 }) {
   const companyChain = {
@@ -30,7 +30,7 @@ function makeSupabase(opts: {
 
   let priceBookCalls = 0
   return {
-    spies: { insert: insertSpy, existingEq: existingChain.eq },
+    spies: { insert: insertSpy, existingEq: existingChain.eq, existingSelect: existingChain.select },
     client: {
       auth: {
         getClaims: vi.fn().mockResolvedValue({
@@ -50,7 +50,6 @@ function makeSupabase(opts: {
 }
 
 const sampleRow: PriceBookItemFormValues = {
-  category: 'Labor',
   name: 'General Labor',
   unit: 'hr',
   unit_price: 75,
@@ -101,7 +100,7 @@ describe('importPriceBookItems', () => {
     expect(result).toEqual({ error: 'No valid rows to import.' })
   })
 
-  it('fetches existing (category, name) pairs scoped to the company', async () => {
+  it('fetches existing (folder_id, name) pairs scoped to the company', async () => {
     const helper = makeSupabase({
       claims: { sub: 'user-1' },
       company: { id: 'company-123' },
@@ -113,6 +112,7 @@ describe('importPriceBookItems', () => {
     await importPriceBookItems([sampleRow])
 
     expect(helper.spies.existingEq).toHaveBeenCalledWith('company_id', 'company-123')
+    expect(helper.spies.existingSelect).toHaveBeenCalledWith('folder_id, name')
   })
 
   it('calls supabase.insert with an array of rows (single bulk call)', async () => {
@@ -131,7 +131,7 @@ describe('importPriceBookItems', () => {
     expect(Array.isArray(insertArg)).toBe(true)
   })
 
-  it('insert payload uses null (not empty string) for blank unit and notes', async () => {
+  it('insert payload uses null (not empty string) for blank unit and notes (and never includes category)', async () => {
     const helper = makeSupabase({
       claims: { sub: 'user-1' },
       company: { id: 'company-123' },
@@ -141,7 +141,6 @@ describe('importPriceBookItems', () => {
     vi.mocked(createClient).mockResolvedValue(helper.client as any)
 
     const rowWithBlanks: PriceBookItemFormValues = {
-      category: 'Labor',
       name: 'General Labor',
       unit: '',
       unit_price: 75,
@@ -152,20 +151,23 @@ describe('importPriceBookItems', () => {
     const insertArg = helper.spies.insert.mock.calls[0][0]
     expect(insertArg[0].unit).toBeNull()
     expect(insertArg[0].notes).toBeNull()
+    // category column was dropped — must never be in the insert payload
+    expect(insertArg[0]).not.toHaveProperty('category')
   })
 
-  it('skips duplicates against existing rows (case-insensitive) and returns skipped count', async () => {
+  it('skips duplicates against existing rows on (folder_id, name) and returns skipped count', async () => {
     const helper = makeSupabase({
       claims: { sub: 'user-1' },
       company: { id: 'company-123' },
-      existing: [{ category: 'Labor', name: 'General Labor' }],
+      // existing has a row with no folder + name "General Labor" → dup key is "::general labor"
+      existing: [{ folder_id: null, name: 'General Labor' }],
       insertResult: { error: null },
     })
     vi.mocked(createClient).mockResolvedValue(helper.client as any)
 
     const result = await importPriceBookItems([
-      { category: 'Labor', name: 'General Labor', unit: 'hr', unit_price: 75, notes: '' },
-      { category: 'Materials', name: 'PVC Pipe 2in', unit: 'ft', unit_price: 3.5, notes: '' },
+      { name: 'General Labor', unit: 'hr', unit_price: 75, notes: '' },
+      { name: 'PVC Pipe 2in', unit: 'ft', unit_price: 3.5, notes: '' },
     ])
 
     expect(result).toEqual({ data: { imported: 1, skipped: 1 } })

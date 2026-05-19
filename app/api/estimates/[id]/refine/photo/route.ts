@@ -254,7 +254,7 @@ export async function POST(
       existingEstimate,
       instruction,
       priceBookItems: priceBookItems.map(item => ({
-        category: item.category,
+        folder_name: item.folder_name,
         name: item.name,
         unit: item.unit,
         unit_price: item.unit_price,

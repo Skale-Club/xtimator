@@ -8,6 +8,8 @@ export interface Estimate {
   is_current: boolean
   share_token: string
   status: string
+  /** Phase 52 (SEED-016): target language for this estimate. Defaults to 'en'. */
+  language: 'en' | 'pt' | 'es'
   summary: string | null
   notes: string | null
   timeline: string | null
@@ -26,6 +28,9 @@ export interface Estimate {
   client_response: string | null
   created_at: string
   updated_at: string
+  payment_status?: string | null
+  paid_at?: string | null
+  payment_amount_cents?: number | null
 }
 
 export interface EstimateSection {

@@ -22,12 +22,12 @@ describe('buildSystemPrompt — price book injection', () => {
     expect(prompt).not.toContain('## Your Company Price Book')
   })
 
-  it('price book items present → system prompt contains compact list format', () => {
+  it('price book items present → system prompt contains folder_name-based list (no category prefix)', () => {
     const prompt = buildSystemPrompt({
       ...baseInput,
       priceBookItems: [
-        { category: 'Labor', name: 'General Labor', unit: 'hr', unit_price: 65 },
-        { category: 'Materials', name: 'PVC Pipe 2in', unit: 'each', unit_price: 8.5 },
+        { folder_name: 'Labor', name: 'General Labor', unit: 'hr', unit_price: 65 },
+        { folder_name: 'Materials', name: 'PVC Pipe 2in', unit: 'each', unit_price: 8.5 },
       ],
     })
     expect(prompt).toContain('## Your Company Price Book')
@@ -35,11 +35,21 @@ describe('buildSystemPrompt — price book injection', () => {
     expect(prompt).toContain('- Materials | PVC Pipe 2in | $8.50/each')
   })
 
+  it('items with null folder_name render as "Uncategorized"', () => {
+    const prompt = buildSystemPrompt({
+      ...baseInput,
+      priceBookItems: [
+        { folder_name: null, name: 'Misc Hardware', unit: 'each', unit_price: 2.5 },
+      ],
+    })
+    expect(prompt).toContain('- Uncategorized | Misc Hardware | $2.50/each')
+  })
+
   it('price book items present → system prompt contains explicit matching instruction', () => {
     const prompt = buildSystemPrompt({
       ...baseInput,
       priceBookItems: [
-        { category: 'Labor', name: 'General Labor', unit: 'hr', unit_price: 65 },
+        { folder_name: 'Labor', name: 'General Labor', unit: 'hr', unit_price: 65 },
       ],
     })
     expect(prompt).toContain('set price_source to "price_book"')

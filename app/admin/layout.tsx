@@ -21,18 +21,16 @@ export default async function AdminLayout({
     ? hexToHslTriplet(branding.primaryColor)
     : null
   /**
-   * Inside the admin shell we override --primary to a distinct AMBER hue
-   * (38 92% 50% = #F59E0B). Every interactive element — buttons, links, focus
-   * rings, gradient-brand, active nav bar — switches accent so it's instantly
-   * clear you're operating in an elevated context. Tenant brand cascade
-   * (--platform-primary) is still set in case any nested surface explicitly
-   * references it, but --primary takes precedence everywhere it matters.
+   * The admin shell keeps a stable system accent so elevated controls do not
+   * inherit tenant branding or warning-like colors. Tenant branding remains
+   * available through --platform-primary for nested preview surfaces that
+   * explicitly opt into it.
    */
   const style = {
     ['--platform-primary' as string]: triplet ?? SYSTEM_COLORS.primaryHsl,
-    ['--primary' as string]: '38 92% 50%',
+    ['--primary' as string]: SYSTEM_COLORS.primaryHsl,
     ['--primary-foreground' as string]: '0 0% 100%',
-    ['--ring' as string]: '38 92% 50%',
+    ['--ring' as string]: SYSTEM_COLORS.primaryHsl,
   } as CSSProperties
 
   return (
@@ -41,10 +39,10 @@ export default async function AdminLayout({
       style={style}
       className="h-screen bg-background text-foreground flex flex-col overflow-hidden"
     >
-      {/* Persistent "Super Admin Mode" banner — sticky reminder of elevated context */}
+      {/* Persistent "Super Admin Mode" banner - sticky reminder of elevated context */}
       <div className="flex items-center justify-center gap-2 bg-[hsl(var(--primary)/0.12)] border-b border-[hsl(var(--primary)/0.3)] px-4 py-1.5 text-xs font-medium text-[hsl(var(--primary))]">
         <ShieldCheck className="h-3.5 w-3.5" />
-        <span>Super Admin Mode · {ctx.email}</span>
+        <span>Super Admin Mode - {ctx.email}</span>
       </div>
 
       <div className="flex flex-1 overflow-hidden">

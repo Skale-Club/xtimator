@@ -81,6 +81,7 @@ describe('buildItemsBreakdown', () => {
     is_current: true,
     share_token: 'tok',
     status: 'draft',
+    language: 'en',
     summary: null,
     notes: null,
     timeline: null,

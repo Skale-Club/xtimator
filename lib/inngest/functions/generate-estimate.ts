@@ -24,12 +24,14 @@ export const generateEstimateJob = inngest.createFunction(
     triggers: [{ event: EVENT_ESTIMATE_GENERATE }],
   },
   async ({ event, step }) => {
-    const { companyId, projectId, requestId } =
+    const { companyId, projectId, requestId, language } =
       event.data as EstimateGeneratePayload
 
     // Step 1: Heavy AI call — checkpointed. A retry of step 2 will NOT re-call.
     const result = await step.run('call-ai-provider', async () => {
-      return await generateEstimateForProject(companyId, projectId)
+      return await generateEstimateForProject(companyId, projectId, {
+        language: language ?? undefined,
+      })
     })
 
     // Step 2: Record usage ONLY on AI success — separate step so a DB write

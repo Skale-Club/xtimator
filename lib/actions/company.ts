@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
 import { redirect } from 'next/navigation'
+import { cookies } from 'next/headers'
 
 interface CompanyFormData {
   companyName?: string
@@ -24,6 +25,7 @@ interface CompanyFormData {
   defaultWarrantyTerms?: string
   defaultValidityDays?: number
   logoUrl?: string
+  language?: string
 }
 
 export async function createOrUpdateCompany(data: CompanyFormData) {
@@ -59,6 +61,7 @@ export async function createOrUpdateCompany(data: CompanyFormData) {
     default_payment_terms: data.defaultPaymentTerms || 'Net 30',
     default_warranty_terms: data.defaultWarrantyTerms || '1 year',
     default_validity_days: data.defaultValidityDays ?? 30,
+    default_estimate_language: data.language && data.language !== 'en' ? data.language : null,
   }
 
   // SELECT-then-INSERT/UPDATE pattern (Pitfall 6: no UNIQUE constraint on user_id)
@@ -101,6 +104,15 @@ export async function createOrUpdateCompany(data: CompanyFormData) {
       }
     }
   }
+
+  // Set a short-lived non-httpOnly cookie so TourProvider can detect onboarding completion client-side
+  const cookieStore = await cookies()
+  cookieStore.set('onboarding_complete', '1', {
+    httpOnly: false,  // MUST be false — TourProvider reads via document.cookie
+    maxAge: 60,       // 60s TTL — enough for the redirect + hydration
+    path: '/',
+    sameSite: 'lax',
+  })
 
   redirect('/dashboard')
 }

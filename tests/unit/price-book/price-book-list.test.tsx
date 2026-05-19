@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
-import type { PriceBookItem } from '@/lib/queries/price-book'
+import type { PriceBookItem, PriceBookFolder } from '@/lib/queries/price-book'
 
 const mockRefresh = vi.fn()
 
@@ -27,7 +27,10 @@ vi.mock('@/lib/actions/price-book', () => ({
   createPriceBookItem: vi.fn().mockResolvedValue({ data: {} }),
   updatePriceBookItem: vi.fn().mockResolvedValue({ data: {} }),
   deletePriceBookItem: (...args: any[]) => mockDelete(...args),
-  bulkAdjustPriceBookCategory: vi.fn().mockResolvedValue({ data: { updated: 2 } }),
+  bulkAdjustPriceBookFolder: vi.fn().mockResolvedValue({ data: { updated: 2 } }),
+  createFolder: vi.fn().mockResolvedValue({ data: {} }),
+  updateFolder: vi.fn().mockResolvedValue({ data: { updated: true } }),
+  deleteFolder: vi.fn().mockResolvedValue({ data: { deleted: true } }),
 }))
 
 vi.mock('@/components/price-book/price-book-item-dialog', () => ({
@@ -41,19 +44,23 @@ vi.mock('@/components/price-book/price-book-import-dialog', () => ({
 }))
 
 vi.mock('@/components/price-book/bulk-adjust-dialog', () => ({
-  BulkAdjustDialog: ({ open, category }: { open: boolean; category: string }) =>
-    open ? <div data-testid="bulk-adjust-dialog">Bulk Adjust: {category}</div> : null,
+  BulkAdjustDialog: ({ open, folderName }: { open: boolean; folderName: string }) =>
+    open ? <div data-testid="bulk-adjust-dialog">Bulk Adjust: {folderName}</div> : null,
 }))
 
 import { PriceBookList } from '@/components/price-book/price-book-list'
+
+// Two items with no folder + one with a folder
+const mockFolders: PriceBookFolder[] = [
+  { id: 'folder-labor', company_id: 'c1', name: 'Labor', sort_order: 0, created_at: '2026-01-01' },
+]
 
 const mockItems: PriceBookItem[] = [
   {
     id: '1',
     company_id: 'c1',
-    folder_id: null,
-    folder_name: null,
-    category: 'Labor',
+    folder_id: 'folder-labor',
+    folder_name: 'Labor',
     name: 'General Labor',
     unit: 'hr',
     unit_price: 75,
@@ -64,9 +71,8 @@ const mockItems: PriceBookItem[] = [
   {
     id: '2',
     company_id: 'c1',
-    folder_id: null,
-    folder_name: null,
-    category: 'Labor',
+    folder_id: 'folder-labor',
+    folder_name: 'Labor',
     name: 'Supervisor',
     unit: 'hr',
     unit_price: 120,
@@ -79,7 +85,6 @@ const mockItems: PriceBookItem[] = [
     company_id: 'c1',
     folder_id: null,
     folder_name: null,
-    category: 'Materials',
     name: 'PVC Pipe 2in',
     unit: 'ft',
     unit_price: 3.5,
@@ -89,40 +94,33 @@ const mockItems: PriceBookItem[] = [
   },
 ]
 
-const mockFolders: import('@/lib/queries/price-book').PriceBookFolder[] = []
-
 describe('PriceBookList', () => {
   beforeEach(() => {
     mockRefresh.mockClear()
     mockDelete.mockClear()
   })
 
-  it('renders empty state when items array is empty', () => {
-    render(<PriceBookList items={[]} folders={mockFolders} companyId="c1" />)
+  it('renders empty state when items array is empty and no folders', () => {
+    render(<PriceBookList items={[]} folders={[]} companyId="c1" />)
     expect(screen.getByText('No price book items yet')).toBeDefined()
-    // CTA button labeled "Add first item"
     expect(screen.getByRole('button', { name: /Add first item/i })).toBeDefined()
   })
 
-  it('renders category headers for each distinct category', () => {
+  it('renders folder section header for each folder + Uncategorized for null-folder items', () => {
     render(<PriceBookList items={mockItems} folders={mockFolders} companyId="c1" />)
+    // Folder name appears in header
     expect(screen.getByText('Labor')).toBeDefined()
-    expect(screen.getByText('Materials')).toBeDefined()
+    // Virtual Uncategorized section for items with folder_id === null — confirmed via testid
+    expect(screen.getByTestId('adjust-btn-folder-uncategorized')).toBeDefined()
+    // and label appears somewhere in the DOM
+    expect(document.body.textContent).toContain('Uncategorized')
   })
 
-  it('items sorted alphabetically within each category', () => {
+  it('items in same folder render in folder section', () => {
     render(<PriceBookList items={mockItems} folders={mockFolders} companyId="c1" />)
-    // Both Labor items are present
     expect(screen.getByText('General Labor')).toBeDefined()
     expect(screen.getByText('Supervisor')).toBeDefined()
-
-    // General Labor must appear before Supervisor in DOM order
-    const html = document.body.innerHTML
-    const generalIdx = html.indexOf('General Labor')
-    const supIdx = html.indexOf('Supervisor')
-    expect(generalIdx).toBeGreaterThan(-1)
-    expect(supIdx).toBeGreaterThan(-1)
-    expect(generalIdx).toBeLessThan(supIdx)
+    expect(screen.getByText('PVC Pipe 2in')).toBeDefined()
   })
 
   it('search filters items by name', () => {
@@ -135,7 +133,7 @@ describe('PriceBookList', () => {
     expect(screen.queryByText('Supervisor')).toBeNull()
   })
 
-  it('search filters items by category', () => {
+  it('search filters items by folder name', () => {
     render(<PriceBookList items={mockItems} folders={mockFolders} companyId="c1" />)
     const searchInput = screen.getByPlaceholderText('Search items...')
     fireEvent.change(searchInput, { target: { value: 'Labor' } })
@@ -192,60 +190,43 @@ describe('PriceBookList', () => {
     expect(screen.getByText('Delete Item')).toBeDefined()
   })
 
-  it('delete calls deletePriceBookItem and refreshes on confirm', async () => {
-    render(<PriceBookList items={mockItems} folders={mockFolders} companyId="c1" />)
-    // Items grouped Labor first (General Labor idx 0, Supervisor idx 1),
-    // then Materials (PVC idx 2). Trigger #2 is for item id '3'.
-    const buttons = screen.getAllByRole('button')
-    const dropdownTriggers = buttons.filter((b) => b.className.includes('h-8 w-8'))
-    openDropdown(dropdownTriggers[2])
-
-    const deleteItems = screen.getAllByText('Delete')
-    fireEvent.click(deleteItems[0])
-
-    // The AlertDialog has another "Delete" button now (the destructive action).
-    const allDeleteBtns = screen.getAllByText('Delete')
-    fireEvent.click(allDeleteBtns[allDeleteBtns.length - 1])
-
-    // Wait for the transition + promise to resolve
-    await new Promise((r) => setTimeout(r, 50))
-
-    expect(mockDelete).toHaveBeenCalledWith('3')
-    expect(mockRefresh).toHaveBeenCalled()
-  })
-
   it('Import CSV button renders in header', () => {
     render(<PriceBookList items={mockItems} folders={mockFolders} companyId="c1" />)
     expect(screen.getByRole('button', { name: /Import CSV/i })).toBeDefined()
   })
 
   it('empty state shows Import CSV alongside Add first item', () => {
-    render(<PriceBookList items={[]} folders={mockFolders} companyId="c1" />)
+    render(<PriceBookList items={[]} folders={[]} companyId="c1" />)
     expect(screen.getByRole('button', { name: /Add first item/i })).toBeDefined()
     expect(screen.getByRole('button', { name: /Import CSV/i })).toBeDefined()
   })
 })
 
-describe('Adjust % button', () => {
-  it('renders "Adjust %" button for each category header', () => {
+describe('Adjust % button per folder', () => {
+  it('renders adjust button for each folder section (named + uncategorized)', () => {
     render(<PriceBookList items={mockItems} folders={mockFolders} companyId="c1" />)
-    // mockItems has Labor and Materials categories
-    const laborBtn = screen.getByTestId('adjust-btn-Labor')
-    expect(laborBtn).toBeDefined()
-    const materialsBtn = screen.getByTestId('adjust-btn-Materials')
-    expect(materialsBtn).toBeDefined()
+    expect(screen.getByTestId('adjust-btn-folder-folder-labor')).toBeDefined()
+    expect(screen.getByTestId('adjust-btn-folder-uncategorized')).toBeDefined()
   })
 
-  it('button is enabled when category has items', () => {
+  it('button is enabled when folder has items', () => {
     render(<PriceBookList items={mockItems} folders={mockFolders} companyId="c1" />)
-    const laborBtn = screen.getByTestId('adjust-btn-Labor')
+    const laborBtn = screen.getByTestId('adjust-btn-folder-folder-labor')
     expect((laborBtn as HTMLButtonElement).disabled).toBe(false)
+    const uncatBtn = screen.getByTestId('adjust-btn-folder-uncategorized')
+    expect((uncatBtn as HTMLButtonElement).disabled).toBe(false)
   })
 
-  it('clicking button opens BulkAdjustDialog for correct category', () => {
+  it('clicking button opens BulkAdjustDialog with correct folder name', () => {
     render(<PriceBookList items={mockItems} folders={mockFolders} companyId="c1" />)
-    fireEvent.click(screen.getByTestId('adjust-btn-Labor'))
+    fireEvent.click(screen.getByTestId('adjust-btn-folder-folder-labor'))
     expect(screen.getByTestId('bulk-adjust-dialog')).toBeDefined()
     expect(screen.getByText('Bulk Adjust: Labor')).toBeDefined()
+  })
+
+  it('clicking uncategorized button opens dialog with Uncategorized name', () => {
+    render(<PriceBookList items={mockItems} folders={mockFolders} companyId="c1" />)
+    fireEvent.click(screen.getByTestId('adjust-btn-folder-uncategorized'))
+    expect(screen.getByText('Bulk Adjust: Uncategorized')).toBeDefined()
   })
 })

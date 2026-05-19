@@ -16,6 +16,8 @@ export interface ClientDetail extends ClientWithCount {
   state: string | null
   zip: string | null
   notes: string | null
+  /** Phase 52: client-level preferred estimate language. Null means inherit from company. */
+  preferred_language: string | null
 }
 
 export async function getClients(

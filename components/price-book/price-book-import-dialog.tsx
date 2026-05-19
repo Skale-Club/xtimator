@@ -46,7 +46,7 @@ function friendlyMessage(fatal: string, detail: string): string {
     case 'wrong_type':
       return 'We need a .csv file. Save your spreadsheet as CSV and try again.'
     case 'missing_columns':
-      return `${detail}. Check the template — header row needs: category, name, unit, unit_price.`
+      return `${detail}. Check the template — header row needs: folder, name, unit, unit_price.`
     case 'parse_error':
       return `Could not read your file: ${detail}. Try saving it again from Excel/Sheets.`
     default:
@@ -153,7 +153,7 @@ export function PriceBookImportDialog({ open, onOpenChange }: PriceBookImportDia
               <div className="text-center space-y-1">
                 <p className="text-sm font-medium">Choose a CSV file</p>
                 <p className="text-xs text-muted-foreground">
-                  Required columns: category, name, unit, unit_price · max 1 MB · max 1000 rows
+                  Required columns: name, unit_price (folder + unit optional) · max 1 MB · max 1000 rows
                 </p>
               </div>
               <Button
@@ -222,7 +222,7 @@ export function PriceBookImportDialog({ open, onOpenChange }: PriceBookImportDia
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-10">#</TableHead>
-                    <TableHead>Category</TableHead>
+                    <TableHead>Folder</TableHead>
                     <TableHead>Name</TableHead>
                     <TableHead>Unit</TableHead>
                     <TableHead>Price</TableHead>
@@ -249,7 +249,7 @@ export function PriceBookImportDialog({ open, onOpenChange }: PriceBookImportDia
                         <TableCell className="text-xs text-muted-foreground">
                           {row.rowNumber}
                         </TableCell>
-                        <TableCell>{row.values.category || <span className="text-muted-foreground italic">—</span>}</TableCell>
+                        <TableCell>{row.values.folder_name || <span className="text-muted-foreground italic">—</span>}</TableCell>
                         <TableCell>{row.values.name || <span className="text-muted-foreground italic">—</span>}</TableCell>
                         <TableCell>{row.values.unit || <span className="text-muted-foreground italic">—</span>}</TableCell>
                         <TableCell>

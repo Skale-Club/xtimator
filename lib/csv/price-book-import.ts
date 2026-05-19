@@ -1,7 +1,7 @@
 import Papa from 'papaparse'
 import type { PriceBookItemFormValues } from '@/lib/schemas/price-book'
 
-export const REQUIRED_HEADERS = ['category', 'name', 'unit', 'unit_price'] as const
+export const REQUIRED_HEADERS = ['name', 'unit_price'] as const
 export const MAX_ROWS = 1000
 export const MAX_BYTES = 1024 * 1024 // 1 MB
 
@@ -88,7 +88,6 @@ export function parsePriceBookCsv(file: File): Promise<ParseOutcome> {
         const rows: ParsedRow[] = results.data.map((raw, i) => {
           const errors: RowError[] = []
           const rawFolder = (raw.folder ?? '').trim()
-          const rawCategory = (raw.category ?? '').trim()
           const rawName = (raw.name ?? '').trim()
           const rawUnit = (raw.unit ?? '').trim()
           const rawPrice = (raw.unit_price ?? '').trim()
@@ -100,7 +99,8 @@ export function parsePriceBookCsv(file: File): Promise<ParseOutcome> {
           if (rawPrice && Number.isNaN(priceNum)) errors.push('invalid_unit_price')
           if (rawPrice && !Number.isNaN(priceNum) && priceNum < 0) errors.push('negative_unit_price')
 
-          const dedupKey = `${(rawCategory || '').toLowerCase()}::${rawName.toLowerCase()}`
+          // Dedup key on (folder, name) — case-insensitive. Legacy `category` column is ignored.
+          const dedupKey = `${(rawFolder || '').toLowerCase()}::${rawName.toLowerCase()}`
           const isDup = errors.length === 0 && seenInFile.has(dedupKey)
           if (errors.length === 0) seenInFile.add(dedupKey)
 
@@ -108,7 +108,6 @@ export function parsePriceBookCsv(file: File): Promise<ParseOutcome> {
             rowNumber: i + 2, // header is row 1, first data row is row 2
             values: {
               folder_name: rawFolder || undefined, // transient — not in Zod schema
-              category: rawCategory,
               name: rawName,
               unit: rawUnit,
               unit_price: Number.isNaN(priceNum) ? 0 : priceNum,

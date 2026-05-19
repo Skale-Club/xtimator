@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v3.1.1
 milestone_name: MVP Launch Prep + Future-Proofing
-status: verifying
-last_updated: "2026-05-18T00:16:51.939Z"
-last_activity: 2026-05-18
+status: executing
+last_updated: "2026-05-19T11:39:59.076Z"
+last_activity: 2026-05-19
 progress:
-  total_phases: 17
-  completed_phases: 17
-  total_plans: 47
-  completed_plans: 47
+  total_phases: 18
+  completed_phases: 18
+  total_plans: 51
+  completed_plans: 51
 ---
 
 # Project State
@@ -21,10 +21,10 @@ progress:
 
 ## Current Position
 
-Phase: 72
+Phase: 74
 Plan: Not started
-Status: Phase complete — ready for verification
-Last activity: 2026-05-18 - Marked SEED-022 (Glassmorphism Structural Redesign / Phase 71) as harvested — 11 plans, 10/10 truths verified; deferred items (snapshot baselines, Lighthouse perf) owned by Phase 69 deploy milestone
+Status: Ready to execute
+Last activity: 2026-05-19
 
 ## v3.1.1 Phases
 
@@ -413,6 +413,13 @@ Last activity: 2026-05-18 - Marked SEED-022 (Glassmorphism Structural Redesign /
 - [Phase 72-admin-menu-performance]: getCachedBranding = cache(getBranding) added as new export; original getBranding preserved for non-layout callers
 - [Phase 72-admin-menu-performance]: Admin layout Suspense has no explicit fallback — loading.tsx (Plan 01) serves as App Router automatic fallback
 - [Phase 72-admin-menu-performance]: brandingPromise starts immediately after getAuthClaims resolves; getBranding has no dependency on company data
+- [Phase 73-language-onboarding-estimate-language-ui]: resolveEstimateLanguageWithSource used with userAppLanguage only in EstimateTab — company/client layers need props not yet available as props (TODO LANG-ONBOARD-03)
+- [Phase 73-language-onboarding-estimate-language-ui]: LANG_INDICATOR uses plain text (EN/PT/ES) not emoji flags — react-pdf emoji rendering is unreliable cross-platform; CURRENCY_CODE map added with BRL for PT (was missing from 73-02 implementation)
+- [Phase 74-post-onboarding-app-feature-tour]: onboarding_complete cookie is httpOnly:false with 60s maxAge — TourProvider reads via document.cookie, cleared immediately after detection to prevent retrigger on page reload
+- [Phase 74-post-onboarding-app-feature-tour]: startTour() calls completeTour() internally so tour_completed=true regardless of which CTA the user clicks (Show me around or Start estimating)
+- [Phase 74-post-onboarding-app-feature-tour]: TOOLTIP_MAP defined inside NAV_ITEMS.map() body — static Record keyed by href, keeps tooltip config co-located with rendering logic
+- [Phase 74-post-onboarding-app-feature-tour]: ContextualTooltip renders children as React.Fragment when not visible — zero overhead after dismissal; text passed as raw English string through t() inside component
+- [Phase 74-post-onboarding-app-feature-tour]: isReviewModeRef uses useRef (not useState) — avoids stale closure in onOpenChange while being current at render time; handleClose never calls completeTour() so review mode is localStorage-clean; TourHelpButton returns null during spotlight to avoid z-index conflicts
 
 ## Performance Metrics
 
@@ -538,13 +545,18 @@ Last activity: 2026-05-18 - Marked SEED-022 (Glassmorphism Structural Redesign /
 | Phase 72-admin-menu-performance P03 | 2min | 2 tasks | 2 files |
 | Phase 72-admin-menu-performance P01 | 4min | 2 tasks | 14 files |
 | Phase 72-admin-menu-performance P02 | 2.5min | 3 tasks | 3 files |
+| Phase 73-language-onboarding-estimate-language-ui P03 | 5 | 1 tasks | 1 files |
+| Phase 73-language-onboarding-estimate-language-ui P05 | 2min | 1 tasks | 1 files |
+| Phase 74-post-onboarding-app-feature-tour P01 | 5min | 2 tasks | 5 files |
+| Phase 74-post-onboarding-app-feature-tour P03 | 4min | 2 tasks | 5 files |
+| Phase 74-post-onboarding-app-feature-tour P04 | 4min | 2 tasks | 4 files |
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-13)
 
 **Core value:** Business owner → job site audio recording → sent professional estimate in under 5 minutes
-**Current focus:** Phase 72 — Admin Menu Performance — Instant Navigation
+**Current focus:** Phase 74 — Post-Onboarding App Feature Tour
 
 ## Notes
 
@@ -591,3 +603,6 @@ v3.1: Phases 61-65 (started 2026-05-15). Production Go-Live — 27 requirements 
 | 260518-gf3 | Price book category optional (SEED-010) | 2026-05-18 | 59447d2 | [260518-gf3-price-book-optional-category](.planning/quick/260518-gf3-price-book-optional-category/) |
 | 260518-gxy | Price book item photo (SEED-024) | 2026-05-18 | 3cacc15 | [260518-gxy-price-book-item-photo](.planning/quick/260518-gxy-price-book-item-photo/) |
 | 260518-hkp | Price book category hierarchy — folders (SEED-025) | 2026-05-18 | 3a79b52 | [260518-hkp-price-book-category-hierarchy](.planning/quick/260518-hkp-price-book-category-hierarchy/) |
+| 260518-v0z | Unify folder + category in price book (folder is sole taxonomy) | 2026-05-19 | 45f98d0 | [260518-v0z-unificar-folder-e-category-no-price-book](.planning/quick/260518-v0z-unificar-folder-e-category-no-price-book/) |
+| 2026-05-18 | fast | Center auth card logo+wordmark | done |
+| 2026-05-18 | fast | Restyle sidebar New Project as filled gradient, remove dashboard CTA | done |

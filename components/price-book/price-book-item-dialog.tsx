@@ -55,13 +55,11 @@ interface PriceBookItemDialogProps {
   // but kept in the public surface for future per-company validation hooks.
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   companyId: string
-  existingCategories: string[]
   folders: PriceBookFolder[]
 }
 
 const EMPTY_FORM: PriceBookItemFormValues = {
   folder_id: null,
-  category: '',
   name: '',
   unit: '',
   unit_price: 0,
@@ -73,12 +71,10 @@ export function PriceBookItemDialog({
   onOpenChange,
   item,
   companyId: _companyId,
-  existingCategories,
   folders,
 }: PriceBookItemDialogProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
-  const [categoryOpen, setCategoryOpen] = useState(false)
   const [folderOpen, setFolderOpen] = useState(false)
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
@@ -94,7 +90,6 @@ export function PriceBookItemDialog({
     if (item) {
       form.reset({
         folder_id: item.folder_id ?? null,
-        category: item.category ?? '',
         name: item.name,
         unit: item.unit ?? '',
         unit_price: item.unit_price,
@@ -195,67 +190,6 @@ export function PriceBookItemDialog({
                   </FormItem>
                 )
               }}
-            />
-
-            {/* Category — Combobox (Popover + Command) */}
-            <FormField
-              control={form.control}
-              name="category"
-              render={({ field }) => (
-                <FormItem className="flex flex-col">
-                  <FormLabel>Category *</FormLabel>
-                  <Popover open={categoryOpen} onOpenChange={setCategoryOpen}>
-                    <PopoverTrigger asChild>
-                      <FormControl>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          role="combobox"
-                          className="w-full justify-between font-normal"
-                        >
-                          <span className={field.value ? '' : 'text-muted-foreground'}>
-                            {field.value || 'Select or type category...'}
-                          </span>
-                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                        </Button>
-                      </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                      <Command>
-                        <CommandInput
-                          placeholder="Search or create category..."
-                          value={field.value}
-                          onValueChange={(v) => field.onChange(v)}
-                        />
-                        <CommandList>
-                          <CommandEmpty>
-                            {field.value
-                              ? `No existing category. Will create "${field.value}".`
-                              : 'Type to search or create.'}
-                          </CommandEmpty>
-                          {existingCategories.length > 0 && (
-                            <CommandGroup>
-                              {existingCategories.map((cat) => (
-                                <CommandItem
-                                  key={cat}
-                                  value={cat}
-                                  onSelect={(v) => {
-                                    field.onChange(v)
-                                    setCategoryOpen(false)
-                                  }}
-                                >
-                                  {cat}
-                                </CommandItem>
-                              ))}
-                            </CommandGroup>
-                          )}
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
-                  <FormMessage />
-                </FormItem>
-              )}
             />
 
             {/* Name */}

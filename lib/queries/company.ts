@@ -30,6 +30,8 @@ export interface CompanySettings {
   estimate_template_opener: string | null
   estimate_template_closer: string | null
   estimate_template_signature: string | null
+  /** Phase 52: company-level default estimate language. Null means 'en' (English first). */
+  default_estimate_language: string | null
 }
 
 export async function getCompanySettings(

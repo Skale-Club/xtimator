@@ -6,6 +6,7 @@ export type SurveyStepKey =
   | 'phone'
   | 'email'
   | 'industry'
+  | 'language'
   | 'brandColor'
   | 'logo'
   | 'location'
@@ -88,6 +89,13 @@ export const SURVEY_STEPS: readonly SurveyStepDef[] = [
       }
       return null
     },
+  },
+  {
+    key: 'language',
+    label: 'In what language do you work day-to-day?',
+    helper: 'Your estimates will default to this language. You can change it per estimate when needed.',
+    required: false,
+    validate: () => null,
   },
   {
     key: 'brandColor',

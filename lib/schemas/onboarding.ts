@@ -21,6 +21,9 @@ export const onboardingSchema = z.object({
     .or(z.literal(''))
     .default(''),
 
+  // Language preference (step 5 — after industry)
+  language: z.enum(['en', 'pt', 'es']).optional().default('en'),
+
   // Step 2: Brand Identity
   industry: z.string().optional().default(''),
   customIndustry: z.string().optional().default(''),

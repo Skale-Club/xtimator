@@ -30,7 +30,6 @@ export interface PriceBookItem {
   company_id: string
   folder_id: string | null
   folder_name: string | null
-  category: string | null
   name: string
   unit: string | null
   unit_price: number
@@ -46,11 +45,10 @@ export async function getPriceBookItems(
   const { data } = await supabase
     .from('company_price_book')
     .select(`
-      id, company_id, folder_id, category, name, unit, unit_price, notes, created_at, image_url,
+      id, company_id, folder_id, name, unit, unit_price, notes, created_at, image_url,
       price_book_folders ( name )
     `)
     .eq('company_id', companyId)
-    .order('category')
     .order('name')
   // Flatten the nested join: price_book_folders.name → folder_name
   return ((data ?? []) as any[]).map((row) => ({

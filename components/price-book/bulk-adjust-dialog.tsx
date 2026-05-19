@@ -31,20 +31,22 @@ import {
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { bulkAdjustSchema, type BulkAdjustFormValues } from '@/lib/schemas/price-book'
-import { bulkAdjustPriceBookCategory } from '@/lib/actions/price-book'
+import { bulkAdjustPriceBookFolder } from '@/lib/actions/price-book'
 import type { PriceBookItem } from '@/lib/queries/price-book'
 
 interface BulkAdjustDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  category: string
+  folderId: string | null
+  folderName: string
   items: PriceBookItem[]
 }
 
 export function BulkAdjustDialog({
   open,
   onOpenChange,
-  category,
+  folderId,
+  folderName,
   items,
 }: BulkAdjustDialogProps) {
   const router = useRouter()
@@ -55,7 +57,7 @@ export function BulkAdjustDialog({
     defaultValues: { adjustmentPercent: 0 },
   })
 
-  // Pitfall 6: Reset form when dialog opens — prevent stale % from prior category session
+  // Pitfall 6: Reset form when dialog opens — prevent stale % from prior folder session
   useEffect(() => {
     if (open) {
       form.reset({ adjustmentPercent: 0 })
@@ -80,7 +82,7 @@ export function BulkAdjustDialog({
 
   function onSubmit(values: BulkAdjustFormValues) {
     startTransition(async () => {
-      const result = await bulkAdjustPriceBookCategory(category, values.adjustmentPercent)
+      const result = await bulkAdjustPriceBookFolder(folderId, values.adjustmentPercent)
       if ('error' in result) {
         // Pitfall 5: stay open on error
         toast.error(result.error)
@@ -97,7 +99,7 @@ export function BulkAdjustDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Adjust prices — {category}</DialogTitle>
+          <DialogTitle>Adjust prices — {folderName}</DialogTitle>
         </DialogHeader>
 
         <Form {...form}>

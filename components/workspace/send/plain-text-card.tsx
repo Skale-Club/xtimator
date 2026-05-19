@@ -17,6 +17,7 @@ import { formatCurrency } from '@/lib/utils/format'
 import type { EstimateWithSections } from '@/lib/queries/estimate'
 import type { EstimateTemplate } from '@/lib/utils/estimate-template'
 import { useTranslation } from '@/lib/i18n/use-translation'
+import { ContextualTooltip, TOOLTIP_KEYS } from '@/components/tour/contextual-tooltip'
 
 interface PlainTextCardProps {
   estimate: EstimateWithSections
@@ -67,7 +68,13 @@ export function PlainTextCard({
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle className="text-lg">{t('Plain Text')}</CardTitle>
+            <ContextualTooltip
+              tooltipKey={TOOLTIP_KEYS.whatsapp}
+              text="Clients receive a professional message with the estimate link"
+              side="bottom"
+            >
+              <CardTitle className="text-lg">{t('Plain Text')}</CardTitle>
+            </ContextualTooltip>
             <CardDescription>{t('Paste into WhatsApp, SMS, or email')}</CardDescription>
           </div>
           <div className="flex items-center gap-2">

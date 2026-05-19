@@ -15,6 +15,7 @@ vi.mock('sonner', () => ({
 
 vi.mock('@/lib/actions/price-book', () => ({
   importPriceBookItems: (...args: any[]) => mockImport(...args),
+  resolveOrCreateFolders: vi.fn().mockResolvedValue({ data: new Map() }),
   // Re-export others as no-op so the module shape stays valid if the dialog imports anything else from here
   createPriceBookItem: vi.fn(),
   updatePriceBookItem: vi.fn(),
@@ -23,7 +24,7 @@ vi.mock('@/lib/actions/price-book', () => ({
 
 vi.mock('@/lib/csv/price-book-import', () => ({
   parsePriceBookCsv: (...args: any[]) => mockParse(...args),
-  REQUIRED_HEADERS: ['category', 'name', 'unit', 'unit_price'],
+  REQUIRED_HEADERS: ['name', 'unit_price'],
   MAX_BYTES: 1024 * 1024,
   MAX_ROWS: 1000,
 }))
@@ -31,16 +32,16 @@ vi.mock('@/lib/csv/price-book-import', () => ({
 import { toast } from 'sonner'
 import { PriceBookImportDialog } from '@/components/price-book/price-book-import-dialog'
 
-const makeValidRow = (name: string, category = 'Labor') => ({
+const makeValidRow = (name: string, folder_name = 'Labor') => ({
   rowNumber: 2,
-  values: { category, name, unit: 'hr', unit_price: 75, notes: '' },
+  values: { folder_name, name, unit: 'hr', unit_price: 75, notes: '' },
   errors: [] as string[],
   isDuplicateInFile: false,
 })
 
 const makeInvalidRow = (name: string) => ({
   rowNumber: 3,
-  values: { category: '', name, unit: '', unit_price: 0, notes: '' },
+  values: { folder_name: undefined, name, unit: '', unit_price: 0, notes: '' },
   errors: ['missing_unit_price'] as string[],
   isDuplicateInFile: false,
 })
@@ -65,7 +66,7 @@ describe('PriceBookImportDialog', () => {
 
     render(<PriceBookImportDialog open={true} onOpenChange={vi.fn()} />)
 
-    const file = new File(['category,name,unit,unit_price\nLabor,A,hr,75'], 'test.csv', { type: 'text/csv' })
+    const file = new File(['folder,name,unit,unit_price\nLabor,A,hr,75'], 'test.csv', { type: 'text/csv' })
     const input = document.querySelector('input[type="file"]')!
     fireEvent.change(input, { target: { files: [file] } })
 
@@ -121,9 +122,9 @@ describe('PriceBookImportDialog', () => {
     mockParse.mockResolvedValue({
       ok: true,
       rows: [
-        { rowNumber: 2, values: { category: 'Labor', name: 'A', unit: 'hr', unit_price: 75, notes: '' }, errors: [], isDuplicateInFile: false },
-        { rowNumber: 3, values: { category: 'Labor', name: 'B', unit: 'hr', unit_price: 80, notes: '' }, errors: [], isDuplicateInFile: false },
-        { rowNumber: 4, values: { category: '', name: 'C', unit: '', unit_price: 0, notes: '' }, errors: ['missing_unit_price'], isDuplicateInFile: false },
+        { rowNumber: 2, values: { folder_name: 'Labor', name: 'A', unit: 'hr', unit_price: 75, notes: '' }, errors: [], isDuplicateInFile: false },
+        { rowNumber: 3, values: { folder_name: 'Labor', name: 'B', unit: 'hr', unit_price: 80, notes: '' }, errors: [], isDuplicateInFile: false },
+        { rowNumber: 4, values: { folder_name: undefined, name: 'C', unit: '', unit_price: 0, notes: '' }, errors: ['missing_unit_price'], isDuplicateInFile: false },
       ],
       validCount: 2,
       invalidCount: 1,
@@ -212,6 +213,30 @@ describe('PriceBookImportDialog', () => {
 
     const confirmBtn = screen.getByRole('button', { name: /Import 0 items/i })
     expect(confirmBtn.hasAttribute('disabled')).toBe(true)
+  })
+
+  it('preview header shows "Folder" column (not "Category")', async () => {
+    mockParse.mockResolvedValue({
+      ok: true,
+      rows: [makeValidRow('Item A')],
+      validCount: 1,
+      invalidCount: 0,
+      inFileDuplicateCount: 0,
+    })
+
+    render(<PriceBookImportDialog open={true} onOpenChange={vi.fn()} />)
+
+    const file = new File(['x'], 'test.csv', { type: 'text/csv' })
+    const input = document.querySelector('input[type="file"]')!
+    fireEvent.change(input, { target: { files: [file] } })
+
+    await new Promise((r) => setTimeout(r, 50))
+
+    // Preview table header should say "Folder", never "Category"
+    const headerCells = Array.from(document.querySelectorAll('th'))
+    const headerTexts = headerCells.map((c) => c.textContent ?? '')
+    expect(headerTexts).toContain('Folder')
+    expect(headerTexts).not.toContain('Category')
   })
 
   it('summary banner shows X valid · Y invalid · Z duplicates pattern', async () => {

@@ -4,11 +4,11 @@ vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 
 import { createClient } from '@/lib/supabase/server'
-import { bulkAdjustPriceBookCategory } from '@/lib/actions/price-book'
+import { bulkAdjustPriceBookFolder } from '@/lib/actions/price-book'
 
 const mockItems = [
-  { id: 'i1', company_id: 'c1', category: 'Labor', name: 'General Labor', unit: 'hr', unit_price: 75, notes: null },
-  { id: 'i2', company_id: 'c1', category: 'Labor', name: 'Supervisor', unit: 'hr', unit_price: 100, notes: null },
+  { id: 'i1', company_id: 'c1', folder_id: 'folder-labor', name: 'General Labor', unit: 'hr', unit_price: 75, notes: null },
+  { id: 'i2', company_id: 'c1', folder_id: 'folder-labor', name: 'Supervisor', unit: 'hr', unit_price: 100, notes: null },
 ]
 
 function makeSupabase(opts: {
@@ -19,15 +19,17 @@ function makeSupabase(opts: {
 }) {
   const upsertSpy = vi.fn().mockResolvedValue({ error: opts.upsertError, data: opts.items })
   let pbCalls = 0
-  const selectChain = {
-    select: vi.fn().mockReturnThis(),
-    eq: vi.fn().mockReturnThis(),
-    then: vi.fn((resolve: (v: unknown) => unknown) => resolve({ data: opts.items, error: null })),
-  }
-  // make eq chainable and resolvable
-  selectChain.eq.mockImplementation(() => selectChain)
+  // chainable + thenable mock so awaiting the query resolves to {data, error}
+  const selectChain: Record<string, any> = {}
+  selectChain.select = vi.fn().mockReturnValue(selectChain)
+  selectChain.eq = vi.fn().mockReturnValue(selectChain)
+  selectChain.is = vi.fn().mockReturnValue(selectChain)
+  selectChain.then = vi.fn((resolve: (v: unknown) => unknown) =>
+    resolve({ data: opts.items, error: null })
+  )
   return {
     upsertSpy,
+    selectChain,
     client: {
       auth: { getClaims: vi.fn().mockResolvedValue({ data: opts.claims ? { claims: opts.claims } : null }) },
       from: vi.fn((table: string) => {
@@ -46,21 +48,40 @@ function makeSupabase(opts: {
   }
 }
 
-describe('bulkAdjustPriceBookCategory', () => {
+describe('bulkAdjustPriceBookFolder', () => {
   beforeEach(() => { vi.clearAllMocks() })
 
   it('returns { error } when not authenticated', async () => {
     const { client } = makeSupabase({ claims: null, company: null, items: [], upsertError: null })
     vi.mocked(createClient).mockResolvedValue(client as any)
-    const result = await bulkAdjustPriceBookCategory('Labor', 10)
+    const result = await bulkAdjustPriceBookFolder('folder-labor', 10)
     expect(result).toEqual({ error: 'Not authenticated' })
   })
 
   it('returns { error } when no company found', async () => {
     const { client } = makeSupabase({ claims: { sub: 'u1' }, company: null, items: [], upsertError: null })
     vi.mocked(createClient).mockResolvedValue(client as any)
-    const result = await bulkAdjustPriceBookCategory('Labor', 10)
+    const result = await bulkAdjustPriceBookFolder('folder-labor', 10)
     expect(result).toEqual({ error: 'No company found' })
+  })
+
+  it('uses .eq("folder_id", id) when folderId is a UUID', async () => {
+    const { client, selectChain } = makeSupabase({
+      claims: { sub: 'u1' }, company: { id: 'c1' }, items: mockItems, upsertError: null
+    })
+    vi.mocked(createClient).mockResolvedValue(client as any)
+    await bulkAdjustPriceBookFolder('folder-labor', 10)
+    expect(selectChain.eq).toHaveBeenCalledWith('folder_id', 'folder-labor')
+    expect(selectChain.is).not.toHaveBeenCalled()
+  })
+
+  it('uses .is("folder_id", null) when folderId === null (Uncategorized bucket)', async () => {
+    const { client, selectChain } = makeSupabase({
+      claims: { sub: 'u1' }, company: { id: 'c1' }, items: mockItems, upsertError: null
+    })
+    vi.mocked(createClient).mockResolvedValue(client as any)
+    await bulkAdjustPriceBookFolder(null, 10)
+    expect(selectChain.is).toHaveBeenCalledWith('folder_id', null)
   })
 
   it('calls upsert with per-item computed prices (10% on 75 = 82.50)', async () => {
@@ -68,7 +89,7 @@ describe('bulkAdjustPriceBookCategory', () => {
       claims: { sub: 'u1' }, company: { id: 'c1' }, items: mockItems, upsertError: null
     })
     vi.mocked(createClient).mockResolvedValue(client as any)
-    await bulkAdjustPriceBookCategory('Labor', 10)
+    await bulkAdjustPriceBookFolder('folder-labor', 10)
     expect(upsertSpy).toHaveBeenCalledOnce()
     const upsertArg = upsertSpy.mock.calls[0][0] as { id: string; unit_price: number }[]
     const item1 = upsertArg.find(i => i.id === 'i1')
@@ -82,7 +103,7 @@ describe('bulkAdjustPriceBookCategory', () => {
       claims: { sub: 'u1' }, company: { id: 'c1' }, items: mockItems, upsertError: null
     })
     vi.mocked(createClient).mockResolvedValue(client as any)
-    const result = await bulkAdjustPriceBookCategory('Labor', 10)
+    const result = await bulkAdjustPriceBookFolder('folder-labor', 10)
     expect(result).toEqual({ data: { updated: 2 } })
   })
 
@@ -92,17 +113,17 @@ describe('bulkAdjustPriceBookCategory', () => {
       upsertError: { message: 'DB error' }
     })
     vi.mocked(createClient).mockResolvedValue(client as any)
-    const result = await bulkAdjustPriceBookCategory('Labor', 10)
+    const result = await bulkAdjustPriceBookFolder('folder-labor', 10)
     expect(result).toEqual({ error: 'Failed to apply price adjustment.' })
   })
 
   it('rounds computed price to 2 decimal places (33% on 33.33)', async () => {
-    const singleItem = [{ id: 'ix', company_id: 'c1', category: 'X', name: 'Test', unit: 'each', unit_price: 33.33, notes: null }]
+    const singleItem = [{ id: 'ix', company_id: 'c1', folder_id: 'f-x', name: 'Test', unit: 'each', unit_price: 33.33, notes: null }]
     const { client, upsertSpy } = makeSupabase({
       claims: { sub: 'u1' }, company: { id: 'c1' }, items: singleItem, upsertError: null
     })
     vi.mocked(createClient).mockResolvedValue(client as any)
-    await bulkAdjustPriceBookCategory('X', 33)
+    await bulkAdjustPriceBookFolder('f-x', 33)
     const upsertArg = upsertSpy.mock.calls[0][0] as { unit_price: number }[]
     // 33.33 * 1.33 = 44.3289 → rounds to 44.33
     expect(upsertArg[0].unit_price).toBe(44.33)

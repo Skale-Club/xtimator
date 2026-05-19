@@ -9,6 +9,7 @@ export const clientSchema = z.object({
   state: z.string().optional().or(z.literal('')),
   zip: z.string().optional().or(z.literal('')),
   notes: z.string().optional().or(z.literal('')),
+  preferred_language: z.enum(['en', 'pt', 'es']).optional().or(z.literal('')),
 })
 
 export type ClientFormValues = z.infer<typeof clientSchema>

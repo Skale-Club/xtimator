@@ -69,21 +69,6 @@ interface PriceBookListProps {
   companyId: string
 }
 
-function groupByCategory(items: PriceBookItem[]) {
-  const map = new Map<string | null, PriceBookItem[]>()
-  for (const item of items) {
-    const key = item.category || null
-    const list = map.get(key) ?? []
-    list.push(item)
-    map.set(key, list)
-  }
-  return Array.from(map.entries()).sort(([a], [b]) => {
-    if (a === null) return 1
-    if (b === null) return -1
-    return a.localeCompare(b)
-  })
-}
-
 export function PriceBookList({ items, folders, companyId }: PriceBookListProps) {
   const router = useRouter()
   const [search, setSearch] = useState('')
@@ -96,7 +81,7 @@ export function PriceBookList({ items, folders, companyId }: PriceBookListProps)
     name: string
   } | null>(null)
   const [isPending, startTransition] = useTransition()
-  const [adjustCategory, setAdjustCategory] = useState<string | null>(null)
+  const [adjustFolder, setAdjustFolder] = useState<{ id: string | null; name: string } | null>(null)
   const [adjustDialogOpen, setAdjustDialogOpen] = useState(false)
 
   // Folder state
@@ -115,7 +100,6 @@ export function PriceBookList({ items, folders, companyId }: PriceBookListProps)
     return items.filter(
       (item) =>
         item.name.toLowerCase().includes(q) ||
-        (item.category ?? '').toLowerCase().includes(q) ||
         (item.folder_name ?? '').toLowerCase().includes(q)
     )
   }, [items, search])
@@ -153,12 +137,6 @@ export function PriceBookList({ items, folders, companyId }: PriceBookListProps)
     return sections
   }, [folders, groupedByFolder])
 
-  // Distinct existing categories for dialog autocomplete (exclude null/empty)
-  const existingCategories = useMemo(
-    () => [...new Set(items.map((i) => i.category).filter(Boolean) as string[])].sort(),
-    [items]
-  )
-
   function handleAddItem() {
     setEditingItem(null)
     setDialogOpen(true)
@@ -182,15 +160,14 @@ export function PriceBookList({ items, folders, companyId }: PriceBookListProps)
     if (!open) router.refresh()
   }
 
-  function handleAdjustCategory(category: string | null) {
-    if (!category) return
-    setAdjustCategory(category)
+  function handleAdjustFolder(folderId: string | null, folderName: string) {
+    setAdjustFolder({ id: folderId, name: folderName })
     setAdjustDialogOpen(true)
   }
 
   function handleAdjustClose(open: boolean) {
     setAdjustDialogOpen(open)
-    if (!open) setAdjustCategory(null)
+    if (!open) setAdjustFolder(null)
   }
 
   function handleDeletePrompt(item: PriceBookItem) {
@@ -271,7 +248,6 @@ export function PriceBookList({ items, folders, companyId }: PriceBookListProps)
           onOpenChange={handleDialogChange}
           item={editingItem}
           companyId={companyId}
-          existingCategories={existingCategories}
           folders={folders}
         />
         <PriceBookImportDialog
@@ -328,7 +304,9 @@ export function PriceBookList({ items, folders, companyId }: PriceBookListProps)
         <div className="space-y-6">
           {folderSections.map(({ id: folderId, name: folderName, items: folderItems, isVirtual }) => {
             const isCollapsed = folderId ? collapsedFolders.has(folderId) : false
-            const isRenaming = folderId === renamingFolderId
+            // Only real folders (non-virtual) can be in renaming mode.
+            // Guard against both being null (which would otherwise match).
+            const isRenaming = folderId !== null && folderId === renamingFolderId
 
             return (
               <div key={folderId ?? '__uncategorized__'} className="space-y-4">
@@ -373,114 +351,108 @@ export function PriceBookList({ items, folders, companyId }: PriceBookListProps)
                     </span>
                   )}
 
-                  {!isVirtual && !isRenaming && (
-                    <div className="ml-auto flex items-center gap-1">
-                      <Button
-                        variant="ghost" size="icon" className="h-6 w-6"
-                        onClick={() => {
-                          setRenamingFolderId(folderId!)
-                          setRenamingFolderValue(folderName)
-                        }}
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button
-                        variant="ghost" size="icon" className="h-6 w-6 text-destructive hover:text-destructive"
-                        onClick={() => {
-                          setDeletingFolderId(folderId!)
-                          setDeleteFolderDialogOpen(true)
-                        }}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  )}
+                  <div className="ml-auto flex items-center gap-1">
+                    {!isVirtual && !isRenaming && (
+                      <>
+                        <Button
+                          variant="ghost" size="icon" className="h-6 w-6"
+                          onClick={() => {
+                            setRenamingFolderId(folderId!)
+                            setRenamingFolderValue(folderName)
+                          }}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost" size="icon" className="h-6 w-6 text-destructive hover:text-destructive"
+                          onClick={() => {
+                            setDeletingFolderId(folderId!)
+                            setDeleteFolderDialogOpen(true)
+                          }}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="ml-1"
+                      disabled={folderItems.length === 0}
+                      onClick={() => handleAdjustFolder(folderId, folderName)}
+                      data-testid={`adjust-btn-folder-${folderId ?? 'uncategorized'}`}
+                    >
+                      <Percent className="h-3.5 w-3.5 mr-1.5" />
+                      Adjust %
+                    </Button>
+                  </div>
                 </div>
 
-                {/* Category groups inside folder */}
-                {!isCollapsed && (
-                  <div className="space-y-6 pl-4">
-                    {groupByCategory(folderItems).map(([category, categoryItems]) => (
-                      <div key={category ?? '__uncategorized__'} className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-                            {category ?? 'Uncategorized'}
-                          </h3>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            disabled={category === null || categoryItems.length === 0}
-                            onClick={() => handleAdjustCategory(category)}
-                            data-testid={`adjust-btn-${category ?? 'uncategorized'}`}
-                          >
-                            <Percent className="h-3.5 w-3.5 mr-1.5" />
-                            Adjust %
-                          </Button>
-                        </div>
-                        <div className="rounded-md border">
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead>Item</TableHead>
-                                <TableHead>Unit</TableHead>
-                                <TableHead>Unit Price</TableHead>
-                                <TableHead className="w-[50px]" />
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {categoryItems.map((item) => (
-                                <TableRow key={item.id}>
-                                  <TableCell className="font-medium">
-                                    <div className="flex items-center gap-2">
-                                      {item.image_url ? (
-                                        <img
-                                          src={item.image_url}
-                                          alt={item.name}
-                                          className="h-8 w-8 rounded object-cover shrink-0"
-                                        />
-                                      ) : (
-                                        <div className="h-8 w-8 rounded bg-muted flex items-center justify-center shrink-0">
-                                          <ImageIcon className="h-4 w-4 text-muted-foreground" />
-                                        </div>
-                                      )}
-                                      {item.name}
+                {/* Items inside folder — single flat table (folders are the only taxonomy) */}
+                {!isCollapsed && folderItems.length > 0 && (
+                  <div className="pl-4">
+                    <div className="rounded-md border">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Item</TableHead>
+                            <TableHead>Unit</TableHead>
+                            <TableHead>Unit Price</TableHead>
+                            <TableHead className="w-[50px]" />
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {folderItems.map((item) => (
+                            <TableRow key={item.id}>
+                              <TableCell className="font-medium">
+                                <div className="flex items-center gap-2">
+                                  {item.image_url ? (
+                                    <img
+                                      src={item.image_url}
+                                      alt={item.name}
+                                      className="h-8 w-8 rounded object-cover shrink-0"
+                                    />
+                                  ) : (
+                                    <div className="h-8 w-8 rounded bg-muted flex items-center justify-center shrink-0">
+                                      <ImageIcon className="h-4 w-4 text-muted-foreground" />
                                     </div>
-                                  </TableCell>
-                                  <TableCell className="text-muted-foreground">
-                                    {item.unit || '—'}
-                                  </TableCell>
-                                  <TableCell>${item.unit_price.toFixed(2)}</TableCell>
-                                  <TableCell>
-                                    <DropdownMenu>
-                                      <DropdownMenuTrigger asChild>
-                                        <Button
-                                          variant="ghost"
-                                          size="icon"
-                                          className="h-8 w-8"
-                                        >
-                                          <MoreHorizontal className="h-4 w-4" />
-                                        </Button>
-                                      </DropdownMenuTrigger>
-                                      <DropdownMenuContent align="end">
-                                        <DropdownMenuItem onClick={() => handleEditItem(item)}>
-                                          Edit
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem
-                                          className="text-destructive"
-                                          onClick={() => handleDeletePrompt(item)}
-                                        >
-                                          Delete
-                                        </DropdownMenuItem>
-                                      </DropdownMenuContent>
-                                    </DropdownMenu>
-                                  </TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        </div>
-                      </div>
-                    ))}
+                                  )}
+                                  {item.name}
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-muted-foreground">
+                                {item.unit || '—'}
+                              </TableCell>
+                              <TableCell>${item.unit_price.toFixed(2)}</TableCell>
+                              <TableCell>
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-8 w-8"
+                                    >
+                                      <MoreHorizontal className="h-4 w-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    <DropdownMenuItem onClick={() => handleEditItem(item)}>
+                                      Edit
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      className="text-destructive"
+                                      onClick={() => handleDeletePrompt(item)}
+                                    >
+                                      Delete
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
                   </div>
                 )}
               </div>
@@ -495,7 +467,6 @@ export function PriceBookList({ items, folders, companyId }: PriceBookListProps)
         onOpenChange={handleDialogChange}
         item={editingItem}
         companyId={companyId}
-        existingCategories={existingCategories}
         folders={folders}
       />
 
@@ -576,12 +547,13 @@ export function PriceBookList({ items, folders, companyId }: PriceBookListProps)
       />
 
       {/* Bulk Adjust Dialog — items from UNFILTERED source (Pitfall 7) */}
-      {adjustCategory !== null && (
+      {adjustFolder !== null && (
         <BulkAdjustDialog
           open={adjustDialogOpen}
           onOpenChange={handleAdjustClose}
-          category={adjustCategory}
-          items={items.filter((i) => i.category === adjustCategory)}
+          folderId={adjustFolder.id}
+          folderName={adjustFolder.name}
+          items={items.filter((i) => (i.folder_id ?? null) === adjustFolder.id)}
         />
       )}
     </>

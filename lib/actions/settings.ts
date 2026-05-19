@@ -43,6 +43,7 @@ export async function updateCompanySettings(formData: FormData) {
   const industry = formData.get('industry') as string | null
   const brandPrimaryColor = formData.get('brandPrimaryColor') as string | null
   const existingLogoUrl = formData.get('existingLogoUrl') as string | null
+  const defaultEstimateLanguage = formData.get('defaultEstimateLanguage') as string | null
 
   // Handle logo upload
   let logoUrl = existingLogoUrl
@@ -78,6 +79,10 @@ export async function updateCompanySettings(formData: FormData) {
       industry: industry || null,
       brand_primary_color: brandPrimaryColor || SYSTEM_COLORS.primary,
       logo_url: logoUrl || null,
+      default_estimate_language:
+        defaultEstimateLanguage && defaultEstimateLanguage !== ''
+          ? defaultEstimateLanguage
+          : null,
     })
     .eq('id', company.id)
 

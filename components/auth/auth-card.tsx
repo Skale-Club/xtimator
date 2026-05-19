@@ -32,7 +32,7 @@ export function AuthCard({ branding, title, children }: AuthCardProps) {
         >
           <CardContent className="p-8 sm:p-10">
             {/* Logo + wordmark — horizontal, matches landing nav style */}
-            <div className="mb-8 flex items-center gap-2.5">
+            <div className="mb-8 flex items-center justify-center gap-2.5">
               {branding.logoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img

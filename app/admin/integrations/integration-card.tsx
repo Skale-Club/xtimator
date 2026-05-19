@@ -123,7 +123,14 @@ export function IntegrationCard({
       <CardHeader>
         <div className="flex items-center justify-between gap-2">
           <CardTitle className="text-base">{title}</CardTitle>
-          <Badge variant={isConfigured ? 'default' : 'secondary'}>
+          <Badge
+            variant="outline"
+            className={
+              isConfigured
+                ? 'border-[hsl(var(--success)/0.35)] bg-[hsl(var(--success)/0.14)] text-[hsl(var(--success))]'
+                : 'border-border bg-muted/50 text-muted-foreground'
+            }
+          >
             {isConfigured ? t('Connected') : t('Not configured')}
           </Badge>
         </div>

@@ -15,6 +15,26 @@ import {
   PaymentCanceledNotice,
 } from '@/components/estimate/payment-success-banner'
 import { useTranslation } from '@/lib/i18n/use-translation'
+import type { ComponentType } from 'react'
+import { FlagUS, FlagBR, FlagES } from '@/components/app-shell/flags'
+import { LANGUAGE_LABELS, type EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
+
+const FLAG_MAP_LANG: Record<string, ComponentType<{ className?: string }>> = {
+  en: FlagUS,
+  pt: FlagBR,
+  es: FlagES,
+}
+
+function LanguageFlagChip({ lang }: { lang: string | null | undefined }) {
+  if (!lang) return null
+  const F = FLAG_MAP_LANG[lang] ?? FlagUS
+  return (
+    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg)] text-xs text-foreground/80">
+      <F className="h-3.5 w-3.5 rounded-[2px]" />
+      {LANGUAGE_LABELS[lang as EstimateLanguage] ?? lang.toUpperCase()}
+    </span>
+  )
+}
 
 interface EstimateViewProps {
   estimate: ShareEstimateData['estimate']
@@ -151,7 +171,7 @@ export function EstimateView({
                 </p>
               )}
             </div>
-            <div className="text-sm text-muted-foreground">
+            <div className="text-sm text-muted-foreground space-y-1">
               <p>
                 {t('Estimate Date:')}{' '}
                 {new Date(estimate.created_at).toLocaleDateString('en-US', {
@@ -161,6 +181,7 @@ export function EstimateView({
                 })}
               </p>
               <p>{t('Version')} {estimate.version}</p>
+              <LanguageFlagChip lang={estimate.language} />
             </div>
           </div>
         </CardContent>

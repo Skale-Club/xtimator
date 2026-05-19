@@ -4,6 +4,7 @@ import { createElement } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import { getEstimateWithContext } from '@/lib/queries/estimate'
 import EstimatePDF from '@/components/pdf/estimate-pdf'
+import { isSupportedLanguage } from '@/lib/i18n/resolve-estimate-language'
 
 export async function GET(
   _request: Request,
@@ -41,13 +42,15 @@ export async function GET(
     const clientRaw = project?.client
     const client = Array.isArray(clientRaw) ? clientRaw[0] ?? null : clientRaw ?? null
 
-    // Render PDF to buffer
+    // Render PDF to buffer — pass estimate language for localized labels
+    const estimateLanguage = isSupportedLanguage(estimate.language) ? estimate.language : 'en'
     const element = createElement(EstimatePDF, {
       estimate,
       company,
       client,
       projectName,
       projectType,
+      language: estimateLanguage,
     })
     const pdfBuffer = await renderToBuffer(element as any)
 

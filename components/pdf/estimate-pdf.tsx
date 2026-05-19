@@ -8,6 +8,139 @@ import {
 } from '@react-pdf/renderer'
 import type { EstimateWithSections } from '@/lib/queries/estimate'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
+import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
+
+// ---------------------------------------------------------------------------
+// Phase 73-02: Static label maps for PDF i18n.
+// @react-pdf/renderer runs server-side with no React context — plain lookups.
+// Labels mirror lib/whatsapp/formatter.ts LABELS map (Phase 52).
+// ---------------------------------------------------------------------------
+
+interface PdfLabels {
+  estimate: string
+  project: string
+  billTo: string
+  summary: string
+  description: string
+  qty: string
+  unit: string
+  unitPrice: string
+  total: string
+  sectionSubtotal: string
+  subtotal: string
+  discount: string
+  tax: string
+  grandTotal: string
+  paymentTerms: string
+  timeline: string
+  warranty: string
+  notes: string
+  page: string
+  of: string
+  date: string
+  estimateNum: string
+}
+
+const PDF_LABELS: Record<EstimateLanguage, PdfLabels> = {
+  en: {
+    estimate: 'ESTIMATE',
+    project: 'Project',
+    billTo: 'Bill To',
+    summary: 'Summary',
+    description: 'Description',
+    qty: 'Qty',
+    unit: 'Unit',
+    unitPrice: 'Unit Price',
+    total: 'Total',
+    sectionSubtotal: 'Section Subtotal',
+    subtotal: 'Subtotal',
+    discount: 'Discount',
+    tax: 'Tax',
+    grandTotal: 'Total',
+    paymentTerms: 'Payment Terms',
+    timeline: 'Timeline',
+    warranty: 'Warranty',
+    notes: 'Notes',
+    page: 'Page',
+    of: 'of',
+    date: 'Date',
+    estimateNum: 'Estimate #',
+  },
+  pt: {
+    estimate: 'ORÇAMENTO',
+    project: 'Projeto',
+    billTo: 'Faturar Para',
+    summary: 'Resumo',
+    description: 'Descrição',
+    qty: 'Qtd',
+    unit: 'Unidade',
+    unitPrice: 'Preço Unitário',
+    total: 'Total',
+    sectionSubtotal: 'Subtotal da Seção',
+    subtotal: 'Subtotal',
+    discount: 'Desconto',
+    tax: 'Imposto',
+    grandTotal: 'Total',
+    paymentTerms: 'Condições de Pagamento',
+    timeline: 'Prazo',
+    warranty: 'Garantia',
+    notes: 'Observações',
+    page: 'Página',
+    of: 'de',
+    date: 'Data',
+    estimateNum: 'Orçamento Nº',
+  },
+  es: {
+    estimate: 'PRESUPUESTO',
+    project: 'Proyecto',
+    billTo: 'Facturar A',
+    summary: 'Resumen',
+    description: 'Descripción',
+    qty: 'Cant',
+    unit: 'Unidad',
+    unitPrice: 'Precio Unitario',
+    total: 'Total',
+    sectionSubtotal: 'Subtotal de Sección',
+    subtotal: 'Subtotal',
+    discount: 'Descuento',
+    tax: 'Impuesto',
+    grandTotal: 'Total',
+    paymentTerms: 'Términos de Pago',
+    timeline: 'Plazo',
+    warranty: 'Garantía',
+    notes: 'Notas',
+    page: 'Página',
+    of: 'de',
+    date: 'Fecha',
+    estimateNum: 'Presupuesto Nº',
+  },
+}
+
+const CURRENCY_LOCALE: Record<EstimateLanguage, string> = {
+  en: 'en-US',
+  pt: 'pt-BR',
+  es: 'es-MX',
+}
+
+const CURRENCY_CODE: Record<EstimateLanguage, string> = {
+  en: 'USD',
+  pt: 'BRL',
+  es: 'USD',
+}
+
+const DATE_LOCALE: Record<EstimateLanguage, string> = {
+  en: 'en-US',
+  pt: 'pt-BR',
+  es: 'es-MX',
+}
+
+// Text-based language indicator for PDF header.
+// @react-pdf/renderer does not support SVG flags — plain text chip is used instead.
+const LANG_INDICATOR: Record<EstimateLanguage, string> = {
+  en: 'EN',
+  pt: 'PT',
+  es: 'ES',
+}
 
 interface CompanyInfo {
   name: string
@@ -39,12 +172,14 @@ export interface EstimatePDFProps {
   client: ClientInfo | null
   projectName: string
   projectType: string | null
+  /** Target language — defaults to 'en'. Drives label translations and locale formatting. */
+  language?: EstimateLanguage
 }
 
-function formatCurrency(value: number): string {
-  return new Intl.NumberFormat('en-US', {
+function formatCurrency(value: number, locale = 'en-US', currencyCode = 'USD'): string {
+  return new Intl.NumberFormat(locale, {
     style: 'currency',
-    currency: 'USD',
+    currency: currencyCode,
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(value)
@@ -69,9 +204,9 @@ function formatAddress(obj: {
   return parts.length > 0 ? parts.join('\n') : null
 }
 
-function formatDate(dateStr: string): string {
+function formatDate(dateStr: string, locale = 'en-US'): string {
   const d = new Date(dateStr)
-  return d.toLocaleDateString('en-US', {
+  return d.toLocaleDateString(locale, {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
@@ -266,6 +401,12 @@ const styles = StyleSheet.create({
     color: '#4b5563',
     marginBottom: 12,
   },
+  // Language badge in header
+  langBadge: {
+    fontSize: 9,
+    color: '#6b7280',
+    marginTop: 2,
+  },
   // Footer
   footer: {
     position: 'absolute',
@@ -284,10 +425,18 @@ export default function EstimatePDF({
   client,
   projectName,
   projectType,
+  language = 'en',
 }: EstimatePDFProps) {
   const brandColor = company.brand_primary_color ?? SYSTEM_COLORS.primary
   const companyAddress = formatAddress(company)
   const clientAddress = client ? formatAddress(client) : null
+  const L = PDF_LABELS[language] ?? PDF_LABELS.en
+  const currencyLocale = CURRENCY_LOCALE[language] ?? 'en-US'
+  const currencyCode = CURRENCY_CODE[language] ?? 'USD'
+  const dateLocale = DATE_LOCALE[language] ?? 'en-US'
+  const fmt = (v: number) => formatCurrency(v, currencyLocale, currencyCode)
+  const fmtDate = (s: string) => formatDate(s, dateLocale)
+  const langLabel = LANG_INDICATOR[language] ?? 'EN'
 
   return (
     <Document>
@@ -316,17 +465,19 @@ export default function EstimatePDF({
               )}
             </View>
           </View>
+          {/* Language indicator chip — text-based (SVG flags not supported in react-pdf) */}
+          <Text style={styles.langBadge}>{langLabel}</Text>
         </View>
 
         {/* Title */}
         <Text style={[styles.estimateTitle, { color: brandColor }]}>
-          ESTIMATE
+          {L.estimate}
         </Text>
 
         {/* Project & Client Info */}
         <View style={styles.infoRow}>
           <View style={styles.infoBlock}>
-            <Text style={styles.infoLabel}>Project</Text>
+            <Text style={styles.infoLabel}>{L.project}</Text>
             <Text style={styles.infoValue}>{projectName}</Text>
             {projectType && (
               <Text style={[styles.infoValue, { color: '#6b7280' }]}>
@@ -339,16 +490,16 @@ export default function EstimatePDF({
                 { color: '#6b7280', marginTop: 4 },
               ]}
             >
-              Date: {formatDate(estimate.created_at)}
+              {L.date}: {fmtDate(estimate.created_at)}
             </Text>
             <Text style={[styles.infoValue, { color: '#6b7280' }]}>
-              Estimate #{estimate.version}
+              {L.estimateNum}{estimate.version}
             </Text>
           </View>
 
           {client && (
             <View style={styles.infoBlock}>
-              <Text style={styles.infoLabel}>Bill To</Text>
+              <Text style={styles.infoLabel}>{L.billTo}</Text>
               <Text
                 style={[styles.infoValue, { fontFamily: 'Helvetica-Bold' }]}
               >
@@ -376,7 +527,7 @@ export default function EstimatePDF({
         {/* Summary */}
         {estimate.summary && (
           <View style={{ marginBottom: 16 }}>
-            <Text style={styles.infoLabel}>Summary</Text>
+            <Text style={styles.infoLabel}>{L.summary}</Text>
             <Text style={styles.termsText}>{estimate.summary}</Text>
           </View>
         )}
@@ -396,19 +547,19 @@ export default function EstimatePDF({
             {/* Table Header */}
             <View style={styles.tableHeader}>
               <Text style={[styles.tableHeaderText, styles.colDescription]}>
-                Description
+                {L.description}
               </Text>
               <Text style={[styles.tableHeaderText, styles.colQty]}>
-                Qty
+                {L.qty}
               </Text>
               <Text style={[styles.tableHeaderText, styles.colUnit]}>
-                Unit
+                {L.unit}
               </Text>
               <Text style={[styles.tableHeaderText, styles.colUnitPrice]}>
-                Unit Price
+                {L.unitPrice}
               </Text>
               <Text style={[styles.tableHeaderText, styles.colTotal]}>
-                Total
+                {L.total}
               </Text>
             </View>
 
@@ -431,10 +582,10 @@ export default function EstimatePDF({
                   {item.unit ?? '-'}
                 </Text>
                 <Text style={[styles.tableCellText, styles.colUnitPrice]}>
-                  {formatCurrency(item.unit_price)}
+                  {fmt(item.unit_price)}
                 </Text>
                 <Text style={[styles.tableCellText, styles.colTotal]}>
-                  {formatCurrency(item.total)}
+                  {fmt(item.total)}
                 </Text>
               </View>
             ))}
@@ -442,10 +593,10 @@ export default function EstimatePDF({
             {/* Section Subtotal */}
             <View style={styles.sectionSubtotal}>
               <Text style={styles.sectionSubtotalLabel}>
-                Section Subtotal
+                {L.sectionSubtotal}
               </Text>
               <Text style={styles.sectionSubtotalValue}>
-                {formatCurrency(section.subtotal)}
+                {fmt(section.subtotal)}
               </Text>
             </View>
           </View>
@@ -455,22 +606,22 @@ export default function EstimatePDF({
         <View style={styles.totalsContainer}>
           <View style={styles.totalsBlock}>
             <View style={styles.totalsRow}>
-              <Text style={styles.totalsLabel}>Subtotal</Text>
+              <Text style={styles.totalsLabel}>{L.subtotal}</Text>
               <Text style={styles.totalsValue}>
-                {formatCurrency(estimate.subtotal)}
+                {fmt(estimate.subtotal)}
               </Text>
             </View>
 
             {estimate.discount_amount > 0 && (
               <View style={styles.totalsRow}>
                 <Text style={styles.totalsLabel}>
-                  Discount
+                  {L.discount}
                   {estimate.discount_type === 'percentage'
                     ? ` (${estimate.discount_value}%)`
                     : ''}
                 </Text>
                 <Text style={[styles.totalsValue, { color: '#dc2626' }]}>
-                  -{formatCurrency(estimate.discount_amount)}
+                  -{fmt(estimate.discount_amount)}
                 </Text>
               </View>
             )}
@@ -478,10 +629,10 @@ export default function EstimatePDF({
             {estimate.tax_amount > 0 && (
               <View style={styles.totalsRow}>
                 <Text style={styles.totalsLabel}>
-                  Tax ({(estimate.tax_rate * 100).toFixed(2)}%)
+                  {L.tax} ({(estimate.tax_rate * 100).toFixed(2)}%)
                 </Text>
                 <Text style={styles.totalsValue}>
-                  {formatCurrency(estimate.tax_amount)}
+                  {fmt(estimate.tax_amount)}
                 </Text>
               </View>
             )}
@@ -490,12 +641,12 @@ export default function EstimatePDF({
               <Text
                 style={[styles.grandTotalLabel, { color: brandColor }]}
               >
-                Total
+                {L.grandTotal}
               </Text>
               <Text
                 style={[styles.grandTotalValue, { color: brandColor }]}
               >
-                {formatCurrency(estimate.total)}
+                {fmt(estimate.total)}
               </Text>
             </View>
           </View>
@@ -509,7 +660,7 @@ export default function EstimatePDF({
           <View style={styles.termsSection}>
             {estimate.payment_terms && (
               <>
-                <Text style={styles.termsTitle}>Payment Terms</Text>
+                <Text style={styles.termsTitle}>{L.paymentTerms}</Text>
                 <Text style={styles.termsText}>
                   {estimate.payment_terms}
                 </Text>
@@ -517,13 +668,13 @@ export default function EstimatePDF({
             )}
             {estimate.timeline && (
               <>
-                <Text style={styles.termsTitle}>Timeline</Text>
+                <Text style={styles.termsTitle}>{L.timeline}</Text>
                 <Text style={styles.termsText}>{estimate.timeline}</Text>
               </>
             )}
             {estimate.warranty_terms && (
               <>
-                <Text style={styles.termsTitle}>Warranty</Text>
+                <Text style={styles.termsTitle}>{L.warranty}</Text>
                 <Text style={styles.termsText}>
                   {estimate.warranty_terms}
                 </Text>
@@ -531,7 +682,7 @@ export default function EstimatePDF({
             )}
             {estimate.notes && (
               <>
-                <Text style={styles.termsTitle}>Notes</Text>
+                <Text style={styles.termsTitle}>{L.notes}</Text>
                 <Text style={styles.termsText}>{estimate.notes}</Text>
               </>
             )}
@@ -543,7 +694,7 @@ export default function EstimatePDF({
           style={styles.footer}
           fixed
           render={({ pageNumber, totalPages }) =>
-            `Page ${pageNumber} of ${totalPages}`
+            `${L.page} ${pageNumber} ${L.of} ${totalPages}`
           }
         />
       </Page>

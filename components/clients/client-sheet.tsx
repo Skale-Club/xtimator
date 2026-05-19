@@ -23,6 +23,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ClientLogoUploader } from '@/components/clients/client-logo-uploader'
 import { clientSchema, type ClientFormValues } from '@/lib/schemas/client'
 import { createClientAction, updateClientAction } from '@/lib/actions/client'
@@ -60,6 +61,7 @@ export function ClientSheet({
       state: '',
       zip: '',
       notes: '',
+      preferred_language: '',
     },
   })
 
@@ -74,6 +76,7 @@ export function ClientSheet({
         state: client.state ?? '',
         zip: client.zip ?? '',
         notes: client.notes ?? '',
+        preferred_language: (client.preferred_language ?? '') as 'en' | 'pt' | 'es' | '',
       })
       setLogoPreview(client.logo_url ?? null)
       setLogoFile(null)
@@ -87,6 +90,7 @@ export function ClientSheet({
         state: '',
         zip: '',
         notes: '',
+        preferred_language: '',
       })
       setLogoPreview(null)
       setLogoFile(null)
@@ -307,6 +311,30 @@ export function ClientSheet({
                   <FormControl>
                     <Textarea placeholder="Notes..." {...field} />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="preferred_language"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Preferred estimate language</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value ?? ''}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Not set (follows company default)" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="">Not set (follows company default)</SelectItem>
+                      <SelectItem value="en">English</SelectItem>
+                      <SelectItem value="pt">Português (Brazil)</SelectItem>
+                      <SelectItem value="es">Español</SelectItem>
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}
