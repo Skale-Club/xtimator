@@ -155,7 +155,7 @@
 | Phase | Name | Plans | Status |
 |-------|------|-------|--------|
 | 61 | Production Database Foundation | 5/5 | Complete 2026-05-15 |
-| 62 | Vercel Deployment + Custom Domain | — | DEFERRED → v3.2 |
+| 62 | ~~Vercel Deployment + Custom Domain~~ | — | REMOVED — hosting migration tracked in SEED-018 |
 | 63 | Stripe Live Mode Activation | — | DEFERRED → v3.2 |
 | 64 | Monitoring + Backup & Resilience | — | DEFERRED → v3.2 |
 | 65 | Production UAT + Bug Triage | — | DEFERRED → v3.2 |
@@ -728,7 +728,7 @@ Plans:
 | 59. Billing UI | v3.0 | 1/2 | Complete    | 2026-05-14 |
 | 60. Trial Automation + Admin Tooling | v3.0 | 1/2 | Complete    | 2026-05-14 |
 | 61. Production Database Foundation | v3.1 | 1/5 | Complete    | 2026-05-15 |
-| 62. Vercel Deployment + Custom Domain | v3.1 | 0/TBD | DEFERRED → v3.2 | - |
+| 62. ~~Vercel Deployment + Custom Domain~~ | v3.1 | — | REMOVED — see SEED-018 for Hetzner migration | - |
 | 63. Stripe Live Mode Activation | v3.1 | 0/TBD | DEFERRED → v3.2 | - |
 | 64. Monitoring + Backup & Resilience | v3.1 | 0/TBD | DEFERRED → v3.2 | - |
 | 65. Production UAT + Bug Triage | v3.1 | 0/TBD | DEFERRED → v3.2 | - |
