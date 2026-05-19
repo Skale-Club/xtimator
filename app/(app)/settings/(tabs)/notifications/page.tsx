@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase/server'
 import { getAuthClaims } from '@/lib/queries/auth'
 import { getCompanySettings } from '@/lib/queries/company'
 import { NotificationsForm } from '@/components/settings/notifications-form'
+import { EstimateTermsForm } from '@/components/settings/estimate-terms-form'
+import { DeliverySettingsForm } from '@/components/settings/delivery-settings-form'
 
 export const metadata = { title: 'Notifications — Settings' }
 
@@ -14,5 +16,11 @@ export default async function NotificationsTabPage() {
   const company = await getCompanySettings(supabase, claims.sub as string)
   if (!company) redirect('/onboarding')
 
-  return <NotificationsForm company={company} />
+  return (
+    <div className="space-y-6">
+      <NotificationsForm company={company} />
+      <EstimateTermsForm company={company} />
+      <DeliverySettingsForm company={company} />
+    </div>
+  )
 }

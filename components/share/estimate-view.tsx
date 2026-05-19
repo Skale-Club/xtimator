@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { CheckCircle, XCircle, Loader2 } from 'lucide-react'
+import { CheckCircle, XCircle, Loader2, PenLine } from 'lucide-react'
 import { respondToEstimate } from '@/app/estimate/[token]/actions'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
 import { formatCurrency } from '@/lib/utils/format'
@@ -15,6 +15,7 @@ import {
   PaymentCanceledNotice,
 } from '@/components/estimate/payment-success-banner'
 import { useTranslation } from '@/lib/i18n/use-translation'
+import { SignaturePad } from '@/components/share/signature-pad'
 
 interface EstimateViewProps {
   estimate: ShareEstimateData['estimate']
@@ -43,11 +44,21 @@ export function EstimateView({
     estimate.client_response
   )
   const [error, setError] = useState<string | null>(null)
+  const [showSignaturePad, setShowSignaturePad] = useState(false)
+  const [signerName, setSignerName] = useState('')
+  const [signatureData, setSignatureData] = useState<string | null>(null)
+  const [isSubmittingSignature, setIsSubmittingSignature] = useState(false)
+
+  const requiresSignature = estimate.company.digital_signature_enabled && !alreadyResponded
 
   const { company, project } = estimate
   const brandColor = company.brand_primary_color ?? SYSTEM_COLORS.primary
 
   async function handleRespond(response: 'accepted' | 'declined') {
+    if (requiresSignature && response === 'accepted') {
+      setShowSignaturePad(true)
+      return
+    }
     setResponding(response)
     setError(null)
 
@@ -61,6 +72,50 @@ export function EstimateView({
     }
 
     setResponding(null)
+  }
+
+  async function handleSignAndAccept() {
+    if (!signerName.trim()) {
+      setError('Please enter your full name.')
+      return
+    }
+    if (!signatureData) {
+      setError('Please draw your signature.')
+      return
+    }
+
+    setIsSubmittingSignature(true)
+    setError(null)
+
+    try {
+      const res = await fetch(`/api/estimates/${estimate.id}/sign`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token,
+          signerName: signerName.trim(),
+          signatureData,
+        }),
+      })
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error ?? 'Failed to submit signature')
+      }
+
+      const result = await respondToEstimate(token, 'accepted')
+      if (result.success) {
+        setResponded(true)
+        setResponseValue('accepted')
+        setShowSignaturePad(false)
+      } else {
+        setError(result.error ?? t('Something went wrong'))
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('Something went wrong'))
+    } finally {
+      setIsSubmittingSignature(false)
+    }
   }
 
   return (
@@ -417,7 +472,67 @@ export function EstimateView({
         </Card>
       )}
 
-      {/* Accept / Decline buttons */}
+      {/* Estimate Terms */}
+      {estimate.company.estimate_terms_enabled && estimate.company.estimate_terms_text && (
+        <Card variant="glass">
+          <CardContent className="p-4 sm:p-6">
+            <h3
+              className="text-sm font-semibold uppercase tracking-wider mb-3"
+              style={{ color: brandColor }}
+            >
+              {t('Estimate Terms')}
+            </h3>
+            <p className="text-sm text-muted-foreground whitespace-pre-line leading-relaxed">
+              {estimate.company.estimate_terms_text}
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Signature pad (shown when client clicks Accept and signature is required) */}
+      {showSignaturePad && !responded && (
+        <Card>
+          <CardContent className="p-6 sm:p-8 space-y-6">
+            <div className="flex items-center gap-2">
+              <PenLine className="h-5 w-5" style={{ color: brandColor }} />
+              <h3 className="text-base font-semibold">Sign to accept this estimate</h3>
+            </div>
+            <SignaturePad
+              signerName={signerName}
+              onSignerNameChange={setSignerName}
+              onSignatureChange={setSignatureData}
+              brandColor={brandColor}
+            />
+            {error && <p className="text-sm text-red-600">{error}</p>}
+            <div className="flex flex-col sm:flex-row gap-3">
+              <Button
+                size="lg"
+                className="bg-green-600 hover:bg-green-700 text-white"
+                onClick={handleSignAndAccept}
+                disabled={isSubmittingSignature || !signerName.trim() || !signatureData}
+              >
+                {isSubmittingSignature ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <CheckCircle className="mr-2 h-4 w-4" />
+                )}
+                Sign & Accept Estimate
+              </Button>
+              <Button
+                size="lg"
+                variant="outline"
+                onClick={() => { setShowSignaturePad(false); setError(null) }}
+                disabled={isSubmittingSignature}
+              >
+                Cancel
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Accept / Decline buttons — hidden while signature pad is open */}
+      {!showSignaturePad && (
       <Card variant="glass">
         <CardContent className="p-6 sm:p-8">
           {responded ? (
@@ -503,6 +618,7 @@ export function EstimateView({
           )}
         </CardContent>
       </Card>
+      )}
 
       {/* Footer */}
       {!whiteLabelMode && (

@@ -154,6 +154,56 @@ export async function updateNotifications(data: {
   return { success: true }
 }
 
+export async function updateEstimateTerms(data: {
+  estimateTermsEnabled: boolean
+  estimateTermsText: string
+}) {
+  const ctx = await getAuthContext()
+  if ('error' in ctx) return { error: ctx.error }
+  const { supabase, company } = ctx
+
+  const { error } = await supabase
+    .from('companies')
+    .update({
+      estimate_terms_enabled: data.estimateTermsEnabled,
+      estimate_terms_text: data.estimateTermsText.trim() || null,
+    })
+    .eq('id', company.id)
+
+  if (error) {
+    return { error: 'Failed to save estimate terms. Please try again.' }
+  }
+
+  revalidatePath('/settings')
+  return { success: true }
+}
+
+export async function updateDeliverySettings(data: {
+  emailDeliveryEnabled: boolean
+  smsDeliveryEnabled: boolean
+  digitalSignatureEnabled: boolean
+}) {
+  const ctx = await getAuthContext()
+  if ('error' in ctx) return { error: ctx.error }
+  const { supabase, company } = ctx
+
+  const { error } = await supabase
+    .from('companies')
+    .update({
+      email_delivery_enabled: data.emailDeliveryEnabled,
+      sms_delivery_enabled: data.smsDeliveryEnabled,
+      digital_signature_enabled: data.digitalSignatureEnabled,
+    })
+    .eq('id', company.id)
+
+  if (error) {
+    return { error: 'Failed to save delivery settings. Please try again.' }
+  }
+
+  revalidatePath('/settings')
+  return { success: true }
+}
+
 export async function changePassword(data: {
   currentPassword: string
   newPassword: string

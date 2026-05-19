@@ -98,6 +98,19 @@ export const CATEGORIES: ReadonlyArray<Category> = [
       },
     ],
   },
+  {
+    slug: 'sms',
+    title: 'SMS',
+    description: 'Send estimate share links to clients via SMS.',
+    providers: [
+      {
+        id: 'twilio' as IntegrationProvider,
+        title: 'Twilio',
+        description:
+          'Enter as "AccountSid:AuthToken". Set the outbound phone number in the From Phone field below after saving.',
+      },
+    ],
+  },
 ] as const
 
 export const DEFAULT_CATEGORY_SLUG = CATEGORIES[0].slug

@@ -24,6 +24,11 @@ export interface CompanySettings {
   notify_on_view: boolean
   notify_on_accept: boolean
   notify_on_decline: boolean
+  digital_signature_enabled: boolean
+  estimate_terms_enabled: boolean
+  estimate_terms_text: string | null
+  email_delivery_enabled: boolean
+  sms_delivery_enabled: boolean
   created_at: string
   updated_at: string
   estimate_template_greeting: string | null

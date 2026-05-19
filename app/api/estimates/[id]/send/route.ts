@@ -3,6 +3,7 @@ import { Resend } from 'resend'
 import { renderToBuffer } from '@react-pdf/renderer'
 import { createElement } from 'react'
 import { createClient } from '@/lib/supabase/server'
+import { requireServiceClient } from '@/lib/supabase/service'
 import { getEstimateWithContext } from '@/lib/queries/estimate'
 import EstimatePDF from '@/components/pdf/estimate-pdf'
 import { revalidatePath } from 'next/cache'
@@ -158,20 +159,47 @@ export async function POST(
     }
 
     // Send email via Resend
-    const { error: sendError } = await resend.emails.send(emailOptions)
+    const { data: sendData, error: sendError } = await resend.emails.send(emailOptions)
+
+    const svc = requireServiceClient()
+    const sentAt = new Date().toISOString()
 
     if (sendError) {
       console.error('Resend send error:', sendError)
+      // Log failed delivery
+      await svc.from('estimate_deliveries').insert({
+        estimate_id: id,
+        company_id: estimate.company_id,
+        channel: 'email',
+        recipient_email: to,
+        subject,
+        provider: 'resend',
+        status: 'failed',
+        error_message: sendError.message ?? 'Resend error',
+      })
       return NextResponse.json(
         { error: 'Failed to send email. Please try again.' },
         { status: 500 }
       )
     }
 
+    // Log successful delivery
+    await svc.from('estimate_deliveries').insert({
+      estimate_id: id,
+      company_id: estimate.company_id,
+      channel: 'email',
+      recipient_email: to,
+      subject,
+      provider: 'resend',
+      provider_message_id: sendData?.id ?? null,
+      status: 'sent',
+      sent_at: sentAt,
+    })
+
     // Update estimate sent_at
     await supabase
       .from('estimates')
-      .update({ sent_at: new Date().toISOString() })
+      .update({ sent_at: sentAt })
       .eq('id', id)
 
     // Update project status to 'sent'
@@ -186,7 +214,7 @@ export async function POST(
       company_id: estimate.company_id,
       estimate_id: id,
       event_type: 'estimate_sent',
-      metadata: { to, subject, attach_pdf: attachPdf },
+      metadata: { to, subject, attach_pdf: attachPdf, channel: 'email' },
     })
 
     // Revalidate project page
