@@ -58,21 +58,28 @@ export function Sidebar({ branding, company: _company }: SidebarProps) {
             : pathname === item.href || pathname.startsWith(item.href + '/')
           const Icon = item.icon
 
+          const baseLayout =
+            'group relative flex items-center gap-3 rounded-[var(--radius-md)] px-3 py-2 text-sm font-[var(--font-weight-medium)] transition-all duration-150'
+
           return (
             <Link
               key={item.href}
               href={item.href}
               data-active={isActive || undefined}
-              className={cn(
-                'group relative flex items-center gap-3 rounded-[var(--radius-md)] px-3 py-2 text-sm font-[var(--font-weight-medium)] transition-colors duration-150',
-                'text-muted-foreground hover:bg-[var(--glass-bg-light)] hover:text-foreground',
-                'data-[active]:bg-[var(--glass-bg-light)] data-[active]:text-foreground',
-                // 1.5px gradient-brand left bar on active item (UI-SPEC pattern 4)
-                'data-[active]:before:content-[""] data-[active]:before:absolute data-[active]:before:left-0 data-[active]:before:top-2 data-[active]:before:bottom-2 data-[active]:before:w-[1.5px] data-[active]:before:rounded-full data-[active]:before:bg-[image:var(--gradient-brand)]',
-                item.primary && !isActive && 'text-primary',
-                item.primary &&
-                  'border border-primary/20 bg-primary/5 hover:bg-primary/10'
-              )}
+              className={
+                item.primary
+                  ? cn(
+                      baseLayout,
+                      'gradient-brand text-white shadow-xs hover:shadow-glow-brand hover:-translate-y-[0.5px] active:translate-y-0'
+                    )
+                  : cn(
+                      baseLayout,
+                      'text-muted-foreground hover:bg-[var(--glass-bg-light)] hover:text-foreground',
+                      'data-[active]:bg-[var(--glass-bg-light)] data-[active]:text-foreground',
+                      // 1.5px gradient-brand left bar on active item (UI-SPEC pattern 4)
+                      'data-[active]:before:content-[""] data-[active]:before:absolute data-[active]:before:left-0 data-[active]:before:top-2 data-[active]:before:bottom-2 data-[active]:before:w-[1.5px] data-[active]:before:rounded-full data-[active]:before:bg-[image:var(--gradient-brand)]'
+                    )
+              }
             >
               <Icon className="h-5 w-5 shrink-0" />
               <span className="hidden lg:block">{t(item.label)}</span>
