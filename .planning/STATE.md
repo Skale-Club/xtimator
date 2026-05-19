@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v3.1.1
 milestone_name: MVP Launch Prep + Future-Proofing
 status: verifying
-last_updated: "2026-05-18T00:16:51.939Z"
-last_activity: 2026-05-18
+last_updated: "2026-05-19T10:21:23.803Z"
+last_activity: "2026-05-19 - Completed quick task 260518-v0z: Unify folder + category in price book (folder is sole taxonomy)"
 progress:
   total_phases: 17
   completed_phases: 17
@@ -413,6 +413,7 @@ Last activity: 2026-05-19 - Completed quick task 260518-v0z: Unify folder + cate
 - [Phase 72-admin-menu-performance]: getCachedBranding = cache(getBranding) added as new export; original getBranding preserved for non-layout callers
 - [Phase 72-admin-menu-performance]: Admin layout Suspense has no explicit fallback — loading.tsx (Plan 01) serves as App Router automatic fallback
 - [Phase 72-admin-menu-performance]: brandingPromise starts immediately after getAuthClaims resolves; getBranding has no dependency on company data
+- [Phase 73-language-onboarding-estimate-language-ui]: resolveEstimateLanguageWithSource used with userAppLanguage only in EstimateTab — company/client layers need props not yet available as props (TODO LANG-ONBOARD-03)
 
 ## Performance Metrics
 
@@ -538,6 +539,7 @@ Last activity: 2026-05-19 - Completed quick task 260518-v0z: Unify folder + cate
 | Phase 72-admin-menu-performance P03 | 2min | 2 tasks | 2 files |
 | Phase 72-admin-menu-performance P01 | 4min | 2 tasks | 14 files |
 | Phase 72-admin-menu-performance P02 | 2.5min | 3 tasks | 3 files |
+| Phase 73-language-onboarding-estimate-language-ui P03 | 5 | 1 tasks | 1 files |
 
 ## Project Reference
 
