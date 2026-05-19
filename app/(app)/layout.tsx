@@ -12,6 +12,7 @@ import { UpgradeModal } from '@/components/billing/upgrade-modal'
 import { TourProvider } from '@/components/tour/tour-provider'
 import { WelcomeModal } from '@/components/tour/welcome-modal'
 import { TourSpotlight } from '@/components/tour/tour-spotlight'
+import { TourHelpButton } from '@/components/tour/tour-help-button'
 
 export default async function AppShellLayout({
   children,
@@ -81,6 +82,7 @@ export default async function AppShellLayout({
         <UpgradeModal />
         <WelcomeModal />
         <TourSpotlight />
+        <TourHelpButton />
       </div>
     </TourProvider>
   )
