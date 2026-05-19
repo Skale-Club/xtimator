@@ -7,6 +7,8 @@ export type AuditAction =
   | 'integration.delete'
   | 'integration.test'
   | 'ai_provider.set'
+  | 'ai_provider.set_model'
+  | 'company.set_model_override'
   | 'tier.force'
   | 'bonus_credits.grant'
   | 'branding.save'

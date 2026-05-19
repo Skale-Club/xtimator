@@ -198,6 +198,22 @@ async function runTestIntegrationKey(
       return { ok: true, message: `Verified. Gemini responded in ${ms}ms.` }
     }
 
+    if (input.provider === 'openrouter') {
+      const res = await fetch('https://openrouter.ai/api/v1/models', {
+        headers: { Authorization: `Bearer ${key}` },
+      })
+      if (!res.ok) {
+        const body = await res.text().catch(() => '')
+        return {
+          ok: false,
+          message: `OpenRouter rejected the key (${res.status}). ${body.slice(0, 200)}`.trim(),
+        }
+      }
+      const json = (await res.json()) as { data?: unknown[] }
+      const n = Array.isArray(json.data) ? json.data.length : 0
+      return { ok: true, message: `Verified. ${n} models available via OpenRouter.` }
+    }
+
     if (input.provider === 'meta_whatsapp') {
       const res = await fetch('https://graph.facebook.com/v21.0/me', {
         headers: { Authorization: `Bearer ${key}` },
@@ -251,21 +267,27 @@ async function runTestIntegrationKey(
  * request (D-04, D-19).
  */
 export async function setActiveAIProvider(
-  provider: 'anthropic' | 'gemini'
+  provider: 'anthropic' | 'gemini' | 'openrouter'
 ): Promise<ActionResult> {
   const ctx = await requireAdmin()
   const svc = requireServiceClient()
 
-  // Best-effort read of previous selection so we can record it in audit metadata.
+  // Best-effort read of previous metadata so we keep `openrouter_default_model`
+  // intact when switching providers (we only want to flip selected_ai_provider).
   let previous: string | null = null
+  let prevMeta: { selected_ai_provider?: string; openrouter_default_model?: string } = {}
   try {
     const { data: prev } = await svc
       .from('platform_integrations')
       .select('metadata')
       .eq('provider', 'ai_config')
       .maybeSingle()
-    const meta = (prev?.metadata ?? null) as { selected_ai_provider?: string } | null
-    previous = meta?.selected_ai_provider ?? null
+    prevMeta =
+      (prev?.metadata ?? {}) as {
+        selected_ai_provider?: string
+        openrouter_default_model?: string
+      }
+    previous = prevMeta.selected_ai_provider ?? null
   } catch {
     // non-fatal — audit row will just record { new } without previous
   }
@@ -276,7 +298,7 @@ export async function setActiveAIProvider(
       ciphertext: null,
       iv: null,
       auth_tag: null,
-      metadata: { selected_ai_provider: provider },
+      metadata: { ...prevMeta, selected_ai_provider: provider },
       updated_at: new Date().toISOString(),
       updated_by: ctx.userId,
     },
@@ -298,4 +320,71 @@ export async function setActiveAIProvider(
   })
 
   return { ok: true, message: `Active AI provider set to ${provider}.` }
+}
+
+/**
+ * Persist the platform-wide default OpenRouter model id. Used when the
+ * active provider is OpenRouter and a company has no `ai_model_override`.
+ *
+ * Stored alongside `selected_ai_provider` in the `ai_config` metadata.
+ */
+export async function setGlobalOpenRouterModel(
+  model: string
+): Promise<ActionResult> {
+  const ctx = await requireAdmin()
+  const trimmed = model.trim()
+  if (!trimmed) {
+    return { ok: false, message: 'Model id is required' }
+  }
+  // Loose validation — OpenRouter model ids look like "vendor/slug" or
+  // "vendor/slug:variant". Permissive on purpose so new vendors don't break.
+  if (!/^[\w./:-]+$/.test(trimmed)) {
+    return { ok: false, message: 'Invalid model id format' }
+  }
+
+  const svc = requireServiceClient()
+  let prevMeta: { selected_ai_provider?: string; openrouter_default_model?: string } = {}
+  try {
+    const { data: prev } = await svc
+      .from('platform_integrations')
+      .select('metadata')
+      .eq('provider', 'ai_config')
+      .maybeSingle()
+    prevMeta =
+      (prev?.metadata ?? {}) as {
+        selected_ai_provider?: string
+        openrouter_default_model?: string
+      }
+  } catch {
+    // non-fatal — overwrite with just the new model
+  }
+
+  const { error } = await svc.from('platform_integrations').upsert(
+    {
+      provider: 'ai_config',
+      ciphertext: null,
+      iv: null,
+      auth_tag: null,
+      metadata: { ...prevMeta, openrouter_default_model: trimmed },
+      updated_at: new Date().toISOString(),
+      updated_by: ctx.userId,
+    },
+    { onConflict: 'provider' }
+  )
+  if (error) {
+    return { ok: false, message: error.message }
+  }
+  invalidatePlatformConfig()
+  revalidatePath('/admin/integrations')
+
+  void logAdminAction({
+    actorId: ctx.userId,
+    actorEmail: ctx.email,
+    action: 'ai_provider.set_model',
+    targetType: 'ai_config',
+    targetId: 'openrouter',
+    metadata: { model: trimmed, previous: prevMeta.openrouter_default_model ?? null },
+  })
+
+  return { ok: true, message: `Default OpenRouter model set to ${trimmed}.` }
 }

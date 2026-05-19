@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
-import { Settings2, Palette, Users, LayoutDashboard, Globe, Layout, FileText, CreditCard } from 'lucide-react'
+import { Settings2, Palette, Users, LayoutDashboard, Globe, Layout, FileText, CreditCard, Building2 } from 'lucide-react'
 import { useTranslation } from '@/lib/i18n/use-translation'
 
 const NAV_ITEMS = [
@@ -14,6 +14,7 @@ const NAV_ITEMS = [
   { href: '/admin/branding',     label: 'Branding',     Icon: Palette },
   { href: '/admin/integrations', label: 'Integrations', Icon: Settings2 },
   { href: '/admin/billing',      label: 'Billing',      Icon: CreditCard },
+  { href: '/admin/companies',    label: 'Companies',    Icon: Building2 },
   { href: '/admin/admins',       label: 'Admins',       Icon: Users },
 ] as const
 

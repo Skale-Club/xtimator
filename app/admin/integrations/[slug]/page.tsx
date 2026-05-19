@@ -4,7 +4,7 @@ import {
   findCategoryBySlug,
   loadCategoryInitials,
 } from '@/lib/admin/integrations-providers'
-import { getSelectedAIProvider } from '@/lib/platform-config'
+import { getSelectedAIProvider, getOpenRouterDefaultModel } from '@/lib/platform-config'
 import { IntegrationCard } from '../integration-card'
 import { AIProviderSelector } from '../ai-provider-selector'
 import { T } from '@/components/i18n/t'
@@ -22,9 +22,10 @@ export default async function IntegrationCategoryPage({
   const category = findCategoryBySlug(slug)
   if (!category) notFound()
 
-  const [initials, activeProvider] = await Promise.all([
+  const [initials, activeProvider, openRouterModel] = await Promise.all([
     loadCategoryInitials(category),
     category.showAISelector ? getSelectedAIProvider() : Promise.resolve(null),
+    category.showAISelector ? getOpenRouterDefaultModel() : Promise.resolve(null),
   ])
 
   return (
@@ -47,7 +48,10 @@ export default async function IntegrationCategoryPage({
 
       {category.showAISelector && activeProvider && (
         <div className="rounded-lg border border-border bg-card/40 p-4 md:p-6">
-          <AIProviderSelector current={activeProvider} />
+          <AIProviderSelector
+            current={activeProvider}
+            currentOpenRouterModel={openRouterModel}
+          />
         </div>
       )}
     </div>
