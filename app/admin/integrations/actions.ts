@@ -232,6 +232,31 @@ async function runTestIntegrationKey(
       }
     }
 
+    if (input.provider === 'twilio') {
+      // key format: "AccountSid:AuthToken"
+      const [accountSid, authToken] = key.split(':')
+      if (!accountSid || !authToken) {
+        return { ok: false, message: 'Key must be in "AccountSid:AuthToken" format.' }
+      }
+      const credentials = Buffer.from(`${accountSid}:${authToken}`).toString('base64')
+      const res = await fetch(
+        `https://api.twilio.com/2010-04-01/Accounts/${accountSid}.json`,
+        { headers: { Authorization: `Basic ${credentials}` } }
+      )
+      if (!res.ok) {
+        const body = await res.text().catch(() => '')
+        return {
+          ok: false,
+          message: `Twilio rejected the credentials (${res.status}). ${body.slice(0, 200)}`.trim(),
+        }
+      }
+      const json = (await res.json()) as { friendly_name?: string; status?: string }
+      return {
+        ok: true,
+        message: `Verified. Account "${json.friendly_name ?? accountSid}" is ${json.status ?? 'active'}.`,
+      }
+    }
+
     if (input.provider === 'stripe_connect_client_id') {
       // No test endpoint — the Client ID is a public identifier, not a
       // credential. Verification happens implicitly via the OAuth flow

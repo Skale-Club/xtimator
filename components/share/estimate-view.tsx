@@ -353,7 +353,7 @@ export function EstimateView({
               {estimate.tax_amount > 0 && (
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">
-                    {t('Tax')} ({estimate.tax_rate}%)
+                    {t('Tax')} ({(estimate.tax_rate * 100).toFixed(2)}%)
                   </span>
                   <span className="tabular-nums">
                     {formatCurrency(estimate.tax_amount)}
