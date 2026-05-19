@@ -1,5 +1,8 @@
 import { requireAdmin } from '@/lib/auth/admin-context'
-import { CATEGORIES } from '@/lib/admin/integrations-providers'
+import {
+  CATEGORIES,
+  DEFAULT_CATEGORY_SLUG,
+} from '@/lib/admin/integrations-providers'
 import { Card } from '@/components/ui/card'
 import { IntegrationsNav } from './integrations-nav'
 import { T } from '@/components/i18n/t'
@@ -28,6 +31,7 @@ export default async function IntegrationsLayout({
       </div>
       <Card variant="glass" className="p-6 md:p-8">
         <IntegrationsNav
+          defaultSlug={DEFAULT_CATEGORY_SLUG}
           categories={CATEGORIES.map((c) => ({
             slug: c.slug,
             title: c.title,
