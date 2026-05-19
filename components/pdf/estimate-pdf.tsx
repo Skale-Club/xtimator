@@ -122,10 +122,24 @@ const CURRENCY_LOCALE: Record<EstimateLanguage, string> = {
   es: 'es-MX',
 }
 
+const CURRENCY_CODE: Record<EstimateLanguage, string> = {
+  en: 'USD',
+  pt: 'BRL',
+  es: 'USD',
+}
+
 const DATE_LOCALE: Record<EstimateLanguage, string> = {
   en: 'en-US',
   pt: 'pt-BR',
   es: 'es-MX',
+}
+
+// Text-based language indicator for PDF header.
+// @react-pdf/renderer does not support SVG flags — plain text chip is used instead.
+const LANG_INDICATOR: Record<EstimateLanguage, string> = {
+  en: 'EN',
+  pt: 'PT',
+  es: 'ES',
 }
 
 interface CompanyInfo {
@@ -162,10 +176,10 @@ export interface EstimatePDFProps {
   language?: EstimateLanguage
 }
 
-function formatCurrency(value: number, locale = 'en-US'): string {
+function formatCurrency(value: number, locale = 'en-US', currencyCode = 'USD'): string {
   return new Intl.NumberFormat(locale, {
     style: 'currency',
-    currency: 'USD',
+    currency: currencyCode,
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(value)
@@ -387,6 +401,12 @@ const styles = StyleSheet.create({
     color: '#4b5563',
     marginBottom: 12,
   },
+  // Language badge in header
+  langBadge: {
+    fontSize: 9,
+    color: '#6b7280',
+    marginTop: 2,
+  },
   // Footer
   footer: {
     position: 'absolute',
@@ -412,9 +432,11 @@ export default function EstimatePDF({
   const clientAddress = client ? formatAddress(client) : null
   const L = PDF_LABELS[language] ?? PDF_LABELS.en
   const currencyLocale = CURRENCY_LOCALE[language] ?? 'en-US'
+  const currencyCode = CURRENCY_CODE[language] ?? 'USD'
   const dateLocale = DATE_LOCALE[language] ?? 'en-US'
-  const fmt = (v: number) => formatCurrency(v, currencyLocale)
+  const fmt = (v: number) => formatCurrency(v, currencyLocale, currencyCode)
   const fmtDate = (s: string) => formatDate(s, dateLocale)
+  const langLabel = LANG_INDICATOR[language] ?? 'EN'
 
   return (
     <Document>
@@ -443,6 +465,8 @@ export default function EstimatePDF({
               )}
             </View>
           </View>
+          {/* Language indicator chip — text-based (SVG flags not supported in react-pdf) */}
+          <Text style={styles.langBadge}>{langLabel}</Text>
         </View>
 
         {/* Title */}
