@@ -5,6 +5,7 @@ import { createElement } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import { getEstimateWithContext } from '@/lib/queries/estimate'
 import EstimatePDF from '@/components/pdf/estimate-pdf'
+import { isSupportedLanguage } from '@/lib/i18n/resolve-estimate-language'
 import { revalidatePath } from 'next/cache'
 import { getIntegrationKey, getBranding } from '@/lib/platform-config'
 
@@ -135,12 +136,14 @@ export async function POST(
 
     // Attach PDF if requested
     if (attachPdf) {
+      const estimateLanguage = isSupportedLanguage(estimate.language) ? estimate.language : 'en'
       const element = createElement(EstimatePDF, {
         estimate,
         company,
         client,
         projectName,
         projectType,
+        language: estimateLanguage,
       })
       const pdfBuffer = await renderToBuffer(element as any)
 
