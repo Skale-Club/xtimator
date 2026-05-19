@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v3.1.1
 milestone_name: MVP Launch Prep + Future-Proofing
-status: verifying
-last_updated: "2026-05-18T00:16:51.939Z"
-last_activity: 2026-05-18
+status: executing
+last_updated: "2026-05-19T10:00:45.654Z"
+last_activity: 2026-05-19
 progress:
-  total_phases: 17
+  total_phases: 19
   completed_phases: 17
-  total_plans: 47
-  completed_plans: 47
+  total_plans: 52
+  completed_plans: 48
 ---
 
 # Project State
@@ -21,10 +21,10 @@ progress:
 
 ## Current Position
 
-Phase: 72
-Plan: Not started
-Status: Phase complete — ready for verification
-Last activity: 2026-05-18 - Completed quick task 260518-hkp: price book category hierarchy — folders (SEED-025)
+Phase: 73 (Language Onboarding Step + Estimate Language UI) — EXECUTING
+Plan: 2 of 5
+Status: Ready to execute
+Last activity: 2026-05-19
 
 ## v3.1.1 Phases
 
@@ -413,6 +413,7 @@ Last activity: 2026-05-18 - Completed quick task 260518-hkp: price book category
 - [Phase 72-admin-menu-performance]: getCachedBranding = cache(getBranding) added as new export; original getBranding preserved for non-layout callers
 - [Phase 72-admin-menu-performance]: Admin layout Suspense has no explicit fallback — loading.tsx (Plan 01) serves as App Router automatic fallback
 - [Phase 72-admin-menu-performance]: brandingPromise starts immediately after getAuthClaims resolves; getBranding has no dependency on company data
+- [Phase 73-language-onboarding-estimate-language-ui]: English-first: language='en' maps to null in default_estimate_language; setLanguage() called immediately on radio selection for live onboarding preview
 
 ## Performance Metrics
 
@@ -538,13 +539,14 @@ Last activity: 2026-05-18 - Completed quick task 260518-hkp: price book category
 | Phase 72-admin-menu-performance P03 | 2min | 2 tasks | 2 files |
 | Phase 72-admin-menu-performance P01 | 4min | 2 tasks | 14 files |
 | Phase 72-admin-menu-performance P02 | 2.5min | 3 tasks | 3 files |
+| Phase 73-language-onboarding-estimate-language-ui P01 | 4min | 2 tasks | 7 files |
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-13)
 
 **Core value:** Business owner → job site audio recording → sent professional estimate in under 5 minutes
-**Current focus:** Phase 72 — Admin Menu Performance — Instant Navigation
+**Current focus:** Phase 73 — Language Onboarding Step + Estimate Language UI
 
 ## Notes
 

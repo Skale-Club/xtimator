@@ -190,7 +190,7 @@
   6. `EstimatePDF` renders static labels (Summary, Notes, Total, Payment Terms, Timeline) via `t()` in the correct locale; currency/date formatted via `Intl` per locale (USD en-US, USD es-US, BRL pt-BR)
 **Plans**: 5 plans in `.planning/phases/73-language-onboarding-estimate-language-ui/`
 Plans:
-- [ ] 73-01-PLAN.md — Language step in onboarding survey + schema + company action (LANG-ONBOARD-01)
+- [x] 73-01-PLAN.md — Language step in onboarding survey + schema + company action (LANG-ONBOARD-01)
 - [ ] 73-02-PLAN.md — generate-estimate API + Inngest worker accept language param (LANG-ONBOARD-02)
 - [ ] 73-03-PLAN.md — Estimate generation UI language dropdown + cascade hint (LANG-ONBOARD-03)
 - [ ] 73-04-PLAN.md — Flag chips in share/preview + Settings language selectors (LANG-ONBOARD-04, LANG-ONBOARD-05)
@@ -774,5 +774,5 @@ Plans:
 | 70. Stripe Connect — Customer Payments | v3.1.1 | 5/5 | Complete    | 2026-05-17 |
 | 71. Glassmorphism Structural Redesign | v3.1.1 | 11/11 | Complete    | 2026-05-17 |
 | 72. Admin Menu Performance | v3.1.1 | 3/3 | Complete    | 2026-05-18 |
-| 73. Language Onboarding + Estimate Language UI | v3.1.1 | 0/TBD | Not started | - |
+| 73. Language Onboarding + Estimate Language UI | v3.1.1 | 1/5 | In Progress|  |
 | 74. Post-Onboarding App Feature Tour | v3.1.1 | 0/TBD | Not started | - |
