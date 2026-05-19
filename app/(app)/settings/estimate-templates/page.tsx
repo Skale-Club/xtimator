@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getAuthClaims } from '@/lib/queries/auth'
 import { getEstimateTemplateSettings } from '@/lib/queries/company'
 import { EstimateTemplateForm } from '@/components/settings/estimate-template-form'
+import { EstimateTermsForm } from '@/components/settings/estimate-terms-form'
 import type { CompanySettings } from '@/lib/queries/company'
 import { Card } from '@/components/ui/card'
 import { T } from '@/components/i18n/t'
@@ -30,6 +31,7 @@ export default async function EstimateTemplatesPage() {
       <Card variant="glass" className="p-8">
         <EstimateTemplateForm company={template as unknown as CompanySettings} />
       </Card>
+      <EstimateTermsForm company={template as unknown as CompanySettings} />
     </div>
   )
 }

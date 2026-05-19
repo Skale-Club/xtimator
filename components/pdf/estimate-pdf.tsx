@@ -154,6 +154,8 @@ interface CompanyInfo {
   zip: string | null
   logo_url: string | null
   brand_primary_color: string | null
+  estimate_terms_enabled?: boolean
+  estimate_terms_text?: string | null
 }
 
 interface ClientInfo {
@@ -652,12 +654,23 @@ export default function EstimatePDF({
           </View>
         </View>
 
-        {/* Terms */}
-        {(estimate.payment_terms ||
+        {/* Estimate Terms, Payment Terms, Warranty, Timeline, Notes */}
+        {(company.estimate_terms_enabled && company.estimate_terms_text ||
+          estimate.payment_terms ||
           estimate.warranty_terms ||
           estimate.timeline ||
           estimate.notes) && (
           <View style={styles.termsSection}>
+            {company.estimate_terms_enabled && company.estimate_terms_text && (
+              <>
+                <Text style={[styles.termsTitle, { color: brandColor }]}>
+                  Estimate Terms
+                </Text>
+                <Text style={styles.termsText}>
+                  {company.estimate_terms_text}
+                </Text>
+              </>
+            )}
             {estimate.payment_terms && (
               <>
                 <Text style={styles.termsTitle}>{L.paymentTerms}</Text>

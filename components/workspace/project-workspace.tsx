@@ -30,13 +30,14 @@ interface ProjectWorkspaceProps {
   companyName: string
   ownerName: string
   estimateTemplate: EstimateTemplate
+  smsDeliveryEnabled?: boolean
   defaultTab?: WorkspaceTab
 }
 
 export function ProjectWorkspace({
   project, activity, stats, recordings, photos,
   currentEstimate, allVersions, companyName,
-  ownerName, estimateTemplate,
+  ownerName, estimateTemplate, smsDeliveryEnabled = false,
   defaultTab = 'overview',
 }: ProjectWorkspaceProps) {
   const { t } = useTranslation()
@@ -127,9 +128,11 @@ export function ProjectWorkspace({
           projectName={project.name}
           companyName={companyName}
           clientEmail={project.client?.email ?? null}
+          clientPhone={project.client?.phone ?? null}
           clientName={project.client?.name ?? ''}
           ownerName={ownerName}
           estimateTemplate={estimateTemplate}
+          smsDeliveryEnabled={smsDeliveryEnabled}
         />
       </TabsContent>
     </Tabs>
