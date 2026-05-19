@@ -155,7 +155,7 @@
 | Phase | Name | Plans | Status |
 |-------|------|-------|--------|
 | 61 | Production Database Foundation | 5/5 | Complete 2026-05-15 |
-| 62 | Vercel Deployment + Custom Domain | — | DEFERRED → v3.2 |
+| 62 | ~~Vercel Deployment + Custom Domain~~ | — | REMOVED — hosting migration tracked in SEED-018 |
 | 63 | Stripe Live Mode Activation | — | DEFERRED → v3.2 |
 | 64 | Monitoring + Backup & Resilience | — | DEFERRED → v3.2 |
 | 65 | Production UAT + Bug Triage | — | DEFERRED → v3.2 |
@@ -170,44 +170,9 @@
 - [x] **Phase 67: Inngest Background AI Job Processing** — Install Inngest, register worker functions at `/api/inngest`, and refactor the three AI routes (`generate-estimate`, `transcribe`, `analyze-photos`) plus the WhatsApp inbound handler so the long-running Anthropic / OpenAI / Vision calls run as Inngest jobs (idempotent via `step.run()` + `idempotencyKey`). Frontend polls job status via `GET /api/jobs/[jobId]` so the capture stepper UI shows live "Saving / Transcribing / Analyzing / Generating" progress. Document the local dev workflow (`npx inngest-cli dev` alongside `npm run dev`). (INNGEST-01..08) (completed 2026-05-15)
 - [x] **Phase 68: Hetzner Cloud Deploy-Readiness Artifacts** — Ship the future-Hetzner deploy artifacts but do not activate them: `Dockerfile` (multi-stage, Node 22 alpine, non-root, <500 MB), `next.config.mjs` set to `output: 'standalone'`, `docker-compose.yml` with Caddy reverse proxy + automatic Let's Encrypt HTTPS, `app/api/health/route.ts` returning `{ ok, db, storage, commit }` (uses the new `storage.*` API for the storage check), and `docs/HETZNER-DEPLOY.md` runbook. Validate locally with `docker build` + `docker run`. (HETZNER-01..06) (completed 2026-05-15)
 - [x] **Phase 69: UAT Validation + Bug Triage + Perf Audit** — Owner manually exercises every refactored surface against localhost: v2.2 WhatsApp polish (PDF + status flow), v3.0 monetization (tiers, Stripe test mode, billing UI, trial automation, admin tooling, 402 modal), Inngest happy path + 8-min long-audio (the timeout-killer test that would have failed on Vercel Free without Inngest), every storage path post-refactor, end-to-end happy path, multi-modal capture, i18n smoke. Critical bugs get fixed in this milestone with linked commits; non-critical findings land in `.planning/known-issues.md`. Lighthouse + bundle-size audit captured. (UAT-V22-01..02 + UAT-V30-01..06 + UAT-INNGEST-01..02 + UAT-STORAGE-01 + UAT-E2E-01..03 + FIX-01..02 + PERF-01..02) (completed 2026-05-15)
-- [x] **Phase 70: Stripe Connect — Optional Customer Payments on Estimates** — Ship an entirely-optional Stripe Connect Standard integration so service businesses can connect their existing Stripe account once (via OAuth in Settings → Payments) and instantly get a "Pay Now" button on every shared estimate. Customer clicks → Stripe Checkout (hosted by Stripe, on the business's connected account) → pays full amount → webhook marks `estimates.payment_status = 'paid'`, emails business owner, emails customer branded receipt, shows banner on share page after redirect. Zero application fee (Xtimator already monetizes via SaaS plans). Everything works perfectly without Stripe connected — no broken UI, no upsell nag, share/PDF/email flows unchanged. Harvests SEED-020. (CONNECT-01..09)
- (completed 2026-05-17)
+- [x] **Phase 70: Stripe Connect — Optional Customer Payments on Estimates** — Ship an entirely-optional Stripe Connect Standard integration so service businesses can connect their existing Stripe account once (via OAuth in Settings → Payments) and instantly get a "Pay Now" button on every shared estimate. Customer clicks → Stripe Checkout (hosted by Stripe, on the business's connected account) → pays full amount → webhook marks `estimates.payment_status = 'paid'`, emails business owner, emails customer branded receipt, shows banner on share page after redirect. Zero application fee (Xtimator already monetizes via SaaS plans). Everything works perfectly without Stripe connected — no broken UI, no upsell nag, share/PDF/email flows unchanged. Harvests SEED-020. (CONNECT-01..09) (completed 2026-05-17)
 - [x] **Phase 71: Glassmorphism Structural Redesign — All Surfaces** — Ship a complete visual overhaul taking Xtimator from "functional SaaS" to "premium Stripe-Dashboard-tier" without changing information architecture, navigation, or copy. New design system layer (glass surface tokens + vibrant gradient palette + typography upgrade) extends — does not replace — existing semantic tokens. Every surface a paying customer sees gets refactored across 5 waves: (1) foundation + reference page, (2) marketing/auth/onboarding, (3) app shell + dashboard + collections, (4) project workspace + capture + editor, (5) share page + settings + admin + billing. Brand identity preserved (#406EF1, dark-first, logo, wordmark intact). Reference: Stripe Dashboard. Harvests SEED-022. (REDESIGN-01..10) (completed 2026-05-17)
-- [x] **Phase 72: Admin Menu Performance — Instant Navigation** — Eliminate perceived lag on admin menu opens (both client admin `/admin/*` and app shell nav) by fixing layout-blocking Promise.all() with Suspense boundaries, adding skeleton loading states, fixing N+1 decrypt pattern in integrations page, adding ISR caching to force-dynamic admin pages where safe, and lazy-loading heavy page components. Target: menus open and render skeleton within 100ms of click; no layout shift or blank flash. (PERF-ADMIN-01..06) (completed 2026-05-18)
-- [ ] **Phase 73: Language Onboarding Step + Estimate Language UI** — Add a language step to the onboarding survey (step 5, after Industry) so users set their dashboard language and default estimate language at signup. Complete the SEED-016 deferred UI items: language dropdown in the estimate generation modal (with cascade-source hint), flag chip in estimate preview/share/PDF, `language` param wired into `/api/generate-estimate`, `default_estimate_language` in Company Settings, `preferred_language` in Client edit form. Three markets: EN (US), PT (Brazil), ES (Hispanic US). Harvests SEED-026. (LANG-ONBOARD-01..06)
-- [ ] **Phase 74: Post-Onboarding App Feature Tour** — Ship a guided feature tour that fires once after onboarding completes: a welcome modal (2-CTA: "Show me around" or "Start estimating"), a 5-step spotlight walkthrough of the core workflow (New Project → Audio Record → Photo Upload → Generate → Send), and contextual first-visit tooltips on 5 high-value UI surfaces (Price Book, Clients, Estimate total, WhatsApp send). No third-party tour libraries — CSS box-shadow spotlight + absolute-positioned tooltip cards. Tour texts use `t()` for PT/ES support. State persisted in localStorage. Harvests SEED-027. (TOUR-01..05)
-
-### Phase 73: Language Onboarding Step + Estimate Language UI
-**Goal**: First-time users choose their language during onboarding, setting both the dashboard locale and the default estimate language in one step. The three existing deferred items from SEED-016 (generate-estimate API param, web UI dropdown, EstimatePDF i18n) are wired together so the full cascade (override → client preferred → company default → user app language → en) works end-to-end in the web UI, not just the backend. Flag chip appears in estimate preview/share/PDF as confirmation of the selected language.
-**Depends on**: Phase 72 (stable baseline; no active UI refactors in flight)
-**Requirements**: LANG-ONBOARD-01, LANG-ONBOARD-02, LANG-ONBOARD-03, LANG-ONBOARD-04, LANG-ONBOARD-05, LANG-ONBOARD-06
-**Success Criteria** (what must be TRUE):
-  1. Onboarding survey has a language step after Industry: renders `FlagUS/FlagBR/FlagES` radio buttons; selecting PT or ES sets `LanguageContext` immediately (dashboard translates) and saves `companies.default_estimate_language` on submit
-  2. `/api/generate-estimate` accepts `language?: EstimateLanguage` in POST body; service layer passes it to Claude prompt; `estimates.language` persisted on every new estimate
-  3. Estimate generation UI has a language dropdown pre-filled by `resolveEstimateLanguageWithSource()`; cascade source shown as hint text (e.g., "Defaulted to Portuguese from your app language")
-  4. Estimate preview/share view and PDF cover show a flag chip matching `estimates.language`
-  5. Company Settings has `default_estimate_language` selector; Client edit form has `preferred_language` selector; both persist to DB
-  6. `EstimatePDF` renders static labels (Summary, Notes, Total, Payment Terms, Timeline) via `t()` in the correct locale; currency/date formatted via `Intl` per locale (USD en-US, USD es-US, BRL pt-BR)
-**Plans**: 5 plans in `.planning/phases/73-language-onboarding-estimate-language-ui/`
-Plans:
-- [x] 73-01-PLAN.md — Language step in onboarding survey + schema + company action (LANG-ONBOARD-01)
-- [ ] 73-02-PLAN.md — generate-estimate API + Inngest worker accept language param (LANG-ONBOARD-02)
-- [ ] 73-03-PLAN.md — Estimate generation UI language dropdown + cascade hint (LANG-ONBOARD-03)
-- [ ] 73-04-PLAN.md — Flag chips in share/preview + Settings language selectors (LANG-ONBOARD-04, LANG-ONBOARD-05)
-- [ ] 73-05-PLAN.md — EstimatePDF static labels i18n + locale-aware Intl formatting (LANG-ONBOARD-06)
-
-### Phase 74: Post-Onboarding App Feature Tour
-**Goal**: New users who just completed onboarding see a one-time welcome modal and optional 5-step spotlight tour of the core workflow; contextual first-visit tooltips surface on 5 high-value UI elements across their first session. Zero third-party tour libraries — CSS `box-shadow` spotlight + absolute-positioned tooltip cards. All tour copy passes through `t()` for PT/ES.
-**Depends on**: Phase 73 (language system must be complete so tour renders in user's chosen language)
-**Requirements**: TOUR-01, TOUR-02, TOUR-03, TOUR-04, TOUR-05
-**Success Criteria** (what must be TRUE):
-  1. Welcome modal fires automatically once after onboarding redirect; `localStorage.onboarding_just_completed` flag triggers it; `localStorage.tour_completed` suppresses repeats
-  2. "Show me around" launches a 5-step spotlight tour: step targets identified by `data-tour` attributes on New Project button, Audio Recorder, Photo Upload zone, Generate Estimate button, Send tab
-  3. Spotlight renders as `box-shadow: 0 0 0 9999px rgba(0,0,0,0.6)` over the target element with an adjacent tooltip card; step counter + Prev/Next/Done controls visible; works on mobile (iOS Safari, Android Chrome)
-  4. "?" button fixed bottom-right reopens the welcome modal at any time; does not replay if already `tour_completed`
-  5. Contextual tooltips (Price Book, Clients list, Estimate total inline edit, WhatsApp send, Language toggle) each appear once on first visit to that surface; each has its own `localStorage` key; tooltip dismisses on click or ESC
-**Plans**: TBD (estimated 3-4 plans across 2 waves)
-
+- [x] **Phase 72: Admin Menu Performance — Instant Navigation** — Eliminate perceived lag on admin menu opens (both client admin `/admin/*` and app shell nav) by fixing layout-blocking Promise.all() with Suspense boundaries, adding skeleton loading states, fixing N+1 decrypt pattern in integrations page, adding ISR caching to force-dynamic admin pages where safe, and lazy-loading heavy page components. Target: menus open and render skeleton within 100ms of click; no layout shift or blank flash. (PERF-ADMIN-01..06) (completed 2026-05-18)
 
 ### Phase 71: Glassmorphism Structural Redesign — All Surfaces
 **Goal**: Every surface a paying Xtimator customer touches feels premium and modern — frosted-glass cards, vibrant brand-tinted gradients on hero zones, stronger typography hierarchy, generous whitespace — without changing information architecture, navigation, or copy. Information stays where it is; presentation gets a Stripe-Dashboard-tier overhaul.
@@ -763,7 +728,7 @@ Plans:
 | 59. Billing UI | v3.0 | 1/2 | Complete    | 2026-05-14 |
 | 60. Trial Automation + Admin Tooling | v3.0 | 1/2 | Complete    | 2026-05-14 |
 | 61. Production Database Foundation | v3.1 | 1/5 | Complete    | 2026-05-15 |
-| 62. Vercel Deployment + Custom Domain | v3.1 | 0/TBD | DEFERRED → v3.2 | - |
+| 62. ~~Vercel Deployment + Custom Domain~~ | v3.1 | — | REMOVED — see SEED-018 for Hetzner migration | - |
 | 63. Stripe Live Mode Activation | v3.1 | 0/TBD | DEFERRED → v3.2 | - |
 | 64. Monitoring + Backup & Resilience | v3.1 | 0/TBD | DEFERRED → v3.2 | - |
 | 65. Production UAT + Bug Triage | v3.1 | 0/TBD | DEFERRED → v3.2 | - |
@@ -773,6 +738,3 @@ Plans:
 | 69. UAT Validation + Bug Triage + Perf Audit | v3.1.1 | 0/TBD | Complete    | 2026-05-15 |
 | 70. Stripe Connect — Customer Payments | v3.1.1 | 5/5 | Complete    | 2026-05-17 |
 | 71. Glassmorphism Structural Redesign | v3.1.1 | 11/11 | Complete    | 2026-05-17 |
-| 72. Admin Menu Performance | v3.1.1 | 3/3 | Complete    | 2026-05-18 |
-| 73. Language Onboarding + Estimate Language UI | v3.1.1 | 1/5 | In Progress|  |
-| 74. Post-Onboarding App Feature Tour | v3.1.1 | 0/TBD | Not started | - |

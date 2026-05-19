@@ -120,7 +120,6 @@ export async function createPriceBookItem(
     .insert({
       company_id: company.id,
       folder_id: formData.folder_id ?? null,
-      category: formData.category || null,
       name: formData.name,
       unit: formData.unit || null,
       unit_price: formData.unit_price,
@@ -170,7 +169,6 @@ export async function updatePriceBookItem(
     .from('company_price_book')
     .update({
       folder_id: formData.folder_id ?? null,
-      category: formData.category || null,
       name: formData.name,
       unit: formData.unit || null,
       unit_price: formData.unit_price,
@@ -245,24 +243,33 @@ export async function importPriceBookItems(
     return { error: 'No valid rows to import.' }
   }
 
-  // Fetch existing (category, name) pairs for the company — one query
+  // Fetch existing (folder_id, name) pairs for the company — one query
   const { data: existing, error: existingErr } = await supabase
     .from('company_price_book')
-    .select('category, name')
+    .select('folder_id, name')
     .eq('company_id', company.id)
   if (existingErr) {
     return { error: 'Could not check for duplicates. Please try again.' }
   }
 
   const existingKeys = new Set(
-    (existing ?? []).map((r: { category: string | null; name: string }) =>
-      `${(r.category?.toLowerCase() ?? '')}::${r.name.toLowerCase()}`
+    (existing ?? []).map((r: { folder_id: string | null; name: string }) =>
+      `${(r.folder_id ?? '')}::${r.name.toLowerCase()}`
     )
   )
 
   const toInsert = validatedRows.filter((r) => {
-    const key = `${(r.category?.toLowerCase() ?? '')}::${r.name.toLowerCase()}`
-    return !existingKeys.has(key)
+    // Resolve the row's folder_id from folder_name + folderNameMap (or explicit folder_id)
+    const folderName = (r as { folder_name?: string }).folder_name
+    const resolvedFolderId =
+      folderName && folderNameMap
+        ? (folderNameMap.get(folderName.toLowerCase()) ?? r.folder_id ?? null)
+        : (r.folder_id ?? null)
+    const key = `${resolvedFolderId ?? ''}::${r.name.toLowerCase()}`
+    if (existingKeys.has(key)) return false
+    // Stash resolved folder_id back on the row so the insert step can reuse it
+    ;(r as { folder_id?: string | null }).folder_id = resolvedFolderId
+    return true
   })
   const skipped = validatedRows.length - toInsert.length
 
@@ -275,10 +282,7 @@ export async function importPriceBookItems(
     .insert(
       toInsert.map((r) => ({
         company_id: company.id,
-        folder_id: (r as any).folder_name
-          ? (folderNameMap?.get(((r as any).folder_name as string).toLowerCase()) ?? null)
-          : null,
-        category: r.category || null,
+        folder_id: r.folder_id ?? null,
         name: r.name,
         unit: r.unit || null,
         unit_price: r.unit_price,
@@ -293,33 +297,39 @@ export async function importPriceBookItems(
   return { data: { imported: toInsert.length, skipped } }
 }
 
-export async function bulkAdjustPriceBookCategory(
-  category: string,
+export async function bulkAdjustPriceBookFolder(
+  folderId: string | null,
   adjustmentPercent: number
 ): Promise<{ data: { updated: number } } | { error: string }> {
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error as string }
   const { supabase, company } = ctx
 
-  // Fetch all items in the category for this company (full row for upsert)
-  const { data: items, error: fetchErr } = await supabase
+  // Fetch all items in the folder for this company (full row for upsert).
+  // folderId === null means the "Uncategorized" bucket — items with NULL folder_id.
+  let query = supabase
     .from('company_price_book')
-    .select('id, company_id, category, name, unit, unit_price, notes')
+    .select('id, company_id, folder_id, name, unit, unit_price, notes')
     .eq('company_id', company.id)
-    .eq('category', category)
+
+  query = folderId === null
+    ? query.is('folder_id', null)
+    : query.eq('folder_id', folderId)
+
+  const { data: items, error: fetchErr } = await query
 
   if (fetchErr || !items || items.length === 0) {
-    return { error: 'No items found in that category.' }
+    return { error: 'No items found in that folder.' }
   }
 
   // D-04: Round to 2 decimal places (NUMERIC(12,2) in Postgres)
   const adjustedItems = (items as {
-    id: string; company_id: string; category: string;
+    id: string; company_id: string; folder_id: string | null;
     name: string; unit: string | null; unit_price: number; notes: string | null
   }[]).map((item) => ({
     id: item.id,
     company_id: item.company_id,
-    category: item.category,
+    folder_id: item.folder_id,
     name: item.name,
     unit: item.unit,
     unit_price: Math.round(item.unit_price * (1 + adjustmentPercent / 100) * 100) / 100,

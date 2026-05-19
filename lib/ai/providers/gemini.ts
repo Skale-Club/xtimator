@@ -93,7 +93,7 @@ export class GeminiAdapter implements AIProvider {
       input.priceBookItems.length > 0
         ? '## Company Price Book\n' +
           input.priceBookItems
-            .map(item => `- ${item.category ?? 'Uncategorized'} | ${item.name} | $${item.unit_price.toFixed(2)}/${item.unit ?? 'each'}`)
+            .map(item => `- ${item.folder_name ?? 'Uncategorized'} | ${item.name} | $${item.unit_price.toFixed(2)}/${item.unit ?? 'each'}`)
             .join('\n')
         : 'No company price book configured.'
 

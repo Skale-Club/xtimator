@@ -1,6 +1,6 @@
 ---
 id: SEED-017
-status: dormant
+status: harvested
 planted: 2026-05-14
 planted_during: post-v3.0 (between milestones)
 trigger_when: When activating real payments in production (go-live with Stripe)

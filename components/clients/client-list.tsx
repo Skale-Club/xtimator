@@ -217,7 +217,9 @@ export function ClientList({ clients, companyId }: ClientListProps) {
                     {client.email || '---'}
                   </TableCell>
                   <TableCell className="text-muted-foreground">
-                    {client.phone || '---'}
+                    {client.phone
+                      ? <a href={`tel:${client.phone}`} className="hover:underline">{client.phone}</a>
+                      : '---'}
                   </TableCell>
                   <TableCell>
                     <Badge variant="secondary">{client.project_count}</Badge>

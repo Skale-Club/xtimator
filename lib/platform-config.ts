@@ -38,6 +38,7 @@ export type IntegrationProvider =
   | 'anthropic'
   | 'openai'
   | 'gemini'
+  | 'openrouter'
   | 'meta_whatsapp'
   | 'stripe'
   // Stripe Connect Client ID (ca_...) — admin-managed; enables tenant OAuth
@@ -248,7 +249,7 @@ export function invalidatePlatformConfig(): void {
   integrationCache.clear()
 }
 
-export type SelectedAIProvider = 'anthropic' | 'gemini'
+export type SelectedAIProvider = 'anthropic' | 'gemini' | 'openrouter'
 
 export async function getSelectedAIProvider(): Promise<SelectedAIProvider> {
   const svc = createServiceClient()
@@ -259,5 +260,25 @@ export async function getSelectedAIProvider(): Promise<SelectedAIProvider> {
     .eq('provider', 'ai_config')
     .maybeSingle()
   const selected = (data?.metadata as { selected_ai_provider?: string } | null)?.selected_ai_provider
-  return selected === 'gemini' ? 'gemini' : 'anthropic'
+  if (selected === 'gemini') return 'gemini'
+  if (selected === 'openrouter') return 'openrouter'
+  return 'anthropic'
+}
+
+/**
+ * Read the platform-wide default OpenRouter model id stored alongside the
+ * selected provider in `platform_integrations.ai_config.metadata`. Used when
+ * the active provider is OpenRouter and the company has no override set.
+ */
+export async function getOpenRouterDefaultModel(): Promise<string | null> {
+  const svc = createServiceClient()
+  if (!svc) return null
+  const { data } = await svc
+    .from('platform_integrations')
+    .select('metadata')
+    .eq('provider', 'ai_config')
+    .maybeSingle()
+  const model = (data?.metadata as { openrouter_default_model?: string } | null)
+    ?.openrouter_default_model
+  return model && model.trim() ? model : null
 }

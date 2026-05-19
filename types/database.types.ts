@@ -14,6 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_audit_log: {
+        Row: {
+          action: string
+          actor_email: string
+          actor_id: string
+          created_at: string
+          id: string
+          ip: unknown
+          metadata: Json
+          target_id: string | null
+          target_type: string | null
+          user_agent: string | null
+        }
+        Insert: {
+          action: string
+          actor_email: string
+          actor_id: string
+          created_at?: string
+          id?: string
+          ip?: unknown
+          metadata?: Json
+          target_id?: string | null
+          target_type?: string | null
+          user_agent?: string | null
+        }
+        Update: {
+          action?: string
+          actor_email?: string
+          actor_id?: string
+          created_at?: string
+          id?: string
+          ip?: unknown
+          metadata?: Json
+          target_id?: string | null
+          target_type?: string | null
+          user_agent?: string | null
+        }
+        Relationships: []
+      }
       blog_posts: {
         Row: {
           content: string
@@ -258,7 +297,6 @@ export type Database = {
       }
       company_price_book: {
         Row: {
-          category: string | null
           company_id: string
           created_at: string
           folder_id: string | null
@@ -270,7 +308,6 @@ export type Database = {
           unit_price: number
         }
         Insert: {
-          category?: string | null
           company_id: string
           created_at?: string
           folder_id?: string | null
@@ -282,7 +319,6 @@ export type Database = {
           unit_price?: number
         }
         Update: {
-          category?: string | null
           company_id?: string
           created_at?: string
           folder_id?: string | null
@@ -306,38 +342,6 @@ export type Database = {
             columns: ["folder_id"]
             isOneToOne: false
             referencedRelation: "price_book_folders"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      price_book_folders: {
-        Row: {
-          company_id: string
-          created_at: string
-          id: string
-          name: string
-          sort_order: number
-        }
-        Insert: {
-          company_id: string
-          created_at?: string
-          id?: string
-          name: string
-          sort_order?: number
-        }
-        Update: {
-          company_id?: string
-          created_at?: string
-          id?: string
-          name?: string
-          sort_order?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "price_book_folders_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "companies"
             referencedColumns: ["id"]
           },
         ]
@@ -776,33 +780,65 @@ export type Database = {
       }
       platform_integrations: {
         Row: {
-          auth_tag: string
-          ciphertext: string
-          iv: string
+          auth_tag: string | null
+          ciphertext: string | null
+          iv: string | null
           metadata: Json | null
           provider: string
           updated_at: string
           updated_by: string | null
         }
         Insert: {
-          auth_tag: string
-          ciphertext: string
-          iv: string
+          auth_tag?: string | null
+          ciphertext?: string | null
+          iv?: string | null
           metadata?: Json | null
           provider: string
           updated_at?: string
           updated_by?: string | null
         }
         Update: {
-          auth_tag?: string
-          ciphertext?: string
-          iv?: string
+          auth_tag?: string | null
+          ciphertext?: string | null
+          iv?: string | null
           metadata?: Json | null
           provider?: string
           updated_at?: string
           updated_by?: string | null
         }
         Relationships: []
+      }
+      price_book_folders: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          name: string
+          sort_order: number
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          name: string
+          sort_order?: number
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          name?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "price_book_folders_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       processed_stripe_events: {
         Row: {
@@ -825,6 +861,7 @@ export type Database = {
           company_id: string
           created_at: string
           id: string
+          input_mode: string | null
           name: string
           project_type: string | null
           status: string
@@ -837,6 +874,7 @@ export type Database = {
           company_id: string
           created_at?: string
           id?: string
+          input_mode?: string | null
           name: string
           project_type?: string | null
           status?: string
@@ -849,6 +887,7 @@ export type Database = {
           company_id?: string
           created_at?: string
           id?: string
+          input_mode?: string | null
           name?: string
           project_type?: string | null
           status?: string

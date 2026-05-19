@@ -12,7 +12,7 @@ vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }))
 vi.mock('@/lib/actions/price-book', () => ({
-  bulkAdjustPriceBookCategory: (...args: any[]) => mockBulkAdjust(...args),
+  bulkAdjustPriceBookFolder: (...args: any[]) => mockBulkAdjust(...args),
 }))
 
 import { BulkAdjustDialog } from '@/components/price-book/bulk-adjust-dialog'
@@ -22,9 +22,8 @@ const mockItems: PriceBookItem[] = [
   {
     id: '1',
     company_id: 'c1',
-    folder_id: null,
-    folder_name: null,
-    category: 'Labor',
+    folder_id: 'folder-labor',
+    folder_name: 'Labor',
     name: 'General Labor',
     unit: 'hr',
     unit_price: 75,
@@ -35,9 +34,8 @@ const mockItems: PriceBookItem[] = [
   {
     id: '2',
     company_id: 'c1',
-    folder_id: null,
-    folder_name: null,
-    category: 'Labor',
+    folder_id: 'folder-labor',
+    folder_name: 'Labor',
     name: 'Supervisor',
     unit: 'hr',
     unit_price: 100,
@@ -50,7 +48,8 @@ const mockItems: PriceBookItem[] = [
 const defaultProps = {
   open: true,
   onOpenChange: vi.fn(),
-  category: 'Labor',
+  folderId: 'folder-labor',
+  folderName: 'Labor',
   items: mockItems,
 }
 
@@ -60,7 +59,7 @@ describe('BulkAdjustDialog', () => {
     mockBulkAdjust.mockResolvedValue({ data: { updated: 2 } })
   })
 
-  it('renders dialog title with category name', () => {
+  it('renders dialog title with folder name', () => {
     render(<BulkAdjustDialog {...defaultProps} />)
     expect(screen.getByText('Adjust prices — Labor')).toBeDefined()
   })
@@ -115,5 +114,21 @@ describe('BulkAdjustDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: /apply to 2 items/i }))
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('DB failed'))
     expect(onOpenChange).not.toHaveBeenCalledWith(false)
+  })
+
+  it('passes folderId === null to action when "Uncategorized" bucket', async () => {
+    render(
+      <BulkAdjustDialog
+        {...defaultProps}
+        folderId={null}
+        folderName="Uncategorized"
+      />
+    )
+    const input = screen.getByLabelText(/adjustment %/i)
+    fireEvent.change(input, { target: { value: '5' } })
+    fireEvent.click(screen.getByRole('button', { name: /apply to 2 items/i }))
+    await waitFor(() => {
+      expect(mockBulkAdjust).toHaveBeenCalledWith(null, 5)
+    })
   })
 })

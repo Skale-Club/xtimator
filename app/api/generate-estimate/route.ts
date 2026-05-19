@@ -8,6 +8,7 @@ import {
 import { rateLimit } from '@/lib/ratelimit'
 import { XtimatorError, asResponse } from '@/lib/errors'
 import { checkQuota } from '@/lib/quota'
+import { isSupportedLanguage } from '@/lib/i18n/resolve-estimate-language'
 
 /**
  * Phase 67: route refactor. Returns { jobId } in <1s.
@@ -83,10 +84,13 @@ export async function POST(request: Request) {
       )
     }
     const projectId = body.projectId as string
+    // Optional language override from the UI language selector (EN-first cascade
+    // runs inside generateEstimateForProject when undefined).
+    const language = isSupportedLanguage(body.language) ? body.language : undefined
 
     // Dispatch to Inngest. Event-level idempotency via `id` field — same
     // request never executes twice in 24h.
-    const payload: EstimateGeneratePayload = { companyId, projectId, requestId }
+    const payload: EstimateGeneratePayload = { companyId, projectId, requestId, language }
     const { ids } = await inngest.send({
       name: EVENT_ESTIMATE_GENERATE,
       id: `estimate-${projectId}-${requestId}`,

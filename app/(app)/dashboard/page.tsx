@@ -1,14 +1,11 @@
 import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
-import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { getDashboardStats, getProjects } from '@/lib/queries/dashboard'
 import { getAuthClaims, getCachedCompany } from '@/lib/queries/auth'
 import { StatCards } from '@/components/dashboard/stat-cards'
 import { ProjectList } from '@/components/dashboard/project-list'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Button } from '@/components/ui/button'
-import { Plus } from 'lucide-react'
 import { T } from '@/components/i18n/t'
 
 export default async function DashboardPage() {
@@ -45,14 +42,6 @@ export default async function DashboardPage() {
         <p className="mt-3 text-base text-muted-foreground max-w-xl">
           <T>Track active projects, monitor estimate health, and start new work.</T>
         </p>
-        <div className="mt-6 flex gap-3">
-          <Button variant="primary" size="lg" asChild>
-            <Link href="/projects/new">
-              <Plus className="h-4 w-4 mr-2" />
-              <T>New project</T>
-            </Link>
-          </Button>
-        </div>
       </section>
 
       <Suspense fallback={<StatCardsSkeleton />}>

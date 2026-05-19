@@ -7,6 +7,7 @@ import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface Props {
   categories: ReadonlyArray<Pick<Category, 'slug' | 'title' | 'navLabel'>>
+  defaultSlug: string
 }
 
 /**
@@ -16,7 +17,7 @@ interface Props {
  *
  * Active state derived from `usePathname()` matching `/admin/integrations/{slug}`.
  */
-export function IntegrationsNav({ categories }: Props) {
+export function IntegrationsNav({ categories, defaultSlug }: Props) {
   const pathname = usePathname()
   const { t } = useTranslation()
   return (
@@ -24,7 +25,10 @@ export function IntegrationsNav({ categories }: Props) {
       <nav className="-mb-px flex items-center gap-0 overflow-x-auto" aria-label={t('Integration categories')}>
         {categories.map((c) => {
           const href = `/admin/integrations/${c.slug}`
-          const isActive = pathname === href || pathname.startsWith(`${href}/`)
+          const isDefaultRoot =
+            c.slug === defaultSlug && pathname === '/admin/integrations'
+          const isActive =
+            isDefaultRoot || pathname === href || pathname.startsWith(`${href}/`)
           return (
             <Link
               key={c.slug}

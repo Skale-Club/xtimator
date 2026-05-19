@@ -13,6 +13,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { getEstimateWithContext } from '@/lib/queries/estimate'
 import { createStorage } from '@/lib/storage'
 import EstimatePDF from '@/components/pdf/estimate-pdf'
+import { isSupportedLanguage } from '@/lib/i18n/resolve-estimate-language'
 
 /**
  * Generate a PDF buffer for the given estimate, upload it to the `pdfs`
@@ -42,13 +43,15 @@ export async function generateAndUploadEstimatePDF(
   const clientRaw = project?.client
   const client = Array.isArray(clientRaw) ? clientRaw[0] ?? null : clientRaw ?? null
 
-  // 2. Render PDF buffer
+  // 2. Render PDF buffer — use estimate language for localized labels
+  const estimateLanguage = isSupportedLanguage(estimate.language) ? estimate.language : 'en'
   const element = createElement(EstimatePDF, {
     estimate,
     company,
     client,
     projectName,
     projectType: project?.project_type ?? null,
+    language: estimateLanguage,
   })
   const pdfBuffer = await renderToBuffer(element as any)
 

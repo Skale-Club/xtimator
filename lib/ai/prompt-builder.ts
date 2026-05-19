@@ -19,7 +19,7 @@ Also generate a short, professional project name in 2-5 words derived from the w
   if (input.priceBookItems.length > 0) {
     prompt += `\n\n## Your Company Price Book\nWhen a work item closely matches an entry below, use that exact unit_price and set price_source to "price_book". For all other items, estimate from US market rates and set price_source to "ai_estimate".\n\n`
     prompt += input.priceBookItems
-      .map(item => `- ${item.category ?? 'Uncategorized'} | ${item.name} | $${item.unit_price.toFixed(2)}/${item.unit ?? 'each'}`)
+      .map(item => `- ${item.folder_name ?? 'Uncategorized'} | ${item.name} | $${item.unit_price.toFixed(2)}/${item.unit ?? 'each'}`)
       .join('\n')
   } else {
     prompt += `\n\nFor each line item, set price_source to "ai_estimate" (no company price book configured).`

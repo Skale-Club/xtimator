@@ -52,6 +52,12 @@ export const CATEGORIES: ReadonlyArray<Category> = [
         title: 'OpenAI',
         description: 'Whisper API for audio transcription. Always used regardless of active LLM.',
       },
+      {
+        id: 'openrouter' as IntegrationProvider,
+        title: 'OpenRouter',
+        description:
+          'Single key, hundreds of models. When active, the platform routes estimate generation through OpenRouter using the model selected below. Per-company overrides can pin any client to a specific model.',
+      },
     ],
   },
   {

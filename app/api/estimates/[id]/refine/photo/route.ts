@@ -249,12 +249,12 @@ export async function POST(
     }
 
     // Call AI provider for refinement
-    const provider = await getAIProvider()
+    const provider = await getAIProvider(companyId)
     const refineInput: RefineEstimateInput = {
       existingEstimate,
       instruction,
       priceBookItems: priceBookItems.map(item => ({
-        category: item.category,
+        folder_name: item.folder_name,
         name: item.name,
         unit: item.unit,
         unit_price: item.unit_price,

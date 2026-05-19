@@ -99,7 +99,7 @@ export function EstimateView({
               </div>
             </div>
             <div className="text-sm text-muted-foreground text-right space-y-0.5">
-              {company.phone && <p>{company.phone}</p>}
+              {company.phone && <p><a href={`tel:${company.phone}`} className="hover:underline">{company.phone}</a></p>}
               {company.email && <p>{company.email}</p>}
               {company.website && <p>{company.website}</p>}
               {(company.address || company.city) && (
@@ -125,7 +125,7 @@ export function EstimateView({
             <p className="font-medium">{client.name}</p>
             <div className="text-sm text-muted-foreground space-y-0.5 mt-1">
               {client.email && <p>{client.email}</p>}
-              {client.phone && <p>{client.phone}</p>}
+              {client.phone && <p><a href={`tel:${client.phone}`} className="hover:underline">{client.phone}</a></p>}
               {(client.address || client.city) && (
                 <p>
                   {[client.address, client.city, client.state]

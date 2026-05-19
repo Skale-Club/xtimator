@@ -24,6 +24,9 @@ import {
   type GenerateEstimateResponse,
 } from './client-suggestion-toast'
 import { useTranslation } from '@/lib/i18n/use-translation'
+import { useLanguage } from '@/lib/i18n/language-context'
+import { EstimateLanguageSelector } from '@/components/estimate/estimate-language-selector'
+import { type EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
 
 interface EstimateTabProps {
   projectId: string
@@ -43,10 +46,15 @@ export function EstimateTab({
   photos,
 }: EstimateTabProps) {
   const { t } = useTranslation()
+  const { language: appLanguage } = useLanguage()
   const router = useRouter()
   const [isGenerating, setIsGenerating] = useState(false)
   const [generationStep, setGenerationStep] = useState(0)
   const [isCreatingBlank, setIsCreatingBlank] = useState(false)
+  // Language for the estimate — default from the app language (cascade layer 4)
+  const [estimateLanguage, setEstimateLanguage] = useState<EstimateLanguage>(
+    appLanguage === 'pt' || appLanguage === 'es' ? appLanguage : 'en'
+  )
 
   useEffect(() => {
     const suggestion = popStoredClientSuggestion(projectId)
@@ -84,12 +92,12 @@ export function EstimateTab({
         }
       }
 
-      // Step 1: Generate estimate
+      // Step 1: Generate estimate (forward language override to cascade)
       setGenerationStep(1)
       const genRes = await fetch('/api/generate-estimate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId }),
+        body: JSON.stringify({ projectId, language: estimateLanguage }),
       })
       if (!genRes.ok) {
         const err = await genRes.json().catch(() => ({}))
@@ -176,6 +184,11 @@ export function EstimateTab({
               {t('Create a professional estimate from your audio recordings and photos using AI.')}
             </p>
           </div>
+
+          <EstimateLanguageSelector
+            value={estimateLanguage}
+            onChange={setEstimateLanguage}
+          />
 
           {hasPrerequisites ? (
             <Button variant="primary" size="lg" onClick={handleGenerate} className="gap-2 min-h-[44px]">

@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
-import { Settings2, Palette, Users, LayoutDashboard, Globe, Layout, FileText, CreditCard } from 'lucide-react'
+import { Settings2, Palette, Users, LayoutDashboard, Globe, Layout, FileText, CreditCard, Building2 } from 'lucide-react'
 import { useTranslation } from '@/lib/i18n/use-translation'
 
 const NAV_ITEMS = [
@@ -12,8 +12,14 @@ const NAV_ITEMS = [
   { href: '/admin/landing',      label: 'Landing Page', Icon: Layout },
   { href: '/admin/blog',         label: 'Blog',         Icon: FileText },
   { href: '/admin/branding',     label: 'Branding',     Icon: Palette },
-  { href: '/admin/integrations', label: 'Integrations', Icon: Settings2 },
+  {
+    href: '/admin/integrations/ai',
+    activeBase: '/admin/integrations',
+    label: 'Integrations',
+    Icon: Settings2,
+  },
   { href: '/admin/billing',      label: 'Billing',      Icon: CreditCard },
+  { href: '/admin/companies',    label: 'Companies',    Icon: Building2 },
   { href: '/admin/admins',       label: 'Admins',       Icon: Users },
 ] as const
 
@@ -76,11 +82,12 @@ export function AdminNav({ appName, logoUrl, adminEmail }: AdminNavProps) {
         <span className="font-semibold text-sm">{appName} {t('Admin')}</span>
       </div>
       <ul className="flex-1 flex flex-col gap-1 px-2">
-        {NAV_ITEMS.map(({ href, label, Icon }) => {
+        {NAV_ITEMS.map(({ href, label, Icon, ...item }) => {
+          const activeBase = 'activeBase' in item ? item.activeBase : href
           const isActive =
             href === '/admin'
               ? pathname === '/admin'
-              : pathname === href || pathname.startsWith(href + '/')
+              : pathname === activeBase || pathname.startsWith(activeBase + '/')
           return (
             <li key={href}>
               <Link

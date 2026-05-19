@@ -1,6 +1,6 @@
 ---
 id: SEED-020
-status: harvesting
+status: harvested
 planted: 2026-05-17
 planted_during: v3.1.1 post-Phase-69
 harvested_in: Phase 70

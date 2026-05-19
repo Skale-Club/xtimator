@@ -137,7 +137,7 @@ export async function generateEstimateForProject(
     language,
   }
 
-  const provider = await getAIProvider()
+  const provider = await getAIProvider(companyId)
   const aiEstimate = await provider.generateEstimate(estimateInput)
 
   // Client suggestion — only when project has no linked client

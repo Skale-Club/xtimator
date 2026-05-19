@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v3.1.1
 milestone_name: MVP Launch Prep + Future-Proofing
-status: executing
-last_updated: "2026-05-19T10:00:45.654Z"
-last_activity: 2026-05-19
+status: verifying
+last_updated: "2026-05-19T10:12:38.214Z"
+last_activity: "2026-05-19 - Completed quick task 260518-v0z: Unify folder + category in price book (folder is sole taxonomy)"
 progress:
-  total_phases: 19
+  total_phases: 17
   completed_phases: 17
-  total_plans: 52
-  completed_plans: 48
+  total_plans: 47
+  completed_plans: 47
 ---
 
 # Project State
@@ -21,10 +21,10 @@ progress:
 
 ## Current Position
 
-Phase: 73 (Language Onboarding Step + Estimate Language UI) — EXECUTING
-Plan: 2 of 5
-Status: Ready to execute
-Last activity: 2026-05-19
+Phase: 73
+Plan: 02 complete
+Status: In progress — Plan 02 complete; Phase 73 has 2 plans
+Last activity: 2026-05-19 - Completed 73-02: Estimate language UI (language selector + PDF i18n)
 
 ## v3.1.1 Phases
 
@@ -413,7 +413,8 @@ Last activity: 2026-05-19
 - [Phase 72-admin-menu-performance]: getCachedBranding = cache(getBranding) added as new export; original getBranding preserved for non-layout callers
 - [Phase 72-admin-menu-performance]: Admin layout Suspense has no explicit fallback — loading.tsx (Plan 01) serves as App Router automatic fallback
 - [Phase 72-admin-menu-performance]: brandingPromise starts immediately after getAuthClaims resolves; getBranding has no dependency on company data
-- [Phase 73-language-onboarding-estimate-language-ui]: English-first: language='en' maps to null in default_estimate_language; setLanguage() called immediately on radio selection for live onboarding preview
+- [Phase 73-language-onboarding-estimate-language-ui]: PDF_LABELS static map (not React context) — @react-pdf/renderer runs server-side; language prop added to EstimatePDFProps
+- [Phase 73-language-onboarding-estimate-language-ui]: EstimateLanguageSelector seeds default from app language (layer 4 SEED-016 cascade); language field missing from Estimate TypeScript type auto-fixed
 
 ## Performance Metrics
 
@@ -539,14 +540,14 @@ Last activity: 2026-05-19
 | Phase 72-admin-menu-performance P03 | 2min | 2 tasks | 2 files |
 | Phase 72-admin-menu-performance P01 | 4min | 2 tasks | 14 files |
 | Phase 72-admin-menu-performance P02 | 2.5min | 3 tasks | 3 files |
-| Phase 73-language-onboarding-estimate-language-ui P01 | 4min | 2 tasks | 7 files |
+| Phase 73-language-onboarding-estimate-language-ui P02 | 11 | 3 tasks | 12 files |
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-13)
 
 **Core value:** Business owner → job site audio recording → sent professional estimate in under 5 minutes
-**Current focus:** Phase 73 — Language Onboarding Step + Estimate Language UI
+**Current focus:** Phase 72 — Admin Menu Performance — Instant Navigation
 
 ## Notes
 
@@ -593,3 +594,6 @@ v3.1: Phases 61-65 (started 2026-05-15). Production Go-Live — 27 requirements 
 | 260518-gf3 | Price book category optional (SEED-010) | 2026-05-18 | 59447d2 | [260518-gf3-price-book-optional-category](.planning/quick/260518-gf3-price-book-optional-category/) |
 | 260518-gxy | Price book item photo (SEED-024) | 2026-05-18 | 3cacc15 | [260518-gxy-price-book-item-photo](.planning/quick/260518-gxy-price-book-item-photo/) |
 | 260518-hkp | Price book category hierarchy — folders (SEED-025) | 2026-05-18 | 3a79b52 | [260518-hkp-price-book-category-hierarchy](.planning/quick/260518-hkp-price-book-category-hierarchy/) |
+| 260518-v0z | Unify folder + category in price book (folder is sole taxonomy) | 2026-05-19 | 45f98d0 | [260518-v0z-unificar-folder-e-category-no-price-book](.planning/quick/260518-v0z-unificar-folder-e-category-no-price-book/) |
+| 2026-05-18 | fast | Center auth card logo+wordmark | done |
+| 2026-05-18 | fast | Restyle sidebar New Project as filled gradient, remove dashboard CTA | done |
