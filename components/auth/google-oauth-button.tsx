@@ -30,7 +30,7 @@ export function GoogleOAuthButton() {
     <Button
       type="button"
       variant="outline"
-      className="w-full min-h-[44px] border-border bg-transparent text-foreground hover:bg-primary hover:text-primary-foreground hover:border-primary"
+      className="w-full min-h-[44px] border-border bg-transparent text-foreground hover:bg-[hsl(224_45%_38%)] hover:text-primary-foreground hover:border-[hsl(224_45%_38%)]"
       onClick={handleGoogleSignIn}
       disabled={isLoading}
       aria-label="Sign in with Google"
