@@ -322,14 +322,17 @@ export function ClientSheet({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Preferred estimate language</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value ?? ''}>
+                  <Select
+                    onValueChange={(val) => field.onChange(val === '__default__' ? null : val)}
+                    value={field.value ?? '__default__'}
+                  >
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Not set (follows company default)" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="">Not set (follows company default)</SelectItem>
+                      <SelectItem value="__default__">Not set (follows company default)</SelectItem>
                       <SelectItem value="en">English</SelectItem>
                       <SelectItem value="pt">Português (Brazil)</SelectItem>
                       <SelectItem value="es">Español</SelectItem>
