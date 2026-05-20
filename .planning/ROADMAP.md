@@ -779,3 +779,27 @@ Plans:
   7. Manual UAT pass: open every page that hosts a tooltip in EN, PT, ES (3 locales × N pages); confirm strings translated, position correct, animation gated, no overlap with sticky topbar or hero gradient
 
 **Plans:** TBD (run /gsd:plan-phase 75 to break down)
+
+### Phase 76: Price Book CSV Pro — Professional Import UX
+
+**Goal:** The Price Book CSV import becomes a polished multi-step wizard that handles real-world messy data: column mapping, per-row validation with inline edit, duplicate resolution strategy, currency/locale parsing, undo after import, and a verification summary. A non-technical contractor can paste an exported spreadsheet (from QuickBooks, Excel, Google Sheets) and end with a clean Price Book without needing to pre-massage the file.
+
+**Depends on:** Phase 19 (Price Book DB) · Phase 20 (Price Book CRUD UI) · Phase 21 (Initial CSV Import — the baseline this phase upgrades)
+
+**Requirements:** PB-CSV-01, PB-CSV-02, PB-CSV-03, PB-CSV-04, PB-CSV-05, PB-CSV-06, PB-CSV-07, PB-CSV-08, PB-CSV-09, PB-CSV-10
+
+**Success Criteria** (what must be TRUE):
+  1. **4-step wizard** replaces single dialog — (1) Upload + drag-drop, (2) Column mapping (auto-detect with override), (3) Preview + per-row edit + dedupe strategy choice, (4) Import + verification summary. Progress indicator shows current step.
+  2. **Column auto-detection** — recognizes common alias headers ("item", "service", "description" → name; "price", "cost", "rate" → unit_price; "category", "group", "folder" → folder; "qty unit", "uom", "measure" → unit). User can override every mapping via dropdown. Supports skipping unmapped columns.
+  3. **Per-row inline editing** — every preview row's name/unit/unit_price/folder is editable directly in the table before commit. Validation errors (negative price, missing name, malformed currency) shown inline; row blocked from import only if user doesn't fix.
+  4. **Locale-aware currency parsing** — accepts `$1,234.56` · `1.234,56` · `R$ 1.234,56` · `1234` · `1234.5` · `"$1,234.56"`. Owner sees detected locale guess + can override (US / BR / Custom decimal+thousands).
+  5. **Duplicate resolution strategy** — when name+folder collides with existing row, user picks: Skip duplicates · Update existing (overwrite unit_price + unit + notes) · Import as new (suffix " (2)"). Default: Skip. Per-row override available.
+  6. **Dry-run summary BEFORE commit** — shows: N rows will be inserted · N updated · N skipped · N folders created. User confirms before any DB write.
+  7. **Undo last import** — every batch import writes a `price_book_imports` row capturing the inserted IDs; "Undo last import" button on price-book page deletes those rows (5-min window). Persisted in DB so survives reload.
+  8. **Streaming progress for large files** — files >200 rows show real-time progress (e.g. "Importing 347 of 800…") via React state ticks during the bulk insert. UI doesn't lock; cancel button available.
+  9. **Error report download** — if any rows fail validation, user can download `import-errors.csv` with the failed rows + reason column. Same format as input so they can fix and re-upload.
+  10. **Tests cover the new pipeline** — unit tests for: auto-detect aliases (8 cases), locale parsing (12 cases), dedupe strategies (3 cases × scenarios), wizard state machine (step nav + persistence on close-reopen). Playwright E2E spec walks the full happy path with a 50-row fixture file.
+
+**Out of scope for Phase 76:** scheduled imports, recurring sync with external sheets (Google Sheets API), AI-powered field normalization (use deterministic alias matching only). Those become future seeds.
+
+**Plans:** TBD (run /gsd:plan-phase 76 to break down)
