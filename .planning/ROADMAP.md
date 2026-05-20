@@ -802,4 +802,4 @@ Plans:
 
 **Out of scope for Phase 76:** scheduled imports, recurring sync with external sheets (Google Sheets API), AI-powered field normalization (use deterministic alias matching only). Those become future seeds.
 
-**Plans:** TBD (run /gsd:plan-phase 76 to break down)
+**Plans:** 1/5 plans executed
