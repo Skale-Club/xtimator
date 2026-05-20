@@ -6,7 +6,7 @@ const mockRefresh = vi.fn()
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: mockRefresh, push: vi.fn() }),
-  usePathname: () => '/settings/price-book',
+  usePathname: () => '/price-book',
 }))
 
 vi.mock('next/link', () => ({

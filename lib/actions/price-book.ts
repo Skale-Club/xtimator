@@ -34,7 +34,7 @@ export async function createFolder(name: string) {
     .select()
     .single()
   if (error) return { error: 'Failed to create folder.' }
-  revalidatePath('/settings/price-book')
+  revalidatePath('/price-book')
   return { data }
 }
 
@@ -47,7 +47,7 @@ export async function updateFolder(folderId: string, name: string) {
     .update({ name: name.trim() })
     .eq('id', folderId)
   if (error) return { error: 'Failed to rename folder.' }
-  revalidatePath('/settings/price-book')
+  revalidatePath('/price-book')
   return { data: { updated: true } }
 }
 
@@ -68,7 +68,7 @@ export async function deleteFolder(folderId: string) {
     .delete()
     .eq('id', folderId)
   if (error) return { error: 'Failed to delete folder.' }
-  revalidatePath('/settings/price-book')
+  revalidatePath('/price-book')
   return { data: { deleted: true } }
 }
 
@@ -152,7 +152,7 @@ export async function createPriceBookItem(
     }
   }
 
-  revalidatePath('/settings/price-book')
+  revalidatePath('/price-book')
   return { data }
 }
 
@@ -202,7 +202,7 @@ export async function updatePriceBookItem(
     }
   }
 
-  revalidatePath('/settings/price-book')
+  revalidatePath('/price-book')
   return { data }
 }
 
@@ -218,7 +218,7 @@ export async function deletePriceBookItem(itemId: string) {
 
   if (error) return { error: 'Failed to delete item. Please try again.' }
 
-  revalidatePath('/settings/price-book')
+  revalidatePath('/price-book')
   return { data: { deleted: true } }
 }
 
@@ -293,7 +293,7 @@ export async function importPriceBookItems(
     return { error: 'Failed to import items. Please try again.' }
   }
 
-  revalidatePath('/settings/price-book')
+  revalidatePath('/price-book')
   return { data: { imported: toInsert.length, skipped } }
 }
 
@@ -344,6 +344,6 @@ export async function bulkAdjustPriceBookFolder(
 
   if (upsertErr) return { error: 'Failed to apply price adjustment.' }
 
-  revalidatePath('/settings/price-book')
+  revalidatePath('/price-book')
   return { data: { updated: adjustedItems.length } }
 }

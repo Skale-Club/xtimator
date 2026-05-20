@@ -25,7 +25,7 @@ const TOUR_TARGET: Record<string, string> = {
   '/projects/new':        'new-project',
   '/projects':            'projects',
   '/clients':             'clients',
-  '/settings/price-book': 'price-book',
+  '/price-book': 'price-book',
 }
 
 export function Sidebar({ branding, company: _company }: SidebarProps) {
@@ -62,8 +62,8 @@ export function Sidebar({ branding, company: _company }: SidebarProps) {
       {/* Navigation */}
       <nav className="flex-1 flex flex-col gap-1 p-2">
         {NAV_ITEMS.map((item) => {
-          // Most-specific-match: on /settings/price-book, both /settings and
-          // /settings/price-book match. Pick the longest matching href so only
+          // Most-specific-match: on /price-book, both /settings and
+          // /price-book match. Pick the longest matching href so only
           // the most specific item lights up.
           const matchedHref = NAV_ITEMS
             .filter((i) =>
@@ -93,7 +93,7 @@ export function Sidebar({ branding, company: _company }: SidebarProps) {
 
           const TOOLTIP_MAP: Record<string, { key: (typeof TOOLTIP_KEYS)[keyof typeof TOOLTIP_KEYS]; text: string }> = {
             '/clients':             { key: TOOLTIP_KEYS.clients,   text: 'Clients are saved automatically when you send an estimate' },
-            '/settings/price-book': { key: TOOLTIP_KEYS.priceBook, text: 'Save your most-used items to speed up future estimates' },
+            '/price-book': { key: TOOLTIP_KEYS.priceBook, text: 'Save your most-used items to speed up future estimates' },
           }
 
           const tooltipConfig = TOOLTIP_MAP[item.href]

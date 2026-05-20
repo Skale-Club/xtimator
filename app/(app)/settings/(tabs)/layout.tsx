@@ -10,7 +10,7 @@ import { T } from '@/components/i18n/t'
  * preserve which tab you're on.
  *
  * Route group `(tabs)` keeps this layout from wrapping sibling sub-pages like
- * /settings/billing, /settings/price-book etc. that have their own UI.
+ * /settings/billing, /price-book etc. that have their own UI.
  *
  * Below the active tab's content we render a grid of quick-link cards to the
  * other settings areas (Billing, Payments, Price Book, Estimate Templates,
@@ -30,7 +30,7 @@ const SUB_PAGES = [
     Icon: Wallet,
   },
   {
-    href: '/settings/price-book',
+    href: '/price-book',
     title: 'Price Book',
     description: 'Manage your standard pricing for AI-powered estimates.',
     Icon: BookOpen,

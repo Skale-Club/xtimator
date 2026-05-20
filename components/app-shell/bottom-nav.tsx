@@ -12,7 +12,7 @@ const TOUR_TARGET: Record<string, string> = {
   '/projects/new':        'new-project',
   '/projects':            'projects',
   '/clients':             'clients',
-  '/settings/price-book': 'price-book',
+  '/price-book': 'price-book',
 }
 
 export function BottomNav() {
