@@ -849,4 +849,4 @@ Plans:
   4. Remove button clears `og_image_url` to null AND deletes the previous storage object (best-effort — don't fail save if delete errors). Confirmation modal before remove.
   5. Existing URL-typed setups (current state) keep working — if `og_image_url` is set but the file isn't in branding-assets bucket (external URL), show preview if loadable + a hint "Currently using external URL — upload to migrate to managed storage".
 
-**Plans:** TBD (run /gsd:plan-phase 78 to break down — estimate 2 plans)
+**Plans:** 1/2 plans executed

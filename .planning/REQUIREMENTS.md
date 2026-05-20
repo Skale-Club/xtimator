@@ -258,11 +258,11 @@ Coverage: 39/39 (100%) — every v1 requirement maps to exactly one phase, no or
 
 ### OG-IMG — Admin OG Image Upload (Phase 78)
 
-- [ ] **OG-IMG-01**: Replace URL input with file upload dropzone (image/png + image/jpeg, max 2 MB)
-- [ ] **OG-IMG-02**: 1200×630 aspect-ratio preview frame + dimension validation (warn <600×315)
+- [x] **OG-IMG-01**: Replace URL input with file upload dropzone (image/png + image/jpeg, max 2 MB)
+- [x] **OG-IMG-02**: 1200×630 aspect-ratio preview frame + dimension validation (warn <600×315)
 - [ ] **OG-IMG-03**: Upload to Supabase Storage `branding-assets/og-images/` via existing storage.upload API
 - [ ] **OG-IMG-04**: Remove button with confirmation modal + best-effort storage cleanup
-- [ ] **OG-IMG-05**: Backward-compat for existing URL-typed OG images (show preview if loadable + migration hint)
+- [x] **OG-IMG-05**: Backward-compat for existing URL-typed OG images (show preview if loadable + migration hint)
 | NOTIF-01 | Phase 77 | Complete |
 | NOTIF-02 | Phase 77 | Complete |
 | NOTIF-03 | Phase 77 | Complete |
@@ -275,8 +275,8 @@ Coverage: 39/39 (100%) — every v1 requirement maps to exactly one phase, no or
 | NOTIF-10 | Phase 77 | Complete |
 | NOTIF-11 | Phase 77 | Complete |
 | NOTIF-12 | Phase 77 | Complete |
-| OG-IMG-01 | Phase 78 | Pending |
-| OG-IMG-02 | Phase 78 | Pending |
+| OG-IMG-01 | Phase 78 | Complete |
+| OG-IMG-02 | Phase 78 | Complete |
 | OG-IMG-03 | Phase 78 | Pending |
 | OG-IMG-04 | Phase 78 | Pending |
-| OG-IMG-05 | Phase 78 | Pending |
+| OG-IMG-05 | Phase 78 | Complete |
