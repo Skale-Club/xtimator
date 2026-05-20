@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v3.1.1
 milestone_name: MVP Launch Prep + Future-Proofing
 status: executing
-last_updated: "2026-05-19T11:39:59.076Z"
-last_activity: 2026-05-19
+last_updated: "2026-05-20T12:56:12.622Z"
+last_activity: 2026-05-20
 progress:
   total_phases: 18
   completed_phases: 18
@@ -21,10 +21,10 @@ progress:
 
 ## Current Position
 
-Phase: 74
+Phase: 78
 Plan: Not started
 Status: Ready to execute
-Last activity: 2026-05-19
+Last activity: 2026-05-20
 
 ## v3.1.1 Phases
 
@@ -420,6 +420,20 @@ Last activity: 2026-05-19
 - [Phase 74-post-onboarding-app-feature-tour]: TOOLTIP_MAP defined inside NAV_ITEMS.map() body — static Record keyed by href, keeps tooltip config co-located with rendering logic
 - [Phase 74-post-onboarding-app-feature-tour]: ContextualTooltip renders children as React.Fragment when not visible — zero overhead after dismissal; text passed as raw English string through t() inside component
 - [Phase 74-post-onboarding-app-feature-tour]: isReviewModeRef uses useRef (not useState) — avoids stale closure in onOpenChange while being current at render time; handleClose never calls completeTour() so review mode is localStorage-clean; TourHelpButton returns null during spotlight to avoid z-index conflicts
+- [Phase 75]: ContextualTooltip post-75-02 trigger locked to hover/focus (Radix default); tooltipKey kept as no-op label
+- [Phase 75]: migrateLegacyKeys() is idempotent — safe to call on every TourProvider mount
+- [Phase 75]: ContextualTooltip: hover/focus on anchor is the sole trigger; no auto-show, no first-visit timer (resolves RESEARCH OQ #1)
+- [Phase 75]: startTour() always resets the completed flag so welcome-modal + TourHelpButton restart paths replay correctly (fixes gotcha #2)
+- [Phase 75]: Spotlight a11y uses capture-and-restore focus pattern (not full focus trap) — lighter and matches CONTEXT intent
+- [Phase 75]: Playwright tour spec uses requireDashboard(page) skip-with-reason for auth-gated tests until shared auth fixture lands
+- [Phase 75]: Phase 75 closed — all 7 TOUR-FIX-* requirements complete. Manual UAT runbook shipped at tests/visual/tour-uat-runbook.md; auto-approved per project memory.
+- [Phase 76]: 76-01: Foundation landed — price_book_imports table + alias/locale stubs + 37 Wave-0 RED tests + 50-row fixture. Migration applied via Node/pg script due to supabase db push pooler conflict.
+- Phase 76.1 inserted after Phase 76: PWA — Progressive Web App Infrastructure (INSERTED). Service worker via @ducanh2912/next-pwa, read-only offline cache (estimates list + detail), install prompt, offline indicator, offline fallback page. Push notification scaffold stays in Phase 77.
+- Phase 76.2 inserted after Phase 76.1: Settings & Admin Persistence Fix (INSERTED). Root cause identified: 6 columns (digital_signature_enabled, estimate_terms_enabled, estimate_terms_text, email_delivery_enabled, sms_delivery_enabled, ai_model_override) added via migrations 20260519000002, 20260519000003, 20260520000001 but never applied to Supabase project + database.types.ts never regenerated. Fix: apply migrations → regen types → fix TS errors → verify all settings forms persist.
+- [Phase 77]: resolveChannels takes (eventType, userId, override) per RED test contract; loads prefs internally
+- [Phase 77]: override params re-applied inside notify() over resolveChannels result for deterministic force-send
+- [Phase 78]: Use file-presence (ogImageFile != null) over sentinel string to signal pending upload to 78-02
+- [Phase 78]: Accept both /platform-brand/og-images/ and /branding-assets/og-images/ as managed paths to future-proof against bucket rename
 
 ## Performance Metrics
 
@@ -550,6 +564,19 @@ Last activity: 2026-05-19
 | Phase 74-post-onboarding-app-feature-tour P01 | 5min | 2 tasks | 5 files |
 | Phase 74-post-onboarding-app-feature-tour P03 | 4min | 2 tasks | 5 files |
 | Phase 74-post-onboarding-app-feature-tour P04 | 4min | 2 tasks | 4 files |
+| Phase 75 P01 | 216 | 3 tasks | 4 files |
+| Phase 75 P02 | 270 | 3 tasks | 4 files |
+| Phase 75 P03 | 227 | 3 tasks | 3 files |
+| Phase 75 P04 | 360 | 3 tasks | 3 files |
+| Phase 76 P01 | 12m | 3 tasks | 9 files |
+| Phase 76 P02 | ~10 min | 3 tasks | 5 files |
+| Phase 77 P01 | 8 | 3 tasks | 6 files |
+| Phase 77 P02 | 6 | 3 tasks | 3 files |
+| Phase 77 P03 | 14 | 4 tasks | 13 files |
+| Phase 77-notifications-system P05 | 8 | 3 tasks | 6 files |
+| Phase 77 P07 | 12 | 5 tasks | 10 files |
+| Phase 78 P01 | 5min | 2 tasks | 4 files |
+| Phase 78 P02 | 6min | 2 tasks | 8 files |
 
 ## Project Reference
 

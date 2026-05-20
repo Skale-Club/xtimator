@@ -34,17 +34,17 @@ export default async function AdminCompaniesPage() {
         </h1>
         <p className="text-muted-foreground">
           <T>
-            All tenants on the platform. Open a company to assign a specific
-            AI model (routed via OpenRouter) instead of the platform default.
+            All tenant companies registered on the platform. Click a row to assign a specific
+            AI model override (routed via OpenRouter) for that tenant; otherwise the platform default applies.
           </T>
         </p>
         <p className="text-xs text-muted-foreground">
-          {overrideCount > 0 ? (
-            <>
-              {overrideCount} of {companies.length} <T>companies have a custom model override.</T>
-            </>
+          {companies.length === 0 ? (
+            <T>No tenant companies registered yet.</T>
+          ) : overrideCount > 0 ? (
+            <T text={`${companies.length} tenants total · ${overrideCount} with a custom AI model override.`} />
           ) : (
-            <T>No companies have a custom model override.</T>
+            <T text={`${companies.length} tenants total · none with a custom AI model override (all use platform default).`} />
           )}
         </p>
       </div>

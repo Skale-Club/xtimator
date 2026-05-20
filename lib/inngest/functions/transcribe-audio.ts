@@ -9,10 +9,33 @@
 import { inngest } from '@/lib/inngest/client'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { getIntegrationKey } from '@/lib/platform-config'
+import { notify } from '@/lib/notifications/dispatch'
+import { buildNotificationCopy } from '@/lib/notifications/copy'
 import {
   EVENT_TRANSCRIBE_AUDIO,
   type TranscribeAudioPayload,
 } from '@/lib/inngest/events'
+
+async function loadCompanyForRecording(recordingId: string): Promise<{
+  companyId: string | null
+  userId: string | null
+}> {
+  try {
+    const svc = requireServiceClient()
+    const { data } = await svc
+      .from('recordings')
+      .select('company_id, companies(user_id)')
+      .eq('id', recordingId)
+      .single()
+    const row = data as { company_id?: string | null; companies?: { user_id?: string | null } | null } | null
+    return {
+      companyId: row?.company_id ?? null,
+      userId: row?.companies?.user_id ?? null,
+    }
+  } catch {
+    return { companyId: null, userId: null }
+  }
+}
 
 export const transcribeAudioJob = inngest.createFunction(
   {
@@ -20,6 +43,28 @@ export const transcribeAudioJob = inngest.createFunction(
     idempotency: 'event.data.recordingId',
     retries: 2,
     triggers: [{ event: EVENT_TRANSCRIBE_AUDIO }],
+    // Phase 77 NOTIF-04: ai_job.failed on retry exhaustion.
+    onFailure: async ({ event, error }) => {
+      const payload = (event as { data?: { event?: { data?: TranscribeAudioPayload } } })
+        .data?.event?.data
+      if (!payload) return
+      const { companyId, userId } = await loadCompanyForRecording(payload.recordingId)
+      if (!companyId) return
+      const copy = buildNotificationCopy('ai_job.failed', {
+        jobType: 'Audio transcription',
+        errorMessage: error instanceof Error ? error.message : String(error),
+      })
+      void notify({
+        companyId,
+        userId,
+        eventType: 'ai_job.failed',
+        title: copy.title,
+        body: copy.body,
+        resourceType: 'recording',
+        resourceId: payload.recordingId,
+        metadata: { dedupe_key: `ai-fail-transcribe-${payload.recordingId}` },
+      })
+    },
   },
   async ({ event, step }) => {
     const { recordingId, storagePath } = event.data as TranscribeAudioPayload
@@ -70,6 +115,28 @@ export const transcribeAudioJob = inngest.createFunction(
         .eq('id', recordingId)
       if (error) throw new Error(`Failed to save transcript: ${error.message}`)
     })
+
+    // Phase 77 NOTIF-04: opt-in success notification.
+    try {
+      const { companyId, userId } = await loadCompanyForRecording(recordingId)
+      if (companyId) {
+        const copy = buildNotificationCopy('ai_job.completed', {
+          jobType: 'Audio transcription',
+        })
+        void notify({
+          companyId,
+          userId,
+          eventType: 'ai_job.completed',
+          title: copy.title,
+          body: copy.body,
+          resourceType: 'recording',
+          resourceId: recordingId,
+          metadata: { dedupe_key: `ai-ok-transcribe-${recordingId}` },
+        })
+      }
+    } catch {
+      /* best-effort */
+    }
 
     return { transcript }
   }

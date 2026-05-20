@@ -11,10 +11,26 @@ import { inngest } from '@/lib/inngest/client'
 import { generateEstimateForProject } from '@/lib/services/generate-estimate'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { recordUsage } from '@/lib/quota'
+import { notify } from '@/lib/notifications/dispatch'
+import { buildNotificationCopy } from '@/lib/notifications/copy'
 import {
   EVENT_ESTIMATE_GENERATE,
   type EstimateGeneratePayload,
 } from '@/lib/inngest/events'
+
+async function loadOwnerUserId(companyId: string): Promise<string | null> {
+  try {
+    const svc = requireServiceClient()
+    const { data } = await svc
+      .from('companies')
+      .select('user_id')
+      .eq('id', companyId)
+      .single()
+    return (data as { user_id?: string | null } | null)?.user_id ?? null
+  } catch {
+    return null
+  }
+}
 
 export const generateEstimateJob = inngest.createFunction(
   {
@@ -22,6 +38,28 @@ export const generateEstimateJob = inngest.createFunction(
     idempotency: 'event.data.requestId',
     retries: 2,
     triggers: [{ event: EVENT_ESTIMATE_GENERATE }],
+    // Phase 77 NOTIF-04: on final retry exhaustion fire ai_job.failed.
+    onFailure: async ({ event, error }) => {
+      const payload = (event as { data?: { event?: { data?: EstimateGeneratePayload } } })
+        .data?.event?.data
+      if (!payload) return
+      const userId = await loadOwnerUserId(payload.companyId)
+      const copy = buildNotificationCopy('ai_job.failed', {
+        jobType: 'Estimate generation',
+        errorMessage: error instanceof Error ? error.message : String(error),
+      })
+      void notify({
+        companyId: payload.companyId,
+        userId,
+        eventType: 'ai_job.failed',
+        title: copy.title,
+        body: copy.body,
+        linkUrl: `/projects/${payload.projectId}`,
+        resourceType: 'project',
+        resourceId: payload.projectId,
+        metadata: { dedupe_key: `ai-fail-estimate-${payload.requestId}` },
+      })
+    },
   },
   async ({ event, step }) => {
     const { companyId, projectId, requestId, language } =
@@ -41,6 +79,29 @@ export const generateEstimateJob = inngest.createFunction(
       const supabase = requireServiceClient()
       await recordUsage(supabase, companyId, 'estimate_generated', 1, requestId)
     })
+
+    // Phase 77 NOTIF-04: success notification (opt-in via DEFAULT_PREFERENCES
+    // for ai_job category — both channels default OFF, so only users who
+    // explicitly opt in will see this).
+    try {
+      const userId = await loadOwnerUserId(companyId)
+      const copy = buildNotificationCopy('ai_job.completed', {
+        jobType: 'Estimate generation',
+      })
+      void notify({
+        companyId,
+        userId,
+        eventType: 'ai_job.completed',
+        title: copy.title,
+        body: copy.body,
+        linkUrl: `/projects/${projectId}`,
+        resourceType: 'project',
+        resourceId: projectId,
+        metadata: { dedupe_key: `ai-ok-estimate-${requestId}` },
+      })
+    } catch {
+      /* best-effort */
+    }
 
     return result
   }

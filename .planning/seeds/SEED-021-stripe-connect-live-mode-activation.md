@@ -1,6 +1,6 @@
 ---
 id: SEED-021
-status: dormant
+status: ready
 planted: 2026-05-17
 planted_during: post-Phase-70 (Stripe Connect customer payments shipped in test mode)
 trigger_when: Going live with real customer payments — same trigger as SEED-017 (Stripe Live Webhook)

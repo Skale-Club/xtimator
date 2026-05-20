@@ -27,6 +27,9 @@ export interface ShareEstimateData {
       notify_on_decline: boolean
       stripe_account_id: string | null
       stripe_connect_status: string | null
+      digital_signature_enabled: boolean
+      estimate_terms_enabled: boolean
+      estimate_terms_text: string | null
     }
     /** Phase 70 — Stripe Connect payment state. */
     payment_status: string
@@ -107,7 +110,7 @@ export async function getEstimateByShareToken(
   const { data: companyData } = await supabase
     .from('companies')
     .select(
-      'id, name, owner_name, phone, email, website, address, city, state, zip, logo_url, brand_primary_color, notify_on_view, notify_on_accept, notify_on_decline, stripe_account_id, stripe_connect_status'
+      'id, name, owner_name, phone, email, website, address, city, state, zip, logo_url, brand_primary_color, notify_on_view, notify_on_accept, notify_on_decline, stripe_account_id, stripe_connect_status, digital_signature_enabled, estimate_terms_enabled, estimate_terms_text'
     )
     .eq('id', estimate.company_id)
     .single()

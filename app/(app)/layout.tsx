@@ -13,6 +13,9 @@ import { TourProvider } from '@/components/tour/tour-provider'
 import { WelcomeModal } from '@/components/tour/welcome-modal'
 import { TourSpotlight } from '@/components/tour/tour-spotlight'
 import { TourHelpButton } from '@/components/tour/tour-help-button'
+import { SWRegister } from '@/components/pwa/sw-register'
+import { InstallPrompt } from '@/components/pwa/install-prompt'
+import { OfflineIndicator } from '@/components/pwa/offline-indicator'
 
 export default async function AppShellLayout({
   children,
@@ -68,7 +71,7 @@ export default async function AppShellLayout({
           company={company}
         />
         <div className="flex flex-1 flex-col overflow-hidden">
-          <Topbar company={company} isAdmin={isAdmin} />
+          <Topbar company={company} userId={claims.sub as string} isAdmin={isAdmin} />
           <MobileHeader />
           {trialDaysRemaining !== null && trialDaysRemaining < 3 && (
             <TrialBanner daysRemaining={trialDaysRemaining} />
@@ -83,6 +86,9 @@ export default async function AppShellLayout({
         <WelcomeModal />
         <TourSpotlight />
         <TourHelpButton />
+        <OfflineIndicator />
+        <InstallPrompt />
+        <SWRegister />
       </div>
     </TourProvider>
   )

@@ -13,6 +13,6 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Dashboard',   href: '/dashboard',    icon: LayoutDashboard },
   { label: 'Projects',    href: '/projects',     icon: FolderOpen },
   { label: 'Clients',     href: '/clients',      icon: Users },
-  { label: 'Price Book',  href: '/settings/price-book', icon: BookOpen },
+  { label: 'Price Book',  href: '/price-book', icon: BookOpen },
   { label: 'Settings',    href: '/settings',     icon: Settings },
 ]

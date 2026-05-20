@@ -1,0 +1,51 @@
+name,unit_price,folder,unit,notes
+General Labor,75.00,Labor,hr,Standard hourly rate
+Skilled Labor,95.00,Labor,hr,Journeyman rate
+Apprentice Labor,45.00,Labor,hr,
+Foreman,110.00,Labor,hr,Site lead premium
+Overtime Labor,112.50,Labor,hr,1.5x standard
+PVC Pipe 1/2",3.50,Materials,ft,Schedule 40
+PVC Pipe 3/4",4.25,Materials,ft,
+PVC Elbow 1/2",1.75,Materials,ea,90 degree
+PVC Tee 1/2",2.10,Materials,ea,
+Copper Pipe 1/2",8.90,Materials,ft,Type L
+Copper Pipe 3/4",12.40,Materials,ft,
+Copper Elbow,4.50,Materials,ea,Sweat fitting
+Ball Valve 1/2",18.75,Materials,ea,Brass full-port
+Gate Valve 3/4",24.00,Materials,ea,
+Pressure Reducing Valve,89.00,Materials,ea,3/4" inlet
+Water Heater 40gal,520.00,Materials,ea,Gas residential
+Water Heater 50gal,675.00,Materials,ea,Gas residential
+Toilet Standard,180.00,Materials,ea,1.28 GPF
+Toilet Premium,420.00,Materials,ea,Comfort height
+Lavatory Faucet,135.00,Materials,ea,Single handle
+Kitchen Faucet Pull-Out,285.00,Materials,ea,
+Garbage Disposal 1/2hp,180.00,Materials,ea,
+Garbage Disposal 1hp,310.00,Materials,ea,
+Drain Cleaning,225.00,Services,job,Up to 50ft
+Hydro Jetting,650.00,Services,job,Heavy clog
+Camera Inspection,285.00,Services,job,Up to 100ft
+Leak Detection,395.00,Services,job,Acoustic + thermal
+Sewer Line Repair,1850.00,Services,job,Average residential
+Water Heater Install,485.00,Services,job,Labor only
+Toilet Install,225.00,Services,job,Replace existing
+Faucet Install,165.00,Services,job,Replace existing
+Disposal Install,145.00,Services,job,
+Backflow Test,150.00,Services,job,Annual certification
+Mileage,1.25,Travel,mi,IRS standard rate
+Trip Charge,75.00,Travel,job,Within 25mi radius
+After Hours Surcharge,150.00,Travel,job,Nights/weekends
+Emergency Dispatch,250.00,Travel,job,Same-day < 2hr
+Permit Filing,125.00,Permits,job,Plus city fee
+Inspection Fee,95.00,Permits,job,Pass-through
+,50.00,Materials,ea,MISSING NAME - should be invalid
+Test Item Negative,-25.00,Materials,ea,NEGATIVE PRICE - should be invalid
+General Labor,75.00,Labor,hr,DUPLICATE OF ROW 2
+PVC Pipe 1/2",3.50,Materials,ft,DUPLICATE OF ROW 7
+Toilet Standard,180.00,Materials,ea,DUPLICATE OF ROW 18
+Tape Measure,18.00,Tools,ea,Stanley 25ft
+Pipe Wrench 14",65.00,Tools,ea,Ridgid
+Drain Snake 25ft,42.00,Tools,ea,Manual
+Pipe Threader,485.00,Tools,ea,Manual
+Torch Kit,89.00,Tools,ea,Propane
+Solder Roll,12.50,Tools,ea,Lead-free

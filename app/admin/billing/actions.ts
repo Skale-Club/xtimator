@@ -5,6 +5,8 @@ import { requireAdmin } from '@/lib/auth/admin-context'
 import { logAdminAction } from '@/lib/admin/audit-log'
 import { requireServiceClient } from '@/lib/supabase/service'
 import type { TierName } from '@/lib/entitlements'
+import { notify } from '@/lib/notifications/dispatch'
+import { buildNotificationCopy } from '@/lib/notifications/copy'
 
 export type ActionResult =
   | { ok: true; message?: string }
@@ -29,6 +31,14 @@ export async function forceTier(
 
   const svc = requireServiceClient()
 
+  // Read previous tier + owner for the notification payload.
+  const { data: previousRow } = await svc
+    .from('companies')
+    .select('user_id, tier')
+    .eq('id', companyId)
+    .single()
+  const previous = previousRow as { user_id: string | null; tier: string } | null
+
   const update: Record<string, string | null> = { tier }
   if (expiresAt) {
     update.tier_renews_at = expiresAt
@@ -51,6 +61,27 @@ export async function forceTier(
     targetId: companyId,
     metadata: { tier, expires_at: expiresAt ?? null },
   })
+
+  // Phase 77 NOTIF-04: admin.tier_changed with force channels — owner must
+  // know their tier was changed by support / admin.
+  try {
+    const copy = buildNotificationCopy('admin.tier_changed', {
+      tierFrom: previous?.tier ?? 'unknown',
+      tierTo: tier,
+    })
+    void notify({
+      companyId,
+      userId: previous?.user_id ?? null,
+      eventType: 'admin.tier_changed',
+      title: copy.title,
+      body: copy.body,
+      linkUrl: '/settings/billing',
+      channels: { inApp: true, email: true },
+      metadata: { dedupe_key: `admin-tier-${companyId}-${Date.now()}` },
+    })
+  } catch {
+    /* best-effort */
+  }
 
   return { ok: true, message: `Tier set to ${tier}` }
 }
@@ -100,6 +131,31 @@ export async function grantBonusCredits(
     targetId: companyId,
     metadata: { units },
   })
+
+  // Phase 77 NOTIF-04: notify the company owner of the bonus credits grant.
+  try {
+    const { data: ownerRow } = await svc
+      .from('companies')
+      .select('user_id')
+      .eq('id', companyId)
+      .single()
+    const ownerUserId = (ownerRow as { user_id?: string | null } | null)?.user_id ?? null
+    const copy = buildNotificationCopy('admin.bonus_credits_granted', {
+      credits: units,
+    })
+    void notify({
+      companyId,
+      userId: ownerUserId,
+      eventType: 'admin.bonus_credits_granted',
+      title: copy.title,
+      body: copy.body,
+      linkUrl: '/settings/billing',
+      channels: { inApp: true, email: true },
+      metadata: { dedupe_key: `admin-bonus-${companyId}-${Date.now()}` },
+    })
+  } catch {
+    /* best-effort */
+  }
 
   return { ok: true, message: `Granted ${units} bonus estimate credits` }
 }

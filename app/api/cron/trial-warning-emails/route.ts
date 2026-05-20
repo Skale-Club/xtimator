@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { Resend } from 'resend'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { getIntegrationKey } from '@/lib/platform-config'
+import { notify } from '@/lib/notifications/dispatch'
+import { buildNotificationCopy } from '@/lib/notifications/copy'
 
 export async function GET(request: Request) {
   const cronSecret = process.env.CRON_SECRET
@@ -52,6 +54,28 @@ export async function GET(request: Request) {
     if (allCompanies.length === 0) {
       return NextResponse.json({ sent: 0 }, { status: 200 })
     }
+
+    // Phase 77 NOTIF-04: fire in-app notification alongside the email send.
+    // T-3 cohort → trial.expiring_3d. T-0 cohort is handled by the
+    // expire-trials cron once the trial actually ends (avoids double-pinging).
+    await Promise.allSettled(
+      allCompanies
+        .filter((c) => c.type === 't3')
+        .map((c) => {
+          const copy = buildNotificationCopy('trial.expiring_3d', {
+            daysRemaining: 3,
+          })
+          return notify({
+            companyId: c.id as string,
+            userId: (c.user_id as string | null) ?? null,
+            eventType: 'trial.expiring_3d',
+            title: copy.title,
+            body: copy.body,
+            linkUrl: '/settings/billing',
+            metadata: { dedupe_key: `trial-warning-3d-${c.id as string}` },
+          })
+        })
+    )
 
     // Get emails for all user_ids in one call
     const { data: userList } = await supabase.auth.admin.listUsers({ perPage: 1000 })

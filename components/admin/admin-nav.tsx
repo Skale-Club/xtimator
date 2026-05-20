@@ -1,8 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import Image from 'next/image'
 import { usePathname } from 'next/navigation'
+import { AppIcon } from '@/components/ui/app-icon'
 import { Settings2, Palette, Users, LayoutDashboard, Globe, Layout, FileText, CreditCard, Building2 } from 'lucide-react'
 import { useTranslation } from '@/lib/i18n/use-translation'
 
@@ -23,34 +23,6 @@ const NAV_ITEMS = [
   { href: '/admin/admins',       label: 'Admins',       Icon: Users },
 ] as const
 
-function LogoFallbackSvg() {
-  // Mirrors the inline logomark from components/auth/auth-card.tsx.
-  return (
-    <svg
-      width="40"
-      height="40"
-      viewBox="0 0 40 40"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-hidden="true"
-    >
-      <rect width="40" height="40" rx="8" fill="hsl(240 5.9% 10%)" />
-      <path
-        d="M12 28L20 12L28 28"
-        stroke="white"
-        strokeWidth="2.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M15 23H25"
-        stroke="white"
-        strokeWidth="2.5"
-        strokeLinecap="round"
-      />
-    </svg>
-  )
-}
 
 interface AdminNavProps {
   appName: string
@@ -68,17 +40,7 @@ export function AdminNav({ appName, logoUrl, adminEmail }: AdminNavProps) {
       className="w-[240px] flex-shrink-0 border-r border-[var(--glass-border)] bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] flex flex-col"
     >
       <div className="px-4 pt-6 pb-6 flex items-center gap-2">
-        {logoUrl ? (
-          <Image
-            src={logoUrl}
-            alt=""
-            width={40}
-            height={40}
-            aria-hidden="true"
-          />
-        ) : (
-          <LogoFallbackSvg />
-        )}
+        <AppIcon logoUrl={logoUrl} appName={appName} className="h-10 w-10" />
         <span className="font-semibold text-sm">{appName} {t('Admin')}</span>
       </div>
       <ul className="flex-1 flex flex-col gap-1 px-2">

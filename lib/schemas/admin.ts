@@ -19,6 +19,7 @@ export const integrationKeySchema = z.object({
     'meta_whatsapp',
     'stripe',
     'stripe_connect_client_id',
+    'twilio',
   ]),
   apiKey: z.string().min(1, 'API key is required'),
 })
@@ -49,6 +50,16 @@ export const seoSchema = z.object({
   metaDescription: z.string().max(300).nullable(),
   ogImageUrl: z.string().url('Must be a valid URL').nullable().or(z.literal('')).transform(v => v || null),
   canonicalBaseUrl: z.string().url('Must be a valid URL').nullable().or(z.literal('')).transform(v => v || null),
+  ogImageFile: z
+    .instanceof(File)
+    .refine(f => f.size <= 2 * 1024 * 1024, 'OG image must be under 2MB.')
+    .refine(
+      f => ['image/png', 'image/jpeg', 'image/jpg'].includes(f.type),
+      'OG image must be a PNG or JPG.'
+    )
+    .nullable()
+    .optional(),
+  ogImageRemoved: z.boolean().optional().default(false),
 })
 
 export const landingContentSchema = z.object({

@@ -200,3 +200,83 @@ Coverage: 39/39 (100%) — every v1 requirement maps to exactly one phase, no or
 | REDESIGN-08 | Phase 71 | Complete |
 | REDESIGN-09 | Phase 71 | Complete |
 | REDESIGN-10 | Phase 71 | Complete |
+
+### TOUR-FIX — Tour & Tooltip System QA (Phase 75)
+
+- [x] **TOUR-FIX-01**: Audit doc lists every ContextualTooltip mount point + every TourStep with: target selector, trigger condition, dismiss rule, intended side. Lives at `tests/visual/tour-inventory.md`.
+- [x] **TOUR-FIX-02**: No tooltip or spotlight appears on initial page load, refresh, or unrelated navigation unless explicitly triggered. Verified by Playwright spec opening every authenticated page and asserting tooltip surfaces are not visible by default.
+- [x] **TOUR-FIX-03**: Tooltip positioning respects the `side` prop and auto-flips to opposite side when there's not enough viewport room (Floating UI behavior). No tooltip overflows the viewport.
+- [x] **TOUR-FIX-04**: Dismissed tooltips persist as seen in localStorage (or DB if cross-device sync desired). Once dismissed, never reappear unless user clicks "Restart tour" in `TourHelpButton`.
+- [x] **TOUR-FIX-05**: `prefers-reduced-motion` honored on every tour animation; `prefers-reduced-transparency` honored on spotlight overlay backdrop; ESC key dismisses spotlight; focus trap removed when spotlight closes.
+- [x] **TOUR-FIX-06**: Unit tests for the tour state machine (start, advance, prev, dismiss, restart, edge cases like advancing past last step) and tooltip persistence layer (seen flag set/read/cleared). Minimum 8 cases passing.
+- [x] **TOUR-FIX-07**: Manual UAT — exercise every tooltip + every tour step in EN, PT, and ES. Confirm strings translated, position correct, no overlap with sticky topbar or hero gradient, animation gated by motion preference. Findings logged in `.planning/known-issues.md` if any.
+| TOUR-FIX-01 | Phase 75 | Complete |
+| TOUR-FIX-02 | Phase 75 | Complete |
+| TOUR-FIX-03 | Phase 75 | Complete |
+| TOUR-FIX-04 | Phase 75 | Complete |
+| TOUR-FIX-05 | Phase 75 | Complete |
+| TOUR-FIX-06 | Phase 75 | Complete |
+| TOUR-FIX-07 | Phase 75 | Complete |
+
+### PB-CSV — Price Book CSV Pro (Phase 76)
+
+- [x] **PB-CSV-01**: CSV import is a 4-step wizard (Upload · Map columns · Preview+edit · Confirm+result) with a visible step indicator. Closing mid-wizard offers "Save progress" so reopening returns to the same step.
+- [x] **PB-CSV-02**: Column header auto-detection — alias dictionary maps common spreadsheet names (item/service/desc → name; price/cost/rate → unit_price; category/group → folder; uom/qty unit → unit). Owner can override every mapping via dropdown. Unmapped columns shown as "Skip".
+- [x] **PB-CSV-03**: Preview table allows per-row inline editing of name/unit/unit_price/folder. Validation errors (negative price, empty name, malformed currency) shown inline with red border + tooltip; rows with unresolved errors blocked from import (greyed out checkbox).
+- [x] **PB-CSV-04**: Locale-aware currency parsing accepts US (`$1,234.56`), BR (`R$ 1.234,56`), plain (`1234`, `1234.5`), and quoted variants. UI shows detected locale guess; owner can override (US / BR / Custom decimal + thousands separator).
+- [x] **PB-CSV-05**: Duplicate resolution — when input row collides with existing (name+folder), user picks global strategy: Skip · Update · Import as new with suffix. Per-row override available in preview table.
+- [x] **PB-CSV-06**: Dry-run summary card BEFORE any DB write — shows N to insert, N to update, N to skip, N new folders to create. Single "Confirm import" button commits.
+- [x] **PB-CSV-07**: `price_book_imports` table tracks every batch with imported row IDs and folder IDs. "Undo last import" button reverts the batch (5-min eligibility window). Toast confirms undo with rows-removed count.
+- [x] **PB-CSV-08**: Large files (>200 rows) show streaming progress UI ("Importing X of Y…") with cancel button. Server action chunks inserts (50 at a time) so UI ticks update via React state polling or server-sent events.
+- [x] **PB-CSV-09**: When any row fails server-side validation, response includes a downloadable `import-errors.csv` with the failed rows + extra `error_reason` column. Same column layout as input so user can fix and re-upload.
+- [x] **PB-CSV-10**: Test coverage — unit: auto-detect aliases (8 cases), locale parsing (12 cases), dedupe strategies × scenarios (≥6 cases), wizard state machine (≥6 cases). Playwright E2E spec walks the full happy path with a 50-row fixture file. All passing.
+| PB-CSV-01 | Phase 76 | Complete |
+| PB-CSV-02 | Phase 76 | Complete |
+| PB-CSV-03 | Phase 76 | Complete |
+| PB-CSV-04 | Phase 76 | Complete |
+| PB-CSV-05 | Phase 76 | Complete |
+| PB-CSV-06 | Phase 76 | Complete |
+| PB-CSV-07 | Phase 76 | Complete |
+| PB-CSV-08 | Phase 76 | Complete |
+| PB-CSV-09 | Phase 76 | Complete |
+| PB-CSV-10 | Phase 76 | Complete |
+
+### NOTIF — Notifications System (Phase 77)
+
+- [x] **NOTIF-01**: `notifications` table with proper schema + RLS scoped to company_id
+- [x] **NOTIF-02**: `notification_preferences` per-user table with JSONB categories + sensible defaults
+- [x] **NOTIF-03**: `notify()` helper at `lib/notifications/dispatch.ts` — single API for fan-out
+- [x] **NOTIF-04**: 17 event types instrumented across the codebase (estimate/payment/trial/quota/whatsapp/ai_job/admin/etc.)
+- [x] **NOTIF-05**: Topbar bell icon with unread badge + 400px panel + mark as read on click
+- [x] **NOTIF-06**: `/notifications` full-page view with filtering + pagination + search
+- [x] **NOTIF-07**: Email digest mode (grouped via Inngest cron, >3 events/hr per category)
+- [x] **NOTIF-08**: `/settings/notifications` per-category in_app+email toggles
+- [x] **NOTIF-09**: Browser push notifications scaffold (permission + service worker registration)
+- [x] **NOTIF-10**: Auto-cleanup cron, 60-day TTL (unless pinned)
+- [x] **NOTIF-11**: Real-time bell badge via Supabase Realtime subscription
+- [x] **NOTIF-12**: Test coverage — unit (≥20 cases) + Playwright E2E (full trigger→bell→click→read flow)
+
+### OG-IMG — Admin OG Image Upload (Phase 78)
+
+- [x] **OG-IMG-01**: Replace URL input with file upload dropzone (image/png + image/jpeg, max 2 MB)
+- [x] **OG-IMG-02**: 1200×630 aspect-ratio preview frame + dimension validation (warn <600×315)
+- [x] **OG-IMG-03**: Upload to Supabase Storage `branding-assets/og-images/` via existing storage.upload API
+- [x] **OG-IMG-04**: Remove button with confirmation modal + best-effort storage cleanup
+- [x] **OG-IMG-05**: Backward-compat for existing URL-typed OG images (show preview if loadable + migration hint)
+| NOTIF-01 | Phase 77 | Complete |
+| NOTIF-02 | Phase 77 | Complete |
+| NOTIF-03 | Phase 77 | Complete |
+| NOTIF-04 | Phase 77 | Complete |
+| NOTIF-05 | Phase 77 | Complete |
+| NOTIF-06 | Phase 77 | Complete |
+| NOTIF-07 | Phase 77 | Complete |
+| NOTIF-08 | Phase 77 | Complete |
+| NOTIF-09 | Phase 77 | Complete |
+| NOTIF-10 | Phase 77 | Complete |
+| NOTIF-11 | Phase 77 | Complete |
+| NOTIF-12 | Phase 77 | Complete |
+| OG-IMG-01 | Phase 78 | Complete |
+| OG-IMG-02 | Phase 78 | Complete |
+| OG-IMG-03 | Phase 78 | Complete |
+| OG-IMG-04 | Phase 78 | Complete |
+| OG-IMG-05 | Phase 78 | Complete |

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, startTransition } from 'react'
 import { useTheme } from 'next-themes'
 import { Sun, Moon, Monitor } from 'lucide-react'
 import { toast } from 'sonner'
@@ -23,14 +23,16 @@ const ITEMS: { value: Theme; label: string; Icon: typeof Sun }[] = [
   { value: 'system', label: 'System', Icon: Monitor },
 ]
 
-async function persist(next: Theme, setTheme: (v: Theme) => void) {
-  // 1. Instant UI update (writes localStorage + updates <html> class)
-  setTheme(next)
-  // 2. Cross-device persistence (DB + cookie)
-  const res = await saveThemePreference(next)
-  if (!res.ok) {
-    toast.error(res.message)
-  }
+function persist(next: Theme, setTheme: (v: Theme) => void) {
+  // Use startTransition so the <html> class swap + full-page re-paint is
+  // treated as a non-urgent update and won't block input responsiveness (INP).
+  startTransition(() => {
+    setTheme(next)
+  })
+  // Fire-and-forget server persistence — never blocks the click handler.
+  saveThemePreference(next).then((res) => {
+    if (!res.ok) toast.error(res.message)
+  })
 }
 
 /**

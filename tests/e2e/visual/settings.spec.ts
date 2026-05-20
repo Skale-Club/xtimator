@@ -26,7 +26,7 @@ const SETTINGS_PATHS = [
   '/settings/estimate-templates',
   '/settings/integrations',
   '/settings/payments',
-  '/settings/price-book',
+  '/price-book',
 ] as const
 
 const VPS = viewports.filter(vp => vp.name === 'desktop' || vp.name === 'mobile')

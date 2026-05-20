@@ -30,13 +30,14 @@ interface ProjectWorkspaceProps {
   companyName: string
   ownerName: string
   estimateTemplate: EstimateTemplate
+  smsDeliveryEnabled?: boolean
   defaultTab?: WorkspaceTab
 }
 
 export function ProjectWorkspace({
   project, activity, stats, recordings, photos,
   currentEstimate, allVersions, companyName,
-  ownerName, estimateTemplate,
+  ownerName, estimateTemplate, smsDeliveryEnabled = false,
   defaultTab = 'overview',
 }: ProjectWorkspaceProps) {
   const { t } = useTranslation()
@@ -75,7 +76,7 @@ export function ProjectWorkspace({
       <div className="border-b border-border">
         <TabsList
           variant="line"
-          className="w-auto h-auto bg-transparent p-0 gap-1 rounded-none justify-start overflow-x-auto"
+          className="w-auto h-auto bg-transparent p-0 gap-1 rounded-none justify-start overflow-x-auto overflow-y-hidden scrollbar-none"
         >
           {[
             { value: 'overview',  Icon: ClipboardList, label: 'Overview'    },
@@ -127,9 +128,11 @@ export function ProjectWorkspace({
           projectName={project.name}
           companyName={companyName}
           clientEmail={project.client?.email ?? null}
+          clientPhone={project.client?.phone ?? null}
           clientName={project.client?.name ?? ''}
           ownerName={ownerName}
           estimateTemplate={estimateTemplate}
+          smsDeliveryEnabled={smsDeliveryEnabled}
         />
       </TabsContent>
     </Tabs>

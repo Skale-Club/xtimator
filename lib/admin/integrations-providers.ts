@@ -26,6 +26,8 @@ export type Category = {
   providers: ReadonlyArray<Provider>
   /** AI category renders the active-provider selector below the cards. */
   showAISelector?: boolean
+  /** SMS/Twilio category renders the from-phone field below the cards. */
+  showFromPhone?: boolean
 }
 
 export const CATEGORIES: ReadonlyArray<Category> = [
@@ -95,6 +97,20 @@ export const CATEGORIES: ReadonlyArray<Category> = [
         title: 'Stripe Connect Client ID',
         description:
           'ca_... value from Stripe Dashboard → Connect → Settings. Enables tenant Stripe connections for customer payments on estimates.',
+      },
+    ],
+  },
+  {
+    slug: 'sms',
+    title: 'SMS',
+    description: 'Send estimate share links to clients via SMS.',
+    showFromPhone: true,
+    providers: [
+      {
+        id: 'twilio' as IntegrationProvider,
+        title: 'Twilio',
+        description:
+          'Enter as "AccountSid:AuthToken". Set the outbound phone number in the From Phone field below after saving.',
       },
     ],
   },

@@ -36,10 +36,10 @@ export default async function DashboardPage() {
                      [mask-image:linear-gradient(to_bottom,black_55%,transparent_100%)]
                      [-webkit-mask-image:linear-gradient(to_bottom,black_55%,transparent_100%)]"
         />
-        <h1 className="text-[clamp(36px,5vw,56px)] font-semibold tracking-[-0.025em] leading-[1.05]">
+        <p className="text-2xl font-semibold tracking-tight">
           <T text={`Welcome back, ${firstName}`} />
-        </h1>
-        <p className="mt-3 text-base text-muted-foreground max-w-xl">
+        </p>
+        <p className="mt-2 text-sm text-muted-foreground max-w-xl">
           <T>Track active projects, monitor estimate health, and start new work.</T>
         </p>
       </section>

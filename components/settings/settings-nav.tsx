@@ -2,12 +2,13 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Bell, Building2, FileText, Palette, ShieldCheck } from 'lucide-react'
+import { Bell, Building2, FileText, Palette, ShieldCheck, Send } from 'lucide-react'
 
 const TABS = [
   { slug: 'company', label: 'Company', Icon: Building2 },
   { slug: 'defaults', label: 'Defaults', Icon: FileText },
   { slug: 'notifications', label: 'Notifications', Icon: Bell },
+  { slug: 'delivery', label: 'Delivery', Icon: Send },
   { slug: 'appearance', label: 'Appearance', Icon: Palette },
   { slug: 'account', label: 'Account', Icon: ShieldCheck },
 ] as const

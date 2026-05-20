@@ -6,7 +6,7 @@ const mockRefresh = vi.fn()
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: mockRefresh, push: vi.fn() }),
-  usePathname: () => '/settings/price-book',
+  usePathname: () => '/price-book',
 }))
 
 vi.mock('next/link', () => ({
@@ -38,8 +38,8 @@ vi.mock('@/components/price-book/price-book-item-dialog', () => ({
     open ? <div data-testid="price-book-dialog">Dialog Open</div> : null,
 }))
 
-vi.mock('@/components/price-book/price-book-import-dialog', () => ({
-  PriceBookImportDialog: ({ open }: { open: boolean }) =>
+vi.mock('@/components/price-book/import-wizard', () => ({
+  PriceBookImportWizard: ({ open }: { open: boolean }) =>
     open ? <div data-testid="price-book-import-dialog">Import Open</div> : null,
 }))
 

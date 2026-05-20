@@ -119,6 +119,65 @@ export const staticDict: Record<'pt' | 'es', TranslationDict> = {
     'Are you sure?': 'Tem certeza?',
     'This action cannot be undone': 'Esta ação não pode ser desfeita',
     'Yes, delete it': 'Sim, excluir',
+
+    // Notifications (Phase 77)
+    'Notifications': 'Notificações',
+    'Mark all as read': 'Marcar todas como lidas',
+    'See all': 'Ver tudo',
+    'All caught up': 'Tudo em dia',
+    'Unread only': 'Apenas não lidas',
+    'Notification preferences': 'Preferências de notificação',
+    'Choose how you want to be notified for each event category.':
+      'Escolha como deseja ser notificado para cada categoria de evento.',
+    'Email digest enabled': 'Resumo por e-mail ativado',
+    'Master switch — turn off to silence every email notification.':
+      'Interruptor mestre — desative para silenciar todas as notificações por e-mail.',
+    'Category': 'Categoria',
+    'In-app': 'No app',
+    'Save preferences': 'Salvar preferências',
+    'Notification preferences saved.': 'Preferências de notificação salvas.',
+    'Could not save notification preferences.':
+      'Não foi possível salvar as preferências de notificação.',
+    'Browser notifications': 'Notificações do navegador',
+    'Show desktop notifications even when Xtimator is in a background tab.':
+      'Mostrar notificações no desktop mesmo quando o Xtimator estiver em uma aba em segundo plano.',
+    'Browser notifications not supported in this browser':
+      'Notificações do navegador não são suportadas neste navegador',
+    'Browser notifications not supported in this browser.':
+      'Notificações do navegador não são suportadas neste navegador.',
+    'Enabled — browser may show desktop alerts for new notifications.':
+      'Ativado — o navegador pode mostrar alertas no desktop para novas notificações.',
+    'Not enabled. Click the button to grant permission.':
+      'Não ativado. Clique no botão para conceder permissão.',
+    'Enable browser notifications': 'Ativar notificações do navegador',
+    'Disable browser notifications': 'Desativar notificações do navegador',
+    'Browser notifications enabled.': 'Notificações do navegador ativadas.',
+    'Browser notifications disabled.': 'Notificações do navegador desativadas.',
+    'Permission denied — enable in browser settings.':
+      'Permissão negada — ative nas configurações do navegador.',
+    'Could not enable browser notifications.':
+      'Não foi possível ativar as notificações do navegador.',
+    'Payments': 'Pagamentos',
+    'Trial': 'Período de teste',
+    'Quota': 'Cota',
+    'WhatsApp': 'WhatsApp',
+    'AI Jobs': 'Tarefas de IA',
+    'Admin': 'Administração',
+    'System': 'Sistema',
+    'Views, accepts, declines, expirations.':
+      'Visualizações, aceitos, recusas, expirações.',
+    'Payments received and refunded.': 'Pagamentos recebidos e reembolsados.',
+    'Trial expiring, expired, converted.':
+      'Período de teste expirando, expirado, convertido.',
+    'Plan usage warnings.': 'Avisos de uso do plano.',
+    'Inbound voice and photo messages.':
+      'Mensagens de voz e foto recebidas.',
+    'Background job completion and failures.':
+      'Conclusões e falhas de tarefas em segundo plano.',
+    'Tier changes and bonus credits.':
+      'Mudanças de plano e créditos bônus.',
+    'Maintenance and platform announcements.':
+      'Manutenção e avisos da plataforma.',
   },
   es: {
     // Navigation
@@ -238,5 +297,64 @@ export const staticDict: Record<'pt' | 'es', TranslationDict> = {
     'Are you sure?': '¿Estás seguro?',
     'This action cannot be undone': 'Esta acción no se puede deshacer',
     'Yes, delete it': 'Sí, eliminar',
+
+    // Notifications (Phase 77)
+    'Notifications': 'Notificaciones',
+    'Mark all as read': 'Marcar todas como leídas',
+    'See all': 'Ver todo',
+    'All caught up': 'Todo al día',
+    'Unread only': 'Solo no leídas',
+    'Notification preferences': 'Preferencias de notificación',
+    'Choose how you want to be notified for each event category.':
+      'Elige cómo quieres recibir notificaciones para cada categoría de evento.',
+    'Email digest enabled': 'Resumen por correo activado',
+    'Master switch — turn off to silence every email notification.':
+      'Interruptor maestro — desactívalo para silenciar todas las notificaciones por correo.',
+    'Category': 'Categoría',
+    'In-app': 'En la app',
+    'Save preferences': 'Guardar preferencias',
+    'Notification preferences saved.': 'Preferencias de notificación guardadas.',
+    'Could not save notification preferences.':
+      'No se pudieron guardar las preferencias de notificación.',
+    'Browser notifications': 'Notificaciones del navegador',
+    'Show desktop notifications even when Xtimator is in a background tab.':
+      'Mostrar notificaciones de escritorio incluso cuando Xtimator esté en una pestaña en segundo plano.',
+    'Browser notifications not supported in this browser':
+      'Las notificaciones del navegador no son compatibles con este navegador',
+    'Browser notifications not supported in this browser.':
+      'Las notificaciones del navegador no son compatibles con este navegador.',
+    'Enabled — browser may show desktop alerts for new notifications.':
+      'Activado — el navegador puede mostrar alertas de escritorio para nuevas notificaciones.',
+    'Not enabled. Click the button to grant permission.':
+      'No activado. Haz clic en el botón para conceder permiso.',
+    'Enable browser notifications': 'Activar notificaciones del navegador',
+    'Disable browser notifications': 'Desactivar notificaciones del navegador',
+    'Browser notifications enabled.': 'Notificaciones del navegador activadas.',
+    'Browser notifications disabled.': 'Notificaciones del navegador desactivadas.',
+    'Permission denied — enable in browser settings.':
+      'Permiso denegado — actívalo en la configuración del navegador.',
+    'Could not enable browser notifications.':
+      'No se pudieron activar las notificaciones del navegador.',
+    'Payments': 'Pagos',
+    'Trial': 'Período de prueba',
+    'Quota': 'Cuota',
+    'WhatsApp': 'WhatsApp',
+    'AI Jobs': 'Tareas de IA',
+    'Admin': 'Administración',
+    'System': 'Sistema',
+    'Views, accepts, declines, expirations.':
+      'Vistas, aceptaciones, rechazos, expiraciones.',
+    'Payments received and refunded.': 'Pagos recibidos y reembolsados.',
+    'Trial expiring, expired, converted.':
+      'Período de prueba expirando, expirado, convertido.',
+    'Plan usage warnings.': 'Avisos de uso del plan.',
+    'Inbound voice and photo messages.':
+      'Mensajes de voz y fotos entrantes.',
+    'Background job completion and failures.':
+      'Finalización y fallos de tareas en segundo plano.',
+    'Tier changes and bonus credits.':
+      'Cambios de plan y créditos de bonificación.',
+    'Maintenance and platform announcements.':
+      'Mantenimiento y anuncios de la plataforma.',
   },
 }

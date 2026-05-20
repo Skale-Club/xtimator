@@ -18,7 +18,7 @@ export function WelcomeModal() {
   }
 
   function handleShowMeAround() {
-    startTour()            // sets tour_spotlight_pending in localStorage; also calls completeTour
+    startTour()            // sets the namespaced spotlight pending flag in localStorage
     setIsReviewMode(false) // leaving modal via spotlight — clear review mode
     setShowWelcome(false)
     setShowSpotlight(true) // Wave 2 spotlight reads this context value

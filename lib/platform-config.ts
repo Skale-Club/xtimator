@@ -46,6 +46,9 @@ export type IntegrationProvider =
   // secret per Stripe docs (appears in browser OAuth URLs) but stored via the
   // same encrypted platform_integrations path so admin UX stays uniform.
   | 'stripe_connect_client_id'
+  // Twilio — SMS delivery of estimate share links. Key stored as
+  // "AccountSid:AuthToken". from_phone stored in metadata.from_phone.
+  | 'twilio'
 
 const TTL_MS = 30_000
 
@@ -247,6 +250,33 @@ function toBuffer(value: unknown): Buffer {
 export function invalidatePlatformConfig(): void {
   brandingCache = null
   integrationCache.clear()
+}
+
+export type TwilioConfig = {
+  accountSid: string
+  authToken: string
+  fromPhone: string
+} | null
+
+export async function getTwilioConfig(): Promise<TwilioConfig> {
+  const key = await getIntegrationKey('twilio')
+  if (!key) return null
+
+  const [accountSid, authToken] = key.split(':')
+  if (!accountSid || !authToken) return null
+
+  const svc = createServiceClient()
+  if (!svc) return null
+  const { data } = await svc
+    .from('platform_integrations')
+    .select('metadata')
+    .eq('provider', 'twilio')
+    .maybeSingle()
+
+  const fromPhone = (data?.metadata as { from_phone?: string } | null)?.from_phone ?? ''
+  if (!fromPhone) return null
+
+  return { accountSid, authToken, fromPhone }
 }
 
 export type SelectedAIProvider = 'anthropic' | 'gemini' | 'openrouter'

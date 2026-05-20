@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { BookOpen, ChevronRight, CreditCard, FileText, Globe, MessageSquare, Wallet } from 'lucide-react'
+import { BookOpen, ChevronRight, CreditCard, FileText, Globe, MessageSquare, Send, Wallet } from 'lucide-react'
 import { SettingsNav } from '@/components/settings/settings-nav'
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { T } from '@/components/i18n/t'
@@ -10,7 +10,7 @@ import { T } from '@/components/i18n/t'
  * preserve which tab you're on.
  *
  * Route group `(tabs)` keeps this layout from wrapping sibling sub-pages like
- * /settings/billing, /settings/price-book etc. that have their own UI.
+ * /settings/billing, /price-book etc. that have their own UI.
  *
  * Below the active tab's content we render a grid of quick-link cards to the
  * other settings areas (Billing, Payments, Price Book, Estimate Templates,
@@ -30,7 +30,7 @@ const SUB_PAGES = [
     Icon: Wallet,
   },
   {
-    href: '/settings/price-book',
+    href: '/price-book',
     title: 'Price Book',
     description: 'Manage your standard pricing for AI-powered estimates.',
     Icon: BookOpen,
@@ -53,20 +53,17 @@ const SUB_PAGES = [
     description: 'Connect WhatsApp to receive voice and photo estimates from the field.',
     Icon: MessageSquare,
   },
+  {
+    href: '/settings/delivery',
+    title: 'Delivery',
+    description: 'Enable email and SMS delivery of estimates, and require digital signatures from clients.',
+    Icon: Send,
+  },
 ] as const
 
 export default function SettingsTabsLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="w-full max-w-none space-y-8 px-6 py-8">
-      <header className="flex flex-col gap-2">
-        <h1 className="text-[clamp(28px,3.5vw,40px)] font-semibold tracking-tight">
-          <T>Settings</T>
-        </h1>
-        <p className="max-w-2xl text-sm text-muted-foreground">
-          <T>Manage company profile, estimate behavior, notifications, appearance, and account access from one full-width workspace.</T>
-        </p>
-      </header>
-
       <SettingsNav />
 
       <div>{children}</div>

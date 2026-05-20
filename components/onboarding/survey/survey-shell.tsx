@@ -3,6 +3,7 @@
 import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { AppIcon } from '@/components/ui/app-icon'
 import { SurveyProgress } from './survey-progress'
 import { SurveyStep } from './survey-step'
 import type { UseSurveyStateReturn } from './use-survey-state'
@@ -140,29 +141,7 @@ export function SurveyShell({
 
       {/* Header: logo + wordmark */}
       <header className="mb-8 flex flex-col items-center gap-2">
-        <svg
-          width="40"
-          height="40"
-          viewBox="0 0 40 40"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-          aria-hidden="true"
-        >
-          <rect width="40" height="40" rx="8" className="fill-primary" />
-          <path
-            d="M12 28L20 12L28 28"
-            className="stroke-primary-foreground"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          <path
-            d="M15 23H25"
-            className="stroke-primary-foreground"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-          />
-        </svg>
+        <AppIcon className="h-10 w-10" />
         <span className="text-base font-semibold leading-tight tracking-tight text-foreground">
           {appName}
         </span>

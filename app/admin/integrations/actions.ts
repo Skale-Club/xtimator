@@ -232,6 +232,31 @@ async function runTestIntegrationKey(
       }
     }
 
+    if (input.provider === 'twilio') {
+      // key format: "AccountSid:AuthToken"
+      const [accountSid, authToken] = key.split(':')
+      if (!accountSid || !authToken) {
+        return { ok: false, message: 'Key must be in "AccountSid:AuthToken" format.' }
+      }
+      const credentials = Buffer.from(`${accountSid}:${authToken}`).toString('base64')
+      const res = await fetch(
+        `https://api.twilio.com/2010-04-01/Accounts/${accountSid}.json`,
+        { headers: { Authorization: `Basic ${credentials}` } }
+      )
+      if (!res.ok) {
+        const body = await res.text().catch(() => '')
+        return {
+          ok: false,
+          message: `Twilio rejected the credentials (${res.status}). ${body.slice(0, 200)}`.trim(),
+        }
+      }
+      const json = (await res.json()) as { friendly_name?: string; status?: string }
+      return {
+        ok: true,
+        message: `Verified. Account "${json.friendly_name ?? accountSid}" is ${json.status ?? 'active'}.`,
+      }
+    }
+
     if (input.provider === 'stripe_connect_client_id') {
       // No test endpoint — the Client ID is a public identifier, not a
       // credential. Verification happens implicitly via the OAuth flow
@@ -259,6 +284,56 @@ async function runTestIntegrationKey(
     const message = e instanceof Error ? e.message : 'Unknown error'
     return { ok: false, message }
   }
+}
+
+/**
+ * Save the Twilio outbound phone number into the platform_integrations metadata.
+ * Stored as { from_phone: "+1..." } alongside the existing encrypted key.
+ */
+export async function saveTwilioFromPhone(
+  fromPhone: string
+): Promise<ActionResult> {
+  const ctx = await requireAdmin()
+  const trimmed = fromPhone.trim()
+  if (trimmed && !/^\+[1-9]\d{7,14}$/.test(trimmed)) {
+    return { ok: false, message: 'Phone must be in E.164 format (e.g. +15551234567)' }
+  }
+
+  const svc = requireServiceClient()
+  const { data: existing } = await svc
+    .from('platform_integrations')
+    .select('ciphertext, iv, auth_tag, metadata')
+    .eq('provider', 'twilio')
+    .maybeSingle()
+
+  const { error } = await svc.from('platform_integrations').upsert(
+    {
+      provider: 'twilio',
+      ciphertext: existing?.ciphertext ?? null,
+      iv: existing?.iv ?? null,
+      auth_tag: existing?.auth_tag ?? null,
+      metadata: { ...((existing?.metadata as object) ?? {}), from_phone: trimmed },
+      updated_at: new Date().toISOString(),
+      updated_by: ctx.userId,
+    },
+    { onConflict: 'provider' }
+  )
+
+  if (error) return { ok: false, message: error.message }
+
+  invalidatePlatformConfig()
+  revalidatePath('/admin/integrations')
+
+  void logAdminAction({
+    actorId: ctx.userId,
+    actorEmail: ctx.email,
+    action: 'integration.save',
+    targetType: 'integration',
+    targetId: 'twilio_from_phone',
+    metadata: { from_phone: trimmed },
+  })
+
+  return { ok: true }
 }
 
 /**

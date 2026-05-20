@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useState, useRef, startTransition } from 'react'
 import type { OnboardingValues } from '@/lib/schemas/onboarding'
 import { SURVEY_STEPS } from './survey-config'
 
@@ -31,6 +31,10 @@ export function useSurveyState(initial: OnboardingValues): UseSurveyStateReturn 
   const totalSteps = SURVEY_STEPS.length
   const currentStep = SURVEY_STEPS[stepIndex]
 
+  // Ref so goNext can read latest values without adding values to its dep array
+  const valuesRef = useRef(values)
+  valuesRef.current = values
+
   const setValue = useCallback(
     <K extends keyof OnboardingValues>(k: K, v: OnboardingValues[K]) => {
       setValues((prev) => ({ ...prev, [k]: v }))
@@ -41,22 +45,22 @@ export function useSurveyState(initial: OnboardingValues): UseSurveyStateReturn 
 
   const goNext = useCallback(() => {
     const step = SURVEY_STEPS[stepIndex]
-    // Recompute against latest values via setValues callback pattern
-    setValues((current) => {
-      const msg = step.validate(current, logoFile)
-      if (msg !== null) {
-        setError(msg)
-        return current
-      }
-      setError(null)
+    const msg = step.validate(valuesRef.current, logoFile)
+    if (msg !== null) {
+      setError(msg)
+      return
+    }
+    setError(null)
+    startTransition(() => {
       setStepIndex((i) => Math.min(i + 1, totalSteps - 1))
-      return current
     })
   }, [stepIndex, logoFile, totalSteps])
 
   const goBack = useCallback(() => {
     setError(null)
-    setStepIndex((i) => Math.max(i - 1, 0))
+    startTransition(() => {
+      setStepIndex((i) => Math.max(i - 1, 0))
+    })
   }, [])
 
   return {

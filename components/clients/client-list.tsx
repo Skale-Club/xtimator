@@ -126,11 +126,6 @@ export function ClientList({ clients, companyId }: ClientListProps) {
   if (clients.length === 0) {
     return (
       <>
-        <header className="flex items-center justify-between">
-          <h1 className="text-[clamp(28px,3.5vw,40px)] font-semibold tracking-[-0.02em] leading-[1.1]">
-            {t('Clients')}
-          </h1>
-        </header>
         <EmptyState
           icon={Users}
           title={t('No clients yet')}
@@ -151,9 +146,6 @@ export function ClientList({ clients, companyId }: ClientListProps) {
   return (
     <>
       <header className="flex items-center justify-between">
-        <h1 className="text-[clamp(28px,3.5vw,40px)] font-semibold tracking-[-0.02em] leading-[1.1]">
-          {t('Clients')}
-        </h1>
         <Button variant="primary" onClick={handleAddClient}>
           <Plus className="h-4 w-4 mr-2" />
           {t('Add Client')}

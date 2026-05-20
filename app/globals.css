@@ -370,6 +370,15 @@
    (bg-[var(--glass-bg)], backdrop-blur-[var(--glass-blur)]) in components,
    or apply these shorthand utilities. */
 @layer utilities {
+  /* Hide scrollbar across browsers (used by horizontal tab strips, chip rows). */
+  .scrollbar-none {
+    scrollbar-width: none;       /* Firefox */
+    -ms-overflow-style: none;    /* IE/Edge legacy */
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;               /* Chrome/Safari/Edge */
+  }
+
   .glass {
     background-color: var(--glass-bg);
     backdrop-filter: blur(var(--glass-blur));

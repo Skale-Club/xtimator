@@ -760,3 +760,142 @@ Plans:
 | 72. Admin Menu Performance | v3.1.1 | 3/3 | Complete    | 2026-05-18 |
 | 73. Language Onboarding + Estimate Language UI | v3.1.1 | 5/5 | Complete    | 2026-05-19 |
 | 74. Post-Onboarding App Feature Tour | v3.1.1 | 4/4 | Complete    | 2026-05-19 |
+
+### Phase 75: Tour and Tooltip QA
+
+**Goal:** Every spotlight tour step and contextual tooltip from Phase 74 only appears when intended, lands in the correct DOM position, dismisses cleanly, and persists "seen" state per user across sessions. Owner reports tooltips popping up unprompted (e.g., LanguageToggle tooltip floating without trigger) and "meio bugados" overall.
+
+**Depends on:** Phase 74 (Tour & Contextual Tooltips system)
+
+**Requirements**: TOUR-FIX-01, TOUR-FIX-02, TOUR-FIX-03, TOUR-FIX-04, TOUR-FIX-05, TOUR-FIX-06, TOUR-FIX-07
+
+**Success Criteria** (what must be TRUE):
+  1. Audit lists every `ContextualTooltip` mount point + trigger condition + dismiss rule in a single doc (e.g., `tests/visual/tour-inventory.md`)
+  2. Every tooltip and spotlight step appears ONLY when its documented trigger fires — no unprompted popups on page load, refresh, or unrelated nav
+  3. Tooltip positioning honors the `side` prop and never overflows viewport; auto-flips to the opposite side when there's no room
+  4. Dismissal persists per user — once dismissed, a tooltip never reappears unless the user explicitly opens "Restart tour" via `TourHelpButton`
+  5. `prefers-reduced-motion` honored (no animation when reduce); `prefers-reduced-transparency` honored on spotlight overlay; keyboard ESC dismisses spotlight
+  6. Unit tests cover the tour state machine (start, advance, prev, dismiss, restart) and tooltip persistence layer (seen flag in localStorage); minimum 8 cases
+  7. Manual UAT pass: open every page that hosts a tooltip in EN, PT, ES (3 locales × N pages); confirm strings translated, position correct, animation gated, no overlap with sticky topbar or hero gradient
+
+**Plans:** 4/4 plans complete
+
+### Phase 76: Price Book CSV Pro — Professional Import UX
+
+**Goal:** The Price Book CSV import becomes a polished multi-step wizard that handles real-world messy data: column mapping, per-row validation with inline edit, duplicate resolution strategy, currency/locale parsing, undo after import, and a verification summary. A non-technical contractor can paste an exported spreadsheet (from QuickBooks, Excel, Google Sheets) and end with a clean Price Book without needing to pre-massage the file.
+
+**Depends on:** Phase 19 (Price Book DB) · Phase 20 (Price Book CRUD UI) · Phase 21 (Initial CSV Import — the baseline this phase upgrades)
+
+**Requirements:** PB-CSV-01, PB-CSV-02, PB-CSV-03, PB-CSV-04, PB-CSV-05, PB-CSV-06, PB-CSV-07, PB-CSV-08, PB-CSV-09, PB-CSV-10
+
+**Success Criteria** (what must be TRUE):
+  1. **4-step wizard** replaces single dialog — (1) Upload + drag-drop, (2) Column mapping (auto-detect with override), (3) Preview + per-row edit + dedupe strategy choice, (4) Import + verification summary. Progress indicator shows current step.
+  2. **Column auto-detection** — recognizes common alias headers ("item", "service", "description" → name; "price", "cost", "rate" → unit_price; "category", "group", "folder" → folder; "qty unit", "uom", "measure" → unit). User can override every mapping via dropdown. Supports skipping unmapped columns.
+  3. **Per-row inline editing** — every preview row's name/unit/unit_price/folder is editable directly in the table before commit. Validation errors (negative price, missing name, malformed currency) shown inline; row blocked from import only if user doesn't fix.
+  4. **Locale-aware currency parsing** — accepts `$1,234.56` · `1.234,56` · `R$ 1.234,56` · `1234` · `1234.5` · `"$1,234.56"`. Owner sees detected locale guess + can override (US / BR / Custom decimal+thousands).
+  5. **Duplicate resolution strategy** — when name+folder collides with existing row, user picks: Skip duplicates · Update existing (overwrite unit_price + unit + notes) · Import as new (suffix " (2)"). Default: Skip. Per-row override available.
+  6. **Dry-run summary BEFORE commit** — shows: N rows will be inserted · N updated · N skipped · N folders created. User confirms before any DB write.
+  7. **Undo last import** — every batch import writes a `price_book_imports` row capturing the inserted IDs; "Undo last import" button on price-book page deletes those rows (5-min window). Persisted in DB so survives reload.
+  8. **Streaming progress for large files** — files >200 rows show real-time progress (e.g. "Importing 347 of 800…") via React state ticks during the bulk insert. UI doesn't lock; cancel button available.
+  9. **Error report download** — if any rows fail validation, user can download `import-errors.csv` with the failed rows + reason column. Same format as input so they can fix and re-upload.
+  10. **Tests cover the new pipeline** — unit tests for: auto-detect aliases (8 cases), locale parsing (12 cases), dedupe strategies (3 cases × scenarios), wizard state machine (step nav + persistence on close-reopen). Playwright E2E spec walks the full happy path with a 50-row fixture file.
+
+**Out of scope for Phase 76:** scheduled imports, recurring sync with external sheets (Google Sheets API), AI-powered field normalization (use deterministic alias matching only). Those become future seeds.
+
+**Plans:** 5/5 plans complete
+
+### Phase 76.1: PWA — Progressive Web App Infrastructure (INSERTED)
+
+**Goal:** Xtimator passes Lighthouse PWA installability checks and can be added to the home screen on iOS Safari and Android Chrome. A service worker (via `@ducanh2912/next-pwa`) caches the app shell and previously visited estimates in read-only mode, so field contractors who open the app offline see their last-loaded data instead of a blank screen. Push notification scaffold (service worker registration + permission prompt) is out of scope here and belongs to Phase 77.
+
+**Depends on:** Phase 76 (Price Book CSV Pro — ensures app shell is stable before service worker layer is added)
+
+**Requirements:** PWA-01, PWA-02, PWA-03, PWA-04, PWA-05, PWA-06
+
+**Success Criteria** (what must be TRUE):
+  1. **Installable** — Lighthouse PWA audit passes on mobile simulation (all installability checks green). App installs correctly on iOS Safari (Add to Home Screen) and Android Chrome (install prompt).
+  2. **App shell offline** — Killing the network and reloading shows the app shell (not a browser error page). A branded offline fallback page renders at `/offline`.
+  3. **Read-only cache** — Previously visited `/estimates` list and individual `/estimates/[id]` pages load from cache when offline. Stale-while-revalidate for Supabase GET calls; Network Only for mutations and AI routes.
+  4. **Install prompt** — A bottom banner ("Install Xtimator for quick access") appears after the user has ≥1 estimate and has not dismissed it. Stores dismissal in localStorage. Only shown to authenticated users.
+  5. **Offline indicator** — A subtle top bar "You're offline — showing cached data" appears when `navigator.onLine` is false. Create/record CTAs are disabled with tooltip "Requires internet connection".
+  6. **Icons** — `public/icons/icon-192.png`, `icon-512.png`, `icon-maskable-192.png`, `icon-maskable-512.png` exist; `app/manifest.ts` fallback icons array points to `/icons/*`; `apple-touch-icon` meta tag present in layout.
+
+**Out of scope:** Push notification delivery (→ Phase 77), background sync / offline mutation queue, native app store submission.
+
+**Plans:** TBD (run /gsd:plan-phase 76.1 to break down — estimate 3-4 plans)
+
+### Phase 76.2: Settings & Admin Persistence Fix — DB Schema Sync + Full Audit (INSERTED)
+
+**Goal:** Every field in every settings page and admin panel actually persists to the database after save + refresh. Root cause: 6 columns added via recent migrations (`digital_signature_enabled`, `estimate_terms_enabled`, `estimate_terms_text`, `email_delivery_enabled`, `sms_delivery_enabled`, `ai_model_override`) were never applied to the Supabase project and `database.types.ts` was never regenerated. This phase applies all pending migrations, regenerates types, fixes any TypeScript errors surfaced, hardens server action error visibility, and does a full manual verification of every settings and admin form.
+
+**Depends on:** Phase 76 (Price Book CSV Pro — stable baseline before schema changes)
+
+**Requirements:** SETTINGS-FIX-01, SETTINGS-FIX-02, SETTINGS-FIX-03, SETTINGS-FIX-04, SETTINGS-FIX-05
+
+**Success Criteria** (what must be TRUE):
+  1. **All 6 missing columns exist in Supabase** — `digital_signature_enabled` (BOOL), `estimate_terms_enabled` (BOOL), `estimate_terms_text` (TEXT), `email_delivery_enabled` (BOOL), `sms_delivery_enabled` (BOOL), `ai_model_override` (TEXT) — verified via `SELECT column_name FROM information_schema.columns WHERE table_name = 'companies'`.
+  2. **`database.types.ts` reflects all columns** — all 6 columns present in `Database['public']['Tables']['companies']['Row']` type after regeneration via Supabase MCP or CLI.
+  3. **No TypeScript errors in settings/admin actions** — `npx tsc --noEmit` exits 0; no implicit `any` or missing-property errors in `lib/actions/settings.ts`, `app/admin/companies/actions.ts`, and all affected form components.
+  4. **Server action errors surface visibly** — `updateDeliverySettings`, `updateEstimateTerms`, `setCompanyModelOverride` log and return `{ ok: false, error }` on DB failure instead of silently swallowing errors; toast/alert shown in UI on failure.
+  5. **Manual verification passes** — for every affected page: fill form → save → hard refresh → values match what was saved. Pages: `/settings/delivery`, `/settings/estimate-templates`, `/admin/companies/[id]`. No regression on other settings pages.
+
+**Affected files:**
+- `supabase/migrations/` — 3 migration files to apply: `20260519000002`, `20260519000003`, `20260520000001`
+- `types/database.types.ts` — regenerate after applying migrations
+- `lib/actions/settings.ts` — fix TypeScript errors, surface errors in `updateDeliverySettings` + `updateEstimateTerms`
+- `app/admin/companies/actions.ts` — fix TypeScript errors in `setCompanyModelOverride`
+- `components/settings/delivery-settings-form.tsx` — fix type errors after regeneration
+- `components/settings/estimate-terms-form.tsx` — fix type errors after regeneration
+
+**Out of scope:** New features, UI redesign, WhatsApp settings (already working), billing pages (read-only).
+
+**Execution mode:** `/gsd:debug` — investigative fix, not a feature plan. The debug workflow handles systematic diagnosis, applies migrations, fixes TS errors, and verifies persistence across context resets.
+
+**Plans:** TBD (run `/gsd:debug` to execute — debug session replaces plan-phase for this fix)
+
+### Phase 77: Notifications System — Unified In-App + Email + (later) Push
+
+**Goal:** A robust notifications layer that captures every consequential event in the app (estimate viewed, accepted, paid, payment received, trial ending, quota warning, WhatsApp inbound, AI job failed, admin override, etc.), persists per-user as in-app feed entries, and optionally delivers via email + browser push. Users see a bell icon with unread badge in the topbar; clicking opens a panel with grouped + filterable list. Each notification has read/unread state, link to the relevant resource, and per-category mute control in Settings.
+
+**Depends on:** Phase 7 (Resend email infra) · Phase 67 (Inngest background dispatch) · Phase 70 (Stripe payment webhooks as event source) · Phase 71 (UI design system)
+
+**Requirements:** NOTIF-01, NOTIF-02, NOTIF-03, NOTIF-04, NOTIF-05, NOTIF-06, NOTIF-07, NOTIF-08, NOTIF-09, NOTIF-10, NOTIF-11, NOTIF-12
+
+**Success Criteria** (what must be TRUE):
+  1. **`notifications` table** ships with: id · company_id · user_id (nullable for company-wide) · event_type (enum) · title · body · link_url · resource_type · resource_id · metadata JSONB · read_at · created_at · expires_at. RLS scoped to company_id.
+  2. **`notification_preferences` per-user table** — JSONB `categories: {estimate: {in_app, email}, payment: {...}, trial: {...}, admin: {...}, whatsapp: {...}}`. Defaults: all in_app=true, email=true except quiet ones.
+  3. **`notify()` server-side helper** at `lib/notifications/dispatch.ts` — single API for any code path to enqueue a notification. Takes event_type + payload, looks up user preferences, fans out to: insert in_app row + queue email via Resend + (future) push.
+  4. **17 event types instrumented** across the app: estimate.viewed · estimate.accepted · estimate.declined · payment.received (Phase 70) · trial.expiring_3d · trial.expired · quota.80pct · quota.exhausted · whatsapp.inbound · ai_job.failed · ai_job.completed · admin.tier_changed · admin.bonus_credits_granted · price_book.imported · custom_domain.verified · invite.accepted · system.maintenance
+  5. **Topbar bell icon** with unread count badge (red dot when >0). Click opens a 400px panel with: grouped by day, unread bold, click navigates to link_url + marks as read. "Mark all as read" + "See all" actions.
+  6. **`/notifications` full-page view** with filtering by category + date range + read/unread, paginated, search by title/body.
+  7. **Email digest mode** — instead of one email per event, group same-category events into a single email if >3 events in 1 hour. Cron via Inngest.
+  8. **`/settings/notifications` tab** controls per-category toggles for in_app and email separately. Persists to `notification_preferences` immediately.
+  9. **Browser push notifications** (Phase 1: scaffold only — request permission button + Web Push API service worker registration; actual push delivery deferred to Phase 2 if user signals demand). Adds `push_subscription` JSONB to `notification_preferences`.
+  10. **Auto-cleanup cron** runs daily, deletes notifications older than 60 days unless `pinned=true`.
+  11. **Real-time updates** via Supabase Realtime — `notifications` INSERT subscription on the client increments the bell badge live without refresh.
+  12. **Tests** — unit: dispatch() preference fan-out (≥10 cases), category filtering (≥6 cases), email digest grouping (≥4 cases). Playwright E2E: walk full flow from trigger event → bell badge updates → click → read marked → navigate.
+
+**Out of scope (potential future seeds):**
+- SMS notifications (Twilio integration)
+- Per-user custom rules ("notify me when estimates over $5000 are sent")
+- Notification analytics dashboard
+- Browser push delivery proper (Phase 1 ships scaffold only)
+
+**Plans:** 7/7 plans complete
+
+### Phase 78: Admin OG Image Upload — File Upload with Preview Feedback
+
+**Goal:** The Super Admin SEO page replaces the bare "OG image URL" text input with a proper file upload control that shows visual preview, validates dimensions (1200x630 ideal, 600x315 minimum), stores in Supabase Storage, and surfaces the resulting URL automatically. Owner can upload a new image or remove the current one with one click.
+
+**Depends on:** Phase 71 (design system) · Phase 66 (storage abstraction)
+
+**Requirements:** OG-IMG-01, OG-IMG-02, OG-IMG-03, OG-IMG-04, OG-IMG-05
+
+**Success Criteria** (what must be TRUE):
+  1. Replace `<input type="url">` for OG image with a file upload dropzone (same UX as company LogoUploader). Accept image/png + image/jpeg. Max 2 MB.
+  2. On file select, show preview of the image in a 1200×630 aspect ratio frame (the actual OG card dimensions) with overlay text "1200×630 recommended". Display detected dimensions; warn if <600×315 with red text, but allow override.
+  3. Upload to Supabase Storage bucket `branding-assets/og-images/{timestamp}-{filename}` via existing `storage.upload()` API; on success, store the public URL in `platform_branding.og_image_url`.
+  4. Remove button clears `og_image_url` to null AND deletes the previous storage object (best-effort — don't fail save if delete errors). Confirmation modal before remove.
+  5. Existing URL-typed setups (current state) keep working — if `og_image_url` is set but the file isn't in branding-assets bucket (external URL), show preview if loadable + a hint "Currently using external URL — upload to migrate to managed storage".
+
+**Plans:** 2/2 plans complete

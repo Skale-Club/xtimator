@@ -1,6 +1,6 @@
 ---
 id: SEED-027
-status: dormant
+status: harvested
 planted: 2026-05-19
 planted_during: v3.1.1 MVP Launch Prep + Future-Proofing
 trigger_when: Imediatamente após o onboarding de dados estar estável; usuário confirmou "já é pra fazer agora"

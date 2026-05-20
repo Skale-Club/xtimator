@@ -1,6 +1,6 @@
 ---
 id: SEED-026
-status: dormant
+status: harvested
 planted: 2026-05-19
 planted_during: v3.1.1 MVP Launch Prep + Future-Proofing
 trigger_when: Next milestone after v3.1.1 — or immediately when prioritized; user confirmed "já é pra fazer agora"

@@ -14,6 +14,8 @@ import {
   transcribeAudioJob,
   analyzePhotosJob,
   whatsAppProcessJob,
+  notificationEmailDigest,
+  notificationCleanup,
 } from '@/lib/inngest/functions'
 
 export const { GET, POST, PUT } = serve({
@@ -23,5 +25,7 @@ export const { GET, POST, PUT } = serve({
     transcribeAudioJob,
     analyzePhotosJob,
     whatsAppProcessJob,
+    notificationEmailDigest,
+    notificationCleanup,
   ],
 })
