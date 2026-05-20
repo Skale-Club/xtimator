@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v3.1.1
 milestone_name: MVP Launch Prep + Future-Proofing
 status: executing
-last_updated: "2026-05-20T11:47:20.303Z"
+last_updated: "2026-05-20T11:52:27.426Z"
 last_activity: 2026-05-20
 progress:
   total_phases: 18
@@ -428,6 +428,8 @@ Last activity: 2026-05-20
 - [Phase 75]: Playwright tour spec uses requireDashboard(page) skip-with-reason for auth-gated tests until shared auth fixture lands
 - [Phase 75]: Phase 75 closed — all 7 TOUR-FIX-* requirements complete. Manual UAT runbook shipped at tests/visual/tour-uat-runbook.md; auto-approved per project memory.
 - [Phase 76]: 76-01: Foundation landed — price_book_imports table + alias/locale stubs + 37 Wave-0 RED tests + 50-row fixture. Migration applied via Node/pg script due to supabase db push pooler conflict.
+- [Phase 77]: resolveChannels takes (eventType, userId, override) per RED test contract; loads prefs internally
+- [Phase 77]: override params re-applied inside notify() over resolveChannels result for deterministic force-send
 
 ## Performance Metrics
 
@@ -565,6 +567,7 @@ Last activity: 2026-05-20
 | Phase 76 P01 | 12m | 3 tasks | 9 files |
 | Phase 76 P02 | ~10 min | 3 tasks | 5 files |
 | Phase 77 P01 | 8 | 3 tasks | 6 files |
+| Phase 77 P02 | 6 | 3 tasks | 3 files |
 
 ## Project Reference
 
