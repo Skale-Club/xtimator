@@ -30,7 +30,6 @@ vi.mock('sonner', () => ({
 beforeEach(() => {
   toastErrorMock.mockReset()
   toastSuccessMock.mockReset()
-  // @ts-expect-error - jsdom global
   global.URL.createObjectURL = vi.fn(() => 'blob:mock-object-url')
 })
 

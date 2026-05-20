@@ -1,6 +1,6 @@
 'use client'
 
-import { useTransition } from 'react'
+import { useState, useTransition } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
@@ -19,6 +19,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
+import { OgImageUploader } from '@/components/admin/og-image-uploader'
 
 import { saveSeo } from './actions'
 import { useTranslation } from '@/lib/i18n/use-translation'
@@ -38,6 +39,16 @@ export function SeoEditor({ initial }: SeoEditorProps) {
   const [isPending, startTransition] = useTransition()
   const { t } = useTranslation()
 
+  // Lifted state for the OG image uploader. RHF still owns `ogImageUrl`
+  // (source of truth for what gets persisted when no new file is selected);
+  // these locals drive the preview and the upload payload that Plan 78-02
+  // will consume on the server side.
+  const [ogImagePreview, setOgImagePreview] = useState<string | null>(
+    initial.ogImageUrl || null
+  )
+  const [ogImageFile, setOgImageFile] = useState<File | null>(null)
+  const [ogImageRemoved, setOgImageRemoved] = useState(false)
+
   const form = useForm<SeoInput>({
     resolver: zodResolver(seoSchema) as never,
     defaultValues: {
@@ -48,6 +59,22 @@ export function SeoEditor({ initial }: SeoEditorProps) {
     },
   })
 
+  function handleOgImageSelect(file: File, preview: string) {
+    setOgImageFile(file)
+    setOgImagePreview(preview)
+    setOgImageRemoved(false)
+    // Mark form dirty; the actual URL is filled in by the server upload step
+    // in Plan 78-02 (presence of `ogImageFile` in the FormData is the signal).
+    form.setValue('ogImageUrl', '', { shouldDirty: true })
+  }
+
+  function handleOgImageRemove() {
+    setOgImageFile(null)
+    setOgImagePreview(null)
+    setOgImageRemoved(true)
+    form.setValue('ogImageUrl', '', { shouldDirty: true })
+  }
+
   function onSubmit(values: SeoInput) {
     startTransition(async () => {
       const fd = new FormData()
@@ -55,6 +82,9 @@ export function SeoEditor({ initial }: SeoEditorProps) {
       fd.set('metaDescription', values.metaDescription ?? '')
       fd.set('ogImageUrl', values.ogImageUrl ?? '')
       fd.set('canonicalBaseUrl', values.canonicalBaseUrl ?? '')
+      // Wiring for Plan 78-02 — server currently ignores unknown FormData keys.
+      if (ogImageFile) fd.set('ogImageFile', ogImageFile)
+      fd.set('ogImageRemoved', String(ogImageRemoved))
 
       const result = await saveSeo(fd)
       if (result.ok) {
@@ -113,27 +143,19 @@ export function SeoEditor({ initial }: SeoEditorProps) {
           )}
         />
 
-        <FormField
-          control={form.control}
-          name="ogImageUrl"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t('OG image URL')}</FormLabel>
-              <FormControl>
-                <Input
-                  placeholder="https://xtimator.com/og-image.png"
-                  {...field}
-                  value={field.value ?? ''}
-                  onChange={e => field.onChange(e.target.value)}
-                />
-              </FormControl>
-              <FormDescription>
-                {t('Full URL to image shown when sharing links on social media.')}
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        <FormItem>
+          <FormLabel>{t('OG image')}</FormLabel>
+          <FormControl>
+            <OgImageUploader
+              currentUrl={ogImagePreview}
+              onFileSelect={handleOgImageSelect}
+              onRemove={handleOgImageRemove}
+            />
+          </FormControl>
+          <FormDescription>
+            {t('Shown when sharing links on social media. Ideal: 1200 x 630 PNG or JPG, under 2MB.')}
+          </FormDescription>
+        </FormItem>
 
         <FormField
           control={form.control}
