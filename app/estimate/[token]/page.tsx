@@ -39,6 +39,11 @@ export default async function SharePage({ params, searchParams }: SharePageProps
     notFound()
   }
 
+  // SEED-028: don't expose a draft via the public share link.
+  if (data.estimate.workflow_status !== 'consolidated') {
+    notFound()
+  }
+
   // Log the view event (fire-and-forget, don't block render)
   logEstimateView(token).catch(() => {
     // Silently ignore view logging failures

@@ -144,6 +144,7 @@ export async function POST(
         version: nextVersion,
         is_current: true,
         status: 'draft',
+        workflow_status: 'draft',
         summary: aiEstimate.summary,
         notes: aiEstimate.notes ?? null,
         timeline: aiEstimate.timeline ?? null,
