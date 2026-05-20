@@ -1,4 +1,5 @@
 import { Card, CardContent } from '@/components/ui/card'
+import { AppIcon } from '@/components/ui/app-icon'
 
 export interface AuthBranding {
   appName: string
@@ -33,17 +34,7 @@ export function AuthCard({ branding, title, children }: AuthCardProps) {
           <CardContent className="p-8 sm:p-10">
             {/* Logo + wordmark — horizontal, matches landing nav style */}
             <div className="mb-8 flex items-center justify-center gap-2.5">
-              {branding.logoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={branding.logoUrl}
-                  alt=""
-                  className="h-8 w-auto object-contain"
-                  aria-hidden="true"
-                />
-              ) : (
-                <LogoFallback appName={branding.appName} />
-              )}
+              <AppIcon logoUrl={branding.logoUrl} appName={branding.appName} className="h-8 w-8" />
               <span className="font-bold text-xl tracking-tight text-white">
                 {branding.appName}
               </span>

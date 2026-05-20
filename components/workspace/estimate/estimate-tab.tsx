@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, startTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Sparkles, FileText } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -86,8 +86,10 @@ export function EstimateTab({
   // -------------------------------------------------------------------------
 
   async function handleGenerate() {
-    setIsGenerating(true)
-    setGenerationStep(0)
+    startTransition(() => {
+      setIsGenerating(true)
+      setGenerationStep(0)
+    })
 
     try {
       // Step 0: Analyze photos (if any)
@@ -142,7 +144,7 @@ export function EstimateTab({
   // -------------------------------------------------------------------------
 
   async function handleCreateBlank() {
-    setIsCreatingBlank(true)
+    startTransition(() => setIsCreatingBlank(true))
     const result = await createBlankEstimate(projectId)
     if (result.error) {
       toast.error(result.error)
@@ -150,7 +152,7 @@ export function EstimateTab({
       toast.success(t('Blank estimate created'))
       router.refresh()
     }
-    setIsCreatingBlank(false)
+    startTransition(() => setIsCreatingBlank(false))
   }
 
   // -------------------------------------------------------------------------

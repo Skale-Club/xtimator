@@ -65,7 +65,7 @@ export function OnboardingWizard({ appName }: { appName: string }) {
     const fields = STEP_FIELDS[currentStep]
     const valid = await form.trigger(fields as (keyof OnboardingValues)[])
     if (valid && currentStep < 3) {
-      setCurrentStep((prev) => prev + 1)
+      startTransition(() => setCurrentStep((prev) => prev + 1))
       focusStepTitle()
     }
   }
