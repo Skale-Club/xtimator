@@ -832,7 +832,7 @@ Plans:
 - Notification analytics dashboard
 - Browser push delivery proper (Phase 1 ships scaffold only)
 
-**Plans:** 3/7 plans executed
+**Plans:** 4/7 plans executed
 
 ### Phase 78: Admin OG Image Upload — File Upload with Preview Feedback
 
