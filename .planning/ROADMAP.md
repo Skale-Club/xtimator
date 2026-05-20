@@ -803,3 +803,50 @@ Plans:
 **Out of scope for Phase 76:** scheduled imports, recurring sync with external sheets (Google Sheets API), AI-powered field normalization (use deterministic alias matching only). Those become future seeds.
 
 **Plans:** 5/5 plans complete
+
+### Phase 77: Notifications System — Unified In-App + Email + (later) Push
+
+**Goal:** A robust notifications layer that captures every consequential event in the app (estimate viewed, accepted, paid, payment received, trial ending, quota warning, WhatsApp inbound, AI job failed, admin override, etc.), persists per-user as in-app feed entries, and optionally delivers via email + browser push. Users see a bell icon with unread badge in the topbar; clicking opens a panel with grouped + filterable list. Each notification has read/unread state, link to the relevant resource, and per-category mute control in Settings.
+
+**Depends on:** Phase 7 (Resend email infra) · Phase 67 (Inngest background dispatch) · Phase 70 (Stripe payment webhooks as event source) · Phase 71 (UI design system)
+
+**Requirements:** NOTIF-01, NOTIF-02, NOTIF-03, NOTIF-04, NOTIF-05, NOTIF-06, NOTIF-07, NOTIF-08, NOTIF-09, NOTIF-10, NOTIF-11, NOTIF-12
+
+**Success Criteria** (what must be TRUE):
+  1. **`notifications` table** ships with: id · company_id · user_id (nullable for company-wide) · event_type (enum) · title · body · link_url · resource_type · resource_id · metadata JSONB · read_at · created_at · expires_at. RLS scoped to company_id.
+  2. **`notification_preferences` per-user table** — JSONB `categories: {estimate: {in_app, email}, payment: {...}, trial: {...}, admin: {...}, whatsapp: {...}}`. Defaults: all in_app=true, email=true except quiet ones.
+  3. **`notify()` server-side helper** at `lib/notifications/dispatch.ts` — single API for any code path to enqueue a notification. Takes event_type + payload, looks up user preferences, fans out to: insert in_app row + queue email via Resend + (future) push.
+  4. **17 event types instrumented** across the app: estimate.viewed · estimate.accepted · estimate.declined · payment.received (Phase 70) · trial.expiring_3d · trial.expired · quota.80pct · quota.exhausted · whatsapp.inbound · ai_job.failed · ai_job.completed · admin.tier_changed · admin.bonus_credits_granted · price_book.imported · custom_domain.verified · invite.accepted · system.maintenance
+  5. **Topbar bell icon** with unread count badge (red dot when >0). Click opens a 400px panel with: grouped by day, unread bold, click navigates to link_url + marks as read. "Mark all as read" + "See all" actions.
+  6. **`/notifications` full-page view** with filtering by category + date range + read/unread, paginated, search by title/body.
+  7. **Email digest mode** — instead of one email per event, group same-category events into a single email if >3 events in 1 hour. Cron via Inngest.
+  8. **`/settings/notifications` tab** controls per-category toggles for in_app and email separately. Persists to `notification_preferences` immediately.
+  9. **Browser push notifications** (Phase 1: scaffold only — request permission button + Web Push API service worker registration; actual push delivery deferred to Phase 2 if user signals demand). Adds `push_subscription` JSONB to `notification_preferences`.
+  10. **Auto-cleanup cron** runs daily, deletes notifications older than 60 days unless `pinned=true`.
+  11. **Real-time updates** via Supabase Realtime — `notifications` INSERT subscription on the client increments the bell badge live without refresh.
+  12. **Tests** — unit: dispatch() preference fan-out (≥10 cases), category filtering (≥6 cases), email digest grouping (≥4 cases). Playwright E2E: walk full flow from trigger event → bell badge updates → click → read marked → navigate.
+
+**Out of scope (potential future seeds):**
+- SMS notifications (Twilio integration)
+- Per-user custom rules ("notify me when estimates over $5000 are sent")
+- Notification analytics dashboard
+- Browser push delivery proper (Phase 1 ships scaffold only)
+
+**Plans:** TBD (run /gsd:plan-phase 77 to break down — estimate 6-8 plans)
+
+### Phase 78: Admin OG Image Upload — File Upload with Preview Feedback
+
+**Goal:** The Super Admin SEO page replaces the bare "OG image URL" text input with a proper file upload control that shows visual preview, validates dimensions (1200x630 ideal, 600x315 minimum), stores in Supabase Storage, and surfaces the resulting URL automatically. Owner can upload a new image or remove the current one with one click.
+
+**Depends on:** Phase 71 (design system) · Phase 66 (storage abstraction)
+
+**Requirements:** OG-IMG-01, OG-IMG-02, OG-IMG-03, OG-IMG-04, OG-IMG-05
+
+**Success Criteria** (what must be TRUE):
+  1. Replace `<input type="url">` for OG image with a file upload dropzone (same UX as company LogoUploader). Accept image/png + image/jpeg. Max 2 MB.
+  2. On file select, show preview of the image in a 1200×630 aspect ratio frame (the actual OG card dimensions) with overlay text "1200×630 recommended". Display detected dimensions; warn if <600×315 with red text, but allow override.
+  3. Upload to Supabase Storage bucket `branding-assets/og-images/{timestamp}-{filename}` via existing `storage.upload()` API; on success, store the public URL in `platform_branding.og_image_url`.
+  4. Remove button clears `og_image_url` to null AND deletes the previous storage object (best-effort — don't fail save if delete errors). Confirmation modal before remove.
+  5. Existing URL-typed setups (current state) keep working — if `og_image_url` is set but the file isn't in branding-assets bucket (external URL), show preview if loadable + a hint "Currently using external URL — upload to migrate to managed storage".
+
+**Plans:** TBD (run /gsd:plan-phase 78 to break down — estimate 2 plans)

@@ -240,3 +240,43 @@ Coverage: 39/39 (100%) — every v1 requirement maps to exactly one phase, no or
 | PB-CSV-08 | Phase 76 | Complete |
 | PB-CSV-09 | Phase 76 | Complete |
 | PB-CSV-10 | Phase 76 | Complete |
+
+### NOTIF — Notifications System (Phase 77)
+
+- [ ] **NOTIF-01**: `notifications` table with proper schema + RLS scoped to company_id
+- [ ] **NOTIF-02**: `notification_preferences` per-user table with JSONB categories + sensible defaults
+- [ ] **NOTIF-03**: `notify()` helper at `lib/notifications/dispatch.ts` — single API for fan-out
+- [ ] **NOTIF-04**: 17 event types instrumented across the codebase (estimate/payment/trial/quota/whatsapp/ai_job/admin/etc.)
+- [ ] **NOTIF-05**: Topbar bell icon with unread badge + 400px panel + mark as read on click
+- [ ] **NOTIF-06**: `/notifications` full-page view with filtering + pagination + search
+- [ ] **NOTIF-07**: Email digest mode (grouped via Inngest cron, >3 events/hr per category)
+- [ ] **NOTIF-08**: `/settings/notifications` per-category in_app+email toggles
+- [ ] **NOTIF-09**: Browser push notifications scaffold (permission + service worker registration)
+- [ ] **NOTIF-10**: Auto-cleanup cron, 60-day TTL (unless pinned)
+- [ ] **NOTIF-11**: Real-time bell badge via Supabase Realtime subscription
+- [ ] **NOTIF-12**: Test coverage — unit (≥20 cases) + Playwright E2E (full trigger→bell→click→read flow)
+
+### OG-IMG — Admin OG Image Upload (Phase 78)
+
+- [ ] **OG-IMG-01**: Replace URL input with file upload dropzone (image/png + image/jpeg, max 2 MB)
+- [ ] **OG-IMG-02**: 1200×630 aspect-ratio preview frame + dimension validation (warn <600×315)
+- [ ] **OG-IMG-03**: Upload to Supabase Storage `branding-assets/og-images/` via existing storage.upload API
+- [ ] **OG-IMG-04**: Remove button with confirmation modal + best-effort storage cleanup
+- [ ] **OG-IMG-05**: Backward-compat for existing URL-typed OG images (show preview if loadable + migration hint)
+| NOTIF-01 | Phase 77 | Pending |
+| NOTIF-02 | Phase 77 | Pending |
+| NOTIF-03 | Phase 77 | Pending |
+| NOTIF-04 | Phase 77 | Pending |
+| NOTIF-05 | Phase 77 | Pending |
+| NOTIF-06 | Phase 77 | Pending |
+| NOTIF-07 | Phase 77 | Pending |
+| NOTIF-08 | Phase 77 | Pending |
+| NOTIF-09 | Phase 77 | Pending |
+| NOTIF-10 | Phase 77 | Pending |
+| NOTIF-11 | Phase 77 | Pending |
+| NOTIF-12 | Phase 77 | Pending |
+| OG-IMG-01 | Phase 78 | Pending |
+| OG-IMG-02 | Phase 78 | Pending |
+| OG-IMG-03 | Phase 78 | Pending |
+| OG-IMG-04 | Phase 78 | Pending |
+| OG-IMG-05 | Phase 78 | Pending |
