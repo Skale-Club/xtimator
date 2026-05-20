@@ -20,11 +20,18 @@ vi.mock('@/lib/auth/admin-context', () => ({
   requireAdmin: () => requireAdminMock(),
 }))
 
-const upsertMock = vi.fn(async () => ({ error: null }))
-const selectSingleMock = vi.fn(async () => ({
-  data: { og_image_url: null },
+const upsertMock = vi.fn(async (): Promise<{ error: { message: string } | null }> => ({
   error: null,
 }))
+const selectSingleMock = vi.fn(
+  async (): Promise<{
+    data: { og_image_url: string | null } | null
+    error: { message: string } | null
+  }> => ({
+    data: { og_image_url: null },
+    error: null,
+  })
+)
 
 // Chainable Supabase stub: svc.from(t).upsert(p) / svc.from(t).select(...).eq(...).maybeSingle()
 const fromMock = vi.fn((_table: string) => ({
@@ -46,16 +53,28 @@ vi.mock('@/lib/supabase/service', () => ({
   requireServiceClient: () => ({ from: fromMock }),
 }))
 
-const uploadMock = vi.fn(async (_b: string, path: string) => ({ path }))
+const uploadMock = vi.fn(
+  async (
+    _bucket: string,
+    path: string,
+    _body: unknown,
+    _opts?: { contentType?: string; upsert?: boolean }
+  ) => ({ path })
+)
 const getPublicUrlMock = vi.fn(
   (_b: string, path: string) =>
     `https://example.supabase.co/storage/v1/object/public/platform-brand/${path}`
 )
-const deleteMock = vi.fn(async () => undefined)
+const deleteMock = vi.fn(async (_bucket: string, _path: string): Promise<void> => undefined)
 
 vi.mock('@/lib/storage', () => ({
   createStorage: () => ({
-    upload: (...a: [string, string, unknown, unknown?]) => uploadMock(...a),
+    upload: (
+      b: string,
+      p: string,
+      body: unknown,
+      opts?: { contentType?: string; upsert?: boolean }
+    ) => uploadMock(b, p, body, opts),
     getPublicUrl: (b: string, p: string) => getPublicUrlMock(b, p),
     delete: (b: string, p: string) => deleteMock(b, p),
   }),
@@ -94,10 +113,13 @@ beforeEach(() => {
   upsertMock.mockClear()
   upsertMock.mockResolvedValue({ error: null })
   selectSingleMock.mockClear()
-  selectSingleMock.mockResolvedValue({ data: { og_image_url: null }, error: null })
+  selectSingleMock.mockResolvedValue({
+    data: { og_image_url: null as string | null },
+    error: null,
+  })
   fromMock.mockClear()
   uploadMock.mockClear()
-  uploadMock.mockImplementation(async (_b: string, path: string) => ({ path }))
+  uploadMock.mockImplementation(async (_b, path) => ({ path }))
   getPublicUrlMock.mockClear()
   deleteMock.mockClear()
   deleteMock.mockResolvedValue(undefined)
