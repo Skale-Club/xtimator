@@ -100,8 +100,8 @@ export function LoginForm() {
             render={({ field }) => (
               <FormItem>
                 <FormLabel className="text-sm font-medium text-white/80">Password</FormLabel>
-                <FormControl>
-                  <div className="relative">
+                <div className="relative">
+                  <FormControl>
                     <Input
                       type={showPassword ? 'text' : 'password'}
                       placeholder="••••••••"
@@ -110,17 +110,17 @@ export function LoginForm() {
                       className="input-glow-strong min-h-[48px] border-white/10 bg-white/5 px-4 pr-12 text-white transition-all focus-visible:bg-white/10"
                       {...field}
                     />
-                    <button
-                      type="button"
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-white"
-                      onClick={() => setShowPassword(!showPassword)}
-                      aria-label={showPassword ? 'Hide password' : 'Show password'}
-                      tabIndex={-1}
-                    >
-                      {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-                    </button>
-                  </div>
-                </FormControl>
+                  </FormControl>
+                  <button
+                    type="button"
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-white"
+                    onClick={() => setShowPassword(!showPassword)}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    tabIndex={-1}
+                  >
+                    {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                  </button>
+                </div>
                 <FormMessage className="text-red-400" />
               </FormItem>
             )}
