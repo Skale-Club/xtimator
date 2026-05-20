@@ -2,41 +2,79 @@
 
 import { requireServiceClient } from '@/lib/supabase/service'
 import { getIntegrationKey, getBranding } from '@/lib/platform-config'
+import { notify } from '@/lib/notifications/dispatch'
+import { buildNotificationCopy } from '@/lib/notifications/copy'
 
 export async function logEstimateView(token: string): Promise<void> {
   const supabase = requireServiceClient()
 
-  // Look up estimate by share_token
+  // Look up estimate by share_token. Select extra fields needed for the
+  // in-app notification copy (Phase 77 NOTIF-04).
   const { data: estimate } = await supabase
     .from('estimates')
-    .select('id, project_id, company_id, viewed_at')
+    .select('id, project_id, company_id, viewed_at, estimate_number, client_name')
     .eq('share_token', token)
     .single()
 
   if (!estimate) return
 
+  const estimateRow = estimate as {
+    id: string
+    project_id: string
+    company_id: string
+    viewed_at: string | null
+    estimate_number?: string | null
+    client_name?: string | null
+  }
+
   // Update viewed_at only on first view
-  if (!estimate.viewed_at) {
+  if (!estimateRow.viewed_at) {
     await supabase
       .from('estimates')
       .update({ viewed_at: new Date().toISOString() })
-      .eq('id', estimate.id)
+      .eq('id', estimateRow.id)
   }
 
   // Log view activity
   await supabase.from('estimate_activity').insert({
-    project_id: estimate.project_id,
-    company_id: estimate.company_id,
-    estimate_id: estimate.id,
+    project_id: estimateRow.project_id,
+    company_id: estimateRow.company_id,
+    estimate_id: estimateRow.id,
     event_type: 'estimate_viewed',
     metadata: {},
   })
+
+  // Phase 77 NOTIF-04: fire in-app notification. Best-effort — notify() never
+  // throws. Dedupe key is per estimate per day so repeated views by the same
+  // client only ping the owner once a day.
+  try {
+    const ymd = new Date().toISOString().slice(0, 10)
+    const copy = buildNotificationCopy('estimate.viewed', {
+      estimateNumber: estimateRow.estimate_number ?? undefined,
+      clientName: estimateRow.client_name ?? undefined,
+    })
+    void notify({
+      companyId: estimateRow.company_id,
+      userId: null, // company-wide row — every member sees it
+      eventType: 'estimate.viewed',
+      title: copy.title,
+      body: copy.body,
+      linkUrl: `/projects/${estimateRow.project_id}/estimates/${estimateRow.id}`,
+      resourceType: 'estimate',
+      resourceId: estimateRow.id,
+      metadata: {
+        dedupe_key: `estimate-viewed-${estimateRow.id}-${ymd}`,
+      },
+    })
+  } catch {
+    /* best-effort */
+  }
 
   // Check company notification preferences
   const { data: company } = await supabase
     .from('companies')
     .select('notify_on_view, email, name')
-    .eq('id', estimate.company_id)
+    .eq('id', estimateRow.company_id)
     .single()
 
   if (company?.notify_on_view && company.email) {
@@ -47,7 +85,7 @@ export async function logEstimateView(token: string): Promise<void> {
       const { data: project } = await supabase
         .from('projects')
         .select('name')
-        .eq('id', estimate.project_id)
+        .eq('id', estimateRow.project_id)
         .single()
 
       try {
@@ -77,7 +115,7 @@ export async function respondToEstimate(
   // Look up estimate
   const { data: estimate } = await supabase
     .from('estimates')
-    .select('id, project_id, company_id, client_response')
+    .select('id, project_id, company_id, client_response, estimate_number, client_name')
     .eq('share_token', token)
     .single()
 
@@ -85,7 +123,16 @@ export async function respondToEstimate(
     return { success: false, error: 'Estimate not found' }
   }
 
-  if (estimate.client_response) {
+  const est = estimate as {
+    id: string
+    project_id: string
+    company_id: string
+    client_response: string | null
+    estimate_number?: string | null
+    client_name?: string | null
+  }
+
+  if (est.client_response) {
     return { success: false, error: 'This estimate has already been responded to' }
   }
 
@@ -96,28 +143,49 @@ export async function respondToEstimate(
       client_response: response,
       responded_at: new Date().toISOString(),
     })
-    .eq('id', estimate.id)
+    .eq('id', est.id)
 
   // Update project status to match response
   await supabase
     .from('projects')
     .update({ status: response })
-    .eq('id', estimate.project_id)
+    .eq('id', est.project_id)
 
   // Log activity
   await supabase.from('estimate_activity').insert({
-    project_id: estimate.project_id,
-    company_id: estimate.company_id,
-    estimate_id: estimate.id,
+    project_id: est.project_id,
+    company_id: est.company_id,
+    estimate_id: est.id,
     event_type: `estimate_${response}`,
     metadata: {},
   })
+
+  // Phase 77 NOTIF-04: in-app notification on client response. Best-effort.
+  try {
+    const eventType = response === 'accepted' ? 'estimate.accepted' : 'estimate.declined'
+    const copy = buildNotificationCopy(eventType, {
+      estimateNumber: est.estimate_number ?? undefined,
+      clientName: est.client_name ?? undefined,
+    })
+    void notify({
+      companyId: est.company_id,
+      userId: null,
+      eventType,
+      title: copy.title,
+      body: copy.body,
+      linkUrl: `/projects/${est.project_id}/estimates/${est.id}`,
+      resourceType: 'estimate',
+      resourceId: est.id,
+    })
+  } catch {
+    /* best-effort */
+  }
 
   // Send notification email if enabled
   const { data: company } = await supabase
     .from('companies')
     .select('notify_on_accept, notify_on_decline, email, name')
-    .eq('id', estimate.company_id)
+    .eq('id', est.company_id)
     .single()
 
   const shouldNotify =
@@ -132,7 +200,7 @@ export async function respondToEstimate(
       const { data: project } = await supabase
         .from('projects')
         .select('name')
-        .eq('id', estimate.project_id)
+        .eq('id', est.project_id)
         .single()
 
       try {

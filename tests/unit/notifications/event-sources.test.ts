@@ -68,16 +68,8 @@ describe('estimate.viewed instrumentation', () => {
   beforeEach(() => vi.clearAllMocks())
 
   it('logEstimateView fires notify({eventType:"estimate.viewed"}) with dedupe key', async () => {
-    // Mock supabase service client minimally
-    const updateEq = vi.fn().mockResolvedValue({ error: null })
-    const update = vi.fn().mockReturnValue({ eq: updateEq })
-    const insert = vi.fn().mockResolvedValue({ error: null })
-    const eqSingle = vi.fn()
-    const select = vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ single: eqSingle }) })
-
-    // First call: estimates lookup; second: companies lookup; third: projects lookup
-    eqSingle
-      .mockResolvedValueOnce({
+    const responses: Array<{ data: unknown; error: unknown }> = [
+      {
         data: {
           id: 'est_1',
           project_id: 'proj_1',
@@ -87,14 +79,22 @@ describe('estimate.viewed instrumentation', () => {
           client_name: 'Acme',
         },
         error: null,
-      })
-      .mockResolvedValueOnce({
-        data: { notify_on_view: false, email: null, name: 'BizName' },
-        error: null,
-      })
-      .mockResolvedValueOnce({ data: { name: 'Roof Job' }, error: null })
-
-    const from = vi.fn().mockImplementation(() => ({ select, update, insert }))
+      },
+      { data: { notify_on_view: false, email: null, name: 'BizName' }, error: null },
+      { data: { name: 'Roof Job' }, error: null },
+    ]
+    let i = 0
+    const makeChain = () => {
+      const chain: Record<string, unknown> = {
+        single: vi.fn().mockImplementation(() => Promise.resolve(responses[i++] ?? { data: null, error: null })),
+      }
+      chain.eq = vi.fn().mockReturnValue(chain)
+      chain.select = vi.fn().mockReturnValue(chain)
+      chain.update = vi.fn().mockReturnValue(chain)
+      chain.insert = vi.fn().mockResolvedValue({ error: null })
+      return chain
+    }
+    const from = vi.fn().mockImplementation(() => makeChain())
 
     vi.doMock('@/lib/supabase/service', () => ({
       requireServiceClient: () => ({ from }),
@@ -124,14 +124,11 @@ describe('estimate.viewed instrumentation', () => {
 describe('estimate.accepted / estimate.declined instrumentation', () => {
   beforeEach(() => vi.clearAllMocks())
 
-  function buildSupabaseMock(response: 'accepted' | 'declined') {
-    const eqSingle = vi.fn()
-    const select = vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ single: eqSingle }) })
-    const updateEq = vi.fn().mockResolvedValue({ error: null })
-    const update = vi.fn().mockReturnValue({ eq: updateEq })
-    const insert = vi.fn().mockResolvedValue({ error: null })
-    eqSingle
-      .mockResolvedValueOnce({
+  function buildSupabaseMock(_response: 'accepted' | 'declined') {
+    // Each from() call gets its own chain (estimates lookup, estimates update,
+    // projects update, estimate_activity insert, companies lookup).
+    const responses: Array<{ data: unknown; error: unknown }> = [
+      {
         data: {
           id: 'est_2',
           project_id: 'proj_2',
@@ -141,8 +138,8 @@ describe('estimate.accepted / estimate.declined instrumentation', () => {
           client_name: 'Bob',
         },
         error: null,
-      })
-      .mockResolvedValueOnce({
+      },
+      {
         data: {
           notify_on_accept: false,
           notify_on_decline: false,
@@ -150,15 +147,30 @@ describe('estimate.accepted / estimate.declined instrumentation', () => {
           name: 'Biz',
         },
         error: null,
-      })
+      },
+    ]
+    let singleCallIndex = 0
+    const makeChain = () => {
+      const chain: Record<string, unknown> = {
+        single: vi.fn().mockImplementation(() => {
+          const r = responses[singleCallIndex++] ?? { data: null, error: null }
+          return Promise.resolve(r)
+        }),
+      }
+      chain.eq = vi.fn().mockReturnValue(chain)
+      chain.select = vi.fn().mockReturnValue(chain)
+      chain.update = vi.fn().mockReturnValue(chain)
+      chain.insert = vi.fn().mockResolvedValue({ error: null })
+      return chain
+    }
     return {
-      from: vi.fn().mockImplementation(() => ({ select, update, insert })),
-      _response: response,
+      from: vi.fn().mockImplementation(() => makeChain()),
     }
   }
 
   for (const response of ['accepted', 'declined'] as const) {
     it(`respondToEstimate(${response}) fires notify({eventType:"estimate.${response}"})`, async () => {
+      vi.resetModules()
       const svc = buildSupabaseMock(response)
       vi.doMock('@/lib/supabase/service', () => ({
         requireServiceClient: () => svc,
@@ -166,6 +178,9 @@ describe('estimate.accepted / estimate.declined instrumentation', () => {
       vi.doMock('@/lib/platform-config', () => ({
         getIntegrationKey: vi.fn().mockResolvedValue(null),
         getBranding: vi.fn().mockResolvedValue({ appName: 'Xtimator' }),
+      }))
+      vi.doMock('@/lib/notifications/dispatch', () => ({
+        notify: vi.fn().mockResolvedValue({ ok: true }),
       }))
       const { respondToEstimate } = await import('@/app/estimate/[token]/actions')
       await respondToEstimate('tok_x', response)
@@ -394,12 +409,20 @@ describe('admin.tier_changed + admin.bonus_credits_granted instrumentation', () 
   beforeEach(() => vi.clearAllMocks())
 
   it('forceTier fires notify({eventType:"admin.tier_changed"}) with force channels', async () => {
-    const single = vi.fn().mockResolvedValue({ data: { user_id: 'user_owner', tier: 'free' }, error: null })
-    const eq = vi.fn().mockReturnValue({ single })
-    const select = vi.fn().mockReturnValue({ eq })
-    const updateEq = vi.fn().mockResolvedValue({ error: null })
-    const update = vi.fn().mockReturnValue({ eq: updateEq })
-    const svc = { from: vi.fn().mockReturnValue({ select, update }) }
+    const makeChain = () => {
+      const chain: Record<string, unknown> = {
+        single: vi.fn().mockResolvedValue({
+          data: { user_id: 'user_owner', tier: 'free' },
+          error: null,
+        }),
+      }
+      chain.eq = vi.fn().mockReturnValue(chain)
+      chain.select = vi.fn().mockReturnValue(chain)
+      chain.update = vi.fn().mockReturnValue(chain)
+      chain.insert = vi.fn().mockResolvedValue({ error: null })
+      return chain
+    }
+    const svc = { from: vi.fn().mockImplementation(() => makeChain()) }
 
     vi.doMock('@/lib/auth/admin-context', () => ({
       requireAdmin: vi.fn().mockResolvedValue({ userId: 'admin_1', email: 'admin@x.com' }),
@@ -429,11 +452,16 @@ describe('admin.tier_changed + admin.bonus_credits_granted instrumentation', () 
   })
 
   it('grantBonusCredits fires notify({eventType:"admin.bonus_credits_granted"})', async () => {
-    const insert = vi.fn().mockResolvedValue({ error: null })
-    const single = vi.fn().mockResolvedValue({ data: { user_id: 'user_owner' }, error: null })
-    const eq = vi.fn().mockReturnValue({ single })
-    const select = vi.fn().mockReturnValue({ eq })
-    const svc = { from: vi.fn().mockReturnValue({ insert, select }) }
+    const makeChain = () => {
+      const chain: Record<string, unknown> = {
+        single: vi.fn().mockResolvedValue({ data: { user_id: 'user_owner' }, error: null }),
+      }
+      chain.eq = vi.fn().mockReturnValue(chain)
+      chain.select = vi.fn().mockReturnValue(chain)
+      chain.insert = vi.fn().mockResolvedValue({ error: null })
+      return chain
+    }
+    const svc = { from: vi.fn().mockImplementation(() => makeChain()) }
 
     vi.doMock('@/lib/auth/admin-context', () => ({
       requireAdmin: vi.fn().mockResolvedValue({ userId: 'admin_1', email: 'admin@x.com' }),

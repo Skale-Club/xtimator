@@ -253,6 +253,35 @@ export async function processInboundMessages(
       batchKey,
     },
   })
+
+  // Phase 77 NOTIF-04: in-app notification for inbound WhatsApp.
+  // Dedupe by lastMessageId (Meta wamid is globally unique → webhook retries
+  // collapse to a single notification).
+  try {
+    const { notify } = await import('@/lib/notifications/dispatch')
+    const { buildNotificationCopy } = await import('@/lib/notifications/copy')
+    const copy = buildNotificationCopy('whatsapp.inbound', {
+      whatsappFrom: ownerPhone,
+    })
+    const { data: companyOwner } = await supabase
+      .from('companies')
+      .select('user_id')
+      .eq('id', companyId)
+      .single()
+    void notify({
+      companyId,
+      userId: (companyOwner as { user_id?: string | null } | null)?.user_id ?? null,
+      eventType: 'whatsapp.inbound',
+      title: copy.title,
+      body: copy.body,
+      linkUrl: `/projects/${projectId}`,
+      resourceType: 'whatsapp_message',
+      resourceId: lastMessageId,
+      metadata: { dedupe_key: `wa-${lastMessageId}` },
+    })
+  } catch {
+    /* best-effort */
+  }
   // Returns immediately — webhook ack closes the loop on Meta in <1s.
   // The whatsAppProcessJob Inngest function (Plan 67-02) does the rest:
   // per-message Whisper/Vision/save + generate-estimate + confirm reply.

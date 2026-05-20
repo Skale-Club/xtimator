@@ -12,10 +12,26 @@ import { inngest } from '@/lib/inngest/client'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { getIntegrationKey } from '@/lib/platform-config'
 import { recordUsage } from '@/lib/quota'
+import { notify } from '@/lib/notifications/dispatch'
+import { buildNotificationCopy } from '@/lib/notifications/copy'
 import {
   EVENT_ANALYZE_PHOTOS,
   type AnalyzePhotosPayload,
 } from '@/lib/inngest/events'
+
+async function loadOwnerUserId(companyId: string): Promise<string | null> {
+  try {
+    const svc = requireServiceClient()
+    const { data } = await svc
+      .from('companies')
+      .select('user_id')
+      .eq('id', companyId)
+      .single()
+    return (data as { user_id?: string | null } | null)?.user_id ?? null
+  } catch {
+    return null
+  }
+}
 
 type ImageMediaType = 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif'
 
@@ -39,6 +55,28 @@ export const analyzePhotosJob = inngest.createFunction(
     idempotency: 'event.data.requestId',
     retries: 2,
     triggers: [{ event: EVENT_ANALYZE_PHOTOS }],
+    // Phase 77 NOTIF-04: ai_job.failed on retry exhaustion.
+    onFailure: async ({ event, error }) => {
+      const payload = (event as { data?: { event?: { data?: AnalyzePhotosPayload } } })
+        .data?.event?.data
+      if (!payload) return
+      const userId = await loadOwnerUserId(payload.companyId)
+      const copy = buildNotificationCopy('ai_job.failed', {
+        jobType: 'Photo analysis',
+        errorMessage: error instanceof Error ? error.message : String(error),
+      })
+      void notify({
+        companyId: payload.companyId,
+        userId,
+        eventType: 'ai_job.failed',
+        title: copy.title,
+        body: copy.body,
+        linkUrl: `/projects/${payload.projectId}`,
+        resourceType: 'project',
+        resourceId: payload.projectId,
+        metadata: { dedupe_key: `ai-fail-photos-${payload.requestId}` },
+      })
+    },
   },
   async ({ event, step }) => {
     const { companyId, projectId, requestId } =
@@ -125,6 +163,27 @@ export const analyzePhotosJob = inngest.createFunction(
         requestId
       )
     })
+
+    // Phase 77 NOTIF-04: opt-in success notification.
+    try {
+      const userId = await loadOwnerUserId(companyId)
+      const copy = buildNotificationCopy('ai_job.completed', {
+        jobType: 'Photo analysis',
+      })
+      void notify({
+        companyId,
+        userId,
+        eventType: 'ai_job.completed',
+        title: copy.title,
+        body: copy.body,
+        linkUrl: `/projects/${projectId}`,
+        resourceType: 'project',
+        resourceId: projectId,
+        metadata: { dedupe_key: `ai-ok-photos-${requestId}` },
+      })
+    } catch {
+      /* best-effort */
+    }
 
     return { results: descriptions }
   }

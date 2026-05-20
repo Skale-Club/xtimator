@@ -6,6 +6,8 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getEntitlements } from '@/lib/entitlements'
+import { notify } from '@/lib/notifications/dispatch'
+import { buildNotificationCopy } from '@/lib/notifications/copy'
 
 export type QuotaType = 'estimate' | 'photo_batch' | 'audio_minutes'
 export type EventType = 'estimate_generated' | 'photo_analyzed' | 'audio_transcribed'
@@ -145,5 +147,75 @@ export async function recordUsage(
 
   if (error) {
     throw new Error(`recordUsage failed: ${error.message}`)
+  }
+}
+
+/**
+ * Phase 77 NOTIF-04 — fire quota.80pct / quota.exhausted notifications when
+ * the usage count crosses thresholds.
+ *
+ * Pure helper: caller passes previousCount + newCount + limit; we decide
+ * whether a threshold was crossed and which event to fire. Decoupled from
+ * `recordUsage` so callers that already know the count (e.g. after a fresh
+ * count query) can invoke it without re-reading the DB.
+ *
+ * Dedupe is per-company per-month so the user is pinged at most once per
+ * threshold per billing month.
+ */
+export interface QuotaThresholdParams {
+  companyId: string
+  userId?: string | null
+  previousCount: number
+  newCount: number
+  limit: number
+}
+
+function monthKey(now = new Date()): string {
+  return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`
+}
+
+export async function notifyQuotaThresholds(
+  params: QuotaThresholdParams
+): Promise<void> {
+  const { companyId, userId, previousCount, newCount, limit } = params
+  if (!limit || limit <= 0) return
+
+  const prevPct = (previousCount / limit) * 100
+  const newPct = (newCount / limit) * 100
+  const month = monthKey()
+
+  try {
+    // 80% threshold — fire only when crossing UP
+    if (prevPct < 80 && newPct >= 80 && newPct < 100) {
+      const copy = buildNotificationCopy('quota.80pct', {
+        quotaPercent: Math.floor(newPct),
+      })
+      void notify({
+        companyId,
+        userId: userId ?? null,
+        eventType: 'quota.80pct',
+        title: copy.title,
+        body: copy.body,
+        linkUrl: '/settings/billing',
+        metadata: { dedupe_key: `quota-80-${companyId}-${month}` },
+      })
+    }
+
+    // 100% threshold — force both channels (user must know)
+    if (prevPct < 100 && newPct >= 100) {
+      const copy = buildNotificationCopy('quota.exhausted', {})
+      void notify({
+        companyId,
+        userId: userId ?? null,
+        eventType: 'quota.exhausted',
+        title: copy.title,
+        body: copy.body,
+        linkUrl: '/settings/billing',
+        channels: { inApp: true, email: true },
+        metadata: { dedupe_key: `quota-exhausted-${companyId}-${month}` },
+      })
+    }
+  } catch {
+    /* best-effort */
   }
 }

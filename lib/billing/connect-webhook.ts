@@ -1,6 +1,8 @@
 import 'server-only'
 import type Stripe from 'stripe'
 import type { requireServiceClient } from '@/lib/supabase/service'
+import { notify } from '@/lib/notifications/dispatch'
+import { buildNotificationCopy } from '@/lib/notifications/copy'
 
 /**
  * Connected-account Stripe webhook handler (Phase 70, plan 70-04).
@@ -31,6 +33,11 @@ export async function handleConnectEvent(
   switch (event.type) {
     case 'checkout.session.completed':
       await handleCheckoutSessionCompleted(event, svc)
+      return
+
+    case 'charge.refunded':
+      // Phase 77 NOTIF-04 — payment.refunded notification (best-effort)
+      await handleChargeRefunded(event, svc)
       return
 
     case 'account.application.deauthorized':
@@ -92,7 +99,7 @@ async function handleCheckoutSessionCompleted(
   const [companyRes, projectRes] = await Promise.all([
     svc
       .from('companies')
-      .select('email, name, stripe_account_display_name')
+      .select('email, name, stripe_account_display_name, user_id')
       .eq('id', updated.company_id)
       .single(),
     svc
@@ -103,9 +110,41 @@ async function handleCheckoutSessionCompleted(
   ])
 
   const company = companyRes.data as
-    | { email: string | null; name: string | null; stripe_account_display_name: string | null }
+    | {
+        email: string | null
+        name: string | null
+        stripe_account_display_name: string | null
+        user_id: string | null
+      }
     | null
   const project = projectRes.data as { name: string | null } | null
+
+  // Phase 77 NOTIF-04: payment.received in-app + email (force channels).
+  // Dedupe by Stripe event id so duplicate webhook deliveries collapse.
+  try {
+    const amountUSD =
+      typeof session.amount_total === 'number'
+        ? `$${(session.amount_total / 100).toFixed(2)}`
+        : undefined
+    const copy = buildNotificationCopy('payment.received', {
+      amountUSD,
+      projectName: project?.name ?? undefined,
+    })
+    void notify({
+      companyId: updated.company_id,
+      userId: company?.user_id ?? null,
+      eventType: 'payment.received',
+      title: copy.title,
+      body: copy.body,
+      linkUrl: `/projects/${updated.project_id}/estimates/${updated.id}`,
+      resourceType: 'estimate',
+      resourceId: updated.id,
+      channels: { inApp: true, email: true },
+      metadata: { dedupe_key: event.id },
+    })
+  } catch {
+    /* best-effort */
+  }
 
   const customerEmail =
     session.customer_details?.email ?? session.customer_email ?? null
@@ -141,6 +180,70 @@ async function handleCheckoutSessionCompleted(
     sendPaymentReceivedEmail(ctx),
     sendPaymentReceiptEmail(ctx),
   ])
+}
+
+// ------------------------------------------------------------------
+// charge.refunded — Phase 77 NOTIF-04 payment.refunded notification.
+// We do NOT mutate estimates.payment_status here (refund handling beyond
+// notification is out of scope for v1). Best-effort — failure is ignored.
+// ------------------------------------------------------------------
+async function handleChargeRefunded(
+  event: Stripe.Event,
+  svc: ServiceClient
+): Promise<void> {
+  const charge = event.data.object as Stripe.Charge
+  const piId = (charge.payment_intent as string | null) ?? null
+  if (!piId) return
+
+  const { data: estimate } = await svc
+    .from('estimates')
+    .select('id, company_id, project_id')
+    .eq('stripe_payment_intent_id', piId)
+    .maybeSingle()
+
+  const est = estimate as
+    | { id: string; company_id: string; project_id: string }
+    | null
+  if (!est) return
+
+  const { data: company } = await svc
+    .from('companies')
+    .select('user_id')
+    .eq('id', est.company_id)
+    .single()
+
+  const { data: project } = await svc
+    .from('projects')
+    .select('name')
+    .eq('id', est.project_id)
+    .single()
+
+  const refundedCents = charge.amount_refunded ?? 0
+  const amountUSD =
+    typeof refundedCents === 'number'
+      ? `$${(refundedCents / 100).toFixed(2)}`
+      : undefined
+
+  try {
+    const copy = buildNotificationCopy('payment.refunded', {
+      amountUSD,
+      projectName: (project as { name?: string } | null)?.name ?? undefined,
+    })
+    void notify({
+      companyId: est.company_id,
+      userId: (company as { user_id?: string | null } | null)?.user_id ?? null,
+      eventType: 'payment.refunded',
+      title: copy.title,
+      body: copy.body,
+      linkUrl: `/projects/${est.project_id}/estimates/${est.id}`,
+      resourceType: 'estimate',
+      resourceId: est.id,
+      channels: { inApp: true, email: true },
+      metadata: { dedupe_key: event.id },
+    })
+  } catch {
+    /* best-effort */
+  }
 }
 
 // ------------------------------------------------------------------
