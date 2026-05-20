@@ -220,22 +220,22 @@ Coverage: 39/39 (100%) — every v1 requirement maps to exactly one phase, no or
 
 ### PB-CSV — Price Book CSV Pro (Phase 76)
 
-- [ ] **PB-CSV-01**: CSV import is a 4-step wizard (Upload · Map columns · Preview+edit · Confirm+result) with a visible step indicator. Closing mid-wizard offers "Save progress" so reopening returns to the same step.
+- [x] **PB-CSV-01**: CSV import is a 4-step wizard (Upload · Map columns · Preview+edit · Confirm+result) with a visible step indicator. Closing mid-wizard offers "Save progress" so reopening returns to the same step.
 - [x] **PB-CSV-02**: Column header auto-detection — alias dictionary maps common spreadsheet names (item/service/desc → name; price/cost/rate → unit_price; category/group → folder; uom/qty unit → unit). Owner can override every mapping via dropdown. Unmapped columns shown as "Skip".
-- [ ] **PB-CSV-03**: Preview table allows per-row inline editing of name/unit/unit_price/folder. Validation errors (negative price, empty name, malformed currency) shown inline with red border + tooltip; rows with unresolved errors blocked from import (greyed out checkbox).
+- [x] **PB-CSV-03**: Preview table allows per-row inline editing of name/unit/unit_price/folder. Validation errors (negative price, empty name, malformed currency) shown inline with red border + tooltip; rows with unresolved errors blocked from import (greyed out checkbox).
 - [x] **PB-CSV-04**: Locale-aware currency parsing accepts US (`$1,234.56`), BR (`R$ 1.234,56`), plain (`1234`, `1234.5`), and quoted variants. UI shows detected locale guess; owner can override (US / BR / Custom decimal + thousands separator).
 - [x] **PB-CSV-05**: Duplicate resolution — when input row collides with existing (name+folder), user picks global strategy: Skip · Update · Import as new with suffix. Per-row override available in preview table.
-- [ ] **PB-CSV-06**: Dry-run summary card BEFORE any DB write — shows N to insert, N to update, N to skip, N new folders to create. Single "Confirm import" button commits.
+- [x] **PB-CSV-06**: Dry-run summary card BEFORE any DB write — shows N to insert, N to update, N to skip, N new folders to create. Single "Confirm import" button commits.
 - [x] **PB-CSV-07**: `price_book_imports` table tracks every batch with imported row IDs and folder IDs. "Undo last import" button reverts the batch (5-min eligibility window). Toast confirms undo with rows-removed count.
 - [x] **PB-CSV-08**: Large files (>200 rows) show streaming progress UI ("Importing X of Y…") with cancel button. Server action chunks inserts (50 at a time) so UI ticks update via React state polling or server-sent events.
 - [x] **PB-CSV-09**: When any row fails server-side validation, response includes a downloadable `import-errors.csv` with the failed rows + extra `error_reason` column. Same column layout as input so user can fix and re-upload.
 - [ ] **PB-CSV-10**: Test coverage — unit: auto-detect aliases (8 cases), locale parsing (12 cases), dedupe strategies × scenarios (≥6 cases), wizard state machine (≥6 cases). Playwright E2E spec walks the full happy path with a 50-row fixture file. All passing.
-| PB-CSV-01 | Phase 76 | Pending |
+| PB-CSV-01 | Phase 76 | Complete |
 | PB-CSV-02 | Phase 76 | Complete |
-| PB-CSV-03 | Phase 76 | Pending |
+| PB-CSV-03 | Phase 76 | Complete |
 | PB-CSV-04 | Phase 76 | Complete |
 | PB-CSV-05 | Phase 76 | Complete |
-| PB-CSV-06 | Phase 76 | Pending |
+| PB-CSV-06 | Phase 76 | Complete |
 | PB-CSV-07 | Phase 76 | Complete |
 | PB-CSV-08 | Phase 76 | Complete |
 | PB-CSV-09 | Phase 76 | Complete |
