@@ -29,6 +29,10 @@ export interface EditorSection {
 
 export interface EstimateEditorState {
   id: string
+  /** SEED-028 Phase B: workflow + version flags carried in state so version switching works. */
+  workflow_status: 'draft' | 'consolidated'
+  is_current: boolean
+  version: number
   summary: string | null
   notes: string | null
   timeline: string | null
@@ -104,6 +108,9 @@ function initState(estimate: EstimateWithSections | null): EstimateEditorState {
   if (!estimate) {
     return {
       id: '',
+      workflow_status: 'draft',
+      is_current: true,
+      version: 0,
       summary: null,
       notes: null,
       timeline: null,
@@ -123,6 +130,9 @@ function initState(estimate: EstimateWithSections | null): EstimateEditorState {
 
   return {
     id: estimate.id,
+    workflow_status: estimate.workflow_status,
+    is_current: estimate.is_current,
+    version: estimate.version,
     summary: estimate.summary,
     notes: estimate.notes,
     timeline: estimate.timeline,

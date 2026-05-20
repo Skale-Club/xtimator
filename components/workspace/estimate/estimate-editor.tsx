@@ -18,11 +18,16 @@ import {
   arrayMove,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { Plus, Save, Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
+import { Plus, Lock, CircleDot } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
-import { saveEstimate } from '@/lib/actions/estimate'
-import { getEstimateByIdAction } from '@/lib/actions/estimate'
+import {
+  saveEstimate,
+  getEstimateByIdAction,
+  consolidateEstimate,
+  createNewDraftVersion,
+} from '@/lib/actions/estimate'
 import type { EstimateWithSections, Estimate } from '@/lib/queries/estimate'
 import type { Recording } from '@/lib/queries/recording'
 import type { Photo } from '@/lib/queries/photo'
@@ -32,6 +37,7 @@ import { SectionCard } from './section-card'
 import { EstimateTotals } from './estimate-totals'
 import { GenerationProgress } from './generation-progress'
 import { RefineEstimatePanel } from './refine-estimate-panel'
+import { EstimateFloatingActions } from './estimate-floating-actions'
 import {
   showClientSuggestionToast,
   type GenerateEstimateResponse,
@@ -140,8 +146,12 @@ export function EstimateEditor({
   const [isRegenerating, setIsRegenerating] = useState(false)
   const [regenStep, setRegenStep] = useState(0)
   const [currentVersionId, setCurrentVersionId] = useState(estimate.id)
-  const [isReadOnly, setIsReadOnly] = useState(false)
-  const [isCurrent, setIsCurrent] = useState(true)
+  const [isNewVersionPending, setIsNewVersionPending] = useState(false)
+
+  // SEED-028 Phase B: read-only is derived from state. Old versions and
+  // consolidated versions cannot be edited.
+  const isReadOnly = !state.is_current || state.workflow_status === 'consolidated'
+  const isCurrent = state.is_current
 
   // Sensors for section-level drag
   const sensors = useSensors(
@@ -150,48 +160,94 @@ export function EstimateEditor({
   )
 
   // -------------------------------------------------------------------------
-  // Auto-save (2000ms debounce)
+  // Save handlers (SEED-028 Phase B: no autosave; explicit save only)
   // -------------------------------------------------------------------------
 
-  useEffect(() => {
-    if (!state.isDirty || isReadOnly) return
-
-    setSaveStatus('dirty')
-    const timeout = setTimeout(async () => {
-      setSaveStatus('saving')
-      const result = await saveEstimate(stateToSavePayload(stateRef.current))
-      if (result.error) {
-        setSaveStatus('error')
-        toast.error('Failed to save estimate')
-      } else {
-        dispatch({ type: 'MARK_SAVED' })
-        setSaveStatus('saved')
-        // Reset status after 3s
-        setTimeout(() => setSaveStatus('idle'), 3000)
-      }
-    }, 2000)
-
-    return () => clearTimeout(timeout)
-  }, [state.isDirty, state.sections, state.summary, state.notes, state.timeline, state.payment_terms, state.warranty_terms, state.discount_type, state.discount_value, state.tax_rate, isReadOnly, dispatch])
-
-  // -------------------------------------------------------------------------
-  // Manual save
-  // -------------------------------------------------------------------------
-
-  const handleManualSave = useCallback(async () => {
-    if (isReadOnly) return
+  const runSave = useCallback(async (): Promise<boolean> => {
+    if (isReadOnly) return false
     setSaveStatus('saving')
     const result = await saveEstimate(stateToSavePayload(stateRef.current))
     if (result.error) {
       setSaveStatus('error')
-      toast.error('Failed to save estimate')
-    } else {
-      dispatch({ type: 'MARK_SAVED' })
-      setSaveStatus('saved')
-      setTimeout(() => setSaveStatus('idle'), 3000)
-      toast.success('Estimate saved')
+      toast.error(result.error)
+      return false
     }
+    dispatch({ type: 'MARK_SAVED' })
+    setSaveStatus('saved')
+    setTimeout(() => {
+      setSaveStatus((s) => (s === 'saved' ? 'idle' : s))
+    }, 2500)
+    return true
   }, [isReadOnly, dispatch])
+
+  const handleSaveDraft = useCallback(async () => {
+    const ok = await runSave()
+    if (ok) toast.success('Draft saved')
+  }, [runSave])
+
+  const handleConsolidate = useCallback(async () => {
+    const saveOk = await runSave()
+    if (!saveOk) return
+
+    const result = await consolidateEstimate(stateRef.current.id)
+    if (result.error) {
+      toast.error(result.error)
+      return
+    }
+    toast.success('Estimate consolidated')
+    router.refresh()
+  }, [runSave, router])
+
+  const handleDiscard = useCallback(async () => {
+    const result = await getEstimateByIdAction(stateRef.current.id)
+    if (result.error || !result.data) {
+      toast.error('Failed to reload estimate')
+      return
+    }
+    dispatch({ type: 'INIT', estimate: result.data })
+    setSaveStatus('idle')
+    toast.success('Changes discarded')
+  }, [dispatch])
+
+  const handleNewVersion = useCallback(async () => {
+    setIsNewVersionPending(true)
+    try {
+      const result = await createNewDraftVersion(stateRef.current.id)
+      if (result.error || !result.data) {
+        toast.error(result.error ?? 'Failed to create new version')
+        return
+      }
+      toast.success(result.data.reused ? 'Opened existing draft' : 'New draft version created')
+      router.refresh()
+    } finally {
+      setIsNewVersionPending(false)
+    }
+  }, [router])
+
+  // cmd/ctrl + S triggers Save Draft
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      const isSave = (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's'
+      if (!isSave) return
+      e.preventDefault()
+      if (!isReadOnly && stateRef.current.isDirty) {
+        void handleSaveDraft()
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [isReadOnly, handleSaveDraft])
+
+  // beforeunload guard while there are unsaved changes
+  useEffect(() => {
+    function onBeforeUnload(e: BeforeUnloadEvent) {
+      if (!stateRef.current.isDirty || isReadOnly) return
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [isReadOnly])
 
   // -------------------------------------------------------------------------
   // Version switching
@@ -208,10 +264,8 @@ export function EstimateEditor({
     }
 
     dispatch({ type: 'INIT', estimate: result.data })
-    const version = versions.find((v) => v.id === estimateId)
-    setIsReadOnly(!version?.is_current)
-    setIsCurrent(version?.is_current ?? false)
-  }, [currentVersionId, versions, dispatch])
+    setSaveStatus('idle')
+  }, [currentVersionId, dispatch])
 
   // -------------------------------------------------------------------------
   // Regenerate
@@ -292,46 +346,25 @@ export function EstimateEditor({
   }
 
   return (
-    <div className="space-y-6">
-      {/* Save status bar */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          {saveStatus === 'saving' && (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              <span>Saving...</span>
-            </>
-          )}
-          {saveStatus === 'saved' && (
-            <>
-              <CheckCircle2 className="h-4 w-4 text-[hsl(var(--success))]" />
-              <span>Saved</span>
-            </>
-          )}
-          {saveStatus === 'dirty' && (
-            <>
-              <AlertCircle className="h-4 w-4 text-[hsl(var(--warning))]" />
-              <span>Unsaved changes</span>
-            </>
-          )}
-          {saveStatus === 'error' && (
-            <>
-              <AlertCircle className="h-4 w-4 text-destructive" />
-              <span>Save failed</span>
-            </>
-          )}
-        </div>
-        {!isReadOnly && (
-          <Button
+    <div className="space-y-6 pb-24">
+      {/* Workflow status badge — replaces the old autosave status bar. */}
+      <div className="flex items-center gap-2">
+        {state.workflow_status === 'consolidated' ? (
+          <Badge
             variant="outline"
-            size="sm"
-            onClick={handleManualSave}
-            disabled={saveStatus === 'saving'}
-            className="gap-1.5"
+            className="gap-1.5 border-[hsl(var(--success))]/30 bg-[hsl(var(--success))]/10 text-[hsl(var(--success))]"
           >
-            <Save className="h-3.5 w-3.5" />
-            Save
-          </Button>
+            <Lock className="h-3 w-3" />
+            Consolidated · v{state.version}
+          </Badge>
+        ) : (
+          <Badge variant="outline" className="gap-1.5 text-muted-foreground">
+            <CircleDot className="h-3 w-3" />
+            Draft · v{state.version}
+          </Badge>
+        )}
+        {state.isDirty && !isReadOnly && (
+          <span className="text-xs text-muted-foreground">Unsaved changes</span>
         )}
       </div>
 
@@ -392,6 +425,20 @@ export function EstimateEditor({
           onRefined={() => router.refresh()}
         />
       )}
+
+      <EstimateFloatingActions
+        workflowStatus={state.workflow_status}
+        isCurrent={isCurrent}
+        isDirty={state.isDirty}
+        status={
+          saveStatus === 'dirty' ? 'idle' : (saveStatus as 'idle' | 'saving' | 'saved' | 'error')
+        }
+        onSaveDraft={handleSaveDraft}
+        onConsolidate={handleConsolidate}
+        onDiscard={handleDiscard}
+        onNewVersion={handleNewVersion}
+        isNewVersionPending={isNewVersionPending}
+      />
     </div>
   )
 }
