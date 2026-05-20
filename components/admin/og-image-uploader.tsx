@@ -4,6 +4,18 @@ import { useRef, useState } from 'react'
 import { Camera } from 'lucide-react'
 import { toast } from 'sonner'
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
+
 const MAX_FILE_SIZE = 2 * 1024 * 1024 // 2MB
 const ACCEPTED_TYPES = ['image/png', 'image/jpeg', 'image/jpg']
 const MIN_WIDTH = 600
@@ -68,7 +80,6 @@ export function OgImageUploader({
   function handleRemove() {
     setLocalPreview(null)
     setDimensions(null)
-    // TODO(78-02): wrap this trigger in <AlertDialog> for destructive confirmation.
     onRemove()
   }
 
@@ -145,13 +156,28 @@ export function OgImageUploader({
           >
             Change
           </button>
-          <button
-            type="button"
-            onClick={handleRemove}
-            className="text-sm text-muted-foreground hover:text-foreground cursor-pointer"
-          >
-            Remove
-          </button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <button
+                type="button"
+                className="text-sm text-muted-foreground hover:text-foreground cursor-pointer"
+              >
+                Remove
+              </button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Remove OG image?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will remove the OG image from search and social previews. Continue?
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={handleRemove}>Remove</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       ) : null}
     </div>

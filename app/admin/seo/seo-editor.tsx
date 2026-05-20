@@ -89,6 +89,10 @@ export function SeoEditor({ initial }: SeoEditorProps) {
       const result = await saveSeo(fd)
       if (result.ok) {
         toast.success(t('SEO settings saved.'))
+        // Reset the upload payload so a subsequent submit without changes
+        // doesn't re-upload the same file or re-trigger removal.
+        setOgImageFile(null)
+        setOgImageRemoved(false)
       } else {
         toast.error(`${t("Couldn't save SEO settings.")} ${result.message}`)
       }

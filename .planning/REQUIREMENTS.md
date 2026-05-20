@@ -260,8 +260,8 @@ Coverage: 39/39 (100%) — every v1 requirement maps to exactly one phase, no or
 
 - [x] **OG-IMG-01**: Replace URL input with file upload dropzone (image/png + image/jpeg, max 2 MB)
 - [x] **OG-IMG-02**: 1200×630 aspect-ratio preview frame + dimension validation (warn <600×315)
-- [ ] **OG-IMG-03**: Upload to Supabase Storage `branding-assets/og-images/` via existing storage.upload API
-- [ ] **OG-IMG-04**: Remove button with confirmation modal + best-effort storage cleanup
+- [x] **OG-IMG-03**: Upload to Supabase Storage `branding-assets/og-images/` via existing storage.upload API
+- [x] **OG-IMG-04**: Remove button with confirmation modal + best-effort storage cleanup
 - [x] **OG-IMG-05**: Backward-compat for existing URL-typed OG images (show preview if loadable + migration hint)
 | NOTIF-01 | Phase 77 | Complete |
 | NOTIF-02 | Phase 77 | Complete |
@@ -277,6 +277,6 @@ Coverage: 39/39 (100%) — every v1 requirement maps to exactly one phase, no or
 | NOTIF-12 | Phase 77 | Complete |
 | OG-IMG-01 | Phase 78 | Complete |
 | OG-IMG-02 | Phase 78 | Complete |
-| OG-IMG-03 | Phase 78 | Pending |
-| OG-IMG-04 | Phase 78 | Pending |
+| OG-IMG-03 | Phase 78 | Complete |
+| OG-IMG-04 | Phase 78 | Complete |
 | OG-IMG-05 | Phase 78 | Complete |

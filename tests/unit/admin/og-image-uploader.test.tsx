@@ -133,13 +133,45 @@ describe('OgImageUploader', () => {
     expect(screen.queryByText(/Recommended at least/i)).toBeNull()
   })
 
-  it('8. Remove button fires onRemove() once', () => {
+  it('8a. clicking Remove trigger opens the AlertDialog (title visible)', () => {
+    render(
+      <OgImageUploader currentUrl={MANAGED_URL} onFileSelect={vi.fn()} onRemove={vi.fn()} />
+    )
+    expect(screen.queryByText(/Remove OG image\?/i)).toBeNull()
+    const triggers = screen.getAllByRole('button', { name: /^Remove$/i })
+    fireEvent.click(triggers[0])
+    expect(screen.getByText(/Remove OG image\?/i)).toBeTruthy()
+  })
+
+  it('8b. clicking Cancel closes the dialog without firing onRemove', () => {
     const onRemove = vi.fn()
     render(
       <OgImageUploader currentUrl={MANAGED_URL} onFileSelect={vi.fn()} onRemove={onRemove} />
     )
-    const removeBtn = screen.getByRole('button', { name: /^Remove$/i })
-    fireEvent.click(removeBtn)
+    const triggers = screen.getAllByRole('button', { name: /^Remove$/i })
+    fireEvent.click(triggers[0])
+    const cancel = screen.getByRole('button', { name: /^Cancel$/i })
+    fireEvent.click(cancel)
+    expect(onRemove).not.toHaveBeenCalled()
+  })
+
+  it('8c. clicking AlertDialogAction Remove fires onRemove exactly once', async () => {
+    const onRemove = vi.fn()
+    render(
+      <OgImageUploader currentUrl={MANAGED_URL} onFileSelect={vi.fn()} onRemove={onRemove} />
+    )
+    // Open the dialog via the trigger
+    const triggers = screen.getAllByRole('button', { name: /^Remove$/i })
+    fireEvent.click(triggers[0])
+    // Find the AlertDialogAction by its data-slot attribute.
+    const action = await screen.findByRole('button', {
+      name: /^Remove$/i,
+      // The dialog action gets the data-slot=alert-dialog-action attribute.
+    })
+    // After opening there should now be at least the action; if multiple, pick the one inside the portal.
+    const actionBtn = document.querySelector('[data-slot="alert-dialog-action"]') as HTMLElement
+    expect(actionBtn).toBeTruthy()
+    fireEvent.click(actionBtn || action)
     expect(onRemove).toHaveBeenCalledTimes(1)
   })
 
