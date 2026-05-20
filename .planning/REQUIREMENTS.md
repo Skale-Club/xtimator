@@ -229,7 +229,7 @@ Coverage: 39/39 (100%) — every v1 requirement maps to exactly one phase, no or
 - [x] **PB-CSV-07**: `price_book_imports` table tracks every batch with imported row IDs and folder IDs. "Undo last import" button reverts the batch (5-min eligibility window). Toast confirms undo with rows-removed count.
 - [x] **PB-CSV-08**: Large files (>200 rows) show streaming progress UI ("Importing X of Y…") with cancel button. Server action chunks inserts (50 at a time) so UI ticks update via React state polling or server-sent events.
 - [x] **PB-CSV-09**: When any row fails server-side validation, response includes a downloadable `import-errors.csv` with the failed rows + extra `error_reason` column. Same column layout as input so user can fix and re-upload.
-- [ ] **PB-CSV-10**: Test coverage — unit: auto-detect aliases (8 cases), locale parsing (12 cases), dedupe strategies × scenarios (≥6 cases), wizard state machine (≥6 cases). Playwright E2E spec walks the full happy path with a 50-row fixture file. All passing.
+- [x] **PB-CSV-10**: Test coverage — unit: auto-detect aliases (8 cases), locale parsing (12 cases), dedupe strategies × scenarios (≥6 cases), wizard state machine (≥6 cases). Playwright E2E spec walks the full happy path with a 50-row fixture file. All passing.
 | PB-CSV-01 | Phase 76 | Complete |
 | PB-CSV-02 | Phase 76 | Complete |
 | PB-CSV-03 | Phase 76 | Complete |
@@ -239,4 +239,4 @@ Coverage: 39/39 (100%) — every v1 requirement maps to exactly one phase, no or
 | PB-CSV-07 | Phase 76 | Complete |
 | PB-CSV-08 | Phase 76 | Complete |
 | PB-CSV-09 | Phase 76 | Complete |
-| PB-CSV-10 | Phase 76 | Pending |
+| PB-CSV-10 | Phase 76 | Complete |
