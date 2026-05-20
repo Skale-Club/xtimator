@@ -3,6 +3,7 @@ import { getAuthClaims, getCachedCompany } from '@/lib/queries/auth'
 import { createClient } from '@/lib/supabase/server'
 import { getPriceBookItems, getFolders } from '@/lib/queries/price-book'
 import { PriceBookList } from '@/components/price-book/price-book-list'
+import { UndoImportBanner } from '@/components/price-book/UndoImportBanner'
 import { Card } from '@/components/ui/card'
 import { T } from '@/components/i18n/t'
 
@@ -33,6 +34,7 @@ export default async function PriceBookPage() {
           </p>
         )}
       </header>
+      <UndoImportBanner />
       <Card variant="glass" className="p-6 md:p-8">
         <PriceBookList items={items} folders={folders} companyId={company.id} />
       </Card>
