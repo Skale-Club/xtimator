@@ -428,6 +428,8 @@ Last activity: 2026-05-20
 - [Phase 75]: Playwright tour spec uses requireDashboard(page) skip-with-reason for auth-gated tests until shared auth fixture lands
 - [Phase 75]: Phase 75 closed — all 7 TOUR-FIX-* requirements complete. Manual UAT runbook shipped at tests/visual/tour-uat-runbook.md; auto-approved per project memory.
 - [Phase 76]: 76-01: Foundation landed — price_book_imports table + alias/locale stubs + 37 Wave-0 RED tests + 50-row fixture. Migration applied via Node/pg script due to supabase db push pooler conflict.
+- Phase 76.1 inserted after Phase 76: PWA — Progressive Web App Infrastructure (INSERTED). Service worker via @ducanh2912/next-pwa, read-only offline cache (estimates list + detail), install prompt, offline indicator, offline fallback page. Push notification scaffold stays in Phase 77.
+- Phase 76.2 inserted after Phase 76.1: Settings & Admin Persistence Fix (INSERTED). Root cause identified: 6 columns (digital_signature_enabled, estimate_terms_enabled, estimate_terms_text, email_delivery_enabled, sms_delivery_enabled, ai_model_override) added via migrations 20260519000002, 20260519000003, 20260520000001 but never applied to Supabase project + database.types.ts never regenerated. Fix: apply migrations → regen types → fix TS errors → verify all settings forms persist.
 - [Phase 77]: resolveChannels takes (eventType, userId, override) per RED test contract; loads prefs internally
 - [Phase 77]: override params re-applied inside notify() over resolveChannels result for deterministic force-send
 - [Phase 78]: Use file-presence (ogImageFile != null) over sentinel string to signal pending upload to 78-02

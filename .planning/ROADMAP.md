@@ -804,6 +804,55 @@ Plans:
 
 **Plans:** 5/5 plans complete
 
+### Phase 76.1: PWA — Progressive Web App Infrastructure (INSERTED)
+
+**Goal:** Xtimator passes Lighthouse PWA installability checks and can be added to the home screen on iOS Safari and Android Chrome. A service worker (via `@ducanh2912/next-pwa`) caches the app shell and previously visited estimates in read-only mode, so field contractors who open the app offline see their last-loaded data instead of a blank screen. Push notification scaffold (service worker registration + permission prompt) is out of scope here and belongs to Phase 77.
+
+**Depends on:** Phase 76 (Price Book CSV Pro — ensures app shell is stable before service worker layer is added)
+
+**Requirements:** PWA-01, PWA-02, PWA-03, PWA-04, PWA-05, PWA-06
+
+**Success Criteria** (what must be TRUE):
+  1. **Installable** — Lighthouse PWA audit passes on mobile simulation (all installability checks green). App installs correctly on iOS Safari (Add to Home Screen) and Android Chrome (install prompt).
+  2. **App shell offline** — Killing the network and reloading shows the app shell (not a browser error page). A branded offline fallback page renders at `/offline`.
+  3. **Read-only cache** — Previously visited `/estimates` list and individual `/estimates/[id]` pages load from cache when offline. Stale-while-revalidate for Supabase GET calls; Network Only for mutations and AI routes.
+  4. **Install prompt** — A bottom banner ("Install Xtimator for quick access") appears after the user has ≥1 estimate and has not dismissed it. Stores dismissal in localStorage. Only shown to authenticated users.
+  5. **Offline indicator** — A subtle top bar "You're offline — showing cached data" appears when `navigator.onLine` is false. Create/record CTAs are disabled with tooltip "Requires internet connection".
+  6. **Icons** — `public/icons/icon-192.png`, `icon-512.png`, `icon-maskable-192.png`, `icon-maskable-512.png` exist; `app/manifest.ts` fallback icons array points to `/icons/*`; `apple-touch-icon` meta tag present in layout.
+
+**Out of scope:** Push notification delivery (→ Phase 77), background sync / offline mutation queue, native app store submission.
+
+**Plans:** TBD (run /gsd:plan-phase 76.1 to break down — estimate 3-4 plans)
+
+### Phase 76.2: Settings & Admin Persistence Fix — DB Schema Sync + Full Audit (INSERTED)
+
+**Goal:** Every field in every settings page and admin panel actually persists to the database after save + refresh. Root cause: 6 columns added via recent migrations (`digital_signature_enabled`, `estimate_terms_enabled`, `estimate_terms_text`, `email_delivery_enabled`, `sms_delivery_enabled`, `ai_model_override`) were never applied to the Supabase project and `database.types.ts` was never regenerated. This phase applies all pending migrations, regenerates types, fixes any TypeScript errors surfaced, hardens server action error visibility, and does a full manual verification of every settings and admin form.
+
+**Depends on:** Phase 76 (Price Book CSV Pro — stable baseline before schema changes)
+
+**Requirements:** SETTINGS-FIX-01, SETTINGS-FIX-02, SETTINGS-FIX-03, SETTINGS-FIX-04, SETTINGS-FIX-05
+
+**Success Criteria** (what must be TRUE):
+  1. **All 6 missing columns exist in Supabase** — `digital_signature_enabled` (BOOL), `estimate_terms_enabled` (BOOL), `estimate_terms_text` (TEXT), `email_delivery_enabled` (BOOL), `sms_delivery_enabled` (BOOL), `ai_model_override` (TEXT) — verified via `SELECT column_name FROM information_schema.columns WHERE table_name = 'companies'`.
+  2. **`database.types.ts` reflects all columns** — all 6 columns present in `Database['public']['Tables']['companies']['Row']` type after regeneration via Supabase MCP or CLI.
+  3. **No TypeScript errors in settings/admin actions** — `npx tsc --noEmit` exits 0; no implicit `any` or missing-property errors in `lib/actions/settings.ts`, `app/admin/companies/actions.ts`, and all affected form components.
+  4. **Server action errors surface visibly** — `updateDeliverySettings`, `updateEstimateTerms`, `setCompanyModelOverride` log and return `{ ok: false, error }` on DB failure instead of silently swallowing errors; toast/alert shown in UI on failure.
+  5. **Manual verification passes** — for every affected page: fill form → save → hard refresh → values match what was saved. Pages: `/settings/delivery`, `/settings/estimate-templates`, `/admin/companies/[id]`. No regression on other settings pages.
+
+**Affected files:**
+- `supabase/migrations/` — 3 migration files to apply: `20260519000002`, `20260519000003`, `20260520000001`
+- `types/database.types.ts` — regenerate after applying migrations
+- `lib/actions/settings.ts` — fix TypeScript errors, surface errors in `updateDeliverySettings` + `updateEstimateTerms`
+- `app/admin/companies/actions.ts` — fix TypeScript errors in `setCompanyModelOverride`
+- `components/settings/delivery-settings-form.tsx` — fix type errors after regeneration
+- `components/settings/estimate-terms-form.tsx` — fix type errors after regeneration
+
+**Out of scope:** New features, UI redesign, WhatsApp settings (already working), billing pages (read-only).
+
+**Execution mode:** `/gsd:debug` — investigative fix, not a feature plan. The debug workflow handles systematic diagnosis, applies migrations, fixes TS errors, and verifies persistence across context resets.
+
+**Plans:** TBD (run `/gsd:debug` to execute — debug session replaces plan-phase for this fix)
+
 ### Phase 77: Notifications System — Unified In-App + Email + (later) Push
 
 **Goal:** A robust notifications layer that captures every consequential event in the app (estimate viewed, accepted, paid, payment received, trial ending, quota warning, WhatsApp inbound, AI job failed, admin override, etc.), persists per-user as in-app feed entries, and optionally delivers via email + browser push. Users see a bell icon with unread badge in the topbar; clicking opens a panel with grouped + filterable list. Each notification has read/unread state, link to the relevant resource, and per-category mute control in Settings.
