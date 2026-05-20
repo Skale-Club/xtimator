@@ -1,30 +1,31 @@
 ---
 gsd_state_version: 1.0
-milestone: v3.1.1
-milestone_name: MVP Launch Prep + Future-Proofing
-status: executing
-last_updated: "2026-05-20T12:56:12.622Z"
+milestone: v4.0
+milestone_name: Multi-Tenancy (Multiple Companies per User)
+status: defining_requirements
+last_updated: "2026-05-20T00:00:00.000Z"
 last_activity: 2026-05-20
 progress:
-  total_phases: 18
-  completed_phases: 18
-  total_plans: 51
-  completed_plans: 51
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
 ---
 
 # Project State
 
 ## Current Status
 
-- **Milestone**: v3.1.1 MVP Launch Prep + Future-Proofing — Roadmap complete (4 phases); Phase 67 (Inngest) plans ready; Phase 66 (Storage) needs planning next
-- **Last updated**: 2026-05-15
+- **Milestone**: v4.0 Multi-Tenancy — Defining requirements (no phases yet)
+- **Previous milestone (in progress)**: v3.1.1 MVP Launch Prep + Future-Proofing — phases 73-78 still pending
+- **Last updated**: 2026-05-20
 
 ## Current Position
 
-Phase: 78
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-05-20
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-05-20 — Milestone v4.0 started
 
 ## v3.1.1 Phases
 

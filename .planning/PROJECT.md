@@ -22,7 +22,32 @@ Phase 61 only — production database foundation. Built cross-platform RLS audit
 
 Complete subscription system: Free/Trial/Pro/Business tiers, `usage_events` tracking, `checkQuota`/`recordUsage` enforcement across all AI routes and WhatsApp handler, Stripe checkout + portal + webhook lifecycle, `/settings/billing` UI with trial banner and 402 upgrade modal, hourly trial expiry cron + T-3/T-0 warning emails, admin force-tier + bonus credits + MRR view. 6 phases, 24/24 requirements satisfied.
 
-## Current Milestone: v3.1.1 Quality & Polish + Hetzner Readiness
+## Current Milestone: v4.0 Multi-Tenancy (Multiple Companies per User)
+
+**Goal:** A single user can own and switch between multiple companies; every tenant-scoped surface (projects, clients, estimates, price book, integrations, billing, notifications) is gated by the active company instead of `auth.uid()`.
+
+**Target features:**
+- **Schema:** `company_members(user_id, company_id, role)` join table + idempotent migration that backfills 1 owner membership per existing `companies.user_id`
+- **Active company tracking:** session cookie holds `active_company_id`; server actions derive company from cookie, not from the authenticated user
+- **Switcher UI:** topbar dropdown lists all companies the user belongs to, marks active, switches via server action (set cookie + revalidate)
+- **"Add company" flow:** dropdown's Add company entry-point invokes onboarding in "create new" mode (no longer overwrites existing company)
+- **RLS rewrite:** every tenant-scoped table (projects, clients, estimates, estimate_items, estimate_templates, company_price_book, integrations, notifications, custom_domains, whatsapp_settings, etc.) gates by membership of the active company instead of `user_id`
+- **Billing per-company:** `tier`, `tier_trial_ends_at`, Stripe customer id, usage_events all move to per-company semantics; trial clock starts on company creation, not user signup
+- **Server-action sweep:** ~20 server actions in `lib/actions/*.ts` rewritten to derive company id from the active session
+
+**Locked decisions:**
+- **Roles:** Owner only for this milestone (no Admin/Member tier)
+- **Invites/teams:** explicitly out of scope (future milestone) — one user can own multiple companies, but a company has exactly one user
+- **Stripe Connect:** stays per-company (already aligned)
+- **Backwards compat:** zero re-onboarding — migration auto-creates 1 owner membership per existing company
+
+**Out of scope (captured for future milestones):**
+- Inviting other users to existing companies
+- Role-based permissions (Admin vs Member)
+- Cross-company analytics in admin panel
+- Per-user "default company" preference (cookie is sufficient for v4.0)
+
+## Previous Milestone (in progress): v3.1.1 Quality & Polish + Hetzner Readiness
 
 **Goal:** Validate the entire app stack against the recovered DB schema (v3.0 monetization was never functionally tested before Phase 61), fix any bugs that surface, and ship the deploy artifacts (Dockerfile + `/api/health` + runbook) needed to make the future Hetzner Cloud migration mechanical instead of exploratory.
 
@@ -221,4 +246,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context
 
 ---
-*Last updated: 2026-05-15 — v3.1.1 Quality & Polish + Hetzner Readiness milestone started*
+*Last updated: 2026-05-20 — v4.0 Multi-Tenancy milestone started (v3.1.1 still in progress)*
