@@ -170,11 +170,15 @@ export type Database = {
           default_tax_rate: number | null
           default_validity_days: number | null
           default_warranty_terms: string | null
+          digital_signature_enabled: boolean
           email: string | null
+          email_delivery_enabled: boolean
           estimate_template_closer: string | null
           estimate_template_greeting: string | null
           estimate_template_opener: string | null
           estimate_template_signature: string | null
+          estimate_terms_enabled: boolean
+          estimate_terms_text: string | null
           id: string
           industry: string | null
           insurance_info: string | null
@@ -186,6 +190,7 @@ export type Database = {
           notify_on_view: boolean | null
           owner_name: string | null
           phone: string | null
+          sms_delivery_enabled: boolean
           state: string | null
           stripe_account_display_name: string | null
           stripe_account_email: string | null
@@ -216,11 +221,15 @@ export type Database = {
           default_tax_rate?: number | null
           default_validity_days?: number | null
           default_warranty_terms?: string | null
+          digital_signature_enabled?: boolean
           email?: string | null
+          email_delivery_enabled?: boolean
           estimate_template_closer?: string | null
           estimate_template_greeting?: string | null
           estimate_template_opener?: string | null
           estimate_template_signature?: string | null
+          estimate_terms_enabled?: boolean
+          estimate_terms_text?: string | null
           id?: string
           industry?: string | null
           insurance_info?: string | null
@@ -232,6 +241,7 @@ export type Database = {
           notify_on_view?: boolean | null
           owner_name?: string | null
           phone?: string | null
+          sms_delivery_enabled?: boolean
           state?: string | null
           stripe_account_display_name?: string | null
           stripe_account_email?: string | null
@@ -262,11 +272,15 @@ export type Database = {
           default_tax_rate?: number | null
           default_validity_days?: number | null
           default_warranty_terms?: string | null
+          digital_signature_enabled?: boolean
           email?: string | null
+          email_delivery_enabled?: boolean
           estimate_template_closer?: string | null
           estimate_template_greeting?: string | null
           estimate_template_opener?: string | null
           estimate_template_signature?: string | null
+          estimate_terms_enabled?: boolean
+          estimate_terms_text?: string | null
           id?: string
           industry?: string | null
           insurance_info?: string | null
@@ -278,6 +292,7 @@ export type Database = {
           notify_on_view?: boolean | null
           owner_name?: string | null
           phone?: string | null
+          sms_delivery_enabled?: boolean
           state?: string | null
           stripe_account_display_name?: string | null
           stripe_account_email?: string | null
@@ -454,6 +469,69 @@ export type Database = {
           },
         ]
       }
+      estimate_deliveries: {
+        Row: {
+          channel: string
+          company_id: string
+          created_at: string
+          error_message: string | null
+          estimate_id: string
+          id: string
+          provider: string
+          provider_message_id: string | null
+          recipient_email: string | null
+          recipient_phone: string | null
+          sent_at: string | null
+          status: string
+          subject: string | null
+        }
+        Insert: {
+          channel: string
+          company_id: string
+          created_at?: string
+          error_message?: string | null
+          estimate_id: string
+          id?: string
+          provider: string
+          provider_message_id?: string | null
+          recipient_email?: string | null
+          recipient_phone?: string | null
+          sent_at?: string | null
+          status?: string
+          subject?: string | null
+        }
+        Update: {
+          channel?: string
+          company_id?: string
+          created_at?: string
+          error_message?: string | null
+          estimate_id?: string
+          id?: string
+          provider?: string
+          provider_message_id?: string | null
+          recipient_email?: string | null
+          recipient_phone?: string | null
+          sent_at?: string | null
+          status?: string
+          subject?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "estimate_deliveries_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "estimate_deliveries_estimate_id_fkey"
+            columns: ["estimate_id"]
+            isOneToOne: false
+            referencedRelation: "estimates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       estimate_items: {
         Row: {
           company_id: string
@@ -543,6 +621,57 @@ export type Database = {
           },
           {
             foreignKeyName: "estimate_sections_estimate_id_fkey"
+            columns: ["estimate_id"]
+            isOneToOne: false
+            referencedRelation: "estimates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      estimate_signatures: {
+        Row: {
+          company_id: string
+          estimate_id: string
+          id: string
+          ip_address: unknown | null
+          signature_data: string
+          signed_at: string
+          signer_email: string | null
+          signer_name: string
+          user_agent: string | null
+        }
+        Insert: {
+          company_id: string
+          estimate_id: string
+          id?: string
+          ip_address?: unknown | null
+          signature_data: string
+          signed_at?: string
+          signer_email?: string | null
+          signer_name: string
+          user_agent?: string | null
+        }
+        Update: {
+          company_id?: string
+          estimate_id?: string
+          id?: string
+          ip_address?: unknown | null
+          signature_data?: string
+          signed_at?: string
+          signer_email?: string | null
+          signer_name?: string
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "estimate_signatures_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "estimate_signatures_estimate_id_fkey"
             columns: ["estimate_id"]
             isOneToOne: false
             referencedRelation: "estimates"
