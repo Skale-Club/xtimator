@@ -36,7 +36,7 @@ import { EstimateHeader } from './estimate-header'
 import { SectionCard } from './section-card'
 import { EstimateTotals } from './estimate-totals'
 import { GenerationProgress } from './generation-progress'
-import { RefineEstimatePanel } from './refine-estimate-panel'
+import { RefineEstimateDialog } from './refine-estimate-dialog'
 import { EstimateFloatingActions } from './estimate-floating-actions'
 import {
   showClientSuggestionToast,
@@ -366,6 +366,15 @@ export function EstimateEditor({
         {state.isDirty && !isReadOnly && (
           <span className="text-xs text-muted-foreground">Unsaved changes</span>
         )}
+        {!isReadOnly && (
+          <div className="ml-auto">
+            <RefineEstimateDialog
+              estimateId={state.id}
+              version={state.version}
+              onApply={(refined) => dispatch({ type: 'APPLY_REFINEMENT', refined })}
+            />
+          </div>
+        )}
       </div>
 
       {/* Header (summary, notes, version selector, etc.) */}
@@ -417,14 +426,6 @@ export function EstimateEditor({
       {/* Totals */}
       <EstimateTotals state={state} dispatch={dispatch} isReadOnly={isReadOnly} />
 
-      {/* Refinement panel — only on current (editable) version */}
-      {!isReadOnly && (
-        <RefineEstimatePanel
-          estimateId={estimate.id}
-          projectId={projectId}
-          onRefined={() => router.refresh()}
-        />
-      )}
 
       <EstimateFloatingActions
         workflowStatus={state.workflow_status}
