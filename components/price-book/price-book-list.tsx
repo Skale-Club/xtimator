@@ -53,7 +53,7 @@ import {
 } from '@/components/ui/dialog'
 import { EmptyState } from '@/components/dashboard/empty-state'
 import { PriceBookItemDialog } from '@/components/price-book/price-book-item-dialog'
-import { PriceBookImportDialog } from '@/components/price-book/price-book-import-dialog'
+import { PriceBookImportWizard } from '@/components/price-book/import-wizard'
 import { BulkAdjustDialog } from '@/components/price-book/bulk-adjust-dialog'
 import {
   deletePriceBookItem,
@@ -250,7 +250,7 @@ export function PriceBookList({ items, folders, companyId }: PriceBookListProps)
           companyId={companyId}
           folders={folders}
         />
-        <PriceBookImportDialog
+        <PriceBookImportWizard
           open={importDialogOpen}
           onOpenChange={handleImportClose}
         />
@@ -540,8 +540,8 @@ export function PriceBookList({ items, folders, companyId }: PriceBookListProps)
         </DialogContent>
       </Dialog>
 
-      {/* Import CSV Dialog */}
-      <PriceBookImportDialog
+      {/* Import CSV Wizard (Phase 76) */}
+      <PriceBookImportWizard
         open={importDialogOpen}
         onOpenChange={handleImportClose}
       />
