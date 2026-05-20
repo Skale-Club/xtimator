@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v3.1.1
 milestone_name: MVP Launch Prep + Future-Proofing
 status: executing
-last_updated: "2026-05-20T03:26:18.017Z"
+last_updated: "2026-05-20T03:34:18.262Z"
 last_activity: 2026-05-19
 progress:
   total_phases: 18
@@ -422,6 +422,8 @@ Last activity: 2026-05-19
 - [Phase 74-post-onboarding-app-feature-tour]: isReviewModeRef uses useRef (not useState) — avoids stale closure in onOpenChange while being current at render time; handleClose never calls completeTour() so review mode is localStorage-clean; TourHelpButton returns null during spotlight to avoid z-index conflicts
 - [Phase 75]: ContextualTooltip post-75-02 trigger locked to hover/focus (Radix default); tooltipKey kept as no-op label
 - [Phase 75]: migrateLegacyKeys() is idempotent — safe to call on every TourProvider mount
+- [Phase 75]: ContextualTooltip: hover/focus on anchor is the sole trigger; no auto-show, no first-visit timer (resolves RESEARCH OQ #1)
+- [Phase 75]: startTour() always resets the completed flag so welcome-modal + TourHelpButton restart paths replay correctly (fixes gotcha #2)
 
 ## Performance Metrics
 
@@ -553,6 +555,7 @@ Last activity: 2026-05-19
 | Phase 74-post-onboarding-app-feature-tour P03 | 4min | 2 tasks | 5 files |
 | Phase 74-post-onboarding-app-feature-tour P04 | 4min | 2 tasks | 4 files |
 | Phase 75 P01 | 216 | 3 tasks | 4 files |
+| Phase 75 P02 | 270 | 3 tasks | 4 files |
 
 ## Project Reference
 
