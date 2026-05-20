@@ -160,6 +160,7 @@ export type Database = {
       companies: {
         Row: {
           address: string | null
+          ai_model_override: string | null
           brand_primary_color: string | null
           city: string | null
           created_at: string
@@ -205,6 +206,7 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          ai_model_override?: string | null
           brand_primary_color?: string | null
           city?: string | null
           created_at?: string
@@ -250,6 +252,7 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          ai_model_override?: string | null
           brand_primary_color?: string | null
           city?: string | null
           created_at?: string
@@ -660,6 +663,89 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notification_preferences: {
+        Row: {
+          categories: Json
+          email_digest_enabled: boolean
+          push_subscription: Json | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          categories?: Json
+          email_digest_enabled?: boolean
+          push_subscription?: Json | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          categories?: Json
+          email_digest_enabled?: boolean
+          push_subscription?: Json | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      notifications: {
+        Row: {
+          body: string
+          company_id: string
+          created_at: string
+          event_type: string
+          expires_at: string | null
+          id: string
+          link_url: string | null
+          metadata: Json
+          pinned: boolean
+          read_at: string | null
+          resource_id: string | null
+          resource_type: string | null
+          title: string
+          user_id: string | null
+        }
+        Insert: {
+          body: string
+          company_id: string
+          created_at?: string
+          event_type: string
+          expires_at?: string | null
+          id?: string
+          link_url?: string | null
+          metadata?: Json
+          pinned?: boolean
+          read_at?: string | null
+          resource_id?: string | null
+          resource_type?: string | null
+          title: string
+          user_id?: string | null
+        }
+        Update: {
+          body?: string
+          company_id?: string
+          created_at?: string
+          event_type?: string
+          expires_at?: string | null
+          id?: string
+          link_url?: string | null
+          metadata?: Json
+          pinned?: boolean
+          read_at?: string | null
+          resource_id?: string | null
+          resource_type?: string | null
+          title?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
             referencedColumns: ["id"]
           },
         ]
