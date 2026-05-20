@@ -25,7 +25,7 @@ progress:
 Phase: Not started (defining requirements)
 Plan: —
 Status: Defining requirements
-Last activity: 2026-05-20 — Milestone v4.0 started
+Last activity: 2026-05-20 — Completed quick task 260520-jg0: Fix label htmlFor mismatch in signup/login password fields
 
 ## v3.1.1 Phases
 
@@ -632,6 +632,7 @@ v3.1: Phases 61-65 (started 2026-05-15). Production Go-Live — 27 requirements 
 | 260518-gxy | Price book item photo (SEED-024) | 2026-05-18 | 3cacc15 | [260518-gxy-price-book-item-photo](.planning/quick/260518-gxy-price-book-item-photo/) |
 | 260518-hkp | Price book category hierarchy — folders (SEED-025) | 2026-05-18 | 3a79b52 | [260518-hkp-price-book-category-hierarchy](.planning/quick/260518-hkp-price-book-category-hierarchy/) |
 | 260518-v0z | Unify folder + category in price book (folder is sole taxonomy) | 2026-05-19 | 45f98d0 | [260518-v0z-unificar-folder-e-category-no-price-book](.planning/quick/260518-v0z-unificar-folder-e-category-no-price-book/) |
+| 260520-jg0 | Fix label htmlFor mismatch in signup/login password fields (FormControl Slot id leak) | 2026-05-20 | 2e21a8a | [260520-jg0-fix-label-htmlfor-mismatch-in-signup-log](.planning/quick/260520-jg0-fix-label-htmlfor-mismatch-in-signup-log/) |
 | 2026-05-18 | fast | Center auth card logo+wordmark | done |
 | 2026-05-19 | fast | Make audio capture screen scrollable on smaller viewports | done |
 | 2026-05-18 | fast | Restyle sidebar New Project as filled gradient, remove dashboard CTA | done |
