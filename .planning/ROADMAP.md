@@ -760,3 +760,22 @@ Plans:
 | 72. Admin Menu Performance | v3.1.1 | 3/3 | Complete    | 2026-05-18 |
 | 73. Language Onboarding + Estimate Language UI | v3.1.1 | 5/5 | Complete    | 2026-05-19 |
 | 74. Post-Onboarding App Feature Tour | v3.1.1 | 4/4 | Complete    | 2026-05-19 |
+
+### Phase 75: Tour and Tooltip QA
+
+**Goal:** Every spotlight tour step and contextual tooltip from Phase 74 only appears when intended, lands in the correct DOM position, dismisses cleanly, and persists "seen" state per user across sessions. Owner reports tooltips popping up unprompted (e.g., LanguageToggle tooltip floating without trigger) and "meio bugados" overall.
+
+**Depends on:** Phase 74 (Tour & Contextual Tooltips system)
+
+**Requirements**: TOUR-FIX-01, TOUR-FIX-02, TOUR-FIX-03, TOUR-FIX-04, TOUR-FIX-05, TOUR-FIX-06, TOUR-FIX-07
+
+**Success Criteria** (what must be TRUE):
+  1. Audit lists every `ContextualTooltip` mount point + trigger condition + dismiss rule in a single doc (e.g., `tests/visual/tour-inventory.md`)
+  2. Every tooltip and spotlight step appears ONLY when its documented trigger fires — no unprompted popups on page load, refresh, or unrelated nav
+  3. Tooltip positioning honors the `side` prop and never overflows viewport; auto-flips to the opposite side when there's no room
+  4. Dismissal persists per user — once dismissed, a tooltip never reappears unless the user explicitly opens "Restart tour" via `TourHelpButton`
+  5. `prefers-reduced-motion` honored (no animation when reduce); `prefers-reduced-transparency` honored on spotlight overlay; keyboard ESC dismisses spotlight
+  6. Unit tests cover the tour state machine (start, advance, prev, dismiss, restart) and tooltip persistence layer (seen flag in localStorage); minimum 8 cases
+  7. Manual UAT pass: open every page that hosts a tooltip in EN, PT, ES (3 locales × N pages); confirm strings translated, position correct, animation gated, no overlap with sticky topbar or hero gradient
+
+**Plans:** TBD (run /gsd:plan-phase 75 to break down)

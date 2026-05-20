@@ -200,3 +200,20 @@ Coverage: 39/39 (100%) — every v1 requirement maps to exactly one phase, no or
 | REDESIGN-08 | Phase 71 | Complete |
 | REDESIGN-09 | Phase 71 | Complete |
 | REDESIGN-10 | Phase 71 | Complete |
+
+### TOUR-FIX — Tour & Tooltip System QA (Phase 75)
+
+- [ ] **TOUR-FIX-01**: Audit doc lists every ContextualTooltip mount point + every TourStep with: target selector, trigger condition, dismiss rule, intended side. Lives at `tests/visual/tour-inventory.md`.
+- [ ] **TOUR-FIX-02**: No tooltip or spotlight appears on initial page load, refresh, or unrelated navigation unless explicitly triggered. Verified by Playwright spec opening every authenticated page and asserting tooltip surfaces are not visible by default.
+- [ ] **TOUR-FIX-03**: Tooltip positioning respects the `side` prop and auto-flips to opposite side when there's not enough viewport room (Floating UI behavior). No tooltip overflows the viewport.
+- [ ] **TOUR-FIX-04**: Dismissed tooltips persist as seen in localStorage (or DB if cross-device sync desired). Once dismissed, never reappear unless user clicks "Restart tour" in `TourHelpButton`.
+- [ ] **TOUR-FIX-05**: `prefers-reduced-motion` honored on every tour animation; `prefers-reduced-transparency` honored on spotlight overlay backdrop; ESC key dismisses spotlight; focus trap removed when spotlight closes.
+- [ ] **TOUR-FIX-06**: Unit tests for the tour state machine (start, advance, prev, dismiss, restart, edge cases like advancing past last step) and tooltip persistence layer (seen flag set/read/cleared). Minimum 8 cases passing.
+- [ ] **TOUR-FIX-07**: Manual UAT — exercise every tooltip + every tour step in EN, PT, and ES. Confirm strings translated, position correct, no overlap with sticky topbar or hero gradient, animation gated by motion preference. Findings logged in `.planning/known-issues.md` if any.
+| TOUR-FIX-01 | Phase 75 | Pending |
+| TOUR-FIX-02 | Phase 75 | Pending |
+| TOUR-FIX-03 | Phase 75 | Pending |
+| TOUR-FIX-04 | Phase 75 | Pending |
+| TOUR-FIX-05 | Phase 75 | Pending |
+| TOUR-FIX-06 | Phase 75 | Pending |
+| TOUR-FIX-07 | Phase 75 | Pending |
