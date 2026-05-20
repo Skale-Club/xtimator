@@ -1,335 +1,334 @@
-# Technology Stack
+# Technology Stack — v4.0 Multi-Tenancy
 
-**Project:** Xtimator v2.0 WhatsApp Estimate Channel
-**Researched:** 2026-05-10
-**Scope:** NEW capabilities only — additions required to integrate Meta WhatsApp Cloud API into the existing Next.js 16 / Supabase / Anthropic stack
-
----
-
-## What NOT to Re-research (Already Exists and Validated)
-
-| Capability | How It Exists |
-|------------|--------------|
-| Audio transcription | OpenAI Whisper via `transcribeRecording` server action |
-| Photo analysis + AI estimate | `lib/ai/` abstraction — `AnthropicAdapter` (Claude Vision + tool_use) |
-| PDF generation | `@react-pdf/renderer` + `/api/estimates/[id]/pdf` route |
-| Plain-text estimate formatting | `lib/utils/estimate-template.ts` — `buildItemsBreakdown()` |
-| Project creation (programmatic) | `createProjectAction` in `lib/actions/project.ts` — eager draft pattern |
-| Supabase DB + RLS patterns | `company_price_book` table pattern to replicate for `company_whatsapp` |
-| Email delivery | Resend — already used for estimate delivery |
-| API credential encryption | AES-256-GCM pattern in `platform_integrations` table |
+**Project:** Xtimator
+**Milestone:** v4.0 (Multiple Companies per User)
+**Researched:** 2026-05-20
+**Overall confidence:** HIGH
 
 ---
 
-## New Capabilities Required for v2.0
+## TL;DR (the short version)
 
-### 1. Meta WhatsApp Cloud API — HTTP Client (no SDK needed)
+The existing stack (`@supabase/ssr` v0.10, `@supabase/supabase-js` v2.103, Next.js 16.2 App Router, server actions, RLS-everywhere) is **sufficient on its own**. Multi-tenancy is **a pattern change, not a stack change**.
 
-**Decision: Native `fetch` with typed wrappers — NO third-party WhatsApp SDK.**
-
-**Rationale:**
-- The official Meta Node.js SDK (`whatsapp` npm package) was **archived June 7, 2023** and is no longer maintained. Do not use it.
-- The unofficial `@great-detail/whatsapp` fork exists but adds a dependency on unmaintained-upstream code. Not worth the surface area.
-- The Meta Cloud API is a clean REST API. All operations (send message, send document, upload media, download media) are `fetch` calls to `https://graph.facebook.com/v21.0/...` with a `Bearer` token and JSON or `multipart/form-data` body.
-- A thin internal `lib/whatsapp/client.ts` with typed functions (`sendTextMessage`, `sendDocument`, `downloadMedia`, `uploadMedia`) is ~150 lines, fully testable, and zero dependency.
-- This follows the same pattern already used for Anthropic and Gemini (provider abstraction in `lib/ai/`).
-
-**Current Graph API version:** v21.0 (stable as of 2026-05-10). Use this in all endpoint URLs.
-
-**Base endpoint:** `https://graph.facebook.com/v21.0`
-
-**Key operations:**
-
-| Operation | Endpoint | Method | Notes |
-|-----------|----------|--------|-------|
-| Send text message | `/{PHONE_NUMBER_ID}/messages` | POST | JSON body |
-| Upload media (PDF, audio) | `/{PHONE_NUMBER_ID}/media` | POST | multipart/form-data |
-| Download inbound media | `/{MEDIA_ID}` | GET | Returns temp URL; fetch that URL with Bearer token |
-| Delete media | `/{MEDIA_ID}` | DELETE | After processing inbound files |
-
-**Authorization:** All calls use `Authorization: Bearer {WHATSAPP_ACCESS_TOKEN}` header.
-
-**Inbound audio download pattern (critical):** WhatsApp does NOT send audio bytes directly in the webhook payload. It sends a `media_id`. To process:
-1. `GET https://graph.facebook.com/v21.0/{media_id}` → returns `{ url, mime_type, sha256 }` (temp URL, valid 5 min)
-2. `GET {url}` with `Authorization: Bearer {token}` → returns audio bytes
-3. Pass bytes to Whisper (existing pipeline)
-4. Delete media after processing: `DELETE https://graph.facebook.com/v21.0/{media_id}`
+- **Zero new runtime npm packages required.** Active-tenant is a plain `httpOnly` cookie set via a Server Action; RLS gates everything via a new `company_members` join table and a `SECURITY DEFINER` helper.
+- **Two dev-time tools added (optional but recommended):** `pgTAP` (already supported by Supabase Postgres) + `supabase_test_helpers` (single SQL install, no npm) for RLS coverage tests.
+- **DO NOT add:** SaaS frameworks (Makerkit/Basejump as a dep), `next-multi-tenant` libraries, JWT-claim-based active tenant (Supabase auth hook), or a separate "tenant context" React provider library. Each is justified in "What NOT to Add" below.
 
 ---
 
-### 2. Session State for Multi-Turn Confirmation Flow
+## Stack Additions (versions current as of 2026-05-20)
 
-**Decision: Upstash Redis (`@upstash/redis`) via Vercel KV — NOT Supabase rows.**
+### Dev-time only — RLS coverage testing
 
-**Rationale:**
-- The confirmation flow (generate → confirm → edit → send) requires temporary state (30-min expiry) that must survive across multiple HTTP requests (each inbound WhatsApp message is a separate webhook POST).
-- Supabase is viable (see SEED-008's `whatsapp_sessions` schema), but has downsides: migrations for ephemeral data, no native TTL support, polling for expiry, more RLS surface area.
-- Upstash Redis with `EXPIRY` on keys handles 30-min session cleanup natively and at zero cost for this traffic volume.
-- `@upstash/redis` is the correct package for Vercel serverless — it uses HTTP (not TCP sockets), which works in serverless environments. Standard `ioredis` and `redis` npm packages require persistent TCP connections and do NOT work reliably on Vercel.
-- Vercel KV is powered by Upstash and integrates natively — one dashboard, same SDK.
+| Package | Version | Type | Purpose | Why |
+|---------|---------|------|---------|-----|
+| `pgTAP` | 1.3.3+ (PG extension) | DB extension | Postgres unit-test harness | The community standard for testing RLS. Already documented in Supabase official docs. Enabled per-database via `CREATE EXTENSION pgtap;` — no npm install. |
+| `supabase_test_helpers` (basejump) | 0.0.4 | SQL package | `tests.create_supabase_user()`, `tests.authenticate_as()`, `tests.clear_authentication()`, `tests.rls_enabled()` | RLS policies don't *throw* — they silently filter. Without these helpers, every test is 30 lines of boilerplate that fakes a JWT into `request.jwt.claims`. With them, an RLS test is ~5 lines. Single-file SQL install via `database.dev` (`SELECT dbdev.install('basejump-supabase_test_helpers')`). No npm dep, no Node code. |
 
-**Package:** `@upstash/redis` — latest stable: **1.38.0** (verified 2026-05-10)
+Both are **dev/CI-only** — never touch production schema or runtime code. The existing `supabase/audits/run-prod-readiness.mjs` script already proves "RLS is enabled and every tenant table has at least one policy" but **cannot prove the policy is correct**. pgTAP + helpers close that gap, which is the only gap that matters during the RLS rewrite.
 
-**Session key pattern:** `whatsapp:session:{company_id}:{from_number}` with 30-minute TTL.
+**Confidence:** HIGH — both documented in current Supabase docs ([Advanced pgTAP Testing](https://supabase.com/docs/guides/local-development/testing/pgtap-extended), [usebasejump/supabase-test-helpers](https://github.com/usebasejump/supabase-test-helpers)).
 
-**Session state stored:**
-```typescript
-interface WhatsAppSession {
-  state: 'awaiting_input' | 'awaiting_confirm' | 'awaiting_edit';
-  draft_project_id: string | null;
-  draft_estimate_id: string | null;
-  from_number: string;
-  company_id: string;
-  expires_at: number; // Unix timestamp, informational — Redis TTL is authoritative
-}
-```
+### Runtime — none
+
+**Confidence:** HIGH — verified by reading existing `lib/supabase/server.ts`, `package.json`, and Next.js 16 cookies API docs. The cookie + server action pattern needs zero new dependencies.
 
 ---
 
-### 3. Rate Limiting for Webhook Endpoint
+## Stack Modifications
 
-**Decision: `@upstash/ratelimit` — co-installed with Upstash Redis.**
-
-**Rationale:**
-- SEED-008 specifies a hard cap of 20 projects/day per company via WhatsApp.
-- `@upstash/ratelimit` integrates directly with the `@upstash/redis` instance already required above — no second Redis client.
-- Sliding window algorithm: `new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(20, '1 d'), prefix: 'whatsapp:ratelimit' })`.
-- `identifier`: `company_id` (not IP — the webhook is server-to-server from Meta; IP-based limiting would block all WhatsApp traffic).
-
-**Package:** `@upstash/ratelimit` — latest stable: **2.0.8** (verified 2026-05-10)
-
----
-
-### 4. Webhook Signature Verification — No New Package
-
-**Decision: Node.js built-in `node:crypto` — NO new package.**
-
-**Rationale:**
-- Meta signs every webhook POST with HMAC-SHA256 using the App Secret. The signature is in the `x-hub-signature-256` header as `sha256={hex_digest}`.
-- Verification uses `createHmac` and `timingSafeEqual` from `node:crypto`, which is already available in Next.js App Router (Node.js runtime).
-- **Critical implementation detail:** Read body as raw text FIRST (`await request.text()`), verify HMAC, then `JSON.parse()`. Never parse JSON first — re-stringification changes bytes and breaks signature comparison.
-- The GET handler on the same route handles Meta's webhook verification handshake (checks `hub.mode`, `hub.verify_token`, returns `hub.challenge` as plain text).
-
-```typescript
-// Pattern (no imports beyond node:crypto)
-const rawBody = await request.text();
-const appSecret = process.env.WHATSAPP_APP_SECRET!;
-const expected = 'sha256=' + createHmac('sha256', appSecret).update(rawBody).digest('hex');
-const received = request.headers.get('x-hub-signature-256') ?? '';
-if (!timingSafeEqual(Buffer.from(expected), Buffer.from(received))) {
-  return new Response('Unauthorized', { status: 401 });
-}
-const payload = JSON.parse(rawBody);
-```
-
----
-
-## Net-New npm Packages
-
-| Package | Version | Purpose | Why This One |
-|---------|---------|---------|-------------|
-| `@upstash/redis` | `^1.38.0` | Session storage for multi-turn confirmation flow | HTTP-based Redis client — only option that works reliably in Vercel serverless. Vercel KV native integration. |
-| `@upstash/ratelimit` | `^2.0.8` | Per-company rate limiting (20 projects/day via WhatsApp) | Co-designed with @upstash/redis; sliding window algorithm built-in; no second Redis client needed |
-
-**Total net-new packages: 2.**
-
-Everything else — HMAC verification, HTTP calls to Meta Graph API, media processing, PDF generation, estimate text formatting — uses existing code or Node.js built-ins.
-
----
-
-## Installation
-
-```bash
-npm install @upstash/redis @upstash/ratelimit
-```
-
-Vercel KV setup (dashboard):
-1. Go to Vercel project → Storage → Create KV Database
-2. Vercel auto-injects `KV_URL`, `KV_REST_API_URL`, `KV_REST_API_TOKEN` as env vars
-3. `@upstash/redis` reads these via `Redis.fromEnv()`
-
----
-
-## Environment Variables
-
-### New Variables Required
-
-| Variable | Source | Where Set | Purpose |
-|----------|--------|-----------|---------|
-| `WHATSAPP_ACCESS_TOKEN` | Meta Business Manager → System User → Generate Token | Vercel env (production) + `.env.local` (dev) | Bearer token for all Graph API calls. Use a **System User token** (never the temporary dev token — expires in 23h). |
-| `WHATSAPP_PHONE_NUMBER_ID` | Meta Developer Dashboard → WhatsApp → API Setup → Phone Number ID | Vercel env + `.env.local` | The numeric ID of the sending phone number. Used in every send-message URL. |
-| `WHATSAPP_BUSINESS_ACCOUNT_ID` | Meta Business Manager → WhatsApp Business Account ID | Vercel env + `.env.local` | The WABA ID. Needed for account-level API calls (e.g., phone number registration). |
-| `WHATSAPP_APP_SECRET` | Meta Developer Dashboard → App → App Settings → App Secret | Vercel env (server-only, never client) + `.env.local` | Used to verify HMAC-SHA256 webhook signatures. NEVER expose to browser. |
-| `WHATSAPP_VERIFY_TOKEN` | Self-generated random string | Vercel env + `.env.local` | Shared secret between your webhook endpoint and Meta's webhook config. Choose any value; register the same string in Meta Dashboard. |
-| `KV_REST_API_URL` | Vercel KV dashboard (auto-injected by Vercel) | Vercel env (auto) | Upstash Redis endpoint URL |
-| `KV_REST_API_TOKEN` | Vercel KV dashboard (auto-injected by Vercel) | Vercel env (auto) | Upstash Redis auth token |
-
-### Existing Variables Already Present (No Change)
-
-`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `RESEND_API_KEY` — all already in use; WhatsApp pipeline reuses these.
-
----
-
-## Meta App Configuration Requirements
-
-### Developer Account Setup
-
-1. **Meta Developer Account** at developers.facebook.com — must be verified
-2. **Meta Business Manager** account — required for System User token generation
-3. **Create a Meta App** → choose type "Business"
-4. **Add WhatsApp product** to the app
-
-### Required Permissions
-
-| Permission | Purpose | Access Level |
-|------------|---------|-------------|
-| `whatsapp_business_messaging` | Send/receive messages, download media | Advanced Access (requires App Review for production) |
-| `whatsapp_business_management` | Phone number management, account info | Standard (available immediately for dev) |
-
-### Webhook Configuration
-
-In Meta Developer Dashboard → WhatsApp → Configuration:
-- **Callback URL:** `https://your-domain.vercel.app/api/webhooks/whatsapp`
-- **Verify Token:** value of `WHATSAPP_VERIFY_TOKEN` env var
-- **Webhook fields to subscribe:** `messages` (required), `message_statuses` (optional for delivery receipts)
-
-### Phone Number Setup
-
-- Add a phone number to your WABA (WhatsApp Business Account)
-- The **Phone Number ID** (numeric) goes in `WHATSAPP_PHONE_NUMBER_ID`
-- For development: Meta provides a free test number (5 recipient numbers, no business verification needed)
-- For production: requires **Business Verification** on Meta Business Manager (government ID or business documents)
-
-### Access Token for Production
-
-- **Do NOT use** the temporary token from "Getting Started" (expires in 23 hours)
-- **Do use** a System User token:
-  1. Business Settings → System Users → Create Admin System User
-  2. Assign assets: your app + whatsapp_business_messaging permission
-  3. Generate Token → no expiration → copy to `WHATSAPP_ACCESS_TOKEN`
-
-### Response Time Requirement
-
-Meta requires the webhook endpoint to respond with HTTP 200 within **5 seconds**. If 5 consecutive webhooks fail to receive 200, Meta disables the webhook subscription. The webhook route must acknowledge receipt immediately and process asynchronously (or process fast enough — Vercel serverless functions have up to 60s execution time on pro plan).
-
-**Pattern for heavy processing:** Acknowledge with 200 immediately, then spawn background work. For Vercel, `waitUntil` via `after()` (Next.js 15+) or optimistic 200 + Supabase queue are both valid.
-
----
-
-## What NOT to Add
-
-| Technology | Why NOT |
-|------------|---------|
-| Twilio WhatsApp API | User has Meta Cloud API approved. Twilio adds per-message cost ($0.005 extra/msg) on top of Meta fees, plus Twilio account complexity. The SEED-008 note recommending Twilio was written before Meta approval was confirmed. |
-| Official Meta `whatsapp` npm package | Archived June 7, 2023. Unmaintained. |
-| `@great-detail/whatsapp` | Fork of above. Adds dependency weight for a thin wrapper around fetch calls you can write directly. |
-| `whatsapp-web.js` / `@whiskeysockets/baileys` | These reverse-engineer the WhatsApp Web protocol. They are unofficial, violate WhatsApp ToS, and can be terminated by Meta at any time. Not appropriate for a SaaS product. |
-| `ioredis` / `redis` (standard) | TCP-socket-based Redis clients. Do NOT work reliably in Vercel serverless functions due to connection lifecycle. Use `@upstash/redis` (HTTP-based) instead. |
-| Bull / BullMQ | Job queue library. Requires persistent Redis TCP connection — incompatible with Vercel serverless. `after()` or Supabase-based queue covers the async webhook processing need. |
-| Socket.io / WebSockets for real-time | WhatsApp channel is webhook-push from Meta's servers. No persistent connection needed on the Xtimator side. |
-| Separate WhatsApp microservice | Overkill for this milestone. The webhook handler is a standard Next.js API route. Microservice complexity is not warranted until traffic > 10K messages/day. |
-| `formdata-node` or `form-data` npm package | Node.js 18+ (used by Next.js 16) has native `FormData` and `Blob` in the runtime. No polyfill needed for multipart/form-data uploads to Meta's media endpoint. |
-
----
-
-## Integration Points with Existing Code
-
-| Existing File | How WhatsApp Uses It |
-|--------------|---------------------|
-| `app/api/generate-estimate/route.ts` | Called programmatically from webhook handler (not via browser) — no changes needed, just internal HTTP call |
-| `app/api/estimates/[id]/pdf/route.ts` | Called to generate PDF buffer for WhatsApp document attachment |
-| `lib/utils/estimate-template.ts` — `buildItemsBreakdown()` | Formats estimate summary text for the WhatsApp confirmation message |
-| `lib/ai/index.ts` — `WhatsAppProvider` interface | New `MetaAdapter` follows same factory pattern as `AIProvider` |
-| `lib/actions/project.ts` — `createProjectAction` | Called without wizard — programmatic project creation from inbound message |
-| `lib/actions/recording.ts` — `transcribeRecording()` | Reused for inbound WhatsApp audio after media download |
-| `platform_integrations` table | WhatsApp access token stored encrypted (AES-256-GCM), same pattern as other API keys |
-| `company_price_book` table + RLS | `company_whatsapp` table follows same RLS isolation pattern |
-
----
-
-## New DB Tables Required
-
-These are schema decisions, not library decisions — documented here for completeness.
+### 1. Schema additions (no new libraries — pure SQL migration)
 
 ```sql
--- Phone number → company mapping (1:1)
-CREATE TABLE company_whatsapp (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
-  phone_number TEXT NOT NULL UNIQUE,   -- E.164 format: +15551234567
-  waba_phone_number_id TEXT,           -- Meta phone_number_id
-  status TEXT NOT NULL DEFAULT 'pending'
-    CHECK (status IN ('pending', 'verified', 'active', 'suspended')),
-  verified_at TIMESTAMPTZ,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+-- New table
+CREATE TABLE company_members (
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  company_id uuid NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  role text NOT NULL DEFAULT 'owner' CHECK (role IN ('owner')),  -- room for 'admin','member' later
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, company_id)
 );
--- RLS: company_id = auth.company_id()
+
+CREATE INDEX idx_company_members_user_id ON company_members(user_id);
+CREATE INDEX idx_company_members_company_id ON company_members(company_id);
+
+ALTER TABLE company_members ENABLE ROW LEVEL SECURITY;
+
+-- SECURITY DEFINER helper — the keystone of the RLS rewrite
+CREATE OR REPLACE FUNCTION public.is_company_member(target_company_id uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.company_members
+    WHERE user_id = (SELECT auth.uid())
+      AND company_id = target_company_id
+  );
+$$;
+
+-- Idempotent backfill (the locked migration decision)
+INSERT INTO company_members (user_id, company_id, role)
+SELECT user_id, id, 'owner' FROM companies
+ON CONFLICT (user_id, company_id) DO NOTHING;
 ```
 
-Session state in Redis (not a DB table) — see Session State section above.
+**Why a `SECURITY DEFINER` function and not inline `EXISTS (...)` in every policy?**
+
+1. **Performance.** Postgres can inline-cache the function result per-row for the duration of a query, but only when wrapped properly. Without it, the join-subquery runs once per row scanned (catastrophic on `estimate_items`).
+2. **DRY.** ~20 policies share the same gate; defining it once means fixing it once.
+3. **`SET search_path = ''` is mandatory** — without it, an attacker who controls a schema can shadow `company_members`. This is the Supabase security advisor's required pattern.
+
+**Confidence:** HIGH — pattern matches the Supabase official guide on [RLS performance](https://supabase.com/docs/guides/database/postgres/row-level-security#use-security-definer-functions) and the [Makerkit production RLS guide](https://makerkit.dev/blog/tutorials/supabase-rls-best-practices).
+
+### 2. Policy rewrite — every tenant table
+
+Replace every existing `WHERE company_id IN (SELECT id FROM companies WHERE user_id = auth.uid())` with:
+
+```sql
+DROP POLICY IF EXISTS "tenant_select_own" ON projects;
+CREATE POLICY "tenant_select_own" ON projects
+  FOR SELECT
+  USING (public.is_company_member(company_id));
+
+-- repeat FOR INSERT, UPDATE, DELETE with WITH CHECK (public.is_company_member(company_id))
+```
+
+**Key correctness rule:** wrap `auth.uid()` in `(SELECT auth.uid())` everywhere it appears outside the helper, so Postgres treats it as an `initPlan` (one execution per query) instead of a function call per row. This is the [official Supabase RLS performance tip](https://supabase.com/docs/guides/database/postgres/row-level-security#call-functions-with-select).
+
+**Confidence:** HIGH.
+
+### 3. Active-company tracking — cookie via server action (no new libraries)
+
+**Recommended pattern (Next.js 16 native API only):**
+
+```ts
+// lib/active-company.ts
+import 'server-only'
+import { cookies } from 'next/headers'
+
+const COOKIE_NAME = 'xt-active-company'
+const ONE_YEAR_SECONDS = 60 * 60 * 24 * 365
+
+export async function getActiveCompanyId(): Promise<string | null> {
+  const store = await cookies()
+  return store.get(COOKIE_NAME)?.value ?? null
+}
+
+export async function setActiveCompanyCookie(companyId: string) {
+  const store = await cookies()
+  store.set(COOKIE_NAME, companyId, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/',
+    maxAge: ONE_YEAR_SECONDS,
+  })
+}
+
+export async function clearActiveCompanyCookie() {
+  const store = await cookies()
+  store.delete(COOKIE_NAME)
+}
+```
+
+```ts
+// lib/actions/set-active-company.ts
+'use server'
+import { revalidatePath } from 'next/cache'
+import { createClient } from '@/lib/supabase/server'
+import { setActiveCompanyCookie } from '@/lib/active-company'
+
+export async function setActiveCompany(companyId: string) {
+  const supabase = await createClient()
+  // Membership verification at the server boundary — defense in depth
+  const { data: membership } = await supabase
+    .from('company_members')
+    .select('company_id')
+    .eq('company_id', companyId)
+    .maybeSingle()
+  if (!membership) throw new Error('forbidden')
+  await setActiveCompanyCookie(companyId)
+  revalidatePath('/', 'layout')
+}
+```
+
+**A "current company" resolver used by every server action / RSC:**
+
+```ts
+// lib/get-current-company.ts
+import 'server-only'
+import { cache } from 'react'
+import { createClient } from '@/lib/supabase/server'
+import { getActiveCompanyId } from '@/lib/active-company'
+
+export const getCurrentCompany = cache(async () => {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
+
+  const cookieId = await getActiveCompanyId()
+  if (cookieId) {
+    const { data } = await supabase
+      .from('company_members')
+      .select('company_id, companies(*)')
+      .eq('company_id', cookieId)
+      .maybeSingle()
+    if (data?.companies) return data.companies
+  }
+
+  // Fallback: first membership (e.g. brand-new login, cookie cleared)
+  const { data: first } = await supabase
+    .from('company_members')
+    .select('company_id, companies(*)')
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+  return first?.companies ?? null
+})
+```
+
+**Why this pattern (and not alternatives):**
+
+| Alternative | Verdict | Reason |
+|-------------|---------|--------|
+| Cookie + server action (this) | **PICK** | Zero new deps. Survives full reloads. Works with Next.js `cache()`. Edge-renderable. SSR-safe. Pairs naturally with `revalidatePath('/', 'layout')`. |
+| Custom JWT claim via Supabase Auth Hook (`active_company_id`) | **REJECT for v4.0** | (1) Claims update only on token refresh (~1h delay) — switching companies would require forcing a re-auth. (2) Adds infra surface (Supabase Edge Function or DB hook). (3) Doesn't simplify RLS — the helper still needs `company_members`. Maybe revisit when adding multi-user-per-company (v5+). |
+| URL path (`/c/[companyId]/...`) | **REJECT** | Massive routing refactor for marginal benefit. Cookie + cache invalidation is functionally equivalent. |
+| Subdomain (`acme.xtimator.com`) | **REJECT** | Requires DNS + custom_domains rework. Out of scope. |
+| Middleware-set cookie | **REJECT** | Xtimator has NO `middleware.ts` today. Adding one purely for tenant ops would force re-architecting all the existing layout-level auth checks. Server-action cookie writes are functionally identical and don't change the architecture. |
+| Server-only React Context | **PARTIAL** | Useful for *passing* the resolved company down the RSC tree (after `getCurrentCompany()`), but doesn't replace the cookie — Context vanishes between requests. |
+
+**Confidence:** HIGH — pattern matches [Next.js cookies docs](https://nextjs.org/docs/app/api-reference/functions/cookies), [Next.js multi-tenant guide](https://nextjs.org/docs/app/guides/multi-tenant), and verified against existing `lib/supabase/server.ts`.
+
+### 4. Stripe — per-company subscription stays as-is
+
+The schema already has `companies.stripe_customer_id`, `stripe_subscription_id`, `tier`, `tier_trial_ends_at`, and **Stripe Connect** columns (`stripe_account_id`, `stripe_connect_status`) per company. Trial clock per-company is the locked decision. No Stripe SDK change needed; only the server-action call sites that derive `companyId` from `auth.uid()` need to read from `getCurrentCompany()`.
+
+**One required adjustment:** the existing `processed_stripe_events` and webhook handler should keep using the **service role** client (already true — bypasses RLS). The lookup-by-`stripe_account_id` / `stripe_customer_id` path doesn't need RLS to change. **No new package, no version bump.**
+
+### 5. Inngest — already aligned
+
+Inngest job functions (`generateEstimateJob`, `transcribeAudioJob`, `analyzePhotosJob`, WhatsApp inbound) already pass `companyId` explicitly in the event payload (cf. INNGEST requirements). They use the **service role** Supabase client, which bypasses RLS by design. **No code change needed in Inngest functions** — but the API routes that *trigger* Inngest events (`/api/generate-estimate`, etc.) must derive `companyId` from `getCurrentCompany()` instead of `auth.uid()`-via-companies-lookup.
+
+**Confidence:** HIGH (verified against existing `lib/inngest/` patterns referenced in REQUIREMENTS.md).
+
+### 6. Resend — no change
+
+Notifications already select `email` from `companies` (per-company sender configuration). The dispatcher (`lib/notifications/dispatch.ts`) already takes `company_id`. Only the *trigger* sites change (read from active company, not auth user).
 
 ---
 
-## Architecture: WhatsApp Message Flow
+## What NOT to Add (and why)
 
-```
-Meta servers
-    │  POST /api/webhooks/whatsapp
-    │  x-hub-signature-256: sha256={hmac}
-    ▼
-[1] Verify HMAC signature (node:crypto — synchronous, ~0ms)
-    │  Return 200 immediately (within Meta's 5s window)
-    ▼
-[2] Route by from_number → company_id
-    │  SELECT company_id FROM company_whatsapp WHERE phone_number = $1
-    ▼
-[3] Load/update Upstash Redis session (whatsapp:session:{company_id}:{from_number})
-    ▼
-[4] Dispatch by message type:
-    ├── text  → parse intent (send/edit/cancel/new job description)
-    ├── audio → download media → Whisper → text description
-    └── image → download media → Claude Vision → structured analysis
-    ▼
-[5] If new estimate needed:
-    createProjectAction() → generate-estimate (internal) → store in DB
-    ▼
-[6] Send confirmation summary via Meta Graph API
-    POST graph.facebook.com/v21.0/{PHONE_NUMBER_ID}/messages
-    ▼
-[7] On "send" command: deliver to client
-    ├── Text: sendTextMessage() to client phone
-    ├── PDF:  generatePDF() → uploadMedia() → sendDocument()
-    └── Link: sendTextMessage() with /estimate/{token} URL
-```
+Each of these came up in research and is explicitly **out of scope** because they add weight without solving a problem Xtimator has.
+
+| Library / Pattern | Why NOT |
+|-------------------|---------|
+| **Makerkit / Basejump as runtime dependencies** | Both are *patterns* (Makerkit is a paid starter kit; Basejump is a SQL extension for account/billing). Xtimator already has its own account model, billing, RLS audit, and storage abstraction. Adopting their SQL or app conventions wholesale would mean rewriting 70+ phases of validated code. **Borrow the patterns (membership table, SECURITY DEFINER helper, pgTAP helpers), do not install the frameworks.** |
+| **`next-multi-tenant` / `multi-tenancy-nextjs` npm packages** | None are widely-used, well-maintained, or compatible with App Router + Server Actions + Supabase RLS. They mostly target subdomain routing, which Xtimator doesn't need. The native `cookies()` + `revalidatePath()` combo is ~30 lines and zero risk. |
+| **Supabase Custom Access Token Hook for `active_company_id` JWT claim** | (1) Claim is *stale* until next token refresh — switching companies requires forced re-auth. (2) Adds an Edge Function or DB hook to the infra surface that has to be deployed/monitored. (3) RLS still needs the `company_members` lookup, so it doesn't actually eliminate the join. Cookie wins on every axis for v4.0. Revisit when v5+ introduces team invites + role-claim-based authorization where speed of policy check matters. |
+| **Drizzle/Prisma as an RLS-aware ORM** | Xtimator queries via `@supabase/supabase-js` everywhere. Introducing an ORM mid-flight would be a far bigger change than the multi-tenancy work itself. |
+| **`next-safe-action`** | Tempting (typed server actions + middleware), but introducing it during the same milestone that rewrites ~20 server actions doubles the cognitive load and risk. The existing zod-validate-then-execute pattern in `lib/actions/*.ts` is fine. Track as a future polish item if desired. |
+| **Separate Supabase project per tenant** | Costs scale per project. Xtimator's tenants are small US service businesses — the shared-schema-with-RLS pattern is the correct trade-off until reaching enterprise (>1K paid tenants). |
+| **A `middleware.ts` for tenant gating** | Would require migrating the existing layout-level auth/admin guards. Server-action cookie + RSC-level `getCurrentCompany()` reaches the same enforcement point. |
+| **Sentry / observability additions** | Already deferred to v3.2 per REQUIREMENTS.md. Not multi-tenancy's problem. |
+| **A "switcher" UI library** (e.g. cmdk-based command palette) | `cmdk` is already a dependency (`"cmdk": "^1.1.1"`). The switcher is a `<DropdownMenu>` (`@radix-ui/react-dropdown-menu` already installed) — no new package needed. |
 
 ---
 
-## Confidence Assessment
+## Integration Notes
 
-| Area | Confidence | Basis |
-|------|------------|-------|
-| No SDK needed (raw fetch) | HIGH | Official SDK archived 2023; Meta Graph API is documented REST; verified against current Meta docs |
-| Graph API version v21.0 | HIGH | Multiple sources (Medium 2026 article, Meta changelog) confirm v21.0 current stable |
-| `@upstash/redis` for sessions | HIGH | Official Vercel KV docs; Upstash docs confirm HTTP-based Redis is the correct serverless choice |
-| Package versions (1.38.0 / 2.0.8) | HIGH | Verified via `npm view` at time of research |
-| HMAC with `node:crypto` | HIGH | Confirmed in Meta docs (x-hub-signature-256); Node.js crypto built-in |
-| System User token required for production | HIGH | Multiple official sources confirm temporary token expires in 23h |
-| Business Verification required for production | HIGH | Meta docs consistently state this requirement |
-| `after()` for async webhook processing | MEDIUM | Next.js 15+ feature; behavior on Vercel Edge vs Node runtime needs verification at implementation time |
+### `lib/supabase/server.ts` — no change required
+
+The existing `createClient()` already reads cookies via `@supabase/ssr` v0.10.2. Adding the `xt-active-company` cookie does not interfere with Supabase's session cookies (`sb-*`). They coexist in the same `cookies()` store.
+
+### `lib/supabase/service.ts` — no change required
+
+Service-role client (used by Inngest jobs, Stripe webhooks, WhatsApp webhook, cron jobs) **bypasses RLS by design**. These code paths must derive `companyId` from the **event payload or DB lookup**, never from the cookie (no request context). This is already the case in the codebase — verify the rewrite doesn't accidentally introduce a `getCurrentCompany()` call into a service-role path.
+
+### `supabase/audits/` — extended, not replaced
+
+The existing `run-prod-readiness.mjs` script catches "table has zero policies = FAIL". After v4.0 it should also assert:
+
+1. Every previously-listed tenant table has a policy that calls `public.is_company_member(...)` (not the old `auth.uid()` pattern). A new SQL audit in `supabase/audits/rls-tenant-policies.sql` can scan `pg_policies.qual` and `pg_policies.with_check` text for the helper-function call.
+2. The new `company_members` table exists, RLS is enabled, has the expected 4 policies, and has the two required indexes.
+
+This is **a script edit, not a library addition**.
+
+### pgTAP test layout (new directory)
+
+```
+supabase/
+  tests/
+    01_company_members_rls.sql        -- cross-tenant SELECT/INSERT denied
+    02_projects_rls.sql               -- 19 tables × {SELECT, INSERT, UPDATE, DELETE} = 76 cases
+    03_estimates_share_token.sql      -- public share_token select policy still works
+    04_membership_helper.sql          -- is_company_member() returns expected truth table
+    helpers/
+      supabase_test_helpers.sql       -- vendored from basejump (one file, ~250 lines)
+```
+
+Run via Supabase CLI: `supabase test db` (already supported, requires `db_test_url` in `supabase/config.toml`).
+
+### Migration sequencing (locked decision, restated)
+
+1. **Phase A:** Create `company_members`, `is_company_member()`, backfill from `companies.user_id`. Old RLS still active (uses `auth.uid()`). App keeps working.
+2. **Phase B:** Add cookie + `getCurrentCompany()` + switcher UI. Server actions still derive companyId from `auth.uid()` — cookie is dormant. Verify UI flow.
+3. **Phase C:** Rewrite RLS policies to use `is_company_member()`. Verify pgTAP suite passes.
+4. **Phase D:** Rewrite ~20 server actions in `lib/actions/*.ts` to use `getCurrentCompany()`. Each action rewrite is independent and testable.
+5. **Phase E:** Move `tier` / Stripe / `usage_events` from "1 per user" to "1 per company" semantics — schema is already aligned (per-company columns exist), only logic needs the active-company resolver.
+
+The downstream planner can chunk these into phases as it sees fit.
+
+---
+
+## Installation (only commands needed)
+
+```bash
+# pgTAP (run once per database)
+# In Supabase Dashboard → Database → Extensions → enable "pgtap"
+# Or via migration:
+echo "CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;" >> supabase/migrations/<next>_enable_pgtap.sql
+
+# supabase_test_helpers (database.dev one-liner)
+# In SQL editor (DEV ONLY — never on prod):
+SELECT dbdev.install('basejump-supabase_test_helpers');
+CREATE EXTENSION "basejump-supabase_test_helpers";
+```
+
+No `npm install` step. No `package.json` change. No new env vars.
 
 ---
 
 ## Sources
 
-- Meta WhatsApp Cloud API official docs: https://developers.facebook.com/docs/whatsapp/cloud-api/
-- Meta Developer webhook setup: https://developers.facebook.com/docs/whatsapp/cloud-api/guides/set-up-webhooks/
-- Meta System User access tokens: https://developers.facebook.com/documentation/business-messaging/whatsapp/access-tokens/
-- WhatsApp Node.js SDK archived (GitHub): https://github.com/WhatsApp/WhatsApp-Nodejs-SDK
-- Next.js + WhatsApp webhook implementation (Feb 2026): https://pons.chat/blog/whatsapp-cloud-api-webhook-nextjs
-- Graph API v21.0 release: https://ppc.land/meta-releases-graph-api-v21-0-and-marketing-api-v21-0/
-- Upstash Redis npm: https://www.npmjs.com/package/@upstash/redis
-- Upstash Ratelimit npm: https://www.npmjs.com/package/@upstash/ratelimit
-- Vercel KV session store guide: https://vercel.com/kb/guide/session-store-nextjs-redis-vercel-kv
-- Meta media upload/download API: https://developers.facebook.com/docs/whatsapp/cloud-api/reference/media/
-- Meta document messages: https://developers.facebook.com/documentation/business-messaging/whatsapp/messages/document-messages/
-- WhatsApp Cloud API 2026 integration guide: https://medium.com/@aktyagihp/whatsapp-cloud-api-integration-in-2026-0493dd05d644
+- [Next.js Multi-tenant Guide (official)](https://nextjs.org/docs/app/guides/multi-tenant) — HIGH (official docs)
+- [Next.js cookies() API reference](https://nextjs.org/docs/app/api-reference/functions/cookies) — HIGH (official docs)
+- [Next.js revalidatePath](https://nextjs.org/docs/app/api-reference/functions/revalidatePath) — HIGH (official docs)
+- [Supabase RLS feature page](https://supabase.com/features/row-level-security) — HIGH (official)
+- [Supabase Custom Access Token Hook](https://supabase.com/docs/guides/auth/auth-hooks/custom-access-token-hook) — HIGH (read to evaluate, then rejected)
+- [Supabase Custom Claims & RBAC](https://supabase.com/docs/guides/database/postgres/custom-claims-and-role-based-access-control-rbac) — HIGH (official)
+- [Supabase Advanced pgTAP Testing](https://supabase.com/docs/guides/local-development/testing/pgtap-extended) — HIGH (official)
+- [Supabase pgTAP extension docs](https://supabase.com/docs/guides/database/extensions/pgtap) — HIGH (official)
+- [Supabase SSR — Creating a client](https://supabase.com/docs/guides/auth/server-side/creating-a-client) — HIGH (official)
+- [usebasejump/supabase-test-helpers (GitHub)](https://github.com/usebasejump/supabase-test-helpers) — HIGH (canonical repo)
+- [Makerkit — Supabase RLS Best Practices](https://makerkit.dev/blog/tutorials/supabase-rls-best-practices) — MEDIUM (community, but battle-tested patterns; cross-referenced with Supabase docs)
+- [Basejump — Testing on Supabase with pgTAP](https://usebasejump.com/blog/testing-on-supabase-with-pgtap) — MEDIUM (community)
+- Internal: `supabase/audits/EXPECTED-POSTURE.md`, `supabase/audits/rls-audit.sql`, `lib/supabase/server.ts`, `types/database.types.ts`, `package.json` — HIGH (current code on disk, read 2026-05-20)
+
+---
+
+## Confidence Assessment
+
+| Area | Level | Reason |
+|------|-------|--------|
+| Active-tenant pattern (cookie + server action) | HIGH | Verified against Next.js 16 official docs + existing `lib/supabase/server.ts` cookie wiring. Zero new deps required. |
+| RLS rewrite via `is_company_member()` helper | HIGH | Pattern matches official Supabase RLS performance docs + production-validated by Makerkit/Basejump community. `SET search_path = ''` requirement confirmed in Supabase security advisor. |
+| Membership backfill (idempotent) | HIGH | Pure SQL `INSERT ... ON CONFLICT DO NOTHING` — already a locked decision. |
+| pgTAP + supabase_test_helpers | HIGH | Both documented in official Supabase docs as the canonical RLS testing toolchain. |
+| Rejecting JWT custom claim approach | HIGH | The "stale-until-refresh" limitation is acknowledged in Supabase's own auth-hook docs; cookie is the correct trade-off when active context changes mid-session. |
+| "No new npm packages" claim | HIGH | Audited `package.json` (already has `cmdk`, `@radix-ui/react-dropdown-menu`, `@supabase/ssr` v0.10.2, `@supabase/supabase-js` v2.103). Nothing for v4.0 is missing. |

@@ -241,14 +241,17 @@ export function CompanyInfoForm({ company }: CompanyInfoFormProps) {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>{t('Default estimate language')}</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value ?? ''}>
+                      <Select
+                        onValueChange={(v) => field.onChange(v === 'en' ? '' : v)}
+                        value={field.value ? field.value : 'en'}
+                      >
                         <FormControl>
                           <SelectTrigger className="w-full">
                             <SelectValue placeholder={t('English (default)')} />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="">{t('English (default)')}</SelectItem>
+                          <SelectItem value="en">{t('English (default)')}</SelectItem>
                           <SelectItem value="pt">Português (Brazil)</SelectItem>
                           <SelectItem value="es">Español</SelectItem>
                         </SelectContent>
