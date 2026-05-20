@@ -177,7 +177,7 @@ export function EstimatePreview({ estimate, projectName, companyName }: Estimate
             variant="outline"
             className="flex-1"
             onClick={handleDownloadPdf}
-            disabled={downloading}
+            disabled={downloading || estimate.workflow_status !== 'consolidated'}
           >
             <Download className="mr-2 h-4 w-4" />
             {downloading ? t('Generating...') : t('Download PDF')}
@@ -186,6 +186,7 @@ export function EstimatePreview({ estimate, projectName, companyName }: Estimate
             variant="outline"
             className="flex-1"
             onClick={handleCopyShareLink}
+            disabled={estimate.workflow_status !== 'consolidated'}
           >
             {copied ? (
               <Check className="mr-2 h-4 w-4" />

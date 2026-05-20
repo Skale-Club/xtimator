@@ -51,12 +51,17 @@ export function EstimateHeader({
             ))}
           </SelectContent>
         </Select>
-        <Button variant="outline" size="sm" onClick={onRegenerate} className="gap-1.5">
-          <RefreshCw className="h-3.5 w-3.5" />
-          Regenerate
-        </Button>
+        {!isReadOnly && (
+          <Button variant="outline" size="sm" onClick={onRegenerate} className="gap-1.5">
+            <RefreshCw className="h-3.5 w-3.5" />
+            Regenerate
+          </Button>
+        )}
         {!isCurrent && (
-          <Badge variant="secondary">Read-only — this is not the current version</Badge>
+          <Badge variant="secondary">Read-only — older version</Badge>
+        )}
+        {isCurrent && isReadOnly && (
+          <Badge variant="secondary">Read-only — consolidated</Badge>
         )}
       </div>
 

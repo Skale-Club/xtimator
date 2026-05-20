@@ -47,6 +47,8 @@ interface SendFormProps {
   projectName: string
   shareToken: string
   smsDeliveryEnabled: boolean
+  /** SEED-028 Phase D: disable all send/PDF actions when the estimate is a draft. */
+  disabled?: boolean
 }
 
 export function SendForm({
@@ -57,6 +59,7 @@ export function SendForm({
   projectName,
   shareToken,
   smsDeliveryEnabled,
+  disabled,
 }: SendFormProps) {
   const { t } = useTranslation()
   const [sending, setSending] = useState(false)
@@ -218,7 +221,7 @@ export function SendForm({
                     </FormItem>
                   )}
                 />
-                <Button type="submit" variant="primary" size="lg" className="w-full" disabled={sending}>
+                <Button type="submit" variant="primary" size="lg" className="w-full" disabled={sending || disabled}>
                   {sending ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   ) : (
@@ -264,7 +267,7 @@ export function SendForm({
                       </FormItem>
                     )}
                   />
-                  <Button type="submit" variant="primary" size="lg" className="w-full" disabled={sending}>
+                  <Button type="submit" variant="primary" size="lg" className="w-full" disabled={sending || disabled}>
                     {sending ? (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     ) : (
@@ -284,7 +287,7 @@ export function SendForm({
           <p className="text-sm text-muted-foreground">
             {t('Delivering in person? Mark the estimate as sent without emailing.')}
           </p>
-          <Button variant="outline" className="w-full" onClick={handleMarkAsSent} disabled={marking}>
+          <Button variant="outline" className="w-full" onClick={handleMarkAsSent} disabled={marking || disabled}>
             {marking ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             ) : (
