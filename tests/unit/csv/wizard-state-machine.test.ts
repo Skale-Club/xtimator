@@ -5,7 +5,6 @@
  * import-resolution until that module exists. That is the intentional RED state.
  */
 import { describe, it, expect } from 'vitest'
-// @ts-expect-error — module created in 76-02; import RED is intentional for Wave 0
 import { wizardReducer, initialWizardState } from '@/lib/csv/wizard-state'
 
 type Step = 'upload' | 'map' | 'preview' | 'confirm'

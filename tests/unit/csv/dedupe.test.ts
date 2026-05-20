@@ -12,7 +12,6 @@
  * Dedup key: case-insensitive `(folder_name, name)`.
  */
 import { describe, it, expect } from 'vitest'
-// @ts-expect-error — module created in 76-02; import RED is intentional for Wave 0
 import { applyDedupeStrategy } from '@/lib/csv/dedupe'
 
 type DedupeStrategy = 'skip' | 'update' | 'new'
