@@ -243,8 +243,8 @@ Coverage: 39/39 (100%) — every v1 requirement maps to exactly one phase, no or
 
 ### NOTIF — Notifications System (Phase 77)
 
-- [ ] **NOTIF-01**: `notifications` table with proper schema + RLS scoped to company_id
-- [ ] **NOTIF-02**: `notification_preferences` per-user table with JSONB categories + sensible defaults
+- [x] **NOTIF-01**: `notifications` table with proper schema + RLS scoped to company_id
+- [x] **NOTIF-02**: `notification_preferences` per-user table with JSONB categories + sensible defaults
 - [ ] **NOTIF-03**: `notify()` helper at `lib/notifications/dispatch.ts` — single API for fan-out
 - [ ] **NOTIF-04**: 17 event types instrumented across the codebase (estimate/payment/trial/quota/whatsapp/ai_job/admin/etc.)
 - [ ] **NOTIF-05**: Topbar bell icon with unread badge + 400px panel + mark as read on click
@@ -263,8 +263,8 @@ Coverage: 39/39 (100%) — every v1 requirement maps to exactly one phase, no or
 - [ ] **OG-IMG-03**: Upload to Supabase Storage `branding-assets/og-images/` via existing storage.upload API
 - [ ] **OG-IMG-04**: Remove button with confirmation modal + best-effort storage cleanup
 - [ ] **OG-IMG-05**: Backward-compat for existing URL-typed OG images (show preview if loadable + migration hint)
-| NOTIF-01 | Phase 77 | Pending |
-| NOTIF-02 | Phase 77 | Pending |
+| NOTIF-01 | Phase 77 | Complete |
+| NOTIF-02 | Phase 77 | Complete |
 | NOTIF-03 | Phase 77 | Pending |
 | NOTIF-04 | Phase 77 | Pending |
 | NOTIF-05 | Phase 77 | Pending |
