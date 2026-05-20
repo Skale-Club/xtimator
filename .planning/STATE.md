@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v3.1.1
 milestone_name: MVP Launch Prep + Future-Proofing
 status: executing
-last_updated: "2026-05-20T03:41:17.428Z"
+last_updated: "2026-05-20T03:47:33.961Z"
 last_activity: 2026-05-19
 progress:
   total_phases: 18
@@ -426,6 +426,7 @@ Last activity: 2026-05-19
 - [Phase 75]: startTour() always resets the completed flag so welcome-modal + TourHelpButton restart paths replay correctly (fixes gotcha #2)
 - [Phase 75]: Spotlight a11y uses capture-and-restore focus pattern (not full focus trap) — lighter and matches CONTEXT intent
 - [Phase 75]: Playwright tour spec uses requireDashboard(page) skip-with-reason for auth-gated tests until shared auth fixture lands
+- [Phase 75]: Phase 75 closed — all 7 TOUR-FIX-* requirements complete. Manual UAT runbook shipped at tests/visual/tour-uat-runbook.md; auto-approved per project memory.
 
 ## Performance Metrics
 
@@ -559,6 +560,7 @@ Last activity: 2026-05-19
 | Phase 75 P01 | 216 | 3 tasks | 4 files |
 | Phase 75 P02 | 270 | 3 tasks | 4 files |
 | Phase 75 P03 | 227 | 3 tasks | 3 files |
+| Phase 75 P04 | 360 | 3 tasks | 3 files |
 
 ## Project Reference
 

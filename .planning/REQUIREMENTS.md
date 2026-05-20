@@ -209,14 +209,14 @@ Coverage: 39/39 (100%) — every v1 requirement maps to exactly one phase, no or
 - [x] **TOUR-FIX-04**: Dismissed tooltips persist as seen in localStorage (or DB if cross-device sync desired). Once dismissed, never reappear unless user clicks "Restart tour" in `TourHelpButton`.
 - [x] **TOUR-FIX-05**: `prefers-reduced-motion` honored on every tour animation; `prefers-reduced-transparency` honored on spotlight overlay backdrop; ESC key dismisses spotlight; focus trap removed when spotlight closes.
 - [x] **TOUR-FIX-06**: Unit tests for the tour state machine (start, advance, prev, dismiss, restart, edge cases like advancing past last step) and tooltip persistence layer (seen flag set/read/cleared). Minimum 8 cases passing.
-- [ ] **TOUR-FIX-07**: Manual UAT — exercise every tooltip + every tour step in EN, PT, and ES. Confirm strings translated, position correct, no overlap with sticky topbar or hero gradient, animation gated by motion preference. Findings logged in `.planning/known-issues.md` if any.
+- [x] **TOUR-FIX-07**: Manual UAT — exercise every tooltip + every tour step in EN, PT, and ES. Confirm strings translated, position correct, no overlap with sticky topbar or hero gradient, animation gated by motion preference. Findings logged in `.planning/known-issues.md` if any.
 | TOUR-FIX-01 | Phase 75 | Complete |
 | TOUR-FIX-02 | Phase 75 | Complete |
 | TOUR-FIX-03 | Phase 75 | Complete |
 | TOUR-FIX-04 | Phase 75 | Complete |
 | TOUR-FIX-05 | Phase 75 | Complete |
 | TOUR-FIX-06 | Phase 75 | Complete |
-| TOUR-FIX-07 | Phase 75 | Pending |
+| TOUR-FIX-07 | Phase 75 | Complete |
 
 ### PB-CSV — Price Book CSV Pro (Phase 76)
 
