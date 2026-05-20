@@ -43,14 +43,9 @@ export default async function ProjectsPage() {
   return (
     <div className="px-6 py-8 space-y-6">
       <header className="flex items-center justify-between">
-        <div>
-          <h1 className="text-[clamp(28px,3.5vw,40px)] font-semibold tracking-[-0.02em] leading-[1.1]">
-            <T>Projects</T>
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            <T text={`${list.length} ${list.length === 1 ? 'project' : 'projects'}`} />
-          </p>
-        </div>
+        <p className="text-sm text-muted-foreground">
+          <T text={`${list.length} ${list.length === 1 ? 'project' : 'projects'}`} />
+        </p>
         <Button variant="primary" asChild>
           <Link href="/projects/new">
             <FolderPlus className="h-4 w-4 mr-2" />

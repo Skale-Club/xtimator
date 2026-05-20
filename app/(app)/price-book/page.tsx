@@ -24,16 +24,11 @@ export default async function PriceBookPage() {
 
   return (
     <div className="w-full max-w-none space-y-8 px-6 py-8">
-      <header className="flex flex-col gap-1">
-        <h1 className="text-[clamp(28px,3.5vw,40px)] font-semibold tracking-tight">
-          <T>Price Book</T>
-        </h1>
-        {items.length > 0 && (
-          <p className="text-sm text-muted-foreground">
-            <T>The AI uses your listed prices as anchors when generating estimates. Leaving items out is fine — it falls back to market estimates.</T>
-          </p>
-        )}
-      </header>
+      {items.length > 0 && (
+        <p className="text-sm text-muted-foreground">
+          <T>The AI uses your listed prices as anchors when generating estimates. Leaving items out is fine — it falls back to market estimates.</T>
+        </p>
+      )}
       <UndoImportBanner />
       <Card variant="glass" className="p-6 md:p-8">
         <PriceBookList items={items} folders={folders} companyId={company.id} />

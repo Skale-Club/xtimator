@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
+import { useEffect } from 'react'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import {
   DropdownMenu,
@@ -31,10 +31,31 @@ interface TopbarProps {
   isAdmin?: boolean
 }
 
+const TITLE_MAP: Record<string, string> = {
+  '/dashboard':          'Dashboard',
+  '/projects':           'Projects',
+  '/projects/new':       'New Project',
+  '/clients':            'Clients',
+  '/price-book':         'Price Book',
+  '/settings':           'Settings',
+  '/notifications':      'Notifications',
+}
+
+function usePageTitle(pathname: string): string {
+  if (TITLE_MAP[pathname]) return TITLE_MAP[pathname]
+  if (pathname.startsWith('/settings/')) return 'Settings'
+  if (pathname.startsWith('/projects/')) return 'Project'
+  if (pathname.startsWith('/clients/'))  return 'Client'
+  if (pathname.startsWith('/admin'))     return 'Admin'
+  return ''
+}
+
 export function Topbar({ company, userId, isAdmin }: TopbarProps) {
+  const pathname = usePathname()
   const initial = (company.owner_name ?? company.name).charAt(0).toUpperCase()
   const { t } = useTranslation()
   const router = useRouter()
+  const pageTitle = usePageTitle(pathname)
 
   // Cmd+Shift+A (or Ctrl+Shift+A) → jump to /admin (admin-only)
   useEffect(() => {
@@ -55,8 +76,21 @@ export function Topbar({ company, userId, isAdmin }: TopbarProps) {
       data-testid="app-topbar"
       className="hidden md:flex sticky top-0 z-40 items-center justify-between glass border-b border-[var(--glass-border)] px-6 h-16"
     >
-      <CompanySelector company={company} />
+      {/* Left: page title */}
+      {pageTitle ? (
+        <h1 className="text-lg font-semibold tracking-tight text-foreground select-none">
+          {t(pageTitle)}
+        </h1>
+      ) : (
+        <div />
+      )}
+
+      {/* Right: company selector + actions */}
       <div className="flex items-center gap-1">
+        <CompanySelector company={company} />
+
+        <div className="mx-2 h-5 w-px bg-border" />
+
         {isAdmin && (
           <Link
             href="/admin"
@@ -80,7 +114,7 @@ export function Topbar({ company, userId, isAdmin }: TopbarProps) {
         <ThemeToggle />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="flex cursor-pointer items-center gap-2 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            <button className="flex cursor-pointer items-center gap-2 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring ml-1">
               <Avatar className="h-8 w-8">
                 <AvatarFallback className="text-sm">{initial}</AvatarFallback>
               </Avatar>

@@ -64,15 +64,6 @@ const SUB_PAGES = [
 export default function SettingsTabsLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="w-full max-w-none space-y-8 px-6 py-8">
-      <header className="flex flex-col gap-2">
-        <h1 className="text-[clamp(28px,3.5vw,40px)] font-semibold tracking-tight">
-          <T>Settings</T>
-        </h1>
-        <p className="max-w-2xl text-sm text-muted-foreground">
-          <T>Manage company profile, estimate behavior, notifications, appearance, and account access from one full-width workspace.</T>
-        </p>
-      </header>
-
       <SettingsNav />
 
       <div>{children}</div>
