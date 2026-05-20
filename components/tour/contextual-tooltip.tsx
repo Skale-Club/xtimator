@@ -1,80 +1,74 @@
-'use client'
+"use client"
 
-import { useEffect, useState } from 'react'
-import { X } from 'lucide-react'
-import { useTranslation } from '@/lib/i18n/use-translation'
+import * as React from "react"
 
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { useTranslation } from "@/lib/i18n/use-translation"
+import { cn } from "@/lib/utils"
+
+// Stable identifiers retained for back-compat with existing call sites.
+// Post-Phase-75 these are passive labels — hover tooltips don't need "seen" state
+// because they only ever appear on user interaction (TOUR-FIX-02).
 export const TOOLTIP_KEYS = {
-  priceBook:      'tooltip_seen_price_book',
-  clients:        'tooltip_seen_clients',
-  estimateTotal:  'tooltip_seen_estimate_total',
-  whatsapp:       'tooltip_seen_whatsapp',
-  languageToggle: 'tooltip_seen_language_toggle',
+  priceBook: "price_book",
+  clients: "clients",
+  estimateTotal: "estimate_total",
+  whatsapp: "whatsapp",
+  languageToggle: "language_toggle",
 } as const
 
 export type TooltipKey = (typeof TOOLTIP_KEYS)[keyof typeof TOOLTIP_KEYS]
 
-type TooltipSide = 'right' | 'bottom' | 'top' | 'left'
+type Side = "top" | "bottom" | "left" | "right"
 
 interface ContextualTooltipProps {
-  tooltipKey: TooltipKey
+  /** Stable identifier kept for back-compat. Not read at runtime — hover tooltips need no persistence. */
+  tooltipKey: TooltipKey | string
+  /** English source string. Translated via `t()` at render time. */
   text: string
-  side?: TooltipSide
+  /** Preferred side. Radix auto-flips to opposite side when there's not enough room. */
+  side?: Side
+  /** Optional class for the tooltip content surface. */
   className?: string
+  /** Anchor element — the child gets the hover/focus listeners via Radix's TooltipTrigger asChild. */
   children?: React.ReactNode
 }
 
+/**
+ * Thin wrapper around the shadcn Radix Tooltip primitive.
+ *
+ * Trigger: hover OR keyboard focus on the wrapped child (Radix default).
+ * Positioning: `side` is preferred; Radix auto-flips/shifts via `collisionPadding`
+ * with top:64 to dodge the sticky topbar (TOUR-FIX-03).
+ *
+ * Phase 75 rewrite: the prior implementation rendered itself on mount by reading
+ * localStorage and calling setVisible(true) with no user interaction. That is now
+ * gone — the tooltip is purely interaction-driven (TOUR-FIX-02).
+ */
 export function ContextualTooltip({
-  tooltipKey,
   text,
-  side = 'right',
+  side = "right",
   className,
   children,
+  // tooltipKey accepted and intentionally ignored — kept for back-compat
+  tooltipKey: _tooltipKey,
 }: ContextualTooltipProps) {
-  const [visible, setVisible] = useState(false)
-  const [mounted, setMounted] = useState(false)
   const { t } = useTranslation()
 
-  useEffect(() => {
-    setMounted(true)
-    const seen = localStorage.getItem(tooltipKey) === 'seen'
-    if (!seen) {
-      setVisible(true)
-    }
-  }, [tooltipKey])
-
-  function dismiss() {
-    localStorage.setItem(tooltipKey, 'seen')
-    setVisible(false)
-  }
-
-  if (!mounted || !visible) {
-    return children ? <>{children}</> : null
-  }
-
-  const positionClasses: Record<TooltipSide, string> = {
-    right:  'left-full top-1/2 -translate-y-1/2 ml-2',
-    left:   'right-full top-1/2 -translate-y-1/2 mr-2',
-    bottom: 'top-full left-1/2 -translate-x-1/2 mt-2',
-    top:    'bottom-full left-1/2 -translate-x-1/2 mb-2',
-  }
+  // Defensive: if there's no child to anchor against, render nothing tooltip-related.
+  if (!children) return null
 
   return (
-    <span className={`relative inline-flex items-center ${className ?? ''}`}>
-      {children}
-      <span
-        role="tooltip"
-        className={`absolute z-50 w-52 glass-strong border border-[var(--glass-border)] rounded-lg shadow-glass p-3 text-xs text-foreground ${positionClasses[side]}`}
+    <Tooltip>
+      <TooltipTrigger asChild>{children}</TooltipTrigger>
+      <TooltipContent
+        side={side}
+        sideOffset={8}
+        collisionPadding={{ top: 64, bottom: 16, left: 16, right: 16 }}
+        className={cn("max-w-xs text-pretty", className)}
       >
-        <button
-          onClick={dismiss}
-          aria-label={t('Dismiss tooltip')}
-          className="absolute top-1.5 right-1.5 text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <X className="h-3 w-3" />
-        </button>
-        <span className="pr-4 leading-snug">{t(text)}</span>
-      </span>
-    </span>
+        {t(text)}
+      </TooltipContent>
+    </Tooltip>
   )
 }
