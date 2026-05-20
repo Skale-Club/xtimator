@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v3.1.1
 milestone_name: MVP Launch Prep + Future-Proofing
 status: executing
-last_updated: "2026-05-19T11:39:59.076Z"
+last_updated: "2026-05-20T03:26:18.017Z"
 last_activity: 2026-05-19
 progress:
   total_phases: 18
@@ -420,6 +420,8 @@ Last activity: 2026-05-19
 - [Phase 74-post-onboarding-app-feature-tour]: TOOLTIP_MAP defined inside NAV_ITEMS.map() body — static Record keyed by href, keeps tooltip config co-located with rendering logic
 - [Phase 74-post-onboarding-app-feature-tour]: ContextualTooltip renders children as React.Fragment when not visible — zero overhead after dismissal; text passed as raw English string through t() inside component
 - [Phase 74-post-onboarding-app-feature-tour]: isReviewModeRef uses useRef (not useState) — avoids stale closure in onOpenChange while being current at render time; handleClose never calls completeTour() so review mode is localStorage-clean; TourHelpButton returns null during spotlight to avoid z-index conflicts
+- [Phase 75]: ContextualTooltip post-75-02 trigger locked to hover/focus (Radix default); tooltipKey kept as no-op label
+- [Phase 75]: migrateLegacyKeys() is idempotent — safe to call on every TourProvider mount
 
 ## Performance Metrics
 
@@ -550,6 +552,7 @@ Last activity: 2026-05-19
 | Phase 74-post-onboarding-app-feature-tour P01 | 5min | 2 tasks | 5 files |
 | Phase 74-post-onboarding-app-feature-tour P03 | 4min | 2 tasks | 5 files |
 | Phase 74-post-onboarding-app-feature-tour P04 | 4min | 2 tasks | 4 files |
+| Phase 75 P01 | 216 | 3 tasks | 4 files |
 
 ## Project Reference
 
