@@ -62,9 +62,18 @@ export function Sidebar({ branding, company: _company }: SidebarProps) {
       {/* Navigation */}
       <nav className="flex-1 flex flex-col gap-1 p-2">
         {NAV_ITEMS.map((item) => {
-          const isActive = item.exact
-            ? pathname === item.href
-            : pathname === item.href || pathname.startsWith(item.href + '/')
+          // Most-specific-match: on /settings/price-book, both /settings and
+          // /settings/price-book match. Pick the longest matching href so only
+          // the most specific item lights up.
+          const matchedHref = NAV_ITEMS
+            .filter((i) =>
+              i.exact
+                ? pathname === i.href
+                : pathname === i.href || pathname.startsWith(i.href + '/')
+            )
+            .map((i) => i.href)
+            .sort((a, b) => b.length - a.length)[0]
+          const isActive = item.exact ? pathname === item.href : item.href === matchedHref
           const Icon = item.icon
 
           const baseLayout =

@@ -76,7 +76,7 @@ export function ProjectWorkspace({
       <div className="border-b border-border">
         <TabsList
           variant="line"
-          className="w-auto h-auto bg-transparent p-0 gap-1 rounded-none justify-start overflow-x-auto"
+          className="w-auto h-auto bg-transparent p-0 gap-1 rounded-none justify-start overflow-x-auto overflow-y-hidden scrollbar-none"
         >
           {[
             { value: 'overview',  Icon: ClipboardList, label: 'Overview'    },
