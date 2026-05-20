@@ -778,7 +778,7 @@ Plans:
   6. Unit tests cover the tour state machine (start, advance, prev, dismiss, restart) and tooltip persistence layer (seen flag in localStorage); minimum 8 cases
   7. Manual UAT pass: open every page that hosts a tooltip in EN, PT, ES (3 locales × N pages); confirm strings translated, position correct, animation gated, no overlap with sticky topbar or hero gradient
 
-**Plans:** 2/4 plans executed
+**Plans:** 3/4 plans executed
 
 ### Phase 76: Price Book CSV Pro — Professional Import UX
 
