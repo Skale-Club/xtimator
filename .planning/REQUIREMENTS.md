@@ -249,10 +249,10 @@ Coverage: 39/39 (100%) — every v1 requirement maps to exactly one phase, no or
 - [x] **NOTIF-04**: 17 event types instrumented across the codebase (estimate/payment/trial/quota/whatsapp/ai_job/admin/etc.)
 - [x] **NOTIF-05**: Topbar bell icon with unread badge + 400px panel + mark as read on click
 - [x] **NOTIF-06**: `/notifications` full-page view with filtering + pagination + search
-- [ ] **NOTIF-07**: Email digest mode (grouped via Inngest cron, >3 events/hr per category)
+- [x] **NOTIF-07**: Email digest mode (grouped via Inngest cron, >3 events/hr per category)
 - [ ] **NOTIF-08**: `/settings/notifications` per-category in_app+email toggles
 - [ ] **NOTIF-09**: Browser push notifications scaffold (permission + service worker registration)
-- [ ] **NOTIF-10**: Auto-cleanup cron, 60-day TTL (unless pinned)
+- [x] **NOTIF-10**: Auto-cleanup cron, 60-day TTL (unless pinned)
 - [x] **NOTIF-11**: Real-time bell badge via Supabase Realtime subscription
 - [x] **NOTIF-12**: Test coverage — unit (≥20 cases) + Playwright E2E (full trigger→bell→click→read flow)
 
@@ -269,10 +269,10 @@ Coverage: 39/39 (100%) — every v1 requirement maps to exactly one phase, no or
 | NOTIF-04 | Phase 77 | Complete |
 | NOTIF-05 | Phase 77 | Complete |
 | NOTIF-06 | Phase 77 | Complete |
-| NOTIF-07 | Phase 77 | Pending |
+| NOTIF-07 | Phase 77 | Complete |
 | NOTIF-08 | Phase 77 | Pending |
 | NOTIF-09 | Phase 77 | Pending |
-| NOTIF-10 | Phase 77 | Pending |
+| NOTIF-10 | Phase 77 | Complete |
 | NOTIF-11 | Phase 77 | Complete |
 | NOTIF-12 | Phase 77 | Complete |
 | OG-IMG-01 | Phase 78 | Pending |
