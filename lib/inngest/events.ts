@@ -39,3 +39,29 @@ export type WhatsAppProcessPayload = {
   messages: unknown[] // WhatsAppMessage[] in the handler — left as unknown[] here to avoid a circular import
   batchKey: string
 }
+
+/**
+ * Phase 77 (NOTIF-03 / NOTIF-09) — Notification email queue event.
+ *
+ * Emitted by `lib/notifications/dispatch.ts` when an event resolves to the
+ * email channel. Handled by the digest worker (77-06), which groups
+ * notifications by user + category and sends a branded Resend email.
+ */
+export const EVENT_NOTIFICATION_EMAIL_QUEUED =
+  'notification/email.queued' as const
+
+export type NotificationEmailQueuedPayload = {
+  notificationId: string
+  userId: string
+  companyId: string
+  eventType: string
+  category: string
+  title: string
+  body: string
+  linkUrl?: string
+}
+
+export type NotificationEmailQueuedEvent = {
+  name: typeof EVENT_NOTIFICATION_EMAIL_QUEUED
+  data: NotificationEmailQueuedPayload
+}
