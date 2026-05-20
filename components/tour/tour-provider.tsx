@@ -1,6 +1,8 @@
 'use client'
 
 import { createContext, useContext, useEffect, useRef, useState } from 'react'
+import { TooltipProvider } from "@/components/ui/tooltip"
+import { migrateLegacyKeys } from "@/lib/tour/persistence"
 import { useTour } from './use-tour'
 
 interface TourContextValue {
@@ -36,6 +38,11 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
   }
 
   useEffect(() => {
+    // One-shot migration from pre-Phase-75 flat keys into the namespaced
+    // `xtimator:tour:v1:*` layer. Must run BEFORE we read any tour state,
+    // otherwise existing users would see all tooltips reappear.
+    migrateLegacyKeys()
+
     // Read the httpOnly:false cookie set by createOrUpdateCompany server action
     const hasOnboardingCookie = document.cookie
       .split(';')
@@ -53,7 +60,9 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <TourContext.Provider value={{ showWelcome, setShowWelcome, showSpotlight, setShowSpotlight, isReviewModeRef, setIsReviewMode }}>
-      {children}
+      <TooltipProvider delayDuration={200}>
+        {children}
+      </TooltipProvider>
     </TourContext.Provider>
   )
 }
