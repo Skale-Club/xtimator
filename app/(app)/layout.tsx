@@ -68,7 +68,7 @@ export default async function AppShellLayout({
           company={company}
         />
         <div className="flex flex-1 flex-col overflow-hidden">
-          <Topbar company={company} isAdmin={isAdmin} />
+          <Topbar company={company} userId={claims.sub as string} isAdmin={isAdmin} />
           <MobileHeader />
           {trialDaysRemaining !== null && trialDaysRemaining < 3 && (
             <TrialBanner daysRemaining={trialDaysRemaining} />

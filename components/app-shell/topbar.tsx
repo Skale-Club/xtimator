@@ -16,6 +16,7 @@ import { signOut } from '@/lib/actions/auth'
 import { ThemeToggle } from '@/components/app-shell/theme-toggle'
 import { LanguageToggle } from '@/components/app-shell/language-toggle'
 import { CompanySelector } from '@/components/app-shell/company-selector'
+import { NotificationBell } from '@/components/notifications/notification-bell'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { ContextualTooltip, TOOLTIP_KEYS } from '@/components/tour/contextual-tooltip'
 
@@ -26,10 +27,11 @@ interface TopbarProps {
     logo_url: string | null
     owner_name: string | null
   }
+  userId: string
   isAdmin?: boolean
 }
 
-export function Topbar({ company, isAdmin }: TopbarProps) {
+export function Topbar({ company, userId, isAdmin }: TopbarProps) {
   const initial = (company.owner_name ?? company.name).charAt(0).toUpperCase()
   const { t } = useTranslation()
   const router = useRouter()
@@ -74,6 +76,7 @@ export function Topbar({ company, isAdmin }: TopbarProps) {
             <LanguageToggle />
           </span>
         </ContextualTooltip>
+        <NotificationBell companyId={company.id} userId={userId} />
         <ThemeToggle />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
