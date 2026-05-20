@@ -17,6 +17,7 @@ import {
   clearAllTourState,
   isSpotlightCompleted,
   isSpotlightPending,
+  setSpotlightPending as setSpotlightPendingDirect,
 } from "@/lib/tour/persistence"
 import { useTour } from "@/components/tour/use-tour"
 
@@ -51,9 +52,16 @@ describe("tour state machine (post-75-02)", () => {
   })
 
   it("clearSpotlightPending() leaves completed untouched", () => {
+    // Setup: complete the tour, then simulate a stray pending flag (e.g. from a
+    // half-finished restart). clearSpotlightPending should remove pending only —
+    // the completed flag must survive.
     const t = useTour()
     t.completeTour()
-    t.startTour()
+    // Re-set pending directly via the persistence layer so we don't go through
+    // startTour() (which intentionally resets `completed` to false — see test
+    // "re-startTour after completion re-arms pending and resets completed").
+    setSpotlightPendingDirect()
+    expect(t.isSpotlightPending()).toBe(true)
     t.clearSpotlightPending()
     expect(t.isSpotlightPending()).toBe(false)
     expect(t.isTourCompleted()).toBe(true)
