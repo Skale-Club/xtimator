@@ -840,6 +840,50 @@ export type Database = {
           },
         ]
       }
+      price_book_imports: {
+        Row: {
+          actor_id: string
+          company_id: string
+          created_at: string
+          id: string
+          inserted_folder_ids: string[]
+          inserted_item_ids: string[]
+          prev_state: Json
+          summary: Json
+          updated_item_ids: string[]
+        }
+        Insert: {
+          actor_id: string
+          company_id: string
+          created_at?: string
+          id?: string
+          inserted_folder_ids?: string[]
+          inserted_item_ids?: string[]
+          prev_state?: Json
+          summary?: Json
+          updated_item_ids?: string[]
+        }
+        Update: {
+          actor_id?: string
+          company_id?: string
+          created_at?: string
+          id?: string
+          inserted_folder_ids?: string[]
+          inserted_item_ids?: string[]
+          prev_state?: Json
+          summary?: Json
+          updated_item_ids?: string[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "price_book_imports_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       processed_stripe_events: {
         Row: {
           created_at: string
