@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Play, Pause, Trash2, Loader2 } from 'lucide-react'
+import { Play, Pause, Trash2, Loader2, RotateCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { toast } from 'sonner'
@@ -16,10 +16,16 @@ import { useTranslation } from '@/lib/i18n/use-translation'
 interface RecordingItemProps {
   recording: Recording
   onDelete: (id: string) => void
+  onRetryTranscribe: (recordingId: string) => void | Promise<void>
   isTranscribing?: boolean
 }
 
-export function RecordingItem({ recording, onDelete, isTranscribing }: RecordingItemProps) {
+export function RecordingItem({
+  recording,
+  onDelete,
+  onRetryTranscribe,
+  isTranscribing,
+}: RecordingItemProps) {
   const { t } = useTranslation()
   const [isPlaying, setIsPlaying] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -91,6 +97,10 @@ export function RecordingItem({ recording, onDelete, isTranscribing }: Recording
     onDelete(recording.id)
   }, [recording.id, onDelete])
 
+  const handleRetry = useCallback(() => {
+    void onRetryTranscribe(recording.id)
+  }, [onRetryTranscribe, recording.id])
+
   // Format relative time
   const createdDate = new Date(recording.created_at)
   const relativeTime = getRelativeTime(createdDate)
@@ -120,19 +130,34 @@ export function RecordingItem({ recording, onDelete, isTranscribing }: Recording
               <p className="text-xs text-muted-foreground">{relativeTime}</p>
             </div>
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 text-muted-foreground hover:text-destructive"
-            onClick={handleDelete}
-            disabled={isDeleting}
-          >
-            {isDeleting ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Trash2 className="h-4 w-4" />
+          <div className="flex items-center gap-1">
+            {recording.storage_path && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                onClick={handleRetry}
+                disabled={isTranscribing || isDeleting}
+                aria-label={t('Retry transcription')}
+                title={t('Retry transcription')}
+              >
+                <RotateCw className="h-4 w-4" />
+              </Button>
             )}
-          </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-muted-foreground hover:text-destructive"
+              onClick={handleDelete}
+              disabled={isDeleting}
+            >
+              {isDeleting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="pt-0">
