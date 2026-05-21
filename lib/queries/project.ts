@@ -21,11 +21,21 @@ export async function getProjectById(
   supabase: SupabaseClient,
   projectId: string
 ): Promise<ProjectDetail | null> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('projects')
     .select('*, client:clients(id, name, email, phone)')
     .eq('id', projectId)
     .single()
+
+  if (error) {
+    console.error('[getProjectById] supabase error', {
+      projectId,
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+    })
+  }
 
   return data ?? null
 }

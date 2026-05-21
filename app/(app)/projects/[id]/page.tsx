@@ -32,6 +32,7 @@ export default async function ProjectPage({
   const project = await getProjectById(supabase, id)
 
   if (!project) {
+    console.error('[ProjectPage] notFound triggered', { id })
     notFound()
   }
 

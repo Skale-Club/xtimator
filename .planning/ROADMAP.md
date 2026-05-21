@@ -899,3 +899,16 @@ Plans:
   5. Existing URL-typed setups (current state) keep working — if `og_image_url` is set but the file isn't in branding-assets bucket (external URL), show preview if loadable + a hint "Currently using external URL — upload to migrate to managed storage".
 
 **Plans:** 2/2 plans complete
+
+### Phase 79: Multi-company foundation (schema + cookie + active company resolution)
+
+**Goal:** Ship the foundational schema, cookie, and server-side helpers for v4.0 multi-tenancy. After Phase 79, a single user can own multiple companies in the DB, the app reads an active-company cookie on every request, and the existing 1:1 single-company UI still works (1:1 backfill). No new UI surfaces in this phase — Phases 80-83 layer switcher UI, server-action sweep, RLS rewrite, and per-company billing on top.
+**Requirements:** D-01..D-16 (locked decisions in 79-CONTEXT.md — no REQUIREMENTS.md IDs yet)
+**Depends on:** Phase 78
+**Plans:** 4 plans
+
+Plans:
+- [ ] 79-01-PLAN.md — company_members migration + RLS + idempotent backfill + types extension (D-01..D-04, D-16)
+- [ ] 79-02-PLAN.md — lib/queries/active-company.ts: getActiveCompanyId + getActiveCompany helpers with cookie validation + fallback (D-05..D-09, D-11, D-16)
+- [ ] 79-03-PLAN.md — createOrUpdateCompany mode: 'first' | 'add' + member row + cookie set + trial inheritance (D-12..D-15, D-16)
+- [ ] 79-04-PLAN.md — app/(app)/layout.tsx switch to getActiveCompany() + billingRow re-key by activeCompanyId (D-10, D-11, D-16)
