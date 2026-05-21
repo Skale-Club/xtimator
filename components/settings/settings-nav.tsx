@@ -2,15 +2,22 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Bell, Building2, FileText, Palette, ShieldCheck, Send } from 'lucide-react'
+import {
+  Bell, Building2, CreditCard, FileText, Globe,
+  PenLine, Plug, ShieldCheck, Send, Wallet,
+} from 'lucide-react'
 
 const TABS = [
-  { slug: 'company', label: 'Company', Icon: Building2 },
-  { slug: 'defaults', label: 'Defaults', Icon: FileText },
-  { slug: 'notifications', label: 'Notifications', Icon: Bell },
-  { slug: 'delivery', label: 'Delivery', Icon: Send },
-  { slug: 'appearance', label: 'Appearance', Icon: Palette },
-  { slug: 'account', label: 'Account', Icon: ShieldCheck },
+  { slug: 'company',            label: 'Company',            Icon: Building2  },
+  { slug: 'defaults',           label: 'Defaults',           Icon: FileText   },
+  { slug: 'notifications',      label: 'Notifications',      Icon: Bell       },
+  { slug: 'delivery',           label: 'Delivery',           Icon: Send       },
+  { slug: 'billing',            label: 'Billing',            Icon: CreditCard },
+  { slug: 'payments',           label: 'Payments',           Icon: Wallet     },
+  { slug: 'estimate-templates', label: 'Templates',          Icon: PenLine    },
+  { slug: 'custom-domain',      label: 'Domain',             Icon: Globe      },
+  { slug: 'integrations',       label: 'Integrations',       Icon: Plug       },
+  { slug: 'account',            label: 'Account',            Icon: ShieldCheck },
 ] as const
 
 export function SettingsNav() {
@@ -18,7 +25,7 @@ export function SettingsNav() {
   return (
     <div className="border-b border-border">
       <nav
-        className="-mb-px flex items-center gap-0 overflow-x-auto"
+        className="-mb-px flex items-center gap-0 overflow-x-auto scrollbar-none"
         aria-label="Settings sections"
       >
         {TABS.map(({ slug, label, Icon }) => {
