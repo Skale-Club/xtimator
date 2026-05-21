@@ -4,7 +4,6 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { NAV_ITEMS } from './nav-items'
-import { LanguageToggle } from '@/components/app-shell/language-toggle'
 import { useTranslation } from '@/lib/i18n/use-translation'
 
 // Map from href to data-tour value — mirrors sidebar targets for mobile (Phase 74)
@@ -71,9 +70,7 @@ export function BottomNav() {
           </Link>
         )
       })}
-      <div className="flex min-h-[44px] min-w-[44px] items-center justify-center" data-tour="language-toggle">
-        <LanguageToggle />
-      </div>
     </nav>
   )
 }
+// v2
