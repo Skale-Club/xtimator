@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 const root = process.cwd()
@@ -14,6 +14,9 @@ function publicIconConflicts() {
   if (!existsSync(publicDir)) return []
 
   return readdirSync(publicDir).filter((entry) => {
+    // Only flag files, not directories (public/icons/ is the correct icon location)
+    const fullPath = resolve(publicDir, entry)
+    if (statSync(fullPath).isDirectory()) return false
     const lower = entry.toLowerCase()
     return (
       lower.startsWith('favicon') ||
