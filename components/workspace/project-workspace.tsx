@@ -104,7 +104,7 @@ export function ProjectWorkspace({
         </TabsList>
       </div>
       <TabsContent value="overview" className="mt-6">
-        <OverviewTab project={project} activity={activity} stats={stats} />
+        <OverviewTab project={project} activity={activity} />
       </TabsContent>
       <TabsContent value="audio" className="mt-6">
         <AudioTab projectId={project.id} companyId={project.company_id} initialRecordings={recordings} />

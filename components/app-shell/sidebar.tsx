@@ -62,6 +62,7 @@ export function Sidebar({ branding, company: _company }: SidebarProps) {
     <aside
       data-testid="app-sidebar"
       data-collapsed={collapsed || undefined}
+      style={{ borderTop: 0, borderBottom: 0, borderLeft: 0 }}
       className={cn(
         'hidden md:flex flex-col transition-[width] duration-200 glass border-r border-[var(--glass-border)]',
         // Before hydration show same width as server (64px) to avoid layout shift
@@ -71,8 +72,8 @@ export function Sidebar({ branding, company: _company }: SidebarProps) {
       {/* Product branding */}
       <div
         className={cn(
-          'flex items-center border-b border-[var(--glass-border)] px-3 h-16 overflow-hidden',
-          collapsed ? 'justify-center gap-0' : 'gap-3',
+          'flex items-center border-b border-[var(--glass-border)] h-16 overflow-hidden',
+          collapsed ? 'justify-center gap-0 px-0' : 'gap-3 px-3',
         )}
       >
         <div className="h-9 w-9 shrink-0 flex items-center justify-center">
@@ -96,7 +97,7 @@ export function Sidebar({ branding, company: _company }: SidebarProps) {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 flex flex-col gap-1 p-2">
+      <nav className={cn('flex-1 flex flex-col gap-1', collapsed ? 'px-0 py-2' : 'p-2')}>
         {NAV_ITEMS.map((item) => {
           const matchedHref = NAV_ITEMS
             .filter((i) =>
@@ -116,14 +117,14 @@ export function Sidebar({ branding, company: _company }: SidebarProps) {
             ? cn(
                 baseLayout,
                 'gradient-brand text-white shadow-xs hover:shadow-glow-brand hover:-translate-y-[0.5px] active:translate-y-0',
-                collapsed && 'justify-center px-2',
+                collapsed && 'justify-center px-0 gap-0',
               )
             : cn(
                 baseLayout,
                 'text-muted-foreground hover:bg-[var(--glass-bg-light)] hover:text-foreground',
                 'data-[active]:bg-[var(--glass-bg-light)] data-[active]:text-foreground',
                 'data-[active]:before:content-[""] data-[active]:before:absolute data-[active]:before:left-0 data-[active]:before:top-2 data-[active]:before:bottom-2 data-[active]:before:w-[1.5px] data-[active]:before:rounded-full data-[active]:before:bg-[image:var(--gradient-brand)]',
-                collapsed && 'justify-center px-2',
+                collapsed && 'justify-center px-0 gap-0',
               )
 
           const TOOLTIP_MAP: Record<string, { key: (typeof TOOLTIP_KEYS)[keyof typeof TOOLTIP_KEYS]; text: string }> = {
@@ -195,14 +196,14 @@ export function Sidebar({ branding, company: _company }: SidebarProps) {
       </nav>
 
       {/* Collapse toggle */}
-      <div className="p-2 border-t border-[var(--glass-border)]">
+      <div className={cn('border-t border-[var(--glass-border)]', collapsed ? 'py-2 px-0' : 'p-2')}>
         <Tooltip>
           <TooltipTrigger asChild>
             <button
               onClick={toggle}
               className={cn(
                 'w-full flex items-center gap-3 rounded-[var(--radius-md)] px-3 py-2 text-muted-foreground hover:bg-[var(--glass-bg-light)] hover:text-foreground transition-colors',
-                collapsed && 'justify-center px-2',
+                collapsed && 'justify-center px-0 gap-0',
               )}
               aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             >

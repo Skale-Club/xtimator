@@ -2,19 +2,17 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { StatusBadge } from '@/components/dashboard/status-badge'
-import { QuickStats } from './quick-stats'
 import { ActivityTimeline } from './activity-timeline'
 import { LinkClientCard } from './link-client-card'
-import type { ProjectDetail, ActivityEvent, ProjectQuickStats } from '@/lib/queries/project'
+import type { ProjectDetail, ActivityEvent } from '@/lib/queries/project'
 import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface OverviewTabProps {
   project: ProjectDetail
   activity: ActivityEvent[]
-  stats: ProjectQuickStats
 }
 
-export function OverviewTab({ project, activity, stats }: OverviewTabProps) {
+export function OverviewTab({ project, activity }: OverviewTabProps) {
   const { t } = useTranslation()
   return (
     <div className="space-y-6">
@@ -67,9 +65,6 @@ export function OverviewTab({ project, activity, stats }: OverviewTabProps) {
           </dl>
         </CardContent>
       </Card>
-
-      {/* Quick Stats */}
-      <QuickStats stats={stats} />
 
       {/* Activity Timeline */}
       <ActivityTimeline events={activity} />
