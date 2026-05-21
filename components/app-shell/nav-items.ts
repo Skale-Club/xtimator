@@ -6,10 +6,12 @@ export interface NavItem {
   icon: LucideIcon
   primary?: boolean
   exact?: boolean
+  /** When set, clicking the item opens a modal via `?modal=<value>` instead of navigating. */
+  modal?: string
 }
 
 export const NAV_ITEMS: NavItem[] = [
-  { label: 'New Project', href: '/projects/new', icon: FolderPlus, primary: true, exact: true },
+  { label: 'New Project', href: '/projects/new', icon: FolderPlus, primary: true, exact: true, modal: 'new-project' },
   { label: 'Dashboard',   href: '/dashboard',    icon: LayoutDashboard },
   { label: 'Projects',    href: '/projects',     icon: FolderOpen },
   { label: 'Clients',     href: '/clients',      icon: Users },

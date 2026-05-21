@@ -58,7 +58,7 @@ function friendlyFatalKey(
     case 'parse_error':
       return {
         title: "Couldn't read that file.",
-        body: `${detail} — try re-saving it from your spreadsheet app.`,
+        body: `${detail} | try re-saving it from your spreadsheet app.`,
       }
     default:
       return { title: 'Something went wrong.', body: detail }
@@ -197,7 +197,7 @@ export function Step1Upload({ state, dispatch, onCancel }: Step1UploadProps) {
               {parsing ? t('Reading your file…') : t('Drop your CSV here')}
             </p>
             <p className="text-xs text-muted-foreground">
-              {t('or click to browse — max 1 MB, max 1000 rows')}
+              {t('or click to browse | max 1 MB, max 1000 rows')}
             </p>
           </div>
           <Button type="button" variant="outline" asChild>

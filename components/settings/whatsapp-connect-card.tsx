@@ -297,7 +297,7 @@ export function WhatsAppConnectCard({ initial }: WhatsAppConnectCardProps) {
               </Select>
               <p className="text-xs text-muted-foreground">
                 Share link sends a URL to the estimate page. Formatted text sends the
-                full breakdown inline. PDF attachment sends a branded PDF document —
+                full breakdown inline. PDF attachment sends a branded PDF document |
                 falls back to share link if generation fails.
               </p>
             </div>

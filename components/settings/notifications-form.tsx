@@ -136,7 +136,7 @@ export function NotificationsForm({ initial, defaults }: NotificationsFormProps)
         setPushEnabled(true)
         toast.success(t('Browser notifications enabled.'))
       } else if (result.reason === 'denied') {
-        toast.error(t('Permission denied — enable in browser settings.'))
+        toast.error(t('Permission denied | enable in browser settings.'))
       } else if (result.reason === 'unsupported') {
         toast.error(t('Browser notifications not supported in this browser.'))
       } else {
@@ -161,7 +161,7 @@ export function NotificationsForm({ initial, defaults }: NotificationsFormProps)
             <Label htmlFor="master-email-digest" className="grid flex-1 gap-1">
               <span className="font-medium">{t('Email digest enabled')}</span>
               <span className="text-sm font-normal text-muted-foreground">
-                {t('Master switch — turn off to silence every email notification.')}
+                {t('Master switch | turn off to silence every email notification.')}
               </span>
             </Label>
             <Switch
@@ -249,7 +249,7 @@ export function NotificationsForm({ initial, defaults }: NotificationsFormProps)
         <CardContent className="flex items-center justify-between gap-4 py-6">
           <div className="text-sm text-muted-foreground">
             {pushEnabled
-              ? t('Enabled — browser may show desktop alerts for new notifications.')
+              ? t('Enabled | browser may show desktop alerts for new notifications.')
               : t('Not enabled. Click the button to grant permission.')}
           </div>
           <Button

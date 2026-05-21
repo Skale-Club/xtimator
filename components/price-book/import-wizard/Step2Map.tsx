@@ -24,7 +24,7 @@ const TARGET_OPTIONS: { value: MappingValue; labelKey: string; required?: boolea
   { value: 'folder', labelKey: 'Folder / category' },
   { value: 'unit', labelKey: 'Unit of measure (ea, hr, sqft…)' },
   { value: 'notes', labelKey: 'Notes' },
-  { value: '_skip', labelKey: '— Skip this column —' },
+  { value: '_skip', labelKey: 'Skip this column' },
 ]
 
 export interface Step2MapProps {

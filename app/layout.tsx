@@ -24,7 +24,7 @@ export async function generateMetadata(): Promise<Metadata> {
     },
     description:
       b.metaDescription ??
-      `Professional AI-powered estimates for service businesses — powered by ${b.appName}`,
+      `Professional AI-powered estimates for service businesses | powered by ${b.appName}`,
     openGraph: b.ogImageUrl
       ? { images: [b.ogImageUrl], siteName: b.siteTitle ?? b.appName }
       : undefined,

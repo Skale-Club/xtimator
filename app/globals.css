@@ -366,19 +366,9 @@
   }
 }
 
-/* Utility classes — Tailwind v4 way. Use arbitrary-value classes
-   (bg-[var(--glass-bg)], backdrop-blur-[var(--glass-blur)]) in components,
-   or apply these shorthand utilities. */
-@layer utilities {
-  /* Hide scrollbar across browsers (used by horizontal tab strips, chip rows). */
-  .scrollbar-none {
-    scrollbar-width: none;       /* Firefox */
-    -ms-overflow-style: none;    /* IE/Edge legacy */
-  }
-  .scrollbar-none::-webkit-scrollbar {
-    display: none;               /* Chrome/Safari/Edge */
-  }
-
+/* Component classes — must be in @layer components so Tailwind utility classes
+   (border-t-0, border-l-0, etc.) can override individual sides via @layer utilities. */
+@layer components {
   .glass {
     background-color: var(--glass-bg);
     backdrop-filter: blur(var(--glass-blur));
@@ -391,6 +381,21 @@
     -webkit-backdrop-filter: blur(var(--glass-blur-strong));
     border: 1px solid var(--glass-border);
   }
+}
+
+/* Utility classes — Tailwind v4 way. Use arbitrary-value classes
+   (bg-[var(--glass-bg)], backdrop-blur-[var(--glass-blur)]) in components,
+   or apply these shorthand utilities. */
+@layer utilities {
+  /* Hide scrollbar across browsers (used by horizontal tab strips, chip rows). */
+  .scrollbar-none {
+    scrollbar-width: none;       /* Firefox */
+    -ms-overflow-style: none;    /* IE/Edge large */
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;               /* Chrome/Safari/Edge */
+  }
+
   .gradient-brand   { background-image: var(--gradient-brand); }
   .gradient-hero    { background-image: var(--gradient-hero); }
   .gradient-success { background-image: var(--gradient-success); }
@@ -547,3 +552,8 @@
   .hero-mesh, .hero-dots { display: none; }
   .cta-glow { animation: none; box-shadow: none; }
 }
+
+/* App-shell pixel alignment — unlayered rules override @layer utilities (.glass border shorthand).
+   The aside border-top from .glass pushes the branding section 1px below the topbar bottom edge. */
+[data-testid="app-sidebar"] { border-top-width: 0; border-bottom-width: 0; border-left-width: 0; }
+[data-testid="app-topbar"]  { border-top-width: 0; border-left-width: 0; border-right-width: 0; }

@@ -7,7 +7,7 @@ import {
   CardContent,
 } from '@/components/ui/card'
 
-export const metadata = { title: 'Appearance — Settings' }
+export const metadata = { title: 'Appearance | Settings' }
 
 export default function AppearanceTabPage() {
   return (

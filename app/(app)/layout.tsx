@@ -16,6 +16,7 @@ import { TourHelpButton } from '@/components/tour/tour-help-button'
 import { SWRegister } from '@/components/pwa/sw-register'
 import { InstallPrompt } from '@/components/pwa/install-prompt'
 import { OfflineIndicator } from '@/components/pwa/offline-indicator'
+import { NewProjectDialog } from '@/components/projects/new-project-dialog'
 
 export default async function AppShellLayout({
   children,
@@ -81,6 +82,7 @@ export default async function AppShellLayout({
           </main>
         </div>
         <BottomNav />
+        <NewProjectDialog />
         <TranslationLoadingOverlay />
         <UpgradeModal />
         <WelcomeModal />

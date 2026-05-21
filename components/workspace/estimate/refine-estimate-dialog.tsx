@@ -204,7 +204,7 @@ export function RefineEstimateDialog({
         throw new Error(data.error ?? 'Refinement failed')
       }
       onApply(data.refined as RefinementPayload)
-      toast.success('Changes applied — review and save your draft.')
+      toast.success('Changes applied | review and save your draft.')
       setOpen(false)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Refinement failed')
@@ -232,7 +232,7 @@ export function RefineEstimateDialog({
             Refine v{version} draft
           </DialogTitle>
           <DialogDescription>
-            Tell the AI what to change. Use text, voice, or photos — your
+            Tell the AI what to change. Use text, voice, or photos | your
             updates apply to the current draft and you decide when to save.
           </DialogDescription>
         </DialogHeader>

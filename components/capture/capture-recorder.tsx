@@ -274,7 +274,7 @@ export function CaptureRecorder({ project, companyId, projectId }: CaptureRecord
         abortControllerRef.current.signal
       )) as { transcript: string }
       if (!transcribeOutput.transcript?.trim()) {
-        failAt('transcribing', t("We couldn't catch your description — please try again or edit manually."))
+        failAt('transcribing', t("We couldn't catch your description | please try again or edit manually."))
         return
       }
       setTranscript(transcribeOutput.transcript)

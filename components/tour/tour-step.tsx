@@ -34,6 +34,6 @@ export const TOUR_STEPS: TourStep[] = [
     id: 'language-toggle',
     target: '[data-tour="language-toggle"]',
     title: 'Send in any language',
-    description: 'Switch languages — estimates can be sent in EN, PT, or ES.',
+    description: 'Switch languages | estimates can be sent in EN, PT, or ES.',
   },
 ]

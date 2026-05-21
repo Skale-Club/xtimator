@@ -60,7 +60,7 @@ export function AIProviderSelector({ current, currentOpenRouterModel }: Props) {
         <h3 className="font-medium text-sm">{t('Active AI Provider')}</h3>
         <p className="text-xs text-muted-foreground mt-0.5">
           {t(
-            'Controls which AI is used for estimate generation. Takes effect immediately — no restart required.'
+            'Controls which AI is used for estimate generation. Takes effect immediately | no restart required.'
           )}
         </p>
       </div>

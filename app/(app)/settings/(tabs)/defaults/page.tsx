@@ -4,7 +4,7 @@ import { getAuthClaims } from '@/lib/queries/auth'
 import { getCompanySettings } from '@/lib/queries/company'
 import { DefaultsForm } from '@/components/settings/defaults-form'
 
-export const metadata = { title: 'Defaults — Settings' }
+export const metadata = { title: 'Defaults | Settings' }
 
 export default async function DefaultsTabPage() {
   const claims = await getAuthClaims()

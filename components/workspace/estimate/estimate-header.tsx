@@ -58,10 +58,10 @@ export function EstimateHeader({
           </Button>
         )}
         {!isCurrent && (
-          <Badge variant="secondary">Read-only — older version</Badge>
+          <Badge variant="secondary">Read-only | older version</Badge>
         )}
         {isCurrent && isReadOnly && (
-          <Badge variant="secondary">Read-only — consolidated</Badge>
+          <Badge variant="secondary">Read-only | consolidated</Badge>
         )}
       </div>
 

@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -39,7 +39,15 @@ const TOUR_TARGET: Record<string, string> = {
 
 export function Sidebar({ branding, company: _company }: SidebarProps) {
   const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const router = useRouter()
   const { t } = useTranslation()
+
+  function openModal(modalValue: string) {
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('modal', modalValue)
+    router.push(`${pathname}?${params.toString()}`, { scroll: false })
+  }
   const logoUrl = branding.logoUrl
 
   const [collapsed, setCollapsed] = useState(false)
@@ -135,7 +143,24 @@ export function Sidebar({ branding, company: _company }: SidebarProps) {
           const tooltipConfig = TOOLTIP_MAP[item.href]
           const dataTour = TOUR_TARGET[item.href]
 
-          const linkEl = (
+          const linkEl = item.modal ? (
+            <button
+              type="button"
+              data-tour={dataTour ?? undefined}
+              className={linkClassName}
+              onClick={() => openModal(item.modal!)}
+            >
+              <Icon className="h-5 w-5 shrink-0" />
+              <span
+                className={cn(
+                  'truncate transition-opacity duration-150 whitespace-nowrap',
+                  collapsed ? 'opacity-0 w-0 overflow-hidden' : 'opacity-100',
+                )}
+              >
+                {t(item.label)}
+              </span>
+            </button>
+          ) : (
             <Link
               href={item.href}
               data-tour={dataTour ?? undefined}

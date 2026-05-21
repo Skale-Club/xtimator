@@ -23,7 +23,7 @@ export function OfflineIndicator() {
   return (
     <div className="fixed top-0 inset-x-0 z-50 flex items-center justify-center gap-2 bg-yellow-500/90 px-4 py-2 text-xs font-medium text-yellow-950">
       <WifiOff className="h-3.5 w-3.5 shrink-0" />
-      You&apos;re offline — showing cached data
+      You&apos;re offline | showing cached data
     </div>
   )
 }

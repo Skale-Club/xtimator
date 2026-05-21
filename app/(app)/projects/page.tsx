@@ -47,7 +47,7 @@ export default async function ProjectsPage() {
           <T text={`${list.length} ${list.length === 1 ? 'project' : 'projects'}`} />
         </p>
         <Button variant="primary" asChild>
-          <Link href="/projects/new">
+          <Link href="?modal=new-project">
             <FolderPlus className="h-4 w-4 mr-2" />
             <T>New project</T>
           </Link>
@@ -60,7 +60,7 @@ export default async function ProjectsPage() {
           title="No projects yet"
           description="Create your first project to get started."
           actionLabel="Create project"
-          actionHref="/projects/new"
+          actionHref="?modal=new-project"
         />
       ) : (
         <ul className="divide-y divide-border rounded-lg border border-border bg-card overflow-hidden">

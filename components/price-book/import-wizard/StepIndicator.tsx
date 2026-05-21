@@ -25,7 +25,7 @@ export function StepIndicator({ currentStep, onStepClick }: StepIndicatorProps) 
     <div data-slot="step-indicator" className="px-1">
       {/* Mobile: collapsed label */}
       <div className="sm:hidden text-center text-xs text-muted-foreground mb-2">
-        {t('Step')} {currentIdx + 1} {t('of')} 4 — {t(STEPS[currentIdx]?.label ?? '')}
+        {t('Step')} {currentIdx + 1} {t('of')} 4 | {t(STEPS[currentIdx]?.label ?? '')}
       </div>
 
       {/* Bars row */}

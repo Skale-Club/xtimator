@@ -146,17 +146,22 @@ export async function transcribeRecording(recordingId: string) {
   const { inngest } = await import('@/lib/inngest/client')
   const { EVENT_TRANSCRIBE_AUDIO } = await import('@/lib/inngest/events')
 
-  const { ids } = await inngest.send({
-    name: EVENT_TRANSCRIBE_AUDIO,
-    id: `transcribe-${recordingId}`,
-    data: {
-      companyId: recording.company_id as string,
-      recordingId,
-      storagePath: recording.storage_path as string,
-    },
-  })
-
-  return { data: { jobId: ids[0] } }
+  try {
+    const { ids } = await inngest.send({
+      name: EVENT_TRANSCRIBE_AUDIO,
+      id: `transcribe-${recordingId}`,
+      data: {
+        companyId: recording.company_id as string,
+        recordingId,
+        storagePath: recording.storage_path as string,
+      },
+    })
+    return { data: { jobId: ids[0] } }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unknown error'
+    console.error('[transcribeRecording] Inngest dispatch failed:', message)
+    return { error: `Transcription could not be scheduled: ${message}` }
+  }
 }
 
 export async function updateTranscript(recordingId: string, transcript: string) {

@@ -22,72 +22,33 @@ import { getEstimateById } from '@/lib/queries/estimate'
 import { getPriceBookItems } from '@/lib/queries/price-book'
 import { getAIProvider, type RefineEstimateInput } from '@/lib/ai'
 import type { EstimateOutput, EstimateSectionOutput } from '@/lib/ai/types'
-import { getIntegrationKey } from '@/lib/platform-config'
-import Anthropic from '@anthropic-ai/sdk'
-
-type ImageMediaType = 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif'
+import { transcribeAudioOR, analyzePhotoOR } from '@/lib/ai/openrouter-client'
 
 const MAX_PHOTOS = 5
 
-function getImageMediaType(file: Blob): ImageMediaType {
+function getImageMimeType(file: Blob): string {
   switch (file.type) {
-    case 'image/png':
-      return 'image/png'
-    case 'image/webp':
-      return 'image/webp'
-    case 'image/gif':
-      return 'image/gif'
-    default:
-      return 'image/jpeg'
+    case 'image/png':  return 'image/png'
+    case 'image/webp': return 'image/webp'
+    case 'image/gif':  return 'image/gif'
+    default:           return 'image/jpeg'
   }
 }
 
-async function describePhoto(
-  anthropic: Anthropic,
+/** Upload audio to storage, hand to OpenRouter Whisper, then clean up. */
+async function transcribeRefineAudio(
   file: Blob,
-  mimeType: ImageMediaType
-): Promise<string> {
-  const buf = Buffer.from(await file.arrayBuffer()).toString('base64')
-  const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-20250514',
-    max_tokens: 300,
-    messages: [
-      {
-        role: 'user',
-        content: [
-          { type: 'image', source: { type: 'base64', media_type: mimeType, data: buf } },
-          {
-            type: 'text',
-            text: "Describe this photo from a contractor's perspective. Note materials, conditions, measurements if visible, damage, and areas needing work. Be specific and concise.",
-          },
-        ],
-      },
-    ],
-  })
-  const block = response.content[0]
-  return block.type === 'text' ? block.text : ''
-}
-
-async function transcribeAudio(
-  file: Blob,
-  openaiKey: string,
   companyId: string,
   estimateId: string
 ): Promise<string> {
-  // Upload to storage to satisfy any size-vs-buffer constraints and then
-  // hand the blob to Whisper directly.
   const serviceClient = requireServiceClient()
   const storage = createStorage(serviceClient)
   const path = `${companyId}/refine-voice/${estimateId}-${Date.now()}.webm`
 
-  try {
-    await storage.upload('audio', path, file, {
-      contentType: file.type || 'audio/webm',
-      upsert: false,
-    })
-  } catch {
-    throw new Error('Failed to upload audio for transcription')
-  }
+  await storage.upload('audio', path, file, {
+    contentType: file.type || 'audio/webm',
+    upsert: false,
+  }).catch(() => { throw new Error('Failed to upload audio for transcription') })
 
   let downloaded: Blob
   try {
@@ -97,24 +58,8 @@ async function transcribeAudio(
     throw new Error('Failed to read audio for transcription')
   }
 
-  const whisperForm = new FormData()
-  whisperForm.append('file', downloaded, 'voice-refine.webm')
-  whisperForm.append('model', 'whisper-1')
-  whisperForm.append('response_format', 'text')
-
-  const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${openaiKey}` },
-    body: whisperForm,
-  })
-
   storage.delete('audio', path).catch(() => {})
-
-  if (!response.ok) {
-    const errorText = await response.text().catch(() => 'Unknown error')
-    throw new Error(`Transcription failed: ${errorText}`)
-  }
-  return (await response.text()).trim()
+  return transcribeAudioOR(downloaded, 'webm')
 }
 
 export async function POST(
@@ -213,15 +158,8 @@ export async function POST(
     // Transcribe audio (if any) and append to instruction
     // -------------------------------------------------------------------------
     if (audioFile) {
-      const openaiKey = await getIntegrationKey('openai')
-      if (!openaiKey) {
-        return NextResponse.json(
-          { error: "Audio transcription isn't available right now." },
-          { status: 503 }
-        )
-      }
       try {
-        const transcript = await transcribeAudio(audioFile, openaiKey, companyId, estimateId)
+        const transcript = await transcribeRefineAudio(audioFile, companyId, estimateId)
         if (transcript) {
           instructionText = instructionText
             ? `${instructionText}\n\nVoice note: ${transcript}`
@@ -239,18 +177,12 @@ export async function POST(
     // Analyze photos (if any) and append findings to instruction
     // -------------------------------------------------------------------------
     if (photoFiles.length > 0) {
-      const anthropicKey = await getIntegrationKey('anthropic')
-      if (!anthropicKey) {
-        return NextResponse.json(
-          { error: "Photo analysis isn't available right now." },
-          { status: 503 }
-        )
-      }
-      const anthropic = new Anthropic({ apiKey: anthropicKey })
       const descriptions: string[] = []
       for (let i = 0; i < photoFiles.length; i++) {
         try {
-          const desc = await describePhoto(anthropic, photoFiles[i], getImageMediaType(photoFiles[i]))
+          const mimeType = getImageMimeType(photoFiles[i])
+          const base64 = Buffer.from(await photoFiles[i].arrayBuffer()).toString('base64')
+          const desc = await analyzePhotoOR(base64, mimeType)
           if (desc) descriptions.push(`Photo ${i + 1}: ${desc}`)
         } catch (err) {
           console.error('[refine] photo analysis failed:', err)

@@ -124,7 +124,7 @@ export function PlainTextCardEmpty({ className }: PlainTextCardEmptyProps) {
       <CardContent className="flex flex-col items-center justify-center py-12 text-center">
         <FileText className="mb-4 h-12 w-12 text-muted-foreground" />
         <p className="text-sm text-muted-foreground">
-          {t('Generate an estimate first — then come back here to copy the plain text version.')}
+          {t('Generate an estimate first | then come back here to copy the plain text version.')}
         </p>
       </CardContent>
     </Card>

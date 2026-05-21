@@ -52,7 +52,7 @@ export function StripeConnectCard({ state }: { state: ConnectState }) {
       <CardHeader>
         <CardTitle>{t('Stripe payments')}</CardTitle>
         <CardDescription>
-          {t('Accept card payments from customers directly on your shared estimates. Funds settle to your own Stripe account — Xtimator never holds your money.')}
+          {t('Accept card payments from customers directly on your shared estimates. Funds settle to your own Stripe account | Xtimator never holds your money.')}
         </CardDescription>
       </CardHeader>
       <CardContent>
