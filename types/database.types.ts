@@ -633,7 +633,7 @@ export type Database = {
           company_id: string
           estimate_id: string
           id: string
-          ip_address: unknown | null
+          ip_address: unknown
           signature_data: string
           signed_at: string
           signer_email: string | null
@@ -644,7 +644,7 @@ export type Database = {
           company_id: string
           estimate_id: string
           id?: string
-          ip_address?: unknown | null
+          ip_address?: unknown
           signature_data: string
           signed_at?: string
           signer_email?: string | null
@@ -655,7 +655,7 @@ export type Database = {
           company_id?: string
           estimate_id?: string
           id?: string
-          ip_address?: unknown | null
+          ip_address?: unknown
           signature_data?: string
           signed_at?: string
           signer_email?: string | null
@@ -1374,6 +1374,7 @@ export type Database = {
         }[]
       }
       get_platform_user_count: { Args: never; Returns: number }
+      is_platform_admin: { Args: never; Returns: boolean }
     }
     Enums: {
       [_ in never]: never

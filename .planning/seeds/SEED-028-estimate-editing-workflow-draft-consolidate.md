@@ -1,6 +1,6 @@
 ---
 id: SEED-028
-status: planted
+status: harvested
 planted: 2026-05-20
 planted_during: v3.1.1 MVP Launch Prep (workflow polish)
 trigger_when: Próximo milestone focado em UX do editor de estimate e/ou maturidade do fluxo draft → versão consolidada do orçamento
