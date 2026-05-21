@@ -9,6 +9,7 @@ import { TOUR_STEPS } from './tour-step'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { Button } from '@/components/ui/button'
 import { X } from 'lucide-react'
+import { logTourEvent } from '@/lib/actions/tour'
 
 interface Rect {
   top: number
@@ -54,6 +55,9 @@ export function TourSpotlight() {
   const [rect, setRect] = useState<Rect | null>(null)
   const spotlightRef = useRef<HTMLDivElement>(null)
   const previousFocusRef = useRef<HTMLElement | null>(null)
+  // Track whether tour completed naturally via Done (handleNext on last step)
+  // or was dismissed early via X / ESC. Used to fire the correct event.
+  const completedNaturallyRef = useRef(false)
 
   const currentStep = TOUR_STEPS[stepIndex]
   const isLast = stepIndex === TOUR_STEPS.length - 1
@@ -145,8 +149,11 @@ export function TourSpotlight() {
 
   function handleNext() {
     if (isLast) {
+      completedNaturallyRef.current = true
+      void logTourEvent('tour_finished', { step_index: stepIndex, step_id: currentStep.id })
       handleClose()
     } else {
+      void logTourEvent('tour_step_completed', { step_index: stepIndex, step_id: currentStep.id })
       setStepIndex(i => i + 1)
     }
   }
@@ -156,6 +163,10 @@ export function TourSpotlight() {
   }
 
   function handleClose() {
+    if (!completedNaturallyRef.current) {
+      void logTourEvent('tour_skipped', { step_index: stepIndex, step_id: currentStep.id })
+    }
+    completedNaturallyRef.current = false
     clearSpotlightPending()
     completeTour()
     setShowSpotlight(false)

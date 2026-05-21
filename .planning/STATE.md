@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.5
-milestone_name: Zero-friction Project Onboarding
+milestone: v3.1.1
+milestone_name: MVP Launch Prep + Future-Proofing
 status: Defining requirements
-last_updated: "2026-05-21T13:12:34.820Z"
+last_updated: "2026-05-21T13:22:46.466Z"
 last_activity: "2026-05-20 — Completed quick task 260520-jg0: Fix label htmlFor mismatch in signup/login password fields"
 progress:
-  total_phases: 77
-  completed_phases: 58
-  total_plans: 179
-  completed_plans: 200
+  total_phases: 18
+  completed_phases: 18
+  total_plans: 51
+  completed_plans: 51
 ---
 
 # Project State
@@ -435,11 +435,9 @@ Last activity: 2026-05-20 — Completed quick task 260520-jg0: Fix label htmlFor
 - [Phase 77]: override params re-applied inside notify() over resolveChannels result for deterministic force-send
 - [Phase 78]: Use file-presence (ogImageFile != null) over sentinel string to signal pending upload to 78-02
 - [Phase 78]: Accept both /platform-brand/og-images/ and /branding-assets/og-images/ as managed paths to future-proof against bucket rename
-- [Phase 80-walkthrough-audit-debug-polish]: Browser UAT deferred — WALKTHROUGH-FINDINGS.md populated from SEED-029 research audit; all 5 risks treated as real for Plans 02-04
-- [Phase 80-walkthrough-audit-debug-polish]: Mobile selector bug treated as confirmed real per 80-01 decision — getComputedStyle guard added to findVisibleTarget as belt-and-suspenders after offsetParent null fast-path
-- [Phase 80-walkthrough-audit-debug-polish]: Inner wrapper approach for data-tour-shell: Sidebar+content+BottomNav wrapped, all overlays outside — inert never affects spotlight card
-- [Phase 80-walkthrough-audit-debug-polish]: autoUpdate options { animationFrame: false } — ResizeObserver + scroll listener only; rect set immediately on mount to avoid blank first frame
-- [Phase 80-walkthrough-audit-debug-polish]: ContextualTooltip reducedTransparency adds backdrop-blur-none to override any glass utility class a caller may pass via className
+- [Phase 80-walkthrough-audit-debug-polish]: logTourEvent is fire-and-forget (void call) — telemetry failure must never block tour UX
+- [Phase 80-walkthrough-audit-debug-polish]: completedNaturallyRef distinguishes Done (tour_finished) from X/ESC dismiss (tour_skipped) without adding parameter to handleClose
+- [Phase 80-walkthrough-audit-debug-polish]: globalSetup guards on TEST_USER_EMAIL/TEST_USER_PASSWORD — missing credentials exit cleanly; tour tests fall back to requireDashboard skip
 
 ## Performance Metrics
 
@@ -583,9 +581,7 @@ Last activity: 2026-05-20 — Completed quick task 260520-jg0: Fix label htmlFor
 | Phase 77 P07 | 12 | 5 tasks | 10 files |
 | Phase 78 P01 | 5min | 2 tasks | 4 files |
 | Phase 78 P02 | 6min | 2 tasks | 8 files |
-| Phase 80-walkthrough-audit-debug-polish P01 | 5min | 1 tasks | 1 files |
-| Phase 80-walkthrough-audit-debug-polish P02 | 237 | 2 tasks | 2 files |
-| Phase 80-walkthrough-audit-debug-polish P03 | 174 | 2 tasks | 3 files |
+| Phase 80-walkthrough-audit-debug-polish P04 | 8 | 3 tasks | 8 files |
 
 ## Project Reference
 
