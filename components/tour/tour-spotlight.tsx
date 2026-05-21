@@ -24,7 +24,8 @@ const PADDING = 8 // px padding around the target element
 // regardless of CSS visibility, so on mobile the spotlight could target a
 // display:none element.
 //
-//   - `offsetParent === null` catches `display: none` chains.
+//   - `offsetParent === null` catches `display: none` chains (fast path).
+//   - `getComputedStyle(el).display === 'none'` catches nested visibility-hidden/opacity elements missed by offsetParent.
 //   - `getBoundingClientRect()` zero-size catches `visibility: hidden` and
 //     collapsed elements.
 //
@@ -34,11 +35,13 @@ function findVisibleTarget(selector: string): HTMLElement | null {
   if (typeof document === 'undefined') return null
   const candidates = Array.from(document.querySelectorAll<HTMLElement>(selector))
   for (const el of candidates) {
-    if (el.offsetParent === null) continue
+    if (el.offsetParent === null) continue                            // display:none chain (fast path)
+    if (getComputedStyle(el).display === 'none') continue            // belt-and-suspenders for nested hidden
     const r = el.getBoundingClientRect()
-    if (r.width <= 0 || r.height <= 0) continue
+    if (r.width <= 0 || r.height <= 0) continue                     // visibility:hidden / collapsed
     return el
   }
+  // TOUR-QA-02: hardened with getComputedStyle guard 2026-05-21
   return candidates[0] ?? null
 }
 
