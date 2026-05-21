@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v3.1.1
 milestone_name: MVP Launch Prep + Future-Proofing
-status: completed
-last_updated: "2026-05-21T12:20:26.691Z"
-last_activity: 2026-05-21
+status: Defining requirements
+last_updated: "2026-05-21T12:59:27.099Z"
+last_activity: "2026-05-20 — Completed quick task 260520-jg0: Fix label htmlFor mismatch in signup/login password fields"
 progress:
   total_phases: 18
   completed_phases: 18
@@ -22,10 +22,10 @@ progress:
 
 ## Current Position
 
-Phase: 76.2
-Plan: Not started
-Status: Phase 76.2 complete
-Last activity: 2026-05-21
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-05-20 — Completed quick task 260520-jg0: Fix label htmlFor mismatch in signup/login password fields
 
 ## v3.1.1 Phases
 
@@ -70,8 +70,6 @@ Last activity: 2026-05-21
 
 ## Completed Phases
 
-- Phase 76.2: Settings & Admin Persistence Fix (76.2-settings-admin-persistence-fix) — COMPLETE 2026-05-21
-  - Plan 01: Apply 3 pending migrations + regenerate types + console.error logging + manual QA deferred (SETTINGS-FIX-01..05) — COMPLETE
 - Phase 54: WhatsApp Status Flow (54-whatsapp-status-flow) — COMPLETE 2026-05-13
   - Plan 01: updateWhatsAppStatus server action + unit tests (WASTATUS-02, WASTATUS-03, WASTATUS-04) — COMPLETE
   - Plan 02: WhatsAppConnectCard: StatusBadge + Suspend/Reactivate buttons (WASTATUS-01, WASTATUS-03) — COMPLETE
@@ -437,13 +435,7 @@ Last activity: 2026-05-21
 - [Phase 77]: override params re-applied inside notify() over resolveChannels result for deterministic force-send
 - [Phase 78]: Use file-presence (ogImageFile != null) over sentinel string to signal pending upload to 78-02
 - [Phase 78]: Accept both /platform-brand/og-images/ and /branding-assets/og-images/ as managed paths to future-proof against bucket rename
-- [Phase 76.1-pwa-progressive-web-app-infrastructure]: viewport export uses themeColor array with dark/light media variants per Next.js 14+ Viewport type
-- [Phase 76.1-pwa-progressive-web-app-infrastructure]: hasProjects gate uses project count query added to existing Promise.all in (app)/layout.tsx — no extra round-trip
-- [Phase 76.1-pwa-progressive-web-app-infrastructure]: iOS branch shows static install instructions immediately; no beforeinstallprompt needed on iOS Safari
-- [Phase 76.1-pwa-progressive-web-app-infrastructure]: publicIconConflicts fixed with statSync.isDirectory() to exclude public/icons/ directory
-- [Phase 76.1-pwa-progressive-web-app-infrastructure]: useIsOffline defined inline per component (not shared hook) — three isolated consumers; sidebar offline gate wraps disabled button in shadcn Tooltip; dashboard empty state suppresses actionHref to undefined; ClientNewProjectButton uses native title attribute
-- [Phase 76.2-settings-admin-persistence-fix]: Migration script uses SAVEPOINT + ROLLBACK TO SAVEPOINT to handle policies/tables already present from a prior partial apply — records migration as complete without re-running DDL
-- [Phase 76.2-settings-admin-persistence-fix]: Types regenerated via npx supabase gen types (not manual extension) for authoritative output after migrations applied
+- [Phase 80-walkthrough-audit-debug-polish]: Browser UAT deferred — WALKTHROUGH-FINDINGS.md populated from SEED-029 research audit; all 5 risks treated as real for Plans 02-04
 
 ## Performance Metrics
 
@@ -587,16 +579,14 @@ Last activity: 2026-05-21
 | Phase 77 P07 | 12 | 5 tasks | 10 files |
 | Phase 78 P01 | 5min | 2 tasks | 4 files |
 | Phase 78 P02 | 6min | 2 tasks | 8 files |
-| Phase 76.1-pwa-progressive-web-app-infrastructure P01 | 4min | 3 tasks | 5 files |
-| Phase 76.1-pwa-progressive-web-app-infrastructure P02 | 5min | 2 tasks | 3 files |
-| Phase 76.2-settings-admin-persistence-fix P01 | 5min | 3 tasks | 4 files |
+| Phase 80-walkthrough-audit-debug-polish P01 | 5min | 1 tasks | 1 files |
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-13)
 
 **Core value:** Business owner → job site audio recording → sent professional estimate in under 5 minutes
-**Current focus:** Phase 76.2 — settings-admin-persistence-fix
+**Current focus:** Phase 74 — Post-Onboarding App Feature Tour
 
 ## Notes
 
