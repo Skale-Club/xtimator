@@ -899,3 +899,36 @@ Plans:
   5. Existing URL-typed setups (current state) keep working — if `og_image_url` is set but the file isn't in branding-assets bucket (external URL), show preview if loadable + a hint "Currently using external URL — upload to migrate to managed storage".
 
 **Plans:** 2/2 plans complete
+
+---
+
+## Backlog
+
+### Phase 999.1: Migrate background jobs from Inngest cloud to self-hosted Inngest on Hetzner (BACKLOG)
+
+**Goal:** When the app moves to Hetzner VPS, eliminate Inngest cloud per-run costs by running the open-source Inngest server self-hosted alongside the main app. Current Inngest usage (transcription, photo analysis, estimate generation, notifications, WhatsApp processing) stays intact — only the infrastructure target changes from cloud to self-hosted.
+
+**Context:**
+- Inngest is open source (github.com/inngest/inngest) and fully self-hostable
+- Current cloud free tier (50k runs/month) is sufficient while traffic is low
+- Migration is triggered by the Hetzner infrastructure move, not independently
+- All `inngest.send()` call sites, Inngest functions, and event schemas remain unchanged
+- Only the Inngest server URL, `INNGEST_EVENT_KEY`, and `INNGEST_SIGNING_KEY` env vars change
+
+**Trigger condition:** When Hetzner VPS is provisioned and the main Next.js app is being migrated off Vercel.
+
+**High-level steps (to be planned when triggered):**
+1. Provision Inngest OSS server on Hetzner (Docker or binary)
+2. Configure persistent storage for Inngest state (PostgreSQL or SQLite)
+3. Rotate `INNGEST_EVENT_KEY` and `INNGEST_SIGNING_KEY` to self-hosted values
+4. Update `INNGEST_BASE_URL` to point at the self-hosted server
+5. Verify all job types (transcribe, analyze-photos, generate-estimate, notify, whatsapp-process) execute correctly
+6. Decommission Inngest cloud account
+
+**Depends on:** Hetzner migration milestone (not yet planned)
+
+**Requirements:** TBD
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with /gsd:discuss-phase 999.1 when Hetzner migration begins)
