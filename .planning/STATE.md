@@ -1,15 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v4.0
-milestone_name: Multi-Tenancy (Multiple Companies per User)
-status: defining_requirements
-last_updated: "2026-05-20T00:00:00.000Z"
-last_activity: 2026-05-20
+milestone: v3.1.1
+milestone_name: MVP Launch Prep + Future-Proofing
+status: executing
+last_updated: "2026-05-21T18:50:44.098Z"
+last_activity: 2026-05-21 -- Phase 79 planning complete
 progress:
-  total_phases: 0
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_phases: 42
+  completed_phases: 27
+  total_plans: 82
+  completed_plans: 91
+  percent: 100
 ---
 
 # Project State
@@ -24,8 +25,8 @@ progress:
 
 Phase: Not started (defining requirements)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-05-21 — Completed quick task 260521-jx9: Add retry transcription button on recording item
+Status: Ready to execute
+Last activity: 2026-05-21 -- Completed quick task 260521-lwb: Fix `<table>` cannot contain a nested `<div>` hydration error in SectionCard
 
 ## v3.1.1 Phases
 
@@ -636,6 +637,7 @@ v3.1: Phases 61-65 (started 2026-05-15). Production Go-Live — 27 requirements 
 | 260520-jg0 | Fix label htmlFor mismatch in signup/login password fields (FormControl Slot id leak) | 2026-05-20 | 2e21a8a | [260520-jg0-fix-label-htmlfor-mismatch-in-signup-log](.planning/quick/260520-jg0-fix-label-htmlfor-mismatch-in-signup-log/) |
 | 260521-gdf | Add Pencil rename to project page header (inline edit via server action) | 2026-05-21 | a85b612 | [260521-gdf-adicionar-pencil-rename-ao-header-de-pro](.planning/quick/260521-gdf-adicionar-pencil-rename-ao-header-de-pro/) |
 | 260521-jx9 | Add retry transcription button on recording item | 2026-05-21 | 4cacf98 | [260521-jx9-add-retry-transcription-button-on-record](.planning/quick/260521-jx9-add-retry-transcription-button-on-record/) |
+| 260521-lwb | Fix `<table>` cannot contain a nested `<div>` hydration error (lift DndContext outside table in SectionCard) | 2026-05-21 | 3dd3e57 | [260521-lwb-fix-table-div-hydration-error-in-section](.planning/quick/260521-lwb-fix-table-div-hydration-error-in-section/) |
 | 2026-05-18 | fast | Center auth card logo+wordmark | done |
 | 2026-05-19 | fast | Make audio capture screen scrollable on smaller viewports | done |
 | 2026-05-18 | fast | Restyle sidebar New Project as filled gradient, remove dashboard CTA | done |
