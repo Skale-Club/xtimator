@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v3.1.1
 milestone_name: MVP Launch Prep + Future-Proofing
-status: executing
-last_updated: "2026-05-21T11:32:21.107Z"
+status: verifying
+last_updated: "2026-05-21T11:39:28.061Z"
 last_activity: 2026-05-21
 progress:
   total_phases: 18
@@ -24,7 +24,7 @@ progress:
 
 Phase: 76.1 (pwa-progressive-web-app-infrastructure) — EXECUTING
 Plan: 2 of 2
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-05-21
 
 ## v3.1.1 Phases
@@ -439,6 +439,7 @@ Last activity: 2026-05-21
 - [Phase 76.1-pwa-progressive-web-app-infrastructure]: hasProjects gate uses project count query added to existing Promise.all in (app)/layout.tsx — no extra round-trip
 - [Phase 76.1-pwa-progressive-web-app-infrastructure]: iOS branch shows static install instructions immediately; no beforeinstallprompt needed on iOS Safari
 - [Phase 76.1-pwa-progressive-web-app-infrastructure]: publicIconConflicts fixed with statSync.isDirectory() to exclude public/icons/ directory
+- [Phase 76.1-pwa-progressive-web-app-infrastructure]: useIsOffline defined inline per component (not shared hook) — three isolated consumers; sidebar offline gate wraps disabled button in shadcn Tooltip; dashboard empty state suppresses actionHref to undefined; ClientNewProjectButton uses native title attribute
 
 ## Performance Metrics
 
@@ -583,6 +584,7 @@ Last activity: 2026-05-21
 | Phase 78 P01 | 5min | 2 tasks | 4 files |
 | Phase 78 P02 | 6min | 2 tasks | 8 files |
 | Phase 76.1-pwa-progressive-web-app-infrastructure P01 | 4min | 3 tasks | 5 files |
+| Phase 76.1-pwa-progressive-web-app-infrastructure P02 | 5min | 2 tasks | 3 files |
 
 ## Project Reference
 
