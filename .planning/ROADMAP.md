@@ -828,7 +828,7 @@ Plans:
 - [x] 76.1-01-PLAN.md — viewport export, apple meta tags, InstallPrompt estimate gate + iOS branch, Wave 0 test stubs, app-icons test fix (PWA-01, PWA-04, PWA-06)
 - [x] 76.1-02-PLAN.md — offline CTA disabling (New Project buttons) + Lighthouse manual QA checkpoint (PWA-02, PWA-03, PWA-05)
 
-### Phase 76.2: Settings & Admin Persistence Fix — DB Schema Sync + Full Audit (INSERTED)
+### Phase 76.2: Settings & Admin Persistence Fix — DB Schema Sync + Full Audit (INSERTED) — COMPLETE 2026-05-21
 
 **Goal:** Every field in every settings page and admin panel actually persists to the database after save + refresh. Root cause: 6 columns added via recent migrations (`digital_signature_enabled`, `estimate_terms_enabled`, `estimate_terms_text`, `email_delivery_enabled`, `sms_delivery_enabled`, `ai_model_override`) were never applied to the Supabase project and `database.types.ts` was never regenerated. This phase applies all pending migrations, regenerates types, fixes any TypeScript errors surfaced, hardens server action error visibility, and does a full manual verification of every settings and admin form.
 
