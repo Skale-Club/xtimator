@@ -25,7 +25,7 @@ progress:
 Phase: Not started (defining requirements)
 Plan: —
 Status: Defining requirements
-Last activity: 2026-05-21 — Completed quick task 260521-gdf: Add Pencil rename to project page header
+Last activity: 2026-05-21 — Completed quick task 260521-jx9: Add retry transcription button on recording item
 
 ## v3.1.1 Phases
 
@@ -634,6 +634,7 @@ v3.1: Phases 61-65 (started 2026-05-15). Production Go-Live — 27 requirements 
 | 260518-v0z | Unify folder + category in price book (folder is sole taxonomy) | 2026-05-19 | 45f98d0 | [260518-v0z-unificar-folder-e-category-no-price-book](.planning/quick/260518-v0z-unificar-folder-e-category-no-price-book/) |
 | 260520-jg0 | Fix label htmlFor mismatch in signup/login password fields (FormControl Slot id leak) | 2026-05-20 | 2e21a8a | [260520-jg0-fix-label-htmlfor-mismatch-in-signup-log](.planning/quick/260520-jg0-fix-label-htmlfor-mismatch-in-signup-log/) |
 | 260521-gdf | Add Pencil rename to project page header (inline edit via server action) | 2026-05-21 | a85b612 | [260521-gdf-adicionar-pencil-rename-ao-header-de-pro](.planning/quick/260521-gdf-adicionar-pencil-rename-ao-header-de-pro/) |
+| 260521-jx9 | Add retry transcription button on recording item | 2026-05-21 | 4cacf98 | [260521-jx9-add-retry-transcription-button-on-record](.planning/quick/260521-jx9-add-retry-transcription-button-on-record/) |
 | 2026-05-18 | fast | Center auth card logo+wordmark | done |
 | 2026-05-19 | fast | Make audio capture screen scrollable on smaller viewports | done |
 | 2026-05-18 | fast | Restyle sidebar New Project as filled gradient, remove dashboard CTA | done |
