@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v3.1.1
 milestone_name: MVP Launch Prep + Future-Proofing
-status: verifying
-last_updated: "2026-05-21T11:45:18.119Z"
-last_activity: 2026-05-21
+status: executing
+last_updated: "2026-05-21T12:11:18.726Z"
+last_activity: 2026-05-21 -- Phase 76.2 execution started
 progress:
   total_phases: 18
   completed_phases: 18
@@ -22,10 +22,10 @@ progress:
 
 ## Current Position
 
-Phase: 76.1
-Plan: Not started
-Status: Phase complete — ready for verification
-Last activity: 2026-05-21
+Phase: 76.2 (settings-admin-persistence-fix) — EXECUTING
+Plan: 1 of 1
+Status: Executing Phase 76.2
+Last activity: 2026-05-21 -- Phase 76.2 execution started
 
 ## v3.1.1 Phases
 
@@ -440,6 +440,8 @@ Last activity: 2026-05-21
 - [Phase 76.1-pwa-progressive-web-app-infrastructure]: iOS branch shows static install instructions immediately; no beforeinstallprompt needed on iOS Safari
 - [Phase 76.1-pwa-progressive-web-app-infrastructure]: publicIconConflicts fixed with statSync.isDirectory() to exclude public/icons/ directory
 - [Phase 76.1-pwa-progressive-web-app-infrastructure]: useIsOffline defined inline per component (not shared hook) — three isolated consumers; sidebar offline gate wraps disabled button in shadcn Tooltip; dashboard empty state suppresses actionHref to undefined; ClientNewProjectButton uses native title attribute
+- [Phase 76.2-settings-admin-persistence-fix]: Migration script uses SAVEPOINT + ROLLBACK TO SAVEPOINT to handle policies/tables already present from a prior partial apply — records migration as complete without re-running DDL
+- [Phase 76.2-settings-admin-persistence-fix]: Types regenerated via npx supabase gen types (not manual extension) for authoritative output after migrations applied
 
 ## Performance Metrics
 
@@ -585,13 +587,14 @@ Last activity: 2026-05-21
 | Phase 78 P02 | 6min | 2 tasks | 8 files |
 | Phase 76.1-pwa-progressive-web-app-infrastructure P01 | 4min | 3 tasks | 5 files |
 | Phase 76.1-pwa-progressive-web-app-infrastructure P02 | 5min | 2 tasks | 3 files |
+| Phase 76.2-settings-admin-persistence-fix P01 | 5min | 2 tasks | 4 files |
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-13)
 
 **Core value:** Business owner → job site audio recording → sent professional estimate in under 5 minutes
-**Current focus:** Phase 76.1 — pwa-progressive-web-app-infrastructure
+**Current focus:** Phase 76.2 — settings-admin-persistence-fix
 
 ## Notes
 

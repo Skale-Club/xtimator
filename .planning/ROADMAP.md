@@ -853,10 +853,10 @@ Plans:
 
 **Out of scope:** New features, UI redesign, WhatsApp settings (already working), billing pages (read-only).
 
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 Plans:
-- [ ] 76.2-01-PLAN.md — Apply 3 pending migrations + regenerate types + add console.error logging + manual persistence verification (SETTINGS-FIX-01..05)
+- [x] 76.2-01-PLAN.md — Apply 3 pending migrations + regenerate types + add console.error logging + manual persistence verification (SETTINGS-FIX-01..05)
 
 ### Phase 77: Notifications System — Unified In-App + Email + (later) Push
 
