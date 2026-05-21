@@ -940,9 +940,9 @@ Plans:
 
 **Out of scope:** Admin panel tour, A/B copy test, video walkthroughs.
 
-**Plans:** 4 plans
+**Plans:** 2/4 plans executed
 Plans:
-- [ ] 80-01-PLAN.md — Manual UAT diagnosis: run tour-uat-runbook.md, produce WALKTHROUGH-FINDINGS.md
-- [ ] 80-02-PLAN.md — Selector hardening + copy revision from findings
+- [x] 80-01-PLAN.md — Manual UAT diagnosis: run tour-uat-runbook.md, produce WALKTHROUGH-FINDINGS.md
+- [x] 80-02-PLAN.md — Selector hardening + copy revision from findings
 - [ ] 80-03-PLAN.md — A11y (inert) + performance (rAF->autoUpdate) + reduced-transparency consistency
 - [ ] 80-04-PLAN.md — tour_events migration + logTourEvent server action + Playwright auth fixture + un-skip 4 tests

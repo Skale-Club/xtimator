@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
-milestone: v3.1.1
-milestone_name: MVP Launch Prep + Future-Proofing
+milestone: v1.5
+milestone_name: Zero-friction Project Onboarding
 status: Defining requirements
-last_updated: "2026-05-21T12:59:27.099Z"
+last_updated: "2026-05-21T13:06:47.982Z"
 last_activity: "2026-05-20 — Completed quick task 260520-jg0: Fix label htmlFor mismatch in signup/login password fields"
 progress:
-  total_phases: 18
-  completed_phases: 18
-  total_plans: 51
-  completed_plans: 51
+  total_phases: 77
+  completed_phases: 58
+  total_plans: 179
+  completed_plans: 199
 ---
 
 # Project State
@@ -436,6 +436,7 @@ Last activity: 2026-05-20 — Completed quick task 260520-jg0: Fix label htmlFor
 - [Phase 78]: Use file-presence (ogImageFile != null) over sentinel string to signal pending upload to 78-02
 - [Phase 78]: Accept both /platform-brand/og-images/ and /branding-assets/og-images/ as managed paths to future-proof against bucket rename
 - [Phase 80-walkthrough-audit-debug-polish]: Browser UAT deferred — WALKTHROUGH-FINDINGS.md populated from SEED-029 research audit; all 5 risks treated as real for Plans 02-04
+- [Phase 80-walkthrough-audit-debug-polish]: Mobile selector bug treated as confirmed real per 80-01 decision — getComputedStyle guard added to findVisibleTarget as belt-and-suspenders after offsetParent null fast-path
 
 ## Performance Metrics
 
@@ -580,6 +581,7 @@ Last activity: 2026-05-20 — Completed quick task 260520-jg0: Fix label htmlFor
 | Phase 78 P01 | 5min | 2 tasks | 4 files |
 | Phase 78 P02 | 6min | 2 tasks | 8 files |
 | Phase 80-walkthrough-audit-debug-polish P01 | 5min | 1 tasks | 1 files |
+| Phase 80-walkthrough-audit-debug-polish P02 | 237 | 2 tasks | 2 files |
 
 ## Project Reference
 
