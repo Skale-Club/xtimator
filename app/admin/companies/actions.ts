@@ -48,7 +48,10 @@ export async function setCompanyModelOverride(
     .update({ ai_model_override: value })
     .eq('id', companyId)
 
-  if (error) return { ok: false, message: error.message }
+  if (error) {
+    console.error('[admin] setCompanyModelOverride DB error:', error)
+    return { ok: false, message: error.message }
+  }
 
   revalidatePath('/admin/companies')
   revalidatePath(`/admin/companies/${companyId}`)

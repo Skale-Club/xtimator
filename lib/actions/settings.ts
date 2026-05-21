@@ -176,6 +176,7 @@ export async function updateEstimateTerms(data: {
     .eq('id', company.id)
 
   if (error) {
+    console.error('[settings] updateEstimateTerms DB error:', error)
     return { error: 'Failed to save estimate terms. Please try again.' }
   }
 
@@ -202,6 +203,7 @@ export async function updateDeliverySettings(data: {
     .eq('id', company.id)
 
   if (error) {
+    console.error('[settings] updateDeliverySettings DB error:', error)
     return { error: 'Failed to save delivery settings. Please try again.' }
   }
 
