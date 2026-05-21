@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
-milestone: v4.0
-milestone_name: Multi-Tenancy (Multiple Companies per User)
-status: defining_requirements
-last_updated: "2026-05-20T00:00:00.000Z"
-last_activity: 2026-05-20
+milestone: v3.1.1
+milestone_name: MVP Launch Prep + Future-Proofing
+status: Defining requirements
+last_updated: "2026-05-21T13:22:46.466Z"
+last_activity: "2026-05-20 — Completed quick task 260520-jg0: Fix label htmlFor mismatch in signup/login password fields"
 progress:
-  total_phases: 0
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_phases: 18
+  completed_phases: 18
+  total_plans: 51
+  completed_plans: 51
 ---
 
 # Project State
@@ -435,6 +435,9 @@ Last activity: 2026-05-20 — Completed quick task 260520-jg0: Fix label htmlFor
 - [Phase 77]: override params re-applied inside notify() over resolveChannels result for deterministic force-send
 - [Phase 78]: Use file-presence (ogImageFile != null) over sentinel string to signal pending upload to 78-02
 - [Phase 78]: Accept both /platform-brand/og-images/ and /branding-assets/og-images/ as managed paths to future-proof against bucket rename
+- [Phase 80-walkthrough-audit-debug-polish]: logTourEvent is fire-and-forget (void call) — telemetry failure must never block tour UX
+- [Phase 80-walkthrough-audit-debug-polish]: completedNaturallyRef distinguishes Done (tour_finished) from X/ESC dismiss (tour_skipped) without adding parameter to handleClose
+- [Phase 80-walkthrough-audit-debug-polish]: globalSetup guards on TEST_USER_EMAIL/TEST_USER_PASSWORD — missing credentials exit cleanly; tour tests fall back to requireDashboard skip
 
 ## Performance Metrics
 
@@ -578,6 +581,7 @@ Last activity: 2026-05-20 — Completed quick task 260520-jg0: Fix label htmlFor
 | Phase 77 P07 | 12 | 5 tasks | 10 files |
 | Phase 78 P01 | 5min | 2 tasks | 4 files |
 | Phase 78 P02 | 6min | 2 tasks | 8 files |
+| Phase 80-walkthrough-audit-debug-polish P04 | 8 | 3 tasks | 8 files |
 
 ## Project Reference
 
