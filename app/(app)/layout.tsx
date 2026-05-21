@@ -36,7 +36,7 @@ export default async function AppShellLayout({
     redirect('/onboarding')
   }
 
-  const [branding, adminRow, billingRow] = await Promise.all([
+  const [branding, adminRow, billingRow, projectCountResult] = await Promise.all([
     brandingPromise, // already in flight
     requireServiceClient()
       .from('platform_admins')
@@ -49,7 +49,13 @@ export default async function AppShellLayout({
       .select('tier, tier_trial_ends_at')
       .eq('user_id', claims.sub)
       .single(),
+    // Project count for PWA install prompt gate (PWA-04)
+    requireServiceClient()
+      .from('projects')
+      .select('id', { count: 'exact', head: true })
+      .eq('company_id', company.id),
   ])
+  const hasProjects = (projectCountResult.count ?? 0) > 0
   const isAdmin = !!adminRow.data
 
   const trialDaysRemaining =
@@ -87,7 +93,7 @@ export default async function AppShellLayout({
         <TourSpotlight />
         <TourHelpButton />
         <OfflineIndicator />
-        <InstallPrompt />
+        <InstallPrompt hasProjects={hasProjects} />
         <SWRegister />
       </div>
     </TourProvider>
