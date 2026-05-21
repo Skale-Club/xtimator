@@ -144,29 +144,29 @@ export function SectionCard({ section, dispatch, dragHandleProps, isReadOnly }: 
         )}
       </CardHeader>
       <CardContent className="px-3 pb-3">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="text-xs text-muted-foreground border-b">
-                <th className="py-2 px-1 w-8" />
-                <th className="py-2 px-1 text-left font-medium">Description</th>
-                <th className="py-2 px-1 w-20 text-right font-medium">Qty</th>
-                <th className="py-2 px-1 w-20 text-left font-medium">Unit</th>
-                <th className="py-2 px-1 w-28 text-right font-medium">Unit Price</th>
-                <th className="py-2 px-1 w-28" />
-                <th className="py-2 px-1 w-28 text-right font-medium">Total</th>
-                <th className="py-2 px-1 w-10" />
-              </tr>
-            </thead>
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={handleDragEnd}
-            >
-              <SortableContext
-                items={section.items.map((i) => i.id)}
-                strategy={verticalListSortingStrategy}
-              >
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext
+            items={section.items.map((i) => i.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="text-xs text-muted-foreground border-b">
+                    <th className="py-2 px-1 w-8" />
+                    <th className="py-2 px-1 text-left font-medium">Description</th>
+                    <th className="py-2 px-1 w-20 text-right font-medium">Qty</th>
+                    <th className="py-2 px-1 w-20 text-left font-medium">Unit</th>
+                    <th className="py-2 px-1 w-28 text-right font-medium">Unit Price</th>
+                    <th className="py-2 px-1 w-28" />
+                    <th className="py-2 px-1 w-28 text-right font-medium">Total</th>
+                    <th className="py-2 px-1 w-10" />
+                  </tr>
+                </thead>
                 {section.items.map((item) => (
                   <SortableItemRow
                     key={item.id}
@@ -176,10 +176,10 @@ export function SectionCard({ section, dispatch, dragHandleProps, isReadOnly }: 
                     isReadOnly={isReadOnly}
                   />
                 ))}
-              </SortableContext>
-            </DndContext>
-          </table>
-        </div>
+              </table>
+            </div>
+          </SortableContext>
+        </DndContext>
 
         <div className="flex items-center justify-between mt-3">
           {!isReadOnly && (

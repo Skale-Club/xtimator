@@ -13,7 +13,13 @@ import { createClient } from '@/lib/supabase/server'
  * here — any signed-in user can poll any jobId. Tightening this is tracked as a
  * follow-up before production deploy (RESEARCH.md Architecture Pattern 4 callout).
  */
-const INNGEST_API = 'https://api.inngest.com/v1'
+const INNGEST_CLOUD_API = 'https://api.inngest.com/v1'
+const INNGEST_DEV_API = 'http://localhost:8288/v1'
+
+function isDevMode() {
+  const flag = process.env.INNGEST_DEV
+  return flag === '1' || flag === 'true'
+}
 
 export async function GET(
   _request: Request,
@@ -26,16 +32,21 @@ export async function GET(
   }
 
   const { jobId } = await params
+  const devMode = isDevMode()
   const signingKey = process.env.INNGEST_SIGNING_KEY
-  if (!signingKey) {
+  if (!devMode && !signingKey) {
     return NextResponse.json(
       { error: 'Inngest not configured' },
       { status: 503 }
     )
   }
 
-  const res = await fetch(`${INNGEST_API}/events/${jobId}/runs`, {
-    headers: { Authorization: `Bearer ${signingKey}` },
+  const baseUrl = devMode ? INNGEST_DEV_API : INNGEST_CLOUD_API
+  const headers: Record<string, string> = {}
+  if (signingKey) headers.Authorization = `Bearer ${signingKey}`
+
+  const res = await fetch(`${baseUrl}/events/${jobId}/runs`, {
+    headers,
     cache: 'no-store',
   })
 

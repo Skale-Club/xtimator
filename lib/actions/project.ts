@@ -170,3 +170,29 @@ export async function linkProjectToClient(projectId: string, clientId: string) {
   revalidatePath(`/projects/${projectId}`, 'layout')
   return { data: { linked: true } }
 }
+
+export async function renameProjectAction(projectId: string, name: string) {
+  const trimmed = name.trim()
+  if (!trimmed || trimmed.length === 0) {
+    return { error: 'Project name is required' }
+  }
+  if (trimmed.length > 200) {
+    return { error: 'Name must be 200 characters or less' }
+  }
+
+  const ctx = await getAuthContext()
+  if ('error' in ctx) return { error: ctx.error }
+  const { supabase } = ctx
+
+  const { error } = await supabase
+    .from('projects')
+    .update({ name: trimmed })
+    .eq('id', projectId)
+
+  if (error) return { error: 'Failed to rename project. Please try again.' }
+
+  revalidatePath(`/projects/${projectId}`, 'layout')
+  revalidatePath('/dashboard')
+  revalidatePath('/', 'layout')
+  return { data: { renamed: true } }
+}

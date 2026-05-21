@@ -1,14 +1,17 @@
 'use client'
 
 import { Button } from '@/components/ui/button'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { createClient } from '@/lib/supabase/client'
 import { Loader2 } from 'lucide-react'
 import { useState } from 'react'
 
 export function GoogleOAuthButton() {
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   async function handleGoogleSignIn() {
+    setError(null)
     setIsLoading(true)
     try {
       const supabase = createClient()
@@ -19,22 +22,32 @@ export function GoogleOAuthButton() {
         },
       })
       if (error) {
+        console.error('[google-oauth] signInWithOAuth error:', error)
+        setError(error.message || 'Google sign-in failed. Please try again.')
         setIsLoading(false)
       }
-    } catch {
+    } catch (err) {
+      console.error('[google-oauth] unexpected error:', err)
+      setError(err instanceof Error ? err.message : 'Unexpected error during Google sign-in.')
       setIsLoading(false)
     }
   }
 
   return (
-    <Button
-      type="button"
-      variant="outline"
-      className="w-full min-h-[44px] border-border bg-transparent text-foreground hover:bg-[hsl(224_45%_38%)] hover:text-primary-foreground hover:border-[hsl(224_45%_38%)]"
-      onClick={handleGoogleSignIn}
-      disabled={isLoading}
-      aria-label="Sign in with Google"
-    >
+    <>
+      {error && (
+        <Alert variant="destructive" className="mb-3">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+      <Button
+        type="button"
+        variant="outline"
+        className="w-full min-h-[44px] border-border bg-transparent text-foreground hover:bg-[hsl(224_45%_38%)] hover:text-primary-foreground hover:border-[hsl(224_45%_38%)]"
+        onClick={handleGoogleSignIn}
+        disabled={isLoading}
+        aria-label="Sign in with Google"
+      >
       {isLoading ? (
         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
       ) : (
@@ -59,6 +72,7 @@ export function GoogleOAuthButton() {
         </svg>
       )}
       Continue with Google
-    </Button>
+      </Button>
+    </>
   )
 }

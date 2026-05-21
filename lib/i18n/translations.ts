@@ -39,6 +39,7 @@ export const staticDict: Record<'pt' | 'es', TranslationDict> = {
     'Sort': 'Ordenar',
     'Refresh': 'Atualizar',
     'Retry': 'Tentar novamente',
+    'Retry transcription': 'Tentar transcrição novamente',
     'Continue': 'Continuar',
 
     // Status labels
@@ -217,6 +218,7 @@ export const staticDict: Record<'pt' | 'es', TranslationDict> = {
     'Sort': 'Ordenar',
     'Refresh': 'Actualizar',
     'Retry': 'Reintentar',
+    'Retry transcription': 'Reintentar transcripción',
     'Continue': 'Continuar',
 
     // Status labels

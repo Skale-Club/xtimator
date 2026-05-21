@@ -26,6 +26,12 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next()
   }
 
+  // Inngest bypass: the Inngest worker/dev server calls /api/inngest with no
+  // auth cookies. The serve handler self-validates via INNGEST_SIGNING_KEY.
+  if (pathname.startsWith('/api/inngest')) {
+    return NextResponse.next()
+  }
+
   // Always refresh session first (existing behavior — preserved).
   const { claims, response } = await updateSession(request)
 

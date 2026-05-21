@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.5
-milestone_name: Zero-friction Project Onboarding
-status: Defining requirements
-last_updated: "2026-05-21T13:28:12.143Z"
-last_activity: 2026-05-21
+milestone: v4.0
+milestone_name: Multi-Tenancy (Multiple Companies per User)
+status: defining_requirements
+last_updated: "2026-05-20T00:00:00.000Z"
+last_activity: 2026-05-20
 progress:
-  total_phases: 18
-  completed_phases: 18
-  total_plans: 51
-  completed_plans: 51
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
 ---
 
 # Project State
@@ -22,10 +22,10 @@ progress:
 
 ## Current Position
 
-Phase: 80
-Plan: Not started
+Phase: Not started (defining requirements)
+Plan: —
 Status: Defining requirements
-Last activity: 2026-05-21
+Last activity: 2026-05-21 — Completed quick task 260521-nkp: Always show Consolidate on current drafts in EstimateFloatingActions
 
 ## v3.1.1 Phases
 
@@ -588,7 +588,7 @@ Last activity: 2026-05-21
 See: .planning/PROJECT.md (updated 2026-05-13)
 
 **Core value:** Business owner → job site audio recording → sent professional estimate in under 5 minutes
-**Current focus:** Phase 74 — Post-Onboarding App Feature Tour
+**Current focus:** Phase 79 — multi-company-support-allow-one-user-to-own-and-switch-betwe
 
 ## Notes
 
@@ -625,6 +625,7 @@ v3.1: Phases 61-65 (started 2026-05-15). Production Go-Live — 27 requirements 
 - v2.2 phases 53-54 (SEED-015 Gaps 3 & 5): PDF attachment delivery (Phase 53) → WhatsApp status flow (Phase 54). Key constraint: Phase 53 touches confirm.ts delivery branching and adds pdf_attachment to delivery_format enum — complete that before Phase 54 also touches the same UI selector to add suspend/reactivate. Both phases build on Phase 50 (OTP verification) which established the pending→active transition. Phase 54 closes the status flow loop by wiring verified→active auto-promotion and adding the suspended state with admin controls.
 - v3.0 phases 55-60 (SEED-013): Schema + tier definitions (Phase 55) → Usage tracking helpers (Phase 56) → Enforcement wiring (Phase 57) → Stripe integration (Phase 58) → Billing UI (Phase 59) → Trial automation + admin tooling (Phase 60). Key constraint: Phase 55 is a hard prerequisite for all others — tier columns and usage_events table must exist. Phase 56 builds the quota library; Phase 57 wires it to routes. Phase 58 is independent of 56-57 (depends only on Phase 55 tier columns). Phase 59 requires both Phase 57 (usage data) and Phase 58 (Stripe endpoints). Phase 60 depends on Phase 55 (tier columns) and Phase 58 (Stripe state) but not on Phase 59 UI.
 - v3.1 phases 61-65 (Production Go-Live): Production DB foundation (Phase 61) → Vercel deploy + custom domain (Phase 62) → Stripe live mode activation (Phase 63) → Monitoring + backup + resilience (Phase 64) → Production UAT + bug triage (Phase 65). Hard dep order: Phase 61 (DB) before Phase 62 (deployed app needs DB). Phase 62 before Phase 63 (Stripe live webhook URL needs reachable production endpoint). Phase 64 depends on both 61 (health endpoint DB check) and 62 (Sentry/uptime point at deployed app). Phase 65 ships last — UAT only meaningful after all infra + payments are live. PROD-BACKUP grouped with PROD-MONITOR in Phase 64 because both are post-deploy ops concerns sharing the runbook surface.
+- Phase 79 added: Multi-company support — allow one user to own and switch between multiple companies. Today the schema permits N companies per user but the entire app assumes 1:1 (`getCachedCompany`, `getCompanySettings`, `getCompanyTier`, `getCustomDomainSettings`, `getEstimateTemplateSettings` all `.eq('user_id', uid).single()`; `createOrUpdateCompany` upserts by user_id; `app/(app)/layout.tsx` loads "the" company; `CompanySelector` receives one company by prop and just renders it). Scope: active-company tracking (cookie or `auth.users.active_company_id`), `CompanySelector` lists all of user's companies with switch handler, "add mode" in onboarding (INSERT-always + set new company as active), refactor ~30+ files that scope by `user_id` to scope by active `company_id`, revisit RLS on tables with `company_id`. Trigger: "Add company" entry in the topbar dropdown must direct to onboarding to create an additional company under the same user profile, then return to the app with the new company selected.
 
 ### Quick Tasks Completed
 
@@ -637,6 +638,10 @@ v3.1: Phases 61-65 (started 2026-05-15). Production Go-Live — 27 requirements 
 | 260518-hkp | Price book category hierarchy — folders (SEED-025) | 2026-05-18 | 3a79b52 | [260518-hkp-price-book-category-hierarchy](.planning/quick/260518-hkp-price-book-category-hierarchy/) |
 | 260518-v0z | Unify folder + category in price book (folder is sole taxonomy) | 2026-05-19 | 45f98d0 | [260518-v0z-unificar-folder-e-category-no-price-book](.planning/quick/260518-v0z-unificar-folder-e-category-no-price-book/) |
 | 260520-jg0 | Fix label htmlFor mismatch in signup/login password fields (FormControl Slot id leak) | 2026-05-20 | 2e21a8a | [260520-jg0-fix-label-htmlfor-mismatch-in-signup-log](.planning/quick/260520-jg0-fix-label-htmlfor-mismatch-in-signup-log/) |
+| 260521-gdf | Add Pencil rename to project page header (inline edit via server action) | 2026-05-21 | a85b612 | [260521-gdf-adicionar-pencil-rename-ao-header-de-pro](.planning/quick/260521-gdf-adicionar-pencil-rename-ao-header-de-pro/) |
+| 260521-jx9 | Add retry transcription button on recording item | 2026-05-21 | 4cacf98 | [260521-jx9-add-retry-transcription-button-on-record](.planning/quick/260521-jx9-add-retry-transcription-button-on-record/) |
+| 260521-lwb | Fix `<table>` cannot contain a nested `<div>` hydration error (lift DndContext outside table in SectionCard) | 2026-05-21 | 3dd3e57 | [260521-lwb-fix-table-div-hydration-error-in-section](.planning/quick/260521-lwb-fix-table-div-hydration-error-in-section/) |
+| 260521-nkp | Always show Consolidate on current drafts in EstimateFloatingActions (Save Draft/Discard disabled when clean) | 2026-05-21 | cced5d1 | [260521-nkp-sempre-mostrar-consolidate-em-drafts-no-](.planning/quick/260521-nkp-sempre-mostrar-consolidate-em-drafts-no-/) |
 | 2026-05-18 | fast | Center auth card logo+wordmark | done |
 | 2026-05-19 | fast | Make audio capture screen scrollable on smaller viewports | done |
 | 2026-05-18 | fast | Restyle sidebar New Project as filled gradient, remove dashboard CTA | done |

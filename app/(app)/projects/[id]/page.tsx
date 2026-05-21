@@ -6,6 +6,7 @@ import { getProjectRecordings } from '@/lib/queries/recording'
 import { getProjectPhotos } from '@/lib/queries/photo'
 import { getCurrentEstimate, getProjectEstimates } from '@/lib/queries/estimate'
 import { ProjectWorkspace } from '@/components/workspace/project-workspace'
+import { ProjectTitle } from '@/components/workspace/project-title'
 import { Skeleton } from '@/components/ui/skeleton'
 import { T } from '@/components/i18n/t'
 
@@ -31,6 +32,7 @@ export default async function ProjectPage({
   const project = await getProjectById(supabase, id)
 
   if (!project) {
+    console.error('[ProjectPage] notFound triggered', { id })
     notFound()
   }
 
@@ -46,9 +48,7 @@ export default async function ProjectPage({
     <div className="space-y-6 px-6 py-8">
       <header className="space-y-1">
         <p className="text-xs uppercase tracking-[0.08em] text-muted-foreground"><T>Project</T></p>
-        <h1 className="text-[clamp(28px,3.5vw,40px)] font-semibold tracking-[-0.02em] leading-[1.1]">
-          {project.name}
-        </h1>
+        <ProjectTitle projectId={project.id} initialName={project.name} />
         {project.client && (
           <p className="text-sm text-muted-foreground">{project.client.name}</p>
         )}

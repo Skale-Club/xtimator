@@ -9,10 +9,16 @@ import { useTranslation } from '@/lib/i18n/use-translation'
 interface RecordingListProps {
   recordings: Recording[]
   onDelete: (id: string) => void
+  onRetryTranscribe: (recordingId: string) => void | Promise<void>
   transcribingId?: string | null
 }
 
-export function RecordingList({ recordings, onDelete, transcribingId }: RecordingListProps) {
+export function RecordingList({
+  recordings,
+  onDelete,
+  onRetryTranscribe,
+  transcribingId,
+}: RecordingListProps) {
   const { t } = useTranslation()
   if (recordings.length === 0) {
     return (
@@ -34,6 +40,7 @@ export function RecordingList({ recordings, onDelete, transcribingId }: Recordin
           key={recording.id}
           recording={recording}
           onDelete={onDelete}
+          onRetryTranscribe={onRetryTranscribe}
           isTranscribing={transcribingId === recording.id}
         />
       ))}

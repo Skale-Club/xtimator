@@ -32,7 +32,7 @@ interface EstimateFloatingActionsProps {
  * Bottom-right floating action panel. Replaces the 2s autosave from SEED-028 Phase B.
  *
  * - Draft + dirty: Save Draft / Consolidate / Discard
- * - Draft + clean: hidden (status briefly shown after save)
+ * - Draft + clean: Save Draft & Discard disabled, Consolidate enabled
  * - Consolidated + current: New Version
  * - Non-current version: hidden
  */
@@ -74,23 +74,22 @@ export function EstimateFloatingActions({
     )
   }
 
-  // Draft, clean: brief "Saved" pulse, otherwise nothing.
-  if (!isDirty && status !== 'saving') {
-    if (status === 'saved') {
-      return (
-        <div
-          className="fixed right-4 bottom-4 z-40 flex items-center gap-2 rounded-full bg-[hsl(var(--success)/0.12)] px-4 py-2 text-sm text-[hsl(var(--success))] shadow-md sm:right-6 sm:bottom-6"
-          style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
-        >
-          <CheckCircle2 className="h-4 w-4" />
-          <span>Saved</span>
-        </div>
-      )
-    }
-    return null
+  // Draft: show the brief "Saved" pulse right after a successful save.
+  // Every other draft state (clean+idle, clean+error, dirty, saving) falls
+  // through to the action cluster below.
+  if (!isDirty && status === 'saved') {
+    return (
+      <div
+        className="fixed right-4 bottom-4 z-40 flex items-center gap-2 rounded-full bg-[hsl(var(--success)/0.12)] px-4 py-2 text-sm text-[hsl(var(--success))] shadow-md sm:right-6 sm:bottom-6"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+      >
+        <CheckCircle2 className="h-4 w-4" />
+        <span>Saved</span>
+      </div>
+    )
   }
 
-  // Draft, dirty (or currently saving): show the action cluster.
+  // Draft: render the action cluster (Save/Discard disabled when clean, Consolidate always enabled).
   const isSaving = status === 'saving'
 
   return (
@@ -104,7 +103,7 @@ export function EstimateFloatingActions({
             <Button
               size="sm"
               variant="ghost"
-              disabled={isSaving}
+              disabled={isSaving || !isDirty}
               className="rounded-full text-muted-foreground gap-1.5"
               aria-label="Discard changes"
             >
