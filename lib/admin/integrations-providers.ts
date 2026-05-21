@@ -37,28 +37,13 @@ export const CATEGORIES: ReadonlyArray<Category> = [
     navLabel: 'AI',
     description:
       'Models for estimate generation, photo analysis, and audio transcription. Switch active provider for LLM tasks below.',
-    showAISelector: true,
+    showAISelector: false,
     providers: [
-      {
-        id: 'anthropic' as IntegrationProvider,
-        title: 'Anthropic',
-        description: 'Claude models for estimate generation and photo analysis.',
-      },
-      {
-        id: 'gemini' as IntegrationProvider,
-        title: 'Google Gemini',
-        description: 'Gemini 2.5 Flash (alternative LLM for estimate generation).',
-      },
-      {
-        id: 'openai' as IntegrationProvider,
-        title: 'OpenAI',
-        description: 'Whisper API for audio transcription. Always used regardless of active LLM.',
-      },
       {
         id: 'openrouter' as IntegrationProvider,
         title: 'OpenRouter',
         description:
-          'Single key, hundreds of models. When active, the platform routes estimate generation through OpenRouter using the model selected below. Per-company overrides can pin any client to a specific model.',
+          'Single API key, hundreds of models. Routes all AI tasks (estimate generation, photo analysis, audio transcription) through OpenRouter.',
       },
     ],
   },
