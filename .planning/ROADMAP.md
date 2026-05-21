@@ -853,9 +853,10 @@ Plans:
 
 **Out of scope:** New features, UI redesign, WhatsApp settings (already working), billing pages (read-only).
 
-**Execution mode:** `/gsd:debug` — investigative fix, not a feature plan. The debug workflow handles systematic diagnosis, applies migrations, fixes TS errors, and verifies persistence across context resets.
+**Plans:** 1 plan
 
-**Plans:** TBD (run `/gsd:debug` to execute — debug session replaces plan-phase for this fix)
+Plans:
+- [ ] 76.2-01-PLAN.md — Apply 3 pending migrations + regenerate types + add console.error logging + manual persistence verification (SETTINGS-FIX-01..05)
 
 ### Phase 77: Notifications System — Unified In-App + Email + (later) Push
 
