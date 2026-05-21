@@ -940,7 +940,7 @@ Plans:
 
 **Out of scope:** Admin panel tour, A/B copy test, video walkthroughs.
 
-**Plans:** 3/4 plans executed
+**Plans:** 4/4 plans complete
 Plans:
 - [x] 80-01-PLAN.md — Manual UAT diagnosis: run tour-uat-runbook.md, produce WALKTHROUGH-FINDINGS.md
 - [x] 80-02-PLAN.md — Selector hardening + copy revision from findings
