@@ -6,6 +6,7 @@ import { Mic, Camera, Sparkles, Send } from 'lucide-react'
 import { useTourContext } from './tour-provider'
 import { useTour } from './use-tour'
 import { useTranslation } from '@/lib/i18n/use-translation'
+import { logTourEvent } from '@/lib/actions/tour'
 
 export function WelcomeModal() {
   const { showWelcome, setShowWelcome, setShowSpotlight, isReviewModeRef, setIsReviewMode } = useTourContext()
@@ -18,6 +19,7 @@ export function WelcomeModal() {
   }
 
   function handleShowMeAround() {
+    void logTourEvent('tour_started')
     startTour()            // sets the namespaced spotlight pending flag in localStorage
     setIsReviewMode(false) // leaving modal via spotlight — clear review mode
     setShowWelcome(false)
