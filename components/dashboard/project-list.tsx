@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import type { ProjectWithClient } from '@/lib/queries/dashboard'
 import { EmptyState } from '@/components/dashboard/empty-state'
@@ -25,6 +25,22 @@ import { ProjectTableRow } from '@/components/dashboard/project-table-row'
 import { ProjectCard } from '@/components/dashboard/project-card'
 import { useTranslation } from '@/lib/i18n/use-translation'
 
+function useIsOffline(): boolean {
+  const [offline, setOffline] = useState(false)
+  useEffect(() => {
+    setOffline(!navigator.onLine)
+    const onOnline  = () => setOffline(false)
+    const onOffline = () => setOffline(true)
+    window.addEventListener('online',  onOnline)
+    window.addEventListener('offline', onOffline)
+    return () => {
+      window.removeEventListener('online',  onOnline)
+      window.removeEventListener('offline', onOffline)
+    }
+  }, [])
+  return offline
+}
+
 const STATUS_FILTERS = [
   'all',
   'draft',
@@ -42,6 +58,7 @@ interface ProjectListProps {
 
 export function ProjectList({ projects }: ProjectListProps) {
   const { t } = useTranslation()
+  const offline = useIsOffline()
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [sortBy, setSortBy] = useState('newest')
@@ -90,7 +107,7 @@ export function ProjectList({ projects }: ProjectListProps) {
         title={t('No projects yet')}
         description={t('Create your first project to get started')}
         actionLabel={t('New Project')}
-        actionHref="/projects/new"
+        actionHref={offline ? undefined : '/projects/new'}
       />
     )
   }

@@ -29,6 +29,22 @@ interface SidebarProps {
 
 const COLLAPSE_KEY = 'sidebar_collapsed'
 
+function useIsOffline(): boolean {
+  const [offline, setOffline] = useState(false)
+  useEffect(() => {
+    setOffline(!navigator.onLine)
+    const onOnline  = () => setOffline(false)
+    const onOffline = () => setOffline(true)
+    window.addEventListener('online',  onOnline)
+    window.addEventListener('offline', onOffline)
+    return () => {
+      window.removeEventListener('online',  onOnline)
+      window.removeEventListener('offline', onOffline)
+    }
+  }, [])
+  return offline
+}
+
 // Map from href to data-tour value — used by the guided spotlight tour (Phase 74)
 const TOUR_TARGET: Record<string, string> = {
   '/projects/new': 'new-project',
@@ -44,6 +60,7 @@ export function Sidebar({ branding, company: _company }: SidebarProps) {
 
   const [collapsed, setCollapsed] = useState(false)
   const [mounted, setMounted] = useState(false)
+  const offline = useIsOffline()
 
   useEffect(() => {
     setCollapsed(localStorage.getItem(COLLAPSE_KEY) === '1')
@@ -152,6 +169,36 @@ export function Sidebar({ branding, company: _company }: SidebarProps) {
               </span>
             </Link>
           )
+
+          // When primary (New Project) and offline, render disabled button with tooltip
+          if (item.primary && offline) {
+            const offlineEl = (
+              <button
+                disabled
+                aria-disabled="true"
+                className={cn(
+                  linkClassName,
+                  'opacity-50 cursor-not-allowed pointer-events-none',
+                )}
+              >
+                <Icon className="h-5 w-5 shrink-0" />
+                <span
+                  className={cn(
+                    'truncate transition-opacity duration-150 whitespace-nowrap',
+                    collapsed ? 'opacity-0 w-0 overflow-hidden' : 'opacity-100',
+                  )}
+                >
+                  {t(item.label)}
+                </span>
+              </button>
+            )
+            return (
+              <Tooltip key={item.href}>
+                <TooltipTrigger asChild>{offlineEl}</TooltipTrigger>
+                <TooltipContent side="right">Requires internet connection</TooltipContent>
+              </Tooltip>
+            )
+          }
 
           // When collapsed, wrap in tooltip showing the label
           const withCollapsedTooltip = collapsed ? (
