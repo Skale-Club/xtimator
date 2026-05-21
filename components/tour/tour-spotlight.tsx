@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
+import { autoUpdate } from '@floating-ui/dom'
 import { useReducedMotion } from 'framer-motion'
 import { useTourContext } from './tour-provider'
 import { useTour } from './use-tour'
@@ -51,7 +52,7 @@ export function TourSpotlight() {
   const { t } = useTranslation()
   const [stepIndex, setStepIndex] = useState(0)
   const [rect, setRect] = useState<Rect | null>(null)
-  const frameRef = useRef<number | null>(null)
+  const spotlightRef = useRef<HTMLDivElement>(null)
   const previousFocusRef = useRef<HTMLElement | null>(null)
 
   const currentStep = TOUR_STEPS[stepIndex]
@@ -70,30 +71,31 @@ export function TourSpotlight() {
     typeof window.matchMedia === 'function' &&
     window.matchMedia('(prefers-reduced-transparency: reduce)').matches
 
-  // Track target element position via rAF for scroll/resize resilience.
-  // findVisibleTarget() runs every frame so a viewport breakpoint change
-  // (e.g. topbar hide/show at md breakpoint) re-picks the correct anchor.
+  // Track target element position using @floating-ui/dom autoUpdate.
+  // autoUpdate fires only when the reference element or viewport actually changes
+  // (ResizeObserver + scroll listener). Replaces the prior continuous 60fps rAF
+  // loop that polled getBoundingClientRect every frame (TOUR-QA-04).
+  // spotlightRef is attached to the spotlight hole div as the "floating" element
+  // so autoUpdate can observe its relationship to the reference element.
   useEffect(() => {
-    if (!showSpotlight) return
-    let cancelled = false
-
-    function update() {
-      if (cancelled) return
-      const el = findVisibleTarget(currentStep.target)
-      if (el) {
-        const r = el.getBoundingClientRect()
-        setRect({ top: r.top, left: r.left, width: r.width, height: r.height })
-      } else {
-        setRect(null)
-      }
-      frameRef.current = requestAnimationFrame(update)
+    if (!showSpotlight || !spotlightRef.current) return
+    const el = findVisibleTarget(currentStep.target)
+    if (!el) {
+      setRect(null)
+      return
     }
 
-    frameRef.current = requestAnimationFrame(update)
-    return () => {
-      cancelled = true
-      if (frameRef.current) cancelAnimationFrame(frameRef.current)
-    }
+    // Set rect immediately so there is no blank frame on mount.
+    const r = el.getBoundingClientRect()
+    setRect({ top: r.top, left: r.left, width: r.width, height: r.height })
+
+    // autoUpdate fires only when the reference element or viewport actually changes
+    // (ResizeObserver + scroll listener). animationFrame: false ensures NO rAF polling.
+    const cleanup = autoUpdate(el, spotlightRef.current!, () => {
+      const r2 = el.getBoundingClientRect()
+      setRect({ top: r2.top, left: r2.left, width: r2.width, height: r2.height })
+    }, { animationFrame: false })
+    return cleanup
   }, [showSpotlight, currentStep.target])
 
   // ESC dismiss + focus capture/restore. Lives in its own effect keyed on
@@ -207,8 +209,8 @@ export function TourSpotlight() {
 
   return (
     <>
-      {/* Spotlight hole */}
-      <div style={spotlightStyle} aria-hidden="true" />
+      {/* Spotlight hole — ref used by autoUpdate as the "floating" element */}
+      <div ref={spotlightRef} style={spotlightStyle} aria-hidden="true" />
 
       {/* Tooltip card */}
       <div
