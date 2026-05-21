@@ -128,6 +128,19 @@ export function TourSpotlight() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showSpotlight])
 
+  // Prevent Tab from leaking to sidebar/topbar/main while spotlight is open.
+  // [data-tour-shell] wraps only the app shell content — NOT the spotlight card itself.
+  // Inert makes all interactive elements inside the shell non-interactive and
+  // invisible to assistive technology during the guided tour (TOUR-QA-03).
+  useEffect(() => {
+    if (!showSpotlight) return
+    const shell = document.querySelector('[data-tour-shell]') as HTMLElement | null
+    if (shell) shell.inert = true
+    return () => {
+      if (shell) shell.inert = false
+    }
+  }, [showSpotlight])
+
   function handleNext() {
     if (isLast) {
       handleClose()

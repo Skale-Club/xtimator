@@ -69,24 +69,31 @@ export default async function AppShellLayout({
   return (
     <TourProvider>
       <div className="flex h-screen">
-        <Sidebar
-          branding={{
-            appName: branding.appName,
-            logoUrl: branding.logoUrl,
-          }}
-          company={company}
-        />
-        <div className="flex flex-1 flex-col overflow-hidden">
-          <Topbar company={company} userId={claims.sub as string} isAdmin={isAdmin} />
-          <MobileHeader />
-          {trialDaysRemaining !== null && trialDaysRemaining < 3 && (
-            <TrialBanner daysRemaining={trialDaysRemaining} />
-          )}
-          <main className="flex-1 overflow-y-auto p-4 md:p-6 pb-20 md:pb-6">
-            {children}
-          </main>
+        {/* data-tour-shell wraps only the interactive app shell (sidebar + content + bottom nav).
+            TourSpotlight sets this wrapper's `inert` property while the spotlight is open so Tab
+            key cannot leak to sidebar/topbar/main behind the overlay (TOUR-QA-03). Overlays sit
+            OUTSIDE this wrapper so they are not affected by inert. */}
+        <div data-tour-shell="true" className="flex flex-1">
+          <Sidebar
+            branding={{
+              appName: branding.appName,
+              logoUrl: branding.logoUrl,
+            }}
+            company={company}
+          />
+          <div className="flex flex-1 flex-col overflow-hidden">
+            <Topbar company={company} userId={claims.sub as string} isAdmin={isAdmin} />
+            <MobileHeader />
+            {trialDaysRemaining !== null && trialDaysRemaining < 3 && (
+              <TrialBanner daysRemaining={trialDaysRemaining} />
+            )}
+            <main className="flex-1 overflow-y-auto p-4 md:p-6 pb-20 md:pb-6">
+              {children}
+            </main>
+          </div>
+          <BottomNav />
         </div>
-        <BottomNav />
+        {/* Overlays sit outside data-tour-shell so they are NOT affected by inert */}
         <TranslationLoadingOverlay />
         <UpgradeModal />
         <WelcomeModal />
