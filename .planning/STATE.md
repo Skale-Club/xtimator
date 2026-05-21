@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
-milestone: v4.0
-milestone_name: Multi-Tenancy (Multiple Companies per User)
-status: defining_requirements
-last_updated: "2026-05-20T00:00:00.000Z"
-last_activity: 2026-05-20
+milestone: v3.1.1
+milestone_name: MVP Launch Prep + Future-Proofing
+status: executing
+last_updated: "2026-05-21T11:32:21.107Z"
+last_activity: 2026-05-21
 progress:
-  total_phases: 0
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_phases: 18
+  completed_phases: 18
+  total_plans: 51
+  completed_plans: 51
 ---
 
 # Project State
@@ -22,10 +22,10 @@ progress:
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-05-20 — Completed quick task 260520-jg0: Fix label htmlFor mismatch in signup/login password fields
+Phase: 76.1 (pwa-progressive-web-app-infrastructure) — EXECUTING
+Plan: 2 of 2
+Status: Ready to execute
+Last activity: 2026-05-21
 
 ## v3.1.1 Phases
 
@@ -435,6 +435,10 @@ Last activity: 2026-05-20 — Completed quick task 260520-jg0: Fix label htmlFor
 - [Phase 77]: override params re-applied inside notify() over resolveChannels result for deterministic force-send
 - [Phase 78]: Use file-presence (ogImageFile != null) over sentinel string to signal pending upload to 78-02
 - [Phase 78]: Accept both /platform-brand/og-images/ and /branding-assets/og-images/ as managed paths to future-proof against bucket rename
+- [Phase 76.1-pwa-progressive-web-app-infrastructure]: viewport export uses themeColor array with dark/light media variants per Next.js 14+ Viewport type
+- [Phase 76.1-pwa-progressive-web-app-infrastructure]: hasProjects gate uses project count query added to existing Promise.all in (app)/layout.tsx — no extra round-trip
+- [Phase 76.1-pwa-progressive-web-app-infrastructure]: iOS branch shows static install instructions immediately; no beforeinstallprompt needed on iOS Safari
+- [Phase 76.1-pwa-progressive-web-app-infrastructure]: publicIconConflicts fixed with statSync.isDirectory() to exclude public/icons/ directory
 
 ## Performance Metrics
 
@@ -578,13 +582,14 @@ Last activity: 2026-05-20 — Completed quick task 260520-jg0: Fix label htmlFor
 | Phase 77 P07 | 12 | 5 tasks | 10 files |
 | Phase 78 P01 | 5min | 2 tasks | 4 files |
 | Phase 78 P02 | 6min | 2 tasks | 8 files |
+| Phase 76.1-pwa-progressive-web-app-infrastructure P01 | 4min | 3 tasks | 5 files |
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-13)
 
 **Core value:** Business owner → job site audio recording → sent professional estimate in under 5 minutes
-**Current focus:** Phase 74 — Post-Onboarding App Feature Tour
+**Current focus:** Phase 76.1 — pwa-progressive-web-app-infrastructure
 
 ## Notes
 

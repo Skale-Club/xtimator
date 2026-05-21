@@ -822,10 +822,10 @@ Plans:
 
 **Out of scope:** Push notification delivery (→ Phase 77), background sync / offline mutation queue, native app store submission.
 
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 
 Plans:
-- [ ] 76.1-01-PLAN.md — viewport export, apple meta tags, InstallPrompt estimate gate + iOS branch, Wave 0 test stubs, app-icons test fix (PWA-01, PWA-04, PWA-06)
+- [x] 76.1-01-PLAN.md — viewport export, apple meta tags, InstallPrompt estimate gate + iOS branch, Wave 0 test stubs, app-icons test fix (PWA-01, PWA-04, PWA-06)
 - [ ] 76.1-02-PLAN.md — offline CTA disabling (New Project buttons) + Lighthouse manual QA checkpoint (PWA-02, PWA-03, PWA-05)
 
 ### Phase 76.2: Settings & Admin Persistence Fix — DB Schema Sync + Full Audit (INSERTED)
