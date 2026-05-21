@@ -29,6 +29,10 @@ export interface EditorSection {
 
 export interface EstimateEditorState {
   id: string
+  /** SEED-028 Phase B: workflow + version flags carried in state so version switching works. */
+  workflow_status: 'draft' | 'consolidated'
+  is_current: boolean
+  version: number
   summary: string | null
   notes: string | null
   timeline: string | null
@@ -63,6 +67,29 @@ export type EstimateAction =
   | { type: 'UPDATE_DISCOUNT'; discount_type: string | null; discount_value: number }
   | { type: 'UPDATE_TAX_RATE'; tax_rate: number }
   | { type: 'MARK_SAVED' }
+  | { type: 'APPLY_REFINEMENT'; refined: RefinementPayload }
+
+/**
+ * SEED-028 Phase C: shape returned by /api/estimates/[id]/refine (no DB write).
+ * Wrapping field names to mirror the AI EstimateOutput.
+ */
+export interface RefinementPayload {
+  summary: string
+  notes?: string
+  timeline?: string
+  payment_terms?: string
+  warranty_terms?: string
+  sections: Array<{
+    title: string
+    items: Array<{
+      description: string
+      quantity: number
+      unit?: string
+      unit_price: number
+      price_source: 'price_book' | 'ai_estimate'
+    }>
+  }>
+}
 
 // ---------------------------------------------------------------------------
 // Recalculation helper
@@ -104,6 +131,9 @@ function initState(estimate: EstimateWithSections | null): EstimateEditorState {
   if (!estimate) {
     return {
       id: '',
+      workflow_status: 'draft',
+      is_current: true,
+      version: 0,
       summary: null,
       notes: null,
       timeline: null,
@@ -123,6 +153,9 @@ function initState(estimate: EstimateWithSections | null): EstimateEditorState {
 
   return {
     id: estimate.id,
+    workflow_status: estimate.workflow_status,
+    is_current: estimate.is_current,
+    version: estimate.version,
     summary: estimate.summary,
     notes: estimate.notes,
     timeline: estimate.timeline,
@@ -333,6 +366,41 @@ function estimateReducer(state: EstimateEditorState, action: EstimateAction): Es
 
     case 'MARK_SAVED':
       return { ...state, isDirty: false }
+
+    case 'APPLY_REFINEMENT': {
+      // Replace summary/notes/timeline/terms and the entire sections tree with
+      // refined data. New section/item ids are temp- so saveEstimate will
+      // insert fresh rows.
+      const r = action.refined
+      const refinedSections: EditorSection[] = r.sections.map((s, sIdx) => ({
+        id: 'temp-' + crypto.randomUUID(),
+        title: s.title,
+        sort_order: sIdx,
+        subtotal: 0,
+        items: s.items.map((i, iIdx) => ({
+          id: 'temp-' + crypto.randomUUID(),
+          description: i.description,
+          quantity: i.quantity,
+          unit: i.unit ?? null,
+          unit_price: i.unit_price,
+          total: 0,
+          sort_order: iIdx,
+          price_source: i.price_source,
+          isManuallyEdited: false,
+        })),
+      }))
+      const updated: EstimateEditorState = {
+        ...state,
+        summary: r.summary,
+        notes: r.notes ?? null,
+        timeline: r.timeline ?? null,
+        payment_terms: r.payment_terms ?? state.payment_terms,
+        warranty_terms: r.warranty_terms ?? state.warranty_terms,
+        sections: refinedSections,
+        isDirty: true,
+      }
+      return recalculate(updated)
+    }
 
     default:
       return state

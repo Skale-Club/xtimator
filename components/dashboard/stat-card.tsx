@@ -25,7 +25,7 @@ export function StatCard({ icon: Icon, label, value, delta, className }: StatCar
           <T text={label} />
         </span>
       </div>
-      <p className="mt-3 font-mono text-3xl tabular-nums leading-none">{value}</p>
+      <p className="mt-3 font-mono text-4xl tabular-nums leading-none">{value}</p>
       {delta && (
         <p className="mt-2 text-sm text-emerald-500">{delta}</p>
       )}

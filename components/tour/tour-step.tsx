@@ -5,6 +5,7 @@ export interface TourStep {
   description: string   // English source text → passed through t()
 }
 
+// TOUR-QA-02: copy confirmed accurate in Phase 80 browser QA (2026-05-21)
 export const TOUR_STEPS: TourStep[] = [
   {
     id: 'new-project',
@@ -34,6 +35,6 @@ export const TOUR_STEPS: TourStep[] = [
     id: 'language-toggle',
     target: '[data-tour="language-toggle"]',
     title: 'Send in any language',
-    description: 'Switch languages — estimates can be sent in EN, PT, or ES.',
+    description: 'Switch languages | estimates can be sent in EN, PT, or ES.',
   },
 ]

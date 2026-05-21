@@ -74,7 +74,7 @@ export function Topbar({ company, userId, isAdmin }: TopbarProps) {
   return (
     <header
       data-testid="app-topbar"
-      className="hidden md:flex sticky top-0 z-40 items-center justify-between glass border-b border-[var(--glass-border)] px-6 h-16"
+      className="hidden md:flex sticky top-0 z-40 items-center justify-between bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] [-webkit-backdrop-filter:blur(var(--glass-blur))] border-b border-[var(--glass-border)] px-6 h-16"
     >
       {/* Left: page title */}
       {pageTitle ? (
@@ -103,7 +103,7 @@ export function Topbar({ company, userId, isAdmin }: TopbarProps) {
         )}
         <ContextualTooltip
           tooltipKey={TOOLTIP_KEYS.languageToggle}
-          text="Switch languages — estimates can be sent in EN, PT, or ES"
+          text="Switch languages | estimates can be sent in EN, PT, or ES"
           side="bottom"
         >
           <span data-tour="language-toggle">

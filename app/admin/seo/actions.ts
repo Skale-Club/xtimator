@@ -97,8 +97,17 @@ export async function saveSeo(formData: FormData): Promise<SaveSeoResult> {
   if (newOgUrl) finalOgUrl = newOgUrl
   else if (parsed.data.ogImageRemoved) finalOgUrl = null
 
+  // Read existing app_name so the upsert INSERT path never sends null for
+  // the NOT NULL column (only happens on first-ever save before row exists).
+  const { data: existing } = await svc
+    .from('platform_branding')
+    .select('app_name')
+    .eq('id', 1)
+    .maybeSingle()
+
   const { error } = await svc.from('platform_branding').upsert({
     id: 1,
+    app_name: existing?.app_name ?? 'Xtimator',
     site_title: parsed.data.siteTitle,
     meta_description: parsed.data.metaDescription,
     og_image_url: finalOgUrl,

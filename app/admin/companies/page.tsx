@@ -80,7 +80,7 @@ export default async function AdminCompaniesPage() {
                       {c.ai_model_override ? (
                         <span>{c.ai_model_override}</span>
                       ) : (
-                        <span className="text-muted-foreground">— platform default —</span>
+                        <span className="text-muted-foreground">platform default</span>
                       )}
                     </td>
                     <td className="px-4 py-3 text-right">

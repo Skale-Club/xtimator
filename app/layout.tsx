@@ -1,4 +1,4 @@
-import type { Metadata } from "next"
+import type { Metadata, Viewport } from "next"
 import { Inter } from "next/font/google"
 import { ThemeProvider } from "next-themes"
 import { Toaster } from "@/components/ui/sonner"
@@ -13,6 +13,16 @@ const inter = Inter({
   variable: "--font-inter",
 })
 
+export const viewport: Viewport = {
+  themeColor: [
+    { media: '(prefers-color-scheme: dark)',  color: '#0a0a0f' },
+    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
+  ],
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+}
+
 export async function generateMetadata(): Promise<Metadata> {
   const b = await getBranding()
   const base = b.canonicalBaseUrl ? new URL(b.canonicalBaseUrl) : undefined
@@ -24,7 +34,7 @@ export async function generateMetadata(): Promise<Metadata> {
     },
     description:
       b.metaDescription ??
-      `Professional AI-powered estimates for service businesses — powered by ${b.appName}`,
+      `Professional AI-powered estimates for service businesses | powered by ${b.appName}`,
     openGraph: b.ogImageUrl
       ? { images: [b.ogImageUrl], siteName: b.siteTitle ?? b.appName }
       : undefined,
@@ -45,6 +55,10 @@ export default async function RootLayout({
   const saved = await readThemeCookie()
   return (
     <html lang="en" className={`${inter.variable} h-full antialiased`} suppressHydrationWarning>
+      <head>
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+      </head>
       <body className="min-h-full flex flex-col">
         <SuppressWarnings />
         <ThemeProvider

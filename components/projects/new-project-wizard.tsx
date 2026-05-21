@@ -32,7 +32,12 @@ const MODALITY_ROUTES: Record<InputMode, string> = {
   mixed: '/capture',
 }
 
-export function NewProjectWizard() {
+interface NewProjectWizardProps {
+  /** Called when the user cancels or the dialog should close (modal mode). */
+  onClose?: () => void
+}
+
+export function NewProjectWizard({ onClose }: NewProjectWizardProps = {}) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
 
@@ -81,9 +86,15 @@ export function NewProjectWizard() {
             <Separator className="my-6" />
 
             <div className="flex justify-between items-center">
-              <Button asChild type="button" variant="ghost" className="min-h-[44px]">
-                <Link href="/dashboard">Cancel</Link>
-              </Button>
+              {onClose ? (
+                <Button type="button" variant="ghost" className="min-h-[44px]" onClick={onClose}>
+                  Cancel
+                </Button>
+              ) : (
+                <Button asChild type="button" variant="ghost" className="min-h-[44px]">
+                  <Link href="/dashboard">Cancel</Link>
+                </Button>
+              )}
 
               <Button
                 type="button"

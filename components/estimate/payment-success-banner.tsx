@@ -27,7 +27,7 @@ export function PaymentSuccessBanner() {
         <CheckCircle2 className="size-5 text-emerald-500 shrink-0 mt-0.5" />
         <div>
           <p className="text-sm font-semibold">
-            <T>Payment received — thank you!</T>
+            <T>Payment received | thank you!</T>
           </p>
           <p className="text-xs text-muted-foreground mt-1">
             <T>A receipt has been sent to your email. You can close this page.</T>
@@ -45,7 +45,7 @@ export function PaymentCanceledNotice() {
         <Info className="size-5 text-muted-foreground shrink-0 mt-0.5" />
         <div>
           <p className="text-sm font-medium">
-            <T>Payment canceled — you can try again anytime.</T>
+            <T>Payment canceled | you can try again anytime.</T>
           </p>
         </div>
       </CardContent>

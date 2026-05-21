@@ -142,7 +142,7 @@ export function OpenRouterModelSelector({
                         setOpen(false)
                       }}
                     >
-                      <span className="text-muted-foreground">— Use platform default —</span>
+                      <span className="text-muted-foreground">Use platform default</span>
                     </CommandItem>
                   </CommandGroup>
                 )}

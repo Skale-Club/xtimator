@@ -4,7 +4,7 @@ import { getUserPreferences } from '@/lib/notifications/preferences'
 import { DEFAULT_PREFERENCES } from '@/lib/notifications/event-types'
 import { NotificationsForm } from '@/components/settings/notifications-form'
 
-export const metadata = { title: 'Notifications — Settings' }
+export const metadata = { title: 'Notifications | Settings' }
 
 export default async function NotificationsTabPage() {
   const claims = await getAuthClaims()

@@ -8,7 +8,7 @@
  */
 import { inngest } from '@/lib/inngest/client'
 import { requireServiceClient } from '@/lib/supabase/service'
-import { getIntegrationKey } from '@/lib/platform-config'
+import { transcribeAudioOR } from '@/lib/ai/openrouter-client'
 import { notify } from '@/lib/notifications/dispatch'
 import { buildNotificationCopy } from '@/lib/notifications/copy'
 import {
@@ -82,28 +82,8 @@ export const transcribeAudioJob = inngest.createFunction(
         )
       }
 
-      const openaiKey = await getIntegrationKey('openai')
-      if (!openaiKey) throw new Error('OpenAI key not configured')
-
       const ext = storagePath.split('.').pop() ?? 'webm'
-      const form = new FormData()
-      form.append('file', fileData, `recording.${ext}`)
-      form.append('model', 'whisper-1')
-      form.append('response_format', 'text')
-
-      const res = await fetch(
-        'https://api.openai.com/v1/audio/transcriptions',
-        {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${openaiKey}` },
-          body: form,
-        }
-      )
-      if (!res.ok) {
-        const err = await res.text().catch(() => 'unknown')
-        throw new Error(`Whisper transcription failed: ${err}`)
-      }
-      return (await res.text()).trim()
+      return await transcribeAudioOR(fileData, ext)
     })
 
     // Step 2: Save transcript — separate step so a DB error doesn't re-call Whisper.

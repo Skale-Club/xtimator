@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server'
-import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@/lib/supabase/server'
 import { requireServiceClient } from '@/lib/supabase/service'
-import { getIntegrationKey } from '@/lib/platform-config'
+import { translateTextsOR } from '@/lib/ai/openrouter-client'
 import { rateLimit } from '@/lib/ratelimit'
 
 export async function POST(request: Request) {
@@ -52,58 +51,37 @@ export async function POST(request: Request) {
   )
   const missing = texts.filter(t => !found.has(t))
 
-  // 4. AI translate missing strings
+  // 4. AI translate missing strings via OpenRouter
   if (missing.length > 0) {
-    const key = await getIntegrationKey('anthropic')
-    if (!key) {
-      // Return cached hits even if AI unavailable; missing strings fall back to source text
+    try {
+      const aiMap = await translateTextsOR(missing, targetLanguage)
+
+      // 5. Save to DB (ON CONFLICT DO NOTHING via ignoreDuplicates)
+      const rows = missing
+        .filter(src => typeof aiMap[src] === 'string' && aiMap[src].length > 0)
+        .map(src => ({
+          source_text: src,
+          source_language: 'en',
+          target_language: targetLanguage,
+          translated_text: aiMap[src],
+        }))
+
+      if (rows.length > 0) {
+        await svc
+          .from('translations')
+          .upsert(rows, {
+            onConflict: 'source_text,source_language,target_language',
+            ignoreDuplicates: true,
+          })
+      }
+
+      missing.forEach(src => {
+        if (typeof aiMap[src] === 'string') found.set(src, aiMap[src])
+      })
+    } catch {
+      // Translation error: fall back to source text for missing strings (silent, per UI-SPEC)
       if (found.size === 0) {
         return NextResponse.json({ error: 'AI unavailable' }, { status: 503 })
-      }
-    } else {
-      const anthropic = new Anthropic({ apiKey: key })
-      const langLabel = targetLanguage === 'pt' ? 'Brazilian Portuguese (PT-BR)' : 'Latin American Spanish (ES)'
-
-      try {
-        const response = await anthropic.messages.create({
-          model: 'claude-haiku-4-20250514',
-          max_tokens: 1024,
-          messages: [{
-            role: 'user',
-            content: `Translate these UI strings from English to ${langLabel}. Return ONLY a raw JSON object (no markdown, no code blocks) mapping each source string exactly to its translation. Keep proper nouns and brand names unchanged. Preserve casing style. Source strings:\n${JSON.stringify(missing)}`,
-          }],
-        })
-
-        const raw = response.content[0]?.type === 'text' ? response.content[0].text.trim() : '{}'
-        // Strip markdown fences if model wraps response (Pitfall 6)
-        const clean = raw.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim()
-        const aiMap = JSON.parse(clean) as Record<string, string>
-
-        // 5. Save to DB with onConflict do nothing (Pitfall 5 — unique index protection)
-        const rows = missing
-          .filter(src => typeof aiMap[src] === 'string' && aiMap[src].length > 0)
-          .map(src => ({
-            source_text: src,
-            source_language: 'en',
-            target_language: targetLanguage,
-            translated_text: aiMap[src],
-          }))
-
-        if (rows.length > 0) {
-          await svc
-            .from('translations')
-            .upsert(rows, {
-              onConflict: 'source_text,source_language,target_language',
-              ignoreDuplicates: true,
-            })
-          // ignoreDuplicates: true maps to ON CONFLICT DO NOTHING — silent ignore on duplicate
-        }
-
-        missing.forEach(src => {
-          if (typeof aiMap[src] === 'string') found.set(src, aiMap[src])
-        })
-      } catch {
-        // Translation error: fall back to source text for missing strings (silent, per UI-SPEC)
       }
     }
   }

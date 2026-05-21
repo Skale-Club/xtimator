@@ -1,12 +1,66 @@
 // app/api/estimates/[id]/refine/route.ts
+//
+// SEED-028 Phase C: stateless multimodal refinement.
+//
+// Accepts FormData with optional `instruction` (text), `audio` (file), and
+// `photos[]` (image files). Transcribes audio via Whisper, analyzes photos
+// via Claude Vision, composes a unified instruction, runs the Claude refine
+// pipeline, and returns the refined estimate JSON.
+//
+// This endpoint never writes to the database. The caller is expected to:
+//   - dispatch the refined state into the editor (mark dirty), OR
+//   - persist by calling saveEstimate.
+//
+// For text-only callers, JSON `{ instruction }` is still accepted as a
+// back-compat path.
+
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { revalidatePath } from 'next/cache'
+import { requireServiceClient } from '@/lib/supabase/service'
+import { createStorage } from '@/lib/storage'
 import { getEstimateById } from '@/lib/queries/estimate'
 import { getPriceBookItems } from '@/lib/queries/price-book'
 import { getAIProvider, type RefineEstimateInput } from '@/lib/ai'
-import type { EstimateOutput } from '@/lib/ai/types'
-import type { EstimateSectionOutput } from '@/lib/ai/types'
+import type { EstimateOutput, EstimateSectionOutput } from '@/lib/ai/types'
+import { transcribeAudioOR, analyzePhotoOR } from '@/lib/ai/openrouter-client'
+
+const MAX_PHOTOS = 5
+
+function getImageMimeType(file: Blob): string {
+  switch (file.type) {
+    case 'image/png':  return 'image/png'
+    case 'image/webp': return 'image/webp'
+    case 'image/gif':  return 'image/gif'
+    default:           return 'image/jpeg'
+  }
+}
+
+/** Upload audio to storage, hand to OpenRouter Whisper, then clean up. */
+async function transcribeRefineAudio(
+  file: Blob,
+  companyId: string,
+  estimateId: string
+): Promise<string> {
+  const serviceClient = requireServiceClient()
+  const storage = createStorage(serviceClient)
+  const path = `${companyId}/refine-voice/${estimateId}-${Date.now()}.webm`
+
+  await storage.upload('audio', path, file, {
+    contentType: file.type || 'audio/webm',
+    upsert: false,
+  }).catch(() => { throw new Error('Failed to upload audio for transcription') })
+
+  let downloaded: Blob
+  try {
+    downloaded = await storage.download('audio', path)
+  } catch {
+    storage.delete('audio', path).catch(() => {})
+    throw new Error('Failed to read audio for transcription')
+  }
+
+  storage.delete('audio', path).catch(() => {})
+  return transcribeAudioOR(downloaded, 'webm')
+}
 
 export async function POST(
   request: Request,
@@ -48,21 +102,112 @@ export async function POST(
         { status: 400 }
       )
     }
-
-    // Parse body
-    const body = await request.json().catch(() => null)
-    if (!body?.instruction || typeof body.instruction !== 'string' || !body.instruction.trim()) {
+    if (estimate.workflow_status === 'consolidated') {
       return NextResponse.json(
-        { error: 'instruction is required' },
+        { error: 'This estimate is consolidated. Create a new version to refine it.' },
+        { status: 409 }
+      )
+    }
+
+    // -------------------------------------------------------------------------
+    // Parse multimodal input. Supports either FormData (multipart) or JSON.
+    // -------------------------------------------------------------------------
+    let instructionText = ''
+    let audioFile: Blob | null = null
+    const photoFiles: Blob[] = []
+
+    const contentType = request.headers.get('content-type') ?? ''
+    if (contentType.includes('multipart/form-data')) {
+      const form = await request.formData()
+      const text = form.get('instruction')
+      if (typeof text === 'string') instructionText = text.trim()
+
+      const audio = form.get('audio')
+      if (audio instanceof Blob && audio.size > 0) {
+        if (!audio.type.startsWith('audio/')) {
+          return NextResponse.json({ error: 'Invalid audio file type' }, { status: 400 })
+        }
+        audioFile = audio
+      }
+
+      const photos = form.getAll('photos')
+      for (const photo of photos) {
+        if (!(photo instanceof Blob)) continue
+        if (photo.size === 0) continue
+        if (!photo.type.startsWith('image/')) {
+          return NextResponse.json({ error: 'Invalid photo file type' }, { status: 400 })
+        }
+        photoFiles.push(photo)
+        if (photoFiles.length >= MAX_PHOTOS) break
+      }
+    } else {
+      const body = await request.json().catch(() => null)
+      if (body?.instruction && typeof body.instruction === 'string') {
+        instructionText = body.instruction.trim()
+      }
+    }
+
+    if (!instructionText && !audioFile && photoFiles.length === 0) {
+      return NextResponse.json(
+        { error: 'Provide an instruction, audio, or at least one photo.' },
         { status: 400 }
       )
     }
-    const instruction = body.instruction.trim()
 
-    // Load price book
+    // -------------------------------------------------------------------------
+    // Transcribe audio (if any) and append to instruction
+    // -------------------------------------------------------------------------
+    if (audioFile) {
+      try {
+        const transcript = await transcribeRefineAudio(audioFile, companyId, estimateId)
+        if (transcript) {
+          instructionText = instructionText
+            ? `${instructionText}\n\nVoice note: ${transcript}`
+            : transcript
+        }
+      } catch (err) {
+        return NextResponse.json(
+          { error: err instanceof Error ? err.message : 'Transcription failed' },
+          { status: 500 }
+        )
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // Analyze photos (if any) and append findings to instruction
+    // -------------------------------------------------------------------------
+    if (photoFiles.length > 0) {
+      const descriptions: string[] = []
+      for (let i = 0; i < photoFiles.length; i++) {
+        try {
+          const mimeType = getImageMimeType(photoFiles[i])
+          const base64 = Buffer.from(await photoFiles[i].arrayBuffer()).toString('base64')
+          const desc = await analyzePhotoOR(base64, mimeType)
+          if (desc) descriptions.push(`Photo ${i + 1}: ${desc}`)
+        } catch (err) {
+          console.error('[refine] photo analysis failed:', err)
+        }
+      }
+      if (descriptions.length > 0) {
+        const block = descriptions.join('\n')
+        instructionText = instructionText
+          ? `${instructionText}\n\nFrom new photo(s):\n${block}`
+          : `From new photo(s):\n${block}`
+      }
+    }
+
+    if (!instructionText) {
+      return NextResponse.json(
+        { error: 'No usable instruction could be extracted from the input.' },
+        { status: 422 }
+      )
+    }
+
+    // -------------------------------------------------------------------------
+    // Call Claude refine with the unified instruction
+    // -------------------------------------------------------------------------
     const priceBookItems = await getPriceBookItems(supabase, companyId)
 
-    // Convert DB estimate to EstimateOutput format
     const existingEstimate: EstimateOutput = {
       suggested_project_name: estimate.summary ?? 'Estimate',
       suggested_client_name: null,
@@ -83,168 +228,42 @@ export async function POST(
       })) as EstimateSectionOutput[],
     }
 
-    // Call AI provider
     const provider = await getAIProvider(companyId)
     const refineInput: RefineEstimateInput = {
       existingEstimate,
-      instruction,
-      priceBookItems: priceBookItems.map(item => ({
+      instruction: instructionText,
+      priceBookItems: priceBookItems.map((item) => ({
         folder_name: item.folder_name,
         name: item.name,
         unit: item.unit,
         unit_price: item.unit_price,
       })),
     }
-    const aiEstimate = await provider.refineEstimate(refineInput)
+    const refined = await provider.refineEstimate(refineInput)
 
-    // Server-side math validation
-    const taxRate = Number(companyRow.default_tax_rate) || 0
-
-    const calculatedSections = aiEstimate.sections.map((section) => {
-      const items = section.items.map((item) => ({
-        ...item,
-        total: Math.round(item.quantity * item.unit_price * 100) / 100,
-      }))
-      const sectionSubtotal = items.reduce((sum, item) => sum + item.total, 0)
-      return {
-        title: section.title,
-        items,
-        subtotal: Math.round(sectionSubtotal * 100) / 100,
-      }
-    })
-
-    const subtotal = Math.round(
-      calculatedSections.reduce((sum, s) => sum + s.subtotal, 0) * 100
-    ) / 100
-    const taxAmount = Math.round(subtotal * taxRate * 100) / 100
-    const grandTotal = Math.round((subtotal + taxAmount) * 100) / 100
-
-    // Version management: mark old as not current
-    await supabase
-      .from('estimates')
-      .update({ is_current: false })
-      .eq('project_id', estimate.project_id)
-
-    // Get next version number
-    const { data: existingEstimates } = await supabase
-      .from('estimates')
-      .select('version')
-      .eq('project_id', estimate.project_id)
-      .order('version', { ascending: false })
-      .limit(1)
-
-    const nextVersion = (existingEstimates?.[0]?.version ?? 0) + 1
-
-    // Persist new estimate version
-    const { data: newEstimate, error: estimateError } = await supabase
-      .from('estimates')
-      .insert({
-        project_id: estimate.project_id,
-        company_id: companyId,
-        version: nextVersion,
-        is_current: true,
-        status: 'draft',
-        summary: aiEstimate.summary,
-        notes: aiEstimate.notes ?? null,
-        timeline: aiEstimate.timeline ?? null,
-        payment_terms:
-          aiEstimate.payment_terms ??
-          (companyRow.default_payment_terms as string | null) ??
-          null,
-        warranty_terms:
-          aiEstimate.warranty_terms ??
-          (companyRow.default_warranty_terms as string | null) ??
-          null,
-        subtotal,
-        discount_type: null,
-        discount_value: 0,
-        discount_amount: 0,
-        tax_rate: taxRate,
-        tax_amount: taxAmount,
-        total: grandTotal,
-      })
-      .select('id')
-      .single()
-
-    if (estimateError || !newEstimate) {
-      return NextResponse.json({ error: 'Failed to save refined estimate' }, { status: 500 })
-    }
-
-    const newEstimateId = newEstimate.id as string
-
-    // Insert sections and items
-    for (let sIdx = 0; sIdx < calculatedSections.length; sIdx++) {
-      const section = calculatedSections[sIdx]
-
-      const { data: sectionRow, error: sectionError } = await supabase
-        .from('estimate_sections')
-        .insert({
-          estimate_id: newEstimateId,
-          company_id: companyId,
-          title: section.title,
-          sort_order: sIdx,
-          subtotal: section.subtotal,
-        })
-        .select('id')
-        .single()
-
-      if (sectionError || !sectionRow) {
-        return NextResponse.json({ error: 'Failed to save refined section' }, { status: 500 })
-      }
-
-      const sectionId = sectionRow.id as string
-
-      if (section.items.length > 0) {
-        const itemRows = section.items.map((item, iIdx) => ({
-          section_id: sectionId,
-          company_id: companyId,
-          description: item.description,
-          quantity: item.quantity,
-          unit: item.unit ?? null,
-          unit_price: item.unit_price,
-          total: item.total,
-          sort_order: iIdx,
-          price_source: item.price_source,
-        }))
-
-        const { error: itemsError } = await supabase
-          .from('estimate_items')
-          .insert(itemRows)
-
-        if (itemsError) {
-          return NextResponse.json({ error: 'Failed to save refined items' }, { status: 500 })
-        }
-      }
-    }
-
-    // Update project total
-    await supabase
-      .from('projects')
-      .update({ total: grandTotal })
-      .eq('id', estimate.project_id)
-
-    // Log activity
+    // Activity log — refinement requested. Persistence (if any) happens via the
+    // editor when the user clicks Save Draft / Consolidate.
     await supabase.from('estimate_activity').insert({
       project_id: estimate.project_id,
       company_id: companyId,
-      estimate_id: newEstimateId,
-      event_type: 'estimate_refined',
-      metadata: { version: nextVersion, instruction },
+      estimate_id: estimateId,
+      event_type: 'estimate_refine_proposed',
+      metadata: {
+        instruction: instructionText,
+        has_audio: !!audioFile,
+        photo_count: photoFiles.length,
+      },
     })
-
-    // Revalidate paths
-    revalidatePath(`/projects/${estimate.project_id}`)
-    revalidatePath('/', 'layout')
 
     return NextResponse.json({
       success: true,
-      newVersion: nextVersion,
-      estimateId: newEstimateId,
+      refined,
+      instruction: instructionText,
     })
   } catch (error) {
     console.error('Estimate refinement failed:', error)
     return NextResponse.json(
-      { error: 'Estimate refinement failed. Please try again.' },
+      { error: 'Refinement failed. Please try again.' },
       { status: 500 }
     )
   }

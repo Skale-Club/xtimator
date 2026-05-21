@@ -19,13 +19,13 @@ export default async function EstimateTemplatesPage() {
   if (!template) redirect('/onboarding')
 
   return (
-    <div className="mx-auto max-w-4xl space-y-8 px-6 py-8">
+    <div className="space-y-8 px-6 py-8">
       <header className="flex flex-col gap-1">
         <h1 className="text-[clamp(28px,3.5vw,40px)] font-semibold tracking-tight">
           <T>Estimate Templates</T>
         </h1>
         <p className="text-sm text-muted-foreground">
-          <T>Customize the greeting, opener, closing, and signature for your plain-text estimates. Changes apply to all future estimates — existing generated text is not affected.</T>
+          <T>Customize the greeting, opener, closing, and signature for your plain-text estimates. Changes apply to all future estimates | existing generated text is not affected.</T>
         </p>
       </header>
       <Card variant="glass" className="p-8">

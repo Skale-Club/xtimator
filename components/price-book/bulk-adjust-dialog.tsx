@@ -99,7 +99,7 @@ export function BulkAdjustDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Adjust prices — {folderName}</DialogTitle>
+          <DialogTitle>Adjust prices | {folderName}</DialogTitle>
         </DialogHeader>
 
         <Form {...form}>

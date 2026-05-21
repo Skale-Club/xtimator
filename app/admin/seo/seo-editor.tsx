@@ -176,7 +176,7 @@ export function SeoEditor({ initial }: SeoEditorProps) {
                 />
               </FormControl>
               <FormDescription>
-                {t('Your domain (e.g. https://xtimator.com) — required for correct OG image resolution.')}
+                {t('Your domain (e.g. https://xtimator.com) | required for correct OG image resolution.')}
               </FormDescription>
               <FormMessage />
             </FormItem>

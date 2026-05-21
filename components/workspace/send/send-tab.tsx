@@ -1,7 +1,7 @@
 'use client'
 
 import { Card, CardContent } from '@/components/ui/card'
-import { FileText } from 'lucide-react'
+import { FileText, Lock } from 'lucide-react'
 import { EstimatePreview } from './estimate-preview'
 import { SendForm } from './send-form'
 import type { EstimateWithSections } from '@/lib/queries/estimate'
@@ -37,8 +37,20 @@ export function SendTab({ estimate, projectName, companyName, clientEmail, clien
     )
   }
 
+  const isDraft = estimate.workflow_status !== 'consolidated'
+
   return (
     <div className="space-y-6">
+      {isDraft && (
+        <Card variant="glass">
+          <CardContent className="flex items-center gap-3 py-4">
+            <Lock className="h-4 w-4 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">
+              {t('This estimate is still a draft. Consolidate it from the Estimate tab to send, download, or share.')}
+            </p>
+          </CardContent>
+        </Card>
+      )}
       <div className="grid gap-6 lg:grid-cols-2">
         <EstimatePreview
           estimate={estimate}
@@ -53,6 +65,7 @@ export function SendTab({ estimate, projectName, companyName, clientEmail, clien
           projectName={projectName}
           shareToken={estimate.share_token}
           smsDeliveryEnabled={smsDeliveryEnabled}
+          disabled={isDraft}
         />
       </div>
       <PlainTextCard

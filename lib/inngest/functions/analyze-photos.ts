@@ -7,10 +7,9 @@
  *   - INNGEST-04 (analyze-photos route returns jobId; Vision moves to worker)
  *   - INNGEST-06 (idempotent via event.data.requestId)
  */
-import Anthropic from '@anthropic-ai/sdk'
 import { inngest } from '@/lib/inngest/client'
 import { requireServiceClient } from '@/lib/supabase/service'
-import { getIntegrationKey } from '@/lib/platform-config'
+import { analyzePhotoOR } from '@/lib/ai/openrouter-client'
 import { recordUsage } from '@/lib/quota'
 import { notify } from '@/lib/notifications/dispatch'
 import { buildNotificationCopy } from '@/lib/notifications/copy'
@@ -100,8 +99,6 @@ export const analyzePhotosJob = inngest.createFunction(
       photos.map((photo) =>
         step.run(`vision-${photo.id}`, async () => {
           const supabase = requireServiceClient()
-          const anthropicKey = await getIntegrationKey('anthropic')
-          if (!anthropicKey) throw new Error('Anthropic key not configured')
 
           const { data: fileData, error: dlErr } = await supabase.storage
             .from('photos')
@@ -116,33 +113,7 @@ export const analyzePhotosJob = inngest.createFunction(
           const base64 = Buffer.from(arrayBuffer).toString('base64')
           const mimeType = getMimeType(photo.storage_path)
 
-          const anthropic = new Anthropic({ apiKey: anthropicKey })
-          const res = await anthropic.messages.create({
-            model: 'claude-sonnet-4-20250514',
-            max_tokens: 200,
-            messages: [
-              {
-                role: 'user',
-                content: [
-                  {
-                    type: 'image',
-                    source: {
-                      type: 'base64',
-                      media_type: mimeType,
-                      data: base64,
-                    },
-                  },
-                  {
-                    type: 'text',
-                    text: "Describe this photo from a contractor's perspective. Note materials, conditions, measurements if visible, damage, and areas needing work. Be specific and concise.",
-                  },
-                ],
-              },
-            ],
-          })
-
-          const description =
-            res.content[0]?.type === 'text' ? res.content[0].text : ''
+          const description = await analyzePhotoOR(base64, mimeType)
           await supabase
             .from('photos')
             .update({ ai_description: description })

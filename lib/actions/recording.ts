@@ -146,12 +146,9 @@ export async function transcribeRecording(recordingId: string) {
   const { inngest } = await import('@/lib/inngest/client')
   const { EVENT_TRANSCRIBE_AUDIO } = await import('@/lib/inngest/events')
 
-  // Timestamp suffix so user-initiated retries are not deduped by Inngest's
-  // 24h event-id window — a stale failed run must not block a fresh attempt
-  // for the same recording.
   const { ids } = await inngest.send({
     name: EVENT_TRANSCRIBE_AUDIO,
-    id: `transcribe-${recordingId}-${Date.now()}`,
+    id: `transcribe-${recordingId}`,
     data: {
       companyId: recording.company_id as string,
       recordingId,

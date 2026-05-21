@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
+import { autoUpdate } from '@floating-ui/dom'
 import { useReducedMotion } from 'framer-motion'
 import { useTourContext } from './tour-provider'
 import { useTour } from './use-tour'
@@ -8,6 +9,7 @@ import { TOUR_STEPS } from './tour-step'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { Button } from '@/components/ui/button'
 import { X } from 'lucide-react'
+import { logTourEvent } from '@/lib/actions/tour'
 
 interface Rect {
   top: number
@@ -24,7 +26,8 @@ const PADDING = 8 // px padding around the target element
 // regardless of CSS visibility, so on mobile the spotlight could target a
 // display:none element.
 //
-//   - `offsetParent === null` catches `display: none` chains.
+//   - `offsetParent === null` catches `display: none` chains (fast path).
+//   - `getComputedStyle(el).display === 'none'` catches nested visibility-hidden/opacity elements missed by offsetParent.
 //   - `getBoundingClientRect()` zero-size catches `visibility: hidden` and
 //     collapsed elements.
 //
@@ -34,11 +37,13 @@ function findVisibleTarget(selector: string): HTMLElement | null {
   if (typeof document === 'undefined') return null
   const candidates = Array.from(document.querySelectorAll<HTMLElement>(selector))
   for (const el of candidates) {
-    if (el.offsetParent === null) continue
+    if (el.offsetParent === null) continue                            // display:none chain (fast path)
+    if (getComputedStyle(el).display === 'none') continue            // belt-and-suspenders for nested hidden
     const r = el.getBoundingClientRect()
-    if (r.width <= 0 || r.height <= 0) continue
+    if (r.width <= 0 || r.height <= 0) continue                     // visibility:hidden / collapsed
     return el
   }
+  // TOUR-QA-02: hardened with getComputedStyle guard 2026-05-21
   return candidates[0] ?? null
 }
 
@@ -48,8 +53,11 @@ export function TourSpotlight() {
   const { t } = useTranslation()
   const [stepIndex, setStepIndex] = useState(0)
   const [rect, setRect] = useState<Rect | null>(null)
-  const frameRef = useRef<number | null>(null)
+  const spotlightRef = useRef<HTMLDivElement>(null)
   const previousFocusRef = useRef<HTMLElement | null>(null)
+  // Track whether tour completed naturally via Done (handleNext on last step)
+  // or was dismissed early via X / ESC. Used to fire the correct event.
+  const completedNaturallyRef = useRef(false)
 
   const currentStep = TOUR_STEPS[stepIndex]
   const isLast = stepIndex === TOUR_STEPS.length - 1
@@ -67,30 +75,31 @@ export function TourSpotlight() {
     typeof window.matchMedia === 'function' &&
     window.matchMedia('(prefers-reduced-transparency: reduce)').matches
 
-  // Track target element position via rAF for scroll/resize resilience.
-  // findVisibleTarget() runs every frame so a viewport breakpoint change
-  // (e.g. topbar hide/show at md breakpoint) re-picks the correct anchor.
+  // Track target element position using @floating-ui/dom autoUpdate.
+  // autoUpdate fires only when the reference element or viewport actually changes
+  // (ResizeObserver + scroll listener). Replaces the prior continuous 60fps rAF
+  // loop that polled getBoundingClientRect every frame (TOUR-QA-04).
+  // spotlightRef is attached to the spotlight hole div as the "floating" element
+  // so autoUpdate can observe its relationship to the reference element.
   useEffect(() => {
-    if (!showSpotlight) return
-    let cancelled = false
-
-    function update() {
-      if (cancelled) return
-      const el = findVisibleTarget(currentStep.target)
-      if (el) {
-        const r = el.getBoundingClientRect()
-        setRect({ top: r.top, left: r.left, width: r.width, height: r.height })
-      } else {
-        setRect(null)
-      }
-      frameRef.current = requestAnimationFrame(update)
+    if (!showSpotlight || !spotlightRef.current) return
+    const el = findVisibleTarget(currentStep.target)
+    if (!el) {
+      setRect(null)
+      return
     }
 
-    frameRef.current = requestAnimationFrame(update)
-    return () => {
-      cancelled = true
-      if (frameRef.current) cancelAnimationFrame(frameRef.current)
-    }
+    // Set rect immediately so there is no blank frame on mount.
+    const r = el.getBoundingClientRect()
+    setRect({ top: r.top, left: r.left, width: r.width, height: r.height })
+
+    // autoUpdate fires only when the reference element or viewport actually changes
+    // (ResizeObserver + scroll listener). animationFrame: false ensures NO rAF polling.
+    const cleanup = autoUpdate(el, spotlightRef.current!, () => {
+      const r2 = el.getBoundingClientRect()
+      setRect({ top: r2.top, left: r2.left, width: r2.width, height: r2.height })
+    }, { animationFrame: false })
+    return cleanup
   }, [showSpotlight, currentStep.target])
 
   // ESC dismiss + focus capture/restore. Lives in its own effect keyed on
@@ -125,10 +134,26 @@ export function TourSpotlight() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showSpotlight])
 
+  // Prevent Tab from leaking to sidebar/topbar/main while spotlight is open.
+  // [data-tour-shell] wraps only the app shell content — NOT the spotlight card itself.
+  // Inert makes all interactive elements inside the shell non-interactive and
+  // invisible to assistive technology during the guided tour (TOUR-QA-03).
+  useEffect(() => {
+    if (!showSpotlight) return
+    const shell = document.querySelector('[data-tour-shell]') as HTMLElement | null
+    if (shell) shell.inert = true
+    return () => {
+      if (shell) shell.inert = false
+    }
+  }, [showSpotlight])
+
   function handleNext() {
     if (isLast) {
+      completedNaturallyRef.current = true
+      void logTourEvent('tour_finished', { step_index: stepIndex, step_id: currentStep.id })
       handleClose()
     } else {
+      void logTourEvent('tour_step_completed', { step_index: stepIndex, step_id: currentStep.id })
       setStepIndex(i => i + 1)
     }
   }
@@ -138,6 +163,10 @@ export function TourSpotlight() {
   }
 
   function handleClose() {
+    if (!completedNaturallyRef.current) {
+      void logTourEvent('tour_skipped', { step_index: stepIndex, step_id: currentStep.id })
+    }
+    completedNaturallyRef.current = false
     clearSpotlightPending()
     completeTour()
     setShowSpotlight(false)
@@ -191,8 +220,8 @@ export function TourSpotlight() {
 
   return (
     <>
-      {/* Spotlight hole */}
-      <div style={spotlightStyle} aria-hidden="true" />
+      {/* Spotlight hole — ref used by autoUpdate as the "floating" element */}
+      <div ref={spotlightRef} style={spotlightStyle} aria-hidden="true" />
 
       {/* Tooltip card */}
       <div

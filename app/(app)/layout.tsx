@@ -16,6 +16,7 @@ import { TourHelpButton } from '@/components/tour/tour-help-button'
 import { SWRegister } from '@/components/pwa/sw-register'
 import { InstallPrompt } from '@/components/pwa/install-prompt'
 import { OfflineIndicator } from '@/components/pwa/offline-indicator'
+import { NewProjectDialog } from '@/components/projects/new-project-dialog'
 
 export default async function AppShellLayout({
   children,
@@ -76,11 +77,12 @@ export default async function AppShellLayout({
           {trialDaysRemaining !== null && trialDaysRemaining < 3 && (
             <TrialBanner daysRemaining={trialDaysRemaining} />
           )}
-          <main className="flex-1 overflow-y-auto p-4 md:p-6 pb-20 md:pb-6">
+          <main className="flex-1 overflow-y-auto pt-4 md:pt-6 pb-20 md:pb-6">
             {children}
           </main>
         </div>
         <BottomNav />
+        <NewProjectDialog />
         <TranslationLoadingOverlay />
         <UpgradeModal />
         <WelcomeModal />

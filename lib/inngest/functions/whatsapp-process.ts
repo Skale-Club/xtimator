@@ -7,10 +7,9 @@
  *   - INNGEST-07 (WhatsApp handler dispatches via Inngest)
  *   - INNGEST-06 (idempotent via event.data.batchKey)
  */
-import Anthropic from '@anthropic-ai/sdk'
 import { inngest } from '@/lib/inngest/client'
 import { requireServiceClient } from '@/lib/supabase/service'
-import { getIntegrationKey } from '@/lib/platform-config'
+import { transcribeAudioOR, analyzePhotoOR } from '@/lib/ai/openrouter-client'
 import { generateEstimateForProject } from '@/lib/services/generate-estimate'
 import {
   downloadWhatsAppMedia,
@@ -24,8 +23,6 @@ import {
 } from '@/lib/inngest/events'
 
 const SESSION_TTL_MINUTES = 30
-
-type ImageMediaType = 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif'
 
 export const whatsAppProcessJob = inngest.createFunction(
   {
@@ -53,31 +50,11 @@ export const whatsAppProcessJob = inngest.createFunction(
             duration_seconds: null,
           })
         } else if (msg.type === 'audio' && msg.audio?.id) {
-          const openaiKey = await getIntegrationKey('openai')
-          if (!openaiKey) throw new Error('OpenAI key not configured')
           const audioBuffer = await downloadWhatsAppMedia(msg.audio.id)
-          const form = new FormData()
-          form.append(
-            'file',
+          const transcript = await transcribeAudioOR(
             new Blob([new Uint8Array(audioBuffer)], { type: 'audio/ogg' }),
-            'audio.ogg'
+            'ogg'
           )
-          form.append('model', 'whisper-1')
-          form.append('response_format', 'text')
-          const res = await fetch(
-            'https://api.openai.com/v1/audio/transcriptions',
-            {
-              method: 'POST',
-              headers: { Authorization: `Bearer ${openaiKey}` },
-              body: form,
-            }
-          )
-          if (!res.ok) {
-            throw new Error(
-              `Whisper failed: ${await res.text().catch(() => 'unknown')}`
-            )
-          }
-          const transcript = (await res.text()).trim()
           if (!transcript) throw new Error('Empty transcription')
           await supabase.from('recordings').insert({
             project_id: projectId,
@@ -87,43 +64,18 @@ export const whatsAppProcessJob = inngest.createFunction(
             duration_seconds: null,
           })
         } else if (msg.type === 'image' && msg.image?.id) {
-          const anthropicKey = await getIntegrationKey('anthropic')
-          if (!anthropicKey) throw new Error('Anthropic key not configured')
           const imageBuffer = await downloadWhatsAppMedia(msg.image.id)
-          const mimeType = (msg.image.mime_type ??
-            'image/jpeg') as ImageMediaType
+          const mimeType = msg.image.mime_type ?? 'image/jpeg'
           const ext = mimeType.split('/')[1] ?? 'jpg'
           const storagePath = `${companyId}/whatsapp/${projectId}-${msg.image.id}.${ext}`
           await supabase.storage.from('photos').upload(storagePath, imageBuffer, {
             contentType: mimeType,
             upsert: false,
           })
-          const anthropic = new Anthropic({ apiKey: anthropicKey })
-          const visionRes = await anthropic.messages.create({
-            model: 'claude-sonnet-4-20250514',
-            max_tokens: 200,
-            messages: [
-              {
-                role: 'user',
-                content: [
-                  {
-                    type: 'image',
-                    source: {
-                      type: 'base64',
-                      media_type: mimeType,
-                      data: imageBuffer.toString('base64'),
-                    },
-                  },
-                  {
-                    type: 'text',
-                    text: "Describe this photo from a contractor's perspective. Note materials, conditions, measurements if visible, damage, and areas needing work. Be specific and concise.",
-                  },
-                ],
-              },
-            ],
-          })
-          const aiDescription =
-            visionRes.content[0]?.type === 'text' ? visionRes.content[0].text : ''
+          const aiDescription = await analyzePhotoOR(
+            imageBuffer.toString('base64'),
+            mimeType
+          )
           await supabase.from('photos').insert({
             project_id: projectId,
             company_id: companyId,

@@ -55,6 +55,14 @@ export function ContextualTooltip({
 }: ContextualTooltipProps) {
   const { t } = useTranslation()
 
+  // Mirror the prefers-reduced-transparency gate from tour-spotlight.tsx (TOUR-QA-03).
+  // TooltipContent uses `bg-popover` by default; under reduced-transparency, explicitly
+  // suppress any backdrop-filter from glass utility classes that may be applied via className.
+  const reducedTransparency =
+    typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(prefers-reduced-transparency: reduce)').matches
+
   // Defensive: if there's no child to anchor against, render nothing tooltip-related.
   if (!children) return null
 
@@ -65,7 +73,11 @@ export function ContextualTooltip({
         side={side}
         sideOffset={8}
         collisionPadding={{ top: 64, bottom: 16, left: 16, right: 16 }}
-        className={cn("max-w-xs text-pretty", className)}
+        className={cn(
+          "max-w-xs text-pretty",
+          reducedTransparency && "bg-popover text-popover-foreground border border-border shadow-md backdrop-blur-none",
+          className
+        )}
       >
         {t(text)}
       </TooltipContent>

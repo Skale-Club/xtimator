@@ -233,7 +233,7 @@ export function PriceBookList({ items, folders, companyId }: PriceBookListProps)
         <EmptyState
           icon={BookOpen}
           title="No price book items yet"
-          description="Add your pricing standards and the AI will use them as anchors when generating estimates. Leaving this empty is fine — the AI will use market estimates instead."
+          description="Add your pricing standards and the AI will use them as anchors when generating estimates. Leaving this empty is fine | the AI will use market estimates instead."
           actionLabel="Add first item"
           onAction={handleAddItem}
         />

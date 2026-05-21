@@ -121,7 +121,7 @@ export const SURVEY_STEPS: readonly SurveyStepDef[] = [
   {
     key: 'defaults',
     label: 'Project defaults',
-    helper: 'Sensible defaults for new estimates — you can change them anytime.',
+    helper: 'Sensible defaults for new estimates | you can change them anytime.',
     required: false,
     validate: (v) => {
       if (

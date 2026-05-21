@@ -90,7 +90,7 @@ export function ProjectList({ projects }: ProjectListProps) {
         title={t('No projects yet')}
         description={t('Create your first project to get started')}
         actionLabel={t('New Project')}
-        actionHref="/projects/new"
+        actionHref="?modal=new-project"
       />
     )
   }
