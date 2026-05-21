@@ -54,11 +54,11 @@ export default async function BillingPage() {
           <T>Billing</T>
         </h1>
         <p className="mx-auto mt-3 max-w-xl text-base text-muted-foreground">
-          <T>You&rsquo;re on the</T> <strong className="text-foreground"><T text={tierDisplay} /></strong> <T>plan. Choose the tier that fits your business — upgrade or downgrade anytime.</T>
+          <T>You&rsquo;re on the</T> <strong className="text-foreground"><T text={tierDisplay} /></strong> <T>plan. Choose the tier that fits your business | upgrade or downgrade anytime.</T>
         </p>
       </section>
 
-      <div className="mx-auto w-full max-w-6xl space-y-8 px-6">
+      <div className="w-full space-y-8 px-6">
         {/* Current plan + usage */}
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           <Card variant="glass" className="p-6">

@@ -63,7 +63,7 @@ export default async function PaymentsSettingsPage({
   const toastConnected = sp.connected === '1'
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6 px-6 py-8">
+    <div className="space-y-6 px-6 py-8">
       <header className="flex flex-col gap-1">
         <h1 className="text-[clamp(28px,3.5vw,40px)] font-semibold tracking-tight">
           <T>Payments</T>
