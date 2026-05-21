@@ -35,11 +35,11 @@ const LEGACY_KEYS = [
 ]
 
 // If `page.goto("/dashboard")` lands us on /login we're not authenticated.
-// Skip the test with a reason so the report makes it obvious why it didn't
-// actually exercise the tour.
+// With authenticated-state.json populated, the page should not redirect to /login.
+// If it does (e.g., CI without TEST_USER_EMAIL), skip with explanation.
 async function requireDashboard(page: Page): Promise<void> {
   if (page.url().includes("/login")) {
-    test.skip(true, "Auth fixture missing — dashboard redirects to /login. UAT in 75-04 covers this path.")
+    test.skip(true, "Auth fixture missing or expired — populate TEST_USER_EMAIL/TEST_USER_PASSWORD in .env.local and re-run `pnpm test:e2e` to generate authenticated-state.json via globalSetup.")
   }
 }
 
@@ -170,5 +170,62 @@ test.describe("Tour & Tooltip QA (Phase 75)", () => {
 
     // After 5 clicks (the final being "Done"), the spotlight is gone.
     await expect(spotlight).toHaveCount(0, { timeout: 2000 })
+  })
+
+  test("TOUR-QA-03: Tab key cannot reach sidebar/topbar while spotlight is open", async ({ page }) => {
+    await page.addInitScript(
+      ({ ns }) => {
+        try {
+          window.localStorage.setItem(ns + 'spotlight:pending', JSON.stringify({ pending: true }))
+        } catch {}
+      },
+      { ns: TOUR_NS }
+    )
+    await page.goto('/dashboard')
+    await requireDashboard(page)
+    await page.waitForLoadState('networkidle')
+
+    const spotlight = page.locator('[role="dialog"][aria-label]')
+    await expect(spotlight).toBeVisible({ timeout: 5000 })
+
+    // The [data-tour-shell] element should have inert=true while spotlight is open.
+    // An inert element cannot receive Tab focus — verify via attribute check.
+    const shell = page.locator('[data-tour-shell]')
+    await expect(shell).toHaveAttribute('inert', { timeout: 2000 })
+  })
+
+  test("TOUR-QA-04: no requestAnimationFrame loop while spotlight is stationary", async ({ page }) => {
+    await page.addInitScript(
+      ({ ns }) => {
+        try {
+          window.localStorage.setItem(ns + 'spotlight:pending', JSON.stringify({ pending: true }))
+        } catch {}
+        // Patch rAF to count calls — if loop runs continuously, count grows unboundedly
+        let rafCount = 0
+        const orig = window.requestAnimationFrame
+        window.requestAnimationFrame = function(cb) {
+          rafCount++
+          ;(window as unknown as Record<string, unknown>).__rafCount = rafCount
+          return orig.call(window, cb)
+        }
+      },
+      { ns: TOUR_NS }
+    )
+    await page.goto('/dashboard')
+    await requireDashboard(page)
+    await page.waitForLoadState('networkidle')
+
+    const spotlight = page.locator('[role="dialog"][aria-label]')
+    await expect(spotlight).toBeVisible({ timeout: 5000 })
+
+    // Wait 1 second with no interaction
+    await page.waitForTimeout(1000)
+
+    const rafCount = await page.evaluate(() => (window as unknown as Record<string, unknown>).__rafCount as number ?? 0)
+
+    // If rAF loop is still running, count would be ~60 (60fps × 1s).
+    // autoUpdate fires at most a handful of times on mount + one ResizeObserver check.
+    // Allow up to 20 calls as a generous threshold (framer-motion + other libs may use rAF).
+    expect(rafCount).toBeLessThan(20)
   })
 })
