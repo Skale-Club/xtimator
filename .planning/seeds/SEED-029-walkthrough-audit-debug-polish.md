@@ -1,6 +1,6 @@
 ---
 id: SEED-029
-status: planted
+status: harvested
 planted: 2026-05-20
 planted_during: v3.1.1 MVP Launch Prep (UX QA cleanup)
 trigger_when: Próximo ciclo focado em ativação / first-run UX, ou imediatamente antes do v3.2 deploy em Hetzner — o tour é parte do funil de ativação e está em estado frágil

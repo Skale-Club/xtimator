@@ -904,3 +904,40 @@ Plans:
   5. Existing URL-typed setups (current state) keep working — if `og_image_url` is set but the file isn't in branding-assets bucket (external URL), show preview if loadable + a hint "Currently using external URL — upload to migrate to managed storage".
 
 **Plans:** 2/2 plans complete
+
+### Phase 79: Estimate Editing Workflow — Draft, Consolidate, Float Save & AI Refinement (SEED-028)
+
+**Goal:** Replace the silent 2s autosave with an explicit draft/consolidate workflow. Estimates have a `workflow_status` column (`draft` | `consolidated`). A floating save bar appears when dirty (`isDirty === true`) with "Save Draft" and "Consolidate" CTAs. Consolidated estimates are read-only and gate send/PDF/share actions. The refine-with-AI panel becomes a full-screen modal with parity to `/capture` (audio + photos + text in a single instruction). Harvested from SEED-028.
+
+**Depends on:** Phase 27 (capture schema), Phase 6 (AI estimate generation)
+
+**Requirements:** DRAFT-01, DRAFT-02, DRAFT-03, DRAFT-04
+
+**Success Criteria** (what must be TRUE):
+  1. `estimates.workflow_status` column exists with values `draft` | `consolidated`; all existing estimates backfilled; unique index enforces one active draft per project.
+  2. Floating save bar (`<FloatingSaveBar />`) appears only when `isDirty`; "Save Draft" persists without changing status; "Consolidate" locks the estimate and gates send/PDF/WhatsApp delivery.
+  3. Consolidated estimates render all inputs disabled; a "Create new version" floating button forks a new draft `v(n+1)`.
+  4. Refine modal (`<RefineEstimateDialog />`) replaces the collapsible panel; accepts audio + photos + text in a single multi-modal instruction; result applied to current draft in-memory (`isDirty: true`) without auto-save.
+
+**Out of scope:** Chat multi-turn, diff before/after, unconsolidate action.
+
+**Plans:** 4/4 plans complete (Phases A–D via commits 2f8cb47, cef25df, 974f1e2, 0462b6f — executed 2026-05-20)
+
+### Phase 80: Walkthrough Audit, Debug & Polish — Tour & Tooltips QA Round 2 (SEED-029)
+
+**Goal:** Close the gap between "passes unit tests" and "works for a real user" on the post-onboarding feature tour. Diagnose actual browser behavior (desktop + mobile, EN/PT/ES), fix high-severity issues (dual `[data-tour]` selector on mobile, missing `inert`/focus-trap during spotlight, rAF performance), update tour copy to match current UI, add telemetry, and un-skip the 15 Playwright tests. Harvested from SEED-029.
+
+**Depends on:** Phase 74 (tour infrastructure), Phase 75 (tour QA round 1)
+
+**Requirements:** TOUR-QA-01, TOUR-QA-02, TOUR-QA-03, TOUR-QA-04, TOUR-QA-05
+
+**Success Criteria** (what must be TRUE):
+  1. **Diagnosis complete** — `WALKTHROUGH-FINDINGS.md` produced after running `tour-uat-runbook.md` in EN/PT/ES on desktop + mobile (390px viewport); every bug listed with screenshot/description.
+  2. **Dual selector fixed** — `findVisibleTarget` in `tour-spotlight.tsx` resolves the correct (visible) language-toggle element on both topbar and bottom-nav; mobile spotlight lands on the right element.
+  3. **A11y hardened** — `inert` or equivalent on background content during spotlight step; focus trapped inside the step card; `prefers-reduced-transparency` gate consistent across `TourSpotlight` and `ContextualTooltip`.
+  4. **Performance** — rAF continuous loop replaced with `ResizeObserver` + scroll listener (or Floating UI `autoUpdate`); no jank on mid-range mobile.
+  5. **Telemetry + tests** — `tour_started`, `tour_step_completed`, `tour_finished`, `tour_skipped` events logged; 15 Playwright tests in `tour-flow.spec.ts` un-skipped and passing.
+
+**Out of scope:** Admin panel tour, A/B copy test, video walkthroughs.
+
+**Plans:** TBD (run /gsd:plan-phase 80)
