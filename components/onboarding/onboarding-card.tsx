@@ -14,10 +14,10 @@ export function OnboardingCard({ children, skipAction, appName }: OnboardingCard
       {/* Phase 71 gradient-hero radial backdrop */}
       <div aria-hidden className="absolute inset-0 -z-10 gradient-hero" />
 
-      {/* Logo + wordmark above card (D-05) */}
-      <div className="mb-12 flex flex-col items-center gap-2">
-        <AppIcon className="h-10 w-10" />
-        <span className="text-[28px] font-semibold leading-[1.15] tracking-tight">
+      {/* Logo + wordmark above card */}
+      <div className="mb-12 flex items-center gap-2.5">
+        <AppIcon className="h-6 w-6" />
+        <span className="text-xl font-bold tracking-tight">
           {appName}
         </span>
       </div>
