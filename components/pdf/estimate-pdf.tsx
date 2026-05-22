@@ -445,24 +445,14 @@ export default function EstimatePDF({
           style={[styles.header, { borderBottomColor: brandColor }]}
           fixed
         >
-          <View
-            style={[
-              styles.headerLeft,
-              company.logo_url
-                ? { flexDirection: 'column', alignItems: 'flex-start', gap: 0 }
-                : {},
-            ]}
-          >
+          <View style={styles.headerLeft}>
             {company.logo_url && (
               // eslint-disable-next-line jsx-a11y/alt-text
               <Image src={company.logo_url} style={styles.logo} />
             )}
             <View>
               <Text
-                style={[
-                  company.logo_url ? styles.companyNameSmall : styles.companyName,
-                  { color: brandColor },
-                ]}
+                style={[styles.companyName, { color: brandColor }]}
               >
                 {company.website ? (
                   <Link src={company.website} style={[styles.nameLink, { color: brandColor }]}>

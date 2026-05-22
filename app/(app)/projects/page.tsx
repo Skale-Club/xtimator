@@ -8,20 +8,17 @@ import { EmptyState } from '@/components/dashboard/empty-state'
 import { cn } from '@/lib/utils'
 import { T } from '@/components/i18n/t'
 
+const IN_PROGRESS_LABEL = 'In progress'
+const IN_PROGRESS_COLOR =
+  'bg-transparent text-blue-400 border border-blue-500/60'
+
 const STATUS_LABEL: Record<string, string> = {
-  draft:          'Draft',
-  in_progress:    'In progress',
   estimate_ready: 'Estimate ready',
-  sent:           'Sent',
-  completed:      'Completed',
 }
 
 const STATUS_COLOR: Record<string, string> = {
-  draft:          'bg-muted-foreground/30 text-muted-foreground',
-  in_progress:    'bg-blue-500/15 text-blue-400',
-  estimate_ready: 'bg-amber-500/15 text-amber-400',
-  sent:           'bg-green-500/15 text-green-400',
-  completed:      'bg-green-700/15 text-green-600',
+  estimate_ready:
+    'bg-green-500/15 text-green-400 border border-green-500/50',
 }
 
 export default async function ProjectsPage() {
@@ -65,8 +62,8 @@ export default async function ProjectsPage() {
       ) : (
         <ul className="divide-y divide-border rounded-lg border border-border bg-card overflow-hidden">
           {list.map((project) => {
-            const label = STATUS_LABEL[project.status] ?? project.status
-            const color = STATUS_COLOR[project.status] ?? STATUS_COLOR.draft
+            const label = STATUS_LABEL[project.status] ?? IN_PROGRESS_LABEL
+            const color = STATUS_COLOR[project.status] ?? IN_PROGRESS_COLOR
             const clientName = (project.client as { name?: string } | null)?.name
 
             return (
