@@ -61,7 +61,7 @@ interface AuthDialogProps {
 // ---------------------------------------------------------------------------
 
 const inputCls =
-  'h-10 border border-white/10 bg-white/[0.04] text-[#FAFAFA] placeholder:text-[#3F3F46] focus-visible:ring-indigo-500/40 focus-visible:border-indigo-500/50 focus-visible:ring-1 rounded-md px-3 text-sm w-full outline-none transition-colors'
+  'h-10 border border-white/10 bg-white/[0.04] text-[#FAFAFA] placeholder:text-[#3F3F46] focus-visible:ring-indigo-500/40 focus-visible:border-indigo-500/50 focus-visible:ring-1 rounded-md px-3 text-[16px] w-full outline-none transition-colors'
 
 const labelCls = 'text-[0.8125rem] text-[#A1A1AA] font-medium'
 
@@ -487,13 +487,13 @@ export function AuthDialog({ branding, initialMode = 'login', open, onClose }: A
           </button>
 
           {/* Brand */}
-          <div className="mb-6 flex items-center gap-2">
+          <div className="mb-6 flex items-center justify-center gap-2.5">
             <AppIcon logoUrl={branding.logoUrl} appName={branding.appName} className="h-6 w-6" />
-            <span className="text-sm font-semibold text-[#FAFAFA]">{branding.appName}</span>
+            <span className="text-lg font-bold tracking-tight text-[#FAFAFA]">{branding.appName}</span>
           </div>
 
           {/* Heading */}
-          <div className="mb-6">
+          <div className="mb-6 text-center">
             <h2 className="text-[1.5rem] font-semibold tracking-[-0.02em] text-[#FAFAFA]">
               {isLogin ? 'Welcome back' : 'Create account'}
             </h2>
