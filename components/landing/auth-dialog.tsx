@@ -1,6 +1,7 @@
 'use client'
 
 import { useRef, useState, useTransition, useEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -139,14 +140,7 @@ function OrDivider() {
 // Login form
 // ---------------------------------------------------------------------------
 
-function LoginForm({
-  onSwitchMode,
-  onClose,
-}: {
-  onSwitchMode: () => void
-  onClose: () => void
-}) {
-  const router = useRouter()
+function LoginForm({ onSwitchMode: _onSwitchMode }: { onSwitchMode: () => void }) {
   const [showPassword, setShowPassword] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const [captchaToken, setCaptchaToken] = useState<string | null>(null)
@@ -253,36 +247,13 @@ function LoginForm({
           <button
             type="submit"
             disabled={isPending || !captchaToken}
-            className="flex h-10 w-full items-center justify-center gap-2 rounded-md bg-indigo-600 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:pointer-events-none disabled:opacity-50"
+            className="flex h-10 w-full items-center justify-center gap-2 rounded-md bg-primary text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-50"
           >
             {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
             Sign in
           </button>
         </form>
       </Form>
-
-      <div className="space-y-2 text-center text-[0.8125rem]">
-        <button
-          type="button"
-          onClick={() => {
-            onClose()
-            router.push('/reset-password')
-          }}
-          className="block w-full text-[#71717A] transition-colors hover:text-[#A1A1AA]"
-        >
-          Forgot password?
-        </button>
-        <p className="text-[#71717A]">
-          Don&apos;t have an account?{' '}
-          <button
-            type="button"
-            onClick={onSwitchMode}
-            className="font-medium text-[#FAFAFA] transition-colors hover:text-white hover:underline"
-          >
-            Sign up
-          </button>
-        </p>
-      </div>
     </div>
   )
 }
@@ -431,24 +402,13 @@ function SignupForm({ onSwitchMode }: { onSwitchMode: () => void }) {
           <button
             type="submit"
             disabled={isPending || !captchaToken}
-            className="flex h-10 w-full items-center justify-center gap-2 rounded-md bg-indigo-600 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:pointer-events-none disabled:opacity-50"
+            className="flex h-10 w-full items-center justify-center gap-2 rounded-md bg-primary text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-50"
           >
             {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
             Create account
           </button>
         </form>
       </Form>
-
-      <p className="text-center text-[0.8125rem] text-[#71717A]">
-        Already have an account?{' '}
-        <button
-          type="button"
-          onClick={onSwitchMode}
-          className="font-medium text-[#FAFAFA] transition-colors hover:text-white hover:underline"
-        >
-          Sign in
-        </button>
-      </p>
     </div>
   )
 }
@@ -494,63 +454,93 @@ export function AuthDialog({ branding, initialMode = 'login', open, onClose }: A
     }
   }, [open, handleKeyDown])
 
-  if (!open) return null
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
+
+  if (!open || !mounted) return null
 
   const isLogin = mode === 'login'
 
-  return (
+  const content = (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 px-4 backdrop-blur-sm"
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 px-4 backdrop-blur-sm"
       onClick={onClose}
       aria-modal="true"
       role="dialog"
       aria-label={isLogin ? 'Sign in' : 'Create account'}
     >
-      {/* Card — stop propagation so clicks inside don't close the modal */}
+      {/* Wrapper — stop propagation so clicks inside don't close the modal */}
       <div
-        className="relative w-full max-w-[400px] rounded-2xl border border-white/10 bg-[#08090A] p-8 shadow-2xl transition-all duration-200"
+        className="flex w-full max-w-[400px] flex-col gap-5"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Close button */}
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Close"
-          className="absolute right-4 top-4 rounded-md p-1 text-[#52525B] transition-colors hover:text-[#A1A1AA]"
-        >
-          <X className="h-4 w-4" />
-        </button>
+        {/* Card */}
+        <div className="relative rounded-2xl border border-white/10 bg-[#08090A] p-8 shadow-2xl">
+          {/* Close button */}
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="absolute right-4 top-4 rounded-md p-1 text-[#52525B] transition-colors hover:text-[#A1A1AA]"
+          >
+            <X className="h-4 w-4" />
+          </button>
 
-        {/* Brand */}
-        <div className="mb-6 flex items-center gap-2">
-          <AppIcon logoUrl={branding.logoUrl} appName={branding.appName} className="h-6 w-6" />
-          <span className="text-sm font-semibold text-[#FAFAFA]">{branding.appName}</span>
+          {/* Brand */}
+          <div className="mb-6 flex items-center gap-2">
+            <AppIcon logoUrl={branding.logoUrl} appName={branding.appName} className="h-6 w-6" />
+            <span className="text-sm font-semibold text-[#FAFAFA]">{branding.appName}</span>
+          </div>
+
+          {/* Heading */}
+          <div className="mb-6">
+            <h2 className="text-[1.5rem] font-semibold tracking-[-0.02em] text-[#FAFAFA]">
+              {isLogin ? 'Welcome back' : 'Create account'}
+            </h2>
+            <p className="mt-1 text-[0.875rem] text-[#71717A]">
+              {isLogin ? 'Sign in to your workspace' : 'Start your free trial'}
+            </p>
+          </div>
+
+          {/* Forms — key forces TurnstileWidget remount on mode switch */}
+          {isLogin ? (
+            <LoginForm
+              key="login"
+              onSwitchMode={() => setMode('signup')}
+            />
+          ) : (
+            <SignupForm
+              key="signup"
+              onSwitchMode={() => setMode('login')}
+            />
+          )}
         </div>
 
-        {/* Heading */}
-        <div className="mb-6">
-          <h2 className="text-[1.5rem] font-semibold tracking-[-0.02em] text-[#FAFAFA]">
-            {isLogin ? 'Welcome back' : 'Create account'}
-          </h2>
-          <p className="mt-1 text-[0.875rem] text-[#71717A]">
-            {isLogin ? 'Sign in to your workspace' : 'Start your free trial'}
+        {/* Footer — outside the card, Xphere pattern */}
+        <div className="space-y-1.5 text-center text-[0.8125rem]">
+          {isLogin && (
+            <button
+              type="button"
+              onClick={() => { onClose(); window.location.href = '/reset-password' }}
+              className="block w-full text-[#71717A] transition-colors hover:text-[#A1A1AA]"
+            >
+              Forgot your password?
+            </button>
+          )}
+          <p className="text-[#71717A]">
+            {isLogin ? "Don't have an account? " : 'Already have an account? '}
+            <button
+              type="button"
+              onClick={() => setMode(isLogin ? 'signup' : 'login')}
+              className="font-medium text-[#FAFAFA] transition-colors hover:underline"
+            >
+              {isLogin ? 'Sign up' : 'Sign in'}
+            </button>
           </p>
         </div>
-
-        {/* Forms — key forces TurnstileWidget remount on mode switch */}
-        {isLogin ? (
-          <LoginForm
-            key={open ? 'login-active' : 'login-inactive'}
-            onSwitchMode={() => setMode('signup')}
-            onClose={onClose}
-          />
-        ) : (
-          <SignupForm
-            key={open ? 'signup-active' : 'signup-inactive'}
-            onSwitchMode={() => setMode('login')}
-          />
-        )}
       </div>
     </div>
   )
+
+  return createPortal(content, document.body)
 }
