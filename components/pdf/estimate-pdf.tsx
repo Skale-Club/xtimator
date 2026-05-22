@@ -4,12 +4,14 @@ import {
   View,
   Text,
   Image,
+  Link,
   StyleSheet,
 } from '@react-pdf/renderer'
 import type { EstimateWithSections } from '@/lib/queries/estimate'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
 import { formatMoney } from '@/lib/money/currency'
 import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
+import { formatPhoneForDisplay } from '@/lib/phone/format'
 
 // ---------------------------------------------------------------------------
 // Phase 73-02: Static label maps for PDF i18n.
@@ -219,8 +221,8 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   logo: {
-    width: 60,
-    height: 60,
+    width: 72,
+    height: 72,
     objectFit: 'contain' as const,
   },
   companyName: {
@@ -228,10 +230,27 @@ const styles = StyleSheet.create({
     fontFamily: 'Helvetica-Bold',
     marginBottom: 4,
   },
+  companyNameSmall: {
+    fontSize: 11,
+    fontFamily: 'Helvetica',
+    marginBottom: 2,
+    marginTop: 4,
+  },
   companyContact: {
     fontSize: 9,
     color: '#6b7280',
     lineHeight: 1.5,
+  },
+  contactLink: {
+    color: '#6b7280',
+    textDecoration: 'none',
+  },
+  nameLink: {
+    textDecoration: 'none',
+  },
+  infoValueLink: {
+    color: '#6b7280',
+    textDecoration: 'none',
   },
   // Estimate title
   estimateTitle: {
@@ -432,13 +451,52 @@ export default function EstimatePDF({
               <Image src={company.logo_url} style={styles.logo} />
             )}
             <View>
-              <Text style={[styles.companyName, { color: brandColor }]}>
-                {company.name}
+              <Text
+                style={[styles.companyName, { color: brandColor }]}
+              >
+                {company.website ? (
+                  <Link src={company.website} style={[styles.nameLink, { color: brandColor }]}>
+                    {company.name}
+                  </Link>
+                ) : (
+                  company.name
+                )}
               </Text>
               <Text style={styles.companyContact}>
-                {[company.phone, company.email, company.website]
-                  .filter(Boolean)
-                  .join('  |  ')}
+                {(
+                  [
+                    company.phone && (
+                      <Link
+                        key="phone"
+                        src={`tel:${company.phone.replace(/[^\d+]/g, '')}`}
+                        style={styles.contactLink}
+                      >
+                        {formatPhoneForDisplay(company.phone)}
+                      </Link>
+                    ),
+                    company.email && (
+                      <Link
+                        key="email"
+                        src={`mailto:${company.email}`}
+                        style={styles.contactLink}
+                      >
+                        {company.email}
+                      </Link>
+                    ),
+                    company.website && (
+                      <Link
+                        key="website"
+                        src={company.website}
+                        style={styles.contactLink}
+                      >
+                        {company.website}
+                      </Link>
+                    ),
+                  ].filter(Boolean) as React.ReactNode[]
+                ).reduce<React.ReactNode[]>(
+                  (acc, node, i) => (i === 0 ? [node] : [...acc, '  |  ', node]),
+                  [],
+                )}
               </Text>
               {companyAddress && (
                 <Text style={styles.companyContact}>{companyAddress}</Text>
@@ -487,12 +545,19 @@ export default function EstimatePDF({
               </Text>
               {client.email && (
                 <Text style={[styles.infoValue, { color: '#6b7280' }]}>
-                  {client.email}
+                  <Link src={`mailto:${client.email}`} style={styles.infoValueLink}>
+                    {client.email}
+                  </Link>
                 </Text>
               )}
               {client.phone && (
                 <Text style={[styles.infoValue, { color: '#6b7280' }]}>
-                  {client.phone}
+                  <Link
+                    src={`tel:${client.phone.replace(/[^\d+]/g, '')}`}
+                    style={styles.infoValueLink}
+                  >
+                    {formatPhoneForDisplay(client.phone)}
+                  </Link>
                 </Text>
               )}
               {clientAddress && (

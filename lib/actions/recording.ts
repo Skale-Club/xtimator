@@ -117,7 +117,7 @@ export async function createRecording(
  * Callers should poll `GET /api/jobs/{jobId}` to discover completion. The
  * canonical dispatch surface is the NEW `POST /api/transcribe` route; this
  * server action is kept as a thin wrapper for backwards compatibility with
- * the existing `components/capture/capture-recorder.tsx` + `components/workspace/audio/audio-recorder.tsx`
+ * the existing `components/capture/capture-recorder.tsx` + `components/workspace/ai-input-group/ai-voice-dialog.tsx`
  * call sites (Plan 67-05 will rewire those to the route + polling hook).
  *
  * Implements: INNGEST-03.

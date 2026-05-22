@@ -10,7 +10,7 @@ import { ProjectTitle } from '@/components/workspace/project-title'
 import { Skeleton } from '@/components/ui/skeleton'
 import { T } from '@/components/i18n/t'
 
-const ALLOWED_TABS = ['overview', 'audio', 'photos', 'estimate', 'send'] as const
+const ALLOWED_TABS = ['overview', 'photos', 'estimate', 'send'] as const
 type AllowedTab = (typeof ALLOWED_TABS)[number]
 
 export default async function ProjectPage({

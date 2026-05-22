@@ -197,9 +197,19 @@ export function EstimateEditor({
       toast.error(result.error)
       return
     }
+
+    // Sync editor's local reducer state with the consolidated row so the
+    // editor flips to read-only and the SEND tab (which reads from the same
+    // server prop via router.refresh()) sees the new workflow_status
+    // immediately instead of waiting for a full reload.
+    const refreshed = await getEstimateByIdAction(stateRef.current.id)
+    if (refreshed.data) {
+      dispatch({ type: 'INIT', estimate: refreshed.data })
+    }
+
     toast.success('Estimate consolidated')
     router.refresh()
-  }, [runSave, router])
+  }, [runSave, router, dispatch])
 
   const handleDiscard = useCallback(async () => {
     const result = await getEstimateByIdAction(stateRef.current.id)

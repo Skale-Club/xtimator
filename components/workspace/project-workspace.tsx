@@ -3,12 +3,12 @@
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { ClipboardList, Mic, Camera, Sparkles, Send } from 'lucide-react'
+import { ClipboardList, Camera, Sparkles, Send } from 'lucide-react'
 import { OverviewTab } from './overview-tab'
 import { SendTab } from './send/send-tab'
-import { AudioTab } from './audio/audio-tab'
 import { PhotosTab } from './photos/photos-tab'
 import { EstimateTab } from './estimate/estimate-tab'
+import { AIInputGroup } from './ai-input-group/ai-input-group'
 import type { ProjectDetail, ActivityEvent, ProjectQuickStats } from '@/lib/queries/project'
 import type { Recording } from '@/lib/queries/recording'
 import type { Photo } from '@/lib/queries/photo'
@@ -16,7 +16,7 @@ import type { EstimateWithSections, Estimate } from '@/lib/queries/estimate'
 import type { EstimateTemplate } from '@/lib/utils/estimate-template'
 import { useTranslation } from '@/lib/i18n/use-translation'
 
-const ALLOWED_TABS = ['overview', 'audio', 'photos', 'estimate', 'send'] as const
+const ALLOWED_TABS = ['overview', 'photos', 'estimate', 'send'] as const
 type WorkspaceTab = (typeof ALLOWED_TABS)[number]
 
 interface ProjectWorkspaceProps {
@@ -72,7 +72,15 @@ export function ProjectWorkspace({
   }
 
   return (
-    <Tabs value={activeTab} onValueChange={handleValueChange} className="w-full">
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <AIInputGroup
+          projectId={project.id}
+          companyId={project.company_id}
+          currentEstimate={currentEstimate}
+        />
+      </div>
+      <Tabs value={activeTab} onValueChange={handleValueChange} className="w-full">
       <div className="border-b border-border">
         <TabsList
           variant="line"
@@ -80,7 +88,6 @@ export function ProjectWorkspace({
         >
           {[
             { value: 'overview',  Icon: ClipboardList, label: 'Overview'    },
-            { value: 'audio',     Icon: Mic,           label: 'Audio'       },
             { value: 'photos',    Icon: Camera,        label: 'Photos'      },
             { value: 'estimate',  Icon: Sparkles,      label: 'AI Estimate' },
             { value: 'send',      Icon: Send,          label: 'Send'        },
@@ -105,9 +112,6 @@ export function ProjectWorkspace({
       </div>
       <TabsContent value="overview" className="mt-6">
         <OverviewTab project={project} activity={activity} />
-      </TabsContent>
-      <TabsContent value="audio" className="mt-6">
-        <AudioTab projectId={project.id} companyId={project.company_id} initialRecordings={recordings} />
       </TabsContent>
       <TabsContent value="photos" className="mt-6">
         <PhotosTab projectId={project.id} companyId={project.company_id} initialPhotos={photos} />
@@ -135,6 +139,7 @@ export function ProjectWorkspace({
           smsDeliveryEnabled={smsDeliveryEnabled}
         />
       </TabsContent>
-    </Tabs>
+      </Tabs>
+    </div>
   )
 }

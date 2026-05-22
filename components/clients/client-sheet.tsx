@@ -21,6 +21,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { PhoneInput } from '@/components/ui/phone-input'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -239,7 +240,11 @@ export function ClientSheet({
                 <FormItem>
                   <FormLabel>Phone</FormLabel>
                   <FormControl>
-                    <Input placeholder="Phone number" {...field} />
+                    <PhoneInput
+                      value={field.value ?? ''}
+                      onChange={field.onChange}
+                      placeholder="Phone number"
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

@@ -9,7 +9,7 @@
  *   - push events                  → show notification (Phase 77 scaffold)
  */
 
-const CACHE_V = 'v1'
+const CACHE_V = 'v2'
 const SHELL   = `shell-${CACHE_V}`
 const PAGES   = `pages-${CACHE_V}`
 

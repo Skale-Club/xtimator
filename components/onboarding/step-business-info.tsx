@@ -3,6 +3,7 @@
 import type { UseFormReturn } from 'react-hook-form'
 import type { OnboardingValues } from '@/lib/schemas/onboarding'
 import { Input } from '@/components/ui/input'
+import { PhoneInput } from '@/components/ui/phone-input'
 import {
   FormControl,
   FormField,
@@ -68,11 +69,10 @@ export function StepBusinessInfo({ form }: StepBusinessInfoProps) {
           <FormItem>
             <FormLabel>Phone</FormLabel>
             <FormControl>
-              <Input
-                type="tel"
+              <PhoneInput
+                value={field.value ?? ''}
+                onChange={field.onChange}
                 placeholder="(555) 123-4567"
-                className="min-h-[44px]"
-                {...field}
               />
             </FormControl>
             <FormMessage />

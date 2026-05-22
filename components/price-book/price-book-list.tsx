@@ -51,6 +51,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { Card, CardContent } from '@/components/ui/card'
 import { EmptyState } from '@/components/dashboard/empty-state'
 import { PriceBookItemDialog } from '@/components/price-book/price-book-item-dialog'
 import { PriceBookImportWizard } from '@/components/price-book/import-wizard'
@@ -267,9 +268,9 @@ export function PriceBookList({
 
   return (
     <>
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold">Price Book</h1>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" onClick={() => setNewFolderDialogOpen(true)}>
             <FolderPlus className="h-4 w-4 mr-2" />
             New Folder
@@ -318,7 +319,7 @@ export function PriceBookList({
             return (
               <div key={folderId ?? '__uncategorized__'} className="space-y-4">
                 {/* Folder header */}
-                <div className="flex items-center gap-2 border-b pb-2">
+                <div className="flex flex-wrap items-center gap-2 border-b pb-2">
                   <Button
                     variant="ghost"
                     size="icon"
@@ -399,72 +400,128 @@ export function PriceBookList({
                   </div>
                 </div>
 
-                {/* Items inside folder — single flat table (folders are the only taxonomy) */}
+                {/* Items inside folder — desktop Table (md+) + mobile Card list (<md) */}
                 {!isCollapsed && folderItems.length > 0 && (
-                  <div className="pl-4">
-                    <div className="rounded-md border">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Item</TableHead>
-                            <TableHead>Unit</TableHead>
-                            <TableHead>Unit Price</TableHead>
-                            <TableHead className="w-[50px]" />
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {folderItems.map((item) => (
-                            <TableRow key={item.id}>
-                              <TableCell className="font-medium">
-                                <div className="flex items-center gap-2">
-                                  {item.image_url ? (
-                                    <img
-                                      src={item.image_url}
-                                      alt={item.name}
-                                      className="h-8 w-8 rounded object-cover shrink-0"
-                                    />
-                                  ) : (
-                                    <div className="h-8 w-8 rounded bg-muted flex items-center justify-center shrink-0">
-                                      <ImageIcon className="h-4 w-4 text-muted-foreground" />
-                                    </div>
-                                  )}
-                                  {item.name}
-                                </div>
-                              </TableCell>
-                              <TableCell className="text-muted-foreground">
-                                {item.unit || '—'}
-                              </TableCell>
-                              <TableCell>{formatMoney(item.unit_price, item.currency_code)}</TableCell>
-                              <TableCell>
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-8 w-8"
-                                    >
-                                      <MoreHorizontal className="h-4 w-4" />
-                                    </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end">
-                                    <DropdownMenuItem onClick={() => handleEditItem(item)}>
-                                      Edit
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem
-                                      className="text-destructive"
-                                      onClick={() => handleDeletePrompt(item)}
-                                    >
-                                      Delete
-                                    </DropdownMenuItem>
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
-                              </TableCell>
+                  <>
+                    {/* Desktop: existing table preserved byte-for-byte, gated to md+ */}
+                    <div className="hidden md:block pl-4">
+                      <div className="rounded-md border">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Item</TableHead>
+                              <TableHead>Unit</TableHead>
+                              <TableHead>Unit Price</TableHead>
+                              <TableHead className="w-[50px]" />
                             </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
+                          </TableHeader>
+                          <TableBody>
+                            {folderItems.map((item) => (
+                              <TableRow key={item.id}>
+                                <TableCell className="font-medium">
+                                  <div className="flex items-center gap-2">
+                                    {item.image_url ? (
+                                      <img
+                                        src={item.image_url}
+                                        alt={item.name}
+                                        className="h-8 w-8 rounded object-cover shrink-0"
+                                      />
+                                    ) : (
+                                      <div className="h-8 w-8 rounded bg-muted flex items-center justify-center shrink-0">
+                                        <ImageIcon className="h-4 w-4 text-muted-foreground" />
+                                      </div>
+                                    )}
+                                    {item.name}
+                                  </div>
+                                </TableCell>
+                                <TableCell className="text-muted-foreground">
+                                  {item.unit || '—'}
+                                </TableCell>
+                                <TableCell>{formatMoney(item.unit_price, item.currency_code)}</TableCell>
+                                <TableCell>
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8"
+                                      >
+                                        <MoreHorizontal className="h-4 w-4" />
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                      <DropdownMenuItem onClick={() => handleEditItem(item)}>
+                                        Edit
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem
+                                        className="text-destructive"
+                                        onClick={() => handleDeletePrompt(item)}
+                                      >
+                                        Delete
+                                      </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
                     </div>
-                  </div>
+
+                    {/* Mobile: card list (<md only) — no left indent to maximize narrow-screen width */}
+                    <div className="md:hidden space-y-2">
+                      {folderItems.map((item) => (
+                        <Card key={item.id}>
+                          <CardContent className="flex items-center justify-between gap-3 p-3">
+                            {/* Left: thumb + name + price/unit */}
+                            <div className="flex items-center gap-3 min-w-0 flex-1">
+                              {item.image_url ? (
+                                <img
+                                  src={item.image_url}
+                                  alt={item.name}
+                                  className="h-10 w-10 rounded object-cover shrink-0"
+                                />
+                              ) : (
+                                <div className="h-10 w-10 rounded bg-muted flex items-center justify-center shrink-0">
+                                  <ImageIcon className="h-4 w-4 text-muted-foreground" />
+                                </div>
+                              )}
+                              <div className="min-w-0">
+                                <p className="font-medium truncate">{item.name}</p>
+                                <p className="text-sm text-muted-foreground">
+                                  {formatMoney(item.unit_price, item.currency_code)}
+                                  {item.unit ? ` / ${item.unit}` : ''}
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Right: dropdown — same handlers as desktop */}
+                            <div className="shrink-0">
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                                    <MoreHorizontal className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onClick={() => handleEditItem(item)}>
+                                    Edit
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    className="text-destructive"
+                                    onClick={() => handleDeletePrompt(item)}
+                                  >
+                                    Delete
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  </>
                 )}
               </div>
             )
