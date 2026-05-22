@@ -62,14 +62,20 @@ import {
   deleteFolder,
 } from '@/lib/actions/price-book'
 import type { PriceBookItem, PriceBookFolder } from '@/lib/queries/price-book'
+import { DEFAULT_CURRENCY_CODE, formatMoney } from '@/lib/money/currency'
 
 interface PriceBookListProps {
   items: PriceBookItem[]
   folders: PriceBookFolder[]
-  companyId: string
+  companyId?: string
+  currencyCode?: string
 }
 
-export function PriceBookList({ items, folders, companyId }: PriceBookListProps) {
+export function PriceBookList({
+  items,
+  folders,
+  currencyCode = DEFAULT_CURRENCY_CODE,
+}: PriceBookListProps) {
   const router = useRouter()
   const [search, setSearch] = useState('')
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -247,12 +253,13 @@ export function PriceBookList({ items, folders, companyId }: PriceBookListProps)
           open={dialogOpen}
           onOpenChange={handleDialogChange}
           item={editingItem}
-          companyId={companyId}
+          currencyCode={currencyCode}
           folders={folders}
         />
         <PriceBookImportWizard
           open={importDialogOpen}
           onOpenChange={handleImportClose}
+          currencyCode={currencyCode}
         />
       </>
     )
@@ -320,7 +327,11 @@ export function PriceBookList({ items, folders, companyId }: PriceBookListProps)
                       if (!folderId) return
                       setCollapsedFolders((prev) => {
                         const next = new Set(prev)
-                        next.has(folderId) ? next.delete(folderId) : next.add(folderId)
+                        if (next.has(folderId)) {
+                          next.delete(folderId)
+                        } else {
+                          next.add(folderId)
+                        }
                         return next
                       })
                     }}
@@ -423,7 +434,7 @@ export function PriceBookList({ items, folders, companyId }: PriceBookListProps)
                               <TableCell className="text-muted-foreground">
                                 {item.unit || '—'}
                               </TableCell>
-                              <TableCell>${item.unit_price.toFixed(2)}</TableCell>
+                              <TableCell>{formatMoney(item.unit_price, item.currency_code)}</TableCell>
                               <TableCell>
                                 <DropdownMenu>
                                   <DropdownMenuTrigger asChild>
@@ -466,7 +477,7 @@ export function PriceBookList({ items, folders, companyId }: PriceBookListProps)
         open={dialogOpen}
         onOpenChange={handleDialogChange}
         item={editingItem}
-        companyId={companyId}
+        currencyCode={currencyCode}
         folders={folders}
       />
 
@@ -544,6 +555,7 @@ export function PriceBookList({ items, folders, companyId }: PriceBookListProps)
       <PriceBookImportWizard
         open={importDialogOpen}
         onOpenChange={handleImportClose}
+        currencyCode={currencyCode}
       />
 
       {/* Bulk Adjust Dialog — items from UNFILTERED source (Pitfall 7) */}

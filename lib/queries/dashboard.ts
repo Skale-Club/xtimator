@@ -13,6 +13,7 @@ export interface ProjectWithClient {
   project_type: string | null
   status: string
   total: number
+  currency_code?: string
   created_at: string
   client: { id: string; name: string } | null
   /** Phase 70: payment status pulled from the project's current estimate. */
@@ -80,7 +81,7 @@ export async function getProjects(
     .select(
       `id, name, project_type, status, total, created_at,
        client:clients(id, name),
-       estimates!estimates_project_id_fkey(payment_status, paid_at, is_current)`
+       estimates!estimates_project_id_fkey(payment_status, paid_at, currency_code, is_current)`
     )
     .eq('company_id', companyId)
     .order('created_at', { ascending: false })
@@ -89,6 +90,7 @@ export async function getProjects(
     const estimates = (row.estimates as Array<{
       payment_status: 'unpaid' | 'paid' | 'refunded' | null
       paid_at: string | null
+      currency_code: string | null
       is_current: boolean | null
     }> | null) ?? []
     const current = estimates.find((e) => e.is_current) ?? null
@@ -98,6 +100,7 @@ export async function getProjects(
       project_type: row.project_type as string | null,
       status: row.status as string,
       total: Number(row.total) || 0,
+      currency_code: current?.currency_code ?? 'USD',
       created_at: row.created_at as string,
       client: row.client as { id: string; name: string } | null,
       payment_status: current?.payment_status ?? null,

@@ -11,6 +11,7 @@ export interface AppCompany {
   owner_name: string | null
   theme_preference: string | null
   industry: string | null
+  currency_code: string
 }
 
 export const getAuthClaims = cache(async () => {
@@ -26,7 +27,7 @@ export const getCachedCompany = unstable_cache(
     const supabase = requireServiceClient()
     const { data } = await supabase
       .from('companies')
-      .select('id, name, logo_url, owner_name, theme_preference, industry')
+      .select('id, name, logo_url, owner_name, theme_preference, industry, currency_code')
       .eq('user_id', userId)
       .single()
     return (data as AppCompany) ?? null

@@ -21,6 +21,7 @@ import {
   EVENT_WHATSAPP_PROCESS,
   type WhatsAppProcessPayload,
 } from '@/lib/inngest/events'
+import { formatMoney } from '@/lib/money/currency'
 
 const SESSION_TTL_MINUTES = 30
 
@@ -116,16 +117,15 @@ export const whatsAppProcessJob = inngest.createFunction(
       const { data: estimate } = await supabase
         .from('estimates')
         .select(
-          'total, summary, sections:estimate_sections(title, subtotal)'
+          'total, currency_code, summary, sections:estimate_sections(title, subtotal)'
         )
         .eq('id', result.estimateId)
         .single()
       const totalNum =
         (estimate as { total: number } | null)?.total ?? 0
-      const total = new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency: 'USD',
-      }).format(totalNum)
+      const currencyCode =
+        (estimate as { currency_code: string | null } | null)?.currency_code ?? 'USD'
+      const total = formatMoney(totalNum, currencyCode)
       const sectionRows =
         (estimate as {
           sections?: Array<{ title: string; subtotal: number }>
@@ -133,10 +133,7 @@ export const whatsAppProcessJob = inngest.createFunction(
       const sections = sectionRows
         .map(
           (s) =>
-            `- ${s.title}: ${new Intl.NumberFormat('en-US', {
-              style: 'currency',
-              currency: 'USD',
-            }).format(s.subtotal)}`
+              `- ${s.title}: ${formatMoney(s.subtotal, currencyCode)}`
         )
         .join('\n')
       const body = [

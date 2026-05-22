@@ -3,12 +3,7 @@ import type { ProjectWithClient } from '@/lib/queries/dashboard'
 import { StatusBadge } from '@/components/dashboard/status-badge'
 import { ProjectActions } from '@/components/dashboard/project-actions'
 import { TableCell, TableRow } from '@/components/ui/table'
-
-const currencyFormatter = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-  minimumFractionDigits: 0,
-})
+import { formatMoney } from '@/lib/money/currency'
 
 interface ProjectTableRowProps {
   project: ProjectWithClient
@@ -41,7 +36,12 @@ export function ProjectTableRow({ project }: ProjectTableRowProps) {
       <TableCell>
         <StatusBadge status={project.status} />
       </TableCell>
-      <TableCell>{currencyFormatter.format(project.total)}</TableCell>
+      <TableCell>
+        {formatMoney(project.total, project.currency_code, {
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 0,
+        })}
+      </TableCell>
       <TableCell>
         {new Date(project.created_at).toLocaleDateString('en-US', {
           month: 'short',

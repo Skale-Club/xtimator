@@ -12,6 +12,7 @@ import type { EstimateInput, EstimateOutput, RefineEstimateInput } from '../type
 import { getIntegrationKey } from '@/lib/platform-config'
 import { buildSystemPrompt, buildUserContent } from '../prompt-builder'
 import { normalizeOutput } from '../normalize'
+import { formatMoney, normalizeCurrencyCode } from '@/lib/money/currency'
 
 const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1'
 
@@ -92,21 +93,23 @@ export class OpenRouterAdapter implements AIProvider {
   }
 
   async refineEstimate(input: RefineEstimateInput): Promise<EstimateOutput> {
+    const currencyCode = normalizeCurrencyCode(input.currencyCode)
     const priceBookContext =
       input.priceBookItems.length > 0
         ? '## Company Price Book\n' +
           input.priceBookItems
             .map(
               (item) =>
-                `- ${item.folder_name ?? 'Uncategorized'} | ${item.name} | $${item.unit_price.toFixed(
-                  2
+                `- ${item.folder_name ?? 'Uncategorized'} | ${item.name} | ${formatMoney(
+                  item.unit_price,
+                  item.currency_code ?? currencyCode
                 )}/${item.unit ?? 'each'}`
             )
             .join('\n')
         : 'No company price book configured.'
 
     const system =
-      'You are a professional estimator. Your task is to update an existing estimate based on a refinement instruction. Modify, add, or remove sections/items as needed to reflect the user\'s request. Keep everything else unchanged. Preserve the price_source tagging: use "price_book" for items from the price book, "ai_estimate" for items you estimate from market rates.'
+      `You are a professional estimator. Your task is to update an existing estimate based on a refinement instruction. Modify, add, or remove sections/items as needed to reflect the user's request. Keep everything else unchanged. Use ${currencyCode} for all numeric prices and return monetary values as plain numbers only, without currency symbols or formatted strings. Preserve the price_source tagging: use "price_book" for items from the price book, "ai_estimate" for items you estimate from market rates.`
 
     const user = `${priceBookContext}
 

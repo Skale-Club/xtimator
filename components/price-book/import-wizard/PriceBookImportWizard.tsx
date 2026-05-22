@@ -61,9 +61,10 @@ const STEP_TITLES: Record<WizardStep, { title: string; description: string }> = 
 export interface PriceBookImportWizardProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  currencyCode: string
 }
 
-export function PriceBookImportWizard({ open, onOpenChange }: PriceBookImportWizardProps) {
+export function PriceBookImportWizard({ open, onOpenChange, currencyCode }: PriceBookImportWizardProps) {
   const { t } = useTranslation()
   const [state, dispatch] = useReducer(wizardReducer, initialWizardState)
   const [showCloseConfirm, setShowCloseConfirm] = useState(false)
@@ -81,8 +82,10 @@ export function PriceBookImportWizard({ open, onOpenChange }: PriceBookImportWiz
       const restored = deserializeDraft(json)
       if (restored) {
         dispatch({ type: 'RESTORE_DRAFT', draft: restored })
-        setDraftRestoredAt(new Date(restored.savedAt).getTime())
-        setDraftAlertDismissed(false)
+        queueMicrotask(() => {
+          setDraftRestoredAt(new Date(restored.savedAt).getTime())
+          setDraftAlertDismissed(false)
+        })
       }
     } catch {
       // sessionStorage may be unavailable (Safari private, SSR) — ignore.
@@ -221,7 +224,12 @@ export function PriceBookImportWizard({ open, onOpenChange }: PriceBookImportWiz
               <Step2Map state={state} dispatch={dispatch} onCancel={handleClose} />
             )}
             {state.step === 'preview' && (
-              <Step3Preview state={state} dispatch={dispatch} onCancel={handleClose} />
+              <Step3Preview
+                state={state}
+                dispatch={dispatch}
+                onCancel={handleClose}
+                currencyCode={currencyCode}
+              />
             )}
             {state.step === 'confirm' && (
               <Step4Confirm

@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
 import { redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
+import { DEFAULT_CURRENCY_CODE, normalizeCurrencyCode } from '@/lib/money/currency'
 
 interface CompanyFormData {
   companyName?: string
@@ -26,6 +27,7 @@ interface CompanyFormData {
   defaultValidityDays?: number
   logoUrl?: string
   language?: string
+  currencyCode?: string
 }
 
 export async function createOrUpdateCompany(data: CompanyFormData) {
@@ -62,6 +64,7 @@ export async function createOrUpdateCompany(data: CompanyFormData) {
     default_warranty_terms: data.defaultWarrantyTerms || '1 year',
     default_validity_days: data.defaultValidityDays ?? 30,
     default_estimate_language: data.language && data.language !== 'en' ? data.language : null,
+    currency_code: normalizeCurrencyCode(data.currencyCode ?? DEFAULT_CURRENCY_CODE),
   }
 
   // SELECT-then-INSERT/UPDATE pattern (Pitfall 6: no UNIQUE constraint on user_id)

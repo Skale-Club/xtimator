@@ -164,6 +164,7 @@ export type Database = {
           brand_primary_color: string | null
           city: string | null
           created_at: string
+          currency_code: string
           custom_domain: string | null
           default_estimate_language: string | null
           default_payment_terms: string | null
@@ -215,6 +216,7 @@ export type Database = {
           brand_primary_color?: string | null
           city?: string | null
           created_at?: string
+          currency_code?: string
           custom_domain?: string | null
           default_estimate_language?: string | null
           default_payment_terms?: string | null
@@ -266,6 +268,7 @@ export type Database = {
           brand_primary_color?: string | null
           city?: string | null
           created_at?: string
+          currency_code?: string
           custom_domain?: string | null
           default_estimate_language?: string | null
           default_payment_terms?: string | null
@@ -317,6 +320,7 @@ export type Database = {
         Row: {
           company_id: string
           created_at: string
+          currency_code: string
           folder_id: string | null
           id: string
           image_url: string | null
@@ -328,6 +332,7 @@ export type Database = {
         Insert: {
           company_id: string
           created_at?: string
+          currency_code?: string
           folder_id?: string | null
           id?: string
           image_url?: string | null
@@ -339,6 +344,7 @@ export type Database = {
         Update: {
           company_id?: string
           created_at?: string
+          currency_code?: string
           folder_id?: string | null
           id?: string
           image_url?: string | null
@@ -684,6 +690,7 @@ export type Database = {
           client_response: string | null
           company_id: string
           created_at: string
+          currency_code: string
           discount_amount: number | null
           discount_type: string | null
           discount_value: number | null
@@ -717,6 +724,7 @@ export type Database = {
           client_response?: string | null
           company_id: string
           created_at?: string
+          currency_code?: string
           discount_amount?: number | null
           discount_type?: string | null
           discount_value?: number | null
@@ -750,6 +758,7 @@ export type Database = {
           client_response?: string | null
           company_id?: string
           created_at?: string
+          currency_code?: string
           discount_amount?: number | null
           discount_type?: string | null
           discount_value?: number | null

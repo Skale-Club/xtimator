@@ -12,13 +12,8 @@ import {
 import type { EstimateEditorState, EstimateAction } from './use-estimate-reducer'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { ContextualTooltip, TOOLTIP_KEYS } from '@/components/tour/contextual-tooltip'
-
-function formatCurrency(value: number): string {
-  return value.toLocaleString('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })
-}
+import { MoneyInput } from '@/components/ui/money-input'
+import { formatMoney } from '@/lib/money/currency'
 
 interface EstimateTotalsProps {
   state: EstimateEditorState
@@ -37,7 +32,7 @@ export function EstimateTotals({ state, dispatch, isReadOnly }: EstimateTotalsPr
         {/* Subtotal */}
         <div className="flex items-center justify-between text-sm">
           <span className="text-muted-foreground">{t('Subtotal')}</span>
-          <span className="font-medium tabular-nums">${formatCurrency(state.subtotal)}</span>
+          <span className="font-medium tabular-nums">{formatMoney(state.subtotal, state.currency_code)}</span>
         </div>
 
         {/* Discount */}
@@ -67,30 +62,46 @@ export function EstimateTotals({ state, dispatch, isReadOnly }: EstimateTotalsPr
             </Select>
             {state.discount_type && (
               <div className="relative">
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={state.discount_value}
-                  onChange={(e) =>
-                    dispatch({
-                      type: 'UPDATE_DISCOUNT',
-                      discount_type: state.discount_type,
-                      discount_value: parseFloat(e.target.value) || 0,
-                    })
-                  }
-                  className="h-8 w-20 text-right text-xs"
-                  disabled={isReadOnly}
-                />
-                {state.discount_type === 'percentage' && (
-                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">%</span>
+                {state.discount_type === 'fixed' ? (
+                  <MoneyInput
+                    value={state.discount_value}
+                    currencyCode={state.currency_code}
+                    onValueChange={(value) =>
+                      dispatch({
+                        type: 'UPDATE_DISCOUNT',
+                        discount_type: state.discount_type,
+                        discount_value: value,
+                      })
+                    }
+                    className="h-8 w-24 text-xs"
+                    disabled={isReadOnly}
+                  />
+                ) : (
+                  <>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={state.discount_value}
+                      onChange={(e) =>
+                        dispatch({
+                          type: 'UPDATE_DISCOUNT',
+                          discount_type: state.discount_type,
+                          discount_value: parseFloat(e.target.value) || 0,
+                        })
+                      }
+                      className="h-8 w-20 text-right text-xs"
+                      disabled={isReadOnly}
+                    />
+                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">%</span>
+                  </>
                 )}
               </div>
             )}
           </div>
           {state.discount_amount > 0 && (
             <span className="font-medium tabular-nums text-destructive">
-              -${formatCurrency(state.discount_amount)}
+              -{formatMoney(state.discount_amount, state.currency_code)}
             </span>
           )}
         </div>
@@ -115,7 +126,7 @@ export function EstimateTotals({ state, dispatch, isReadOnly }: EstimateTotalsPr
               <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">%</span>
             </div>
           </div>
-          <span className="font-medium tabular-nums">${formatCurrency(state.tax_amount)}</span>
+          <span className="font-medium tabular-nums">{formatMoney(state.tax_amount, state.currency_code)}</span>
         </div>
 
         {/* Divider */}
@@ -130,7 +141,7 @@ export function EstimateTotals({ state, dispatch, isReadOnly }: EstimateTotalsPr
           >
             <span className="text-base font-semibold">{t('Grand Total')}</span>
           </ContextualTooltip>
-          <span className="font-mono text-xl font-semibold tabular-nums">${formatCurrency(state.total)}</span>
+          <span className="font-mono text-xl font-semibold tabular-nums">{formatMoney(state.total, state.currency_code)}</span>
         </div>
       </div>
     </div>

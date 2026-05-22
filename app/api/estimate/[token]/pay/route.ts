@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { getStripeClient } from '@/lib/billing/stripe-client'
+import { normalizeCurrencyCode } from '@/lib/money/currency'
 import { getEstimateByShareToken } from '@/lib/queries/share'
 import { requireServiceClient } from '@/lib/supabase/service'
 
@@ -65,6 +66,7 @@ export async function POST(
 
   const origin = new URL(req.url).origin
   const stripe = await getStripeClient()
+  const currencyCode = normalizeCurrencyCode(estimate.currency_code)
 
   const session = await stripe.checkout.sessions.create(
     {
@@ -72,7 +74,7 @@ export async function POST(
       line_items: [
         {
           price_data: {
-            currency: 'usd',
+            currency: currencyCode.toLowerCase(),
             product_data: {
               name: estimate.project?.name ?? 'Service estimate',
             },

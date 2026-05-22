@@ -1,14 +1,18 @@
 // lib/ai/prompt-builder.ts
 import type { EstimateInput } from './types'
+import { formatMoney, normalizeCurrencyCode } from '@/lib/money/currency'
 
 const LANGUAGE_INSTRUCTIONS: Record<'en' | 'pt' | 'es', string> = {
-  en: 'Generate ALL text fields (summary, notes, timeline, payment_terms, warranty_terms, section titles, item descriptions, units) in English. Use US English conventions: $1,500.00 for currency, MM/DD/YYYY for dates.',
-  pt: 'Generate ALL text fields (summary, notes, timeline, payment_terms, warranty_terms, section titles, item descriptions, units) in Brazilian Portuguese (PT-BR). Use Brazilian conventions: "R$ 1.500,00" style currency, DD/MM/YYYY for dates. Translate units appropriately (e.g., "sq ft" → "m²" when relevant, "hours" → "horas"). suggested_project_name should also be in Portuguese.',
-  es: 'Generate ALL text fields (summary, notes, timeline, payment_terms, warranty_terms, section titles, item descriptions, units) in Latin American Spanish. Use Latin American conventions: "$1,500.00" style currency, DD/MM/YYYY for dates. Translate units appropriately (e.g., "hours" → "horas"). suggested_project_name should also be in Spanish.',
+  en: 'Generate ALL text fields (summary, notes, timeline, payment_terms, warranty_terms, section titles, item descriptions, units) in English. Use US English conventions for dates: MM/DD/YYYY.',
+  pt: 'Generate ALL text fields (summary, notes, timeline, payment_terms, warranty_terms, section titles, item descriptions, units) in Brazilian Portuguese (PT-BR). Use Brazilian conventions for dates: DD/MM/YYYY. Translate units appropriately (e.g., "sq ft" to "m2" when relevant, "hours" to "horas"). suggested_project_name should also be in Portuguese.',
+  es: 'Generate ALL text fields (summary, notes, timeline, payment_terms, warranty_terms, section titles, item descriptions, units) in Latin American Spanish. Use Latin American conventions for dates: DD/MM/YYYY. Translate units appropriately (e.g., "hours" to "horas"). suggested_project_name should also be in Spanish.',
 }
 
 export function buildSystemPrompt(input: EstimateInput): string {
+  const currencyCode = normalizeCurrencyCode(input.currencyCode)
   let prompt = `You are a professional estimator for a ${input.industry ?? 'general services'} business. Create a detailed, itemized estimate based on the job site information provided. Be thorough but realistic with pricing for the US market. Break the work into logical sections (e.g., Materials, Labor, Equipment). Each line item needs a clear description, quantity, unit (e.g., sq ft, hours, each, linear ft), and unit price.
+
+Use ${currencyCode} for all numeric prices. Return monetary values as plain numbers only, without currency symbols or formatted strings.
 
 Also generate a short, professional project name in 2-5 words derived from the work scope and the client name. Examples: "Smith Bathroom Remodel", "Garcia Driveway Repaving". Return it as suggested_project_name.`
 
@@ -19,7 +23,7 @@ Also generate a short, professional project name in 2-5 words derived from the w
   if (input.priceBookItems.length > 0) {
     prompt += `\n\n## Your Company Price Book\nWhen a work item closely matches an entry below, use that exact unit_price and set price_source to "price_book". For all other items, estimate from US market rates and set price_source to "ai_estimate".\n\n`
     prompt += input.priceBookItems
-      .map(item => `- ${item.folder_name ?? 'Uncategorized'} | ${item.name} | $${item.unit_price.toFixed(2)}/${item.unit ?? 'each'}`)
+      .map(item => `- ${item.folder_name ?? 'Uncategorized'} | ${item.name} | ${formatMoney(item.unit_price, item.currency_code ?? currencyCode)}/${item.unit ?? 'each'}`)
       .join('\n')
   } else {
     prompt += `\n\nFor each line item, set price_source to "ai_estimate" (no company price book configured).`
@@ -33,7 +37,7 @@ export function buildUserContent(input: EstimateInput): string {
 
   let projectInfo = `## Project Information\nName: ${input.projectName}\nType: ${input.projectType ?? 'General'}`
   if (input.targetBudget) {
-    projectInfo += `\nTarget Budget: $${input.targetBudget}`
+    projectInfo += `\nTarget Budget: ${formatMoney(input.targetBudget, input.currencyCode)}`
   }
   if (input.clientName) {
     projectInfo += `\nClient: ${input.clientName}`

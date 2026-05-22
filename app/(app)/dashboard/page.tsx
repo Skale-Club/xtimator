@@ -45,7 +45,7 @@ export default async function DashboardPage() {
       </section>
 
       <Suspense fallback={<StatCardsSkeleton />}>
-        <DashboardStats companyId={company.id} />
+          <DashboardStats companyId={company.id} currencyCode={company.currency_code} />
       </Suspense>
 
       <section className="px-6 mt-12">
@@ -60,10 +60,10 @@ export default async function DashboardPage() {
   )
 }
 
-async function DashboardStats({ companyId }: { companyId: string }) {
+async function DashboardStats({ companyId, currencyCode }: { companyId: string; currencyCode: string }) {
   const supabase = await createClient()
   const stats = await getDashboardStats(supabase, companyId)
-  return <StatCards stats={stats} />
+  return <StatCards stats={stats} currencyCode={currencyCode} />
 }
 
 async function DashboardProjects({ companyId }: { companyId: string }) {

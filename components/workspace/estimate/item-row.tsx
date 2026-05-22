@@ -4,14 +4,9 @@ import { GripVertical, Trash2, CheckCircle2, Zap } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { MoneyInput } from '@/components/ui/money-input'
+import { DEFAULT_CURRENCY_CODE, formatMoney } from '@/lib/money/currency'
 import type { EditorItem } from './use-estimate-reducer'
-
-function formatCurrency(value: number): string {
-  return value.toLocaleString('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })
-}
 
 interface ItemRowProps {
   item: EditorItem
@@ -20,9 +15,17 @@ interface ItemRowProps {
   onRemove: () => void
   dragHandleProps?: Record<string, unknown>
   isReadOnly?: boolean
+  currencyCode?: string
 }
 
-export function ItemRow({ item, onUpdate, onRemove, dragHandleProps, isReadOnly }: ItemRowProps) {
+export function ItemRow({
+  item,
+  onUpdate,
+  onRemove,
+  dragHandleProps,
+  isReadOnly,
+  currencyCode = DEFAULT_CURRENCY_CODE,
+}: ItemRowProps) {
   return (
     <tr className="group border-b last:border-b-0">
       <td className="py-1.5 px-1 w-8">
@@ -65,18 +68,13 @@ export function ItemRow({ item, onUpdate, onRemove, dragHandleProps, isReadOnly 
         />
       </td>
       <td className="py-1.5 px-1 w-28">
-        <div className="relative">
-          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
-          <Input
-            type="number"
-            step="0.01"
-            min="0"
-            value={item.unit_price}
-            onChange={(e) => onUpdate('unit_price', parseFloat(e.target.value) || 0)}
-            className="h-9 w-full pl-6 text-right"
-            disabled={isReadOnly}
-          />
-        </div>
+        <MoneyInput
+          value={item.unit_price}
+          currencyCode={currencyCode}
+          onValueChange={(value) => onUpdate('unit_price', value)}
+          className="h-9"
+          disabled={isReadOnly}
+        />
       </td>
       <td className="py-1.5 px-1 w-28">
         {item.isManuallyEdited ? (
@@ -92,7 +90,7 @@ export function ItemRow({ item, onUpdate, onRemove, dragHandleProps, isReadOnly 
         ) : null}
       </td>
       <td className="py-1.5 px-1 w-28 text-right text-sm font-medium tabular-nums">
-        ${formatCurrency(item.total)}
+        {formatMoney(item.total, currencyCode)}
       </td>
       <td className="py-1.5 px-1 w-10">
         {!isReadOnly && (

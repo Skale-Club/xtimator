@@ -17,6 +17,7 @@ export interface CompanySettings {
   industry: string | null
   brand_primary_color: string | null
   logo_url: string | null
+  currency_code: string
   default_tax_rate: number
   default_payment_terms: string | null
   default_warranty_terms: string | null

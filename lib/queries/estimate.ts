@@ -4,6 +4,7 @@ export interface Estimate {
   id: string
   project_id: string
   company_id: string
+  currency_code?: string
   version: number
   is_current: boolean
   share_token: string
