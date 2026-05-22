@@ -52,12 +52,13 @@ export async function updateCompanySettings(formData: FormData) {
   const logoFile = formData.get('logo') as File | null
   if (logoFile && logoFile.size > 0) {
     const ext = logoFile.name.split('.').pop() ?? 'png'
-    const storagePath = `${claims.sub}/logo.${ext}`
+    const storagePath = `${company.id}/logo.${ext}`
 
     const storage = createStorage(supabase)
     try {
       await storage.upload('logos', storagePath, logoFile, { upsert: true })
-    } catch {
+    } catch (err) {
+      console.error('[settings] logo upload error:', err)
       return { error: 'Failed to upload logo. Please try again.' }
     }
 
