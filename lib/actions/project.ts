@@ -196,3 +196,112 @@ export async function renameProjectAction(projectId: string, name: string) {
   revalidatePath('/', 'layout')
   return { data: { renamed: true } }
 }
+
+// ---------------------------------------------------------------------------
+// Quick task 260522-lhp (QUICK-LHP-BE-01) — Two-stage trash + archive actions.
+//
+// RLS already enforces company scope for both UPDATE and DELETE on `projects`
+// (lines 192-196 of 20260409000001_initial_schema.sql). The actions only
+// need to invoke `getAuthContext()` (so the unauthenticated path returns a
+// clean error) and let RLS handle the per-row check via the WHERE clause
+// `.eq('id', projectId)` — if the project isn't in the user's company, RLS
+// returns zero rows affected.
+// ---------------------------------------------------------------------------
+
+export async function archiveProjectAction(projectId: string) {
+  const ctx = await getAuthContext()
+  if ('error' in ctx) return { error: ctx.error }
+  const { supabase } = ctx
+
+  // Setting archived_at moves the row from Active → Archived.
+  // We do NOT touch deleted_at — archiving a trashed project shouldn't undelete it
+  // (UI prevents this anyway by only showing Archive on Active rows).
+  const { error } = await supabase
+    .from('projects')
+    .update({ archived_at: new Date().toISOString() })
+    .eq('id', projectId)
+    .is('deleted_at', null) // defense-in-depth: don't archive a trashed project
+
+  if (error) return { error: 'Failed to archive project. Please try again.' }
+  revalidatePath('/projects')
+  revalidatePath('/dashboard')
+  revalidatePath('/', 'layout')
+  return { data: { archived: true } }
+}
+
+export async function unarchiveProjectAction(projectId: string) {
+  const ctx = await getAuthContext()
+  if ('error' in ctx) return { error: ctx.error }
+  const { supabase } = ctx
+
+  const { error } = await supabase
+    .from('projects')
+    .update({ archived_at: null })
+    .eq('id', projectId)
+    .is('deleted_at', null)
+
+  if (error) return { error: 'Failed to unarchive project. Please try again.' }
+  revalidatePath('/projects')
+  revalidatePath('/dashboard')
+  revalidatePath('/', 'layout')
+  return { data: { unarchived: true } }
+}
+
+export async function softDeleteProjectAction(projectId: string) {
+  const ctx = await getAuthContext()
+  if ('error' in ctx) return { error: ctx.error }
+  const { supabase } = ctx
+
+  // Soft delete: sets deleted_at. Row hides from Active AND Archived; appears in Trash.
+  // We do NOT clear archived_at — restoring later should bring it back to wherever it was.
+  const { error } = await supabase
+    .from('projects')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', projectId)
+
+  if (error) return { error: 'Failed to delete project. Please try again.' }
+  revalidatePath('/projects')
+  revalidatePath('/dashboard')
+  revalidatePath('/', 'layout')
+  return { data: { soft_deleted: true } }
+}
+
+export async function restoreProjectAction(projectId: string) {
+  const ctx = await getAuthContext()
+  if ('error' in ctx) return { error: ctx.error }
+  const { supabase } = ctx
+
+  // Restore = clear deleted_at. archived_at is preserved (intentional — see softDelete above).
+  // If the row was archived before deletion, it returns to Archived; otherwise to Active.
+  const { error } = await supabase
+    .from('projects')
+    .update({ deleted_at: null })
+    .eq('id', projectId)
+
+  if (error) return { error: 'Failed to restore project. Please try again.' }
+  revalidatePath('/projects')
+  revalidatePath('/dashboard')
+  revalidatePath('/', 'layout')
+  return { data: { restored: true } }
+}
+
+export async function hardDeleteProjectAction(projectId: string) {
+  const ctx = await getAuthContext()
+  if ('error' in ctx) return { error: ctx.error }
+  const { supabase } = ctx
+
+  // Hard delete: cascades to recordings/photos/estimates/sections/items/activity per FK ON DELETE CASCADE.
+  // Only valid for rows that are already in Trash (deleted_at IS NOT NULL) — defense-in-depth filter.
+  // UI gates this behind an AlertDialog (project-row-actions.tsx).
+  const { error } = await supabase
+    .from('projects')
+    .delete()
+    .eq('id', projectId)
+    .not('deleted_at', 'is', null)
+
+  if (error) return { error: 'Failed to permanently delete project. Please try again.' }
+  revalidatePath('/projects')
+  revalidatePath('/dashboard')
+  revalidatePath('/', 'layout')
+  return { data: { hard_deleted: true } }
+}
