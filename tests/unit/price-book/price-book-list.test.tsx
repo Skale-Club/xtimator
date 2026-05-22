@@ -118,9 +118,11 @@ describe('PriceBookList', () => {
 
   it('items in same folder render in folder section', () => {
     render(<PriceBookList items={mockItems} folders={mockFolders} companyId="c1" />)
-    expect(screen.getByText('General Labor')).toBeDefined()
-    expect(screen.getByText('Supervisor')).toBeDefined()
-    expect(screen.getByText('PVC Pipe 2in')).toBeDefined()
+    // Item names render in both desktop Table and mobile Card list (responsive split),
+    // so use getAllByText to tolerate the duplicated DOM (same pattern as client-list.test.tsx).
+    expect(screen.getAllByText('General Labor').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Supervisor').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('PVC Pipe 2in').length).toBeGreaterThan(0)
   })
 
   it('search filters items by name', () => {
@@ -128,7 +130,7 @@ describe('PriceBookList', () => {
     const searchInput = screen.getByPlaceholderText('Search items...')
     fireEvent.change(searchInput, { target: { value: 'PVC' } })
 
-    expect(screen.getByText('PVC Pipe 2in')).toBeDefined()
+    expect(screen.getAllByText('PVC Pipe 2in').length).toBeGreaterThan(0)
     expect(screen.queryByText('General Labor')).toBeNull()
     expect(screen.queryByText('Supervisor')).toBeNull()
   })
@@ -138,8 +140,8 @@ describe('PriceBookList', () => {
     const searchInput = screen.getByPlaceholderText('Search items...')
     fireEvent.change(searchInput, { target: { value: 'Labor' } })
 
-    expect(screen.getByText('General Labor')).toBeDefined()
-    expect(screen.getByText('Supervisor')).toBeDefined()
+    expect(screen.getAllByText('General Labor').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Supervisor').length).toBeGreaterThan(0)
     expect(screen.queryByText('PVC Pipe 2in')).toBeNull()
   })
 
