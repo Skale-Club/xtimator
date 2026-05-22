@@ -11,8 +11,8 @@ export async function LandingFooter() {
         <div className="grid gap-12 md:grid-cols-4 lg:gap-8">
           <div className="md:col-span-2">
             <Link href="/" className="inline-flex items-center gap-2.5 transition-opacity hover:opacity-80">
-              <AppIcon logoUrl={branding.logoUrl} appName={branding.appName} className="h-8 w-8" />
-              <span className="text-xl font-bold tracking-tight">{branding.appName}</span>
+              <AppIcon logoUrl={branding.logoUrl} appName={branding.appName} className="h-6 w-6" />
+              <span className="text-lg font-bold tracking-tight">{branding.appName}</span>
             </Link>
             <p className="mt-6 max-w-xs text-sm leading-relaxed text-muted-foreground">
               AI-powered estimates for service businesses that quote on site. Built for speed, designed for pros.
