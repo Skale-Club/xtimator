@@ -25,7 +25,7 @@ progress:
 Phase: Not started (defining requirements)
 Plan: —
 Status: Defining requirements
-Last activity: 2026-05-22 — Completed quick task 260522-gnx: Phone input internacional com bandeira + formatação no PDF
+Last activity: 2026-05-22 — Completed quick task 260522-j00: Fix logo upload RLS path (claims.sub -> company.id) + surface catch error
 
 ## v3.1.1 Phases
 
@@ -643,6 +643,7 @@ v3.1: Phases 61-65 (started 2026-05-15). Production Go-Live — 27 requirements 
 | 260521-lwb | Fix `<table>` cannot contain a nested `<div>` hydration error (lift DndContext outside table in SectionCard) | 2026-05-21 | 3dd3e57 | [260521-lwb-fix-table-div-hydration-error-in-section](.planning/quick/260521-lwb-fix-table-div-hydration-error-in-section/) |
 | 260521-nkp | Always show Consolidate on current drafts in EstimateFloatingActions (Save Draft/Discard disabled when clean) | 2026-05-21 | cced5d1 | [260521-nkp-sempre-mostrar-consolidate-em-drafts-no-](.planning/quick/260521-nkp-sempre-mostrar-consolidate-em-drafts-no-/) |
 | 260522-gnx | Phone input internacional com bandeira + formatação no PDF | 2026-05-22 | d0b514f | [260522-gnx-phone-input-internacional-com-bandeira-f](.planning/quick/260522-gnx-phone-input-internacional-com-bandeira-f/) |
+| 260522-j00 | Fix logo upload RLS path (claims.sub -> company.id) + surface catch error | 2026-05-22 | 97748fa | [260522-j00-fix-logo-upload-rls-path-claims-sub-comp](.planning/quick/260522-j00-fix-logo-upload-rls-path-claims-sub-comp/) |
 | 2026-05-18 | fast | Center auth card logo+wordmark | done |
 | 2026-05-19 | fast | Make audio capture screen scrollable on smaller viewports | done |
 | 2026-05-18 | fast | Restyle sidebar New Project as filled gradient, remove dashboard CTA | done |
