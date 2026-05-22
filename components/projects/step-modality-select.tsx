@@ -43,7 +43,7 @@ export function StepModalitySelect({ form }: StepModalitySelectProps) {
         Select the input method that works best for this project.
       </p>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 pt-2">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4 pt-2">
         {MODALITIES.map(({ value, label, description, icon: Icon }) => {
           const isSelected = selectedMode === value
           return (
@@ -52,25 +52,25 @@ export function StepModalitySelect({ form }: StepModalitySelectProps) {
               type="button"
               onClick={() => form.setValue('inputMode', value, { shouldValidate: true })}
               className={cn(
-                'flex flex-row sm:flex-col items-center justify-start sm:justify-center gap-4 sm:gap-3 p-4 sm:p-6 rounded-lg border-2 transition-all cursor-pointer text-left sm:text-center',
+                'flex flex-row sm:flex-col items-center justify-start sm:justify-center gap-3 sm:gap-3 px-3 py-2.5 sm:p-6 rounded-lg border sm:border-2 transition-all cursor-pointer text-left sm:text-center',
                 'hover:border-primary/50 hover:bg-primary/5',
                 'sm:min-h-[160px]',
                 isSelected
-                  ? 'border-primary bg-primary/10 ring-2 ring-primary/20'
+                  ? 'border-primary bg-primary/10 sm:ring-2 sm:ring-primary/20'
                   : 'border-muted bg-card'
               )}
             >
               <Icon
                 className={cn(
-                  'h-7 w-7 sm:h-10 sm:w-10 shrink-0 transition-colors',
+                  'h-5 w-5 sm:h-10 sm:w-10 shrink-0 transition-colors',
                   isSelected ? 'text-primary' : 'text-muted-foreground'
                 )}
               />
-              <div className="space-y-0.5 sm:space-y-1">
-                <p className={cn('font-semibold text-sm sm:text-base', isSelected && 'text-primary')}>
+              <div className="min-w-0 flex-1 sm:flex-none space-y-0 sm:space-y-1">
+                <p className={cn('font-medium sm:font-semibold text-sm sm:text-base leading-tight', isSelected && 'text-primary')}>
                   {label}
                 </p>
-                <p className="text-xs sm:text-sm text-muted-foreground">{description}</p>
+                <p className="text-xs sm:text-sm text-muted-foreground leading-tight truncate">{description}</p>
               </div>
             </button>
           )
