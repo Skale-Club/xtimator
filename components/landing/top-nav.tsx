@@ -1,7 +1,7 @@
 import Link from 'next/link'
-import { Button } from '@/components/ui/button'
 import { AppIcon } from '@/components/ui/app-icon'
 import { getBranding } from '@/lib/platform-config'
+import { TopNavAuth } from '@/components/landing/top-nav-auth'
 
 export async function TopNav() {
   const branding = await getBranding()
@@ -14,19 +14,7 @@ export async function TopNav() {
           <span className="text-lg font-bold tracking-tight text-foreground">{branding.appName}</span>
         </Link>
         <nav className="flex items-center gap-4">
-          <Link
-            href="/login"
-            className="hidden text-sm font-medium text-muted-foreground transition-colors hover:text-foreground sm:block"
-          >
-            Log in
-          </Link>
-          <Button
-            asChild
-            size="sm"
-            className="h-9 bg-primary text-primary-foreground shadow-[0_0_15px_hsl(var(--primary)/0.3)] hover:bg-primary/90"
-          >
-            <Link href="/signup">Start free</Link>
-          </Button>
+          <TopNavAuth branding={{ appName: branding.appName, logoUrl: branding.logoUrl }} />
         </nav>
       </div>
     </header>
