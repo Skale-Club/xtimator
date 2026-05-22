@@ -117,19 +117,19 @@ export function Sidebar({ branding }: SidebarProps) {
           collapsed ? 'justify-center gap-0 px-0' : 'gap-3 px-3',
         )}
       >
-        <div className="h-9 w-9 shrink-0 flex items-center justify-center">
+        <div className="h-8 w-8 shrink-0 flex items-center justify-center">
           {logoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={logoUrl} alt={branding.appName} className="h-9 w-9 object-contain" />
+            <img src={logoUrl} alt={branding.appName} className="h-8 w-8 object-contain" />
           ) : (
-            <span className="h-9 w-9 flex items-center justify-center rounded-[var(--radius-md)] bg-primary text-primary-foreground text-sm font-semibold">
+            <span className="h-8 w-8 flex items-center justify-center rounded-[var(--radius-md)] bg-primary text-primary-foreground text-sm font-semibold">
               {branding.appName.charAt(0).toUpperCase()}
             </span>
           )}
         </div>
         <span
           className={cn(
-            'truncate text-sm font-semibold transition-opacity duration-150',
+            'truncate text-base font-bold tracking-tight transition-opacity duration-150',
             collapsed ? 'opacity-0 w-0 pointer-events-none' : 'opacity-100',
           )}
         >

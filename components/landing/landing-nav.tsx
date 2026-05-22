@@ -2,16 +2,18 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { Menu, Zap } from 'lucide-react'
+import { Menu } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetTrigger, SheetContent, SheetClose } from '@/components/ui/sheet'
+import { AppIcon } from '@/components/ui/app-icon'
 import { cn } from '@/lib/utils'
 
 interface LandingNavProps {
   appName: string
+  logoUrl?: string | null
 }
 
-export function LandingNav({ appName }: LandingNavProps) {
+export function LandingNav({ appName, logoUrl }: LandingNavProps) {
   const [scrolled, setScrolled] = useState(false)
 
   useEffect(() => {
@@ -31,9 +33,9 @@ export function LandingNav({ appName }: LandingNavProps) {
     >
       <nav className="mx-auto w-full max-w-[1200px] px-6 flex items-center justify-between">
         {/* Logo + wordmark */}
-        <Link href="/" className="flex items-center gap-2 text-foreground hover:text-foreground/90 transition-colors">
-          <Zap className="h-5 w-5 text-primary" aria-hidden="true" />
-          <span className="font-bold text-[length:var(--font-size-xl)] tracking-[var(--tracking-tight)]">
+        <Link href="/" className="flex items-center gap-2.5 text-foreground hover:text-foreground/90 transition-colors">
+          <AppIcon logoUrl={logoUrl} appName={appName} className="h-8 w-8" />
+          <span className="font-bold text-xl tracking-tight">
             {appName}
           </span>
         </Link>

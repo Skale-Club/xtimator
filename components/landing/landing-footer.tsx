@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { AppIcon } from '@/components/ui/app-icon'
 import { getBranding } from '@/lib/platform-config'
 
 export async function LandingFooter() {
@@ -9,16 +10,9 @@ export async function LandingFooter() {
       <div className="mx-auto max-w-6xl px-6 sm:px-8 lg:px-10">
         <div className="grid gap-12 md:grid-cols-4 lg:gap-8">
           <div className="md:col-span-2">
-            <Link href="/" className="inline-flex items-center gap-2 transition-opacity hover:opacity-80">
-              {branding.logoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={branding.logoUrl} alt={branding.appName} className="size-8 object-contain" />
-              ) : (
-                <div className="flex size-8 items-center justify-center rounded-lg bg-primary font-bold text-primary-foreground shadow-[0_0_15px_hsl(var(--primary)/0.5)]">
-                  {branding.appName.charAt(0)}
-                </div>
-              )}
-              <span className="text-xl font-bold tracking-tight text-white">{branding.appName}</span>
+            <Link href="/" className="inline-flex items-center gap-2.5 transition-opacity hover:opacity-80">
+              <AppIcon logoUrl={branding.logoUrl} appName={branding.appName} className="h-8 w-8" />
+              <span className="text-xl font-bold tracking-tight">{branding.appName}</span>
             </Link>
             <p className="mt-6 max-w-xs text-sm leading-relaxed text-muted-foreground">
               AI-powered estimates for service businesses that quote on site. Built for speed, designed for pros.
