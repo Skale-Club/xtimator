@@ -38,13 +38,15 @@ export async function generateMetadata(): Promise<Metadata> {
     openGraph: b.ogImageUrl
       ? { images: [b.ogImageUrl], siteName: b.siteTitle ?? b.appName }
       : undefined,
-    icons: {
-      icon: b.faviconUrl || b.logoUrl
-        ? [{ url: b.faviconUrl ?? b.logoUrl!, type: 'image/png' }]
-        : [{ url: '/icons/icon-192.png', type: 'image/png' }],
-      apple: [{ url: b.faviconUrl ?? b.logoUrl ?? '/icons/icon-192.png', type: 'image/png' }],
-      shortcut: [{ url: '/icons/icon-192.png', type: 'image/png' }],
-    },
+    // When custom branding exists: use org's favicon/logo.
+    // Otherwise: omit icons so Next.js auto-serves app/icon.svg (branded, color-scheme aware)
+    // and app/apple-icon.png — no need to override with a PNG fallback.
+    icons: b.faviconUrl || b.logoUrl
+      ? {
+          icon: [{ url: b.faviconUrl ?? b.logoUrl!, type: 'image/png' }],
+          apple: [{ url: b.faviconUrl ?? b.logoUrl!, type: 'image/png' }],
+        }
+      : undefined,
   }
 }
 
