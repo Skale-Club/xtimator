@@ -5,6 +5,7 @@ import { requireServiceClient } from '@/lib/supabase/service'
 import { createStorage } from '@/lib/storage'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
 import { revalidatePath, revalidateTag } from 'next/cache'
+import { normalizeCurrencyCode } from '@/lib/money/currency'
 
 async function getAuthContext() {
   const supabase = await createClient()
@@ -44,6 +45,7 @@ export async function updateCompanySettings(formData: FormData) {
   const brandPrimaryColor = formData.get('brandPrimaryColor') as string | null
   const existingLogoUrl = formData.get('existingLogoUrl') as string | null
   const defaultEstimateLanguage = formData.get('defaultEstimateLanguage') as string | null
+  const currencyCode = normalizeCurrencyCode(formData.get('currencyCode'))
 
   // Handle logo upload
   let logoUrl = existingLogoUrl
@@ -79,6 +81,7 @@ export async function updateCompanySettings(formData: FormData) {
       industry: industry || null,
       brand_primary_color: brandPrimaryColor || SYSTEM_COLORS.primary,
       logo_url: logoUrl || null,
+      currency_code: currencyCode,
       default_estimate_language:
         defaultEstimateLanguage && defaultEstimateLanguage !== ''
           ? defaultEstimateLanguage
@@ -89,6 +92,11 @@ export async function updateCompanySettings(formData: FormData) {
   if (error) {
     return { error: 'Failed to save company settings. Please try again.' }
   }
+
+  await supabase
+    .from('company_price_book')
+    .update({ currency_code: currencyCode })
+    .eq('company_id', company.id)
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ;(revalidateTag as any)('company')

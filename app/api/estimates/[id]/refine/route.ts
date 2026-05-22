@@ -23,6 +23,7 @@ import { getPriceBookItems } from '@/lib/queries/price-book'
 import { getAIProvider, type RefineEstimateInput } from '@/lib/ai'
 import type { EstimateOutput, EstimateSectionOutput } from '@/lib/ai/types'
 import { transcribeAudioOR, analyzePhotoOR } from '@/lib/ai/openrouter-client'
+import { normalizeCurrencyCode } from '@/lib/money/currency'
 
 const MAX_PHOTOS = 5
 
@@ -206,7 +207,10 @@ export async function POST(
     // -------------------------------------------------------------------------
     // Call Claude refine with the unified instruction
     // -------------------------------------------------------------------------
-    const priceBookItems = await getPriceBookItems(supabase, companyId)
+    const currencyCode = normalizeCurrencyCode(estimate.currency_code)
+    const priceBookItems = (await getPriceBookItems(supabase, companyId)).filter(
+      (item) => normalizeCurrencyCode(item.currency_code) === currencyCode
+    )
 
     const existingEstimate: EstimateOutput = {
       suggested_project_name: estimate.summary ?? 'Estimate',
@@ -232,11 +236,13 @@ export async function POST(
     const refineInput: RefineEstimateInput = {
       existingEstimate,
       instruction: instructionText,
+      currencyCode,
       priceBookItems: priceBookItems.map((item) => ({
         folder_name: item.folder_name,
         name: item.name,
         unit: item.unit,
         unit_price: item.unit_price,
+        currency_code: item.currency_code,
       })),
     }
     const refined = await provider.refineEstimate(refineInput)

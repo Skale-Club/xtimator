@@ -20,7 +20,7 @@ async function getAuthContext() {
 
   const { data: company } = await supabase
     .from('companies')
-    .select('id')
+    .select('id, currency_code')
     .eq('user_id', claims.sub)
     .single()
 
@@ -126,6 +126,7 @@ export async function createPriceBookItem(
     .from('company_price_book')
     .insert({
       company_id: company.id,
+      currency_code: company.currency_code,
       folder_id: formData.folder_id ?? null,
       name: formData.name,
       unit: formData.unit || null,
@@ -293,6 +294,7 @@ export async function importPriceBookItems(
         name: r.name,
         unit: r.unit || null,
         unit_price: r.unit_price,
+        currency_code: company.currency_code,
         notes: r.notes || null,
       }))
     )
@@ -316,7 +318,7 @@ export async function bulkAdjustPriceBookFolder(
   // folderId === null means the "Uncategorized" bucket — items with NULL folder_id.
   let query = supabase
     .from('company_price_book')
-    .select('id, company_id, folder_id, name, unit, unit_price, notes')
+    .select('id, company_id, currency_code, folder_id, name, unit, unit_price, notes')
     .eq('company_id', company.id)
 
   query = folderId === null
@@ -331,11 +333,12 @@ export async function bulkAdjustPriceBookFolder(
 
   // D-04: Round to 2 decimal places (NUMERIC(12,2) in Postgres)
   const adjustedItems = (items as {
-    id: string; company_id: string; folder_id: string | null;
+    id: string; company_id: string; currency_code: string; folder_id: string | null;
     name: string; unit: string | null; unit_price: number; notes: string | null
   }[]).map((item) => ({
     id: item.id,
     company_id: item.company_id,
+    currency_code: item.currency_code,
     folder_id: item.folder_id,
     name: item.name,
     unit: item.unit,
@@ -518,6 +521,7 @@ export async function commitImportChunk(
     if (dedupe.toInsert.length > 0) {
       const payload = dedupe.toInsert.map((row) => ({
         company_id: company.id,
+        currency_code: company.currency_code,
         folder_id: row.folder_name ? folderMap.get(row.folder_name.toLowerCase()) ?? null : null,
         name: row.name,
         unit: row.unit || null,

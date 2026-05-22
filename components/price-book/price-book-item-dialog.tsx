@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useTransition } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useRouter } from 'next/navigation'
 import { ChevronsUpDown, ImageIcon } from 'lucide-react'
@@ -24,6 +24,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
+import { MoneyInput } from '@/components/ui/money-input'
 import {
   Popover,
   PopoverContent,
@@ -51,10 +52,7 @@ interface PriceBookItemDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   item: PriceBookItem | null
-  // companyId currently unused (server actions resolve company via auth context)
-  // but kept in the public surface for future per-company validation hooks.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  companyId: string
+  currencyCode: string
   folders: PriceBookFolder[]
 }
 
@@ -70,7 +68,7 @@ export function PriceBookItemDialog({
   open,
   onOpenChange,
   item,
-  companyId: _companyId,
+  currencyCode,
   folders,
 }: PriceBookItemDialogProps) {
   const router = useRouter()
@@ -81,7 +79,7 @@ export function PriceBookItemDialog({
   const isEditing = !!item
 
   const form = useForm<PriceBookItemFormValues>({
-    resolver: zodResolver(priceBookItemSchema) as any,
+    resolver: zodResolver(priceBookItemSchema) as Resolver<PriceBookItemFormValues>,
     defaultValues: EMPTY_FORM,
   })
 
@@ -99,8 +97,10 @@ export function PriceBookItemDialog({
     } else {
       form.reset(EMPTY_FORM)
     }
-    setImageFile(null)
-    setImagePreview(item?.image_url ?? null)
+    queueMicrotask(() => {
+      setImageFile(null)
+      setImagePreview(item?.image_url ?? null)
+    })
   }, [item, open, form])
 
   function onSubmit(values: PriceBookItemFormValues) {
@@ -231,17 +231,22 @@ export function PriceBookItemDialog({
                   <FormItem>
                     <FormLabel>Unit Price *</FormLabel>
                     <FormControl>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        placeholder="0.00"
-                        value={field.value ?? ''}
-                        onChange={(e) => field.onChange(e.target.value)}
-                        onBlur={field.onBlur}
-                        name={field.name}
-                        ref={field.ref}
-                      />
+                      <div>
+                        <input
+                          type="hidden"
+                          value={field.value ?? ''}
+                          readOnly
+                          name={field.name}
+                          ref={field.ref}
+                        />
+                        <MoneyInput
+                          value={field.value}
+                          currencyCode={item?.currency_code ?? currencyCode}
+                          onValueChange={field.onChange}
+                          onBlur={field.onBlur}
+                          placeholder="0.00"
+                        />
+                      </div>
                     </FormControl>
                     <FormMessage />
                   </FormItem>

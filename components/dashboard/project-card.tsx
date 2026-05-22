@@ -3,12 +3,7 @@ import type { ProjectWithClient } from '@/lib/queries/dashboard'
 import { StatusBadge } from '@/components/dashboard/status-badge'
 import { ProjectActions } from '@/components/dashboard/project-actions'
 import { Card, CardContent } from '@/components/ui/card'
-
-const currencyFormatter = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-  minimumFractionDigits: 0,
-})
+import { formatMoney } from '@/lib/money/currency'
 
 interface ProjectCardProps {
   project: ProjectWithClient
@@ -55,7 +50,10 @@ export function ProjectCard({ project }: ProjectCardProps) {
         <div className="flex items-center justify-between">
           <StatusBadge status={project.status} />
           <span className="font-semibold">
-            {currencyFormatter.format(project.total)}
+            {formatMoney(project.total, project.currency_code, {
+              minimumFractionDigits: 0,
+              maximumFractionDigits: 0,
+            })}
           </span>
         </div>
       </CardContent>

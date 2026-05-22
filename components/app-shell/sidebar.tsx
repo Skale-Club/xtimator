@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 import { PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { NAV_ITEMS } from './nav-items'
@@ -27,22 +27,26 @@ interface SidebarProps {
   }
 }
 
-const COLLAPSE_KEY = 'sidebar_collapsed'
+const COLLAPSE_KEY = 'sidebar_collapsed_desktop'
+const DESKTOP_SIDEBAR_QUERY = '(min-width: 768px)'
 
 function useIsOffline(): boolean {
-  const [offline, setOffline] = useState(false)
-  useEffect(() => {
-    setOffline(!navigator.onLine)
-    const onOnline  = () => setOffline(false)
-    const onOffline = () => setOffline(true)
-    window.addEventListener('online',  onOnline)
-    window.addEventListener('offline', onOffline)
-    return () => {
-      window.removeEventListener('online',  onOnline)
-      window.removeEventListener('offline', onOffline)
-    }
-  }, [])
-  return offline
+  return useSyncExternalStore(
+    (onStoreChange) => {
+      const onOnline = () => onStoreChange()
+      const onOffline = () => onStoreChange()
+
+      window.addEventListener('online', onOnline)
+      window.addEventListener('offline', onOffline)
+
+      return () => {
+        window.removeEventListener('online', onOnline)
+        window.removeEventListener('offline', onOffline)
+      }
+    },
+    () => !navigator.onLine,
+    () => false,
+  )
 }
 
 // Map from href to data-tour value — used by the guided spotlight tour (Phase 74)
@@ -53,7 +57,7 @@ const TOUR_TARGET: Record<string, string> = {
   '/price-book':   'price-book',
 }
 
-export function Sidebar({ branding, company: _company }: SidebarProps) {
+export function Sidebar({ branding }: SidebarProps) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -67,12 +71,25 @@ export function Sidebar({ branding, company: _company }: SidebarProps) {
   const logoUrl = branding.logoUrl
 
   const [collapsed, setCollapsed] = useState(false)
-  const [mounted, setMounted] = useState(false)
   const offline = useIsOffline()
 
   useEffect(() => {
-    setCollapsed(localStorage.getItem(COLLAPSE_KEY) === '1')
-    setMounted(true)
+    const mediaQuery = window.matchMedia(DESKTOP_SIDEBAR_QUERY)
+
+    function applyDefault() {
+      const saved = localStorage.getItem(COLLAPSE_KEY)
+      if (saved === '1' || saved === '0') {
+        setCollapsed(saved === '1')
+        return
+      }
+
+      setCollapsed(!mediaQuery.matches)
+    }
+
+    applyDefault()
+
+    mediaQuery.addEventListener('change', applyDefault)
+    return () => mediaQuery.removeEventListener('change', applyDefault)
   }, [])
 
   function toggle() {
@@ -90,8 +107,7 @@ export function Sidebar({ branding, company: _company }: SidebarProps) {
       style={{ borderTop: 0, borderBottom: 0, borderLeft: 0 }}
       className={cn(
         'hidden md:flex flex-col shrink-0 overflow-hidden transition-[width] duration-200 glass border-r border-[var(--glass-border)]',
-        // Before hydration show same width as server (64px) to avoid layout shift
-        mounted ? (collapsed ? 'w-16' : 'w-64') : 'w-16 lg:w-64',
+        collapsed ? 'w-16' : 'w-64',
       )}
     >
       {/* Product branding */}
@@ -162,6 +178,7 @@ export function Sidebar({ branding, company: _company }: SidebarProps) {
 
           const linkEl = item.modal ? (
             <button
+              key={item.href}
               type="button"
               data-tour={dataTour ?? undefined}
               className={linkClassName}
@@ -179,6 +196,7 @@ export function Sidebar({ branding, company: _company }: SidebarProps) {
             </button>
           ) : (
             <Link
+              key={item.href}
               href={item.href}
               data-tour={dataTour ?? undefined}
               data-active={isActive || undefined}
@@ -246,23 +264,7 @@ export function Sidebar({ branding, company: _company }: SidebarProps) {
               {linkEl}
             </ContextualTooltip>
           ) : (
-            <Link
-              key={item.href}
-              href={item.href}
-              data-tour={dataTour ?? undefined}
-              data-active={isActive || undefined}
-              className={linkClassName}
-            >
-              <Icon className="h-5 w-5 shrink-0" />
-              <span
-                className={cn(
-                  'truncate transition-opacity duration-150',
-                  collapsed ? 'opacity-0 w-0 overflow-hidden' : 'opacity-100',
-                )}
-              >
-                {t(item.label)}
-              </span>
-            </Link>
+            linkEl
           )
         })}
       </nav>

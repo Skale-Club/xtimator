@@ -39,6 +39,8 @@ interface ClientSheetProps {
   companyId: string
 }
 
+const LANGUAGE_NOT_SET_VALUE = '__language_not_set__'
+
 export function ClientSheet({
   open,
   onOpenChange,
@@ -52,7 +54,7 @@ export function ClientSheet({
   const isEditing = !!client
 
   const form = useForm<ClientFormValues>({
-    resolver: zodResolver(clientSchema) as any,
+    resolver: zodResolver(clientSchema),
     defaultValues: {
       name: '',
       email: '',
@@ -327,14 +329,19 @@ export function ClientSheet({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Preferred estimate language</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value ?? ''}>
+                  <Select
+                    onValueChange={(value) => {
+                      field.onChange(value === LANGUAGE_NOT_SET_VALUE ? '' : value)
+                    }}
+                    value={field.value || LANGUAGE_NOT_SET_VALUE}
+                  >
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Not set (follows company default)" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="">Not set (follows company default)</SelectItem>
+                      <SelectItem value={LANGUAGE_NOT_SET_VALUE}>Not set (follows company default)</SelectItem>
                       <SelectItem value="en">English</SelectItem>
                       <SelectItem value="pt">Português (Brazil)</SelectItem>
                       <SelectItem value="es">Español</SelectItem>

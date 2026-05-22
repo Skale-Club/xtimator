@@ -51,10 +51,12 @@ function SortableSectionCard({
   section,
   dispatch,
   isReadOnly,
+  currencyCode,
 }: {
   section: EstimateEditorState['sections'][number]
   dispatch: React.Dispatch<import('./use-estimate-reducer').EstimateAction>
   isReadOnly?: boolean
+  currencyCode: string
 }) {
   const {
     attributes,
@@ -78,6 +80,7 @@ function SortableSectionCard({
         dispatch={dispatch}
         dragHandleProps={listeners}
         isReadOnly={isReadOnly}
+        currencyCode={currencyCode}
       />
     </div>
   )
@@ -405,6 +408,7 @@ export function EstimateEditor({
                 section={section}
                 dispatch={dispatch}
                 isReadOnly={isReadOnly}
+                currencyCode={state.currency_code}
               />
             ))}
           </div>

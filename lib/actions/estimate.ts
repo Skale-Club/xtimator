@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { getEstimateById } from '@/lib/queries/estimate'
 import type { EstimateWithSections } from '@/lib/queries/estimate'
+import { DEFAULT_CURRENCY_CODE, normalizeCurrencyCode } from '@/lib/money/currency'
 
 // ---------------------------------------------------------------------------
 // Auth helper (same pattern as recording.ts)
@@ -17,7 +18,7 @@ async function getAuthContext() {
 
   const { data: company } = await supabase
     .from('companies')
-    .select('id, default_tax_rate, default_payment_terms, default_warranty_terms')
+    .select('id, currency_code, default_tax_rate, default_payment_terms, default_warranty_terms')
     .eq('user_id', claims.sub)
     .single()
 
@@ -336,6 +337,7 @@ export async function createBlankEstimate(projectId: string) {
     .insert({
       project_id: projectId,
       company_id: companyId,
+      currency_code: normalizeCurrencyCode(company.currency_code ?? DEFAULT_CURRENCY_CODE),
       version: nextVersion,
       is_current: true,
       status: 'draft',
@@ -742,6 +744,7 @@ export async function createNewDraftVersion(sourceEstimateId: string) {
     .insert({
       project_id: projectId,
       company_id: companyId,
+      currency_code: normalizeCurrencyCode(source.currency_code ?? company.currency_code),
       version: nextVersion,
       is_current: true,
       status: 'draft',

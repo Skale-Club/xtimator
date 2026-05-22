@@ -1,5 +1,6 @@
 import 'server-only'
 import { getIntegrationKey, getBranding } from '@/lib/platform-config'
+import { formatMinorUnits } from '@/lib/money/currency'
 
 /**
  * Plain-text branded payment notification emails for the Stripe Connect
@@ -17,15 +18,9 @@ import { getIntegrationKey, getBranding } from '@/lib/platform-config'
  * (see CONTEXT.md "Claude's Discretion").
  */
 
-function formatUSD(cents: number): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-  }).format(cents / 100)
-}
-
 export interface PaymentEmailContext {
   amountCents: number
+  currencyCode?: string | null
   projectName: string
   estimateShareUrl: string
   businessName: string
@@ -59,7 +54,7 @@ export async function sendPaymentReceivedEmail(
     const branding = await getBranding()
     const { Resend } = await import('resend')
     const resend = new Resend(key)
-    const amount = formatUSD(ctx.amountCents)
+    const amount = formatMinorUnits(ctx.amountCents, ctx.currencyCode)
     await resend.emails.send({
       from: `${branding.appName} <notifications@estimatebuilder.pro>`,
       to: ctx.businessEmail,
@@ -105,7 +100,7 @@ export async function sendPaymentReceiptEmail(
     await getBranding()
     const { Resend } = await import('resend')
     const resend = new Resend(key)
-    const amount = formatUSD(ctx.amountCents)
+    const amount = formatMinorUnits(ctx.amountCents, ctx.currencyCode)
     await resend.emails.send({
       from: `${ctx.businessName} <notifications@estimatebuilder.pro>`,
       to: ctx.customerEmail,

@@ -8,6 +8,7 @@ import { Download, Link2, Check } from 'lucide-react'
 import { toast } from 'sonner'
 import type { ComponentType } from 'react'
 import type { EstimateWithSections } from '@/lib/queries/estimate'
+import { formatCurrency } from '@/lib/utils/format'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { FlagUS, FlagBR, FlagES } from '@/components/app-shell/flags'
 import { LANGUAGE_LABELS, type EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
@@ -35,19 +36,11 @@ interface EstimatePreviewProps {
   companyName: string
 }
 
-function formatCurrency(value: number): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value)
-}
-
 export function EstimatePreview({ estimate, projectName, companyName }: EstimatePreviewProps) {
   const { t } = useTranslation()
   const [downloading, setDownloading] = useState(false)
   const [copied, setCopied] = useState(false)
+  const money = (value: number) => formatCurrency(value, estimate.currency_code)
 
   async function handleDownloadPdf() {
     setDownloading(true)
@@ -122,13 +115,13 @@ export function EstimatePreview({ estimate, projectName, companyName }: Estimate
                     )}
                   </span>
                   <span className="font-medium tabular-nums">
-                    {formatCurrency(item.total)}
+                    {money(item.total)}
                   </span>
                 </div>
               ))}
             </div>
             <div className="flex justify-end text-sm font-medium">
-              {t('Section:')} {formatCurrency(section.subtotal)}
+              {t('Section:')} {money(section.subtotal)}
             </div>
           </div>
         ))}
@@ -139,7 +132,7 @@ export function EstimatePreview({ estimate, projectName, companyName }: Estimate
         <div className="space-y-1 text-sm">
           <div className="flex justify-between">
             <span className="text-muted-foreground">{t('Subtotal')}</span>
-            <span className="tabular-nums">{formatCurrency(estimate.subtotal)}</span>
+            <span className="tabular-nums">{money(estimate.subtotal)}</span>
           </div>
           {estimate.discount_amount > 0 && (
             <div className="flex justify-between">
@@ -150,7 +143,7 @@ export function EstimatePreview({ estimate, projectName, companyName }: Estimate
                   : ''}
               </span>
               <span className="tabular-nums text-red-600">
-                -{formatCurrency(estimate.discount_amount)}
+                -{money(estimate.discount_amount)}
               </span>
             </div>
           )}
@@ -159,13 +152,13 @@ export function EstimatePreview({ estimate, projectName, companyName }: Estimate
               <span className="text-muted-foreground">
                 {t('Tax')} ({(estimate.tax_rate * 100).toFixed(1)}%)
               </span>
-              <span className="tabular-nums">{formatCurrency(estimate.tax_amount)}</span>
+              <span className="tabular-nums">{money(estimate.tax_amount)}</span>
             </div>
           )}
           <Separator />
           <div className="flex justify-between text-base font-bold">
             <span>{t('Total')}</span>
-            <span className="tabular-nums">{formatCurrency(estimate.total)}</span>
+            <span className="tabular-nums">{money(estimate.total)}</span>
           </div>
         </div>
 

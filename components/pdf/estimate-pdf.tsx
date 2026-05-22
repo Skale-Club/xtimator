@@ -8,6 +8,7 @@ import {
 } from '@react-pdf/renderer'
 import type { EstimateWithSections } from '@/lib/queries/estimate'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
+import { formatMoney } from '@/lib/money/currency'
 import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
 import { formatPhoneForDisplay } from '@/lib/phone/format'
 
@@ -117,18 +118,6 @@ const PDF_LABELS: Record<EstimateLanguage, PdfLabels> = {
   },
 }
 
-const CURRENCY_LOCALE: Record<EstimateLanguage, string> = {
-  en: 'en-US',
-  pt: 'pt-BR',
-  es: 'es-MX',
-}
-
-const CURRENCY_CODE: Record<EstimateLanguage, string> = {
-  en: 'USD',
-  pt: 'BRL',
-  es: 'USD',
-}
-
 const DATE_LOCALE: Record<EstimateLanguage, string> = {
   en: 'en-US',
   pt: 'pt-BR',
@@ -177,15 +166,6 @@ export interface EstimatePDFProps {
   projectType: string | null
   /** Target language — defaults to 'en'. Drives label translations and locale formatting. */
   language?: EstimateLanguage
-}
-
-function formatCurrency(value: number, locale = 'en-US', currencyCode = 'USD'): string {
-  return new Intl.NumberFormat(locale, {
-    style: 'currency',
-    currency: currencyCode,
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value)
 }
 
 function formatAddress(obj: {
@@ -434,10 +414,8 @@ export default function EstimatePDF({
   const companyAddress = formatAddress(company)
   const clientAddress = client ? formatAddress(client) : null
   const L = PDF_LABELS[language] ?? PDF_LABELS.en
-  const currencyLocale = CURRENCY_LOCALE[language] ?? 'en-US'
-  const currencyCode = CURRENCY_CODE[language] ?? 'USD'
   const dateLocale = DATE_LOCALE[language] ?? 'en-US'
-  const fmt = (v: number) => formatCurrency(v, currencyLocale, currencyCode)
+  const fmt = (v: number) => formatMoney(v, estimate.currency_code)
   const fmtDate = (s: string) => formatDate(s, dateLocale)
   const langLabel = LANG_INDICATOR[language] ?? 'EN'
 

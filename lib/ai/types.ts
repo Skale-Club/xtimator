@@ -5,6 +5,7 @@ export type PriceBookEntry = {
   name: string
   unit: string | null
   unit_price: number
+  currency_code?: string | null
 }
 
 export type LineItemOutput = {
@@ -41,6 +42,7 @@ export type EstimateInput = {
   transcripts: string[]
   photoDescriptions: string[]
   priceBookItems: PriceBookEntry[]  // empty array = no injection (D-10)
+  currencyCode?: string
   defaultPaymentTerms: string | null
   defaultWarrantyTerms: string | null
   /**
@@ -54,4 +56,5 @@ export type RefineEstimateInput = {
   existingEstimate: EstimateOutput  // Current estimate structure
   instruction: string               // User's refinement request
   priceBookItems: PriceBookEntry[]  // Company's price book
+  currencyCode?: string
 }

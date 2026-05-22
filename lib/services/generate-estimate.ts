@@ -9,6 +9,7 @@ import {
   resolveEstimateLanguage,
   type EstimateLanguage,
 } from '@/lib/i18n/resolve-estimate-language'
+import { normalizeCurrencyCode } from '@/lib/money/currency'
 
 export type ClientSuggestion = {
   detectedName: string
@@ -66,7 +67,7 @@ export async function generateEstimateForProject(
     supabase
       .from('companies')
       .select(
-        'industry, default_tax_rate, default_payment_terms, default_warranty_terms, name, default_estimate_language'
+        'industry, currency_code, default_tax_rate, default_payment_terms, default_warranty_terms, name, default_estimate_language'
       )
       .eq('id', companyId)
       .single(),
@@ -78,7 +79,10 @@ export async function generateEstimateForProject(
   if (!project) throw new Error('Project not found')
   if (!company) throw new Error('Company not found')
 
-  const priceBookItems = await getPriceBookItems(supabase, companyId)
+  const currencyCode = normalizeCurrencyCode(company.currency_code)
+  const priceBookItems = (await getPriceBookItems(supabase, companyId)).filter(
+    (item) => normalizeCurrencyCode(item.currency_code) === currencyCode
+  )
 
   const hasTranscripts = recordings.some(
     (r) => r.transcript && r.transcript.trim().length > 0
@@ -132,6 +136,7 @@ export async function generateEstimateForProject(
     transcripts,
     photoDescriptions,
     priceBookItems,
+    currencyCode,
     defaultPaymentTerms: company.default_payment_terms ?? null,
     defaultWarrantyTerms: company.default_warranty_terms ?? null,
     language,
@@ -224,6 +229,7 @@ export async function generateEstimateForProject(
     .insert({
       project_id: projectId,
       company_id: companyId,
+      currency_code: currencyCode,
       version: nextVersion,
       is_current: true,
       status: 'draft',

@@ -70,6 +70,7 @@ export function EstimateView({
   const [isSubmittingSignature, setIsSubmittingSignature] = useState(false)
 
   const requiresSignature = estimate.company.digital_signature_enabled && !alreadyResponded
+  const money = (value: number) => formatCurrency(value, estimate.currency_code)
 
   const { company, project } = estimate
   const brandColor = company.brand_primary_color ?? SYSTEM_COLORS.primary
@@ -298,10 +299,10 @@ export function EstimateView({
                         {item.unit ?? ''}
                       </td>
                       <td className="py-2 px-1 text-right tabular-nums">
-                        {formatCurrency(item.unit_price)}
+                        {money(item.unit_price)}
                       </td>
                       <td className="py-2 px-1 text-right tabular-nums font-medium">
-                        {formatCurrency(item.total)}
+                        {money(item.total)}
                       </td>
                     </tr>
                   ))}
@@ -320,10 +321,10 @@ export function EstimateView({
                   <div className="flex justify-between text-sm text-muted-foreground mt-1">
                     <span>
                       {item.quantity} {item.unit ?? ''} x{' '}
-                      {formatCurrency(item.unit_price)}
+                      {money(item.unit_price)}
                     </span>
                     <span className="font-medium text-foreground tabular-nums">
-                      {formatCurrency(item.total)}
+                      {money(item.total)}
                     </span>
                   </div>
                 </div>
@@ -337,7 +338,7 @@ export function EstimateView({
                   {t('Section Subtotal:')}
                 </span>
                 <span className="font-semibold tabular-nums">
-                  {formatCurrency(section.subtotal)}
+                  {money(section.subtotal)}
                 </span>
               </div>
             </div>
@@ -353,7 +354,7 @@ export function EstimateView({
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">{t('Subtotal')}</span>
                 <span className="tabular-nums">
-                  {formatCurrency(estimate.subtotal)}
+                  {money(estimate.subtotal)}
                 </span>
               </div>
 
@@ -366,7 +367,7 @@ export function EstimateView({
                       : ''}
                   </span>
                   <span className="text-green-600 tabular-nums">
-                    -{formatCurrency(estimate.discount_amount)}
+                    -{money(estimate.discount_amount)}
                   </span>
                 </div>
               )}
@@ -377,7 +378,7 @@ export function EstimateView({
                     {t('Tax')} ({(estimate.tax_rate * 100).toFixed(2)}%)
                   </span>
                   <span className="tabular-nums">
-                    {formatCurrency(estimate.tax_amount)}
+                    {money(estimate.tax_amount)}
                   </span>
                 </div>
               )}
@@ -388,7 +389,7 @@ export function EstimateView({
                   className="text-lg font-bold tabular-nums"
                   style={{ color: brandColor }}
                 >
-                  {formatCurrency(estimate.total)}
+                  {money(estimate.total)}
                 </span>
               </div>
             </div>
@@ -488,6 +489,7 @@ export function EstimateView({
                   ? 'paid'
                   : (estimate.payment_status ?? 'unpaid')
               }
+              currencyCode={estimate.currency_code}
             />
           </CardContent>
         </Card>

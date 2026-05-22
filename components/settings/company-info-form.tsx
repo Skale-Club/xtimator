@@ -20,6 +20,7 @@ import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { LogoUploader } from '@/components/onboarding/logo-uploader'
 import { useTranslation } from '@/lib/i18n/use-translation'
+import { DEFAULT_CURRENCY_CODE, SUPPORTED_CURRENCIES } from '@/lib/money/currency'
 
 const companyInfoSchema = z.object({
   name: z.string().min(1, 'Company name is required'),
@@ -36,6 +37,7 @@ const companyInfoSchema = z.object({
   insuranceInfo: z.string().optional().or(z.literal('')),
   brandPrimaryColor: z.string().optional(),
   defaultEstimateLanguage: z.enum(['en', 'pt', 'es']).optional().or(z.literal('')),
+  currencyCode: z.enum(['USD', 'BRL', 'EUR', 'GBP', 'CAD', 'AUD', 'MXN', 'CHF', 'JPY', 'NZD']),
 })
 
 type CompanyInfoValues = z.infer<typeof companyInfoSchema>
@@ -67,6 +69,7 @@ export function CompanyInfoForm({ company }: CompanyInfoFormProps) {
       insuranceInfo: company.insurance_info || '',
       brandPrimaryColor: company.brand_primary_color || SYSTEM_COLORS.primary,
       defaultEstimateLanguage: (company.default_estimate_language ?? '') as 'en' | 'pt' | 'es' | '',
+      currencyCode: (company.currency_code ?? DEFAULT_CURRENCY_CODE) as CompanyInfoValues['currencyCode'],
     },
   })
 
@@ -89,6 +92,7 @@ export function CompanyInfoForm({ company }: CompanyInfoFormProps) {
       fd.set('insuranceInfo', values.insuranceInfo || '')
       fd.set('brandPrimaryColor', values.brandPrimaryColor || SYSTEM_COLORS.primary)
       fd.set('defaultEstimateLanguage', values.defaultEstimateLanguage || '')
+      fd.set('currencyCode', values.currencyCode)
       fd.set('existingLogoUrl', logoPreview && !logoFile ? company.logo_url || '' : '')
 
       if (logoFile) {
@@ -256,6 +260,32 @@ export function CompanyInfoForm({ company }: CompanyInfoFormProps) {
                           <SelectItem value="en">{t('English (default)')}</SelectItem>
                           <SelectItem value="pt">Português (Brazil)</SelectItem>
                           <SelectItem value="es">Español</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Currency */}
+                <FormField
+                  control={form.control}
+                  name="currencyCode"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Currency</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="USD - US Dollar" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {SUPPORTED_CURRENCIES.map((currency) => (
+                            <SelectItem key={currency.code} value={currency.code}>
+                              {currency.code} - {currency.label}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                       <FormMessage />

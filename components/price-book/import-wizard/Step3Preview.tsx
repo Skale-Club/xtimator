@@ -5,6 +5,7 @@ import { AlertTriangle, Check, Copy, Pencil, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { MoneyInput } from '@/components/ui/money-input'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Label } from '@/components/ui/label'
 import {
@@ -17,7 +18,7 @@ import {
 } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
 import { useTranslation } from '@/lib/i18n/use-translation'
-import { parseCurrency } from '@/lib/csv/locale-parser'
+import { formatMoney } from '@/lib/money/currency'
 import type { ImportRow, ParsedRow } from '@/lib/csv/price-book-import'
 import type {
   DedupeStrategy,
@@ -47,6 +48,7 @@ export interface Step3PreviewProps {
   state: WizardState
   dispatch: Dispatch<WizardAction>
   onCancel: () => void
+  currencyCode: string
 }
 
 type EditableField = 'name' | 'folder_name' | 'unit' | 'unit_price'
@@ -56,7 +58,7 @@ function mergeEdits(row: ParsedRow, edits: Partial<ImportRow> | undefined): Impo
   return { ...row.values, ...edits } as ImportRow
 }
 
-export function Step3Preview({ state, dispatch, onCancel }: Step3PreviewProps) {
+export function Step3Preview({ state, dispatch, onCancel, currencyCode }: Step3PreviewProps) {
   const { t } = useTranslation()
   const [filter, setFilter] = useState('')
 
@@ -244,7 +246,7 @@ export function Step3Preview({ state, dispatch, onCancel }: Step3PreviewProps) {
                     value={merged.unit_price}
                     rowNumber={original.rowNumber}
                     dispatch={dispatch}
-                    locale={state.locale}
+                    currencyCode={currencyCode}
                     error={
                       original.errors.includes('missing_unit_price') ||
                       original.errors.includes('invalid_unit_price') ||
@@ -379,7 +381,7 @@ interface EditablePriceCellProps {
   value: number
   rowNumber: number
   dispatch: Dispatch<WizardAction>
-  locale: WizardState['locale']
+  currencyCode: string
   error?: boolean
 }
 
@@ -387,35 +389,21 @@ function EditablePriceCell({
   value,
   rowNumber,
   dispatch,
-  locale,
+  currencyCode,
   error,
 }: EditablePriceCellProps) {
   const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState(String(value ?? ''))
-
-  function commit() {
-    const parsed = parseCurrency(draft, locale)
-    if (parsed !== null && parsed !== value) {
-      dispatch({ type: 'EDIT_CELL', rowNumber, field: 'unit_price', value: parsed })
-    }
-    setEditing(false)
-  }
 
   if (editing) {
     return (
       <TableCell className="p-1">
-        <Input
-          autoFocus
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onBlur={commit}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') commit()
-            if (e.key === 'Escape') {
-              setDraft(String(value))
-              setEditing(false)
-            }
+        <MoneyInput
+          value={value}
+          currencyCode={currencyCode}
+          onValueChange={(nextValue) => {
+            dispatch({ type: 'EDIT_CELL', rowNumber, field: 'unit_price', value: nextValue })
           }}
+          onBlur={() => setEditing(false)}
           className="h-8"
         />
       </TableCell>
@@ -427,13 +415,11 @@ function EditablePriceCell({
       role="button"
       tabIndex={0}
       onClick={() => {
-        setDraft(String(value ?? ''))
         setEditing(true)
       }}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault()
-          setDraft(String(value ?? ''))
           setEditing(true)
         }
       }}
@@ -445,7 +431,7 @@ function EditablePriceCell({
       {value === 0 || value == null ? (
         <span className="text-muted-foreground italic">—</span>
       ) : (
-        value.toFixed(2)
+        formatMoney(value, currencyCode)
       )}
       <Pencil className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 opacity-0 group-hover:opacity-60" />
     </TableCell>

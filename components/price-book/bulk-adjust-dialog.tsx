@@ -33,6 +33,7 @@ import { Button } from '@/components/ui/button'
 import { bulkAdjustSchema, type BulkAdjustFormValues } from '@/lib/schemas/price-book'
 import { bulkAdjustPriceBookFolder } from '@/lib/actions/price-book'
 import type { PriceBookItem } from '@/lib/queries/price-book'
+import { formatMoney } from '@/lib/money/currency'
 
 interface BulkAdjustDialogProps {
   open: boolean
@@ -73,6 +74,7 @@ export function BulkAdjustDialog({
       id: item.id,
       name: item.name,
       currentPrice: item.unit_price,
+      currencyCode: item.currency_code,
       // D-04 rounding — matches server-side formula exactly
       newPrice: Math.round(item.unit_price * (1 + adjustmentPercent / 100) * 100) / 100,
     }))
@@ -144,7 +146,7 @@ export function BulkAdjustDialog({
                       <TableRow key={row.id}>
                         <TableCell className="font-medium">{row.name}</TableCell>
                         <TableCell className="text-muted-foreground">
-                          ${row.currentPrice.toFixed(2)}
+                          {formatMoney(row.currentPrice, row.currencyCode)}
                         </TableCell>
                         <TableCell
                           className={
@@ -153,7 +155,7 @@ export function BulkAdjustDialog({
                               : 'text-red-600 dark:text-red-400 font-medium'
                           }
                         >
-                          ${row.newPrice.toFixed(2)}
+                          {formatMoney(row.newPrice, row.currencyCode)}
                         </TableCell>
                       </TableRow>
                     ))}

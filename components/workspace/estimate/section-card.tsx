@@ -23,13 +23,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { ItemRow } from './item-row'
 import type { EditorSection, EstimateAction } from './use-estimate-reducer'
-
-function formatCurrency(value: number): string {
-  return value.toLocaleString('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })
-}
+import { formatMoney } from '@/lib/money/currency'
 
 // ---------------------------------------------------------------------------
 // Sortable item wrapper
@@ -40,11 +34,13 @@ function SortableItemRow({
   sectionId,
   dispatch,
   isReadOnly,
+  currencyCode,
 }: {
   item: EditorSection['items'][number]
   sectionId: string
   dispatch: Dispatch<EstimateAction>
   isReadOnly?: boolean
+  currencyCode: string
 }) {
   const {
     attributes,
@@ -74,6 +70,7 @@ function SortableItemRow({
         }
         dragHandleProps={listeners}
         isReadOnly={isReadOnly}
+        currencyCode={currencyCode}
       />
     </tbody>
   )
@@ -88,9 +85,10 @@ interface SectionCardProps {
   dispatch: Dispatch<EstimateAction>
   dragHandleProps?: Record<string, unknown>
   isReadOnly?: boolean
+  currencyCode: string
 }
 
-export function SectionCard({ section, dispatch, dragHandleProps, isReadOnly }: SectionCardProps) {
+export function SectionCard({ section, dispatch, dragHandleProps, isReadOnly, currencyCode }: SectionCardProps) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } })
@@ -171,10 +169,11 @@ export function SectionCard({ section, dispatch, dragHandleProps, isReadOnly }: 
                   <SortableItemRow
                     key={item.id}
                     item={item}
-                    sectionId={section.id}
-                    dispatch={dispatch}
-                    isReadOnly={isReadOnly}
-                  />
+                        sectionId={section.id}
+                        dispatch={dispatch}
+                        isReadOnly={isReadOnly}
+                        currencyCode={currencyCode}
+                      />
                 ))}
               </table>
             </div>
@@ -194,7 +193,7 @@ export function SectionCard({ section, dispatch, dragHandleProps, isReadOnly }: 
             </Button>
           )}
           <div className="ml-auto text-sm font-medium tabular-nums">
-            Section Total: ${formatCurrency(section.subtotal)}
+            Section Total: {formatMoney(section.subtotal, currencyCode)}
           </div>
         </div>
       </CardContent>
