@@ -18,6 +18,7 @@
 - âœ… **v3.0 Monetization** â€” Phases 55-60 (shipped 2026-05-14) Â· [archive](milestones/v3.0-ROADMAP.md)
 - âœ… **v3.1 Production Go-Live (rescoped)** â€” Phase 61 only (shipped 2026-05-15) Â· 4 phases deferred to v3.2 Â· [archive](milestones/v3.1-ROADMAP.md)
 - ðŸš§ **v3.1.1 MVP Launch Prep + Future-Proofing** â€” Phases 66-72 (started 2026-05-15, rescoped same day for Inngest + Storage abstraction)
+- 📐 **v3.3 Xphere Design Alignment** — Phases 79-82 (planned 2026-05-22) — unify Xtimator visual language with Xphere
 
 > **Phase numbering note:** v3.1.1 starts at **Phase 66**, not 62. Phases 62-65 are reserved as DEFERRED placeholders for the v3.2 Production Deploy milestone (Vercelâ†’Hetzner deploy + Stripe live + monitoring + UAT in prod). Skipping past 62-65 keeps the global phase counter unambiguous and prevents number reuse confusion when v3.2 begins.
 
@@ -904,3 +905,82 @@ Plans:
   5. Existing URL-typed setups (current state) keep working â€” if `og_image_url` is set but the file isn't in branding-assets bucket (external URL), show preview if loadable + a hint "Currently using external URL â€” upload to migrate to managed storage".
 
 **Plans:** 2/2 plans complete
+
+
+---
+
+## v3.3 Xphere Design Alignment (Phases 79-82)
+
+> **Goal:** Xtimator and Xphere become visual siblings. Each product keeps its own brand color (Xtimator: #406EF1 blue, Xphere: #6366F1 indigo) but both share the same design language: Linear/Vercel/Stripe-inspired minimal aesthetic, identical token architecture, typography stack, motion system, component shapes, and layout proportions. Xphere v2.1 is the canonical reference.
+
+### Phase 79: Design Token Foundation
+
+**Goal:** Migrate Xtimator's entire CSS variable architecture from the current HSL-based shadcn approach to Xphere v2.1's hex-based semantic token system. Foundation all subsequent phases depend on. Xtimator keeps #406EF1 as --accent but every other token (surfaces, borders, text hierarchy, motion, radius scale, easing, shadcn shim) aligns to Xphere's pattern. Dark-as-primary philosophy established. Old glassmorphism tokens, gradient tokens, and HSL semantic tokens purged.
+
+**Depends on:** None (no other phase dependency)
+
+**Requirements:** DS-TOKEN-01..DS-TOKEN-09
+
+**Success Criteria** (what must be TRUE):
+  1. Surface tokens: --bg-primary, --bg-secondary, --bg-tertiary, --bg-elevated defined in :root and .dark matching Xphere v2.1 values.
+  2. Border tokens: --border-subtle, --border, --border-strong replace old HSL --border/--input tokens.
+  3. Text hierarchy: --text-primary, --text-secondary, --text-tertiary replace old --foreground/--muted-foreground.
+  4. Accent tokens: --accent: #406EF1, --accent-hover, --accent-muted, --accent-glow defined.
+  5. Motion tokens: --motion-fast: 100ms, --motion-base: 200ms, --motion-modal: 300ms, --motion-slow: 500ms; --ease-out and --ease-spring defined.
+  6. Radius scale px-based: 4/6/8/10/12/16/20px; old rem-based scale removed.
+  7. Typography: JetBrains Mono added via next/font/google, --font-mono set; components.json style: new-york -> default.
+  8. Shadcn shim: --primary -> --accent, --card -> --bg-secondary, --popover -> --bg-elevated, --muted -> --bg-tertiary, --destructive -> --danger.
+  9. npx tsc --noEmit exits 0 after migration.
+
+**Plans:** 0 plans
+
+### Phase 80: Layout Shell Alignment
+
+**Goal:** Sidebar and topbar match Xphere's minimal Linear-inspired shell. Glassmorphism removed. Sidebar resized to 232px/60px. Topbar reduced to 56px. Both use flat dark backgrounds with crisp border separators. Active nav state uses bg-accent-muted + 2.5px accent bar. Mobile bottom nav aligned. No visual regressions on existing dashboard pages.
+
+**Depends on:** Phase 79
+
+**Requirements:** DS-SHELL-01..DS-SHELL-05
+
+**Success Criteria** (what must be TRUE):
+  1. Sidebar: 232px expanded / 60px collapsed; transition uses --motion-base + --ease-spring.
+  2. Sidebar surface: bg-secondary (#111113 dark), border-r border-[--border-subtle]; no backdrop-blur, no glass-border.
+  3. Active nav state: bg-accent-muted + 2.5px left accent bar with accent glow shadow; no gradient-brand.
+  4. Topbar: 56px (h-14), bg-primary border-b border-[--border-subtle]; no backdrop-blur or glass.
+  5. Dashboard, clients, projects, estimates, settings pages render correctly after resize.
+
+**Plans:** 0 plans
+
+### Phase 81: Core Component Library
+
+**Goal:** Button, Card, Badge, Input, Select align to Xphere v2.1 minimal style. Gradient-brand shimmer removed from buttons. Glass card variants removed. Components use new token vocabulary. Every page visually consistent with Xphere, no feature regressions.
+
+**Depends on:** Phase 79
+
+**Requirements:** DS-COMP-01..DS-COMP-05
+
+**Success Criteria** (what must be TRUE):
+  1. Button primary: bg-accent text-white hover:bg-accent-hover; no gradient shimmer or glow on hover.
+  2. Card default: bg-elevated border border-[--border] rounded-lg shadow-sm; glass/glass-strong variants removed.
+  3. Badge: semantic color variants use hex token palette; no gradient backgrounds.
+  4. Input+Select: bg-tertiary border border-[--border]; focus: border-accent no ring shadow; error: border-danger.
+  5. All form-heavy pages render correctly (project creation, client creation, estimate settings, price book, settings).
+
+**Plans:** 0 plans
+
+### Phase 82: Data Display and Forms Alignment
+
+**Goal:** Tables, skeletons, empty states, toasts, and form layouts align to Xphere v2.1 patterns. The full app feels like it shares DNA with Xphere.
+
+**Depends on:** Phase 81
+
+**Requirements:** DS-DATA-01..DS-DATA-05
+
+**Success Criteria** (what must be TRUE):
+  1. Tables: header bg-tertiary border-b, body rows bg-secondary hover:bg-tertiary with border-b border-[--border-subtle].
+  2. Skeletons: bg-tertiary animate-pulse; no old shimmer gradient; used on all async list views.
+  3. Empty states: centered icon + title + description + optional CTA; applied to clients, projects, estimates, price book.
+  4. Sonner toasts: bg-elevated border border-[--border] text-text-primary; semantic variants use --success/--danger.
+  5. Form layouts: space-y-4, label text-text-secondary text-sm, section separators border-t border-[--border-subtle].
+
+**Plans:** 0 plans
