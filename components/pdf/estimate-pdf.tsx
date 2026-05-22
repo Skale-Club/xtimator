@@ -4,6 +4,7 @@ import {
   View,
   Text,
   Image,
+  Link,
   StyleSheet,
 } from '@react-pdf/renderer'
 import type { EstimateWithSections } from '@/lib/queries/estimate'
@@ -240,6 +241,17 @@ const styles = StyleSheet.create({
     color: '#6b7280',
     lineHeight: 1.5,
   },
+  contactLink: {
+    color: '#6b7280',
+    textDecoration: 'none',
+  },
+  nameLink: {
+    textDecoration: 'none',
+  },
+  infoValueLink: {
+    color: '#6b7280',
+    textDecoration: 'none',
+  },
   // Estimate title
   estimateTitle: {
     fontSize: 24,
@@ -452,12 +464,49 @@ export default function EstimatePDF({
                   { color: brandColor },
                 ]}
               >
-                {company.name}
+                {company.website ? (
+                  <Link src={company.website} style={[styles.nameLink, { color: brandColor }]}>
+                    {company.name}
+                  </Link>
+                ) : (
+                  company.name
+                )}
               </Text>
               <Text style={styles.companyContact}>
-                {[formatPhoneForDisplay(company.phone), company.email, company.website]
-                  .filter(Boolean)
-                  .join('  |  ')}
+                {(
+                  [
+                    company.phone && (
+                      <Link
+                        key="phone"
+                        src={`tel:${company.phone.replace(/[^\d+]/g, '')}`}
+                        style={styles.contactLink}
+                      >
+                        {formatPhoneForDisplay(company.phone)}
+                      </Link>
+                    ),
+                    company.email && (
+                      <Link
+                        key="email"
+                        src={`mailto:${company.email}`}
+                        style={styles.contactLink}
+                      >
+                        {company.email}
+                      </Link>
+                    ),
+                    company.website && (
+                      <Link
+                        key="website"
+                        src={company.website}
+                        style={styles.contactLink}
+                      >
+                        {company.website}
+                      </Link>
+                    ),
+                  ].filter(Boolean) as React.ReactNode[]
+                ).reduce<React.ReactNode[]>(
+                  (acc, node, i) => (i === 0 ? [node] : [...acc, '  |  ', node]),
+                  [],
+                )}
               </Text>
               {companyAddress && (
                 <Text style={styles.companyContact}>{companyAddress}</Text>
@@ -506,12 +555,19 @@ export default function EstimatePDF({
               </Text>
               {client.email && (
                 <Text style={[styles.infoValue, { color: '#6b7280' }]}>
-                  {client.email}
+                  <Link src={`mailto:${client.email}`} style={styles.infoValueLink}>
+                    {client.email}
+                  </Link>
                 </Text>
               )}
               {client.phone && (
                 <Text style={[styles.infoValue, { color: '#6b7280' }]}>
-                  {formatPhoneForDisplay(client.phone)}
+                  <Link
+                    src={`tel:${client.phone.replace(/[^\d+]/g, '')}`}
+                    style={styles.infoValueLink}
+                  >
+                    {formatPhoneForDisplay(client.phone)}
+                  </Link>
                 </Text>
               )}
               {clientAddress && (
