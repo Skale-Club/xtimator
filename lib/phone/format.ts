@@ -34,6 +34,13 @@ export function formatPhoneForDisplay(raw: string | null | undefined): string {
     }
   }
 
+  // Implicit-US fallback: raw 10-digit input with no leading '+' is overwhelmingly
+  // a US number stored without country prefix (e.g. '5088018190' from a legacy form).
+  if (!trimmed.startsWith('+') && digits.length === 10) {
+    const us = COUNTRIES.find(c => c.code === 'US')!
+    return `+${us.dial} ${applyMask(digits, us.format)}`
+  }
+
   // No dial match — return raw unchanged.
   return raw
 }

@@ -24,4 +24,8 @@ describe('formatPhoneForDisplay', () => {
     expect(formatPhoneForDisplay(null)).toBe('')
     expect(formatPhoneForDisplay(undefined)).toBe('')
   })
+
+  it('formats raw 10-digit US (no + prefix) → "+1 (508) 801-8190"', () => {
+    expect(formatPhoneForDisplay('5088018190')).toBe('+1 (508) 801-8190')
+  })
 })
