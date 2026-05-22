@@ -140,9 +140,9 @@ export function SurveyShell({
       <div aria-hidden className="absolute inset-0 -z-10 gradient-hero" />
 
       {/* Header: logo + wordmark */}
-      <header className="mb-8 flex flex-col items-center gap-2">
-        <AppIcon className="h-10 w-10" />
-        <span className="text-base font-semibold leading-tight tracking-tight text-foreground">
+      <header className="mb-8 flex items-center justify-center gap-2.5">
+        <AppIcon className="h-6 w-6" />
+        <span className="text-xl font-bold tracking-tight text-foreground">
           {appName}
         </span>
       </header>
