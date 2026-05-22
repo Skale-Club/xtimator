@@ -40,6 +40,7 @@ import { deleteClientAction } from '@/lib/actions/client'
 import { createClient } from '@/lib/supabase/client'
 import type { ClientWithCount, ClientDetail } from '@/lib/queries/clients'
 import { useTranslation } from '@/lib/i18n/use-translation'
+import { ClientTableRow } from '@/components/clients/client-table-row'
 
 interface ClientListProps {
   clients: ClientWithCount[]
@@ -188,58 +189,7 @@ export function ClientList({ clients, companyId }: ClientListProps) {
             </TableHeader>
             <TableBody>
               {filtered.map((client) => (
-                <TableRow key={client.id}>
-                  <TableCell>
-                    <Link
-                      href={`/clients/${client.id}`}
-                      className="flex items-center gap-3 hover:underline"
-                    >
-                      <Avatar className="h-8 w-8">
-                        {client.logo_url && (
-                          <AvatarImage src={client.logo_url} alt={client.name} />
-                        )}
-                        <AvatarFallback className="text-xs">
-                          {client.name.charAt(0).toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
-                      <span className="font-medium">{client.name}</span>
-                    </Link>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {client.email || '---'}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {client.phone
-                      ? <a href={`tel:${client.phone}`} className="hover:underline">{client.phone}</a>
-                      : '---'}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="secondary">{client.project_count}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem asChild>
-                          <Link href={`/clients/${client.id}`}>{t('View')}</Link>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleEditClient(client.id)}>
-                          {t('Edit')}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          className="text-destructive"
-                          onClick={() => handleDeletePrompt(client)}
-                        >
-                          {t('Delete')}
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
+                <ClientTableRow key={client.id} client={client} />
               ))}
             </TableBody>
           </Table>

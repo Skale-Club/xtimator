@@ -29,7 +29,7 @@ export async function LandingFooter() {
                 <Link href="#" className="transition-colors hover:text-white">How it works</Link>
               </li>
               <li>
-                <Link href="/signup" className="transition-colors hover:text-white">Start free</Link>
+                <Link href="/signup" className="transition-colors hover:text-white">Start</Link>
               </li>
             </ul>
           </div>
@@ -44,7 +44,7 @@ export async function LandingFooter() {
                 <Link href="#" className="transition-colors hover:text-white">Terms of Service</Link>
               </li>
               <li>
-                <Link href="/login" className="transition-colors hover:text-white">Log in</Link>
+                <Link href="/login" className="transition-colors hover:text-white">See Demo</Link>
               </li>
             </ul>
           </div>

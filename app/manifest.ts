@@ -21,7 +21,7 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
     icons: [
       ...(smallIcon
         ? [{ src: smallIcon, sizes: '32x32 64x64 96x96', type: 'image/png' }]
-        : [{ src: '/favicon.ico', sizes: '32x32', type: 'image/x-icon' }]),
+        : [{ src: '/icons/icon-192.png', sizes: '32x32', type: 'image/png' }]),
       ...(largeIcon
         ? [{ src: largeIcon, sizes: '192x192 512x512', type: 'image/png' }]
         : [

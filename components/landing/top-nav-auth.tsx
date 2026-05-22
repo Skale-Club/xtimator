@@ -25,18 +25,10 @@ export function TopNavAuth({ branding }: TopNavAuthProps) {
     <>
       <button
         type="button"
-        onClick={openLogin}
-        className="hidden text-sm font-medium text-muted-foreground transition-colors hover:text-foreground sm:block"
-      >
-        Log in
-      </button>
-
-      <button
-        type="button"
         onClick={openSignup}
         className="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow-[0_0_15px_hsl(var(--primary)/0.3)] transition-colors hover:bg-primary/90"
       >
-        Start free
+        Start
       </button>
 
       <AuthDialog

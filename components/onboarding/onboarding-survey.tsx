@@ -32,7 +32,7 @@ const INITIAL: OnboardingValues = {
   defaultValidityDays: 30,
 }
 
-export function OnboardingSurvey({ appName }: { appName: string }) {
+export function OnboardingSurvey({ appName, logoUrl }: { appName: string; logoUrl: string | null }) {
   const state = useSurveyState(INITIAL)
   const [isSubmitting, startTransition] = useTransition()
 
@@ -79,6 +79,7 @@ export function OnboardingSurvey({ appName }: { appName: string }) {
   return (
     <SurveyShell
       appName={appName}
+      logoUrl={logoUrl}
       state={state}
       isSubmitting={isSubmitting}
       onComplete={handleComplete}

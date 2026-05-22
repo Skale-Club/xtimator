@@ -2,27 +2,20 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { getAuthClaims, getCachedCompany } from '@/lib/queries/auth'
+import { getProjects } from '@/lib/queries/dashboard'
 import { FolderPlus, FolderOpen } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/dashboard/empty-state'
-import { cn } from '@/lib/utils'
 import { T } from '@/components/i18n/t'
-
-const STATUS_LABEL: Record<string, string> = {
-  draft:          'Draft',
-  in_progress:    'In progress',
-  estimate_ready: 'Estimate ready',
-  sent:           'Sent',
-  completed:      'Completed',
-}
-
-const STATUS_COLOR: Record<string, string> = {
-  draft:          'bg-muted-foreground/30 text-muted-foreground',
-  in_progress:    'bg-blue-500/15 text-blue-400',
-  estimate_ready: 'bg-amber-500/15 text-amber-400',
-  sent:           'bg-green-500/15 text-green-400',
-  completed:      'bg-green-700/15 text-green-600',
-}
+import {
+  Table,
+  TableBody,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import { ProjectTableRow } from '@/components/dashboard/project-table-row'
+import { ProjectCard } from '@/components/dashboard/project-card'
 
 export default async function ProjectsPage() {
   const claims = await getAuthClaims()
@@ -32,19 +25,13 @@ export default async function ProjectsPage() {
   if (!company) redirect('/onboarding')
 
   const supabase = await createClient()
-  const { data: projects } = await supabase
-    .from('projects')
-    .select('id, name, status, created_at, client:clients(name)')
-    .eq('company_id', company.id)
-    .order('created_at', { ascending: false })
-
-  const list = projects ?? []
+  const projects = await getProjects(supabase, company.id)
 
   return (
     <div className="px-6 py-8 space-y-6">
       <header className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
-          <T text={`${list.length} ${list.length === 1 ? 'project' : 'projects'}`} />
+          <T text={`${projects.length} ${projects.length === 1 ? 'project' : 'projects'}`} />
         </p>
         <Button variant="primary" asChild>
           <Link href="?modal=new-project">
@@ -54,7 +41,7 @@ export default async function ProjectsPage() {
         </Button>
       </header>
 
-      {list.length === 0 ? (
+      {projects.length === 0 ? (
         <EmptyState
           icon={FolderOpen}
           title="No projects yet"
@@ -63,45 +50,36 @@ export default async function ProjectsPage() {
           actionHref="?modal=new-project"
         />
       ) : (
-        <ul className="divide-y divide-border rounded-lg border border-border bg-card overflow-hidden">
-          {list.map((project) => {
-            const label = STATUS_LABEL[project.status] ?? project.status
-            const color = STATUS_COLOR[project.status] ?? STATUS_COLOR.draft
-            const clientName = (project.client as { name?: string } | null)?.name
+        <>
+          {/* Desktop table */}
+          <div className="hidden md:block">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Client</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Total</TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead className="w-[50px]">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {projects.map((project) => (
+                  <ProjectTableRow key={project.id} project={project} />
+                ))}
+              </TableBody>
+            </Table>
+          </div>
 
-            return (
-              <li key={project.id}>
-                <Link
-                  href={`/projects/${project.id}`}
-                  className="flex items-center justify-between h-10 px-4 hover:bg-[var(--glass-bg-light)] transition-colors group"
-                >
-                  <div className="flex flex-col min-w-0">
-                    <span className="text-sm font-medium truncate group-hover:text-foreground">
-                      {project.name}
-                    </span>
-                    {clientName && (
-                      <span className="text-xs text-muted-foreground truncate">
-                        {clientName}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-4 shrink-0 ml-4">
-                    <span className="text-xs text-muted-foreground">
-                      {new Date(project.created_at).toLocaleDateString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric',
-                      })}
-                    </span>
-                    <span className={cn('text-xs font-medium px-2 py-0.5 rounded-full', color)}>
-                      {label}
-                    </span>
-                  </div>
-                </Link>
-              </li>
-            )
-          })}
-        </ul>
+          {/* Mobile cards */}
+          <div className="md:hidden space-y-3">
+            {projects.map((project) => (
+              <ProjectCard key={project.id} project={project} />
+            ))}
+          </div>
+        </>
       )}
     </div>
   )

@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
 import { ArrowRight, LogIn, Sparkles, CheckCircle2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -22,6 +23,14 @@ const FADE_UP_ANIMATION_VARIANTS: Variants = {
 
 export function HeroSection({ content }: { content: HeroContent }) {
   const reduce = useReducedMotion()
+  const STEPS = [
+    { step: '1', label: 'Processing Voice Notes...', detail: '"Remove existing drywall, install 1/2 inch moisture resistant..."' },
+    { step: '2', label: 'Analyzing Photos', detail: 'Extracting dimensions and conditions from 4 site photos.' },
+    { step: '3', label: 'Drafting PDF', detail: 'Generating line items and standard pricing.' },
+  ]
+
+  const [hoveredStep, setHoveredStep] = useState<string | null>(null)
+
   return (
     <section className="relative isolate overflow-hidden border-b border-white/5 bg-transparent py-[clamp(40px,7vw,72px)]">
       {/* Phase 71 — animated gradient mesh + dot overlay backdrop (motion-gated via CSS). */}
@@ -47,7 +56,7 @@ export function HeroSection({ content }: { content: HeroContent }) {
             <motion.div variants={FADE_UP_ANIMATION_VARIANTS} className="flex justify-start">
               <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-medium text-secondary backdrop-blur-sm">
                 <Sparkles className="size-3.5" aria-hidden="true" />
-                Built for contractors &amp; field crews
+                Built for contractors
               </div>
             </motion.div>
 
@@ -82,9 +91,8 @@ export function HeroSection({ content }: { content: HeroContent }) {
                 variant="outline"
                 className="w-full border-white/10 bg-white/5 font-semibold text-foreground transition-all hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:w-auto sm:min-w-36"
               >
-                <Link href="/login">
-                  Log in
-                  <LogIn className="ml-2 size-4" aria-hidden="true" />
+                <Link href="/login" className="text-center">
+                  See Demo
                 </Link>
               </Button>
             </motion.div>
@@ -125,22 +133,28 @@ export function HeroSection({ content }: { content: HeroContent }) {
                   </div>
                   <span className="rounded-full bg-primary/10 px-2 py-1 text-xs font-bold text-secondary">On-site</span>
                 </div>
-                <div className="space-y-4">
-                  {[
-                    { step: '1', label: 'Processing Voice Notes...', detail: '"Remove existing drywall, install 1/2 inch moisture resistant..."', active: true },
-                    { step: '2', label: 'Analyzing Photos', detail: 'Extracting dimensions and conditions from 4 site photos.', active: false },
-                    { step: '3', label: 'Drafting PDF', detail: 'Generating line items and standard pricing.', active: false },
-                  ].map(({ step, label, detail, active }) => (
-                    <div key={step} className={`flex gap-4 rounded-xl border p-4 transition-all ${active ? 'border-primary/40 bg-primary/5 shadow-[0_0_20px_hsl(var(--primary)/0.1)]' : 'border-white/5 bg-white/5'}`}>
-                      <div className={`flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ${active ? 'bg-primary text-primary-foreground shadow-[0_0_10px_hsl(var(--primary)/0.5)]' : 'bg-white/10 text-muted-foreground'}`}>
-                        {step}
+                <div
+                  className="space-y-4"
+                  onMouseLeave={() => setHoveredStep(null)}
+                >
+                  {STEPS.map(({ step, label, detail }) => {
+                    const isActive = hoveredStep === step || (hoveredStep === null && step === '1')
+                    return (
+                      <div
+                        key={step}
+                        onMouseEnter={() => setHoveredStep(step)}
+                        className={`flex items-center gap-4 rounded-xl border p-4 transition-all ${isActive ? 'border-primary/40 bg-primary/5 shadow-[0_0_20px_hsl(var(--primary)/0.1)]' : 'border-white/5 bg-white/5'}`}
+                      >
+                        <div className={`flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-bold leading-none ${isActive ? 'bg-primary text-primary-foreground shadow-[0_0_10px_hsl(var(--primary)/0.5)]' : 'bg-white/10 text-muted-foreground'}`}>
+                          {step}
+                        </div>
+                        <div>
+                          <p className={`mb-1 text-sm font-bold ${isActive ? 'text-white' : 'text-foreground'}`}>{label}</p>
+                          <p className="text-sm leading-relaxed text-muted-foreground line-clamp-2">{detail}</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className={`mb-1 text-sm font-bold ${active ? 'text-white' : 'text-foreground'}`}>{label}</p>
-                        <p className="text-sm leading-relaxed text-muted-foreground line-clamp-2">{detail}</p>
-                      </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </div>
             </div>

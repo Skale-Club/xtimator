@@ -14,5 +14,5 @@ export default async function OnboardingPage() {
 
   const branding = await getBranding()
 
-  return <OnboardingSurvey appName={branding.appName} />
+  return <OnboardingSurvey appName={branding.appName} logoUrl={branding.logoUrl} />
 }

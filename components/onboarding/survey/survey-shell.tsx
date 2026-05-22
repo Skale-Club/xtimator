@@ -21,6 +21,7 @@ import { ReviewStep } from './steps/review-step'
 
 interface SurveyShellProps {
   appName: string
+  logoUrl: string | null
   state: UseSurveyStateReturn
   isSubmitting: boolean
   onComplete: () => void
@@ -28,6 +29,7 @@ interface SurveyShellProps {
 
 export function SurveyShell({
   appName,
+  logoUrl,
   state,
   isSubmitting,
   onComplete,
@@ -135,94 +137,100 @@ export function SurveyShell({
   }
 
   return (
-    <div className="relative isolate mx-auto flex min-h-screen w-full max-w-2xl flex-col bg-background px-4 py-6">
-      {/* Phase 71 gradient-hero radial backdrop */}
-      <div aria-hidden className="absolute inset-0 -z-10 gradient-hero" />
+    <>
+      {/* Full-width background — outside the centered container */}
+      <div aria-hidden className="fixed inset-0 -z-10 gradient-hero" />
 
-      {/* Header: logo + wordmark */}
-      <header className="mb-8 flex items-center justify-center gap-2.5">
-        <AppIcon className="h-6 w-6" />
-        <span className="text-xl font-bold tracking-tight text-foreground">
-          {appName}
-        </span>
-      </header>
+      {/* Full-width shell with centered inner content */}
+      <div className="relative isolate min-h-screen w-full bg-background">
+        <div className="relative isolate mx-auto flex min-h-screen w-full max-w-2xl flex-col items-center justify-center px-4 py-6">
 
-      <Card variant="glass" className="mx-auto w-full max-w-2xl">
-        <CardContent className="p-6 md:p-10">
-          <SurveyProgress current={stepIndex} total={totalSteps} />
+          {/* Header: logo + wordmark */}
+          <header className="mb-8 flex items-center justify-center gap-2.5">
+            <AppIcon logoUrl={logoUrl} appName={appName} className="h-6 w-6" />
+            <span className="text-xl font-bold tracking-tight text-foreground">
+              {appName}
+            </span>
+          </header>
 
-          <div
-            key={stepIndex}
-            className="mt-6 opacity-100 transition-all duration-150 ease-in-out motion-safe:animate-[surveyFadeIn_150ms_ease-out]"
-          >
-            <SurveyStep
-              label={currentStep.label}
-              helper={currentStep.helper}
-              error={error}
-            >
-              {renderStep()}
-            </SurveyStep>
-          </div>
+          <Card variant="glass" className="mx-auto w-full max-w-2xl">
+            <CardContent className="p-6 md:p-10">
+              <SurveyProgress current={stepIndex} total={totalSteps} />
 
-          <footer className="mt-8 flex items-center justify-between gap-3 pt-6">
-            <Button
-              type="button"
-              variant="ghost"
-              disabled={isFirst || isSubmitting}
-              onClick={goBack}
-            >
-              Back
-            </Button>
-            <div className="flex gap-2">
-              {!currentStep.required && !isLast ? (
+              <div
+                key={stepIndex}
+                className="mt-6 opacity-100 transition-all duration-150 ease-in-out motion-safe:animate-[surveyFadeIn_150ms_ease-out]"
+              >
+                <SurveyStep
+                  label={currentStep.label}
+                  helper={currentStep.helper}
+                  error={error}
+                >
+                  {renderStep()}
+                </SurveyStep>
+              </div>
+
+              <footer className="mt-8 flex items-center justify-between gap-3 pt-6">
                 <Button
                   type="button"
-                  variant="outline"
-                  onClick={handleSkip}
-                  disabled={isSubmitting}
+                  variant="ghost"
+                  disabled={isFirst || isSubmitting}
+                  onClick={goBack}
                 >
-                  Skip
+                  Back
                 </Button>
-              ) : null}
-              {!isLast ? (
-                <Button
-                  type="button"
-                  variant="primary"
-                  onClick={goNext}
-                  disabled={isSubmitting}
-                >
-                  Next
-                </Button>
-              ) : (
-                <Button
-                  type="button"
-                  variant="primary"
-                  onClick={onComplete}
-                  disabled={isSubmitting}
-                >
-                  {isSubmitting ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <div className="flex gap-2">
+                  {!currentStep.required && !isLast ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleSkip}
+                      disabled={isSubmitting}
+                    >
+                      Skip
+                    </Button>
                   ) : null}
-                  Complete setup
-                </Button>
-              )}
-            </div>
-          </footer>
-        </CardContent>
-      </Card>
+                  {!isLast ? (
+                    <Button
+                      type="button"
+                      variant="primary"
+                      onClick={goNext}
+                      disabled={isSubmitting}
+                    >
+                      Next
+                    </Button>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="primary"
+                      onClick={onComplete}
+                      disabled={isSubmitting}
+                    >
+                      {isSubmitting ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : null}
+                      Complete setup
+                    </Button>
+                  )}
+                </div>
+              </footer>
+            </CardContent>
+          </Card>
 
-      <style jsx>{`
-        @keyframes surveyFadeIn {
-          from {
-            opacity: 0;
-            transform: translateX(8px);
-          }
-          to {
-            opacity: 1;
-            transform: translateX(0);
-          }
-        }
-      `}</style>
-    </div>
+          <style jsx>{`
+            @keyframes surveyFadeIn {
+              from {
+                opacity: 0;
+                transform: translateX(8px);
+              }
+              to {
+                opacity: 1;
+                transform: translateX(0);
+              }
+            }
+          `}</style>
+        </div>
+      </div>
+    </>
   )
 }
