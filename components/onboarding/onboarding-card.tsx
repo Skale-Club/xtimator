@@ -1,3 +1,4 @@
+// v2-horizontal-logo
 import { Card, CardContent } from '@/components/ui/card'
 import { AppIcon } from '@/components/ui/app-icon'
 
