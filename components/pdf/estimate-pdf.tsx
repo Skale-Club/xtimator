@@ -9,6 +9,7 @@ import {
 import type { EstimateWithSections } from '@/lib/queries/estimate'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
 import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
+import { formatPhoneForDisplay } from '@/lib/phone/format'
 
 // ---------------------------------------------------------------------------
 // Phase 73-02: Static label maps for PDF i18n.
@@ -458,7 +459,7 @@ export default function EstimatePDF({
                 {company.name}
               </Text>
               <Text style={styles.companyContact}>
-                {[company.phone, company.email, company.website]
+                {[formatPhoneForDisplay(company.phone), company.email, company.website]
                   .filter(Boolean)
                   .join('  |  ')}
               </Text>
@@ -514,7 +515,7 @@ export default function EstimatePDF({
               )}
               {client.phone && (
                 <Text style={[styles.infoValue, { color: '#6b7280' }]}>
-                  {client.phone}
+                  {formatPhoneForDisplay(client.phone)}
                 </Text>
               )}
               {clientAddress && (
