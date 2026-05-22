@@ -220,14 +220,20 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   logo: {
-    width: 60,
-    height: 60,
+    width: 72,
+    height: 72,
     objectFit: 'contain' as const,
   },
   companyName: {
     fontSize: 18,
     fontFamily: 'Helvetica-Bold',
     marginBottom: 4,
+  },
+  companyNameSmall: {
+    fontSize: 11,
+    fontFamily: 'Helvetica',
+    marginBottom: 2,
+    marginTop: 4,
   },
   companyContact: {
     fontSize: 9,
@@ -427,13 +433,25 @@ export default function EstimatePDF({
           style={[styles.header, { borderBottomColor: brandColor }]}
           fixed
         >
-          <View style={styles.headerLeft}>
+          <View
+            style={[
+              styles.headerLeft,
+              company.logo_url
+                ? { flexDirection: 'column', alignItems: 'flex-start', gap: 0 }
+                : {},
+            ]}
+          >
             {company.logo_url && (
               // eslint-disable-next-line jsx-a11y/alt-text
               <Image src={company.logo_url} style={styles.logo} />
             )}
             <View>
-              <Text style={[styles.companyName, { color: brandColor }]}>
+              <Text
+                style={[
+                  company.logo_url ? styles.companyNameSmall : styles.companyName,
+                  { color: brandColor },
+                ]}
+              >
                 {company.name}
               </Text>
               <Text style={styles.companyContact}>
