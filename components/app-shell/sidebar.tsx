@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 import { PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { NAV_ITEMS } from './nav-items'
@@ -31,21 +31,22 @@ const COLLAPSE_KEY = 'sidebar_collapsed_desktop'
 const DESKTOP_SIDEBAR_QUERY = '(min-width: 768px)'
 
 function useIsOffline(): boolean {
-  const [offline, setOffline] = useState(() =>
-    typeof navigator === 'undefined' ? false : !navigator.onLine,
-  )
+  return useSyncExternalStore(
+    (onStoreChange) => {
+      const onOnline = () => onStoreChange()
+      const onOffline = () => onStoreChange()
 
-  useEffect(() => {
-    const onOnline  = () => setOffline(false)
-    const onOffline = () => setOffline(true)
-    window.addEventListener('online',  onOnline)
-    window.addEventListener('offline', onOffline)
-    return () => {
-      window.removeEventListener('online',  onOnline)
-      window.removeEventListener('offline', onOffline)
-    }
-  }, [])
-  return offline
+      window.addEventListener('online', onOnline)
+      window.addEventListener('offline', onOffline)
+
+      return () => {
+        window.removeEventListener('online', onOnline)
+        window.removeEventListener('offline', onOffline)
+      }
+    },
+    () => !navigator.onLine,
+    () => false,
+  )
 }
 
 // Map from href to data-tour value — used by the guided spotlight tour (Phase 74)

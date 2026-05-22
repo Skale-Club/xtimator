@@ -31,7 +31,11 @@ export default async function PriceBookPage() {
       )}
       <UndoImportBanner />
       <Card variant="glass" className="p-6 md:p-8">
-        <PriceBookList items={items} folders={folders} companyId={company.id} />
+        <PriceBookList
+          items={items}
+          folders={folders}
+          currencyCode={company.currency_code}
+        />
       </Card>
     </div>
   )

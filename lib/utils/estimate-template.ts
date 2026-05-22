@@ -88,7 +88,7 @@ export function buildItemsBreakdown(estimate: EstimateWithSections): string {
     .map((section) => {
       const header = `[${section.title}]`
       const items = section.items
-        .map((item) => `${item.description}: ${formatCurrency(item.total)}`)
+        .map((item) => `${item.description}: ${formatCurrency(item.total, estimate.currency_code)}`)
         .join('\n')
       return `${header}\n${items}`
     })

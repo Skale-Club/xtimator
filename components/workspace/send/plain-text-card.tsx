@@ -40,7 +40,7 @@ export function PlainTextCard({
       client_name: clientName,
       company_name: companyName,
       owner_name: ownerName,
-      total: formatCurrency(estimate.total),
+      total: formatCurrency(estimate.total, estimate.currency_code),
       items_breakdown: buildItemsBreakdown(estimate),
     })
   }

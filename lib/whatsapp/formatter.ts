@@ -9,6 +9,7 @@
  * target language because the AI prompt was language-aware. This formatter
  * only translates the structural labels (Subtotal, Total, Timeline, etc.).
  */
+import { formatMoney } from '@/lib/money/currency'
 
 export type FormatterItem = {
   description: string
@@ -35,6 +36,7 @@ export type FormatterEstimate = {
   sections: FormatterSection[]
   /** Phase 52: language of AI-generated content; drives label translation */
   language?: 'en' | 'pt' | 'es'
+  currency_code?: string | null
 }
 
 interface FormatterLabels {
@@ -90,19 +92,6 @@ const LABELS: Record<'en' | 'pt' | 'es', FormatterLabels> = {
 }
 
 /**
- * Locale-aware currency formatter.
- * USD remains the system currency; the locale affects format only.
- */
-function formatCurrency(value: number, language: 'en' | 'pt' | 'es'): string {
-  const locale =
-    language === 'pt' ? 'pt-BR' : language === 'es' ? 'es-MX' : 'en-US'
-  return new Intl.NumberFormat(locale, {
-    style: 'currency',
-    currency: 'USD',
-  }).format(value)
-}
-
-/**
  * Build a WhatsApp message body for the full estimate.
  * Uses *bold* and line breaks — renders well in WhatsApp.
  */
@@ -113,7 +102,7 @@ export function formatEstimateForWhatsApp(
 ): string {
   const language = estimate.language ?? 'en'
   const L = LABELS[language]
-  const money = (n: number) => formatCurrency(n, language)
+  const money = (n: number) => formatMoney(n, estimate.currency_code)
   const lines: string[] = []
 
   lines.push(clientName ? L.greetingWithName(clientName) : L.greetingAnon)

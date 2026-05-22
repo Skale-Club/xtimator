@@ -3,6 +3,7 @@ import type Stripe from 'stripe'
 import type { requireServiceClient } from '@/lib/supabase/service'
 import { notify } from '@/lib/notifications/dispatch'
 import { buildNotificationCopy } from '@/lib/notifications/copy'
+import { formatMinorUnits } from '@/lib/money/currency'
 
 /**
  * Connected-account Stripe webhook handler (Phase 70, plan 70-04).
@@ -82,7 +83,7 @@ async function handleCheckoutSessionCompleted(
       payment_amount_cents: session.amount_total,
     })
     .eq('id', estimateId)
-    .select('id, company_id, project_id, share_token')
+    .select('id, company_id, project_id, share_token, currency_code')
     .single()
 
   if (error || !updated) {
@@ -124,7 +125,7 @@ async function handleCheckoutSessionCompleted(
   try {
     const amountUSD =
       typeof session.amount_total === 'number'
-        ? `$${(session.amount_total / 100).toFixed(2)}`
+        ? formatMinorUnits(session.amount_total, updated.currency_code)
         : undefined
     const copy = buildNotificationCopy('payment.received', {
       amountUSD,
@@ -162,6 +163,7 @@ async function handleCheckoutSessionCompleted(
 
   const ctx = {
     amountCents: session.amount_total ?? 0,
+    currencyCode: updated.currency_code,
     projectName: project?.name ?? 'Service estimate',
     estimateShareUrl: `${origin}/estimate/${updated.share_token}`,
     businessName:
@@ -197,12 +199,12 @@ async function handleChargeRefunded(
 
   const { data: estimate } = await svc
     .from('estimates')
-    .select('id, company_id, project_id')
+    .select('id, company_id, project_id, currency_code')
     .eq('stripe_payment_intent_id', piId)
     .maybeSingle()
 
   const est = estimate as
-    | { id: string; company_id: string; project_id: string }
+    | { id: string; company_id: string; project_id: string; currency_code: string | null }
     | null
   if (!est) return
 
@@ -221,7 +223,7 @@ async function handleChargeRefunded(
   const refundedCents = charge.amount_refunded ?? 0
   const amountUSD =
     typeof refundedCents === 'number'
-      ? `$${(refundedCents / 100).toFixed(2)}`
+      ? formatMinorUnits(refundedCents, est.currency_code)
       : undefined
 
   try {

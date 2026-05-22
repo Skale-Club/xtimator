@@ -17,9 +17,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { sendWhatsAppMessage } from '@/lib/whatsapp/client'
 import { formatEstimateForWhatsApp, type FormatterEstimate } from '@/lib/whatsapp/formatter'
-import { parseEditCommand, EDIT_HELP_MESSAGE, type ParsedCommand } from '@/lib/whatsapp/edit-commands'
+import { parseEditCommand, EDIT_HELP_MESSAGE } from '@/lib/whatsapp/edit-commands'
 import { generateEstimateForProject } from '@/lib/services/generate-estimate'
 import { generateAndUploadEstimatePDF } from '@/lib/whatsapp/pdf-delivery'
+import { formatMoney } from '@/lib/money/currency'
 
 type Session = {
   id: string
@@ -248,7 +249,7 @@ async function resendSummary(
 ): Promise<void> {
   const { data: estimate } = await supabase
     .from('estimates')
-    .select('total, summary, sections:estimate_sections(title, subtotal)')
+    .select('total, currency_code, summary, sections:estimate_sections(title, subtotal)')
     .eq('id', estimateId)
     .single()
 
@@ -262,6 +263,7 @@ async function resendSummary(
 function buildConfirmationMessage(
   estimate: {
     total: number | null
+    currency_code: string | null
     summary: string | null
     sections: Array<{ title: string; subtotal: number }> | null
   } | null,
@@ -271,17 +273,11 @@ function buildConfirmationMessage(
     return `${prefix}\n\nReply *send* to deliver to your client, or *cancel* to discard.`
   }
 
-  const total = new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-  }).format(estimate.total ?? 0)
+  const total = formatMoney(estimate.total ?? 0, estimate.currency_code)
 
   const sections = (estimate.sections ?? [])
     .map((s) => {
-      const subtotal = new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency: 'USD',
-      }).format(s.subtotal)
+      const subtotal = formatMoney(s.subtotal, estimate.currency_code)
       return `• ${s.title}: ${subtotal}`
     })
     .join('\n')
@@ -321,7 +317,7 @@ async function handleSend(
     supabase
       .from('estimates')
       .select(`
-        id, share_token, total, subtotal, tax_rate, tax_amount, summary,
+        id, share_token, total, subtotal, tax_rate, tax_amount, currency_code, summary,
         payment_terms, timeline, language,
         sections:estimate_sections(
           title, subtotal,

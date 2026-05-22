@@ -28,6 +28,7 @@ export async function getFolders(
 export interface PriceBookItem {
   id: string
   company_id: string
+  currency_code?: string
   folder_id: string | null
   folder_name: string | null
   name: string
@@ -45,7 +46,7 @@ export async function getPriceBookItems(
   const { data } = await supabase
     .from('company_price_book')
     .select(`
-      id, company_id, folder_id, name, unit, unit_price, notes, created_at, image_url,
+      id, company_id, currency_code, folder_id, name, unit, unit_price, notes, created_at, image_url,
       price_book_folders ( name )
     `)
     .eq('company_id', companyId)

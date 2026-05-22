@@ -5,6 +5,7 @@ import type {
   EstimateItem,
   EstimateWithSections,
 } from '@/lib/queries/estimate'
+import { toMinorUnits } from '@/lib/money/currency'
 
 export interface ShareEstimateData {
   estimate: EstimateWithSections & {
@@ -155,7 +156,7 @@ export async function getEstimateByShareToken(
     (estimateRaw.payment_amount_cents as number | null) ?? null
   const totalDollars = Number(estimate.total ?? 0)
   const total_amount_cents = Number.isFinite(totalDollars)
-    ? Math.round(totalDollars * 100)
+    ? toMinorUnits(totalDollars, estimate.currency_code)
     : 0
 
   return {

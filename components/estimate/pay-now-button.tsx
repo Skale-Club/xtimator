@@ -25,6 +25,7 @@ import { T } from '@/components/i18n/t'
 export interface PayNowButtonProps {
   token: string
   totalAmountCents: number
+  currencyCode?: string | null
   stripeAccountId: string | null
   stripeConnectStatus: string | null
   paymentStatus: string
@@ -51,7 +52,7 @@ export function PayNowButton(props: PayNowButtonProps) {
         size="lg"
         className="w-full shadow-glow-brand"
       >
-        <T text={`Pay ${formatUSD(props.totalAmountCents)}`} />
+        <T text={`Pay ${formatUSD(props.totalAmountCents, props.currencyCode)}`} />
       </Button>
       <p className="text-xs text-muted-foreground mt-2 text-center">
         <T>Powered by Stripe · Secure payment</T>
