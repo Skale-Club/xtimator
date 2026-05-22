@@ -15,6 +15,7 @@ import { SYSTEM_COLORS } from '@/lib/system-colors'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { PhoneInput } from '@/components/ui/phone-input'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { LogoUploader } from '@/components/onboarding/logo-uploader'
@@ -169,7 +170,11 @@ export function CompanyInfoForm({ company }: CompanyInfoFormProps) {
                     <FormItem>
                       <FormLabel>{t('Phone')}</FormLabel>
                       <FormControl>
-                        <Input placeholder="(555) 123-4567" {...field} />
+                        <PhoneInput
+                          value={field.value ?? ''}
+                          onChange={field.onChange}
+                          placeholder="(555) 123-4567"
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

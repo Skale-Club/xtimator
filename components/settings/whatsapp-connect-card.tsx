@@ -35,6 +35,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { PhoneInput } from '@/components/ui/phone-input'
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -357,7 +358,13 @@ export function WhatsAppConnectCard({ initial }: WhatsAppConnectCardProps) {
                   <FormItem>
                     <FormLabel>Phone number</FormLabel>
                     <FormControl>
-                      <Input placeholder="+15551234567" {...field} />
+                      <PhoneInput
+                        value={field.value ?? ''}
+                        onChange={(formatted) => {
+                          field.onChange(formatted.replace(/[^\d+]/g, ''))
+                        }}
+                        placeholder="+15551234567"
+                      />
                     </FormControl>
                     <FormDescription>E.164 format including country code.</FormDescription>
                     <FormMessage />

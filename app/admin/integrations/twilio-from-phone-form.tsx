@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { Input } from '@/components/ui/input'
+import { PhoneInput } from '@/components/ui/phone-input'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Loader2, Save } from 'lucide-react'
@@ -39,11 +39,14 @@ export function TwilioFromPhoneForm({ current }: TwilioFromPhoneFormProps) {
       <div className="flex gap-3 items-end max-w-sm">
         <div className="flex-1 space-y-1">
           <Label htmlFor="twilio-from-phone">From phone</Label>
-          <Input
+          <PhoneInput
             id="twilio-from-phone"
-            placeholder="+15551234567"
             value={value}
-            onChange={(e) => setValue(e.target.value)}
+            onChange={(formatted) => {
+              // saveTwilioFromPhone expects E.164 — strip mask chars
+              setValue(formatted.replace(/[^\d+]/g, ''))
+            }}
+            placeholder="+15551234567"
             disabled={isPending}
           />
         </div>

@@ -1,6 +1,6 @@
 'use client'
 
-import { Input } from '@/components/ui/input'
+import { PhoneInput } from '@/components/ui/phone-input'
 import { Label } from '@/components/ui/label'
 import type { OnboardingValues } from '@/lib/schemas/onboarding'
 
@@ -16,21 +16,13 @@ export function PhoneStep({ values, setValue, onNext }: Props) {
       <Label htmlFor="survey-phone" className="sr-only">
         Phone
       </Label>
-      <Input
+      <PhoneInput
         id="survey-phone"
-        type="tel"
-        autoFocus
-        autoComplete="tel"
-        placeholder="(555) 123-4567"
-        className="min-h-[44px]"
         value={values.phone}
-        onChange={(e) => setValue('phone', e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') {
-            e.preventDefault()
-            onNext()
-          }
-        }}
+        onChange={(formatted) => setValue('phone', formatted)}
+        onEnter={onNext}
+        placeholder="(555) 123-4567"
+        autoFocus
       />
     </div>
   )

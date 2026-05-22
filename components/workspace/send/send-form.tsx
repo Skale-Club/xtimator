@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { PhoneInput } from '@/components/ui/phone-input'
 import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Separator } from '@/components/ui/separator'
@@ -244,7 +245,14 @@ export function SendForm({
                       <FormItem>
                         <FormLabel>Phone number</FormLabel>
                         <FormControl>
-                          <Input placeholder="+15551234567" {...field} />
+                          <PhoneInput
+                            value={field.value ?? ''}
+                            onChange={(formatted) => {
+                              // Schema requires E.164 — strip mask chars before storing
+                              field.onChange(formatted.replace(/[^\d+]/g, ''))
+                            }}
+                            placeholder="+15551234567"
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
