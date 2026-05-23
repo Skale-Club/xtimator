@@ -1,29 +1,24 @@
 'use client'
 
 import { useTransition } from 'react'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { projectSchema } from '@/lib/schemas/project'
-import type { ProjectFormValues } from '@/lib/schemas/project'
-import type { InputMode } from '@/lib/schemas/project'
+import type { ProjectFormValues, InputMode } from '@/lib/schemas/project'
 import { createProjectAction } from '@/lib/actions/project'
 
 import { Form } from '@/components/ui/form'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { StepModalitySelect } from '@/components/projects/step-modality-select'
 
 /**
- * Single-step modality picker. Project is created on submit with no client
- * (clientId = null). Linking a client happens later from the project workspace
- * Overview tab (Link Client card from Phase 29). This keeps "from intent to
- * capture" to one decision.
+ * Single-step modality picker. Clicking a card immediately creates the project
+ * (with no client; clientId = null) and routes to the matching capture screen.
+ * Linking a client happens later from the project workspace Overview tab.
  */
 const MODALITY_ROUTES: Record<InputMode, string> = {
   audio: '/capture',
@@ -38,7 +33,6 @@ interface NewProjectWizardProps {
 }
 
 export function NewProjectWizard({ onClose }: NewProjectWizardProps = {}) {
-  const router = useRouter()
   const [isPending, startTransition] = useTransition()
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -54,62 +48,56 @@ export function NewProjectWizard({ onClose }: NewProjectWizardProps = {}) {
 
   const selectedMode = form.watch('inputMode')
 
-  function handleSubmit() {
-    if (!selectedMode) {
-      form.setError('inputMode', { message: 'Please select a modality to continue.' })
-      return
-    }
+  function handleSelect(mode: InputMode) {
+    if (isPending) return
+    form.setValue('inputMode', mode, { shouldValidate: true })
 
     startTransition(async () => {
-      const values = form.getValues()
+      const values = { ...form.getValues(), inputMode: mode }
       const result = await createProjectAction(values)
       if ('error' in result) {
         toast.error(result.error)
         return
       }
-      const route = MODALITY_ROUTES[values.inputMode!] ?? '/capture'
-      router.push(`/projects/${result.data.id}${route}`)
+      const route = MODALITY_ROUTES[mode] ?? '/capture'
+      // Hard navigation: a soft router.push keeps the dialog rendered on top
+      // of the (capture) layout while the new route hydrates (React transition
+      // holds the old UI). window.location.href tears the whole page down
+      // first, so the modal disappears together with the previous route.
+      window.location.href = `/projects/${result.data.id}${route}`
     })
   }
 
-  const submitLabel = selectedMode
-    ? `Start ${selectedMode.charAt(0).toUpperCase() + selectedMode.slice(1)} capture`
-    : 'Choose a modality'
-
   return (
-    <Card variant="glass">
-      <CardContent className="p-6 sm:p-8">
-        <Form {...form}>
-          <form onSubmit={(e) => e.preventDefault()}>
-            <StepModalitySelect form={form} />
+    <Form {...form}>
+      <form onSubmit={(e) => e.preventDefault()}>
+        <StepModalitySelect
+          form={form}
+          onSelect={handleSelect}
+          isPending={isPending}
+          pendingMode={isPending ? selectedMode : undefined}
+        />
 
-            <Separator className="my-6" />
+        <Separator className="my-6" />
 
-            <div className="flex justify-between items-center">
-              {onClose ? (
-                <Button type="button" variant="ghost" className="min-h-[44px]" onClick={onClose}>
-                  Cancel
-                </Button>
-              ) : (
-                <Button asChild type="button" variant="ghost" className="min-h-[44px]">
-                  <Link href="/dashboard">Cancel</Link>
-                </Button>
-              )}
-
-              <Button
-                type="button"
-                variant="primary"
-                className="min-h-[44px]"
-                onClick={handleSubmit}
-                disabled={isPending || !selectedMode}
-              >
-                {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {submitLabel}
-              </Button>
-            </div>
-          </form>
-        </Form>
-      </CardContent>
-    </Card>
+        <div className="flex justify-end items-center">
+          {onClose ? (
+            <Button
+              type="button"
+              variant="ghost"
+              className="min-h-[44px]"
+              onClick={onClose}
+              disabled={isPending}
+            >
+              Cancel
+            </Button>
+          ) : (
+            <Button asChild type="button" variant="ghost" className="min-h-[44px]">
+              <Link href="/dashboard">Cancel</Link>
+            </Button>
+          )}
+        </div>
+      </form>
+    </Form>
   )
 }

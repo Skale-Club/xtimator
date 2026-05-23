@@ -11,9 +11,10 @@ import { cn } from '@/lib/utils'
 interface LandingNavProps {
   appName: string
   logoUrl?: string | null
+  onOpenAuth?: (mode: 'login' | 'signup') => void
 }
 
-export function LandingNav({ appName, logoUrl }: LandingNavProps) {
+export function LandingNav({ appName, logoUrl, onOpenAuth }: LandingNavProps) {
   const [scrolled, setScrolled] = useState(false)
 
   useEffect(() => {
@@ -52,12 +53,12 @@ export function LandingNav({ appName, logoUrl }: LandingNavProps) {
 
         {/* Desktop CTAs — hidden below md */}
         <div className="hidden md:flex items-center gap-3">
-          <Button variant="ghost" size="sm" asChild>
-                  <Link href="/login">Sign In</Link>
-          </Button>
-          <Button size="sm" asChild>
-            <Link href="/signup">Get Started</Link>
-          </Button>
+<Button variant="ghost" size="sm" onClick={() => onOpenAuth?.('login')}>
+                  Sign In
+                </Button>
+                <Button size="sm" onClick={() => onOpenAuth?.('signup')}>
+                  Get Started
+                </Button>
         </div>
 
         {/* Mobile hamburger — visible below md */}
@@ -85,11 +86,11 @@ export function LandingNav({ appName, logoUrl }: LandingNavProps) {
                 </a>
               </SheetClose>
               <div className="pt-4 flex flex-col gap-3 border-t border-border">
-                <Button variant="ghost" className="w-full justify-center min-h-[44px]" asChild>
-                   <Link href="/login">Sign In</Link>
+                <Button variant="ghost" className="w-full justify-center min-h-[44px]" onClick={() => onOpenAuth?.('login')}>
+                  Sign In
                 </Button>
-                <Button className="w-full justify-center min-h-[44px]" asChild>
-                  <Link href="/signup">Get Started Free</Link>
+                <Button className="w-full justify-center min-h-[44px]" onClick={() => onOpenAuth?.('signup')}>
+                  Get Started Free
                 </Button>
               </div>
             </div>

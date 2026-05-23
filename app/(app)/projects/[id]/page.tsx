@@ -45,7 +45,7 @@ export default async function ProjectPage({
   const allVersionsPromise = getProjectEstimates(supabase, id)
 
   return (
-    <div className="space-y-6 px-6 py-8">
+    <div className="space-y-6 p-6">
       <header className="space-y-1">
         <p className="text-xs uppercase tracking-[0.08em] text-muted-foreground"><T>Project</T></p>
         <ProjectTitle projectId={project.id} initialName={project.name} />

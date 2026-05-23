@@ -107,7 +107,7 @@ export function Sidebar({ branding }: SidebarProps) {
       style={{ borderTop: 0, borderBottom: 0, borderLeft: 0 }}
       className={cn(
         'hidden md:flex flex-col shrink-0 overflow-hidden transition-[width] duration-200 glass border-r border-[var(--glass-border)]',
-        collapsed ? 'w-16' : 'w-64',
+        collapsed ? 'w-16' : 'w-[213px]',
       )}
     >
       {/* Product branding — links to landing page */}

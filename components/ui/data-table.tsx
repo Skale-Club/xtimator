@@ -41,6 +41,11 @@ export interface DataTableProps<T> {
   defaultFilter?: string
   emptyTitle?: string
   emptyDescription?: string
+  emptyActionLabel?: string
+  emptyActionHref?: string
+  emptyAction?: () => void
+  noResultsTitle?: string
+  noResultsDescription?: string
   emptyIcon?: LucideIcon
   onRowClick?: (row: T) => void
   renderMobileCard?: (row: T) => React.ReactNode
@@ -59,6 +64,11 @@ export function DataTable<T>({
   defaultFilter,
   emptyTitle = 'No items',
   emptyDescription = '',
+  emptyActionLabel,
+  emptyActionHref,
+  emptyAction,
+  noResultsTitle = 'No results match your filters',
+  noResultsDescription = '',
   emptyIcon,
   onRowClick,
   renderMobileCard,
@@ -107,6 +117,9 @@ export function DataTable<T>({
         icon={emptyIcon ?? FolderOpen}
         title={emptyTitle}
         description={emptyDescription}
+        actionLabel={emptyActionLabel}
+        actionHref={emptyActionHref}
+        onAction={emptyAction}
       />
     )
   }
@@ -164,8 +177,8 @@ export function DataTable<T>({
       {displayData.length === 0 && data.length > 0 ? (
         <EmptyState
           icon={Search}
-          title="No results match your filters"
-          description=""
+          title={noResultsTitle}
+          description={noResultsDescription}
           onClearFilter={() => {
             setSearch('')
             setActiveFilter(firstTabKey)

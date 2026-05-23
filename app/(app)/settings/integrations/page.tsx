@@ -4,7 +4,7 @@ export const metadata = { title: 'Integrations | Settings' }
 
 export default function SettingsIntegrationsPage() {
   return (
-    <div className="space-y-8 px-6 py-8">
+    <div className="space-y-8 p-6">
       <header className="flex flex-col gap-2">
         <h1 className="text-[clamp(28px,3.5vw,40px)] font-semibold tracking-tight">
           <T>Integrations</T>

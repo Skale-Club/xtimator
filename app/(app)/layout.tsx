@@ -56,7 +56,7 @@ export default async function AppShellLayout({
   const trialDaysRemaining =
     billingRow.data?.tier === 'free' && billingRow.data?.tier_trial_ends_at
       ? Math.ceil(
-          (new Date(billingRow.data.tier_trial_ends_at).getTime() - Date.now()) /
+          (new Date(billingRow.data.tier_trial_ends_at).getTime() - new Date().getTime()) /
             (1000 * 60 * 60 * 24)
         )
       : null
@@ -77,7 +77,7 @@ export default async function AppShellLayout({
           {trialDaysRemaining !== null && trialDaysRemaining < 3 && (
             <TrialBanner daysRemaining={trialDaysRemaining} />
           )}
-          <main className="flex-1 overflow-y-auto pt-4 md:pt-6 pb-20 md:pb-6">
+          <main className="flex-1 overflow-y-auto pb-20 md:pb-6">
             {children}
           </main>
         </div>

@@ -23,7 +23,7 @@ export default async function PriceBookPage() {
   ])
 
   return (
-    <div className="w-full max-w-none space-y-6 px-4 py-4 md:space-y-8 md:px-6 md:py-8">
+    <div className="w-full max-w-none space-y-6 p-4 md:space-y-8 md:p-6">
       {items.length > 0 && (
         <p className="text-sm text-muted-foreground">
           <T>The AI uses your listed prices as anchors when generating estimates. Leaving items out is fine | it falls back to market estimates.</T>

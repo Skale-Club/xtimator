@@ -45,7 +45,7 @@ export default async function BillingPage() {
   return (
     <div className="space-y-12 pb-12">
       {/* Hero zone — Phase 71 pattern: gradient-hero radial backdrop */}
-      <section className="relative isolate px-6 pt-[clamp(48px,8vw,96px)] pb-8 text-center">
+      <section className="relative isolate px-6 py-6 text-center">
         <div
           aria-hidden
           className="absolute inset-0 -z-10 gradient-hero"

@@ -41,6 +41,7 @@ export default async function ProjectsPage({
     <ProjectsPageShell
       status={status}
       clientId={clientId}
+      currencyCode={company.currency_code}
       projects={projects}
       clients={clients}
     />

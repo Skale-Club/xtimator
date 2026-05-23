@@ -191,6 +191,7 @@ export function ClientList({ clients, companyId }: ClientListProps) {
         emptyIcon={Users}
         emptyTitle={t('No clients yet')}
         emptyDescription={t('Add your first client to get started')}
+        noResultsTitle={t('No clients match your search')}
         headerRight={
           <Button variant="primary" onClick={handleAddClient}>
             <Plus className="h-4 w-4 mr-2" />

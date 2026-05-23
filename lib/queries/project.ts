@@ -135,7 +135,9 @@ export type ProjectListStatus = 'active' | 'archived' | 'trash'
 export interface ProjectListRow {
   id: string
   name: string
+  project_type: string | null
   status: string
+  total: number
   created_at: string
   archived_at: string | null
   deleted_at: string | null
@@ -145,7 +147,9 @@ export interface ProjectListRow {
 interface ProjectListRowRaw {
   id: string
   name: string
+  project_type: string | null
   status: string
+  total: number | string | null
   created_at: string
   archived_at: string | null
   deleted_at: string | null
@@ -159,7 +163,7 @@ export async function getProjectsForListPage(
 ): Promise<ProjectListRow[]> {
   let q = supabase
     .from('projects')
-    .select('id, name, status, created_at, archived_at, deleted_at, client:clients(id, name)')
+    .select('id, name, project_type, status, total, created_at, archived_at, deleted_at, client:clients(id, name)')
     .eq('company_id', companyId)
     .order('created_at', { ascending: false })
 
@@ -196,7 +200,9 @@ export async function getProjectsForListPage(
     return {
       id: row.id,
       name: row.name,
+      project_type: row.project_type,
       status: row.status,
+      total: Number(row.total) || 0,
       created_at: row.created_at,
       archived_at: row.archived_at,
       deleted_at: row.deleted_at,

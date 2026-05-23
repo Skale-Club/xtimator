@@ -5,18 +5,21 @@ import { AuthDialog } from '@/components/landing/auth-dialog'
 
 interface TopNavAuthProps {
   branding: { appName: string; logoUrl: string | null }
+  onOpenAuth?: (mode: 'login' | 'signup') => void
 }
 
-export function TopNavAuth({ branding }: TopNavAuthProps) {
+export function TopNavAuth({ branding, onOpenAuth }: TopNavAuthProps) {
   const [open, setOpen] = useState(false)
   const [mode, setMode] = useState<'login' | 'signup'>('login')
 
   function openLogin() {
+    if (onOpenAuth) { onOpenAuth('login'); return }
     setMode('login')
     setOpen(true)
   }
 
   function openSignup() {
+    if (onOpenAuth) { onOpenAuth('signup'); return }
     setMode('signup')
     setOpen(true)
   }

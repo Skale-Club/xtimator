@@ -51,7 +51,7 @@ export default async function ClientDetailPage({
   const fullAddress = addressParts.length > 0 ? addressParts.join(', ') : null
 
   return (
-    <div className="px-6 py-8 space-y-6">
+    <div className="space-y-6 p-6">
       {/* Back link */}
       <Link
         href="/clients"

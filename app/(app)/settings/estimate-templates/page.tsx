@@ -19,7 +19,7 @@ export default async function EstimateTemplatesPage() {
   if (!template) redirect('/onboarding')
 
   return (
-    <div className="space-y-8 px-6 py-8">
+    <div className="space-y-8 p-6">
       <header className="flex flex-col gap-1">
         <h1 className="text-[clamp(28px,3.5vw,40px)] font-semibold tracking-tight">
           <T>Estimate Templates</T>

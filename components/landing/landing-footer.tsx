@@ -1,9 +1,15 @@
+'use client'
+
 import Link from 'next/link'
 import { AppIcon } from '@/components/ui/app-icon'
-import { getBranding } from '@/lib/platform-config'
 
-export async function LandingFooter() {
-  const branding = await getBranding()
+interface LandingFooterProps {
+  appName: string
+  logoUrl: string | null
+  onOpenAuth?: (mode: 'login' | 'signup') => void
+}
+
+export function LandingFooter({ appName, logoUrl, onOpenAuth }: LandingFooterProps) {
 
   return (
     <footer className="border-t border-white/5 bg-background py-16">
@@ -11,8 +17,8 @@ export async function LandingFooter() {
         <div className="grid gap-12 md:grid-cols-4 lg:gap-8">
           <div className="md:col-span-2">
             <Link href="/" className="inline-flex items-center gap-2.5 transition-opacity hover:opacity-80">
-              <AppIcon logoUrl={branding.logoUrl} appName={branding.appName} className="h-6 w-6" />
-              <span className="text-lg font-bold tracking-tight">{branding.appName}</span>
+              <AppIcon logoUrl={logoUrl} appName={appName} className="h-6 w-6" />
+              <span className="text-lg font-bold tracking-tight">{appName}</span>
             </Link>
             <p className="mt-6 max-w-xs text-sm leading-relaxed text-muted-foreground">
               AI-powered estimates for service businesses that quote on site. Built for speed, designed for pros.
@@ -29,7 +35,7 @@ export async function LandingFooter() {
                 <Link href="#" className="transition-colors hover:text-white">How it works</Link>
               </li>
               <li>
-                <Link href="/signup" className="transition-colors hover:text-white">Start</Link>
+                <button type="button" onClick={() => onOpenAuth?.('signup')} className="transition-colors hover:text-white">Start</button>
               </li>
             </ul>
           </div>
@@ -44,7 +50,7 @@ export async function LandingFooter() {
                 <Link href="#" className="transition-colors hover:text-white">Terms of Service</Link>
               </li>
               <li>
-                <Link href="/login" className="transition-colors hover:text-white">See Demo</Link>
+                <button type="button" onClick={() => onOpenAuth?.('login')} className="transition-colors hover:text-white">See Demo</button>
               </li>
             </ul>
           </div>
@@ -52,7 +58,7 @@ export async function LandingFooter() {
         
         <div className="mt-16 flex flex-col items-center justify-between gap-6 border-t border-white/5 pt-8 sm:flex-row">
           <p className="text-sm text-muted-foreground">
-            &copy; {new Date().getFullYear()} {branding.appName}. All rights reserved.
+            &copy; {new Date().getFullYear()} {appName}. All rights reserved.
           </p>
           <div className="flex gap-6 text-muted-foreground">
             <Link href="#" className="transition-colors hover:text-white">
