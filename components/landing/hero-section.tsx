@@ -1,8 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import Link from 'next/link'
-import { ArrowRight, LogIn, Sparkles, CheckCircle2 } from 'lucide-react'
+import { ArrowRight, Sparkles, CheckCircle2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { motion, useReducedMotion, type Variants } from 'framer-motion'
 
@@ -21,7 +20,7 @@ const FADE_UP_ANIMATION_VARIANTS: Variants = {
   show: { opacity: 1, y: 0, transition: { type: 'spring', duration: 1 } },
 }
 
-export function HeroSection({ content }: { content: HeroContent }) {
+export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onOpenAuth?: (mode: 'login' | 'signup') => void }) {
   const reduce = useReducedMotion()
   const STEPS = [
     { step: '1', label: 'Processing Voice Notes...', detail: '"Remove existing drywall, install 1/2 inch moisture resistant..."' },
@@ -63,7 +62,7 @@ export function HeroSection({ content }: { content: HeroContent }) {
             {/* Display headline — clamp(40,7vw,68), tracking -0.03em */}
             <motion.h1
               variants={FADE_UP_ANIMATION_VARIANTS}
-              className="text-balance text-[clamp(40px,7vw,68px)] font-semibold leading-[1.02] tracking-[-0.03em]"
+              className="text-balance text-[clamp(40px,7vw,56px)] font-semibold leading-[1.02] tracking-[-0.03em]"
             >
               {content.heroHeadline}
             </motion.h1>
@@ -78,22 +77,18 @@ export function HeroSection({ content }: { content: HeroContent }) {
             <motion.div variants={FADE_UP_ANIMATION_VARIANTS} className="flex flex-col gap-3 sm:flex-row">
               {/* Glow ring on primary CTA — breathing pulse, motion-gated via CSS */}
               <div className="cta-glow inline-flex w-full sm:w-auto">
-                <Button asChild variant="primary" size="lg" className="w-full sm:w-auto sm:min-w-40">
-                  <Link href="/signup">
-                    {content.ctaLabel}
-                    <ArrowRight className="ml-2 size-4" aria-hidden="true" />
-                  </Link>
+                <Button variant="primary" size="lg" className="w-full sm:w-auto sm:min-w-40" onClick={() => onOpenAuth?.('signup')}>
+                  {content.ctaLabel}
+                  <ArrowRight className="ml-2 size-4" aria-hidden="true" />
                 </Button>
               </div>
               <Button
-                asChild
                 size="lg"
                 variant="outline"
                 className="w-full border-white/10 bg-white/5 font-semibold text-foreground transition-all hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:w-auto sm:min-w-36"
+                onClick={() => onOpenAuth?.('login')}
               >
-                <Link href="/login" className="text-center">
-                  See Demo
-                </Link>
+                See Demo
               </Button>
             </motion.div>
 

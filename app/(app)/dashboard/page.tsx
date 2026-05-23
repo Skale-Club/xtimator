@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getDashboardStats, getProjects } from '@/lib/queries/dashboard'
 import { getAuthClaims, getCachedCompany } from '@/lib/queries/auth'
-import { StatCards } from '@/components/dashboard/stat-cards'
+import { DashboardStatsClient } from '@/components/dashboard/dashboard-stats-client'
 import { ProjectList } from '@/components/dashboard/project-list'
 import { Skeleton } from '@/components/ui/skeleton'
 import { T } from '@/components/i18n/t'
@@ -26,7 +26,7 @@ export default async function DashboardPage() {
   return (
     <div className="pb-12">
       {/* Hero zone — gradient-hero radial backdrop, display headline + primary CTA */}
-      <section className="relative isolate px-6 pt-[clamp(32px,5vw,56px)] pb-12">
+      <section className="relative isolate px-6 py-6">
         {/* Gradient extends -top-16 to bleed under the glass topbar — backdrop-blur fuses the two surfaces.
             Bottom mask fades the gradient to alpha 0 so it dissolves smoothly into the page bg
             (instead of cutting off with a visible edge). */}
@@ -63,7 +63,7 @@ export default async function DashboardPage() {
 async function DashboardStats({ companyId, currencyCode }: { companyId: string; currencyCode: string }) {
   const supabase = await createClient()
   const stats = await getDashboardStats(supabase, companyId)
-  return <StatCards stats={stats} currencyCode={currencyCode} />
+  return <DashboardStatsClient stats={stats} currencyCode={currencyCode} />
 }
 
 async function DashboardProjects({ companyId }: { companyId: string }) {
