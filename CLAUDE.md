@@ -29,7 +29,7 @@ Xtimator is a SaaS web application for US-based service businesses (construction
 <!-- GSD:project-end -->
 
 <!-- GSD:stack-start source:STACK.md -->
-## Technology Stack
+## Technology Stack  
 
 Technology stack not yet documented. Will populate after codebase mapping or first phase.
 <!-- GSD:stack-end -->
