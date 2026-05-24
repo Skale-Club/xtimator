@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Multi-Tenancy (Multiple Companies per User)
 status: defining_requirements
-last_updated: "2026-05-20T00:00:00.000Z"
-last_activity: 2026-05-20
+last_updated: "2026-05-24T21:02:00.000Z"
+last_activity: 2026-05-24
 progress:
   total_phases: 0
   completed_phases: 0
@@ -18,14 +18,14 @@ progress:
 
 - **Milestone**: v4.0 Multi-Tenancy — Defining requirements (no phases yet)
 - **Previous milestone (in progress)**: v3.1.1 MVP Launch Prep + Future-Proofing — phases 73-78 still pending
-- **Last updated**: 2026-05-20
+- **Last updated**: 2026-05-24
 
 ## Current Position
 
 Phase: Not started (defining requirements)
 Plan: —
 Status: Defining requirements
-Last activity: 2026-05-24 - Completed quick task 260524-lxk: Voice recorder visual redesign (glass + glow brand)
+Last activity: 2026-05-24 - Completed quick task 260524-ohe: Refactored auth flow — collapsed /login + /signup + /reset-password into in-modal 2-step on landing page
 
 ## v3.1.1 Phases
 
