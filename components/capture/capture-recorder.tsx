@@ -3,14 +3,13 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Mic, MicOff, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
-import { CircularProgressRing } from '@/components/capture/circular-progress-ring'
 import { CaptureTimer } from '@/components/capture/capture-timer'
 import { CaptureStepper } from '@/components/capture/capture-stepper'
 import { CaptureFailure } from '@/components/capture/capture-failure'
-import { WaveformVisualizer } from '@/components/workspace/audio/waveform-visualizer'
+import { VoiceRecorder } from '@/components/workspace/audio/voice-recorder'
 import { createRecording, transcribeRecording, createTextRecording } from '@/lib/actions/recording'
 import { createPhoto } from '@/lib/actions/photo'
 import { createClient } from '@/lib/supabase/client'
@@ -499,42 +498,21 @@ function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progre
   const { t } = useTranslation()
   return (
     <div className="flex-1 flex flex-col overflow-y-auto min-h-0">
-      {/* Waveform — visualization for recording (D-08) */}
-      <div className="px-4 pt-4">
-        <WaveformVisualizer analyser={analyser} isRecording={isRecording} height={80} />
-      </div>
-
-      {/* PRIMARY ACTION: Timer + Mic button — front and center, the reason user is on this screen */}
-      <div className="flex flex-col items-center gap-4 pt-4 pb-6">
-        <CaptureTimer elapsedMs={elapsedMs} />
-
-        <CircularProgressRing
-          progress={progress}
-          size={120}
-          strokeWidth={6}
-          colorClass={ringColorClass}
-        >
-          <button
-            onClick={onToggle}
-            className={`w-14 h-14 rounded-full flex items-center justify-center transition-colors ${
-              isRecording
-                ? 'bg-red-500 animate-pulse hover:bg-red-600'
-                : 'bg-primary hover:bg-primary/90'
-            }`}
-            aria-label={isRecording ? t('Stop recording') : t('Start recording')}
-            data-testid="capture-mic"
-          >
-            {isRecording ? (
-              <MicOff className="h-6 w-6 text-white" />
-            ) : (
-              <Mic className="h-6 w-6 text-primary-foreground" />
-            )}
-          </button>
-        </CircularProgressRing>
-
-        <p className="text-sm text-muted-foreground">
-          {isRecording ? t('Tap to stop recording') : t('Tap to start recording')}
-        </p>
+      {/* PRIMARY ACTION: glass card with waveform + timer + ring-wrapped mic */}
+      <div className="px-4 pt-4 pb-2">
+        <VoiceRecorder
+          size="lg"
+          analyser={analyser}
+          isRecording={isRecording}
+          elapsedMs={elapsedMs}
+          onToggle={onToggle}
+          showTimer={false}
+          ringProgress={progress}
+          ringColorClass={ringColorClass}
+          micTestId="capture-mic"
+          helperText={isRecording ? t('Tap to stop recording') : t('Tap to start recording')}
+          belowWaveform={<CaptureTimer elapsedMs={elapsedMs} />}
+        />
       </div>
 
       {/* "OR" divider — separates primary mic action from secondary text/photo path */}

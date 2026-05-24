@@ -39,6 +39,9 @@ export interface VoiceRecorderProps {
   // Optional slots for surface-specific extras
   belowWaveform?: React.ReactNode
   belowMic?: React.ReactNode
+
+  // Optional test id override for the mic button (defaults to "voice-recorder-mic")
+  micTestId?: string
 }
 
 function fmt(ms: number): string {
@@ -64,6 +67,7 @@ export function VoiceRecorder(props: VoiceRecorderProps) {
     ringProgress,
     belowWaveform,
     belowMic,
+    micTestId = 'voice-recorder-mic',
   } = props
 
   // Shared mic button class fragments
@@ -87,7 +91,7 @@ export function VoiceRecorder(props: VoiceRecorderProps) {
       disabled={disabled}
       className={cn(micBase, micSizeClass, micState)}
       aria-label={isRecording ? 'Stop recording' : 'Start recording'}
-      data-testid="voice-recorder-mic"
+      data-testid={micTestId}
     >
       {isRecording ? (
         <MicOff className={iconSizeClass} />
