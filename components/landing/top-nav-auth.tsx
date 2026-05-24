@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { AuthDialog } from '@/components/landing/auth-dialog'
+import { Button } from '@/components/ui/button'
 
 interface TopNavAuthProps {
   branding: { appName: string; logoUrl: string | null }
@@ -12,12 +13,6 @@ export function TopNavAuth({ branding, onOpenAuth }: TopNavAuthProps) {
   const [open, setOpen] = useState(false)
   const [mode, setMode] = useState<'login' | 'signup'>('login')
 
-  function openLogin() {
-    if (onOpenAuth) { onOpenAuth('login'); return }
-    setMode('login')
-    setOpen(true)
-  }
-
   function openSignup() {
     if (onOpenAuth) { onOpenAuth('signup'); return }
     setMode('signup')
@@ -26,13 +21,9 @@ export function TopNavAuth({ branding, onOpenAuth }: TopNavAuthProps) {
 
   return (
     <>
-      <button
-        type="button"
-        onClick={openSignup}
-        className="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow-[0_0_15px_hsl(var(--primary)/0.3)] transition-colors hover:bg-primary/90"
-      >
+      <Button variant="primary" size="sm" onClick={openSignup} className="min-w-24">
         Start
-      </button>
+      </Button>
 
       <AuthDialog
         branding={branding}

@@ -1,11 +1,16 @@
 'use client'
 
-import { useState } from 'react'
 import { ArrowRight, Sparkles, CheckCircle2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { motion, useReducedMotion, type Variants } from 'framer-motion'
 
-type HeroContent = { heroHeadline: string; heroSubheadline: string; ctaLabel: string }
+type HeroContent = {
+  heroHeadline: string
+  heroSubheadline: string
+  ctaLabel: string
+  /** Optional 1:1 hero image URL. When null, the hero renders as a single centered column. */
+  heroImageUrl: string | null
+}
 
 // Trust band copy — placeholder strings, i18n-ready (centralize here so a
 // future t() wiring is a 1-line swap per entry).
@@ -22,16 +27,10 @@ const FADE_UP_ANIMATION_VARIANTS: Variants = {
 
 export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onOpenAuth?: (mode: 'login' | 'signup') => void }) {
   const reduce = useReducedMotion()
-  const STEPS = [
-    { step: '1', label: 'Processing Voice Notes...', detail: '"Remove existing drywall, install 1/2 inch moisture resistant..."' },
-    { step: '2', label: 'Analyzing Photos', detail: 'Extracting dimensions and conditions from 4 site photos.' },
-    { step: '3', label: 'Drafting PDF', detail: 'Generating line items and standard pricing.' },
-  ]
-
-  const [hoveredStep, setHoveredStep] = useState<string | null>(null)
+  const hasImage = !!content.heroImageUrl
 
   return (
-    <section className="relative isolate overflow-hidden border-b border-white/5 bg-transparent py-[clamp(40px,7vw,72px)]">
+    <section className="relative isolate overflow-hidden border-b border-white/5 bg-transparent pt-[clamp(40px,6vw,72px)] pb-[clamp(16px,2.5vw,28px)] lg:pt-[clamp(16px,2.5vw,28px)]">
       {/* Phase 71 — animated gradient mesh + dot overlay backdrop (motion-gated via CSS). */}
       <div aria-hidden className="hero-mesh" />
       <div aria-hidden className="hero-dots" />
@@ -40,7 +39,13 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,transparent,hsl(var(--primary)/0.5),transparent)]" />
 
       <div className="relative mx-auto max-w-6xl px-6 sm:px-8 lg:px-10">
-        <div className="flex flex-col gap-11 lg:flex-row lg:items-center lg:justify-between lg:gap-8">
+        <div
+          className={
+            hasImage
+              ? 'flex flex-col gap-11 lg:flex-row lg:items-end lg:gap-10'
+              : 'flex flex-col items-center gap-11 text-center'
+          }
+        >
           {/* Left: headline + CTAs */}
           <motion.div
             initial={reduce ? false : 'hidden'}
@@ -50,9 +55,12 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
               hidden: {},
               show: { transition: { staggerChildren: 0.15 } },
             }}
-            className="max-w-2xl space-y-6"
+            className={hasImage ? 'relative z-10 min-w-0 space-y-6 lg:w-[58%] lg:shrink-0 lg:self-center' : 'max-w-3xl space-y-6'}
           >
-            <motion.div variants={FADE_UP_ANIMATION_VARIANTS} className="flex justify-start">
+            <motion.div
+              variants={FADE_UP_ANIMATION_VARIANTS}
+              className={hasImage ? 'flex justify-start' : 'flex justify-center'}
+            >
               <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-medium text-secondary backdrop-blur-sm">
                 <Sparkles className="size-3.5" aria-hidden="true" />
                 Built for contractors
@@ -69,12 +77,23 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
 
             <motion.p
               variants={FADE_UP_ANIMATION_VARIANTS}
-              className="max-w-2xl text-base leading-[1.55] text-muted-foreground sm:text-lg"
+              className={
+                hasImage
+                  ? 'max-w-2xl text-base leading-[1.55] text-muted-foreground sm:text-lg'
+                  : 'mx-auto max-w-2xl text-base leading-[1.55] text-muted-foreground sm:text-lg'
+              }
             >
               {content.heroSubheadline}
             </motion.p>
 
-            <motion.div variants={FADE_UP_ANIMATION_VARIANTS} className="flex flex-col gap-3 sm:flex-row">
+            <motion.div
+              variants={FADE_UP_ANIMATION_VARIANTS}
+              className={
+                hasImage
+                  ? 'flex flex-col gap-3 sm:flex-row'
+                  : 'flex flex-col gap-3 sm:flex-row sm:justify-center'
+              }
+            >
               {/* Glow ring on primary CTA — breathing pulse, motion-gated via CSS */}
               <div className="cta-glow inline-flex w-full sm:w-auto">
                 <Button variant="primary" size="lg" className="w-full sm:w-auto sm:min-w-40" onClick={() => onOpenAuth?.('signup')}>
@@ -92,7 +111,14 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
               </Button>
             </motion.div>
 
-            <motion.div variants={FADE_UP_ANIMATION_VARIANTS} className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs font-medium text-muted-foreground/80">
+            <motion.div
+              variants={FADE_UP_ANIMATION_VARIANTS}
+              className={
+                hasImage
+                  ? 'flex flex-wrap items-center gap-x-4 gap-y-2 text-xs font-medium text-muted-foreground/80'
+                  : 'flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-xs font-medium text-muted-foreground/80'
+              }
+            >
               <span className="flex items-center gap-1.5"><CheckCircle2 className="size-3.5 text-primary" /> No credit card required</span>
               <span className="flex items-center gap-1.5"><CheckCircle2 className="size-3.5 text-primary" /> iPhone &amp; Android</span>
             </motion.div>
@@ -100,7 +126,11 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
             {/* Trust band — placeholder stats, i18n-ready via TRUST_BAND constants. */}
             <motion.div
               variants={FADE_UP_ANIMATION_VARIANTS}
-              className="mt-6 flex flex-col gap-4 border-t border-white/10 pt-6 sm:flex-row sm:items-center sm:gap-8"
+              className={
+                hasImage
+                  ? 'mt-6 flex flex-col gap-4 border-t border-white/10 pt-6 sm:flex-row sm:items-center sm:gap-8'
+                  : 'mt-6 flex flex-col gap-4 border-t border-white/10 pt-6 sm:flex-row sm:items-center sm:justify-center sm:gap-8'
+              }
             >
               {[TRUST_BAND.contractors, TRUST_BAND.estimates, TRUST_BAND.rating].map((stat) => (
                 <div key={stat} className="flex items-center gap-2 text-xs font-medium text-muted-foreground/90">
@@ -111,49 +141,23 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
             </motion.div>
           </motion.div>
 
-          {/* Right: Mockup Panel */}
-          <motion.div
-            initial={reduce ? false : { opacity: 0, scale: 0.95, rotate: -2 }}
-            animate={{ opacity: 1, scale: 1, rotate: 0 }}
-            transition={{ duration: 1, type: 'spring', delay: 0.3 }}
-            className="hidden w-full max-w-md lg:block lg:shrink-0"
-          >
-            <div className="relative rounded-2xl border border-white/10 bg-black/40 p-2 shadow-[0_0_80px_hsl(var(--primary)/0.25)]">
-              <div className="absolute inset-0 -z-10 rounded-2xl bg-gradient-to-tr from-primary/20 via-transparent to-secondary/20 blur-xl" />
-              <div className="rounded-xl border border-white/5 bg-background p-6 shadow-2xl">
-                <div className="mb-6 flex items-center justify-between border-b border-white/5 pb-4">
-                  <div className="flex items-center gap-2">
-                    <div className="size-2.5 animate-pulse rounded-full bg-primary" aria-hidden="true" />
-                    <p className="text-sm font-semibold text-foreground">AI Estimator Active</p>
-                  </div>
-                  <span className="rounded-full bg-primary/10 px-2 py-1 text-xs font-bold text-secondary">On-site</span>
-                </div>
-                <div
-                  className="space-y-4"
-                  onMouseLeave={() => setHoveredStep(null)}
-                >
-                  {STEPS.map(({ step, label, detail }) => {
-                    const isActive = hoveredStep === step || (hoveredStep === null && step === '1')
-                    return (
-                      <div
-                        key={step}
-                        onMouseEnter={() => setHoveredStep(step)}
-                        className={`flex items-center gap-4 rounded-xl border p-4 transition-all ${isActive ? 'border-primary/40 bg-primary/5 shadow-[0_0_20px_hsl(var(--primary)/0.1)]' : 'border-white/5 bg-white/5'}`}
-                      >
-                        <div className={`flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-bold leading-none ${isActive ? 'bg-primary text-primary-foreground shadow-[0_0_10px_hsl(var(--primary)/0.5)]' : 'bg-white/10 text-muted-foreground'}`}>
-                          {step}
-                        </div>
-                        <div>
-                          <p className={`mb-1 text-sm font-bold ${isActive ? 'text-white' : 'text-foreground'}`}>{label}</p>
-                          <p className="text-sm leading-relaxed text-muted-foreground line-clamp-2">{detail}</p>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            </div>
-          </motion.div>
+          {/* Right: 1:1 photo (hidden on mobile to keep CTA above the fold). */}
+          {hasImage && (
+            <motion.div
+              initial={reduce ? false : { opacity: 0, scale: 0.95, rotate: -2 }}
+              animate={{ opacity: 1, scale: 1, rotate: 0 }}
+              transition={{ duration: 1, type: 'spring', delay: 0.3 }}
+              className="relative z-0 flex w-[calc(100%+6rem)] -mx-12 sm:w-[calc(100%+8rem)] sm:-mx-16 -mb-[clamp(16px,2.5vw,28px)] lg:w-[58%] lg:mx-0 lg:shrink-0 lg:items-end lg:self-stretch lg:-mr-[clamp(20px,2vw,40px)] lg:-ml-[clamp(80px,10vw,160px)]"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={content.heroImageUrl!}
+                alt=""
+                className="w-full object-contain object-bottom drop-shadow-[0_0_60px_hsl(var(--primary)/0.25)]"
+                loading="eager"
+              />
+            </motion.div>
+          )}
         </div>
       </div>
     </section>

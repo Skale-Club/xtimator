@@ -19,6 +19,7 @@ import { CompanySelector } from '@/components/app-shell/company-selector'
 import { NotificationBell } from '@/components/notifications/notification-bell'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { ContextualTooltip, TOOLTIP_KEYS } from '@/components/tour/contextual-tooltip'
+import { useCurrentBreadcrumbs } from '@/components/app-shell/breadcrumb-context'
 
 interface TopbarProps {
   company: {
@@ -56,6 +57,7 @@ export function Topbar({ company, userId, isAdmin }: TopbarProps) {
   const { t } = useTranslation()
   const router = useRouter()
   const pageTitle = usePageTitle(pathname)
+  const breadcrumbs = useCurrentBreadcrumbs()
 
   // Cmd+Shift+A (or Ctrl+Shift+A) → jump to /admin (admin-only)
   useEffect(() => {
@@ -76,8 +78,26 @@ export function Topbar({ company, userId, isAdmin }: TopbarProps) {
       data-testid="app-topbar"
       className="hidden md:flex sticky top-0 z-40 items-center justify-between bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] [-webkit-backdrop-filter:blur(var(--glass-blur))] border-b border-[var(--glass-border)] px-6 h-16"
     >
-      {/* Left: page title */}
-      {pageTitle ? (
+      {/* Left: page title / breadcrumb */}
+      {breadcrumbs.length > 0 ? (
+        <nav className="flex items-center gap-2 text-lg font-semibold tracking-tight text-foreground select-none">
+          {breadcrumbs.map((crumb, i) => (
+            <span key={i} className="flex items-center gap-2">
+              {i > 0 && <span className="text-muted-foreground font-normal">/</span>}
+              {crumb.href ? (
+                <Link
+                  href={crumb.href}
+                  className="text-muted-foreground font-normal hover:text-foreground transition-colors"
+                >
+                  {crumb.label}
+                </Link>
+              ) : (
+                <span>{crumb.label}</span>
+              )}
+            </span>
+          ))}
+        </nav>
+      ) : pageTitle ? (
         <h1 className="text-lg font-semibold tracking-tight text-foreground select-none">
           {t(pageTitle)}
         </h1>

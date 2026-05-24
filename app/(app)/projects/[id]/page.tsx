@@ -6,9 +6,8 @@ import { getProjectRecordings } from '@/lib/queries/recording'
 import { getProjectPhotos } from '@/lib/queries/photo'
 import { getCurrentEstimate, getProjectEstimates } from '@/lib/queries/estimate'
 import { ProjectWorkspace } from '@/components/workspace/project-workspace'
-import { ProjectTitle } from '@/components/workspace/project-title'
+import { ProjectHeader } from '@/components/workspace/project-header'
 import { Skeleton } from '@/components/ui/skeleton'
-import { T } from '@/components/i18n/t'
 
 const ALLOWED_TABS = ['overview', 'photos', 'estimate', 'send'] as const
 type AllowedTab = (typeof ALLOWED_TABS)[number]
@@ -41,18 +40,11 @@ export default async function ProjectPage({
   const statsPromise = getProjectQuickStats(supabase, id)
   const recordingsPromise = getProjectRecordings(supabase, id)
   const photosPromise = getProjectPhotos(supabase, id)
-  const currentEstimatePromise = getCurrentEstimate(supabase, id)
   const allVersionsPromise = getProjectEstimates(supabase, id)
 
   return (
-    <div className="space-y-6 p-6">
-      <header className="space-y-1">
-        <p className="text-xs uppercase tracking-[0.08em] text-muted-foreground"><T>Project</T></p>
-        <ProjectTitle projectId={project.id} initialName={project.name} />
-        {project.client && (
-          <p className="text-sm text-muted-foreground">{project.client.name}</p>
-        )}
-      </header>
+    <div className="flex min-h-full flex-col">
+      <ProjectHeader project={project} supabase={supabase} />
       <Suspense fallback={<ProjectWorkspaceSkeleton />}>
         <ProjectTabs
           project={project}
@@ -60,7 +52,6 @@ export default async function ProjectPage({
           statsPromise={statsPromise}
           recordingsPromise={recordingsPromise}
           photosPromise={photosPromise}
-          currentEstimatePromise={currentEstimatePromise}
           allVersionsPromise={allVersionsPromise}
           defaultTab={defaultTab}
         />
@@ -75,7 +66,6 @@ type ProjectTabsProps = {
   statsPromise: ReturnType<typeof getProjectQuickStats>
   recordingsPromise: ReturnType<typeof getProjectRecordings>
   photosPromise: ReturnType<typeof getProjectPhotos>
-  currentEstimatePromise: ReturnType<typeof getCurrentEstimate>
   allVersionsPromise: ReturnType<typeof getProjectEstimates>
   defaultTab: AllowedTab
 }
@@ -86,16 +76,14 @@ async function ProjectTabs({
   statsPromise,
   recordingsPromise,
   photosPromise,
-  currentEstimatePromise,
   allVersionsPromise,
   defaultTab,
 }: ProjectTabsProps) {
-  const [activity, stats, recordings, photos, currentEstimate, allVersions] = await Promise.all([
+  const [activity, stats, recordings, photos, allVersions] = await Promise.all([
     activityPromise,
     statsPromise,
     recordingsPromise,
     photosPromise,
-    currentEstimatePromise,
     allVersionsPromise,
   ])
 
@@ -116,6 +104,9 @@ async function ProjectTabs({
     closer: (company?.estimate_template_closer as string | null) ?? null,
     signature: (company?.estimate_template_signature as string | null) ?? null,
   }
+
+  // Fetch current estimate for workspace tabs that need it
+  const currentEstimate = await getCurrentEstimate(supabase, project.id)
 
   return (
     <ProjectWorkspace

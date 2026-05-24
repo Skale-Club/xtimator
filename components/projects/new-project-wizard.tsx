@@ -1,7 +1,6 @@
 'use client'
 
 import { useTransition } from 'react'
-import Link from 'next/link'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
@@ -11,8 +10,6 @@ import type { ProjectFormValues, InputMode } from '@/lib/schemas/project'
 import { createProjectAction } from '@/lib/actions/project'
 
 import { Form } from '@/components/ui/form'
-import { Button } from '@/components/ui/button'
-import { Separator } from '@/components/ui/separator'
 import { StepModalitySelect } from '@/components/projects/step-modality-select'
 
 /**
@@ -78,25 +75,7 @@ export function NewProjectWizard({ onClose }: NewProjectWizardProps = {}) {
           pendingMode={isPending ? selectedMode : undefined}
         />
 
-        <Separator className="my-6" />
-
-        <div className="flex justify-end items-center">
-          {onClose ? (
-            <Button
-              type="button"
-              variant="ghost"
-              className="min-h-[44px]"
-              onClick={onClose}
-              disabled={isPending}
-            >
-              Cancel
-            </Button>
-          ) : (
-            <Button asChild type="button" variant="ghost" className="min-h-[44px]">
-              <Link href="/dashboard">Cancel</Link>
-            </Button>
-          )}
-        </div>
+        {/* Dialog close is handled by the DialogContent X button */}
       </form>
     </Form>
   )

@@ -128,9 +128,9 @@ export function DataTable<T>({
 
   return (
     <div className="space-y-4">
-      {/* Top row: search + sort + optional headerRight */}
-      <div className="flex gap-2">
-        <div className="relative flex-1">
+      {/* Controls row: search + sort + filter tabs */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder={searchPlaceholder}
@@ -141,7 +141,7 @@ export function DataTable<T>({
         </div>
         {sortOptions && sortOptions.length > 0 && (
           <Select value={activeSort} onValueChange={setActiveSort}>
-            <SelectTrigger className="w-[160px]">
+            <SelectTrigger className="w-[140px] h-9">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -154,24 +154,24 @@ export function DataTable<T>({
           </Select>
         )}
         {headerRight && <div className="ml-auto">{headerRight}</div>}
-      </div>
 
-      {/* Filter tabs */}
-      {filterTabs && filterTabs.length > 0 && (
-        <div className="flex gap-1 overflow-x-auto whitespace-nowrap pb-1">
-          {filterTabs.map((tab) => (
-            <Button
-              key={tab.key}
-              variant={activeFilter === tab.key ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setActiveFilter(tab.key)}
-              className="capitalize"
-            >
-              {tab.label}
-            </Button>
-          ))}
-        </div>
-      )}
+        {/* Filter tabs — inline on the same row */}
+        {filterTabs && filterTabs.length > 0 && (
+          <div className="flex items-center gap-0.5 overflow-x-auto whitespace-nowrap">
+            {filterTabs.map((tab) => (
+              <Button
+                key={tab.key}
+                variant={activeFilter === tab.key ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setActiveFilter(tab.key)}
+                className="capitalize px-2.5 py-1 h-8 text-xs"
+              >
+                {tab.label}
+              </Button>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Empty search/filter state */}
       {displayData.length === 0 && data.length > 0 ? (

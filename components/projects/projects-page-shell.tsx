@@ -26,6 +26,7 @@ interface Props {
   status: ProjectListStatus
   clientId: string | null
   currencyCode: string
+  companyId: string
   projects: ProjectListRow[]
   clients: ClientWithCount[]
 }
@@ -34,6 +35,7 @@ export function ProjectsPageShell({
   status,
   clientId,
   currencyCode,
+  companyId,
   projects,
   clients,
 }: Props) {
@@ -104,6 +106,7 @@ export function ProjectsPageShell({
         <ProjectTable<ProjectListRow>
           projects={projects}
           fallbackCurrencyCode={currencyCode}
+          companyId={companyId}
           emptyTitle={
             status === 'active'
               ? 'No projects yet'

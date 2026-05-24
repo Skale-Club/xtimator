@@ -66,6 +66,12 @@ export const landingContentSchema = z.object({
   heroHeadline: z.string().min(1).max(200),
   heroSubheadline: z.string().min(1).max(400),
   ctaLabel: z.string().min(1).max(60),
+  /**
+   * Optional 1:1 image displayed on the right side of the hero. When null,
+   * the hero collapses to a single-column layout (left content centered/full-width).
+   * Uploaded via the platform-brand storage bucket under `hero-images/`.
+   */
+  heroImageUrl: z.string().url().nullable().or(z.literal('')).transform(v => v || null).optional().nullable(),
   howItWorksSteps: z.array(z.object({
     eyebrow: z.string().max(30),
     title: z.string().max(60),
@@ -78,6 +84,19 @@ export const landingContentSchema = z.object({
     benefit: z.string().max(60),
   })).min(1).max(6),
 })
+
+/**
+ * Server-side validation for the hero image upload payload. Kept separate
+ * from landingContentSchema so the JSON shape stored in `landing_content`
+ * stays clean (just a URL) and the file constraints only apply at upload time.
+ */
+export const heroImageFileSchema = z
+  .instanceof(File)
+  .refine(f => f.size <= 4 * 1024 * 1024, 'Hero image must be under 4MB.')
+  .refine(
+    f => ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'].includes(f.type),
+    'Hero image must be a PNG, JPG, or WebP.'
+  )
 
 export const blogPostSchema = z.object({
   title: z.string().min(1).max(200),
