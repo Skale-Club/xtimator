@@ -27,15 +27,20 @@ test.describe('Admin gate (ADMIN-01)', () => {
     const email = `gate-test-${Date.now()}@example.test`
     const password = 'TestPass123!'
 
-    await page.goto('/signup')
+    await page.goto('/?auth=signup')
+    await page.waitForSelector('[role="dialog"]')
     await page.fill('input[name="email"]', email)
+    // Step 1 -> Continue
+    await page.getByRole('button', { name: /^Continue$/ }).click()
+    // Step 2 — password + confirm
     await page.fill('input[name="password"]', password)
-    await page.click('button[type="submit"]')
+    await page.fill('input[name="confirmPassword"]', password)
+    await page.getByRole('button', { name: /^Create account$/ }).click()
 
-    // Wait for the post-signup redirect (onboarding, dashboard, or back to login if
+    // Wait for the post-signup redirect (onboarding, dashboard, or back to the LP if
     // email confirmation is required — any of these means a session exists OR the
     // signup completed without immediate access).
-    await page.waitForURL(/\/(onboarding|dashboard|login)/, { timeout: 10000 }).catch(() => {
+    await page.waitForURL(/\/(onboarding|dashboard|\?auth=)/, { timeout: 10000 }).catch(() => {
       // Even if redirect didn't fire, attempt the gate test — the cookie should
       // be set if signup succeeded.
     })
@@ -52,10 +57,12 @@ test.describe('Admin gate (ADMIN-01)', () => {
       'Set TEST_ADMIN_EMAIL + TEST_ADMIN_PASSWORD to run admin-gate positive test'
     )
 
-    await page.goto('/login')
+    await page.goto('/?auth=login')
+    await page.waitForSelector('[role="dialog"]')
     await page.fill('input[name="email"]', adminEmail!)
+    await page.getByRole('button', { name: /^Continue$/ }).click()
     await page.fill('input[name="password"]', adminPassword!)
-    await page.click('button[type="submit"]')
+    await page.getByRole('button', { name: /^Sign in$/ }).click()
     await page.waitForURL(/\/(dashboard|admin)/, { timeout: 10000 })
 
     const response = await page.goto('/admin/integrations')

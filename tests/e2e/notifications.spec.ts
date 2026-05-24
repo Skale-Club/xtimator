@@ -29,11 +29,13 @@ test.describe('Notifications end-to-end (NOTIF-12)', () => {
       'Set TEST_USER_EMAIL + TEST_USER_PASSWORD + TEST_NOTIF_DISPATCH=1 to run notifications e2e',
     )
 
-    // 1) Login
-    await page.goto('/login')
+    // 1) Login via LP modal (post 260524-ohe)
+    await page.goto('/?auth=login')
+    await page.waitForSelector('[role="dialog"]')
     await page.fill('input[name="email"]', email!)
+    await page.getByRole('button', { name: /^Continue$/ }).click()
     await page.fill('input[name="password"]', password!)
-    await page.click('button[type="submit"]')
+    await page.getByRole('button', { name: /^Sign in$/ }).click()
     await page.waitForURL(/\/(dashboard|capture|onboarding)/, { timeout: 10000 })
 
     // 2) Bell visible on dashboard

@@ -26,11 +26,13 @@ test.describe('/admin/integrations end-to-end (ADMIN-04, ADMIN-10)', () => {
       'Set TEST_ADMIN_EMAIL + TEST_ADMIN_PASSWORD to run /admin/integrations e2e'
     )
 
-    // 1) Login as admin
-    await page.goto('/login')
+    // 1) Login as admin via the LP modal (post 260524-ohe)
+    await page.goto('/?auth=login')
+    await page.waitForSelector('[role="dialog"]')
     await page.fill('input[name="email"]', adminEmail!)
+    await page.getByRole('button', { name: /^Continue$/ }).click()
     await page.fill('input[name="password"]', adminPassword!)
-    await page.click('button[type="submit"]')
+    await page.getByRole('button', { name: /^Sign in$/ }).click()
     await page.waitForURL(/\/(dashboard|admin)/, { timeout: 10000 })
 
     // 2) Navigate to /admin/integrations
