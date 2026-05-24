@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import type { LandingContent } from '@/lib/platform-config'
 import { AuthDialog } from '@/components/landing/auth-dialog'
 import { FinalCtaSection } from '@/components/landing/final-cta-section'
@@ -16,8 +17,25 @@ interface LandingPageProps {
 }
 
 export function LandingPage({ content, branding }: LandingPageProps) {
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const [authOpen, setAuthOpen] = useState(false)
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('signup')
+
+  // Auto-open modal from ?auth=login|signup, then strip the param.
+  useEffect(() => {
+    const authParam = searchParams.get('auth')
+    if (authParam === 'login' || authParam === 'signup') {
+      setAuthMode(authParam)
+      setAuthOpen(true)
+      router.replace('/', { scroll: false })
+    } else if (authParam) {
+      // Unknown value — strip it but don't open the dialog.
+      router.replace('/', { scroll: false })
+    }
+    // We only want this to run once on mount based on initial search params.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   function openAuth(mode: 'login' | 'signup') {
     setAuthMode(mode)
@@ -32,7 +50,15 @@ export function LandingPage({ content, branding }: LandingPageProps) {
       <div className="fixed inset-0 -z-10 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,hsl(var(--primary)/0.15),hsl(var(--foreground)/0))]" />
       <TopNav branding={branding} onOpenAuth={openAuth} />
       <main className="pt-16">
-        <HeroSection content={{ heroHeadline: content.heroHeadline, heroSubheadline: content.heroSubheadline, ctaLabel: content.ctaLabel }} onOpenAuth={openAuth} />
+        <HeroSection
+          content={{
+            heroHeadline: content.heroHeadline,
+            heroSubheadline: content.heroSubheadline,
+            ctaLabel: content.ctaLabel,
+            heroImageUrl: content.heroImageUrl ?? null,
+          }}
+          onOpenAuth={openAuth}
+        />
         <HowItWorksSection steps={content.howItWorksSteps} />
         <FeaturesSection features={content.features} />
         <FinalCtaSection onOpenAuth={openAuth} />

@@ -5,11 +5,9 @@ import { createPortal } from 'react-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useRouter } from 'next/navigation'
-import { Eye, EyeOff, Loader2, X } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, Eye, EyeOff, Loader2, X } from 'lucide-react'
 import { AppIcon } from '@/components/ui/app-icon'
 import { TurnstileWidget, type TurnstileWidgetRef } from '@/components/auth/turnstile-widget'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
   Form,
@@ -19,21 +17,23 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
-import { signIn, signUp } from '@/lib/actions/auth'
+import { signIn, signUp, resetPassword } from '@/lib/actions/auth'
 import { createClient } from '@/lib/supabase/client'
 
 // ---------------------------------------------------------------------------
 // Schemas
 // ---------------------------------------------------------------------------
 
-const loginSchema = z.object({
+const emailSchema = z.object({
   email: z.string().email('Please enter a valid email address.'),
+})
+
+const loginPasswordSchema = z.object({
   password: z.string().min(1, 'Password is required.'),
 })
 
-const signupSchema = z
+const signupPasswordSchema = z
   .object({
-    email: z.string().email('Please enter a valid email address.'),
     password: z.string().min(8, 'Password must be at least 8 characters.'),
     confirmPassword: z.string(),
   })
@@ -42,12 +42,16 @@ const signupSchema = z
     path: ['confirmPassword'],
   })
 
-type LoginValues = z.infer<typeof loginSchema>
-type SignupValues = z.infer<typeof signupSchema>
+type EmailValues = z.infer<typeof emailSchema>
+type LoginPasswordValues = z.infer<typeof loginPasswordSchema>
+type SignupPasswordValues = z.infer<typeof signupPasswordSchema>
 
 // ---------------------------------------------------------------------------
-// Props
+// Types
 // ---------------------------------------------------------------------------
+
+type Mode = 'login' | 'signup' | 'reset'
+type Step = 'email' | 'password'
 
 interface AuthDialogProps {
   branding: { appName: string; logoUrl: string | null }
@@ -137,54 +141,68 @@ function OrDivider() {
 }
 
 // ---------------------------------------------------------------------------
-// Login form
+// Step 1 — email + Turnstile (used by all three modes)
 // ---------------------------------------------------------------------------
 
-function LoginForm({ onSwitchMode: _onSwitchMode }: { onSwitchMode: () => void }) {
-  const [showPassword, setShowPassword] = useState(false)
-  const [formError, setFormError] = useState<string | null>(null)
-  const [captchaToken, setCaptchaToken] = useState<string | null>(null)
-  const [isPending, startTransition] = useTransition()
-  const turnstileRef = useRef<TurnstileWidgetRef>(null)
+interface Step1Props {
+  mode: Mode
+  initialEmail: string
+  topLevelError: string | null
+  isPending: boolean
+  captchaToken: string | null
+  setCaptchaToken: (token: string | null) => void
+  turnstileRef: React.RefObject<TurnstileWidgetRef | null>
+  onSubmit: (email: string) => void
+}
 
-  const form = useForm<LoginValues>({
-    resolver: zodResolver(loginSchema),
-    defaultValues: { email: '', password: '' },
+function Step1Form({
+  mode,
+  initialEmail,
+  topLevelError,
+  isPending,
+  captchaToken,
+  setCaptchaToken,
+  turnstileRef,
+  onSubmit,
+}: Step1Props) {
+  const [captchaError, setCaptchaError] = useState<string | null>(null)
+
+  const form = useForm<EmailValues>({
+    resolver: zodResolver(emailSchema),
+    defaultValues: { email: initialEmail },
   })
 
-  function onSubmit(values: LoginValues) {
+  function handleSubmit(values: EmailValues) {
     if (!captchaToken) {
-      setFormError('Please complete the CAPTCHA before continuing.')
+      setCaptchaError('Please complete the CAPTCHA before continuing.')
       return
     }
-    setFormError(null)
-    startTransition(async () => {
-      const formData = new FormData()
-      formData.append('email', values.email)
-      formData.append('password', values.password)
-      formData.append('captchaToken', captchaToken)
-      const result = await signIn(formData)
-      if (result?.error) {
-        setFormError(result.error)
-        turnstileRef.current?.reset()
-        setCaptchaToken(null)
-      }
-    })
+    setCaptchaError(null)
+    onSubmit(values.email)
   }
+
+  const submitLabel =
+    mode === 'reset'
+      ? 'Send reset link'
+      : 'Continue'
 
   return (
     <div className="space-y-5">
-      <XphereGoogleButton />
-      <OrDivider />
+      {mode !== 'reset' && (
+        <>
+          <XphereGoogleButton />
+          <OrDivider />
+        </>
+      )}
 
-      {formError && (
+      {(topLevelError || captchaError) && (
         <p className="rounded-lg border border-red-500/20 bg-red-500/[0.08] p-3 text-sm text-red-400">
-          {formError}
+          {topLevelError ?? captchaError}
         </p>
       )}
 
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
           <FormField
             control={form.control}
             name="email"
@@ -206,6 +224,83 @@ function LoginForm({ onSwitchMode: _onSwitchMode }: { onSwitchMode: () => void }
             )}
           />
 
+          <TurnstileWidget
+            ref={turnstileRef}
+            onToken={(token) => {
+              setCaptchaToken(token)
+              setCaptchaError(null)
+            }}
+            onExpire={() => setCaptchaToken(null)}
+          />
+
+          <button
+            type="submit"
+            disabled={isPending}
+            className="flex h-10 w-full items-center justify-center gap-2 rounded-md bg-primary text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-50"
+          >
+            {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+            {submitLabel}
+          </button>
+        </form>
+      </Form>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Step 2 — Login (password only)
+// ---------------------------------------------------------------------------
+
+interface LoginStep2Props {
+  email: string
+  captchaToken: string | null
+  onBack: () => void
+  onForgot: () => void
+  onError: (message: string) => void
+}
+
+function LoginStep2({ email, captchaToken, onBack, onForgot, onError }: LoginStep2Props) {
+  const [showPassword, setShowPassword] = useState(false)
+  const [formError, setFormError] = useState<string | null>(null)
+  const [isPending, startTransition] = useTransition()
+
+  const form = useForm<LoginPasswordValues>({
+    resolver: zodResolver(loginPasswordSchema),
+    defaultValues: { password: '' },
+  })
+
+  function onSubmit(values: LoginPasswordValues) {
+    if (!captchaToken) {
+      onError('Your CAPTCHA token expired. Please try again.')
+      return
+    }
+    setFormError(null)
+    startTransition(async () => {
+      const formData = new FormData()
+      formData.append('email', email)
+      formData.append('password', values.password)
+      formData.append('captchaToken', captchaToken)
+      const result = await signIn(formData)
+      if (result?.error) {
+        onError(result.error)
+      }
+    })
+  }
+
+  return (
+    <div className="space-y-5">
+      <p className="text-center text-[0.8125rem] text-[#71717A]">
+        Signing in as <span className="text-[#FAFAFA]">{email}</span>
+      </p>
+
+      {formError && (
+        <p className="rounded-lg border border-red-500/20 bg-red-500/[0.08] p-3 text-sm text-red-400">
+          {formError}
+        </p>
+      )}
+
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
           <FormField
             control={form.control}
             name="password"
@@ -219,6 +314,7 @@ function LoginForm({ onSwitchMode: _onSwitchMode }: { onSwitchMode: () => void }
                       placeholder="••••••••"
                       autoComplete="current-password"
                       disabled={isPending}
+                      autoFocus
                       className={`${inputCls} pr-10`}
                       {...field}
                     />
@@ -238,19 +334,31 @@ function LoginForm({ onSwitchMode: _onSwitchMode }: { onSwitchMode: () => void }
             )}
           />
 
-          <TurnstileWidget
-            ref={turnstileRef}
-            onToken={setCaptchaToken}
-            onExpire={() => setCaptchaToken(null)}
-          />
+          <button
+            type="button"
+            onClick={onForgot}
+            className="block text-left text-[0.8125rem] text-[#71717A] transition-colors hover:text-[#A1A1AA]"
+          >
+            Forgot your password?
+          </button>
 
           <button
             type="submit"
-            disabled={isPending || !captchaToken}
+            disabled={isPending}
             className="flex h-10 w-full items-center justify-center gap-2 rounded-md bg-primary text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-50"
           >
             {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
             Sign in
+          </button>
+
+          <button
+            type="button"
+            onClick={onBack}
+            disabled={isPending}
+            className="flex w-full items-center justify-center gap-1.5 text-[0.8125rem] text-[#71717A] transition-colors hover:text-[#A1A1AA] disabled:pointer-events-none disabled:opacity-50"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            Back
           </button>
         </form>
       </Form>
@@ -259,46 +367,50 @@ function LoginForm({ onSwitchMode: _onSwitchMode }: { onSwitchMode: () => void }
 }
 
 // ---------------------------------------------------------------------------
-// Signup form
+// Step 2 — Signup (password + confirm)
 // ---------------------------------------------------------------------------
 
-function SignupForm({ onSwitchMode }: { onSwitchMode: () => void }) {
+interface SignupStep2Props {
+  email: string
+  captchaToken: string | null
+  onBack: () => void
+  onError: (message: string) => void
+}
+
+function SignupStep2({ email, captchaToken, onBack, onError }: SignupStep2Props) {
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
-  const [captchaToken, setCaptchaToken] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
-  const turnstileRef = useRef<TurnstileWidgetRef>(null)
 
-  const form = useForm<SignupValues>({
-    resolver: zodResolver(signupSchema),
-    defaultValues: { email: '', password: '', confirmPassword: '' },
+  const form = useForm<SignupPasswordValues>({
+    resolver: zodResolver(signupPasswordSchema),
+    defaultValues: { password: '', confirmPassword: '' },
   })
 
-  function onSubmit(values: SignupValues) {
+  function onSubmit(values: SignupPasswordValues) {
     if (!captchaToken) {
-      setFormError('Please complete the CAPTCHA before continuing.')
+      onError('Your CAPTCHA token expired. Please try again.')
       return
     }
     setFormError(null)
     startTransition(async () => {
       const formData = new FormData()
-      formData.append('email', values.email)
+      formData.append('email', email)
       formData.append('password', values.password)
       formData.append('captchaToken', captchaToken)
       const result = await signUp(formData)
       if (result?.error) {
-        setFormError(result.error)
-        turnstileRef.current?.reset()
-        setCaptchaToken(null)
+        onError(result.error)
       }
     })
   }
 
   return (
     <div className="space-y-5">
-      <XphereGoogleButton />
-      <OrDivider />
+      <p className="text-center text-[0.8125rem] text-[#71717A]">
+        Creating account for <span className="text-[#FAFAFA]">{email}</span>
+      </p>
 
       {formError && (
         <p className="rounded-lg border border-red-500/20 bg-red-500/[0.08] p-3 text-sm text-red-400">
@@ -308,27 +420,6 @@ function SignupForm({ onSwitchMode }: { onSwitchMode: () => void }) {
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-          <FormField
-            control={form.control}
-            name="email"
-            render={({ field }) => (
-              <FormItem className="space-y-1.5">
-                <FormLabel className={labelCls}>Email</FormLabel>
-                <FormControl>
-                  <Input
-                    type="email"
-                    placeholder="you@example.com"
-                    autoComplete="email"
-                    disabled={isPending}
-                    className={inputCls}
-                    {...field}
-                  />
-                </FormControl>
-                <FormMessage className="text-xs text-red-400" />
-              </FormItem>
-            )}
-          />
-
           <FormField
             control={form.control}
             name="password"
@@ -342,6 +433,7 @@ function SignupForm({ onSwitchMode }: { onSwitchMode: () => void }) {
                       placeholder="••••••••"
                       autoComplete="new-password"
                       disabled={isPending}
+                      autoFocus
                       className={`${inputCls} pr-10`}
                       {...field}
                     />
@@ -393,22 +485,53 @@ function SignupForm({ onSwitchMode }: { onSwitchMode: () => void }) {
             )}
           />
 
-          <TurnstileWidget
-            ref={turnstileRef}
-            onToken={setCaptchaToken}
-            onExpire={() => setCaptchaToken(null)}
-          />
-
           <button
             type="submit"
-            disabled={isPending || !captchaToken}
+            disabled={isPending}
             className="flex h-10 w-full items-center justify-center gap-2 rounded-md bg-primary text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-50"
           >
             {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
             Create account
           </button>
+
+          <button
+            type="button"
+            onClick={onBack}
+            disabled={isPending}
+            className="flex w-full items-center justify-center gap-1.5 text-[0.8125rem] text-[#71717A] transition-colors hover:text-[#A1A1AA] disabled:pointer-events-none disabled:opacity-50"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            Back
+          </button>
         </form>
       </Form>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Reset-sent confirmation panel
+// ---------------------------------------------------------------------------
+
+function ResetSentPanel({ email, onBackToSignIn }: { email: string; onBackToSignIn: () => void }) {
+  return (
+    <div className="space-y-5 text-center">
+      <div className="flex justify-center">
+        <CheckCircle2 className="h-12 w-12 text-emerald-400" aria-hidden="true" />
+      </div>
+      <div className="space-y-1.5">
+        <h3 className="text-[1.125rem] font-semibold text-[#FAFAFA]">Check your inbox</h3>
+        <p className="text-[0.875rem] text-[#A1A1AA]">
+          We sent a password reset link to <span className="text-[#FAFAFA]">{email}</span>. Click it to set a new password.
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={onBackToSignIn}
+        className="flex h-10 w-full items-center justify-center gap-2 rounded-md bg-primary text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+      >
+        Back to sign in
+      </button>
     </div>
   )
 }
@@ -418,11 +541,34 @@ function SignupForm({ onSwitchMode }: { onSwitchMode: () => void }) {
 // ---------------------------------------------------------------------------
 
 export function AuthDialog({ branding, initialMode = 'login', open, onClose }: AuthDialogProps) {
-  const [mode, setMode] = useState<'login' | 'signup'>(initialMode)
+  const [mode, setMode] = useState<Mode>(initialMode)
+  const [step, setStep] = useState<Step>('email')
+  const [email, setEmail] = useState('')
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null)
+  const [resetSent, setResetSent] = useState(false)
+  const [topLevelError, setTopLevelError] = useState<string | null>(null)
+  const [resetPending, startResetTransition] = useTransition()
 
-  // Sync mode when initialMode changes (e.g. user clicks "Log in" then "Start free")
+  const turnstileRef = useRef<TurnstileWidgetRef>(null)
+
+  // Reset state when dialog opens
   useEffect(() => {
-    if (open) setMode(initialMode)
+    if (open) {
+      setMode(initialMode)
+      setStep('email')
+      setEmail('')
+      setCaptchaToken(null)
+      setResetSent(false)
+      setTopLevelError(null)
+    }
+  }, [open, initialMode])
+
+  // When initialMode changes while dialog is open, reset to Step 1 in new mode (preserve email)
+  useEffect(() => {
+    if (open) {
+      setStep('email')
+      setTopLevelError(null)
+    }
   }, [initialMode, open])
 
   // Body scroll lock
@@ -437,7 +583,7 @@ export function AuthDialog({ branding, initialMode = 'login', open, onClose }: A
     }
   }, [open])
 
-  // Escape key to close
+  // Escape key
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
@@ -459,7 +605,204 @@ export function AuthDialog({ branding, initialMode = 'login', open, onClose }: A
 
   if (!open || !mounted) return null
 
-  const isLogin = mode === 'login'
+  // ----- Heading + subheading -----
+  const heading =
+    mode === 'login'
+      ? 'Welcome back'
+      : mode === 'signup'
+        ? 'Create account'
+        : 'Reset your password'
+
+  const subheading =
+    mode === 'login'
+      ? 'Sign in to your workspace'
+      : mode === 'signup'
+        ? 'Start your free trial'
+        : "Enter your email and we'll send you a reset link."
+
+  // ----- Step 1 submit handlers -----
+  function handleStep1Submit(emailValue: string) {
+    setEmail(emailValue)
+    setTopLevelError(null)
+    if (mode === 'reset') {
+      // For reset, submit the server action now.
+      if (!captchaToken) {
+        setTopLevelError('Please complete the CAPTCHA before continuing.')
+        return
+      }
+      startResetTransition(async () => {
+        const formData = new FormData()
+        formData.append('email', emailValue)
+        formData.append('captchaToken', captchaToken)
+        const result = await resetPassword(formData)
+        if (result && 'error' in result && result.error) {
+          setTopLevelError(result.error)
+          turnstileRef.current?.reset()
+          setCaptchaToken(null)
+        } else {
+          setResetSent(true)
+        }
+      })
+    } else {
+      // Login / signup: advance to Step 2 (captcha token will be reused).
+      setStep('password')
+    }
+  }
+
+  // ----- Step 2 error handler — reset Turnstile and return to Step 1 with banner -----
+  function handleStep2Error(message: string) {
+    turnstileRef.current?.reset()
+    setCaptchaToken(null)
+    setTopLevelError(message)
+    setStep('email')
+  }
+
+  // ----- Mode switchers -----
+  function switchMode(newMode: Mode, resetStep: boolean = true) {
+    setMode(newMode)
+    if (resetStep) setStep('email')
+    setTopLevelError(null)
+    setResetSent(false)
+  }
+
+  // ----- Render the step body -----
+  const stepBody = (() => {
+    if (mode === 'reset' && resetSent) {
+      return (
+        <ResetSentPanel
+          email={email}
+          onBackToSignIn={() => {
+            setMode('login')
+            setStep('email')
+            setResetSent(false)
+            setTopLevelError(null)
+          }}
+        />
+      )
+    }
+
+    if (step === 'email') {
+      return (
+        <Step1Form
+          key={`${mode}-step1-${resetSent ? 'sent' : 'form'}`}
+          mode={mode}
+          initialEmail={email}
+          topLevelError={topLevelError}
+          isPending={resetPending}
+          captchaToken={captchaToken}
+          setCaptchaToken={setCaptchaToken}
+          turnstileRef={turnstileRef}
+          onSubmit={handleStep1Submit}
+        />
+      )
+    }
+
+    // step === 'password'
+    if (mode === 'login') {
+      return (
+        <LoginStep2
+          email={email}
+          captchaToken={captchaToken}
+          onBack={() => {
+            setStep('email')
+            setTopLevelError(null)
+          }}
+          onForgot={() => {
+            setMode('reset')
+            setStep('email')
+            setTopLevelError(null)
+          }}
+          onError={handleStep2Error}
+        />
+      )
+    }
+    if (mode === 'signup') {
+      return (
+        <SignupStep2
+          email={email}
+          captchaToken={captchaToken}
+          onBack={() => {
+            setStep('email')
+            setTopLevelError(null)
+          }}
+          onError={handleStep2Error}
+        />
+      )
+    }
+    return null
+  })()
+
+  // ----- Render the footer (outside the card) -----
+  const footer = (() => {
+    if (mode === 'reset') {
+      if (resetSent) return null
+      return (
+        <p className="text-[#71717A]">
+          <button
+            type="button"
+            onClick={() => switchMode('login')}
+            className="font-medium text-[#FAFAFA] transition-colors hover:underline"
+          >
+            Back to sign in
+          </button>
+        </p>
+      )
+    }
+
+    if (mode === 'signup') {
+      return (
+        <p className="text-[#71717A]">
+          Already have an account?{' '}
+          <button
+            type="button"
+            onClick={() => switchMode('login')}
+            className="font-medium text-[#FAFAFA] transition-colors hover:underline"
+          >
+            Sign in
+          </button>
+        </p>
+      )
+    }
+
+    // mode === 'login'
+    if (step === 'email') {
+      return (
+        <div className="space-y-1.5">
+          <button
+            type="button"
+            onClick={() => switchMode('reset')}
+            className="block w-full text-[#71717A] transition-colors hover:text-[#A1A1AA]"
+          >
+            Forgot your password?
+          </button>
+          <p className="text-[#71717A]">
+            Don&apos;t have an account?{' '}
+            <button
+              type="button"
+              onClick={() => switchMode('signup')}
+              className="font-medium text-[#FAFAFA] transition-colors hover:underline"
+            >
+              Sign up
+            </button>
+          </p>
+        </div>
+      )
+    }
+
+    // login + password step
+    return (
+      <p className="text-[#71717A]">
+        Don&apos;t have an account?{' '}
+        <button
+          type="button"
+          onClick={() => switchMode('signup')}
+          className="font-medium text-[#FAFAFA] transition-colors hover:underline"
+        >
+          Sign up
+        </button>
+      </p>
+    )
+  })()
 
   const content = (
     <div
@@ -467,9 +810,8 @@ export function AuthDialog({ branding, initialMode = 'login', open, onClose }: A
       onClick={onClose}
       aria-modal="true"
       role="dialog"
-      aria-label={isLogin ? 'Sign in' : 'Create account'}
+      aria-label={heading}
     >
-      {/* Wrapper — stop propagation so clicks inside don't close the modal */}
       <div
         className="flex w-full max-w-[400px] flex-col gap-5"
         onClick={(e) => e.stopPropagation()}
@@ -495,49 +837,18 @@ export function AuthDialog({ branding, initialMode = 'login', open, onClose }: A
           {/* Heading */}
           <div className="mb-6 text-center">
             <h2 className="text-[1.5rem] font-semibold tracking-[-0.02em] text-[#FAFAFA]">
-              {isLogin ? 'Welcome back' : 'Create account'}
+              {heading}
             </h2>
-            <p className="mt-1 text-[0.875rem] text-[#71717A]">
-              {isLogin ? 'Sign in to your workspace' : 'Start your free trial'}
-            </p>
+            <p className="mt-1 text-[0.875rem] text-[#71717A]">{subheading}</p>
           </div>
 
-          {/* Forms — key forces TurnstileWidget remount on mode switch */}
-          {isLogin ? (
-            <LoginForm
-              key="login"
-              onSwitchMode={() => setMode('signup')}
-            />
-          ) : (
-            <SignupForm
-              key="signup"
-              onSwitchMode={() => setMode('login')}
-            />
-          )}
+          {stepBody}
         </div>
 
-        {/* Footer — outside the card, Xphere pattern */}
-        <div className="space-y-1.5 text-center text-[0.8125rem]">
-          {isLogin && (
-            <button
-              type="button"
-              onClick={() => { onClose(); window.location.href = '/reset-password' }}
-              className="block w-full text-[#71717A] transition-colors hover:text-[#A1A1AA]"
-            >
-              Forgot your password?
-            </button>
-          )}
-          <p className="text-[#71717A]">
-            {isLogin ? "Don't have an account? " : 'Already have an account? '}
-            <button
-              type="button"
-              onClick={() => setMode(isLogin ? 'signup' : 'login')}
-              className="font-medium text-[#FAFAFA] transition-colors hover:underline"
-            >
-              {isLogin ? 'Sign up' : 'Sign in'}
-            </button>
-          </p>
-        </div>
+        {/* Footer — outside the card */}
+        {footer && (
+          <div className="space-y-1.5 text-center text-[0.8125rem]">{footer}</div>
+        )}
       </div>
     </div>
   )
