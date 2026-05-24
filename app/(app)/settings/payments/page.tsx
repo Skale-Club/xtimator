@@ -26,7 +26,7 @@ export default async function PaymentsSettingsPage({
   searchParams: Promise<Record<string, string | undefined>>
 }) {
   const claims = await getAuthClaims()
-  if (!claims) redirect('/login')
+  if (!claims) redirect('/?auth=login')
 
   const svc = requireServiceClient()
   const { data: company } = await svc

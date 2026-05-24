@@ -3,7 +3,7 @@ import { getAuthClaims, getCachedCompany } from '@/lib/queries/auth'
 
 export default async function CaptureLayout({ children }: { children: React.ReactNode }) {
   const claims = await getAuthClaims()
-  if (!claims) redirect('/login')
+  if (!claims) redirect('/?auth=login')
   const company = await getCachedCompany(claims.sub)
   if (!company) redirect('/onboarding')
 

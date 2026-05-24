@@ -11,7 +11,7 @@ export const metadata = { title: 'Price Book' }
 
 export default async function PriceBookPage() {
   const claims = await getAuthClaims()
-  if (!claims) redirect('/login')
+  if (!claims) redirect('/?auth=login')
 
   const company = await getCachedCompany(claims.sub as string)
   if (!company) redirect('/onboarding')

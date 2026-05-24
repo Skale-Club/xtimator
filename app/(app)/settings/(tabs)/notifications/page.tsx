@@ -8,7 +8,7 @@ export const metadata = { title: 'Notifications | Settings' }
 
 export default async function NotificationsTabPage() {
   const claims = await getAuthClaims()
-  if (!claims?.sub) redirect('/login')
+  if (!claims?.sub) redirect('/?auth=login')
 
   const prefs = await getUserPreferences(claims.sub as string)
   const initial = {

@@ -16,7 +16,7 @@ import { mintOAuthState, buildAuthorizeUrl } from '@/lib/billing/connect-oauth'
  */
 export async function GET(req: NextRequest) {
   const claims = await getAuthClaims()
-  if (!claims) return NextResponse.redirect(new URL('/login', req.url))
+  if (!claims) return NextResponse.redirect(new URL('/?auth=login', req.url))
 
   const svc = requireServiceClient()
   const { data: company } = await svc

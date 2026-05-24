@@ -10,7 +10,7 @@ export const metadata = { title: 'Custom Domain' }
 
 export default async function CustomDomainPage() {
   const claims = await getAuthClaims()
-  if (!claims) redirect('/login')
+  if (!claims) redirect('/?auth=login')
 
   const supabase = await createClient()
   const settings = await getCustomDomainSettings(supabase, claims.sub as string)
