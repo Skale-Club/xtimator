@@ -80,9 +80,9 @@ export function VoiceRecorder(props: VoiceRecorderProps) {
 
   // Per-size mic dimensions + icon sizing
   const micSizeClass =
-    size === 'sm' ? 'h-9 w-9' : size === 'md' ? 'h-16 w-16' : 'h-14 w-14'
+    size === 'sm' ? 'h-9 w-9' : size === 'md' ? 'h-16 w-16' : 'h-11 w-11'
   const iconSizeClass =
-    size === 'sm' ? 'h-4 w-4' : size === 'md' ? 'h-7 w-7' : 'h-6 w-6'
+    size === 'sm' ? 'h-4 w-4' : size === 'md' ? 'h-7 w-7' : 'h-5 w-5'
 
   const micButton = (
     <button
@@ -111,8 +111,8 @@ export function VoiceRecorder(props: VoiceRecorderProps) {
       micWithRing = (
         <CircularProgressRing
           progress={ringProgress}
-          size={120}
-          strokeWidth={6}
+          size={96}
+          strokeWidth={5}
           colorClass={ringColorClass}
         >
           {micButton}
@@ -123,8 +123,8 @@ export function VoiceRecorder(props: VoiceRecorderProps) {
       micWithRing = (
         <CircularProgressRing
           progress={p}
-          size={120}
-          strokeWidth={6}
+          size={96}
+          strokeWidth={5}
           colorClass="stroke-primary"
         >
           {micButton}

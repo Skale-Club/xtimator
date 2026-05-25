@@ -28,6 +28,7 @@ import { useTranslation } from '@/lib/i18n/use-translation'
 import { useLanguage } from '@/lib/i18n/language-context'
 import { EstimateLanguageSelector } from '@/components/estimate/estimate-language-selector'
 import { type EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
+import type { CaptureMode } from '@/components/projects/estimate-creation-popup'
 
 // Duration constants — D-06, D-07
 export const HARD_CAP_MS  = 10 * 60 * 1000   // 600000  D-06 — auto-stop
@@ -51,6 +52,13 @@ interface CaptureRecorderProps {
    */
   variant?: 'fullscreen' | 'popup'
   /**
+   * Single-modality lock for the popup flow. When set, RecorderBody renders
+   * ONLY the matching input (audio | text | photos). When undefined (legacy
+   * fullscreen /capture route), the original all-three-inputs-with-OR layout
+   * renders unchanged for backward compatibility.
+   */
+  mode?: CaptureMode
+  /**
    * If supplied, the pipeline calls this on successful completion instead of
    * hard-navigating to `?tab=estimate&estimate=…`. The parent decides where
    * to send the user next (typically close the dialog + push `/projects/[id]`).
@@ -68,6 +76,7 @@ export function CaptureRecorder({
   companyId,
   projectId,
   variant = 'fullscreen',
+  mode,
   onComplete,
   onCancel,
 }: CaptureRecorderProps) {
@@ -486,6 +495,8 @@ export function CaptureRecorder({
           // Language selector
           estimateLanguage={estimateLanguage}
           setEstimateLanguage={setEstimateLanguage}
+          // Single-modality lock (undefined in legacy fullscreen route → all three blocks)
+          mode={mode}
         />
       ) : (
         <div className="flex-1 flex items-center justify-center p-4">
@@ -536,71 +547,82 @@ interface RecorderBodyProps {
   // Language selector props
   estimateLanguage: EstimateLanguage
   setEstimateLanguage: (lang: EstimateLanguage) => void
+  // Single-modality lock — undefined renders the legacy all-three-inputs layout
+  mode?: CaptureMode
 }
 
-function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progress, onToggle, descriptionText, setDescriptionText, uploadedPhotos, isUploadingPhotos, photoInputRef, onPhotoFileChange, hasAnyInput, onGenerate, estimateLanguage, setEstimateLanguage }: RecorderBodyProps) {
+function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progress, onToggle, descriptionText, setDescriptionText, uploadedPhotos, isUploadingPhotos, photoInputRef, onPhotoFileChange, hasAnyInput, onGenerate, estimateLanguage, setEstimateLanguage, mode }: RecorderBodyProps) {
   const { t } = useTranslation()
   return (
     <div className="flex-1 flex flex-col overflow-y-auto min-h-0">
       {/* PRIMARY ACTION: glass card with waveform + timer + ring-wrapped mic */}
-      <div className="px-4 pt-4 pb-2">
-        <VoiceRecorder
-          size="lg"
-          analyser={analyser}
-          isRecording={isRecording}
-          elapsedMs={elapsedMs}
-          onToggle={onToggle}
-          showTimer={false}
-          ringProgress={progress}
-          ringColorClass={ringColorClass}
-          micTestId="capture-mic"
-          helperText={isRecording ? t('Tap to stop recording') : t('Tap to start recording')}
-          belowWaveform={<CaptureTimer elapsedMs={elapsedMs} />}
-        />
-      </div>
+      {(mode === 'audio' || mode === undefined) && (
+        <div className="px-4 pt-4 pb-2">
+          <VoiceRecorder
+            size="lg"
+            analyser={analyser}
+            isRecording={isRecording}
+            elapsedMs={elapsedMs}
+            onToggle={onToggle}
+            showTimer={false}
+            ringProgress={progress}
+            ringColorClass={ringColorClass}
+            micTestId="capture-mic"
+            helperText={isRecording ? t('Tap to stop recording') : t('Tap to start recording')}
+            belowWaveform={<CaptureTimer elapsedMs={elapsedMs} />}
+          />
+        </div>
+      )}
 
-      {/* "OR" divider — separates primary mic action from secondary text/photo path */}
-      <div className="px-4 flex items-center gap-3">
-        <div className="flex-1 h-px bg-border" />
-        <span className="text-xs text-muted-foreground uppercase tracking-wider">{t('or')}</span>
-        <div className="flex-1 h-px bg-border" />
-      </div>
+      {/* "OR" divider — separates primary mic action from secondary text/photo path.
+          Rendered ONLY in the legacy fullscreen route (mode === undefined). */}
+      {mode === undefined && (
+        <div className="px-4 flex items-center gap-3">
+          <div className="flex-1 h-px bg-border" />
+          <span className="text-xs text-muted-foreground uppercase tracking-wider">{t('or')}</span>
+          <div className="flex-1 h-px bg-border" />
+        </div>
+      )}
 
       {/* Secondary inputs: text + photos */}
-      <div className="px-4 pt-4">
-        <textarea
-          value={descriptionText}
-          onChange={e => setDescriptionText(e.target.value)}
-          placeholder={t('Or describe the job here...')}
-          className="w-full min-h-[80px] rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-          data-testid="capture-description"
-        />
-      </div>
+      {(mode === 'text' || mode === undefined) && (
+        <div className="px-4 pt-4">
+          <textarea
+            value={descriptionText}
+            onChange={e => setDescriptionText(e.target.value)}
+            placeholder={t('Or describe the job here...')}
+            className="w-full min-h-[80px] rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            data-testid="capture-description"
+          />
+        </div>
+      )}
 
-      <div className="px-4 pt-3">
-        <input
-          ref={photoInputRef}
-          type="file"
-          accept="image/*"
-          multiple
-          className="hidden"
-          onChange={onPhotoFileChange}
-        />
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => photoInputRef.current?.click()}
-          disabled={isUploadingPhotos}
-          data-testid="capture-add-photos"
-        >
-          {isUploadingPhotos ? (
-            <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
-          ) : (
-            <Camera className="h-4 w-4 mr-1.5" />
-          )}
-          {uploadedPhotos.length > 0 ? `${uploadedPhotos.length} ${t('photos')}` : t('Add Photos')}
-        </Button>
-      </div>
+      {(mode === 'photos' || mode === undefined) && (
+        <div className="px-4 pt-3">
+          <input
+            ref={photoInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            className="hidden"
+            onChange={onPhotoFileChange}
+          />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => photoInputRef.current?.click()}
+            disabled={isUploadingPhotos}
+            data-testid="capture-add-photos"
+          >
+            {isUploadingPhotos ? (
+              <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+            ) : (
+              <Camera className="h-4 w-4 mr-1.5" />
+            )}
+            {uploadedPhotos.length > 0 ? `${uploadedPhotos.length} ${t('photos')}` : t('Add Photos')}
+          </Button>
+        </div>
+      )}
 
       {/* Language selector + Generate Estimate (only meaningful for text/photo-only paths) */}
       <div className="px-4 pt-4 pb-2">
