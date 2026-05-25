@@ -17,6 +17,7 @@ import { SWRegister } from '@/components/pwa/sw-register'
 import { InstallPrompt } from '@/components/pwa/install-prompt'
 import { OfflineIndicator } from '@/components/pwa/offline-indicator'
 import { NewProjectDialog } from '@/components/projects/new-project-dialog'
+import { EstimateCreationPopup } from '@/components/projects/estimate-creation-popup'
 import { BreadcrumbProvider } from '@/components/app-shell/breadcrumb-context'
 
 export default async function AppShellLayout({
@@ -85,6 +86,7 @@ export default async function AppShellLayout({
           </div>
           <BottomNav />
           <NewProjectDialog />
+          <EstimateCreationPopup />
           <TranslationLoadingOverlay />
           <UpgradeModal />
           <WelcomeModal />
