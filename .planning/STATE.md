@@ -646,6 +646,7 @@ v3.1: Phases 61-65 (started 2026-05-15). Production Go-Live — 27 requirements 
 | 260523 | Unify project tables | 2026-05-23 | pending | [260523-unify-project-tables](.planning/quick/260523-unify-project-tables/) |
 | 260523 | Align page spacing | 2026-05-23 | pending | [260523-align-page-spacing](.planning/quick/260523-align-page-spacing/) |
 | 260524-lxk | Voice recorder visual redesign — shared VoiceRecorder + glass/glow waveform | 2026-05-24 | a33710d | [260524-lxk-refazer-visual-do-sistema-de-gravacao-de](.planning/quick/260524-lxk-refazer-visual-do-sistema-de-gravacao-de/) |
+| 260525-qbc | Price book autocomplete in estimate item description (combobox + APPLY_PRICE_BOOK_ITEM action) | 2026-05-25 | 9be91cd | [260525-qbc-add-price-book-autocomplete-to-item-desc](.planning/quick/260525-qbc-add-price-book-autocomplete-to-item-desc/) |
 | 260524-ohe | Auth flow refactor — modal 2-step on LP, delete /login + /signup + /reset-password pages, logout → / | 2026-05-24 | 552f87a | [260524-ohe-refactor-auth-flow-convert-modal-to-2-st](.planning/quick/260524-ohe-refactor-auth-flow-convert-modal-to-2-st/) |
 | 260525-lt5 | Add AlertDialog confirmation before soft-delete in ProjectRowActions | 2026-05-25 | 330a4f4 | [260525-lt5-add-alertdialog-confirmation-before-soft](.planning/quick/260525-lt5-add-alertdialog-confirmation-before-soft/) |
 | 2026-05-18 | fast | Center auth card logo+wordmark | done |
