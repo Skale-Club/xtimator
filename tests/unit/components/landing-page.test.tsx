@@ -1,13 +1,32 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { HeroSection } from '@/components/landing/hero-section'
 import { HowItWorksSection } from '@/components/landing/how-it-works-section'
 import { FeaturesSection } from '@/components/landing/features-section'
+import { LandingPage } from '@/components/landing/landing-page'
 
 vi.mock('next/link', () => ({
   default: ({ children, href }: { children: React.ReactNode; href: string }) => (
     <a href={href}>{children}</a>
   ),
+}))
+
+// Module-scope mocks for next/navigation so the LandingPage modal auto-open
+// tests can drive useSearchParams / useRouter behavior.
+const routerReplace = vi.fn()
+let currentSearchParams = new URLSearchParams('')
+
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({
+    replace: routerReplace,
+    push: vi.fn(),
+    prefetch: vi.fn(),
+    back: vi.fn(),
+    forward: vi.fn(),
+    refresh: vi.fn(),
+  }),
+  useSearchParams: () => currentSearchParams,
+  usePathname: () => '/',
 }))
 
 vi.stubGlobal(
@@ -29,6 +48,7 @@ const HERO_CONTENT = {
   heroHeadline: 'Professional estimates in 5 minutes.',
   heroSubheadline: 'Record a site walkthrough, add photos, and let AI draft the scope.',
   ctaLabel: 'Start free',
+  heroImageUrl: null,
 }
 
 const HOW_IT_WORKS_STEPS = [
@@ -44,26 +64,24 @@ const FEATURES = [
   { icon: 'Smartphone', title: 'Mobile-first from the driveway', description: 'iPhone and Android.', benefit: 'Works where you work' },
 ]
 
+const LANDING_CONTENT = {
+  heroHeadline: HERO_CONTENT.heroHeadline,
+  heroSubheadline: HERO_CONTENT.heroSubheadline,
+  ctaLabel: HERO_CONTENT.ctaLabel,
+  heroImageUrl: HERO_CONTENT.heroImageUrl,
+  howItWorksSteps: HOW_IT_WORKS_STEPS,
+  features: FEATURES,
+  // Minimal fields needed by sections; cast to LandingContent shape.
+} as unknown as Parameters<typeof LandingPage>[0]['content']
+
+const BRANDING = { appName: 'Xtimator', logoUrl: null }
+
 // LAND-01: Hero section -- headline, subheadline, CTAs
 describe('HeroSection (LAND-01)', () => {
   it('renders the locked D-05 headline containing "5 minutes"', () => {
     render(<HeroSection content={HERO_CONTENT} />)
     const heading = screen.getByRole('heading', { level: 1 })
     expect(heading.textContent?.toLowerCase()).toContain('5 minutes')
-  })
-
-  it('renders a link to /signup', () => {
-    render(<HeroSection content={HERO_CONTENT} />)
-    const links = screen.getAllByRole('link')
-    const signupLink = links.find(l => l.getAttribute('href') === '/signup')
-    expect(signupLink).toBeTruthy()
-  })
-
-  it('renders a link to /login', () => {
-    render(<HeroSection content={HERO_CONTENT} />)
-    const links = screen.getAllByRole('link')
-    const loginLink = links.find(l => l.getAttribute('href') === '/login')
-    expect(loginLink).toBeTruthy()
   })
 })
 
@@ -85,5 +103,31 @@ describe('FeaturesSection (LAND-03)', () => {
     expect(container.textContent).toContain('Branded PDF output')
     expect(container.textContent).toContain('Share link for fast approvals')
     expect(container.textContent).toContain('Mobile-first from the driveway')
+  })
+})
+
+// New: LandingPage modal auto-open from ?auth=login|signup
+describe('LandingPage modal auto-open', () => {
+  beforeEach(() => {
+    routerReplace.mockClear()
+    currentSearchParams = new URLSearchParams('')
+  })
+
+  it('opens the AuthDialog in login mode when ?auth=login and strips the param via router.replace', async () => {
+    currentSearchParams = new URLSearchParams('auth=login')
+    render(<LandingPage content={LANDING_CONTENT} branding={BRANDING} isAuthenticated={false} />)
+    // AuthDialog mounts in a portal; the heading "Welcome back" is the login marker.
+    const heading = await screen.findByRole('heading', { name: /welcome back/i })
+    expect(heading).toBeTruthy()
+    expect(routerReplace).toHaveBeenCalledWith('/', { scroll: false })
+  })
+
+  it('does NOT open the AuthDialog and does NOT call router.replace when no auth param is present', () => {
+    currentSearchParams = new URLSearchParams('')
+    render(<LandingPage content={LANDING_CONTENT} branding={BRANDING} isAuthenticated={false} />)
+    // Heading from any mode of the dialog should NOT exist.
+    expect(screen.queryByRole('heading', { name: /welcome back/i })).toBeNull()
+    expect(screen.queryByRole('heading', { name: /create account/i })).toBeNull()
+    expect(routerReplace).not.toHaveBeenCalled()
   })
 })

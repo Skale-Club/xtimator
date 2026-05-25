@@ -2,16 +2,19 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { Menu, Zap } from 'lucide-react'
+import { Menu } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetTrigger, SheetContent, SheetClose } from '@/components/ui/sheet'
+import { AppIcon } from '@/components/ui/app-icon'
 import { cn } from '@/lib/utils'
 
 interface LandingNavProps {
   appName: string
+  logoUrl?: string | null
+  onOpenAuth?: (mode: 'login' | 'signup') => void
 }
 
-export function LandingNav({ appName }: LandingNavProps) {
+export function LandingNav({ appName, logoUrl, onOpenAuth }: LandingNavProps) {
   const [scrolled, setScrolled] = useState(false)
 
   useEffect(() => {
@@ -31,9 +34,9 @@ export function LandingNav({ appName }: LandingNavProps) {
     >
       <nav className="mx-auto w-full max-w-[1200px] px-6 flex items-center justify-between">
         {/* Logo + wordmark */}
-        <Link href="/" className="flex items-center gap-2 text-foreground hover:text-foreground/90 transition-colors">
-          <Zap className="h-5 w-5 text-primary" aria-hidden="true" />
-          <span className="font-bold text-[length:var(--font-size-xl)] tracking-[var(--tracking-tight)]">
+        <Link href="/" className="flex items-center gap-2.5 text-foreground hover:text-foreground/90 transition-colors">
+          <AppIcon logoUrl={logoUrl} appName={appName} className="h-8 w-8" />
+          <span className="font-bold text-xl tracking-tight">
             {appName}
           </span>
         </Link>
@@ -50,12 +53,12 @@ export function LandingNav({ appName }: LandingNavProps) {
 
         {/* Desktop CTAs — hidden below md */}
         <div className="hidden md:flex items-center gap-3">
-          <Button variant="ghost" size="sm" asChild>
-                  <Link href="/login">Sign In</Link>
-          </Button>
-          <Button size="sm" asChild>
-            <Link href="/signup">Get Started</Link>
-          </Button>
+<Button variant="ghost" size="sm" onClick={() => onOpenAuth?.('login')}>
+                  Sign In
+                </Button>
+                <Button size="sm" onClick={() => onOpenAuth?.('signup')}>
+                  Get Started
+                </Button>
         </div>
 
         {/* Mobile hamburger — visible below md */}
@@ -83,11 +86,11 @@ export function LandingNav({ appName }: LandingNavProps) {
                 </a>
               </SheetClose>
               <div className="pt-4 flex flex-col gap-3 border-t border-border">
-                <Button variant="ghost" className="w-full justify-center min-h-[44px]" asChild>
-                   <Link href="/login">Sign In</Link>
+                <Button variant="ghost" className="w-full justify-center min-h-[44px]" onClick={() => onOpenAuth?.('login')}>
+                  Sign In
                 </Button>
-                <Button className="w-full justify-center min-h-[44px]" asChild>
-                  <Link href="/signup">Get Started Free</Link>
+                <Button className="w-full justify-center min-h-[44px]" onClick={() => onOpenAuth?.('signup')}>
+                  Get Started Free
                 </Button>
               </div>
             </div>

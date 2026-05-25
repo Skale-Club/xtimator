@@ -26,7 +26,7 @@ export default async function PaymentsSettingsPage({
   searchParams: Promise<Record<string, string | undefined>>
 }) {
   const claims = await getAuthClaims()
-  if (!claims) redirect('/login')
+  if (!claims) redirect('/?auth=login')
 
   const svc = requireServiceClient()
   const { data: company } = await svc
@@ -63,7 +63,7 @@ export default async function PaymentsSettingsPage({
   const toastConnected = sp.connected === '1'
 
   return (
-    <div className="space-y-6 px-6 py-8">
+    <div className="space-y-6 p-6">
       <header className="flex flex-col gap-1">
         <h1 className="text-[clamp(28px,3.5vw,40px)] font-semibold tracking-tight">
           <T>Payments</T>

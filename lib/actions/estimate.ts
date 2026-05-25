@@ -64,6 +64,8 @@ interface SaveEstimateInput {
   discount_value: number
   tax_rate: number
   sections: SaveSectionInput[]
+  estimate_date: string | null
+  estimate_number: string | null
 }
 
 // ---------------------------------------------------------------------------
@@ -128,6 +130,8 @@ export async function saveEstimate(estimateData: SaveEstimateInput) {
       discount_type: estimateData.discount_type,
       discount_value: estimateData.discount_value,
       discount_amount: discountAmount,
+      estimate_date: estimateData.estimate_date,
+      estimate_number: estimateData.estimate_number,
       tax_rate: estimateData.tax_rate,
       tax_amount: taxAmount,
       subtotal,

@@ -10,14 +10,14 @@ export const metadata = { title: 'Custom Domain' }
 
 export default async function CustomDomainPage() {
   const claims = await getAuthClaims()
-  if (!claims) redirect('/login')
+  if (!claims) redirect('/?auth=login')
 
   const supabase = await createClient()
   const settings = await getCustomDomainSettings(supabase, claims.sub as string)
   if (!settings) redirect('/onboarding')
 
   return (
-    <div className="space-y-8 px-6 py-8">
+    <div className="space-y-8 p-6">
       <header className="flex flex-col gap-1">
         <h1 className="text-[clamp(28px,3.5vw,40px)] font-semibold tracking-tight">
           <T>Custom Domain</T>

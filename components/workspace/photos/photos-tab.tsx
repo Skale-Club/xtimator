@@ -1,12 +1,10 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import { Camera } from 'lucide-react'
 import { toast } from 'sonner'
 import { PhotoDropZone } from './photo-drop-zone'
 import { PhotoGrid } from './photo-grid'
 import { PhotoLightbox } from './photo-lightbox'
-import { EmptyState } from '@/components/dashboard/empty-state'
 import { reorderPhotos } from '@/lib/actions/photo'
 import type { Photo } from '@/lib/queries/photo'
 import { useTranslation } from '@/lib/i18n/use-translation'
@@ -64,13 +62,7 @@ export function PhotosTab({
         onPhotosUploaded={handlePhotosUploaded}
       />
 
-      {photos.length === 0 ? (
-        <EmptyState
-          icon={Camera}
-          title={t('No photos yet')}
-          description={t('Upload photos of the job site to help generate an accurate estimate')}
-        />
-      ) : (
+      {photos.length > 0 && (
         <PhotoGrid
           photos={photos}
           onReorder={handleReorder}

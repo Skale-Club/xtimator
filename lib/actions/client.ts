@@ -78,6 +78,25 @@ export async function updateClientAction(clientId: string, formData: ClientFormV
   return { data: client }
 }
 
+export async function patchClientContactAction(
+  clientId: string,
+  data: { name: string; email: string | null; phone: string | null }
+) {
+  const ctx = await getAuthContext()
+  if ('error' in ctx) return { error: ctx.error }
+  const { supabase } = ctx
+
+  const { error } = await supabase
+    .from('clients')
+    .update({ name: data.name, email: data.email || null, phone: data.phone || null })
+    .eq('id', clientId)
+
+  if (error) return { error: 'Failed to update client.' }
+
+  revalidatePath('/clients')
+  return { data: { updated: true } }
+}
+
 export async function deleteClientAction(clientId: string) {
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error }

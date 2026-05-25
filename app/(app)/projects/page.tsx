@@ -22,7 +22,7 @@ export default async function ProjectsPage({
   searchParams: Promise<{ status?: string; client?: string }>
 }) {
   const claims = await getAuthClaims()
-  if (!claims) redirect('/login')
+  if (!claims) redirect('/?auth=login')
 
   const company = await getCachedCompany(claims.sub)
   if (!company) redirect('/onboarding')
@@ -41,6 +41,8 @@ export default async function ProjectsPage({
     <ProjectsPageShell
       status={status}
       clientId={clientId}
+      currencyCode={company.currency_code}
+      companyId={company.id}
       projects={projects}
       clients={clients}
     />

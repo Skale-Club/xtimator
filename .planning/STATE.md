@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Multi-Tenancy (Multiple Companies per User)
 status: defining_requirements
-last_updated: "2026-05-20T00:00:00.000Z"
-last_activity: 2026-05-20
+last_updated: "2026-05-24T21:02:00.000Z"
+last_activity: 2026-05-24
 progress:
   total_phases: 0
   completed_phases: 0
@@ -18,14 +18,14 @@ progress:
 
 - **Milestone**: v4.0 Multi-Tenancy — Defining requirements (no phases yet)
 - **Previous milestone (in progress)**: v3.1.1 MVP Launch Prep + Future-Proofing — phases 73-78 still pending
-- **Last updated**: 2026-05-20
+- **Last updated**: 2026-05-24
 
 ## Current Position
 
 Phase: Not started (defining requirements)
 Plan: —
 Status: Defining requirements
-Last activity: 2026-05-22 — Completed quick task 260522-lpf: responsividade mobile da tela de Price Book
+Last activity: 2026-05-24 - Completed quick task 260524-ohe: Refactored auth flow — collapsed /login + /signup + /reset-password into in-modal 2-step on landing page
 
 ## v3.1.1 Phases
 
@@ -642,11 +642,11 @@ v3.1: Phases 61-65 (started 2026-05-15). Production Go-Live — 27 requirements 
 | 260521-jx9 | Add retry transcription button on recording item | 2026-05-21 | 4cacf98 | [260521-jx9-add-retry-transcription-button-on-record](.planning/quick/260521-jx9-add-retry-transcription-button-on-record/) |
 | 260521-lwb | Fix `<table>` cannot contain a nested `<div>` hydration error (lift DndContext outside table in SectionCard) | 2026-05-21 | 3dd3e57 | [260521-lwb-fix-table-div-hydration-error-in-section](.planning/quick/260521-lwb-fix-table-div-hydration-error-in-section/) |
 | 260521-nkp | Always show Consolidate on current drafts in EstimateFloatingActions (Save Draft/Discard disabled when clean) | 2026-05-21 | cced5d1 | [260521-nkp-sempre-mostrar-consolidate-em-drafts-no-](.planning/quick/260521-nkp-sempre-mostrar-consolidate-em-drafts-no-/) |
-| 260522-gnx | Phone input internacional com bandeira + formatação no PDF | 2026-05-22 | d0b514f | [260522-gnx-phone-input-internacional-com-bandeira-f](.planning/quick/260522-gnx-phone-input-internacional-com-bandeira-f/) |
-| 260522-j00 | Fix logo upload RLS path (claims.sub -> company.id) + surface catch error | 2026-05-22 | 97748fa | [260522-j00-fix-logo-upload-rls-path-claims-sub-comp](.planning/quick/260522-j00-fix-logo-upload-rls-path-claims-sub-comp/) |
-| 260522-ka1 | Fix hydration mismatch from SW caching stale HTML in dev | 2026-05-22 | 8271c83 | [260522-ka1-fix-hydration-mismatch-from-sw-caching-s](.planning/quick/260522-ka1-fix-hydration-mismatch-from-sw-caching-s/) |
-| 260522-lpf | Responsividade mobile da tela de Price Book | 2026-05-22 | b0fced6 | [260522-lpf-responsividade-mobile-da-tela-de-price-b](.planning/quick/260522-lpf-responsividade-mobile-da-tela-de-price-b/) |
+| 260522-j7g | Create generic DataTable&lt;T&gt; component and migrate ProjectList | 2026-05-22 | ae70927 | [260522-j7g-create-generic-datatable-component-and-m](.planning/quick/260522-j7g-create-generic-datatable-component-and-m/) |
+| 260523 | Unify project tables | 2026-05-23 | pending | [260523-unify-project-tables](.planning/quick/260523-unify-project-tables/) |
+| 260523 | Align page spacing | 2026-05-23 | pending | [260523-align-page-spacing](.planning/quick/260523-align-page-spacing/) |
+| 260524-lxk | Voice recorder visual redesign — shared VoiceRecorder + glass/glow waveform | 2026-05-24 | a33710d | [260524-lxk-refazer-visual-do-sistema-de-gravacao-de](.planning/quick/260524-lxk-refazer-visual-do-sistema-de-gravacao-de/) |
+| 260524-ohe | Auth flow refactor — modal 2-step on LP, delete /login + /signup + /reset-password pages, logout → / | 2026-05-24 | 552f87a | [260524-ohe-refactor-auth-flow-convert-modal-to-2-st](.planning/quick/260524-ohe-refactor-auth-flow-convert-modal-to-2-st/) |
 | 2026-05-18 | fast | Center auth card logo+wordmark | done |
 | 2026-05-19 | fast | Make audio capture screen scrollable on smaller viewports | done |
 | 2026-05-18 | fast | Restyle sidebar New Project as filled gradient, remove dashboard CTA | done |
-| 2026-05-22 | fast | Compact modality cards on mobile | ✅ |

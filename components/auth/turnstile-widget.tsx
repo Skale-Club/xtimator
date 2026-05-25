@@ -14,7 +14,9 @@ type Props = {
 }
 
 /**
- * Cloudflare Turnstile widget — Managed mode (auto-picks invisible/checkbox by risk).
+ * Cloudflare Turnstile widget — Managed mode, `interaction-only` appearance.
+ * The widget runs silently in the background and only renders if Cloudflare's
+ * risk engine decides the user must solve a challenge.
  *
  * Wrapped in a ref so parent forms can `.reset()` after a failed submit
  * (Turnstile tokens are single-use; must refresh after Supabase rejects).
@@ -47,6 +49,7 @@ export const TurnstileWidget = forwardRef<TurnstileWidgetRef, Props>(
           options={{
             theme: resolvedTheme === 'light' ? 'light' : 'dark',
             size: 'flexible',
+            appearance: 'interaction-only',
           }}
         />
       </div>

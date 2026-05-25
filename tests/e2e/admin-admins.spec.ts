@@ -18,10 +18,12 @@ test.describe('Admin admins (ADMIN-03)', () => {
   )
 
   test('dialog surfaces inline error for unknown email', async ({ page }) => {
-    await page.goto('/login')
+    await page.goto('/?auth=login')
+    await page.waitForSelector('[role="dialog"]')
     await page.fill('input[name="email"]', process.env.TEST_ADMIN_EMAIL!)
+    await page.getByRole('button', { name: /^Continue$/ }).click()
     await page.fill('input[name="password"]', process.env.TEST_ADMIN_PASSWORD!)
-    await page.click('button[type="submit"]')
+    await page.getByRole('button', { name: /^Sign in$/ }).click()
     await page.waitForURL(/\/(dashboard|admin)/, { timeout: 10000 })
 
     await page.goto('/admin/admins')

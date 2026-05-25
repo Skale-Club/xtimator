@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useState, useSyncExternalStore } from 'react'
-import { PanelLeftClose, PanelLeftOpen } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Settings, LogOut, HelpCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { NAV_ITEMS } from './nav-items'
 import { useTranslation } from '@/lib/i18n/use-translation'
@@ -13,6 +13,16 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { signOut } from '@/lib/actions/auth'
+import { useTourContext } from '@/components/tour/tour-provider'
+import { useTour } from '@/components/tour/use-tour'
 
 interface SidebarProps {
   branding: {
@@ -57,11 +67,22 @@ const TOUR_TARGET: Record<string, string> = {
   '/price-book':   'price-book',
 }
 
-export function Sidebar({ branding }: SidebarProps) {
+export function Sidebar({ branding, company }: SidebarProps) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const router = useRouter()
   const { t } = useTranslation()
+  const { setShowWelcome, setIsReviewMode } = useTourContext()
+  const { resetAllTourState, startTour } = useTour()
+
+  function handleOpenTour() {
+    resetAllTourState()
+    startTour()
+    setIsReviewMode(true)
+    setShowWelcome(true)
+  }
+
+  const initial = (company.owner_name ?? company.name).charAt(0).toUpperCase()
 
   function openModal(modalValue: string) {
     const params = new URLSearchParams(searchParams.toString())
@@ -107,35 +128,36 @@ export function Sidebar({ branding }: SidebarProps) {
       style={{ borderTop: 0, borderBottom: 0, borderLeft: 0 }}
       className={cn(
         'hidden md:flex flex-col shrink-0 overflow-hidden transition-[width] duration-200 glass border-r border-[var(--glass-border)]',
-        collapsed ? 'w-16' : 'w-64',
+        collapsed ? 'w-16' : 'w-[213px]',
       )}
     >
-      {/* Product branding */}
-      <div
+      {/* Product branding — links to landing page */}
+      <Link
+        href="/"
         className={cn(
-          'flex items-center border-b border-[var(--glass-border)] h-16 overflow-hidden',
-          collapsed ? 'justify-center gap-0 px-0' : 'gap-3 px-3',
+          'flex items-center border-b border-[var(--glass-border)] h-16 overflow-hidden transition-opacity hover:opacity-80',
+          collapsed ? 'justify-center gap-0 px-0' : 'gap-2.5 px-4',
         )}
       >
-        <div className="h-9 w-9 shrink-0 flex items-center justify-center">
+        <div className="h-6 w-6 shrink-0 flex items-center justify-center">
           {logoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={logoUrl} alt={branding.appName} className="h-9 w-9 object-contain" />
+            <img src={logoUrl} alt={branding.appName} className="h-6 w-6 object-contain" />
           ) : (
-            <span className="h-9 w-9 flex items-center justify-center rounded-[var(--radius-md)] bg-primary text-primary-foreground text-sm font-semibold">
+            <span className="h-6 w-6 flex items-center justify-center rounded-[var(--radius-sm)] bg-primary text-primary-foreground text-xs font-semibold">
               {branding.appName.charAt(0).toUpperCase()}
             </span>
           )}
         </div>
         <span
           className={cn(
-            'truncate text-sm font-semibold transition-opacity duration-150',
+            'truncate text-lg font-bold tracking-tight transition-opacity duration-150',
             collapsed ? 'opacity-0 w-0 pointer-events-none' : 'opacity-100',
           )}
         >
           {branding.appName}
         </span>
-      </div>
+      </Link>
 
       {/* Navigation */}
       <nav className={cn('flex-1 flex flex-col gap-1', collapsed ? 'px-0 py-2 items-center' : 'p-2')}>
@@ -269,32 +291,105 @@ export function Sidebar({ branding }: SidebarProps) {
         })}
       </nav>
 
-      {/* Collapse toggle */}
-      <div className={cn('border-t border-[var(--glass-border)]', collapsed ? 'py-2 px-0 flex justify-center' : 'p-2')}>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              onClick={toggle}
-              className={cn(
-                'flex items-center rounded-[var(--radius-md)] text-muted-foreground hover:bg-[var(--glass-bg-light)] hover:text-foreground transition-colors',
-                collapsed
-                  ? 'w-9 h-9 justify-center'
-                  : 'w-full gap-3 px-3 py-2',
-              )}
-              aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            >
-              {collapsed ? (
-                <PanelLeftOpen className="h-5 w-5 shrink-0" />
-              ) : (
-                <>
-                  <PanelLeftClose className="h-5 w-5 shrink-0" />
-                  <span className="text-sm font-medium">{t('Collapse')}</span>
-                </>
-              )}
-            </button>
-          </TooltipTrigger>
-          {collapsed && <TooltipContent side="right">{t('Expand sidebar')}</TooltipContent>}
-        </Tooltip>
+      {/* Bottom: company info + user menu + collapse toggle */}
+      <div className="border-t border-[var(--glass-border)] p-2">
+        {collapsed ? (
+          /* Collapsed: chevron on top, avatar (user menu) below */
+          <div className="flex flex-col items-center gap-1">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={toggle}
+                  className="w-9 h-7 flex items-center justify-center rounded-[var(--radius-md)] text-muted-foreground/40 hover:text-muted-foreground hover:bg-[var(--glass-bg-light)] transition-colors"
+                  aria-label="Expand sidebar"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right">{t('Expand sidebar')}</TooltipContent>
+            </Tooltip>
+
+            <DropdownMenu>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <DropdownMenuTrigger asChild>
+                    <button className="w-9 h-9 flex items-center justify-center rounded-[var(--radius-md)] hover:bg-[var(--glass-bg-light)] transition-colors">
+                      <span className="h-7 w-7 flex items-center justify-center rounded-full bg-muted text-xs font-semibold text-muted-foreground">
+                        {initial}
+                      </span>
+                    </button>
+                  </DropdownMenuTrigger>
+                </TooltipTrigger>
+                <TooltipContent side="right">{company.owner_name ?? company.name}</TooltipContent>
+              </Tooltip>
+              <DropdownMenuContent side="right" align="end" className="w-48">
+                <DropdownMenuItem asChild className="cursor-pointer">
+                  <Link href="/settings" className="flex items-center gap-2">
+                    <Settings className="h-4 w-4" />{t('Settings')}
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem className="cursor-pointer gap-2" onClick={handleOpenTour}>
+                  <HelpCircle className="h-4 w-4" />{t('App Tour')}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="cursor-pointer gap-2 text-destructive focus:text-destructive"
+                  onClick={() => signOut()}
+                >
+                  <LogOut className="h-4 w-4" />{t('Sign Out')}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        ) : (
+          /* Expanded: company info row opens menu, chevron on hover */
+          <DropdownMenu>
+            <div className="flex items-center gap-1 group">
+              <DropdownMenuTrigger asChild>
+                <button className="flex flex-1 min-w-0 items-center gap-2 px-2 py-1.5 rounded-[var(--radius-md)] hover:bg-[var(--glass-bg-light)] transition-colors text-left">
+                  {company.logo_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={company.logo_url} alt={company.name} className="h-6 w-6 rounded object-contain shrink-0" />
+                  ) : (
+                    <span className="h-6 w-6 flex items-center justify-center rounded-[var(--radius-sm)] bg-muted text-[11px] font-semibold text-muted-foreground shrink-0">
+                      {company.name.charAt(0).toUpperCase()}
+                    </span>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium truncate">{company.name}</p>
+                    {company.owner_name && (
+                      <p className="text-[11px] text-muted-foreground truncate">{company.owner_name}</p>
+                    )}
+                  </div>
+                </button>
+              </DropdownMenuTrigger>
+              <button
+                onClick={toggle}
+                className="p-1 rounded text-muted-foreground/40 hover:text-muted-foreground transition-colors shrink-0"
+                aria-label="Collapse sidebar"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+            </div>
+            <DropdownMenuContent side="right" align="end" className="w-48">
+              <DropdownMenuItem asChild className="cursor-pointer">
+                <Link href="/settings" className="flex items-center gap-2">
+                  <Settings className="h-4 w-4" />{t('Settings')}
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem className="cursor-pointer gap-2" onClick={handleOpenTour}>
+                <HelpCircle className="h-4 w-4" />{t('App Tour')}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="cursor-pointer gap-2 text-destructive focus:text-destructive"
+                onClick={() => signOut()}
+              >
+                <LogOut className="h-4 w-4" />{t('Sign Out')}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
     </aside>
   )

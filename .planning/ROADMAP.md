@@ -904,3 +904,4 @@ Plans:
   5. Existing URL-typed setups (current state) keep working â€” if `og_image_url` is set but the file isn't in branding-assets bucket (external URL), show preview if loadable + a hint "Currently using external URL â€” upload to migrate to managed storage".
 
 **Plans:** 2/2 plans complete
+

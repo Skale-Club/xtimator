@@ -17,6 +17,8 @@ import { SWRegister } from '@/components/pwa/sw-register'
 import { InstallPrompt } from '@/components/pwa/install-prompt'
 import { OfflineIndicator } from '@/components/pwa/offline-indicator'
 import { NewProjectDialog } from '@/components/projects/new-project-dialog'
+import { EstimateCreationPopup } from '@/components/projects/estimate-creation-popup'
+import { BreadcrumbProvider } from '@/components/app-shell/breadcrumb-context'
 
 export default async function AppShellLayout({
   children,
@@ -26,7 +28,7 @@ export default async function AppShellLayout({
   const claims = await getAuthClaims()
 
   if (!claims) {
-    redirect('/login')
+    redirect('/?auth=login')
   }
 
   // Start branding immediately — no dependency on company (D-06, D-09)
@@ -56,42 +58,44 @@ export default async function AppShellLayout({
   const trialDaysRemaining =
     billingRow.data?.tier === 'free' && billingRow.data?.tier_trial_ends_at
       ? Math.ceil(
-          (new Date(billingRow.data.tier_trial_ends_at).getTime() - Date.now()) /
+          (new Date(billingRow.data.tier_trial_ends_at).getTime() - new Date().getTime()) /
             (1000 * 60 * 60 * 24)
         )
       : null
 
   return (
     <TourProvider>
-      <div className="flex h-screen">
-        <Sidebar
-          branding={{
-            appName: branding.appName,
-            logoUrl: branding.logoUrl,
-          }}
-          company={company}
-        />
-        <div className="flex flex-1 flex-col overflow-hidden">
-          <Topbar company={company} userId={claims.sub as string} isAdmin={isAdmin} />
-          <MobileHeader />
-          {trialDaysRemaining !== null && trialDaysRemaining < 3 && (
-            <TrialBanner daysRemaining={trialDaysRemaining} />
-          )}
-          <main className="flex-1 overflow-y-auto pt-4 md:pt-6 pb-20 md:pb-6">
-            {children}
-          </main>
+      <BreadcrumbProvider>
+        <div className="flex h-screen">
+          <Sidebar
+            branding={{
+              appName: branding.appName,
+              logoUrl: branding.logoUrl,
+            }}
+            company={company}
+          />
+          <div className="flex flex-1 flex-col overflow-hidden">
+            <Topbar company={company} userId={claims.sub as string} isAdmin={isAdmin} />
+            <MobileHeader />
+            {trialDaysRemaining !== null && trialDaysRemaining < 3 && (
+              <TrialBanner daysRemaining={trialDaysRemaining} />
+            )}
+            <main className="flex-1 overflow-y-auto pb-20 md:pb-6">
+              {children}
+            </main>
+          </div>
+          <BottomNav />
+          <NewProjectDialog />
+          <EstimateCreationPopup />
+          <TranslationLoadingOverlay />
+          <UpgradeModal />
+          <WelcomeModal />
+          <TourSpotlight />
+          <OfflineIndicator />
+          <InstallPrompt />
+          <SWRegister />
         </div>
-        <BottomNav />
-        <NewProjectDialog />
-        <TranslationLoadingOverlay />
-        <UpgradeModal />
-        <WelcomeModal />
-        <TourSpotlight />
-        <TourHelpButton />
-        <OfflineIndicator />
-        <InstallPrompt />
-        <SWRegister />
-      </div>
+      </BreadcrumbProvider>
     </TourProvider>
   )
 }

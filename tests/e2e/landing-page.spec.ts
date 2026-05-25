@@ -8,8 +8,8 @@ test.describe('landing page', () => {
     const hero = page.getByRole('heading', { level: 1 })
     await expect(hero).toBeVisible()
     await expect(hero).toContainText(/professional estimates/i)
-    await expect(page.getByRole('link', { name: 'Start free' })).toBeVisible()
-    await expect(page.getByRole('link', { name: 'Log in' })).toBeVisible()
+    // CTAs are now buttons that open the AuthDialog (no /login or /signup pages).
+    await expect(page.getByRole('button', { name: 'Start free' }).first()).toBeVisible()
   })
 
   test('how it works', async ({ page }) => {
@@ -36,7 +36,6 @@ test.describe('landing page', () => {
     await page.goto('/')
 
     await expect(page).toHaveURL('/')
-    await expect(page).not.toHaveURL(/\/login$/)
   })
 
   test('authenticated root redirect', async ({ page }) => {
@@ -48,10 +47,13 @@ test.describe('landing page', () => {
       'Set TEST_ADMIN_EMAIL + TEST_ADMIN_PASSWORD to run authenticated root redirect test'
     )
 
-    await page.goto('/login')
+    await page.goto('/?auth=login')
+    await page.waitForSelector('[role="dialog"]')
     await page.fill('input[name="email"]', adminEmail!)
+    // Step 1 -> click Continue, then Step 2 password
+    await page.getByRole('button', { name: /^Continue$/ }).click()
     await page.fill('input[name="password"]', adminPassword!)
-    await page.click('button[type="submit"]')
+    await page.getByRole('button', { name: /^Sign in$/ }).click()
     await page.waitForURL(/\/(dashboard|admin)/, { timeout: 10000 })
 
     await page.goto('/')
@@ -73,23 +75,18 @@ test.describe('mobile', () => {
   test('hero CTA buttons visible above the fold without scrolling', async ({ page }) => {
     await page.goto('/')
 
-    const startFreeLink = page.getByRole('link', { name: 'Start free' })
-    const loginLink = page.getByRole('link', { name: 'Log in' })
+    const startFreeBtn = page.getByRole('button', { name: 'Start free' }).first()
 
-    await expect(startFreeLink).toBeVisible()
-    await expect(loginLink).toBeVisible()
+    await expect(startFreeBtn).toBeVisible()
 
     const viewportHeight = await page.evaluate(() => window.innerHeight)
 
-    const startFreeBoundingBox = await startFreeLink.boundingBox()
-    const loginBoundingBox = await loginLink.boundingBox()
+    const startFreeBoundingBox = await startFreeBtn.boundingBox()
 
     expect(startFreeBoundingBox).not.toBeNull()
-    expect(loginBoundingBox).not.toBeNull()
 
-    // Both CTAs should be within the viewport (above the fold)
+    // Primary CTA should be within the viewport (above the fold)
     expect(startFreeBoundingBox!.y + startFreeBoundingBox!.height).toBeLessThanOrEqual(viewportHeight)
-    expect(loginBoundingBox!.y + loginBoundingBox!.height).toBeLessThanOrEqual(viewportHeight)
   })
 
   test('landing sections are reachable on mobile', async ({ page }) => {
@@ -136,7 +133,7 @@ test.describe('brand palette', () => {
   test('primary CTA button resolves through brand blue accent', async ({ page }) => {
     await page.goto('/')
 
-    const primaryCta = page.getByRole('link', { name: 'Start free' })
+    const primaryCta = page.getByRole('button', { name: 'Start free' }).first()
     await expect(primaryCta).toBeVisible()
 
     const bgColor = await primaryCta.evaluate((el) => {

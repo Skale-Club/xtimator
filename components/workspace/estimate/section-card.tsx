@@ -22,6 +22,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { ItemRow } from './item-row'
+import { ItemCardMobile } from './item-card-mobile'
 import type { EditorSection, EstimateAction } from './use-estimate-reducer'
 import { formatMoney } from '@/lib/money/currency'
 
@@ -142,6 +143,27 @@ export function SectionCard({ section, dispatch, dragHandleProps, isReadOnly, cu
         )}
       </CardHeader>
       <CardContent className="px-3 pb-3">
+        {/* R4 mobile-first: stacked editable cards on mobile, drag-reorderable
+            table on desktop. Mobile omits drag because the editing surface
+            takes priority on small viewports — desktop remains the place to
+            reorder items. */}
+        <div className="sm:hidden space-y-3">
+          {section.items.map((item) => (
+            <ItemCardMobile
+              key={item.id}
+              item={item}
+              onUpdate={(field, value) =>
+                dispatch({ type: 'UPDATE_ITEM', sectionId: section.id, itemId: item.id, field, value })
+              }
+              onRemove={() =>
+                dispatch({ type: 'REMOVE_ITEM', sectionId: section.id, itemId: item.id })
+              }
+              isReadOnly={isReadOnly}
+              currencyCode={currencyCode}
+            />
+          ))}
+        </div>
+
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
@@ -151,7 +173,7 @@ export function SectionCard({ section, dispatch, dragHandleProps, isReadOnly, cu
             items={section.items.map((i) => i.id)}
             strategy={verticalListSortingStrategy}
           >
-            <div className="overflow-x-auto">
+            <div className="hidden sm:block overflow-x-auto">
               <table className="w-full">
                 <thead>
                   <tr className="text-xs text-muted-foreground border-b">

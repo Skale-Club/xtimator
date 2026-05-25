@@ -35,7 +35,7 @@ export function AuthCard({ branding, title, children }: AuthCardProps) {
             {/* Logo + wordmark — horizontal, matches landing nav style */}
             <div className="mb-8 flex items-center justify-center gap-2.5">
               <AppIcon logoUrl={branding.logoUrl} appName={branding.appName} className="h-8 w-8" />
-              <span className="font-bold text-xl tracking-tight text-white">
+              <span className="font-bold text-xl tracking-tight">
                 {branding.appName}
               </span>
             </div>

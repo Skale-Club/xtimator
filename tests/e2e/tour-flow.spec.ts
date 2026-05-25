@@ -34,11 +34,11 @@ const LEGACY_KEYS = [
   "tour_spotlight_pending",
 ]
 
-// If `page.goto("/dashboard")` lands us on /login we're not authenticated.
-// With authenticated-state.json populated, the page should not redirect to /login.
+// If `page.goto("/dashboard")` lands us on /?auth=login we're not authenticated.
+// With authenticated-state.json populated, the page should not redirect to the LP.
 // If it does (e.g., CI without TEST_USER_EMAIL), skip with explanation.
 async function requireDashboard(page: Page): Promise<void> {
-  if (page.url().includes("/login")) {
+  if (page.url().includes("auth=login")) {
     test.skip(true, "Auth fixture missing or expired — populate TEST_USER_EMAIL/TEST_USER_PASSWORD in .env.local and re-run `pnpm test:e2e` to generate authenticated-state.json via globalSetup.")
   }
 }

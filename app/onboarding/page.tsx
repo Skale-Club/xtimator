@@ -9,10 +9,10 @@ export default async function OnboardingPage() {
   const claims = data?.claims ?? null
 
   if (!claims) {
-    redirect('/login')
+    redirect('/?auth=login')
   }
 
   const branding = await getBranding()
 
-  return <OnboardingSurvey appName={branding.appName} />
+  return <OnboardingSurvey appName={branding.appName} logoUrl={branding.logoUrl} />
 }

@@ -6,6 +6,6 @@ export const metadata = { title: 'Account | Settings' }
 
 export default async function AccountTabPage() {
   const claims = await getAuthClaims()
-  if (!claims) redirect('/login')
+  if (!claims) redirect('/?auth=login')
   return <AccountSection />
 }

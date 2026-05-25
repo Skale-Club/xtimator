@@ -1,35 +1,35 @@
 'use client'
 
 import { useTransition } from 'react'
-import { useRouter } from 'next/navigation'
-import Link from 'next/link'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { projectSchema } from '@/lib/schemas/project'
-import type { ProjectFormValues } from '@/lib/schemas/project'
-import type { InputMode } from '@/lib/schemas/project'
+import type { ProjectFormValues, InputMode } from '@/lib/schemas/project'
 import { createProjectAction } from '@/lib/actions/project'
 
 import { Form } from '@/components/ui/form'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
-import { Separator } from '@/components/ui/separator'
 import { StepModalitySelect } from '@/components/projects/step-modality-select'
+import {
+  captureHref,
+  type CaptureMode,
+} from '@/components/projects/estimate-creation-popup'
 
 /**
- * Single-step modality picker. Project is created on submit with no client
- * (clientId = null). Linking a client happens later from the project workspace
- * Overview tab (Link Client card from Phase 29). This keeps "from intent to
- * capture" to one decision.
+ * Single-step modality picker. Clicking a card creates the project (with no
+ * client; clientId = null) and hands off to the EstimateCreationPopup by
+ * swapping URL params — `?modal=new-project` is removed and
+ * `?capture=<mode>&projectId=<id>` is added, so the NewProjectDialog closes
+ * and the EstimateCreationPopup opens without unmounting the app shell.
+ * Linking a client happens later from the project workspace Overview.
  */
-const MODALITY_ROUTES: Record<InputMode, string> = {
-  audio: '/capture',
-  text: '/describe',
-  photos: '/photos-input',
-  mixed: '/capture',
+const MODALITY_TO_CAPTURE: Record<InputMode, CaptureMode> = {
+  audio: 'audio',
+  text: 'text',
+  photos: 'photos',
+  mixed: 'audio',
 }
 
 interface NewProjectWizardProps {
@@ -37,9 +37,11 @@ interface NewProjectWizardProps {
   onClose?: () => void
 }
 
-export function NewProjectWizard({ onClose }: NewProjectWizardProps = {}) {
-  const router = useRouter()
+export function NewProjectWizard(_props: NewProjectWizardProps = {}) {
   const [isPending, startTransition] = useTransition()
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const form = useForm<ProjectFormValues>({
@@ -54,62 +56,44 @@ export function NewProjectWizard({ onClose }: NewProjectWizardProps = {}) {
 
   const selectedMode = form.watch('inputMode')
 
-  function handleSubmit() {
-    if (!selectedMode) {
-      form.setError('inputMode', { message: 'Please select a modality to continue.' })
-      return
-    }
+  function handleSelect(mode: InputMode) {
+    if (isPending) return
+    form.setValue('inputMode', mode, { shouldValidate: true })
 
     startTransition(async () => {
-      const values = form.getValues()
+      const values = { ...form.getValues(), inputMode: mode }
       const result = await createProjectAction(values)
       if ('error' in result) {
         toast.error(result.error)
         return
       }
-      const route = MODALITY_ROUTES[values.inputMode!] ?? '/capture'
-      router.push(`/projects/${result.data.id}${route}`)
+      // Swap URL params: drop ?modal=new-project (closes NewProjectDialog),
+      // add ?capture=<mode>&projectId=<id> (opens EstimateCreationPopup).
+      // Both dialogs are mounted in the app shell layout, so the user stays
+      // inside the same React tree — no hard navigation, no shell teardown.
+      const captureMode = MODALITY_TO_CAPTURE[mode]
+      const next = captureHref({
+        pathname,
+        search: searchParams.toString(),
+        mode: captureMode,
+        projectId: result.data.id,
+      })
+      router.replace(next, { scroll: false })
     })
   }
 
-  const submitLabel = selectedMode
-    ? `Start ${selectedMode.charAt(0).toUpperCase() + selectedMode.slice(1)} capture`
-    : 'Choose a modality'
-
   return (
-    <Card variant="glass">
-      <CardContent className="p-6 sm:p-8">
-        <Form {...form}>
-          <form onSubmit={(e) => e.preventDefault()}>
-            <StepModalitySelect form={form} />
+    <Form {...form}>
+      <form onSubmit={(e) => e.preventDefault()}>
+        <StepModalitySelect
+          form={form}
+          onSelect={handleSelect}
+          isPending={isPending}
+          pendingMode={isPending ? selectedMode : undefined}
+        />
 
-            <Separator className="my-6" />
-
-            <div className="flex justify-between items-center">
-              {onClose ? (
-                <Button type="button" variant="ghost" className="min-h-[44px]" onClick={onClose}>
-                  Cancel
-                </Button>
-              ) : (
-                <Button asChild type="button" variant="ghost" className="min-h-[44px]">
-                  <Link href="/dashboard">Cancel</Link>
-                </Button>
-              )}
-
-              <Button
-                type="button"
-                variant="primary"
-                className="min-h-[44px]"
-                onClick={handleSubmit}
-                disabled={isPending || !selectedMode}
-              >
-                {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {submitLabel}
-              </Button>
-            </div>
-          </form>
-        </Form>
-      </CardContent>
-    </Card>
+        {/* Dialog close is handled by the DialogContent X button */}
+      </form>
+    </Form>
   )
 }

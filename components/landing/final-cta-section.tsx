@@ -1,11 +1,14 @@
 'use client'
 
-import Link from 'next/link'
 import { ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { motion, useReducedMotion } from 'framer-motion'
 
-export function FinalCtaSection() {
+interface FinalCtaSectionProps {
+  onOpenAuth?: (mode: 'login' | 'signup') => void
+}
+
+export function FinalCtaSection({ onOpenAuth }: FinalCtaSectionProps) {
   const reduce = useReducedMotion()
   return (
     <section className="relative isolate bg-transparent py-[clamp(40px,7vw,64px)]">
@@ -35,19 +38,17 @@ export function FinalCtaSection() {
           </div>
 
           <div className="relative z-10 mt-10 flex shrink-0 flex-col gap-4 sm:flex-row lg:mt-0">
-            <Button asChild variant="primary" size="lg" className="sm:min-w-44">
-              <Link href="/signup">
-                Create account
-                <ArrowRight className="ml-2 size-5 transition-transform group-hover:translate-x-1" aria-hidden="true" />
-              </Link>
+            <Button variant="primary" size="lg" className="h-14 text-lg font-semibold sm:min-w-44" onClick={() => onOpenAuth?.('signup')}>
+              Start
+              <ArrowRight className="ml-2 size-5 transition-transform group-hover:translate-x-1" aria-hidden="true" />
             </Button>
             <Button
-              asChild
               size="lg"
               variant="outline"
-              className="h-14 border-white/10 bg-white/5 text-lg font-semibold text-foreground transition-all hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:min-w-40"
+              className="h-14 text-lg font-semibold border-white/10 bg-white/5 transition-all hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:min-w-40"
+              onClick={() => onOpenAuth?.('login')}
             >
-              <Link href="/login">Sign in</Link>
+              See Demo
             </Button>
           </div>
         </motion.div>

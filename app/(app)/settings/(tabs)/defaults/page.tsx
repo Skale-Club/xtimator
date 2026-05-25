@@ -8,7 +8,7 @@ export const metadata = { title: 'Defaults | Settings' }
 
 export default async function DefaultsTabPage() {
   const claims = await getAuthClaims()
-  if (!claims) redirect('/login')
+  if (!claims) redirect('/?auth=login')
 
   const supabase = await createClient()
   const company = await getCompanySettings(supabase, claims.sub as string)

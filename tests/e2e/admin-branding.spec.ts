@@ -25,11 +25,13 @@ test.describe('Admin branding (ADMIN-08)', () => {
   test('admin can edit app_name and see it persist after reload', async ({ page }) => {
     const newName = `Xtimator Test ${Date.now()}`
 
-    // Login flow.
-    await page.goto('/login')
+    // Login flow (modal-based since 260524-ohe).
+    await page.goto('/?auth=login')
+    await page.waitForSelector('[role="dialog"]')
     await page.fill('input[name="email"]', ADMIN_EMAIL!)
+    await page.getByRole('button', { name: /^Continue$/ }).click()
     await page.fill('input[name="password"]', ADMIN_PASSWORD!)
-    await page.click('button[type="submit"]')
+    await page.getByRole('button', { name: /^Sign in$/ }).click()
     await page.waitForURL(/\/(dashboard|admin)/)
 
     // Open branding page.

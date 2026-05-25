@@ -1,3 +1,7 @@
+'use client'
+
+'use client'
+
 import { StatCard } from '@/components/dashboard/stat-card'
 import type { DashboardStats } from '@/lib/queries/dashboard'
 import { DEFAULT_CURRENCY_CODE, formatMoney } from '@/lib/money/currency'
@@ -15,16 +19,19 @@ export function StatCards({ stats, currencyCode = DEFAULT_CURRENCY_CODE }: StatC
         icon={FolderOpen}
         label="Total Projects"
         value={stats.totalProjects}
+        index={0}
       />
       <StatCard
         icon={Clock}
         label="Pending Estimates"
         value={stats.pendingEstimates}
+        index={1}
       />
       <StatCard
         icon={CheckCircle}
         label="Accepted"
         value={stats.acceptedEstimates}
+        index={2}
       />
       <StatCard
         icon={DollarSign}
@@ -33,6 +40,7 @@ export function StatCards({ stats, currencyCode = DEFAULT_CURRENCY_CODE }: StatC
           minimumFractionDigits: 0,
           maximumFractionDigits: 0,
         })}
+        index={3}
       />
     </section>
   )

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { toast } from 'sonner'
@@ -14,6 +14,7 @@ import {
 import { ArrowLeft, Loader2 } from 'lucide-react'
 import type { ProjectDetail } from '@/lib/queries/project'
 import { useTranslation } from '@/lib/i18n/use-translation'
+import { pollJob } from '@/hooks/use-job-status'
 
 interface TextDescribeProps {
   project: ProjectDetail
@@ -21,45 +22,54 @@ interface TextDescribeProps {
   projectId: string
 }
 
-export function TextDescribe({ project, companyId, projectId }: TextDescribeProps) {
+export function TextDescribe({ project, projectId }: TextDescribeProps) {
   const { t } = useTranslation()
   const router = useRouter()
   const [text, setText] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
+  const abortRef = useRef<AbortController | null>(null)
 
   const handleTextGenerate = async () => {
     if (!text.trim()) return
 
+    abortRef.current?.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
+
     setIsGenerating(true)
     try {
-      // Step 1: Save text as a recording
-      const result = await createTextRecording(projectId, text.trim())
-      if (result.error || !result.data) {
-        toast.error(result.error ?? t('Failed to save description'))
+      const saved = await createTextRecording(projectId, text.trim())
+      if (saved.error || !saved.data) {
+        toast.error(saved.error ?? t('Failed to save description'))
         setIsGenerating(false)
         return
       }
 
-      // Step 2: Trigger estimate generation
       const res = await fetch('/api/generate-estimate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ projectId }),
+        signal: controller.signal,
       })
 
       if (!res.ok) {
-        const data = await res.json()
-        toast.error(data.error ?? t('Failed to generate estimate'))
+        const data = await res.json().catch(() => ({}))
+        toast.error((data as { error?: string }).error ?? t('Failed to generate estimate'))
         setIsGenerating(false)
         return
       }
 
-      const data: GenerateEstimateResponse = await res.json()
+      const { jobId } = (await res.json()) as { jobId: string }
 
-      // Step 3: Store client suggestion and navigate to estimate editor
-      storeClientSuggestion(projectId, data.clientSuggestion ?? null)
-      router.push(`/projects/${projectId}?tab=estimate&estimate=${data.estimateId}`)
+      // Phase 67: /api/generate-estimate returns { jobId }; poll until terminal.
+      const output = (await pollJob(jobId, controller.signal)) as GenerateEstimateResponse
+
+      storeClientSuggestion(projectId, output.clientSuggestion ?? null)
+      // The Overview now renders the live estimate as primary content
+      // (project A R3). No need for ?tab=estimate&estimate=...
+      router.push(`/projects/${projectId}`)
     } catch (err) {
+      if ((err as Error).name === 'AbortError') return
       console.error('Text describe error:', err)
       toast.error(t('Something went wrong. Please try again.'))
       setIsGenerating(false)

@@ -20,6 +20,8 @@ export type LandingContent = {
   heroHeadline: string
   heroSubheadline: string
   ctaLabel: string
+  /** Optional 1:1 hero image. Null hides the right-side column. */
+  heroImageUrl: string | null
   howItWorksSteps: Array<{
     eyebrow: string
     title: string
@@ -56,10 +58,11 @@ let brandingCache: { value: Branding; fetchedAt: number } | null = null
 const integrationCache = new Map<string, { value: string; fetchedAt: number }>()
 
 export const DEFAULT_LANDING_CONTENT: LandingContent = {
-  heroHeadline: 'Professional estimates in 5 minutes.',
+  heroHeadline: 'Professional estimates in seconds.',
   heroSubheadline:
     'Record a site walkthrough, add photos, and let AI draft the scope, pricing, and branded PDF before you leave the driveway.',
-  ctaLabel: 'Start free',
+  ctaLabel: 'Start',
+  heroImageUrl: null,
   howItWorksSteps: [
     {
       eyebrow: 'Step 1',
@@ -158,7 +161,11 @@ export async function getBranding(): Promise<Branding> {
     faviconUrl: data.favicon_url ?? null,
     landingContent:
       data.landing_content && Object.keys(data.landing_content).length > 0
-        ? (data.landing_content as LandingContent)
+        ? {
+            ...(data.landing_content as LandingContent),
+            // Backfill heroImageUrl for rows persisted before the field existed.
+            heroImageUrl: (data.landing_content as LandingContent).heroImageUrl ?? null,
+          }
         : DEFAULT_LANDING_CONTENT,
   }
   brandingCache = { value: branding, fetchedAt: now }

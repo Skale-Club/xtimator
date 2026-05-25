@@ -7,7 +7,7 @@ import { ClientList } from '@/components/clients/client-list'
 export default async function ClientsPage() {
   const claims = await getAuthClaims()
 
-  if (!claims) redirect('/login')
+  if (!claims) redirect('/?auth=login')
 
   const company = await getCachedCompany(claims.sub)
 
@@ -17,7 +17,7 @@ export default async function ClientsPage() {
   const clients = await getClients(supabase, company.id)
 
   return (
-    <div className="px-6 py-8 space-y-6">
+    <div className="space-y-6 p-6">
       <ClientList clients={clients} companyId={company.id} />
     </div>
   )

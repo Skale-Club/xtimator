@@ -3,14 +3,13 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Mic, MicOff, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
-import { CircularProgressRing } from '@/components/capture/circular-progress-ring'
 import { CaptureTimer } from '@/components/capture/capture-timer'
 import { CaptureStepper } from '@/components/capture/capture-stepper'
 import { CaptureFailure } from '@/components/capture/capture-failure'
-import { WaveformVisualizer } from '@/components/workspace/audio/waveform-visualizer'
+import { VoiceRecorder } from '@/components/workspace/audio/voice-recorder'
 import { createRecording, transcribeRecording, createTextRecording } from '@/lib/actions/recording'
 import { createPhoto } from '@/lib/actions/photo'
 import { createClient } from '@/lib/supabase/client'
@@ -44,9 +43,34 @@ interface CaptureRecorderProps {
   project: ProjectDetail
   companyId: string
   projectId: string
+  /**
+   * Visual mode. `fullscreen` (default) preserves the legacy `/capture` route
+   * behavior — the recorder takes the whole viewport via the (capture) layout.
+   * `popup` strips the redundant inner header and lets the parent Dialog
+   * control chrome, completion, and cancel.
+   */
+  variant?: 'fullscreen' | 'popup'
+  /**
+   * If supplied, the pipeline calls this on successful completion instead of
+   * hard-navigating to `?tab=estimate&estimate=…`. The parent decides where
+   * to send the user next (typically close the dialog + push `/projects/[id]`).
+   */
+  onComplete?: (estimateId: string) => void
+  /**
+   * If supplied, the failure-path "Continue manually" button calls this
+   * instead of navigating away. The parent dismisses the dialog.
+   */
+  onCancel?: () => void
 }
 
-export function CaptureRecorder({ project, companyId, projectId }: CaptureRecorderProps) {
+export function CaptureRecorder({
+  project,
+  companyId,
+  projectId,
+  variant = 'fullscreen',
+  onComplete,
+  onCancel,
+}: CaptureRecorderProps) {
   const { t } = useTranslation()
   const { language: appLanguage } = useLanguage()
   const router = useRouter()
@@ -228,12 +252,16 @@ export function CaptureRecorder({ project, companyId, projectId }: CaptureRecord
       const output = (await pollJob(jobId, abortControllerRef.current.signal)) as GenerateEstimateResponse
       setStage('done')
       storeClientSuggestion(projectId, output.clientSuggestion)
-      router.push(`/projects/${projectId}?tab=estimate&estimate=${output.estimateId}`)
+      if (onComplete) {
+        onComplete(output.estimateId)
+      } else {
+        router.push(`/projects/${projectId}?tab=estimate&estimate=${output.estimateId}`)
+      }
     } catch (err) {
       if ((err as Error).name === 'AbortError') return
       failAt('generating', (err as Error).message ?? t('Estimate generation failed'))
     }
-  }, [projectId, router, t, estimateLanguage])
+  }, [projectId, router, t, estimateLanguage, onComplete])
 
   // Full AI pipeline (RESEARCH Pattern 5)
   const runPipeline = useCallback(async (blob: Blob) => {
@@ -306,12 +334,16 @@ export function CaptureRecorder({ project, companyId, projectId }: CaptureRecord
       const output = (await pollJob(jobId, abortControllerRef.current.signal)) as GenerateEstimateResponse
       storeClientSuggestion(projectId, output.clientSuggestion)
       setStage('done')
-      router.push(`/projects/${projectId}?tab=estimate&estimate=${output.estimateId}`)
+      if (onComplete) {
+        onComplete(output.estimateId)
+      } else {
+        router.push(`/projects/${projectId}?tab=estimate&estimate=${output.estimateId}`)
+      }
     } catch (err) {
       if ((err as Error).name === 'AbortError') return  // unmount; not a user-facing failure
       failAt('analyzing', (err as Error).message ?? t('Estimate generation failed'))
     }
-  }, [companyId, projectId, elapsedMs, router, estimateLanguage])
+  }, [companyId, projectId, elapsedMs, router, estimateLanguage, onComplete])
 
   // Unified generation handler (text-only, audio, or photos-only)
   const handleGenerate = useCallback(async () => {
@@ -410,21 +442,28 @@ export function CaptureRecorder({ project, companyId, projectId }: CaptureRecord
   const isIdle = stage === 'idle'
   const showRecorderUI = isIdle || stage === 'done'
 
+  const isPopup = variant === 'popup'
+  const rootClassName = isPopup
+    ? 'flex flex-col min-h-0'
+    : 'flex flex-1 flex-col min-h-0'
+
   return (
-    <div className="flex flex-1 flex-col min-h-0" data-testid="capture-screen">
-      {/* Header */}
-      <header className="flex items-center justify-between px-4 py-3 border-b">
-        <span className="text-sm text-muted-foreground truncate">{project.name}</span>
-        {/* Skip button only visible when idle and NOT recording and NO inputs */}
-        {stage === 'idle' && !isRecording && !hasAnyInput && (
-          <Button asChild variant="ghost" size="sm" data-testid="skip-recording">
-            <Link href={`/projects/${projectId}`}>
-              {t('Skip recording')}
-              <X className="ml-2 h-4 w-4" />
-            </Link>
-          </Button>
-        )}
-      </header>
+    <div className={rootClassName} data-testid="capture-screen">
+      {/* Header — hidden in popup mode (the Dialog supplies its own title chrome). */}
+      {!isPopup && (
+        <header className="flex items-center justify-between px-4 py-3 border-b">
+          <span className="text-sm text-muted-foreground truncate">{project.name}</span>
+          {/* Skip button only visible when idle and NOT recording and NO inputs */}
+          {stage === 'idle' && !isRecording && !hasAnyInput && (
+            <Button asChild variant="ghost" size="sm" data-testid="skip-recording">
+              <Link href={`/projects/${projectId}`}>
+                {t('Skip recording')}
+                <X className="ml-2 h-4 w-4" />
+              </Link>
+            </Button>
+          )}
+        </header>
+      )}
 
       {/* Body */}
       {showRecorderUI ? (
@@ -462,7 +501,11 @@ export function CaptureRecorder({ project, companyId, projectId }: CaptureRecord
                 } : undefined}
                 onEditManually={() => {
                   toast.info(t('Continue manually in the workspace tabs.'))
-                  router.push(`/projects/${projectId}`)
+                  if (onCancel) {
+                    onCancel()
+                  } else {
+                    router.push(`/projects/${projectId}`)
+                  }
                 }}
               />
             )}
@@ -499,42 +542,21 @@ function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progre
   const { t } = useTranslation()
   return (
     <div className="flex-1 flex flex-col overflow-y-auto min-h-0">
-      {/* Waveform — visualization for recording (D-08) */}
-      <div className="px-4 pt-4">
-        <WaveformVisualizer analyser={analyser} isRecording={isRecording} height={80} />
-      </div>
-
-      {/* PRIMARY ACTION: Timer + Mic button — front and center, the reason user is on this screen */}
-      <div className="flex flex-col items-center gap-4 pt-4 pb-6">
-        <CaptureTimer elapsedMs={elapsedMs} />
-
-        <CircularProgressRing
-          progress={progress}
-          size={120}
-          strokeWidth={6}
-          colorClass={ringColorClass}
-        >
-          <button
-            onClick={onToggle}
-            className={`w-14 h-14 rounded-full flex items-center justify-center transition-colors ${
-              isRecording
-                ? 'bg-red-500 animate-pulse hover:bg-red-600'
-                : 'bg-primary hover:bg-primary/90'
-            }`}
-            aria-label={isRecording ? t('Stop recording') : t('Start recording')}
-            data-testid="capture-mic"
-          >
-            {isRecording ? (
-              <MicOff className="h-6 w-6 text-white" />
-            ) : (
-              <Mic className="h-6 w-6 text-primary-foreground" />
-            )}
-          </button>
-        </CircularProgressRing>
-
-        <p className="text-sm text-muted-foreground">
-          {isRecording ? t('Tap to stop recording') : t('Tap to start recording')}
-        </p>
+      {/* PRIMARY ACTION: glass card with waveform + timer + ring-wrapped mic */}
+      <div className="px-4 pt-4 pb-2">
+        <VoiceRecorder
+          size="lg"
+          analyser={analyser}
+          isRecording={isRecording}
+          elapsedMs={elapsedMs}
+          onToggle={onToggle}
+          showTimer={false}
+          ringProgress={progress}
+          ringColorClass={ringColorClass}
+          micTestId="capture-mic"
+          helperText={isRecording ? t('Tap to stop recording') : t('Tap to start recording')}
+          belowWaveform={<CaptureTimer elapsedMs={elapsedMs} />}
+        />
       </div>
 
       {/* "OR" divider — separates primary mic action from secondary text/photo path */}

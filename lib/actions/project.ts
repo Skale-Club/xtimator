@@ -3,7 +3,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import type { ProjectFormValues } from '@/lib/schemas/project'
-import { getProjectsByCompany } from '@/lib/queries/project'
+import { getProjectsByCompany, getProjectById } from '@/lib/queries/project'
+import type { ProjectDetail } from '@/lib/queries/project'
 import { PLACEHOLDER_PREFIX } from '@/lib/constants/project'
 
 async function getAuthContext() {
@@ -58,6 +59,20 @@ export async function createProjectAction(formData: ProjectFormValues) {
 
   revalidatePath('/dashboard')
   revalidatePath('/', 'layout')
+  return { data: project }
+}
+
+/**
+ * Minimal project fetch for client-side surfaces that only need the basics
+ * (id, name, company_id, etc.) — e.g. the EstimateCreationPopup opening from
+ * a URL param. RLS still gates access via the authenticated supabase client.
+ */
+export async function getProjectMinimalAction(
+  projectId: string
+): Promise<{ data: ProjectDetail } | { error: string }> {
+  const supabase = await createClient()
+  const project = await getProjectById(supabase, projectId)
+  if (!project) return { error: 'Project not found' }
   return { data: project }
 }
 
