@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Multi-Tenancy (Multiple Companies per User)
 status: defining_requirements
-last_updated: "2026-05-24T21:02:00.000Z"
-last_activity: 2026-05-24
+last_updated: "2026-05-25T18:42:11.864Z"
+last_activity: 2026-05-25
 progress:
   total_phases: 0
   completed_phases: 0
@@ -18,14 +18,14 @@ progress:
 
 - **Milestone**: v4.0 Multi-Tenancy — Defining requirements (no phases yet)
 - **Previous milestone (in progress)**: v3.1.1 MVP Launch Prep + Future-Proofing — phases 73-78 still pending
-- **Last updated**: 2026-05-24
+- **Last updated**: 2026-05-25
 
 ## Current Position
 
 Phase: Not started (defining requirements)
 Plan: —
 Status: Defining requirements
-Last activity: 2026-05-24 - Completed quick task 260524-ohe: Refactored auth flow — collapsed /login + /signup + /reset-password into in-modal 2-step on landing page
+Last activity: 2026-05-25 - Completed quick task 260525-lt5: Add AlertDialog confirmation before soft-delete in ProjectRowActions
 
 ## v3.1.1 Phases
 
@@ -647,6 +647,7 @@ v3.1: Phases 61-65 (started 2026-05-15). Production Go-Live — 27 requirements 
 | 260523 | Align page spacing | 2026-05-23 | pending | [260523-align-page-spacing](.planning/quick/260523-align-page-spacing/) |
 | 260524-lxk | Voice recorder visual redesign — shared VoiceRecorder + glass/glow waveform | 2026-05-24 | a33710d | [260524-lxk-refazer-visual-do-sistema-de-gravacao-de](.planning/quick/260524-lxk-refazer-visual-do-sistema-de-gravacao-de/) |
 | 260524-ohe | Auth flow refactor — modal 2-step on LP, delete /login + /signup + /reset-password pages, logout → / | 2026-05-24 | 552f87a | [260524-ohe-refactor-auth-flow-convert-modal-to-2-st](.planning/quick/260524-ohe-refactor-auth-flow-convert-modal-to-2-st/) |
+| 260525-lt5 | Add AlertDialog confirmation before soft-delete in ProjectRowActions | 2026-05-25 | 330a4f4 | [260525-lt5-add-alertdialog-confirmation-before-soft](.planning/quick/260525-lt5-add-alertdialog-confirmation-before-soft/) |
 | 2026-05-18 | fast | Center auth card logo+wordmark | done |
 | 2026-05-19 | fast | Make audio capture screen scrollable on smaller viewports | done |
 | 2026-05-18 | fast | Restyle sidebar New Project as filled gradient, remove dashboard CTA | done |

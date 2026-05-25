@@ -55,6 +55,9 @@ function EstimateCreationPopupInner() {
   const mode = searchParams.get(CAPTURE_PARAM)
   const projectId = searchParams.get(PROJECT_ID_PARAM)
   const isOpen = isCaptureMode(mode) && !!projectId
+  // Narrow the URL param to CaptureMode for the recorder. `isOpen` guarantees
+  // `isCaptureMode(mode) === true` at this render path, so the cast is safe.
+  const captureMode = mode as CaptureMode
 
   const [project, setProject] = useState<ProjectDetail | null>(null)
   const [loading, setLoading] = useState(false)
@@ -124,6 +127,7 @@ function EstimateCreationPopupInner() {
             companyId={project.company_id}
             projectId={project.id}
             variant="popup"
+            mode={captureMode}
             onComplete={handleComplete}
             onCancel={handleCancel}
           />

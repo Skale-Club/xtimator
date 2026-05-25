@@ -128,7 +128,9 @@ export function StepModalitySelect({ form, onSelect, isPending, pendingMode }: S
                     ? 'gradient-brand text-white shadow-lg shadow-primary/40 sm:scale-105'
                     : 'bg-muted/40 text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary'
                 )}
-              />
+              >
+                <Icon className="h-5 w-5 sm:h-7 sm:w-7" strokeWidth={2} />
+              </span>
               <div className="min-w-0 flex-1 sm:flex-none space-y-0 sm:space-y-1">
                 <p className={cn('font-medium sm:font-semibold text-sm sm:text-base leading-tight', isSelected && 'text-primary')}>
                   {label}
