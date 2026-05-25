@@ -21,6 +21,7 @@ import {
   type DocumentClient,
 } from './estimate-document'
 import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
+import type { PriceBookItem } from '@/lib/queries/price-book'
 import { useEstimateVersionSlot } from '@/components/workspace/estimate-version-context'
 
 // ---------------------------------------------------------------------------
@@ -119,6 +120,8 @@ interface EstimateEditorProps {
   /** R6 — wired by parent surface (OverviewTab). */
   onRecord?: () => void
   linkClientSlot?: React.ReactNode
+  /** Quick-260525-qbc: server-fetched price book for description autocomplete. */
+  priceBookItems: PriceBookItem[]
 }
 
 export function EstimateEditor({
@@ -132,6 +135,7 @@ export function EstimateEditor({
   client,
   onRecord,
   linkClientSlot,
+  priceBookItems,
 }: EstimateEditorProps) {
   const router = useRouter()
   const [state, dispatch] = useEstimateReducer(estimate)
@@ -283,11 +287,13 @@ export function EstimateEditor({
         projectType={projectType}
         language={(estimate.language ?? 'en') as EstimateLanguage}
         estimateVersion={state.version}
+        estimateSeq={state.estimate_seq}
         estimateCreatedAt={estimate.created_at}
         dispatch={dispatch}
         isReadOnly={isReadOnly}
         projectId={projectId}
         onRenameProject={isReadOnly ? undefined : handleRenameProject}
+        priceBookItems={priceBookItems}
       />
 
       <EstimateFloatingActions

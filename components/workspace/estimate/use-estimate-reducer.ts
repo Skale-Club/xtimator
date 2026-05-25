@@ -35,6 +35,8 @@ export interface EstimateEditorState {
   workflow_status: 'draft' | 'consolidated'
   is_current: boolean
   version: number
+  /** Per-company sequential identifier, auto-assigned, immutable. */
+  estimate_seq: number
   summary: string | null
   notes: string | null
   timeline: string | null
@@ -62,6 +64,7 @@ export type EstimateAction =
   | { type: 'UPDATE_FIELD'; field: 'summary' | 'notes' | 'timeline' | 'payment_terms' | 'warranty_terms' | 'estimate_date' | 'estimate_number'; value: string | null }
   | { type: 'UPDATE_SECTION_TITLE'; sectionId: string; title: string }
   | { type: 'UPDATE_ITEM'; sectionId: string; itemId: string; field: 'description' | 'quantity' | 'unit' | 'unit_price'; value: string | number | null }
+  | { type: 'APPLY_PRICE_BOOK_ITEM'; sectionId: string; itemId: string; item: { name: string; unit: string | null; unit_price: number } }
   | { type: 'ADD_ITEM'; sectionId: string }
   | { type: 'REMOVE_ITEM'; sectionId: string; itemId: string }
   | { type: 'ADD_SECTION' }
@@ -139,6 +142,7 @@ function initState(estimate: EstimateWithSections | null): EstimateEditorState {
       workflow_status: 'draft',
       is_current: true,
       version: 0,
+      estimate_seq: 0,
       summary: null,
       notes: null,
       timeline: null,
@@ -164,6 +168,7 @@ function initState(estimate: EstimateWithSections | null): EstimateEditorState {
     workflow_status: estimate.workflow_status,
     is_current: estimate.is_current,
     version: estimate.version,
+    estimate_seq: estimate.estimate_seq,
     summary: estimate.summary,
     notes: estimate.notes,
     timeline: estimate.timeline,
@@ -407,6 +412,31 @@ function estimateReducer(state: EstimateEditorState, action: EstimateAction): Es
         payment_terms: r.payment_terms ?? state.payment_terms,
         warranty_terms: r.warranty_terms ?? state.warranty_terms,
         sections: refinedSections,
+        isDirty: true,
+      }
+      return recalculate(updated)
+    }
+
+    case 'APPLY_PRICE_BOOK_ITEM': {
+      const updated = {
+        ...state,
+        sections: state.sections.map((s) => {
+          if (s.id !== action.sectionId) return s
+          return {
+            ...s,
+            items: s.items.map((i) => {
+              if (i.id !== action.itemId) return i
+              return {
+                ...i,
+                description: action.item.name,
+                unit: action.item.unit,
+                unit_price: action.item.unit_price,
+                price_source: 'price_book' as const,
+                isManuallyEdited: false,
+              }
+            }),
+          }
+        }),
         isDirty: true,
       }
       return recalculate(updated)

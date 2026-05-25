@@ -30,6 +30,7 @@ import {
   resolveEstimateLanguageWithSource,
 } from '@/lib/i18n/resolve-estimate-language'
 import type { DocumentClient } from './estimate-document'
+import type { PriceBookItem } from '@/lib/queries/price-book'
 
 interface EstimateTabProps {
   projectId: string
@@ -44,6 +45,7 @@ interface EstimateTabProps {
   client: DocumentClient | null
   onRecord?: () => void
   linkClientSlot?: React.ReactNode
+  priceBookItems: PriceBookItem[]
 }
 
 export function EstimateTab({
@@ -59,6 +61,7 @@ export function EstimateTab({
   client,
   onRecord,
   linkClientSlot,
+  priceBookItems,
 }: EstimateTabProps) {
   const { t } = useTranslation()
   const { language: appLanguage } = useLanguage()
@@ -157,6 +160,7 @@ export function EstimateTab({
         client={client}
         onRecord={onRecord}
         linkClientSlot={linkClientSlot}
+        priceBookItems={priceBookItems}
       />
     )
   }
