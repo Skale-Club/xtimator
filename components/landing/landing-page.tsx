@@ -14,18 +14,26 @@ import { TopNav } from '@/components/landing/top-nav'
 interface LandingPageProps {
   content: LandingContent
   branding: { appName: string; logoUrl: string | null }
+  /** Server-checked auth state. When true, Start/CTA buttons skip the auth dialog and route to the dashboard. */
+  isAuthenticated: boolean
 }
 
-export function LandingPage({ content, branding }: LandingPageProps) {
+export function LandingPage({ content, branding, isAuthenticated }: LandingPageProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [authOpen, setAuthOpen] = useState(false)
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('signup')
 
   // Auto-open modal from ?auth=login|signup, then strip the param.
+  // For already-authenticated visitors the dialog is pointless — send them
+  // straight to the dashboard instead.
   useEffect(() => {
     const authParam = searchParams.get('auth')
     if (authParam === 'login' || authParam === 'signup') {
+      if (isAuthenticated) {
+        router.replace('/dashboard')
+        return
+      }
       setAuthMode(authParam)
       setAuthOpen(true)
       router.replace('/', { scroll: false })
@@ -38,6 +46,10 @@ export function LandingPage({ content, branding }: LandingPageProps) {
   }, [])
 
   function openAuth(mode: 'login' | 'signup') {
+    if (isAuthenticated) {
+      router.push('/dashboard')
+      return
+    }
     setAuthMode(mode)
     setAuthOpen(true)
   }
