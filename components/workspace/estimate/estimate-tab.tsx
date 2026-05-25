@@ -38,6 +38,9 @@ interface EstimateTabProps {
   allVersions: Estimate[]
   recordings: Recording[]
   photos: Photo[]
+  /** R6 — passed through to EstimateEditor's floating action bar. */
+  onRecord?: () => void
+  linkClientSlot?: React.ReactNode
 }
 
 export function EstimateTab({
@@ -47,6 +50,8 @@ export function EstimateTab({
   allVersions,
   recordings,
   photos,
+  onRecord,
+  linkClientSlot,
 }: EstimateTabProps) {
   const { t } = useTranslation()
   const { language: appLanguage } = useLanguage()
@@ -176,6 +181,8 @@ export function EstimateTab({
         companyId={companyId}
         recordings={recordings}
         photos={photos}
+        onRecord={onRecord}
+        linkClientSlot={linkClientSlot}
       />
     )
   }

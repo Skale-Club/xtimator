@@ -132,6 +132,9 @@ interface EstimateEditorProps {
   companyId: string
   recordings: Recording[]
   photos: Photo[]
+  /** R6 — wired by parent surface (OverviewTab). */
+  onRecord?: () => void
+  linkClientSlot?: React.ReactNode
 }
 
 export function EstimateEditor({
@@ -139,6 +142,8 @@ export function EstimateEditor({
   versions,
   projectId,
   photos,
+  onRecord,
+  linkClientSlot,
 }: EstimateEditorProps) {
   const router = useRouter()
   const [state, dispatch] = useEstimateReducer(estimate)
@@ -453,6 +458,8 @@ export function EstimateEditor({
         onDiscard={handleDiscard}
         onNewVersion={handleNewVersion}
         isNewVersionPending={isNewVersionPending}
+        onRecord={onRecord}
+        linkClientSlot={linkClientSlot}
       />
     </div>
   )

@@ -1,6 +1,7 @@
 'use client'
 
-import { Loader2, Save, CheckCircle2, Plus, Lock, RotateCcw, Sparkles } from 'lucide-react'
+import type { ReactNode } from 'react'
+import { Loader2, Save, CheckCircle2, Plus, Lock, RotateCcw, Sparkles, Mic } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   AlertDialog,
@@ -26,6 +27,40 @@ interface EstimateFloatingActionsProps {
   onDiscard: () => void
   onNewVersion: () => void
   isNewVersionPending?: boolean
+  /** R6 — primary platform feature. Tap routes to the dedicated capture surface. */
+  onRecord?: () => void
+  /** R6 — rendered only when no client is linked; supplied by the parent surface. */
+  linkClientSlot?: ReactNode
+}
+
+function ExtraButtons({
+  onRecord,
+  linkClientSlot,
+  disabled,
+}: {
+  onRecord?: () => void
+  linkClientSlot?: ReactNode
+  disabled?: boolean
+}) {
+  if (!onRecord && !linkClientSlot) return null
+  return (
+    <>
+      {onRecord && (
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={onRecord}
+          disabled={disabled}
+          className="rounded-full gap-1.5 text-foreground"
+          aria-label="Record audio"
+        >
+          <Mic className="h-3.5 w-3.5" />
+          Record
+        </Button>
+      )}
+      {linkClientSlot}
+    </>
+  )
 }
 
 /**
@@ -46,30 +81,37 @@ export function EstimateFloatingActions({
   onDiscard,
   onNewVersion,
   isNewVersionPending,
+  onRecord,
+  linkClientSlot,
 }: EstimateFloatingActionsProps) {
   // Old versions are inert.
   if (!isCurrent) return null
 
-  // Consolidated current version: offer to fork a new draft.
+  // Consolidated current version: offer to fork a new draft, plus Record /
+  // conditional Link Client (R6 — Record is the platform's primary feature
+  // and stays available even after consolidation).
   if (workflowStatus === 'consolidated') {
     return (
       <div
         className="fixed right-4 bottom-4 z-40 sm:right-6 sm:bottom-6"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
-        <Button
-          size="lg"
-          onClick={onNewVersion}
-          disabled={isNewVersionPending}
-          className="shadow-lg gap-2"
-        >
-          {isNewVersionPending ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Plus className="h-4 w-4" />
-          )}
-          New version
-        </Button>
+        <div className="flex flex-wrap items-center justify-end gap-2 rounded-full border border-border bg-background/95 p-1.5 shadow-xl backdrop-blur">
+          <ExtraButtons onRecord={onRecord} linkClientSlot={linkClientSlot} />
+          <Button
+            size="sm"
+            onClick={onNewVersion}
+            disabled={isNewVersionPending}
+            className="rounded-full gap-1.5"
+          >
+            {isNewVersionPending ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Plus className="h-3.5 w-3.5" />
+            )}
+            New version
+          </Button>
+        </div>
       </div>
     )
   }
@@ -97,7 +139,12 @@ export function EstimateFloatingActions({
       className="fixed right-4 bottom-4 z-40 sm:right-6 sm:bottom-6"
       style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
-      <div className="flex items-center gap-2 rounded-full border border-border bg-background/95 p-1.5 shadow-xl backdrop-blur">
+      <div className="flex flex-wrap items-center justify-end gap-2 rounded-full border border-border bg-background/95 p-1.5 shadow-xl backdrop-blur">
+        <ExtraButtons
+          onRecord={onRecord}
+          linkClientSlot={linkClientSlot}
+          disabled={isSaving}
+        />
         <AlertDialog>
           <AlertDialogTrigger asChild>
             <Button
