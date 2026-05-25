@@ -25,11 +25,14 @@ export async function getDashboardStats(
   supabase: SupabaseClient,
   companyId: string
 ): Promise<DashboardStats> {
-  // Total projects
+  // Total active projects (exclude archived + trashed; mirrors /projects "Active" view filter
+  // from getProjectsForListPage in lib/queries/project.ts).
   const { count: totalProjects } = await supabase
     .from('projects')
     .select('*', { count: 'exact', head: true })
     .eq('company_id', companyId)
+    .is('archived_at', null)
+    .is('deleted_at', null)
 
   // Pending estimates (draft or sent, current version)
   const { count: pendingEstimates } = await supabase
@@ -84,6 +87,8 @@ export async function getProjects(
        estimates!estimates_project_id_fkey(payment_status, paid_at, currency_code, is_current)`
     )
     .eq('company_id', companyId)
+    .is('archived_at', null)
+    .is('deleted_at', null)
     .order('created_at', { ascending: false })
 
   return (data ?? []).map((row: Record<string, unknown>) => {
