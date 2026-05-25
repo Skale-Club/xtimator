@@ -25,7 +25,7 @@ progress:
 Phase: Not started (defining requirements)
 Plan: —
 Status: Defining requirements
-Last activity: 2026-05-25 - Completed quick task 260525-mur: Fix dashboard showing soft-deleted and archived projects
+Last activity: 2026-05-25 - Completed quick task 260525-mim: Estimate-creation popup renders only the input matching the selected modality
 
 ## v3.1.1 Phases
 
@@ -649,6 +649,7 @@ v3.1: Phases 61-65 (started 2026-05-15). Production Go-Live — 27 requirements 
 | 260524-ohe | Auth flow refactor — modal 2-step on LP, delete /login + /signup + /reset-password pages, logout → / | 2026-05-24 | 552f87a | [260524-ohe-refactor-auth-flow-convert-modal-to-2-st](.planning/quick/260524-ohe-refactor-auth-flow-convert-modal-to-2-st/) |
 | 260525-lt5 | Add AlertDialog confirmation before soft-delete in ProjectRowActions | 2026-05-25 | 330a4f4 | [260525-lt5-add-alertdialog-confirmation-before-soft](.planning/quick/260525-lt5-add-alertdialog-confirmation-before-soft/) |
 | 260525-mur | Fix dashboard showing soft-deleted and archived projects | 2026-05-25 | 0a15842 | [260525-mur-fix-dashboard-showing-soft-deleted-and-a](.planning/quick/260525-mur-fix-dashboard-showing-soft-deleted-and-a/) |
+| 260525-mim | Estimate-creation popup: render only the input matching the selected modality (audio / text / photos) | 2026-05-25 | fa6ce8b | [260525-mim-popup-capture-recorder-render-only-the-i](.planning/quick/260525-mim-popup-capture-recorder-render-only-the-i/) |
 | 2026-05-18 | fast | Center auth card logo+wordmark | done |
 | 2026-05-19 | fast | Make audio capture screen scrollable on smaller viewports | done |
 | 2026-05-18 | fast | Restyle sidebar New Project as filled gradient, remove dashboard CTA | done |
