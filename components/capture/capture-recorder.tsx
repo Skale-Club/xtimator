@@ -43,9 +43,34 @@ interface CaptureRecorderProps {
   project: ProjectDetail
   companyId: string
   projectId: string
+  /**
+   * Visual mode. `fullscreen` (default) preserves the legacy `/capture` route
+   * behavior — the recorder takes the whole viewport via the (capture) layout.
+   * `popup` strips the redundant inner header and lets the parent Dialog
+   * control chrome, completion, and cancel.
+   */
+  variant?: 'fullscreen' | 'popup'
+  /**
+   * If supplied, the pipeline calls this on successful completion instead of
+   * hard-navigating to `?tab=estimate&estimate=…`. The parent decides where
+   * to send the user next (typically close the dialog + push `/projects/[id]`).
+   */
+  onComplete?: (estimateId: string) => void
+  /**
+   * If supplied, the failure-path "Continue manually" button calls this
+   * instead of navigating away. The parent dismisses the dialog.
+   */
+  onCancel?: () => void
 }
 
-export function CaptureRecorder({ project, companyId, projectId }: CaptureRecorderProps) {
+export function CaptureRecorder({
+  project,
+  companyId,
+  projectId,
+  variant = 'fullscreen',
+  onComplete,
+  onCancel,
+}: CaptureRecorderProps) {
   const { t } = useTranslation()
   const { language: appLanguage } = useLanguage()
   const router = useRouter()
@@ -227,12 +252,16 @@ export function CaptureRecorder({ project, companyId, projectId }: CaptureRecord
       const output = (await pollJob(jobId, abortControllerRef.current.signal)) as GenerateEstimateResponse
       setStage('done')
       storeClientSuggestion(projectId, output.clientSuggestion)
-      router.push(`/projects/${projectId}?tab=estimate&estimate=${output.estimateId}`)
+      if (onComplete) {
+        onComplete(output.estimateId)
+      } else {
+        router.push(`/projects/${projectId}?tab=estimate&estimate=${output.estimateId}`)
+      }
     } catch (err) {
       if ((err as Error).name === 'AbortError') return
       failAt('generating', (err as Error).message ?? t('Estimate generation failed'))
     }
-  }, [projectId, router, t, estimateLanguage])
+  }, [projectId, router, t, estimateLanguage, onComplete])
 
   // Full AI pipeline (RESEARCH Pattern 5)
   const runPipeline = useCallback(async (blob: Blob) => {
@@ -305,12 +334,16 @@ export function CaptureRecorder({ project, companyId, projectId }: CaptureRecord
       const output = (await pollJob(jobId, abortControllerRef.current.signal)) as GenerateEstimateResponse
       storeClientSuggestion(projectId, output.clientSuggestion)
       setStage('done')
-      router.push(`/projects/${projectId}?tab=estimate&estimate=${output.estimateId}`)
+      if (onComplete) {
+        onComplete(output.estimateId)
+      } else {
+        router.push(`/projects/${projectId}?tab=estimate&estimate=${output.estimateId}`)
+      }
     } catch (err) {
       if ((err as Error).name === 'AbortError') return  // unmount; not a user-facing failure
       failAt('analyzing', (err as Error).message ?? t('Estimate generation failed'))
     }
-  }, [companyId, projectId, elapsedMs, router, estimateLanguage])
+  }, [companyId, projectId, elapsedMs, router, estimateLanguage, onComplete])
 
   // Unified generation handler (text-only, audio, or photos-only)
   const handleGenerate = useCallback(async () => {
@@ -409,21 +442,28 @@ export function CaptureRecorder({ project, companyId, projectId }: CaptureRecord
   const isIdle = stage === 'idle'
   const showRecorderUI = isIdle || stage === 'done'
 
+  const isPopup = variant === 'popup'
+  const rootClassName = isPopup
+    ? 'flex flex-col min-h-0'
+    : 'flex flex-1 flex-col min-h-0'
+
   return (
-    <div className="flex flex-1 flex-col min-h-0" data-testid="capture-screen">
-      {/* Header */}
-      <header className="flex items-center justify-between px-4 py-3 border-b">
-        <span className="text-sm text-muted-foreground truncate">{project.name}</span>
-        {/* Skip button only visible when idle and NOT recording and NO inputs */}
-        {stage === 'idle' && !isRecording && !hasAnyInput && (
-          <Button asChild variant="ghost" size="sm" data-testid="skip-recording">
-            <Link href={`/projects/${projectId}`}>
-              {t('Skip recording')}
-              <X className="ml-2 h-4 w-4" />
-            </Link>
-          </Button>
-        )}
-      </header>
+    <div className={rootClassName} data-testid="capture-screen">
+      {/* Header — hidden in popup mode (the Dialog supplies its own title chrome). */}
+      {!isPopup && (
+        <header className="flex items-center justify-between px-4 py-3 border-b">
+          <span className="text-sm text-muted-foreground truncate">{project.name}</span>
+          {/* Skip button only visible when idle and NOT recording and NO inputs */}
+          {stage === 'idle' && !isRecording && !hasAnyInput && (
+            <Button asChild variant="ghost" size="sm" data-testid="skip-recording">
+              <Link href={`/projects/${projectId}`}>
+                {t('Skip recording')}
+                <X className="ml-2 h-4 w-4" />
+              </Link>
+            </Button>
+          )}
+        </header>
+      )}
 
       {/* Body */}
       {showRecorderUI ? (
@@ -461,7 +501,11 @@ export function CaptureRecorder({ project, companyId, projectId }: CaptureRecord
                 } : undefined}
                 onEditManually={() => {
                   toast.info(t('Continue manually in the workspace tabs.'))
-                  router.push(`/projects/${projectId}`)
+                  if (onCancel) {
+                    onCancel()
+                  } else {
+                    router.push(`/projects/${projectId}`)
+                  }
                 }}
               />
             )}
