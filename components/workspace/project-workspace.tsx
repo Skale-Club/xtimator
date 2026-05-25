@@ -113,7 +113,15 @@ export function ProjectWorkspace({
       {/* Content */}
       <div className="min-w-0 flex-1 px-4 py-6 md:px-6">
         {activeTab === 'overview' && (
-          <OverviewTab project={project} activity={activity} />
+          <OverviewTab
+            project={project}
+            activity={activity}
+            companyId={project.company_id}
+            currentEstimate={currentEstimate}
+            allVersions={allVersions}
+            recordings={recordings}
+            photos={photos}
+          />
         )}
         {activeTab === 'photos' && (
           <PhotosTab projectId={project.id} companyId={project.company_id} initialPhotos={photos} />
