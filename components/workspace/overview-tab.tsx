@@ -1,11 +1,12 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { ActivityTimeline } from './activity-timeline'
 import { LinkClientCard } from './link-client-card'
 import { LinkClientButton } from './link-client-button'
 import { ProjectMetadataStrip } from './project-metadata-strip'
 import { EstimateTab } from './estimate/estimate-tab'
+import { captureHref } from '@/components/projects/estimate-creation-popup'
 import type { ProjectDetail, ActivityEvent } from '@/lib/queries/project'
 import type { Recording } from '@/lib/queries/recording'
 import type { Photo } from '@/lib/queries/photo'
@@ -41,11 +42,26 @@ export function OverviewTab({
   photos,
 }: OverviewTabProps) {
   const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
 
   const linkClientSlot =
     !project.client && currentEstimate ? (
       <LinkClientButton projectId={project.id} />
     ) : null
+
+  // B-R4: Record opens the unified EstimateCreationPopup instead of hard-
+  // navigating to the legacy /capture full-screen route. Single surface.
+  function handleRecord() {
+    router.push(
+      captureHref({
+        pathname,
+        search: searchParams.toString(),
+        mode: 'audio',
+        projectId: project.id,
+      })
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -62,7 +78,7 @@ export function OverviewTab({
         allVersions={allVersions}
         recordings={recordings}
         photos={photos}
-        onRecord={() => router.push(`/projects/${project.id}/capture`)}
+        onRecord={handleRecord}
         linkClientSlot={linkClientSlot}
       />
 
