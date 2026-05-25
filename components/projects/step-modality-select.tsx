@@ -66,11 +66,11 @@ export function StepModalitySelect({ form }: StepModalitySelectProps) {
                   isSelected ? 'text-primary' : 'text-muted-foreground'
                 )}
               />
-              <div className="min-w-0 flex-1 sm:flex-none space-y-0 sm:space-y-1">
+              <div className="min-w-0 flex-1 sm:flex-none sm:w-full space-y-0 sm:space-y-1">
                 <p className={cn('font-medium sm:font-semibold text-sm sm:text-base leading-tight', isSelected && 'text-primary')}>
                   {label}
                 </p>
-                <p className="text-xs sm:text-sm text-muted-foreground leading-tight truncate">{description}</p>
+                <p className="text-xs sm:text-sm text-muted-foreground leading-tight truncate sm:whitespace-normal sm:break-normal">{description}</p>
               </div>
             </button>
           )
