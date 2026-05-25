@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { toast } from 'sonner'
@@ -15,6 +15,7 @@ import { ArrowLeft, Loader2 } from 'lucide-react'
 import type { Photo } from '@/lib/queries/photo'
 import type { ProjectDetail } from '@/lib/queries/project'
 import { useTranslation } from '@/lib/i18n/use-translation'
+import { pollJob } from '@/hooks/use-job-status'
 
 interface PhotosInputProps {
   project: ProjectDetail
@@ -27,6 +28,7 @@ export function PhotosInput({ project, companyId, projectId }: PhotosInputProps)
   const router = useRouter()
   const [photos, setPhotos] = useState<Photo[]>([])
   const [isGenerating, setIsGenerating] = useState(false)
+  const abortRef = useRef<AbortController | null>(null)
 
   const handlePhotosUploaded = useCallback((newPhotos: Photo[]) => {
     setPhotos((prev) => [...prev, ...newPhotos])
@@ -35,28 +37,36 @@ export function PhotosInput({ project, companyId, projectId }: PhotosInputProps)
   const handleGenerateFromPhotos = async () => {
     if (photos.length === 0) return
 
+    abortRef.current?.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
+
     setIsGenerating(true)
     try {
-      // Call generate-estimate API (already supports photos-only path)
       const res = await fetch('/api/generate-estimate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ projectId }),
+        signal: controller.signal,
       })
 
       if (!res.ok) {
-        const data = await res.json()
-        toast.error(data.error ?? t('Failed to generate estimate'))
+        const data = await res.json().catch(() => ({}))
+        toast.error((data as { error?: string }).error ?? t('Failed to generate estimate'))
         setIsGenerating(false)
         return
       }
 
-      const data: GenerateEstimateResponse = await res.json()
+      const { jobId } = (await res.json()) as { jobId: string }
 
-      // Store client suggestion and navigate to estimate editor
-      storeClientSuggestion(projectId, data.clientSuggestion ?? null)
-      router.push(`/projects/${projectId}?tab=estimate&estimate=${data.estimateId}`)
+      // Phase 67: /api/generate-estimate returns { jobId }; poll until terminal.
+      const output = (await pollJob(jobId, controller.signal)) as GenerateEstimateResponse
+
+      storeClientSuggestion(projectId, output.clientSuggestion ?? null)
+      // Overview is now the live estimate (project A R3) — drop ?tab=estimate.
+      router.push(`/projects/${projectId}`)
     } catch (err) {
+      if ((err as Error).name === 'AbortError') return
       console.error('Photos input error:', err)
       toast.error(t('Something went wrong. Please try again.'))
       setIsGenerating(false)
