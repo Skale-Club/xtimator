@@ -91,7 +91,6 @@ export default async function AppShellLayout({
           <UpgradeModal />
           <WelcomeModal />
           <TourSpotlight />
-          <TourHelpButton />
           <OfflineIndicator />
           <InstallPrompt />
           <SWRegister />

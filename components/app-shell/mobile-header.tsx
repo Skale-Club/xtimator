@@ -50,7 +50,14 @@ export function MobileHeader() {
                   {crumb.label}
                 </Link>
               ) : (
-                <span className="font-medium text-foreground truncate max-w-[120px]">{crumb.label}</span>
+                <span className="flex items-center gap-1.5">
+                  <span className="font-medium text-foreground truncate max-w-[120px]">{crumb.label}</span>
+                  {crumb.badge !== undefined && (
+                    <span className="inline-flex items-center rounded-md bg-muted/60 px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground tabular-nums">
+                      {crumb.badge}
+                    </span>
+                  )}
+                </span>
               )}
             </span>
           ))}

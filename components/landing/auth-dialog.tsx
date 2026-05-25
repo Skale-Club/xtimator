@@ -2,6 +2,7 @@
 
 import { useRef, useState, useTransition, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
+import Link from 'next/link'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -617,7 +618,7 @@ export function AuthDialog({ branding, initialMode = 'login', open, onClose }: A
     mode === 'login'
       ? 'Sign in to your workspace'
       : mode === 'signup'
-        ? 'Start your free trial'
+        ? 'Get started in seconds'
         : "Enter your email and we'll send you a reset link."
 
   // ----- Step 1 submit handlers -----
@@ -829,10 +830,15 @@ export function AuthDialog({ branding, initialMode = 'login', open, onClose }: A
           </button>
 
           {/* Brand */}
-          <div className="mb-6 flex items-center justify-center gap-2.5">
+          <Link
+            href="/"
+            onClick={onClose}
+            aria-label={`Go to ${branding.appName} homepage`}
+            className="mb-6 flex items-center justify-center gap-2.5 transition-opacity hover:opacity-80"
+          >
             <AppIcon logoUrl={branding.logoUrl} appName={branding.appName} className="h-6 w-6" />
             <span className="text-lg font-bold tracking-tight text-[#FAFAFA]">{branding.appName}</span>
-          </div>
+          </Link>
 
           {/* Heading */}
           <div className="mb-6 text-center">

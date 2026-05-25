@@ -19,6 +19,8 @@ interface SubNavProps {
   onSelect?: (value: string) => void
   /** Extra class for the wrapping <nav> */
   className?: string
+  /** Desktop-only: show icons only, hide labels */
+  collapsed?: boolean
 }
 
 /**
@@ -31,7 +33,7 @@ interface SubNavProps {
  *   - Link mode:     provide `href` on each item  → renders <Link>
  *   - Callback mode: provide `onSelect` prop      → renders <button>
  */
-export function SubNav({ items, activeValue, onSelect, className }: SubNavProps) {
+export function SubNav({ items, activeValue, onSelect, className, collapsed }: SubNavProps) {
   return (
     <nav
       aria-label="Section navigation"
@@ -51,10 +53,16 @@ export function SubNav({ items, activeValue, onSelect, className }: SubNavProps)
           // Mobile: compact horizontal pill
           'flex-col gap-1 px-3 py-2 text-[11px] min-w-[60px] justify-center',
           // Desktop: horizontal row inside vertical stack
-          'md:flex-row md:gap-3 md:px-3 md:py-2 md:text-sm md:min-w-0 md:justify-start',
+          collapsed
+            ? 'md:flex-row md:gap-0 md:px-2 md:py-2.5 md:text-sm md:min-w-0 md:justify-center md:w-full'
+            : 'md:flex-row md:gap-3 md:px-3 md:py-2 md:text-sm md:min-w-0 md:justify-start',
           isActive
             ? 'bg-[var(--glass-bg-light)] text-foreground'
             : 'text-muted-foreground hover:bg-[var(--glass-bg-light)] hover:text-foreground',
+        )
+
+        const labelEl = (
+          <span className={cn('leading-none', collapsed && 'md:hidden')}>{label}</span>
         )
 
         if (href) {
@@ -64,9 +72,10 @@ export function SubNav({ items, activeValue, onSelect, className }: SubNavProps)
               href={href}
               aria-current={isActive ? 'page' : undefined}
               className={itemClass}
+              title={collapsed ? label : undefined}
             >
               <Icon className="h-4 w-4 shrink-0" aria-hidden />
-              <span className="leading-none">{label}</span>
+              {labelEl}
             </Link>
           )
         }
@@ -78,9 +87,10 @@ export function SubNav({ items, activeValue, onSelect, className }: SubNavProps)
             aria-current={isActive ? 'page' : undefined}
             onClick={() => onSelect?.(value)}
             className={itemClass}
+            title={collapsed ? label : undefined}
           >
             <Icon className="h-4 w-4 shrink-0" aria-hidden />
-            <span className="leading-none">{label}</span>
+            {labelEl}
           </button>
         )
       })}

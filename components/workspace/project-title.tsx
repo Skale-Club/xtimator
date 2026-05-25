@@ -10,9 +10,10 @@ import { useTranslation } from '@/lib/i18n/use-translation'
 interface ProjectTitleProps {
   projectId: string
   initialName: string
+  onRenameSuccess?: (name: string) => void
 }
 
-export function ProjectTitle({ projectId, initialName }: ProjectTitleProps) {
+export function ProjectTitle({ projectId, initialName, onRenameSuccess }: ProjectTitleProps) {
   const [name, setName] = useState(initialName)
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(initialName)
@@ -71,6 +72,7 @@ export function ProjectTitle({ projectId, initialName }: ProjectTitleProps) {
       }
       setName(trimmed)
       setEditing(false)
+      onRenameSuccess?.(trimmed)
       router.refresh()
     })
   }
@@ -101,14 +103,17 @@ export function ProjectTitle({ projectId, initialName }: ProjectTitleProps) {
   }
 
   return (
-    <div className="flex items-center gap-2">
-      <h1 className="text-[clamp(28px,3.5vw,40px)] font-semibold tracking-[-0.02em] leading-[1.1]">
+    <div className="flex items-center gap-2 group">
+      <h1
+        onClick={enterEdit}
+        className="text-[clamp(28px,3.5vw,40px)] font-semibold tracking-[-0.02em] leading-[1.1] cursor-pointer"
+      >
         {name}
       </h1>
       <button
         type="button"
         onClick={enterEdit}
-        className="inline-flex items-center justify-center rounded-md p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+        className="inline-flex items-center justify-center rounded-md p-1.5 text-muted-foreground/40 hover:text-foreground hover:bg-muted transition-colors opacity-0 group-hover:opacity-100"
         aria-label={t('Rename project')}
       >
         <Pencil className="h-4 w-4" />

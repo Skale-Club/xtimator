@@ -1,6 +1,6 @@
 'use client'
 
-import { useTransition } from 'react'
+import { useMemo, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { FolderPlus } from 'lucide-react'
@@ -17,6 +17,7 @@ import { T } from '@/components/i18n/t'
 import { cn } from '@/lib/utils'
 import { ProjectRowActions } from '@/components/projects/project-row-actions'
 import { ProjectTable } from '@/components/projects/project-table'
+import { useBreadcrumb } from '@/components/app-shell/breadcrumb-context'
 import type { ProjectListRow, ProjectListStatus } from '@/lib/queries/project'
 import type { ClientWithCount } from '@/lib/queries/clients'
 
@@ -41,6 +42,8 @@ export function ProjectsPageShell({
 }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
+
+  useBreadcrumb(useMemo(() => [{ label: 'Projects', badge: projects.length }], [projects.length]))
 
   function pushQuery(next: { status?: ProjectListStatus; client?: string | null }) {
     const params = new URLSearchParams()
@@ -90,9 +93,6 @@ export function ProjectsPageShell({
               ))}
             </SelectContent>
           </Select>
-          <p className="text-sm text-muted-foreground">
-            <T text={`${projects.length} ${projects.length === 1 ? 'project' : 'projects'}`} />
-          </p>
         </div>
         <Button variant="primary" asChild>
           <Link href="?modal=new-project">

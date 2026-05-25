@@ -1,10 +1,12 @@
 'use client'
 
-import { createContext, useContext, useState, useCallback, useEffect } from 'react'
+import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react'
 
 export interface BreadcrumbItem {
   label: string
   href?: string
+  /** Optional badge rendered after the label — e.g. an item count. */
+  badge?: ReactNode
 }
 
 interface BreadcrumbContextValue {

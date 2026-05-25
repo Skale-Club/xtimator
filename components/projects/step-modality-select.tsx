@@ -10,8 +10,9 @@ import type { InputMode } from '@/lib/schemas/project'
 import { cn } from '@/lib/utils'
 
 interface StepModalitySelectProps {
-  form: UseFormReturn<ProjectFormValues>
-  /** Called immediately on card click. If provided, replaces the default setValue-only behavior. */
+  /** When provided, selection is tracked via form state. Omit for standalone picker use. */
+  form?: UseFormReturn<ProjectFormValues>
+  /** Called immediately on card click. */
   onSelect?: (mode: InputMode) => void
   /** True while a selection is being processed (e.g. project creation in flight). */
   isPending?: boolean
@@ -26,29 +27,29 @@ type Modality = {
   icon: ComponentType<SVGProps<SVGSVGElement>>
 }
 
-const MODALITIES: ReadonlyArray<Modality> = [
+export const MODALITIES: ReadonlyArray<Modality> = [
   {
     value: 'audio',
-    label: 'Audio',
-    description: 'Record a voice description',
+    label: 'Record Audio',
+    description: 'Voice walkthrough',
     icon: Mic,
   },
   {
     value: 'text',
-    label: 'Text',
-    description: 'Type a job description',
+    label: 'Describe',
+    description: 'Type a description',
     icon: FileText,
   },
   {
     value: 'photos',
     label: 'Photos',
-    description: 'Upload photos',
+    description: 'Upload site photos',
     icon: Camera,
   },
 ] as const
 
 export function StepModalitySelect({ form, onSelect, isPending, pendingMode }: StepModalitySelectProps) {
-  const selectedMode = form.watch('inputMode')
+  const selectedMode = form?.watch('inputMode')
 
   return (
     <div>
@@ -62,7 +63,7 @@ export function StepModalitySelect({ form, onSelect, isPending, pendingMode }: S
               type="button"
               onClick={() => {
                 if (onSelect) onSelect(value)
-                else form.setValue('inputMode', value, { shouldValidate: true })
+                else form?.setValue('inputMode', value, { shouldValidate: true })
               }}
               aria-pressed={isSelected}
               aria-busy={isLoading}
@@ -145,7 +146,7 @@ export function StepModalitySelect({ form, onSelect, isPending, pendingMode }: S
         })}
       </div>
 
-      {form.formState.errors.inputMode?.message && (
+      {form?.formState.errors.inputMode?.message && (
         <p className="text-sm text-destructive mt-3">
           {form.formState.errors.inputMode.message}
         </p>

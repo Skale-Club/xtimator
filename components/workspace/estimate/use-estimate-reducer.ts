@@ -48,6 +48,8 @@ export interface EstimateEditorState {
   subtotal: number
   total: number
   sections: EditorSection[]
+  estimate_date: string | null
+  estimate_number: string | null
   isDirty: boolean
 }
 
@@ -57,7 +59,7 @@ export interface EstimateEditorState {
 
 export type EstimateAction =
   | { type: 'INIT'; estimate: EstimateWithSections }
-  | { type: 'UPDATE_FIELD'; field: 'summary' | 'notes' | 'timeline' | 'payment_terms' | 'warranty_terms'; value: string | null }
+  | { type: 'UPDATE_FIELD'; field: 'summary' | 'notes' | 'timeline' | 'payment_terms' | 'warranty_terms' | 'estimate_date' | 'estimate_number'; value: string | null }
   | { type: 'UPDATE_SECTION_TITLE'; sectionId: string; title: string }
   | { type: 'UPDATE_ITEM'; sectionId: string; itemId: string; field: 'description' | 'quantity' | 'unit' | 'unit_price'; value: string | number | null }
   | { type: 'ADD_ITEM'; sectionId: string }
@@ -150,6 +152,8 @@ function initState(estimate: EstimateWithSections | null): EstimateEditorState {
       subtotal: 0,
       total: 0,
       sections: [],
+      estimate_date: null,
+      estimate_number: null,
       isDirty: false,
     }
   }
@@ -172,6 +176,8 @@ function initState(estimate: EstimateWithSections | null): EstimateEditorState {
     tax_amount: estimate.tax_amount,
     subtotal: estimate.subtotal,
     total: estimate.total,
+    estimate_date: (estimate as { estimate_date?: string | null }).estimate_date ?? null,
+    estimate_number: (estimate as { estimate_number?: string | null }).estimate_number ?? null,
     sections: estimate.sections
       .map((s) => ({
         id: s.id,

@@ -1,21 +1,20 @@
 'use client'
 
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { ActivityTimeline } from './activity-timeline'
-import { LinkClientCard } from './link-client-card'
+import { useState } from 'react'
 import { LinkClientButton } from './link-client-button'
-import { ProjectMetadataStrip } from './project-metadata-strip'
 import { EstimateTab } from './estimate/estimate-tab'
-import { captureHref } from '@/components/projects/estimate-creation-popup'
-import type { ProjectDetail, ActivityEvent } from '@/lib/queries/project'
+import { captureHref, type CaptureMode } from '@/components/projects/estimate-creation-popup'
+import { CaptureModePicker } from '@/components/workspace/capture-mode-picker'
+import type { ProjectDetail } from '@/lib/queries/project'
 import type { Recording } from '@/lib/queries/recording'
 import type { Photo } from '@/lib/queries/photo'
 import type { EstimateWithSections, Estimate } from '@/lib/queries/estimate'
 
 interface OverviewTabProps {
   project: ProjectDetail
-  activity: ActivityEvent[]
   companyId: string
+  companyBrandColor: string | null
   currentEstimate: EstimateWithSections | null
   allVersions: Estimate[]
   recordings: Recording[]
@@ -34,8 +33,8 @@ interface OverviewTabProps {
  */
 export function OverviewTab({
   project,
-  activity,
   companyId,
+  companyBrandColor,
   currentEstimate,
   allVersions,
   recordings,
@@ -44,20 +43,23 @@ export function OverviewTab({
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
+  const [modePickerOpen, setModePickerOpen] = useState(false)
 
   const linkClientSlot =
     !project.client && currentEstimate ? (
       <LinkClientButton projectId={project.id} />
     ) : null
 
-  // B-R4: Record opens the unified EstimateCreationPopup instead of hard-
-  // navigating to the legacy /capture full-screen route. Single surface.
   function handleRecord() {
+    setModePickerOpen(true)
+  }
+
+  function handleModeSelect(mode: CaptureMode) {
     router.push(
       captureHref({
         pathname,
         search: searchParams.toString(),
-        mode: 'audio',
+        mode,
         projectId: project.id,
       })
     )
@@ -65,24 +67,35 @@ export function OverviewTab({
 
   return (
     <div className="space-y-6">
-      <ProjectMetadataStrip project={project} />
-
-      {!project.client && !currentEstimate && (
-        <LinkClientCard projectId={project.id} />
-      )}
+      <CaptureModePicker
+        open={modePickerOpen}
+        onOpenChange={setModePickerOpen}
+        onSelect={handleModeSelect}
+      />
 
       <EstimateTab
         projectId={project.id}
         companyId={companyId}
+        companyBrandColor={companyBrandColor}
         currentEstimate={currentEstimate}
         allVersions={allVersions}
         recordings={recordings}
         photos={photos}
+        projectName={project.name}
+        projectType={project.project_type ?? null}
+        client={project.client ? {
+          name: project.client.name,
+          email: project.client.email ?? null,
+          phone: project.client.phone ?? null,
+          address: null,
+          city: null,
+          state: null,
+          zip: null,
+        } : null}
         onRecord={handleRecord}
         linkClientSlot={linkClientSlot}
       />
 
-      <ActivityTimeline events={activity} />
     </div>
   )
 }

@@ -7,9 +7,10 @@ import { getProjectPhotos } from '@/lib/queries/photo'
 import { getCurrentEstimate, getProjectEstimates } from '@/lib/queries/estimate'
 import { ProjectWorkspace } from '@/components/workspace/project-workspace'
 import { ProjectHeader } from '@/components/workspace/project-header'
+import { ProjectPageShell } from '@/components/workspace/project-page-shell'
 import { Skeleton } from '@/components/ui/skeleton'
 
-const ALLOWED_TABS = ['overview', 'photos', 'estimate', 'send'] as const
+const ALLOWED_TABS = ['overview', 'photos', 'send', 'client', 'activity'] as const
 type AllowedTab = (typeof ALLOWED_TABS)[number]
 
 export default async function ProjectPage({
@@ -43,8 +44,9 @@ export default async function ProjectPage({
   const allVersionsPromise = getProjectEstimates(supabase, id)
 
   return (
+    <ProjectPageShell>
     <div className="flex min-h-full flex-col">
-      <ProjectHeader project={project} supabase={supabase} />
+      <ProjectHeader project={project} />
       <Suspense fallback={<ProjectWorkspaceSkeleton />}>
         <ProjectTabs
           project={project}
@@ -57,6 +59,7 @@ export default async function ProjectPage({
         />
       </Suspense>
     </div>
+    </ProjectPageShell>
   )
 }
 
@@ -91,12 +94,13 @@ async function ProjectTabs({
   const supabase = await createClient()
   const { data: company } = await supabase
     .from('companies')
-    .select('name, owner_name, estimate_template_greeting, estimate_template_opener, estimate_template_closer, estimate_template_signature, sms_delivery_enabled')
+    .select('name, owner_name, brand_primary_color, estimate_template_greeting, estimate_template_opener, estimate_template_closer, estimate_template_signature, sms_delivery_enabled')
     .eq('id', project.company_id)
     .single()
 
   const companyName = (company?.name as string) ?? ''
   const ownerName = (company?.owner_name as string | null) ?? ''
+  const companyBrandColor = (company?.brand_primary_color as string | null) ?? null
   const smsDeliveryEnabled = (company?.sms_delivery_enabled as boolean) ?? false
   const estimateTemplate = {
     greeting: (company?.estimate_template_greeting as string | null) ?? null,
@@ -119,6 +123,7 @@ async function ProjectTabs({
       allVersions={allVersions}
       companyName={companyName}
       ownerName={ownerName}
+      companyBrandColor={companyBrandColor}
       estimateTemplate={estimateTemplate}
       smsDeliveryEnabled={smsDeliveryEnabled}
       defaultTab={defaultTab}

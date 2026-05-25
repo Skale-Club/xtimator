@@ -2,12 +2,13 @@
 
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { ClipboardList, Camera, Sparkles, Send } from 'lucide-react'
+import { ClipboardList, Camera, Send, UserRound, Clock, ChevronLeft, ChevronRight } from 'lucide-react'
 import { SubNav, type SubNavItem } from '@/components/ui/sub-nav'
 import { OverviewTab } from './overview-tab'
 import { SendTab } from './send/send-tab'
 import { PhotosTab } from './photos/photos-tab'
-import { EstimateTab } from './estimate/estimate-tab'
+import { ClientTab } from './client-tab'
+import { ActivityTab } from './activity-tab'
 import type { ProjectDetail, ActivityEvent, ProjectQuickStats } from '@/lib/queries/project'
 import type { Recording } from '@/lib/queries/recording'
 import type { Photo } from '@/lib/queries/photo'
@@ -15,7 +16,7 @@ import type { EstimateWithSections, Estimate } from '@/lib/queries/estimate'
 import type { EstimateTemplate } from '@/lib/utils/estimate-template'
 import { useTranslation } from '@/lib/i18n/use-translation'
 
-const ALLOWED_TABS = ['overview', 'photos', 'estimate', 'send'] as const
+const ALLOWED_TABS = ['overview', 'photos', 'send', 'client', 'activity'] as const
 type WorkspaceTab = (typeof ALLOWED_TABS)[number]
 
 interface ProjectWorkspaceProps {
@@ -28,6 +29,7 @@ interface ProjectWorkspaceProps {
   allVersions: Estimate[]
   companyName: string
   ownerName: string
+  companyBrandColor: string | null
   estimateTemplate: EstimateTemplate
   smsDeliveryEnabled?: boolean
   defaultTab?: WorkspaceTab
@@ -36,7 +38,7 @@ interface ProjectWorkspaceProps {
 export function ProjectWorkspace({
   project, activity, stats, recordings, photos,
   currentEstimate, allVersions, companyName,
-  ownerName, estimateTemplate, smsDeliveryEnabled = false,
+  ownerName, companyBrandColor, estimateTemplate, smsDeliveryEnabled = false,
   defaultTab = 'overview',
 }: ProjectWorkspaceProps) {
   const { t } = useTranslation()
@@ -51,6 +53,7 @@ export function ProjectWorkspace({
       : defaultTab
 
   const [activeTab, setActiveTab] = useState<WorkspaceTab>(initial)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
   // Sync state when searchParams.tab changes (e.g., redirect from /capture)
   useEffect(() => {
@@ -71,10 +74,11 @@ export function ProjectWorkspace({
   }
 
   const NAV_ITEMS: SubNavItem[] = [
-    { value: 'overview',  label: t('Overview'),    Icon: ClipboardList },
-    { value: 'photos',    label: t('Photos'),      Icon: Camera        },
-    { value: 'estimate',  label: t('AI Estimate'), Icon: Sparkles      },
-    { value: 'send',      label: t('Send'),        Icon: Send          },
+    { value: 'overview',  label: t('Overview'),  Icon: ClipboardList },
+    { value: 'client',    label: t('Client'),    Icon: UserRound     },
+    { value: 'photos',    label: t('Photos'),    Icon: Camera        },
+    { value: 'activity',  label: t('Activity'),  Icon: Clock         },
+    { value: 'send',      label: t('Send'),      Icon: Send          },
   ]
 
   return (
@@ -83,10 +87,10 @@ export function ProjectWorkspace({
      *   Mobile  (< md): sticky horizontal nav bar on top, full-width content below
      *   Desktop (md+):  vertical sidebar on the left, content on the right
      */
-    <div className="flex min-h-full flex-col md:flex-row md:gap-0">
+    <div className="flex min-h-full flex-col md:flex-row md:gap-0 md:items-start">
 
       {/* Nav — horizontal sticky strip on mobile, vertical sidebar on desktop */}
-      <div className="relative sticky top-0 z-20 shrink-0 md:static md:z-auto md:w-48">
+      <div className={`relative sticky top-0 z-20 shrink-0 md:sticky md:top-[72px] md:self-start transition-all duration-200 ${sidebarCollapsed ? 'md:w-14' : 'md:w-48'}`}>
         {/* Right-edge fade gradient — signals horizontal scrollability on mobile */}
         <div
           aria-hidden
@@ -94,18 +98,34 @@ export function ProjectWorkspace({
         />
         <aside
           className={[
-            'shrink-0 border-border bg-background',
+            'shrink-0 border-border bg-background h-full',
             // mobile
             'w-full border-b px-2 py-2',
             'overflow-x-auto scrollbar-none',
             // desktop
-            'md:overflow-x-visible md:border-b-0 md:border-r md:px-3 md:py-8',
+            'md:overflow-x-visible md:border-b-0 md:border-r md:py-4',
+            sidebarCollapsed ? 'md:px-1' : 'md:px-3',
           ].join(' ')}
         >
+          {/* Toggle — desktop only, sits above nav items */}
+          <div className={`hidden md:flex mb-3 ${sidebarCollapsed ? 'justify-center' : 'justify-end'}`}>
+            <button
+              type="button"
+              onClick={() => setSidebarCollapsed((c) => !c)}
+              title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              className="p-1 rounded text-muted-foreground/40 hover:text-muted-foreground hover:bg-muted/40 transition-colors"
+            >
+              {sidebarCollapsed
+                ? <ChevronRight className="h-4 w-4" />
+                : <ChevronLeft className="h-4 w-4" />}
+            </button>
+          </div>
+
           <SubNav
             items={NAV_ITEMS}
             activeValue={activeTab}
             onSelect={handleSelect}
+            collapsed={sidebarCollapsed}
           />
         </aside>
       </div>
@@ -115,8 +135,8 @@ export function ProjectWorkspace({
         {activeTab === 'overview' && (
           <OverviewTab
             project={project}
-            activity={activity}
             companyId={project.company_id}
+            companyBrandColor={companyBrandColor}
             currentEstimate={currentEstimate}
             allVersions={allVersions}
             recordings={recordings}
@@ -125,16 +145,6 @@ export function ProjectWorkspace({
         )}
         {activeTab === 'photos' && (
           <PhotosTab projectId={project.id} companyId={project.company_id} initialPhotos={photos} />
-        )}
-        {activeTab === 'estimate' && (
-          <EstimateTab
-            projectId={project.id}
-            companyId={project.company_id}
-            currentEstimate={currentEstimate}
-            allVersions={allVersions}
-            recordings={recordings}
-            photos={photos}
-          />
         )}
         {activeTab === 'send' && (
           <SendTab
@@ -148,6 +158,12 @@ export function ProjectWorkspace({
             estimateTemplate={estimateTemplate}
             smsDeliveryEnabled={smsDeliveryEnabled}
           />
+        )}
+        {activeTab === 'client' && (
+          <ClientTab project={project} />
+        )}
+        {activeTab === 'activity' && (
+          <ActivityTab events={activity} />
         )}
       </div>
     </div>

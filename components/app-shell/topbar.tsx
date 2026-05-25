@@ -3,19 +3,9 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect } from 'react'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { Settings, LogOut, ShieldCheck } from 'lucide-react'
-import { signOut } from '@/lib/actions/auth'
+import { ShieldCheck } from 'lucide-react'
 import { ThemeToggle } from '@/components/app-shell/theme-toggle'
 import { LanguageToggle } from '@/components/app-shell/language-toggle'
-import { CompanySelector } from '@/components/app-shell/company-selector'
 import { NotificationBell } from '@/components/notifications/notification-bell'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { ContextualTooltip, TOOLTIP_KEYS } from '@/components/tour/contextual-tooltip'
@@ -24,9 +14,6 @@ import { useCurrentBreadcrumbs } from '@/components/app-shell/breadcrumb-context
 interface TopbarProps {
   company: {
     id: string
-    name: string
-    logo_url: string | null
-    owner_name: string | null
   }
   userId: string
   isAdmin?: boolean
@@ -53,7 +40,6 @@ function usePageTitle(pathname: string): string {
 
 export function Topbar({ company, userId, isAdmin }: TopbarProps) {
   const pathname = usePathname()
-  const initial = (company.owner_name ?? company.name).charAt(0).toUpperCase()
   const { t } = useTranslation()
   const router = useRouter()
   const pageTitle = usePageTitle(pathname)
@@ -92,7 +78,14 @@ export function Topbar({ company, userId, isAdmin }: TopbarProps) {
                   {crumb.label}
                 </Link>
               ) : (
-                <span>{crumb.label}</span>
+                <span className="flex items-center gap-2">
+                  <span>{crumb.label}</span>
+                  {crumb.badge !== undefined && (
+                    <span className="inline-flex items-center rounded-md bg-muted/60 px-2 py-0.5 text-xs font-medium text-muted-foreground tabular-nums">
+                      {crumb.badge}
+                    </span>
+                  )}
+                </span>
               )}
             </span>
           ))}
@@ -105,12 +98,8 @@ export function Topbar({ company, userId, isAdmin }: TopbarProps) {
         <div />
       )}
 
-      {/* Right: company selector + actions */}
+      {/* Right: actions */}
       <div className="flex items-center gap-1">
-        <CompanySelector company={company} />
-
-        <div className="mx-2 h-5 w-px bg-border" />
-
         {isAdmin && (
           <Link
             href="/admin"
@@ -132,34 +121,6 @@ export function Topbar({ company, userId, isAdmin }: TopbarProps) {
         </ContextualTooltip>
         <NotificationBell companyId={company.id} userId={userId} />
         <ThemeToggle />
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button className="flex cursor-pointer items-center gap-2 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring ml-1">
-              <Avatar className="h-8 w-8">
-                <AvatarFallback className="text-sm">{initial}</AvatarFallback>
-              </Avatar>
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            align="end"
-            className="w-48 glass-strong border border-[var(--glass-border)] shadow-glass"
-          >
-            <DropdownMenuItem asChild className="cursor-pointer">
-              <Link href="/settings" className="flex items-center gap-2">
-                <Settings className="h-4 w-4" />
-                {t('Settings')}
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              className="flex cursor-pointer items-center gap-2 text-destructive focus:text-destructive"
-              onClick={() => signOut()}
-            >
-              <LogOut className="h-4 w-4" />
-              {t('Sign Out')}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
       </div>
     </header>
   )
