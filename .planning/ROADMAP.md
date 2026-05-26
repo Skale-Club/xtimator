@@ -1033,13 +1033,13 @@ Plans:
 
 ### Phase 86: v4.1 OAuth 2.0 server for MCP — register, authorize, token, well-known metadata
 
-**Goal:** [To be planned]
-**Requirements**: TBD
-**Depends on:** Phase TBD
-**Plans:** 0 plans
+**Goal:** Ship a minimum-viable OAuth 2.0 authorization-server inside the Next.js app so Claude.ai / Desktop / Code can complete the custom-connector handshake against Xtimator.
+**Requirements**: SEED-030 (MCP server, OAuth, per-active-company scoping)
+**Depends on:** Phase 79 (active-company resolver), Phase 82 (RLS deny-all pattern)
+**Plans:** 1/1 plan complete — COMPLETE 2026-05-26
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 86 to break down)
+- [x] Migration + lib/oauth helpers + 5 endpoints + 34 unit tests (completed 2026-05-26 — see 86-SUMMARY.md)
 
 ### Phase 87: v4.1 MCP route Streamable HTTP transport with Bearer auth
 
