@@ -1,31 +1,30 @@
 ---
 gsd_state_version: 1.0
-milestone: v4.0
-milestone_name: Multi-Tenancy (Multiple Companies per User)
-status: shipped
-last_updated: "2026-05-26T04:30:00.000Z"
+milestone: v4.1
+milestone_name: MCP Server (Custom Connector for Claude)
+status: in-progress
+last_updated: "2026-05-26T07:48:00.000Z"
 last_activity: 2026-05-26
 progress:
-  total_phases: 85
-  completed_phases: 85
-  total_plans: 191
-  completed_plans: 217
+  total_phases: 86
+  completed_phases: 86
+  total_plans: 192
+  completed_plans: 218
 ---
 
 # Project State
 
 ## Current Status
 
-- **Milestone**: v4.0 Multi-Tenancy — ✅ SHIPPED 2026-05-26 — archived to `.planning/milestones/v4.0-ROADMAP.md`
-- **Next milestone**: not yet defined — run `/gsd:new-milestone` to start the next cycle
+- **Milestone**: v4.1 MCP Server — IN PROGRESS (1/5 phases complete: 86 ✓; 87/88/89/90 pending)
 - **Last updated**: 2026-05-26
 
 ## Current Position
 
-Phase: — (between milestones)
+Phase: 86 — COMPLETE
 Plan: —
-Status: v4.0 milestone complete. Tag `v4.0` applied. Ready to plan the next milestone.
-Last activity: 2026-05-26 - v4.0 Multi-Tenancy milestone archived; 6 phases shipped (79, 81, 82, 83, 84, 85) + Phase 80 in parallel timeline. 98/98 v4.0 tests green at close-out. 4 prod migrations applied. DROP COLUMN companies.user_id deferred to v5+.
+Status: Phase 86 OAuth 2.0 authorization-server shipped. /.well-known + /oauth/{register,authorize,token} live; 4 oauth_* tables applied to prod (RLS deny-all, sha256-hashed PKs). 34/34 unit tests pass. Next: Phase 87 (MCP Streamable HTTP transport) consumes resolveAccessToken().
+Last activity: 2026-05-26 - Phase 86 shipped: migration applied, 5 endpoints + consent UI + 34 unit tests; sha256-only token persistence; PKCE S256 mandatory; refresh-token rotation with revocation.
 
 ## v3.1.1 Phases
 
