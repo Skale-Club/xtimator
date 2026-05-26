@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Zero-friction Project Onboarding
-status: executing
-last_updated: "2026-05-26T03:49:38.451Z"
+status: verifying
+last_updated: "2026-05-26T03:58:54.374Z"
 last_activity: 2026-05-26
 progress:
   total_phases: 80
-  completed_phases: 60
+  completed_phases: 61
   total_plans: 187
-  completed_plans: 208
+  completed_plans: 209
 ---
 
 # Project State
@@ -24,7 +24,7 @@ progress:
 
 Phase: 81 (Company Switcher UI + Add Company flow) — EXECUTING
 Plan: 4 of 4
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-05-26
 Previous: Phase 79 — COMPLETE (v4.0 foundation: company_members table + active-company resolvers + layout swap)
 
@@ -452,6 +452,7 @@ Previous: Phase 79 — COMPLETE (v4.0 foundation: company_members table + active
 - [Phase 81]: Plan 03: Single CompanySelector with collapsed prop driving internal branch (instead of two separate sidebar mounts)
 - [Phase 81]: Plan 03: toast.error + router.refresh on BOTH forbidden and unauthenticated branches (defensive)
 - [Phase 81]: Plan 03: onboarding page typed searchParams as Promise<{ mode?: string }> per Next.js 16 async semantics
+- [Phase 81]: Phase 81 Plan 04: layout fetches memberships in Promise.all; sidebar mounts CompanySelector twice (one per render branch) for Pitfall-5 enforceability; user-menu kept byte-identical but trigger simplified to avatar-only in both modes; mobile-header deferred (SWITCH-15)
 
 ## Performance Metrics
 
@@ -603,6 +604,7 @@ Previous: Phase 79 — COMPLETE (v4.0 foundation: company_members table + active
 | Phase 81 P01 | 3min | 3 tasks | 2 files |
 | Phase 81 P02 | 4min | 3 tasks | 2 files |
 | Phase 81 P03 | 6min | 5 tasks | 5 files |
+| Phase 81 P04 | 383s | 5 tasks | 5 files |
 
 ## Project Reference
 
