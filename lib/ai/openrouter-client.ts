@@ -13,6 +13,9 @@
 import { getIntegrationKey } from '@/lib/platform-config'
 
 export const OPENROUTER_BASE = 'https://openrouter.ai/api/v1'
+export const OPENAI_TRANSCRIPTION_BASE = 'https://api.openai.com/v1'
+/** OpenAI's standard, universally available Whisper model — used as 5xx fallback. */
+export const OPENAI_FALLBACK_MODEL = 'whisper-1'
 
 /** Default model IDs — overridable via platform config or per-call argument. */
 export const OR_DEFAULTS = {
@@ -41,8 +44,58 @@ export async function getORKey(): Promise<string> {
 // ---------------------------------------------------------------------------
 
 /**
+ * Module-internal fallback: hit OpenAI's own /v1/audio/transcriptions endpoint
+ * directly. Used by transcribeAudioOR when OpenRouter returns 5xx twice in a
+ * row OR throws (network error). The user has OPENAI_API_KEY in .env.local
+ * which getIntegrationKey('openai') reads as a fallback (see lib/platform-config.ts:207),
+ * so this requires zero extra configuration.
+ *
+ * Throws if the OpenAI key is unavailable or the OpenAI call fails — callers
+ * MUST surface both the original OpenRouter failure and this failure together.
+ */
+async function transcribeViaOpenAIDirect(
+  audioBlob: Blob,
+  ext: string
+): Promise<string> {
+  const apiKey = await getIntegrationKey('openai')
+  if (!apiKey) {
+    throw new Error('OpenAI API key not configured (checked platform_integrations and OPENAI_API_KEY env)')
+  }
+
+  const form = new FormData()
+  form.append('file', audioBlob, `recording.${ext}`)
+  form.append('model', OPENAI_FALLBACK_MODEL)
+  form.append('response_format', 'text')
+
+  const res = await fetch(`${OPENAI_TRANSCRIPTION_BASE}/audio/transcriptions`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      // NOTE: no HTTP-Referer / X-Title — those are OpenRouter-specific headers.
+    },
+    body: form,
+  })
+
+  if (!res.ok) {
+    const err = await res.text().catch(() => 'unknown')
+    throw new Error(`OpenAI direct transcription failed (${res.status}): ${err.slice(0, 400)}`)
+  }
+
+  return (await res.text()).trim()
+}
+
+/**
  * Transcribe audio via OpenRouter's Whisper endpoint (OpenAI-compatible).
  * Returns the plain-text transcript.
+ *
+ * Hardened against OpenRouter outages:
+ *   - On 5xx: retries once after ~500ms.
+ *   - On persistent 5xx OR network error: falls back to OpenAI's own
+ *     /v1/audio/transcriptions endpoint (whisper-1).
+ *   - On 4xx: throws immediately — real config/auth bugs must not be masked.
+ *
+ * Exported signature is preserved so callers (lib/inngest/functions/transcribe-audio.ts)
+ * stay untouched.
  */
 export async function transcribeAudioOR(
   audioBlob: Blob,
@@ -51,26 +104,95 @@ export async function transcribeAudioOR(
 ): Promise<string> {
   const apiKey = await getORKey()
 
-  const form = new FormData()
-  form.append('file', audioBlob, `recording.${ext}`)
-  form.append('model', model)
-  form.append('response_format', 'text')
-
-  const res = await fetch(`${OPENROUTER_BASE}/audio/transcriptions`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      ...SITE_HEADERS,
-    },
-    body: form,
-  })
-
-  if (!res.ok) {
-    const err = await res.text().catch(() => 'unknown')
-    throw new Error(`OpenRouter transcription failed (${res.status}): ${err.slice(0, 400)}`)
+  const buildForm = (): FormData => {
+    // Rebuild the FormData per attempt — some runtimes mark FormData bodies as
+    // consumed after fetch; rebuilding is cheap and avoids subtle bugs.
+    const f = new FormData()
+    f.append('file', audioBlob, `recording.${ext}`)
+    f.append('model', model)
+    f.append('response_format', 'text')
+    return f
   }
 
-  return (await res.text()).trim()
+  const callOpenRouter = async (): Promise<Response> => {
+    return await fetch(`${OPENROUTER_BASE}/audio/transcriptions`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        ...SITE_HEADERS,
+      },
+      body: buildForm(),
+    })
+  }
+
+  // ---- Attempt 1: OpenRouter ----
+  // Capture the OpenRouter failure mode so we can include it in the final
+  // composite error if BOTH paths end up failing.
+  let orFailure: string | null = null
+
+  try {
+    const res = await callOpenRouter()
+    if (res.ok) {
+      return (await res.text()).trim()
+    }
+
+    // 4xx = our fault (auth, payload, model id) → throw immediately, do NOT
+    // mask the real bug by falling back to OpenAI.
+    if (res.status >= 400 && res.status < 500) {
+      const err = await res.text().catch(() => 'unknown')
+      throw new Error(`OpenRouter transcription failed (${res.status}): ${err.slice(0, 400)}`)
+    }
+
+    // 5xx → record and proceed to retry-then-fallback.
+    const err = await res.text().catch(() => 'unknown')
+    orFailure = `OpenRouter ${res.status}: ${err.slice(0, 200)}`
+  } catch (e) {
+    // Re-throw 4xx errors thrown above — they have the right shape already.
+    if (e instanceof Error && e.message.startsWith('OpenRouter transcription failed (4')) {
+      throw e
+    }
+    // Network error (fetch itself threw) — treat like a 5xx for retry purposes.
+    orFailure = `OpenRouter network error: ${e instanceof Error ? e.message : String(e)}`
+  }
+
+  // ---- Attempt 2: OpenRouter retry after ~500ms ----
+  await new Promise((r) => setTimeout(r, 500))
+  try {
+    const res = await callOpenRouter()
+    if (res.ok) {
+      return (await res.text()).trim()
+    }
+
+    // 4xx on retry — still a real bug, throw without OpenAI fallback.
+    if (res.status >= 400 && res.status < 500) {
+      const err = await res.text().catch(() => 'unknown')
+      throw new Error(`OpenRouter transcription failed on retry (${res.status}): ${err.slice(0, 400)}`)
+    }
+
+    const err = await res.text().catch(() => 'unknown')
+    orFailure = `${orFailure} | retry ${res.status}: ${err.slice(0, 200)}`
+  } catch (e) {
+    if (e instanceof Error && e.message.startsWith('OpenRouter transcription failed on retry (4')) {
+      throw e
+    }
+    orFailure = `${orFailure} | retry network error: ${e instanceof Error ? e.message : String(e)}`
+  }
+
+  // ---- Attempt 3: OpenAI direct fallback ----
+  console.warn(
+    `[openrouter-client] OpenRouter transcription unavailable after retry — falling back to OpenAI direct (${OPENAI_FALLBACK_MODEL}). OpenRouter failure: ${orFailure}`
+  )
+
+  try {
+    return await transcribeViaOpenAIDirect(audioBlob, ext)
+  } catch (fallbackErr) {
+    // Surface BOTH failure modes in one error message so Inngest's onFailure
+    // notification (ai_job.failed) tells the dev which paths failed and why.
+    const fbMsg = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr)
+    throw new Error(
+      `Transcription failed on both providers. ${orFailure}. ${fbMsg}`
+    )
+  }
 }
 
 // ---------------------------------------------------------------------------
