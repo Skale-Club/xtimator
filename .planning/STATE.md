@@ -25,7 +25,7 @@ progress:
 Phase: 79 — COMPLETE (v4.0 foundation: company_members table + active-company resolvers + layout swap)
 Plan: 4/4 plans shipped, VERIFICATION passed, HUMAN-UAT auto-approved per user memory
 Status: v4.0 foundation slice complete — Switcher UI / Add Company flow not yet planned
-Last activity: 2026-05-26 - Completed quick task 260526-jo4: Logo da empresa aparecer no editor + mover para o lado direito em editor, share view e PDF
+Last activity: 2026-05-26 - Completed quick task 260526-k60: Rename Price Book "Folder" labels to "Category" and wire through i18n
 
 ## v3.1.1 Phases
 
@@ -671,6 +671,7 @@ v3.1: Phases 61-65 (started 2026-05-15). Production Go-Live — 27 requirements 
 | 260526-08v | Hide audio recording UI during estimate processing, replace four-step stepper with calm three-blue-dots overlay | 2026-05-26 | 895826e | [260526-08v-ao-criar-um-novo-projeto-e-gravar-um-aud](.planning/quick/260526-08v-ao-criar-um-novo-projeto-e-gravar-um-aud/) |
 | 260526-0hv | Fix dashboard status filter tabs (replace stale STATUS_FILTERS with real project.status values) | 2026-05-26 | 7f98789 | [260526-0hv-corrigir-filtros-de-status-do-dashboard-](.planning/quick/260526-0hv-corrigir-filtros-de-status-do-dashboard-/) |
 | 260526-jo4 | Logo da empresa aparecer no editor + mover para o lado direito em editor, share view e PDF | 2026-05-26 | 485fee4 | [260526-jo4-logo-da-empresa-aparecer-no-editor-do-es](.planning/quick/260526-jo4-logo-da-empresa-aparecer-no-editor-do-es/) |
+| 260526-k60 | Rename Price Book "Folder" labels to "Category" and wire through i18n (en/pt/es) | 2026-05-26 | a836503 | [260526-k60-rename-folder-labels-to-category-in-pric](.planning/quick/260526-k60-rename-folder-labels-to-category-in-pric/) |
 | 2026-05-18 | fast | Center auth card logo+wordmark | done |
 | 2026-05-19 | fast | Make audio capture screen scrollable on smaller viewports | done |
 | 2026-05-18 | fast | Restyle sidebar New Project as filled gradient, remove dashboard CTA | done |
