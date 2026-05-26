@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
-milestone: v4.0
-milestone_name: Multi-Tenancy (Multiple Companies per User)
-status: defining_requirements
-last_updated: "2026-05-25T18:42:11.864Z"
-last_activity: 2026-05-25
+milestone: v1.5
+milestone_name: Zero-friction Project Onboarding
+status: executing
+last_updated: "2026-05-26T01:56:58.337Z"
+last_activity: 2026-05-26
 progress:
-  total_phases: 0
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_phases: 79
+  completed_phases: 59
+  total_plans: 183
+  completed_plans: 202
 ---
 
 # Project State
@@ -22,10 +22,10 @@ progress:
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-05-25 - Completed quick task 260525-lt5: Add AlertDialog confirmation before soft-delete in ProjectRowActions
+Phase: 79 (Multi-Company Foundation) — EXECUTING
+Plan: 2 of 4
+Status: Ready to execute
+Last activity: 2026-05-26
 
 ## v3.1.1 Phases
 
@@ -438,6 +438,7 @@ Last activity: 2026-05-25 - Completed quick task 260525-lt5: Add AlertDialog con
 - [Phase 80-walkthrough-audit-debug-polish]: logTourEvent is fire-and-forget (void call) — telemetry failure must never block tour UX
 - [Phase 80-walkthrough-audit-debug-polish]: completedNaturallyRef distinguishes Done (tour_finished) from X/ESC dismiss (tour_skipped) without adding parameter to handleClose
 - [Phase 80-walkthrough-audit-debug-polish]: globalSetup guards on TEST_USER_EMAIL/TEST_USER_PASSWORD — missing credentials exit cleanly; tour tests fall back to requireDashboard skip
+- [Phase 79]: [Phase 79-01]: company_members live in prod with composite PK + SELECT-only RLS + idempotent backfill (3/3/3); types extended manually (Phase 19/24/38 pattern, Docker unavailable on Windows); static SQL contract test instead of live-DB integration test (no harness in repo)
 
 ## Performance Metrics
 
@@ -582,13 +583,14 @@ Last activity: 2026-05-25 - Completed quick task 260525-lt5: Add AlertDialog con
 | Phase 78 P01 | 5min | 2 tasks | 4 files |
 | Phase 78 P02 | 6min | 2 tasks | 8 files |
 | Phase 80-walkthrough-audit-debug-polish P04 | 8 | 3 tasks | 8 files |
+| Phase 79 P01 | ~4h | 3 tasks | 3 files |
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-13)
 
 **Core value:** Business owner → job site audio recording → sent professional estimate in under 5 minutes
-**Current focus:** Phase 79 — multi-company-support-allow-one-user-to-own-and-switch-betwe
+**Current focus:** Phase 79 — Multi-Company Foundation
 
 ## Notes
 
