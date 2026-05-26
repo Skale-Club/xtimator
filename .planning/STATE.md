@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Zero-friction Project Onboarding
-status: executing
-last_updated: "2026-05-26T02:07:29.620Z"
+status: verifying
+last_updated: "2026-05-26T02:15:06.306Z"
 last_activity: 2026-05-26
 progress:
   total_phases: 79
-  completed_phases: 59
+  completed_phases: 60
   total_plans: 183
-  completed_plans: 204
+  completed_plans: 205
 ---
 
 # Project State
@@ -24,7 +24,7 @@ progress:
 
 Phase: 79 (Multi-Company Foundation) — EXECUTING
 Plan: 4 of 4
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-05-26
 
 ## v3.1.1 Phases
@@ -443,6 +443,9 @@ Last activity: 2026-05-26
 - [Phase 79]: Plan 02: loadCompanyById keyed by activeCompanyId (not userId) so revalidateTag('company') invalidates per company in Phase 80
 - [Phase 79]: Add-mode inherits tier/tier_trial_ends_at literally from source company (no fresh trial) to prevent trial-farming via add-company flow
 - [Phase 79]: company_members INSERT uses service-role; user_id sourced from claims.sub and company_id from just-inserted PK (no caller params) to mitigate T-79-03-01/02
+- [Phase 79]: [Phase 79-04]: app/(app)/layout.tsx switched from getCachedCompany(claims.sub) to getActiveCompany(); billingRow keyed by .eq('id', activeCompanyId) — completes the Phase 79 multi-company foundation (D-10, D-11)
+- [Phase 79]: [Phase 79-04]: getCachedCompany export preserved in lib/queries/auth.ts — Phase 81 will migrate remaining callers
+- [Phase 79]: [Phase 79-04]: static contract test pattern (read source with node:fs + regex assertions) is the right test isolation level for server-component refactors with deep import graphs — mirrors Plan 01 migration test
 
 ## Performance Metrics
 
@@ -590,6 +593,7 @@ Last activity: 2026-05-26
 | Phase 79 P01 | ~4h | 3 tasks | 3 files |
 | Phase 79 P02 | 4min | 1 tasks | 2 files |
 | Phase 79 P03 | 10min | 1 tasks | 2 files |
+| Phase 79 P04 | 7m | 1 tasks | 2 files |
 
 ## Project Reference
 
