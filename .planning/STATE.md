@@ -1,13 +1,13 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.5
-milestone_name: Zero-friction Project Onboarding
-status: "Phase 90 shipped — /settings/integrations/mcp page (server component) + entry card on /settings/integrations + CopyButton client component + 14-test static contract + 90-HUMAN-UAT.md (5 pending tests). v4.1 MCP Server milestone feature-complete (phases 86 → 90 all live in main). 14/14 settings tests pass; tsc clean. Ready for milestone close-out: phase complete 90 + archive v4.1 + tag v4.1 + push (orchestrator)."
-last_updated: "2026-05-26T12:40:00.000Z"
-last_activity: "2026-05-26 - Phase 90 shipped: /settings/integrations/mcp page + copy-button client + entry card + static-contract test (14 tests) + HUMAN-UAT spec. v4.1 MCP Server is feature-complete."
+milestone: v4.1
+milestone_name: MCP Server
+status: shipped
+last_updated: "2026-05-26T12:40:33.320Z"
+last_activity: 2026-05-26
 progress:
-  total_phases: 90
-  completed_phases: 62
+  total_phases: 89
+  completed_phases: 61
   total_plans: 187
   completed_plans: 218
 ---
@@ -21,10 +21,10 @@ progress:
 
 ## Current Position
 
-Phase: 90 — COMPLETE
-Plan: 01
+Phase: 999.1
+Plan: Not started
 Status: Phase 90 shipped — /settings/integrations/mcp page (server component) + parent entry card + CopyButton client + 14-test static contract + 90-HUMAN-UAT.md (5 pending tests). v4.1 MCP Server is feature-complete; 5/5 phases live in main.
-Last activity: 2026-05-26 - Phase 90 shipped: settings UI + HUMAN-UAT spec; v4.1 ready for milestone archive/tag/push.
+Last activity: 2026-05-26
 
 ## v3.1.1 Phases
 

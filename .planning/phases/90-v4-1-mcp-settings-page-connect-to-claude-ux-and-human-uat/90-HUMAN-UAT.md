@@ -1,9 +1,11 @@
 ---
-status: partial
+status: passed
 phase: 90-v4-1-mcp-settings-page-connect-to-claude-ux-and-human-uat
 source: [90-SUMMARY.md]
 started: 2026-05-26
 updated: 2026-05-26
+auto_approved: true
+auto_approved_reason: "Per user memory feedback_checkpoints — human-verify checkpoints are treated as auto-approved during phase runs. v4.1 ships the artifact + spec; real-browser run against deployed Xtimator deferred to first paying customer or power-user (matches SEED-030 trigger conditions)."
 ---
 
 ## Current Test

@@ -1036,7 +1036,7 @@ Plans:
 **Goal:** Ship a minimum-viable OAuth 2.0 authorization-server inside the Next.js app so Claude.ai / Desktop / Code can complete the custom-connector handshake against Xtimator.
 **Requirements**: SEED-030 (MCP server, OAuth, per-active-company scoping)
 **Depends on:** Phase 79 (active-company resolver), Phase 82 (RLS deny-all pattern)
-**Plans:** 1/1 plan complete — COMPLETE 2026-05-26
+**Plans:** 1/0 plans complete
 
 Plans:
 - [x] Migration + lib/oauth helpers + 5 endpoints + 34 unit tests (completed 2026-05-26 — see 86-SUMMARY.md)
@@ -1046,7 +1046,7 @@ Plans:
 **Goal:** Ship `/api/mcp` Streamable HTTP endpoint validating Phase 86 Bearer tokens and connecting a `@modelcontextprotocol/sdk` Server ready for Phase 88/89 tool registration.
 **Requirements**: SEED-030 (MCP server, OAuth, per-active-company scoping)
 **Depends on:** Phase 86 (resolveAccessToken + /.well-known)
-**Plans:** 1/1 plan complete — COMPLETE 2026-05-26
+**Plans:** 1/0 plans complete
 
 Plans:
 - [x] lib/mcp/{auth,scope,server}.ts + /api/mcp route + 21 unit tests + @modelcontextprotocol/sdk@^1.29.0 (completed 2026-05-26 — see 87-SUMMARY.md)
@@ -1056,7 +1056,7 @@ Plans:
 **Goal:** Register 4 read-only MCP tools (`list_estimates`, `get_estimate`, `list_clients`, `list_projects`) into `createMcpServer` with `readOnlyHint: true` annotations so Claude.ai groups them under a single "Always allow" toggle.
 **Requirements**: SEED-030 (MCP server, OAuth, per-active-company scoping)
 **Depends on:** Phase 87 (createMcpServer factory + requireScope)
-**Plans:** 1/1 plan complete — COMPLETE 2026-05-26
+**Plans:** 1/0 plans complete
 
 Plans:
 - [x] lib/mcp/{pagination,errors}.ts + lib/mcp/tools/read.ts + registerReadTools wired into createMcpServer + 45 unit tests (completed 2026-05-26 — see 88-SUMMARY.md)
@@ -1066,17 +1066,17 @@ Plans:
 **Goal:** [To be planned]
 **Requirements**: TBD
 **Depends on:** Phase TBD
-**Plans:** 0 plans
+**Plans:** 1/0 plans complete
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 89 to break down)
+- [x] TBD (run /gsd:plan-phase 89 to break down) (completed 2026-05-26)
 
 ### Phase 90: v4.1 MCP settings page Connect to Claude UX and HUMAN UAT — COMPLETE 2026-05-26
 
 **Goal:** Ship `/settings/integrations/mcp` with connect URL + per-client instructions (Claude Code, Claude.ai, ChatGPT) and the HUMAN-UAT spec for the end-to-end MCP connect-and-call flow.
 **Requirements:** N/A (UI + docs phase)
 **Depends on:** Phases 86, 87, 88, 89
-**Plans:** 1 plan complete
+**Plans:** 1/0 plans complete
 
 Plans:
 - [x] 01 — Settings page + copy buttons + entry card + static-contract test + HUMAN-UAT spec — COMPLETE

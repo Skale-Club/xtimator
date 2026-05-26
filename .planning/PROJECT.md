@@ -22,7 +22,11 @@ Phase 61 only — production database foundation. Built cross-platform RLS audit
 
 Complete subscription system: Free/Trial/Pro/Business tiers, `usage_events` tracking, `checkQuota`/`recordUsage` enforcement across all AI routes and WhatsApp handler, Stripe checkout + portal + webhook lifecycle, `/settings/billing` UI with trial banner and 402 upgrade modal, hourly trial expiry cron + T-3/T-0 warning emails, admin force-tier + bonus credits + MRR view. 6 phases, 24/24 requirements satisfied.
 
-## Last Milestone: v4.0 Multi-Tenancy ✅ (shipped 2026-05-26)
+## Last Milestone: v4.1 MCP Server ✅ (shipped 2026-05-26)
+
+OAuth 2.0 authorization server (RFC 8414/9728/7591, PKCE S256, sha256-hashed token storage, refresh-token rotation) shipped at `app/oauth/*` + `app/.well-known/*`. `/api/mcp` Streamable HTTP endpoint with Bearer auth and CORS for Claude.ai origins. 6 MCP tools (`list_estimates`, `get_estimate`, `list_clients`, `list_projects`, `create_estimate` async, `check_job_status`) with annotation-driven auto-grouped permission UI in Claude.ai. Self-service settings page at `/settings/integrations/mcp` with copy-paste `claude mcp add` snippet + Claude.ai / Claude Desktop / ChatGPT instructions. Async pattern reuses existing Inngest pipeline — `create_estimate` returns `job_id` immediately; `check_job_status` polls. 5 phases (86, 87, 88, 89, 90), 7 new test files (~152 assertions), 118 MCP-specific tests green, 1 prod migration applied. Full archive: [.planning/milestones/v4.1-ROADMAP.md](milestones/v4.1-ROADMAP.md).
+
+## Previous Milestone: v4.0 Multi-Tenancy ✅ (shipped 2026-05-26)
 
 Multi-company foundation, Switcher UI, full RLS rewrite (46 policies / 13 tables), server-action sweep (11 files codemodded), billing per-company (already per-company at the data layer), and multi-company access on the `companies` table via OR-extended RLS. A user can now own and operate multiple companies end-to-end via the Switcher UI, with correct tenant scoping at the DB layer, the action layer, and the UI layer. DROP COLUMN `companies.user_id` deferred to v5+ cleanup. Full archive: [.planning/milestones/v4.0-ROADMAP.md](milestones/v4.0-ROADMAP.md). 6 phases (79, 80, 81, 82, 83, 84, 85), 16 plans, 11 new test files, 98/98 tests green, 4 prod migrations applied.
 
