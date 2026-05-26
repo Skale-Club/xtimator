@@ -361,20 +361,47 @@ export function CaptureRecorder({
     setErrorMessage(undefined)
 
     if (descriptionText.trim() && !audioBlob && uploadedPhotos.length === 0) {
-      // Text-only path
-      setStage('generating')
+      // Text-only path: saving (createTextRecording) → generating (poll)
+      setStage('saving')
       const recording = await createTextRecording(projectId, descriptionText.trim())
-      if ('error' in recording) { failAt('generating', recording.error ?? t('Failed to save description')); return }
+      if ('error' in recording) { failAt('saving', recording.error ?? t('Failed to save description')); return }
+      setStage('generating')
       await triggerEstimateGeneration()
     } else if (audioBlob) {
       // Audio path (existing) — audio blob triggers runPipeline
       runPipeline(audioBlob)
     } else if (uploadedPhotos.length > 0) {
-      // Photos-only path
-      setStage('generating')
-      await triggerEstimateGeneration()
+      // Photos-only path: photos were uploaded during selection (saving already done),
+      // so we jump straight to analyzing (dispatch) → generating (poll).
+      setStage('analyzing')
+      try {
+        const dispatchRes = await fetch('/api/generate-estimate', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ projectId, language: estimateLanguage }),
+          signal: abortControllerRef.current.signal,
+        })
+        if (!dispatchRes.ok) {
+          const body = await dispatchRes.json().catch(() => ({}))
+          failAt('analyzing', (body as { error?: string }).error ?? t('Estimate generation failed'))
+          return
+        }
+        const { jobId } = (await dispatchRes.json()) as { jobId: string }
+        setStage('generating')
+        const output = (await pollJob(jobId, abortControllerRef.current.signal)) as GenerateEstimateResponse
+        storeClientSuggestion(projectId, output.clientSuggestion)
+        setStage('done')
+        if (onComplete) {
+          onComplete(output.estimateId)
+        } else {
+          router.push(`/projects/${projectId}?tab=estimate&estimate=${output.estimateId}`)
+        }
+      } catch (err) {
+        if ((err as Error).name === 'AbortError') return
+        failAt('generating', (err as Error).message ?? t('Estimate generation failed'))
+      }
     }
-  }, [descriptionText, audioBlob, uploadedPhotos, projectId, runPipeline, triggerEstimateGeneration])
+  }, [descriptionText, audioBlob, uploadedPhotos, projectId, runPipeline, triggerEstimateGeneration, estimateLanguage, t, onComplete, router])
 
   // Start recording
   const startRecording = useCallback(async () => {
@@ -451,6 +478,12 @@ export function CaptureRecorder({
   const isIdle = stage === 'idle'
   const showRecorderUI = isIdle || stage === 'done'
 
+  // Effective mode for the progress stepper:
+  // - popup flow: the single-modality lock wins (mode prop)
+  // - legacy fullscreen route: infer from whichever input the user submitted
+  const activeMode: CaptureMode =
+    mode ?? (audioBlob ? 'audio' : uploadedPhotos.length > 0 ? 'photos' : 'text')
+
   const isPopup = variant === 'popup'
   const rootClassName = isPopup
     ? 'flex flex-col min-h-0'
@@ -501,7 +534,7 @@ export function CaptureRecorder({
       ) : (
         <div className="flex-1 flex items-center justify-center p-4">
           <div className="w-full max-w-md space-y-6">
-            <CaptureStepper currentStage={stage} failedAt={failedAt} transcript={transcript} />
+            <CaptureStepper currentStage={stage} failedAt={failedAt} transcript={transcript} mode={activeMode} />
             {failedAt && (
               <CaptureFailure
                 errorMessage={errorMessage ?? t('Something went wrong')}
