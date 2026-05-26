@@ -983,10 +983,10 @@ Plans:
 - Server-action sweep across `lib/actions/*.ts`
 - Inviting other users to existing companies (v5+ scope)
 
-**Plans:** 2/4 plans executed
+**Plans:** 3/4 plans executed
 
 Plans:
 - [x] 81-01-PLAN.md — getMembershipCompanies query helper + extended unit tests (SWITCH-04, SWITCH-02)
 - [x] 81-02-PLAN.md — switchActiveCompany server action + unit tests (SWITCH-06, SWITCH-08)
-- [ ] 81-03-PLAN.md — CompanySelector rewrite (useTransition + switch action + Add link) + onboarding ?mode=add wiring (SWITCH-01, SWITCH-07, SWITCH-08, SWITCH-09, SWITCH-10, SWITCH-11, SWITCH-12, SWITCH-17)
+- [x] 81-03-PLAN.md — CompanySelector rewrite (useTransition + switch action + Add link) + onboarding ?mode=add wiring (SWITCH-01, SWITCH-07, SWITCH-08, SWITCH-09, SWITCH-10, SWITCH-11, SWITCH-12, SWITCH-17)
 - [ ] 81-04-PLAN.md — Layout fetches memberships + Sidebar mounts CompanySelector in both render trees (SWITCH-13, SWITCH-14, SWITCH-15)

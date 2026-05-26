@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Zero-friction Project Onboarding
 status: executing
-last_updated: "2026-05-26T03:43:48.044Z"
+last_updated: "2026-05-26T03:49:38.451Z"
 last_activity: 2026-05-26
 progress:
   total_phases: 80
   completed_phases: 60
   total_plans: 187
-  completed_plans: 207
+  completed_plans: 208
 ---
 
 # Project State
@@ -23,7 +23,7 @@ progress:
 ## Current Position
 
 Phase: 81 (Company Switcher UI + Add Company flow) — EXECUTING
-Plan: 3 of 4
+Plan: 4 of 4
 Status: Ready to execute
 Last activity: 2026-05-26
 Previous: Phase 79 — COMPLETE (v4.0 foundation: company_members table + active-company resolvers + layout swap)
@@ -448,6 +448,10 @@ Previous: Phase 79 — COMPLETE (v4.0 foundation: company_members table + active
 - [Phase 79]: [Phase 79-04]: getCachedCompany export preserved in lib/queries/auth.ts — a follow-up v4.0 phase (TBD) will migrate remaining callers
 - [Phase 79]: [Phase 79-04]: static contract test pattern (read source with node:fs + regex assertions) is the right test isolation level for server-component refactors with deep import graphs — mirrors Plan 01 migration test
 - [Phase 81]: [Phase 81-01]: getMembershipCompanies co-located in lib/queries/active-company.ts per SWITCH-02; ASC by companies.created_at for stable dropdown order; request-scoped client (never service role) because Phase 79 RLS already scopes by auth.uid()
+- [Phase 81]: Plan 03: Broke CompanySelector prop API from { company } to { companies, activeCompanyId, collapsed } — zero callers, no migration cost
+- [Phase 81]: Plan 03: Single CompanySelector with collapsed prop driving internal branch (instead of two separate sidebar mounts)
+- [Phase 81]: Plan 03: toast.error + router.refresh on BOTH forbidden and unauthenticated branches (defensive)
+- [Phase 81]: Plan 03: onboarding page typed searchParams as Promise<{ mode?: string }> per Next.js 16 async semantics
 
 ## Performance Metrics
 
@@ -598,6 +602,7 @@ Previous: Phase 79 — COMPLETE (v4.0 foundation: company_members table + active
 | Phase 79 P04 | 7m | 1 tasks | 2 files |
 | Phase 81 P01 | 3min | 3 tasks | 2 files |
 | Phase 81 P02 | 4min | 3 tasks | 2 files |
+| Phase 81 P03 | 6min | 5 tasks | 5 files |
 
 ## Project Reference
 
