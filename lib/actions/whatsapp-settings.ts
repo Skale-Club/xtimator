@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { sendWhatsAppMessage } from '@/lib/whatsapp/client'
 
 type AuthSuccess = { ok: true; supabase: Awaited<ReturnType<typeof createClient>>; companyId: string }
@@ -13,10 +14,13 @@ async function getAuthContext(): Promise<AuthSuccess | AuthFailure> {
   const claims = claimsData?.claims ?? null
   if (!claims) return { ok: false, errorMsg: 'Not authenticated' }
 
+  const activeCompanyId = await getActiveCompanyId()
+  if (!activeCompanyId) return { ok: false, errorMsg: 'No company found' }
+
   const { data: company } = await supabase
     .from('companies')
     .select('id')
-    .eq('user_id', claims.sub as string)
+    .eq('id', activeCompanyId)
     .single()
 
   if (!company) return { ok: false, errorMsg: 'No company found' }

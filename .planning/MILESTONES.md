@@ -1,5 +1,39 @@
 # Milestones
 
+## v4.1 MCP Server (Shipped: 2026-05-26)
+
+**Phases completed:** 5 (86, 87, 88, 89, 90) · 7 new test files (~152 assertions) · 118 MCP-specific tests green · 1 prod migration applied (`oauth_*` tables)
+
+**Key accomplishments:**
+
+- **OAuth 2.0 authorization server in production** — RFC 8414 + 9728 + 7591 compliant. PKCE S256. sha256-hashed token storage. Refresh-token rotation. Consent UI scoped to the active company via Phase 79's resolvers (Phase 86).
+- **`/api/mcp` Streamable HTTP endpoint** — Bearer auth gated, CORS for Claude.ai origins, WWW-Authenticate re-discovery. Uses `@modelcontextprotocol/sdk@1.29` with the Web Standard transport (matches Next.js App Router) (Phase 87).
+- **6 MCP tools with auto-grouped permission UI** — 4 read-only (`list_estimates`, `get_estimate`, `list_clients`, `list_projects`) + 2 write (`create_estimate` async returning `job_id`, `check_job_status`). Tool annotations (`readOnlyHint` / `destructiveHint` / `idempotentHint`) drive Claude.ai's auto-grouped "Always allow" UX (Phases 88 + 89).
+- **Async pattern via existing Inngest** — `create_estimate` sends `EVENT_ESTIMATE_GENERATE`, returns Inngest event id as job_id; `check_job_status` reads runs from the existing job-status path. No parallel job pipeline (Phase 89).
+- **Self-service connect UX** — `/settings/integrations/mcp` server-component page with copy-paste `claude mcp add ...` snippet + Claude.ai/Desktop/ChatGPT steps + active-company display so the user sees which tenant the consent binds to (Phase 90).
+
+**Full archive:** [.planning/milestones/v4.1-ROADMAP.md](milestones/v4.1-ROADMAP.md)
+
+---
+
+## v4.0 Multi-Tenancy — Multiple Companies per User (Shipped: 2026-05-26)
+
+**Phases completed:** 6 in scope (79, 81, 82, 83, 84, 85; Phase 80 ran in parallel and is bundled in the archive) · ~16 plan artifacts · 11 new test files · 98/98 tests green at close-out · 4 prod migrations applied
+
+**Key accomplishments:**
+
+- `company_members(user_id, company_id, role)` join table live in prod with idempotent backfill (1 owner per existing company) and `auth.uid()`-gated RLS — multi-tenancy backbone (Phase 79).
+- Cookie-based active-company tracking (`active_company_id` httpOnly cookie, 30d rolling) + colocated server helpers `getActiveCompanyId()` / `getActiveCompany()` / `getMembershipCompanies()` (Phases 79 + 81).
+- Switcher UI mounted in BOTH sidebar render trees with `useTransition` pending UX. "+ Add new company" routes to `/onboarding?mode=add` which threads `mode: 'add'` end-to-end into `createOrUpdateCompany` (Phase 81).
+- 46 tenant-scoped RLS policies across 13 tables rewritten to gate by `company_members` instead of `companies.user_id` (Phase 82) — single idempotent migration with in-migration `RAISE EXCEPTION` assertion.
+- 11 server-action files codemodded to derive `company_id` from the active cookie (Phase 83). 3 files allowlisted with documented rationale.
+- Billing already per-company at the data layer since prior milestones — Phase 84 closed as investigation-only.
+- `companies_*` RLS extended with `OR company_members` clause so multi-company users can SELECT/UPDATE/DELETE rows for every company they belong to (Phase 85). DROP COLUMN `companies.user_id` deferred to v5+.
+
+**Full archive:** [.planning/milestones/v4.0-ROADMAP.md](milestones/v4.0-ROADMAP.md) · [.planning/milestones/v4.0-REQUIREMENTS.md](milestones/v4.0-REQUIREMENTS.md)
+
+---
+
 ## v3.0 Monetization (Shipped: 2026-05-14)
 
 **Phases completed:** 16 phases, 25 plans, 39 tasks

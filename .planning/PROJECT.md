@@ -22,7 +22,23 @@ Phase 61 only — production database foundation. Built cross-platform RLS audit
 
 Complete subscription system: Free/Trial/Pro/Business tiers, `usage_events` tracking, `checkQuota`/`recordUsage` enforcement across all AI routes and WhatsApp handler, Stripe checkout + portal + webhook lifecycle, `/settings/billing` UI with trial banner and 402 upgrade modal, hourly trial expiry cron + T-3/T-0 warning emails, admin force-tier + bonus credits + MRR view. 6 phases, 24/24 requirements satisfied.
 
-## Current Milestone: v4.0 Multi-Tenancy (Multiple Companies per User)
+## Last Milestone: v4.1 MCP Server ✅ (shipped 2026-05-26)
+
+OAuth 2.0 authorization server (RFC 8414/9728/7591, PKCE S256, sha256-hashed token storage, refresh-token rotation) shipped at `app/oauth/*` + `app/.well-known/*`. `/api/mcp` Streamable HTTP endpoint with Bearer auth and CORS for Claude.ai origins. 6 MCP tools (`list_estimates`, `get_estimate`, `list_clients`, `list_projects`, `create_estimate` async, `check_job_status`) with annotation-driven auto-grouped permission UI in Claude.ai. Self-service settings page at `/settings/integrations/mcp` with copy-paste `claude mcp add` snippet + Claude.ai / Claude Desktop / ChatGPT instructions. Async pattern reuses existing Inngest pipeline — `create_estimate` returns `job_id` immediately; `check_job_status` polls. 5 phases (86, 87, 88, 89, 90), 7 new test files (~152 assertions), 118 MCP-specific tests green, 1 prod migration applied. Full archive: [.planning/milestones/v4.1-ROADMAP.md](milestones/v4.1-ROADMAP.md).
+
+## Previous Milestone: v4.0 Multi-Tenancy ✅ (shipped 2026-05-26)
+
+Multi-company foundation, Switcher UI, full RLS rewrite (46 policies / 13 tables), server-action sweep (11 files codemodded), billing per-company (already per-company at the data layer), and multi-company access on the `companies` table via OR-extended RLS. A user can now own and operate multiple companies end-to-end via the Switcher UI, with correct tenant scoping at the DB layer, the action layer, and the UI layer. DROP COLUMN `companies.user_id` deferred to v5+ cleanup. Full archive: [.planning/milestones/v4.0-ROADMAP.md](milestones/v4.0-ROADMAP.md). 6 phases (79, 80, 81, 82, 83, 84, 85), 16 plans, 11 new test files, 98/98 tests green, 4 prod migrations applied.
+
+## Next Milestone
+
+Run `/gsd:new-milestone` to define the next cycle. Candidates surfaced during v4.0 work:
+- **v4.1 Inngest self-hosted on Hetzner** — placeholder phase 999.1 in current roadmap; aligned with SEED-018 (production hosting).
+- **v4.2 Cleanup of `companies.user_id`** — picks up where Phase 85 stopped; depends on refactoring auth.ts redirect, company.ts mode:'first', and inngest transcribe-audio attribution off the legacy column.
+- **v5.0 Admin/Member roles + invites** — opens `company_members.role` to non-owner tiers; needs a full product pass on permissions matrix.
+- **MCP Server (SEED-030 trigger)** — locked decisions captured in `.planning/seeds/SEED-030-mcp-server-xtimator.md`; activates once the core estimates pipeline is end-to-end stable in production.
+
+## Archived Milestone Context: v4.0 Multi-Tenancy (Multiple Companies per User)
 
 **Goal:** A single user can own and switch between multiple companies; every tenant-scoped surface (projects, clients, estimates, price book, integrations, billing, notifications) is gated by the active company instead of `auth.uid()`.
 
@@ -41,12 +57,15 @@ Complete subscription system: Free/Trial/Pro/Business tiers, `usage_events` trac
 - **Stripe Connect:** stays per-company (already aligned)
 - **Backwards compat:** zero re-onboarding — migration auto-creates 1 owner membership per existing company
 
-**Progress (2026-05-25):**
-- ✅ **Phase 79: Foundation (schema + cookie + active company resolution)** — shipped. `company_members(user_id, company_id, role)` table live in prod (3 owners backfilled), RLS enabled; `getActiveCompanyId` / `getActiveCompany` helpers; `createOrUpdateCompany(mode: 'first' | 'add')`; `app/(app)/layout.tsx` switched to active-company resolvers. No UI in this phase by design. 4/4 plans, 15 commits, 38/38 tests green.
-- ⬜ **Next:** Switcher UI + "Add company" flow (no phase planned yet — needs `/gsd:add-phase`)
-- ⬜ **Then:** RLS rewrite across tenant-scoped tables
-- ⬜ **Then:** Billing per-company semantics
-- ⬜ **Then:** Server-action sweep
+**Progress (2026-05-26):**
+- ✅ **Phase 79: Foundation (schema + cookie + active company resolution)** — shipped 2026-05-25. `company_members(user_id, company_id, role)` table live in prod (3 owners backfilled), RLS enabled; `getActiveCompanyId` / `getActiveCompany` helpers; `createOrUpdateCompany(mode: 'first' | 'add')`; `app/(app)/layout.tsx` switched to active-company resolvers. No UI in this phase by design. 4/4 plans, 15 commits, 38/38 tests green.
+- ✅ **Phase 81: Company Switcher UI + Add Company flow** — shipped 2026-05-26. `getMembershipCompanies()` query, `switchActiveCompany()` server action with discriminated-union return, CompanySelector wired with `useTransition` and mounted in BOTH sidebar render trees (collapsed + expanded), onboarding `?mode=add` threading end-to-end (page → survey → `createOrUpdateCompany`). 4/4 plans, 13 commits, 31/31 Phase 81 tests green. Mobile switcher deferred (SWITCH-15).
+- ✅ **Phase 82: RLS rewrite** — shipped 2026-05-26. 46 tenant-scoped policies across 13 tables (clients/projects/estimates/estimate_items/estimate_sections/estimate_activity/recordings/photos/company_price_book/price_book_folders/price_book_imports/estimate_deliveries/estimate_signatures/tour_events) now gate by `company_members` membership. In-migration DO $$ assertion. Static-contract test 6/6 green.
+- ✅ **Phase 83: Server-action sweep** — shipped 2026-05-26. 11 server-action files codemodded to derive company via `getActiveCompanyId()` + `.eq('id', activeCompanyId)`. 3 files allowlisted (auth.ts redirect, company.ts mode:'first', active-company.ts internal). Static-contract test 24/24 green.
+- ✅ **Phase 84: Billing per-company** — closed as already-shipped-by-prior-work. All billing columns live on `companies` (Phase 55+58+70), `usage_events` keyed by `company_id` (Phase 56), `/settings/billing` scopes via `getActiveCompany()` post Phase 79. No code change needed.
+- ✅ **Phase 85: Multi-company access on companies** — shipped 2026-05-26. `companies_*` RLS extended with OR-clause for `company_members` membership; `mode:'add'` now sets `user_id: claims.sub` (latent bug fix). DROP COLUMN deferred to v5+ — chain of legacy readers (auth.ts, company.ts mode:'first', inngest transcribe attribution) keeps the column alive for backwards compat.
+
+**v4.0 status:** All target features either shipped or correctly scoped out. Foundation (79), Switcher UI (81), RLS rewrite (82), server-action sweep (83), billing per-company (84 — pre-shipped), multi-company access on companies (85). A user can now own and operate multiple companies end-to-end via the Switcher UI, with correct tenant scoping at the DB layer, the action layer, and the UI layer.
 
 **Out of scope (captured for future milestones):**
 - Inviting other users to existing companies

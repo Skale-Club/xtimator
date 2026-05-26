@@ -134,3 +134,46 @@ export async function getActiveCompany(): Promise<AppCompany | null> {
   if (!activeCompanyId) return null
   return loadCompanyById(activeCompanyId)
 }
+
+/**
+ * Phase 81 — Returns every company the signed-in user is a member of, ordered
+ * by `companies.created_at` ASC (stable insertion order for the switcher dropdown).
+ *
+ * Public shape: `{ id, name, logo_url }[]` only — internal columns like `created_at`
+ * stay inside this module (SWITCH-04).
+ *
+ * Uses the request-scoped (RLS-bound) client — never `requireServiceClient`. Phase 79's
+ * RLS on `company_members` gates by `user_id = auth.uid()`, so this query is correctly
+ * scoped without service-role bypass.
+ *
+ * Returns `[]` when the user is unauthenticated or has zero memberships.
+ *
+ * Note: ASC ordering here differs from `getActiveCompanyId`'s DESC fallback (D-07).
+ * The fallback wants "most recently created" for first-time landing; the switcher
+ * dropdown wants stable insertion order so list positions don't shuffle as the user
+ * adds companies.
+ */
+export async function getMembershipCompanies(): Promise<
+  Array<{ id: string; name: string; logo_url: string | null }>
+> {
+  const claims = await getAuthClaims()
+  if (!claims?.sub) return []
+
+  const supabase = await createClient()
+
+  const { data } = await supabase
+    .from('company_members')
+    .select('companies!inner(id, name, logo_url, created_at)')
+    .eq('user_id', claims.sub as string)
+    .order('created_at', { foreignTable: 'companies', ascending: true })
+
+  if (!data) return []
+  // supabase-js types `!inner` joins as an array even though it's a 1:1 fk; cast to the
+  // actual runtime shape (single object) per 81-RESEARCH.md Pattern 1.
+  type MembershipRow = { companies: { id: string; name: string; logo_url: string | null } }
+  return (data as unknown as MembershipRow[]).map((row) => ({
+    id: row.companies.id,
+    name: row.companies.name,
+    logo_url: row.companies.logo_url,
+  }))
+}

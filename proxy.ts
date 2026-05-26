@@ -32,6 +32,25 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next()
   }
 
+  // OAuth + MCP bypass (Phase 86 / 87, hotfix 2026-05-26):
+  //   - /.well-known/oauth-* — RFC 8414 / 9728 discovery metadata MUST be public
+  //   - /oauth/register, /oauth/token — RFC 7591 / 6749 endpoints, no cookie auth
+  //     (Claude is a public OAuth client with PKCE — token_endpoint_auth_method=none)
+  //   - /api/mcp — Bearer-token authenticated by lib/mcp/auth.ts via resolveAccessToken,
+  //     NOT cookie-based; session middleware would redirect Claude's POSTs to /?auth=login
+  //
+  // /oauth/authorize is intentionally NOT bypassed — that endpoint requires the user
+  // to be signed in (the consent screen), so updateSession's redirect-to-login is the
+  // correct behavior there.
+  if (
+    pathname.startsWith('/.well-known/oauth-') ||
+    pathname === '/oauth/register' ||
+    pathname === '/oauth/token' ||
+    pathname.startsWith('/api/mcp')
+  ) {
+    return NextResponse.next()
+  }
+
   // Always refresh session first (existing behavior — preserved).
   const { claims, response } = await updateSession(request)
 

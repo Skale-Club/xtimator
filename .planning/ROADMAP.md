@@ -968,15 +968,3 @@ Plans:
   - v3.2 deployment milestone — not yet started
 
 **Plans:** 0/0 — not planned yet
-
-### Phase 81: Add WhatsApp send option in SendTab and integrations settings
-
-**Goal:** A pro/business/trial-tier owner with an active company_whatsapp connection sees a third "WhatsApp" tab in the project Send card (alongside Email and SMS), can fill a recipient phone in E.164 format and an optional message, and tapping Send dispatches an estimate via Meta Cloud API in the delivery_format set on the connect card (share_link / formatted_text / pdf_attachment) with explicit PDF→share_link fallback surfaced to the UI. The /settings/integrations placeholder is replaced by a server page that mounts the existing WhatsAppConnectCard with the company's current connection state.
-**Requirements**: WA-SEND-01, WA-SEND-02, WA-SEND-03, WA-SEND-04, WA-SEND-05, WA-SEND-06, WA-INT-01, WA-INT-02
-**Depends on:** Phase 45 (Settings UI + Admin Token), Phase 44 (Outbound Client Delivery), Phase 53 (PDF Attachment Delivery), Phase 54 (WhatsApp Status Flow), Phase 59 (UpgradeModal for 402 interception)
-**Plans:** 3 plans
-
-Plans:
-- [ ] 81-01-schema-migration-and-test-scaffolds-PLAN.md — Wave 0: migration (estimate_deliveries channel + provider CHECK extensions), [BLOCKING] supabase db push, manual types/database.types.ts patch, RED test scaffolds (it.todo) for the 4 Wave 1 test suites
-- [ ] 81-02-api-route-and-entitlement-gate-PLAN.md — Wave 1: POST /api/estimates/[id]/send-whatsapp mirroring send-sms with delivery_format branching + PDF→share_link fallback (Locked Decision 2 — surfaced as fallback: "share_link") + 402/409 server-side entitlement gate
-- [ ] 81-03-ui-tab-and-integrations-page-PLAN.md — Wave 1: whatsappSendEnabled prop threaded page→workspace→tab→form, third TabsTrigger (MessageCircle) in SendForm, /settings/integrations mounts WhatsAppConnectCard server-side (no card modification)

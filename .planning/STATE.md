@@ -1,31 +1,30 @@
 ---
 gsd_state_version: 1.0
-milestone: v4.0
-milestone_name: Multi-Tenancy (Multiple Companies per User)
-status: phase_79_complete
-last_updated: "2026-05-26T02:55:00.000Z"
+milestone: v4.1
+milestone_name: MCP Server
+status: shipped
+last_updated: "2026-05-26T12:40:33.320Z"
 last_activity: 2026-05-26
 progress:
-  total_phases: 79
-  completed_phases: 60
-  total_plans: 183
-  completed_plans: 205
+  total_phases: 89
+  completed_phases: 61
+  total_plans: 187
+  completed_plans: 218
 ---
 
 # Project State
 
 ## Current Status
 
-- **Milestone**: v4.0 Multi-Tenancy — Defining requirements (no phases yet)
-- **Previous milestone (in progress)**: v3.1.1 MVP Launch Prep + Future-Proofing — phases 73-78 still pending
-- **Last updated**: 2026-05-25
+- **Milestone**: v4.1 MCP Server — FEATURE-COMPLETE (5/5 phases: 86 ✓, 87 ✓, 88 ✓, 89 ✓, 90 ✓) — ready for milestone close-out (orchestrator: phase complete 90 + archive + tag v4.1 + push)
+- **Last updated**: 2026-05-26
 
 ## Current Position
 
 Phase: 79 — COMPLETE (v4.0 foundation: company_members table + active-company resolvers + layout swap)
 Plan: 4/4 plans shipped, VERIFICATION passed, HUMAN-UAT auto-approved per user memory
 Status: v4.0 foundation slice complete — Switcher UI / Add Company flow not yet planned
-Last activity: 2026-05-26 - Completed quick task 260526-k60: Rename Price Book "Folder" labels to "Category" and wire through i18n
+Last activity: 2026-05-26 - Completed quick task 260526-0hv: fix dashboard status filter tabs (replace stale STATUS_FILTERS with real project.status values)
 
 ## v3.1.1 Phases
 
@@ -70,6 +69,15 @@ Last activity: 2026-05-26 - Completed quick task 260526-k60: Rename Price Book "
 
 ## Completed Phases
 
+- Phase 90: v4.1 MCP Settings Page — Connect-to-Claude UX + HUMAN-UAT (90-v4-1-mcp-settings-page-connect-to-claude-ux-and-human-uat) — COMPLETE 2026-05-26
+  - app/(app)/settings/integrations/mcp/{page,copy-button}.tsx + app/(app)/settings/integrations/page.tsx (entry card) + tests/unit/mcp-settings-page.test.ts (14 tests). HUMAN-UAT spec with 5 pending E2E tests (Claude Code, Claude.ai, ChatGPT, async-poll, token-rotation). v4.1 milestone feature-complete; orchestrator can now archive + tag v4.1.
+- Phase 89: v4.1 Write MCP Tools — create_estimate (async via Inngest) + check_job_status; shared tool registry refactor (89-v4-1-write-mcp-tools-create-estimate-check-job-status-async) — COMPLETE 2026-05-26
+  - lib/mcp/tools/{registry,write}.ts + 3 unit test files (37 tests); read.ts refactored from registerReadTools → buildReadTools(auth); server.ts now calls registerAllTools once. create_estimate dispatches EVENT_ESTIMATE_GENERATE (same Inngest event /api/generate-estimate uses); check_job_status reads /v1/events/{id}/runs (same path /api/jobs/[jobId] uses). 104/104 MCP tests pass; tsc clean.
+- Phase 88: v4.1 Read-Only MCP Tools — list_estimates, get_estimate, list_clients, list_projects (88-v4-1-read-only-mcp-tools-list-estimates-clients-projects) — COMPLETE 2026-05-26
+  - lib/mcp/{pagination,errors}.ts + lib/mcp/tools/read.ts; 45 unit tests; registerReadTools wired into createMcpServer; all tools carry readOnlyHint=true so Claude.ai groups them under one "Always allow" toggle; keyset pagination via base64(JSON({created_at,id})); every query scoped to auth.company_id.
+- Phase 87: v4.1 MCP Route — Streamable HTTP Transport with Bearer Auth (87-v4-1-mcp-route-streamable-http-transport-with-bearer-auth) — COMPLETE 2026-05-26
+  - lib/mcp/{auth,scope,server}.ts + app/api/mcp/route.ts; 21 unit tests; WebStandardStreamableHTTPServerTransport (stateless, JSON response mode); Phase 88/89 tool integration point documented in server.ts
+- Phase 86: v4.1 OAuth 2.0 Server for MCP (86-v4-1-oauth-2-0-server-for-mcp-...) — COMPLETE 2026-05-26
 - Phase 54: WhatsApp Status Flow (54-whatsapp-status-flow) — COMPLETE 2026-05-13
   - Plan 01: updateWhatsAppStatus server action + unit tests (WASTATUS-02, WASTATUS-03, WASTATUS-04) — COMPLETE
   - Plan 02: WhatsAppConnectCard: StatusBadge + Suspend/Reactivate buttons (WASTATUS-01, WASTATUS-03) — COMPLETE
@@ -446,6 +454,16 @@ Last activity: 2026-05-26 - Completed quick task 260526-k60: Rename Price Book "
 - [Phase 79]: [Phase 79-04]: app/(app)/layout.tsx switched from getCachedCompany(claims.sub) to getActiveCompany(); billingRow keyed by .eq('id', activeCompanyId) — completes the Phase 79 multi-company foundation (D-10, D-11)
 - [Phase 79]: [Phase 79-04]: getCachedCompany export preserved in lib/queries/auth.ts — a follow-up v4.0 phase (TBD) will migrate remaining callers
 - [Phase 79]: [Phase 79-04]: static contract test pattern (read source with node:fs + regex assertions) is the right test isolation level for server-component refactors with deep import graphs — mirrors Plan 01 migration test
+- [Phase 81]: [Phase 81-01]: getMembershipCompanies co-located in lib/queries/active-company.ts per SWITCH-02; ASC by companies.created_at for stable dropdown order; request-scoped client (never service role) because Phase 79 RLS already scopes by auth.uid()
+- [Phase 81]: Plan 03: Broke CompanySelector prop API from { company } to { companies, activeCompanyId, collapsed } — zero callers, no migration cost
+- [Phase 81]: Plan 03: Single CompanySelector with collapsed prop driving internal branch (instead of two separate sidebar mounts)
+- [Phase 81]: Plan 03: toast.error + router.refresh on BOTH forbidden and unauthenticated branches (defensive)
+- [Phase 81]: Plan 03: onboarding page typed searchParams as Promise<{ mode?: string }> per Next.js 16 async semantics
+- [Phase 81]: Phase 81 Plan 04: layout fetches memberships in Promise.all; sidebar mounts CompanySelector twice (one per render branch) for Pitfall-5 enforceability; user-menu kept byte-identical but trigger simplified to avatar-only in both modes; mobile-header deferred (SWITCH-15)
+- [Phase 87]: Use WebStandardStreamableHTTPServerTransport (not StreamableHTTPServerTransport) — Next.js Route Handlers expose Fetch Request/Response, not Node IncomingMessage/ServerResponse
+- [Phase 87]: Stateless MCP sessions (sessionIdGenerator: undefined, enableJsonResponse: true) for MVP — fresh Server + transport per request
+- [Phase 89]: Phase 89 refactored MCP tool registration into a shared registry (buildAllTools + registerAllTools) — required because Server.setRequestHandler accepts only one handler per request schema. Read + write tools now share the single tools/list + tools/call handler pair.
+- [Phase 89]: create_estimate dispatches the existing EVENT_ESTIMATE_GENERATE Inngest event (same path /api/generate-estimate uses); check_job_status reads Inngest /v1/events/{id}/runs (same path /api/jobs/[jobId] uses). No parallel job table.
 
 ## Performance Metrics
 
@@ -594,13 +612,20 @@ Last activity: 2026-05-26 - Completed quick task 260526-k60: Rename Price Book "
 | Phase 79 P02 | 4min | 1 tasks | 2 files |
 | Phase 79 P03 | 10min | 1 tasks | 2 files |
 | Phase 79 P04 | 7m | 1 tasks | 2 files |
+| Phase 81 P01 | 3min | 3 tasks | 2 files |
+| Phase 81 P02 | 4min | 3 tasks | 2 files |
+| Phase 81 P03 | 6min | 5 tasks | 5 files |
+| Phase 81 P04 | 383s | 5 tasks | 5 files |
+| Phase 87 P— | 25min | 4 tasks | 9 files |
+| Phase 89 P— | 11min | 5 tasks | 9 files |
+| Phase 90 P01 | 25min | 5 tasks | 6 files |
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-13)
 
 **Core value:** Business owner → job site audio recording → sent professional estimate in under 5 minutes
-**Current focus:** Phase 79 — Multi-Company Foundation
+**Current focus:** Phase 81 — Company Switcher UI + Add Company flow
 
 ## Notes
 
@@ -624,6 +649,7 @@ v3.1: Phases 61-65 (started 2026-05-15). Production Go-Live — 27 requirements 
 
 ### Roadmap Evolution
 
+- Phase 81 added (2026-05-26): Company Switcher UI + Add Company flow — surfaces the Phase 79 multi-company plumbing in the UI. Topbar dropdown lists `company_members` rows joined to `companies`, highlights active, provides "Switch active company" (sets `active_company_id` cookie + revalidates) and "+ Add new company" (routes to `/onboarding?mode=add` which calls `createOrUpdateCompany('add')`). RLS rewrite, billing per-company, and server-action sweep stay out of scope — separate v4.0 phases.
 - Phase 8 added: Platform admin panel — scope covers centralized API integrations (Resend/Anthropic/OpenAI) AND global branding (app name, logo, theme). Removes all hardcoded "Xtimator" strings and process.env key coupling; replaces with DB-backed config fetched via server-side loader. Drives v1.1.
 - v1.2 phases 10-12: Brand tokens (BRAND-01–03) → Landing page (LAND-01–05) → i18n system (I18N-01–08). Ordering constraint: landing page must exist before i18n so translations layer on top of real UI strings.
 - Phase 13 added: Visual identity polish — robust favicon and app icons across all surfaces (.ico legacy, icon.svg with light/dark, icon.png fallback, apple-icon.png, web manifest, no public/ vs app/ conflict, no manual <link> in head)

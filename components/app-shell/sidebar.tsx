@@ -23,6 +23,7 @@ import {
 import { signOut } from '@/lib/actions/auth'
 import { useTourContext } from '@/components/tour/tour-provider'
 import { useTour } from '@/components/tour/use-tour'
+import { CompanySelector } from '@/components/app-shell/company-selector'
 
 interface SidebarProps {
   branding: {
@@ -35,6 +36,11 @@ interface SidebarProps {
     logo_url: string | null
     owner_name: string | null
   }
+  memberships: Array<{
+    id: string
+    name: string
+    logo_url: string | null
+  }>
 }
 
 const COLLAPSE_KEY = 'sidebar_collapsed_desktop'
@@ -67,7 +73,7 @@ const TOUR_TARGET: Record<string, string> = {
   '/price-book':   'price-book',
 }
 
-export function Sidebar({ branding, company }: SidebarProps) {
+export function Sidebar({ branding, company, memberships }: SidebarProps) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -82,7 +88,29 @@ export function Sidebar({ branding, company }: SidebarProps) {
     setShowWelcome(true)
   }
 
-  const initial = (company.owner_name ?? company.name).charAt(0).toUpperCase()
+  // Account menu items injected into the CompanySelector dropdown (2026-05-26 UX —
+  // replaces the standalone "S" user-menu avatar that used to sit beside the
+  // CompanySelector). Settings / App Tour / Sign Out now live below the
+  // company list + Add new company entry inside a single dropdown.
+  const accountMenuSlot = (
+    <>
+      <DropdownMenuItem asChild className="cursor-pointer">
+        <Link href="/settings" className="flex items-center gap-2">
+          <Settings className="h-4 w-4" />{t('Settings')}
+        </Link>
+      </DropdownMenuItem>
+      <DropdownMenuItem className="cursor-pointer gap-2" onClick={handleOpenTour}>
+        <HelpCircle className="h-4 w-4" />{t('App Tour')}
+      </DropdownMenuItem>
+      <DropdownMenuSeparator />
+      <DropdownMenuItem
+        className="cursor-pointer gap-2 text-destructive focus:text-destructive"
+        onClick={() => signOut()}
+      >
+        <LogOut className="h-4 w-4" />{t('Sign Out')}
+      </DropdownMenuItem>
+    </>
+  )
 
   function openModal(modalValue: string) {
     const params = new URLSearchParams(searchParams.toString())
@@ -291,11 +319,20 @@ export function Sidebar({ branding, company }: SidebarProps) {
         })}
       </nav>
 
-      {/* Bottom: company info + user menu + collapse toggle */}
+      {/* Bottom: company switcher (Plan 81-04) + user menu + collapse toggle */}
       <div className="border-t border-[var(--glass-border)] p-2">
         {collapsed ? (
-          /* Collapsed: chevron on top, avatar (user menu) below */
+          /* Collapsed: company-switcher avatar + expand chevron only.
+             User-menu items (Settings / App Tour / Sign Out) live INSIDE
+             the CompanySelector dropdown via accountMenuSlot (2026-05-26 UX). */
           <div className="flex flex-col items-center gap-1">
+            <CompanySelector
+              companies={memberships}
+              activeCompanyId={company.id}
+              collapsed={true}
+              accountMenuSlot={accountMenuSlot}
+            />
+
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
@@ -308,87 +345,29 @@ export function Sidebar({ branding, company }: SidebarProps) {
               </TooltipTrigger>
               <TooltipContent side="right">{t('Expand sidebar')}</TooltipContent>
             </Tooltip>
-
-            <DropdownMenu>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <DropdownMenuTrigger asChild>
-                    <button className="w-9 h-9 flex items-center justify-center rounded-[var(--radius-md)] hover:bg-[var(--glass-bg-light)] transition-colors">
-                      <span className="h-7 w-7 flex items-center justify-center rounded-full bg-muted text-xs font-semibold text-muted-foreground">
-                        {initial}
-                      </span>
-                    </button>
-                  </DropdownMenuTrigger>
-                </TooltipTrigger>
-                <TooltipContent side="right">{company.owner_name ?? company.name}</TooltipContent>
-              </Tooltip>
-              <DropdownMenuContent side="right" align="end" className="w-48">
-                <DropdownMenuItem asChild className="cursor-pointer">
-                  <Link href="/settings" className="flex items-center gap-2">
-                    <Settings className="h-4 w-4" />{t('Settings')}
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem className="cursor-pointer gap-2" onClick={handleOpenTour}>
-                  <HelpCircle className="h-4 w-4" />{t('App Tour')}
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  className="cursor-pointer gap-2 text-destructive focus:text-destructive"
-                  onClick={() => signOut()}
-                >
-                  <LogOut className="h-4 w-4" />{t('Sign Out')}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
           </div>
         ) : (
-          /* Expanded: company info row opens menu, chevron on hover */
-          <DropdownMenu>
-            <div className="flex items-center gap-1 group">
-              <DropdownMenuTrigger asChild>
-                <button className="flex flex-1 min-w-0 items-center gap-2 px-2 py-1.5 rounded-[var(--radius-md)] hover:bg-[var(--glass-bg-light)] transition-colors text-left">
-                  {company.logo_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={company.logo_url} alt={company.name} className="h-6 w-6 rounded object-contain shrink-0" />
-                  ) : (
-                    <span className="h-6 w-6 flex items-center justify-center rounded-[var(--radius-sm)] bg-muted text-[11px] font-semibold text-muted-foreground shrink-0">
-                      {company.name.charAt(0).toUpperCase()}
-                    </span>
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium truncate">{company.name}</p>
-                    {company.owner_name && (
-                      <p className="text-[11px] text-muted-foreground truncate">{company.owner_name}</p>
-                    )}
-                  </div>
-                </button>
-              </DropdownMenuTrigger>
-              <button
-                onClick={toggle}
-                className="p-1 rounded text-muted-foreground/40 hover:text-muted-foreground transition-colors shrink-0"
-                aria-label="Collapse sidebar"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </button>
+          /* Expanded: CompanySelector row (includes user-menu via accountMenuSlot)
+             + collapse chevron pinned right (2026-05-26 UX — old "S" user-menu
+             avatar removed; Settings / App Tour / Sign Out now live inside the
+             CompanySelector dropdown). */
+          <div className="flex items-center gap-1">
+            <div className="flex-1 min-w-0">
+              <CompanySelector
+                companies={memberships}
+                activeCompanyId={company.id}
+                collapsed={false}
+                accountMenuSlot={accountMenuSlot}
+              />
             </div>
-            <DropdownMenuContent side="right" align="end" className="w-48">
-              <DropdownMenuItem asChild className="cursor-pointer">
-                <Link href="/settings" className="flex items-center gap-2">
-                  <Settings className="h-4 w-4" />{t('Settings')}
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem className="cursor-pointer gap-2" onClick={handleOpenTour}>
-                <HelpCircle className="h-4 w-4" />{t('App Tour')}
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                className="cursor-pointer gap-2 text-destructive focus:text-destructive"
-                onClick={() => signOut()}
-              >
-                <LogOut className="h-4 w-4" />{t('Sign Out')}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+            <button
+              onClick={toggle}
+              className="p-1 rounded text-muted-foreground/40 hover:text-muted-foreground transition-colors shrink-0"
+              aria-label="Collapse sidebar"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+          </div>
         )}
       </div>
     </aside>

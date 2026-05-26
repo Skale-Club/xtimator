@@ -236,3 +236,98 @@ describe('getActiveCompany — D-09/D-11 (cache key = activeCompanyId, tag = com
     expect(requireServiceClient).not.toHaveBeenCalled()
   })
 })
+
+// ---------- getMembershipCompanies — SWITCH-04 / SWITCH-16 ----------
+//
+// Helper that mocks the membership-listing supabase chain:
+//   supabase.from('company_members').select(...).eq('user_id', ...).order('created_at', { foreignTable: 'companies', ascending: true })
+// The .order() call is the terminal awaited node (resolves to { data, error }).
+function makeMembershipSupabase({
+  listResult,
+}: {
+  listResult: { data: Array<{ companies: { id: string; name: string; logo_url: string | null; created_at: string } }> | null; error: unknown }
+}) {
+  const order = vi.fn().mockResolvedValue(listResult)
+  const eq = vi.fn().mockReturnValue({ order })
+  const select = vi.fn().mockReturnValue({ eq })
+  const from = vi.fn().mockReturnValue({ select })
+  return {
+    client: { from },
+    _spies: { from, select, eq, order },
+  }
+}
+
+describe('getMembershipCompanies — SWITCH-04 (live list of user companies, ASC by created_at)', () => {
+  it('M1: multiple memberships → returns mapped { id, name, logo_url }[] in ASC created_at order; calls .order with foreignTable companies, ascending true', async () => {
+    vi.mocked(getAuthClaims).mockResolvedValue({ sub: 'user-1' } as never)
+    const supa = makeMembershipSupabase({
+      listResult: {
+        data: [
+          { companies: { id: 'c-1', name: 'Alpha', logo_url: null, created_at: '2026-01-01' } },
+          { companies: { id: 'c-2', name: 'Beta', logo_url: 'https://x/b.png', created_at: '2026-02-01' } },
+        ],
+        error: null,
+      },
+    })
+    vi.mocked(createClient).mockResolvedValue(supa.client as never)
+
+    const { getMembershipCompanies } = await import('@/lib/queries/active-company')
+    const result = await getMembershipCompanies()
+
+    expect(result).toEqual([
+      { id: 'c-1', name: 'Alpha', logo_url: null },
+      { id: 'c-2', name: 'Beta', logo_url: 'https://x/b.png' },
+    ])
+    expect(supa._spies.from).toHaveBeenCalledWith('company_members')
+    expect(supa._spies.eq).toHaveBeenCalledWith('user_id', 'user-1')
+    expect(supa._spies.order).toHaveBeenCalledWith(
+      'created_at',
+      expect.objectContaining({ foreignTable: 'companies', ascending: true })
+    )
+  })
+
+  it('M2: single membership → returns array of length 1 with only { id, name, logo_url } (no created_at leaked)', async () => {
+    vi.mocked(getAuthClaims).mockResolvedValue({ sub: 'user-1' } as never)
+    const supa = makeMembershipSupabase({
+      listResult: {
+        data: [
+          { companies: { id: 'c-only', name: 'Solo', logo_url: 'https://x/s.png', created_at: '2026-03-01' } },
+        ],
+        error: null,
+      },
+    })
+    vi.mocked(createClient).mockResolvedValue(supa.client as never)
+
+    const { getMembershipCompanies } = await import('@/lib/queries/active-company')
+    const result = await getMembershipCompanies()
+
+    expect(result).toHaveLength(1)
+    expect(result[0]).toEqual({ id: 'c-only', name: 'Solo', logo_url: 'https://x/s.png' })
+    // Public shape must not leak created_at.
+    expect(Object.keys(result[0])).toEqual(expect.arrayContaining(['id', 'name', 'logo_url']))
+    expect(Object.keys(result[0])).not.toContain('created_at')
+  })
+
+  it('M3a: unauthenticated → returns [] without touching supabase', async () => {
+    vi.mocked(getAuthClaims).mockResolvedValue(null as never)
+
+    const { getMembershipCompanies } = await import('@/lib/queries/active-company')
+    const result = await getMembershipCompanies()
+
+    expect(result).toEqual([])
+    expect(createClient).not.toHaveBeenCalled()
+  })
+
+  it('M3b: authenticated but zero memberships (data null or empty) → returns []', async () => {
+    vi.mocked(getAuthClaims).mockResolvedValue({ sub: 'user-1' } as never)
+    const supa = makeMembershipSupabase({
+      listResult: { data: null, error: null },
+    })
+    vi.mocked(createClient).mockResolvedValue(supa.client as never)
+
+    const { getMembershipCompanies } = await import('@/lib/queries/active-company')
+    const result = await getMembershipCompanies()
+
+    expect(result).toEqual([])
+  })
+})
