@@ -528,10 +528,10 @@ export default function EstimatePDF({
                 { color: '#6b7280', marginTop: 4 },
               ]}
             >
-              {L.date}: {fmtDate(estimate.created_at)}
+              {L.date}: {fmtDate(estimate.estimate_date ?? estimate.created_at)}
             </Text>
             <Text style={[styles.infoValue, { color: '#6b7280' }]}>
-              {L.estimateNum}{estimate.version}
+              {L.estimateNum}{estimate.estimate_number ?? String(estimate.estimate_seq).padStart(4, '0')}
             </Text>
           </View>
 
@@ -578,7 +578,13 @@ export default function EstimatePDF({
         )}
 
         {/* Sections with Line Items */}
-        {estimate.sections.map((section) => (
+        {estimate.sections
+          .map((section) => ({
+            ...section,
+            items: section.items.filter((i) => i.description.trim() !== ''),
+          }))
+          .filter((section) => section.items.length > 0)
+          .map((section) => (
           <View key={section.id} wrap>
             <View
               style={[
@@ -624,7 +630,7 @@ export default function EstimatePDF({
                   {item.quantity}
                 </Text>
                 <Text style={[styles.tableCellText, styles.colUnit]}>
-                  {item.unit ?? '-'}
+                  {item.unit ?? ''}
                 </Text>
                 <Text style={[styles.tableCellText, styles.colUnitPrice]}>
                   {fmt(item.unit_price)}

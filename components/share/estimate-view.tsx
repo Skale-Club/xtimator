@@ -207,6 +207,7 @@ export function EstimateView({
         projectType={project.project_type}
         language={(estimate.language ?? 'en') as EstimateLanguage}
         estimateVersion={estimate.version}
+        estimateSeq={estimate.estimate_seq}
         estimateCreatedAt={estimate.created_at}
       />
 

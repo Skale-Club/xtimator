@@ -6,6 +6,13 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
 import { MoneyInput } from '@/components/ui/money-input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { DEFAULT_CURRENCY_CODE, formatMoney } from '@/lib/money/currency'
 import type { EditorItem } from './use-estimate-reducer'
 
@@ -15,6 +22,7 @@ interface ItemCardMobileProps {
   onRemove: () => void
   isReadOnly?: boolean
   currencyCode?: string
+  unitOptions?: string[]
 }
 
 /**
@@ -23,13 +31,21 @@ interface ItemCardMobileProps {
  * desktop-only — on mobile the editing surface takes priority and users
  * reorder via the desktop layout when needed.
  */
+const DEFAULT_UNIT_OPTIONS = ['each', 'hour', 'day', 'sq ft', 'linear ft', 'cubic yd', 'gallon', 'lb', 'ton', 'lot']
+
 export function ItemCardMobile({
   item,
   onUpdate,
   onRemove,
   isReadOnly,
   currencyCode = DEFAULT_CURRENCY_CODE,
+  unitOptions,
 }: ItemCardMobileProps) {
+  const resolvedUnits = (() => {
+    const base = unitOptions ?? DEFAULT_UNIT_OPTIONS
+    if (item.unit && !base.includes(item.unit)) return [item.unit, ...base]
+    return base
+  })()
   const badge = item.isManuallyEdited ? (
     <Badge variant="outline" className="text-xs">Edited</Badge>
   ) : item.price_source === 'price_book' ? (
@@ -54,7 +70,7 @@ export function ItemCardMobile({
 
       <div className="grid grid-cols-[1fr,1fr,1.4fr] gap-2">
         <div>
-          <label className="text-[10px] uppercase tracking-wider text-muted-foreground">Qty</label>
+          <label className="text-[10px] uppercase tracking-wider text-muted-foreground select-none">Qty</label>
           <Input
             type="number"
             step="any"
@@ -66,17 +82,24 @@ export function ItemCardMobile({
           />
         </div>
         <div>
-          <label className="text-[10px] uppercase tracking-wider text-muted-foreground">Unit</label>
-          <Input
+          <label className="text-[10px] uppercase tracking-wider text-muted-foreground select-none">Unit</label>
+          <Select
             value={item.unit ?? ''}
-            onChange={(e) => onUpdate('unit', e.target.value || null)}
-            placeholder="ea"
-            className="h-9 w-full"
+            onValueChange={(value) => onUpdate('unit', value || null)}
             disabled={isReadOnly}
-          />
+          >
+            <SelectTrigger className="h-9 w-full">
+              <SelectValue placeholder="—" />
+            </SelectTrigger>
+            <SelectContent>
+              {resolvedUnits.map((u) => (
+                <SelectItem key={u} value={u}>{u}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <div>
-          <label className="text-[10px] uppercase tracking-wider text-muted-foreground">Unit Price</label>
+          <label className="text-[10px] uppercase tracking-wider text-muted-foreground select-none">Unit Price</label>
           <MoneyInput
             value={item.unit_price}
             currencyCode={currencyCode}
