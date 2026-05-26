@@ -15,6 +15,7 @@ export type ClientSuggestion = {
   detectedName: string
   matchedClientId: string | null
   matchedClientName: string | null
+  autoLinked: boolean
 }
 
 export type GenerateEstimateResult = {
@@ -145,7 +146,11 @@ export async function generateEstimateForProject(
   const provider = await getAIProvider(companyId)
   const aiEstimate = await provider.generateEstimate(estimateInput)
 
-  // Client suggestion — only when project has no linked client
+  // Client suggestion — only when project has no linked client.
+  // When an exact-normalized match exists, auto-link inline (service-role context
+  // bypasses RLS; cannot call an authenticated server action from Inngest/webhook).
+  // Failure of the inline update is non-fatal — estimate generation still succeeds
+  // and the toast falls back to manual "Link" via autoLinked: false.
   let clientSuggestion: ClientSuggestion | null = null
   const detectedClientName = aiEstimate.suggested_client_name?.trim()
   if (!client && detectedClientName) {
@@ -160,10 +165,30 @@ export async function generateEstimateForProject(
         normalizeClientNameForMatch(c.name as string) === normalizedDetectedName
     )
 
+    let autoLinked = false
+    if (matchedClient?.id) {
+      const { error: linkError } = await supabase
+        .from('projects')
+        .update({ client_id: matchedClient.id as string })
+        .eq('id', projectId)
+
+      if (linkError) {
+        // Non-fatal — estimate generation must still succeed.
+        // Toast will fall back to manual "Link" path on the client.
+        console.warn(
+          '[generate-estimate] auto-link failed, falling back to manual link toast',
+          linkError
+        )
+      } else {
+        autoLinked = true
+      }
+    }
+
     clientSuggestion = {
       detectedName: detectedClientName,
       matchedClientId: (matchedClient?.id as string | undefined) ?? null,
       matchedClientName: (matchedClient?.name as string | undefined) ?? null,
+      autoLinked,
     }
   }
 
