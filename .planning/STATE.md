@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
-milestone: v4.0
-milestone_name: Multi-Tenancy (Multiple Companies per User)
-status: phase_81_planned
-last_updated: "2026-05-26T12:00:00.000Z"
+milestone: v1.5
+milestone_name: Zero-friction Project Onboarding
+status: executing
+last_updated: "2026-05-26T03:37:30.173Z"
 last_activity: 2026-05-26
 progress:
-  total_phases: 79
+  total_phases: 80
   completed_phases: 60
-  total_plans: 183
-  completed_plans: 205
+  total_plans: 187
+  completed_plans: 206
 ---
 
 # Project State
@@ -22,10 +22,10 @@ progress:
 
 ## Current Position
 
-Phase: 81 — PLANNED (Company Switcher UI + Add Company flow)
-Plan: 4/4 plans created in `.planning/phases/81-company-switcher-ui-add-company-flow/` (Wave 1: 81-01 query helper; Wave 2: 81-02 switch action; Wave 3: 81-03 CompanySelector rewrite + onboarding mode=add wiring; Wave 4: 81-04 layout + sidebar mount)
-Status: Ready for `/gsd:execute-phase 81` — all 4 PLAN.md files committed, ROADMAP synced (Plans: 4)
-Last activity: 2026-05-26 - Phase 81 planned (4 plans, 4 waves) following 81-CONTEXT (SWITCH-01..19 locked) + 81-RESEARCH (HIGH confidence) + 81-VALIDATION (vitest 4.1.4)
+Phase: 81 (Company Switcher UI + Add Company flow) — EXECUTING
+Plan: 2 of 4
+Status: Ready to execute
+Last activity: 2026-05-26
 Previous: Phase 79 — COMPLETE (v4.0 foundation: company_members table + active-company resolvers + layout swap)
 
 ## v3.1.1 Phases
@@ -447,6 +447,7 @@ Previous: Phase 79 — COMPLETE (v4.0 foundation: company_members table + active
 - [Phase 79]: [Phase 79-04]: app/(app)/layout.tsx switched from getCachedCompany(claims.sub) to getActiveCompany(); billingRow keyed by .eq('id', activeCompanyId) — completes the Phase 79 multi-company foundation (D-10, D-11)
 - [Phase 79]: [Phase 79-04]: getCachedCompany export preserved in lib/queries/auth.ts — a follow-up v4.0 phase (TBD) will migrate remaining callers
 - [Phase 79]: [Phase 79-04]: static contract test pattern (read source with node:fs + regex assertions) is the right test isolation level for server-component refactors with deep import graphs — mirrors Plan 01 migration test
+- [Phase 81]: [Phase 81-01]: getMembershipCompanies co-located in lib/queries/active-company.ts per SWITCH-02; ASC by companies.created_at for stable dropdown order; request-scoped client (never service role) because Phase 79 RLS already scopes by auth.uid()
 
 ## Performance Metrics
 
@@ -595,13 +596,14 @@ Previous: Phase 79 — COMPLETE (v4.0 foundation: company_members table + active
 | Phase 79 P02 | 4min | 1 tasks | 2 files |
 | Phase 79 P03 | 10min | 1 tasks | 2 files |
 | Phase 79 P04 | 7m | 1 tasks | 2 files |
+| Phase 81 P01 | 3min | 3 tasks | 2 files |
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-13)
 
 **Core value:** Business owner → job site audio recording → sent professional estimate in under 5 minutes
-**Current focus:** Phase 79 — Multi-Company Foundation
+**Current focus:** Phase 81 — Company Switcher UI + Add Company flow
 
 ## Notes
 
