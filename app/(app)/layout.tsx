@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getCachedBranding } from '@/lib/platform-config'
 import { getAuthClaims } from '@/lib/queries/auth'
-import { getActiveCompany, getActiveCompanyId } from '@/lib/queries/active-company'
+import { getActiveCompany, getActiveCompanyId, getMembershipCompanies } from '@/lib/queries/active-company'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { Sidebar } from '@/components/app-shell/sidebar'
 import { Topbar } from '@/components/app-shell/topbar'
@@ -49,7 +49,7 @@ export default async function AppShellLayout({
     redirect('/onboarding')
   }
 
-  const [branding, adminRow, billingRow] = await Promise.all([
+  const [branding, adminRow, billingRow, memberships] = await Promise.all([
     brandingPromise, // already in flight
     requireServiceClient()
       .from('platform_admins')
@@ -63,6 +63,9 @@ export default async function AppShellLayout({
       .select('tier, tier_trial_ends_at')
       .eq('id', activeCompanyId)
       .single(),
+    // Phase 81 (SWITCH-13): membership list for the company switcher dropdown.
+    // Parallel fetch — no dependency on the prior awaits beyond auth (claims).
+    getMembershipCompanies(),
   ])
   const isAdmin = !!adminRow.data
 
@@ -84,6 +87,7 @@ export default async function AppShellLayout({
               logoUrl: branding.logoUrl,
             }}
             company={company}
+            memberships={memberships}
           />
           <div className="flex flex-1 flex-col overflow-hidden">
             <Topbar company={company} userId={claims.sub as string} isAdmin={isAdmin} />
