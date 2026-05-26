@@ -625,19 +625,19 @@ ALTER TABLE estimate_deliveries
 | A7 | `MessageCircle` is the right icon — visually distinct from SMS's `MessageSquare` | UI-SPEC | UI-SPEC locks this. Both icons confirmed to exist in lucide-react@1.8.0 runtime. |
 | A8 | The current `app/(app)/settings/integrations/page.tsx` is a placeholder with no other content to preserve | Settings → Integrations | Verified — the file is 22 lines, all placeholder content. No state lost in replacement. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Should outbound WhatsApp record a `usage_event` (quota)?**
+1. **Should outbound WhatsApp record a `usage_event` (quota)?** — RESOLVED: Locked Decision 4 (no usage_event for outbound; matches SMS; see plan 81-02 frontmatter must_haves)
    - What we know: Phase 57 enforces inbound free-tier WhatsApp at the handler. Outbound is currently uncounted (matches SMS).
    - What's unclear: Business decision — does each outbound WhatsApp send cost the platform money? (Meta Cloud API: ~$0.005 per business-initiated session, varies by region.)
    - Recommendation: SKIP for Phase 81. Mirror SMS (no quota). File a follow-up if Meta costs become material.
 
-2. **Should the PDF fallback indicator surface in the UI?**
+2. **Should the PDF fallback indicator surface in the UI?** — RESOLVED: Locked Decision 2 (API returns `fallback: "share_link"` on PDF generation failure; client surfaces explicit fallback toast — see plan 81-02 Task 1 behavior and plan 81-03 Task 2 fallback toast wording)
    - What we know: `pdf_attachment` failures fall back silently to `share_link` (mirrors `confirm.ts:handleSend`).
    - What's unclear: UX best practice — should the API return `{ success: true, deliveredAs: 'share_link', requested: 'pdf_attachment' }` and the toast say "Estimate sent via WhatsApp (share link — PDF generation failed)"?
    - Recommendation: planner decision. Lean toward honest UX (include the fallback hint in toast) given the dollar impact of a misleading "PDF sent" claim.
 
-3. **Provider value `'meta'` vs `'meta_whatsapp'` for `estimate_deliveries.provider`?**
+3. **Provider value `'meta'` vs `'meta_whatsapp'` for `estimate_deliveries.provider`?** — RESOLVED: provider='meta' is unanimous across plans 81-01 (migration CHECK adds 'meta'), 81-02 (route INSERT uses 'meta'), and threat-model audit rows; 'meta_whatsapp' remains the lib/platform-config IntegrationProvider id only
    - What we know: The platform integration uses `'meta_whatsapp'` in `IntegrationProvider` (lib/platform-config.ts line 44).
    - What's unclear: Convention — `provider` column tends to be coarser-grained ("resend" not "resend_email"). `'meta'` is consistent.
    - Recommendation: `'meta'`. Reusable if Meta Messenger / Instagram channels are added later.
