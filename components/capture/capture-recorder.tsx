@@ -78,6 +78,11 @@ export function CaptureRecorder({
   variant = 'fullscreen',
   mode,
   onComplete,
+  // onCancel is part of the public prop signature so callers (e.g. estimate-creation-popup)
+  // can keep passing handleCancel. After the 260525-wdj fix, "Edit manually" always pushes
+  // to /projects/{projectId} via router.push, so the recorder itself never calls onCancel —
+  // the popup chrome (Dialog onOpenChange) owns the X/overlay close path.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   onCancel,
 }: CaptureRecorderProps) {
   const { t } = useTranslation()
@@ -545,11 +550,7 @@ export function CaptureRecorder({
                 } : undefined}
                 onEditManually={() => {
                   toast.info(t('Continue manually in the workspace tabs.'))
-                  if (onCancel) {
-                    onCancel()
-                  } else {
-                    router.push(`/projects/${projectId}`)
-                  }
+                  router.push(`/projects/${projectId}`)
                 }}
               />
             )}
