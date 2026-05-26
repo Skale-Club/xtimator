@@ -186,6 +186,22 @@ export async function linkProjectToClient(projectId: string, clientId: string) {
   return { data: { linked: true } }
 }
 
+export async function unlinkProjectFromClient(projectId: string) {
+  const ctx = await getAuthContext()
+  if ('error' in ctx) return { error: ctx.error }
+  const { supabase } = ctx
+
+  const { error } = await supabase
+    .from('projects')
+    .update({ client_id: null })
+    .eq('id', projectId)
+
+  if (error) return { error: 'Failed to unlink client. Please try again.' }
+
+  revalidatePath(`/projects/${projectId}`, 'layout')
+  return { data: { unlinked: true } }
+}
+
 export async function renameProjectAction(projectId: string, name: string) {
   const trimmed = name.trim()
   if (!trimmed || trimmed.length === 0) {

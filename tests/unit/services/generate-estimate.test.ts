@@ -50,9 +50,24 @@ const DEFAULT_AI_OUTPUT: EstimateOutput = {
 function makeSupabaseMock({
   projectName = 'Untitled project — 5/5/2026',
   hasClient = true,
-}: { projectName?: string; hasClient?: boolean } = {}) {
-  const updateSpy = vi.fn().mockReturnValue({
-    eq: vi.fn().mockResolvedValue({ error: null }),
+  existingClients = [] as Array<{ id: string; name: string }>,
+  clientIdUpdateError = null as { message: string } | null,
+}: {
+  projectName?: string
+  hasClient?: boolean
+  existingClients?: Array<{ id: string; name: string }>
+  clientIdUpdateError?: { message: string } | null
+} = {}) {
+  const updateSpy = vi.fn().mockImplementation((payload: Record<string, unknown>) => {
+    // When updating client_id (auto-link path), respect the configurable error.
+    if (clientIdUpdateError && payload && 'client_id' in payload) {
+      return {
+        eq: vi.fn().mockResolvedValue({ error: clientIdUpdateError }),
+      }
+    }
+    return {
+      eq: vi.fn().mockResolvedValue({ error: null }),
+    }
   })
 
   const fromMock = vi.fn().mockImplementation((table: string) => {
@@ -122,7 +137,7 @@ function makeSupabaseMock({
     if (table === 'clients') {
       return {
         select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockResolvedValue({ data: [], error: null }),
+          eq: vi.fn().mockResolvedValue({ data: existingClients, error: null }),
         }),
       }
     }
@@ -310,6 +325,7 @@ describe('generateEstimateForProject', () => {
     expect(result.clientSuggestion).not.toBeNull()
     expect(result.clientSuggestion!.detectedName).toBe('Johnson')
     expect(result.clientSuggestion!.matchedClientId).toBeNull()
+    expect(result.clientSuggestion!.autoLinked).toBe(false)
   })
 
   it('does not return clientSuggestion when project already has a client', async () => {
@@ -327,5 +343,68 @@ describe('generateEstimateForProject', () => {
 
     const result = await generateEstimateForProject('company-1', 'project-1')
     expect(result.clientSuggestion).toBeNull()
+  })
+
+  it('auto-links matched client when AI detects existing name and project has no client', async () => {
+    generateEstimateMock.mockResolvedValue({
+      ...DEFAULT_AI_OUTPUT,
+      suggested_client_name: 'Johnson',
+    })
+    vi.mocked(getAIProvider).mockResolvedValue({
+      generateEstimate: generateEstimateMock,
+      refineEstimate: vi.fn(),
+    })
+
+    const { fromMock, updateSpy } = makeSupabaseMock({
+      hasClient: false,
+      existingClients: [{ id: 'client-99', name: 'Johnson' }],
+    })
+    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock } as never)
+
+    const result = await generateEstimateForProject('company-1', 'project-1')
+
+    expect(result.clientSuggestion).not.toBeNull()
+    expect(result.clientSuggestion!.detectedName).toBe('Johnson')
+    expect(result.clientSuggestion!.matchedClientId).toBe('client-99')
+    expect(result.clientSuggestion!.matchedClientName).toBe('Johnson')
+    expect(result.clientSuggestion!.autoLinked).toBe(true)
+
+    const clientIdUpdate = updateSpy.mock.calls.find(
+      (args: unknown[]) =>
+        args[0] && typeof args[0] === 'object' && 'client_id' in (args[0] as object)
+    )
+    expect(clientIdUpdate).toBeDefined()
+    expect((clientIdUpdate![0] as { client_id: string }).client_id).toBe('client-99')
+  })
+
+  it('falls back to autoLinked:false when project update errors', async () => {
+    generateEstimateMock.mockResolvedValue({
+      ...DEFAULT_AI_OUTPUT,
+      suggested_client_name: 'Johnson',
+    })
+    vi.mocked(getAIProvider).mockResolvedValue({
+      generateEstimate: generateEstimateMock,
+      refineEstimate: vi.fn(),
+    })
+
+    const { fromMock } = makeSupabaseMock({
+      hasClient: false,
+      existingClients: [{ id: 'client-99', name: 'Johnson' }],
+      clientIdUpdateError: { message: 'boom' },
+    })
+    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock } as never)
+
+    // Silence the expected console.warn from the auto-link failure path.
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    const result = await generateEstimateForProject('company-1', 'project-1')
+
+    expect(result.clientSuggestion).not.toBeNull()
+    expect(result.clientSuggestion!.detectedName).toBe('Johnson')
+    expect(result.clientSuggestion!.matchedClientId).toBe('client-99')
+    expect(result.clientSuggestion!.matchedClientName).toBe('Johnson')
+    expect(result.clientSuggestion!.autoLinked).toBe(false)
+
+    warnSpy.mockRestore()
   })
 })

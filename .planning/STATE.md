@@ -22,11 +22,10 @@ progress:
 
 ## Current Position
 
-Phase: 999.1
-Plan: Not started
-Status: Phase complete — ready for verification
-Last activity: 2026-05-26
-Previous: Phase 79 — COMPLETE (v4.0 foundation: company_members table + active-company resolvers + layout swap)
+Phase: 81 — COMPLETE (v4.0 switcher UI: CompanySelector mounted in sidebar + switchActiveCompany action + onboarding ?mode=add wired)
+Plan: 4/4 plans shipped, VERIFICATION passed (18/19 automated + 1 HUMAN-UAT auto-approved per user memory)
+Status: v4.0 foundation + switcher UI shipped — RLS rewrite / billing per-company / server-action sweep still pending
+Last activity: 2026-05-26 - Phase 81 closed; multiple quick tasks merged from origin/main (260526-0hv dashboard filters, 260526-08v audio UI overlay, 260526-02j auto-link client)
 
 ## v3.1.1 Phases
 
@@ -679,6 +678,8 @@ v3.1: Phases 61-65 (started 2026-05-15). Production Go-Live — 27 requirements 
 | 260525-w41 | Hide Generate Estimate button when mode is audio (auto-triggers on recording stop) | 2026-05-25 | 13e0511 | [260525-w41-hide-generate-estimate-button-when-mode-](.planning/quick/260525-w41-hide-generate-estimate-button-when-mode-/) |
 | 260525-wc6 | Audio transcription pipeline: OpenRouter 5xx retry + OpenAI fallback in transcribeAudioOR, and read transcript/estimateId from DB after pollJob (Inngest dev returns empty function output) | 2026-05-26 | 269cfdb | [260525-wc6-fix-audio-transcription-500-error-add-5x](.planning/quick/260525-wc6-fix-audio-transcription-500-error-add-5x/) |
 | 260525-wdj | Fix "Edit manually" navigation after audio transcription failure — land in created project workspace, not /projects list | 2026-05-26 | 039afb5 | [260525-wdj-ap-s-dar-erro-na-transcri-o-de-um-audio-](.planning/quick/260525-wdj-ap-s-dar-erro-na-transcri-o-de-um-audio-/) |
+| 260526-08v | Hide audio recording UI during estimate processing, replace four-step stepper with calm three-blue-dots overlay | 2026-05-26 | 895826e | [260526-08v-ao-criar-um-novo-projeto-e-gravar-um-aud](.planning/quick/260526-08v-ao-criar-um-novo-projeto-e-gravar-um-aud/) |
+| 260526-0hv | Fix dashboard status filter tabs (replace stale STATUS_FILTERS with real project.status values) | 2026-05-26 | 7f98789 | [260526-0hv-corrigir-filtros-de-status-do-dashboard-](.planning/quick/260526-0hv-corrigir-filtros-de-status-do-dashboard-/) |
 | 2026-05-18 | fast | Center auth card logo+wordmark | done |
 | 2026-05-19 | fast | Make audio capture screen scrollable on smaller viewports | done |
 | 2026-05-18 | fast | Restyle sidebar New Project as filled gradient, remove dashboard CTA | done |
