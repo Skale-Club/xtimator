@@ -1,31 +1,31 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.5
-milestone_name: Zero-friction Project Onboarding
-status: v4.0 foundation + switcher UI shipped — RLS rewrite / billing per-company / server-action sweep still pending
-last_updated: "2026-05-26T04:25:20.007Z"
+milestone: v4.0
+milestone_name: Multi-Tenancy (Multiple Companies per User)
+status: shipped
+last_updated: "2026-05-26T04:30:00.000Z"
 last_activity: 2026-05-26
 progress:
-  total_phases: 84
-  completed_phases: 61
-  total_plans: 187
-  completed_plans: 213
+  total_phases: 85
+  completed_phases: 85
+  total_plans: 191
+  completed_plans: 217
 ---
 
 # Project State
 
 ## Current Status
 
-- **Milestone**: v4.0 Multi-Tenancy — Defining requirements (no phases yet)
-- **Previous milestone (in progress)**: v3.1.1 MVP Launch Prep + Future-Proofing — phases 73-78 still pending
-- **Last updated**: 2026-05-25
+- **Milestone**: v4.0 Multi-Tenancy — ✅ SHIPPED 2026-05-26 — archived to `.planning/milestones/v4.0-ROADMAP.md`
+- **Next milestone**: not yet defined — run `/gsd:new-milestone` to start the next cycle
+- **Last updated**: 2026-05-26
 
 ## Current Position
 
-Phase: 999.1
-Plan: Not started
-Status: v4.0 foundation + switcher UI shipped — RLS rewrite / billing per-company / server-action sweep still pending
-Last activity: 2026-05-26
+Phase: — (between milestones)
+Plan: —
+Status: v4.0 milestone complete. Tag `v4.0` applied. Ready to plan the next milestone.
+Last activity: 2026-05-26 - v4.0 Multi-Tenancy milestone archived; 6 phases shipped (79, 81, 82, 83, 84, 85) + Phase 80 in parallel timeline. 98/98 v4.0 tests green at close-out. 4 prod migrations applied. DROP COLUMN companies.user_id deferred to v5+.
 
 ## v3.1.1 Phases
 

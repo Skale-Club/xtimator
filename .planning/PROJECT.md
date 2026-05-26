@@ -22,7 +22,19 @@ Phase 61 only — production database foundation. Built cross-platform RLS audit
 
 Complete subscription system: Free/Trial/Pro/Business tiers, `usage_events` tracking, `checkQuota`/`recordUsage` enforcement across all AI routes and WhatsApp handler, Stripe checkout + portal + webhook lifecycle, `/settings/billing` UI with trial banner and 402 upgrade modal, hourly trial expiry cron + T-3/T-0 warning emails, admin force-tier + bonus credits + MRR view. 6 phases, 24/24 requirements satisfied.
 
-## Current Milestone: v4.0 Multi-Tenancy (Multiple Companies per User)
+## Last Milestone: v4.0 Multi-Tenancy ✅ (shipped 2026-05-26)
+
+Multi-company foundation, Switcher UI, full RLS rewrite (46 policies / 13 tables), server-action sweep (11 files codemodded), billing per-company (already per-company at the data layer), and multi-company access on the `companies` table via OR-extended RLS. A user can now own and operate multiple companies end-to-end via the Switcher UI, with correct tenant scoping at the DB layer, the action layer, and the UI layer. DROP COLUMN `companies.user_id` deferred to v5+ cleanup. Full archive: [.planning/milestones/v4.0-ROADMAP.md](milestones/v4.0-ROADMAP.md). 6 phases (79, 80, 81, 82, 83, 84, 85), 16 plans, 11 new test files, 98/98 tests green, 4 prod migrations applied.
+
+## Next Milestone
+
+Run `/gsd:new-milestone` to define the next cycle. Candidates surfaced during v4.0 work:
+- **v4.1 Inngest self-hosted on Hetzner** — placeholder phase 999.1 in current roadmap; aligned with SEED-018 (production hosting).
+- **v4.2 Cleanup of `companies.user_id`** — picks up where Phase 85 stopped; depends on refactoring auth.ts redirect, company.ts mode:'first', and inngest transcribe-audio attribution off the legacy column.
+- **v5.0 Admin/Member roles + invites** — opens `company_members.role` to non-owner tiers; needs a full product pass on permissions matrix.
+- **MCP Server (SEED-030 trigger)** — locked decisions captured in `.planning/seeds/SEED-030-mcp-server-xtimator.md`; activates once the core estimates pipeline is end-to-end stable in production.
+
+## Archived Milestone Context: v4.0 Multi-Tenancy (Multiple Companies per User)
 
 **Goal:** A single user can own and switch between multiple companies; every tenant-scoped surface (projects, clients, estimates, price book, integrations, billing, notifications) is gated by the active company instead of `auth.uid()`.
 

@@ -1,5 +1,23 @@
 # Milestones
 
+## v4.0 Multi-Tenancy — Multiple Companies per User (Shipped: 2026-05-26)
+
+**Phases completed:** 6 in scope (79, 81, 82, 83, 84, 85; Phase 80 ran in parallel and is bundled in the archive) · ~16 plan artifacts · 11 new test files · 98/98 tests green at close-out · 4 prod migrations applied
+
+**Key accomplishments:**
+
+- `company_members(user_id, company_id, role)` join table live in prod with idempotent backfill (1 owner per existing company) and `auth.uid()`-gated RLS — multi-tenancy backbone (Phase 79).
+- Cookie-based active-company tracking (`active_company_id` httpOnly cookie, 30d rolling) + colocated server helpers `getActiveCompanyId()` / `getActiveCompany()` / `getMembershipCompanies()` (Phases 79 + 81).
+- Switcher UI mounted in BOTH sidebar render trees with `useTransition` pending UX. "+ Add new company" routes to `/onboarding?mode=add` which threads `mode: 'add'` end-to-end into `createOrUpdateCompany` (Phase 81).
+- 46 tenant-scoped RLS policies across 13 tables rewritten to gate by `company_members` instead of `companies.user_id` (Phase 82) — single idempotent migration with in-migration `RAISE EXCEPTION` assertion.
+- 11 server-action files codemodded to derive `company_id` from the active cookie (Phase 83). 3 files allowlisted with documented rationale.
+- Billing already per-company at the data layer since prior milestones — Phase 84 closed as investigation-only.
+- `companies_*` RLS extended with `OR company_members` clause so multi-company users can SELECT/UPDATE/DELETE rows for every company they belong to (Phase 85). DROP COLUMN `companies.user_id` deferred to v5+.
+
+**Full archive:** [.planning/milestones/v4.0-ROADMAP.md](milestones/v4.0-ROADMAP.md) · [.planning/milestones/v4.0-REQUIREMENTS.md](milestones/v4.0-REQUIREMENTS.md)
+
+---
+
 ## v3.0 Monetization (Shipped: 2026-05-14)
 
 **Phases completed:** 16 phases, 25 plans, 39 tasks
