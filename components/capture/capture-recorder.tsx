@@ -8,6 +8,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { CaptureTimer } from '@/components/capture/capture-timer'
 import { CaptureStepper } from '@/components/capture/capture-stepper'
+import { CaptureProcessingOverlay } from '@/components/capture/capture-processing-overlay'
 import { CaptureFailure } from '@/components/capture/capture-failure'
 import { VoiceRecorder } from '@/components/workspace/audio/voice-recorder'
 import { createRecording, transcribeRecording, createTextRecording } from '@/lib/actions/recording'
@@ -138,6 +139,12 @@ export function CaptureRecorder({
     }
     setAnalyser(null)
     setIsRecording(false)
+    // Flip stage synchronously so React never paints an interim frame with
+    // stage='idle' && isRecording=false (which would re-show the recorder UI).
+    // runPipeline() will also call setStage('saving') from the async onstop
+    // handler — that's idempotent. The functional guard preserves the current
+    // stage if a retry / fullscreen path has already advanced past 'idle'.
+    setStage((s) => s === 'idle' ? 'saving' : s)
   }, [])
 
   // Tick — wall-clock elapsed (RESEARCH Pattern 4)
@@ -531,7 +538,11 @@ export function CaptureRecorder({
   const progress = Math.min(elapsedMs / HARD_CAP_MS, 1)  // ring fill 0..1
 
   const isIdle = stage === 'idle'
-  const showRecorderUI = isIdle || stage === 'done'
+  // NOTE: stage === 'done' intentionally NOT in showRecorderUI — it would
+  // briefly flash the recorder UI back into view on the final tick before
+  // onComplete() closes the dialog. The processing overlay keeps showing
+  // until the parent dismisses the dialog.
+  const showRecorderUI = isIdle
 
   // Effective mode for the progress stepper:
   // - popup flow: the single-modality lock wins (mode prop)
@@ -586,7 +597,34 @@ export function CaptureRecorder({
           // Single-modality lock (undefined in legacy fullscreen route → all three blocks)
           mode={mode}
         />
+      ) : isPopup ? (
+        // Popup variant — calm three-blue-dots overlay over a neutral surface.
+        // `relative` provides the positioning context for the absolutely-positioned
+        // overlay; `min-h-[260px]` ensures the overlay has visible space even on
+        // short content (the parent Dialog already constrains max-height).
+        <div className="relative flex-1 min-h-[260px]">
+          {!failedAt && <CaptureProcessingOverlay stage={stage} />}
+          {failedAt && (
+            <div className="flex-1 flex items-center justify-center p-4">
+              <div className="w-full max-w-md">
+                <CaptureFailure
+                  errorMessage={errorMessage ?? t('Something went wrong')}
+                  retriesUsed={retriesUsed}
+                  onRetry={audioBlob ? () => {
+                    setRetriesUsed(r => r + 1)
+                    runPipeline(audioBlob)
+                  } : undefined}
+                  onEditManually={() => {
+                    toast.info(t('Continue manually in the workspace tabs.'))
+                    router.push(`/projects/${projectId}`)
+                  }}
+                />
+              </div>
+            </div>
+          )}
+        </div>
       ) : (
+        // Legacy fullscreen /capture route — keep the existing CaptureStepper UX.
         <div className="flex-1 flex items-center justify-center p-4">
           <div className="w-full max-w-md space-y-6">
             <CaptureStepper currentStage={stage} failedAt={failedAt} transcript={transcript} mode={activeMode} />
