@@ -3,12 +3,13 @@
 import type { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime'
 import { toast } from 'sonner'
 
-import { linkProjectToClient } from '@/lib/actions/project'
+import { linkProjectToClient, unlinkProjectFromClient } from '@/lib/actions/project'
 
 export type ClientSuggestion = {
   detectedName: string
   matchedClientId: string | null
   matchedClientName: string | null
+  autoLinked: boolean
 }
 
 export type GenerateEstimateResponse = {
@@ -56,6 +57,27 @@ export function showClientSuggestionToast({
 }) {
   if (!suggestion) return
 
+  // Auto-link succeeded server-side — show informative toast with Undo
+  if (suggestion.autoLinked && suggestion.matchedClientId) {
+    toast(`Client auto-linked: ${suggestion.matchedClientName ?? suggestion.detectedName}`, {
+      description: `Detected from audio: "${suggestion.detectedName}"`,
+      action: {
+        label: 'Undo',
+        onClick: async () => {
+          const result = await unlinkProjectFromClient(projectId)
+          if ('error' in result) {
+            toast.error(result.error)
+            return
+          }
+          toast.success('Client unlinked')
+          router.refresh()
+        },
+      },
+    })
+    return
+  }
+
+  // Match exists but auto-link failed (e.g. server update errored) — fallback to manual Link
   if (suggestion.matchedClientId) {
     toast(`Detected client: ${suggestion.detectedName}`, {
       description: `Match found: ${suggestion.matchedClientName ?? suggestion.detectedName}`,
@@ -75,6 +97,7 @@ export function showClientSuggestionToast({
     return
   }
 
+  // No match — review existing clients (unchanged)
   toast(`Detected client: ${suggestion.detectedName}`, {
     description: 'No existing client matched this name.',
     action: {
