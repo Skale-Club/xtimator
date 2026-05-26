@@ -39,7 +39,7 @@ function makeProject(overrides: Partial<ProjectWithClient> = {}): ProjectWithCli
 const sampleProjects: ProjectWithClient[] = [
   makeProject({ id: '1', name: 'Kitchen Remodel', status: 'draft', client: { id: 'c1', name: 'John Smith' } }),
   makeProject({ id: '2', name: 'Bathroom Tile', status: 'sent', client: { id: 'c2', name: 'Jane Doe' } }),
-  makeProject({ id: '3', name: 'Deck Build', status: 'accepted', client: { id: 'c3', name: 'Bob Jones' } }),
+  makeProject({ id: '3', name: 'Deck Build', status: 'estimate_ready', client: { id: 'c3', name: 'Bob Jones' } }),
 ]
 
 describe('ProjectList', () => {
@@ -78,16 +78,16 @@ describe('ProjectList', () => {
 
   it('status filter shows only matching projects', () => {
     render(<ProjectList projects={sampleProjects} />)
-    // Use getAllByRole to get all buttons, then find the filter button for "accepted"
-    // "accepted" status only has 1 project (Deck Build) and the filter button
+    // Use getAllByRole to get all buttons, then find the filter button for "estimate_ready"
+    // "estimate_ready" status only has 1 project (Deck Build) and the filter button
     const buttons = screen.getAllByRole('button')
-    const acceptedFilterBtn = buttons.find(
-      (btn) => btn.textContent === 'accepted' && btn.getAttribute('data-slot') === 'button'
+    const estimateReadyFilterBtn = buttons.find(
+      (btn) => btn.textContent === 'estimate_ready' && btn.getAttribute('data-slot') === 'button'
     )
-    expect(acceptedFilterBtn).toBeDefined()
-    fireEvent.click(acceptedFilterBtn!)
+    expect(estimateReadyFilterBtn).toBeDefined()
+    fireEvent.click(estimateReadyFilterBtn!)
 
-    // Deck Build is accepted
+    // Deck Build is estimate_ready
     expect(screen.getAllByText('Deck Build').length).toBeGreaterThanOrEqual(1)
     // Others should be filtered out
     expect(screen.queryAllByText('Kitchen Remodel').length).toBe(0)

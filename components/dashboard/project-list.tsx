@@ -6,13 +6,9 @@ import { ProjectTable } from '@/components/projects/project-table'
 
 const STATUS_FILTERS = [
   'all',
+  'recording',
   'draft',
-  'processing',
-  'ready',
-  'sent',
-  'accepted',
-  'declined',
-  'archived',
+  'estimate_ready',
 ] as const
 
 interface ProjectListProps {
