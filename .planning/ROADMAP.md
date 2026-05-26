@@ -990,3 +990,43 @@ Plans:
 - [x] 81-02-PLAN.md — switchActiveCompany server action + unit tests (SWITCH-06, SWITCH-08)
 - [x] 81-03-PLAN.md — CompanySelector rewrite (useTransition + switch action + Add link) + onboarding ?mode=add wiring (SWITCH-01, SWITCH-07, SWITCH-08, SWITCH-09, SWITCH-10, SWITCH-11, SWITCH-12, SWITCH-17)
 - [x] 81-04-PLAN.md — Layout fetches memberships + Sidebar mounts CompanySelector in both render trees (SWITCH-13, SWITCH-14, SWITCH-15)
+
+### Phase 82: v4.0 RLS Rewrite — tenant-scoped tables gate by company_members
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase TBD
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 82 to break down)
+
+### Phase 83: v4.0 Server-Action Sweep — derive company_id from cookie
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase TBD
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 83 to break down)
+
+### Phase 84: v4.0 Billing Per-Company — tier and trial scoped to company
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase TBD
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 84 to break down)
+
+### Phase 85: v4.0 Drop companies.user_id — final multi-tenant cleanup
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase TBD
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 85 to break down)
