@@ -19,10 +19,6 @@ import { compressImage } from '@/lib/utils/image-compressor'
 import { Camera, Loader2 } from 'lucide-react'
 import type { ProjectDetail } from '@/lib/queries/project'
 import type { Photo } from '@/lib/queries/photo'
-import {
-  storeClientSuggestion,
-  type GenerateEstimateResponse,
-} from '@/components/workspace/estimate/client-suggestion-toast'
 import { pollJob } from '@/hooks/use-job-status'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { useLanguage } from '@/lib/i18n/language-context'
@@ -262,14 +258,28 @@ export function CaptureRecorder({
       }
       const { jobId } = (await dispatchRes.json()) as { jobId: string }
 
-      // Poll Inngest until the function reports terminal status.
-      const output = (await pollJob(jobId, abortControllerRef.current.signal)) as GenerateEstimateResponse
+      // Poll Inngest until the function reports terminal status, then read the
+      // newly-current estimate row from the DB. The Inngest dev server returns
+      // `output: ""` for our generate-estimate function (see runPipeline note
+      // above for root cause), so we cannot trust pollJob's returned payload.
+      await pollJob(jobId, abortControllerRef.current.signal)
+      const supabase = createClient()
+      const { data: estRow } = await supabase
+        .from('estimates')
+        .select('id')
+        .eq('project_id', projectId)
+        .eq('is_current', true)
+        .single()
+      const estimateId = (estRow?.id as string | undefined) ?? null
+      if (!estimateId) {
+        failAt('generating', t('Estimate generation completed but no estimate was found'))
+        return
+      }
       setStage('done')
-      storeClientSuggestion(projectId, output.clientSuggestion)
       if (onComplete) {
-        onComplete(output.estimateId)
+        onComplete(estimateId)
       } else {
-        router.push(`/projects/${projectId}?tab=estimate&estimate=${output.estimateId}`)
+        router.push(`/projects/${projectId}?tab=estimate&estimate=${estimateId}`)
       }
     } catch (err) {
       if ((err as Error).name === 'AbortError') return
@@ -304,6 +314,13 @@ export function CaptureRecorder({
     if ('error' in created) { failAt('saving', created.error ?? t('Failed to save recording')); return }
 
     // Transcribe — Phase 67: dispatch returns { jobId }, poll until terminal.
+    // NOTE: the Inngest dev server returns `output: ""` for our function despite
+    // it returning { transcript } (multiple step.run + a fire-and-forget
+    // `void notify(...)` at the end appear to drop the final return value from
+    // the SDK's run output). The `save-transcript` step already persists the
+    // transcript to recordings.transcript, so we read it from the DB once
+    // pollJob signals Completed. Same pattern used by
+    // components/workspace/ai-input-group/use-ai-input-submit.ts.
     setStage('transcribing')
     const dispatched = await transcribeRecording(created.data.id as string)
     if ('error' in dispatched) {
@@ -311,15 +328,21 @@ export function CaptureRecorder({
       return
     }
     try {
-      const transcribeOutput = (await pollJob(
+      await pollJob(
         (dispatched.data as { jobId: string }).jobId,
         abortControllerRef.current.signal
-      )) as { transcript: string }
-      if (!transcribeOutput.transcript?.trim()) {
+      )
+      const { data: recRow } = await supabase
+        .from('recordings')
+        .select('transcript')
+        .eq('id', created.data.id as string)
+        .single()
+      const transcribedText = ((recRow?.transcript as string | null) ?? '').trim()
+      if (!transcribedText) {
         failAt('transcribing', t("We couldn't catch your description | please try again or edit manually."))
         return
       }
-      setTranscript(transcribeOutput.transcript)
+      setTranscript(transcribedText)
     } catch (err) {
       if ((err as Error).name === 'AbortError') return
       failAt('transcribing', (err as Error).message ?? t('Transcription failed'))
@@ -345,13 +368,27 @@ export function CaptureRecorder({
       // Stepper progression: dispatch accepted → flip to "generating" while we poll.
       setStage('generating')
 
-      const output = (await pollJob(jobId, abortControllerRef.current.signal)) as GenerateEstimateResponse
-      storeClientSuggestion(projectId, output.clientSuggestion)
+      // Same Inngest dev-server output quirk as transcription above — read the
+      // newly-current estimate row from the DB instead of trusting pollJob's
+      // returned shape. (Tradeoff: clientSuggestion toast is skipped on this
+      // path because it isn't persisted; non-critical UX nicety.)
+      await pollJob(jobId, abortControllerRef.current.signal)
+      const { data: estRow } = await supabase
+        .from('estimates')
+        .select('id')
+        .eq('project_id', projectId)
+        .eq('is_current', true)
+        .single()
+      const estimateId = (estRow?.id as string | undefined) ?? null
+      if (!estimateId) {
+        failAt('analyzing', t('Estimate generation completed but no estimate was found'))
+        return
+      }
       setStage('done')
       if (onComplete) {
-        onComplete(output.estimateId)
+        onComplete(estimateId)
       } else {
-        router.push(`/projects/${projectId}?tab=estimate&estimate=${output.estimateId}`)
+        router.push(`/projects/${projectId}?tab=estimate&estimate=${estimateId}`)
       }
     } catch (err) {
       if ((err as Error).name === 'AbortError') return  // unmount; not a user-facing failure
@@ -393,13 +430,26 @@ export function CaptureRecorder({
         }
         const { jobId } = (await dispatchRes.json()) as { jobId: string }
         setStage('generating')
-        const output = (await pollJob(jobId, abortControllerRef.current.signal)) as GenerateEstimateResponse
-        storeClientSuggestion(projectId, output.clientSuggestion)
+        // Read estimate from DB after pollJob — see runPipeline note for why
+        // the Inngest dev server returns an empty function output.
+        await pollJob(jobId, abortControllerRef.current.signal)
+        const supabase = createClient()
+        const { data: estRow } = await supabase
+          .from('estimates')
+          .select('id')
+          .eq('project_id', projectId)
+          .eq('is_current', true)
+          .single()
+        const estimateId = (estRow?.id as string | undefined) ?? null
+        if (!estimateId) {
+          failAt('generating', t('Estimate generation completed but no estimate was found'))
+          return
+        }
         setStage('done')
         if (onComplete) {
-          onComplete(output.estimateId)
+          onComplete(estimateId)
         } else {
-          router.push(`/projects/${projectId}?tab=estimate&estimate=${output.estimateId}`)
+          router.push(`/projects/${projectId}?tab=estimate&estimate=${estimateId}`)
         }
       } catch (err) {
         if ((err as Error).name === 'AbortError') return
