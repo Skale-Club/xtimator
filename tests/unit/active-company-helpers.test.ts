@@ -52,24 +52,20 @@ function makeAuthedSupabase({
   const limit = vi.fn().mockResolvedValue(fallbackResult)
   const order = vi.fn().mockReturnValue({ limit })
 
-  // Validation chain: select.eq.eq.maybeSingle
-  const eq2Validate = vi.fn().mockReturnValue({ maybeSingle })
-  const eq1Validate = vi.fn().mockReturnValue({ eq: eq2Validate })
-
-  // Fallback chain: select.eq.order.limit
-  const eq1Fallback = vi.fn().mockReturnValue({ order })
-
-  let selectCallCount = 0
-  const select = vi.fn().mockImplementation(() => {
-    selectCallCount++
-    return selectCallCount === 1
-      ? { eq: eq1Validate }
-      : { eq: eq1Fallback }
+  // The .eq() chain disambiguates validate (.eq.eq.maybeSingle) vs fallback (.eq.order.limit)
+  // by returning an object that supports BOTH `.eq()` (validation continuation) AND
+  // `.order()` (fallback continuation). The implementation drives which path runs.
+  const eqLeaf = {
+    eq: vi.fn().mockReturnValue({ maybeSingle }),
+    order,
+  }
+  const select = vi.fn().mockReturnValue({
+    eq: vi.fn().mockReturnValue(eqLeaf),
   })
 
   return {
     from: vi.fn().mockReturnValue({ select }),
-    _spies: { maybeSingle, limit, order, eq1Validate, eq2Validate, eq1Fallback, select },
+    _spies: { maybeSingle, limit, order, select, eqLeaf },
   }
 }
 
