@@ -1,15 +1,28 @@
 // Phase 86: canonical issuer URL resolver.
+// Phase 86 hotfix 2026-05-26: production must resolve to https://xtimator.com,
+// not the per-deployment Vercel preview URL (xtimator-XXXX-skaleclub.vercel.app).
 //
-// Resolution order (per SEED-030 / spec):
-//   1. NEXT_PUBLIC_APP_URL (if set)
-//   2. VERCEL_URL (auto-set by Vercel — must be prefixed with https://)
-//   3. fallback to the incoming request's origin
+// Resolution order:
+//   1. NEXT_PUBLIC_APP_URL (explicit override — wins everywhere)
+//   2. VERCEL_ENV === 'production' → CANONICAL_PRODUCTION_URL (https://xtimator.com)
+//      This handles the case where NEXT_PUBLIC_APP_URL was forgotten in Vercel env vars;
+//      production deployments always emit the canonical domain so OAuth issuer / .well-known
+//      metadata is stable across deploys.
+//   3. VERCEL_URL (preview deployments — each deploy gets its own URL, OAuth flow works
+//      against that preview only, useful for testing)
+//   4. fallback to the incoming request's origin (localhost dev)
 
 import { headers } from 'next/headers'
+
+/** Canonical production URL — matches the convention in lib/billing/connect-webhook.ts,
+ *  lib/whatsapp/confirm.ts, and app/api/cron/trial-warning-emails/route.ts. */
+const CANONICAL_PRODUCTION_URL = 'https://xtimator.com'
 
 export async function resolveIssuer(): Promise<string> {
   const explicit = process.env.NEXT_PUBLIC_APP_URL
   if (explicit) return stripTrailingSlash(explicit)
+
+  if (process.env.VERCEL_ENV === 'production') return CANONICAL_PRODUCTION_URL
 
   const vercel = process.env.VERCEL_URL
   if (vercel) return `https://${vercel}`
