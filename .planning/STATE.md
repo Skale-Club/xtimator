@@ -25,7 +25,7 @@ progress:
 Phase: Not started (defining requirements)
 Plan: —
 Status: Defining requirements
-Last activity: 2026-05-25 - Completed quick task 260525-w41: Hide Generate Estimate button when mode is audio (auto-triggers on recording stop)
+Last activity: 2026-05-26 - Completed quick task 260525-wc6: Fix audio transcription 500 error: add 5xx retry + OpenAI fallback in transcribeAudioOR
 
 ## v3.1.1 Phases
 
@@ -652,6 +652,7 @@ v3.1: Phases 61-65 (started 2026-05-15). Production Go-Live — 27 requirements 
 | 260525-mim | Estimate-creation popup: render only the input matching the selected modality (audio / text / photos) | 2026-05-25 | fa6ce8b | [260525-mim-popup-capture-recorder-render-only-the-i](.planning/quick/260525-mim-popup-capture-recorder-render-only-the-i/) |
 | 260525-oij | Fix client form not populating after linking existing client in project workspace | 2026-05-25 | c8ff358 | [260525-oij-fix-client-form-not-populating-after-lin](.planning/quick/260525-oij-fix-client-form-not-populating-after-lin/) |
 | 260525-w41 | Hide Generate Estimate button when mode is audio (auto-triggers on recording stop) | 2026-05-25 | 13e0511 | [260525-w41-hide-generate-estimate-button-when-mode-](.planning/quick/260525-w41-hide-generate-estimate-button-when-mode-/) |
+| 260525-wc6 | Fix audio transcription 500 error: add 5xx retry + OpenAI fallback in transcribeAudioOR | 2026-05-26 | e2b8e43 | [260525-wc6-fix-audio-transcription-500-error-add-5x](.planning/quick/260525-wc6-fix-audio-transcription-500-error-add-5x/) |
 | 2026-05-18 | fast | Center auth card logo+wordmark | done |
 | 2026-05-19 | fast | Make audio capture screen scrollable on smaller viewports | done |
 | 2026-05-18 | fast | Restyle sidebar New Project as filled gradient, remove dashboard CTA | done |
