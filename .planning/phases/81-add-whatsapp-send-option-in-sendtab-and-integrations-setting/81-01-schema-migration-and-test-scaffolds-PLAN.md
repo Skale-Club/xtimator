@@ -19,7 +19,7 @@ must_haves:
     - "estimate_deliveries.channel CHECK accepts 'whatsapp' in addition to 'email' and 'sms'"
     - "estimate_deliveries.provider CHECK accepts 'meta' in addition to 'resend' and 'twilio'"
     - "supabase db push applied successfully against the dev database; smoke INSERT with channel='whatsapp', provider='meta' returns no constraint violation"
-    - "Test scaffolds exist with explicit failing assertions (RED) for the Wave 1 API route and UI tab"
+    - "Test scaffolds exist with `it.todo` placeholders matching RESEARCH.md test-map names — Wave 1 flips each to GREEN (preserves Phase 12/18 convention cited in Task 3 action)"
   artifacts:
     - path: "supabase/migrations/20260526000001_phase81_whatsapp_delivery_channel.sql"
       provides: "DROP + ADD CONSTRAINT for channel and provider"
@@ -171,7 +171,7 @@ ALTER TABLE estimate_deliveries
   <done>Migration SQL file exists with both extended CHECK constraints, types/database.types.ts has manual extension for estimate_deliveries channel/provider literals, and tsc passes — readiness for Task 2 schema push.</done>
 </task>
 
-<task type="auto" tdd="false">
+<task type="checkpoint:human-action" tdd="false">
   <name>Task 2: [BLOCKING] Push migration to Supabase + smoke INSERT</name>
   <files>supabase/migrations/20260526000001_phase81_whatsapp_delivery_channel.sql (already exists from Task 1 — this task does NOT modify the file; it applies the migration to the live dev database via supabase db push)</files>
   <read_first>
@@ -217,7 +217,7 @@ ALTER TABLE estimate_deliveries
     5. If `npx supabase db push` requires interactive auth and cannot be suppressed, PAUSE and ask the user to run the push manually (`supabase db push` in their terminal) and confirm before continuing. Mark the task complete only after the user types "applied".
   </action>
   <verify>
-    <automated>echo "[BLOCKING] human-action: verification is the executor's confirmation that supabase db push completed AND smoke INSERT returned 'INSERT 0 1' (then ROLLBACK). No CI-driveable verify command exists for this step."</automated>
+    <automated>npx supabase db remote query --query "SELECT pg_get_constraintdef(oid) AS def FROM pg_constraint WHERE conname IN ('estimate_deliveries_channel_check','estimate_deliveries_provider_check')" 2>&1 | grep -q "whatsapp" && npx supabase db remote query --query "SELECT pg_get_constraintdef(oid) AS def FROM pg_constraint WHERE conname IN ('estimate_deliveries_channel_check','estimate_deliveries_provider_check')" 2>&1 | grep -q "meta"</automated>
   </verify>
   <acceptance_criteria>
     - `supabase db push` completed without constraint-violation errors
