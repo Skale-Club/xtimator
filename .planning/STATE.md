@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Multi-Tenancy (Multiple Companies per User)
-status: phase_79_complete
-last_updated: "2026-05-26T02:55:00.000Z"
+status: phase_81_planned
+last_updated: "2026-05-26T12:00:00.000Z"
 last_activity: 2026-05-26
 progress:
   total_phases: 79
@@ -22,10 +22,11 @@ progress:
 
 ## Current Position
 
-Phase: 79 — COMPLETE (v4.0 foundation: company_members table + active-company resolvers + layout swap)
-Plan: 4/4 plans shipped, VERIFICATION passed, HUMAN-UAT auto-approved per user memory
-Status: v4.0 foundation slice complete — Switcher UI / Add Company flow not yet planned
-Last activity: 2026-05-26 - Phase 79 closed; sync timelines + merged origin/main (quick tasks wdj/wc6/w41/oij/mim/mur)
+Phase: 81 — PLANNED (Company Switcher UI + Add Company flow)
+Plan: 4/4 plans created in `.planning/phases/81-company-switcher-ui-add-company-flow/` (Wave 1: 81-01 query helper; Wave 2: 81-02 switch action; Wave 3: 81-03 CompanySelector rewrite + onboarding mode=add wiring; Wave 4: 81-04 layout + sidebar mount)
+Status: Ready for `/gsd:execute-phase 81` — all 4 PLAN.md files committed, ROADMAP synced (Plans: 4)
+Last activity: 2026-05-26 - Phase 81 planned (4 plans, 4 waves) following 81-CONTEXT (SWITCH-01..19 locked) + 81-RESEARCH (HIGH confidence) + 81-VALIDATION (vitest 4.1.4)
+Previous: Phase 79 — COMPLETE (v4.0 foundation: company_members table + active-company resolvers + layout swap)
 
 ## v3.1.1 Phases
 

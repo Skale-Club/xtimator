@@ -975,7 +975,7 @@ Plans:
 
 **Depends on:** Phase 79 (foundation: `company_members` table, `getActiveCompanyId`/`getActiveCompany` helpers, `createOrUpdateCompany('add')` mode, layout already reads via active-company resolvers)
 
-**Requirements:** SWITCH-01..05 (TBD — gathered via `/gsd:discuss-phase 81`)
+**Requirements:** SWITCH-01, SWITCH-02, SWITCH-03, SWITCH-04, SWITCH-05, SWITCH-06, SWITCH-07, SWITCH-08, SWITCH-09, SWITCH-10, SWITCH-11, SWITCH-12, SWITCH-13, SWITCH-14, SWITCH-15, SWITCH-16, SWITCH-17, SWITCH-18, SWITCH-19
 
 **Out of scope** (for future v4.0 phases):
 - RLS rewrite of tenant-scoped tables (projects/clients/estimates/etc. still gate by `companies.user_id IN (...)`)
@@ -983,7 +983,10 @@ Plans:
 - Server-action sweep across `lib/actions/*.ts`
 - Inviting other users to existing companies (v5+ scope)
 
-**Plans:** 0 plans
+**Plans:** 4 plans
 
 Plans:
-- [ ] TBD (run `/gsd:discuss-phase 81` to gather context, then `/gsd:plan-phase 81` to break down)
+- [ ] 81-01-PLAN.md — getMembershipCompanies query helper + extended unit tests (SWITCH-04, SWITCH-02)
+- [ ] 81-02-PLAN.md — switchActiveCompany server action + unit tests (SWITCH-06, SWITCH-08)
+- [ ] 81-03-PLAN.md — CompanySelector rewrite (useTransition + switch action + Add link) + onboarding ?mode=add wiring (SWITCH-01, SWITCH-07, SWITCH-08, SWITCH-09, SWITCH-10, SWITCH-11, SWITCH-12, SWITCH-17)
+- [ ] 81-04-PLAN.md — Layout fetches memberships + Sidebar mounts CompanySelector in both render trees (SWITCH-13, SWITCH-14, SWITCH-15)
