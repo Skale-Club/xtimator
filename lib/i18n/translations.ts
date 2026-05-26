@@ -136,6 +136,13 @@ export const staticDict: Record<'pt' | 'es', TranslationDict> = {
     'Master switch — turn off to silence every email notification.':
       'Interruptor mestre — desative para silenciar todas as notificações por e-mail.',
     'Category': 'Categoria',
+    // Price Book — folders/categories (quick-k60)
+    'New Category': 'Nova Categoria',
+    'Delete Category': 'Excluir Categoria',
+    'Category name...': 'Nome da categoria...',
+    'Category deleted': 'Categoria excluída',
+    'This will delete the category. Items in this category must be moved or deleted first.':
+      'Isso excluirá a categoria. Os itens desta categoria precisam ser movidos ou excluídos antes.',
     'In-app': 'No app',
     'Save preferences': 'Salvar preferências',
     'Notification preferences saved.': 'Preferências de notificação salvas.',
@@ -317,6 +324,13 @@ export const staticDict: Record<'pt' | 'es', TranslationDict> = {
     'Master switch — turn off to silence every email notification.':
       'Interruptor maestro — desactívalo para silenciar todas las notificaciones por correo.',
     'Category': 'Categoría',
+    // Price Book — folders/categories (quick-k60)
+    'New Category': 'Nueva Categoría',
+    'Delete Category': 'Eliminar Categoría',
+    'Category name...': 'Nombre de la categoría...',
+    'Category deleted': 'Categoría eliminada',
+    'This will delete the category. Items in this category must be moved or deleted first.':
+      'Esto eliminará la categoría. Los elementos de esta categoría deben moverse o eliminarse antes.',
     'In-app': 'En la app',
     'Save preferences': 'Guardar preferencias',
     'Notification preferences saved.': 'Preferencias de notificación guardadas.',
