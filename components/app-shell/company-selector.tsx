@@ -38,6 +38,13 @@ interface CompanySelectorProps {
   companies: CompanyOption[]
   activeCompanyId: string
   collapsed?: boolean
+  /**
+   * Optional slot rendered at the bottom of the dropdown, after the
+   * "Add new company" item and a separator. Used by Sidebar to merge the
+   * old user-menu items (Settings / App Tour / Sign Out) into this single
+   * dropdown so the footer is one widget instead of two (2026-05-26 UX fix).
+   */
+  accountMenuSlot?: React.ReactNode
 }
 
 function initialOf(name: string): string {
@@ -48,6 +55,7 @@ export function CompanySelector({
   companies,
   activeCompanyId,
   collapsed = false,
+  accountMenuSlot,
 }: CompanySelectorProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -164,6 +172,13 @@ export function CompanySelector({
             <span>Add new company</span>
           </Link>
         </DropdownMenuItem>
+
+        {accountMenuSlot && (
+          <>
+            <DropdownMenuSeparator />
+            {accountMenuSlot}
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   )
