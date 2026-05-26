@@ -1053,13 +1053,13 @@ Plans:
 
 ### Phase 88: v4.1 Read-only MCP tools list estimates clients projects
 
-**Goal:** [To be planned]
-**Requirements**: TBD
-**Depends on:** Phase TBD
-**Plans:** 0 plans
+**Goal:** Register 4 read-only MCP tools (`list_estimates`, `get_estimate`, `list_clients`, `list_projects`) into `createMcpServer` with `readOnlyHint: true` annotations so Claude.ai groups them under a single "Always allow" toggle.
+**Requirements**: SEED-030 (MCP server, OAuth, per-active-company scoping)
+**Depends on:** Phase 87 (createMcpServer factory + requireScope)
+**Plans:** 1/1 plan complete — COMPLETE 2026-05-26
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 88 to break down)
+- [x] lib/mcp/{pagination,errors}.ts + lib/mcp/tools/read.ts + registerReadTools wired into createMcpServer + 45 unit tests (completed 2026-05-26 — see 88-SUMMARY.md)
 
 ### Phase 89: v4.1 Write MCP tools create estimate check job status async
 

@@ -1,30 +1,30 @@
 ---
 gsd_state_version: 1.0
-milestone: v4.1
-milestone_name: MCP Server (Custom Connector for Claude)
-status: in-progress
-last_updated: "2026-05-26T08:00:00.000Z"
-last_activity: "2026-05-26 - Phase 87 shipped: /api/mcp Streamable HTTP route with Bearer auth + CORS; WebStandardStreamableHTTPServerTransport; createMcpServer factory (no tools yet — Phase 88/89 plug them in); 21/21 unit tests pass; tsc clean."
+milestone: v1.5
+milestone_name: Zero-friction Project Onboarding
+status: "Phase 88 shipped: 4 read-only MCP tools (list_estimates, get_estimate, list_clients, list_projects) registered into createMcpServer with readOnlyHint=true annotations. Keyset pagination via base64(JSON({created_at,id})) cursors. Every Supabase query scoped to auth.company_id. mcp:read scope-gated. 45 new unit tests pass; Phase 87 21/21 still green; tsc clean. Next: Phase 89 (write tool — create_estimate)."
+last_updated: "2026-05-26T08:15:00.000Z"
+last_activity: "2026-05-26 - Phase 88 shipped: lib/mcp/{pagination,errors}.ts + lib/mcp/tools/read.ts + 3 unit test files (45 tests); registerReadTools wired into createMcpServer."
 progress:
-  total_phases: 87
-  completed_phases: 87
-  total_plans: 192
-  completed_plans: 219
+  total_phases: 51
+  completed_phases: 33
+  total_plans: 98
+  completed_plans: 116
 ---
 
 # Project State
 
 ## Current Status
 
-- **Milestone**: v4.1 MCP Server — IN PROGRESS (2/5 phases complete: 86 ✓, 87 ✓; 88/89/90 pending)
+- **Milestone**: v4.1 MCP Server — IN PROGRESS (3/5 phases complete: 86 ✓, 87 ✓, 88 ✓; 89/90 pending)
 - **Last updated**: 2026-05-26
 
 ## Current Position
 
-Phase: 87 — COMPLETE
+Phase: 88 — COMPLETE
 Plan: —
-Status: Phase 87 MCP Streamable HTTP route shipped. /api/mcp validates Bearer tokens via Phase 86's resolveAccessToken, runs WebStandardStreamableHTTPServerTransport in stateless mode, exposes POST/GET(405)/OPTIONS(CORS). createMcpServer factory ready for Phase 88 (read tools) + Phase 89 (write tool) integration. 21/21 unit tests pass; tsc clean. Next: Phase 88 (MCP read tools).
-Last activity: 2026-05-26 - Phase 87 shipped: lib/mcp/{auth,scope,server}.ts + app/api/mcp/route.ts + 3 unit test files; @modelcontextprotocol/sdk@^1.29.0 installed.
+Status: Phase 88 shipped — 4 read-only MCP tools registered with readOnlyHint annotations; keyset pagination; tenant-scoped queries; mcp:read gate. 45/45 new tests pass; Phase 87 21/21 still green; tsc clean. Next: Phase 89 (write tool — create_estimate, check_job_status under mcp:write).
+Last activity: 2026-05-26 - Phase 88 shipped: lib/mcp/{pagination,errors}.ts + lib/mcp/tools/read.ts + 3 unit test files (45 tests); registerReadTools wired into createMcpServer.
 
 ## v3.1.1 Phases
 
@@ -69,6 +69,8 @@ Last activity: 2026-05-26 - Phase 87 shipped: lib/mcp/{auth,scope,server}.ts + a
 
 ## Completed Phases
 
+- Phase 88: v4.1 Read-Only MCP Tools — list_estimates, get_estimate, list_clients, list_projects (88-v4-1-read-only-mcp-tools-list-estimates-clients-projects) — COMPLETE 2026-05-26
+  - lib/mcp/{pagination,errors}.ts + lib/mcp/tools/read.ts; 45 unit tests; registerReadTools wired into createMcpServer; all tools carry readOnlyHint=true so Claude.ai groups them under one "Always allow" toggle; keyset pagination via base64(JSON({created_at,id})); every query scoped to auth.company_id.
 - Phase 87: v4.1 MCP Route — Streamable HTTP Transport with Bearer Auth (87-v4-1-mcp-route-streamable-http-transport-with-bearer-auth) — COMPLETE 2026-05-26
   - lib/mcp/{auth,scope,server}.ts + app/api/mcp/route.ts; 21 unit tests; WebStandardStreamableHTTPServerTransport (stateless, JSON response mode); Phase 88/89 tool integration point documented in server.ts
 - Phase 86: v4.1 OAuth 2.0 Server for MCP (86-v4-1-oauth-2-0-server-for-mcp-...) — COMPLETE 2026-05-26
