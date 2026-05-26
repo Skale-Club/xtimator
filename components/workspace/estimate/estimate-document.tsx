@@ -19,7 +19,7 @@ import {
   arrayMove,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { GripVertical, Plus, Trash2, UserPlus } from 'lucide-react'
+import { Check, GripVertical, Plus, Trash2, UserPlus } from 'lucide-react'
 import { toast } from 'sonner'
 import { MoneyInput } from '@/components/ui/money-input'
 import {
@@ -42,13 +42,16 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/ui/command'
+import { Calendar } from '@/components/ui/calendar'
 import { formatMoney } from '@/lib/money/currency'
 import { formatPhoneForDisplay } from '@/lib/phone/format'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
 import { linkProjectToClient } from '@/lib/actions/project'
 import { ItemCardMobile } from './item-card-mobile'
+import { PriceBookCombobox } from './price-book-combobox'
 import type { EstimateAction, EditorItem } from './use-estimate-reducer'
 import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
+import type { PriceBookItem } from '@/lib/queries/price-book'
 
 // ---------------------------------------------------------------------------
 // i18n label map (mirrors PDF labels)
@@ -82,8 +85,11 @@ const DOC_LABELS = {
     noClient: 'No client linked',
     addItem: 'Add item',
     addSection: 'Add section',
+    addDetails: 'Add details',
     summaryPlaceholder: 'Estimate summary…',
     termsPlaceholder: 'Enter details…',
+    searchPriceBook: 'Search price book…',
+    noMatches: 'No matches',
   },
   pt: {
     estimate: 'ORÇAMENTO',
@@ -112,8 +118,11 @@ const DOC_LABELS = {
     noClient: 'Nenhum cliente vinculado',
     addItem: 'Adicionar item',
     addSection: 'Adicionar seção',
+    addDetails: 'Adicionar detalhes',
     summaryPlaceholder: 'Resumo do orçamento…',
     termsPlaceholder: 'Insira os detalhes…',
+    searchPriceBook: 'Buscar no catálogo…',
+    noMatches: 'Sem resultados',
   },
   es: {
     estimate: 'PRESUPUESTO',
@@ -142,8 +151,11 @@ const DOC_LABELS = {
     noClient: 'Sin cliente vinculado',
     addItem: 'Agregar ítem',
     addSection: 'Agregar sección',
+    addDetails: 'Agregar detalles',
     summaryPlaceholder: 'Resumen del presupuesto…',
     termsPlaceholder: 'Ingrese los detalles…',
+    searchPriceBook: 'Buscar en catálogo…',
+    noMatches: 'Sin resultados',
   },
 }
 
@@ -174,14 +186,30 @@ interface DocLabels {
   noClient: string
   addItem: string
   addSection: string
+  addDetails: string
   summaryPlaceholder: string
   termsPlaceholder: string
+  searchPriceBook: string
+  noMatches: string
 }
 
 const DATE_LOCALE: Record<EstimateLanguage, string> = {
   en: 'en-US',
   pt: 'pt-BR',
   es: 'es-MX',
+}
+
+const UNIT_OPTIONS_BY_LANG: Record<EstimateLanguage, string[]> = {
+  en: ['each', 'hour', 'day', 'sq ft', 'linear ft', 'cubic yd', 'gallon', 'lb', 'ton', 'lot'],
+  pt: ['unidade', 'hora', 'dia', 'm²', 'm', 'm³', 'litro', 'kg', 'tonelada', 'lote'],
+  es: ['unidad', 'hora', 'día', 'm²', 'm', 'm³', 'litro', 'kg', 'tonelada', 'lote'],
+}
+
+/** Returns the language unit list, prepending the current value if it's not in the list. */
+function resolveUnitOptions(lang: EstimateLanguage, currentValue: string | null): string[] {
+  const base = UNIT_OPTIONS_BY_LANG[lang] ?? UNIT_OPTIONS_BY_LANG.en
+  if (currentValue && !base.includes(currentValue)) return [currentValue, ...base]
+  return base
 }
 
 // ---------------------------------------------------------------------------
@@ -262,6 +290,8 @@ interface EstimateDocumentProps {
   projectType: string | null
   language?: EstimateLanguage | null
   estimateVersion: number
+  /** Per-company sequential identifier, used as the default displayed estimate number when no override is set. */
+  estimateSeq?: number
   estimateCreatedAt: string
   /** Required when mode="edit" */
   dispatch?: React.Dispatch<EstimateAction>
@@ -270,6 +300,8 @@ interface EstimateDocumentProps {
   /** Enables inline project-name editing and "No client linked" click-to-link */
   projectId?: string
   onRenameProject?: (name: string) => Promise<void>
+  /** Quick-260525-qbc: price book for description autocomplete (defaults to []) */
+  priceBookItems?: PriceBookItem[]
 }
 
 // ---------------------------------------------------------------------------
@@ -302,9 +334,61 @@ function formatDate(dateStr: string, lang: EstimateLanguage = 'en'): string {
 
 // Common class string for inline editable fields (looks like plain text, activates on focus/hover)
 const INLINE_INPUT_CLS =
-  'w-full bg-transparent text-sm p-1 focus:outline-none focus:bg-muted/30 focus:rounded-sm hover:bg-muted/20 hover:rounded-sm transition-colors'
+  'w-full bg-transparent text-base p-1 focus:outline-none focus:bg-muted/30 focus:rounded-sm hover:bg-muted/20 hover:rounded-sm transition-colors'
 const INLINE_TEXTAREA_CLS =
-  'w-full bg-transparent text-sm text-muted-foreground whitespace-pre-line resize-none leading-relaxed p-1 focus:outline-none focus:bg-muted/30 focus:rounded-sm hover:bg-muted/20 hover:rounded-sm transition-colors'
+  'w-full bg-transparent text-base text-muted-foreground whitespace-pre-line resize-none leading-relaxed p-1 focus:outline-none focus:bg-muted/30 focus:rounded-sm hover:bg-muted/20 hover:rounded-sm transition-colors'
+
+// ---------------------------------------------------------------------------
+// DatePopover — inline-styled date trigger that opens a calendar popover
+// ---------------------------------------------------------------------------
+
+function DatePopover({
+  value,
+  onChange,
+  lang,
+}: {
+  value: string
+  onChange: (iso: string | null) => void
+  lang: EstimateLanguage
+}) {
+  const [open, setOpen] = useState(false)
+  const parsed = value ? new Date(`${value}T00:00:00`) : undefined
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="text-base text-foreground bg-transparent border-b border-transparent hover:border-border focus:border-primary focus:outline-none transition-colors tabular-nums"
+        >
+          {parsed ? formatDate(value, lang) : '—'}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        className="w-auto p-0 rounded-xl border shadow-xl"
+      >
+        <Calendar
+          mode="single"
+          selected={parsed}
+          defaultMonth={parsed}
+          captionLayout="dropdown"
+          onSelect={(d) => {
+            if (d) {
+              const yyyy = d.getFullYear()
+              const mm = String(d.getMonth() + 1).padStart(2, '0')
+              const dd = String(d.getDate()).padStart(2, '0')
+              onChange(`${yyyy}-${mm}-${dd}`)
+            } else {
+              onChange(null)
+            }
+            setOpen(false)
+          }}
+        />
+      </PopoverContent>
+    </Popover>
+  )
+}
 
 // ---------------------------------------------------------------------------
 // SortableDocumentItemRow — edit mode only, must live inside DndContext
@@ -315,11 +399,17 @@ function SortableDocumentItemRow({
   sectionId,
   dispatch,
   currencyCode,
+  lang,
+  priceBookItems,
+  L,
 }: {
   item: DocumentItem
   sectionId: string
   dispatch: React.Dispatch<EstimateAction>
   currencyCode: string
+  lang: EstimateLanguage
+  priceBookItems: PriceBookItem[]
+  L: DocLabels
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: item.id })
@@ -347,19 +437,30 @@ function SortableDocumentItemRow({
       </td>
       {/* description */}
       <td className="py-1 px-1 align-middle">
-        <input
+        <PriceBookCombobox
           value={item.description}
-          onChange={(e) =>
+          onChange={(next) =>
             dispatch({
               type: 'UPDATE_ITEM',
               sectionId,
               itemId: item.id,
               field: 'description',
-              value: e.target.value,
+              value: next,
             })
           }
+          onSelectPriceBookItem={(pb) =>
+            dispatch({
+              type: 'APPLY_PRICE_BOOK_ITEM',
+              sectionId,
+              itemId: item.id,
+              item: { name: pb.name, unit: pb.unit, unit_price: pb.unit_price },
+            })
+          }
+          items={priceBookItems}
+          currencyCode={currencyCode}
           placeholder="Item description"
           className={INLINE_INPUT_CLS}
+          noMatchesLabel={L.noMatches}
         />
       </td>
       {/* qty */}
@@ -382,21 +483,28 @@ function SortableDocumentItemRow({
         />
       </td>
       {/* unit */}
-      <td className="py-1 px-1 w-16 align-middle">
-        <input
+      <td className="py-1 px-1 w-24 align-middle">
+        <Select
           value={item.unit ?? ''}
-          onChange={(e) =>
+          onValueChange={(value) =>
             dispatch({
               type: 'UPDATE_ITEM',
               sectionId,
               itemId: item.id,
               field: 'unit',
-              value: e.target.value || null,
+              value: value || null,
             })
           }
-          placeholder="—"
-          className={`${INLINE_INPUT_CLS} text-center`}
-        />
+        >
+          <SelectTrigger className="h-8 bg-transparent border-0 shadow-none text-base px-1 hover:bg-muted/20 focus:ring-1 focus:ring-primary/30">
+            <SelectValue placeholder="—" />
+          </SelectTrigger>
+          <SelectContent>
+            {resolveUnitOptions(lang, item.unit).map((u) => (
+              <SelectItem key={u} value={u}>{u}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </td>
       {/* unit price */}
       <td className="py-1 px-1 w-28 align-middle">
@@ -412,11 +520,11 @@ function SortableDocumentItemRow({
               value,
             })
           }
-          className="h-8 bg-transparent border-0 shadow-none text-right text-sm tabular-nums p-1 focus:ring-1 focus:ring-primary/30 hover:bg-muted/20 hover:rounded-sm"
+          className="h-8 bg-transparent border-0 shadow-none text-right text-base tabular-nums p-1 focus:ring-1 focus:ring-primary/30 hover:bg-muted/20 hover:rounded-sm"
         />
       </td>
       {/* total */}
-      <td className="py-1 pr-3 pl-1 w-28 text-right text-sm tabular-nums font-medium align-middle">
+      <td className="py-1 pr-3 pl-1 w-28 text-right text-base tabular-nums font-medium align-middle">
         {formatMoney(item.total, currencyCode)}
       </td>
       {/* remove */}
@@ -445,7 +553,9 @@ function DocumentSectionBlock({
   brandColor,
   currencyCode,
   L,
+  lang,
   dragHandleProps,
+  priceBookItems = [],
 }: {
   section: DocumentSection
   dispatch?: React.Dispatch<EstimateAction>
@@ -453,7 +563,9 @@ function DocumentSectionBlock({
   brandColor: string
   currencyCode: string
   L: DocLabels
+  lang: EstimateLanguage
   dragHandleProps?: Record<string, unknown>
+  priceBookItems?: PriceBookItem[]
 }) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -503,10 +615,10 @@ function DocumentSectionBlock({
                 title: e.target.value,
               })
             }
-            className="flex-1 bg-transparent text-white font-semibold text-sm focus:outline-none placeholder:text-white/50 focus:bg-white/10 rounded px-1 min-w-0"
+            className="flex-1 bg-transparent text-white font-semibold text-base focus:outline-none placeholder:text-white/50 focus:bg-white/10 rounded px-1 min-w-0"
           />
         ) : (
-          <span className="flex-1 text-white font-semibold text-sm">{section.title}</span>
+          <span className="flex-1 text-white font-semibold text-base select-none">{section.title}</span>
         )}
 
         {isEditable && dispatch && (
@@ -542,14 +654,15 @@ function DocumentSectionBlock({
               }
               isReadOnly={false}
               currencyCode={currencyCode}
+              unitOptions={resolveUnitOptions(lang, item.unit ?? null)}
             />
           ) : (
             <div
               key={item.id}
               className="px-3 py-2.5 border-b border-border/50 last:border-b-0 even:bg-muted/20"
             >
-              <p className="text-sm font-medium">{item.description}</p>
-              <div className="flex justify-between text-xs text-muted-foreground mt-0.5">
+              <p className="text-base font-medium">{item.description}</p>
+              <div className="flex justify-between text-sm text-muted-foreground mt-0.5">
                 <span>
                   {item.quantity} {item.unit ? item.unit : ''} ×{' '}
                   {formatMoney(item.unit_price, currencyCode)}
@@ -578,7 +691,7 @@ function DocumentSectionBlock({
             >
               <table className="w-full">
                 <thead>
-                  <tr className="bg-muted/50 text-xs text-muted-foreground border-b border-border/50">
+                  <tr className="bg-muted/50 text-sm text-muted-foreground border-b border-border/50 select-none">
                     <th className="py-1.5 px-1 w-6" />
                     <th className="py-1.5 px-2 text-left font-medium">{L.description}</th>
                     <th className="py-1.5 px-2 w-16 text-center font-medium">{L.qty}</th>
@@ -596,6 +709,9 @@ function DocumentSectionBlock({
                       sectionId={section.id}
                       dispatch={dispatch}
                       currencyCode={currencyCode}
+                      lang={lang}
+                      priceBookItems={priceBookItems}
+                      L={L}
                     />
                   ))}
                 </tbody>
@@ -619,13 +735,13 @@ function DocumentSectionBlock({
                   key={item.id}
                   className={`border-b border-border/50 last:border-0 ${idx % 2 === 1 ? 'bg-muted/20' : ''}`}
                 >
-                  <td className="py-2 px-3 text-sm">{item.description}</td>
-                  <td className="py-2 px-2 text-sm text-center tabular-nums">{item.quantity}</td>
-                  <td className="py-2 px-2 text-sm text-center">{item.unit ?? '—'}</td>
-                  <td className="py-2 px-2 text-sm text-right tabular-nums">
+                  <td className="py-2 px-3 text-base">{item.description}</td>
+                  <td className="py-2 px-2 text-base text-center tabular-nums">{item.quantity}</td>
+                  <td className="py-2 px-2 text-base text-center">{item.unit ?? ''}</td>
+                  <td className="py-2 px-2 text-base text-right tabular-nums">
                     {formatMoney(item.unit_price, currencyCode)}
                   </td>
-                  <td className="py-2 px-3 text-sm text-right tabular-nums font-medium">
+                  <td className="py-2 px-3 text-base text-right tabular-nums font-medium">
                     {formatMoney(item.total, currencyCode)}
                   </td>
                 </tr>
@@ -635,26 +751,26 @@ function DocumentSectionBlock({
         )}
       </div>
 
-      {/* Section subtotal */}
-      <div className="flex justify-end items-center gap-3 px-3 py-2 border-t border-border/50 bg-muted/10">
-        <span className="text-xs text-muted-foreground">{L.sectionSubtotal}</span>
-        <span className="text-xs font-semibold tabular-nums">
-          {formatMoney(section.subtotal, currencyCode)}
-        </span>
-      </div>
-
-      {/* Add item — edit mode only */}
+      {/* Add item — edit mode only, placed right after the last item */}
       {isEditable && dispatch && (
         <div className="px-3 py-1.5 border-t border-dashed border-border/50">
           <button
             onClick={() => dispatch({ type: 'ADD_ITEM', sectionId: section.id })}
-            className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
+            className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors select-none"
           >
-            <Plus className="h-3 w-3" />
+            <Plus className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
             {L.addItem}
           </button>
         </div>
       )}
+
+      {/* Section subtotal */}
+      <div className="flex justify-end items-center gap-3 px-3 py-2 border-t border-border/50 bg-muted/10">
+        <span className="text-sm text-muted-foreground select-none">{L.sectionSubtotal}</span>
+        <span className="text-sm font-semibold tabular-nums">
+          {formatMoney(section.subtotal, currencyCode)}
+        </span>
+      </div>
     </div>
   )
 }
@@ -670,6 +786,8 @@ function SortableDocumentSection({
   brandColor,
   currencyCode,
   L,
+  lang,
+  priceBookItems,
 }: {
   section: DocumentSection
   dispatch: React.Dispatch<EstimateAction>
@@ -677,6 +795,8 @@ function SortableDocumentSection({
   brandColor: string
   currencyCode: string
   L: DocLabels
+  lang: EstimateLanguage
+  priceBookItems: PriceBookItem[]
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: section.id })
@@ -695,7 +815,9 @@ function SortableDocumentSection({
         brandColor={brandColor}
         currencyCode={currencyCode}
         L={L}
+        lang={lang}
         dragHandleProps={listeners}
+        priceBookItems={priceBookItems}
       />
     </div>
   )
@@ -726,16 +848,16 @@ function DocumentTotals({
     <div className="flex justify-end px-6 sm:px-10 py-5 border-t border-border/50">
       <div className="w-full max-w-xs space-y-2">
         {/* Subtotal */}
-        <div className="flex justify-between text-sm">
-          <span className="text-muted-foreground">{L.subtotal}</span>
+        <div className="flex justify-between text-base">
+          <span className="text-muted-foreground select-none">{L.subtotal}</span>
           <span className="tabular-nums font-medium">{fmt(data.subtotal)}</span>
         </div>
 
         {/* Discount */}
         {isEditable && dispatch ? (
-          <div className="flex items-center justify-between gap-2 text-sm">
+          <div className="flex items-center justify-between gap-2 text-base">
             <div className="flex items-center gap-1.5 flex-1 min-w-0">
-              <span className="text-muted-foreground whitespace-nowrap shrink-0">{L.discount}</span>
+              <span className="text-muted-foreground whitespace-nowrap shrink-0 select-none">{L.discount}</span>
               <Select
                 value={discountTypeVal}
                 onValueChange={(val) => {
@@ -747,7 +869,7 @@ function DocumentTotals({
                   })
                 }}
               >
-                <SelectTrigger className="h-7 text-xs w-[90px] shrink-0">
+                <SelectTrigger className="h-7 text-xs w-[90px] shrink-0 border-zinc-300 focus:ring-zinc-300">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -800,8 +922,8 @@ function DocumentTotals({
             )}
           </div>
         ) : data.discount_amount > 0 ? (
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">
+          <div className="flex justify-between text-base">
+            <span className="text-muted-foreground select-none">
               {L.discount}
               {data.discount_type === 'percentage' ? ` (${data.discount_value}%)` : ''}
             </span>
@@ -813,9 +935,9 @@ function DocumentTotals({
 
         {/* Tax */}
         {isEditable && dispatch ? (
-          <div className="flex items-center justify-between gap-2 text-sm">
+          <div className="flex items-center justify-between gap-2 text-base">
             <div className="flex items-center gap-1.5">
-              <span className="text-muted-foreground shrink-0">{L.tax}</span>
+              <span className="text-muted-foreground shrink-0 select-none">{L.tax}</span>
               <div className="relative">
                 <input
                   type="number"
@@ -836,8 +958,8 @@ function DocumentTotals({
             <span className="tabular-nums font-medium">{fmt(data.tax_amount)}</span>
           </div>
         ) : data.tax_amount > 0 ? (
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">
+          <div className="flex justify-between text-base">
+            <span className="text-muted-foreground select-none">
               {L.tax} ({(data.tax_rate * 100).toFixed(2)}%)
             </span>
             <span className="tabular-nums font-medium">{fmt(data.tax_amount)}</span>
@@ -846,8 +968,8 @@ function DocumentTotals({
 
         {/* Grand total */}
         <div className="flex justify-between items-baseline pt-3 border-t-2 border-foreground">
-          <span className="text-xl font-bold">{L.grandTotal}</span>
-          <span className="text-xl font-bold tabular-nums" style={{ color: brandColor }}>
+          <span className="text-2xl font-bold select-none">{L.grandTotal}</span>
+          <span className="text-2xl font-bold tabular-nums" style={{ color: brandColor }}>
             {fmt(data.total)}
           </span>
         </div>
@@ -866,20 +988,20 @@ function TermsBlock({
   field,
   dispatch,
   isEditable,
-  placeholder,
+  autoFocus = false,
 }: {
   label: string
   value: string | null
   field: 'notes' | 'timeline' | 'payment_terms' | 'warranty_terms'
   dispatch?: React.Dispatch<EstimateAction>
   isEditable: boolean
-  placeholder: string
+  autoFocus?: boolean
 }) {
   if (!isEditable && !value) return null
 
   return (
     <div>
-      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
+      <p className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-1.5 select-none">
         {label}
       </p>
       {isEditable && dispatch ? (
@@ -888,12 +1010,12 @@ function TermsBlock({
           onChange={(e) =>
             dispatch({ type: 'UPDATE_FIELD', field, value: e.target.value || null })
           }
-          placeholder={placeholder}
           rows={2}
+          autoFocus={autoFocus}
           className={INLINE_TEXTAREA_CLS}
         />
       ) : (
-        <p className="text-sm text-muted-foreground whitespace-pre-line leading-relaxed">
+        <p className="text-base text-muted-foreground whitespace-pre-line leading-relaxed">
           {value}
         </p>
       )}
@@ -968,8 +1090,8 @@ function LinkClientInline({ projectId }: { projectId: string }) {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <button className="flex items-center gap-1.5 text-sm text-muted-foreground italic hover:text-foreground transition-colors group">
-          <UserPlus className="h-3.5 w-3.5 invisible group-hover:visible flex-shrink-0" />
+        <button className="flex items-center gap-1.5 text-lg text-muted-foreground italic hover:text-foreground transition-colors group">
+          <UserPlus className="h-4 w-4 flex-shrink-0" />
           <span>No client linked</span>
         </button>
       </PopoverTrigger>
@@ -1020,18 +1142,73 @@ function InlineProjectName({
           if (e.key === 'Escape') { setEditing(false); setDraft(name) }
         }}
         disabled={pending}
-        className="text-sm font-semibold bg-transparent border-b border-primary focus:outline-none w-full disabled:opacity-60"
+        className="text-2xl font-bold bg-transparent border-b border-primary focus:outline-none w-full disabled:opacity-60"
       />
     )
   }
 
   return (
     <p
-      className="text-sm font-semibold cursor-pointer hover:underline decoration-dotted underline-offset-2"
+      className="text-2xl font-bold cursor-pointer hover:underline decoration-dotted underline-offset-2"
       onClick={() => { setDraft(name); setEditing(true) }}
     >
       {name}
     </p>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// AddDetailsPopover — toggles optional sections on/off in the editor
+// ---------------------------------------------------------------------------
+
+type OptionalFieldKey = 'summary' | 'payment_terms' | 'timeline' | 'warranty_terms' | 'notes'
+
+function AddDetailsPopover({
+  L,
+  isFieldVisible,
+  onToggle,
+}: {
+  L: DocLabels
+  isFieldVisible: (f: OptionalFieldKey) => boolean
+  onToggle: (f: OptionalFieldKey) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const items: { field: OptionalFieldKey; label: string }[] = [
+    { field: 'summary', label: L.summary },
+    { field: 'payment_terms', label: L.paymentTerms },
+    { field: 'timeline', label: L.timeline },
+    { field: 'warranty_terms', label: L.warranty },
+    { field: 'notes', label: L.notes },
+  ]
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="text-sm font-medium flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-colors select-none text-muted-foreground hover:text-foreground hover:bg-muted/50"
+        >
+          <Plus className="h-4 w-4" />
+          {L.addDetails}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-56 p-1">
+        {items.map(({ field, label }) => {
+          const visible = isFieldVisible(field)
+          return (
+            <button
+              key={field}
+              type="button"
+              onClick={() => onToggle(field)}
+              className="w-full flex items-center justify-between gap-2 px-2 py-1.5 text-sm rounded-md hover:bg-accent hover:text-accent-foreground transition-colors text-left"
+            >
+              <span>{label}</span>
+              {visible && <Check className="h-4 w-4 text-muted-foreground" />}
+            </button>
+          )
+        })}
+      </PopoverContent>
+    </Popover>
   )
 }
 
@@ -1049,16 +1226,53 @@ export function EstimateDocument({
   projectType,
   language,
   estimateVersion,
+  estimateSeq,
   estimateCreatedAt,
   dispatch,
   isReadOnly = false,
   projectId,
   onRenameProject,
+  priceBookItems = [],
 }: EstimateDocumentProps) {
   const lang = (language ?? 'en') as EstimateLanguage
   const L = DOC_LABELS[lang] ?? DOC_LABELS.en
   const brandColor = brandColorProp ?? company?.brand_primary_color ?? SYSTEM_COLORS.primary
   const isEditable = mode === 'edit' && !isReadOnly
+
+  type OptionalField = 'summary' | 'payment_terms' | 'timeline' | 'warranty_terms' | 'notes'
+  const [revealed, setRevealed] = useState<Set<OptionalField>>(new Set())
+
+  const isFieldVisible = (field: OptionalField): boolean =>
+    data[field] != null || revealed.has(field)
+
+  const toggleField = (field: OptionalField) => {
+    setRevealed((prev) => {
+      const next = new Set(prev)
+      if (next.has(field) || data[field] != null) {
+        next.delete(field)
+        if (dispatch && data[field] != null) {
+          dispatch({ type: 'UPDATE_FIELD', field, value: null })
+        }
+      } else {
+        next.add(field)
+      }
+      return next
+    })
+  }
+
+  // Default displayed estimate number: zero-padded per-company sequence when available,
+  // otherwise falls back to the per-project version (legacy behavior).
+  const defaultEstimateNumber =
+    estimateSeq && estimateSeq > 0
+      ? String(estimateSeq).padStart(4, '0')
+      : String(estimateVersion)
+
+  // View/PDF: skip items with empty descriptions and sections that end up empty.
+  const visibleSections = isEditable
+    ? data.sections
+    : data.sections
+        .map((s) => ({ ...s, items: s.items.filter((i) => i.description.trim() !== '') }))
+        .filter((s) => s.items.length > 0)
 
   const sectionSensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -1082,16 +1296,15 @@ export function EstimateDocument({
 
   const companyAddr = company ? formatAddress(company) : null
   const clientAddr = client ? formatAddress(client) : null
-  const hasTerms = !!(
-    data.payment_terms ||
-    data.timeline ||
-    data.warranty_terms ||
-    data.notes
-  )
+  const hasTerms =
+    isFieldVisible('payment_terms') ||
+    isFieldVisible('timeline') ||
+    isFieldVisible('warranty_terms') ||
+    isFieldVisible('notes')
 
   return (
     <div
-      className="rounded-lg border shadow-sm overflow-hidden"
+      className="rounded-3xl border-4 shadow-lg overflow-hidden"
       style={{
         backgroundColor: '#ffffff',
         colorScheme: 'light',
@@ -1102,6 +1315,7 @@ export function EstimateDocument({
         '--card': '0 0% 100%',
         '--card-foreground': '240 10% 3.9%',
         color: 'hsl(240 10% 3.9%)',
+        borderColor: '#3f3f46',
       } as React.CSSProperties}
     >
       {/* Company header — only when company provided (share/view mode) */}
@@ -1147,99 +1361,94 @@ export function EstimateDocument({
       )}
 
       {/* ESTIMATE title */}
-      <div className="pt-10 pb-5 px-6 sm:px-10 text-center">
-        <h1
-          className="text-2xl sm:text-3xl font-bold tracking-wide"
-          style={{ color: brandColor }}
-        >
+      <div
+        className="py-6 px-6 sm:px-10 text-center"
+        style={{ backgroundColor: brandColor }}
+      >
+        <h1 className="text-3xl sm:text-4xl font-bold tracking-wide text-white select-none">
           {L.estimate}
         </h1>
       </div>
 
       {/* Info grid: PROJECT | BILL TO */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 px-6 sm:px-10 pb-5 border-b border-border/50">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 px-6 sm:px-10 pt-8 sm:pt-10 pb-5 border-b border-border/50">
         {/* PROJECT */}
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1.5">
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-1.5 select-none">
             {L.project}
           </p>
           {isEditable && onRenameProject ? (
             <InlineProjectName name={projectName} onRename={onRenameProject} />
           ) : (
-            <p className="text-sm font-semibold">{projectName}</p>
+            <p className="text-2xl font-bold">{projectName}</p>
           )}
           {projectType && (
-            <p className="text-xs text-muted-foreground mt-0.5 capitalize">
+            <p className="text-base text-muted-foreground mt-2 capitalize">
               {projectType.replace(/_/g, ' ')}
             </p>
           )}
           {isEditable && dispatch ? (
-            <div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
-              <span className="shrink-0">{L.date}:</span>
-              <input
-                type="date"
+            <div className="mt-3 flex items-center gap-1.5 text-base text-muted-foreground">
+              <span className="shrink-0 select-none">{L.date}:</span>
+              <DatePopover
                 value={data.estimate_date ?? estimateCreatedAt.slice(0, 10)}
-                onChange={(e) =>
-                  dispatch({ type: 'UPDATE_FIELD', field: 'estimate_date', value: e.target.value || null })
+                lang={lang}
+                onChange={(v) =>
+                  dispatch({ type: 'UPDATE_FIELD', field: 'estimate_date', value: v })
                 }
-                className="bg-transparent border-b border-transparent hover:border-border focus:border-primary focus:outline-none text-xs w-32"
               />
             </div>
           ) : (
-            <p className="text-xs text-muted-foreground mt-1">
+            <p className="text-base text-muted-foreground mt-3">
               {L.date}: {formatDate(data.estimate_date ?? estimateCreatedAt, lang)}
             </p>
           )}
           {isEditable && dispatch ? (
-            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-              <span className="shrink-0">{L.estimateNum}</span>
+            <div className="mt-2 flex items-center gap-1 text-base text-muted-foreground">
+              <span className="shrink-0 select-none">{L.estimateNum}</span>
               <input
-                value={data.estimate_number ?? String(estimateVersion)}
+                value={data.estimate_number ?? defaultEstimateNumber}
                 onChange={(e) =>
                   dispatch({ type: 'UPDATE_FIELD', field: 'estimate_number', value: e.target.value || null })
                 }
-                className="bg-transparent border-b border-transparent hover:border-border focus:border-primary focus:outline-none text-xs w-20"
+                className="bg-transparent border-b border-transparent hover:border-border focus:border-primary focus:outline-none text-base w-28 tabular-nums"
               />
             </div>
           ) : (
-            <p className="text-xs text-muted-foreground">
-              {L.estimateNum}{data.estimate_number ?? estimateVersion}
+            <p className="text-base text-muted-foreground mt-2 tabular-nums">
+              {L.estimateNum}{data.estimate_number ?? defaultEstimateNumber}
             </p>
           )}
         </div>
 
-        {/* BILL TO */}
-        <div>
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1.5">
-            {L.billTo}
-          </p>
-          {client ? (
+        {/* BILL TO — only renders when client is linked */}
+        {client && (
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-1.5 select-none">
+              {L.billTo}
+            </p>
             <div className="space-y-0.5">
-              <p className="text-sm font-semibold">{client.name}</p>
+              <p className="text-2xl font-bold">{client.name}</p>
               {client.email && (
-                <p className="text-xs text-muted-foreground">{client.email}</p>
+                <p className="text-base text-muted-foreground mt-1">{client.email}</p>
               )}
               {client.phone && (
-                <p className="text-xs text-muted-foreground">
+                <p className="text-base text-muted-foreground">
                   {formatPhoneForDisplay(client.phone)}
                 </p>
               )}
               {clientAddr && (
-                <p className="text-xs text-muted-foreground whitespace-pre-line">{clientAddr}</p>
+                <p className="text-base text-muted-foreground whitespace-pre-line">{clientAddr}</p>
               )}
             </div>
-          ) : isEditable && projectId ? (
-            <LinkClientInline projectId={projectId} />
-          ) : (
-            <p className="text-sm text-muted-foreground italic">{L.noClient}</p>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
-      {/* Summary */}
-      {(isEditable || data.summary) && (
+      {/* Summary — only renders when filled or explicitly revealed in editor */}
+      {isFieldVisible('summary') && (
         <div className="px-6 sm:px-10 py-4 border-b border-border/50">
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1.5">
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-1.5 select-none">
             {L.summary}
           </p>
           {isEditable && dispatch ? (
@@ -1252,12 +1461,12 @@ export function EstimateDocument({
                   value: e.target.value || null,
                 })
               }
-              placeholder={L.summaryPlaceholder}
               rows={3}
+              autoFocus={revealed.has('summary') && data.summary == null}
               className={INLINE_TEXTAREA_CLS}
             />
           ) : (
-            <p className="text-sm text-muted-foreground whitespace-pre-line leading-relaxed">
+            <p className="text-base text-muted-foreground whitespace-pre-line leading-relaxed">
               {data.summary}
             </p>
           )}
@@ -1286,12 +1495,14 @@ export function EstimateDocument({
                   brandColor={brandColor}
                   currencyCode={data.currency_code}
                   L={L}
+                  lang={lang}
+                  priceBookItems={priceBookItems}
                 />
               ))}
             </SortableContext>
           </DndContext>
         ) : (
-          data.sections.map((section) => (
+          visibleSections.map((section) => (
             <DocumentSectionBlock
               key={section.id}
               section={section}
@@ -1299,21 +1510,37 @@ export function EstimateDocument({
               brandColor={brandColor}
               currencyCode={data.currency_code}
               L={L}
+              lang={lang}
             />
           ))
         )}
       </div>
 
-      {/* Add section — edit mode only */}
+      {/* Add section / details — edit mode only */}
       {isEditable && dispatch && (
-        <div className="px-6 sm:px-10 py-2 border-t border-dashed border-border/50">
+        <div className="px-6 sm:px-10 py-3 border-t border-dashed border-border/50 flex items-center gap-2">
           <button
             onClick={() => dispatch({ type: 'ADD_SECTION' })}
-            className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
+            className="text-sm font-medium flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-colors select-none"
+            style={{
+              color: brandColor,
+              backgroundColor: `${brandColor}1A`,
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = `${brandColor}33`
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = `${brandColor}1A`
+            }}
           >
-            <Plus className="h-3 w-3" />
+            <Plus className="h-4 w-4" />
             {L.addSection}
           </button>
+          <AddDetailsPopover
+            L={L}
+            isFieldVisible={isFieldVisible}
+            onToggle={toggleField}
+          />
         </div>
       )}
 
@@ -1326,41 +1553,49 @@ export function EstimateDocument({
         L={L}
       />
 
-      {/* Terms */}
-      {(isEditable || hasTerms) && (
+      {/* Terms — each block renders only when filled or explicitly revealed */}
+      {hasTerms && (
         <div className="px-6 sm:px-10 pb-6 pt-4 border-t border-border/50 space-y-4">
-          <TermsBlock
-            label={L.paymentTerms}
-            value={data.payment_terms}
-            field="payment_terms"
-            dispatch={dispatch}
-            isEditable={isEditable}
-            placeholder={L.termsPlaceholder}
-          />
-          <TermsBlock
-            label={L.timeline}
-            value={data.timeline}
-            field="timeline"
-            dispatch={dispatch}
-            isEditable={isEditable}
-            placeholder={L.termsPlaceholder}
-          />
-          <TermsBlock
-            label={L.warranty}
-            value={data.warranty_terms}
-            field="warranty_terms"
-            dispatch={dispatch}
-            isEditable={isEditable}
-            placeholder={L.termsPlaceholder}
-          />
-          <TermsBlock
-            label={L.notes}
-            value={data.notes}
-            field="notes"
-            dispatch={dispatch}
-            isEditable={isEditable}
-            placeholder={L.termsPlaceholder}
-          />
+          {isFieldVisible('payment_terms') && (
+            <TermsBlock
+              label={L.paymentTerms}
+              value={data.payment_terms}
+              field="payment_terms"
+              dispatch={dispatch}
+              isEditable={isEditable}
+              autoFocus={revealed.has('payment_terms') && data.payment_terms == null}
+            />
+          )}
+          {isFieldVisible('timeline') && (
+            <TermsBlock
+              label={L.timeline}
+              value={data.timeline}
+              field="timeline"
+              dispatch={dispatch}
+              isEditable={isEditable}
+              autoFocus={revealed.has('timeline') && data.timeline == null}
+            />
+          )}
+          {isFieldVisible('warranty_terms') && (
+            <TermsBlock
+              label={L.warranty}
+              value={data.warranty_terms}
+              field="warranty_terms"
+              dispatch={dispatch}
+              isEditable={isEditable}
+              autoFocus={revealed.has('warranty_terms') && data.warranty_terms == null}
+            />
+          )}
+          {isFieldVisible('notes') && (
+            <TermsBlock
+              label={L.notes}
+              value={data.notes}
+              field="notes"
+              dispatch={dispatch}
+              isEditable={isEditable}
+              autoFocus={revealed.has('notes') && data.notes == null}
+            />
+          )}
         </div>
       )}
     </div>

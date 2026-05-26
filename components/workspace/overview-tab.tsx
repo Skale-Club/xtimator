@@ -10,6 +10,7 @@ import type { ProjectDetail } from '@/lib/queries/project'
 import type { Recording } from '@/lib/queries/recording'
 import type { Photo } from '@/lib/queries/photo'
 import type { EstimateWithSections, Estimate } from '@/lib/queries/estimate'
+import type { PriceBookItem } from '@/lib/queries/price-book'
 
 interface OverviewTabProps {
   project: ProjectDetail
@@ -19,6 +20,7 @@ interface OverviewTabProps {
   allVersions: Estimate[]
   recordings: Recording[]
   photos: Photo[]
+  priceBookItems: PriceBookItem[]
 }
 
 /**
@@ -39,6 +41,7 @@ export function OverviewTab({
   allVersions,
   recordings,
   photos,
+  priceBookItems,
 }: OverviewTabProps) {
   const router = useRouter()
   const pathname = usePathname()
@@ -94,6 +97,7 @@ export function OverviewTab({
         } : null}
         onRecord={handleRecord}
         linkClientSlot={linkClientSlot}
+        priceBookItems={priceBookItems}
       />
 
     </div>

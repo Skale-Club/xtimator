@@ -5,6 +5,7 @@ import { getProjectById, getProjectActivity, getProjectQuickStats } from '@/lib/
 import { getProjectRecordings } from '@/lib/queries/recording'
 import { getProjectPhotos } from '@/lib/queries/photo'
 import { getCurrentEstimate, getProjectEstimates } from '@/lib/queries/estimate'
+import { getPriceBookItems } from '@/lib/queries/price-book'
 import { ProjectWorkspace } from '@/components/workspace/project-workspace'
 import { ProjectHeader } from '@/components/workspace/project-header'
 import { ProjectPageShell } from '@/components/workspace/project-page-shell'
@@ -112,6 +113,9 @@ async function ProjectTabs({
   // Fetch current estimate for workspace tabs that need it
   const currentEstimate = await getCurrentEstimate(supabase, project.id)
 
+  // Fetch the company's price book so the estimate editor can offer autocomplete
+  const priceBookItems = await getPriceBookItems(supabase, project.company_id)
+
   return (
     <ProjectWorkspace
       project={project}
@@ -126,6 +130,7 @@ async function ProjectTabs({
       companyBrandColor={companyBrandColor}
       estimateTemplate={estimateTemplate}
       smsDeliveryEnabled={smsDeliveryEnabled}
+      priceBookItems={priceBookItems}
       defaultTab={defaultTab}
     />
   )

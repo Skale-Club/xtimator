@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Multi-Tenancy (Multiple Companies per User)
-status: defining_requirements
-last_updated: "2026-05-26T02:30:00.000Z"
+status: phase_79_complete
+last_updated: "2026-05-26T02:55:00.000Z"
 last_activity: 2026-05-26
 progress:
-  total_phases: 0
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_phases: 79
+  completed_phases: 60
+  total_plans: 183
+  completed_plans: 205
 ---
 
 # Project State
@@ -22,10 +22,10 @@ progress:
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-05-26 - Completed quick task 260525-wc6 follow-up: read transcript/estimateId from DB after pollJob (Inngest dev returns empty function output)
+Phase: 79 — COMPLETE (v4.0 foundation: company_members table + active-company resolvers + layout swap)
+Plan: 4/4 plans shipped, VERIFICATION passed, HUMAN-UAT auto-approved per user memory
+Status: v4.0 foundation slice complete — Switcher UI / Add Company flow not yet planned
+Last activity: 2026-05-26 - Phase 79 closed; sync timelines + merged origin/main (quick tasks wdj/wc6/w41/oij/mim/mur)
 
 ## v3.1.1 Phases
 
@@ -438,6 +438,14 @@ Last activity: 2026-05-26 - Completed quick task 260525-wc6 follow-up: read tran
 - [Phase 80-walkthrough-audit-debug-polish]: logTourEvent is fire-and-forget (void call) — telemetry failure must never block tour UX
 - [Phase 80-walkthrough-audit-debug-polish]: completedNaturallyRef distinguishes Done (tour_finished) from X/ESC dismiss (tour_skipped) without adding parameter to handleClose
 - [Phase 80-walkthrough-audit-debug-polish]: globalSetup guards on TEST_USER_EMAIL/TEST_USER_PASSWORD — missing credentials exit cleanly; tour tests fall back to requireDashboard skip
+- [Phase 79]: [Phase 79-01]: company_members live in prod with composite PK + SELECT-only RLS + idempotent backfill (3/3/3); types extended manually (Phase 19/24/38 pattern, Docker unavailable on Windows); static SQL contract test instead of live-DB integration test (no harness in repo)
+- [Phase 79]: Plan 02: getActiveCompanyId is single point where multi-tenant state enters request lifecycle; service-role only inside unstable_cache after upstream validation
+- [Phase 79]: Plan 02: loadCompanyById keyed by activeCompanyId (not userId) so revalidateTag('company') invalidates per company in Phase 80
+- [Phase 79]: Add-mode inherits tier/tier_trial_ends_at literally from source company (no fresh trial) to prevent trial-farming via add-company flow
+- [Phase 79]: company_members INSERT uses service-role; user_id sourced from claims.sub and company_id from just-inserted PK (no caller params) to mitigate T-79-03-01/02
+- [Phase 79]: [Phase 79-04]: app/(app)/layout.tsx switched from getCachedCompany(claims.sub) to getActiveCompany(); billingRow keyed by .eq('id', activeCompanyId) — completes the Phase 79 multi-company foundation (D-10, D-11)
+- [Phase 79]: [Phase 79-04]: getCachedCompany export preserved in lib/queries/auth.ts — a follow-up v4.0 phase (TBD) will migrate remaining callers
+- [Phase 79]: [Phase 79-04]: static contract test pattern (read source with node:fs + regex assertions) is the right test isolation level for server-component refactors with deep import graphs — mirrors Plan 01 migration test
 
 ## Performance Metrics
 
@@ -582,13 +590,17 @@ Last activity: 2026-05-26 - Completed quick task 260525-wc6 follow-up: read tran
 | Phase 78 P01 | 5min | 2 tasks | 4 files |
 | Phase 78 P02 | 6min | 2 tasks | 8 files |
 | Phase 80-walkthrough-audit-debug-polish P04 | 8 | 3 tasks | 8 files |
+| Phase 79 P01 | ~4h | 3 tasks | 3 files |
+| Phase 79 P02 | 4min | 1 tasks | 2 files |
+| Phase 79 P03 | 10min | 1 tasks | 2 files |
+| Phase 79 P04 | 7m | 1 tasks | 2 files |
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-13)
 
 **Core value:** Business owner → job site audio recording → sent professional estimate in under 5 minutes
-**Current focus:** Phase 79 — multi-company-support-allow-one-user-to-own-and-switch-betwe
+**Current focus:** Phase 79 — Multi-Company Foundation
 
 ## Notes
 
@@ -646,6 +658,7 @@ v3.1: Phases 61-65 (started 2026-05-15). Production Go-Live — 27 requirements 
 | 260523 | Unify project tables | 2026-05-23 | pending | [260523-unify-project-tables](.planning/quick/260523-unify-project-tables/) |
 | 260523 | Align page spacing | 2026-05-23 | pending | [260523-align-page-spacing](.planning/quick/260523-align-page-spacing/) |
 | 260524-lxk | Voice recorder visual redesign — shared VoiceRecorder + glass/glow waveform | 2026-05-24 | a33710d | [260524-lxk-refazer-visual-do-sistema-de-gravacao-de](.planning/quick/260524-lxk-refazer-visual-do-sistema-de-gravacao-de/) |
+| 260525-qbc | Price book autocomplete in estimate item description (combobox + APPLY_PRICE_BOOK_ITEM action) | 2026-05-25 | 9be91cd | [260525-qbc-add-price-book-autocomplete-to-item-desc](.planning/quick/260525-qbc-add-price-book-autocomplete-to-item-desc/) |
 | 260524-ohe | Auth flow refactor — modal 2-step on LP, delete /login + /signup + /reset-password pages, logout → / | 2026-05-24 | 552f87a | [260524-ohe-refactor-auth-flow-convert-modal-to-2-st](.planning/quick/260524-ohe-refactor-auth-flow-convert-modal-to-2-st/) |
 | 260525-lt5 | Add AlertDialog confirmation before soft-delete in ProjectRowActions | 2026-05-25 | 330a4f4 | [260525-lt5-add-alertdialog-confirmation-before-soft](.planning/quick/260525-lt5-add-alertdialog-confirmation-before-soft/) |
 | 260525-mur | Fix dashboard showing soft-deleted and archived projects | 2026-05-25 | 0a15842 | [260525-mur-fix-dashboard-showing-soft-deleted-and-a](.planning/quick/260525-mur-fix-dashboard-showing-soft-deleted-and-a/) |

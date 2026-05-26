@@ -41,6 +41,13 @@ Complete subscription system: Free/Trial/Pro/Business tiers, `usage_events` trac
 - **Stripe Connect:** stays per-company (already aligned)
 - **Backwards compat:** zero re-onboarding — migration auto-creates 1 owner membership per existing company
 
+**Progress (2026-05-25):**
+- ✅ **Phase 79: Foundation (schema + cookie + active company resolution)** — shipped. `company_members(user_id, company_id, role)` table live in prod (3 owners backfilled), RLS enabled; `getActiveCompanyId` / `getActiveCompany` helpers; `createOrUpdateCompany(mode: 'first' | 'add')`; `app/(app)/layout.tsx` switched to active-company resolvers. No UI in this phase by design. 4/4 plans, 15 commits, 38/38 tests green.
+- ⬜ **Next:** Switcher UI + "Add company" flow (no phase planned yet — needs `/gsd:add-phase`)
+- ⬜ **Then:** RLS rewrite across tenant-scoped tables
+- ⬜ **Then:** Billing per-company semantics
+- ⬜ **Then:** Server-action sweep
+
 **Out of scope (captured for future milestones):**
 - Inviting other users to existing companies
 - Role-based permissions (Admin vs Member)

@@ -14,6 +14,7 @@ import type { Recording } from '@/lib/queries/recording'
 import type { Photo } from '@/lib/queries/photo'
 import type { EstimateWithSections, Estimate } from '@/lib/queries/estimate'
 import type { EstimateTemplate } from '@/lib/utils/estimate-template'
+import type { PriceBookItem } from '@/lib/queries/price-book'
 import { useTranslation } from '@/lib/i18n/use-translation'
 
 const ALLOWED_TABS = ['overview', 'photos', 'send', 'client', 'activity'] as const
@@ -32,6 +33,7 @@ interface ProjectWorkspaceProps {
   companyBrandColor: string | null
   estimateTemplate: EstimateTemplate
   smsDeliveryEnabled?: boolean
+  priceBookItems: PriceBookItem[]
   defaultTab?: WorkspaceTab
 }
 
@@ -39,6 +41,7 @@ export function ProjectWorkspace({
   project, activity, stats, recordings, photos,
   currentEstimate, allVersions, companyName,
   ownerName, companyBrandColor, estimateTemplate, smsDeliveryEnabled = false,
+  priceBookItems,
   defaultTab = 'overview',
 }: ProjectWorkspaceProps) {
   const { t } = useTranslation()
@@ -141,6 +144,7 @@ export function ProjectWorkspace({
             allVersions={allVersions}
             recordings={recordings}
             photos={photos}
+            priceBookItems={priceBookItems}
           />
         )}
         {activeTab === 'photos' && (
