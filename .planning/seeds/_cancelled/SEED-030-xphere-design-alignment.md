@@ -1,11 +1,16 @@
 ---
 id: SEED-030
-status: ready
+status: cancelled
+cancelled: 2026-05-26
+cancelled_reason: "User explicitly cancelled post v4.0 close-out (2026-05-26). Trigger window has passed — v4.0 shipped the new surfaces (Switcher + multi-org UI) under the existing design system without alignment. Not pursuing."
 planted: 2026-05-22
 planted_during: v4.0 Multi-Tenancy (design alignment identified as prerequisite)
 trigger_when: Before or alongside v4.0 Multi-Tenancy — the dashboard shell is about to grow new surfaces (company switcher, multi-org UI). Ship design alignment first so new surfaces are born into the right system, not the old one.
 scope: Large
 ---
+
+> **🚫 CANCELLED 2026-05-26** — User decision post v4.0 close-out. Trigger window passed; not pursuing.
+
 
 # SEED-030: Xphere Design Alignment — Making Xtimator and Xphere Visual Siblings
 
