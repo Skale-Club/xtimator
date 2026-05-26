@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Zero-friction Project Onboarding
 status: executing
-last_updated: "2026-05-26T02:02:10.677Z"
+last_updated: "2026-05-26T02:07:29.620Z"
 last_activity: 2026-05-26
 progress:
   total_phases: 79
   completed_phases: 59
   total_plans: 183
-  completed_plans: 203
+  completed_plans: 204
 ---
 
 # Project State
@@ -23,7 +23,7 @@ progress:
 ## Current Position
 
 Phase: 79 (Multi-Company Foundation) — EXECUTING
-Plan: 3 of 4
+Plan: 4 of 4
 Status: Ready to execute
 Last activity: 2026-05-26
 
@@ -441,6 +441,8 @@ Last activity: 2026-05-26
 - [Phase 79]: [Phase 79-01]: company_members live in prod with composite PK + SELECT-only RLS + idempotent backfill (3/3/3); types extended manually (Phase 19/24/38 pattern, Docker unavailable on Windows); static SQL contract test instead of live-DB integration test (no harness in repo)
 - [Phase 79]: Plan 02: getActiveCompanyId is single point where multi-tenant state enters request lifecycle; service-role only inside unstable_cache after upstream validation
 - [Phase 79]: Plan 02: loadCompanyById keyed by activeCompanyId (not userId) so revalidateTag('company') invalidates per company in Phase 80
+- [Phase 79]: Add-mode inherits tier/tier_trial_ends_at literally from source company (no fresh trial) to prevent trial-farming via add-company flow
+- [Phase 79]: company_members INSERT uses service-role; user_id sourced from claims.sub and company_id from just-inserted PK (no caller params) to mitigate T-79-03-01/02
 
 ## Performance Metrics
 
@@ -587,6 +589,7 @@ Last activity: 2026-05-26
 | Phase 80-walkthrough-audit-debug-polish P04 | 8 | 3 tasks | 8 files |
 | Phase 79 P01 | ~4h | 3 tasks | 3 files |
 | Phase 79 P02 | 4min | 1 tasks | 2 files |
+| Phase 79 P03 | 10min | 1 tasks | 2 files |
 
 ## Project Reference
 
