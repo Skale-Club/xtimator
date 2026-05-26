@@ -657,24 +657,27 @@ function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progre
         </div>
       )}
 
-      {/* Language selector + Generate Estimate (only meaningful for text/photo-only paths) */}
+      {/* Language selector — visible in all modes (used by runPipeline in audio too) */}
       <div className="px-4 pt-4 pb-2">
         <EstimateLanguageSelector
           value={estimateLanguage}
           onChange={setEstimateLanguage}
         />
       </div>
-      <div className="px-4 pt-2 pb-6 sm:pb-8 mt-auto">
-        <Button
-          onClick={onGenerate}
-          disabled={!hasAnyInput}
-          className="w-full"
-          size="lg"
-          data-testid="generate-estimate-btn"
-        >
-          {t('Generate Estimate')}
-        </Button>
-      </div>
+      {/* Generate Estimate button — hidden in audio mode (recorder.onstop auto-triggers runPipeline) */}
+      {mode !== 'audio' && (
+        <div className="px-4 pt-2 pb-6 sm:pb-8 mt-auto">
+          <Button
+            onClick={onGenerate}
+            disabled={!hasAnyInput}
+            className="w-full"
+            size="lg"
+            data-testid="generate-estimate-btn"
+          >
+            {t('Generate Estimate')}
+          </Button>
+        </div>
+      )}
     </div>
   )
 }
