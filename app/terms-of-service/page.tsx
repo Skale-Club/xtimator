@@ -1,8 +1,10 @@
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import { getLegalPage } from '@/lib/queries/legal-pages'
+import { getBranding } from '@/lib/platform-config'
 import { BlogContent } from '@/components/blog/blog-content'
 import { Card } from '@/components/ui/card'
+import { SiteShell } from '@/components/site/site-shell'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,12 +17,14 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function TermsOfServicePage() {
-  const page = await getLegalPage('terms_of_service')
+  const [page, branding] = await Promise.all([
+    getLegalPage('terms_of_service'),
+    getBranding(),
+  ])
   if (!page) notFound()
 
   return (
-    <div className="relative isolate min-h-screen">
-      <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[520px] gradient-hero" />
+    <SiteShell branding={{ appName: branding.appName, logoUrl: branding.logoUrl }}>
       <main className="mx-auto max-w-3xl px-6 py-[clamp(48px,10vw,96px)]">
         <article>
           <header className="mb-10">
@@ -45,6 +49,6 @@ export default async function TermsOfServicePage() {
           </Card>
         </article>
       </main>
-    </div>
+    </SiteShell>
   )
 }
