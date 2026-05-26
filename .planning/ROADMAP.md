@@ -905,3 +905,66 @@ Plans:
 
 **Plans:** 2/2 plans complete
 
+
+### Phase 73: Language Onboarding + Estimate Language UI
+
+**Goal:** New users pick the app + estimate language during onboarding (en / pt / es) instead of having it inferred from browser. Estimate generation respects that language end-to-end (AI prompts, PDF, share view, WhatsApp). The choice surfaces in Settings → Profile.
+
+**Depends on:** Phase 12 (i18n translation system) · Phase 52 (per-estimate language backend)
+
+**Requirements:** LANG-ONB-01..05, EST-LANG-UI-01..05
+
+**Success Criteria:**
+  1. Onboarding wizard step 1 has language selector (3 flags + names). Persists to `companies.preferred_language`.
+  2. Estimate generation uses the company's `preferred_language` as the default for new estimates, overridable per estimate.
+  3. Per-estimate language picker is visible in the editor next to the title; switching it re-runs the AI translation pass and updates the share view + PDF.
+  4. Settings → Profile exposes the language picker with the same 3 options; change updates `preferred_language` and revalidates the app shell.
+  5. All hardcoded English strings in onboarding + estimate UI now go through `t()`. PT-BR and es-MX translations covered.
+
+**Plans:** 5/5 plans complete — SHIPPED 2026-05-20
+
+### Phase 79: Multi-Company Foundation (Schema + Cookie + Active Company Resolution)
+
+**Goal:** Ship the foundation slice of v4.0 Multi-Tenancy. `company_members(user_id, company_id, role)` join table exists with idempotent backfill (1 owner per existing company); session cookie holds `active_company_id`; server-side helpers `getActiveCompanyId()` / `getActiveCompany()` resolve it (cookie → validate → fallback to oldest membership → write cookie); `createOrUpdateCompany` gains a `mode: 'first' | 'add'` parameter; `app/(app)/layout.tsx` reads via the new resolvers. No new UI in this phase by design.
+
+**Depends on:** v3.x stack (Supabase, layout, server actions)
+
+**Requirements:** D-01..D-16 (CONTEXT.md decision IDs; not entered in REQUIREMENTS.md by design)
+
+**Success Criteria:**
+  1. New `company_members` table with composite PK (user_id, company_id), CASCADE FKs to `auth.users` + `companies`, RLS enabled with auth.uid() gated SELECT-only policy.
+  2. Backfill INSERTs one `role='owner'` row per pre-existing company; re-running the backfill is a no-op (idempotent via `ON CONFLICT DO NOTHING`).
+  3. `lib/queries/active-company.ts` exports `getActiveCompanyId`, `getActiveCompany`, `ACTIVE_COMPANY_COOKIE`, `ACTIVE_COMPANY_COOKIE_OPTIONS`. Cookie precedence > fallback > null behavior fully unit-tested.
+  4. `createOrUpdateCompany(input, mode)` preserves legacy upsert in `'first'` mode; `'add'` mode inserts a NEW companies row + matching company_members owner row and writes the active-company cookie.
+  5. `app/(app)/layout.tsx` switched from `getCachedCompany(claims.sub)` to `getActiveCompany()`; billing row re-keyed to `.eq('id', activeCompanyId)`; `unstable_cache` re-keyed by activeCompanyId.
+
+**Plans:** 4/4 plans complete — SHIPPED 2026-05-25 (foundation slice; Switcher UI + Add Company flow still pending in v4.0)
+
+### Phase 80: Walkthrough Audit + Debug + Polish
+
+**Goal:** End-to-end audit of the production-bound user walkthrough (signup → onboarding → first project → audio capture → AI estimate → share). Triage every snag (bug, copy issue, UX paper cut, perf hot spot) into a fix or a documented known-issue. Polish the rough edges that survived prior phases.
+
+**Depends on:** Phases 71 (design), 72 (admin perf), 73 (language UI)
+
+**Requirements:** WALKTHRU-01..04
+
+**Success Criteria:**
+  1. Walkthrough exercised on desktop + iOS Safari + Android Chrome; every issue logged with screenshot + reproduction.
+  2. Critical issues fixed in this phase; non-critical added to `.planning/known-issues.md` with severity + workaround.
+  3. Verification report (`80-VERIFICATION.md`) lists every gap addressed and each deferred item with rationale.
+  4. Human UAT captured in `80-HUMAN-UAT.md` with the manual smoke test outcome.
+
+**Plans:** 4/4 plans complete — SHIPPED 2026-05-21
+
+### Phase 999.1: Migrate Inngest to Self-Hosted Hetzner (PARKING LOT)
+
+**Goal:** Move the Inngest dev worker stack to a self-hosted instance on Hetzner Cloud to remove the managed Inngest dependency once the Hetzner host (Phase 68 deliverables) is operational.
+
+**Status:** Backlog placeholder. Not started. Numbered `999.x` per GSD parking-lot convention to indicate "out of sequence, surface when prerequisites land".
+
+**Prerequisites:**
+  - Phase 67 (Inngest background AI jobs) — landed
+  - Phase 68 (Hetzner Cloud deploy-readiness artifacts) — landed (but not yet exercised in prod)
+  - v3.2 deployment milestone — not yet started
+
+**Plans:** 0/0 — not planned yet

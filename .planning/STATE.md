@@ -444,7 +444,7 @@ Last activity: 2026-05-26 - Phase 79 closed; sync timelines + merged origin/main
 - [Phase 79]: Add-mode inherits tier/tier_trial_ends_at literally from source company (no fresh trial) to prevent trial-farming via add-company flow
 - [Phase 79]: company_members INSERT uses service-role; user_id sourced from claims.sub and company_id from just-inserted PK (no caller params) to mitigate T-79-03-01/02
 - [Phase 79]: [Phase 79-04]: app/(app)/layout.tsx switched from getCachedCompany(claims.sub) to getActiveCompany(); billingRow keyed by .eq('id', activeCompanyId) — completes the Phase 79 multi-company foundation (D-10, D-11)
-- [Phase 79]: [Phase 79-04]: getCachedCompany export preserved in lib/queries/auth.ts — Phase 81 will migrate remaining callers
+- [Phase 79]: [Phase 79-04]: getCachedCompany export preserved in lib/queries/auth.ts — a follow-up v4.0 phase (TBD) will migrate remaining callers
 - [Phase 79]: [Phase 79-04]: static contract test pattern (read source with node:fs + regex assertions) is the right test isolation level for server-component refactors with deep import graphs — mirrors Plan 01 migration test
 
 ## Performance Metrics

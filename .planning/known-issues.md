@@ -140,3 +140,49 @@
 - **FAIL** — blocking, must fix before milestone close
 - **FLAGGED** — works but with caveats; documented for future improvement
 - **DEFERRED** — out of scope for this milestone, passed forward with explicit rationale and target milestone
+
+---
+
+## GSD Health Check Noise (2026-05-26)
+
+`/gsd:health` (`node gsd-tools.cjs validate health`) currently reports **52 warnings** that are all
+expected behavior, not real drift. They are documented here so future readers don't waste cycles
+chasing them.
+
+### W007 × 34 — "Phase NN exists on disk but not in ROADMAP.md" (false positive)
+
+Phases `01-23`, `34-37`, `55-61` shipped in earlier milestones (v1.0..v3.0) whose roadmaps were
+archived to `.planning/milestones/v1.x-ROADMAP.md`, `v3.0-ROADMAP.md`, etc. The current
+`.planning/ROADMAP.md` only lists phases for in-flight milestones (v3.1.1 + v4.0). The validator
+checks the live ROADMAP.md only and doesn't know about archived milestone roadmaps. Safe to ignore.
+
+The 4 phases that WERE genuinely missing from the live roadmap (73, 79, 80, 999.1) were added
+on 2026-05-26 and are no longer flagged.
+
+### W002 × 14 — "STATE.md references phase 6X" (intentional)
+
+Phases 62, 63, 64, 65 are documented in [STATE.md](STATE.md) and [PROJECT.md](PROJECT.md) as
+**deferred placeholders for v3.2** (Vercel→Hetzner deploy, Stripe live mode, monitoring, prod UAT).
+They have no directory because the work hasn't started. Removing the references would lose
+important context. Safe to ignore until v3.2 activates.
+
+### W009 × 0 — VALIDATION.md backfilled for phases 70, 71, 75
+
+Originally 3 phases had a "Validation Architecture" section in their RESEARCH.md without a
+matching VALIDATION.md. Stub VALIDATION.md files were added on 2026-05-26 that point at the
+existing VERIFICATION.md / per-plan SUMMARYs which carried the actual validation work. No more
+W009 should fire.
+
+### W005 × 1 — "999.1-* doesn't follow NN-name format" (intentional)
+
+`.planning/phases/999.1-migrate-inngest-self-hosted-hetzner/` uses the GSD parking-lot
+convention: `999.x` numbers mark phases that are out-of-sequence backlog ideas surfaced for
+visibility but not yet ready to start. The convention is intentional and the validator's
+NN-name strict-format check is too narrow. Safe to ignore.
+
+### Action
+
+These remaining warnings are baseline noise; the next /gsd:health cleanup pass should be a no-op
+unless real new drift appears. If a future GSD release tightens the validator to understand
+archived milestones + deferred placeholders + `.x` decimals, these counters will go to zero
+automatically.
