@@ -1043,13 +1043,13 @@ Plans:
 
 ### Phase 87: v4.1 MCP route Streamable HTTP transport with Bearer auth
 
-**Goal:** [To be planned]
-**Requirements**: TBD
-**Depends on:** Phase TBD
-**Plans:** 0 plans
+**Goal:** Ship `/api/mcp` Streamable HTTP endpoint validating Phase 86 Bearer tokens and connecting a `@modelcontextprotocol/sdk` Server ready for Phase 88/89 tool registration.
+**Requirements**: SEED-030 (MCP server, OAuth, per-active-company scoping)
+**Depends on:** Phase 86 (resolveAccessToken + /.well-known)
+**Plans:** 1/1 plan complete — COMPLETE 2026-05-26
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 87 to break down)
+- [x] lib/mcp/{auth,scope,server}.ts + /api/mcp route + 21 unit tests + @modelcontextprotocol/sdk@^1.29.0 (completed 2026-05-26 — see 87-SUMMARY.md)
 
 ### Phase 88: v4.1 Read-only MCP tools list estimates clients projects
 

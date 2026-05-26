@@ -3,28 +3,28 @@ gsd_state_version: 1.0
 milestone: v4.1
 milestone_name: MCP Server (Custom Connector for Claude)
 status: in-progress
-last_updated: "2026-05-26T07:48:00.000Z"
-last_activity: 2026-05-26
+last_updated: "2026-05-26T08:00:00.000Z"
+last_activity: "2026-05-26 - Phase 87 shipped: /api/mcp Streamable HTTP route with Bearer auth + CORS; WebStandardStreamableHTTPServerTransport; createMcpServer factory (no tools yet — Phase 88/89 plug them in); 21/21 unit tests pass; tsc clean."
 progress:
-  total_phases: 86
-  completed_phases: 86
+  total_phases: 87
+  completed_phases: 87
   total_plans: 192
-  completed_plans: 218
+  completed_plans: 219
 ---
 
 # Project State
 
 ## Current Status
 
-- **Milestone**: v4.1 MCP Server — IN PROGRESS (1/5 phases complete: 86 ✓; 87/88/89/90 pending)
+- **Milestone**: v4.1 MCP Server — IN PROGRESS (2/5 phases complete: 86 ✓, 87 ✓; 88/89/90 pending)
 - **Last updated**: 2026-05-26
 
 ## Current Position
 
-Phase: 86 — COMPLETE
+Phase: 87 — COMPLETE
 Plan: —
-Status: Phase 86 OAuth 2.0 authorization-server shipped. /.well-known + /oauth/{register,authorize,token} live; 4 oauth_* tables applied to prod (RLS deny-all, sha256-hashed PKs). 34/34 unit tests pass. Next: Phase 87 (MCP Streamable HTTP transport) consumes resolveAccessToken().
-Last activity: 2026-05-26 - Phase 86 shipped: migration applied, 5 endpoints + consent UI + 34 unit tests; sha256-only token persistence; PKCE S256 mandatory; refresh-token rotation with revocation.
+Status: Phase 87 MCP Streamable HTTP route shipped. /api/mcp validates Bearer tokens via Phase 86's resolveAccessToken, runs WebStandardStreamableHTTPServerTransport in stateless mode, exposes POST/GET(405)/OPTIONS(CORS). createMcpServer factory ready for Phase 88 (read tools) + Phase 89 (write tool) integration. 21/21 unit tests pass; tsc clean. Next: Phase 88 (MCP read tools).
+Last activity: 2026-05-26 - Phase 87 shipped: lib/mcp/{auth,scope,server}.ts + app/api/mcp/route.ts + 3 unit test files; @modelcontextprotocol/sdk@^1.29.0 installed.
 
 ## v3.1.1 Phases
 
@@ -69,6 +69,9 @@ Last activity: 2026-05-26 - Phase 86 shipped: migration applied, 5 endpoints + c
 
 ## Completed Phases
 
+- Phase 87: v4.1 MCP Route — Streamable HTTP Transport with Bearer Auth (87-v4-1-mcp-route-streamable-http-transport-with-bearer-auth) — COMPLETE 2026-05-26
+  - lib/mcp/{auth,scope,server}.ts + app/api/mcp/route.ts; 21 unit tests; WebStandardStreamableHTTPServerTransport (stateless, JSON response mode); Phase 88/89 tool integration point documented in server.ts
+- Phase 86: v4.1 OAuth 2.0 Server for MCP (86-v4-1-oauth-2-0-server-for-mcp-...) — COMPLETE 2026-05-26
 - Phase 54: WhatsApp Status Flow (54-whatsapp-status-flow) — COMPLETE 2026-05-13
   - Plan 01: updateWhatsAppStatus server action + unit tests (WASTATUS-02, WASTATUS-03, WASTATUS-04) — COMPLETE
   - Plan 02: WhatsAppConnectCard: StatusBadge + Suspend/Reactivate buttons (WASTATUS-01, WASTATUS-03) — COMPLETE
@@ -451,6 +454,8 @@ Last activity: 2026-05-26 - Phase 86 shipped: migration applied, 5 endpoints + c
 - [Phase 81]: Plan 03: toast.error + router.refresh on BOTH forbidden and unauthenticated branches (defensive)
 - [Phase 81]: Plan 03: onboarding page typed searchParams as Promise<{ mode?: string }> per Next.js 16 async semantics
 - [Phase 81]: Phase 81 Plan 04: layout fetches memberships in Promise.all; sidebar mounts CompanySelector twice (one per render branch) for Pitfall-5 enforceability; user-menu kept byte-identical but trigger simplified to avatar-only in both modes; mobile-header deferred (SWITCH-15)
+- [Phase 87]: Use WebStandardStreamableHTTPServerTransport (not StreamableHTTPServerTransport) — Next.js Route Handlers expose Fetch Request/Response, not Node IncomingMessage/ServerResponse
+- [Phase 87]: Stateless MCP sessions (sessionIdGenerator: undefined, enableJsonResponse: true) for MVP — fresh Server + transport per request
 
 ## Performance Metrics
 
@@ -603,6 +608,7 @@ Last activity: 2026-05-26 - Phase 86 shipped: migration applied, 5 endpoints + c
 | Phase 81 P02 | 4min | 3 tasks | 2 files |
 | Phase 81 P03 | 6min | 5 tasks | 5 files |
 | Phase 81 P04 | 383s | 5 tasks | 5 files |
+| Phase 87 P— | 25min | 4 tasks | 9 files |
 
 ## Project Reference
 
