@@ -1,15 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v4.1
-milestone_name: MCP Server
-status: shipped
-last_updated: "2026-05-26T12:40:33.320Z"
-last_activity: 2026-05-26
+milestone: v1.5
+milestone_name: Zero-friction Project Onboarding
+status: executing
+last_updated: "2026-05-26T18:51:21.123Z"
+last_activity: 2026-05-26 -- Phase 81 execution started
 progress:
-  total_phases: 89
+  total_phases: 90
   completed_phases: 61
-  total_plans: 187
+  total_plans: 190
   completed_plans: 218
+  percent: 100
 ---
 
 # Project State
@@ -21,10 +22,10 @@ progress:
 
 ## Current Position
 
-Phase: 79 — COMPLETE (v4.0 foundation: company_members table + active-company resolvers + layout swap)
-Plan: 4/4 plans shipped, VERIFICATION passed, HUMAN-UAT auto-approved per user memory
-Status: v4.0 foundation slice complete — Switcher UI / Add Company flow not yet planned
-Last activity: 2026-05-26 - Completed quick task 260526-0hv: fix dashboard status filter tabs (replace stale STATUS_FILTERS with real project.status values)
+Phase: 81 (Add WhatsApp send option in SendTab and integrations settings) — EXECUTING
+Plan: 1 of 3
+Status: Executing Phase 81
+Last activity: 2026-05-26 -- Phase 81 execution started
 
 ## v3.1.1 Phases
 
@@ -625,7 +626,7 @@ Last activity: 2026-05-26 - Completed quick task 260526-0hv: fix dashboard statu
 See: .planning/PROJECT.md (updated 2026-05-13)
 
 **Core value:** Business owner → job site audio recording → sent professional estimate in under 5 minutes
-**Current focus:** Phase 81 — Company Switcher UI + Add Company flow
+**Current focus:** Phase 81 — Add WhatsApp send option in SendTab and integrations settings
 
 ## Notes
 
