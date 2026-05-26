@@ -109,6 +109,13 @@ export const blogPostSchema = z.object({
   metaDescription: z.string().max(300).nullable(),
 })
 
+export const legalPageSchema = z.object({
+  title: z.string().min(1, 'Title is required').max(200),
+  content: z.string().min(1, 'Content is required'),
+  effectiveDate: z.string().nullable(),
+})
+
 export type SeoInput = z.infer<typeof seoSchema>
 export type LandingContentInput = z.infer<typeof landingContentSchema>
 export type BlogPostInput = z.infer<typeof blogPostSchema>
+export type LegalPageInput = z.infer<typeof legalPageSchema>
