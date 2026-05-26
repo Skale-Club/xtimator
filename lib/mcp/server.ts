@@ -1,32 +1,20 @@
-// Phase 87: MCP server factory.
+// Phase 87/88/89: MCP server factory.
 //
 // Returns a fresh `Server` instance for each authenticated request. The auth
-// context is captured in the closure so any tool handler registered by future
-// phases can access (user_id, company_id, scope) without threading it through
-// every call site.
+// context is captured in the closure so every tool handler can access
+// (user_id, company_id, scope) without threading it through call sites.
 //
-// ─── Integration point for Phase 88 / Phase 89 ────────────────────────────────
-//   Phase 87 deliberately ships a server with NO tools registered. The next two
-//   phases plug them in here:
-//
-//     Phase 88 (read tools): list_estimates, get_estimate, list_clients, etc.
-//                            All require `mcp:read` scope.
-//     Phase 89 (write tool): create_estimate. Requires `mcp:write`.
-//
-//   Recommended pattern for those phases:
-//     1. Add a `registerReadTools(server, authContext)` function in `lib/mcp/tools/read.ts`.
-//     2. Add a `registerWriteTools(server, authContext)` function in `lib/mcp/tools/write.ts`.
-//     3. Call them from createMcpServer() below — they have access to the same
-//        captured authContext via the function parameter.
-//     4. Each tool handler must call `requireScope(authContext, 'mcp:read'|'mcp:write')`
-//        before performing its work and return an `insufficient_scope` JSON-RPC
-//        error if the check fails.
-// ──────────────────────────────────────────────────────────────────────────────
+// Phase 89 refactor: registration of `tools/list` + `tools/call` handlers now
+// lives in `lib/mcp/tools/registry.ts` (`registerAllTools`) — `setRequestHandler`
+// only accepts one handler per request schema, so read + write tools share the
+// same dispatcher. `read.ts` and `write.ts` each export a `buildXTools(auth)`
+// builder that returns `{ definition, handler }` entries; the registry
+// concatenates them and dispatches by name.
 
 import 'server-only'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import type { McpAuthContext } from './auth'
-import { registerReadTools } from './tools/read'
+import { registerAllTools } from './tools/registry'
 
 const SERVER_NAME = 'xtimator'
 const SERVER_VERSION = '0.1.0'
@@ -55,12 +43,12 @@ export function createMcpServer(authContext: McpAuthContext): Server {
     },
   )
 
-  // Phase 88: register the 4 read-only tools (list_estimates, get_estimate,
-  // list_clients, list_projects). All require `mcp:read` scope.
-  registerReadTools(server, authContext)
-
-  // Phase 89 will plug in registerWriteTools(server, authContext) below for
-  // create_estimate / check_job_status (mcp:write scope).
+  // Phase 88 (4 read tools: list_estimates, get_estimate, list_clients,
+  // list_projects — mcp:read) + Phase 89 (2 write/async tools: create_estimate
+  // — mcp:write; check_job_status — mcp:read). Registered in one call so the
+  // single tools/list + tools/call handler pair advertises and dispatches all
+  // 6 tools.
+  registerAllTools(server, authContext)
 
   return server
 }

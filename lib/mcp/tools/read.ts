@@ -17,11 +17,6 @@
 
 import 'server-only'
 import { z } from 'zod'
-import type { Server } from '@modelcontextprotocol/sdk/server/index.js'
-import {
-  CallToolRequestSchema,
-  ListToolsRequestSchema,
-} from '@modelcontextprotocol/sdk/types.js'
 import type { McpAuthContext } from '@/lib/mcp/auth'
 import { requireScope } from '@/lib/mcp/scope'
 import { requireServiceClient } from '@/lib/supabase/service'
@@ -36,6 +31,7 @@ import {
   invalidInput,
   notFound,
 } from '@/lib/mcp/errors'
+import type { ToolDefinitionEntry } from '@/lib/mcp/tools/registry'
 
 // ── Tool definitions (advertised via tools/list) ──────────────────────────────
 
@@ -46,14 +42,14 @@ const READ_ONLY_ANNOTATIONS = {
   openWorldHint: false,
 } as const
 
-interface ToolDefinition {
+interface ReadToolDefinition {
   name: string
   description: string
   inputSchema: Record<string, unknown>
   annotations: typeof READ_ONLY_ANNOTATIONS & { title: string }
 }
 
-const TOOL_DEFINITIONS: ToolDefinition[] = [
+const TOOL_DEFINITIONS: ReadToolDefinition[] = [
   {
     name: 'list_estimates',
     description:
@@ -163,6 +159,10 @@ function ensureScope(auth: McpAuthContext, scope: 'mcp:read'): void {
   const check = requireScope(auth, scope)
   if (!check.ok) throw insufficientScope(scope)
 }
+
+// Re-export for write.ts / tests that want the gate without depending on the
+// registry layer.
+export { ensureScope as ensureReadScope }
 
 function parseInput<T extends z.ZodTypeAny>(schema: T, raw: unknown): z.infer<T> {
   const parsed = schema.safeParse(raw ?? {})
@@ -343,40 +343,52 @@ async function handleListProjects(auth: McpAuthContext, args: unknown) {
   return jsonContent(paginate((data ?? []) as PaginatedRow[], limit))
 }
 
-// ── Registration ─────────────────────────────────────────────────────────────
+// ── Builder (Phase 89 refactor) ───────────────────────────────────────────────
 
 /**
- * Register the 4 read-only MCP tools on the given server. Call from
- * `createMcpServer` in `lib/mcp/server.ts`.
+ * Build the 4 read-only MCP tool entries (definitions + per-tool handlers) for
+ * the given auth context.
  *
- * Each tool:
- *   - Carries `readOnlyHint: true` so Claude.ai groups them under one "Always
- *     allow" toggle in the UI.
+ * Each entry's handler:
  *   - Gates on `mcp:read` scope before doing any work.
  *   - Scopes every Supabase query to `auth.company_id`.
+ *
+ * Phase 89 moved the `setRequestHandler` registration out of this file and into
+ * `lib/mcp/tools/registry.ts` so that read + write tools can share a single
+ * `tools/list` + `tools/call` handler pair (MCP Server only accepts one handler
+ * per request schema).
  */
-export function registerReadTools(server: Server, auth: McpAuthContext): void {
-  server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: TOOL_DEFINITIONS,
-  }))
-
-  server.setRequestHandler(CallToolRequestSchema, async (request) => {
-    ensureScope(auth, 'mcp:read')
-
-    const { name, arguments: args } = request.params
-    switch (name) {
-      case 'list_estimates':
+export function buildReadTools(auth: McpAuthContext): ToolDefinitionEntry[] {
+  return [
+    {
+      definition: TOOL_DEFINITIONS[0]!,
+      handler: async (args) => {
+        ensureScope(auth, 'mcp:read')
         return handleListEstimates(auth, args)
-      case 'get_estimate':
+      },
+    },
+    {
+      definition: TOOL_DEFINITIONS[1]!,
+      handler: async (args) => {
+        ensureScope(auth, 'mcp:read')
         return handleGetEstimate(auth, args)
-      case 'list_clients':
+      },
+    },
+    {
+      definition: TOOL_DEFINITIONS[2]!,
+      handler: async (args) => {
+        ensureScope(auth, 'mcp:read')
         return handleListClients(auth, args)
-      case 'list_projects':
+      },
+    },
+    {
+      definition: TOOL_DEFINITIONS[3]!,
+      handler: async (args) => {
+        ensureScope(auth, 'mcp:read')
         return handleListProjects(auth, args)
-      default:
-        throw invalidInput(`Unknown tool: ${name}`)
-    }
-  })
+      },
+    },
+  ]
 }
 
 // Exported for tests — let unit tests inspect/exec without spinning up a Server.

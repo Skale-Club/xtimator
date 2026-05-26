@@ -117,7 +117,15 @@ vi.mock('@/lib/supabase/service', () => ({
 }))
 
 // Import after the mock is in place.
-import { __testing, registerReadTools } from '@/lib/mcp/tools/read'
+//
+// Phase 89: registerReadTools was replaced by buildReadTools (returns
+// { definition, handler } entries) — registration now lives in
+// lib/mcp/tools/registry.ts (registerAllTools). The "scope gate via
+// registerReadTools" tests below adapt by driving the per-entry handler
+// directly, which exercises the same code path that registerAllTools
+// dispatches into.
+import { __testing, buildReadTools } from '@/lib/mcp/tools/read'
+import { registerAllTools } from '@/lib/mcp/tools/registry'
 import type { McpAuthContext } from '@/lib/mcp/auth'
 
 const AUTH: McpAuthContext = {
@@ -280,9 +288,9 @@ describe('pagination', () => {
   })
 })
 
-// ── Scope gate ───────────────────────────────────────────────────────────────
+// ── Scope gate (via buildReadTools entries) ──────────────────────────────────
 
-describe('scope gate via registerReadTools', () => {
+describe('scope gate via buildReadTools', () => {
   it('throws insufficient_scope when auth lacks mcp:read', async () => {
     const noReadAuth: McpAuthContext = {
       client_id: 'c',
@@ -291,54 +299,25 @@ describe('scope gate via registerReadTools', () => {
       scope: ['mcp:write'],
     }
 
-    // Fake minimal server that captures the handler.
-    let callHandler:
-      | ((req: { params: { name: string; arguments: unknown } }) => Promise<unknown>)
-      | null = null
-    const fakeServer = {
-      setRequestHandler(schema: { shape?: { method?: { value?: string } } }, handler: unknown) {
-        // CallToolRequestSchema has method literal "tools/call"; ListTools has "tools/list".
-        const method = schema.shape?.method?.value
-        if (method === 'tools/call') {
-          callHandler = handler as typeof callHandler
-        }
-      },
-    } as unknown as Parameters<typeof registerReadTools>[0]
+    const entries = buildReadTools(noReadAuth)
+    const entry = entries.find((e) => e.definition.name === 'list_estimates')!
+    expect(entry).toBeDefined()
 
-    registerReadTools(fakeServer, noReadAuth)
-    expect(callHandler).not.toBeNull()
-
-    await expect(
-      callHandler!({ params: { name: 'list_estimates', arguments: {} } }),
-    ).rejects.toMatchObject({
+    await expect(entry.handler({})).rejects.toMatchObject({
       data: { kind: 'insufficient_scope' },
     })
   })
 
   it('allows the call through when auth has mcp:read', async () => {
     queueResponse('clients', [])
-    let callHandler:
-      | ((req: { params: { name: string; arguments: unknown } }) => Promise<unknown>)
-      | null = null
-    const fakeServer = {
-      setRequestHandler(schema: { shape?: { method?: { value?: string } } }, handler: unknown) {
-        if (schema.shape?.method?.value === 'tools/call') {
-          callHandler = handler as typeof callHandler
-        }
-      },
-    } as unknown as Parameters<typeof registerReadTools>[0]
-
-    registerReadTools(fakeServer, AUTH)
-    expect(callHandler).not.toBeNull()
-
-    const result = await callHandler!({
-      params: { name: 'list_clients', arguments: {} },
-    })
+    const entries = buildReadTools(AUTH)
+    const entry = entries.find((e) => e.definition.name === 'list_clients')!
+    const result = await entry.handler({})
     const body = readContent(result) as { items: unknown[] }
     expect(body.items).toEqual([])
   })
 
-  it('throws invalid_input for an unknown tool name', async () => {
+  it('registerAllTools throws invalid_input for an unknown tool name', async () => {
     let callHandler:
       | ((req: { params: { name: string; arguments: unknown } }) => Promise<unknown>)
       | null = null
@@ -348,9 +327,9 @@ describe('scope gate via registerReadTools', () => {
           callHandler = handler as typeof callHandler
         }
       },
-    } as unknown as Parameters<typeof registerReadTools>[0]
+    } as unknown as Parameters<typeof registerAllTools>[0]
 
-    registerReadTools(fakeServer, AUTH)
+    registerAllTools(fakeServer, AUTH)
     await expect(
       callHandler!({ params: { name: 'not_a_tool', arguments: {} } }),
     ).rejects.toMatchObject({
@@ -362,22 +341,14 @@ describe('scope gate via registerReadTools', () => {
 // ── tools/list response ──────────────────────────────────────────────────────
 
 describe('tools/list response', () => {
-  it('lists all 4 tools with annotations', async () => {
-    let listHandler: (() => Promise<{ tools: unknown[] }>) | null = null
-    const fakeServer = {
-      setRequestHandler(schema: { shape?: { method?: { value?: string } } }, handler: unknown) {
-        if (schema.shape?.method?.value === 'tools/list') {
-          listHandler = handler as typeof listHandler
-        }
-      },
-    } as unknown as Parameters<typeof registerReadTools>[0]
-
-    registerReadTools(fakeServer, AUTH)
-    expect(listHandler).not.toBeNull()
-    const res = await listHandler!()
-    expect(res.tools).toHaveLength(4)
-    const names = (res.tools as Array<{ name: string }>).map((t) => t.name).sort()
+  it('buildReadTools returns all 4 read tools with annotations', () => {
+    const entries = buildReadTools(AUTH)
+    expect(entries).toHaveLength(4)
+    const names = entries.map((e) => e.definition.name).sort()
     expect(names).toEqual(['get_estimate', 'list_clients', 'list_estimates', 'list_projects'])
+    for (const e of entries) {
+      expect(e.definition.annotations.readOnlyHint).toBe(true)
+    }
   })
 })
 
