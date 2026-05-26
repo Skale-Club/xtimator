@@ -1,12 +1,12 @@
 ---
 id: SEED-030
-status: dormant
+status: activating
 planted: 2026-05-22
 planted_during: v4.0 Multi-Tenancy (defining requirements) — v3.1.1 in-flight
 trigger_when: Estimates pipeline funcional end-to-end em produção + demanda de power-users querendo automatizar via GPT/Claude assistants
 scope: Large
-last_revisited: 2026-05-25
-revisit_outcome: User asked to start the milestone now; deferred after surfacing the conflict with the active v4.0 work. Locked decisions captured below in "Locked Decisions (2026-05-25 session)".
+last_revisited: 2026-05-26
+revisit_outcome: User activated post v4.0 close-out (2026-05-26). New design decision locked: tool grouping with annotations (readOnlyHint / destructiveHint / titleHint) so Claude.ai's permission UI shows grouped "Always allow" toggles per capability tier. See "Locked Decisions (2026-05-26 session)" below.
 ---
 
 # SEED-030: MCP Server for Xtimator (Model Context Protocol)
@@ -93,6 +93,36 @@ Camada de auth/Supabase que precisa ser estendida para aceitar API keys:
 - **[[SEED-012-redis-rate-limiting-infrastructure]]** — MCP por API key precisa de rate limiting forte (cada tool call é um endpoint exposto programaticamente)
 - **[[SEED-014-typed-error-handling-system]]** — MCP retorna erros tipados ao assistente; sistema de erros precisa estar maduro para mensagens úteis no LLM
 - **[[SEED-026-language-onboarding-and-estimate-ui-complete]]** — MCP deve respeitar idioma do workspace (Estimate gerado em pt-BR mesmo se prompt vier em inglês, ou vice-versa)
+
+## Locked Decisions (2026-05-26 session)
+
+### Tool grouping for permission UX
+
+User confirmed via screenshot reference (Vercel MCP "Tool permissions" panel with "Read-only tools (13) — Always allow" pattern) that Claude.ai's permission UI groups tools by capability and offers per-group toggles.
+
+Implementation: every Xtimator MCP tool declares MCP annotations on its definition. The Claude.ai UI renders three groups automatically:
+
+| Group | Annotation flag | Tools |
+|---|---|---|
+| **Read-only** | `readOnlyHint: true`, `destructiveHint: false` | `list_estimates`, `get_estimate`, `list_clients`, `list_projects` |
+| **Write (non-destructive)** | `readOnlyHint: false`, `destructiveHint: false`, `idempotentHint: false` | `create_estimate` |
+| (future) **Destructive** | `destructiveHint: true` | none in MVP — placeholder for `delete_*` / `cancel_*` in later cuts |
+
+Annotations are wired at the SDK level (`@modelcontextprotocol/sdk` `Tool` type accepts an `annotations` object). No custom UI work in Xtimator — the grouping is purely metadata that Claude.ai consumes.
+
+This makes "Always allow read-only, ask each write" a one-click setup for the user — exactly the UX shown in the Vercel screenshot.
+
+### Naming convention
+
+Tool names use `verb_noun` snake_case (mirrors the Vercel MCP convention from the screenshot: `list_deployments`, `get_project`, `deploy_to_vercel`). Avoids prefixing with `xtimator_` because the workspace context is implicit once the connector is added.
+
+### Pagination contract
+
+`list_*` tools return `{ items: [...], nextCursor?: string }`. Cursor is opaque (base64-encoded `created_at` timestamp + id tuple). Default `limit: 25`, max 100. Mirrors REST API list conventions and is what GPT/Claude expect.
+
+### Async tool returns
+
+`create_estimate` may take 30-60s (AI generation). Per the seed's original Note #3: tool returns `{ job_id, status: 'queued' }` immediately. Add a sixth tool to the MVP — `check_job_status(job_id)` — so the LLM can poll naturally in the conversation. This bumps MVP from 5 to 6 tools but is required for the async pattern to work end-to-end.
 
 ## Locked Decisions (2026-05-25 session)
 
