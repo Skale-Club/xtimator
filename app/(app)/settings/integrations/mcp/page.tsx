@@ -24,6 +24,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 
 import { CopyButton } from './copy-button'
+import { ConnectDialog } from './connect-dialog'
 
 export const metadata = { title: 'MCP Server | Integrations | Settings' }
 
@@ -85,73 +86,19 @@ export default async function McpSettingsPage() {
         </CardContent>
       </Card>
 
-      {/* How to connect */}
-      <section className="space-y-6">
-        <h2 className="text-xl font-semibold tracking-tight">How to connect</h2>
-
-        {/* Claude Code */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Claude Code (CLI)</CardTitle>
-            <CardDescription>
-              Run this in any terminal where the <code>claude</code> CLI is installed.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-              <pre className="flex-1 overflow-x-auto rounded-md border bg-muted px-3 py-2 text-sm">
-                <code>{claudeCodeCmd}</code>
-              </pre>
-              <CopyButton value={claudeCodeCmd} label="Copy command" />
-            </div>
-            <p className="text-sm text-muted-foreground">
-              When you first run a tool, Claude Code will pop the consent screen.
-              Authorize for the active company shown there.
-            </p>
-          </CardContent>
-        </Card>
-
-        {/* Claude.ai / Claude Desktop */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Claude.ai / Claude Desktop</CardTitle>
-            <CardDescription>
-              Add Xtimator as a custom connector in the Claude UI.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ol className="ml-5 list-decimal space-y-1.5 text-sm">
-              <li>Open <span className="font-medium">Settings → Connectors → Add custom connector</span></li>
-              <li>Name: <code className="rounded bg-muted px-1 py-0.5">Xtimator</code></li>
-              <li>
-                Remote MCP server URL:{' '}
-                <code className="rounded bg-muted px-1 py-0.5">{mcpUrl}</code>
-              </li>
-              <li>Click <span className="font-medium">Add</span></li>
-            </ol>
-          </CardContent>
-        </Card>
-
-        {/* ChatGPT */}
-        <Card>
-          <CardHeader>
-            <CardTitle>ChatGPT (Connectors)</CardTitle>
-            <CardDescription>
-              ChatGPT also supports remote MCP servers via custom connectors.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ol className="ml-5 list-decimal space-y-1.5 text-sm">
-              <li>Open <span className="font-medium">Settings → Connectors → Add custom connector</span></li>
-              <li>
-                Server URL:{' '}
-                <code className="rounded bg-muted px-1 py-0.5">{mcpUrl}</code>
-              </li>
-              <li>Authorize the connector when prompted</li>
-            </ol>
-          </CardContent>
-        </Card>
-      </section>
+      {/* How to connect — single button → dialog with per-client tabs */}
+      <Card>
+        <CardHeader>
+          <CardTitle>How to connect</CardTitle>
+          <CardDescription>
+            Pick the client you want to add Xtimator to. All clients use the same MCP
+            endpoint and the same OAuth consent flow.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ConnectDialog mcpUrl={mcpUrl} claudeCodeCmd={claudeCodeCmd} />
+        </CardContent>
+      </Card>
 
       {/* Available tools */}
       <Card>

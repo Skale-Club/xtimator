@@ -40,6 +40,19 @@ describe('resolveIssuer — canonical URL priority', () => {
     expect(await resolveIssuer()).toBe('https://custom.example.com')
   })
 
+  it('1b. NEXT_PUBLIC_APP_URL trailing whitespace (e.g. trailing newline from echo|vercel env add) is trimmed', async () => {
+    process.env.NEXT_PUBLIC_APP_URL = 'https://custom.example.com\n'
+    const { resolveIssuer } = await import('@/lib/oauth/issuer')
+    expect(await resolveIssuer()).toBe('https://custom.example.com')
+  })
+
+  it('1c. whitespace-only NEXT_PUBLIC_APP_URL falls through to next branch', async () => {
+    process.env.NEXT_PUBLIC_APP_URL = '   \n  '
+    process.env.VERCEL_ENV = 'production'
+    const { resolveIssuer } = await import('@/lib/oauth/issuer')
+    expect(await resolveIssuer()).toBe('https://xtimator.com')
+  })
+
   it('2. VERCEL_ENV=production resolves to canonical https://xtimator.com (not the preview URL)', async () => {
     // This is the bug being fixed by the 2026-05-26 hotfix: without this branch,
     // production deployments emit the per-deploy preview URL as the OAuth issuer,

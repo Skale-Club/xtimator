@@ -19,12 +19,12 @@ import { headers } from 'next/headers'
 const CANONICAL_PRODUCTION_URL = 'https://xtimator.com'
 
 export async function resolveIssuer(): Promise<string> {
-  const explicit = process.env.NEXT_PUBLIC_APP_URL
-  if (explicit) return stripTrailingSlash(explicit)
+  const explicit = normalize(process.env.NEXT_PUBLIC_APP_URL)
+  if (explicit) return explicit
 
   if (process.env.VERCEL_ENV === 'production') return CANONICAL_PRODUCTION_URL
 
-  const vercel = process.env.VERCEL_URL
+  const vercel = normalize(process.env.VERCEL_URL)
   if (vercel) return `https://${vercel}`
 
   // Fall back to the incoming request's origin (works on localhost too).
@@ -34,6 +34,12 @@ export async function resolveIssuer(): Promise<string> {
   return `${proto}://${host}`
 }
 
-function stripTrailingSlash(s: string): string {
-  return s.endsWith('/') ? s.slice(0, -1) : s
+/** Defensive normalization: trims whitespace (e.g. trailing newline from `echo ... | vercel env add`)
+ *  and strips a trailing slash. Returns null for empty / whitespace-only values so callers
+ *  fall through to the next resolution branch. */
+function normalize(raw: string | undefined): string | null {
+  if (!raw) return null
+  const trimmed = raw.trim()
+  if (!trimmed) return null
+  return trimmed.endsWith('/') ? trimmed.slice(0, -1) : trimmed
 }
