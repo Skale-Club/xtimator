@@ -27,7 +27,7 @@ describe('phase 81 — onboarding ?mode=add wiring (SWITCH-11)', () => {
   })
 
   it('app/onboarding/page.tsx passes mode prop to <OnboardingSurvey />', () => {
-    expect(PAGE_SRC).toMatch(/<OnboardingSurvey[^>]*\bmode=/s)
+    expect(PAGE_SRC).toMatch(/<OnboardingSurvey[\s\S]*?\bmode=/)
   })
 
   it("OnboardingSurvey accepts mode prop typed as 'first' | 'add'", () => {
@@ -38,7 +38,7 @@ describe('phase 81 — onboarding ?mode=add wiring (SWITCH-11)', () => {
 
   it('OnboardingSurvey threads { mode } as second arg to createOrUpdateCompany', () => {
     expect(SURVEY_SRC).toMatch(
-      /createOrUpdateCompany\([^)]*,\s*\{[^}]*\bmode\b/s
+      /createOrUpdateCompany\([\s\S]*?,\s*\{[\s\S]*?\bmode\b/
     )
   })
 })
