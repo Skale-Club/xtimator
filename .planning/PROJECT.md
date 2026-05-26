@@ -41,12 +41,13 @@ Complete subscription system: Free/Trial/Pro/Business tiers, `usage_events` trac
 - **Stripe Connect:** stays per-company (already aligned)
 - **Backwards compat:** zero re-onboarding — migration auto-creates 1 owner membership per existing company
 
-**Progress (2026-05-25):**
-- ✅ **Phase 79: Foundation (schema + cookie + active company resolution)** — shipped. `company_members(user_id, company_id, role)` table live in prod (3 owners backfilled), RLS enabled; `getActiveCompanyId` / `getActiveCompany` helpers; `createOrUpdateCompany(mode: 'first' | 'add')`; `app/(app)/layout.tsx` switched to active-company resolvers. No UI in this phase by design. 4/4 plans, 15 commits, 38/38 tests green.
-- ⬜ **Next:** Switcher UI + "Add company" flow (no phase planned yet — needs `/gsd:add-phase`)
-- ⬜ **Then:** RLS rewrite across tenant-scoped tables
-- ⬜ **Then:** Billing per-company semantics
-- ⬜ **Then:** Server-action sweep
+**Progress (2026-05-26):**
+- ✅ **Phase 79: Foundation (schema + cookie + active company resolution)** — shipped 2026-05-25. `company_members(user_id, company_id, role)` table live in prod (3 owners backfilled), RLS enabled; `getActiveCompanyId` / `getActiveCompany` helpers; `createOrUpdateCompany(mode: 'first' | 'add')`; `app/(app)/layout.tsx` switched to active-company resolvers. No UI in this phase by design. 4/4 plans, 15 commits, 38/38 tests green.
+- ✅ **Phase 81: Company Switcher UI + Add Company flow** — shipped 2026-05-26. `getMembershipCompanies()` query, `switchActiveCompany()` server action with discriminated-union return, CompanySelector wired with `useTransition` and mounted in BOTH sidebar render trees (collapsed + expanded), onboarding `?mode=add` threading end-to-end (page → survey → `createOrUpdateCompany`). 4/4 plans, 13 commits, 31/31 Phase 81 tests green. Mobile switcher deferred (SWITCH-15).
+- ⬜ **Next:** RLS rewrite across tenant-scoped tables (projects/clients/estimates/estimate_items/estimate_templates/company_price_book/integrations/notifications/custom_domains/whatsapp_settings) to gate by `company_members` membership of the active company instead of `companies.user_id`
+- ⬜ **Then:** Billing per-company semantics (tier/trial clock per company, Stripe customer per company, usage_events per company)
+- ⬜ **Then:** Server-action sweep (~20 server actions in `lib/actions/*.ts` rewritten to derive company_id from cookie not user)
+- ⬜ **Then:** Drop `companies.user_id` column (Phase 82 from Phase 79 D-04)
 
 **Out of scope (captured for future milestones):**
 - Inviting other users to existing companies

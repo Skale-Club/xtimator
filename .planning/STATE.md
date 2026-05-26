@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Zero-friction Project Onboarding
 status: verifying
-last_updated: "2026-05-26T03:58:54.374Z"
+last_updated: "2026-05-26T04:04:16.372Z"
 last_activity: 2026-05-26
 progress:
   total_phases: 80
@@ -22,8 +22,8 @@ progress:
 
 ## Current Position
 
-Phase: 81 (Company Switcher UI + Add Company flow) — EXECUTING
-Plan: 4 of 4
+Phase: 999.1
+Plan: Not started
 Status: Phase complete — ready for verification
 Last activity: 2026-05-26
 Previous: Phase 79 — COMPLETE (v4.0 foundation: company_members table + active-company resolvers + layout swap)
