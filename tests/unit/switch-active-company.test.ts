@@ -12,6 +12,9 @@ vi.mock('next/headers', () => ({
 vi.mock('next/cache', () => ({
   revalidatePath: vi.fn(),
   revalidateTag: vi.fn(),
+  // Bypass unstable_cache so importing lib/queries/active-company.ts (for the cookie
+  // constants) doesn't try to invoke the real Next.js cache layer.
+  unstable_cache: <T extends (...args: never[]) => unknown>(fn: T) => fn,
 }))
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(),
