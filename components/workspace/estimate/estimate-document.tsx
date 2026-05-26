@@ -1318,45 +1318,48 @@ export function EstimateDocument({
         borderColor: '#3f3f46',
       } as React.CSSProperties}
     >
-      {/* Company header — only when company provided (share/view mode) */}
+      {/* Company header — only when company provided (share/view mode + editor) */}
       {company && (
         <div
           className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 p-4 sm:p-6 border-b border-border"
           style={{ borderTopWidth: 3, borderTopStyle: 'solid', borderTopColor: brandColor }}
         >
-          <div className="flex items-start gap-3">
-            {company.logo_url && (
+          {/* LEFT — company info (Quick-260526-jo4) */}
+          <div className="min-w-0">
+            <p className="font-bold text-lg leading-tight" style={{ color: brandColor }}>
+              {company.name}
+            </p>
+            {company.owner_name && (
+              <p className="text-xs text-muted-foreground mt-0.5">{company.owner_name}</p>
+            )}
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {[
+                company.phone && formatPhoneForDisplay(company.phone),
+                company.email,
+                company.website,
+              ]
+                .filter(Boolean)
+                .join('  ·  ')}
+            </p>
+            {companyAddr && (
+              <p className="text-xs text-muted-foreground mt-0.5 whitespace-pre-line">
+                {companyAddr}
+              </p>
+            )}
+          </div>
+
+          {/* RIGHT — logo (Quick-260526-jo4) */}
+          {company.logo_url && (
+            <div className="flex-shrink-0">
               <Image
                 src={company.logo_url}
                 alt={company.name}
                 width={64}
                 height={64}
-                className="rounded object-contain flex-shrink-0"
+                className="rounded object-contain"
               />
-            )}
-            <div>
-              <p className="font-bold text-lg leading-tight" style={{ color: brandColor }}>
-                {company.name}
-              </p>
-              {company.owner_name && (
-                <p className="text-xs text-muted-foreground mt-0.5">{company.owner_name}</p>
-              )}
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {[
-                  company.phone && formatPhoneForDisplay(company.phone),
-                  company.email,
-                  company.website,
-                ]
-                  .filter(Boolean)
-                  .join('  ·  ')}
-              </p>
-              {companyAddr && (
-                <p className="text-xs text-muted-foreground mt-0.5 whitespace-pre-line">
-                  {companyAddr}
-                </p>
-              )}
             </div>
-          </div>
+          )}
         </div>
       )}
 
