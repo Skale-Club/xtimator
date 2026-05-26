@@ -2,29 +2,29 @@
 gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Zero-friction Project Onboarding
-status: "Phase 88 shipped: 4 read-only MCP tools (list_estimates, get_estimate, list_clients, list_projects) registered into createMcpServer with readOnlyHint=true annotations. Keyset pagination via base64(JSON({created_at,id})) cursors. Every Supabase query scoped to auth.company_id. mcp:read scope-gated. 45 new unit tests pass; Phase 87 21/21 still green; tsc clean. Next: Phase 89 (write tool — create_estimate)."
-last_updated: "2026-05-26T08:15:00.000Z"
-last_activity: "2026-05-26 - Phase 88 shipped: lib/mcp/{pagination,errors}.ts + lib/mcp/tools/read.ts + 3 unit test files (45 tests); registerReadTools wired into createMcpServer."
+status: "Phase 89 shipped — 2 new MCP tools (create_estimate write/async via Inngest, check_job_status read) on top of Phase 88's 4 read tools. Tool registration refactored into shared registry (buildAllTools + registerAllTools) so read + write share a single tools/list + tools/call handler pair. 37 new unit tests; 104/104 MCP tests pass; tsc clean. Next: Phase 90 (Settings UI for MCP connections)."
+last_updated: "2026-05-26T12:35:00.000Z"
+last_activity: "2026-05-26 - Phase 89 shipped: lib/mcp/tools/{registry,write}.ts + 3 new unit test files (37 tests, total MCP 104); registerReadTools refactored to buildReadTools(auth); createMcpServer now calls registerAllTools."
 progress:
-  total_phases: 51
-  completed_phases: 33
-  total_plans: 98
-  completed_plans: 116
+  total_phases: 89
+  completed_phases: 61
+  total_plans: 187
+  completed_plans: 217
 ---
 
 # Project State
 
 ## Current Status
 
-- **Milestone**: v4.1 MCP Server — IN PROGRESS (3/5 phases complete: 86 ✓, 87 ✓, 88 ✓; 89/90 pending)
+- **Milestone**: v4.1 MCP Server — IN PROGRESS (4/5 phases complete: 86 ✓, 87 ✓, 88 ✓, 89 ✓; 90 pending)
 - **Last updated**: 2026-05-26
 
 ## Current Position
 
-Phase: 88 — COMPLETE
+Phase: 89 — COMPLETE
 Plan: —
-Status: Phase 88 shipped — 4 read-only MCP tools registered with readOnlyHint annotations; keyset pagination; tenant-scoped queries; mcp:read gate. 45/45 new tests pass; Phase 87 21/21 still green; tsc clean. Next: Phase 89 (write tool — create_estimate, check_job_status under mcp:write).
-Last activity: 2026-05-26 - Phase 88 shipped: lib/mcp/{pagination,errors}.ts + lib/mcp/tools/read.ts + 3 unit test files (45 tests); registerReadTools wired into createMcpServer.
+Status: Phase 89 shipped — create_estimate (mcp:write, async via Inngest) + check_job_status (mcp:read) on top of Phase 88's 4 read tools. Tool registry refactored: read.ts/write.ts now export buildXTools(auth); registerAllTools owns the single tools/list + tools/call handler pair. 104/104 MCP tests pass; tsc clean. Next: Phase 90 (Settings UI for MCP connections).
+Last activity: 2026-05-26 - Phase 89 shipped: lib/mcp/tools/{registry,write}.ts + 3 new unit test files (37 tests, total MCP 104).
 
 ## v3.1.1 Phases
 
@@ -69,6 +69,8 @@ Last activity: 2026-05-26 - Phase 88 shipped: lib/mcp/{pagination,errors}.ts + l
 
 ## Completed Phases
 
+- Phase 89: v4.1 Write MCP Tools — create_estimate (async via Inngest) + check_job_status; shared tool registry refactor (89-v4-1-write-mcp-tools-create-estimate-check-job-status-async) — COMPLETE 2026-05-26
+  - lib/mcp/tools/{registry,write}.ts + 3 unit test files (37 tests); read.ts refactored from registerReadTools → buildReadTools(auth); server.ts now calls registerAllTools once. create_estimate dispatches EVENT_ESTIMATE_GENERATE (same Inngest event /api/generate-estimate uses); check_job_status reads /v1/events/{id}/runs (same path /api/jobs/[jobId] uses). 104/104 MCP tests pass; tsc clean.
 - Phase 88: v4.1 Read-Only MCP Tools — list_estimates, get_estimate, list_clients, list_projects (88-v4-1-read-only-mcp-tools-list-estimates-clients-projects) — COMPLETE 2026-05-26
   - lib/mcp/{pagination,errors}.ts + lib/mcp/tools/read.ts; 45 unit tests; registerReadTools wired into createMcpServer; all tools carry readOnlyHint=true so Claude.ai groups them under one "Always allow" toggle; keyset pagination via base64(JSON({created_at,id})); every query scoped to auth.company_id.
 - Phase 87: v4.1 MCP Route — Streamable HTTP Transport with Bearer Auth (87-v4-1-mcp-route-streamable-http-transport-with-bearer-auth) — COMPLETE 2026-05-26
@@ -458,6 +460,8 @@ Last activity: 2026-05-26 - Phase 88 shipped: lib/mcp/{pagination,errors}.ts + l
 - [Phase 81]: Phase 81 Plan 04: layout fetches memberships in Promise.all; sidebar mounts CompanySelector twice (one per render branch) for Pitfall-5 enforceability; user-menu kept byte-identical but trigger simplified to avatar-only in both modes; mobile-header deferred (SWITCH-15)
 - [Phase 87]: Use WebStandardStreamableHTTPServerTransport (not StreamableHTTPServerTransport) — Next.js Route Handlers expose Fetch Request/Response, not Node IncomingMessage/ServerResponse
 - [Phase 87]: Stateless MCP sessions (sessionIdGenerator: undefined, enableJsonResponse: true) for MVP — fresh Server + transport per request
+- [Phase 89]: Phase 89 refactored MCP tool registration into a shared registry (buildAllTools + registerAllTools) — required because Server.setRequestHandler accepts only one handler per request schema. Read + write tools now share the single tools/list + tools/call handler pair.
+- [Phase 89]: create_estimate dispatches the existing EVENT_ESTIMATE_GENERATE Inngest event (same path /api/generate-estimate uses); check_job_status reads Inngest /v1/events/{id}/runs (same path /api/jobs/[jobId] uses). No parallel job table.
 
 ## Performance Metrics
 
@@ -611,6 +615,7 @@ Last activity: 2026-05-26 - Phase 88 shipped: lib/mcp/{pagination,errors}.ts + l
 | Phase 81 P03 | 6min | 5 tasks | 5 files |
 | Phase 81 P04 | 383s | 5 tasks | 5 files |
 | Phase 87 P— | 25min | 4 tasks | 9 files |
+| Phase 89 P— | 11min | 5 tasks | 9 files |
 
 ## Project Reference
 
