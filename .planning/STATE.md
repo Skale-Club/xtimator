@@ -2,29 +2,29 @@
 gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Zero-friction Project Onboarding
-status: "Phase 89 shipped — 2 new MCP tools (create_estimate write/async via Inngest, check_job_status read) on top of Phase 88's 4 read tools. Tool registration refactored into shared registry (buildAllTools + registerAllTools) so read + write share a single tools/list + tools/call handler pair. 37 new unit tests; 104/104 MCP tests pass; tsc clean. Next: Phase 90 (Settings UI for MCP connections)."
-last_updated: "2026-05-26T12:35:00.000Z"
-last_activity: "2026-05-26 - Phase 89 shipped: lib/mcp/tools/{registry,write}.ts + 3 new unit test files (37 tests, total MCP 104); registerReadTools refactored to buildReadTools(auth); createMcpServer now calls registerAllTools."
+status: "Phase 90 shipped — /settings/integrations/mcp page (server component) + entry card on /settings/integrations + CopyButton client component + 14-test static contract + 90-HUMAN-UAT.md (5 pending tests). v4.1 MCP Server milestone feature-complete (phases 86 → 90 all live in main). 14/14 settings tests pass; tsc clean. Ready for milestone close-out: phase complete 90 + archive v4.1 + tag v4.1 + push (orchestrator)."
+last_updated: "2026-05-26T12:40:00.000Z"
+last_activity: "2026-05-26 - Phase 90 shipped: /settings/integrations/mcp page + copy-button client + entry card + static-contract test (14 tests) + HUMAN-UAT spec. v4.1 MCP Server is feature-complete."
 progress:
-  total_phases: 89
-  completed_phases: 61
+  total_phases: 90
+  completed_phases: 62
   total_plans: 187
-  completed_plans: 217
+  completed_plans: 218
 ---
 
 # Project State
 
 ## Current Status
 
-- **Milestone**: v4.1 MCP Server — IN PROGRESS (4/5 phases complete: 86 ✓, 87 ✓, 88 ✓, 89 ✓; 90 pending)
+- **Milestone**: v4.1 MCP Server — FEATURE-COMPLETE (5/5 phases: 86 ✓, 87 ✓, 88 ✓, 89 ✓, 90 ✓) — ready for milestone close-out (orchestrator: phase complete 90 + archive + tag v4.1 + push)
 - **Last updated**: 2026-05-26
 
 ## Current Position
 
-Phase: 89 — COMPLETE
-Plan: —
-Status: Phase 89 shipped — create_estimate (mcp:write, async via Inngest) + check_job_status (mcp:read) on top of Phase 88's 4 read tools. Tool registry refactored: read.ts/write.ts now export buildXTools(auth); registerAllTools owns the single tools/list + tools/call handler pair. 104/104 MCP tests pass; tsc clean. Next: Phase 90 (Settings UI for MCP connections).
-Last activity: 2026-05-26 - Phase 89 shipped: lib/mcp/tools/{registry,write}.ts + 3 new unit test files (37 tests, total MCP 104).
+Phase: 90 — COMPLETE
+Plan: 01
+Status: Phase 90 shipped — /settings/integrations/mcp page (server component) + parent entry card + CopyButton client + 14-test static contract + 90-HUMAN-UAT.md (5 pending tests). v4.1 MCP Server is feature-complete; 5/5 phases live in main.
+Last activity: 2026-05-26 - Phase 90 shipped: settings UI + HUMAN-UAT spec; v4.1 ready for milestone archive/tag/push.
 
 ## v3.1.1 Phases
 
@@ -69,6 +69,8 @@ Last activity: 2026-05-26 - Phase 89 shipped: lib/mcp/tools/{registry,write}.ts 
 
 ## Completed Phases
 
+- Phase 90: v4.1 MCP Settings Page — Connect-to-Claude UX + HUMAN-UAT (90-v4-1-mcp-settings-page-connect-to-claude-ux-and-human-uat) — COMPLETE 2026-05-26
+  - app/(app)/settings/integrations/mcp/{page,copy-button}.tsx + app/(app)/settings/integrations/page.tsx (entry card) + tests/unit/mcp-settings-page.test.ts (14 tests). HUMAN-UAT spec with 5 pending E2E tests (Claude Code, Claude.ai, ChatGPT, async-poll, token-rotation). v4.1 milestone feature-complete; orchestrator can now archive + tag v4.1.
 - Phase 89: v4.1 Write MCP Tools — create_estimate (async via Inngest) + check_job_status; shared tool registry refactor (89-v4-1-write-mcp-tools-create-estimate-check-job-status-async) — COMPLETE 2026-05-26
   - lib/mcp/tools/{registry,write}.ts + 3 unit test files (37 tests); read.ts refactored from registerReadTools → buildReadTools(auth); server.ts now calls registerAllTools once. create_estimate dispatches EVENT_ESTIMATE_GENERATE (same Inngest event /api/generate-estimate uses); check_job_status reads /v1/events/{id}/runs (same path /api/jobs/[jobId] uses). 104/104 MCP tests pass; tsc clean.
 - Phase 88: v4.1 Read-Only MCP Tools — list_estimates, get_estimate, list_clients, list_projects (88-v4-1-read-only-mcp-tools-list-estimates-clients-projects) — COMPLETE 2026-05-26
@@ -616,6 +618,7 @@ Last activity: 2026-05-26 - Phase 89 shipped: lib/mcp/tools/{registry,write}.ts 
 | Phase 81 P04 | 383s | 5 tasks | 5 files |
 | Phase 87 P— | 25min | 4 tasks | 9 files |
 | Phase 89 P— | 11min | 5 tasks | 9 files |
+| Phase 90 P01 | 25min | 5 tasks | 6 files |
 
 ## Project Reference
 

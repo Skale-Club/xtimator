@@ -1071,12 +1071,14 @@ Plans:
 Plans:
 - [ ] TBD (run /gsd:plan-phase 89 to break down)
 
-### Phase 90: v4.1 MCP settings page Connect to Claude UX and HUMAN UAT
+### Phase 90: v4.1 MCP settings page Connect to Claude UX and HUMAN UAT — COMPLETE 2026-05-26
 
-**Goal:** [To be planned]
-**Requirements**: TBD
-**Depends on:** Phase TBD
-**Plans:** 0 plans
+**Goal:** Ship `/settings/integrations/mcp` with connect URL + per-client instructions (Claude Code, Claude.ai, ChatGPT) and the HUMAN-UAT spec for the end-to-end MCP connect-and-call flow.
+**Requirements:** N/A (UI + docs phase)
+**Depends on:** Phases 86, 87, 88, 89
+**Plans:** 1 plan complete
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 90 to break down)
+- [x] 01 — Settings page + copy buttons + entry card + static-contract test + HUMAN-UAT spec — COMPLETE
+
+**Status:** v4.1 MCP Server is feature-complete (phases 86 → 90 all live in main). Ready for milestone close-out (orchestrator: phase complete 90 + archive v4.1 + tag v4.1 + push).
