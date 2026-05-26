@@ -26,6 +26,7 @@
 import 'server-only'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import type { McpAuthContext } from './auth'
+import { registerReadTools } from './tools/read'
 
 const SERVER_NAME = 'xtimator'
 const SERVER_VERSION = '0.1.0'
@@ -38,11 +39,6 @@ const SERVER_VERSION = '0.1.0'
  *                      (no tools are registered yet).
  */
 export function createMcpServer(authContext: McpAuthContext): Server {
-  // authContext is captured here to make it available to tool handlers in
-  // future phases. We reference it once via a void expression so TypeScript's
-  // noUnusedParameters / strict mode doesn't complain in the meantime.
-  void authContext
-
   const server = new Server(
     {
       name: SERVER_NAME,
@@ -59,9 +55,12 @@ export function createMcpServer(authContext: McpAuthContext): Server {
     },
   )
 
-  // ── tool registration goes here in Phase 88 / Phase 89 ──
-  // registerReadTools(server, authContext)
-  // registerWriteTools(server, authContext)
+  // Phase 88: register the 4 read-only tools (list_estimates, get_estimate,
+  // list_clients, list_projects). All require `mcp:read` scope.
+  registerReadTools(server, authContext)
+
+  // Phase 89 will plug in registerWriteTools(server, authContext) below for
+  // create_estimate / check_job_status (mcp:write scope).
 
   return server
 }
