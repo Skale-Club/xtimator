@@ -498,12 +498,14 @@ export type Database = {
       }
       estimate_deliveries: {
         Row: {
+          /** 'email' | 'sms' | 'whatsapp' — see migration 20260526000005_phase81_whatsapp_delivery_channel (Phase 19/24 manual-extension convention; Docker unavailable on Windows for type regen) */
           channel: string
           company_id: string
           created_at: string
           error_message: string | null
           estimate_id: string
           id: string
+          /** 'resend' | 'twilio' | 'meta' — see migration 20260526000005_phase81_whatsapp_delivery_channel (Phase 19/24 manual-extension convention; Docker unavailable on Windows for type regen) */
           provider: string
           provider_message_id: string | null
           recipient_email: string | null
@@ -513,12 +515,14 @@ export type Database = {
           subject: string | null
         }
         Insert: {
+          /** 'email' | 'sms' | 'whatsapp' — see migration 20260526000005_phase81_whatsapp_delivery_channel */
           channel: string
           company_id: string
           created_at?: string
           error_message?: string | null
           estimate_id: string
           id?: string
+          /** 'resend' | 'twilio' | 'meta' — see migration 20260526000005_phase81_whatsapp_delivery_channel */
           provider: string
           provider_message_id?: string | null
           recipient_email?: string | null
@@ -528,12 +532,14 @@ export type Database = {
           subject?: string | null
         }
         Update: {
+          /** 'email' | 'sms' | 'whatsapp' — see migration 20260526000005_phase81_whatsapp_delivery_channel */
           channel?: string
           company_id?: string
           created_at?: string
           error_message?: string | null
           estimate_id?: string
           id?: string
+          /** 'resend' | 'twilio' | 'meta' — see migration 20260526000005_phase81_whatsapp_delivery_channel */
           provider?: string
           provider_message_id?: string | null
           recipient_email?: string | null
