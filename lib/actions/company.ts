@@ -115,7 +115,10 @@ export async function createOrUpdateCompany(
     // Build INSERT row. If we resolved a source, spread inheritance.
     // Otherwise fall back to TIER-04 default (fresh 14-day trial) — degenerate path,
     // realistically only tests trigger this; Phase 80 UI requires a source company.
-    const insertRow: Record<string, unknown> = { ...row }
+    //
+    // Phase 85: companies.user_id stays NOT NULL until v5+ drops the column.
+    // INSERT WITH CHECK still requires (user_id = auth.uid()). Set it explicitly to claims.sub.
+    const insertRow: Record<string, unknown> = { ...row, user_id: claims.sub }
     if (inheritedTier !== undefined) {
       insertRow.tier = inheritedTier
       insertRow.tier_trial_ends_at = inheritedTrialEndsAt

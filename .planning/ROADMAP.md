@@ -996,37 +996,37 @@ Plans:
 **Goal:** [To be planned]
 **Requirements**: TBD
 **Depends on:** Phase TBD
-**Plans:** 0 plans
+**Plans:** 1/0 plans complete
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 82 to break down)
+- [x] TBD (run /gsd:plan-phase 82 to break down) (completed 2026-05-26)
 
 ### Phase 83: v4.0 Server-Action Sweep — derive company_id from cookie
 
 **Goal:** [To be planned]
 **Requirements**: TBD
 **Depends on:** Phase TBD
-**Plans:** 0 plans
+**Plans:** 1/0 plans complete
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 83 to break down)
+- [x] TBD (run /gsd:plan-phase 83 to break down) (completed 2026-05-26)
 
 ### Phase 84: v4.0 Billing Per-Company — tier and trial scoped to company
 
 **Goal:** [To be planned]
 **Requirements**: TBD
 **Depends on:** Phase TBD
-**Plans:** 0 plans
+**Plans:** 1/0 plans complete
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 84 to break down)
+- [x] TBD (run /gsd:plan-phase 84 to break down) (completed 2026-05-26)
 
 ### Phase 85: v4.0 Drop companies.user_id — final multi-tenant cleanup
 
 **Goal:** [To be planned]
 **Requirements**: TBD
 **Depends on:** Phase TBD
-**Plans:** 0 plans
+**Plans:** 1/0 plans complete
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 85 to break down)
+- [x] TBD (run /gsd:plan-phase 85 to break down) (completed 2026-05-26)

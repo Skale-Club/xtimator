@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Zero-friction Project Onboarding
-status: verifying
-last_updated: "2026-05-26T04:04:16.372Z"
+status: v4.0 foundation + switcher UI shipped — RLS rewrite / billing per-company / server-action sweep still pending
+last_updated: "2026-05-26T04:25:20.007Z"
 last_activity: 2026-05-26
 progress:
-  total_phases: 80
+  total_phases: 84
   completed_phases: 61
   total_plans: 187
-  completed_plans: 209
+  completed_plans: 213
 ---
 
 # Project State
@@ -22,10 +22,10 @@ progress:
 
 ## Current Position
 
-Phase: 81 — COMPLETE (v4.0 switcher UI: CompanySelector mounted in sidebar + switchActiveCompany action + onboarding ?mode=add wired)
-Plan: 4/4 plans shipped, VERIFICATION passed (18/19 automated + 1 HUMAN-UAT auto-approved per user memory)
+Phase: 999.1
+Plan: Not started
 Status: v4.0 foundation + switcher UI shipped — RLS rewrite / billing per-company / server-action sweep still pending
-Last activity: 2026-05-26 - Phase 81 closed; multiple quick tasks merged from origin/main (260526-0hv dashboard filters, 260526-08v audio UI overlay, 260526-02j auto-link client)
+Last activity: 2026-05-26
 
 ## v3.1.1 Phases
 
