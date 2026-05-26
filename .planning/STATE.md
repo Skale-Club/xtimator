@@ -624,6 +624,7 @@ v3.1: Phases 61-65 (started 2026-05-15). Production Go-Live — 27 requirements 
 
 ### Roadmap Evolution
 
+- Phase 81 added (2026-05-26): Company Switcher UI + Add Company flow — surfaces the Phase 79 multi-company plumbing in the UI. Topbar dropdown lists `company_members` rows joined to `companies`, highlights active, provides "Switch active company" (sets `active_company_id` cookie + revalidates) and "+ Add new company" (routes to `/onboarding?mode=add` which calls `createOrUpdateCompany('add')`). RLS rewrite, billing per-company, and server-action sweep stay out of scope — separate v4.0 phases.
 - Phase 8 added: Platform admin panel — scope covers centralized API integrations (Resend/Anthropic/OpenAI) AND global branding (app name, logo, theme). Removes all hardcoded "Xtimator" strings and process.env key coupling; replaces with DB-backed config fetched via server-side loader. Drives v1.1.
 - v1.2 phases 10-12: Brand tokens (BRAND-01–03) → Landing page (LAND-01–05) → i18n system (I18N-01–08). Ordering constraint: landing page must exist before i18n so translations layer on top of real UI strings.
 - Phase 13 added: Visual identity polish — robust favicon and app icons across all surfaces (.ico legacy, icon.svg with light/dark, icon.png fallback, apple-icon.png, web manifest, no public/ vs app/ conflict, no manual <link> in head)

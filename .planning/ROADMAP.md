@@ -968,3 +968,22 @@ Plans:
   - v3.2 deployment milestone — not yet started
 
 **Plans:** 0/0 — not planned yet
+
+### Phase 81: Company Switcher UI + Add Company flow
+
+**Goal:** Surface the multi-company plumbing shipped in Phase 79 in the UI. The topbar gets a dropdown that lists every `companies` row the signed-in user belongs to (joined via `company_members`), highlights the currently-active one, and provides two actions: (1) **Switch active company** — a server action sets the `active_company_id` cookie via `ACTIVE_COMPANY_COOKIE_OPTIONS` and revalidates the layout cache so the sidebar/billing/projects all swap to the new tenant; (2) **+ Add new company** — routes to `/onboarding?mode=add` which calls the existing `createOrUpdateCompany(input, 'add')` action (Phase 79). After this phase ships, a user can own and operate multiple companies end-to-end without touching the DB.
+
+**Depends on:** Phase 79 (foundation: `company_members` table, `getActiveCompanyId`/`getActiveCompany` helpers, `createOrUpdateCompany('add')` mode, layout already reads via active-company resolvers)
+
+**Requirements:** SWITCH-01..05 (TBD — gathered via `/gsd:discuss-phase 81`)
+
+**Out of scope** (for future v4.0 phases):
+- RLS rewrite of tenant-scoped tables (projects/clients/estimates/etc. still gate by `companies.user_id IN (...)`)
+- Billing per-company semantics (tier/trial clock currently still per-user)
+- Server-action sweep across `lib/actions/*.ts`
+- Inviting other users to existing companies (v5+ scope)
+
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run `/gsd:discuss-phase 81` to gather context, then `/gsd:plan-phase 81` to break down)
