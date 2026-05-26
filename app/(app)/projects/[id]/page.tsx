@@ -10,6 +10,7 @@ import { ProjectWorkspace } from '@/components/workspace/project-workspace'
 import { ProjectHeader } from '@/components/workspace/project-header'
 import { ProjectPageShell } from '@/components/workspace/project-page-shell'
 import { Skeleton } from '@/components/ui/skeleton'
+import type { DocumentCompany } from '@/components/workspace/estimate/estimate-document'
 
 const ALLOWED_TABS = ['overview', 'photos', 'send', 'client', 'activity'] as const
 type AllowedTab = (typeof ALLOWED_TABS)[number]
@@ -95,7 +96,7 @@ async function ProjectTabs({
   const supabase = await createClient()
   const { data: company } = await supabase
     .from('companies')
-    .select('name, owner_name, brand_primary_color, estimate_template_greeting, estimate_template_opener, estimate_template_closer, estimate_template_signature, sms_delivery_enabled')
+    .select('name, owner_name, brand_primary_color, estimate_template_greeting, estimate_template_opener, estimate_template_closer, estimate_template_signature, sms_delivery_enabled, logo_url, phone, email, website, address, city, state, zip')
     .eq('id', project.company_id)
     .single()
 
@@ -108,6 +109,19 @@ async function ProjectTabs({
     opener: (company?.estimate_template_opener as string | null) ?? null,
     closer: (company?.estimate_template_closer as string | null) ?? null,
     signature: (company?.estimate_template_signature as string | null) ?? null,
+  }
+  const documentCompany: DocumentCompany = {
+    name: companyName,
+    owner_name: (company?.owner_name as string | null) ?? null,
+    phone: (company?.phone as string | null) ?? null,
+    email: (company?.email as string | null) ?? null,
+    website: (company?.website as string | null) ?? null,
+    address: (company?.address as string | null) ?? null,
+    city: (company?.city as string | null) ?? null,
+    state: (company?.state as string | null) ?? null,
+    zip: (company?.zip as string | null) ?? null,
+    logo_url: (company?.logo_url as string | null) ?? null,
+    brand_primary_color: companyBrandColor,
   }
 
   // Fetch current estimate for workspace tabs that need it
@@ -128,6 +142,7 @@ async function ProjectTabs({
       companyName={companyName}
       ownerName={ownerName}
       companyBrandColor={companyBrandColor}
+      company={documentCompany}
       estimateTemplate={estimateTemplate}
       smsDeliveryEnabled={smsDeliveryEnabled}
       priceBookItems={priceBookItems}
