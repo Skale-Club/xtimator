@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { getEstimateById } from '@/lib/queries/estimate'
 import type { EstimateWithSections } from '@/lib/queries/estimate'
 import { DEFAULT_CURRENCY_CODE, normalizeCurrencyCode } from '@/lib/money/currency'
+import { getActiveCompanyId } from '@/lib/queries/active-company'
 
 // ---------------------------------------------------------------------------
 // Auth helper (same pattern as recording.ts)
@@ -16,10 +17,13 @@ async function getAuthContext() {
   const claims = claimsData?.claims ?? null
   if (!claims) return { error: 'Not authenticated' as const }
 
+  const activeCompanyId = await getActiveCompanyId()
+  if (!activeCompanyId) return { error: 'No company found' as const }
+
   const { data: company } = await supabase
     .from('companies')
     .select('id, currency_code, default_tax_rate, default_payment_terms, default_warranty_terms')
-    .eq('user_id', claims.sub)
+    .eq('id', activeCompanyId)
     .single()
 
   if (!company) return { error: 'No company found' as const }
