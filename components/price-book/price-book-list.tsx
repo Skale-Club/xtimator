@@ -64,6 +64,7 @@ import {
 } from '@/lib/actions/price-book'
 import type { PriceBookItem, PriceBookFolder } from '@/lib/queries/price-book'
 import { DEFAULT_CURRENCY_CODE, formatMoney } from '@/lib/money/currency'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface PriceBookListProps {
   items: PriceBookItem[]
@@ -78,6 +79,7 @@ export function PriceBookList({
   currencyCode = DEFAULT_CURRENCY_CODE,
 }: PriceBookListProps) {
   const router = useRouter()
+  const { t } = useTranslation()
   const [search, setSearch] = useState('')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<PriceBookItem | null>(null)
@@ -226,7 +228,7 @@ export function PriceBookList({
     startTransition(async () => {
       const result = await deleteFolder(deletingFolderId)
       if (result.error) { toast.error(result.error); return }
-      toast.success('Folder deleted')
+      toast.success(t('Category deleted'))
       setDeleteFolderDialogOpen(false)
       setDeletingFolderId(null)
       router.refresh()
@@ -273,7 +275,7 @@ export function PriceBookList({
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" onClick={() => setNewFolderDialogOpen(true)}>
             <FolderPlus className="h-4 w-4 mr-2" />
-            New Folder
+            {t('New Category')}
           </Button>
           <Button variant="outline" onClick={() => setImportDialogOpen(true)}>
             <Upload className="h-4 w-4 mr-2" />
@@ -566,9 +568,9 @@ export function PriceBookList({
       <AlertDialog open={deleteFolderDialogOpen} onOpenChange={setDeleteFolderDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Folder</AlertDialogTitle>
+            <AlertDialogTitle>{t('Delete Category')}</AlertDialogTitle>
             <AlertDialogDescription>
-              This will delete the folder. Items in this folder must be moved or deleted first.
+              {t('This will delete the category. Items in this category must be moved or deleted first.')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -578,7 +580,7 @@ export function PriceBookList({
               disabled={isPending}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {isPending ? 'Deleting...' : 'Delete Folder'}
+              {isPending ? t('Deleting...') : t('Delete Category')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -588,10 +590,10 @@ export function PriceBookList({
       <Dialog open={newFolderDialogOpen} onOpenChange={setNewFolderDialogOpen}>
         <DialogContent className="sm:max-w-xs">
           <DialogHeader>
-            <DialogTitle>New Folder</DialogTitle>
+            <DialogTitle>{t('New Category')}</DialogTitle>
           </DialogHeader>
           <Input
-            placeholder="Folder name..."
+            placeholder={t('Category name...')}
             value={newFolderName}
             onChange={(e) => setNewFolderName(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') handleCreateFolder() }}
