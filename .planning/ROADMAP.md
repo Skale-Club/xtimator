@@ -1030,3 +1030,53 @@ Plans:
 
 Plans:
 - [x] TBD (run /gsd:plan-phase 85 to break down) (completed 2026-05-26)
+
+### Phase 86: v4.1 OAuth 2.0 server for MCP — register, authorize, token, well-known metadata
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase TBD
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 86 to break down)
+
+### Phase 87: v4.1 MCP route Streamable HTTP transport with Bearer auth
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase TBD
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 87 to break down)
+
+### Phase 88: v4.1 Read-only MCP tools list estimates clients projects
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase TBD
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 88 to break down)
+
+### Phase 89: v4.1 Write MCP tools create estimate check job status async
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase TBD
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 89 to break down)
+
+### Phase 90: v4.1 MCP settings page Connect to Claude UX and HUMAN UAT
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase TBD
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 90 to break down)
