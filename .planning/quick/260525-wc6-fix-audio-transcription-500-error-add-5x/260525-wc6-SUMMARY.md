@@ -117,3 +117,38 @@ None.
 - Commit `e2b8e43` exists in git log: `fix(quick-260525-wc6): add 5xx retry + OpenAI direct fallback to transcribeAudioOR`.
 - Caller `lib/inngest/functions/transcribe-audio.ts:86` still calls `transcribeAudioOR(fileData, ext)` — signature preserved.
 - TypeScript clean for all touched / related files; only pre-existing `.next/types/validator.ts` errors remain (out of scope per SCOPE BOUNDARY rule).
+
+---
+
+## Follow-up: read transcript / estimateId from DB after pollJob
+
+After the OpenRouter→OpenAI fallback fix shipped, audio transcription
+succeeded in Inngest but the UI still failed with "We couldn't catch
+your description". Root cause confirmed via the Inngest dev API:
+
+    curl http://localhost:8288/v1/runs/<runId>
+    -> { ..., "status": "Completed", "output": "" }
+
+The transcribe-audio (and generate-estimate) functions return
+`{ transcript }` / `{ estimateId, ... }` but the Inngest dev server
+posts back `output: ""` after a function whose body is multiple
+`step.run` + a trailing fire-and-forget `void notify(...)`. The data
+itself is persisted correctly by `step.run('save-transcript')` and by
+the estimates insert.
+
+Fix (commit `269cfdb`, `components/capture/capture-recorder.tsx`):
+stop trusting `pollJob`'s returned payload — read the authoritative
+row from Supabase after pollJob signals Completed. Three call sites
+updated (runPipeline transcribe stage, runPipeline generate stage,
+photos-only stage, plus triggerEstimateGeneration text path).
+
+Matches the pattern already in use by
+`components/workspace/ai-input-group/use-ai-input-submit.ts`.
+
+Tradeoff: the `clientSuggestion` toast is dropped on these paths
+(it's computed at generation time and not persisted). Acceptable —
+toast is non-critical UX; the alternative was redirecting to
+`?estimate=undefined`.
+
+Removed now-unused imports: `storeClientSuggestion`,
+`GenerateEstimateResponse`.
