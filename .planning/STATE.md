@@ -1,9 +1,9 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.5
-milestone_name: Zero-friction Project Onboarding
-status: verifying
-last_updated: "2026-05-26T02:23:00.757Z"
+milestone: v4.0
+milestone_name: Multi-Tenancy (Multiple Companies per User)
+status: phase_79_complete
+last_updated: "2026-05-26T02:55:00.000Z"
 last_activity: 2026-05-26
 progress:
   total_phases: 79
@@ -22,10 +22,10 @@ progress:
 
 ## Current Position
 
-Phase: 80
-Plan: Not started
-Status: Phase complete — ready for verification
-Last activity: 2026-05-26
+Phase: 79 — COMPLETE (v4.0 foundation: company_members table + active-company resolvers + layout swap)
+Plan: 4/4 plans shipped, VERIFICATION passed, HUMAN-UAT auto-approved per user memory
+Status: v4.0 foundation slice complete — Switcher UI / Add Company flow not yet planned
+Last activity: 2026-05-26 - Phase 79 closed; sync timelines + merged origin/main (quick tasks wdj/wc6/w41/oij/mim/mur)
 
 ## v3.1.1 Phases
 
@@ -661,6 +661,12 @@ v3.1: Phases 61-65 (started 2026-05-15). Production Go-Live — 27 requirements 
 | 260525-qbc | Price book autocomplete in estimate item description (combobox + APPLY_PRICE_BOOK_ITEM action) | 2026-05-25 | 9be91cd | [260525-qbc-add-price-book-autocomplete-to-item-desc](.planning/quick/260525-qbc-add-price-book-autocomplete-to-item-desc/) |
 | 260524-ohe | Auth flow refactor — modal 2-step on LP, delete /login + /signup + /reset-password pages, logout → / | 2026-05-24 | 552f87a | [260524-ohe-refactor-auth-flow-convert-modal-to-2-st](.planning/quick/260524-ohe-refactor-auth-flow-convert-modal-to-2-st/) |
 | 260525-lt5 | Add AlertDialog confirmation before soft-delete in ProjectRowActions | 2026-05-25 | 330a4f4 | [260525-lt5-add-alertdialog-confirmation-before-soft](.planning/quick/260525-lt5-add-alertdialog-confirmation-before-soft/) |
+| 260525-mur | Fix dashboard showing soft-deleted and archived projects | 2026-05-25 | 0a15842 | [260525-mur-fix-dashboard-showing-soft-deleted-and-a](.planning/quick/260525-mur-fix-dashboard-showing-soft-deleted-and-a/) |
+| 260525-mim | Estimate-creation popup: render only the input matching the selected modality (audio / text / photos) | 2026-05-25 | fa6ce8b | [260525-mim-popup-capture-recorder-render-only-the-i](.planning/quick/260525-mim-popup-capture-recorder-render-only-the-i/) |
+| 260525-oij | Fix client form not populating after linking existing client in project workspace | 2026-05-25 | c8ff358 | [260525-oij-fix-client-form-not-populating-after-lin](.planning/quick/260525-oij-fix-client-form-not-populating-after-lin/) |
+| 260525-w41 | Hide Generate Estimate button when mode is audio (auto-triggers on recording stop) | 2026-05-25 | 13e0511 | [260525-w41-hide-generate-estimate-button-when-mode-](.planning/quick/260525-w41-hide-generate-estimate-button-when-mode-/) |
+| 260525-wc6 | Audio transcription pipeline: OpenRouter 5xx retry + OpenAI fallback in transcribeAudioOR, and read transcript/estimateId from DB after pollJob (Inngest dev returns empty function output) | 2026-05-26 | 269cfdb | [260525-wc6-fix-audio-transcription-500-error-add-5x](.planning/quick/260525-wc6-fix-audio-transcription-500-error-add-5x/) |
+| 260525-wdj | Fix "Edit manually" navigation after audio transcription failure — land in created project workspace, not /projects list | 2026-05-26 | 039afb5 | [260525-wdj-ap-s-dar-erro-na-transcri-o-de-um-audio-](.planning/quick/260525-wdj-ap-s-dar-erro-na-transcri-o-de-um-audio-/) |
 | 2026-05-18 | fast | Center auth card logo+wordmark | done |
 | 2026-05-19 | fast | Make audio capture screen scrollable on smaller viewports | done |
 | 2026-05-18 | fast | Restyle sidebar New Project as filled gradient, remove dashboard CTA | done |

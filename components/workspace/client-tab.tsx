@@ -24,7 +24,7 @@ export function ClientTab({ project }: ClientTabProps) {
   const [isPending, startTransition] = useTransition()
 
   const form = useForm({
-    defaultValues: {
+    values: {
       name: client?.name ?? '',
       email: client?.email ?? '',
       phone: client?.phone ?? '',

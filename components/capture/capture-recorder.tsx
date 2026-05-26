@@ -19,10 +19,6 @@ import { compressImage } from '@/lib/utils/image-compressor'
 import { Camera, Loader2 } from 'lucide-react'
 import type { ProjectDetail } from '@/lib/queries/project'
 import type { Photo } from '@/lib/queries/photo'
-import {
-  storeClientSuggestion,
-  type GenerateEstimateResponse,
-} from '@/components/workspace/estimate/client-suggestion-toast'
 import { pollJob } from '@/hooks/use-job-status'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { useLanguage } from '@/lib/i18n/language-context'
@@ -78,6 +74,11 @@ export function CaptureRecorder({
   variant = 'fullscreen',
   mode,
   onComplete,
+  // onCancel is part of the public prop signature so callers (e.g. estimate-creation-popup)
+  // can keep passing handleCancel. After the 260525-wdj fix, "Edit manually" always pushes
+  // to /projects/{projectId} via router.push, so the recorder itself never calls onCancel —
+  // the popup chrome (Dialog onOpenChange) owns the X/overlay close path.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   onCancel,
 }: CaptureRecorderProps) {
   const { t } = useTranslation()
@@ -257,14 +258,28 @@ export function CaptureRecorder({
       }
       const { jobId } = (await dispatchRes.json()) as { jobId: string }
 
-      // Poll Inngest until the function reports terminal status.
-      const output = (await pollJob(jobId, abortControllerRef.current.signal)) as GenerateEstimateResponse
+      // Poll Inngest until the function reports terminal status, then read the
+      // newly-current estimate row from the DB. The Inngest dev server returns
+      // `output: ""` for our generate-estimate function (see runPipeline note
+      // above for root cause), so we cannot trust pollJob's returned payload.
+      await pollJob(jobId, abortControllerRef.current.signal)
+      const supabase = createClient()
+      const { data: estRow } = await supabase
+        .from('estimates')
+        .select('id')
+        .eq('project_id', projectId)
+        .eq('is_current', true)
+        .single()
+      const estimateId = (estRow?.id as string | undefined) ?? null
+      if (!estimateId) {
+        failAt('generating', t('Estimate generation completed but no estimate was found'))
+        return
+      }
       setStage('done')
-      storeClientSuggestion(projectId, output.clientSuggestion)
       if (onComplete) {
-        onComplete(output.estimateId)
+        onComplete(estimateId)
       } else {
-        router.push(`/projects/${projectId}?tab=estimate&estimate=${output.estimateId}`)
+        router.push(`/projects/${projectId}?tab=estimate&estimate=${estimateId}`)
       }
     } catch (err) {
       if ((err as Error).name === 'AbortError') return
@@ -299,6 +314,13 @@ export function CaptureRecorder({
     if ('error' in created) { failAt('saving', created.error ?? t('Failed to save recording')); return }
 
     // Transcribe — Phase 67: dispatch returns { jobId }, poll until terminal.
+    // NOTE: the Inngest dev server returns `output: ""` for our function despite
+    // it returning { transcript } (multiple step.run + a fire-and-forget
+    // `void notify(...)` at the end appear to drop the final return value from
+    // the SDK's run output). The `save-transcript` step already persists the
+    // transcript to recordings.transcript, so we read it from the DB once
+    // pollJob signals Completed. Same pattern used by
+    // components/workspace/ai-input-group/use-ai-input-submit.ts.
     setStage('transcribing')
     const dispatched = await transcribeRecording(created.data.id as string)
     if ('error' in dispatched) {
@@ -306,15 +328,21 @@ export function CaptureRecorder({
       return
     }
     try {
-      const transcribeOutput = (await pollJob(
+      await pollJob(
         (dispatched.data as { jobId: string }).jobId,
         abortControllerRef.current.signal
-      )) as { transcript: string }
-      if (!transcribeOutput.transcript?.trim()) {
+      )
+      const { data: recRow } = await supabase
+        .from('recordings')
+        .select('transcript')
+        .eq('id', created.data.id as string)
+        .single()
+      const transcribedText = ((recRow?.transcript as string | null) ?? '').trim()
+      if (!transcribedText) {
         failAt('transcribing', t("We couldn't catch your description | please try again or edit manually."))
         return
       }
-      setTranscript(transcribeOutput.transcript)
+      setTranscript(transcribedText)
     } catch (err) {
       if ((err as Error).name === 'AbortError') return
       failAt('transcribing', (err as Error).message ?? t('Transcription failed'))
@@ -340,13 +368,27 @@ export function CaptureRecorder({
       // Stepper progression: dispatch accepted → flip to "generating" while we poll.
       setStage('generating')
 
-      const output = (await pollJob(jobId, abortControllerRef.current.signal)) as GenerateEstimateResponse
-      storeClientSuggestion(projectId, output.clientSuggestion)
+      // Same Inngest dev-server output quirk as transcription above — read the
+      // newly-current estimate row from the DB instead of trusting pollJob's
+      // returned shape. (Tradeoff: clientSuggestion toast is skipped on this
+      // path because it isn't persisted; non-critical UX nicety.)
+      await pollJob(jobId, abortControllerRef.current.signal)
+      const { data: estRow } = await supabase
+        .from('estimates')
+        .select('id')
+        .eq('project_id', projectId)
+        .eq('is_current', true)
+        .single()
+      const estimateId = (estRow?.id as string | undefined) ?? null
+      if (!estimateId) {
+        failAt('analyzing', t('Estimate generation completed but no estimate was found'))
+        return
+      }
       setStage('done')
       if (onComplete) {
-        onComplete(output.estimateId)
+        onComplete(estimateId)
       } else {
-        router.push(`/projects/${projectId}?tab=estimate&estimate=${output.estimateId}`)
+        router.push(`/projects/${projectId}?tab=estimate&estimate=${estimateId}`)
       }
     } catch (err) {
       if ((err as Error).name === 'AbortError') return  // unmount; not a user-facing failure
@@ -361,20 +403,60 @@ export function CaptureRecorder({
     setErrorMessage(undefined)
 
     if (descriptionText.trim() && !audioBlob && uploadedPhotos.length === 0) {
-      // Text-only path
-      setStage('generating')
+      // Text-only path: saving (createTextRecording) → generating (poll)
+      setStage('saving')
       const recording = await createTextRecording(projectId, descriptionText.trim())
-      if ('error' in recording) { failAt('generating', recording.error ?? t('Failed to save description')); return }
+      if ('error' in recording) { failAt('saving', recording.error ?? t('Failed to save description')); return }
+      setStage('generating')
       await triggerEstimateGeneration()
     } else if (audioBlob) {
       // Audio path (existing) — audio blob triggers runPipeline
       runPipeline(audioBlob)
     } else if (uploadedPhotos.length > 0) {
-      // Photos-only path
-      setStage('generating')
-      await triggerEstimateGeneration()
+      // Photos-only path: photos were uploaded during selection (saving already done),
+      // so we jump straight to analyzing (dispatch) → generating (poll).
+      setStage('analyzing')
+      try {
+        const dispatchRes = await fetch('/api/generate-estimate', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ projectId, language: estimateLanguage }),
+          signal: abortControllerRef.current.signal,
+        })
+        if (!dispatchRes.ok) {
+          const body = await dispatchRes.json().catch(() => ({}))
+          failAt('analyzing', (body as { error?: string }).error ?? t('Estimate generation failed'))
+          return
+        }
+        const { jobId } = (await dispatchRes.json()) as { jobId: string }
+        setStage('generating')
+        // Read estimate from DB after pollJob — see runPipeline note for why
+        // the Inngest dev server returns an empty function output.
+        await pollJob(jobId, abortControllerRef.current.signal)
+        const supabase = createClient()
+        const { data: estRow } = await supabase
+          .from('estimates')
+          .select('id')
+          .eq('project_id', projectId)
+          .eq('is_current', true)
+          .single()
+        const estimateId = (estRow?.id as string | undefined) ?? null
+        if (!estimateId) {
+          failAt('generating', t('Estimate generation completed but no estimate was found'))
+          return
+        }
+        setStage('done')
+        if (onComplete) {
+          onComplete(estimateId)
+        } else {
+          router.push(`/projects/${projectId}?tab=estimate&estimate=${estimateId}`)
+        }
+      } catch (err) {
+        if ((err as Error).name === 'AbortError') return
+        failAt('generating', (err as Error).message ?? t('Estimate generation failed'))
+      }
     }
-  }, [descriptionText, audioBlob, uploadedPhotos, projectId, runPipeline, triggerEstimateGeneration])
+  }, [descriptionText, audioBlob, uploadedPhotos, projectId, runPipeline, triggerEstimateGeneration, estimateLanguage, t, onComplete, router])
 
   // Start recording
   const startRecording = useCallback(async () => {
@@ -451,6 +533,12 @@ export function CaptureRecorder({
   const isIdle = stage === 'idle'
   const showRecorderUI = isIdle || stage === 'done'
 
+  // Effective mode for the progress stepper:
+  // - popup flow: the single-modality lock wins (mode prop)
+  // - legacy fullscreen route: infer from whichever input the user submitted
+  const activeMode: CaptureMode =
+    mode ?? (audioBlob ? 'audio' : uploadedPhotos.length > 0 ? 'photos' : 'text')
+
   const isPopup = variant === 'popup'
   const rootClassName = isPopup
     ? 'flex flex-col min-h-0'
@@ -501,7 +589,7 @@ export function CaptureRecorder({
       ) : (
         <div className="flex-1 flex items-center justify-center p-4">
           <div className="w-full max-w-md space-y-6">
-            <CaptureStepper currentStage={stage} failedAt={failedAt} transcript={transcript} />
+            <CaptureStepper currentStage={stage} failedAt={failedAt} transcript={transcript} mode={activeMode} />
             {failedAt && (
               <CaptureFailure
                 errorMessage={errorMessage ?? t('Something went wrong')}
@@ -512,11 +600,7 @@ export function CaptureRecorder({
                 } : undefined}
                 onEditManually={() => {
                   toast.info(t('Continue manually in the workspace tabs.'))
-                  if (onCancel) {
-                    onCancel()
-                  } else {
-                    router.push(`/projects/${projectId}`)
-                  }
+                  router.push(`/projects/${projectId}`)
                 }}
               />
             )}
@@ -624,24 +708,27 @@ function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progre
         </div>
       )}
 
-      {/* Language selector + Generate Estimate (only meaningful for text/photo-only paths) */}
+      {/* Language selector — visible in all modes (used by runPipeline in audio too) */}
       <div className="px-4 pt-4 pb-2">
         <EstimateLanguageSelector
           value={estimateLanguage}
           onChange={setEstimateLanguage}
         />
       </div>
-      <div className="px-4 pt-2 pb-6 sm:pb-8 mt-auto">
-        <Button
-          onClick={onGenerate}
-          disabled={!hasAnyInput}
-          className="w-full"
-          size="lg"
-          data-testid="generate-estimate-btn"
-        >
-          {t('Generate Estimate')}
-        </Button>
-      </div>
+      {/* Generate Estimate button — hidden in audio mode (recorder.onstop auto-triggers runPipeline) */}
+      {mode !== 'audio' && (
+        <div className="px-4 pt-2 pb-6 sm:pb-8 mt-auto">
+          <Button
+            onClick={onGenerate}
+            disabled={!hasAnyInput}
+            className="w-full"
+            size="lg"
+            data-testid="generate-estimate-btn"
+          >
+            {t('Generate Estimate')}
+          </Button>
+        </div>
+      )}
     </div>
   )
 }
