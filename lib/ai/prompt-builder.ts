@@ -55,5 +55,9 @@ export function buildUserContent(input: EstimateInput): string {
     parts.push('## Photo Descriptions\n' + input.photoDescriptions.join('\n'))
   }
 
+  if (input.prompts && input.prompts.length > 0) {
+    parts.push('## Description\n' + input.prompts.join('\n---\n'))
+  }
+
   return parts.join('\n\n')
 }

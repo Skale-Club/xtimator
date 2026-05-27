@@ -41,6 +41,13 @@ export type EstimateInput = {
   clientAddress: string | null
   transcripts: string[]
   photoDescriptions: string[]
+  /**
+   * Free-form text prompts from non-recording inputs (MCP `create_estimate` tool,
+   * WhatsApp text messages, future "describe in your own words" UI). Treated as
+   * additional context alongside transcripts + photo descriptions.
+   * (Phase 89 deferral closed 2026-05-27.)
+   */
+  prompts?: string[]
   priceBookItems: PriceBookEntry[]  // empty array = no injection (D-10)
   currencyCode?: string
   defaultPaymentTerms: string | null
