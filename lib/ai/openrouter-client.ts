@@ -150,22 +150,20 @@ export async function transcribeAudioOR(
       return (await res.text()).trim()
     }
 
+    // Read the error body exactly once.
+    const err = await res.text().catch(() => 'unknown')
+
     // 4xx = our fault (auth, payload, model id) → throw immediately, do NOT
     // mask the real bug by falling back to OpenAI. The one exception is a
     // spurious OpenRouter `401 User not found`, which is transient: record it
     // and fall through to the retry + OpenAI fallback path instead of throwing.
-    if (res.status >= 400 && res.status < 500) {
-      const err = await res.text().catch(() => 'unknown')
-      if (isTransientORAuthGlitch(res.status, err)) {
-        orFailure = `OpenRouter ${res.status} (transient): ${err.slice(0, 200)}`
-      } else {
-        throw new Error(`OpenRouter transcription failed (${res.status}): ${err.slice(0, 400)}`)
-      }
+    if (res.status >= 400 && res.status < 500 && !isTransientORAuthGlitch(res.status, err)) {
+      throw new Error(`OpenRouter transcription failed (${res.status}): ${err.slice(0, 400)}`)
     }
 
-    // 5xx → record and proceed to retry-then-fallback.
-    const err = await res.text().catch(() => 'unknown')
-    orFailure = `OpenRouter ${res.status}: ${err.slice(0, 200)}`
+    // 5xx OR transient 401 → record and proceed to retry-then-fallback.
+    const transient = isTransientORAuthGlitch(res.status, err)
+    orFailure = `OpenRouter ${res.status}${transient ? ' (transient)' : ''}: ${err.slice(0, 200)}`
   } catch (e) {
     // Re-throw 4xx errors thrown above — they have the right shape already.
     if (e instanceof Error && e.message.startsWith('OpenRouter transcription failed (4')) {
@@ -183,20 +181,17 @@ export async function transcribeAudioOR(
       return (await res.text()).trim()
     }
 
+    const err = await res.text().catch(() => 'unknown')
+
     // 4xx on retry — still a real bug, throw without OpenAI fallback. The one
     // exception is a spurious OpenRouter `401 User not found`: record it and
     // fall through to the OpenAI direct fallback instead of throwing.
-    if (res.status >= 400 && res.status < 500) {
-      const err = await res.text().catch(() => 'unknown')
-      if (isTransientORAuthGlitch(res.status, err)) {
-        orFailure = `${orFailure} | retry ${res.status} (transient): ${err.slice(0, 200)}`
-      } else {
-        throw new Error(`OpenRouter transcription failed on retry (${res.status}): ${err.slice(0, 400)}`)
-      }
+    if (res.status >= 400 && res.status < 500 && !isTransientORAuthGlitch(res.status, err)) {
+      throw new Error(`OpenRouter transcription failed on retry (${res.status}): ${err.slice(0, 400)}`)
     }
 
-    const err = await res.text().catch(() => 'unknown')
-    orFailure = `${orFailure} | retry ${res.status}: ${err.slice(0, 200)}`
+    const transient = isTransientORAuthGlitch(res.status, err)
+    orFailure = `${orFailure} | retry ${res.status}${transient ? ' (transient)' : ''}: ${err.slice(0, 200)}`
   } catch (e) {
     if (e instanceof Error && e.message.startsWith('OpenRouter transcription failed on retry (4')) {
       throw e
