@@ -18,6 +18,13 @@ export type EstimateGeneratePayload = {
   requestId: string
   /** Optional language override — forwarded from the UI language selector. */
   language?: 'en' | 'pt' | 'es'
+  /**
+   * Free-form prompts from non-recording sources (MCP `create_estimate` tool,
+   * WhatsApp text messages, future "describe in your own words" UI). Forwarded
+   * to `generateEstimateForProject` so projects without transcripts/photos can
+   * still produce an estimate.
+   */
+  prompts?: string[]
 }
 
 export type TranscribeAudioPayload = {

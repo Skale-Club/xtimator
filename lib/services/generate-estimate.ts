@@ -30,6 +30,14 @@ export interface GenerateEstimateOptions {
   language?: EstimateLanguage
   /** User app language to consider in the cascade (rarely set from server). */
   userAppLanguage?: EstimateLanguage
+  /**
+   * Free-form prompts from non-recording sources (MCP `create_estimate` tool,
+   * WhatsApp text-only messages, future "describe in your own words" UI).
+   * When provided, these satisfy the "at least one input" precondition even
+   * if the project has no transcripts or photos. (Phase 89 deferral closed
+   * 2026-05-27.)
+   */
+  prompts?: string[]
 }
 
 function normalizeClientNameForMatch(name: string): string {
@@ -89,8 +97,13 @@ export async function generateEstimateForProject(
     (r) => r.transcript && r.transcript.trim().length > 0
   )
   const hasPhotos = photos.length > 0
-  if (!hasTranscripts && !hasPhotos) {
-    throw new Error('At least one audio transcript or photo is required')
+  const hasPrompts =
+    Array.isArray(options.prompts) &&
+    options.prompts.some((p) => typeof p === 'string' && p.trim().length > 0)
+  if (!hasTranscripts && !hasPhotos && !hasPrompts) {
+    throw new Error(
+      'At least one audio transcript, photo, or prompt is required'
+    )
   }
 
   const client = project.client as {
@@ -127,6 +140,10 @@ export async function generateEstimateForProject(
     .filter((p) => p.ai_description && p.ai_description.trim().length > 0)
     .map((p, i) => `Photo ${i + 1}: ${p.ai_description}`)
 
+  const prompts = (options.prompts ?? [])
+    .map((p) => (typeof p === 'string' ? p.trim() : ''))
+    .filter((p) => p.length > 0)
+
   const estimateInput: EstimateInput = {
     industry: company.industry,
     projectName: project.name,
@@ -136,6 +153,7 @@ export async function generateEstimateForProject(
     clientAddress,
     transcripts,
     photoDescriptions,
+    prompts: prompts.length > 0 ? prompts : undefined,
     priceBookItems,
     currencyCode,
     defaultPaymentTerms: company.default_payment_terms ?? null,
