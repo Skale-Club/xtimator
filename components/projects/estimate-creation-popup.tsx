@@ -95,9 +95,15 @@ function EstimateCreationPopupInner() {
 
   function handleComplete() {
     if (!projectId) return
-    clearParams()
-    // Overview is now the live estimate (project A R3). Navigate there and
-    // refresh so the freshly-generated estimate is visible immediately.
+    // Navigate straight to the project page. Do NOT call clearParams() here:
+    // clearParams() fires router.replace(), and a synchronous replace + push in
+    // the same tick races in the App Router — the push gets dropped (broke the
+    // new-project flow, which opens on /projects so replace and push target
+    // different URLs). router.push to /projects/[id] yields a URL with no
+    // ?capture/?projectId params, so the Dialog's isOpen flips to false and the
+    // popup closes on its own — clearParams() is redundant. refresh() is still
+    // needed for the same-route existing-project record case so the freshly
+    // generated estimate shows.
     router.push(`/projects/${projectId}`)
     router.refresh()
   }
