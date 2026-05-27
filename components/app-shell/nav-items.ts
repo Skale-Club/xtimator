@@ -1,4 +1,4 @@
-import { LayoutDashboard, Users, FolderPlus, FolderOpen, BookOpen, Settings, type LucideIcon } from 'lucide-react'
+import { LayoutDashboard, Users, FolderPlus, FolderOpen, BookOpen, Settings, MessageCircle, type LucideIcon } from 'lucide-react'
 
 export interface NavItem {
   label: string
@@ -17,4 +17,5 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Clients',     href: '/clients',      icon: Users },
   { label: 'Price Book',  href: '/price-book', icon: BookOpen },
   { label: 'Settings',    href: '/settings',     icon: Settings },
+  { label: 'WhatsApp',    href: '/settings/whatsapp', icon: MessageCircle },
 ]
