@@ -4,6 +4,7 @@ import { StatusBadge } from '@/components/dashboard/status-badge'
 import { ProjectActions } from '@/components/dashboard/project-actions'
 import { TableCell, TableRow } from '@/components/ui/table'
 import { formatMoney } from '@/lib/money/currency'
+import { formatDate } from '@/lib/utils/format-date'
 
 interface ProjectTableRowProps {
   project: ProjectWithClient
@@ -20,7 +21,7 @@ export function ProjectTableRow({ project }: ProjectTableRowProps) {
           <span
             title={
               project.paid_at
-                ? `Paid ${new Date(project.paid_at).toLocaleDateString()}`
+                ? `Paid ${formatDate(project.paid_at)}`
                 : 'Paid'
             }
             className="ml-2 inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800"
@@ -43,7 +44,7 @@ export function ProjectTableRow({ project }: ProjectTableRowProps) {
         })}
       </TableCell>
       <TableCell>
-        {new Date(project.created_at).toLocaleDateString('en-US', {
+        {formatDate(project.created_at, {
           month: 'short',
           day: 'numeric',
           year: 'numeric',

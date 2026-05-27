@@ -8,6 +8,7 @@ import { DataTable, type Column } from '@/components/ui/data-table'
 import { ProjectStatusBadge } from '@/components/projects/project-status-badge'
 import { ClientSheet } from '@/components/clients/client-sheet'
 import { formatMoney } from '@/lib/money/currency'
+import { formatDate } from '@/lib/utils/format-date'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { createClient } from '@/lib/supabase/client'
 import type { ClientDetail } from '@/lib/queries/clients'
@@ -48,7 +49,7 @@ function ProjectPaidBadge({ project }: { project: ProjectTableRow }) {
 
   return (
     <span
-      title={project.paid_at ? `Paid ${new Date(project.paid_at).toLocaleDateString()}` : 'Paid'}
+      title={project.paid_at ? `Paid ${formatDate(project.paid_at)}` : 'Paid'}
       className="ml-2 inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800"
     >
       Paid
@@ -159,7 +160,7 @@ export function ProjectTable<TProject extends ProjectTableRow>({
       key: 'date',
       header: t('Date'),
       cell: (project) =>
-        new Date(project.created_at).toLocaleDateString('en-US', {
+        formatDate(project.created_at, {
           month: 'short',
           day: 'numeric',
           year: 'numeric',
@@ -292,7 +293,7 @@ function ProjectTableCard<TProject extends ProjectTableRow>({
           )}
           {project.project_type && <p>{project.project_type}</p>}
           <p>
-            {new Date(project.created_at).toLocaleDateString('en-US', {
+            {formatDate(project.created_at, {
               month: 'short',
               day: 'numeric',
               year: 'numeric',

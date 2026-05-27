@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
+import { formatDate } from '@/lib/utils/format-date'
 import { CategoryIcon } from './category-icon'
 import type { NotificationListItem } from './use-notifications'
 
@@ -17,7 +18,7 @@ function relativeTime(iso: string): string {
   if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m`
   if (diffSec < 86_400) return `${Math.floor(diffSec / 3600)}h`
   if (diffSec < 7 * 86_400) return `${Math.floor(diffSec / 86_400)}d`
-  return new Date(iso).toLocaleDateString()
+  return formatDate(iso)
 }
 
 interface NotificationItemProps {

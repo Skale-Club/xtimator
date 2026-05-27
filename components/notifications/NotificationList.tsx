@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useMemo, useState, useTransition } from 'react'
+import { useEffect, useMemo, useState, useTransition } from 'react'
 import {
   CATEGORY_LABELS,
   NotificationFilters,
@@ -11,6 +11,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
+import { formatDate } from '@/lib/utils/format-date'
 import {
   EVENT_CATEGORIES,
   type EventCategory,
@@ -35,6 +36,11 @@ export function NotificationList({
   const params = useSearchParams()
   const [, startTransition] = useTransition()
   const [search, setSearch] = useState('')
+  // Hydration guard: SSR and the first client paint render a deterministic,
+  // time-independent value (formatDate). After mount we upgrade to the live
+  // relative string ("3m ago"), avoiding the React #418 text mismatch.
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -88,7 +94,7 @@ export function NotificationList({
           data-testid="notifications-list"
         >
           {filtered.map((n) => (
-            <NotificationRow key={n.id} row={n} />
+            <NotificationRow key={n.id} row={n} mounted={mounted} />
           ))}
         </ul>
       )}
@@ -108,7 +114,7 @@ export function NotificationList({
   )
 }
 
-function NotificationRow({ row }: { row: NotificationRow }) {
+function NotificationRow({ row, mounted }: { row: NotificationRow; mounted: boolean }) {
   const category: EventCategory =
     EVENT_CATEGORIES[row.event_type as EventType] ?? 'system'
   const Icon = categoryIconFor(category)
@@ -145,8 +151,9 @@ function NotificationRow({ row }: { row: NotificationRow }) {
           <time
             className="shrink-0 text-xs text-muted-foreground"
             dateTime={row.created_at}
+            suppressHydrationWarning
           >
-            {formatRelative(row.created_at)}
+            {mounted ? formatRelative(row.created_at) : formatDate(row.created_at)}
           </time>
         </div>
         <p className="mt-0.5 text-sm text-muted-foreground line-clamp-2">
@@ -187,5 +194,5 @@ function formatRelative(iso: string): string {
   if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m ago`
   if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}h ago`
   if (diffSec < 604800) return `${Math.floor(diffSec / 86400)}d ago`
-  return new Date(iso).toLocaleDateString()
+  return formatDate(iso)
 }

@@ -4,6 +4,7 @@ import { StatusBadge } from '@/components/dashboard/status-badge'
 import { ProjectActions } from '@/components/dashboard/project-actions'
 import { Card, CardContent } from '@/components/ui/card'
 import { formatMoney } from '@/lib/money/currency'
+import { formatDate } from '@/lib/utils/format-date'
 
 interface ProjectCardProps {
   project: ProjectWithClient
@@ -25,7 +26,7 @@ export function ProjectCard({ project }: ProjectCardProps) {
               <span
                 title={
                   project.paid_at
-                    ? `Paid ${new Date(project.paid_at).toLocaleDateString()}`
+                    ? `Paid ${formatDate(project.paid_at)}`
                     : 'Paid'
                 }
                 className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800"
@@ -40,7 +41,7 @@ export function ProjectCard({ project }: ProjectCardProps) {
           {project.client?.name && <p>{project.client.name}</p>}
           {project.project_type && <p>{project.project_type}</p>}
           <p>
-            {new Date(project.created_at).toLocaleDateString('en-US', {
+            {formatDate(project.created_at, {
               month: 'short',
               day: 'numeric',
               year: 'numeric',
