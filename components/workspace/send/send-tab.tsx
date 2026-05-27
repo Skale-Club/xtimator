@@ -19,9 +19,10 @@ interface SendTabProps {
   ownerName: string
   estimateTemplate: EstimateTemplate
   smsDeliveryEnabled: boolean
+  whatsappSendEnabled?: boolean
 }
 
-export function SendTab({ estimate, projectName, companyName, clientEmail, clientPhone, clientName, ownerName, estimateTemplate, smsDeliveryEnabled }: SendTabProps) {
+export function SendTab({ estimate, projectName, companyName, clientEmail, clientPhone, clientName, ownerName, estimateTemplate, smsDeliveryEnabled, whatsappSendEnabled = false }: SendTabProps) {
   const { t } = useTranslation()
   if (!estimate) {
     return (
@@ -65,6 +66,7 @@ export function SendTab({ estimate, projectName, companyName, clientEmail, clien
           projectName={projectName}
           shareToken={estimate.share_token}
           smsDeliveryEnabled={smsDeliveryEnabled}
+          whatsappSendEnabled={whatsappSendEnabled}
           disabled={isDraft}
         />
       </div>

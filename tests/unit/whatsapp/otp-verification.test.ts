@@ -10,10 +10,17 @@ vi.mock('next/cache', () => ({
   revalidatePath: vi.fn(),
 }))
 
+// getActiveCompanyId is the validated-company resolver; mock it so the test
+// doesn't pull in the unstable_cache / cookies auth chain.
+vi.mock('@/lib/queries/active-company', () => ({
+  getActiveCompanyId: vi.fn(async () => 'company-1'),
+}))
+
 // In-memory DB row keyed by companyId (only one row at a time in this test)
 let stored: Record<string, unknown> | null = null
 
-function makeSupabase() {
+// Authenticated client: only used by getAuthContext for auth + the companies check.
+function makeAuthClient() {
   return {
     auth: {
       getClaims: vi.fn().mockResolvedValue({ data: { claims: { sub: 'user-1' } } }),
@@ -28,6 +35,16 @@ function makeSupabase() {
           }),
         }
       }
+      throw new Error(`Unexpected table on auth client: ${table}`)
+    },
+  }
+}
+
+// Service client: company_whatsapp is RLS deny-all, so the actions operate on it
+// via requireServiceClient() now. Back it with the same in-memory `stored` row.
+function makeServiceClient() {
+  return {
+    from: (table: string) => {
       if (table === 'company_whatsapp') {
         return {
           select: () => ({
@@ -53,7 +70,7 @@ function makeSupabase() {
           }),
         }
       }
-      throw new Error(`Unexpected table: ${table}`)
+      throw new Error(`Unexpected table on service client: ${table}`)
     },
   }
 }
@@ -61,6 +78,11 @@ function makeSupabase() {
 const createClientMock = vi.fn()
 vi.mock('@/lib/supabase/server', () => ({
   createClient: () => createClientMock(),
+}))
+
+const requireServiceClientMock = vi.fn()
+vi.mock('@/lib/supabase/service', () => ({
+  requireServiceClient: () => requireServiceClientMock(),
 }))
 
 import {
@@ -73,7 +95,9 @@ beforeEach(() => {
   sendWhatsAppMessageMock.mockReset()
   sendWhatsAppMessageMock.mockResolvedValue(undefined)
   createClientMock.mockReset()
-  createClientMock.mockReturnValue(makeSupabase())
+  createClientMock.mockReturnValue(makeAuthClient())
+  requireServiceClientMock.mockReset()
+  requireServiceClientMock.mockReturnValue(makeServiceClient())
   vi.spyOn(console, 'error').mockImplementation(() => {})
 })
 

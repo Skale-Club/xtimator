@@ -20,7 +20,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
-import { Send, CheckCircle2, Loader2, MessageSquare, Mail } from 'lucide-react'
+import { Send, CheckCircle2, Loader2, MessageSquare, MessageCircle, Mail } from 'lucide-react'
 import { toast } from 'sonner'
 import { markAsSentAction } from '@/lib/actions/estimate'
 import { useTranslation } from '@/lib/i18n/use-translation'
@@ -37,8 +37,14 @@ const sendSmsSchema = z.object({
   message: z.string().optional(),
 })
 
+const sendWhatsAppSchema = z.object({
+  to: z.string().regex(/^\+[1-9]\d{7,14}$/, 'Phone must be in E.164 format (e.g. +15551234567)'),
+  message: z.string().optional(),
+})
+
 type SendEmailValues = z.infer<typeof sendEmailSchema>
 type SendSmsValues = z.infer<typeof sendSmsSchema>
+type SendWhatsAppValues = z.infer<typeof sendWhatsAppSchema>
 
 interface SendFormProps {
   estimateId: string
@@ -48,6 +54,7 @@ interface SendFormProps {
   projectName: string
   shareToken: string
   smsDeliveryEnabled: boolean
+  whatsappSendEnabled?: boolean
   /** SEED-028 Phase D: disable all send/PDF actions when the estimate is a draft. */
   disabled?: boolean
 }
@@ -60,6 +67,7 @@ export function SendForm({
   projectName,
   shareToken,
   smsDeliveryEnabled,
+  whatsappSendEnabled = false,
   disabled,
 }: SendFormProps) {
   const { t } = useTranslation()
@@ -82,6 +90,14 @@ export function SendForm({
 
   const smsForm = useForm<SendSmsValues>({
     resolver: zodResolver(sendSmsSchema) as any,
+    defaultValues: {
+      to: clientPhone ?? '',
+      message: '',
+    },
+  })
+
+  const whatsappForm = useForm<SendWhatsAppValues>({
+    resolver: zodResolver(sendWhatsAppSchema) as any,
     defaultValues: {
       to: clientPhone ?? '',
       message: '',
@@ -130,6 +146,31 @@ export function SendForm({
     }
   }
 
+  async function onWhatsAppSubmit(values: SendWhatsAppValues) {
+    setSending(true)
+    try {
+      const response = await fetch(`/api/estimates/${estimateId}/send-whatsapp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: values.to, message: values.message }),
+      })
+      const data = await response.json()
+      if (!response.ok) {
+        toast.error(data.error ?? 'Failed to send via WhatsApp')
+        return
+      }
+      toast.success(
+        data.fallback === 'share_link'
+          ? 'PDF unavailable — sent the share link instead.'
+          : 'Estimate sent via WhatsApp!',
+      )
+    } catch {
+      toast.error('Failed to send via WhatsApp. Please try again.')
+    } finally {
+      setSending(false)
+    }
+  }
+
   async function handleMarkAsSent() {
     setMarking(true)
     try {
@@ -162,6 +203,12 @@ export function SendForm({
               <TabsTrigger value="sms" className="gap-2">
                 <MessageSquare className="h-4 w-4" />
                 SMS
+              </TabsTrigger>
+            )}
+            {whatsappSendEnabled && (
+              <TabsTrigger value="whatsapp" className="gap-2">
+                <MessageCircle className="h-4 w-4" />
+                WhatsApp
               </TabsTrigger>
             )}
           </TabsList>
@@ -282,6 +329,63 @@ export function SendForm({
                       <MessageSquare className="mr-2 h-4 w-4" />
                     )}
                     {sending ? 'Sending...' : 'Send SMS'}
+                  </Button>
+                </form>
+              </Form>
+            </TabsContent>
+          )}
+
+          {whatsappSendEnabled && (
+            <TabsContent value="whatsapp">
+              <Form {...whatsappForm}>
+                <form onSubmit={whatsappForm.handleSubmit(onWhatsAppSubmit)} className="space-y-4">
+                  <FormField
+                    control={whatsappForm.control}
+                    name="to"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Phone number</FormLabel>
+                        <FormControl>
+                          <PhoneInput
+                            value={field.value ?? ''}
+                            onChange={(formatted) => {
+                              field.onChange(formatted.replace(/[^\d+]/g, ''))
+                            }}
+                            placeholder="+15551234567"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={whatsappForm.control}
+                    name="message"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Custom message (optional)</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            rows={3}
+                            placeholder={`${companyName} sent you an estimate. Review and approve it here: ${shareLink}`}
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Delivery format (share link, formatted text, or PDF) follows your WhatsApp
+                    setting in Settings → Integrations.
+                  </p>
+                  <Button type="submit" variant="primary" size="lg" className="w-full" disabled={sending || disabled}>
+                    {sending ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <MessageCircle className="mr-2 h-4 w-4" />
+                    )}
+                    {sending ? 'Sending...' : 'Send WhatsApp'}
                   </Button>
                 </form>
               </Form>

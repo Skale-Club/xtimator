@@ -10,7 +10,7 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { createClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/service'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
 import {
   WhatsAppConnectCard,
@@ -22,10 +22,12 @@ export const metadata = { title: 'Integrations | Settings' }
 export default async function SettingsIntegrationsPage() {
   const companyId = await getActiveCompanyId()
 
+  // company_whatsapp is RLS deny-all → read via the service client, scoped to the
+  // validated active company (the same company the connect actions write to).
   let initial: WhatsAppStatus = null
-  if (companyId) {
-    const supabase = await createClient()
-    const { data: row } = await supabase
+  const svc = createServiceClient()
+  if (companyId && svc) {
+    const { data: row } = await svc
       .from('company_whatsapp')
       .select('phone_number, phone_number_id, waba_id, status, delivery_format')
       .eq('company_id', companyId)

@@ -28,8 +28,8 @@ vi.mock('@/lib/queries/active-company', () => ({
 }))
 
 const maybeSingle = vi.fn()
-vi.mock('@/lib/supabase/server', () => ({
-  createClient: vi.fn(async () => ({
+vi.mock('@/lib/supabase/service', () => ({
+  createServiceClient: vi.fn(() => ({
     from: vi.fn(() => ({
       select: vi.fn(() => ({
         eq: vi.fn(() => ({

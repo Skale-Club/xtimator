@@ -35,6 +35,7 @@ interface ProjectWorkspaceProps {
   company: DocumentCompany
   estimateTemplate: EstimateTemplate
   smsDeliveryEnabled?: boolean
+  whatsappSendEnabled?: boolean
   priceBookItems: PriceBookItem[]
   defaultTab?: WorkspaceTab
 }
@@ -43,6 +44,7 @@ export function ProjectWorkspace({
   project, activity, stats, recordings, photos,
   currentEstimate, allVersions, companyName,
   ownerName, companyBrandColor, company, estimateTemplate, smsDeliveryEnabled = false,
+  whatsappSendEnabled = false,
   priceBookItems,
   defaultTab = 'overview',
 }: ProjectWorkspaceProps) {
@@ -164,6 +166,7 @@ export function ProjectWorkspace({
             ownerName={ownerName}
             estimateTemplate={estimateTemplate}
             smsDeliveryEnabled={smsDeliveryEnabled}
+            whatsappSendEnabled={whatsappSendEnabled}
           />
         )}
         {activeTab === 'client' && (

@@ -10,11 +10,18 @@ vi.mock('next/cache', () => ({
   revalidatePath: vi.fn(),
 }))
 
+// getActiveCompanyId is the validated-company resolver; mock it so the settings
+// actions don't pull in the unstable_cache / cookies auth chain.
+vi.mock('@/lib/queries/active-company', () => ({
+  getActiveCompanyId: vi.fn(async () => 'company-1'),
+}))
+
 // In-memory DB row keyed by companyId
 let stored: Record<string, unknown> | null = null
 let lastUpdate: Record<string, unknown> | null = null
 
-function makeSupabase(authed = true) {
+// Authenticated client: getAuthContext uses it for auth + the companies check.
+function makeAuthClient(authed = true) {
   return {
     auth: {
       getClaims: vi.fn().mockResolvedValue(
@@ -36,6 +43,16 @@ function makeSupabase(authed = true) {
           }),
         }
       }
+      throw new Error(`Unexpected table on auth client: ${table}`)
+    },
+  }
+}
+
+// Service client: company_whatsapp is RLS deny-all → the settings actions operate
+// on it via requireServiceClient(). Back it with the same in-memory `stored` row.
+function makeServiceClient() {
+  return {
+    from: (table: string) => {
       if (table === 'company_whatsapp') {
         return {
           select: () => ({
@@ -66,7 +83,7 @@ function makeSupabase(authed = true) {
           }),
         }
       }
-      throw new Error(`Unexpected table: ${table}`)
+      throw new Error(`Unexpected table on service client: ${table}`)
     },
   }
 }
@@ -117,10 +134,13 @@ beforeEach(() => {
   sendWhatsAppMessageMock.mockReset()
   sendWhatsAppMessageMock.mockResolvedValue(undefined)
   createClientMock.mockReset()
-  createClientMock.mockReturnValue(makeSupabase(true))
+  createClientMock.mockReturnValue(makeAuthClient(true))
   processInboundWithDebounceMock.mockReset()
   mockVerify.mockReset()
   mockServiceClient.mockReset()
+  // Default service client for the settings-action tests (WASTATUS-02/03).
+  // WASTATUS-04 overrides this with its own webhook-shaped service mock.
+  mockServiceClient.mockReturnValue(makeServiceClient() as unknown as ReturnType<typeof requireServiceClient>)
   vi.spyOn(console, 'error').mockImplementation(() => {})
   vi.spyOn(console, 'warn').mockImplementation(() => {})
 })

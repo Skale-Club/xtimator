@@ -17,5 +17,5 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Clients',     href: '/clients',      icon: Users },
   { label: 'Price Book',  href: '/price-book', icon: BookOpen },
   { label: 'Settings',    href: '/settings',     icon: Settings },
-  { label: 'WhatsApp',    href: '/settings/whatsapp', icon: MessageCircle },
+  { label: 'WhatsApp',    href: '/whatsapp',     icon: MessageCircle },
 ]

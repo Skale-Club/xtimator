@@ -3,8 +3,25 @@ import { after } from 'next/server'
 import { verifyWebhookSignature } from '@/lib/whatsapp/verify'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { processInboundWithDebounce } from '@/lib/whatsapp/handler'
-import type { WhatsAppPayload } from '@/lib/whatsapp/types'
+import { logInboundMessage, type WaMsgType } from '@/lib/whatsapp/conversations'
+import type { WhatsAppMessage, WhatsAppPayload } from '@/lib/whatsapp/types'
 import { rateLimit } from '@/lib/ratelimit'
+
+// Map a Meta inbound message to the inbox log's (type, body) pair.
+function inboxFieldsFor(message: WhatsAppMessage): { msgType: WaMsgType; body: string | null } {
+  switch (message.type) {
+    case 'text':
+      return { msgType: 'text', body: message.text?.body ?? null }
+    case 'audio':
+      return { msgType: 'audio', body: null }
+    case 'image':
+      return { msgType: 'image', body: message.image?.caption ?? null }
+    case 'document':
+      return { msgType: 'document', body: null }
+    default:
+      return { msgType: 'text', body: null }
+  }
+}
 
 // ------------------------------------------------------------------
 // GET: Meta webhook challenge verification (WA-02)
@@ -113,6 +130,22 @@ async function handleInboundMessage(payload: WhatsAppPayload): Promise<void> {
     if (dedupError) {
       console.error('[WhatsApp] dedup insert error:', dedupError)
       return
+    }
+
+    // Inbox: persist the inbound message into its conversation thread (best-effort —
+    // logging must never block message processing). Runs once per message (post-dedup).
+    try {
+      const { msgType, body } = inboxFieldsFor(message)
+      await logInboundMessage(supabase, {
+        companyId: whatsappConfig.company_id as string,
+        contactPhone: `+${fromPhone}`,
+        contactName: value?.contacts?.[0]?.profile?.name ?? null,
+        body,
+        msgType,
+        waMessageId: messageId,
+      })
+    } catch (logErr) {
+      console.error('[WhatsApp] inbox logInboundMessage error:', logErr)
     }
 
     // Phase 42 + Phase 48: routes through debounce buffer when no session exists

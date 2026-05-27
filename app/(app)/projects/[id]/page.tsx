@@ -6,6 +6,8 @@ import { getProjectRecordings } from '@/lib/queries/recording'
 import { getProjectPhotos } from '@/lib/queries/photo'
 import { getCurrentEstimate, getProjectEstimates } from '@/lib/queries/estimate'
 import { getPriceBookItems } from '@/lib/queries/price-book'
+import { createServiceClient } from '@/lib/supabase/service'
+import { getEntitlements } from '@/lib/entitlements'
 import { ProjectWorkspace } from '@/components/workspace/project-workspace'
 import { ProjectHeader } from '@/components/workspace/project-header'
 import { ProjectPageShell } from '@/components/workspace/project-page-shell'
@@ -96,7 +98,7 @@ async function ProjectTabs({
   const supabase = await createClient()
   const { data: company } = await supabase
     .from('companies')
-    .select('name, owner_name, brand_primary_color, estimate_template_greeting, estimate_template_opener, estimate_template_closer, estimate_template_signature, sms_delivery_enabled, logo_url, phone, email, website, address, city, state, zip')
+    .select('name, owner_name, brand_primary_color, estimate_template_greeting, estimate_template_opener, estimate_template_closer, estimate_template_signature, sms_delivery_enabled, tier, logo_url, phone, email, website, address, city, state, zip')
     .eq('id', project.company_id)
     .single()
 
@@ -104,6 +106,22 @@ async function ProjectTabs({
   const ownerName = (company?.owner_name as string | null) ?? ''
   const companyBrandColor = (company?.brand_primary_color as string | null) ?? null
   const smsDeliveryEnabled = (company?.sms_delivery_enabled as boolean) ?? false
+
+  // WhatsApp send is gated by plan entitlement AND a connected, active number.
+  // company_whatsapp is RLS deny-all → read its status via the service client,
+  // scoped to this (RLS-validated) project's company.
+  let whatsappSendEnabled = false
+  if (getEntitlements((company?.tier as string) ?? 'free').whatsappEnabled) {
+    const svc = createServiceClient()
+    if (svc) {
+      const { data: wa } = await svc
+        .from('company_whatsapp')
+        .select('status')
+        .eq('company_id', project.company_id)
+        .maybeSingle()
+      whatsappSendEnabled = wa?.status === 'active'
+    }
+  }
   const estimateTemplate = {
     greeting: (company?.estimate_template_greeting as string | null) ?? null,
     opener: (company?.estimate_template_opener as string | null) ?? null,
@@ -145,6 +163,7 @@ async function ProjectTabs({
       company={documentCompany}
       estimateTemplate={estimateTemplate}
       smsDeliveryEnabled={smsDeliveryEnabled}
+      whatsappSendEnabled={whatsappSendEnabled}
       priceBookItems={priceBookItems}
       defaultTab={defaultTab}
     />
