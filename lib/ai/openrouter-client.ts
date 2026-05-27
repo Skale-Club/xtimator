@@ -85,6 +85,18 @@ async function transcribeViaOpenAIDirect(
 }
 
 /**
+ * OpenRouter intermittently returns `401 {"message":"User not found","code":401}`
+ * on the transcription endpoint even for a valid, funded key — a spurious glitch
+ * on its auth/credit-lookup side that resolves on retry (symptom: "fails then works").
+ * Treat ONLY this exact shape as transient so it flows into the retry + OpenAI
+ * fallback path instead of throwing immediately. Any other 401 (different message)
+ * or other 4xx remains a hard, immediately-thrown error.
+ */
+function isTransientORAuthGlitch(status: number, body: string): boolean {
+  return status === 401 && /user not found/i.test(body)
+}
+
+/**
  * Transcribe audio via OpenRouter's Whisper endpoint (OpenAI-compatible).
  * Returns the plain-text transcript.
  *
@@ -92,7 +104,9 @@ async function transcribeViaOpenAIDirect(
  *   - On 5xx: retries once after ~500ms.
  *   - On persistent 5xx OR network error: falls back to OpenAI's own
  *     /v1/audio/transcriptions endpoint (whisper-1).
- *   - On 4xx: throws immediately — real config/auth bugs must not be masked.
+ *   - On 4xx: throws immediately (real config/auth bugs must not be masked) —
+ *     EXCEPT a spurious OpenRouter `401 User not found`, which is treated as
+ *     transient and flows into the retry + OpenAI fallback path.
  *
  * Exported signature is preserved so callers (lib/inngest/functions/transcribe-audio.ts)
  * stay untouched.
@@ -137,10 +151,16 @@ export async function transcribeAudioOR(
     }
 
     // 4xx = our fault (auth, payload, model id) → throw immediately, do NOT
-    // mask the real bug by falling back to OpenAI.
+    // mask the real bug by falling back to OpenAI. The one exception is a
+    // spurious OpenRouter `401 User not found`, which is transient: record it
+    // and fall through to the retry + OpenAI fallback path instead of throwing.
     if (res.status >= 400 && res.status < 500) {
       const err = await res.text().catch(() => 'unknown')
-      throw new Error(`OpenRouter transcription failed (${res.status}): ${err.slice(0, 400)}`)
+      if (isTransientORAuthGlitch(res.status, err)) {
+        orFailure = `OpenRouter ${res.status} (transient): ${err.slice(0, 200)}`
+      } else {
+        throw new Error(`OpenRouter transcription failed (${res.status}): ${err.slice(0, 400)}`)
+      }
     }
 
     // 5xx → record and proceed to retry-then-fallback.
@@ -163,10 +183,16 @@ export async function transcribeAudioOR(
       return (await res.text()).trim()
     }
 
-    // 4xx on retry — still a real bug, throw without OpenAI fallback.
+    // 4xx on retry — still a real bug, throw without OpenAI fallback. The one
+    // exception is a spurious OpenRouter `401 User not found`: record it and
+    // fall through to the OpenAI direct fallback instead of throwing.
     if (res.status >= 400 && res.status < 500) {
       const err = await res.text().catch(() => 'unknown')
-      throw new Error(`OpenRouter transcription failed on retry (${res.status}): ${err.slice(0, 400)}`)
+      if (isTransientORAuthGlitch(res.status, err)) {
+        orFailure = `${orFailure} | retry ${res.status} (transient): ${err.slice(0, 200)}`
+      } else {
+        throw new Error(`OpenRouter transcription failed on retry (${res.status}): ${err.slice(0, 400)}`)
+      }
     }
 
     const err = await res.text().catch(() => 'unknown')
