@@ -2,6 +2,8 @@
 
 import { StatusBadge } from '@/components/dashboard/status-badge'
 import { useTranslation } from '@/lib/i18n/use-translation'
+import { formatMoney, DEFAULT_CURRENCY_CODE } from '@/lib/money/currency'
+import { formatDate } from '@/lib/utils/format-date'
 import type { ProjectDetail } from '@/lib/queries/project'
 
 interface ProjectMetadataStripProps {
@@ -23,9 +25,12 @@ export function ProjectMetadataStrip({ project }: ProjectMetadataStripProps) {
     ? project.project_type.replace(/_/g, ' ')
     : null
   const budgetLabel = project.target_budget
-    ? `$${Number(project.target_budget).toLocaleString()}`
+    ? formatMoney(Number(project.target_budget), DEFAULT_CURRENCY_CODE, {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+      })
     : null
-  const createdLabel = new Date(project.created_at).toLocaleDateString()
+  const createdLabel = formatDate(project.created_at)
 
   return (
     <div className="px-1">
