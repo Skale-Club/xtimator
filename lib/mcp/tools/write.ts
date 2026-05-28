@@ -174,23 +174,19 @@ async function handleCreateEstimate(
   // event name + payload shape; we follow that contract verbatim so retries,
   // notifications, and quota recording all flow through the existing pipeline.
   //
-  // Inngest's generate-estimate function reads (companyId, projectId, requestId,
-  // language) from event.data. We don't have a "recording_id" here (MCP-created
-  // estimates aren't seeded from audio) — the underlying service
-  // `generateEstimateForProject` reads project context from the projects table
-  // and handles the no-recording case, so we leave it out of the payload.
-  //
-  // The optional `prompt` field is intentionally not forwarded to Inngest's
-  // EstimateGeneratePayload — the existing event shape doesn't model a
-  // free-form prompt, and adding one would require a schema change beyond this
-  // phase's scope. For the MVP MCP flow the prompt is currently used only at
-  // the project layer (the LLM is expected to call `update_project` to seed
-  // context separately, or future phases will extend the payload).
+  // 2026-05-27 (Phase 89 deferral closed): `prompt` is now forwarded to the
+  // EstimateGeneratePayload as `prompts: [prompt]`. The underlying service
+  // `generateEstimateForProject` consumes this as an additional input modality
+  // alongside transcripts + photos, and the prompt-builder renders it under
+  // a "## Description" section in the user content sent to the AI provider.
+  // Projects without transcripts/photos can now produce an estimate from the
+  // prompt alone — which is the core MCP create_estimate UX.
   const requestId = randomUUID()
   const payload: EstimateGeneratePayload = {
     companyId: auth.company_id,
     projectId: input.project_id,
     requestId,
+    prompts: [input.prompt],
     ...(input.language ? { language: input.language } : {}),
   }
   const { ids } = await inngest.send({
