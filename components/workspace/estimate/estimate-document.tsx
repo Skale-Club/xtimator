@@ -19,7 +19,7 @@ import {
   arrayMove,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { Check, GripVertical, Plus, Trash2, UserPlus } from 'lucide-react'
+import { Check, GripVertical, Plus, RotateCcw, Trash2, UserPlus } from 'lucide-react'
 import { toast } from 'sonner'
 import { MoneyInput } from '@/components/ui/money-input'
 import {
@@ -90,6 +90,9 @@ const DOC_LABELS = {
     termsPlaceholder: 'Enter details…',
     searchPriceBook: 'Search price book…',
     noMatches: 'No matches',
+    customized: 'Customized',
+    usingDefault: 'Default',
+    resetToDefault: 'Reset to default',
   },
   pt: {
     estimate: 'ORÇAMENTO',
@@ -123,6 +126,9 @@ const DOC_LABELS = {
     termsPlaceholder: 'Insira os detalhes…',
     searchPriceBook: 'Buscar no catálogo…',
     noMatches: 'Sem resultados',
+    customized: 'Personalizado',
+    usingDefault: 'Padrão',
+    resetToDefault: 'Restaurar padrão',
   },
   es: {
     estimate: 'PRESUPUESTO',
@@ -156,6 +162,9 @@ const DOC_LABELS = {
     termsPlaceholder: 'Ingrese los detalles…',
     searchPriceBook: 'Buscar en catálogo…',
     noMatches: 'Sin resultados',
+    customized: 'Personalizado',
+    usingDefault: 'Predeterminado',
+    resetToDefault: 'Restablecer',
   },
 }
 
@@ -191,6 +200,9 @@ interface DocLabels {
   termsPlaceholder: string
   searchPriceBook: string
   noMatches: string
+  customized: string
+  usingDefault: string
+  resetToDefault: string
 }
 
 const DATE_LOCALE: Record<EstimateLanguage, string> = {
@@ -228,6 +240,17 @@ export interface DocumentCompany {
   zip: string | null
   logo_url: string | null
   brand_primary_color: string | null
+}
+
+/**
+ * R4 — company-level defaults the document compares against to surface an
+ * "override vs default" indicator on inherited fields. Optional: omitted in
+ * view/share/PDF mode where no edit affordances are shown.
+ */
+export interface CompanyDefaults {
+  payment_terms: string | null
+  warranty_terms: string | null
+  tax_rate: number
 }
 
 export interface DocumentClient {
@@ -285,6 +308,8 @@ interface EstimateDocumentProps {
   company?: DocumentCompany
   /** Override brand color (used in edit mode when company object isn't available) */
   brandColor?: string
+  /** R4 — company defaults for the override-vs-default indicator (edit mode only) */
+  companyDefaults?: CompanyDefaults
   client: DocumentClient | null
   projectName: string
   projectType: string | null
@@ -833,15 +858,22 @@ function DocumentTotals({
   isEditable,
   brandColor,
   L,
+  defaultTaxRate,
 }: {
   data: EstimateDocumentData
   dispatch?: React.Dispatch<EstimateAction>
   isEditable: boolean
   brandColor: string
   L: DocLabels
+  /** R4 — company default tax rate (fraction); undefined when no default applies. */
+  defaultTaxRate?: number
 }) {
   const fmt = (v: number) => formatMoney(v, data.currency_code)
   const taxPercent = Math.round(data.tax_rate * 10000) / 100
+  const hasTaxDefault = defaultTaxRate !== undefined
+  // Compare at 4-decimal precision (DB stores NUMERIC(5,4)) to avoid float noise.
+  const isTaxOverridden =
+    Math.round(data.tax_rate * 10000) !== Math.round((defaultTaxRate ?? 0) * 10000)
   const discountTypeVal = data.discount_type ?? 'none'
 
   return (
@@ -935,27 +967,40 @@ function DocumentTotals({
 
         {/* Tax */}
         {isEditable && dispatch ? (
-          <div className="flex items-center justify-between gap-2 text-base">
-            <div className="flex items-center gap-1.5">
-              <span className="text-muted-foreground shrink-0 select-none">{L.tax}</span>
-              <div className="relative">
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={taxPercent}
-                  onChange={(e) => {
-                    const pct = parseFloat(e.target.value) || 0
-                    dispatch({ type: 'UPDATE_TAX_RATE', tax_rate: pct / 100 })
-                  }}
-                  className="h-7 w-16 text-right text-xs bg-muted/30 rounded px-1 pr-4 focus:outline-none focus:ring-1 focus:ring-primary/30"
-                />
-                <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-                  %
-                </span>
+          <div className="space-y-1">
+            <div className="flex items-center justify-between gap-2 text-base">
+              <div className="flex items-center gap-1.5">
+                <span className="text-muted-foreground shrink-0 select-none">{L.tax}</span>
+                <div className="relative">
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={taxPercent}
+                    onChange={(e) => {
+                      const pct = parseFloat(e.target.value) || 0
+                      dispatch({ type: 'UPDATE_TAX_RATE', tax_rate: pct / 100 })
+                    }}
+                    className="h-7 w-16 text-right text-xs bg-muted/30 rounded px-1 pr-4 focus:outline-none focus:ring-1 focus:ring-primary/30"
+                  />
+                  <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                    %
+                  </span>
+                </div>
               </div>
+              <span className="tabular-nums font-medium">{fmt(data.tax_amount)}</span>
             </div>
-            <span className="tabular-nums font-medium">{fmt(data.tax_amount)}</span>
+            {hasTaxDefault && (
+              <div className="flex justify-start">
+                <DefaultStateIndicator
+                  isOverridden={isTaxOverridden}
+                  onReset={() =>
+                    dispatch({ type: 'UPDATE_TAX_RATE', tax_rate: defaultTaxRate ?? 0 })
+                  }
+                  L={L}
+                />
+              </div>
+            )}
           </div>
         ) : data.tax_amount > 0 ? (
           <div className="flex justify-between text-base">
@@ -979,6 +1024,47 @@ function DocumentTotals({
 }
 
 // ---------------------------------------------------------------------------
+// DefaultStateIndicator — R4: shows whether an inherited field still matches
+// the company default ("Default") or has been customized ("Customized" + a
+// one-click reset). Only meaningful in edit mode, and only when a company
+// default is known for the field.
+// ---------------------------------------------------------------------------
+
+function DefaultStateIndicator({
+  isOverridden,
+  onReset,
+  L,
+}: {
+  isOverridden: boolean
+  onReset: () => void
+  L: DocLabels
+}) {
+  if (!isOverridden) {
+    return (
+      <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground select-none">
+        {L.usingDefault}
+      </span>
+    )
+  }
+
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-700 select-none dark:bg-amber-500/15 dark:text-amber-400">
+        {L.customized}
+      </span>
+      <button
+        type="button"
+        onClick={onReset}
+        className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors"
+      >
+        <RotateCcw className="size-3" />
+        {L.resetToDefault}
+      </button>
+    </span>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // TermsBlock — a single labeled text block (view or inline edit)
 // ---------------------------------------------------------------------------
 
@@ -989,6 +1075,8 @@ function TermsBlock({
   dispatch,
   isEditable,
   autoFocus = false,
+  defaultValue,
+  L,
 }: {
   label: string
   value: string | null
@@ -996,14 +1084,31 @@ function TermsBlock({
   dispatch?: React.Dispatch<EstimateAction>
   isEditable: boolean
   autoFocus?: boolean
+  /** R4 — company default for this field; undefined when no default applies. */
+  defaultValue?: string | null
+  L: DocLabels
 }) {
   if (!isEditable && !value) return null
 
+  const hasDefault = defaultValue !== undefined
+  const isOverridden = (value ?? '').trim() !== (defaultValue ?? '').trim()
+
   return (
     <div>
-      <p className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-1.5 select-none">
-        {label}
-      </p>
+      <div className="flex items-center justify-between gap-2 mb-1.5">
+        <p className="text-sm font-semibold uppercase tracking-wider text-muted-foreground select-none">
+          {label}
+        </p>
+        {isEditable && hasDefault && dispatch ? (
+          <DefaultStateIndicator
+            isOverridden={isOverridden}
+            onReset={() =>
+              dispatch({ type: 'UPDATE_FIELD', field, value: defaultValue || null })
+            }
+            L={L}
+          />
+        ) : null}
+      </div>
       {isEditable && dispatch ? (
         <textarea
           value={value ?? ''}
@@ -1221,6 +1326,7 @@ export function EstimateDocument({
   data,
   company,
   brandColor: brandColorProp,
+  companyDefaults,
   client,
   projectName,
   projectType,
@@ -1554,6 +1660,7 @@ export function EstimateDocument({
         isEditable={isEditable}
         brandColor={brandColor}
         L={L}
+        defaultTaxRate={companyDefaults?.tax_rate}
       />
 
       {/* Terms — each block renders only when filled or explicitly revealed */}
@@ -1567,6 +1674,8 @@ export function EstimateDocument({
               dispatch={dispatch}
               isEditable={isEditable}
               autoFocus={revealed.has('payment_terms') && data.payment_terms == null}
+              defaultValue={companyDefaults?.payment_terms}
+              L={L}
             />
           )}
           {isFieldVisible('timeline') && (
@@ -1577,6 +1686,7 @@ export function EstimateDocument({
               dispatch={dispatch}
               isEditable={isEditable}
               autoFocus={revealed.has('timeline') && data.timeline == null}
+              L={L}
             />
           )}
           {isFieldVisible('warranty_terms') && (
@@ -1587,6 +1697,8 @@ export function EstimateDocument({
               dispatch={dispatch}
               isEditable={isEditable}
               autoFocus={revealed.has('warranty_terms') && data.warranty_terms == null}
+              defaultValue={companyDefaults?.warranty_terms}
+              L={L}
             />
           )}
           {isFieldVisible('notes') && (
@@ -1597,6 +1709,7 @@ export function EstimateDocument({
               dispatch={dispatch}
               isEditable={isEditable}
               autoFocus={revealed.has('notes') && data.notes == null}
+              L={L}
             />
           )}
         </div>
