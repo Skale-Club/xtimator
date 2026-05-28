@@ -24,6 +24,7 @@ import { getAIProvider, type RefineEstimateInput } from '@/lib/ai'
 import type { EstimateOutput, EstimateSectionOutput } from '@/lib/ai/types'
 import { transcribeAudioOR, analyzePhotoOR } from '@/lib/ai/openrouter-client'
 import { normalizeCurrencyCode } from '@/lib/money/currency'
+import { rateLimit } from '@/lib/ratelimit'
 
 const MAX_PHOTOS = 5
 
@@ -76,6 +77,16 @@ export async function POST(
     const claims = claimsData?.claims ?? null
     if (!claims) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+    }
+
+    // Security Review S05 — rate limit: refine runs Whisper + Vision + Claude
+    // in a single request, so it is the most cost-amplifying endpoint.
+    const rl = await rateLimit('refinePerMinute', claims.sub)
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: 'Too many refine requests', code: 'rate_limit:refine' },
+        { status: 429, headers: { 'Retry-After': String(rl.retryAfter ?? 60) } }
+      )
     }
 
     const { data: companyRow } = await supabase
