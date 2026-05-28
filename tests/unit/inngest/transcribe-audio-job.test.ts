@@ -29,13 +29,23 @@ describe('INNGEST-03 + INNGEST-06: transcribeAudioJob', () => {
     expect(fn.opts.retries).toBe(2)
   })
 
-  it('function body wraps Whisper fetch in step.run("whisper-transcribe", ...)', () => {
-    const src = readFileSync(
+  it('wraps the Whisper fetch in step.run("whisper-transcribe") and delegates to the transcription client', () => {
+    const jobSrc = readFileSync(
       resolve(process.cwd(), 'lib/inngest/functions/transcribe-audio.ts'),
       'utf8'
     )
-    expect(src).toMatch(/step\.run\(['"]whisper-transcribe['"]/)
-    expect(src).toMatch(/api\.openai\.com\/v1\/audio\/transcriptions/)
+    expect(jobSrc).toMatch(/step\.run\(['"]whisper-transcribe['"]/)
+    // The job delegates the actual fetch to transcribeAudioOR; the endpoint
+    // assertion below targets that client module, not the job.
+    expect(jobSrc).toMatch(/transcribeAudioOR/)
+
+    const clientSrc = readFileSync(
+      resolve(process.cwd(), 'lib/ai/openrouter-client.ts'),
+      'utf8'
+    )
+    // URL is built from OPENAI_TRANSCRIPTION_BASE + the path, so match the parts.
+    expect(clientSrc).toMatch(/api\.openai\.com/)
+    expect(clientSrc).toMatch(/\/audio\/transcriptions/)
   })
 
   it('function body wraps DB update in step.run("save-transcript", ...)', () => {
