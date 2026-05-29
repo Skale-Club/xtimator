@@ -73,17 +73,17 @@ Coverage: to be completed by the roadmap (phase assignment starts at Phase 91). 
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| REC-01 | TBD | Pending |
-| REC-02 | TBD | Pending |
-| REC-03 | TBD | Pending |
-| REC-04 | TBD | Pending |
-| REC-05 | TBD | Pending |
-| EVENT-01 | TBD | Pending |
-| EVENT-02 | TBD | Pending |
-| EVENT-03 | TBD | Pending |
-| EVENT-04 | TBD | Pending |
-| ADMINLOG-01 | TBD | Pending |
-| ADMINLOG-02 | TBD | Pending |
-| ADMINLOG-03 | TBD | Pending |
-| ADMINLOG-04 | TBD | Pending |
-| ADMINLOG-05 | TBD | Pending |
+| REC-01 | Phase 91 | Pending |
+| REC-02 | Phase 91 | Pending |
+| REC-03 | Phase 91 | Pending |
+| REC-04 | Phase 91 | Pending |
+| REC-05 | Phase 91 | Pending |
+| EVENT-01 | Phase 92 | Pending |
+| EVENT-02 | Phase 92 | Pending |
+| EVENT-03 | Phase 92 | Pending |
+| EVENT-04 | Phase 92 | Pending |
+| ADMINLOG-01 | Phase 93 | Pending |
+| ADMINLOG-02 | Phase 93 | Pending |
+| ADMINLOG-03 | Phase 93 | Pending |
+| ADMINLOG-04 | Phase 93 | Pending |
+| ADMINLOG-05 | Phase 93 | Pending |

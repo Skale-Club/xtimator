@@ -22,10 +22,10 @@ progress:
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 91 of 93 (Recording Pipeline Reliability)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-05-28 — Milestone v4.2 started; archived v3.1.1 requirements; carrying forward incomplete INNGEST-01/06 (root cause of recording 503)
+Status: Roadmap created -- ready to plan Phase 91
+Last activity: 2026-05-28 — Milestone v4.2 started; archived v3.1.1 requirements; carrying forward incomplete INNGEST-01/06 (root cause of recording 503); v4.2 roadmap created -- Phases 91-93 mapped (REC->91, EVENT->92, ADMINLOG->93), all 14 v1 requirements covered
 
 ## v3.1.1 Phases
 
