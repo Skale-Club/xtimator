@@ -989,7 +989,7 @@ Plans:
   4. Re-running or retrying a pipeline job does not double-charge Anthropic / OpenAI -- each job runs inside `step.run()` boundaries with an explicit `idempotencyKey`
   5. `hooks/use-job-status.ts` distinguishes "still processing", "failed with reason", and "config unavailable" without throwing on any non-200 response
 **Plans**: 2 plans
-  - [ ] 91-01-PLAN.md — Graceful job-status contract + hook rewrite + failure UI (REC-01/02/05)
+  - [x] 91-01-PLAN.md — Graceful job-status contract + hook rewrite + failure UI (REC-01/02/05)
   - [ ] 91-02-PLAN.md — Attempt-lineage + idempotency hardening; no double-charge on Retry (REC-03/04)
 **UI hint**: yes
 

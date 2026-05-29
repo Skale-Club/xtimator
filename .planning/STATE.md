@@ -1,16 +1,15 @@
 ---
 gsd_state_version: 1.0
-milestone: v4.1
-milestone_name: MCP Server
+milestone: v1.5
+milestone_name: Zero-friction Project Onboarding
 status: executing
-last_updated: "2026-05-26T18:51:21.123Z"
-last_activity: 2026-05-26 -- Phase 81 execution started
+last_updated: "2026-05-29T04:27:17.624Z"
+last_activity: 2026-05-29
 progress:
-  total_phases: 90
+  total_phases: 93
   completed_phases: 61
-  total_plans: 190
-  completed_plans: 218
-  percent: 100
+  total_plans: 192
+  completed_plans: 220
 ---
 
 # Project State
@@ -22,10 +21,10 @@ progress:
 
 ## Current Position
 
-Phase: 91 of 93 (Recording Pipeline Reliability)
-Plan: —
-Status: Roadmap created -- ready to plan Phase 91
-Last activity: 2026-05-28 — Milestone v4.2 started; archived v3.1.1 requirements; carrying forward incomplete INNGEST-01/06 (root cause of recording 503); v4.2 roadmap created -- Phases 91-93 mapped (REC->91, EVENT->92, ADMINLOG->93), all 14 v1 requirements covered
+Phase: 91 (recording-pipeline-reliability) — EXECUTING
+Plan: 2 of 2
+Status: Ready to execute
+Last activity: 2026-05-29
 
 ## v3.1.1 Phases
 
@@ -465,6 +464,9 @@ Last activity: 2026-05-28 — Milestone v4.2 started; archived v3.1.1 requiremen
 - [Phase 87]: Stateless MCP sessions (sessionIdGenerator: undefined, enableJsonResponse: true) for MVP — fresh Server + transport per request
 - [Phase 89]: Phase 89 refactored MCP tool registration into a shared registry (buildAllTools + registerAllTools) — required because Server.setRequestHandler accepts only one handler per request schema. Read + write tools now share the single tools/list + tools/call handler pair.
 - [Phase 89]: create_estimate dispatches the existing EVENT_ESTIMATE_GENERATE Inngest event (same path /api/generate-estimate uses); check_job_status reads Inngest /v1/events/{id}/runs (same path /api/jobs/[jobId] uses). No parallel job table.
+- [Phase 91]: [91-01] config_unavailable covers both missing signing key AND thrown fetch (dev-server-down maps to config_unavailable, not failed)
+- [Phase 91]: [91-01] Job-status endpoint returns 200 discriminated JobStatusContract for every known state; non-200 reserved for the 401 auth gate only
+- [Phase 91]: [91-01] pollJob resolves typed JobResult and only throws on aborted signal; JobResult/JobStatusState exported for Plan 02
 
 ## Performance Metrics
 
@@ -620,13 +622,14 @@ Last activity: 2026-05-28 — Milestone v4.2 started; archived v3.1.1 requiremen
 | Phase 87 P— | 25min | 4 tasks | 9 files |
 | Phase 89 P— | 11min | 5 tasks | 9 files |
 | Phase 90 P01 | 25min | 5 tasks | 6 files |
+| Phase 91 P01 | 7min | 3 tasks | 8 files |
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-13)
 
 **Core value:** Business owner → job site audio recording → sent professional estimate in under 5 minutes
-**Current focus:** Phase 81 — Add WhatsApp send option in SendTab and integrations settings
+**Current focus:** Phase 91 — recording-pipeline-reliability
 
 ## Notes
 
