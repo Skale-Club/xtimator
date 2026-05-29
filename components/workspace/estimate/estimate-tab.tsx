@@ -29,7 +29,7 @@ import {
   type EstimateLanguage,
   resolveEstimateLanguageWithSource,
 } from '@/lib/i18n/resolve-estimate-language'
-import type { DocumentClient, DocumentCompany } from './estimate-document'
+import type { DocumentClient, DocumentCompany, CompanyDefaults } from './estimate-document'
 import type { PriceBookItem } from '@/lib/queries/price-book'
 
 interface EstimateTabProps {
@@ -37,6 +37,7 @@ interface EstimateTabProps {
   companyId: string
   companyBrandColor: string | null
   company: DocumentCompany
+  companyDefaults: CompanyDefaults
   currentEstimate: EstimateWithSections | null
   allVersions: Estimate[]
   recordings: Recording[]
@@ -54,6 +55,7 @@ export function EstimateTab({
   companyId,
   companyBrandColor,
   company,
+  companyDefaults,
   currentEstimate,
   allVersions,
   recordings,
@@ -156,6 +158,7 @@ export function EstimateTab({
         companyId={companyId}
         companyBrandColor={companyBrandColor}
         company={company}
+        companyDefaults={companyDefaults}
         recordings={recordings}
         photos={photos}
         projectName={projectName}

@@ -12,7 +12,7 @@ import { ProjectWorkspace } from '@/components/workspace/project-workspace'
 import { ProjectHeader } from '@/components/workspace/project-header'
 import { ProjectPageShell } from '@/components/workspace/project-page-shell'
 import { Skeleton } from '@/components/ui/skeleton'
-import type { DocumentCompany } from '@/components/workspace/estimate/estimate-document'
+import type { DocumentCompany, CompanyDefaults } from '@/components/workspace/estimate/estimate-document'
 
 const ALLOWED_TABS = ['overview', 'photos', 'send', 'client', 'activity'] as const
 type AllowedTab = (typeof ALLOWED_TABS)[number]
@@ -98,7 +98,7 @@ async function ProjectTabs({
   const supabase = await createClient()
   const { data: company } = await supabase
     .from('companies')
-    .select('name, owner_name, brand_primary_color, estimate_template_greeting, estimate_template_opener, estimate_template_closer, estimate_template_signature, sms_delivery_enabled, tier, logo_url, phone, email, website, address, city, state, zip')
+    .select('name, owner_name, brand_primary_color, estimate_template_greeting, estimate_template_opener, estimate_template_closer, estimate_template_signature, sms_delivery_enabled, tier, logo_url, phone, email, website, address, city, state, zip, default_tax_rate, default_payment_terms, default_warranty_terms')
     .eq('id', project.company_id)
     .single()
 
@@ -141,6 +141,13 @@ async function ProjectTabs({
     logo_url: (company?.logo_url as string | null) ?? null,
     brand_primary_color: companyBrandColor,
   }
+  // R4 — company defaults the estimate document compares against to flag
+  // overridden vs inherited fields.
+  const companyDefaults: CompanyDefaults = {
+    payment_terms: (company?.default_payment_terms as string | null) ?? null,
+    warranty_terms: (company?.default_warranty_terms as string | null) ?? null,
+    tax_rate: Number(company?.default_tax_rate) || 0,
+  }
 
   // Fetch current estimate for workspace tabs that need it
   const currentEstimate = await getCurrentEstimate(supabase, project.id)
@@ -161,6 +168,7 @@ async function ProjectTabs({
       ownerName={ownerName}
       companyBrandColor={companyBrandColor}
       company={documentCompany}
+      companyDefaults={companyDefaults}
       estimateTemplate={estimateTemplate}
       smsDeliveryEnabled={smsDeliveryEnabled}
       whatsappSendEnabled={whatsappSendEnabled}

@@ -11,13 +11,14 @@ import type { Recording } from '@/lib/queries/recording'
 import type { Photo } from '@/lib/queries/photo'
 import type { EstimateWithSections, Estimate } from '@/lib/queries/estimate'
 import type { PriceBookItem } from '@/lib/queries/price-book'
-import type { DocumentCompany } from './estimate/estimate-document'
+import type { DocumentCompany, CompanyDefaults } from './estimate/estimate-document'
 
 interface OverviewTabProps {
   project: ProjectDetail
   companyId: string
   companyBrandColor: string | null
   company: DocumentCompany
+  companyDefaults: CompanyDefaults
   currentEstimate: EstimateWithSections | null
   allVersions: Estimate[]
   recordings: Recording[]
@@ -40,6 +41,7 @@ export function OverviewTab({
   companyId,
   companyBrandColor,
   company,
+  companyDefaults,
   currentEstimate,
   allVersions,
   recordings,
@@ -84,6 +86,7 @@ export function OverviewTab({
         companyId={companyId}
         companyBrandColor={companyBrandColor}
         company={company}
+        companyDefaults={companyDefaults}
         currentEstimate={currentEstimate}
         allVersions={allVersions}
         recordings={recordings}
