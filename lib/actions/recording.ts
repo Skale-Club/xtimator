@@ -126,7 +126,7 @@ export async function createRecording(
  *
  * Implements: INNGEST-03.
  */
-export async function transcribeRecording(recordingId: string) {
+export async function transcribeRecording(recordingId: string, attemptId?: string) {
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error }
   const { supabase } = ctx
@@ -157,6 +157,9 @@ export async function transcribeRecording(recordingId: string) {
       companyId: recording.company_id as string,
       recordingId,
       storagePath: recording.storage_path as string,
+      // REC-03: forward attempt lineage (in-flight only) so a Retry continues
+      // the same attempt; recordingId stays the stable idempotency seam.
+      attemptId,
     },
   })
 

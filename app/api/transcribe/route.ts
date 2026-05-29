@@ -42,6 +42,8 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => null)
     const recordingId =
       typeof body?.recordingId === 'string' ? body.recordingId : null
+    // REC-03: attempt lineage carried on the event payload (in-flight only).
+    const attemptId = typeof body?.attemptId === 'string' ? body.attemptId : undefined
     if (!recordingId) {
       throw new XtimatorError(
         'bad_request',
@@ -101,6 +103,7 @@ export async function POST(request: Request) {
       companyId: rec.company_id,
       recordingId: rec.id,
       storagePath: rec.storage_path,
+      attemptId,
     }
     const { ids } = await inngest.send({
       name: EVENT_TRANSCRIBE_AUDIO,

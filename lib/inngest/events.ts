@@ -25,12 +25,23 @@ export type EstimateGeneratePayload = {
    * still produce an estimate.
    */
   prompts?: string[]
+  /**
+   * Phase 91 (REC-03): attempt lineage carried in-flight only; Phase 92 owns
+   * durable persistence. Minted once per capture session and reused on Retry so
+   * the lineage survives a re-dispatch. Optional so older callers still compile.
+   */
+  attemptId?: string
 }
 
 export type TranscribeAudioPayload = {
   companyId: string
   recordingId: string
   storagePath: string
+  /**
+   * Phase 91 (REC-03): attempt lineage carried in-flight only; Phase 92 owns
+   * durable persistence. Optional so older callers still compile.
+   */
+  attemptId?: string
 }
 
 export type AnalyzePhotosPayload = {
