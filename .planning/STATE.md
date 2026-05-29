@@ -25,7 +25,7 @@ progress:
 Phase: 81 (Add WhatsApp send option in SendTab and integrations settings) — EXECUTING
 Plan: 1 of 3
 Status: Executing Phase 81
-Last activity: 2026-05-29 - Completed quick task 260529-jo8: Fix mobile auth — Start always opens login dialog (removed isAuthenticated short-circuit) + Google forces account selector
+Last activity: 2026-05-29 - Completed quick task 260529-joo: Link project ↔ client WhatsApp conversation (project card + inbox deep-link)
 
 ## v3.1.1 Phases
 
@@ -705,6 +705,7 @@ v3.1: Phases 61-65 (started 2026-05-15). Production Go-Live — 27 requirements 
 | 260527-l9c | Remove obsolete OpenRouter transient-401 "User not found" handling; restore 4xx-throws-immediately behavior (reverts k4i premise — OpenRouter now returns 503, not 401, for infra/auth-lookup failures) | 2026-05-27 | 948144e | [260527-l9c-remove-obsolete-openrouter-transient-401](.planning/quick/260527-l9c-remove-obsolete-openrouter-transient-401/) |
 | 260529-jh7 | Add UNIQUE (company_id) to company_whatsapp — fixes "no unique or exclusion constraint matching the ON CONFLICT specification" that broke the WhatsApp connect/verification flow; applied + verified on live Xtimator DB | 2026-05-29 | c44f6ac | [260529-jh7-add-unique-constraint-on-company-id-to-c](.planning/quick/260529-jh7-add-unique-constraint-on-company-id-to-c/) |
 | 260529-jo8 | Fix mobile auth: Start/CTA always opens the login dialog even with a persisted Supabase session (removed isAuthenticated short-circuit + getAuthClaims fetch); Google OAuth forces account selector (prompt=select_account) | 2026-05-29 | 4726fe9 | [260529-jo8-fix-mobile-auth-start-always-opens-login](.planning/quick/260529-jo8-fix-mobile-auth-start-always-opens-login/) |
+| 260529-joo | Link project ↔ client WhatsApp conversation in the panel: getProjectConversationLink query (project→client.phone→conversation, no migration) + WhatsApp card on project Client tab (link or empty state) + inbox deep-link auto-open via /whatsapp?c=&lt;id&gt; | 2026-05-29 | 9b9f99a | [260529-joo-vincular-projeto-a-conversa-de-whatsapp-](.planning/quick/260529-joo-vincular-projeto-a-conversa-de-whatsapp-/) |
 | 2026-05-18 | fast | Center auth card logo+wordmark | done |
 | 2026-05-19 | fast | Make audio capture screen scrollable on smaller viewports | done |
 | 2026-05-18 | fast | Restyle sidebar New Project as filled gradient, remove dashboard CTA | done |
