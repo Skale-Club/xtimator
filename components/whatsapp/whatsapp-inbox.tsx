@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, useTransition } from 'react'
+import { useSearchParams } from 'next/navigation'
 import {
   MessageCircle,
   Send,
@@ -89,6 +90,7 @@ export function WhatsAppInbox({
 }: {
   initialConversations: WaConversationRow[]
 }) {
+  const searchParams = useSearchParams()
   const [conversations, setConversations] = useState<WaConversationRow[]>(initialConversations)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [thread, setThread] = useState<ConversationThread | null>(null)
@@ -103,6 +105,8 @@ export function WhatsAppInbox({
   const [loadingEstimates, setLoadingEstimates] = useState(false)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  // Guards the ?c= deep-link auto-open so it fires only once per mount.
+  const didDeepLink = useRef(false)
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -134,6 +138,19 @@ export function WhatsAppInbox({
       prev.map((c) => (c.id === id ? { ...c, unread_count: 0 } : c)),
     )
   }
+
+  // Deep-link: /whatsapp?c=<conversationId> auto-opens that conversation once on
+  // mount. openConversation -> loadConversation is company-scoped server-side, so
+  // an unknown/unowned id falls through to the existing not-found toast.
+  useEffect(() => {
+    const cid = searchParams.get('c')
+    if (cid && !didDeepLink.current && selectedId !== cid) {
+      didDeepLink.current = true
+      void openConversation(cid)
+    }
+    // didDeepLink ref short-circuits after the first run, so this fires only once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams])
 
   function onSend() {
     if (!thread) return
