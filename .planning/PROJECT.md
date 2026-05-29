@@ -25,6 +25,11 @@ A business owner can go from job site audio recording to a sent, professional es
 
 **Source spec:** Notion "Recording Failure Investigation — Super Admin Event Logs".
 
+**Progress (2026-05-29):**
+- ✅ **Phase 91: Recording Pipeline Reliability** — shipped 2026-05-29. `GET /api/jobs/[jobId]` no longer hard-503s: it returns HTTP 200 with a discriminated `JobStatusContract` (`processing | completed | failed | config_unavailable | not_found`; 401 auth gate preserved). `hooks/use-job-status.ts` `pollJob` resolves a typed `JobResult` and never throws on non-200; the capture popup (`components/capture/capture-failure.tsx`) renders a human-readable reason + i18n Retry / Edit-manually actions instead of a raw status code. Retry reuses a once-minted `attemptId`/`requestId`/`recordingId` (payload-only lineage, no DB column in P91) so already-successful Inngest steps inside `step.run()` with idempotency keys are not re-charged. All 4 remaining `pollJob` consumers (text-describe, photos-input, ai-input-group, capture-recorder) rewired to the discriminant together so no failure is silently swallowed. REC-01..05 all Complete. 2/2 plans, 8 commits, 27 Phase-91 assertions green across 5 suites, tsc clean. 4 behaviors routed to human UAT (non-blocking).
+- ⬜ **Phase 92: Pipeline Event Persistence** — pending (EVENT-01..04).
+- ⬜ **Phase 93: Super Admin Event Log UI** — pending (ADMINLOG-01..05).
+
 ## Last Milestone: v3.1 Production Go-Live (rescoped) ✅ (shipped 2026-05-15)
 
 Phase 61 only — production database foundation. Built cross-platform RLS audit infrastructure (`supabase/audits/`), recovered 9 missing migrations (entire v3.0 monetization schema was on disk but never applied to DB!), wrote production bootstrap runbook (`supabase/PROD-BOOTSTRAP.md`). Phases 62-65 (Vercel deploy + Stripe live + monitoring + UAT) **deferred to v3.2** — Vercel Free Hobby plan blocks commercial SaaS use AND has 10s function timeout that breaks AI routes. Tracked in **SEED-018: Production Hosting + Deployment**.
@@ -283,4 +288,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context
 
 ---
-*Last updated: 2026-05-28 — v4.2 Recording Reliability & Observability milestone started*
+*Last updated: 2026-05-29 — Phase 91 (Recording Pipeline Reliability) complete; REC-01..05 validated*
