@@ -179,6 +179,32 @@ describe('processInboundMessage (handler.ts — dispatch-only after Plan 67-04)'
     })
   })
 
+  describe('awaiting_details session routing', () => {
+    it('re-dispatches to the SAME project without creating a new one', async () => {
+      const { client, projectInsertSpy } = makeSupabaseMock({
+        existingSession: {
+          id: 'session-1',
+          state: 'awaiting_details',
+          draft_project_id: 'p-1',
+          draft_estimate_id: null,
+        },
+      })
+
+      await processInboundMessage(TEXT_MESSAGE, 'company-1', '15551234567', client)
+
+      // Re-dispatched once to the existing project
+      expect(mockInngestSend).toHaveBeenCalledOnce()
+      const event = mockInngestSend.mock.calls[0][0] as {
+        data: { projectId: string }
+      }
+      expect(event.data.projectId).toBe('p-1')
+
+      // No new project, no confirmation reply
+      expect(projectInsertSpy).not.toHaveBeenCalled()
+      expect(mockConfirm).not.toHaveBeenCalled()
+    })
+  })
+
   describe('dispatch path (no session)', () => {
     it('dispatches text message via inngest.send with batch payload', async () => {
       const { client } = makeSupabaseMock({ projectId: 'proj-text' })

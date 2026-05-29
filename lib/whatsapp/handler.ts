@@ -69,6 +69,19 @@ export async function processInboundWithDebounce(
     )
   }
 
+  if (existingSession?.state === 'awaiting_details') {
+    // The owner is supplying more detail for the SAME draft project. Re-dispatch
+    // to the same projectId so the worker accumulates context and regenerates.
+    // (Idempotent via wamid batchKey; no new project, no debounce.)
+    await sendTypingIndicator(message.id).catch(() => undefined)
+    return dispatchToExistingProject(
+      [message],
+      existingSession as { draft_project_id: string | null },
+      companyId,
+      ownerPhone,
+    )
+  }
+
   // No session → debounce path
   const pushed = await pushToBuffer(fromPhone, message)
   if (!pushed) {
@@ -133,6 +146,19 @@ export async function processInboundMessage(
     )
   }
 
+  if (existingSession?.state === 'awaiting_details') {
+    // The owner is supplying more detail for the SAME draft project. Re-dispatch
+    // to the same projectId so the worker accumulates context and regenerates.
+    // (Idempotent via wamid batchKey; no new project, no debounce.)
+    await sendTypingIndicator(message.id).catch(() => undefined)
+    return dispatchToExistingProject(
+      [message],
+      existingSession as { draft_project_id: string | null },
+      companyId,
+      ownerPhone,
+    )
+  }
+
   // No session → process this single message directly (used by legacy paths and
   // by the Redis-unavailable fallback in processInboundWithDebounce)
   return processInboundMessages([message], companyId, fromPhone, supabase)
@@ -158,6 +184,42 @@ async function processSingleMessageWithSession(
       },
     })
   }
+}
+
+// -------------------------------------------------------------------------
+// awaiting_details re-dispatch — Quick task 260529-lc0.
+//
+// When a session is in awaiting_details, the owner is supplying more detail for
+// the SAME draft project. Re-dispatch EVENT_WHATSAPP_PROCESS with the existing
+// draft_project_id so the worker accumulates context (recordings/photos) and
+// regenerates. No new project, no debounce. Idempotent via the wamid batchKey.
+//
+// The entitlement gate is intentionally NOT re-checked here: the session only
+// exists because the first processing (which did check entitlement) passed, and
+// the owner is continuing the same conversation.
+// -------------------------------------------------------------------------
+async function dispatchToExistingProject(
+  messages: WhatsAppMessage[],
+  session: { draft_project_id: string | null },
+  companyId: string,
+  ownerPhone: string,
+): Promise<void> {
+  if (!messages.length || !session.draft_project_id) return
+  const lastMessageId = messages[messages.length - 1].id
+  const batchKey = `wa-batch-${lastMessageId}`
+  const { inngest } = await import('@/lib/inngest/client')
+  const { EVENT_WHATSAPP_PROCESS } = await import('@/lib/inngest/events')
+  await inngest.send({
+    name: EVENT_WHATSAPP_PROCESS,
+    id: batchKey,
+    data: {
+      companyId,
+      projectId: session.draft_project_id, // SAME project — accumulate context
+      ownerPhone,
+      messages,
+      batchKey,
+    },
+  })
 }
 
 // -------------------------------------------------------------------------
