@@ -22,6 +22,11 @@ import {
   type WhatsAppProcessPayload,
 } from '@/lib/inngest/events'
 import { formatMoney } from '@/lib/money/currency'
+import {
+  isVagueEstimate,
+  buildAskDetailsMessage,
+  revertVagueEstimate,
+} from '@/lib/whatsapp/ask-details'
 
 const SESSION_TTL_MINUTES = 30
 
@@ -99,6 +104,49 @@ export const whatsAppProcessJob = inngest.createFunction(
     const result = await step.run('generate-estimate', async () => {
       return await generateEstimateForProject(companyId, projectId)
     })
+
+    // Re-evaluate "vagueness" — vague inbound text often yields a $0 estimate
+    // with no line items. In that case ask the owner for more details instead of
+    // sending a useless $0 confirmation. (Quick task 260529-lc0)
+    const isVague = await step.run('evaluate-vagueness', async () => {
+      const supabase = requireServiceClient()
+      const { data: est } = await supabase
+        .from('estimates')
+        .select('total, sections:estimate_sections(items:estimate_items(id))')
+        .eq('id', result.estimateId)
+        .single()
+      return isVagueEstimate(
+        est as {
+          total: number | null
+          sections: Array<{ items?: Array<unknown> | null }> | null
+        } | null
+      )
+    })
+
+    if (isVague) {
+      await step.run('ask-details', async () => {
+        const supabase = requireServiceClient()
+        // Remove the $0 estimate and revert the project to draft so the next
+        // inbound message regenerates cleanly against the same project.
+        await revertVagueEstimate(supabase, projectId, result.estimateId)
+        const expiresAt = new Date(
+          Date.now() + SESSION_TTL_MINUTES * 60 * 1000
+        ).toISOString()
+        await supabase.from('whatsapp_sessions').insert({
+          company_id: companyId,
+          phone_number: ownerPhone,
+          state: 'awaiting_details',
+          draft_project_id: projectId,
+          draft_estimate_id: null,
+          expires_at: expiresAt,
+        })
+        await sendWhatsAppMessage(ownerPhone, {
+          type: 'text',
+          text: { body: buildAskDetailsMessage(result.language) },
+        })
+      })
+      return result
+    }
 
     // Create awaiting_confirm session + send confirmation summary
     await step.run('confirm-and-session', async () => {
