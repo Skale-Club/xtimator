@@ -62,7 +62,9 @@ export function TextDescribe({ project, projectId }: TextDescribeProps) {
       const { jobId } = (await res.json()) as { jobId: string }
 
       // Phase 67: /api/generate-estimate returns { jobId }; poll until terminal.
-      const output = (await pollJob(jobId, controller.signal)) as GenerateEstimateResponse
+      // Phase 91-02 rewires this caller to read the JobResult discriminant
+      // (state: 'completed' | 'failed' | ...). Until then, bridge through unknown.
+      const output = (await pollJob(jobId, controller.signal)) as unknown as GenerateEstimateResponse
 
       storeClientSuggestion(projectId, output.clientSuggestion ?? null)
       // The Overview now renders the live estimate as primary content
