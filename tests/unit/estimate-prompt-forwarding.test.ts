@@ -27,12 +27,16 @@ describe('Phase 89 deferral closed — prompt forwarding to AI prompt builder', 
     expect(content).toMatch(/build a deck 12x14 ft cedar with railing/)
   })
 
-  it('joins multiple prompts with the standard separator', () => {
+  it('wraps each prompt in its own delimiter tag (S06 injection hardening)', () => {
     const content = buildUserContent({
       ...baseInput,
       prompts: ['first prompt', 'second prompt', 'third prompt'],
     })
-    expect(content).toMatch(/first prompt\n---\nsecond prompt\n---\nthird prompt/)
+    expect(content).toContain(
+      '<description>first prompt</description>\n' +
+        '<description>second prompt</description>\n' +
+        '<description>third prompt</description>'
+    )
   })
 
   it('omits the Description section when prompts is undefined', () => {

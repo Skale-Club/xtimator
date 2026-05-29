@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { getTwilioConfig, getBranding } from '@/lib/platform-config'
+import { rateLimit } from '@/lib/ratelimit'
 
 interface SendSmsRequestBody {
   to: string
@@ -23,6 +24,15 @@ export async function POST(
     const claims = claimsData?.claims ?? null
     if (!claims) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+    }
+
+    // Security Review S05 — rate limit outbound SMS (Twilio cost / spam).
+    const rl = await rateLimit('sendPerMinute', claims.sub)
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: 'Too many SMS requests', code: 'rate_limit:send_sms' },
+        { status: 429, headers: { 'Retry-After': String(rl.retryAfter ?? 60) } }
+      )
     }
 
     let body: SendSmsRequestBody

@@ -6,6 +6,8 @@ import {
   type TranscribeAudioPayload,
 } from '@/lib/inngest/events'
 import { XtimatorError, asResponse } from '@/lib/errors'
+import { rateLimit } from '@/lib/ratelimit'
+import { checkQuota } from '@/lib/quota'
 
 /**
  * Phase 67: NEW route. Dispatches Whisper transcription via Inngest.
@@ -25,6 +27,15 @@ export async function POST(request: Request) {
     const claims = claimsData?.claims ?? null
     if (!claims) {
       throw new XtimatorError('unauthorized', 'auth', 'Not authenticated')
+    }
+
+    // Security Review S05 — rate limit (Whisper is a paid external call).
+    const rl = await rateLimit('transcribePerMinute', claims.sub)
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: 'Too many transcription requests', code: 'rate_limit:transcribe' },
+        { status: 429, headers: { 'Retry-After': String(rl.retryAfter ?? 60) } }
+      )
     }
 
     // Body
@@ -72,6 +83,15 @@ export async function POST(request: Request) {
         'forbidden',
         'recordings',
         'Not authorized for this recording'
+      )
+    }
+
+    // Security Review S05 — gate dispatch on quota (audio_minutes).
+    const { allowed } = await checkQuota(supabase, rec.company_id, 'audio_minutes')
+    if (!allowed) {
+      return NextResponse.json(
+        { error: 'plan_limit_reached', upgradeUrl: '/settings/billing' },
+        { status: 402 }
       )
     }
 
