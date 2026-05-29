@@ -25,7 +25,7 @@ progress:
 Phase: 81 (Add WhatsApp send option in SendTab and integrations settings) — EXECUTING
 Plan: 1 of 3
 Status: Executing Phase 81
-Last activity: 2026-05-29 - Completed quick task 260529-joo: Link project ↔ client WhatsApp conversation (project card + inbox deep-link)
+Last activity: 2026-05-29 - Completed quick task 260529-lc0: WhatsApp inbound asks for details on vague messages (awaiting_details session) instead of sending a $0 estimate
 
 ## v3.1.1 Phases
 
@@ -706,6 +706,7 @@ v3.1: Phases 61-65 (started 2026-05-15). Production Go-Live — 27 requirements 
 | 260529-jh7 | Add UNIQUE (company_id) to company_whatsapp — fixes "no unique or exclusion constraint matching the ON CONFLICT specification" that broke the WhatsApp connect/verification flow; applied + verified on live Xtimator DB | 2026-05-29 | c44f6ac | [260529-jh7-add-unique-constraint-on-company-id-to-c](.planning/quick/260529-jh7-add-unique-constraint-on-company-id-to-c/) |
 | 260529-jo8 | Fix mobile auth: Start/CTA always opens the login dialog even with a persisted Supabase session (removed isAuthenticated short-circuit + getAuthClaims fetch); Google OAuth forces account selector (prompt=select_account) | 2026-05-29 | 4726fe9 | [260529-jo8-fix-mobile-auth-start-always-opens-login](.planning/quick/260529-jo8-fix-mobile-auth-start-always-opens-login/) |
 | 260529-joo | Link project ↔ client WhatsApp conversation in the panel: getProjectConversationLink query (project→client.phone→conversation, no migration) + WhatsApp card on project Client tab (link or empty state) + inbox deep-link auto-open via /whatsapp?c=&lt;id&gt; | 2026-05-29 | 9b9f99a | [260529-joo-vincular-projeto-a-conversa-de-whatsapp-](.planning/quick/260529-joo-vincular-projeto-a-conversa-de-whatsapp-/) |
+| 260529-lc0 | WhatsApp inbound: when an inbound message is too vague to price (estimate total≤0 or no line items), bot asks for more details (localized pt/en/es) and opens an `awaiting_details` session so the next message complements the SAME project + regenerates — instead of generating/sending a $0 estimate. Migration adds `awaiting_details` to whatsapp_sessions.state CHECK (applied to live DB) | 2026-05-29 | a98f0f9 | [260529-lc0-whatsapp-inbound-pedir-mais-detalhes-qua](.planning/quick/260529-lc0-whatsapp-inbound-pedir-mais-detalhes-qua/) |
 | 2026-05-18 | fast | Center auth card logo+wordmark | done |
 | 2026-05-19 | fast | Make audio capture screen scrollable on smaller viewports | done |
 | 2026-05-18 | fast | Restyle sidebar New Project as filled gradient, remove dashboard CTA | done |
