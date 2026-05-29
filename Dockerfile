@@ -3,7 +3,7 @@
 # =========================================================================
 # Stage 1: deps — install production + build dependencies
 # =========================================================================
-FROM node:22-alpine AS deps
+FROM node:24-alpine AS deps
 
 # libc6-compat shim — some npm packages (sharp, pg, native modules) link
 # against glibc symbols. alpine ships musl; this shim covers the gap.
@@ -23,7 +23,7 @@ RUN npm ci --ignore-scripts
 # =========================================================================
 # Stage 2: builder — compile Next.js to standalone output
 # =========================================================================
-FROM node:22-alpine AS builder
+FROM node:24-alpine AS builder
 
 WORKDIR /app
 
@@ -42,7 +42,7 @@ RUN npm run build
 # =========================================================================
 # Stage 3: runner — minimal runtime image
 # =========================================================================
-FROM node:22-alpine AS runner
+FROM node:24-alpine AS runner
 
 WORKDIR /app
 
