@@ -18,6 +18,8 @@
 - âœ… **v3.0 Monetization** â€” Phases 55-60 (shipped 2026-05-14) Â· [archive](milestones/v3.0-ROADMAP.md)
 - âœ… **v3.1 Production Go-Live (rescoped)** â€” Phase 61 only (shipped 2026-05-15) Â· 4 phases deferred to v3.2 Â· [archive](milestones/v3.1-ROADMAP.md)
 - ðŸš§ **v3.1.1 MVP Launch Prep + Future-Proofing** â€” Phases 66-72 (started 2026-05-15, rescoped same day for Inngest + Storage abstraction)
+- ✅ **v4.0 Multi-Tenancy** — Phases 79-85 (shipped 2026-05-26) · [archive](milestones/v4.0-ROADMAP.md)
+- ✅ **v4.1 MCP Server** — Phases 86-90 (shipped 2026-05-26) · [archive](milestones/v4.1-ROADMAP.md)
 
 > **Phase numbering note:** v3.1.1 starts at **Phase 66**, not 62. Phases 62-65 are reserved as DEFERRED placeholders for the v3.2 Production Deploy milestone (Vercelâ†’Hetzner deploy + Stripe live + monitoring + UAT in prod). Skipping past 62-65 keeps the global phase counter unambiguous and prevents number reuse confusion when v3.2 begins.
 

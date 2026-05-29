@@ -1,7 +1,7 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.5
-milestone_name: Zero-friction Project Onboarding
+milestone: v4.1
+milestone_name: MCP Server
 status: executing
 last_updated: "2026-05-26T18:51:21.123Z"
 last_activity: 2026-05-26 -- Phase 81 execution started
@@ -17,15 +17,15 @@ progress:
 
 ## Current Status
 
-- **Milestone**: v4.1 MCP Server — FEATURE-COMPLETE (5/5 phases: 86 ✓, 87 ✓, 88 ✓, 89 ✓, 90 ✓) — ready for milestone close-out (orchestrator: phase complete 90 + archive + tag v4.1 + push)
-- **Last updated**: 2026-05-26
+- **Milestone**: v4.2 Recording Reliability & Observability — STARTED 2026-05-28 (defining requirements). Predecessor v4.1 MCP Server shipped 2026-05-26 (phases 86-90); v4.0 Multi-Tenancy shipped 2026-05-26 (phases 79-85).
+- **Last updated**: 2026-05-28
 
 ## Current Position
 
-Phase: 81 (Add WhatsApp send option in SendTab and integrations settings) — EXECUTING
-Plan: 1 of 3
-Status: Executing Phase 81
-Last activity: 2026-05-27 - Completed quick task 260527-l9c: Remove obsolete OpenRouter transient-401 handling (reverts k4i — 401 is now a genuine auth error)
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-05-28 — Milestone v4.2 started; archived v3.1.1 requirements; carrying forward incomplete INNGEST-01/06 (root cause of recording 503)
 
 ## v3.1.1 Phases
 

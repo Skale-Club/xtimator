@@ -14,6 +14,17 @@ The platform includes:
 
 A business owner can go from job site audio recording to a sent, professional estimate in under 5 minutes without touching a keyboard.
 
+## Current Milestone: v4.2 Recording Reliability & Observability
+
+**Goal:** Make the recording→estimate pipeline reliable and diagnosable — fix the transcription 503, persist every pipeline step, and give Super Admin a Generations-style event log to debug failures without digging through server logs.
+
+**Target features:**
+- **Fix the recording 503** — `GET /api/jobs/[jobId]` returns a hard `503 "Inngest not configured"` (missing `INNGEST_SIGNING_KEY`); `use-job-status.ts` surfaces `"Status check failed: 503"` and the capture popup marks "Transcribing" as failed. Completes the unfinished v3.1.1 INNGEST-01 (worker registration/reachability) + INNGEST-06 (idempotency) and makes the status endpoint degrade gracefully with an actionable reason.
+- **Pipeline event persistence** — new events store records each step (save recording, transcribe, analyze, generate estimate, preview redirect) with attempt id, project/estimate, user, input type, status, error code, provider, duration, retry count, timestamps. Today only `recording_added` lands in `estimate_activity`.
+- **Super Admin event log** — Generations-style UI: recent attempts list, search (user/project/estimate/attempt/error), filters (status/input type/step), success/failure counts, refresh, and a per-attempt detail timeline. User-facing popup stays simple; deep diagnostics live in Super Admin.
+
+**Source spec:** Notion "Recording Failure Investigation — Super Admin Event Logs".
+
 ## Last Milestone: v3.1 Production Go-Live (rescoped) ✅ (shipped 2026-05-15)
 
 Phase 61 only — production database foundation. Built cross-platform RLS audit infrastructure (`supabase/audits/`), recovered 9 missing migrations (entire v3.0 monetization schema was on disk but never applied to DB!), wrote production bootstrap runbook (`supabase/PROD-BOOTSTRAP.md`). Phases 62-65 (Vercel deploy + Stripe live + monitoring + UAT) **deferred to v3.2** — Vercel Free Hobby plan blocks commercial SaaS use AND has 10s function timeout that breaks AI routes. Tracked in **SEED-018: Production Hosting + Deployment**.
@@ -272,4 +283,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context
 
 ---
-*Last updated: 2026-05-20 — v4.0 Multi-Tenancy milestone started (v3.1.1 still in progress)*
+*Last updated: 2026-05-28 — v4.2 Recording Reliability & Observability milestone started*
