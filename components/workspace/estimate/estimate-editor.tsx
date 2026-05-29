@@ -20,6 +20,7 @@ import {
   type EstimateDocumentData,
   type DocumentClient,
   type DocumentCompany,
+  type CompanyDefaults,
 } from './estimate-document'
 import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
 import type { PriceBookItem } from '@/lib/queries/price-book'
@@ -114,6 +115,8 @@ interface EstimateEditorProps {
   companyBrandColor: string | null
   /** Quick-260526-jo4: full company header (logo + contact + address) rendered in the editor. */
   company: DocumentCompany
+  /** R4 — company defaults for the override-vs-default indicator. */
+  companyDefaults: CompanyDefaults
   recordings: Recording[]
   photos: Photo[]
   /** Project context for the document header */
@@ -133,6 +136,7 @@ export function EstimateEditor({
   projectId,
   companyBrandColor,
   company,
+  companyDefaults,
   photos,
   projectName,
   projectType,
@@ -286,6 +290,7 @@ export function EstimateEditor({
         mode="edit"
         data={stateToDocumentData(state)}
         company={company}
+        companyDefaults={companyDefaults}
         brandColor={companyBrandColor ?? undefined}
         client={client}
         projectName={localProjectName}

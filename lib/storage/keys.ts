@@ -34,7 +34,23 @@ export interface BuildStorageKeyArgs {
   timestamp?: number
 }
 
+/** Tenant prefix must be a real UUID. */
+const COMPANY_ID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+/** Asset category must be an ascii-safe literal (no slashes / traversal). */
+const TYPE_RE = /^[a-zA-Z0-9_-]+$/
+
 export function buildStorageKey(args: BuildStorageKeyArgs): string {
+  // Security Review S04 — defense-in-depth: the `companyId` and `type` segments
+  // are not sanitized into the key, so a non-UUID companyId (e.g. "../other-co")
+  // or a type containing a slash would let an attacker escape the tenant prefix.
+  // All current callers pass DB/auth-derived UUIDs, but reject anything else.
+  if (!COMPANY_ID_RE.test(args.companyId)) {
+    throw new Error('buildStorageKey: companyId must be a UUID')
+  }
+  if (!TYPE_RE.test(args.type)) {
+    throw new Error('buildStorageKey: type must match [a-zA-Z0-9_-]')
+  }
   const ts = args.timestamp ?? Date.now()
   const safe = args.filename
     .replace(/\s+/g, '-')

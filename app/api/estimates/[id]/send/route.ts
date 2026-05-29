@@ -9,6 +9,7 @@ import EstimatePDF from '@/components/pdf/estimate-pdf'
 import { isSupportedLanguage } from '@/lib/i18n/resolve-estimate-language'
 import { revalidatePath } from 'next/cache'
 import { getIntegrationKey, getBranding } from '@/lib/platform-config'
+import { rateLimit } from '@/lib/ratelimit'
 
 interface SendRequestBody {
   to: string
@@ -36,6 +37,15 @@ export async function POST(
       return NextResponse.json(
         { error: 'Not authenticated' },
         { status: 401 }
+      )
+    }
+
+    // Security Review S05 — rate limit outbound email (Resend cost / spam).
+    const rl = await rateLimit('sendPerMinute', claims.sub)
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: 'Too many send requests', code: 'rate_limit:send' },
+        { status: 429, headers: { 'Retry-After': String(rl.retryAfter ?? 60) } }
       )
     }
 

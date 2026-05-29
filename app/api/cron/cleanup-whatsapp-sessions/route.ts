@@ -1,15 +1,13 @@
 import { NextResponse } from 'next/server'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { sendWhatsAppMessage } from '@/lib/whatsapp/client'
+import { isAuthorizedCron } from '@/lib/auth/cron-auth'
 
 export async function GET(request: Request) {
-  const cronSecret = process.env.CRON_SECRET
-  if (!cronSecret) {
+  if (!process.env.CRON_SECRET) {
     return NextResponse.json({ error: 'CRON_SECRET not configured' }, { status: 503 })
   }
-
-  const auth = request.headers.get('authorization')
-  if (auth !== `Bearer ${cronSecret}`) {
+  if (!isAuthorizedCron(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

@@ -15,7 +15,7 @@ import type { Photo } from '@/lib/queries/photo'
 import type { EstimateWithSections, Estimate } from '@/lib/queries/estimate'
 import type { EstimateTemplate } from '@/lib/utils/estimate-template'
 import type { PriceBookItem } from '@/lib/queries/price-book'
-import type { DocumentCompany } from './estimate/estimate-document'
+import type { DocumentCompany, CompanyDefaults } from './estimate/estimate-document'
 import { useTranslation } from '@/lib/i18n/use-translation'
 
 const ALLOWED_TABS = ['overview', 'photos', 'send', 'client', 'activity'] as const
@@ -33,6 +33,7 @@ interface ProjectWorkspaceProps {
   ownerName: string
   companyBrandColor: string | null
   company: DocumentCompany
+  companyDefaults: CompanyDefaults
   estimateTemplate: EstimateTemplate
   smsDeliveryEnabled?: boolean
   whatsappSendEnabled?: boolean
@@ -43,7 +44,7 @@ interface ProjectWorkspaceProps {
 export function ProjectWorkspace({
   project, activity, stats, recordings, photos,
   currentEstimate, allVersions, companyName,
-  ownerName, companyBrandColor, company, estimateTemplate, smsDeliveryEnabled = false,
+  ownerName, companyBrandColor, company, companyDefaults, estimateTemplate, smsDeliveryEnabled = false,
   whatsappSendEnabled = false,
   priceBookItems,
   defaultTab = 'overview',
@@ -145,6 +146,7 @@ export function ProjectWorkspace({
             companyId={project.company_id}
             companyBrandColor={companyBrandColor}
             company={company}
+            companyDefaults={companyDefaults}
             currentEstimate={currentEstimate}
             allVersions={allVersions}
             recordings={recordings}
