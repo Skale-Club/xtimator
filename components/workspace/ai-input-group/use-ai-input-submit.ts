@@ -121,13 +121,22 @@ export function useAIInputSubmit({
 
         try {
           const controller = new AbortController()
-          await pollJob(transcribeResult.data.jobId, controller.signal)
+          // Phase 91-02: pollJob no longer throws on failure (Plan 01) — it
+          // resolves a JobResult discriminant. Branch on state explicitly so a
+          // failed/config_unavailable transcription does NOT silently proceed to
+          // runGenerate() on an empty transcript (Pitfall 4 / REC-05).
+          const result = await pollJob(transcribeResult.data.jobId, controller.signal)
+          if (result.state !== 'completed') {
+            throw new Error(t('Transcription failed. You can retry from the recording.'))
+          }
         } catch (err) {
           if ((err as Error).name === 'AbortError') {
             setStage('idle')
             return false
           }
-          throw new Error(t('Transcription failed. You can retry from the recording.'))
+          throw err instanceof Error
+            ? err
+            : new Error(t('Transcription failed. You can retry from the recording.'))
         }
         toast.success(t('Recording transcribed successfully!'))
 

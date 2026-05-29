@@ -60,11 +60,23 @@ export function PhotosInput({ project, companyId, projectId }: PhotosInputProps)
       const { jobId } = (await res.json()) as { jobId: string }
 
       // Phase 67: /api/generate-estimate returns { jobId }; poll until terminal.
-      // Phase 91-02 rewires this caller to read the JobResult discriminant
-      // (state: 'completed' | 'failed' | ...). Until then, bridge through unknown.
-      const output = (await pollJob(jobId, controller.signal)) as unknown as GenerateEstimateResponse
+      // Phase 91-02: pollJob resolves Plan 01's JobResult discriminant and never
+      // throws on failure — branch on result.state (no masking cast).
+      const result = await pollJob(jobId, controller.signal)
+      if (result.state !== 'completed') {
+        toast.error(
+          result.state === 'config_unavailable'
+            ? t('Processing service is temporarily unavailable — your photos are saved.')
+            : t('Failed to generate estimate')
+        )
+        setIsGenerating(false)
+        return
+      }
 
-      storeClientSuggestion(projectId, output.clientSuggestion ?? null)
+      // The run output IS the GenerateEstimateResponse; it now sits UNDER
+      // result.output. Narrow-cast result.output only.
+      const output = result.output as GenerateEstimateResponse | null
+      storeClientSuggestion(projectId, output?.clientSuggestion ?? null)
       // Overview is now the live estimate (project A R3) — drop ?tab=estimate.
       router.push(`/projects/${projectId}`)
     } catch (err) {
