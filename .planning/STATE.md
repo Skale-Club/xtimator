@@ -25,7 +25,7 @@ progress:
 Phase: 81 (Add WhatsApp send option in SendTab and integrations settings) — EXECUTING
 Plan: 1 of 3
 Status: Executing Phase 81
-Last activity: 2026-05-27 - Completed quick task 260527-l9c: Remove obsolete OpenRouter transient-401 handling (reverts k4i — 401 is now a genuine auth error)
+Last activity: 2026-05-29 - Completed quick task 260529-jh7: Add UNIQUE (company_id) to company_whatsapp (fixes ON CONFLICT error breaking the WhatsApp connect flow)
 
 ## v3.1.1 Phases
 
@@ -703,6 +703,7 @@ v3.1: Phases 61-65 (started 2026-05-15). Production Go-Live — 27 requirements 
 | 260527-jhp | Fix React #418 hydration text mismatch from locale/timezone-dependent formatting in SSR client components | 2026-05-27 | 4dc07ab | [260527-jhp-fix-react-418-hydration-text-mismatch-fr](.planning/quick/260527-jhp-fix-react-418-hydration-text-mismatch-fr/) |
 | 260527-k4i | Treat OpenRouter 401 "User not found" as transient in transcribeAudioOR (route into retry + OpenAI fallback instead of throwing) | 2026-05-27 | 21962ab | [260527-k4i-treat-openrouter-401-user-not-found-as-t](.planning/quick/260527-k4i-treat-openrouter-401-user-not-found-as-t/) |
 | 260527-l9c | Remove obsolete OpenRouter transient-401 "User not found" handling; restore 4xx-throws-immediately behavior (reverts k4i premise — OpenRouter now returns 503, not 401, for infra/auth-lookup failures) | 2026-05-27 | 948144e | [260527-l9c-remove-obsolete-openrouter-transient-401](.planning/quick/260527-l9c-remove-obsolete-openrouter-transient-401/) |
+| 260529-jh7 | Add UNIQUE (company_id) to company_whatsapp — fixes "no unique or exclusion constraint matching the ON CONFLICT specification" that broke the WhatsApp connect/verification flow; applied + verified on live Xtimator DB | 2026-05-29 | c44f6ac | [260529-jh7-add-unique-constraint-on-company-id-to-c](.planning/quick/260529-jh7-add-unique-constraint-on-company-id-to-c/) |
 | 2026-05-18 | fast | Center auth card logo+wordmark | done |
 | 2026-05-19 | fast | Make audio capture screen scrollable on smaller viewports | done |
 | 2026-05-18 | fast | Restyle sidebar New Project as filled gradient, remove dashboard CTA | done |
