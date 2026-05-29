@@ -974,7 +974,7 @@ Plans:
 
 ### v4.2 Recording Reliability & Observability (Phases 91-93)
 
-- [ ] **Phase 91: Recording Pipeline Reliability** -- Eliminate the opaque 503 from `GET /api/jobs/[jobId]`, degrade gracefully when Inngest is unconfigured, give the capture popup a human-readable failure + Retry + Edit-manually, and make pipeline jobs idempotent (carry-forward INNGEST-01/06)
+- [x] **Phase 91: Recording Pipeline Reliability** -- Eliminate the opaque 503 from `GET /api/jobs/[jobId]`, degrade gracefully when Inngest is unconfigured, give the capture popup a human-readable failure + Retry + Edit-manually, and make pipeline jobs idempotent (carry-forward INNGEST-01/06) (completed 2026-05-29)
 - [ ] **Phase 92: Pipeline Event Persistence** -- New service-role-only events store plus backend instrumentation that records every pipeline step (success and failure) across all input types, additive to the existing `estimate_activity` write
 - [ ] **Phase 93: Super Admin Event Log** -- Generations-style Super Admin UI: recent attempts list, search, filters + counts + refresh, and a per-attempt step timeline, exposing only safe metadata
 
@@ -990,7 +990,7 @@ Plans:
   5. `hooks/use-job-status.ts` distinguishes "still processing", "failed with reason", and "config unavailable" without throwing on any non-200 response
 **Plans**: 2 plans
   - [x] 91-01-PLAN.md — Graceful job-status contract + hook rewrite + failure UI (REC-01/02/05)
-  - [ ] 91-02-PLAN.md — Attempt-lineage + idempotency hardening; no double-charge on Retry (REC-03/04)
+  - [x] 91-02-PLAN.md — Attempt-lineage + idempotency hardening; no double-charge on Retry (REC-03/04)
 **UI hint**: yes
 
 ### Phase 92: Pipeline Event Persistence

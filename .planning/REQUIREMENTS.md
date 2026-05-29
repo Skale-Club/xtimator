@@ -25,8 +25,8 @@ The user-facing capture popup stays simple (human-readable reason + Retry + Edit
 
 - [x] **REC-01**: `GET /api/jobs/[jobId]` no longer hard-503s when Inngest is unconfigured — either completes INNGEST-01 (worker functions registered at `app/api/inngest/route.ts` and publicly reachable) or degrades gracefully, returning an actionable, non-error status the client can render (never an opaque 503)
 - [x] **REC-02**: Capture popup (`components/capture/capture-recorder.tsx`) shows a human-readable failure reason plus Retry and "Edit manually" actions — never a raw status code or stack
-- [ ] **REC-03**: Retry creates or continues a traceable attempt (same attempt id lineage); "Edit manually" preserves project context so no recording work is lost
-- [ ] **REC-04**: Inngest pipeline jobs are idempotent — carry-forward INNGEST-06; `step.run()` boundaries + explicit `idempotencyKey` per job so retries never double-charge AI/transcription providers
+- [x] **REC-03**: Retry creates or continues a traceable attempt (same attempt id lineage); "Edit manually" preserves project context so no recording work is lost
+- [x] **REC-04**: Inngest pipeline jobs are idempotent — carry-forward INNGEST-06; `step.run()` boundaries + explicit `idempotencyKey` per job so retries never double-charge AI/transcription providers
 - [x] **REC-05**: `hooks/use-job-status.ts` interprets the new graceful statuses correctly — distinguishes "still processing", "failed with reason", and "config unavailable" without throwing on non-200
 
 ### EVENT — Pipeline Event Persistence
@@ -75,8 +75,8 @@ Coverage: to be completed by the roadmap (phase assignment starts at Phase 91). 
 |-------------|-------|--------|
 | REC-01 | Phase 91 | Complete |
 | REC-02 | Phase 91 | Complete |
-| REC-03 | Phase 91 | Pending |
-| REC-04 | Phase 91 | Pending |
+| REC-03 | Phase 91 | Complete |
+| REC-04 | Phase 91 | Complete |
 | REC-05 | Phase 91 | Complete |
 | EVENT-01 | Phase 92 | Pending |
 | EVENT-02 | Phase 92 | Pending |

@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Zero-friction Project Onboarding
-status: executing
-last_updated: "2026-05-29T04:27:17.624Z"
+status: verifying
+last_updated: "2026-05-29T04:41:45.999Z"
 last_activity: 2026-05-29
 progress:
   total_phases: 93
-  completed_phases: 61
+  completed_phases: 62
   total_plans: 192
-  completed_plans: 220
+  completed_plans: 221
 ---
 
 # Project State
@@ -23,7 +23,7 @@ progress:
 
 Phase: 91 (recording-pipeline-reliability) — EXECUTING
 Plan: 2 of 2
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-05-29
 
 ## v3.1.1 Phases
@@ -467,6 +467,9 @@ Last activity: 2026-05-29
 - [Phase 91]: [91-01] config_unavailable covers both missing signing key AND thrown fetch (dev-server-down maps to config_unavailable, not failed)
 - [Phase 91]: [91-01] Job-status endpoint returns 200 discriminated JobStatusContract for every known state; non-200 reserved for the 401 auth gate only
 - [Phase 91]: [91-01] pollJob resolves typed JobResult and only throws on aborted signal; JobResult/JobStatusState exported for Plan 02
+- [Phase 91]: [Phase 91-02]: attemptId lives only in the Inngest event payload (no recordings.attempt_id migration) — Phase 92's event store owns durable lineage
+- [Phase 91]: [Phase 91-02]: user Retry reuses the original requestId/recordingId so an already-completed step is memoized (no double-charge); a failed step still re-runs
+- [Phase 91]: [Phase 91-02]: removed masking 'as GenerateEstimateResponse' casts in text-describe/photos-input so tsc validates the JobResult union; all pollJob consumers branch on result.state
 
 ## Performance Metrics
 
@@ -623,6 +626,7 @@ Last activity: 2026-05-29
 | Phase 89 P— | 11min | 5 tasks | 9 files |
 | Phase 90 P01 | 25min | 5 tasks | 6 files |
 | Phase 91 P01 | 7min | 3 tasks | 8 files |
+| Phase 91 P02 | 11min | 4 tasks | 9 files |
 
 ## Project Reference
 
