@@ -111,5 +111,6 @@ is managed by Supabase Auth (not SQL migrations).
 - `app/(app)/settings/layout.tsx` + `app/(app)/whatsapp/layout.tsx`: redirect demo
   sessions to `/dashboard` (admin already 404s for non-admins, which the demo user is).
 
-> Note: this container has no installed dependencies, so `lint`/`tsc`/`build`
-> could not run locally. Validate via CI or a local build.
+> Validation: `npx tsc --noEmit` passes with 0 errors across the combined
+> Phase 1–4 state (deps installed in this container). Still run `lint`/`build`
+> in CI before deploy.
