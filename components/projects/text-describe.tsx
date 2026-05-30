@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { toast } from 'sonner'
@@ -28,6 +28,12 @@ export function TextDescribe({ project, projectId }: TextDescribeProps) {
   const [text, setText] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
+  // Phase 92 (EVENT-03 / D-08): mint a stable attemptId once, reuse on Retry.
+  const attemptIdRef = useRef<string | null>(null)
+  const ensureAttempt = useCallback(() => {
+    if (!attemptIdRef.current) attemptIdRef.current = crypto.randomUUID()
+    return attemptIdRef.current
+  }, [])
 
   const handleTextGenerate = async () => {
     if (!text.trim()) return
@@ -48,7 +54,8 @@ export function TextDescribe({ project, projectId }: TextDescribeProps) {
       const res = await fetch('/api/generate-estimate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId }),
+        // Phase 92 (EVENT-03 / D-07): explicit manual_text inputType for lineage.
+        body: JSON.stringify({ projectId, attemptId: ensureAttempt(), inputType: 'manual_text' }),
         signal: controller.signal,
       })
 

@@ -293,6 +293,8 @@ export function CaptureRecorder({
           language: estimateLanguage,
           requestId: requestIdRef.current,
           attemptId: attemptIdRef.current,
+          // Phase 92 (EVENT-03): tag the recording path explicitly for lineage.
+          inputType: 'recording',
         }),
         signal: abortControllerRef.current.signal,
       })
@@ -429,6 +431,8 @@ export function CaptureRecorder({
           language: estimateLanguage,
           requestId: requestIdRef.current,
           attemptId: attemptIdRef.current,
+          // Phase 92 (EVENT-03): tag the recording path explicitly for lineage.
+          inputType: 'recording',
         }),
         signal: abortControllerRef.current.signal,
       })
@@ -504,6 +508,8 @@ export function CaptureRecorder({
             language: estimateLanguage,
             requestId: requestIdRef.current,
             attemptId: attemptIdRef.current,
+            // Phase 92 (EVENT-03): tag the recording path explicitly for lineage.
+            inputType: 'recording',
           }),
           signal: abortControllerRef.current.signal,
         })
