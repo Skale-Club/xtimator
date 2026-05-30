@@ -39,4 +39,21 @@ describe('INNGEST-07: whatsAppProcessJob', () => {
     expect(src).toMatch(/step\.run\(['"]generate-estimate['"]/)
     expect(src).toMatch(/generateEstimateForProject\s*\(/)
   })
+
+  // Quick task 260529-lc0: vague inbound → ask for more details instead of $0 estimate.
+  it('has a vagueness branch that asks for details instead of awaiting_confirm', () => {
+    const src = readFileSync(
+      resolve(process.cwd(), 'lib/inngest/functions/whatsapp-process.ts'),
+      'utf8'
+    )
+    // Opens an awaiting_details session (not awaiting_confirm) when vague
+    expect(src).toMatch(/awaiting_details/)
+    // Uses the ask-details helpers
+    expect(src).toMatch(/isVagueEstimate\(/)
+    expect(src).toMatch(/buildAskDetailsMessage\(/)
+    expect(src).toMatch(/revertVagueEstimate\(/)
+    // Dedicated steps for evaluating vagueness and asking for details
+    expect(src).toMatch(/step\.run\(['"]evaluate-vagueness['"]/)
+    expect(src).toMatch(/step\.run\(['"]ask-details['"]/)
+  })
 })

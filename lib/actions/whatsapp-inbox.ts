@@ -5,6 +5,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { sendWhatsAppMessage } from '@/lib/whatsapp/client'
+import { isDemoSession, DEMO_READONLY_MESSAGE } from '@/lib/demo/guard'
 import {
   logOutboundMessage,
   markConversationRead,
@@ -75,6 +76,10 @@ export async function sendReply(
 ): Promise<{ ok: true; thread: ConversationThread } | { ok: false; error: string }> {
   const trimmed = (text ?? '').trim()
   if (!trimmed) return { ok: false, error: 'Message is empty' }
+
+  // resolve() uses the service client (RLS bypass) and this sends an outbound
+  // WhatsApp message, so RLS cannot block it — guard at the app layer.
+  if (await isDemoSession()) return { ok: false, error: DEMO_READONLY_MESSAGE }
 
   const ctx = await resolve()
   if (!ctx) return { ok: false, error: 'No active company' }
@@ -191,6 +196,9 @@ export async function sendEstimateToConversation(
   conversationId: string,
   estimateId: string,
 ): Promise<{ ok: true; thread: ConversationThread; fallback: 'share_link' | null } | { ok: false; error: string }> {
+  // Sends an estimate over WhatsApp via the service client (RLS bypass) — guard.
+  if (await isDemoSession()) return { ok: false, error: DEMO_READONLY_MESSAGE }
+
   const ctx = await resolve()
   if (!ctx) return { ok: false, error: 'No active company' }
   const { svc, companyId } = ctx

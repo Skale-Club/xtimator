@@ -4,6 +4,7 @@ import { getAuthClaims } from '@/lib/queries/auth'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { getIntegrationKey } from '@/lib/platform-config'
 import { mintOAuthState, buildAuthorizeUrl } from '@/lib/billing/connect-oauth'
+import { isDemoSession } from '@/lib/demo/guard'
 
 /**
  * GET /api/stripe/connect/initiate
@@ -17,6 +18,13 @@ import { mintOAuthState, buildAuthorizeUrl } from '@/lib/billing/connect-oauth'
 export async function GET(req: NextRequest) {
   const claims = await getAuthClaims()
   if (!claims) return NextResponse.redirect(new URL('/?auth=login', req.url))
+
+  // Read-only demo: never begin Stripe Connect onboarding.
+  if (await isDemoSession()) {
+    return NextResponse.redirect(
+      new URL('/settings/payments?error=demo_readonly', req.url)
+    )
+  }
 
   const svc = requireServiceClient()
   const { data: company } = await svc

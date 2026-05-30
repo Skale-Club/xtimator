@@ -6,6 +6,7 @@ import { getProjectRecordings } from '@/lib/queries/recording'
 import { getProjectPhotos } from '@/lib/queries/photo'
 import { getCurrentEstimate, getProjectEstimates } from '@/lib/queries/estimate'
 import { getPriceBookItems } from '@/lib/queries/price-book'
+import { getProjectConversationLink } from '@/lib/queries/whatsapp-inbox'
 import { createServiceClient } from '@/lib/supabase/service'
 import { getEntitlements } from '@/lib/entitlements'
 import { ProjectWorkspace } from '@/components/workspace/project-workspace'
@@ -155,6 +156,10 @@ async function ProjectTabs({
   // Fetch the company's price book so the estimate editor can offer autocomplete
   const priceBookItems = await getPriceBookItems(supabase, project.company_id)
 
+  // Resolve the linked client's WhatsApp conversation (by phone, no migration)
+  // for the Client-tab link card. Self-resolves the active company internally.
+  const conversationLink = await getProjectConversationLink(project.id)
+
   return (
     <ProjectWorkspace
       project={project}
@@ -173,6 +178,7 @@ async function ProjectTabs({
       smsDeliveryEnabled={smsDeliveryEnabled}
       whatsappSendEnabled={whatsappSendEnabled}
       priceBookItems={priceBookItems}
+      conversationLink={conversationLink}
       defaultTab={defaultTab}
     />
   )

@@ -9,6 +9,7 @@ import { rateLimit } from '@/lib/ratelimit'
 import { XtimatorError, asResponse } from '@/lib/errors'
 import { checkQuota } from '@/lib/quota'
 import { isSupportedLanguage } from '@/lib/i18n/resolve-estimate-language'
+import { demoGuardResponse } from '@/lib/demo/guard'
 
 /**
  * Phase 91 (REC-03/REC-04): pure, exported helper deriving the Inngest event id
@@ -40,6 +41,10 @@ export async function POST(request: Request) {
     if (!claims) {
       throw new XtimatorError('unauthorized', 'auth', 'Not authenticated')
     }
+
+    // Read-only demo: never dispatch a (paid) AI generation job.
+    const blocked = await demoGuardResponse()
+    if (blocked) return blocked
 
     // Rate limits (synchronous, Upstash Redis — typically <100ms)
     const userId = claims.sub

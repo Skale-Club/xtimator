@@ -9,6 +9,8 @@ import { BottomNav } from '@/components/app-shell/bottom-nav'
 import { MobileHeader } from '@/components/app-shell/mobile-header'
 import { TranslationLoadingOverlay } from '@/components/i18n/translation-loading-overlay'
 import { TrialBanner } from '@/components/billing/trial-banner'
+import { DemoBanner } from '@/components/demo/demo-banner'
+import { isDemoCompany } from '@/lib/demo/config'
 import { UpgradeModal } from '@/components/billing/upgrade-modal'
 import { TourProvider } from '@/components/tour/tour-provider'
 import { WelcomeModal } from '@/components/tour/welcome-modal'
@@ -49,6 +51,9 @@ export default async function AppShellLayout({
     redirect('/onboarding')
   }
 
+  // Read-only public demo: the active company is the dedicated demo company.
+  const isDemo = isDemoCompany(activeCompanyId)
+
   const [branding, adminRow, billingRow, memberships] = await Promise.all([
     brandingPromise, // already in flight
     requireServiceClient()
@@ -88,10 +93,12 @@ export default async function AppShellLayout({
             }}
             company={company}
             memberships={memberships}
+            isDemo={isDemo}
           />
           <div className="flex flex-1 flex-col overflow-hidden">
             <Topbar company={company} userId={claims.sub as string} isAdmin={isAdmin} />
             <MobileHeader />
+            {isDemo && <DemoBanner />}
             {trialDaysRemaining !== null && trialDaysRemaining < 3 && (
               <TrialBanner daysRemaining={trialDaysRemaining} />
             )}
@@ -99,7 +106,7 @@ export default async function AppShellLayout({
               {children}
             </main>
           </div>
-          <BottomNav />
+          <BottomNav isDemo={isDemo} />
           <NewProjectDialog />
           <EstimateCreationPopup />
           <TranslationLoadingOverlay />

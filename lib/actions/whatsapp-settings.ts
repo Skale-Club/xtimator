@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { sendWhatsAppMessage } from '@/lib/whatsapp/client'
+import { isDemoSession, DEMO_READONLY_MESSAGE } from '@/lib/demo/guard'
 
 // company_whatsapp is RLS deny-all (no policies), so it can only be read/written
 // by the service client. We validate the user + active company with the
@@ -30,6 +31,12 @@ async function getAuthContext(): Promise<AuthSuccess | AuthFailure> {
     .single()
 
   if (!company) return { ok: false, errorMsg: 'No company found' }
+
+  // company_whatsapp is written via the service client, which bypasses RLS, so
+  // the demo read-only RLS policies do NOT protect it. This app-layer guard is
+  // the only thing stopping a demo visitor from connecting numbers or sending
+  // verification codes / WhatsApp messages.
+  if (await isDemoSession()) return { ok: false, errorMsg: DEMO_READONLY_MESSAGE }
 
   return { ok: true, svc: requireServiceClient(), companyId: company.id }
 }

@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { getEntitlements } from '@/lib/entitlements'
 import { deliverEstimateViaWhatsApp } from '@/lib/whatsapp/send-estimate'
+import { demoGuardResponse } from '@/lib/demo/guard'
 
 interface SendWhatsAppRequestBody {
   to: string
@@ -25,6 +26,10 @@ export async function POST(
     if (!claims) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
     }
+
+    // Read-only demo: never send a real WhatsApp message.
+    const blocked = await demoGuardResponse()
+    if (blocked) return blocked
 
     let body: SendWhatsAppRequestBody
     try {

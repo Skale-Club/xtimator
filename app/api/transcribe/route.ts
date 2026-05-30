@@ -8,6 +8,7 @@ import {
 import { XtimatorError, asResponse } from '@/lib/errors'
 import { rateLimit } from '@/lib/ratelimit'
 import { checkQuota } from '@/lib/quota'
+import { demoGuardResponse } from '@/lib/demo/guard'
 
 /**
  * Phase 67: NEW route. Dispatches Whisper transcription via Inngest.
@@ -28,6 +29,10 @@ export async function POST(request: Request) {
     if (!claims) {
       throw new XtimatorError('unauthorized', 'auth', 'Not authenticated')
     }
+
+    // Read-only demo: never dispatch a (paid) transcription job.
+    const blocked = await demoGuardResponse()
+    if (blocked) return blocked
 
     // Security Review S05 — rate limit (Whisper is a paid external call).
     const rl = await rateLimit('transcribePerMinute', claims.sub)

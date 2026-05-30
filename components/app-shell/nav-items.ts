@@ -8,6 +8,8 @@ export interface NavItem {
   exact?: boolean
   /** When set, clicking the item opens a modal via `?modal=<value>` instead of navigating. */
   modal?: string
+  /** Hidden from the read-only public demo (sensitive / non-functional there). */
+  demoHidden?: boolean
 }
 
 export const NAV_ITEMS: NavItem[] = [
@@ -16,6 +18,6 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Projects',    href: '/projects',     icon: FolderOpen },
   { label: 'Clients',     href: '/clients',      icon: Users },
   { label: 'Price Book',  href: '/price-book', icon: BookOpen },
-  { label: 'Settings',    href: '/settings',     icon: Settings },
-  { label: 'WhatsApp',    href: '/whatsapp',     icon: MessageCircle },
+  { label: 'Settings',    href: '/settings',     icon: Settings, demoHidden: true },
+  { label: 'WhatsApp',    href: '/whatsapp',     icon: MessageCircle, demoHidden: true },
 ]

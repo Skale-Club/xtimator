@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { ArrowRight, Sparkles, CheckCircle2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { motion, useReducedMotion, type Variants } from 'framer-motion'
@@ -102,12 +103,12 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
                 </Button>
               </div>
               <Button
+                asChild
                 size="lg"
                 variant="outline"
                 className="w-full border-white/10 bg-white/5 font-semibold text-foreground transition-all hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:w-auto sm:min-w-36"
-                onClick={() => onOpenAuth?.('login')}
               >
-                See Demo
+                <Link href="/demo">See Demo</Link>
               </Button>
             </motion.div>
 
