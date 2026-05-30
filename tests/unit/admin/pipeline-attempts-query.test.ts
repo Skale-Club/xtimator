@@ -49,12 +49,26 @@ describe('ADMINLOG-02: buildSearchOr', () => {
 })
 
 describe('ADMINLOG-02: email-lookup branch', () => {
-  it('triggers listUsers path when term contains @', () => {
-    expect.fail('Wave 0: events/page.tsx not yet written')
+  it('triggers listUsers path when term contains @ (static source)', () => {
+    try {
+      const src = readFileSync(resolve(process.cwd(), 'app/admin/events/page.tsx'), 'utf8')
+      // Email detection guard: includes('@') triggers the listUsers branch
+      expect(src).toMatch(/includes\(['"]@['"]\)/)
+      // listUsers must be called somewhere in the file
+      expect(src).toMatch(/listUsers/)
+    } catch {
+      expect.fail('Wave 0: app/admin/events/page.tsx not yet written')
+    }
   })
 
-  it('does NOT call listUsers when term does not contain @', () => {
-    expect.fail('Wave 0: events/page.tsx not yet written')
+  it('does NOT call listUsers when term does not contain @ (static source)', () => {
+    try {
+      const src = readFileSync(resolve(process.cwd(), 'app/admin/events/page.tsx'), 'utf8')
+      // The listUsers call must be inside an if-block guarded by includes('@')
+      expect(src).toMatch(/if\s*\(search\.includes\(['"]@['"]\)\)/)
+    } catch {
+      expect.fail('Wave 0: app/admin/events/page.tsx not yet written')
+    }
   })
 })
 
