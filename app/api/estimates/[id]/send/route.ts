@@ -10,6 +10,7 @@ import { isSupportedLanguage } from '@/lib/i18n/resolve-estimate-language'
 import { revalidatePath } from 'next/cache'
 import { getIntegrationKey, getBranding } from '@/lib/platform-config'
 import { rateLimit } from '@/lib/ratelimit'
+import { demoGuardResponse } from '@/lib/demo/guard'
 
 interface SendRequestBody {
   to: string
@@ -39,6 +40,10 @@ export async function POST(
         { status: 401 }
       )
     }
+
+    // Read-only demo: never send a real email.
+    const blocked = await demoGuardResponse()
+    if (blocked) return blocked
 
     // Security Review S05 — rate limit outbound email (Resend cost / spam).
     const rl = await rateLimit('sendPerMinute', claims.sub)

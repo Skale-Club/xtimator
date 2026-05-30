@@ -7,6 +7,7 @@ import {
 } from '@/lib/inngest/events'
 import { rateLimit } from '@/lib/ratelimit'
 import { checkQuota } from '@/lib/quota'
+import { demoGuardResponse } from '@/lib/demo/guard'
 
 /**
  * Phase 67: route refactor. Returns { jobId } in <1s.
@@ -39,6 +40,10 @@ export async function POST(request: Request) {
     if (!claims) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
     }
+
+    // Read-only demo: never dispatch a (paid) photo-analysis job.
+    const blocked = await demoGuardResponse()
+    if (blocked) return blocked
 
     // Rate limit (Vision is expensive)
     const rl = await rateLimit('photoAnalysisPerMinute', claims.sub)

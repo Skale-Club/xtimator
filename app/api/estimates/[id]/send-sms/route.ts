@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { getTwilioConfig, getBranding } from '@/lib/platform-config'
 import { rateLimit } from '@/lib/ratelimit'
+import { demoGuardResponse } from '@/lib/demo/guard'
 
 interface SendSmsRequestBody {
   to: string
@@ -25,6 +26,10 @@ export async function POST(
     if (!claims) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
     }
+
+    // Read-only demo: never send a real SMS.
+    const blocked = await demoGuardResponse()
+    if (blocked) return blocked
 
     // Security Review S05 — rate limit outbound SMS (Twilio cost / spam).
     const rl = await rateLimit('sendPerMinute', claims.sub)

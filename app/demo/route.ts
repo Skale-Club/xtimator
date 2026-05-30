@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
-import { ACTIVE_COMPANY_COOKIE_NAME } from '@/lib/queries/active-company'
+import {
+  ACTIVE_COMPANY_COOKIE,
+  ACTIVE_COMPANY_COOKIE_OPTIONS,
+} from '@/lib/queries/active-company'
 import {
   getDemoCompanyId,
   getDemoUserEmail,
@@ -51,12 +54,11 @@ export async function GET(request: Request) {
 
   // Pin the active company to the demo company so the dashboard resolves it.
   const cookieStore = await cookies()
-  cookieStore.set(ACTIVE_COMPANY_COOKIE_NAME, getDemoCompanyId(), {
-    httpOnly: true,
-    sameSite: 'lax',
-    path: '/',
-    maxAge: 60 * 60 * 24 * 30,
-  })
+  cookieStore.set(
+    ACTIVE_COMPANY_COOKIE,
+    getDemoCompanyId(),
+    ACTIVE_COMPANY_COOKIE_OPTIONS
+  )
 
   return NextResponse.redirect(new URL('/dashboard', origin))
 }

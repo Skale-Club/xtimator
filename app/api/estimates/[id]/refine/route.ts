@@ -25,6 +25,7 @@ import type { EstimateOutput, EstimateSectionOutput } from '@/lib/ai/types'
 import { transcribeAudioOR, analyzePhotoOR } from '@/lib/ai/openrouter-client'
 import { normalizeCurrencyCode } from '@/lib/money/currency'
 import { rateLimit } from '@/lib/ratelimit'
+import { demoGuardResponse } from '@/lib/demo/guard'
 
 const MAX_PHOTOS = 5
 
@@ -78,6 +79,10 @@ export async function POST(
     if (!claims) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
     }
+
+    // Read-only demo: refine runs paid AI (Whisper + Vision + Claude). Block it.
+    const blocked = await demoGuardResponse()
+    if (blocked) return blocked
 
     // Security Review S05 — rate limit: refine runs Whisper + Vision + Claude
     // in a single request, so it is the most cost-amplifying endpoint.

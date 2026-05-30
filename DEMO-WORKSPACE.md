@@ -45,14 +45,35 @@ is managed by Supabase Auth (not SQL migrations).
    (added in the seeding phase), which uses the service-role key:
    - inserts `companies` row with `id = DEMO_COMPANY_ID`, `user_id = <demo user>`
    - inserts `company_members(user_id = <demo user>, company_id = DEMO_COMPANY_ID)`
+   - inserts `demo_config(user_id = <demo user>, company_id = DEMO_COMPANY_ID)`
+     — this row is what flips on the read-only DB trap for the demo user
    - inserts fictional clients / projects / estimates / price book / etc.
-3. **Apply the read-only enforcement migration** (added in the enforcement
-   phase) and `supabase db push`.
+3. **Apply migrations** (`supabase db push`) so `20260530000001_demo_readonly.sql`
+   creates `demo_config`, `is_demo_user()`, and the restrictive write-block
+   policies. (Until a `demo_config` row exists, `is_demo_user()` is false and
+   nothing is blocked — safe default.)
 4. **Redeploy** with the three env vars set.
+
+## Read-only enforcement (defense-in-depth)
+
+- **Database (hard guarantee):** `20260530000001_demo_readonly.sql` adds
+  `RESTRICTIVE` INSERT/UPDATE/DELETE policies to every RLS-enabled public table,
+  gated on `NOT is_demo_user()`. The demo user can read but never write, even via
+  a direct API call. The service role bypasses RLS, so seeding/reset still work,
+  and normal users / superadmins are unaffected.
+- **Application (early, friendly, and for non-DB side effects):**
+  `lib/demo/guard.ts` provides `isDemoSession()`, `assertWritable()` (server
+  actions), and `demoGuardResponse()` (route handlers). These block the paths
+  RLS cannot see — AI/Inngest dispatch (`generate-estimate`, `analyze-photos`,
+  `transcribe`, `refine`), outbound sends (`send`, `send-sms`, `send-whatsapp`),
+  payments/billing (`create-checkout-session`, `create-portal-session`,
+  `stripe/connect/initiate`), and storage uploads (`photo`/`recording` actions).
+  Client-facing share routes (`estimate/[token]/pay`, `estimates/[id]/sign`) are
+  blocked at the **company** level via `isDemoCompany()`.
 
 ## Implementation status
 
 - [x] Phase 1 — Infra: `/demo` route, demo config helper, "See Demo" repointed.
-- [ ] Phase 2 — Read-only enforcement (app guard + restrictive RLS) + outbound block.
+- [x] Phase 2 — Read-only enforcement (app guard + restrictive RLS) + outbound block.
 - [ ] Phase 3 — Seed realistic fictional demo data (script, idempotent, `--reset`).
 - [ ] Phase 4 — Fixed demo banner + signup CTA + hide sensitive areas + QA.
