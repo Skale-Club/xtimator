@@ -35,6 +35,24 @@ COPY . .
 # Disable Next telemetry at build time (no outbound calls during build).
 ENV NEXT_TELEMETRY_DISABLED=1
 
+# NEXT_PUBLIC_* vars are inlined into the CLIENT bundle by `next build` AT
+# BUILD TIME, so they must be present as ENV during the build — not just at
+# runtime. Coolify must supply these as Docker BUILD ARGUMENTS (--build-arg),
+# not just runtime env. These are NOT secrets: NEXT_PUBLIC_* are public by
+# definition (embedded in the client JS), so they are safe as build args.
+# ARG lines stay empty (no defaults) so a missing value fails loudly at app
+# boot rather than baking a stale default into the bundle.
+ARG NEXT_PUBLIC_SUPABASE_URL
+ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
+ARG NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+ARG NEXT_PUBLIC_SITE_URL
+ARG NEXT_PUBLIC_TURNSTILE_SITE_KEY
+ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
+ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
+ENV NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL
+ENV NEXT_PUBLIC_TURNSTILE_SITE_KEY=$NEXT_PUBLIC_TURNSTILE_SITE_KEY
+
 # Build. Requires output: 'standalone' in next.config.ts to produce
 # .next/standalone/server.js — verified by Task 1.
 RUN npm run build
