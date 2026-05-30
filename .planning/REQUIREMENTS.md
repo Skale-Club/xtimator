@@ -31,10 +31,10 @@ The user-facing capture popup stays simple (human-readable reason + Retry + Edit
 
 ### EVENT — Pipeline Event Persistence
 
-- [ ] **EVENT-01**: New events store (table) persists per-attempt, per-step records — attempt id, project id, estimate id, user id, company id, input type, step, status, error message, error/HTTP code, provider, duration, retry count, created/updated timestamps. RLS: deny-all to client, service-role writes, super-admin read only
-- [ ] **EVENT-02**: Backend instrumentation writes an event at each pipeline step transition — save recording, transcribe, analyze, generate estimate, preview redirect — capturing both success and failure with timing
-- [ ] **EVENT-03**: All input types are captured (recording / photo / manual text); retries increment `retry_count` and link to the originating attempt id
-- [ ] **EVENT-04**: Existing single `recording_added` write to `estimate_activity` is preserved (no regression to current activity feed) — the new events store is additive, not a replacement
+- [x] **EVENT-01**: New events store (table) persists per-attempt, per-step records — attempt id, project id, estimate id, user id, company id, input type, step, status, error message, error/HTTP code, provider, duration, retry count, created/updated timestamps. RLS: deny-all to client, service-role writes, super-admin read only
+- [x] **EVENT-02**: Backend instrumentation writes an event at each pipeline step transition — save recording, transcribe, analyze, generate estimate, preview redirect — capturing both success and failure with timing
+- [x] **EVENT-03**: All input types are captured (recording / photo / manual text); retries increment `retry_count` and link to the originating attempt id
+- [x] **EVENT-04**: Existing single `recording_added` write to `estimate_activity` is preserved (no regression to current activity feed) — the new events store is additive, not a replacement
 
 ### ADMINLOG — Super Admin Event Log UI
 
@@ -78,10 +78,10 @@ Coverage: to be completed by the roadmap (phase assignment starts at Phase 91). 
 | REC-03 | Phase 91 | Complete |
 | REC-04 | Phase 91 | Complete |
 | REC-05 | Phase 91 | Complete |
-| EVENT-01 | Phase 92 | Pending |
-| EVENT-02 | Phase 92 | Pending |
-| EVENT-03 | Phase 92 | Pending |
-| EVENT-04 | Phase 92 | Pending |
+| EVENT-01 | Phase 92 | Complete |
+| EVENT-02 | Phase 92 | Complete |
+| EVENT-03 | Phase 92 | Complete |
+| EVENT-04 | Phase 92 | Complete |
 | ADMINLOG-01 | Phase 93 | Pending |
 | ADMINLOG-02 | Phase 93 | Pending |
 | ADMINLOG-03 | Phase 93 | Pending |

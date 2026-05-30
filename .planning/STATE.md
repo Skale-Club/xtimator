@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
-milestone: v4.2
-milestone_name: Recording Reliability & Observability
+milestone: v1.5
+milestone_name: Zero-friction Project Onboarding
 status: verifying
-last_updated: "2026-05-29T04:47:24.793Z"
+last_updated: "2026-05-30T01:28:44.250Z"
 last_activity: 2026-05-29
 progress:
   total_phases: 93
   completed_phases: 62
-  total_plans: 192
-  completed_plans: 221
+  total_plans: 196
+  completed_plans: 222
 ---
 
 # Project State
@@ -22,9 +22,10 @@ progress:
 ## Current Position
 
 Phase: 92
-Plan: Not started
-Status: Phase complete — ready for verification
-Last activity: 2026-05-29
+Plan: 00 complete (Wave 0 of 4) — 01/02/03 remaining
+Status: In progress — Wave 0 foundation landed (table + RED tests)
+Last activity: 2026-05-30
+Stopped at: Completed 92-00-PLAN.md (Wave 0 foundation)
 
 ## v3.1.1 Phases
 
@@ -470,6 +471,7 @@ Last activity: 2026-05-29
 - [Phase 91]: [Phase 91-02]: attemptId lives only in the Inngest event payload (no recordings.attempt_id migration) — Phase 92's event store owns durable lineage
 - [Phase 91]: [Phase 91-02]: user Retry reuses the original requestId/recordingId so an already-completed step is memoized (no double-charge); a failed step still re-runs
 - [Phase 91]: [Phase 91-02]: removed masking 'as GenerateEstimateResponse' casts in text-describe/photos-input so tsc validates the JobResult union; all pollJob consumers branch on result.state
+- [Phase 92]: pipeline_events applied via one-off pg applier (db push blocked by remote migration-history drift); TEXT+CHECK enums, no updated_at, only company_id FK'd; Wave-0 helper scaffold throws so RED tests compile under tsc gate
 
 ## Performance Metrics
 
@@ -627,6 +629,7 @@ Last activity: 2026-05-29
 | Phase 90 P01 | 25min | 5 tasks | 6 files |
 | Phase 91 P01 | 7min | 3 tasks | 8 files |
 | Phase 91 P02 | 11min | 4 tasks | 9 files |
+| Phase 92 P00 | 13min | 2 tasks | 10 files |
 
 ## Project Reference
 
