@@ -24,18 +24,29 @@ export async function isDemoSession(): Promise<boolean> {
   return !!email && email.toLowerCase() === demoEmail.toLowerCase()
 }
 
-export type DemoDenied = { error: 'demo_readonly' }
+/**
+ * User-facing copy shown when a demo visitor attempts a write. Friendly on
+ * purpose: the demo is a sales surface, so every blocked action nudges toward
+ * signing up rather than reading like an error.
+ */
+export const DEMO_READONLY_MESSAGE =
+  'This is a read-only demo. Create a free account to make changes.'
+
+export type DemoDenied = { error: typeof DEMO_READONLY_MESSAGE }
 
 /**
  * For server actions: returns a standardized error object when the caller is
- * the demo user, or null when the write may proceed. Designed to match the
- * `{ error?: string }` return convention used across the action files:
+ * the demo user, or null when the write may proceed. The `{ error }` shape
+ * matches the convention used across most action files, so call sites can do:
  *
  *   const denied = await assertWritable()
  *   if (denied) return denied
+ *
+ * Action files that use a different result shape (e.g. `{ ok: false, error }`)
+ * should branch on `isDemoSession()` directly and return their own shape.
  */
 export async function assertWritable(): Promise<DemoDenied | null> {
-  return (await isDemoSession()) ? { error: 'demo_readonly' } : null
+  return (await isDemoSession()) ? { error: DEMO_READONLY_MESSAGE } : null
 }
 
 /**

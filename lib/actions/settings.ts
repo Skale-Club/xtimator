@@ -7,6 +7,7 @@ import { SYSTEM_COLORS } from '@/lib/system-colors'
 import { revalidatePath, revalidateTag } from 'next/cache'
 import { normalizeCurrencyCode } from '@/lib/money/currency'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
+import { assertWritable } from '@/lib/demo/guard'
 
 async function getAuthContext() {
   const supabase = await createClient()
@@ -24,6 +25,9 @@ async function getAuthContext() {
     .single()
 
   if (!company) return { error: 'No company found' as const }
+
+  const denied = await assertWritable()
+  if (denied) return denied
 
   return { supabase, company, claims }
 }

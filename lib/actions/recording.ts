@@ -6,6 +6,7 @@ import { createStorage } from '@/lib/storage'
 import { revalidatePath } from 'next/cache'
 import { getIntegrationKey } from '@/lib/platform-config'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
+import { assertWritable } from '@/lib/demo/guard'
 
 async function getAuthContext() {
   const supabase = await createClient()
@@ -23,6 +24,9 @@ async function getAuthContext() {
     .single()
 
   if (!company) return { error: 'No company found' as const }
+
+  const denied = await assertWritable()
+  if (denied) return denied
 
   return { supabase, company }
 }

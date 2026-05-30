@@ -12,6 +12,7 @@ import {
 } from '@/lib/csv/dedupe'
 import type { ImportRow } from '@/lib/csv/price-book-import'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
+import { assertWritable } from '@/lib/demo/guard'
 
 async function getAuthContext() {
   const supabase = await createClient()
@@ -122,6 +123,9 @@ export async function createPriceBookItem(
   formData: PriceBookItemFormValues,
   imageFile?: File | null
 ) {
+  const denied = await assertWritable()
+  if (denied) return denied
+
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error }
   const { supabase, company } = ctx
@@ -173,6 +177,9 @@ export async function updatePriceBookItem(
   formData: PriceBookItemFormValues,
   imageFile?: File | null
 ) {
+  const denied = await assertWritable()
+  if (denied) return denied
+
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error }
   const { supabase, company } = ctx

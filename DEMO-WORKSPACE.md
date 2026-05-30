@@ -69,15 +69,28 @@ is managed by Supabase Auth (not SQL migrations).
   gated on `NOT is_demo_user()`. The demo user can read but never write, even via
   a direct API call. The service role bypasses RLS, so seeding/reset still work,
   and normal users / superadmins are unaffected.
-- **Application (early, friendly, and for non-DB side effects):**
+- **Application (early, friendly, and for the paths RLS cannot see):**
   `lib/demo/guard.ts` provides `isDemoSession()`, `assertWritable()` (server
-  actions), and `demoGuardResponse()` (route handlers). These block the paths
-  RLS cannot see — AI/Inngest dispatch (`generate-estimate`, `analyze-photos`,
-  `transcribe`, `refine`), outbound sends (`send`, `send-sms`, `send-whatsapp`),
-  payments/billing (`create-checkout-session`, `create-portal-session`,
-  `stripe/connect/initiate`), and storage uploads (`photo`/`recording` actions).
-  Client-facing share routes (`estimate/[token]/pay`, `estimates/[id]/sign`) are
-  blocked at the **company** level via `isDemoCompany()`.
+  actions returning `{ error }`), `DEMO_READONLY_MESSAGE` (friendly copy), and
+  `demoGuardResponse()` (route handlers). Wired into:
+  - **Route handlers** (403 via `demoGuardResponse()`): AI/Inngest dispatch
+    (`generate-estimate`, `analyze-photos`, `transcribe`, `estimates/[id]/refine`),
+    outbound sends (`estimates/[id]/send`, `send-sms`, `send-whatsapp`),
+    payments/billing (`billing/create-checkout-session`,
+    `billing/create-portal-session`, `stripe/connect/initiate`).
+  - **Server actions**: the guard is folded into each file's `getAuthContext()`
+    for the write-only action modules (`client`, `custom-domain`,
+    `estimate-template`, `photo`, `recording`, `settings`, `tour`,
+    `whatsapp-settings`), and applied per-function where a module also has read
+    exports or uses the service client / storage (`price-book` image uploads,
+    `whatsapp-inbox` sends). This matters most for the **service-client** paths
+    (`whatsapp-settings`, `whatsapp-inbox`) and **storage uploads**, which
+    bypass RLS and would otherwise be unguarded. Pure DB writes via the
+    authenticated client are already a hard no-op under RLS; the app guard adds
+    the friendly message and short-circuits before any work.
+  - **Client-facing share routes** (`estimate/[token]/pay`, `estimates/[id]/sign`)
+    are blocked at the **company** level via `isDemoCompany()` — the visitor
+    there is the demo company's prospect, not the demo user.
 
 ## Implementation status
 
