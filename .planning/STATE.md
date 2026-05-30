@@ -2,14 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Zero-friction Project Onboarding
-status: verifying
-last_updated: "2026-05-30T01:28:44.250Z"
-last_activity: 2026-05-29
+status: executing
+stopped_at: Completed 92-01-PLAN.md
+last_updated: "2026-05-30T01:32:48.340Z"
+last_activity: 2026-05-30
 progress:
   total_phases: 93
   completed_phases: 62
   total_plans: 196
-  completed_plans: 222
+  completed_plans: 223
 ---
 
 # Project State
@@ -22,10 +23,10 @@ progress:
 ## Current Position
 
 Phase: 92
-Plan: 00 complete (Wave 0 of 4) — 01/02/03 remaining
-Status: In progress — Wave 0 foundation landed (table + RED tests)
+Plan: 1 complete (Wave 0 of 4) — 01/02/03 remaining
+Status: Ready to execute
 Last activity: 2026-05-30
-Stopped at: Completed 92-00-PLAN.md (Wave 0 foundation)
+Stopped at: Completed 92-01-PLAN.md
 
 ## v3.1.1 Phases
 
@@ -472,6 +473,7 @@ Stopped at: Completed 92-00-PLAN.md (Wave 0 foundation)
 - [Phase 91]: [Phase 91-02]: user Retry reuses the original requestId/recordingId so an already-completed step is memoized (no double-charge); a failed step still re-runs
 - [Phase 91]: [Phase 91-02]: removed masking 'as GenerateEstimateResponse' casts in text-describe/photos-input so tsc validates the JobResult union; all pollJob consumers branch on result.state
 - [Phase 92]: pipeline_events applied via one-off pg applier (db push blocked by remote migration-history drift); TEXT+CHECK enums, no updated_at, only company_id FK'd; Wave-0 helper scaffold throws so RED tests compile under tsc gate
+- [Phase 92]: retry_count computed via count of prior attempt_id+step+status rows; accepted TOCTOU race as diagnostic hint (D-09)
 
 ## Performance Metrics
 
@@ -630,6 +632,7 @@ Stopped at: Completed 92-00-PLAN.md (Wave 0 foundation)
 | Phase 91 P01 | 7min | 3 tasks | 8 files |
 | Phase 91 P02 | 11min | 4 tasks | 9 files |
 | Phase 92 P00 | 13min | 2 tasks | 10 files |
+| Phase 92 P01 | 3m | 1 tasks | 1 files |
 
 ## Project Reference
 
