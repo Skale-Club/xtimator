@@ -963,6 +963,68 @@ export type Database = {
           },
         ]
       }
+      pipeline_events: {
+        Row: {
+          attempt_id: string
+          company_id: string | null
+          created_at: string
+          duration_ms: number | null
+          error_code: string | null
+          error_message: string | null
+          estimate_id: string | null
+          id: string
+          input_type: string
+          project_id: string | null
+          provider: string | null
+          retry_count: number
+          status: string
+          step: string
+          user_id: string | null
+        }
+        Insert: {
+          attempt_id: string
+          company_id?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          error_code?: string | null
+          error_message?: string | null
+          estimate_id?: string | null
+          id?: string
+          input_type: string
+          project_id?: string | null
+          provider?: string | null
+          retry_count?: number
+          status: string
+          step: string
+          user_id?: string | null
+        }
+        Update: {
+          attempt_id?: string
+          company_id?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          error_code?: string | null
+          error_message?: string | null
+          estimate_id?: string | null
+          id?: string
+          input_type?: string
+          project_id?: string | null
+          provider?: string | null
+          retry_count?: number
+          status?: string
+          step?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pipeline_events_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       platform_admins: {
         Row: {
           created_at: string
