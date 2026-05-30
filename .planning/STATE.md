@@ -25,7 +25,7 @@ progress:
 Phase: 999.1
 Plan: Not started
 Status: Phase complete — ready for verification
-Last activity: 2026-05-30
+Last activity: 2026-05-30 - Completed quick task 260530-asz: Dockerfile NEXT_PUBLIC_* build args (Vercel→Coolify migration)
 Stopped at: Completed 93-03-PLAN.md (event log list page + detail page + EventStepTimeline)
 
 ## v3.1.1 Phases
@@ -730,6 +730,7 @@ v3.1: Phases 61-65 (started 2026-05-15). Production Go-Live — 27 requirements 
 | 260527-k4i | Treat OpenRouter 401 "User not found" as transient in transcribeAudioOR (route into retry + OpenAI fallback instead of throwing) | 2026-05-27 | 21962ab | [260527-k4i-treat-openrouter-401-user-not-found-as-t](.planning/quick/260527-k4i-treat-openrouter-401-user-not-found-as-t/) |
 | 260527-l9c | Remove obsolete OpenRouter transient-401 "User not found" handling; restore 4xx-throws-immediately behavior (reverts k4i premise — OpenRouter now returns 503, not 401, for infra/auth-lookup failures) | 2026-05-27 | 948144e | [260527-l9c-remove-obsolete-openrouter-transient-401](.planning/quick/260527-l9c-remove-obsolete-openrouter-transient-401/) |
 | 260529-aq7 | Vercel→Coolify migration §2: container-ready repo (Dockerfile node:24-alpine, sync npm lockfile + drop bun.lock, Vercel crons → GitHub Actions workflow, remove Caddy/compose artifacts, drop dead Vercel CSP entry) | 2026-05-29 | 3368069, 9cf0262, 4df1855 | [260529-aq7-xtimator-vercel-coolify-migration-step-2](.planning/quick/260529-aq7-xtimator-vercel-coolify-migration-step-2/) |
+| 260530-asz | Vercel→Coolify migration §3 follow-up: Dockerfile builder inlines 5 NEXT_PUBLIC_* via ARG+ENV before `npm run build` (Coolify must pass them as --build-arg) | 2026-05-30 | 381bd78 | [260530-asz-fix-dockerfile-builder-add-next-public-b](.planning/quick/260530-asz-fix-dockerfile-builder-add-next-public-b/) |
 | 2026-05-18 | fast | Center auth card logo+wordmark | done |
 | 2026-05-19 | fast | Make audio capture screen scrollable on smaller viewports | done |
 | 2026-05-18 | fast | Restyle sidebar New Project as filled gradient, remove dashboard CTA | done |
