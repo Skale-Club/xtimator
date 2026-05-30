@@ -1462,7 +1462,25 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      pipeline_attempts: {
+        Row: {
+          attempt_id: string
+          first_at: string
+          last_at: string
+          user_id: string | null
+          company_id: string | null
+          project_id: string | null
+          estimate_id: string | null
+          input_type: string | null
+          step_reached: string | null
+          terminal_status: string | null
+          total_duration_ms: number | null
+          has_retry: boolean | null
+          max_retry_count: number | null
+          event_count: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       cleanup_orphan_draft_projects: {
