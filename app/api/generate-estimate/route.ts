@@ -105,12 +105,33 @@ export async function POST(request: Request) {
       typeof body?.requestId === 'string' && body.requestId.length > 0
         ? body.requestId
         : crypto.randomUUID()
-    // REC-03: attempt lineage carried on the event payload (in-flight only).
-    const attemptId = typeof body?.attemptId === 'string' ? body.attemptId : undefined
+    // REC-03 / Phase 92 (EVENT-03 / D-08): attempt lineage. Honor a client-minted
+    // attemptId; fall back to a server uuid so an event is never dropped for a
+    // legacy caller (e.g. MCP write.ts).
+    const attemptId =
+      typeof body?.attemptId === 'string' && body.attemptId.length > 0
+        ? body.attemptId
+        : crypto.randomUUID()
+    // Phase 92 (EVENT-03 / D-07, RESEARCH Open Question 1): each client sends its
+    // own inputType; the route forwards it. Default to manual_text (the text/MCP
+    // path) when absent rather than doing brittle server-side inference.
+    const inputType =
+      body?.inputType === 'recording' ||
+      body?.inputType === 'photo' ||
+      body?.inputType === 'manual_text'
+        ? body.inputType
+        : 'manual_text'
 
     // Dispatch to Inngest. Event-level idempotency via `id` field — same
     // request never executes twice in 24h.
-    const payload: EstimateGeneratePayload = { companyId, projectId, requestId, language, attemptId }
+    const payload: EstimateGeneratePayload = {
+      companyId,
+      projectId,
+      requestId,
+      language,
+      attemptId,
+      inputType,
+    }
     const { ids } = await inngest.send({
       name: EVENT_ESTIMATE_GENERATE,
       id: buildGenerateEventId(projectId, requestId),

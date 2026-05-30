@@ -31,6 +31,12 @@ export async function POST(request: Request) {
       )
     }
     const { projectId } = body as { projectId: string }
+    // Phase 92 (EVENT-03 / D-08): read the client-minted attemptId for lineage;
+    // fall back to a server-minted uuid so a legacy caller never drops an event.
+    const attemptId =
+      typeof body?.attemptId === 'string' && body.attemptId.length > 0
+        ? body.attemptId
+        : crypto.randomUUID()
 
     // Auth
     const supabase = await createClient()
@@ -86,7 +92,14 @@ export async function POST(request: Request) {
     }
 
     // Dispatch
-    const payload: AnalyzePhotosPayload = { companyId, projectId, requestId }
+    // Phase 92 (EVENT-03 / D-07): the analyze-photos path is always photo.
+    const payload: AnalyzePhotosPayload = {
+      companyId,
+      projectId,
+      requestId,
+      attemptId,
+      inputType: 'photo',
+    }
     const { ids } = await inngest.send({
       name: EVENT_ANALYZE_PHOTOS,
       id: `photos-${projectId}-${requestId}`,
