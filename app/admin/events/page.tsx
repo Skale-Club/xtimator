@@ -1,8 +1,10 @@
 import Link from 'next/link'
+import { ScrollText, Search } from 'lucide-react'
 import { requireAdmin } from '@/lib/auth/admin-context'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { Card } from '@/components/ui/card'
 import { T } from '@/components/i18n/t'
+import { EmptyState } from '@/components/dashboard/empty-state'
 import { EventsControls } from './events-controls'
 import { buildSearchOr } from '@/lib/admin/events-helpers'
 
@@ -116,11 +118,11 @@ export default async function EventLogPage({
         {/* Filter-scoped counts */}
         <p className="text-xs">
           <span className="text-[hsl(var(--success))] font-medium">{succeededCount}</span>
-          <span className="text-muted-foreground"> {'succeeded'} · </span>
+          <span className="text-muted-foreground"> <T>succeeded</T> · </span>
           <span className="text-[hsl(var(--danger))] font-medium">{failedCount}</span>
-          <span className="text-muted-foreground"> {'failed'} · </span>
+          <span className="text-muted-foreground"> <T>failed</T> · </span>
           <span className="text-[hsl(var(--warning))] font-medium">{startedCount}</span>
-          <span className="text-muted-foreground"> {'in progress'}</span>
+          <span className="text-muted-foreground"> <T>in progress</T></span>
         </p>
       </div>
 
@@ -150,11 +152,21 @@ export default async function EventLogPage({
             <tbody className="divide-y divide-border">
               {attempts.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-12 text-center text-muted-foreground text-sm">
+                  <td colSpan={7} className="px-4 py-8">
                     {search || statusFilter || inputTypeFilter || stepFilter ? (
-                      <T>No attempts match your filters</T>
+                      <EmptyState
+                        icon={Search}
+                        title="No attempts match your filters"
+                        description="Try a different search term, or clear the active filters to see all recent attempts."
+                        actionLabel="Clear filters"
+                        actionHref="/admin/events"
+                      />
                     ) : (
-                      <T>No pipeline events yet</T>
+                      <EmptyState
+                        icon={ScrollText}
+                        title="No pipeline events yet"
+                        description="Recording and estimate attempts will appear here as they run. This log is read-only."
+                      />
                     )}
                   </td>
                 </tr>

@@ -36,6 +36,9 @@ interface EventStepTimelineProps {
 export function EventStepTimeline({ events, attemptId }: EventStepTimelineProps) {
   const terminal = terminalStatus(events)
   const { pill: terminalPill } = statusClasses(terminal)
+  // Name the step that actually failed (events are created_at ASC), not the last row —
+  // a later step may still be 'started' while a middle step is the real failure.
+  const failedStep = terminal === 'failed' ? events.find((e) => e.status === 'failed')?.step : null
 
   return (
     <div className="space-y-8">
@@ -74,9 +77,9 @@ export function EventStepTimeline({ events, attemptId }: EventStepTimelineProps)
             {terminal}
           </span>
         </div>
-        {terminal === 'failed' && events[events.length - 1]?.step && (
+        {failedStep && (
           <p className="text-xs text-[hsl(var(--danger))]">
-            <T text={`Failed at step: ${events[events.length - 1].step}`} />
+            <T text={`Failed at step: ${failedStep}`} />
           </p>
         )}
       </Card>
@@ -127,7 +130,7 @@ export function EventStepTimeline({ events, attemptId }: EventStepTimelineProps)
 
                   {/* Row 2: meta (provider, duration, retry_count) — only non-null values */}
                   <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground font-mono">
-                    {ev.provider && <span>Provider {ev.provider}</span>}
+                    {ev.provider && <span><T>Provider</T> {ev.provider}</span>}
                     <span><T>Duration</T> {formatDuration(ev.duration_ms)}</span>
                     {ev.retry_count != null && ev.retry_count > 0 && (
                       <span><T>Retries</T> ×{ev.retry_count}</span>
