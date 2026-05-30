@@ -7,12 +7,14 @@
  *   - INNGEST-04 (analyze-photos route returns jobId; Vision moves to worker)
  *   - INNGEST-06 (idempotent via event.data.requestId)
  */
+import { randomUUID } from 'node:crypto'
 import { inngest } from '@/lib/inngest/client'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { analyzePhotoOR } from '@/lib/ai/openrouter-client'
 import { recordUsage } from '@/lib/quota'
 import { notify } from '@/lib/notifications/dispatch'
 import { buildNotificationCopy } from '@/lib/notifications/copy'
+import { recordPipelineEvent } from '@/lib/observability/pipeline-events'
 import {
   EVENT_ANALYZE_PHOTOS,
   type AnalyzePhotosPayload,
@@ -60,6 +62,19 @@ export const analyzePhotosJob = inngest.createFunction(
         .data?.event?.data
       if (!payload) return
       const userId = await loadOwnerUserId(payload.companyId)
+
+      // Phase 92 (EVENT-02/D-05): terminal failed analyze event via onFailure.
+      void recordPipelineEvent({
+        attemptId: payload.attemptId ?? randomUUID(),
+        inputType: payload.inputType ?? 'photo',
+        step: 'analyze',
+        status: 'failed',
+        companyId: payload.companyId,
+        projectId: payload.projectId,
+        userId,
+        provider: 'openrouter',
+        errorMessage: error instanceof Error ? error.message : String(error),
+      })
       const copy = buildNotificationCopy('ai_job.failed', {
         jobType: 'Photo analysis',
         errorMessage: error instanceof Error ? error.message : String(error),
@@ -78,8 +93,24 @@ export const analyzePhotosJob = inngest.createFunction(
     },
   },
   async ({ event, step }) => {
-    const { companyId, projectId, requestId } =
-      event.data as AnalyzePhotosPayload
+    const data = event.data as AnalyzePhotosPayload
+    const { companyId, projectId, requestId } = data
+    // Phase 92 (EVENT-02/D-08): attempt lineage with server fallback.
+    const attemptId = data.attemptId ?? randomUUID()
+    const inputType = data.inputType ?? 'photo'
+    const t0 = Date.now()
+
+    // Phase 92 (EVENT-02/D-03): started analyze event at handler entry.
+    const ownerUserId = await loadOwnerUserId(companyId)
+    void recordPipelineEvent({
+      attemptId,
+      inputType,
+      step: 'analyze',
+      status: 'started',
+      companyId,
+      projectId,
+      userId: ownerUserId,
+    })
 
     // Step 1: Load photo list (cheap; checkpointed so a retry skips the query)
     const photos = await step.run('load-photos', async () => {
@@ -133,6 +164,19 @@ export const analyzePhotosJob = inngest.createFunction(
         photos.length,
         requestId
       )
+    })
+
+    // Phase 92 (EVENT-02/D-03): terminal succeeded analyze event with duration_ms.
+    void recordPipelineEvent({
+      attemptId,
+      inputType,
+      step: 'analyze',
+      status: 'succeeded',
+      companyId,
+      projectId,
+      userId: ownerUserId,
+      provider: 'openrouter',
+      durationMs: Date.now() - t0,
     })
 
     // Phase 77 NOTIF-04: opt-in success notification.
