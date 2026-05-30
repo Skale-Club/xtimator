@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Zero-friction Project Onboarding
-status: executing
-stopped_at: Completed 93-02-PLAN.md (events-helpers, EventsControls, admin nav)
-last_updated: "2026-05-30T02:48:15.569Z"
+status: verifying
+stopped_at: Completed 93-03-PLAN.md (event log list page + detail page + EventStepTimeline)
+last_updated: "2026-05-30T02:57:18.274Z"
 last_activity: 2026-05-30
 progress:
   total_phases: 93
-  completed_phases: 63
+  completed_phases: 64
   total_plans: 200
-  completed_plans: 228
+  completed_plans: 229
 ---
 
 # Project State
@@ -24,9 +24,9 @@ progress:
 
 Phase: 93 (super-admin-event-log) — EXECUTING
 Plan: 4 of 4
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-05-30
-Stopped at: Completed 93-02-PLAN.md (events-helpers, EventsControls, admin nav)
+Stopped at: Completed 93-03-PLAN.md (event log list page + detail page + EventStepTimeline)
 
 ## v3.1.1 Phases
 
@@ -480,6 +480,8 @@ Stopped at: Completed 93-02-PLAN.md (events-helpers, EventsControls, admin nav)
 - [Phase 93]: events-route-gate.test.ts asserts adminIdx < svcIdx (ordering) not just presence — enforces requireAdmin() precedes requireServiceClient() as the load-bearing security constraint
 - [Phase 93]: pipeline_attempts view uses security_invoker=on + BOOL_OR terminal_status precedence; Views type replaced (not augmented) from [_ in never] placeholder
 - [Phase 93-super-admin-event-log]: buildSearchOr is pure fn (no DB calls) enabling Wave 0 unit tests; SAFE_EVENT_COLUMNS comment must avoid transcript/audio/apiKey/payload/raw tokens (static source guard covers full file)
+- [Phase 93-super-admin-event-log]: Inlined SAFE_SELECT string in detail page .select() call — test regex requires literal string after select( paren
+- [Phase 93-super-admin-event-log]: Wave 0 email-lookup stubs replaced with static source assertions — unconditional expect.fail() cannot turn GREEN
 
 ## Performance Metrics
 
@@ -643,6 +645,7 @@ Stopped at: Completed 93-02-PLAN.md (events-helpers, EventsControls, admin nav)
 | Phase 93 P00 | 3 | 2 tasks | 6 files |
 | Phase 93 P01 | 5 | 2 tasks | 3 files |
 | Phase 93 P02 | 7 | 2 tasks | 5 files |
+| Phase 93-super-admin-event-log P03 | 5 | 2 tasks | 4 files |
 
 ## Project Reference
 

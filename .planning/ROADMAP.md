@@ -977,7 +977,7 @@ Plans:
 - [x] **Phase 91: Recording Pipeline Reliability** -- Eliminate the opaque 503 from `GET /api/jobs/[jobId]`, degrade gracefully when Inngest is unconfigured, give the capture popup a human-readable failure + Retry + Edit-manually, and make pipeline jobs idempotent (carry-forward INNGEST-01/06)
  (completed 2026-05-29)
 - [x] **Phase 92: Pipeline Event Persistence** -- New service-role-only events store plus backend instrumentation that records every pipeline step (success and failure) across all input types, additive to the existing `estimate_activity` write (completed 2026-05-30)
-- [ ] **Phase 93: Super Admin Event Log** -- Generations-style Super Admin UI: recent attempts list, search, filters + counts + refresh, and a per-attempt step timeline, exposing only safe metadata
+- [x] **Phase 93: Super Admin Event Log** -- Generations-style Super Admin UI: recent attempts list, search, filters + counts + refresh, and a per-attempt step timeline, exposing only safe metadata (completed 2026-05-30)
 
 ### Phase 91: Recording Pipeline Reliability
 **Goal**: A user whose recording pipeline hits an Inngest-config or processing problem always sees an actionable, recoverable state instead of an opaque 503 -- and retries never double-charge AI/transcription providers. Completes the unfinished v3.1.1 INNGEST-01 (worker registration/reachability) and INNGEST-06 (idempotency).
@@ -1024,5 +1024,5 @@ Plans:
 - [x] 93-00-PLAN.md — Wave 0: 6 RED Nyquist test stubs (all ADMINLOG requirements)
 - [x] 93-01-PLAN.md — pipeline_attempts view DDL + apply script + database types extension
 - [x] 93-02-PLAN.md — events-helpers.ts (buildSearchOr/terminalStatus/formatDuration/SAFE_EVENT_COLUMNS) + EventsControls client + admin nav item
-- [ ] 93-03-PLAN.md — list page (events/page.tsx) + EventStepTimeline component + detail page ([attemptId]/page.tsx)
+- [x] 93-03-PLAN.md — list page (events/page.tsx) + EventStepTimeline component + detail page ([attemptId]/page.tsx)
 **UI hint**: yes
