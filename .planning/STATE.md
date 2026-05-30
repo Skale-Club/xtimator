@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Zero-friction Project Onboarding
 status: executing
-stopped_at: Completed 92-03-PLAN.md (Phase 92 final wave — pipeline instrumentation)
-last_updated: "2026-05-30T01:52:15.480Z"
+stopped_at: Completed 93-00-PLAN.md (Phase 93 Wave 0 — RED test scaffold)
+last_updated: "2026-05-30T02:32:59.428Z"
 last_activity: 2026-05-30
 progress:
   total_phases: 93
   completed_phases: 63
-  total_plans: 196
-  completed_plans: 225
+  total_plans: 200
+  completed_plans: 226
 ---
 
 # Project State
@@ -22,11 +22,11 @@ progress:
 
 ## Current Position
 
-Phase: 93
-Plan: Not started
+Phase: 93 (super-admin-event-log) — EXECUTING
+Plan: 2 of 4
 Status: Ready to execute
 Last activity: 2026-05-30
-Stopped at: Completed 92-03-PLAN.md (Phase 92 final wave — pipeline instrumentation)
+Stopped at: Completed 93-00-PLAN.md (Phase 93 Wave 0 — RED test scaffold)
 
 ## v3.1.1 Phases
 
@@ -475,6 +475,9 @@ Stopped at: Completed 92-03-PLAN.md (Phase 92 final wave — pipeline instrument
 - [Phase 92]: pipeline_events applied via one-off pg applier (db push blocked by remote migration-history drift); TEXT+CHECK enums, no updated_at, only company_id FK'd; Wave-0 helper scaffold throws so RED tests compile under tsc gate
 - [Phase 92]: retry_count computed via count of prior attempt_id+step+status rows; accepted TOCTOU race as diagnostic hint (D-09)
 - [Phase 92]: preview_redirect emitted server-side from generate succeeded path (client redirect non-instrumentable, D-04)
+- [Phase 93]: Wave 0 RED tests use expect.fail() for pure-function tests; try/catch+expect.fail for static-source readFileSync tests — two-tier pattern ensures collection never aborts on missing files
+- [Phase 93]: findViewMigration() pattern: readdirSync migrations dir with .find(n => n.includes('phase93')) for timestamp-agnostic migration lookup
+- [Phase 93]: events-route-gate.test.ts asserts adminIdx < svcIdx (ordering) not just presence — enforces requireAdmin() precedes requireServiceClient() as the load-bearing security constraint
 
 ## Performance Metrics
 
@@ -635,13 +638,14 @@ Stopped at: Completed 92-03-PLAN.md (Phase 92 final wave — pipeline instrument
 | Phase 92 P00 | 13min | 2 tasks | 10 files |
 | Phase 92 P01 | 3m | 1 tasks | 1 files |
 | Phase 92 P03 | ~6m | 3 tasks | 4 files |
+| Phase 93 P00 | 3 | 2 tasks | 6 files |
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-13)
 
 **Core value:** Business owner → job site audio recording → sent professional estimate in under 5 minutes
-**Current focus:** Phase 91 — recording-pipeline-reliability
+**Current focus:** Phase 93 — super-admin-event-log
 
 ## Notes
 

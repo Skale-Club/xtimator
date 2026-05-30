@@ -1021,7 +1021,7 @@ Plans:
   5. No raw sensitive provider payloads (audio bytes, full transcripts, API keys) are rendered anywhere in the admin UI -- only safe, summarized metadata
 **Plans**: 4 plans
 Plans:
-- [ ] 93-00-PLAN.md — Wave 0: 6 RED Nyquist test stubs (all ADMINLOG requirements)
+- [x] 93-00-PLAN.md — Wave 0: 6 RED Nyquist test stubs (all ADMINLOG requirements)
 - [ ] 93-01-PLAN.md — pipeline_attempts view DDL + apply script + database types extension
 - [ ] 93-02-PLAN.md — events-helpers.ts (buildSearchOr/terminalStatus/formatDuration/SAFE_EVENT_COLUMNS) + EventsControls client + admin nav item
 - [ ] 93-03-PLAN.md — list page (events/page.tsx) + EventStepTimeline component + detail page ([attemptId]/page.tsx)

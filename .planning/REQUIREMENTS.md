@@ -38,11 +38,11 @@ The user-facing capture popup stays simple (human-readable reason + Retry + Edit
 
 ### ADMINLOG — Super Admin Event Log UI
 
-- [ ] **ADMINLOG-01**: Recent attempts list in Super Admin — Generations-style columns (timestamp, user/company, project/estimate, input type, step reached, status, duration); newest first; paginated
-- [ ] **ADMINLOG-02**: Search across attempts by user, project, estimate, attempt id, and error text
-- [ ] **ADMINLOG-03**: Filters for status (success/failure/in-progress), input type, and step; success/failure counts displayed; manual refresh control
-- [ ] **ADMINLOG-04**: Per-attempt detail view renders a step timeline — each step's timestamp, status, message, error code, safe metadata, and duration
-- [ ] **ADMINLOG-05**: No raw sensitive provider payloads (audio bytes, full transcripts, API keys) rendered in the admin UI — only safe, summarized metadata
+- [x] **ADMINLOG-01**: Recent attempts list in Super Admin — Generations-style columns (timestamp, user/company, project/estimate, input type, step reached, status, duration); newest first; paginated
+- [x] **ADMINLOG-02**: Search across attempts by user, project, estimate, attempt id, and error text
+- [x] **ADMINLOG-03**: Filters for status (success/failure/in-progress), input type, and step; success/failure counts displayed; manual refresh control
+- [x] **ADMINLOG-04**: Per-attempt detail view renders a step timeline — each step's timestamp, status, message, error code, safe metadata, and duration
+- [x] **ADMINLOG-05**: No raw sensitive provider payloads (audio bytes, full transcripts, API keys) rendered in the admin UI — only safe, summarized metadata
 
 ---
 
@@ -82,8 +82,8 @@ Coverage: to be completed by the roadmap (phase assignment starts at Phase 91). 
 | EVENT-02 | Phase 92 | Complete |
 | EVENT-03 | Phase 92 | Complete |
 | EVENT-04 | Phase 92 | Complete |
-| ADMINLOG-01 | Phase 93 | Pending |
-| ADMINLOG-02 | Phase 93 | Pending |
-| ADMINLOG-03 | Phase 93 | Pending |
-| ADMINLOG-04 | Phase 93 | Pending |
-| ADMINLOG-05 | Phase 93 | Pending |
+| ADMINLOG-01 | Phase 93 | Complete |
+| ADMINLOG-02 | Phase 93 | Complete |
+| ADMINLOG-03 | Phase 93 | Complete |
+| ADMINLOG-04 | Phase 93 | Complete |
+| ADMINLOG-05 | Phase 93 | Complete |
