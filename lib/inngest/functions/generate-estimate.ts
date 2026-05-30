@@ -7,12 +7,14 @@
  *   - INNGEST-02 (route returns jobId; recordUsage on success only)
  *   - INNGEST-06 (idempotent via event.data.requestId)
  */
+import { randomUUID } from 'node:crypto'
 import { inngest } from '@/lib/inngest/client'
 import { generateEstimateForProject } from '@/lib/services/generate-estimate'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { recordUsage } from '@/lib/quota'
 import { notify } from '@/lib/notifications/dispatch'
 import { buildNotificationCopy } from '@/lib/notifications/copy'
+import { recordPipelineEvent } from '@/lib/observability/pipeline-events'
 import {
   EVENT_ESTIMATE_GENERATE,
   type EstimateGeneratePayload,
@@ -44,6 +46,19 @@ export const generateEstimateJob = inngest.createFunction(
         .data?.event?.data
       if (!payload) return
       const userId = await loadOwnerUserId(payload.companyId)
+
+      // Phase 92 (EVENT-02/D-05): terminal failed generate_estimate event.
+      void recordPipelineEvent({
+        attemptId: payload.attemptId ?? randomUUID(),
+        inputType: payload.inputType ?? 'manual_text',
+        step: 'generate_estimate',
+        status: 'failed',
+        companyId: payload.companyId,
+        projectId: payload.projectId,
+        userId,
+        provider: null,
+        errorMessage: error instanceof Error ? error.message : String(error),
+      })
       const copy = buildNotificationCopy('ai_job.failed', {
         jobType: 'Estimate generation',
         errorMessage: error instanceof Error ? error.message : String(error),
@@ -62,8 +77,24 @@ export const generateEstimateJob = inngest.createFunction(
     },
   },
   async ({ event, step }) => {
-    const { companyId, projectId, requestId, language, prompts } =
-      event.data as EstimateGeneratePayload
+    const data = event.data as EstimateGeneratePayload
+    const { companyId, projectId, requestId, language, prompts } = data
+    // Phase 92 (EVENT-02/D-08): attempt lineage with server fallback.
+    const attemptId = data.attemptId ?? randomUUID()
+    const inputType = data.inputType ?? 'manual_text'
+    const t0 = Date.now()
+
+    // Phase 92 (EVENT-02/D-03): started generate_estimate event at handler entry.
+    const ownerUserId = await loadOwnerUserId(companyId)
+    void recordPipelineEvent({
+      attemptId,
+      inputType,
+      step: 'generate_estimate',
+      status: 'started',
+      companyId,
+      projectId,
+      userId: ownerUserId,
+    })
 
     // Step 1: Heavy AI call — checkpointed. A retry of step 2 will NOT re-call.
     const result = await step.run('call-ai-provider', async () => {
@@ -79,6 +110,43 @@ export const generateEstimateJob = inngest.createFunction(
     await step.run('record-usage', async () => {
       const supabase = requireServiceClient()
       await recordUsage(supabase, companyId, 'estimate_generated', 1, requestId)
+    })
+
+    // Phase 92 (EVENT-02/D-03): resolve the new estimate id from the AI result
+    // (trivially in scope — GenerateEstimateResult.estimateId; no extra query).
+    const estimateId =
+      (result as { estimateId?: string | null } | null)?.estimateId ?? null
+
+    // Phase 92 (EVENT-02/D-03): terminal succeeded generate_estimate event.
+    // provider left null (Open-Question 2 — not trivially in scope here, nullable).
+    void recordPipelineEvent({
+      attemptId,
+      inputType,
+      step: 'generate_estimate',
+      status: 'succeeded',
+      companyId,
+      projectId,
+      userId: ownerUserId,
+      estimateId,
+      provider: null,
+      durationMs: Date.now() - t0,
+    })
+
+    // Phase 92 (EVENT-02/D-04, Open-Question 3): preview_redirect succeeded marker.
+    // The client redirect (router.push to ?tab=estimate) is non-instrumentable per
+    // D-04, so we emit this server-side logical "reached preview" terminal marker
+    // from the generate succeeded path — the deterministic consequence of success.
+    void recordPipelineEvent({
+      attemptId,
+      inputType,
+      step: 'preview_redirect',
+      status: 'succeeded',
+      companyId,
+      projectId,
+      userId: ownerUserId,
+      estimateId,
+      provider: null,
+      durationMs: null,
     })
 
     // Phase 77 NOTIF-04: success notification (opt-in via DEFAULT_PREFERENCES
