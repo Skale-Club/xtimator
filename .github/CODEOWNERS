@@ -1,0 +1,34 @@
+# CODEOWNERS — review ownership for security-sensitive paths (S13 remediation).
+#
+# GitHub requires a real user (@handle) or team (@org/team) on the right-hand
+# side and "Require review from Code Owners" enabled in branch protection for
+# this to be enforced. Replace @Skale-Club/security-reviewers below with a real
+# team (create it under the Skale-Club org) or an individual maintainer handle.
+
+# Default owner for everything not matched more specifically.
+*                               @Skale-Club/security-reviewers
+
+# Authentication, authorization, and session handling.
+/lib/auth/                      @Skale-Club/security-reviewers
+/lib/supabase/                  @Skale-Club/security-reviewers
+/lib/actions/auth.ts            @Skale-Club/security-reviewers
+
+# Secrets, crypto, and rate/quota controls.
+/lib/crypto/                    @Skale-Club/security-reviewers
+/lib/ratelimit.ts               @Skale-Club/security-reviewers
+/lib/quota.ts                   @Skale-Club/security-reviewers
+/lib/auth/cron-auth.ts          @Skale-Club/security-reviewers
+
+# Webhooks, cron, and AI prompt construction (untrusted-input surfaces).
+/app/api/webhooks/              @Skale-Club/security-reviewers
+/app/api/cron/                  @Skale-Club/security-reviewers
+/lib/ai/prompt-builder.ts       @Skale-Club/security-reviewers
+
+# Database schema + RLS policies.
+/supabase/migrations/           @Skale-Club/security-reviewers
+
+# Build, deploy, and security headers.
+/Dockerfile                     @Skale-Club/security-reviewers
+/next.config.ts                 @Skale-Club/security-reviewers
+/vercel.json                    @Skale-Club/security-reviewers
+/.gitleaks.toml                 @Skale-Club/security-reviewers
