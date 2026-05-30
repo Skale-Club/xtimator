@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Zero-friction Project Onboarding
 status: executing
-stopped_at: Completed 93-01-PLAN.md (pipeline_attempts view + types)
-last_updated: "2026-05-30T02:38:43.194Z"
+stopped_at: Completed 93-02-PLAN.md (events-helpers, EventsControls, admin nav)
+last_updated: "2026-05-30T02:48:15.569Z"
 last_activity: 2026-05-30
 progress:
   total_phases: 93
   completed_phases: 63
   total_plans: 200
-  completed_plans: 227
+  completed_plans: 228
 ---
 
 # Project State
@@ -23,10 +23,10 @@ progress:
 ## Current Position
 
 Phase: 93 (super-admin-event-log) — EXECUTING
-Plan: 3 of 4
+Plan: 4 of 4
 Status: Ready to execute
 Last activity: 2026-05-30
-Stopped at: Completed 93-01-PLAN.md (pipeline_attempts view + types)
+Stopped at: Completed 93-02-PLAN.md (events-helpers, EventsControls, admin nav)
 
 ## v3.1.1 Phases
 
@@ -479,6 +479,7 @@ Stopped at: Completed 93-01-PLAN.md (pipeline_attempts view + types)
 - [Phase 93]: findViewMigration() pattern: readdirSync migrations dir with .find(n => n.includes('phase93')) for timestamp-agnostic migration lookup
 - [Phase 93]: events-route-gate.test.ts asserts adminIdx < svcIdx (ordering) not just presence — enforces requireAdmin() precedes requireServiceClient() as the load-bearing security constraint
 - [Phase 93]: pipeline_attempts view uses security_invoker=on + BOOL_OR terminal_status precedence; Views type replaced (not augmented) from [_ in never] placeholder
+- [Phase 93-super-admin-event-log]: buildSearchOr is pure fn (no DB calls) enabling Wave 0 unit tests; SAFE_EVENT_COLUMNS comment must avoid transcript/audio/apiKey/payload/raw tokens (static source guard covers full file)
 
 ## Performance Metrics
 
@@ -641,6 +642,7 @@ Stopped at: Completed 93-01-PLAN.md (pipeline_attempts view + types)
 | Phase 92 P03 | ~6m | 3 tasks | 4 files |
 | Phase 93 P00 | 3 | 2 tasks | 6 files |
 | Phase 93 P01 | 5 | 2 tasks | 3 files |
+| Phase 93 P02 | 7 | 2 tasks | 5 files |
 
 ## Project Reference
 
