@@ -75,5 +75,19 @@ is managed by Supabase Auth (not SQL migrations).
 
 - [x] Phase 1 — Infra: `/demo` route, demo config helper, "See Demo" repointed.
 - [x] Phase 2 — Read-only enforcement (app guard + restrictive RLS) + outbound block.
+- [x] Phase 4 — Fixed demo banner + signup CTA + hide sensitive nav (Settings,
+      WhatsApp) + redirect Settings/WhatsApp for demo sessions.
 - [ ] Phase 3 — Seed realistic fictional demo data (script, idempotent, `--reset`).
-- [ ] Phase 4 — Fixed demo banner + signup CTA + hide sensitive areas + QA.
+
+## Phase 4 surfaces
+
+- `components/demo/demo-banner.tsx` + `lib/demo/actions.ts` (`exitDemoToSignup`):
+  fixed read-only banner with a CTA that signs out and opens signup (`/?auth=signup`).
+- `app/(app)/layout.tsx`: renders the banner and threads `isDemo` to the shell.
+- `components/app-shell/nav-items.ts` + `sidebar.tsx` + `bottom-nav.tsx`: hide
+  `demoHidden` entries (Settings, WhatsApp) and the Settings account-menu link in demo.
+- `app/(app)/settings/layout.tsx` + `app/(app)/whatsapp/layout.tsx`: redirect demo
+  sessions to `/dashboard` (admin already 404s for non-admins, which the demo user is).
+
+> Note: this container has no installed dependencies, so `lint`/`tsc`/`build`
+> could not run locally. Validate via CI or a local build.

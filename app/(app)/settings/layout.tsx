@@ -1,7 +1,12 @@
 // v3-subsidebar-mobile
+import { redirect } from 'next/navigation'
 import { SettingsNav } from '@/components/settings/settings-nav'
+import { isDemoSession } from '@/lib/demo/guard'
 
-export default function SettingsLayout({ children }: { children: React.ReactNode }) {
+export default async function SettingsLayout({ children }: { children: React.ReactNode }) {
+  // Settings exposes branding/integrations/billing — never available in the demo.
+  if (await isDemoSession()) redirect('/dashboard')
+
   return (
     <div className="flex min-h-full flex-col md:flex-row md:gap-0">
       {/*
