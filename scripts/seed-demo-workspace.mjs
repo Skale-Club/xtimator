@@ -236,7 +236,7 @@ async function main() {
     await upsert('projects', {
       id: projectId, company_id: DEMO_COMPANY_ID, client_id: clientIds[proj.clientIdx],
       name: proj.name, project_type: proj.project_type, status: proj.status,
-      description: proj.summary, total,
+      input_mode: 'text', total,
     })
 
     const consolidated = proj.estimateStatus !== 'draft'
