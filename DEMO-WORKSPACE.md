@@ -41,13 +41,21 @@ is managed by Supabase Auth (not SQL migrations).
 
 1. **Create the demo auth user** via Supabase Auth (dashboard or admin API)
    with the email/password you put in the env vars above. Note its `user_id`.
-2. **Seed the demo company + membership + sample data** with the seed script
-   (added in the seeding phase), which uses the service-role key:
-   - inserts `companies` row with `id = DEMO_COMPANY_ID`, `user_id = <demo user>`
-   - inserts `company_members(user_id = <demo user>, company_id = DEMO_COMPANY_ID)`
-   - inserts `demo_config(user_id = <demo user>, company_id = DEMO_COMPANY_ID)`
-     — this row is what flips on the read-only DB trap for the demo user
-   - inserts fictional clients / projects / estimates / price book / etc.
+2. **Seed the demo company + membership + sample data** with the seed script,
+   which uses the service-role key and is idempotent (deterministic UUIDs):
+
+   ```bash
+   node scripts/seed-demo-workspace.mjs           # upsert
+   node scripts/seed-demo-workspace.mjs --reset   # wipe demo data, then re-seed
+   node scripts/seed-demo-workspace.mjs --dry-run # print plan, write nothing
+   ```
+
+   It resolves the demo user id from `DEMO_USER_EMAIL` and writes:
+   - `companies` row (`id = DEMO_COMPANY_ID`, `user_id = <demo user>`)
+   - `company_members(user_id, company_id)` and
+     `demo_config(user_id, company_id)` — the `demo_config` row is what flips on
+     the read-only DB trap for the demo user
+   - fictional clients, projects, estimates (sections + items), and price book
 3. **Apply migrations** (`supabase db push`) so `20260530000001_demo_readonly.sql`
    creates `demo_config`, `is_demo_user()`, and the restrictive write-block
    policies. (Until a `demo_config` row exists, `is_demo_user()` is false and
@@ -77,7 +85,8 @@ is managed by Supabase Auth (not SQL migrations).
 - [x] Phase 2 — Read-only enforcement (app guard + restrictive RLS) + outbound block.
 - [x] Phase 4 — Fixed demo banner + signup CTA + hide sensitive nav (Settings,
       WhatsApp) + redirect Settings/WhatsApp for demo sessions.
-- [ ] Phase 3 — Seed realistic fictional demo data (script, idempotent, `--reset`).
+- [x] Phase 3 — Seed realistic fictional demo data
+      (`scripts/seed-demo-workspace.mjs`, idempotent, `--reset` / `--dry-run`).
 
 ## Phase 4 surfaces
 
