@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Zero-friction Project Onboarding
 status: executing
-stopped_at: Completed 93-00-PLAN.md (Phase 93 Wave 0 — RED test scaffold)
-last_updated: "2026-05-30T02:32:59.428Z"
+stopped_at: Completed 93-01-PLAN.md (pipeline_attempts view + types)
+last_updated: "2026-05-30T02:38:43.194Z"
 last_activity: 2026-05-30
 progress:
   total_phases: 93
   completed_phases: 63
   total_plans: 200
-  completed_plans: 226
+  completed_plans: 227
 ---
 
 # Project State
@@ -23,10 +23,10 @@ progress:
 ## Current Position
 
 Phase: 93 (super-admin-event-log) — EXECUTING
-Plan: 2 of 4
+Plan: 3 of 4
 Status: Ready to execute
 Last activity: 2026-05-30
-Stopped at: Completed 93-00-PLAN.md (Phase 93 Wave 0 — RED test scaffold)
+Stopped at: Completed 93-01-PLAN.md (pipeline_attempts view + types)
 
 ## v3.1.1 Phases
 
@@ -478,6 +478,7 @@ Stopped at: Completed 93-00-PLAN.md (Phase 93 Wave 0 — RED test scaffold)
 - [Phase 93]: Wave 0 RED tests use expect.fail() for pure-function tests; try/catch+expect.fail for static-source readFileSync tests — two-tier pattern ensures collection never aborts on missing files
 - [Phase 93]: findViewMigration() pattern: readdirSync migrations dir with .find(n => n.includes('phase93')) for timestamp-agnostic migration lookup
 - [Phase 93]: events-route-gate.test.ts asserts adminIdx < svcIdx (ordering) not just presence — enforces requireAdmin() precedes requireServiceClient() as the load-bearing security constraint
+- [Phase 93]: pipeline_attempts view uses security_invoker=on + BOOL_OR terminal_status precedence; Views type replaced (not augmented) from [_ in never] placeholder
 
 ## Performance Metrics
 
@@ -639,6 +640,7 @@ Stopped at: Completed 93-00-PLAN.md (Phase 93 Wave 0 — RED test scaffold)
 | Phase 92 P01 | 3m | 1 tasks | 1 files |
 | Phase 92 P03 | ~6m | 3 tasks | 4 files |
 | Phase 93 P00 | 3 | 2 tasks | 6 files |
+| Phase 93 P01 | 5 | 2 tasks | 3 files |
 
 ## Project Reference
 
