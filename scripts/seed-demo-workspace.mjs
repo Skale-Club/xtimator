@@ -211,6 +211,9 @@ async function main() {
     const it = PRICE_BOOK_ITEMS[i]
     await upsert('company_price_book', {
       id: demoId('pi', i), company_id: DEMO_COMPANY_ID, folder_id: folderIds[it.folderIdx],
+      // `category` predates the folder_id FK and is still NOT NULL — mirror the
+      // folder name so legacy and folder-based views both render.
+      category: PRICE_BOOK_FOLDERS[it.folderIdx],
       name: it.name, unit: it.unit, unit_price: it.unit_price, currency_code: 'USD',
     })
   }
