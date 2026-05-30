@@ -1007,7 +1007,7 @@ Plans:
   - [x] 92-00-PLAN.md — Wave 0: 5 RED Nyquist test stubs + pipeline_events migration (applied to remote) + types block
   - [x] 92-01-PLAN.md — Wave 1: best-effort recordPipelineEvent() helper (insert + swallow + retry_count)
   - [ ] 92-02-PLAN.md — Wave 2: attemptId+inputType lineage threading (payloads + 3 entrypoints + 3 routes)
-  - [ ] 92-03-PLAN.md — Wave 3: instrument 6 step boundaries + preview_redirect marker + EVENT-04 regression + phase gate
+  - [x] 92-03-PLAN.md — Wave 3: instrument 6 step boundaries + preview_redirect marker + EVENT-04 regression + phase gate
 
 ### Phase 93: Super Admin Event Log
 **Goal**: A Super Admin can diagnose any recording failure in seconds from a Generations-style event log -- finding the attempt, seeing which step broke and why, across users and companies -- without ever exposing raw sensitive provider payloads.

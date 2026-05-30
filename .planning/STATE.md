@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Zero-friction Project Onboarding
 status: executing
-stopped_at: Completed 92-01-PLAN.md
-last_updated: "2026-05-30T01:32:48.340Z"
+stopped_at: Completed 92-03-PLAN.md (Phase 92 final wave — pipeline instrumentation)
+last_updated: "2026-05-30T01:47:18.062Z"
 last_activity: 2026-05-30
 progress:
   total_phases: 93
   completed_phases: 62
   total_plans: 196
-  completed_plans: 223
+  completed_plans: 224
 ---
 
 # Project State
@@ -23,10 +23,10 @@ progress:
 ## Current Position
 
 Phase: 92
-Plan: 1 complete (Wave 0 of 4) — 01/02/03 remaining
+Plan: 2 complete (Wave 0 of 4) — 01/02/03 remaining
 Status: Ready to execute
 Last activity: 2026-05-30
-Stopped at: Completed 92-01-PLAN.md
+Stopped at: Completed 92-03-PLAN.md (Phase 92 final wave — pipeline instrumentation)
 
 ## v3.1.1 Phases
 
@@ -474,6 +474,7 @@ Stopped at: Completed 92-01-PLAN.md
 - [Phase 91]: [Phase 91-02]: removed masking 'as GenerateEstimateResponse' casts in text-describe/photos-input so tsc validates the JobResult union; all pollJob consumers branch on result.state
 - [Phase 92]: pipeline_events applied via one-off pg applier (db push blocked by remote migration-history drift); TEXT+CHECK enums, no updated_at, only company_id FK'd; Wave-0 helper scaffold throws so RED tests compile under tsc gate
 - [Phase 92]: retry_count computed via count of prior attempt_id+step+status rows; accepted TOCTOU race as diagnostic hint (D-09)
+- [Phase 92]: preview_redirect emitted server-side from generate succeeded path (client redirect non-instrumentable, D-04)
 
 ## Performance Metrics
 
@@ -633,6 +634,7 @@ Stopped at: Completed 92-01-PLAN.md
 | Phase 91 P02 | 11min | 4 tasks | 9 files |
 | Phase 92 P00 | 13min | 2 tasks | 10 files |
 | Phase 92 P01 | 3m | 1 tasks | 1 files |
+| Phase 92 P03 | ~6m | 3 tasks | 4 files |
 
 ## Project Reference
 
