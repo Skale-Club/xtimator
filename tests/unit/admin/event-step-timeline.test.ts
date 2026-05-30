@@ -7,30 +7,32 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { terminalStatus, formatDuration } from '@/lib/admin/events-helpers'
 
 // ── terminalStatus precedence ─────────────────────────────────────────────────
 describe('ADMINLOG-04: terminalStatus precedence (failed > started > succeeded)', () => {
   it('returns "failed" when any row has status=failed, even if others succeeded', () => {
-    expect.fail('Wave 0: lib/admin/events-helpers.ts (or similar) not yet written')
+    expect(terminalStatus([{ status: 'succeeded' }, { status: 'failed' }])).toBe('failed')
   })
 
   it('returns "started" when rows have started and succeeded but no failed', () => {
-    expect.fail('Wave 0: lib/admin/events-helpers.ts not yet written')
+    expect(terminalStatus([{ status: 'succeeded' }, { status: 'started' }])).toBe('started')
   })
 
   it('returns "succeeded" when all rows have status=succeeded', () => {
-    expect.fail('Wave 0: lib/admin/events-helpers.ts not yet written')
+    expect(terminalStatus([{ status: 'succeeded' }])).toBe('succeeded')
   })
 })
 
 // ── formatDuration ─────────────────────────────────────────────────────────────
 describe('ADMINLOG-04: formatDuration', () => {
   it('returns em-dash "—" for null input', () => {
-    expect.fail('Wave 0: lib/admin/events-helpers.ts not yet written')
+    expect(formatDuration(null)).toBe('—')
   })
 
   it('returns "{n} ms" for a numeric ms value', () => {
-    expect.fail('Wave 0: lib/admin/events-helpers.ts not yet written')
+    expect(formatDuration(0)).toBe('0 ms')
+    expect(formatDuration(1234)).toBe('1234 ms')
   })
 })
 
