@@ -87,7 +87,7 @@ export function TierCardsGrid({ currentTier }: TierCardsGridProps) {
   const normalized: Tier = currentTier === 'trial' ? 'free' : currentTier
 
   return (
-    <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+    <div className="mx-auto grid w-full max-w-5xl grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
       {TIERS.map((t) => (
         <TierCard
           key={t.tier}
