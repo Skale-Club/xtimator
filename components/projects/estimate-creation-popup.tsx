@@ -2,7 +2,8 @@
 
 import { Suspense, useEffect, useState } from 'react'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
-import { Loader2 } from 'lucide-react'
+import { Loader2, ArrowLeft } from 'lucide-react'
+import { NEW_PROJECT_MODAL_PARAM, NEW_PROJECT_MODAL_VALUE } from './new-project-dialog'
 import {
   Dialog,
   DialogContent,
@@ -70,6 +71,16 @@ function EstimateCreationPopupInner() {
     router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false })
   }
 
+  // Back arrow: return to the "New project" modality picker without leaving the
+  // popup — drop the capture params and re-open the new-project dialog in place.
+  function handleBack() {
+    const params = new URLSearchParams(searchParams.toString())
+    params.delete(CAPTURE_PARAM)
+    params.delete(PROJECT_ID_PARAM)
+    params.set(NEW_PROJECT_MODAL_PARAM, NEW_PROJECT_MODAL_VALUE)
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false })
+  }
+
   useEffect(() => {
     if (!isOpen || !projectId) {
       setProject(null)
@@ -114,11 +125,21 @@ function EstimateCreationPopupInner() {
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) clearParams() }}>
-      <DialogContent className="p-0 gap-0 sm:max-w-lg max-h-[92vh] flex flex-col">
+      <DialogContent className="p-0 gap-0 sm:max-w-md max-h-[80vh] flex flex-col">
         <DialogHeader className="px-4 py-3 border-b shrink-0 text-left">
-          <DialogTitle className="text-base font-semibold truncate">
-            {project?.name ?? <T>Create estimate</T>}
-          </DialogTitle>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleBack}
+              aria-label="Back"
+              className="-ml-1 p-1.5 rounded-lg hover:bg-muted transition-colors shrink-0"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </button>
+            <DialogTitle className="text-base font-semibold truncate">
+              {project?.name ?? <T>Create estimate</T>}
+            </DialogTitle>
+          </div>
           <DialogDescription className="sr-only">
             <T>Record audio, type, or upload photos to generate an estimate. The popup stays open until the estimate is ready.</T>
           </DialogDescription>
