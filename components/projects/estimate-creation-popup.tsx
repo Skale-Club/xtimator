@@ -3,7 +3,6 @@
 import { Suspense, useEffect, useState } from 'react'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { Loader2, ArrowLeft } from 'lucide-react'
-import { NEW_PROJECT_MODAL_PARAM, NEW_PROJECT_MODAL_VALUE } from './new-project-dialog'
 import {
   Dialog,
   DialogContent,
@@ -12,9 +11,12 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog'
 import { CaptureRecorder } from '@/components/capture/capture-recorder'
-import { getProjectMinimalAction } from '@/lib/actions/project'
+import { getProjectMinimalAction, renameProjectAction } from '@/lib/actions/project'
 import type { ProjectDetail } from '@/lib/queries/project'
+import { isPlaceholderName } from '@/lib/constants/project'
+import { useTranslation } from '@/components/i18n/translation-provider'
 import { T } from '@/components/i18n/t'
+import { NEW_PROJECT_MODAL_PARAM, NEW_PROJECT_MODAL_VALUE } from './new-project-dialog'
 
 export const CAPTURE_PARAM = 'capture'
 export const PROJECT_ID_PARAM = 'projectId'
@@ -52,6 +54,7 @@ function EstimateCreationPopupInner() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const pathname = usePathname()
+  const { t } = useTranslation()
 
   const mode = searchParams.get(CAPTURE_PARAM)
   const projectId = searchParams.get(PROJECT_ID_PARAM)
@@ -62,6 +65,10 @@ function EstimateCreationPopupInner() {
 
   const [project, setProject] = useState<ProjectDetail | null>(null)
   const [loading, setLoading] = useState(false)
+  // Editable project name. Empty while the name is still the auto-generated
+  // placeholder ("Untitled project — <date>") so the user starts from a blank
+  // field instead of having to clear the placeholder + date themselves.
+  const [name, setName] = useState('')
 
   function clearParams() {
     const params = new URLSearchParams(searchParams.toString())
@@ -81,9 +88,24 @@ function EstimateCreationPopupInner() {
     router.replace(`${pathname}?${params.toString()}`, { scroll: false })
   }
 
+  // Persist the project name. Only fires when the user actually typed something
+  // different from what's saved — avoids clobbering the name with the placeholder.
+  async function saveName() {
+    if (!projectId) return
+    const trimmed = name.trim()
+    if (!trimmed) return
+    if (project && trimmed === project.name) return
+    const result = await renameProjectAction(projectId, trimmed)
+    if (!('error' in result)) {
+      setProject((prev) => (prev ? { ...prev, name: trimmed } : prev))
+      router.refresh()
+    }
+  }
+
   useEffect(() => {
     if (!isOpen || !projectId) {
       setProject(null)
+      setName('')
       return
     }
     let cancelled = false
@@ -95,6 +117,9 @@ function EstimateCreationPopupInner() {
         clearParams()
       } else {
         setProject(result.data)
+        // Seed the input with the saved name, but leave it blank if it's still
+        // the placeholder (so the date doesn't show and the user names it fresh).
+        setName(isPlaceholderName(result.data.name) ? '' : result.data.name)
       }
       setLoading(false)
     })
@@ -131,14 +156,30 @@ function EstimateCreationPopupInner() {
             <button
               type="button"
               onClick={handleBack}
-              aria-label="Back"
+              aria-label={t('Back')}
               className="-ml-1 p-1.5 rounded-lg hover:bg-muted transition-colors shrink-0"
             >
               <ArrowLeft className="h-4 w-4" />
             </button>
-            <DialogTitle className="text-base font-semibold truncate">
-              {project?.name ?? <T>Create estimate</T>}
+            <DialogTitle className="sr-only">
+              <T>Create estimate</T>
             </DialogTitle>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onBlur={saveName}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  e.currentTarget.blur()
+                }
+              }}
+              placeholder={t('Name this project')}
+              aria-label={t('Project name')}
+              disabled={loading || !project}
+              className="flex-1 min-w-0 bg-transparent text-base font-semibold outline-none placeholder:font-normal placeholder:text-muted-foreground/60 rounded px-1.5 py-0.5 -mx-0.5 focus:bg-muted/40 transition-colors"
+            />
           </div>
           <DialogDescription className="sr-only">
             <T>Record audio, type, or upload photos to generate an estimate. The popup stays open until the estimate is ready.</T>
