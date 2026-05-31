@@ -112,6 +112,12 @@ export async function updatePassword(formData: FormData) {
 
   logAuthEvent({ event: 'password_update', success: true })
 
+  // S02 remediation: a password change is the canonical response to account
+  // compromise — revoke every OTHER session so a hijacked device is kicked out.
+  // scope:'others' preserves the current session so the redirect below works
+  // without forcing the legitimate user to sign in again.
+  await supabase.auth.signOut({ scope: 'others' })
+
   const { data } = await supabase.auth.getClaims()
   const claims = data?.claims ?? null
   if (claims) {
