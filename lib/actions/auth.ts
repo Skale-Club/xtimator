@@ -10,10 +10,24 @@ export async function signUp(formData: FormData) {
   const password = formData.get('password') as string
   const captchaToken = formData.get('captchaToken') as string | null
 
+  // Optional account-creation step two fields. Stored on the auth user's
+  // metadata so they survive the redirect into onboarding, which prefills from
+  // them. The company row itself is still created at the end of onboarding, so
+  // the "company exists = onboarding complete" guard stays valid.
+  const companyName = (formData.get('companyName') as string | null) || undefined
+  const subdomain = (formData.get('subdomain') as string | null) || undefined
+
+  const userMetadata: Record<string, string> = {}
+  if (companyName) userMetadata.company_name = companyName
+  if (subdomain) userMetadata.subdomain = subdomain.toLowerCase()
+
   const { error } = await supabase.auth.signUp({
     email,
     password,
-    options: captchaToken ? { captchaToken } : undefined,
+    options: {
+      ...(captchaToken ? { captchaToken } : {}),
+      ...(Object.keys(userMetadata).length > 0 ? { data: userMetadata } : {}),
+    },
   })
 
   if (error) {

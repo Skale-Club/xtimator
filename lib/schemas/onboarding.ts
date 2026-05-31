@@ -6,6 +6,11 @@ export const onboardingSchema = z.object({
   companyName: z
     .string()
     .min(2, 'Company name must be at least 2 characters'),
+  subdomain: z
+    .string()
+    .regex(/^[a-z0-9-]*$/, 'Subdomain can use lowercase letters, numbers, and hyphens only')
+    .optional()
+    .default(''),
   ownerName: z.string().optional().default(''),
   phone: z.string().optional().default(''),
   email: z
@@ -50,7 +55,7 @@ export type OnboardingValues = z.infer<typeof onboardingSchema>
 export type OnboardingInput = z.input<typeof onboardingSchema>
 
 export const STEP_FIELDS: Record<number, (keyof OnboardingValues)[]> = {
-  1: ['companyName', 'ownerName', 'phone', 'email', 'website'],
+  1: ['companyName', 'subdomain', 'ownerName', 'phone', 'email', 'website'],
   2: ['industry', 'customIndustry', 'brandPrimaryColor'],
   3: [
     'address',
