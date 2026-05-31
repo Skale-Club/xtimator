@@ -26,11 +26,27 @@ export default async function OnboardingPage({
   const { mode } = await searchParams
   const addMode: 'first' | 'add' = mode === 'add' ? 'add' : 'first'
 
+  // Prefill company name and subdomain captured during account-creation step two.
+  // They were stored on the auth user's metadata at sign up so they survive the
+  // redirect here. Only used for the first company, not the "add company" flow.
+  const metadata = (claims.user_metadata ?? {}) as {
+    company_name?: string
+    subdomain?: string
+  }
+  const initialValues =
+    addMode === 'first'
+      ? {
+          ...(metadata.company_name ? { companyName: metadata.company_name } : {}),
+          ...(metadata.subdomain ? { subdomain: metadata.subdomain } : {}),
+        }
+      : undefined
+
   return (
     <OnboardingSurvey
       appName={branding.appName}
       logoUrl={branding.logoUrl}
       mode={addMode}
+      initialValues={initialValues}
     />
   )
 }

@@ -36,12 +36,14 @@ export function OnboardingSurvey({
   appName,
   logoUrl,
   mode = 'first',
+  initialValues,
 }: {
   appName: string
   logoUrl: string | null
   mode?: 'first' | 'add'
+  initialValues?: Partial<OnboardingValues>
 }) {
-  const state = useSurveyState(INITIAL)
+  const state = useSurveyState({ ...INITIAL, ...initialValues })
   const [isSubmitting, startTransition] = useTransition()
 
   function handleComplete() {
