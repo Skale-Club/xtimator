@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
 import { redirect } from 'next/navigation'
+import { revalidatePath, revalidateTag } from 'next/cache'
 import { cookies } from 'next/headers'
 import { DEFAULT_CURRENCY_CODE, normalizeCurrencyCode } from '@/lib/money/currency'
 import {
@@ -174,6 +175,8 @@ export async function createOrUpdateCompany(
       sameSite: 'lax',
     })
 
+    ;(revalidateTag as any)('company')
+    revalidatePath('/', 'layout')
     redirect('/dashboard')
   }
 
@@ -206,17 +209,29 @@ export async function createOrUpdateCompany(
     const trialEndsAt = new Date()
     trialEndsAt.setDate(trialEndsAt.getDate() + 14)
 
-    const { error } = await supabase.from('companies').insert({
-      ...row,
-      tier_trial_ends_at: trialEndsAt.toISOString(),
-    })
+    const { data: newCompany, error } = await supabase
+      .from('companies')
+      .insert({ ...row, tier_trial_ends_at: trialEndsAt.toISOString() })
+      .select('id')
+      .single()
 
-    if (error) {
+    if (error || !newCompany) {
       return {
         error:
           'Could not save your company details. Please check your connection and try again.',
       }
     }
+
+    // 'first' mode must also register company_members so RLS on projects/estimates passes.
+    const service = requireServiceClient()
+    await service.from('company_members').insert({
+      user_id: claims.sub,
+      company_id: newCompany.id,
+      role: 'owner',
+    })
+
+    const cookieStore2 = await cookies()
+    cookieStore2.set(ACTIVE_COMPANY_COOKIE, newCompany.id, ACTIVE_COMPANY_COOKIE_OPTIONS)
   }
 
   // Set a short-lived non-httpOnly cookie so TourProvider can detect onboarding completion client-side
@@ -228,5 +243,7 @@ export async function createOrUpdateCompany(
     sameSite: 'lax',
   })
 
+  ;(revalidateTag as any)('company')
+  revalidatePath('/', 'layout')
   redirect('/dashboard')
 }
