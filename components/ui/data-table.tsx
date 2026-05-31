@@ -113,14 +113,21 @@ export function DataTable<T>({
   // Empty data state (no items at all)
   if (data.length === 0) {
     return (
-      <EmptyState
-        icon={emptyIcon ?? FolderOpen}
-        title={emptyTitle}
-        description={emptyDescription}
-        actionLabel={emptyActionLabel}
-        actionHref={emptyActionHref}
-        onAction={emptyAction}
-      />
+      <div className="space-y-4">
+        {headerRight && (
+          <div className="flex justify-end">
+            {headerRight}
+          </div>
+        )}
+        <EmptyState
+          icon={emptyIcon ?? FolderOpen}
+          title={emptyTitle}
+          description={emptyDescription}
+          actionLabel={emptyActionLabel}
+          actionHref={emptyActionHref}
+          onAction={emptyAction}
+        />
+      </div>
     )
   }
 
