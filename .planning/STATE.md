@@ -25,7 +25,7 @@ progress:
 Phase: 999.1
 Plan: Not started
 Status: Phase complete — ready for verification
-Last activity: 2026-05-30 - Reconciled branches: merged WhatsApp/auth quick tasks (jh7, jo8, joo, lc0) + public-demo-workspace into main (after Vercel→Coolify migration §2/§3)
+Last activity: 2026-05-31 - Completed quick task 260531-mlx: Fix OAuth/login redirect to 0.0.0.0:3000 after Coolify migration
 Stopped at: Completed 93-03-PLAN.md (event log list page + detail page + EventStepTimeline)
 
 ## v3.1.1 Phases
@@ -735,6 +735,7 @@ v3.1: Phases 61-65 (started 2026-05-15). Production Go-Live — 27 requirements 
 | 260529-jo8 | Fix mobile auth: Start/CTA always opens the login dialog even with a persisted Supabase session (removed isAuthenticated short-circuit + getAuthClaims fetch); Google OAuth forces account selector (prompt=select_account) | 2026-05-29 | 4726fe9 | [260529-jo8-fix-mobile-auth-start-always-opens-login](.planning/quick/260529-jo8-fix-mobile-auth-start-always-opens-login/) |
 | 260529-joo | Link project ↔ client WhatsApp conversation in the panel: getProjectConversationLink query (project→client.phone→conversation, no migration) + WhatsApp card on project Client tab (link or empty state) + inbox deep-link auto-open via /whatsapp?c=&lt;id&gt; | 2026-05-29 | 9b9f99a | [260529-joo-vincular-projeto-a-conversa-de-whatsapp-](.planning/quick/260529-joo-vincular-projeto-a-conversa-de-whatsapp-/) |
 | 260529-lc0 | WhatsApp inbound: when an inbound message is too vague to price (estimate total≤0 or no line items), bot asks for more details (localized pt/en/es) and opens an `awaiting_details` session so the next message complements the SAME project + regenerates — instead of generating/sending a $0 estimate. Migration adds `awaiting_details` to whatsapp_sessions.state CHECK (applied to live DB) | 2026-05-29 | a98f0f9 | [260529-lc0-whatsapp-inbound-pedir-mais-detalhes-qua](.planning/quick/260529-lc0-whatsapp-inbound-pedir-mais-detalhes-qua/) |
+| 260531-mlx | Fix OAuth/login redirect to 0.0.0.0:3000 after Coolify migration — new lib/utils/site-url.ts resolveBaseUrl (sanitizes NEXT_PUBLIC_SITE_URL trailing \n/quotes → X-Forwarded headers → request origin); callback route builds all 4 redirects against it. Defensive against Coolify env holding a literal trailing newline | 2026-05-31 | 90bbe67 | [260531-mlx-fix-oauth-login-redirect-to-0-0-0-0-3000](.planning/quick/260531-mlx-fix-oauth-login-redirect-to-0-0-0-0-3000/) |
 | 2026-05-18 | fast | Center auth card logo+wordmark | done |
 | 2026-05-19 | fast | Make audio capture screen scrollable on smaller viewports | done |
 | 2026-05-18 | fast | Restyle sidebar New Project as filled gradient, remove dashboard CTA | done |
