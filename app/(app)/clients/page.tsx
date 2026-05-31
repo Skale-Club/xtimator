@@ -7,7 +7,7 @@ import { ClientList } from '@/components/clients/client-list'
 export default async function ClientsPage() {
   const claims = await getAuthClaims()
 
-  if (!claims) redirect('/login')
+  if (!claims) redirect('/?auth=login')
 
   const company = await getCachedCompany(claims.sub)
 

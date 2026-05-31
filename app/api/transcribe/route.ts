@@ -6,6 +6,9 @@ import {
   type TranscribeAudioPayload,
 } from '@/lib/inngest/events'
 import { XtimatorError, asResponse } from '@/lib/errors'
+import { rateLimit } from '@/lib/ratelimit'
+import { checkQuota } from '@/lib/quota'
+import { demoGuardResponse } from '@/lib/demo/guard'
 
 /**
  * Phase 67: NEW route. Dispatches Whisper transcription via Inngest.
@@ -27,10 +30,25 @@ export async function POST(request: Request) {
       throw new XtimatorError('unauthorized', 'auth', 'Not authenticated')
     }
 
+    // Read-only demo: never dispatch a (paid) transcription job.
+    const blocked = await demoGuardResponse()
+    if (blocked) return blocked
+
+    // Security Review S05 — rate limit (Whisper is a paid external call).
+    const rl = await rateLimit('transcribePerMinute', claims.sub)
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: 'Too many transcription requests', code: 'rate_limit:transcribe' },
+        { status: 429, headers: { 'Retry-After': String(rl.retryAfter ?? 60) } }
+      )
+    }
+
     // Body
     const body = await request.json().catch(() => null)
     const recordingId =
       typeof body?.recordingId === 'string' ? body.recordingId : null
+    // REC-03: attempt lineage carried on the event payload (in-flight only).
+    const attemptId = typeof body?.attemptId === 'string' ? body.attemptId : undefined
     if (!recordingId) {
       throw new XtimatorError(
         'bad_request',
@@ -75,12 +93,24 @@ export async function POST(request: Request) {
       )
     }
 
+    // Security Review S05 — gate dispatch on quota (audio_minutes).
+    const { allowed } = await checkQuota(supabase, rec.company_id, 'audio_minutes')
+    if (!allowed) {
+      return NextResponse.json(
+        { error: 'plan_limit_reached', upgradeUrl: '/settings/billing' },
+        { status: 402 }
+      )
+    }
+
     // Dispatch — recordingId is a UUID, so event id 'transcribe-{recordingId}'
     // is naturally unique per recording.
     const payload: TranscribeAudioPayload = {
       companyId: rec.company_id,
       recordingId: rec.id,
       storagePath: rec.storage_path,
+      attemptId,
+      // Phase 92 (EVENT-03 / D-07): the transcribe path is always recording.
+      inputType: 'recording',
     }
     const { ids } = await inngest.send({
       name: EVENT_TRANSCRIBE_AUDIO,

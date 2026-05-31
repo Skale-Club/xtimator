@@ -37,22 +37,69 @@ export function WaveformVisualizer({ analyser, isRecording, height = 96 }: Wavef
     const barWidth = width / barCount - 1
     const dataArray = analyser ? new Uint8Array(analyser.frequencyBinCount) : null
 
+    // Read brand HSL triplets from CSS vars; fall back to literals for test envs
+    // where CSS variables are not loaded.
+    function readVar(name: string, fallback: string): string {
+      if (!canvas) return fallback
+      const v = getComputedStyle(canvas).getPropertyValue(name).trim()
+      return v.length > 0 ? v : fallback
+    }
+
     function draw() {
-      if (!ctx) return
+      if (!ctx || !canvas) return
       ctx.clearRect(0, 0, width, height)
+
+      const primary = readVar('--primary', '224 86% 60%')
+      const secondary = readVar('--secondary', '200 95% 55%')
+      const mutedFg = readVar('--muted-foreground', '215 16% 47%')
+
       if (isRecording && analyser && dataArray) {
         analyser.getByteTimeDomainData(dataArray)
       }
       const step = dataArray ? Math.floor(dataArray.length / barCount) : 1
+      const now = performance.now()
+
+      // Build the brand gradient (recording) once per frame
+      const grad = ctx.createLinearGradient(0, 0, 0, height)
+      grad.addColorStop(0, `hsl(${primary})`)
+      grad.addColorStop(1, `hsl(${secondary})`)
+
+      if (isRecording) {
+        ctx.shadowColor = `hsl(${primary} / 0.5)`
+        ctx.shadowBlur = 8
+        ctx.fillStyle = grad
+      } else {
+        ctx.shadowBlur = 0
+        ctx.fillStyle = `hsl(${mutedFg} / 0.35)`
+      }
+
       for (let i = 0; i < barCount; i++) {
-        const value = dataArray && isRecording ? dataArray[i * step] : 128
-        const amplitude = Math.abs(value - 128) / 128
-        const barHeight = Math.max(4, amplitude * height * 0.9)
+        let barHeight: number
+        if (isRecording && dataArray) {
+          const value = dataArray[i * step]
+          const amplitude = Math.abs(value - 128) / 128
+          barHeight = Math.max(3, amplitude * height * 0.9)
+        } else {
+          // Soft idle animation — gentle per-bar sine
+          const phase = (now / 600) + i * 0.18
+          const idleAmp = ((Math.sin(phase) + 1) / 2) * 6 + 3
+          barHeight = idleAmp
+        }
         const x = i * (barWidth + 1)
         const y = (height - barHeight) / 2
-        ctx.fillStyle = isRecording ? 'hsl(0, 84%, 60%)' : 'hsl(0, 0%, 70%)'
-        ctx.fillRect(x, y, barWidth, barHeight)
+        const r = Math.min(2, barWidth / 2)
+        ctx.beginPath()
+        // roundRect is supported in all modern browsers (iOS Safari 16+).
+        ;(ctx as CanvasRenderingContext2D & { roundRect?: (x: number, y: number, w: number, h: number, radii: number) => void }).roundRect?.(x, y, barWidth, barHeight, r)
+        // Fallback path for environments without roundRect: a plain rect
+        if (!(ctx as unknown as { roundRect?: unknown }).roundRect) {
+          ctx.rect(x, y, barWidth, barHeight)
+        }
+        ctx.fill()
       }
+
+      // Reset shadow for next frame's idle pass safety
+      ctx.shadowBlur = 0
       animFrameRef.current = requestAnimationFrame(draw)
     }
     draw()
@@ -60,7 +107,7 @@ export function WaveformVisualizer({ analyser, isRecording, height = 96 }: Wavef
   }, [analyser, isRecording, width, height])
 
   return (
-    <div ref={containerRef} className="w-full" data-testid="waveform-container">
+    <div ref={containerRef} className="relative overflow-hidden w-full" data-testid="waveform-container">
       <canvas
         ref={canvasRef}
         className="w-full rounded-md"

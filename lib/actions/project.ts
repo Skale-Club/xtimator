@@ -3,8 +3,10 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import type { ProjectFormValues } from '@/lib/schemas/project'
-import { getProjectsByCompany } from '@/lib/queries/project'
+import { getProjectsByCompany, getProjectById } from '@/lib/queries/project'
+import type { ProjectDetail } from '@/lib/queries/project'
 import { PLACEHOLDER_PREFIX } from '@/lib/constants/project'
+import { getActiveCompanyId } from '@/lib/queries/active-company'
 
 async function getAuthContext() {
   const supabase = await createClient()
@@ -12,10 +14,13 @@ async function getAuthContext() {
   const claims = claimsData?.claims ?? null
   if (!claims) return { error: 'Not authenticated' as const }
 
+  const activeCompanyId = await getActiveCompanyId()
+  if (!activeCompanyId) return { error: 'No company found' as const }
+
   const { data: company } = await supabase
     .from('companies')
     .select('id')
-    .eq('user_id', claims.sub)
+    .eq('id', activeCompanyId)
     .single()
 
   if (!company) return { error: 'No company found' as const }
@@ -58,6 +63,20 @@ export async function createProjectAction(formData: ProjectFormValues) {
 
   revalidatePath('/dashboard')
   revalidatePath('/', 'layout')
+  return { data: project }
+}
+
+/**
+ * Minimal project fetch for client-side surfaces that only need the basics
+ * (id, name, company_id, etc.) — e.g. the EstimateCreationPopup opening from
+ * a URL param. RLS still gates access via the authenticated supabase client.
+ */
+export async function getProjectMinimalAction(
+  projectId: string
+): Promise<{ data: ProjectDetail } | { error: string }> {
+  const supabase = await createClient()
+  const project = await getProjectById(supabase, projectId)
+  if (!project) return { error: 'Project not found' }
   return { data: project }
 }
 
@@ -169,6 +188,22 @@ export async function linkProjectToClient(projectId: string, clientId: string) {
 
   revalidatePath(`/projects/${projectId}`, 'layout')
   return { data: { linked: true } }
+}
+
+export async function unlinkProjectFromClient(projectId: string) {
+  const ctx = await getAuthContext()
+  if ('error' in ctx) return { error: ctx.error }
+  const { supabase } = ctx
+
+  const { error } = await supabase
+    .from('projects')
+    .update({ client_id: null })
+    .eq('id', projectId)
+
+  if (error) return { error: 'Failed to unlink client. Please try again.' }
+
+  revalidatePath(`/projects/${projectId}`, 'layout')
+  return { data: { unlinked: true } }
 }
 
 export async function renameProjectAction(projectId: string, name: string) {

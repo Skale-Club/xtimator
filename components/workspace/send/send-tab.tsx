@@ -1,12 +1,14 @@
 'use client'
 
+import { useState } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { FileText, Lock } from 'lucide-react'
-import { EstimatePreview } from './estimate-preview'
+import { EstimatePreview, LanguageFlagChip } from './estimate-preview'
 import { SendForm } from './send-form'
+import { SendActionsMenu } from './send-actions-menu'
+import { PlainTextSheet } from './plain-text-sheet'
 import type { EstimateWithSections } from '@/lib/queries/estimate'
 import type { EstimateTemplate } from '@/lib/utils/estimate-template'
-import { PlainTextCard } from './plain-text-card'
 import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface SendTabProps {
@@ -19,10 +21,24 @@ interface SendTabProps {
   ownerName: string
   estimateTemplate: EstimateTemplate
   smsDeliveryEnabled: boolean
+  whatsappSendEnabled?: boolean
 }
 
-export function SendTab({ estimate, projectName, companyName, clientEmail, clientPhone, clientName, ownerName, estimateTemplate, smsDeliveryEnabled }: SendTabProps) {
+function StepHeading({ index, title }: { index: number; title: string }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+        {index}
+      </span>
+      <h3 className="text-sm font-semibold">{title}</h3>
+    </div>
+  )
+}
+
+export function SendTab({ estimate, projectName, companyName, clientEmail, clientPhone, clientName, ownerName, estimateTemplate, smsDeliveryEnabled, whatsappSendEnabled = false }: SendTabProps) {
   const { t } = useTranslation()
+  const [plainTextOpen, setPlainTextOpen] = useState(false)
+
   if (!estimate) {
     return (
       <Card variant="glass">
@@ -40,7 +56,32 @@ export function SendTab({ estimate, projectName, companyName, clientEmail, clien
   const isDraft = estimate.workflow_status !== 'consolidated'
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto w-full max-w-2xl space-y-6">
+      {/* Header */}
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="space-y-1">
+          <h2 className="text-xl font-semibold">{t('Send Estimate')}</h2>
+          <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+            <span>
+              {companyName} &mdash; {projectName}
+            </span>
+            <LanguageFlagChip lang={estimate.language} />
+          </div>
+        </div>
+        <SendActionsMenu
+          estimateId={estimate.id}
+          projectName={projectName}
+          shareToken={estimate.share_token}
+          estimate={estimate}
+          clientName={clientName}
+          companyName={companyName}
+          ownerName={ownerName}
+          estimateTemplate={estimateTemplate}
+          disabled={isDraft}
+          onOpenEditor={() => setPlainTextOpen(true)}
+        />
+      </div>
+
       {isDraft && (
         <Card variant="glass">
           <CardContent className="flex items-center gap-3 py-4">
@@ -51,12 +92,16 @@ export function SendTab({ estimate, projectName, companyName, clientEmail, clien
           </CardContent>
         </Card>
       )}
-      <div className="grid gap-6 lg:grid-cols-2">
-        <EstimatePreview
-          estimate={estimate}
-          projectName={projectName}
-          companyName={companyName}
-        />
+
+      {/* Step 1 — Review */}
+      <div className="space-y-3">
+        <StepHeading index={1} title={t('Review your estimate')} />
+        <EstimatePreview estimate={estimate} />
+      </div>
+
+      {/* Step 2 — Send */}
+      <div className="space-y-3">
+        <StepHeading index={2} title={t('Choose how to send')} />
         <SendForm
           estimateId={estimate.id}
           clientEmail={clientEmail}
@@ -65,11 +110,15 @@ export function SendTab({ estimate, projectName, companyName, clientEmail, clien
           projectName={projectName}
           shareToken={estimate.share_token}
           smsDeliveryEnabled={smsDeliveryEnabled}
+          whatsappSendEnabled={whatsappSendEnabled}
           disabled={isDraft}
         />
       </div>
-      <PlainTextCard
+
+      <PlainTextSheet
         key={estimate.id}
+        open={plainTextOpen}
+        onOpenChange={setPlainTextOpen}
         estimate={estimate}
         clientName={clientName}
         companyName={companyName}

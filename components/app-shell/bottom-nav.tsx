@@ -15,7 +15,7 @@ const TOUR_TARGET: Record<string, string> = {
   '/price-book': 'price-book',
 }
 
-export function BottomNav() {
+export function BottomNav({ isDemo }: { isDemo?: boolean }) {
   const [mounted, setMounted] = useState(false)
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -36,7 +36,7 @@ export function BottomNav() {
       data-testid="bottom-nav"
       className="fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around border-t border-border bg-background md:hidden"
     >
-      {NAV_ITEMS.map((item) => {
+      {NAV_ITEMS.filter((item) => !(isDemo && item.demoHidden)).map((item) => {
         const isActive =
           pathname === item.href || pathname.startsWith(item.href + '/')
         const Icon = item.icon

@@ -1,0 +1,123 @@
+name: Scheduled Cron Jobs
+
+# Migrated from Vercel crons (vercel.json) for the Coolify deploy target.
+# Hits the production cron endpoints with a Bearer CRON_SECRET, matching the
+# auth contract in lib/auth/cron-auth.ts (Authorization: Bearer <CRON_SECRET>).
+#
+# Required GitHub repo secrets (set under Settings -> Secrets and variables):
+#   - SITE_URL      production base URL, e.g. https://<your-domain>
+#   - CRON_SECRET   shared bearer token the cron routes validate
+# Never hardcode these values here; they are injected only via ${{ secrets.* }}.
+
+on:
+  # Each schedule maps to one endpoint (see the case statement below).
+  schedule:
+    - cron: "0 1 * * *" # expire-trials
+    - cron: "0 3 * * *" # cleanup-orphan-projects
+    - cron: "0 4 * * *" # cleanup-whatsapp-sessions
+    - cron: "0 9 * * *" # trial-warning-emails
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cron-jobs
+  cancel-in-progress: false
+
+jobs:
+  run-crons:
+    name: Run Scheduled Cron(s)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Hit cron endpoint(s)
+        env:
+          SITE_URL: ${{ secrets.SITE_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          SCHEDULE: ${{ github.event.schedule }}
+        run: |
+          set -u
+
+          if [ -z "${SITE_URL:-}" ]; then
+            echo "::error::Missing SITE_URL GitHub secret."
+            exit 1
+          fi
+
+          if [ -z "${CRON_SECRET:-}" ]; then
+            echo "::error::Missing CRON_SECRET GitHub secret."
+            exit 1
+          fi
+
+          site_url="${SITE_URL%/}"
+
+          # Fail the step only after all selected endpoints have been
+          # attempted, so logs show every failing job — not just the first.
+          overall_status=0
+
+          hit() {
+            local path="$1"
+            local attempt=1
+            local max_attempts=3
+            local delay=5
+
+            while [ $attempt -le $max_attempts ]; do
+              http_code=$(curl --silent --show-error --output /tmp/cron_body \
+                --write-out "%{http_code}" \
+                --max-time 30 \
+                --header "Authorization: Bearer $CRON_SECRET" \
+                "$site_url$path" || echo "000")
+
+              if [ "$http_code" = "200" ]; then
+                echo "[$path] OK (HTTP $http_code) on attempt $attempt"
+                return 0
+              fi
+
+              echo "[$path] attempt $attempt/$max_attempts failed (HTTP $http_code)"
+              if [ $attempt -lt $max_attempts ]; then
+                sleep $delay
+                delay=$((delay * 3))
+              fi
+              attempt=$((attempt + 1))
+            done
+
+            echo "::error::[$path] failed after $max_attempts attempts"
+            if [ -s /tmp/cron_body ]; then
+              echo "::group::[$path] last response body"
+              head -c 2048 /tmp/cron_body
+              echo ""
+              echo "::endgroup::"
+            fi
+            return 1
+          }
+
+          # Map the triggering schedule to its endpoint. A manual
+          # workflow_dispatch run has an empty SCHEDULE and exercises all four.
+          case "${SCHEDULE:-}" in
+            "0 1 * * *")
+              hit "/api/cron/expire-trials" || overall_status=1
+              ;;
+            "0 3 * * *")
+              hit "/api/cron/cleanup-orphan-projects" || overall_status=1
+              ;;
+            "0 4 * * *")
+              hit "/api/cron/cleanup-whatsapp-sessions" || overall_status=1
+              ;;
+            "0 9 * * *")
+              hit "/api/cron/trial-warning-emails" || overall_status=1
+              ;;
+            *)
+              echo "No schedule match (manual dispatch?) — running all cron endpoints."
+              hit "/api/cron/expire-trials" || overall_status=1
+              hit "/api/cron/cleanup-orphan-projects" || overall_status=1
+              hit "/api/cron/cleanup-whatsapp-sessions" || overall_status=1
+              hit "/api/cron/trial-warning-emails" || overall_status=1
+              ;;
+          esac
+
+          if [ $overall_status -eq 0 ]; then
+            echo "All selected cron endpoints succeeded"
+          fi
+
+          exit $overall_status

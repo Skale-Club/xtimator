@@ -29,13 +29,23 @@ describe('INNGEST-03 + INNGEST-06: transcribeAudioJob', () => {
     expect(fn.opts.retries).toBe(2)
   })
 
-  it('function body wraps Whisper fetch in step.run("whisper-transcribe", ...)', () => {
-    const src = readFileSync(
+  it('wraps the Whisper fetch in step.run("whisper-transcribe") and delegates to the transcription client', () => {
+    const jobSrc = readFileSync(
       resolve(process.cwd(), 'lib/inngest/functions/transcribe-audio.ts'),
       'utf8'
     )
-    expect(src).toMatch(/step\.run\(['"]whisper-transcribe['"]/)
-    expect(src).toMatch(/api\.openai\.com\/v1\/audio\/transcriptions/)
+    expect(jobSrc).toMatch(/step\.run\(['"]whisper-transcribe['"]/)
+    // The job delegates the actual fetch to transcribeAudioOR; the endpoint
+    // assertion below targets that client module, not the job.
+    expect(jobSrc).toMatch(/transcribeAudioOR/)
+
+    const clientSrc = readFileSync(
+      resolve(process.cwd(), 'lib/ai/openrouter-client.ts'),
+      'utf8'
+    )
+    // URL is built from OPENAI_TRANSCRIPTION_BASE + the path, so match the parts.
+    expect(clientSrc).toMatch(/api\.openai\.com/)
+    expect(clientSrc).toMatch(/\/audio\/transcriptions/)
   })
 
   it('function body wraps DB update in step.run("save-transcript", ...)', () => {
@@ -47,5 +57,27 @@ describe('INNGEST-03 + INNGEST-06: transcribeAudioJob', () => {
     expect(src).toMatch(/\.from\(['"]recordings['"]\)/)
     const stepRunCount = (src.match(/step\.run\(/g) ?? []).length
     expect(stepRunCount).toBeGreaterThanOrEqual(2)
+  })
+
+  // REC-04 dedup contract: the recordingId-keyed idempotency config co-exists
+  // with the memoized whisper step. On a user Retry the dispatch reuses the same
+  // recordingId, so the event id `transcribe-${recordingId}` is stable, Inngest
+  // dedups the re-dispatch, and the already-successful whisper-transcribe step is
+  // NOT re-charged. (Inngest owns dedup; asserting the config + step boundary is
+  // the testable seam.)
+  it('keys idempotency on recordingId so a re-dispatch with the same recordingId is deduped and the whisper step is memoized', () => {
+    const fn = transcribeAudioJob as unknown as FnInternals
+    // recordingId is the stable idempotency key — a Retry that reuses the same
+    // recordingId yields the same dedup key (no re-charge of a successful run).
+    expect(fn.opts.idempotency).toBe('event.data.recordingId')
+
+    const src = readFileSync(
+      resolve(process.cwd(), 'lib/inngest/functions/transcribe-audio.ts'),
+      'utf8'
+    )
+    // The paid provider call lives inside a step.run boundary, so Inngest
+    // memoizes it across retries of the SAME run — an already-successful
+    // transcription is never re-charged on a re-dispatch.
+    expect(src).toMatch(/step\.run\(['"]whisper-transcribe['"]/)
   })
 })

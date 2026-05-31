@@ -12,7 +12,7 @@ export default async function DashboardPage() {
   const claims = await getAuthClaims()
 
   if (!claims) {
-    redirect('/login')
+    redirect('/?auth=login')
   }
 
   const company = await getCachedCompany(claims.sub)

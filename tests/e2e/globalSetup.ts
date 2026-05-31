@@ -1,10 +1,12 @@
 // Playwright globalSetup: signs in via Supabase Auth and saves storageState
 // to tests/e2e/fixtures/authenticated-state.json so tour-flow tests can
-// access /dashboard without being redirected to /login.
+// access /dashboard without being redirected to /?auth=login.
 //
 // Requires TEST_USER_EMAIL and TEST_USER_PASSWORD in .env.local.
 // Guard: if env vars are missing, exits without error — tests fall back to
 // the existing requireDashboard skip guard.
+//
+// Post 260524-ohe: sign-in happens via the LP modal at /?auth=login.
 
 import { chromium } from '@playwright/test'
 import path from 'path'
@@ -22,13 +24,16 @@ export default async function globalSetup() {
   const page = await browser.newPage()
 
   try {
-    await page.goto('http://localhost:9633/login')
-    await page.waitForLoadState('networkidle')
+    await page.goto('http://localhost:9633/?auth=login')
+    await page.waitForSelector('[role="dialog"]')
 
-    // Fill login form — selector matches app/(auth)/login/page.tsx
+    // Step 1: email + Continue (modal Step 1)
     await page.fill('input[type="email"]', email)
+    await page.getByRole('button', { name: /^Continue$/ }).click()
+
+    // Step 2: password + Sign in
     await page.fill('input[type="password"]', password)
-    await page.click('button[type="submit"]')
+    await page.getByRole('button', { name: /^Sign in$/ }).click()
 
     // Wait for redirect to /dashboard or /onboarding after successful login
     await page.waitForURL(/\/(dashboard|onboarding)/, { timeout: 15000 })

@@ -18,18 +18,58 @@ export type EstimateGeneratePayload = {
   requestId: string
   /** Optional language override — forwarded from the UI language selector. */
   language?: 'en' | 'pt' | 'es'
+  /**
+   * Free-form prompts from non-recording sources (MCP `create_estimate` tool,
+   * WhatsApp text messages, future "describe in your own words" UI). Forwarded
+   * to `generateEstimateForProject` so projects without transcripts/photos can
+   * still produce an estimate.
+   */
+  prompts?: string[]
+  /**
+   * Phase 91 (REC-03): attempt lineage carried in-flight only; Phase 92 owns
+   * durable persistence. Minted once per capture session and reused on Retry so
+   * the lineage survives a re-dispatch. Optional so older callers still compile.
+   */
+  attemptId?: string
+  /**
+   * Phase 92 (EVENT-03): input type derived at the entrypoint (D-07) so every
+   * downstream pipeline_events row can record which path produced the estimate.
+   * Optional so older callers still compile; routes default to `manual_text`.
+   */
+  inputType?: 'recording' | 'photo' | 'manual_text'
 }
 
 export type TranscribeAudioPayload = {
   companyId: string
   recordingId: string
   storagePath: string
+  /**
+   * Phase 91 (REC-03): attempt lineage carried in-flight only; Phase 92 owns
+   * durable persistence. Optional so older callers still compile.
+   */
+  attemptId?: string
+  /**
+   * Phase 92 (EVENT-03): input type derived at the entrypoint (D-07). The
+   * transcribe path is always `recording`. Optional so older callers compile.
+   */
+  inputType?: 'recording' | 'photo' | 'manual_text'
 }
 
 export type AnalyzePhotosPayload = {
   companyId: string
   projectId: string
   requestId: string
+  /**
+   * Phase 92 (EVENT-03 / RESEARCH Pitfall 2): attempt lineage — this payload had
+   * NO attemptId before Phase 92. Minted client-side (crypto.randomUUID, reused
+   * on Retry) or a server fallback (D-08). Optional so older callers compile.
+   */
+  attemptId?: string
+  /**
+   * Phase 92 (EVENT-03): input type derived at the entrypoint (D-07). The
+   * analyze-photos path is always `photo`. Optional so older callers compile.
+   */
+  inputType?: 'recording' | 'photo' | 'manual_text'
 }
 
 export type WhatsAppProcessPayload = {

@@ -1,18 +1,22 @@
 /**
  * lib/ai/openrouter-client.ts
  *
- * Centralised OpenRouter helpers for every AI task in the app.
- * All features (estimates, transcription, vision, translation) route through
- * this single module so there is exactly ONE external AI endpoint: openrouter.ai
+ * Centralised AI helpers for the app. Estimates, vision, and translation route
+ * through OpenRouter (openrouter.ai). Audio transcription is the one exception:
+ * it calls OpenAI's Whisper endpoint (api.openai.com) directly — see
+ * transcribeAudioOR for why.
  *
  * Endpoint coverage:
- *   /chat/completions  — estimates, refinement, vision, translation
- *   /audio/transcriptions — Whisper speech-to-text (OpenAI-compatible endpoint)
+ *   openrouter.ai  /chat/completions     — estimates, refinement, vision, translation
+ *   api.openai.com /audio/transcriptions — Whisper speech-to-text
  */
 
 import { getIntegrationKey } from '@/lib/platform-config'
 
 export const OPENROUTER_BASE = 'https://openrouter.ai/api/v1'
+export const OPENAI_TRANSCRIPTION_BASE = 'https://api.openai.com/v1'
+/** OpenAI's standard, universally available Whisper model — the transcription primary. */
+export const OPENAI_TRANSCRIPTION_MODEL = 'whisper-1'
 
 /** Default model IDs — overridable via platform config or per-call argument. */
 export const OR_DEFAULTS = {
@@ -20,8 +24,6 @@ export const OR_DEFAULTS = {
   chat: 'anthropic/claude-sonnet-4-5',
   /** Lightweight model for bulk translation — keeps costs low. */
   translation: 'anthropic/claude-haiku-4-5',
-  /** Best price/performance Whisper variant on OpenRouter. */
-  transcription: 'openai/whisper-large-v3-turbo',
 } as const
 
 const SITE_HEADERS = {
@@ -41,33 +43,45 @@ export async function getORKey(): Promise<string> {
 // ---------------------------------------------------------------------------
 
 /**
- * Transcribe audio via OpenRouter's Whisper endpoint (OpenAI-compatible).
- * Returns the plain-text transcript.
+ * Transcribe audio to plain text via OpenAI's Whisper endpoint
+ * (POST api.openai.com/v1/audio/transcriptions, model whisper-1).
+ *
+ * NAMING: the `OR` suffix is retained only so the three call sites
+ * (transcribe-audio job, whatsapp-process, estimate refine) stay untouched.
+ * Transcription does NOT route through OpenRouter — OpenRouter's audio endpoint
+ * was unreliable for our usage, so transcription calls OpenAI directly. Vision
+ * and translation in this module still use OpenRouter.
+ *
+ * Requires an OpenAI key, read via getIntegrationKey('openai') which falls back
+ * to the OPENAI_API_KEY env var (see lib/platform-config.ts). Throws on any
+ * non-2xx or network failure so Inngest's onFailure (ai_job.failed) surfaces it.
  */
 export async function transcribeAudioOR(
   audioBlob: Blob,
   ext: string,
-  model = OR_DEFAULTS.transcription
+  model = OPENAI_TRANSCRIPTION_MODEL
 ): Promise<string> {
-  const apiKey = await getORKey()
+  const apiKey = await getIntegrationKey('openai')
+  if (!apiKey) {
+    throw new Error(
+      'OpenAI API key not configured (checked platform_integrations and OPENAI_API_KEY env)'
+    )
+  }
 
   const form = new FormData()
   form.append('file', audioBlob, `recording.${ext}`)
   form.append('model', model)
   form.append('response_format', 'text')
 
-  const res = await fetch(`${OPENROUTER_BASE}/audio/transcriptions`, {
+  const res = await fetch(`${OPENAI_TRANSCRIPTION_BASE}/audio/transcriptions`, {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      ...SITE_HEADERS,
-    },
+    headers: { Authorization: `Bearer ${apiKey}` },
     body: form,
   })
 
   if (!res.ok) {
     const err = await res.text().catch(() => 'unknown')
-    throw new Error(`OpenRouter transcription failed (${res.status}): ${err.slice(0, 400)}`)
+    throw new Error(`OpenAI transcription failed (${res.status}): ${err.slice(0, 400)}`)
   }
 
   return (await res.text()).trim()

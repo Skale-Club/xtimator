@@ -25,28 +25,47 @@ import {
 } from './client-suggestion-toast'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { useLanguage } from '@/lib/i18n/language-context'
-import { EstimateLanguageSelector } from '@/components/estimate/estimate-language-selector'
 import {
   type EstimateLanguage,
   resolveEstimateLanguageWithSource,
 } from '@/lib/i18n/resolve-estimate-language'
+import type { DocumentClient, DocumentCompany, CompanyDefaults } from './estimate-document'
+import type { PriceBookItem } from '@/lib/queries/price-book'
 
 interface EstimateTabProps {
   projectId: string
   companyId: string
+  companyBrandColor: string | null
+  company: DocumentCompany
+  companyDefaults: CompanyDefaults
   currentEstimate: EstimateWithSections | null
   allVersions: Estimate[]
   recordings: Recording[]
   photos: Photo[]
+  projectName: string
+  projectType: string | null
+  client: DocumentClient | null
+  onRecord?: () => void
+  linkClientSlot?: React.ReactNode
+  priceBookItems: PriceBookItem[]
 }
 
 export function EstimateTab({
   projectId,
   companyId,
+  companyBrandColor,
+  company,
+  companyDefaults,
   currentEstimate,
   allVersions,
   recordings,
   photos,
+  projectName,
+  projectType,
+  client,
+  onRecord,
+  linkClientSlot,
+  priceBookItems,
 }: EstimateTabProps) {
   const { t } = useTranslation()
   const { language: appLanguage } = useLanguage()
@@ -55,17 +74,10 @@ export function EstimateTab({
   const [generationStep, setGenerationStep] = useState(0)
   const [isCreatingBlank, setIsCreatingBlank] = useState(false)
 
-  // Resolve estimate language via cascade (layers 4+5 available client-side)
   const cascadeResult = resolveEstimateLanguageWithSource({
     userAppLanguage: appLanguage as EstimateLanguage,
   })
-  const [estimateLanguage, setEstimateLanguage] = useState<EstimateLanguage>(cascadeResult.language)
-
-  const CASCADE_HINT: Partial<Record<typeof cascadeResult.source, string>> = {
-    user: t('Defaulted from your app language'),
-    company: t('Defaulted from your company settings'),
-    client: t('Defaulted from client preference'),
-  }
+  const estimateLanguage = cascadeResult.language
 
   useEffect(() => {
     const suggestion = popStoredClientSuggestion(projectId)
@@ -76,23 +88,16 @@ export function EstimateTab({
     }
   }, [projectId, router])
 
-  // Check prerequisites: at least one transcript or one photo
   const hasTranscript = recordings.some((r) => r.transcript && r.transcript.trim().length > 0)
   const hasPhotos = photos.length > 0
   const hasPrerequisites = hasTranscript || hasPhotos
-
-  // -------------------------------------------------------------------------
-  // Generation flow
-  // -------------------------------------------------------------------------
 
   async function handleGenerate() {
     startTransition(() => {
       setIsGenerating(true)
       setGenerationStep(0)
     })
-
     try {
-      // Step 0: Analyze photos (if any)
       if (hasPhotos) {
         const photoRes = await fetch('/api/analyze-photos', {
           method: 'POST',
@@ -104,8 +109,6 @@ export function EstimateTab({
           throw new Error(err.error || t('Photo analysis failed'))
         }
       }
-
-      // Step 1: Generate estimate (forward language override to cascade)
       setGenerationStep(1)
       const genRes = await fetch('/api/generate-estimate', {
         method: 'POST',
@@ -117,31 +120,18 @@ export function EstimateTab({
         throw new Error(err.error || t('Estimate generation failed'))
       }
       const generated = (await genRes.json()) as GenerateEstimateResponse
-
-      // Step 2: Saving
       setGenerationStep(2)
       await new Promise((r) => setTimeout(r, 500))
-
-      // Step 3: Done
       setGenerationStep(3)
       await new Promise((r) => setTimeout(r, 1000))
-
       router.refresh()
-      showClientSuggestionToast({
-        projectId,
-        router,
-        suggestion: generated.clientSuggestion,
-      })
+      showClientSuggestionToast({ projectId, router, suggestion: generated.clientSuggestion })
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t('Generation failed. Please try again.'))
     } finally {
       setIsGenerating(false)
     }
   }
-
-  // -------------------------------------------------------------------------
-  // Blank estimate fallback
-  // -------------------------------------------------------------------------
 
   async function handleCreateBlank() {
     startTransition(() => setIsCreatingBlank(true))
@@ -155,17 +145,9 @@ export function EstimateTab({
     startTransition(() => setIsCreatingBlank(false))
   }
 
-  // -------------------------------------------------------------------------
-  // Render: generation in progress
-  // -------------------------------------------------------------------------
-
   if (isGenerating) {
     return <GenerationProgress currentStep={generationStep} />
   }
-
-  // -------------------------------------------------------------------------
-  // Render: has estimate -- show editor
-  // -------------------------------------------------------------------------
 
   if (currentEstimate) {
     return (
@@ -174,15 +156,20 @@ export function EstimateTab({
         versions={allVersions}
         projectId={projectId}
         companyId={companyId}
+        companyBrandColor={companyBrandColor}
+        company={company}
+        companyDefaults={companyDefaults}
         recordings={recordings}
         photos={photos}
+        projectName={projectName}
+        projectType={projectType}
+        client={client}
+        onRecord={onRecord}
+        linkClientSlot={linkClientSlot}
+        priceBookItems={priceBookItems}
       />
     )
   }
-
-  // -------------------------------------------------------------------------
-  // Render: no estimate -- generation CTA
-  // -------------------------------------------------------------------------
 
   return (
     <div className="flex items-center justify-center py-16">
@@ -197,12 +184,6 @@ export function EstimateTab({
               {t('Create a professional estimate from your audio recordings and photos using AI.')}
             </p>
           </div>
-
-          <EstimateLanguageSelector
-            value={estimateLanguage}
-            onChange={setEstimateLanguage}
-            hint={CASCADE_HINT[cascadeResult.source]}
-          />
 
           {hasPrerequisites ? (
             <Button variant="primary" size="lg" onClick={handleGenerate} className="gap-2 min-h-[44px]">

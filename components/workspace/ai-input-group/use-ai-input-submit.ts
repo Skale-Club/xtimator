@@ -20,7 +20,7 @@
  * the editor renders the latest version.
  */
 
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
@@ -57,6 +57,15 @@ export function useAIInputSubmit({
   const router = useRouter()
   const { t } = useTranslation()
   const [stage, setStage] = useState<SubmitStage>('idle')
+  // Phase 92 (EVENT-03 / D-08): mint a stable attemptId once per hook instance,
+  // reused on Retry so the lineage survives a re-dispatch. The header AI input is
+  // text/voice-driven; manual_text is the safe default per D-07 (the voice path
+  // keeps capture-recorder's own attemptId on its server-action transcribe).
+  const attemptIdRef = useRef<string | null>(null)
+  const ensureAttempt = useCallback(() => {
+    if (!attemptIdRef.current) attemptIdRef.current = crypto.randomUUID()
+    return attemptIdRef.current
+  }, [])
 
   const isSubmitting = stage !== 'idle' && stage !== 'done'
 
@@ -65,7 +74,12 @@ export function useAIInputSubmit({
     const res = await fetch('/api/generate-estimate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ projectId, language: estimateLanguage }),
+      body: JSON.stringify({
+        projectId,
+        language: estimateLanguage,
+        attemptId: ensureAttempt(),
+        inputType: 'manual_text',
+      }),
     })
     if (!res.ok) {
       const err = await res.json().catch(() => ({}))
@@ -74,7 +88,7 @@ export function useAIInputSubmit({
       return false
     }
     return true
-  }, [projectId, estimateLanguage, t])
+  }, [projectId, estimateLanguage, ensureAttempt, t])
 
   const landOnEstimateTab = useCallback(() => {
     setStage('done')
@@ -121,13 +135,22 @@ export function useAIInputSubmit({
 
         try {
           const controller = new AbortController()
-          await pollJob(transcribeResult.data.jobId, controller.signal)
+          // Phase 91-02: pollJob no longer throws on failure (Plan 01) — it
+          // resolves a JobResult discriminant. Branch on state explicitly so a
+          // failed/config_unavailable transcription does NOT silently proceed to
+          // runGenerate() on an empty transcript (Pitfall 4 / REC-05).
+          const result = await pollJob(transcribeResult.data.jobId, controller.signal)
+          if (result.state !== 'completed') {
+            throw new Error(t('Transcription failed. You can retry from the recording.'))
+          }
         } catch (err) {
           if ((err as Error).name === 'AbortError') {
             setStage('idle')
             return false
           }
-          throw new Error(t('Transcription failed. You can retry from the recording.'))
+          throw err instanceof Error
+            ? err
+            : new Error(t('Transcription failed. You can retry from the recording.'))
         }
         toast.success(t('Recording transcribed successfully!'))
 

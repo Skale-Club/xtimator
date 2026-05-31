@@ -106,7 +106,7 @@ export function AccountSection() {
         toast.error(result.error)
       } else {
         toast.success(t('Account deleted.'))
-        router.push(result.redirect || '/login')
+        router.push(result.redirect || '/?auth=login')
       }
     })
   }

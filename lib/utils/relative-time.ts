@@ -1,3 +1,5 @@
+import { formatDate } from '@/lib/utils/format-date'
+
 export function relativeTime(dateString: string): string {
   const now = Date.now()
   const then = new Date(dateString).getTime()
@@ -20,5 +22,5 @@ export function relativeTime(dateString: string): string {
     return `${diffDays} day${diffDays === 1 ? '' : 's'} ago`
   }
 
-  return new Date(dateString).toLocaleDateString()
+  return formatDate(dateString)
 }

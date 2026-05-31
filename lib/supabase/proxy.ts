@@ -2,11 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export function isPublicRoute(pathname: string) {
-  const isAuthRoute =
-    pathname.startsWith('/login') ||
-    pathname.startsWith('/signup') ||
-    pathname.startsWith('/reset-password') ||
-    pathname === '/callback'
+  const isAuthRoute = pathname === '/callback'
   const isPublicEstimate = pathname.startsWith('/estimate')
   const isMetadataRoute =
     pathname === '/icon' ||
@@ -53,7 +49,9 @@ export async function updateSession(request: NextRequest) {
 
   if (!claims && !isPublicRoute(pathname)) {
     const url = request.nextUrl.clone()
-    url.pathname = '/login'
+    url.pathname = '/'
+    url.search = ''
+    url.searchParams.set('auth', 'login')
     // Preserve set-cookie headers so Supabase can rotate session tokens on redirect
     const redirectResponse = NextResponse.redirect(url)
     supabaseResponse.headers.forEach((value, key) => {

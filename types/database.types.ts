@@ -316,6 +316,27 @@ export type Database = {
         }
         Relationships: []
       }
+      company_members: {
+        Row: {
+          company_id: string
+          created_at: string
+          role: string
+          user_id: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          role?: string
+          user_id: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       company_price_book: {
         Row: {
           company_id: string
@@ -477,12 +498,14 @@ export type Database = {
       }
       estimate_deliveries: {
         Row: {
+          /** 'email' | 'sms' | 'whatsapp' — see migration 20260526000005_phase81_whatsapp_delivery_channel (Phase 19/24 manual-extension convention; Docker unavailable on Windows for type regen) */
           channel: string
           company_id: string
           created_at: string
           error_message: string | null
           estimate_id: string
           id: string
+          /** 'resend' | 'twilio' | 'meta' — see migration 20260526000005_phase81_whatsapp_delivery_channel (Phase 19/24 manual-extension convention; Docker unavailable on Windows for type regen) */
           provider: string
           provider_message_id: string | null
           recipient_email: string | null
@@ -492,12 +515,14 @@ export type Database = {
           subject: string | null
         }
         Insert: {
+          /** 'email' | 'sms' | 'whatsapp' — see migration 20260526000005_phase81_whatsapp_delivery_channel */
           channel: string
           company_id: string
           created_at?: string
           error_message?: string | null
           estimate_id: string
           id?: string
+          /** 'resend' | 'twilio' | 'meta' — see migration 20260526000005_phase81_whatsapp_delivery_channel */
           provider: string
           provider_message_id?: string | null
           recipient_email?: string | null
@@ -507,12 +532,14 @@ export type Database = {
           subject?: string | null
         }
         Update: {
+          /** 'email' | 'sms' | 'whatsapp' — see migration 20260526000005_phase81_whatsapp_delivery_channel */
           channel?: string
           company_id?: string
           created_at?: string
           error_message?: string | null
           estimate_id?: string
           id?: string
+          /** 'resend' | 'twilio' | 'meta' — see migration 20260526000005_phase81_whatsapp_delivery_channel */
           provider?: string
           provider_message_id?: string | null
           recipient_email?: string | null
@@ -932,6 +959,68 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pipeline_events: {
+        Row: {
+          attempt_id: string
+          company_id: string | null
+          created_at: string
+          duration_ms: number | null
+          error_code: string | null
+          error_message: string | null
+          estimate_id: string | null
+          id: string
+          input_type: string
+          project_id: string | null
+          provider: string | null
+          retry_count: number
+          status: string
+          step: string
+          user_id: string | null
+        }
+        Insert: {
+          attempt_id: string
+          company_id?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          error_code?: string | null
+          error_message?: string | null
+          estimate_id?: string | null
+          id?: string
+          input_type: string
+          project_id?: string | null
+          provider?: string | null
+          retry_count?: number
+          status: string
+          step: string
+          user_id?: string | null
+        }
+        Update: {
+          attempt_id?: string
+          company_id?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          error_code?: string | null
+          error_message?: string | null
+          estimate_id?: string | null
+          id?: string
+          input_type?: string
+          project_id?: string | null
+          provider?: string | null
+          retry_count?: number
+          status?: string
+          step?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pipeline_events_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
             referencedColumns: ["id"]
           },
         ]
@@ -1373,7 +1462,25 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      pipeline_attempts: {
+        Row: {
+          attempt_id: string
+          first_at: string
+          last_at: string
+          user_id: string | null
+          company_id: string | null
+          project_id: string | null
+          estimate_id: string | null
+          input_type: string | null
+          step_reached: string | null
+          terminal_status: string | null
+          total_duration_ms: number | null
+          has_retry: boolean | null
+          max_retry_count: number | null
+          event_count: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       cleanup_orphan_draft_projects: {

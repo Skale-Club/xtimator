@@ -1,31 +1,32 @@
 ---
 gsd_state_version: 1.0
-milestone: v4.0
-milestone_name: Multi-Tenancy (Multiple Companies per User)
-status: defining_requirements
-last_updated: "2026-05-20T00:00:00.000Z"
-last_activity: 2026-05-20
+milestone: v1.5
+milestone_name: Zero-friction Project Onboarding
+status: verifying
+stopped_at: Completed 93-03-PLAN.md (event log list page + detail page + EventStepTimeline)
+last_updated: "2026-05-30T03:04:03.083Z"
+last_activity: 2026-05-30
 progress:
-  total_phases: 0
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_phases: 93
+  completed_phases: 64
+  total_plans: 200
+  completed_plans: 229
 ---
 
 # Project State
 
 ## Current Status
 
-- **Milestone**: v4.0 Multi-Tenancy — Defining requirements (no phases yet)
-- **Previous milestone (in progress)**: v3.1.1 MVP Launch Prep + Future-Proofing — phases 73-78 still pending
-- **Last updated**: 2026-05-20
+- **Milestone**: v4.2 Recording Reliability & Observability — STARTED 2026-05-28 (defining requirements). Predecessor v4.1 MCP Server shipped 2026-05-26 (phases 86-90); v4.0 Multi-Tenancy shipped 2026-05-26 (phases 79-85).
+- **Last updated**: 2026-05-28
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-05-23 - Completed quick task 260523: Align page spacing
+Phase: 999.1
+Plan: Not started
+Status: Phase complete — ready for verification
+Last activity: 2026-05-30 - Reconciled branches: merged WhatsApp/auth quick tasks (jh7, jo8, joo, lc0) + public-demo-workspace into main (after Vercel→Coolify migration §2/§3)
+Stopped at: Completed 93-03-PLAN.md (event log list page + detail page + EventStepTimeline)
 
 ## v3.1.1 Phases
 
@@ -70,6 +71,15 @@ Last activity: 2026-05-23 - Completed quick task 260523: Align page spacing
 
 ## Completed Phases
 
+- Phase 90: v4.1 MCP Settings Page — Connect-to-Claude UX + HUMAN-UAT (90-v4-1-mcp-settings-page-connect-to-claude-ux-and-human-uat) — COMPLETE 2026-05-26
+  - app/(app)/settings/integrations/mcp/{page,copy-button}.tsx + app/(app)/settings/integrations/page.tsx (entry card) + tests/unit/mcp-settings-page.test.ts (14 tests). HUMAN-UAT spec with 5 pending E2E tests (Claude Code, Claude.ai, ChatGPT, async-poll, token-rotation). v4.1 milestone feature-complete; orchestrator can now archive + tag v4.1.
+- Phase 89: v4.1 Write MCP Tools — create_estimate (async via Inngest) + check_job_status; shared tool registry refactor (89-v4-1-write-mcp-tools-create-estimate-check-job-status-async) — COMPLETE 2026-05-26
+  - lib/mcp/tools/{registry,write}.ts + 3 unit test files (37 tests); read.ts refactored from registerReadTools → buildReadTools(auth); server.ts now calls registerAllTools once. create_estimate dispatches EVENT_ESTIMATE_GENERATE (same Inngest event /api/generate-estimate uses); check_job_status reads /v1/events/{id}/runs (same path /api/jobs/[jobId] uses). 104/104 MCP tests pass; tsc clean.
+- Phase 88: v4.1 Read-Only MCP Tools — list_estimates, get_estimate, list_clients, list_projects (88-v4-1-read-only-mcp-tools-list-estimates-clients-projects) — COMPLETE 2026-05-26
+  - lib/mcp/{pagination,errors}.ts + lib/mcp/tools/read.ts; 45 unit tests; registerReadTools wired into createMcpServer; all tools carry readOnlyHint=true so Claude.ai groups them under one "Always allow" toggle; keyset pagination via base64(JSON({created_at,id})); every query scoped to auth.company_id.
+- Phase 87: v4.1 MCP Route — Streamable HTTP Transport with Bearer Auth (87-v4-1-mcp-route-streamable-http-transport-with-bearer-auth) — COMPLETE 2026-05-26
+  - lib/mcp/{auth,scope,server}.ts + app/api/mcp/route.ts; 21 unit tests; WebStandardStreamableHTTPServerTransport (stateless, JSON response mode); Phase 88/89 tool integration point documented in server.ts
+- Phase 86: v4.1 OAuth 2.0 Server for MCP (86-v4-1-oauth-2-0-server-for-mcp-...) — COMPLETE 2026-05-26
 - Phase 54: WhatsApp Status Flow (54-whatsapp-status-flow) — COMPLETE 2026-05-13
   - Plan 01: updateWhatsAppStatus server action + unit tests (WASTATUS-02, WASTATUS-03, WASTATUS-04) — COMPLETE
   - Plan 02: WhatsAppConnectCard: StatusBadge + Suspend/Reactivate buttons (WASTATUS-01, WASTATUS-03) — COMPLETE
@@ -438,6 +448,40 @@ Last activity: 2026-05-23 - Completed quick task 260523: Align page spacing
 - [Phase 80-walkthrough-audit-debug-polish]: logTourEvent is fire-and-forget (void call) — telemetry failure must never block tour UX
 - [Phase 80-walkthrough-audit-debug-polish]: completedNaturallyRef distinguishes Done (tour_finished) from X/ESC dismiss (tour_skipped) without adding parameter to handleClose
 - [Phase 80-walkthrough-audit-debug-polish]: globalSetup guards on TEST_USER_EMAIL/TEST_USER_PASSWORD — missing credentials exit cleanly; tour tests fall back to requireDashboard skip
+- [Phase 79]: [Phase 79-01]: company_members live in prod with composite PK + SELECT-only RLS + idempotent backfill (3/3/3); types extended manually (Phase 19/24/38 pattern, Docker unavailable on Windows); static SQL contract test instead of live-DB integration test (no harness in repo)
+- [Phase 79]: Plan 02: getActiveCompanyId is single point where multi-tenant state enters request lifecycle; service-role only inside unstable_cache after upstream validation
+- [Phase 79]: Plan 02: loadCompanyById keyed by activeCompanyId (not userId) so revalidateTag('company') invalidates per company in Phase 80
+- [Phase 79]: Add-mode inherits tier/tier_trial_ends_at literally from source company (no fresh trial) to prevent trial-farming via add-company flow
+- [Phase 79]: company_members INSERT uses service-role; user_id sourced from claims.sub and company_id from just-inserted PK (no caller params) to mitigate T-79-03-01/02
+- [Phase 79]: [Phase 79-04]: app/(app)/layout.tsx switched from getCachedCompany(claims.sub) to getActiveCompany(); billingRow keyed by .eq('id', activeCompanyId) — completes the Phase 79 multi-company foundation (D-10, D-11)
+- [Phase 79]: [Phase 79-04]: getCachedCompany export preserved in lib/queries/auth.ts — a follow-up v4.0 phase (TBD) will migrate remaining callers
+- [Phase 79]: [Phase 79-04]: static contract test pattern (read source with node:fs + regex assertions) is the right test isolation level for server-component refactors with deep import graphs — mirrors Plan 01 migration test
+- [Phase 81]: [Phase 81-01]: getMembershipCompanies co-located in lib/queries/active-company.ts per SWITCH-02; ASC by companies.created_at for stable dropdown order; request-scoped client (never service role) because Phase 79 RLS already scopes by auth.uid()
+- [Phase 81]: Plan 03: Broke CompanySelector prop API from { company } to { companies, activeCompanyId, collapsed } — zero callers, no migration cost
+- [Phase 81]: Plan 03: Single CompanySelector with collapsed prop driving internal branch (instead of two separate sidebar mounts)
+- [Phase 81]: Plan 03: toast.error + router.refresh on BOTH forbidden and unauthenticated branches (defensive)
+- [Phase 81]: Plan 03: onboarding page typed searchParams as Promise<{ mode?: string }> per Next.js 16 async semantics
+- [Phase 81]: Phase 81 Plan 04: layout fetches memberships in Promise.all; sidebar mounts CompanySelector twice (one per render branch) for Pitfall-5 enforceability; user-menu kept byte-identical but trigger simplified to avatar-only in both modes; mobile-header deferred (SWITCH-15)
+- [Phase 87]: Use WebStandardStreamableHTTPServerTransport (not StreamableHTTPServerTransport) — Next.js Route Handlers expose Fetch Request/Response, not Node IncomingMessage/ServerResponse
+- [Phase 87]: Stateless MCP sessions (sessionIdGenerator: undefined, enableJsonResponse: true) for MVP — fresh Server + transport per request
+- [Phase 89]: Phase 89 refactored MCP tool registration into a shared registry (buildAllTools + registerAllTools) — required because Server.setRequestHandler accepts only one handler per request schema. Read + write tools now share the single tools/list + tools/call handler pair.
+- [Phase 89]: create_estimate dispatches the existing EVENT_ESTIMATE_GENERATE Inngest event (same path /api/generate-estimate uses); check_job_status reads Inngest /v1/events/{id}/runs (same path /api/jobs/[jobId] uses). No parallel job table.
+- [Phase 91]: [91-01] config_unavailable covers both missing signing key AND thrown fetch (dev-server-down maps to config_unavailable, not failed)
+- [Phase 91]: [91-01] Job-status endpoint returns 200 discriminated JobStatusContract for every known state; non-200 reserved for the 401 auth gate only
+- [Phase 91]: [91-01] pollJob resolves typed JobResult and only throws on aborted signal; JobResult/JobStatusState exported for Plan 02
+- [Phase 91]: [Phase 91-02]: attemptId lives only in the Inngest event payload (no recordings.attempt_id migration) — Phase 92's event store owns durable lineage
+- [Phase 91]: [Phase 91-02]: user Retry reuses the original requestId/recordingId so an already-completed step is memoized (no double-charge); a failed step still re-runs
+- [Phase 91]: [Phase 91-02]: removed masking 'as GenerateEstimateResponse' casts in text-describe/photos-input so tsc validates the JobResult union; all pollJob consumers branch on result.state
+- [Phase 92]: pipeline_events applied via one-off pg applier (db push blocked by remote migration-history drift); TEXT+CHECK enums, no updated_at, only company_id FK'd; Wave-0 helper scaffold throws so RED tests compile under tsc gate
+- [Phase 92]: retry_count computed via count of prior attempt_id+step+status rows; accepted TOCTOU race as diagnostic hint (D-09)
+- [Phase 92]: preview_redirect emitted server-side from generate succeeded path (client redirect non-instrumentable, D-04)
+- [Phase 93]: Wave 0 RED tests use expect.fail() for pure-function tests; try/catch+expect.fail for static-source readFileSync tests — two-tier pattern ensures collection never aborts on missing files
+- [Phase 93]: findViewMigration() pattern: readdirSync migrations dir with .find(n => n.includes('phase93')) for timestamp-agnostic migration lookup
+- [Phase 93]: events-route-gate.test.ts asserts adminIdx < svcIdx (ordering) not just presence — enforces requireAdmin() precedes requireServiceClient() as the load-bearing security constraint
+- [Phase 93]: pipeline_attempts view uses security_invoker=on + BOOL_OR terminal_status precedence; Views type replaced (not augmented) from [_ in never] placeholder
+- [Phase 93-super-admin-event-log]: buildSearchOr is pure fn (no DB calls) enabling Wave 0 unit tests; SAFE_EVENT_COLUMNS comment must avoid transcript/audio/apiKey/payload/raw tokens (static source guard covers full file)
+- [Phase 93-super-admin-event-log]: Inlined SAFE_SELECT string in detail page .select() call — test regex requires literal string after select( paren
+- [Phase 93-super-admin-event-log]: Wave 0 email-lookup stubs replaced with static source assertions — unconditional expect.fail() cannot turn GREEN
 
 ## Performance Metrics
 
@@ -582,13 +626,33 @@ Last activity: 2026-05-23 - Completed quick task 260523: Align page spacing
 | Phase 78 P01 | 5min | 2 tasks | 4 files |
 | Phase 78 P02 | 6min | 2 tasks | 8 files |
 | Phase 80-walkthrough-audit-debug-polish P04 | 8 | 3 tasks | 8 files |
+| Phase 79 P01 | ~4h | 3 tasks | 3 files |
+| Phase 79 P02 | 4min | 1 tasks | 2 files |
+| Phase 79 P03 | 10min | 1 tasks | 2 files |
+| Phase 79 P04 | 7m | 1 tasks | 2 files |
+| Phase 81 P01 | 3min | 3 tasks | 2 files |
+| Phase 81 P02 | 4min | 3 tasks | 2 files |
+| Phase 81 P03 | 6min | 5 tasks | 5 files |
+| Phase 81 P04 | 383s | 5 tasks | 5 files |
+| Phase 87 P— | 25min | 4 tasks | 9 files |
+| Phase 89 P— | 11min | 5 tasks | 9 files |
+| Phase 90 P01 | 25min | 5 tasks | 6 files |
+| Phase 91 P01 | 7min | 3 tasks | 8 files |
+| Phase 91 P02 | 11min | 4 tasks | 9 files |
+| Phase 92 P00 | 13min | 2 tasks | 10 files |
+| Phase 92 P01 | 3m | 1 tasks | 1 files |
+| Phase 92 P03 | ~6m | 3 tasks | 4 files |
+| Phase 93 P00 | 3 | 2 tasks | 6 files |
+| Phase 93 P01 | 5 | 2 tasks | 3 files |
+| Phase 93 P02 | 7 | 2 tasks | 5 files |
+| Phase 93-super-admin-event-log P03 | 5 | 2 tasks | 4 files |
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-13)
 
 **Core value:** Business owner → job site audio recording → sent professional estimate in under 5 minutes
-**Current focus:** Phase 79 — multi-company-support-allow-one-user-to-own-and-switch-betwe
+**Current focus:** Phase 93 — super-admin-event-log
 
 ## Notes
 
@@ -612,6 +676,7 @@ v3.1: Phases 61-65 (started 2026-05-15). Production Go-Live — 27 requirements 
 
 ### Roadmap Evolution
 
+- Phase 81 added (2026-05-26): Company Switcher UI + Add Company flow — surfaces the Phase 79 multi-company plumbing in the UI. Topbar dropdown lists `company_members` rows joined to `companies`, highlights active, provides "Switch active company" (sets `active_company_id` cookie + revalidates) and "+ Add new company" (routes to `/onboarding?mode=add` which calls `createOrUpdateCompany('add')`). RLS rewrite, billing per-company, and server-action sweep stay out of scope — separate v4.0 phases.
 - Phase 8 added: Platform admin panel — scope covers centralized API integrations (Resend/Anthropic/OpenAI) AND global branding (app name, logo, theme). Removes all hardcoded "Xtimator" strings and process.env key coupling; replaces with DB-backed config fetched via server-side loader. Drives v1.1.
 - v1.2 phases 10-12: Brand tokens (BRAND-01–03) → Landing page (LAND-01–05) → i18n system (I18N-01–08). Ordering constraint: landing page must exist before i18n so translations layer on top of real UI strings.
 - Phase 13 added: Visual identity polish — robust favicon and app icons across all surfaces (.ico legacy, icon.svg with light/dark, icon.png fallback, apple-icon.png, web manifest, no public/ vs app/ conflict, no manual <link> in head)
@@ -626,6 +691,7 @@ v3.1: Phases 61-65 (started 2026-05-15). Production Go-Live — 27 requirements 
 - v3.0 phases 55-60 (SEED-013): Schema + tier definitions (Phase 55) → Usage tracking helpers (Phase 56) → Enforcement wiring (Phase 57) → Stripe integration (Phase 58) → Billing UI (Phase 59) → Trial automation + admin tooling (Phase 60). Key constraint: Phase 55 is a hard prerequisite for all others — tier columns and usage_events table must exist. Phase 56 builds the quota library; Phase 57 wires it to routes. Phase 58 is independent of 56-57 (depends only on Phase 55 tier columns). Phase 59 requires both Phase 57 (usage data) and Phase 58 (Stripe endpoints). Phase 60 depends on Phase 55 (tier columns) and Phase 58 (Stripe state) but not on Phase 59 UI.
 - v3.1 phases 61-65 (Production Go-Live): Production DB foundation (Phase 61) → Vercel deploy + custom domain (Phase 62) → Stripe live mode activation (Phase 63) → Monitoring + backup + resilience (Phase 64) → Production UAT + bug triage (Phase 65). Hard dep order: Phase 61 (DB) before Phase 62 (deployed app needs DB). Phase 62 before Phase 63 (Stripe live webhook URL needs reachable production endpoint). Phase 64 depends on both 61 (health endpoint DB check) and 62 (Sentry/uptime point at deployed app). Phase 65 ships last — UAT only meaningful after all infra + payments are live. PROD-BACKUP grouped with PROD-MONITOR in Phase 64 because both are post-deploy ops concerns sharing the runbook surface.
 - Phase 79 added: Multi-company support — allow one user to own and switch between multiple companies. Today the schema permits N companies per user but the entire app assumes 1:1 (`getCachedCompany`, `getCompanySettings`, `getCompanyTier`, `getCustomDomainSettings`, `getEstimateTemplateSettings` all `.eq('user_id', uid).single()`; `createOrUpdateCompany` upserts by user_id; `app/(app)/layout.tsx` loads "the" company; `CompanySelector` receives one company by prop and just renders it). Scope: active-company tracking (cookie or `auth.users.active_company_id`), `CompanySelector` lists all of user's companies with switch handler, "add mode" in onboarding (INSERT-always + set new company as active), refactor ~30+ files that scope by `user_id` to scope by active `company_id`, revisit RLS on tables with `company_id`. Trigger: "Add company" entry in the topbar dropdown must direct to onboarding to create an additional company under the same user profile, then return to the app with the new company selected.
+- Phase 81 added: WhatsApp send option in SendTab + integrations extension. Scope: (1) Add an "Enviar via WhatsApp" action in the project workspace SendTab (next to PDF/email/share-link/plain-text) that manually pushes the current estimate to the client's WhatsApp using existing `lib/whatsapp/*` infra (delivery_format from Phase 44, PDF attachment from Phase 53, share-link fallback); (2) Extend `/settings/integrations` to surface WhatsApp as a first-class send channel — show connection status, configured number, and the `delivery_format` picker (share_link | formatted_text | pdf_attachment) so owners can pick the default. Reuses WhatsAppConnectCard (Phase 45) + meta_whatsapp integration key (Phase 45) + sendWhatsAppMessage / pdf-delivery helpers (Phase 53). New surface is the manual SendTab trigger — until now WhatsApp delivery only fired from the inbound conversational flow (Phase 42/43 confirm). Likely needs: server action `sendEstimateViaWhatsApp(estimateId)` that resolves client phone + active delivery_format + calls existing lib helpers; SendTab button gated on connection status (disabled with tooltip if WhatsApp not connected).
 
 ### Quick Tasks Completed
 
@@ -645,6 +711,31 @@ v3.1: Phases 61-65 (started 2026-05-15). Production Go-Live — 27 requirements 
 | 260522-j7g | Create generic DataTable&lt;T&gt; component and migrate ProjectList | 2026-05-22 | ae70927 | [260522-j7g-create-generic-datatable-component-and-m](.planning/quick/260522-j7g-create-generic-datatable-component-and-m/) |
 | 260523 | Unify project tables | 2026-05-23 | pending | [260523-unify-project-tables](.planning/quick/260523-unify-project-tables/) |
 | 260523 | Align page spacing | 2026-05-23 | pending | [260523-align-page-spacing](.planning/quick/260523-align-page-spacing/) |
+| 260524-lxk | Voice recorder visual redesign — shared VoiceRecorder + glass/glow waveform | 2026-05-24 | a33710d | [260524-lxk-refazer-visual-do-sistema-de-gravacao-de](.planning/quick/260524-lxk-refazer-visual-do-sistema-de-gravacao-de/) |
+| 260525-qbc | Price book autocomplete in estimate item description (combobox + APPLY_PRICE_BOOK_ITEM action) | 2026-05-25 | 9be91cd | [260525-qbc-add-price-book-autocomplete-to-item-desc](.planning/quick/260525-qbc-add-price-book-autocomplete-to-item-desc/) |
+| 260524-ohe | Auth flow refactor — modal 2-step on LP, delete /login + /signup + /reset-password pages, logout → / | 2026-05-24 | 552f87a | [260524-ohe-refactor-auth-flow-convert-modal-to-2-st](.planning/quick/260524-ohe-refactor-auth-flow-convert-modal-to-2-st/) |
+| 260525-lt5 | Add AlertDialog confirmation before soft-delete in ProjectRowActions | 2026-05-25 | 330a4f4 | [260525-lt5-add-alertdialog-confirmation-before-soft](.planning/quick/260525-lt5-add-alertdialog-confirmation-before-soft/) |
+| 260525-mur | Fix dashboard showing soft-deleted and archived projects | 2026-05-25 | 0a15842 | [260525-mur-fix-dashboard-showing-soft-deleted-and-a](.planning/quick/260525-mur-fix-dashboard-showing-soft-deleted-and-a/) |
+| 260525-mim | Estimate-creation popup: render only the input matching the selected modality (audio / text / photos) | 2026-05-25 | fa6ce8b | [260525-mim-popup-capture-recorder-render-only-the-i](.planning/quick/260525-mim-popup-capture-recorder-render-only-the-i/) |
+| 260525-oij | Fix client form not populating after linking existing client in project workspace | 2026-05-25 | c8ff358 | [260525-oij-fix-client-form-not-populating-after-lin](.planning/quick/260525-oij-fix-client-form-not-populating-after-lin/) |
+| 260525-w41 | Hide Generate Estimate button when mode is audio (auto-triggers on recording stop) | 2026-05-25 | 13e0511 | [260525-w41-hide-generate-estimate-button-when-mode-](.planning/quick/260525-w41-hide-generate-estimate-button-when-mode-/) |
+| 260525-wc6 | Audio transcription pipeline: OpenRouter 5xx retry + OpenAI fallback in transcribeAudioOR, and read transcript/estimateId from DB after pollJob (Inngest dev returns empty function output) | 2026-05-26 | 269cfdb | [260525-wc6-fix-audio-transcription-500-error-add-5x](.planning/quick/260525-wc6-fix-audio-transcription-500-error-add-5x/) |
+| 260525-wdj | Fix "Edit manually" navigation after audio transcription failure — land in created project workspace, not /projects list | 2026-05-26 | 039afb5 | [260525-wdj-ap-s-dar-erro-na-transcri-o-de-um-audio-](.planning/quick/260525-wdj-ap-s-dar-erro-na-transcri-o-de-um-audio-/) |
+| 260526-08v | Hide audio recording UI during estimate processing, replace four-step stepper with calm three-blue-dots overlay | 2026-05-26 | 895826e | [260526-08v-ao-criar-um-novo-projeto-e-gravar-um-aud](.planning/quick/260526-08v-ao-criar-um-novo-projeto-e-gravar-um-aud/) |
+| 260526-0hv | Fix dashboard status filter tabs (replace stale STATUS_FILTERS with real project.status values) | 2026-05-26 | 7f98789 | [260526-0hv-corrigir-filtros-de-status-do-dashboard-](.planning/quick/260526-0hv-corrigir-filtros-de-status-do-dashboard-/) |
+| 260526-jo4 | Logo da empresa aparecer no editor + mover para o lado direito em editor, share view e PDF | 2026-05-26 | 485fee4 | [260526-jo4-logo-da-empresa-aparecer-no-editor-do-es](.planning/quick/260526-jo4-logo-da-empresa-aparecer-no-editor-do-es/) |
+| 260526-k60 | Rename Price Book "Folder" labels to "Category" and wire through i18n (en/pt/es) | 2026-05-26 | a836503 | [260526-k60-rename-folder-labels-to-category-in-pric](.planning/quick/260526-k60-rename-folder-labels-to-category-in-pric/) |
+| 260527-jid | Fix new-project recording popup not opening the created project page | 2026-05-27 | fd4dcc6 | [260527-jid-fix-new-project-recording-popup-not-open](.planning/quick/260527-jid-fix-new-project-recording-popup-not-open/) |
+| 260527-jhp | Fix React #418 hydration text mismatch from locale/timezone-dependent formatting in SSR client components | 2026-05-27 | 4dc07ab | [260527-jhp-fix-react-418-hydration-text-mismatch-fr](.planning/quick/260527-jhp-fix-react-418-hydration-text-mismatch-fr/) |
+| 260527-k4i | Treat OpenRouter 401 "User not found" as transient in transcribeAudioOR (route into retry + OpenAI fallback instead of throwing) | 2026-05-27 | 21962ab | [260527-k4i-treat-openrouter-401-user-not-found-as-t](.planning/quick/260527-k4i-treat-openrouter-401-user-not-found-as-t/) |
+| 260527-l9c | Remove obsolete OpenRouter transient-401 "User not found" handling; restore 4xx-throws-immediately behavior (reverts k4i premise — OpenRouter now returns 503, not 401, for infra/auth-lookup failures) | 2026-05-27 | 948144e | [260527-l9c-remove-obsolete-openrouter-transient-401](.planning/quick/260527-l9c-remove-obsolete-openrouter-transient-401/) |
+| 260529-aq7 | Vercel→Coolify migration §2: container-ready repo (Dockerfile node:24-alpine, sync npm lockfile + drop bun.lock, Vercel crons → GitHub Actions workflow, remove Caddy/compose artifacts, drop dead Vercel CSP entry) | 2026-05-29 | 3368069, 9cf0262, 4df1855 | [260529-aq7-xtimator-vercel-coolify-migration-step-2](.planning/quick/260529-aq7-xtimator-vercel-coolify-migration-step-2/) |
+| 260530-asz | Vercel→Coolify migration §3 follow-up: Dockerfile builder inlines 5 NEXT_PUBLIC_* via ARG+ENV before `npm run build` (Coolify must pass them as --build-arg) | 2026-05-30 | 381bd78 | [260530-asz-fix-dockerfile-builder-add-next-public-b](.planning/quick/260530-asz-fix-dockerfile-builder-add-next-public-b/) |
+| 260529-jh7 | Add UNIQUE (company_id) to company_whatsapp — fixes "no unique or exclusion constraint matching the ON CONFLICT specification" that broke the WhatsApp connect/verification flow; applied + verified on live Xtimator DB | 2026-05-29 | c44f6ac | [260529-jh7-add-unique-constraint-on-company-id-to-c](.planning/quick/260529-jh7-add-unique-constraint-on-company-id-to-c/) |
+| 260529-jo8 | Fix mobile auth: Start/CTA always opens the login dialog even with a persisted Supabase session (removed isAuthenticated short-circuit + getAuthClaims fetch); Google OAuth forces account selector (prompt=select_account) | 2026-05-29 | 4726fe9 | [260529-jo8-fix-mobile-auth-start-always-opens-login](.planning/quick/260529-jo8-fix-mobile-auth-start-always-opens-login/) |
+| 260529-joo | Link project ↔ client WhatsApp conversation in the panel: getProjectConversationLink query (project→client.phone→conversation, no migration) + WhatsApp card on project Client tab (link or empty state) + inbox deep-link auto-open via /whatsapp?c=&lt;id&gt; | 2026-05-29 | 9b9f99a | [260529-joo-vincular-projeto-a-conversa-de-whatsapp-](.planning/quick/260529-joo-vincular-projeto-a-conversa-de-whatsapp-/) |
+| 260529-lc0 | WhatsApp inbound: when an inbound message is too vague to price (estimate total≤0 or no line items), bot asks for more details (localized pt/en/es) and opens an `awaiting_details` session so the next message complements the SAME project + regenerates — instead of generating/sending a $0 estimate. Migration adds `awaiting_details` to whatsapp_sessions.state CHECK (applied to live DB) | 2026-05-29 | a98f0f9 | [260529-lc0-whatsapp-inbound-pedir-mais-detalhes-qua](.planning/quick/260529-lc0-whatsapp-inbound-pedir-mais-detalhes-qua/) |
 | 2026-05-18 | fast | Center auth card logo+wordmark | done |
 | 2026-05-19 | fast | Make audio capture screen scrollable on smaller viewports | done |
 | 2026-05-18 | fast | Restyle sidebar New Project as filled gradient, remove dashboard CTA | done |
+| 2026-05-27 | fast | add standard mobile-web-app-capable meta tag | ✅ |

@@ -40,6 +40,7 @@ export function ProjectRowActions({ projectId, projectName, status }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [softConfirmOpen, setSoftConfirmOpen] = useState(false)
 
   function run(
     action: () => Promise<{ data?: unknown; error?: string }>,
@@ -82,12 +83,7 @@ export function ProjectRowActions({ projectId, projectName, status }: Props) {
               <DropdownMenuItem
                 className="text-destructive"
                 disabled={isPending}
-                onClick={() =>
-                  run(
-                    () => softDeleteProjectAction(projectId),
-                    `"${projectName}" moved to Trash`
-                  )
-                }
+                onClick={() => setSoftConfirmOpen(true)}
               >
                 Delete
               </DropdownMenuItem>
@@ -109,12 +105,7 @@ export function ProjectRowActions({ projectId, projectName, status }: Props) {
               <DropdownMenuItem
                 className="text-destructive"
                 disabled={isPending}
-                onClick={() =>
-                  run(
-                    () => softDeleteProjectAction(projectId),
-                    `"${projectName}" moved to Trash`
-                  )
-                }
+                onClick={() => setSoftConfirmOpen(true)}
               >
                 Delete
               </DropdownMenuItem>
@@ -164,6 +155,33 @@ export function ProjectRowActions({ projectId, projectName, status }: Props) {
               }}
             >
               {isPending ? 'Deleting...' : 'Delete permanently'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={softConfirmOpen} onOpenChange={setSoftConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Move project to Trash?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {`"${projectName}" will be moved to Trash. You can restore it from the Trash view within 30 days before it is permanently deleted.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                run(
+                  () => softDeleteProjectAction(projectId),
+                  `"${projectName}" moved to Trash`
+                )
+                setSoftConfirmOpen(false)
+              }}
+            >
+              {isPending ? 'Moving...' : 'Move to Trash'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

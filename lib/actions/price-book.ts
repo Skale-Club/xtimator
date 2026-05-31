@@ -11,6 +11,8 @@ import {
   type PriceBookExistingRow,
 } from '@/lib/csv/dedupe'
 import type { ImportRow } from '@/lib/csv/price-book-import'
+import { getActiveCompanyId } from '@/lib/queries/active-company'
+import { assertWritable } from '@/lib/demo/guard'
 
 async function getAuthContext() {
   const supabase = await createClient()
@@ -18,10 +20,13 @@ async function getAuthContext() {
   const claims = claimsData?.claims ?? null
   if (!claims) return { error: 'Not authenticated' as const }
 
+  const activeCompanyId = await getActiveCompanyId()
+  if (!activeCompanyId) return { error: 'No company found' as const }
+
   const { data: company } = await supabase
     .from('companies')
     .select('id, currency_code')
-    .eq('user_id', claims.sub)
+    .eq('id', activeCompanyId)
     .single()
 
   if (!company) return { error: 'No company found' as const }
@@ -118,6 +123,9 @@ export async function createPriceBookItem(
   formData: PriceBookItemFormValues,
   imageFile?: File | null
 ) {
+  const denied = await assertWritable()
+  if (denied) return denied
+
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error }
   const { supabase, company } = ctx
@@ -169,6 +177,9 @@ export async function updatePriceBookItem(
   formData: PriceBookItemFormValues,
   imageFile?: File | null
 ) {
+  const denied = await assertWritable()
+  if (denied) return denied
+
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error }
   const { supabase, company } = ctx

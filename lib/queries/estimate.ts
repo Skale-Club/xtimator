@@ -6,6 +6,12 @@ export interface Estimate {
   company_id: string
   currency_code?: string
   version: number
+  /** Per-company sequential identifier, auto-assigned. Unique across the tenant. */
+  estimate_seq: number
+  /** Optional user-set override displayed instead of the auto sequence. */
+  estimate_number: string | null
+  /** Optional user-set override for the displayed estimate date. */
+  estimate_date: string | null
   is_current: boolean
   share_token: string
   status: string

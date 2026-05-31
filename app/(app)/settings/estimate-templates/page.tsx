@@ -12,7 +12,7 @@ export const metadata = { title: 'Estimate Templates' }
 
 export default async function EstimateTemplatesPage() {
   const claims = await getAuthClaims()
-  if (!claims) redirect('/login')
+  if (!claims) redirect('/?auth=login')
 
   const supabase = await createClient()
   const template = await getEstimateTemplateSettings(supabase, claims.sub as string)

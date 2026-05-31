@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useState, useSyncExternalStore } from 'react'
-import { PanelLeftClose, PanelLeftOpen } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Settings, LogOut, HelpCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { NAV_ITEMS } from './nav-items'
 import { useTranslation } from '@/lib/i18n/use-translation'
@@ -13,6 +13,17 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { signOut } from '@/lib/actions/auth'
+import { useTourContext } from '@/components/tour/tour-provider'
+import { useTour } from '@/components/tour/use-tour'
+import { CompanySelector } from '@/components/app-shell/company-selector'
 
 interface SidebarProps {
   branding: {
@@ -25,6 +36,13 @@ interface SidebarProps {
     logo_url: string | null
     owner_name: string | null
   }
+  memberships: Array<{
+    id: string
+    name: string
+    logo_url: string | null
+  }>
+  /** Read-only public demo session — hides sensitive nav entries. */
+  isDemo?: boolean
 }
 
 const COLLAPSE_KEY = 'sidebar_collapsed_desktop'
@@ -57,11 +75,46 @@ const TOUR_TARGET: Record<string, string> = {
   '/price-book':   'price-book',
 }
 
-export function Sidebar({ branding }: SidebarProps) {
+export function Sidebar({ branding, company, memberships, isDemo }: SidebarProps) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const router = useRouter()
   const { t } = useTranslation()
+  const { setShowWelcome, setIsReviewMode } = useTourContext()
+  const { resetAllTourState, startTour } = useTour()
+
+  function handleOpenTour() {
+    resetAllTourState()
+    startTour()
+    setIsReviewMode(true)
+    setShowWelcome(true)
+  }
+
+  // Account menu items injected into the CompanySelector dropdown (2026-05-26 UX —
+  // replaces the standalone "S" user-menu avatar that used to sit beside the
+  // CompanySelector). Settings / App Tour / Sign Out now live below the
+  // company list + Add new company entry inside a single dropdown.
+  const accountMenuSlot = (
+    <>
+      {!isDemo && (
+        <DropdownMenuItem asChild className="cursor-pointer">
+          <Link href="/settings" className="flex items-center gap-2">
+            <Settings className="h-4 w-4" />{t('Settings')}
+          </Link>
+        </DropdownMenuItem>
+      )}
+      <DropdownMenuItem className="cursor-pointer gap-2" onClick={handleOpenTour}>
+        <HelpCircle className="h-4 w-4" />{t('App Tour')}
+      </DropdownMenuItem>
+      <DropdownMenuSeparator />
+      <DropdownMenuItem
+        className="cursor-pointer gap-2 text-destructive focus:text-destructive"
+        onClick={() => signOut()}
+      >
+        <LogOut className="h-4 w-4" />{t('Sign Out')}
+      </DropdownMenuItem>
+    </>
+  )
 
   function openModal(modalValue: string) {
     const params = new URLSearchParams(searchParams.toString())
@@ -140,7 +193,7 @@ export function Sidebar({ branding }: SidebarProps) {
 
       {/* Navigation */}
       <nav className={cn('flex-1 flex flex-col gap-1', collapsed ? 'px-0 py-2 items-center' : 'p-2')}>
-        {NAV_ITEMS.map((item) => {
+        {NAV_ITEMS.filter((item) => !(isDemo && item.demoHidden)).map((item) => {
           const matchedHref = NAV_ITEMS
             .filter((i) =>
               i.exact
@@ -270,32 +323,56 @@ export function Sidebar({ branding }: SidebarProps) {
         })}
       </nav>
 
-      {/* Collapse toggle */}
-      <div className={cn('border-t border-[var(--glass-border)]', collapsed ? 'py-2 px-0 flex justify-center' : 'p-2')}>
-        <Tooltip>
-          <TooltipTrigger asChild>
+      {/* Bottom: company switcher (Plan 81-04) + user menu + collapse toggle */}
+      <div className="border-t border-[var(--glass-border)] p-2">
+        {collapsed ? (
+          /* Collapsed: company-switcher avatar + expand chevron only.
+             User-menu items (Settings / App Tour / Sign Out) live INSIDE
+             the CompanySelector dropdown via accountMenuSlot (2026-05-26 UX). */
+          <div className="flex flex-col items-center gap-1">
+            <CompanySelector
+              companies={memberships}
+              activeCompanyId={company.id}
+              collapsed={true}
+              accountMenuSlot={accountMenuSlot}
+            />
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={toggle}
+                  className="w-9 h-7 flex items-center justify-center rounded-[var(--radius-md)] text-muted-foreground/40 hover:text-muted-foreground hover:bg-[var(--glass-bg-light)] transition-colors"
+                  aria-label="Expand sidebar"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right">{t('Expand sidebar')}</TooltipContent>
+            </Tooltip>
+          </div>
+        ) : (
+          /* Expanded: CompanySelector row (includes user-menu via accountMenuSlot)
+             + collapse chevron pinned right (2026-05-26 UX — old "S" user-menu
+             avatar removed; Settings / App Tour / Sign Out now live inside the
+             CompanySelector dropdown). */
+          <div className="flex items-center gap-1">
+            <div className="flex-1 min-w-0">
+              <CompanySelector
+                companies={memberships}
+                activeCompanyId={company.id}
+                collapsed={false}
+                accountMenuSlot={accountMenuSlot}
+              />
+            </div>
             <button
               onClick={toggle}
-              className={cn(
-                'flex items-center rounded-[var(--radius-md)] text-muted-foreground hover:bg-[var(--glass-bg-light)] hover:text-foreground transition-colors',
-                collapsed
-                  ? 'w-9 h-9 justify-center'
-                  : 'w-full gap-3 px-3 py-2',
-              )}
-              aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              className="p-1 rounded text-muted-foreground/40 hover:text-muted-foreground transition-colors shrink-0"
+              aria-label="Collapse sidebar"
             >
-              {collapsed ? (
-                <PanelLeftOpen className="h-5 w-5 shrink-0" />
-              ) : (
-                <>
-                  <PanelLeftClose className="h-5 w-5 shrink-0" />
-                  <span className="text-sm font-medium">{t('Collapse')}</span>
-                </>
-              )}
+              <ChevronLeft className="h-4 w-4" />
             </button>
-          </TooltipTrigger>
-          {collapsed && <TooltipContent side="right">{t('Expand sidebar')}</TooltipContent>}
-        </Tooltip>
+          </div>
+        )}
       </div>
     </aside>
   )

@@ -2,11 +2,10 @@ import { test, expect } from '@playwright/test'
 
 // Phase 9 — dark-mode defaults & scoped theme wrappers
 //
-// Contracts locked by these tests:
-//   1. default-dark: with no `eb-theme` cookie, root layout renders <html class="dark">
-//   2. scoped-wrappers-intact: /login, /signup, and /reset-password still render [data-theme="dark-auth"]
-//   3. estimate-forced-light: /estimate/[token] layout wraps content in [data-theme="light"],
-//      even though the root layout applies `class="dark"` on <html>.
+// Post 260524-ohe: /login, /signup, /reset-password no longer exist as routes.
+// Auth surface is the LP modal opened via /?auth=login (or signup). The
+// landing layout owns the dark class on its <div data-testid="landing-shell">.
+// The estimate share route keeps its forced-light wrapper as before.
 
 test.describe('Phase 9 — dark-mode defaults & scoped theme wrappers', () => {
   test.beforeEach(async ({ context }) => {
@@ -14,17 +13,18 @@ test.describe('Phase 9 — dark-mode defaults & scoped theme wrappers', () => {
   })
 
   test('default-dark: fresh visit renders <html class="dark">', async ({ page }) => {
-    await page.goto('/login')
+    await page.goto('/?auth=login')
+    await page.waitForSelector('[role="dialog"]')
     await expect
       .poll(async () => await page.evaluate(() => document.documentElement.className))
       .toMatch(/(^|\s)dark(\s|$)/)
   })
 
-  test('scoped-wrappers-intact: /login still has [data-theme="dark-auth"]', async ({
+  test('scoped-wrappers-intact: /?auth=login renders landing shell in dark mode', async ({
     page,
   }) => {
-    await page.goto('/login')
-    await expect(page.locator('[data-theme="dark-auth"]')).toHaveCount(1)
+    await page.goto('/?auth=login')
+    await expect(page.locator('[data-testid="landing-shell"]')).toHaveCount(1)
   })
 
   test('estimate-forced-light: /estimate/<token> wraps content in [data-theme="light"]', async ({
@@ -39,7 +39,7 @@ test.describe('Phase 9 — dark-mode defaults & scoped theme wrappers', () => {
 
 // Phase 9 (09-04) — public routes render in dark mode when eb-theme=dark cookie is set.
 test.describe('Phase 9 — routes render in dark mode', () => {
-  const PUBLIC_ROUTES = ['/login', '/signup', '/reset-password']
+  const PUBLIC_ROUTES = ['/', '/?auth=login', '/?auth=signup']
 
   test.beforeEach(async ({ context, baseURL }) => {
     await context.addCookies([
@@ -50,6 +50,9 @@ test.describe('Phase 9 — routes render in dark mode', () => {
   for (const path of PUBLIC_ROUTES) {
     test(`routes-render-dark: ${path} has <html class*="dark">`, async ({ page }) => {
       await page.goto(path)
+      if (path.includes('auth=')) {
+        await page.waitForSelector('[role="dialog"]')
+      }
       const cls = await page.evaluate(() => document.documentElement.className)
       expect(cls).toMatch(/(^|\s)dark(\s|$)/)
     })
@@ -67,7 +70,8 @@ test.describe('Phase 9 — primitives render with dark palette', () => {
   test('primitives-dark: body background resolves to a non-white color when eb-theme=dark', async ({
     page,
   }) => {
-    await page.goto('/login')
+    await page.goto('/?auth=login')
+    await page.waitForSelector('[role="dialog"]')
     const bg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor)
     expect(bg).not.toBe('rgb(255, 255, 255)')
     expect(bg).not.toBe('rgba(0, 0, 0, 0)')

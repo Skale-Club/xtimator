@@ -33,9 +33,9 @@ test.describe('@phase-18 capture fullscreen shell', () => {
     expect(await page.locator('[data-testid="mobile-header"]').count()).toBe(0)
   })
 
-  test('/projects/[id]/capture unauthenticated visit redirects to /login', async ({ page }) => {
+  test('/projects/[id]/capture unauthenticated visit redirects to /?auth=login', async ({ page }) => {
     // Smoke test: verifies the route exists and auth is enforced.
     await page.goto('/projects/test-noop/capture')
-    await expect(page).toHaveURL('/login')
+    await expect(page).toHaveURL(/\/\?auth=login/)
   })
 })

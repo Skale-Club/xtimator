@@ -32,7 +32,15 @@ const INITIAL: OnboardingValues = {
   defaultValidityDays: 30,
 }
 
-export function OnboardingSurvey({ appName, logoUrl }: { appName: string; logoUrl: string | null }) {
+export function OnboardingSurvey({
+  appName,
+  logoUrl,
+  mode = 'first',
+}: {
+  appName: string
+  logoUrl: string | null
+  mode?: 'first' | 'add'
+}) {
   const state = useSurveyState(INITIAL)
   const [isSubmitting, startTransition] = useTransition()
 
@@ -63,10 +71,13 @@ export function OnboardingSurvey({ appName, logoUrl }: { appName: string; logoUr
           }
         }
 
-        const result = await createOrUpdateCompany({
-          ...state.values,
-          logoUrl,
-        })
+        const result = await createOrUpdateCompany(
+          {
+            ...state.values,
+            logoUrl,
+          },
+          { mode }
+        )
         if (result?.error) {
           toast.error(result.error)
         }

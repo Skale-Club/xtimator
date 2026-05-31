@@ -11,7 +11,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Loader2, Mic, MicOff, Sparkles, Trash2 } from 'lucide-react'
+import { Loader2, Sparkles, Trash2 } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -20,8 +20,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { WaveformVisualizer } from '@/components/workspace/audio/waveform-visualizer'
-import { getSupportedAudioMimeType, formatDuration } from '@/lib/utils/media-format'
+import { VoiceRecorder } from '@/components/workspace/audio/voice-recorder'
+import { getSupportedAudioMimeType } from '@/lib/utils/media-format'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { useAIInputSubmit, type SubmitStage } from './use-ai-input-submit'
 import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
@@ -246,33 +246,15 @@ export function AIVoiceDialog({
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Timer */}
-          <div className="text-center">
-            <p className="text-3xl font-mono text-foreground">{formatDuration(duration)}</p>
-          </div>
-
-          {/* Waveform */}
-          <WaveformVisualizer analyser={analyser} isRecording={isRecording} />
-
-          {/* Mic button (big circular toggle) */}
-          <div className="flex justify-center">
-            <button
-              type="button"
-              onClick={handleToggleRecording}
-              disabled={isSubmitting || (!!audioBlob && !isRecording)}
-              className={
-                'w-16 h-16 min-h-[44px] min-w-[44px] rounded-full flex items-center justify-center transition-colors disabled:opacity-50 ' +
-                (isRecording
-                  ? 'bg-red-500 animate-pulse hover:bg-red-600'
-                  : 'bg-primary hover:bg-primary/90')
-              }
-              aria-label={isRecording ? t('Stop recording') : t('Start recording')}
-            >
-              {isRecording
-                ? <MicOff className="h-7 w-7 text-white" />
-                : <Mic className="h-7 w-7 text-primary-foreground" />}
-            </button>
-          </div>
+          <VoiceRecorder
+            size="md"
+            analyser={analyser}
+            isRecording={isRecording}
+            elapsedMs={duration * 1000}
+            onToggle={handleToggleRecording}
+            disabled={isSubmitting || (!!audioBlob && !isRecording)}
+            helperText={isRecording ? t('Tap to stop') : t('Tap to start recording')}
+          />
 
           {/* Live transcript preview */}
           {isRecording && speechSupported && liveTranscript && (

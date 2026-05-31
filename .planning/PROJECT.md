@@ -14,6 +14,24 @@ The platform includes:
 
 A business owner can go from job site audio recording to a sent, professional estimate in under 5 minutes without touching a keyboard.
 
+## Current Milestone: v4.2 Recording Reliability & Observability
+
+**Goal:** Make the recording→estimate pipeline reliable and diagnosable — fix the transcription 503, persist every pipeline step, and give Super Admin a Generations-style event log to debug failures without digging through server logs.
+
+**Target features:**
+- **Fix the recording 503** — `GET /api/jobs/[jobId]` returns a hard `503 "Inngest not configured"` (missing `INNGEST_SIGNING_KEY`); `use-job-status.ts` surfaces `"Status check failed: 503"` and the capture popup marks "Transcribing" as failed. Completes the unfinished v3.1.1 INNGEST-01 (worker registration/reachability) + INNGEST-06 (idempotency) and makes the status endpoint degrade gracefully with an actionable reason.
+- **Pipeline event persistence** — new events store records each step (save recording, transcribe, analyze, generate estimate, preview redirect) with attempt id, project/estimate, user, input type, status, error code, provider, duration, retry count, timestamps. Today only `recording_added` lands in `estimate_activity`.
+- **Super Admin event log** — Generations-style UI: recent attempts list, search (user/project/estimate/attempt/error), filters (status/input type/step), success/failure counts, refresh, and a per-attempt detail timeline. User-facing popup stays simple; deep diagnostics live in Super Admin.
+
+**Source spec:** Notion "Recording Failure Investigation — Super Admin Event Logs".
+
+**Progress (2026-05-29):**
+- ✅ **Phase 91: Recording Pipeline Reliability** — shipped 2026-05-29. `GET /api/jobs/[jobId]` no longer hard-503s: it returns HTTP 200 with a discriminated `JobStatusContract` (`processing | completed | failed | config_unavailable | not_found`; 401 auth gate preserved). `hooks/use-job-status.ts` `pollJob` resolves a typed `JobResult` and never throws on non-200; the capture popup (`components/capture/capture-failure.tsx`) renders a human-readable reason + i18n Retry / Edit-manually actions instead of a raw status code. Retry reuses a once-minted `attemptId`/`requestId`/`recordingId` (payload-only lineage, no DB column in P91) so already-successful Inngest steps inside `step.run()` with idempotency keys are not re-charged. All 4 remaining `pollJob` consumers (text-describe, photos-input, ai-input-group, capture-recorder) rewired to the discriminant together so no failure is silently swallowed. REC-01..05 all Complete. 2/2 plans, 8 commits, 27 Phase-91 assertions green across 5 suites, tsc clean. 4 behaviors routed to human UAT (non-blocking).
+- ✅ **Phase 92: Pipeline Event Persistence** — shipped 2026-05-30. New service-role-only `pipeline_events` store (append-only, one row per step execution) durably records every pipeline transition (`save_recording | transcribe | analyze | generate_estimate | preview_redirect`) across all input types (`recording | photo | manual_text`), with `status` (`started | succeeded | failed`), `duration_ms`, `provider`, `error_*`, and `retry_count`. RLS is deny-all for clients + a single super-admin `FOR SELECT` policy (`platform_admins`/`auth.uid()`) — the read contract Phase 93 consumes. A single best-effort `recordPipelineEvent()` helper (`lib/observability/pipeline-events.ts`) writes via `requireServiceClient()` and **swallows all failures** (`console.warn`, never throws) so observability can never regress the Phase 91 reliability. Instrumented all 6 server boundaries (3 routes + 3 Inngest functions incl. `onFailure`) plus a server-side `preview_redirect` marker. Phase 91 `attemptId` lineage reused and a new explicit `inputType` threaded through every entrypoint + payload + route (closed the `AnalyzePhotosPayload` attemptId gap); `retry_count` increments on repeat `attempt_id + step`. EVENT-04 (`estimate_activity recording_added` write) preserved byte-for-byte and regression-tested. Additive only — no pipeline behavior change, no UI. EVENT-01..04 all verified (4/4). 4/4 plans, ~12 commits, 24 Phase-92 assertions green across 6 suites, tsc clean. 1 manual UAT (live DB row inspection) pre-declared. Migration applied to remote via one-off `pg` applier (db-push blocked on pre-existing remote history drift); types regen'd via PAT `--project-id` (no-Docker path).
+- ✅ **Phase 93: Super Admin Event Log UI** — shipped 2026-05-30. New Super Admin route `app/admin/events/` reads the Phase 92 `pipeline_events` store and turns it into a Generations-style diagnostics console. **Attempt-grouped list** (`page.tsx`) backed by a net-new `pipeline_attempts` Postgres view (`security_invoker = on`, `GROUP BY attempt_id`, `BOOL_OR` terminal-status precedence failed>started>succeeded, `ARRAY_AGG` step_reached, durations, retry indicator) — server-side offset pagination (~50/page, `.range()` + `.order('last_at', desc)` + `count:'exact'`). **Server-side multi-field search** via a pure `buildSearchOr()` helper that `.eq`'s UUID columns only for valid-UUID terms and `ILIKE`'s error text (avoids the ilike-on-uuid Postgres trap); email terms (`@`) resolve to `user_id` via `svc.auth.admin.listUsers`. **URL-param filters** (status/input_type/step → `.eq()`) with success/failure **counts computed over the whole filtered set** (3 parallel `count:'exact',head:true` queries, not just the page) and **manual refresh** via `router.refresh()` (no auto/live). **Dedicated detail page** `[attemptId]/page.tsx` (raw events `created_at ASC`, `notFound()` on empty) renders a net-new vertical `EventStepTimeline` (left-rail dot+connector glass step cards, status color map). **ADMINLOG-05 safe-metadata guard is structural** — a 15-column `SAFE_EVENT_COLUMNS` whitelist is the only thing selected/rendered; static-source tests assert zero `transcript|audio|apiKey|payload|raw` tokens in any event-log file. **Authz is load-bearing**: because `requireServiceClient()` bypasses RLS (Phase 92's super-admin SELECT policy is inert under service role), `requireAdmin()` is called FIRST on both routes — verified by index-position tests. EN/PT-BR/ES i18n throughout. ADMINLOG-01..05 all verified (7/7 must-haves). 4/4 plans, ~12 commits, 9 admin test files / 62 assertions green + 23 prior-phase files / 93 assertions green (no regressions), tsc clean. View applied to remote via one-off `pg` applier (db-push still blocked on remote history drift). 2 manual UAT items (live filter-count accuracy + visual timeline) pre-declared, non-blocking.
+
+**v4.2 Recording Reliability & Observability is COMPLETE — all 3 phases (91, 92, 93) shipped.**
+
 ## Last Milestone: v3.1 Production Go-Live (rescoped) ✅ (shipped 2026-05-15)
 
 Phase 61 only — production database foundation. Built cross-platform RLS audit infrastructure (`supabase/audits/`), recovered 9 missing migrations (entire v3.0 monetization schema was on disk but never applied to DB!), wrote production bootstrap runbook (`supabase/PROD-BOOTSTRAP.md`). Phases 62-65 (Vercel deploy + Stripe live + monitoring + UAT) **deferred to v3.2** — Vercel Free Hobby plan blocks commercial SaaS use AND has 10s function timeout that breaks AI routes. Tracked in **SEED-018: Production Hosting + Deployment**.
@@ -22,7 +40,23 @@ Phase 61 only — production database foundation. Built cross-platform RLS audit
 
 Complete subscription system: Free/Trial/Pro/Business tiers, `usage_events` tracking, `checkQuota`/`recordUsage` enforcement across all AI routes and WhatsApp handler, Stripe checkout + portal + webhook lifecycle, `/settings/billing` UI with trial banner and 402 upgrade modal, hourly trial expiry cron + T-3/T-0 warning emails, admin force-tier + bonus credits + MRR view. 6 phases, 24/24 requirements satisfied.
 
-## Current Milestone: v4.0 Multi-Tenancy (Multiple Companies per User)
+## Last Milestone: v4.1 MCP Server ✅ (shipped 2026-05-26)
+
+OAuth 2.0 authorization server (RFC 8414/9728/7591, PKCE S256, sha256-hashed token storage, refresh-token rotation) shipped at `app/oauth/*` + `app/.well-known/*`. `/api/mcp` Streamable HTTP endpoint with Bearer auth and CORS for Claude.ai origins. 6 MCP tools (`list_estimates`, `get_estimate`, `list_clients`, `list_projects`, `create_estimate` async, `check_job_status`) with annotation-driven auto-grouped permission UI in Claude.ai. Self-service settings page at `/settings/integrations/mcp` with copy-paste `claude mcp add` snippet + Claude.ai / Claude Desktop / ChatGPT instructions. Async pattern reuses existing Inngest pipeline — `create_estimate` returns `job_id` immediately; `check_job_status` polls. 5 phases (86, 87, 88, 89, 90), 7 new test files (~152 assertions), 118 MCP-specific tests green, 1 prod migration applied. Full archive: [.planning/milestones/v4.1-ROADMAP.md](milestones/v4.1-ROADMAP.md).
+
+## Previous Milestone: v4.0 Multi-Tenancy ✅ (shipped 2026-05-26)
+
+Multi-company foundation, Switcher UI, full RLS rewrite (46 policies / 13 tables), server-action sweep (11 files codemodded), billing per-company (already per-company at the data layer), and multi-company access on the `companies` table via OR-extended RLS. A user can now own and operate multiple companies end-to-end via the Switcher UI, with correct tenant scoping at the DB layer, the action layer, and the UI layer. DROP COLUMN `companies.user_id` deferred to v5+ cleanup. Full archive: [.planning/milestones/v4.0-ROADMAP.md](milestones/v4.0-ROADMAP.md). 6 phases (79, 80, 81, 82, 83, 84, 85), 16 plans, 11 new test files, 98/98 tests green, 4 prod migrations applied.
+
+## Next Milestone
+
+Run `/gsd:new-milestone` to define the next cycle. Candidates surfaced during v4.0 work:
+- **v4.1 Inngest self-hosted on Hetzner** — placeholder phase 999.1 in current roadmap; aligned with SEED-018 (production hosting).
+- **v4.2 Cleanup of `companies.user_id`** — picks up where Phase 85 stopped; depends on refactoring auth.ts redirect, company.ts mode:'first', and inngest transcribe-audio attribution off the legacy column.
+- **v5.0 Admin/Member roles + invites** — opens `company_members.role` to non-owner tiers; needs a full product pass on permissions matrix.
+- **MCP Server (SEED-030 trigger)** — locked decisions captured in `.planning/seeds/SEED-030-mcp-server-xtimator.md`; activates once the core estimates pipeline is end-to-end stable in production.
+
+## Archived Milestone Context: v4.0 Multi-Tenancy (Multiple Companies per User)
 
 **Goal:** A single user can own and switch between multiple companies; every tenant-scoped surface (projects, clients, estimates, price book, integrations, billing, notifications) is gated by the active company instead of `auth.uid()`.
 
@@ -40,6 +74,16 @@ Complete subscription system: Free/Trial/Pro/Business tiers, `usage_events` trac
 - **Invites/teams:** explicitly out of scope (future milestone) — one user can own multiple companies, but a company has exactly one user
 - **Stripe Connect:** stays per-company (already aligned)
 - **Backwards compat:** zero re-onboarding — migration auto-creates 1 owner membership per existing company
+
+**Progress (2026-05-26):**
+- ✅ **Phase 79: Foundation (schema + cookie + active company resolution)** — shipped 2026-05-25. `company_members(user_id, company_id, role)` table live in prod (3 owners backfilled), RLS enabled; `getActiveCompanyId` / `getActiveCompany` helpers; `createOrUpdateCompany(mode: 'first' | 'add')`; `app/(app)/layout.tsx` switched to active-company resolvers. No UI in this phase by design. 4/4 plans, 15 commits, 38/38 tests green.
+- ✅ **Phase 81: Company Switcher UI + Add Company flow** — shipped 2026-05-26. `getMembershipCompanies()` query, `switchActiveCompany()` server action with discriminated-union return, CompanySelector wired with `useTransition` and mounted in BOTH sidebar render trees (collapsed + expanded), onboarding `?mode=add` threading end-to-end (page → survey → `createOrUpdateCompany`). 4/4 plans, 13 commits, 31/31 Phase 81 tests green. Mobile switcher deferred (SWITCH-15).
+- ✅ **Phase 82: RLS rewrite** — shipped 2026-05-26. 46 tenant-scoped policies across 13 tables (clients/projects/estimates/estimate_items/estimate_sections/estimate_activity/recordings/photos/company_price_book/price_book_folders/price_book_imports/estimate_deliveries/estimate_signatures/tour_events) now gate by `company_members` membership. In-migration DO $$ assertion. Static-contract test 6/6 green.
+- ✅ **Phase 83: Server-action sweep** — shipped 2026-05-26. 11 server-action files codemodded to derive company via `getActiveCompanyId()` + `.eq('id', activeCompanyId)`. 3 files allowlisted (auth.ts redirect, company.ts mode:'first', active-company.ts internal). Static-contract test 24/24 green.
+- ✅ **Phase 84: Billing per-company** — closed as already-shipped-by-prior-work. All billing columns live on `companies` (Phase 55+58+70), `usage_events` keyed by `company_id` (Phase 56), `/settings/billing` scopes via `getActiveCompany()` post Phase 79. No code change needed.
+- ✅ **Phase 85: Multi-company access on companies** — shipped 2026-05-26. `companies_*` RLS extended with OR-clause for `company_members` membership; `mode:'add'` now sets `user_id: claims.sub` (latent bug fix). DROP COLUMN deferred to v5+ — chain of legacy readers (auth.ts, company.ts mode:'first', inngest transcribe attribution) keeps the column alive for backwards compat.
+
+**v4.0 status:** All target features either shipped or correctly scoped out. Foundation (79), Switcher UI (81), RLS rewrite (82), server-action sweep (83), billing per-company (84 — pre-shipped), multi-company access on companies (85). A user can now own and operate multiple companies end-to-end via the Switcher UI, with correct tenant scoping at the DB layer, the action layer, and the UI layer.
 
 **Out of scope (captured for future milestones):**
 - Inviting other users to existing companies
@@ -246,4 +290,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context
 
 ---
-*Last updated: 2026-05-20 — v4.0 Multi-Tenancy milestone started (v3.1.1 still in progress)*
+*Last updated: 2026-05-30 — Phase 93 (Super Admin Event Log UI) complete; ADMINLOG-01..05 verified (7/7). v4.2 Recording Reliability & Observability COMPLETE — all 3 phases (91, 92, 93) shipped.*

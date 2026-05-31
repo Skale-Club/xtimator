@@ -15,6 +15,7 @@ export type ClientSuggestion = {
   detectedName: string
   matchedClientId: string | null
   matchedClientName: string | null
+  autoLinked: boolean
 }
 
 export type GenerateEstimateResult = {
@@ -29,6 +30,14 @@ export interface GenerateEstimateOptions {
   language?: EstimateLanguage
   /** User app language to consider in the cascade (rarely set from server). */
   userAppLanguage?: EstimateLanguage
+  /**
+   * Free-form prompts from non-recording sources (MCP `create_estimate` tool,
+   * WhatsApp text-only messages, future "describe in your own words" UI).
+   * When provided, these satisfy the "at least one input" precondition even
+   * if the project has no transcripts or photos. (Phase 89 deferral closed
+   * 2026-05-27.)
+   */
+  prompts?: string[]
 }
 
 function normalizeClientNameForMatch(name: string): string {
@@ -88,8 +97,13 @@ export async function generateEstimateForProject(
     (r) => r.transcript && r.transcript.trim().length > 0
   )
   const hasPhotos = photos.length > 0
-  if (!hasTranscripts && !hasPhotos) {
-    throw new Error('At least one audio transcript or photo is required')
+  const hasPrompts =
+    Array.isArray(options.prompts) &&
+    options.prompts.some((p) => typeof p === 'string' && p.trim().length > 0)
+  if (!hasTranscripts && !hasPhotos && !hasPrompts) {
+    throw new Error(
+      'At least one audio transcript, photo, or prompt is required'
+    )
   }
 
   const client = project.client as {
@@ -126,6 +140,10 @@ export async function generateEstimateForProject(
     .filter((p) => p.ai_description && p.ai_description.trim().length > 0)
     .map((p, i) => `Photo ${i + 1}: ${p.ai_description}`)
 
+  const prompts = (options.prompts ?? [])
+    .map((p) => (typeof p === 'string' ? p.trim() : ''))
+    .filter((p) => p.length > 0)
+
   const estimateInput: EstimateInput = {
     industry: company.industry,
     projectName: project.name,
@@ -135,6 +153,7 @@ export async function generateEstimateForProject(
     clientAddress,
     transcripts,
     photoDescriptions,
+    prompts: prompts.length > 0 ? prompts : undefined,
     priceBookItems,
     currencyCode,
     defaultPaymentTerms: company.default_payment_terms ?? null,
@@ -145,7 +164,11 @@ export async function generateEstimateForProject(
   const provider = await getAIProvider(companyId)
   const aiEstimate = await provider.generateEstimate(estimateInput)
 
-  // Client suggestion — only when project has no linked client
+  // Client suggestion — only when project has no linked client.
+  // When an exact-normalized match exists, auto-link inline (service-role context
+  // bypasses RLS; cannot call an authenticated server action from Inngest/webhook).
+  // Failure of the inline update is non-fatal — estimate generation still succeeds
+  // and the toast falls back to manual "Link" via autoLinked: false.
   let clientSuggestion: ClientSuggestion | null = null
   const detectedClientName = aiEstimate.suggested_client_name?.trim()
   if (!client && detectedClientName) {
@@ -160,10 +183,30 @@ export async function generateEstimateForProject(
         normalizeClientNameForMatch(c.name as string) === normalizedDetectedName
     )
 
+    let autoLinked = false
+    if (matchedClient?.id) {
+      const { error: linkError } = await supabase
+        .from('projects')
+        .update({ client_id: matchedClient.id as string })
+        .eq('id', projectId)
+
+      if (linkError) {
+        // Non-fatal — estimate generation must still succeed.
+        // Toast will fall back to manual "Link" path on the client.
+        console.warn(
+          '[generate-estimate] auto-link failed, falling back to manual link toast',
+          linkError
+        )
+      } else {
+        autoLinked = true
+      }
+    }
+
     clientSuggestion = {
       detectedName: detectedClientName,
       matchedClientId: (matchedClient?.id as string | undefined) ?? null,
       matchedClientName: (matchedClient?.name as string | undefined) ?? null,
+      autoLinked,
     }
   }
 

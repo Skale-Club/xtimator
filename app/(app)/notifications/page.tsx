@@ -29,7 +29,7 @@ interface PageProps {
 
 export default async function NotificationsPage({ searchParams }: PageProps) {
   const claims = await getAuthClaims()
-  if (!claims) redirect('/login')
+  if (!claims) redirect('/?auth=login')
 
   const supabase = await createClient()
   const { data: company } = await supabase

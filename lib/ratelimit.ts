@@ -24,6 +24,10 @@ export type LimitName =
   | 'whatsappPerDay'
   | 'photoAnalysisPerMinute'
   | 'translatePerMinute'
+  // Security Review S05 — close rate-limit gaps on AI/external-cost routes.
+  | 'transcribePerMinute'
+  | 'refinePerMinute'
+  | 'sendPerMinute'
 
 interface LimitConfig {
   max: number
@@ -47,6 +51,11 @@ export const limits: Record<LimitName, LimitConfig> = {
   // Expensive endpoints
   photoAnalysisPerMinute: { max: 10, window: 60 },
   translatePerMinute: { max: 20, window: 60 },
+
+  // Security Review S05 — AI / external-cost endpoints that previously had no limit.
+  transcribePerMinute: { max: 10, window: 60 }, // Whisper dispatch
+  refinePerMinute: { max: 10, window: 60 },     // Whisper + Vision + Claude in one call
+  sendPerMinute: { max: 10, window: 60 },       // Resend email / Twilio SMS fan-out
 }
 
 export interface RateLimitResult {

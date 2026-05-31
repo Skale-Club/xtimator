@@ -1,10 +1,18 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/server'
+import { requireServiceClient } from '@/lib/supabase/service'
+import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { sendWhatsAppMessage } from '@/lib/whatsapp/client'
+import { isDemoSession, DEMO_READONLY_MESSAGE } from '@/lib/demo/guard'
 
-type AuthSuccess = { ok: true; supabase: Awaited<ReturnType<typeof createClient>>; companyId: string }
+// company_whatsapp is RLS deny-all (no policies), so it can only be read/written
+// by the service client. We validate the user + active company with the
+// authenticated client, then operate on company_whatsapp via `svc` scoped to the
+// validated companyId — never trusting client-supplied ids.
+type AuthSuccess = { ok: true; svc: SupabaseClient; companyId: string }
 type AuthFailure = { ok: false; errorMsg: string }
 
 async function getAuthContext(): Promise<AuthSuccess | AuthFailure> {
@@ -13,15 +21,24 @@ async function getAuthContext(): Promise<AuthSuccess | AuthFailure> {
   const claims = claimsData?.claims ?? null
   if (!claims) return { ok: false, errorMsg: 'Not authenticated' }
 
+  const activeCompanyId = await getActiveCompanyId()
+  if (!activeCompanyId) return { ok: false, errorMsg: 'No company found' }
+
   const { data: company } = await supabase
     .from('companies')
     .select('id')
-    .eq('user_id', claims.sub as string)
+    .eq('id', activeCompanyId)
     .single()
 
   if (!company) return { ok: false, errorMsg: 'No company found' }
 
-  return { ok: true, supabase, companyId: company.id }
+  // company_whatsapp is written via the service client, which bypasses RLS, so
+  // the demo read-only RLS policies do NOT protect it. This app-layer guard is
+  // the only thing stopping a demo visitor from connecting numbers or sending
+  // verification codes / WhatsApp messages.
+  if (await isDemoSession()) return { ok: false, errorMsg: DEMO_READONLY_MESSAGE }
+
+  return { ok: true, svc: requireServiceClient(), companyId: company.id }
 }
 
 export type WhatsAppSettingsResult =
@@ -49,14 +66,14 @@ export async function requestWhatsAppVerification(data: {
 }): Promise<WhatsAppSettingsResult> {
   const ctx = await getAuthContext()
   if (!ctx.ok) return { ok: false, error: ctx.errorMsg }
-  const { supabase, companyId } = ctx
+  const { svc, companyId } = ctx
 
   const code = generateVerificationCode()
   const expiresAt = new Date(
     Date.now() + VERIFICATION_TTL_MINUTES * 60 * 1000
   ).toISOString()
 
-  const { error: dbError } = await supabase.from('company_whatsapp').upsert(
+  const { error: dbError } = await svc.from('company_whatsapp').upsert(
     {
       company_id: companyId,
       phone_number: data.phoneNumber,
@@ -82,7 +99,7 @@ export async function requestWhatsAppVerification(data: {
   } catch (sendErr) {
     // If we can't send the code, the row is useless — roll back so the user
     // can retry cleanly. They get a clear error.
-    await supabase.from('company_whatsapp').delete().eq('company_id', companyId)
+    await svc.from('company_whatsapp').delete().eq('company_id', companyId)
     const msg = sendErr instanceof Error ? sendErr.message : String(sendErr)
     return {
       ok: false,
@@ -106,9 +123,9 @@ export async function confirmWhatsAppVerification(
 ): Promise<WhatsAppSettingsResult> {
   const ctx = await getAuthContext()
   if (!ctx.ok) return { ok: false, error: ctx.errorMsg }
-  const { supabase, companyId } = ctx
+  const { svc, companyId } = ctx
 
-  const { data: row, error: fetchError } = await supabase
+  const { data: row, error: fetchError } = await svc
     .from('company_whatsapp')
     .select('verification_code, verification_attempts, verification_expires_at, status')
     .eq('company_id', companyId)
@@ -126,7 +143,7 @@ export async function confirmWhatsAppVerification(
     ? new Date(row.verification_expires_at as string).getTime()
     : 0
   if (!expiresAt || expiresAt < Date.now()) {
-    await supabase.from('company_whatsapp').delete().eq('company_id', companyId)
+    await svc.from('company_whatsapp').delete().eq('company_id', companyId)
     return { ok: false, error: 'Verification code expired. Please start over.' }
   }
 
@@ -134,13 +151,13 @@ export async function confirmWhatsAppVerification(
   if (normalized !== row.verification_code) {
     const newAttempts = (row.verification_attempts ?? 0) + 1
     if (newAttempts >= MAX_VERIFICATION_ATTEMPTS) {
-      await supabase.from('company_whatsapp').delete().eq('company_id', companyId)
+      await svc.from('company_whatsapp').delete().eq('company_id', companyId)
       return {
         ok: false,
         error: 'Too many incorrect attempts. Please start over.',
       }
     }
-    await supabase
+    await svc
       .from('company_whatsapp')
       .update({ verification_attempts: newAttempts })
       .eq('company_id', companyId)
@@ -152,7 +169,7 @@ export async function confirmWhatsAppVerification(
     }
   }
 
-  const { error: updateError } = await supabase
+  const { error: updateError } = await svc
     .from('company_whatsapp')
     .update({
       status: 'active',
@@ -182,9 +199,9 @@ export async function connectWhatsApp(data: {
 }): Promise<WhatsAppSettingsResult> {
   const ctx = await getAuthContext()
   if (!ctx.ok) return { ok: false, error: ctx.errorMsg }
-  const { supabase, companyId } = ctx
+  const { svc, companyId } = ctx
 
-  const { error } = await supabase.from('company_whatsapp').upsert(
+  const { error } = await svc.from('company_whatsapp').upsert(
     {
       company_id: companyId,
       phone_number: data.phoneNumber,
@@ -204,9 +221,9 @@ export async function connectWhatsApp(data: {
 export async function disconnectWhatsApp(): Promise<WhatsAppSettingsResult> {
   const ctx = await getAuthContext()
   if (!ctx.ok) return { ok: false, error: ctx.errorMsg }
-  const { supabase, companyId } = ctx
+  const { svc, companyId } = ctx
 
-  const { error } = await supabase
+  const { error } = await svc
     .from('company_whatsapp')
     .delete()
     .eq('company_id', companyId)
@@ -222,9 +239,9 @@ export async function updateDeliveryFormat(
 ): Promise<WhatsAppSettingsResult> {
   const ctx = await getAuthContext()
   if (!ctx.ok) return { ok: false, error: ctx.errorMsg }
-  const { supabase, companyId } = ctx
+  const { svc, companyId } = ctx
 
-  const { error } = await supabase
+  const { error } = await svc
     .from('company_whatsapp')
     .update({ delivery_format: format })
     .eq('company_id', companyId)
@@ -246,9 +263,9 @@ export async function updateWhatsAppStatus(
 ): Promise<WhatsAppSettingsResult> {
   const ctx = await getAuthContext()
   if (!ctx.ok) return { ok: false, error: ctx.errorMsg }
-  const { supabase, companyId } = ctx
+  const { svc, companyId } = ctx
 
-  const { error } = await supabase
+  const { error } = await svc
     .from('company_whatsapp')
     .update({ status })
     .eq('company_id', companyId)

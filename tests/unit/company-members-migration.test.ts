@@ -12,7 +12,7 @@ import { join } from 'node:path'
 
 const MIGRATION_PATH = join(
   process.cwd(),
-  'supabase/migrations/20260521000001_phase79_company_members.sql'
+  'supabase/migrations/20260525000001_phase79_company_members.sql'
 )
 const SQL = readFileSync(MIGRATION_PATH, 'utf8')
 

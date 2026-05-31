@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { PhoneInput } from '@/components/ui/phone-input'
@@ -20,9 +20,10 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
-import { Send, CheckCircle2, Loader2, MessageSquare, Mail } from 'lucide-react'
+import { Send, CheckCircle2, Loader2, MessageSquare, MessageCircle, Mail } from 'lucide-react'
 import { toast } from 'sonner'
 import { markAsSentAction } from '@/lib/actions/estimate'
+import { buildShareLink } from '@/lib/utils/share-link'
 import { useTranslation } from '@/lib/i18n/use-translation'
 
 const sendEmailSchema = z.object({
@@ -37,8 +38,14 @@ const sendSmsSchema = z.object({
   message: z.string().optional(),
 })
 
+const sendWhatsAppSchema = z.object({
+  to: z.string().regex(/^\+[1-9]\d{7,14}$/, 'Phone must be in E.164 format (e.g. +15551234567)'),
+  message: z.string().optional(),
+})
+
 type SendEmailValues = z.infer<typeof sendEmailSchema>
 type SendSmsValues = z.infer<typeof sendSmsSchema>
+type SendWhatsAppValues = z.infer<typeof sendWhatsAppSchema>
 
 interface SendFormProps {
   estimateId: string
@@ -48,6 +55,7 @@ interface SendFormProps {
   projectName: string
   shareToken: string
   smsDeliveryEnabled: boolean
+  whatsappSendEnabled?: boolean
   /** SEED-028 Phase D: disable all send/PDF actions when the estimate is a draft. */
   disabled?: boolean
 }
@@ -60,15 +68,16 @@ export function SendForm({
   projectName,
   shareToken,
   smsDeliveryEnabled,
+  whatsappSendEnabled = false,
   disabled,
 }: SendFormProps) {
   const { t } = useTranslation()
   const [sending, setSending] = useState(false)
   const [marking, setMarking] = useState(false)
 
-  const shareLink = typeof window !== 'undefined'
-    ? `${window.location.origin}/estimate/${shareToken}`
-    : `/estimate/${shareToken}`
+  const shareLink = buildShareLink(shareToken)
+
+  const channelCount = 1 + (smsDeliveryEnabled ? 1 : 0) + (whatsappSendEnabled ? 1 : 0)
 
   const emailForm = useForm<SendEmailValues>({
     resolver: zodResolver(sendEmailSchema) as any,
@@ -82,6 +91,14 @@ export function SendForm({
 
   const smsForm = useForm<SendSmsValues>({
     resolver: zodResolver(sendSmsSchema) as any,
+    defaultValues: {
+      to: clientPhone ?? '',
+      message: '',
+    },
+  })
+
+  const whatsappForm = useForm<SendWhatsAppValues>({
+    resolver: zodResolver(sendWhatsAppSchema) as any,
     defaultValues: {
       to: clientPhone ?? '',
       message: '',
@@ -130,6 +147,31 @@ export function SendForm({
     }
   }
 
+  async function onWhatsAppSubmit(values: SendWhatsAppValues) {
+    setSending(true)
+    try {
+      const response = await fetch(`/api/estimates/${estimateId}/send-whatsapp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: values.to, message: values.message }),
+      })
+      const data = await response.json()
+      if (!response.ok) {
+        toast.error(data.error ?? 'Failed to send via WhatsApp')
+        return
+      }
+      toast.success(
+        data.fallback === 'share_link'
+          ? 'PDF unavailable — sent the share link instead.'
+          : 'Estimate sent via WhatsApp!',
+      )
+    } catch {
+      toast.error('Failed to send via WhatsApp. Please try again.')
+    } finally {
+      setSending(false)
+    }
+  }
+
   async function handleMarkAsSent() {
     setMarking(true)
     try {
@@ -148,12 +190,12 @@ export function SendForm({
 
   return (
     <Card variant="glass">
-      <CardHeader>
-        <CardTitle className="text-lg">{t('Send Estimate')}</CardTitle>
-      </CardHeader>
-      <CardContent>
+      <CardContent className="pt-6">
         <Tabs defaultValue="email">
-          <TabsList className="mb-4">
+          <TabsList
+            className="grid w-full"
+            style={{ gridTemplateColumns: `repeat(${channelCount}, minmax(0, 1fr))` }}
+          >
             <TabsTrigger value="email" className="gap-2">
               <Mail className="h-4 w-4" />
               Email
@@ -164,9 +206,15 @@ export function SendForm({
                 SMS
               </TabsTrigger>
             )}
+            {whatsappSendEnabled && (
+              <TabsTrigger value="whatsapp" className="gap-2">
+                <MessageCircle className="h-4 w-4" />
+                WhatsApp
+              </TabsTrigger>
+            )}
           </TabsList>
 
-          <TabsContent value="email">
+          <TabsContent value="email" className="mt-4">
             <Form {...emailForm}>
               <form onSubmit={emailForm.handleSubmit(onEmailSubmit)} className="space-y-4">
                 <FormField
@@ -235,7 +283,7 @@ export function SendForm({
           </TabsContent>
 
           {smsDeliveryEnabled && (
-            <TabsContent value="sms">
+            <TabsContent value="sms" className="mt-4">
               <Form {...smsForm}>
                 <form onSubmit={smsForm.handleSubmit(onSmsSubmit)} className="space-y-4">
                   <FormField
@@ -282,6 +330,63 @@ export function SendForm({
                       <MessageSquare className="mr-2 h-4 w-4" />
                     )}
                     {sending ? 'Sending...' : 'Send SMS'}
+                  </Button>
+                </form>
+              </Form>
+            </TabsContent>
+          )}
+
+          {whatsappSendEnabled && (
+            <TabsContent value="whatsapp" className="mt-4">
+              <Form {...whatsappForm}>
+                <form onSubmit={whatsappForm.handleSubmit(onWhatsAppSubmit)} className="space-y-4">
+                  <FormField
+                    control={whatsappForm.control}
+                    name="to"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Phone number</FormLabel>
+                        <FormControl>
+                          <PhoneInput
+                            value={field.value ?? ''}
+                            onChange={(formatted) => {
+                              field.onChange(formatted.replace(/[^\d+]/g, ''))
+                            }}
+                            placeholder="+15551234567"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={whatsappForm.control}
+                    name="message"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Custom message (optional)</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            rows={3}
+                            placeholder={`${companyName} sent you an estimate. Review and approve it here: ${shareLink}`}
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Delivery format (share link, formatted text, or PDF) follows your WhatsApp
+                    setting in Settings → Integrations.
+                  </p>
+                  <Button type="submit" variant="primary" size="lg" className="w-full" disabled={sending || disabled}>
+                    {sending ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <MessageCircle className="mr-2 h-4 w-4" />
+                    )}
+                    {sending ? 'Sending...' : 'Send WhatsApp'}
                   </Button>
                 </form>
               </Form>

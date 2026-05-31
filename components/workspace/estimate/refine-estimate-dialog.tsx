@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   Sparkles,
   Mic,
-  MicOff,
   Camera,
   X,
   Loader2,
@@ -20,10 +19,11 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from 'sonner'
 import { getSupportedAudioMimeType } from '@/lib/utils/media-format'
-import { WaveformVisualizer } from '@/components/workspace/audio/waveform-visualizer'
+import { VoiceRecorder } from '@/components/workspace/audio/voice-recorder'
 import type { RefinementPayload } from './use-estimate-reducer'
 
 interface RefineEstimateDialogProps {
@@ -248,67 +248,41 @@ export function RefineEstimateDialog({
           />
 
           {/* Voice */}
-          <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-3">
+          <Card variant="glass" className="p-4 space-y-3">
             <div className="flex items-center gap-2 text-sm font-medium text-foreground">
               <Mic className="h-4 w-4" /> Voice note
               <span className="text-xs text-muted-foreground font-normal ml-auto">
                 up to {maxSeconds}s
               </span>
             </div>
-
-            {/* Waveform when recording */}
-            {recState === 'recording' && (
-              <div className="h-10">
-                <WaveformVisualizer analyser={analyser} isRecording height={40} />
+            <VoiceRecorder
+              size="sm"
+              analyser={analyser}
+              isRecording={recState === 'recording'}
+              elapsedMs={elapsedMs}
+              onToggle={recState === 'recording' ? stopRecording : startRecording}
+              disabled={isSubmitting}
+              maxMs={MAX_AUDIO_MS}
+            />
+            {audioBlob && recState === 'idle' && (
+              <div className="flex items-center gap-3 text-xs">
+                <span className="text-muted-foreground">
+                  Voice note ready · {elapsedSeconds}s
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAudioBlob(null)
+                    setElapsedMs(0)
+                  }}
+                  className="text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
+                  disabled={isSubmitting}
+                >
+                  Remove
+                </button>
               </div>
             )}
-
-            <div className="flex items-center gap-3">
-              <Button
-                type="button"
-                size="sm"
-                variant={recState === 'recording' ? 'destructive' : 'secondary'}
-                onClick={recState === 'recording' ? stopRecording : startRecording}
-                disabled={isSubmitting}
-                className="gap-1.5"
-              >
-                {recState === 'recording' ? (
-                  <>
-                    <MicOff className="h-3.5 w-3.5" />
-                    Stop ({elapsedSeconds}s)
-                  </>
-                ) : audioBlob ? (
-                  <>
-                    <Mic className="h-3.5 w-3.5" />
-                    Re-record
-                  </>
-                ) : (
-                  <>
-                    <Mic className="h-3.5 w-3.5" />
-                    Record
-                  </>
-                )}
-              </Button>
-              {audioBlob && recState === 'idle' && (
-                <>
-                  <span className="text-xs text-muted-foreground">
-                    Voice note ready · {elapsedSeconds}s
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAudioBlob(null)
-                      setElapsedMs(0)
-                    }}
-                    className="text-xs text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
-                    disabled={isSubmitting}
-                  >
-                    Remove
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
+          </Card>
 
           {/* Photos */}
           <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-3">

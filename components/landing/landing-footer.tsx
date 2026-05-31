@@ -44,13 +44,13 @@ export function LandingFooter({ appName, logoUrl, onOpenAuth }: LandingFooterPro
             <h4 className="text-sm font-semibold text-white">Legal</h4>
             <ul className="mt-6 space-y-4 text-sm text-muted-foreground">
               <li>
-                <Link href="#" className="transition-colors hover:text-white">Privacy Policy</Link>
+                <Link href="/privacy-policy" className="transition-colors hover:text-white">Privacy Policy</Link>
               </li>
               <li>
-                <Link href="#" className="transition-colors hover:text-white">Terms of Service</Link>
+                <Link href="/terms-of-service" className="transition-colors hover:text-white">Terms of Service</Link>
               </li>
               <li>
-                <button type="button" onClick={() => onOpenAuth?.('login')} className="transition-colors hover:text-white">See Demo</button>
+                <Link href="/demo" className="transition-colors hover:text-white">See Demo</Link>
               </li>
             </ul>
           </div>

@@ -7,7 +7,7 @@ import { test, expect } from '@playwright/test'
 test.describe('Onboarding survey — keyboard + progress + back', () => {
   test('progress indicator shows "Step 1 of N" on initial render', async ({ page }) => {
     await page.goto('/onboarding')
-    if (page.url().includes('/login')) {
+    if (page.url().includes('auth=login')) {
       test.skip(true, 'No test auth helper configured for /onboarding')
     }
     await expect(page.getByText(/Step 1 of \d+/)).toBeVisible()
@@ -15,7 +15,7 @@ test.describe('Onboarding survey — keyboard + progress + back', () => {
 
   test('cannot advance past company-name step with empty value', async ({ page }) => {
     await page.goto('/onboarding')
-    if (page.url().includes('/login')) {
+    if (page.url().includes('auth=login')) {
       test.skip(true, 'No test auth helper configured for /onboarding')
     }
     const next = page.getByRole('button', { name: 'Next' })
@@ -26,7 +26,7 @@ test.describe('Onboarding survey — keyboard + progress + back', () => {
 
   test('Enter key advances when current step is valid', async ({ page }) => {
     await page.goto('/onboarding')
-    if (page.url().includes('/login')) {
+    if (page.url().includes('auth=login')) {
       test.skip(true, 'No test auth helper configured for /onboarding')
     }
     const input = page.locator('#survey-company-name')
@@ -37,7 +37,7 @@ test.describe('Onboarding survey — keyboard + progress + back', () => {
 
   test('Back button preserves previously entered value', async ({ page }) => {
     await page.goto('/onboarding')
-    if (page.url().includes('/login')) {
+    if (page.url().includes('auth=login')) {
       test.skip(true, 'No test auth helper configured for /onboarding')
     }
     const input = page.locator('#survey-company-name')

@@ -18,6 +18,9 @@
 - âœ… **v3.0 Monetization** â€” Phases 55-60 (shipped 2026-05-14) Â· [archive](milestones/v3.0-ROADMAP.md)
 - âœ… **v3.1 Production Go-Live (rescoped)** â€” Phase 61 only (shipped 2026-05-15) Â· 4 phases deferred to v3.2 Â· [archive](milestones/v3.1-ROADMAP.md)
 - ðŸš§ **v3.1.1 MVP Launch Prep + Future-Proofing** â€” Phases 66-72 (started 2026-05-15, rescoped same day for Inngest + Storage abstraction)
+- ✅ **v4.0 Multi-Tenancy** — Phases 79-85 (shipped 2026-05-26) · [archive](milestones/v4.0-ROADMAP.md)
+- ✅ **v4.1 MCP Server** — Phases 86-90 (shipped 2026-05-26) · [archive](milestones/v4.1-ROADMAP.md)
+- ✅ **v4.2 Recording Reliability & Observability** — Phases 91-93 (shipped 2026-05-30)
 
 > **Phase numbering note:** v3.1.1 starts at **Phase 66**, not 62. Phases 62-65 are reserved as DEFERRED placeholders for the v3.2 Production Deploy milestone (Vercelâ†’Hetzner deploy + Stripe live + monitoring + UAT in prod). Skipping past 62-65 keeps the global phase counter unambiguous and prevents number reuse confusion when v3.2 begins.
 
@@ -905,3 +908,121 @@ Plans:
 
 **Plans:** 2/2 plans complete
 
+
+### Phase 73: Language Onboarding + Estimate Language UI
+
+**Goal:** New users pick the app + estimate language during onboarding (en / pt / es) instead of having it inferred from browser. Estimate generation respects that language end-to-end (AI prompts, PDF, share view, WhatsApp). The choice surfaces in Settings → Profile.
+
+**Depends on:** Phase 12 (i18n translation system) · Phase 52 (per-estimate language backend)
+
+**Requirements:** LANG-ONB-01..05, EST-LANG-UI-01..05
+
+**Success Criteria:**
+  1. Onboarding wizard step 1 has language selector (3 flags + names). Persists to `companies.preferred_language`.
+  2. Estimate generation uses the company's `preferred_language` as the default for new estimates, overridable per estimate.
+  3. Per-estimate language picker is visible in the editor next to the title; switching it re-runs the AI translation pass and updates the share view + PDF.
+  4. Settings → Profile exposes the language picker with the same 3 options; change updates `preferred_language` and revalidates the app shell.
+  5. All hardcoded English strings in onboarding + estimate UI now go through `t()`. PT-BR and es-MX translations covered.
+
+**Plans:** 5/5 plans complete — SHIPPED 2026-05-20
+
+### Phase 79: Multi-Company Foundation (Schema + Cookie + Active Company Resolution)
+
+**Goal:** Ship the foundation slice of v4.0 Multi-Tenancy. `company_members(user_id, company_id, role)` join table exists with idempotent backfill (1 owner per existing company); session cookie holds `active_company_id`; server-side helpers `getActiveCompanyId()` / `getActiveCompany()` resolve it (cookie → validate → fallback to oldest membership → write cookie); `createOrUpdateCompany` gains a `mode: 'first' | 'add'` parameter; `app/(app)/layout.tsx` reads via the new resolvers. No new UI in this phase by design.
+
+**Depends on:** v3.x stack (Supabase, layout, server actions)
+
+**Requirements:** D-01..D-16 (CONTEXT.md decision IDs; not entered in REQUIREMENTS.md by design)
+
+**Success Criteria:**
+  1. New `company_members` table with composite PK (user_id, company_id), CASCADE FKs to `auth.users` + `companies`, RLS enabled with auth.uid() gated SELECT-only policy.
+  2. Backfill INSERTs one `role='owner'` row per pre-existing company; re-running the backfill is a no-op (idempotent via `ON CONFLICT DO NOTHING`).
+  3. `lib/queries/active-company.ts` exports `getActiveCompanyId`, `getActiveCompany`, `ACTIVE_COMPANY_COOKIE`, `ACTIVE_COMPANY_COOKIE_OPTIONS`. Cookie precedence > fallback > null behavior fully unit-tested.
+  4. `createOrUpdateCompany(input, mode)` preserves legacy upsert in `'first'` mode; `'add'` mode inserts a NEW companies row + matching company_members owner row and writes the active-company cookie.
+  5. `app/(app)/layout.tsx` switched from `getCachedCompany(claims.sub)` to `getActiveCompany()`; billing row re-keyed to `.eq('id', activeCompanyId)`; `unstable_cache` re-keyed by activeCompanyId.
+
+**Plans:** 4/4 plans complete — SHIPPED 2026-05-25 (foundation slice; Switcher UI + Add Company flow still pending in v4.0)
+
+### Phase 80: Walkthrough Audit + Debug + Polish
+
+**Goal:** End-to-end audit of the production-bound user walkthrough (signup → onboarding → first project → audio capture → AI estimate → share). Triage every snag (bug, copy issue, UX paper cut, perf hot spot) into a fix or a documented known-issue. Polish the rough edges that survived prior phases.
+
+**Depends on:** Phases 71 (design), 72 (admin perf), 73 (language UI)
+
+**Requirements:** WALKTHRU-01..04
+
+**Success Criteria:**
+  1. Walkthrough exercised on desktop + iOS Safari + Android Chrome; every issue logged with screenshot + reproduction.
+  2. Critical issues fixed in this phase; non-critical added to `.planning/known-issues.md` with severity + workaround.
+  3. Verification report (`80-VERIFICATION.md`) lists every gap addressed and each deferred item with rationale.
+  4. Human UAT captured in `80-HUMAN-UAT.md` with the manual smoke test outcome.
+
+**Plans:** 4/4 plans complete — SHIPPED 2026-05-21
+
+### Phase 999.1: Migrate Inngest to Self-Hosted Hetzner (PARKING LOT)
+
+**Goal:** Move the Inngest dev worker stack to a self-hosted instance on Hetzner Cloud to remove the managed Inngest dependency once the Hetzner host (Phase 68 deliverables) is operational.
+
+**Status:** Backlog placeholder. Not started. Numbered `999.x` per GSD parking-lot convention to indicate "out of sequence, surface when prerequisites land".
+
+**Prerequisites:**
+  - Phase 67 (Inngest background AI jobs) — landed
+  - Phase 68 (Hetzner Cloud deploy-readiness artifacts) — landed (but not yet exercised in prod)
+  - v3.2 deployment milestone — not yet started
+
+**Plans:** 0/0 — not planned yet
+
+### v4.2 Recording Reliability & Observability (Phases 91-93)
+
+- [x] **Phase 91: Recording Pipeline Reliability** -- Eliminate the opaque 503 from `GET /api/jobs/[jobId]`, degrade gracefully when Inngest is unconfigured, give the capture popup a human-readable failure + Retry + Edit-manually, and make pipeline jobs idempotent (carry-forward INNGEST-01/06)
+ (completed 2026-05-29)
+- [x] **Phase 92: Pipeline Event Persistence** -- New service-role-only events store plus backend instrumentation that records every pipeline step (success and failure) across all input types, additive to the existing `estimate_activity` write (completed 2026-05-30)
+- [x] **Phase 93: Super Admin Event Log** -- Generations-style Super Admin UI: recent attempts list, search, filters + counts + refresh, and a per-attempt step timeline, exposing only safe metadata (completed 2026-05-30)
+
+### Phase 91: Recording Pipeline Reliability
+**Goal**: A user whose recording pipeline hits an Inngest-config or processing problem always sees an actionable, recoverable state instead of an opaque 503 -- and retries never double-charge AI/transcription providers. Completes the unfinished v3.1.1 INNGEST-01 (worker registration/reachability) and INNGEST-06 (idempotency).
+**Depends on**: Phase 67 (Inngest pipeline + `/api/jobs/[jobId]` exist), Phase 90 (last shipped phase)
+**Requirements**: REC-01, REC-02, REC-03, REC-04, REC-05
+**Success Criteria** (what must be TRUE):
+  1. `GET /api/jobs/[jobId]` never returns an opaque 503 when Inngest is unconfigured -- it either reports a registered, reachable worker status or degrades to an actionable, non-error status the client can render
+  2. When the pipeline fails, the capture popup shows a plain-language reason plus a Retry button and an "Edit manually" button -- never a raw status code or stack trace
+  3. Tapping Retry continues the same attempt lineage (same attempt id), and "Edit manually" lands the user in the editor with all project context preserved -- no recording work is lost
+  4. Re-running or retrying a pipeline job does not double-charge Anthropic / OpenAI -- each job runs inside `step.run()` boundaries with an explicit `idempotencyKey`
+  5. `hooks/use-job-status.ts` distinguishes "still processing", "failed with reason", and "config unavailable" without throwing on any non-200 response
+**Plans**: 2 plans
+  - [x] 91-01-PLAN.md — Graceful job-status contract + hook rewrite + failure UI (REC-01/02/05)
+  - [x] 91-02-PLAN.md — Attempt-lineage + idempotency hardening; no double-charge on Retry (REC-03/04)
+**UI hint**: yes
+
+### Phase 92: Pipeline Event Persistence
+**Goal**: Every step of every recording-to-estimate attempt is durably recorded in a new, service-role-only events store so operators can later reconstruct exactly what happened -- which step broke, why, for whom, and how long it took -- without touching the database or losing the existing activity feed.
+**Depends on**: Phase 91 (the reliability fix defines the attempt-id lineage and graceful statuses the event store records)
+**Requirements**: EVENT-01, EVENT-02, EVENT-03, EVENT-04
+**Success Criteria** (what must be TRUE):
+  1. A new events table persists per-attempt, per-step records (attempt id, project/estimate/user/company id, input type, step, status, error message, error/HTTP code, provider, duration, retry count, timestamps) with deny-all RLS to the client, service-role writes, and super-admin read only
+  2. Backend instrumentation writes an event at each pipeline step transition (save recording, transcribe, analyze, generate estimate, preview redirect), capturing both success and failure with timing
+  3. All input types are captured (recording / photo / manual text); a retry increments `retry_count` and links back to its originating attempt id
+  4. The existing single `recording_added` write to `estimate_activity` still fires unchanged -- the new events store is additive, with no regression to the current activity feed
+**Plans**: 4 plans
+  - [x] 92-00-PLAN.md — Wave 0: 5 RED Nyquist test stubs + pipeline_events migration (applied to remote) + types block
+  - [x] 92-01-PLAN.md — Wave 1: best-effort recordPipelineEvent() helper (insert + swallow + retry_count)
+  - [ ] 92-02-PLAN.md — Wave 2: attemptId+inputType lineage threading (payloads + 3 entrypoints + 3 routes)
+  - [x] 92-03-PLAN.md — Wave 3: instrument 6 step boundaries + preview_redirect marker + EVENT-04 regression + phase gate
+
+### Phase 93: Super Admin Event Log
+**Goal**: A Super Admin can diagnose any recording failure in seconds from a Generations-style event log -- finding the attempt, seeing which step broke and why, across users and companies -- without ever exposing raw sensitive provider payloads.
+**Depends on**: Phase 92 (the events store and instrumentation must exist before the admin UI can read them)
+**Requirements**: ADMINLOG-01, ADMINLOG-02, ADMINLOG-03, ADMINLOG-04, ADMINLOG-05
+**Success Criteria** (what must be TRUE):
+  1. A Super Admin sees a recent-attempts list with Generations-style columns (timestamp, user/company, project/estimate, input type, step reached, status, duration), newest first and paginated
+  2. The admin can search attempts by user, project, estimate, attempt id, and error text
+  3. The admin can filter by status (success/failure/in-progress), input type, and step; success/failure counts are displayed; a manual refresh control is present
+  4. Opening an attempt renders a step timeline showing each step's timestamp, status, message, error code, safe metadata, and duration
+  5. No raw sensitive provider payloads (audio bytes, full transcripts, API keys) are rendered anywhere in the admin UI -- only safe, summarized metadata
+**Plans**: 4 plans
+Plans:
+- [x] 93-00-PLAN.md — Wave 0: 6 RED Nyquist test stubs (all ADMINLOG requirements)
+- [x] 93-01-PLAN.md — pipeline_attempts view DDL + apply script + database types extension
+- [x] 93-02-PLAN.md — events-helpers.ts (buildSearchOr/terminalStatus/formatDuration/SAFE_EVENT_COLUMNS) + EventsControls client + admin nav item
+- [x] 93-03-PLAN.md — list page (events/page.tsx) + EventStepTimeline component + detail page ([attemptId]/page.tsx)
+**UI hint**: yes

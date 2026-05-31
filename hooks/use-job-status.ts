@@ -1,65 +1,111 @@
 'use client'
 
 /**
- * Phase 67: useJobStatus — polls GET /api/jobs/[jobId] at 1.5s intervals
- * to drive long-running job UIs (e.g. capture stepper, voice refinement).
- * Stops on terminal status (Completed | Failed | Cancelled).
+ * Phase 67 / Phase 91: useJobStatus — polls GET /api/jobs/[jobId] at 1.5s
+ * intervals to drive long-running job UIs (e.g. capture stepper, voice
+ * refinement). Stops on any terminal state.
  *
- * Implements: INNGEST-05 (frontend status delivery via polling).
+ * Implements: INNGEST-05 (frontend status delivery via polling), REC-05.
+ *
+ * REC-05: this layer interprets the discriminated-state contract delivered by
+ * app/api/jobs/[jobId]/route.ts (JobStatusContract) and NEVER throws on a
+ * non-200 / never converts a failure into a synthetic `Status <code>` error.
+ * pollJob resolves a typed JobResult discriminant; useJobStatus exposes a
+ * discriminated state object.
+ *
+ * NOTE (Plan 91-02): pollJob's other production consumers (text-describe,
+ * photos-input, use-ai-input-submit) and the capture-recorder path are rewired
+ * to read this new discriminant in Plan 02 Tasks 3 + 4. Within this plan we only
+ * deliver the new return type + the no-throw behavior; the aborted-signal throw
+ * is preserved so callers' AbortError checks keep working.
  */
 import { useEffect, useState } from 'react'
 
-export type JobStatus = 'Running' | 'Completed' | 'Failed' | 'Cancelled'
+/**
+ * Typed poll result mirroring the endpoint's JobStatusContract terminal states.
+ * Exported so Plan 02 callers can import and narrow on the discriminant.
+ */
+export type JobResult =
+  | { state: 'completed'; output: unknown | null }
+  | { state: 'failed'; reason: string }
+  | { state: 'config_unavailable' }
+  | { state: 'not_found' }
 
-export type JobStatusResponse = {
-  status: JobStatus
-  output: unknown | null
-}
+/** The full set of states the hook can surface, including idle + processing. */
+export type JobStatusState =
+  | 'idle'
+  | 'processing'
+  | 'completed'
+  | 'failed'
+  | 'config_unavailable'
+  | 'not_found'
 
 export type UseJobStatusState = {
-  status: JobStatus | null // null = not yet polled / idle
+  state: JobStatusState
   output: unknown | null
-  error: string | null
+  reason: string | null
 }
 
+/** Wire shape parsed from the 200 JSON body (mirror of JobStatusContract). */
+type ContractBody =
+  | { state: 'processing' }
+  | { state: 'completed'; output?: unknown | null }
+  | { state: 'failed'; reason?: string }
+  | { state: 'config_unavailable' }
+  | { state: 'not_found' }
+
 const POLL_MS = 1500
-const TERMINAL: ReadonlyArray<JobStatus> = ['Completed', 'Failed', 'Cancelled']
+
+function toJobResult(body: ContractBody): JobResult {
+  switch (body.state) {
+    case 'completed':
+      return { state: 'completed', output: body.output ?? null }
+    case 'failed':
+      return { state: 'failed', reason: body.reason ?? 'Estimate generation failed' }
+    case 'config_unavailable':
+      return { state: 'config_unavailable' }
+    case 'not_found':
+      return { state: 'not_found' }
+    default:
+      // Unreachable for terminal states; defensive fallback.
+      return { state: 'failed', reason: 'Estimate generation failed' }
+  }
+}
 
 /**
- * Standalone helper — usable from non-React callers (e.g. inside an effect
- * that already drives its own state). Resolves with the terminal output for
- * Completed; throws for Failed / Cancelled / Aborted.
+ * Standalone helper — usable from non-React callers (e.g. inside an effect that
+ * already drives its own state). Resolves a typed JobResult for every terminal
+ * state and NEVER throws on a non-200. While the contract reports `processing`
+ * it keeps polling. Only throws on a genuinely-aborted signal (preserved so
+ * callers' AbortError checks still work) or a truly-unparseable response.
  */
-export async function pollJob(jobId: string, signal: AbortSignal): Promise<unknown> {
+export async function pollJob(jobId: string, signal: AbortSignal): Promise<JobResult> {
   while (!signal.aborted) {
     const res = await fetch(`/api/jobs/${jobId}`, { signal })
-    if (!res.ok) {
-      throw new Error(`Status check failed: ${res.status}`)
+    const body = (await res.json()) as ContractBody
+    if (body.state === 'processing') {
+      await new Promise((resolve) => setTimeout(resolve, POLL_MS))
+      continue
     }
-    const json = (await res.json()) as JobStatusResponse
-    if (json.status === 'Completed') return json.output
-    if (json.status === 'Failed' || json.status === 'Cancelled') {
-      throw new Error(`Job ${json.status}`)
-    }
-    await new Promise((resolve) => setTimeout(resolve, POLL_MS))
+    return toJobResult(body)
   }
   throw new Error('Aborted')
 }
 
 /**
- * React hook variant — exposes live status state for components that
- * want to render mid-flight progress indicators.
+ * React hook variant — exposes live discriminated state for components that
+ * want to render mid-flight progress and terminal outcomes.
  */
 export function useJobStatus(jobId: string | null): UseJobStatusState {
   const [state, setState] = useState<UseJobStatusState>({
-    status: null,
+    state: 'idle',
     output: null,
-    error: null,
+    reason: null,
   })
 
   useEffect(() => {
     if (!jobId) {
-      setState({ status: null, output: null, error: null })
+      setState({ state: 'idle', output: null, reason: null })
       return
     }
 
@@ -70,21 +116,31 @@ export function useJobStatus(jobId: string | null): UseJobStatusState {
       while (!controller.signal.aborted) {
         try {
           const res = await fetch(`/api/jobs/${jobId}`, { signal: controller.signal })
-          if (!res.ok) {
-            if (!cancelled) {
-              setState({ status: 'Failed', output: null, error: `Status ${res.status}` })
-            }
-            return
-          }
-          const json = (await res.json()) as JobStatusResponse
+          const body = (await res.json()) as ContractBody
           if (cancelled) return
-          setState({ status: json.status, output: json.output, error: null })
-          if (TERMINAL.includes(json.status)) return
-          await new Promise((r) => setTimeout(r, POLL_MS))
+
+          if (body.state === 'processing') {
+            setState({ state: 'processing', output: null, reason: null })
+            await new Promise((r) => setTimeout(r, POLL_MS))
+            continue
+          }
+
+          const result = toJobResult(body)
+          if (result.state === 'completed') {
+            setState({ state: 'completed', output: result.output, reason: null })
+          } else if (result.state === 'failed') {
+            setState({ state: 'failed', output: null, reason: result.reason })
+          } else {
+            // config_unavailable | not_found
+            setState({ state: result.state, output: null, reason: null })
+          }
+          return // terminal state — stop the loop
         } catch (err) {
           if ((err as Error).name === 'AbortError') return
+          // Truly-unexpected (e.g. unparseable response). Surface as a failed
+          // state with a safe reason — NOT a synthetic `Status <code>` error.
           if (!cancelled) {
-            setState({ status: 'Failed', output: null, error: (err as Error).message })
+            setState({ state: 'failed', output: null, reason: 'Estimate generation failed' })
           }
           return
         }

@@ -22,6 +22,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 import { saveLandingContent } from './actions'
 import { useTranslation } from '@/lib/i18n/use-translation'
+import { HeroImageUploader } from '@/components/admin/hero-image-uploader'
 
 interface LandingEditorProps {
   initial: LandingContentInput
@@ -41,11 +42,44 @@ export function LandingEditor({ initial }: LandingEditorProps) {
   const [activeStep, setActiveStep] = useState(0)
   const [activeFeature, setActiveFeature] = useState(0)
 
+  // Hero image upload state — file is sent as FormData on submit; the
+  // persisted URL only updates after the server completes the upload.
+  const [heroImagePreview, setHeroImagePreview] = useState<string | null>(
+    initial.heroImageUrl ?? null
+  )
+  const [heroImageFile, setHeroImageFile] = useState<File | null>(null)
+  const [heroImageRemoved, setHeroImageRemoved] = useState(false)
+
+  function handleHeroImageSelect(file: File, preview: string) {
+    setHeroImageFile(file)
+    setHeroImagePreview(preview)
+    setHeroImageRemoved(false)
+  }
+
+  function handleHeroImageRemove() {
+    setHeroImageFile(null)
+    setHeroImagePreview(null)
+    setHeroImageRemoved(true)
+  }
+
   function onSubmit(values: LandingContentInput) {
     startTransition(async () => {
-      const result = await saveLandingContent(values)
+      const fd = new FormData()
+      // Preserve current URL when no upload/removal is happening so the
+      // server-side schema receives a stable value.
+      const payload: LandingContentInput = {
+        ...values,
+        heroImageUrl: heroImageRemoved ? null : values.heroImageUrl ?? null,
+      }
+      fd.set('content', JSON.stringify(payload))
+      if (heroImageFile) fd.set('heroImageFile', heroImageFile)
+      fd.set('heroImageRemoved', String(heroImageRemoved))
+
+      const result = await saveLandingContent(fd)
       if (result.ok) {
         toast.success(t('Landing page updated.'))
+        setHeroImageFile(null)
+        setHeroImageRemoved(false)
       } else {
         toast.error(result.message)
       }
@@ -111,6 +145,20 @@ export function LandingEditor({ initial }: LandingEditorProps) {
                 </FormItem>
               )}
             />
+
+            <FormItem>
+              <FormLabel>{t('Hero image')}</FormLabel>
+              <FormControl>
+                <HeroImageUploader
+                  currentUrl={heroImagePreview}
+                  onFileSelect={handleHeroImageSelect}
+                  onRemove={handleHeroImageRemove}
+                />
+              </FormControl>
+              <FormMessage>
+                {t('Optional. Displayed on the right side of the hero (1:1). When empty, the hero collapses to a single column.')}
+              </FormMessage>
+            </FormItem>
           </TabsContent>
 
           {/* How It Works */}

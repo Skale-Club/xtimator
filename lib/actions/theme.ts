@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { writeThemeCookie, isValidTheme, type ThemePreference } from '@/lib/theme/cookie'
 
 type ActionResult = { ok: true } | { ok: false; message: string }
@@ -15,10 +16,13 @@ export async function saveThemePreference(theme: ThemePreference): Promise<Actio
   const claims = data?.claims ?? null
   if (!claims) return { ok: false, message: 'Not authenticated' }
 
+  const activeCompanyId = await getActiveCompanyId()
+  if (!activeCompanyId) return { ok: false, message: 'No company found' }
+
   const { error } = await supabase
     .from('companies')
     .update({ theme_preference: theme })
-    .eq('user_id', claims.sub)
+    .eq('id', activeCompanyId)
 
   if (error) return { ok: false, message: error.message }
 

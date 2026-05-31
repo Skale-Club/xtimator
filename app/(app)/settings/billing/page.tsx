@@ -26,7 +26,7 @@ export default async function BillingPage() {
   const claims = await getAuthClaims()
 
   if (!claims) {
-    redirect('/login')
+    redirect('/?auth=login')
   }
 
   const data = await getBillingData(claims.sub as string)

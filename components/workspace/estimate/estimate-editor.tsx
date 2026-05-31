@@ -2,25 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import {
-  DndContext,
-  closestCenter,
-  type DragEndEvent,
-  PointerSensor,
-  TouchSensor,
-  useSensor,
-  useSensors,
-} from '@dnd-kit/core'
-import {
-  SortableContext,
-  verticalListSortingStrategy,
-  useSortable,
-  arrayMove,
-} from '@dnd-kit/sortable'
-import { CSS } from '@dnd-kit/utilities'
-import { Plus, Lock, CircleDot } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import {
   saveEstimate,
@@ -28,66 +9,65 @@ import {
   consolidateEstimate,
   createNewDraftVersion,
 } from '@/lib/actions/estimate'
+import { renameProjectAction } from '@/lib/actions/project'
 import type { EstimateWithSections, Estimate } from '@/lib/queries/estimate'
 import type { Recording } from '@/lib/queries/recording'
 import type { Photo } from '@/lib/queries/photo'
 import { useEstimateReducer, type EstimateEditorState } from './use-estimate-reducer'
-import { EstimateHeader } from './estimate-header'
-import { SectionCard } from './section-card'
-import { EstimateTotals } from './estimate-totals'
-import { GenerationProgress } from './generation-progress'
-import { RefineEstimateDialog } from './refine-estimate-dialog'
 import { EstimateFloatingActions } from './estimate-floating-actions'
 import {
-  showClientSuggestionToast,
-  type GenerateEstimateResponse,
-} from './client-suggestion-toast'
+  EstimateDocument,
+  type EstimateDocumentData,
+  type DocumentClient,
+  type DocumentCompany,
+  type CompanyDefaults,
+} from './estimate-document'
+import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
+import type { PriceBookItem } from '@/lib/queries/price-book'
+import { useEstimateVersionSlot } from '@/components/workspace/estimate-version-context'
 
 // ---------------------------------------------------------------------------
-// Sortable section wrapper
+// State → EstimateDocumentData converter
 // ---------------------------------------------------------------------------
 
-function SortableSectionCard({
-  section,
-  dispatch,
-  isReadOnly,
-  currencyCode,
-}: {
-  section: EstimateEditorState['sections'][number]
-  dispatch: React.Dispatch<import('./use-estimate-reducer').EstimateAction>
-  isReadOnly?: boolean
-  currencyCode: string
-}) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: section.id })
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
+function stateToDocumentData(state: EstimateEditorState): EstimateDocumentData {
+  return {
+    summary: state.summary,
+    notes: state.notes,
+    timeline: state.timeline,
+    payment_terms: state.payment_terms,
+    warranty_terms: state.warranty_terms,
+    discount_type: state.discount_type,
+    discount_value: state.discount_value,
+    discount_amount: state.discount_amount,
+    tax_rate: state.tax_rate,
+    tax_amount: state.tax_amount,
+    subtotal: state.subtotal,
+    total: state.total,
+    estimate_date: state.estimate_date,
+    estimate_number: state.estimate_number,
+    currency_code: state.currency_code,
+    sections: state.sections.map((s) => ({
+      id: s.id,
+      title: s.title,
+      subtotal: s.subtotal,
+      items: s.items.map((i) => ({
+        id: i.id,
+        description: i.description,
+        quantity: i.quantity,
+        unit: i.unit,
+        unit_price: i.unit_price,
+        total: i.total,
+        sort_order: i.sort_order,
+        price_source: i.price_source,
+        isManuallyEdited: i.isManuallyEdited,
+      })),
+    })),
   }
-
-  return (
-    <div ref={setNodeRef} style={style} {...attributes}>
-      <SectionCard
-        section={section}
-        dispatch={dispatch}
-        dragHandleProps={listeners}
-        isReadOnly={isReadOnly}
-        currencyCode={currencyCode}
-      />
-    </div>
-  )
 }
 
 // ---------------------------------------------------------------------------
-// State to save payload converter
+// Save payload
 // ---------------------------------------------------------------------------
 
 function stateToSavePayload(state: EstimateEditorState) {
@@ -101,6 +81,8 @@ function stateToSavePayload(state: EstimateEditorState) {
     discount_type: state.discount_type,
     discount_value: state.discount_value,
     tax_rate: state.tax_rate,
+    estimate_date: state.estimate_date,
+    estimate_number: state.estimate_number,
     sections: state.sections.map((s) => ({
       id: s.id,
       title: s.title,
@@ -130,15 +112,38 @@ interface EstimateEditorProps {
   versions: Estimate[]
   projectId: string
   companyId: string
+  companyBrandColor: string | null
+  /** Quick-260526-jo4: full company header (logo + contact + address) rendered in the editor. */
+  company: DocumentCompany
+  /** R4 — company defaults for the override-vs-default indicator. */
+  companyDefaults: CompanyDefaults
   recordings: Recording[]
   photos: Photo[]
+  /** Project context for the document header */
+  projectName: string
+  projectType: string | null
+  client: DocumentClient | null
+  /** R6 — wired by parent surface (OverviewTab). */
+  onRecord?: () => void
+  linkClientSlot?: React.ReactNode
+  /** Quick-260525-qbc: server-fetched price book for description autocomplete. */
+  priceBookItems: PriceBookItem[]
 }
 
 export function EstimateEditor({
   estimate,
   versions,
   projectId,
+  companyBrandColor,
+  company,
+  companyDefaults,
   photos,
+  projectName,
+  projectType,
+  client,
+  onRecord,
+  linkClientSlot,
+  priceBookItems,
 }: EstimateEditorProps) {
   const router = useRouter()
   const [state, dispatch] = useEstimateReducer(estimate)
@@ -146,24 +151,15 @@ export function EstimateEditor({
   stateRef.current = state
 
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
-  const [isRegenerating, setIsRegenerating] = useState(false)
-  const [regenStep, setRegenStep] = useState(0)
   const [currentVersionId, setCurrentVersionId] = useState(estimate.id)
   const [isNewVersionPending, setIsNewVersionPending] = useState(false)
+  const [localProjectName, setLocalProjectName] = useState(projectName)
 
-  // SEED-028 Phase B: read-only is derived from state. Old versions and
-  // consolidated versions cannot be edited.
   const isReadOnly = !state.is_current || state.workflow_status === 'consolidated'
   const isCurrent = state.is_current
 
-  // Sensors for section-level drag
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } })
-  )
-
   // -------------------------------------------------------------------------
-  // Save handlers (SEED-028 Phase B: no autosave; explicit save only)
+  // Save handlers
   // -------------------------------------------------------------------------
 
   const runSave = useCallback(async (): Promise<boolean> => {
@@ -177,9 +173,7 @@ export function EstimateEditor({
     }
     dispatch({ type: 'MARK_SAVED' })
     setSaveStatus('saved')
-    setTimeout(() => {
-      setSaveStatus((s) => (s === 'saved' ? 'idle' : s))
-    }, 2500)
+    setTimeout(() => setSaveStatus((s) => (s === 'saved' ? 'idle' : s)), 2500)
     return true
   }, [isReadOnly, dispatch])
 
@@ -191,36 +185,28 @@ export function EstimateEditor({
   const handleConsolidate = useCallback(async () => {
     const saveOk = await runSave()
     if (!saveOk) return
-
     const result = await consolidateEstimate(stateRef.current.id)
-    if (result.error) {
-      toast.error(result.error)
-      return
-    }
-
-    // Sync editor's local reducer state with the consolidated row so the
-    // editor flips to read-only and the SEND tab (which reads from the same
-    // server prop via router.refresh()) sees the new workflow_status
-    // immediately instead of waiting for a full reload.
+    if (result.error) { toast.error(result.error); return }
     const refreshed = await getEstimateByIdAction(stateRef.current.id)
-    if (refreshed.data) {
-      dispatch({ type: 'INIT', estimate: refreshed.data })
-    }
-
+    if (refreshed.data) dispatch({ type: 'INIT', estimate: refreshed.data })
     toast.success('Estimate consolidated')
     router.refresh()
   }, [runSave, router, dispatch])
 
   const handleDiscard = useCallback(async () => {
     const result = await getEstimateByIdAction(stateRef.current.id)
-    if (result.error || !result.data) {
-      toast.error('Failed to reload estimate')
-      return
-    }
+    if (result.error || !result.data) { toast.error('Failed to reload estimate'); return }
     dispatch({ type: 'INIT', estimate: result.data })
     setSaveStatus('idle')
     toast.success('Changes discarded')
   }, [dispatch])
+
+  const handleRenameProject = useCallback(async (name: string) => {
+    const result = await renameProjectAction(projectId, name)
+    if (result.error) { toast.error(result.error); return }
+    setLocalProjectName(name)
+    router.refresh()
+  }, [projectId, router])
 
   const handleNewVersion = useCallback(async () => {
     setIsNewVersionPending(true)
@@ -237,21 +223,19 @@ export function EstimateEditor({
     }
   }, [router])
 
-  // cmd/ctrl + S triggers Save Draft
+  // cmd/ctrl + S
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       const isSave = (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's'
       if (!isSave) return
       e.preventDefault()
-      if (!isReadOnly && stateRef.current.isDirty) {
-        void handleSaveDraft()
-      }
+      if (!isReadOnly && stateRef.current.isDirty) void handleSaveDraft()
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [isReadOnly, handleSaveDraft])
 
-  // beforeunload guard while there are unsaved changes
+  // beforeunload guard
   useEffect(() => {
     function onBeforeUnload(e: BeforeUnloadEvent) {
       if (!stateRef.current.isDirty || isReadOnly) return
@@ -269,190 +253,71 @@ export function EstimateEditor({
   const handleVersionChange = useCallback(async (estimateId: string) => {
     if (estimateId === currentVersionId) return
     setCurrentVersionId(estimateId)
-
     const result = await getEstimateByIdAction(estimateId)
-    if (result.error || !result.data) {
-      toast.error('Failed to load version')
-      return
-    }
-
+    if (result.error || !result.data) { toast.error('Failed to load version'); return }
     dispatch({ type: 'INIT', estimate: result.data })
     setSaveStatus('idle')
   }, [currentVersionId, dispatch])
 
-  // -------------------------------------------------------------------------
-  // Regenerate
-  // -------------------------------------------------------------------------
+  // Push version chrome up to the page header via context
+  const { setSlot } = useEstimateVersionSlot()
+  const handleVersionChangeRef = useRef(handleVersionChange)
+  handleVersionChangeRef.current = handleVersionChange
 
-  const handleRegenerate = useCallback(async () => {
-    setIsRegenerating(true)
-    setRegenStep(0)
-
-    try {
-      // Step 0: Analyze photos
-      if (photos.length > 0) {
-        const photoRes = await fetch('/api/analyze-photos', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ projectId }),
-        })
-        if (!photoRes.ok) throw new Error('Photo analysis failed')
-      }
-
-      // Step 1: Generate estimate
-      setRegenStep(1)
-      const genRes = await fetch('/api/generate-estimate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId }),
-      })
-      if (!genRes.ok) throw new Error('Estimate generation failed')
-      const generated = (await genRes.json()) as GenerateEstimateResponse
-
-      // Step 2: Saving
-      setRegenStep(2)
-      await new Promise((r) => setTimeout(r, 500))
-
-      // Step 3: Done
-      setRegenStep(3)
-      await new Promise((r) => setTimeout(r, 1000))
-
-      router.refresh()
-      showClientSuggestionToast({
-        projectId,
-        router,
-        suggestion: generated.clientSuggestion,
-      })
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Generation failed')
-    } finally {
-      setIsRegenerating(false)
-    }
-  }, [photos.length, projectId, router])
-
-  // -------------------------------------------------------------------------
-  // Section drag end
-  // -------------------------------------------------------------------------
-
-  function handleSectionDragEnd(event: DragEndEvent) {
-    const { active, over } = event
-    if (!over || active.id === over.id) return
-
-    const oldIndex = state.sections.findIndex((s) => s.id === active.id)
-    const newIndex = state.sections.findIndex((s) => s.id === over.id)
-    if (oldIndex === -1 || newIndex === -1) return
-
-    const reordered = arrayMove(
-      state.sections.map((s) => s.id),
-      oldIndex,
-      newIndex
-    )
-    dispatch({ type: 'REORDER_SECTIONS', sectionIds: reordered })
-  }
+  useEffect(() => {
+    setSlot({
+      currentVersionId,
+      versions,
+      workflowStatus: state.workflow_status,
+      version: state.version,
+      isDirty: state.isDirty,
+      isReadOnly,
+      onVersionChange: (id) => handleVersionChangeRef.current(id),
+      projectName: localProjectName,
+      onProjectRenamed: setLocalProjectName,
+    })
+    return () => setSlot(null)
+  }, [currentVersionId, versions, state.workflow_status, state.version, state.isDirty, isReadOnly, setSlot, localProjectName])
 
   // -------------------------------------------------------------------------
   // Render
   // -------------------------------------------------------------------------
 
-  if (isRegenerating) {
-    return <GenerationProgress currentStep={regenStep} />
-  }
-
   return (
-    <div className="space-y-6 pb-24">
-      {/* Workflow status badge — replaces the old autosave status bar. */}
-      <div className="flex items-center gap-2">
-        {state.workflow_status === 'consolidated' ? (
-          <Badge
-            variant="outline"
-            className="gap-1.5 border-[hsl(var(--success))]/30 bg-[hsl(var(--success))]/10 text-[hsl(var(--success))]"
-          >
-            <Lock className="h-3 w-3" />
-            Consolidated · v{state.version}
-          </Badge>
-        ) : (
-          <Badge variant="outline" className="gap-1.5 text-muted-foreground">
-            <CircleDot className="h-3 w-3" />
-            Draft · v{state.version}
-          </Badge>
-        )}
-        {state.isDirty && !isReadOnly && (
-          <span className="text-xs text-muted-foreground">Unsaved changes</span>
-        )}
-        {!isReadOnly && (
-          <div className="ml-auto">
-            <RefineEstimateDialog
-              estimateId={state.id}
-              version={state.version}
-              onApply={(refined) => dispatch({ type: 'APPLY_REFINEMENT', refined })}
-            />
-          </div>
-        )}
-      </div>
-
-      {/* Header (summary, notes, version selector, etc.) */}
-      <EstimateHeader
-        state={state}
+    <div className="space-y-3">
+      {/* WYSIWYG document surface */}
+      <EstimateDocument
+        mode="edit"
+        data={stateToDocumentData(state)}
+        company={company}
+        companyDefaults={companyDefaults}
+        brandColor={companyBrandColor ?? undefined}
+        client={client}
+        projectName={localProjectName}
+        projectType={projectType}
+        language={(estimate.language ?? 'en') as EstimateLanguage}
+        estimateVersion={state.version}
+        estimateSeq={state.estimate_seq}
+        estimateCreatedAt={estimate.created_at}
         dispatch={dispatch}
-        versions={versions}
-        onVersionChange={handleVersionChange}
-        onRegenerate={handleRegenerate}
         isReadOnly={isReadOnly}
-        isCurrent={isCurrent}
+        projectId={projectId}
+        onRenameProject={isReadOnly ? undefined : handleRenameProject}
+        priceBookItems={priceBookItems}
       />
-
-      {/* Sections with drag-and-drop */}
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragEnd={handleSectionDragEnd}
-      >
-        <SortableContext
-          items={state.sections.map((s) => s.id)}
-          strategy={verticalListSortingStrategy}
-        >
-          <div className="space-y-4">
-            {state.sections.map((section) => (
-              <SortableSectionCard
-                key={section.id}
-                section={section}
-                dispatch={dispatch}
-                isReadOnly={isReadOnly}
-                currencyCode={state.currency_code}
-              />
-            ))}
-          </div>
-        </SortableContext>
-      </DndContext>
-
-      {/* Add section */}
-      {!isReadOnly && (
-        <Button
-          variant="outline"
-          onClick={() => dispatch({ type: 'ADD_SECTION' })}
-          className="gap-1.5"
-        >
-          <Plus className="h-4 w-4" />
-          Add Section
-        </Button>
-      )}
-
-      {/* Totals */}
-      <EstimateTotals state={state} dispatch={dispatch} isReadOnly={isReadOnly} />
-
 
       <EstimateFloatingActions
         workflowStatus={state.workflow_status}
         isCurrent={isCurrent}
         isDirty={state.isDirty}
-        status={
-          saveStatus === 'dirty' ? 'idle' : (saveStatus as 'idle' | 'saving' | 'saved' | 'error')
-        }
+        status={saveStatus === 'dirty' ? 'idle' : (saveStatus as 'idle' | 'saving' | 'saved' | 'error')}
         onSaveDraft={handleSaveDraft}
         onConsolidate={handleConsolidate}
         onDiscard={handleDiscard}
         onNewVersion={handleNewVersion}
         isNewVersionPending={isNewVersionPending}
+        onRecord={onRecord}
+        linkClientSlot={linkClientSlot}
       />
     </div>
   )

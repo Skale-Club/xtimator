@@ -216,9 +216,14 @@ const styles = StyleSheet.create({
     borderBottomColor: '#e5e7eb',
   },
   headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    gap: 4,
+  },
+  headerRight: {
+    flexDirection: 'column',
+    alignItems: 'flex-end',
+    gap: 6,
   },
   logo: {
     width: 72,
@@ -446,10 +451,6 @@ export default function EstimatePDF({
           fixed
         >
           <View style={styles.headerLeft}>
-            {company.logo_url && (
-              // eslint-disable-next-line jsx-a11y/alt-text
-              <Image src={company.logo_url} style={styles.logo} />
-            )}
             <View>
               <Text
                 style={[styles.companyName, { color: brandColor }]}
@@ -503,8 +504,15 @@ export default function EstimatePDF({
               )}
             </View>
           </View>
-          {/* Language indicator chip — text-based (SVG flags not supported in react-pdf) */}
-          <Text style={styles.langBadge}>{langLabel}</Text>
+          {/* RIGHT — language badge stacked above logo (Quick-260526-jo4) */}
+          <View style={styles.headerRight}>
+            {/* Language indicator chip — text-based (SVG flags not supported in react-pdf) */}
+            <Text style={styles.langBadge}>{langLabel}</Text>
+            {company.logo_url && (
+              // eslint-disable-next-line jsx-a11y/alt-text
+              <Image src={company.logo_url} style={styles.logo} />
+            )}
+          </View>
         </View>
 
         {/* Title */}
@@ -528,10 +536,10 @@ export default function EstimatePDF({
                 { color: '#6b7280', marginTop: 4 },
               ]}
             >
-              {L.date}: {fmtDate(estimate.created_at)}
+              {L.date}: {fmtDate(estimate.estimate_date ?? estimate.created_at)}
             </Text>
             <Text style={[styles.infoValue, { color: '#6b7280' }]}>
-              {L.estimateNum}{estimate.version}
+              {L.estimateNum}{estimate.estimate_number ?? String(estimate.estimate_seq).padStart(4, '0')}
             </Text>
           </View>
 
@@ -578,7 +586,13 @@ export default function EstimatePDF({
         )}
 
         {/* Sections with Line Items */}
-        {estimate.sections.map((section) => (
+        {estimate.sections
+          .map((section) => ({
+            ...section,
+            items: section.items.filter((i) => i.description.trim() !== ''),
+          }))
+          .filter((section) => section.items.length > 0)
+          .map((section) => (
           <View key={section.id} wrap>
             <View
               style={[
@@ -624,7 +638,7 @@ export default function EstimatePDF({
                   {item.quantity}
                 </Text>
                 <Text style={[styles.tableCellText, styles.colUnit]}>
-                  {item.unit ?? '-'}
+                  {item.unit ?? ''}
                 </Text>
                 <Text style={[styles.tableCellText, styles.colUnitPrice]}>
                   {fmt(item.unit_price)}
