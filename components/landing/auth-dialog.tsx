@@ -612,14 +612,14 @@ export function AuthDialog({ branding, initialMode = 'login', open, onClose }: A
   // ----- Heading + subheading -----
   const heading =
     mode === 'login'
-      ? 'Welcome back'
+      ? `Sign in to ${branding.appName}`
       : mode === 'signup'
         ? 'Create account'
         : 'Reset your password'
 
   const subheading =
     mode === 'login'
-      ? 'Sign in to your workspace'
+      ? 'Use your email to continue'
       : mode === 'signup'
         ? 'Get started in seconds'
         : "Enter your email and we'll send you a reset link."
