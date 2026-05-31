@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Plug, ChevronRight } from 'lucide-react'
+import { Plug, ChevronRight, Sparkles, Mic } from 'lucide-react'
 
 import { T } from '@/components/i18n/t'
 import {
@@ -12,6 +12,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { createServiceClient } from '@/lib/supabase/service'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
+import { getSelectedAIProvider } from '@/lib/platform-config'
 import {
   WhatsAppConnectCard,
   type WhatsAppStatus,
@@ -19,8 +20,32 @@ import {
 
 export const metadata = { title: 'Integrations | Settings' }
 
+// Display labels for the platform-selected LLM provider. These are brand names
+// (not secrets) — the read-only AI card surfaces *what powers estimates* for
+// transparency, never the API keys, which stay platform-managed in admin.
+const AI_PROVIDER_LABELS: Record<string, string> = {
+  anthropic: 'Claude (Anthropic)',
+  gemini: 'Gemini (Google)',
+  openrouter: 'OpenRouter',
+}
+
+function SectionHeading({ children }: { children: React.ReactNode }) {
+  return (
+    <h2 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+      {children}
+    </h2>
+  )
+}
+
 export default async function SettingsIntegrationsPage() {
-  const companyId = await getActiveCompanyId()
+  // Active LLM provider is a non-secret display value; fetch in parallel with
+  // the company id so the read-only AI card can show what powers estimates.
+  const [companyId, aiProvider] = await Promise.all([
+    getActiveCompanyId(),
+    getSelectedAIProvider(),
+  ])
+
+  const estimateModelLabel = AI_PROVIDER_LABELS[aiProvider] ?? AI_PROVIDER_LABELS.anthropic
 
   // company_whatsapp is RLS deny-all → read via the service client, scoped to the
   // validated active company (the same company the connect actions write to).
@@ -58,13 +83,66 @@ export default async function SettingsIntegrationsPage() {
         </p>
       </header>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        {/* Phase 90: MCP Server entry card */}
+      {/* AI — read-only transparency card. No setup, no secrets; just shows what
+          powers estimates. AI keys are platform-managed in admin. */}
+      <section className="space-y-3">
+        <SectionHeading>
+          <T>AI</T>
+        </SectionHeading>
+        <Card className="bg-muted/30">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" aria-hidden />
+              <CardTitle className="text-base">
+                <T>Powering your estimates</T>
+              </CardTitle>
+            </div>
+            <CardDescription>
+              <T>
+                Managed by Xtimator — no setup required. These models turn your
+                audio and photos into a finished estimate.
+              </T>
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <dl className="space-y-3 text-sm">
+              <div className="flex items-start justify-between gap-4">
+                <dt className="flex items-center gap-2 text-muted-foreground">
+                  <Sparkles className="h-4 w-4" aria-hidden />
+                  <T>Estimate generation &amp; photo analysis</T>
+                </dt>
+                <dd className="font-medium">{estimateModelLabel}</dd>
+              </div>
+              <div className="flex items-start justify-between gap-4">
+                <dt className="flex items-center gap-2 text-muted-foreground">
+                  <Mic className="h-4 w-4" aria-hidden />
+                  <T>Audio transcription</T>
+                </dt>
+                <dd className="font-medium">Whisper (OpenAI)</dd>
+              </div>
+            </dl>
+          </CardContent>
+        </Card>
+      </section>
+
+      {/* Messaging channels — outbound delivery to clients. */}
+      <section className="space-y-3">
+        <SectionHeading>
+          <T>Messaging channels</T>
+        </SectionHeading>
+        <WhatsAppConnectCard initial={initial} />
+      </section>
+
+      {/* Assistants — use Xtimator from inside AI clients via MCP. */}
+      <section className="space-y-3">
+        <SectionHeading>
+          <T>Assistants</T>
+        </SectionHeading>
         <Link
           href="/settings/integrations/mcp"
           className="group block focus:outline-none"
         >
-          <Card className="h-full transition hover:border-primary/40 hover:shadow-sm group-focus-visible:ring-2 group-focus-visible:ring-ring">
+          <Card className="transition hover:border-primary/40 hover:shadow-sm group-focus-visible:ring-2 group-focus-visible:ring-ring">
             <CardHeader>
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-center gap-2">
@@ -86,10 +164,6 @@ export default async function SettingsIntegrationsPage() {
             </CardContent>
           </Card>
         </Link>
-      </div>
-
-      <section className="space-y-4">
-        <WhatsAppConnectCard initial={initial} />
       </section>
     </div>
   )

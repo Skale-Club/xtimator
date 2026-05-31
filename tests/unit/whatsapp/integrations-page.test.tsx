@@ -27,6 +27,11 @@ vi.mock('@/lib/queries/active-company', () => ({
   getActiveCompanyId: () => getActiveCompanyId(),
 }))
 
+const getSelectedAIProvider = vi.fn()
+vi.mock('@/lib/platform-config', () => ({
+  getSelectedAIProvider: () => getSelectedAIProvider(),
+}))
+
 const maybeSingle = vi.fn()
 vi.mock('@/lib/supabase/service', () => ({
   createServiceClient: vi.fn(() => ({
@@ -47,6 +52,7 @@ describe('Settings → Integrations page', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     getActiveCompanyId.mockResolvedValue('company-123')
+    getSelectedAIProvider.mockResolvedValue('anthropic')
     maybeSingle.mockResolvedValue({ data: null })
   })
 
@@ -100,6 +106,27 @@ describe('Settings → Integrations page', () => {
 
   it('does NOT render the old "OpenRouter integration coming soon" placeholder text', async () => {
     render(await SettingsIntegrationsPage())
-    expect(screen.queryByText(/OpenRouter/i)).toBeNull()
+    expect(screen.queryByText(/OpenRouter integration coming soon/i)).toBeNull()
+  })
+
+  it('renders the three grouped section headings (AI, Messaging channels, Assistants)', async () => {
+    render(await SettingsIntegrationsPage())
+    expect(screen.getByText('AI')).toBeTruthy()
+    expect(screen.getByText('Messaging channels')).toBeTruthy()
+    expect(screen.getByText('Assistants')).toBeTruthy()
+  })
+
+  it('AI card shows the platform-selected estimate provider and Whisper for transcription', async () => {
+    getSelectedAIProvider.mockResolvedValue('anthropic')
+    render(await SettingsIntegrationsPage())
+    expect(screen.getByText('Powering your estimates')).toBeTruthy()
+    expect(screen.getByText('Claude (Anthropic)')).toBeTruthy()
+    expect(screen.getByText('Whisper (OpenAI)')).toBeTruthy()
+  })
+
+  it('AI card reflects the active provider when it is not the default (no secrets rendered)', async () => {
+    getSelectedAIProvider.mockResolvedValue('gemini')
+    render(await SettingsIntegrationsPage())
+    expect(screen.getByText('Gemini (Google)')).toBeTruthy()
   })
 })
