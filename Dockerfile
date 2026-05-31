@@ -15,10 +15,16 @@ WORKDIR /app
 # only source code changes.
 COPY package.json package-lock.json* ./
 
-# npm ci is deterministic + faster than npm install in CI/Docker contexts.
-# --ignore-scripts skips the postinstall hooks for sharp + unrs-resolver
-# (matches the "ignoreScripts" array in package.json — same packages).
-RUN npm ci --ignore-scripts
+# Use `npm install` (not `npm ci`) here on purpose. Several deps ship a WASM
+# fallback (@tailwindcss/oxide-wasm32-wasi, etc.) that pull @emnapi as a nested
+# dependency. npm's lockfile only materializes those nested entries for the
+# HOST platform it was generated on, so a Windows-generated package-lock.json
+# fails strict `npm ci` on linux/alpine with "Missing @emnapi/core@… from lock
+# file". `npm install` reconciles the platform-specific subtree at build time
+# from the committed lock, which keeps the build reproducible enough while
+# tolerating that cross-platform gap. --ignore-scripts skips the postinstall
+# hooks for sharp + unrs-resolver (matches package.json "ignoreScripts").
+RUN npm install --ignore-scripts --no-audit --no-fund
 
 # =========================================================================
 # Stage 2: builder — compile Next.js to standalone output
