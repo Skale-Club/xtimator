@@ -3,9 +3,8 @@
 import { useRouter } from 'next/navigation'
 import { useTransition, useEffect, useState } from 'react'
 import { Plus, Loader2 } from 'lucide-react'
-import { toast } from 'sonner'
 
-import { createProjectWithClientAction } from '@/lib/actions/project'
+import { newProjectHref } from '@/components/projects/new-project-dialog'
 import { Button } from '@/components/ui/button'
 
 function useIsOffline(): boolean {
@@ -35,13 +34,11 @@ export function ClientNewProjectButton({ clientId, clientName }: ClientNewProjec
   const offline = useIsOffline()
 
   function handleNewProject() {
-    startTransition(async () => {
-      const result = await createProjectWithClientAction(clientId)
-      if ('error' in result) {
-        toast.error(result.error)
-        return
-      }
-      router.push(`/projects/${result.data.id}/capture`)
+    // Open the same in-popup New Project flow used everywhere else, pre-linked
+    // to this client via ?clientId. The project is created (linked) when the
+    // user picks a modality — no full-page capture route, no orphan project.
+    startTransition(() => {
+      router.push(newProjectHref(window.location.search, clientId))
     })
   }
 
