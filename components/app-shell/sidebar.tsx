@@ -217,8 +217,8 @@ export function Sidebar({ branding, company, memberships, isDemo }: SidebarProps
             : cn(
                 baseLayout,
                 'text-muted-foreground hover:bg-[var(--glass-bg-light)] hover:text-foreground',
-                'data-[active]:bg-[var(--glass-bg-light)] data-[active]:text-foreground',
-                'data-[active]:before:content-[""] data-[active]:before:absolute data-[active]:before:left-0 data-[active]:before:top-2 data-[active]:before:bottom-2 data-[active]:before:w-[1.5px] data-[active]:before:rounded-full data-[active]:before:bg-[image:var(--gradient-brand)]',
+                'data-[active]:bg-primary/10 data-[active]:text-primary',
+                'data-[active]:before:content-[""] data-[active]:before:absolute data-[active]:before:left-0 data-[active]:before:top-1.5 data-[active]:before:bottom-1.5 data-[active]:before:w-[3px] data-[active]:before:rounded-full data-[active]:before:bg-[image:var(--gradient-brand)]',
                 collapsed && 'w-9 h-9 mx-auto justify-center px-0 py-0 gap-0',
               )
 

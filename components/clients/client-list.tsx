@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Users, Plus, MoreHorizontal } from 'lucide-react'
+import { Plus, MoreHorizontal, Mail, Phone } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -24,8 +24,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Card, CardContent } from '@/components/ui/card'
-import { DataTable, type Column } from '@/components/ui/data-table'
 import { ClientSheet } from '@/components/clients/client-sheet'
 import { deleteClientAction } from '@/lib/actions/client'
 import { createClient } from '@/lib/supabase/client'
@@ -96,158 +94,94 @@ export function ClientList({ clients, companyId }: ClientListProps) {
     }
   }
 
-  const columns: Column<ClientWithCount>[] = [
-    {
-      key: 'name',
-      header: t('Name'),
-      cell: (client) => (
-        <Link href={`/clients/${client.id}`} className="flex items-center gap-3 hover:underline">
-          <Avatar className="h-8 w-8 shrink-0">
-            {client.logo_url && <AvatarImage src={client.logo_url} alt={client.name} />}
-            <AvatarFallback className="text-xs">
-              {client.name.charAt(0).toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
-          <span className="font-medium">{client.name}</span>
-        </Link>
-      ),
-    },
-    {
-      key: 'email',
-      header: t('Email'),
-      cell: (client) => (
-        <span className="text-muted-foreground">{client.email || '—'}</span>
-      ),
-    },
-    {
-      key: 'phone',
-      header: t('Phone'),
-      cell: (client) =>
-        client.phone ? (
-          <a href={`tel:${client.phone}`} className="text-muted-foreground hover:underline">
-            {client.phone}
-          </a>
-        ) : (
-          <span className="text-muted-foreground">{'—'}</span>
-        ),
-    },
-    {
-      key: 'projects',
-      header: t('Projects'),
-      cell: (client) => <Badge variant="secondary">{client.project_count}</Badge>,
-    },
-    {
-      key: 'actions',
-      header: '',
-      className: 'w-[50px]',
-      cell: (client) => (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-8 w-8">
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem asChild>
-              <Link href={`/clients/${client.id}`}>{t('View')}</Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => handleEditClient(client.id)}>
-              {t('Edit')}
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              className="text-destructive"
-              onClick={() => handleDeletePrompt(client)}
-            >
-              {t('Delete')}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      ),
-    },
-  ]
-
   return (
     <>
-      <DataTable<ClientWithCount>
-        data={clients}
-        columns={columns}
-        getRowKey={(c) => c.id}
-        searchPlaceholder={t('Search clients...')}
-        searchFn={(c, term) =>
-          c.name.toLowerCase().includes(term) ||
-          (c.email?.toLowerCase().includes(term) ?? false) ||
-          (c.phone?.toLowerCase().includes(term) ?? false)
-        }
-        sortOptions={[
-          { value: 'az', label: t('A → Z'), sort: (a, b) => a.name.localeCompare(b.name) },
-          { value: 'za', label: t('Z → A'), sort: (a, b) => b.name.localeCompare(a.name) },
-          {
-            value: 'most',
-            label: t('Most projects'),
-            sort: (a, b) => b.project_count - a.project_count,
-          },
-        ]}
-        defaultSort="az"
-        emptyIcon={Users}
-        emptyTitle={t('No clients yet')}
-        emptyDescription={t('Add your first client to get started')}
-        noResultsTitle={t('No clients match your search')}
-        headerRight={
-          <Button variant="primary" onClick={handleAddClient}>
-            <Plus className="h-4 w-4 mr-2" />
-            {t('Add Client')}
-          </Button>
-        }
-        renderMobileCard={(client) => (
-          <Card key={client.id}>
-            <CardContent className="flex items-center justify-between p-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {clients.map((client) => (
+          <div
+            key={client.id}
+            className="relative rounded-xl border bg-card p-4 flex flex-col gap-4"
+          >
+            {/* Header row: avatar + name + menu */}
+            <div className="flex items-start justify-between gap-2">
               <Link
                 href={`/clients/${client.id}`}
-                className="flex items-center gap-3 flex-1 min-w-0"
+                className="flex items-center gap-3 min-w-0 hover:opacity-80 transition-opacity"
               >
                 <Avatar className="h-10 w-10 shrink-0">
                   {client.logo_url && <AvatarImage src={client.logo_url} alt={client.name} />}
-                  <AvatarFallback className="text-sm">
+                  <AvatarFallback className="text-sm font-semibold">
                     {client.name.charAt(0).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
                 <div className="min-w-0">
-                  <p className="font-medium truncate">{client.name}</p>
-                  <p className="text-sm text-muted-foreground truncate">
-                    {client.email || '---'}
-                  </p>
+                  <p className="font-semibold leading-snug truncate">{client.name}</p>
+                  <Badge variant="secondary" className="mt-1 text-xs">
+                    {client.project_count}{' '}
+                    {client.project_count === 1 ? t('project') : t('projects')}
+                  </Badge>
                 </div>
               </Link>
-              <div className="flex items-center gap-2 shrink-0">
-                <Badge variant="secondary">{client.project_count}</Badge>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                      <MoreHorizontal className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem asChild>
-                      <Link href={`/clients/${client.id}`}>{t('View')}</Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleEditClient(client.id)}>
-                      {t('Edit')}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      className="text-destructive"
-                      onClick={() => handleDeletePrompt(client)}
-                    >
-                      {t('Delete')}
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-      />
 
-      {/* Client Sheet (create / edit) */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem asChild>
+                    <Link href={`/clients/${client.id}`}>{t('View')}</Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleEditClient(client.id)}>
+                    {t('Edit')}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className="text-destructive"
+                    onClick={() => handleDeletePrompt(client)}
+                  >
+                    {t('Delete')}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+
+            {/* Contact details */}
+            {(client.email || client.phone) && (
+              <div className="space-y-1 text-sm text-muted-foreground">
+                {client.email && (
+                  <div className="flex items-center gap-2">
+                    <Mail className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate">{client.email}</span>
+                  </div>
+                )}
+                {client.phone && (
+                  <div className="flex items-center gap-2">
+                    <Phone className="h-3.5 w-3.5 shrink-0" />
+                    <a href={`tel:${client.phone}`} className="hover:underline">
+                      {client.phone}
+                    </a>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        ))}
+
+        {/* Add client card — always trailing */}
+        <button
+          onClick={handleAddClient}
+          className="rounded-xl border-2 border-dashed border-muted-foreground/20 hover:border-muted-foreground/40 hover:bg-muted/20 transition-colors flex flex-col items-center justify-center gap-3 min-h-[140px] p-6 text-muted-foreground group"
+        >
+          <div className="inline-flex h-10 w-10 items-center justify-center rounded-full gradient-brand shadow-glow-brand group-hover:scale-105 transition-transform">
+            <Plus className="h-5 w-5 text-white" />
+          </div>
+          <span className="text-sm font-medium">
+            {clients.length === 0 ? t('Add your first client') : t('Add client')}
+          </span>
+        </button>
+      </div>
+
       <ClientSheet
         open={sheetOpen}
         onOpenChange={handleSheetChange}
@@ -255,7 +189,6 @@ export function ClientList({ clients, companyId }: ClientListProps) {
         companyId={companyId}
       />
 
-      {/* Delete confirmation */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>

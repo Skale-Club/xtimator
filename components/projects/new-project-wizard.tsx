@@ -61,7 +61,10 @@ export function NewProjectWizard(_props: NewProjectWizardProps = {}) {
     form.setValue('inputMode', mode, { shouldValidate: true })
 
     startTransition(async () => {
-      const values = { ...form.getValues(), inputMode: mode }
+      // Pre-link to a client when the modal was opened from a client page
+      // (?clientId=<id>). Falls back to the form value (currently always unset).
+      const clientId = searchParams.get('clientId') ?? form.getValues().clientId
+      const values = { ...form.getValues(), inputMode: mode, clientId }
       const result = await createProjectAction(values)
       if ('error' in result) {
         toast.error(result.error)
