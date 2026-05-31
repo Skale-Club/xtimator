@@ -1,0 +1,133 @@
+name: Build and Deploy
+
+# Build the Docker image in CI, push it to GHCR, then ping Coolify to PULL it.
+# The memory-heavy `next build` runs on GitHub-hosted runners and NEVER on the
+# VPS — the on-VPS build OOM-thrashed the 8GB CX32 and froze Coolify + every
+# app on the box. Coolify only ever pulls a prebuilt image now.
+#
+# TO REUSE FOR ANOTHER APP, change ONLY these:
+#   1. env.IMAGE_NAME            ghcr.io/skale-club/<app>  (MUST be lowercase)
+#   2. env.SITE_URL              the app's canonical https URL (no trailing
+#                                newline/quotes — a stray "\n" reintroduces the
+#                                exact bug this workflow was created to kill)
+#   3. the COOLIFY_WEBHOOK_<APP> secret name referenced in the final step
+#                                (e.g. COOLIFY_WEBHOOK_XPHERE)
+#
+# Required GitHub Actions Variables (Settings -> Secrets and variables ->
+# Actions -> Variables). These NEXT_PUBLIC_* values are PUBLIC build args
+# (inlined into the client bundle by `next build`) — they are NOT secrets:
+#   - NEXT_PUBLIC_SUPABASE_URL
+#   - NEXT_PUBLIC_SUPABASE_ANON_KEY
+#   - NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+#   - NEXT_PUBLIC_TURNSTILE_SITE_KEY
+# NEXT_PUBLIC_SITE_URL is NOT a Variable — it is hardcoded via env.SITE_URL
+# below so no stray newline/quote can ever be reintroduced.
+#
+# Required GitHub secret:
+#   - COOLIFY_WEBHOOK_XTIMATOR   Coolify "Deploy Webhook" URL. Optional until
+#                                Coolify is reconfigured — the final step skips
+#                                gracefully (workflow still succeeds) when it
+#                                is absent.
+# GHCR push uses the built-in GITHUB_TOKEN — no extra registry secret in CI.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE_NAME: ghcr.io/skale-club/xtimator
+  # Canonical site URL — hardcoded (NOT a Variable) so no stray newline/quote
+  # can be reintroduced. The old Coolify value had a literal \n; do not repeat.
+  SITE_URL: https://xtimator.com
+
+jobs:
+  build-and-push:
+    name: Build image and push to GHCR
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          # env.IMAGE_NAME is already lowercase. GHCR requires a lowercase
+          # repository path — template-reusers whose org/app names contain
+          # capitals MUST lowercase IMAGE_NAME themselves (keep it lowercase).
+          tags: |
+            ${{ env.IMAGE_NAME }}:latest
+            ${{ env.IMAGE_NAME }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          # NEXT_PUBLIC_* are PUBLIC build args (inlined into the client bundle),
+          # NOT secrets — they come from vars.* except SITE_URL (hardcoded above).
+          build-args: |
+            NEXT_PUBLIC_SUPABASE_URL=${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+            NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+            NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${{ vars.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+            NEXT_PUBLIC_SITE_URL=${{ env.SITE_URL }}
+            NEXT_PUBLIC_TURNSTILE_SITE_KEY=${{ vars.NEXT_PUBLIC_TURNSTILE_SITE_KEY }}
+
+      - name: Trigger Coolify deploy
+        env:
+          COOLIFY_WEBHOOK: ${{ secrets.COOLIFY_WEBHOOK_XTIMATOR }}
+        run: |
+          set -u
+
+          if [ -z "${COOLIFY_WEBHOOK:-}" ]; then
+            echo "::notice::COOLIFY_WEBHOOK_XTIMATOR not set — skipping Coolify trigger (image is built & pushed). Wire the webhook secret once Coolify is reconfigured."
+            exit 0
+          fi
+
+          # Retry/backoff mirrors the hit() pattern in cron-jobs.yml.
+          attempt=1
+          max_attempts=3
+          delay=5
+
+          while [ $attempt -le $max_attempts ]; do
+            http_code=$(curl --silent --show-error --output /tmp/coolify_body \
+              --write-out "%{http_code}" \
+              --request POST \
+              --max-time 30 \
+              "$COOLIFY_WEBHOOK" || echo "000")
+
+            if [ "$http_code" = "200" ]; then
+              echo "Coolify deploy triggered OK (HTTP $http_code) on attempt $attempt"
+              exit 0
+            fi
+
+            echo "Coolify trigger attempt $attempt/$max_attempts failed (HTTP $http_code)"
+            if [ $attempt -lt $max_attempts ]; then
+              sleep $delay
+              delay=$((delay * 3))
+            fi
+            attempt=$((attempt + 1))
+          done
+
+          echo "::error::Coolify deploy trigger failed after $max_attempts attempts"
+          if [ -s /tmp/coolify_body ]; then
+            echo "::group::Coolify last response body"
+            head -c 2048 /tmp/coolify_body
+            echo ""
+            echo "::endgroup::"
+          fi
+          exit 1
