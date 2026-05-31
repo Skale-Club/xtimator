@@ -14,6 +14,7 @@ import {
 
 interface CompanyFormData {
   companyName?: string
+  subdomain?: string
   ownerName?: string
   phone?: string
   email?: string
@@ -70,6 +71,7 @@ export async function createOrUpdateCompany(
   const row = {
     user_id: claims.sub,
     name: data.companyName || 'My Company',
+    subdomain: data.subdomain ? data.subdomain.toLowerCase() : null,
     owner_name: data.ownerName || null,
     phone: data.phone || null,
     email: data.email || null,
