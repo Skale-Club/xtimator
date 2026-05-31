@@ -14,7 +14,7 @@ import { CaptureRecorder } from '@/components/capture/capture-recorder'
 import { getProjectMinimalAction, renameProjectAction } from '@/lib/actions/project'
 import type { ProjectDetail } from '@/lib/queries/project'
 import { isPlaceholderName } from '@/lib/constants/project'
-import { useTranslation } from '@/components/i18n/translation-provider'
+import { useTranslation } from '@/lib/i18n/use-translation'
 import { T } from '@/components/i18n/t'
 import { NEW_PROJECT_MODAL_PARAM, NEW_PROJECT_MODAL_VALUE } from './new-project-dialog'
 
