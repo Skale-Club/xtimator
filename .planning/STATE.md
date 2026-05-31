@@ -25,7 +25,7 @@ progress:
 Phase: 999.1
 Plan: Not started
 Status: Phase complete — ready for verification
-Last activity: 2026-05-31 - Completed quick task 260531-mlx: Fix OAuth/login redirect to 0.0.0.0:3000 after Coolify migration
+Last activity: 2026-05-31 - Completed quick task 260531-npx: CI Docker build -> GHCR push -> Coolify pull (moves next build off the VPS); commits LOCAL pending VPS reboot + Coolify source-build disable
 Stopped at: Completed 93-03-PLAN.md (event log list page + detail page + EventStepTimeline)
 
 ## v3.1.1 Phases
