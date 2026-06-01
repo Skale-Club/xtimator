@@ -1,0 +1,10 @@
+#!/bin/sh
+# Clear Next.js build cache on branch switch so stale pages never serve.
+# $3 == 1 means a branch checkout (not a file checkout).
+if [ "$3" = "1" ]; then
+  REPO_ROOT="$(git rev-parse --show-toplevel)"
+  if [ -d "$REPO_ROOT/.next" ]; then
+    rm -rf "$REPO_ROOT/.next"
+    echo "🧹 .next cache cleared"
+  fi
+fi
