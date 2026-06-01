@@ -48,15 +48,28 @@ function formatTime(iso: string | null): string {
 function MessageBubble({ m }: { m: WaMessageRow }) {
   const outbound = m.direction === 'outbound'
   const failed = m.status === 'failed'
-  const text =
-    m.body ??
-    (m.msg_type === 'image'
-      ? '📷 Photo'
-      : m.msg_type === 'audio'
-        ? '🎤 Voice message'
-        : m.msg_type === 'document'
-          ? '📄 Document'
-          : '')
+
+  const content =
+    m.msg_type === 'audio' && m.media_url ? (
+      <audio
+        src={m.media_url}
+        controls
+        preload="none"
+        className="w-full max-w-[260px]"
+      />
+    ) : (
+      <span>
+        {m.body ??
+          (m.msg_type === 'image'
+            ? '📷 Photo'
+            : m.msg_type === 'audio'
+              ? '🎤 Voice message'
+              : m.msg_type === 'document'
+                ? '📄 Document'
+                : '')}
+      </span>
+    )
+
   return (
     <div className={cn('flex', outbound ? 'justify-end' : 'justify-start')}>
       <div
@@ -69,7 +82,7 @@ function MessageBubble({ m }: { m: WaMessageRow }) {
             : 'bg-muted text-foreground',
         )}
       >
-        <span>{text}</span>
+        {content}
         <span
           className={cn(
             'mt-1 flex items-center gap-1 text-[10px] opacity-70',

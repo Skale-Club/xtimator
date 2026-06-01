@@ -27,6 +27,7 @@ import {
   buildAskDetailsMessage,
   revertVagueEstimate,
 } from '@/lib/whatsapp/ask-details'
+import { getServerStorage } from '@/lib/storage'
 
 const SESSION_TTL_MINUTES = 30
 
@@ -94,6 +95,22 @@ export const whatsAppProcessJob = inngest.createFunction(
             transcript,
             duration_seconds: null,
           })
+          // Upload audio to private storage bucket so inbox can play it back.
+          // Non-fatal: transcript is already saved; playback just won't be available.
+          const storagePath = `${companyId}/whatsapp/${msg.id}.${ext}`
+          try {
+            await getServerStorage().upload('audio', storagePath, audioBuffer, {
+              contentType: mimeType,
+              upsert: false,
+            })
+            await supabase
+              .from('whatsapp_messages')
+              .update({ media_url: storagePath })
+              .eq('wa_message_id', msg.id)
+              .eq('company_id', companyId)
+          } catch {
+            // Non-fatal — transcript is saved; inbox falls back to emoji text
+          }
           return { ok: true }
         } else if (msg.type === 'image' && msg.image?.id) {
           const imageBuffer = await downloadWhatsAppMedia(msg.image.id)
