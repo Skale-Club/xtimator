@@ -5,6 +5,8 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { sendWhatsAppMessage } from '@/lib/whatsapp/client'
+import { getServerStorage } from '@/lib/storage'
+import { isDemoSession, DEMO_READONLY_MESSAGE } from '@/lib/demo/guard'
 import {
   logOutboundMessage,
   markConversationRead,
