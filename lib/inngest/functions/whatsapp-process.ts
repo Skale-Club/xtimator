@@ -150,7 +150,7 @@ export const whatsAppProcessJob = inngest.createFunction(
         const body =
           "Sorry, I couldn't process your audio message. Please describe the job in a text message and I'll generate an estimate for you."
         await sendWhatsAppMessage(ownerPhone, { type: 'text', text: { body } })
-        logOutboundMessage(requireServiceClient(), {
+        await logOutboundMessage(requireServiceClient(), {
           companyId,
           contactPhone: ownerPhone,
           body,
@@ -209,7 +209,7 @@ export const whatsAppProcessJob = inngest.createFunction(
         })
         const body = buildAskDetailsMessage(result.language)
         await sendWhatsAppMessage(ownerPhone, { type: 'text', text: { body } })
-        logOutboundMessage(requireServiceClient(), {
+        await logOutboundMessage(requireServiceClient(), {
           companyId,
           contactPhone: ownerPhone,
           body,
@@ -264,7 +264,7 @@ export const whatsAppProcessJob = inngest.createFunction(
         'Reply *send* to deliver to your client, or *cancel* to discard.',
       ].join('\n')
       await sendWhatsAppMessage(ownerPhone, { type: 'text', text: { body } })
-      logOutboundMessage(requireServiceClient(), {
+      await logOutboundMessage(requireServiceClient(), {
         companyId,
         contactPhone: ownerPhone,
         body,

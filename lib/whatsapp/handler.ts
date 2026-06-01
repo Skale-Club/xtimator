@@ -19,6 +19,7 @@ import {
   sendTypingIndicator,
 } from '@/lib/whatsapp/client'
 import { processConfirmationReply } from '@/lib/whatsapp/confirm'
+import { logOutboundMessage } from '@/lib/whatsapp/conversations'
 import { getEntitlements } from '@/lib/entitlements'
 import { PLACEHOLDER_PREFIX } from '@/lib/constants/project'
 import type { WhatsAppMessage } from '@/lib/whatsapp/types'
@@ -222,12 +223,18 @@ async function processSingleMessageWithSession(
   if (message.type === 'text' && message.text?.body) {
     await processConfirmationReply(message.text.body, session, companyId, ownerPhone, supabase)
   } else {
+    const body = 'Reply *send* to deliver your estimate or *cancel* to discard it.'
     await sendWhatsAppMessage(ownerPhone, {
       type: 'text',
-      text: {
-        body: 'Reply *send* to deliver your estimate or *cancel* to discard it.',
-      },
+      text: { body },
     })
+    logOutboundMessage(supabase, {
+      companyId,
+      contactPhone: ownerPhone,
+      body,
+      msgType: 'text',
+      status: 'sent',
+    }).catch(() => undefined)
   }
 }
 
