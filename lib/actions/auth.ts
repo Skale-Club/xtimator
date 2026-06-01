@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { logAuthEvent } from '@/lib/auth-logger'
+import { getCanonicalBaseUrl } from '@/lib/utils/site-url'
 
 export async function signUp(formData: FormData) {
   const supabase = await createClient()
@@ -94,7 +95,7 @@ export async function resetPassword(formData: FormData) {
   const supabase = await createClient()
   const email = formData.get('email') as string
   const captchaToken = formData.get('captchaToken') as string | null
-  const origin = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:9633'
+  const origin = getCanonicalBaseUrl()
 
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
     redirectTo: `${origin}/callback?type=recovery`,

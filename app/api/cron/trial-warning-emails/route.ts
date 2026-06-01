@@ -5,6 +5,7 @@ import { getIntegrationKey } from '@/lib/platform-config'
 import { notify } from '@/lib/notifications/dispatch'
 import { buildNotificationCopy } from '@/lib/notifications/copy'
 import { isAuthorizedCron } from '@/lib/auth/cron-auth'
+import { getCanonicalBaseUrl } from '@/lib/utils/site-url'
 
 export async function GET(request: Request) {
   if (!process.env.CRON_SECRET) {
@@ -88,7 +89,7 @@ export async function GET(request: Request) {
     }
     const resend = new Resend(resendKey)
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://xtimator.com'
+    const appUrl = getCanonicalBaseUrl()
 
     let sent = 0
     await Promise.allSettled(
