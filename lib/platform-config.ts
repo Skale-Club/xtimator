@@ -60,7 +60,7 @@ const integrationCache = new Map<string, { value: string; fetchedAt: number }>()
 export const DEFAULT_LANDING_CONTENT: LandingContent = {
   heroHeadline: 'Professional estimates in seconds.',
   heroSubheadline:
-    'Record a site walkthrough, add photos, and let AI draft the scope, pricing, and branded PDF before you leave the driveway.',
+    'Record a site walkthrough, add photos, pricing, and branded estimate before you leave the driveway.',
   ctaLabel: 'Start',
   heroImageUrl: null,
   howItWorksSteps: [
