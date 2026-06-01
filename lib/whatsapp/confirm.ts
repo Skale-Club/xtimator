@@ -503,6 +503,15 @@ async function handleSend(
         })
         pdfDelivered = true
         deliveredToClient = true
+        logOutboundMessage(supabase, {
+          companyId,
+          contactPhone: clientPhone,
+          contactName: clientName ?? null,
+          clientId: (project.client_id as string | null) ?? null,
+          body: companyName ? `Your estimate from ${companyName}` : 'Your estimate',
+          msgType: 'document',
+          status: 'sent',
+        }).catch(() => undefined)
       } catch (err) {
         console.error('[WhatsApp] PDF delivery failed, falling back to share_link:', err)
       }
@@ -515,6 +524,15 @@ async function handleSend(
             text: { body: buildShareLinkMessage(shareUrl, clientName) },
           })
           deliveredToClient = true
+          logOutboundMessage(supabase, {
+            companyId,
+            contactPhone: clientPhone,
+            contactName: clientName ?? null,
+            clientId: (project.client_id as string | null) ?? null,
+            body: buildShareLinkMessage(shareUrl, clientName),
+            msgType: 'text',
+            status: 'sent',
+          }).catch(() => undefined)
         } catch {
           // Non-fatal — owner still gets the share link in owner message
         }
@@ -532,6 +550,15 @@ async function handleSend(
           text: { body: clientMessageBody },
         })
         deliveredToClient = true
+        logOutboundMessage(supabase, {
+          companyId,
+          contactPhone: clientPhone,
+          contactName: clientName ?? null,
+          clientId: (project.client_id as string | null) ?? null,
+          body: clientMessageBody,
+          msgType: 'text',
+          status: 'sent',
+        }).catch(() => undefined)
       } catch {
         // Non-fatal — owner still gets the share link
       }

@@ -59,12 +59,12 @@ async function fetchThread(
   const storage = getServerStorage()
   const enriched = await Promise.all(
     rawMessages.map(async (m) => {
-      if (m.msg_type === 'audio' && m.media_url && !m.media_url.startsWith('http')) {
+      if ((m.msg_type === 'audio' || m.msg_type === 'image') && m.media_url && !m.media_url.startsWith('http')) {
+        const bucket = m.msg_type === 'audio' ? 'audio' : 'photos'
         try {
-          const signedUrl = await storage.getSignedUrl('audio', m.media_url, 3600)
+          const signedUrl = await storage.getSignedUrl(bucket, m.media_url, 3600)
           return { ...m, media_url: signedUrl }
         } catch {
-          // If signing fails, return the row without a URL — bubble falls back to text
           return { ...m, media_url: null }
         }
       }

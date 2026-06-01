@@ -122,6 +122,11 @@ export const whatsAppProcessJob = inngest.createFunction(
             contentType: mimeType,
             upsert: false,
           })
+          await supabase
+            .from('whatsapp_messages')
+            .update({ media_url: storagePath })
+            .eq('wa_message_id', msg.id)
+            .eq('company_id', companyId)
           const aiDescription = await analyzePhotoOR(
             imageBuffer.toString('base64'),
             mimeType

@@ -136,6 +136,8 @@ function MessageBubble({ m }: { m: WaMessageRow }) {
   const content =
     m.msg_type === 'audio' && m.media_url ? (
       <AudioMessage src={m.media_url} outbound={outbound} />
+    ) : m.msg_type === 'image' && m.media_url ? (
+      <img src={m.media_url} alt="Photo" className="max-w-full rounded-lg" />
     ) : (
       <span>
         {m.body ??
