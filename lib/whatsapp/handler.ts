@@ -70,13 +70,38 @@ export async function processInboundWithDebounce(
   }
 
   if (existingSession?.state === 'awaiting_details') {
-    // The owner is supplying more detail for the SAME draft project. Re-dispatch
-    // to the same projectId so the worker accumulates context and regenerates.
-    // (Idempotent via wamid batchKey; no new project, no debounce.)
+    // The owner is supplying more detail for the SAME draft project.
+    // Use the same rolling debounce so rapid multi-message bursts collapse into
+    // one Inngest dispatch. After claiming the buffer, re-query the session
+    // (still active — 30 min TTL) to recover draft_project_id.
+    const pushedDetails = await pushToBuffer(fromPhone, message)
+    if (!pushedDetails) {
+      // Redis unavailable — fall back to immediate single-message dispatch
+      return dispatchToExistingProject(
+        [message],
+        existingSession as { draft_project_id: string | null },
+        companyId,
+        ownerPhone,
+      )
+    }
+    await debounceWait()
     await sendTypingIndicator(message.id).catch(() => undefined)
+    const detailsBatch = await tryClaimBuffer(fromPhone, message.id)
+    if (!detailsBatch) return  // Newer message is processing
+    const { data: freshSession } = await supabase
+      .from('whatsapp_sessions')
+      .select('draft_project_id')
+      .eq('company_id', companyId)
+      .eq('phone_number', ownerPhone)
+      .eq('state', 'awaiting_details')
+      .gt('expires_at', new Date().toISOString())
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single()
+    if (!freshSession?.draft_project_id) return
     return dispatchToExistingProject(
-      [message],
-      existingSession as { draft_project_id: string | null },
+      detailsBatch.map((b) => b.message),
+      freshSession,
       companyId,
       ownerPhone,
     )
@@ -147,13 +172,33 @@ export async function processInboundMessage(
   }
 
   if (existingSession?.state === 'awaiting_details') {
-    // The owner is supplying more detail for the SAME draft project. Re-dispatch
-    // to the same projectId so the worker accumulates context and regenerates.
-    // (Idempotent via wamid batchKey; no new project, no debounce.)
+    const pushedDetails = await pushToBuffer(fromPhone, message)
+    if (!pushedDetails) {
+      return dispatchToExistingProject(
+        [message],
+        existingSession as { draft_project_id: string | null },
+        companyId,
+        ownerPhone,
+      )
+    }
+    await debounceWait()
     await sendTypingIndicator(message.id).catch(() => undefined)
+    const detailsBatch = await tryClaimBuffer(fromPhone, message.id)
+    if (!detailsBatch) return
+    const { data: freshSession } = await supabase
+      .from('whatsapp_sessions')
+      .select('draft_project_id')
+      .eq('company_id', companyId)
+      .eq('phone_number', ownerPhone)
+      .eq('state', 'awaiting_details')
+      .gt('expires_at', new Date().toISOString())
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single()
+    if (!freshSession?.draft_project_id) return
     return dispatchToExistingProject(
-      [message],
-      existingSession as { draft_project_id: string | null },
+      detailsBatch.map((b) => b.message),
+      freshSession,
       companyId,
       ownerPhone,
     )
