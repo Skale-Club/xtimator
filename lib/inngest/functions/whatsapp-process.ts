@@ -44,8 +44,13 @@ export const whatsAppProcessJob = inngest.createFunction(
     const { companyId, projectId, ownerPhone, messages } = data
 
     // ONE step.run per inbound message — each independently retriable.
+    // Steps return { ok: true } on success or { ok: false, reason } on handled
+    // errors (e.g. audio transcription failure) so the outer loop can send a
+    // user-facing WhatsApp message instead of silently failing.
+    const stepResults: Array<{ ok: boolean; reason?: string }> = []
+
     for (const msg of messages) {
-      await step.run(`process-${msg.id}`, async () => {
+      const result = await step.run(`process-${msg.id}`, async () => {
         const supabase = requireServiceClient()
         if (msg.type === 'text' && msg.text?.body) {
           await supabase.from('recordings').insert({
@@ -55,13 +60,33 @@ export const whatsAppProcessJob = inngest.createFunction(
             transcript: msg.text.body,
             duration_seconds: null,
           })
+          return { ok: true }
         } else if (msg.type === 'audio' && msg.audio?.id) {
-          const audioBuffer = await downloadWhatsAppMedia(msg.audio.id)
-          const transcript = await transcribeAudioOR(
-            new Blob([new Uint8Array(audioBuffer)], { type: 'audio/ogg' }),
-            'ogg'
-          )
-          if (!transcript) throw new Error('Empty transcription')
+          // Derive MIME type and extension from the message — WhatsApp sends
+          // "audio/ogg; codecs=opus" (Android) or "audio/mp4" (iOS). Strip the
+          // codec parameter before splitting, and remap mp4 → m4a so OpenAI
+          // Whisper can identify the container from the filename.
+          const mimeType = (msg.audio.mime_type ?? 'audio/ogg').split(';')[0].trim()
+          const rawExt = mimeType.split('/')[1] ?? 'ogg'
+          const ext = rawExt === 'mp4' ? 'm4a' : rawExt
+          let audioBuffer: Buffer
+          try {
+            audioBuffer = await downloadWhatsAppMedia(msg.audio.id)
+          } catch (err) {
+            console.error('[WhatsApp] audio download failed:', err)
+            return { ok: false, reason: 'download_failed' }
+          }
+          let transcript: string
+          try {
+            transcript = await transcribeAudioOR(
+              new Blob([new Uint8Array(audioBuffer)], { type: mimeType }),
+              ext
+            )
+          } catch (err) {
+            console.error('[WhatsApp] audio transcription failed:', err)
+            return { ok: false, reason: 'transcription_failed' }
+          }
+          if (!transcript) return { ok: false, reason: 'empty_transcript' }
           await supabase.from('recordings').insert({
             project_id: projectId,
             company_id: companyId,
@@ -69,6 +94,7 @@ export const whatsAppProcessJob = inngest.createFunction(
             transcript,
             duration_seconds: null,
           })
+          return { ok: true }
         } else if (msg.type === 'image' && msg.image?.id) {
           const imageBuffer = await downloadWhatsAppMedia(msg.image.id)
           const mimeType = msg.image.mime_type ?? 'image/jpeg'
@@ -90,8 +116,27 @@ export const whatsAppProcessJob = inngest.createFunction(
             caption: msg.image.caption ?? null,
             sort_order: 0,
           })
+          return { ok: true }
         }
+        return { ok: true }
       })
+      stepResults.push(result as { ok: boolean; reason?: string })
+    }
+
+    // If ALL message steps failed (e.g. audio transcription unavailable and no
+    // text/image in the batch), reply with a user-facing error instead of
+    // silently failing to generate an estimate.
+    const hasUsableInput = stepResults.some((r) => r.ok)
+    if (!hasUsableInput) {
+      await step.run('send-audio-error', async () => {
+        await sendWhatsAppMessage(ownerPhone, {
+          type: 'text',
+          text: {
+            body: "Sorry, I couldn't process your audio message. Please describe the job in a text message and I'll generate an estimate for you.",
+          },
+        })
+      })
+      return
     }
 
     // Refresh typing indicator before AI generation (best-effort)
