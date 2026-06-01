@@ -24,7 +24,7 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
   const hasImage = !!content.heroImageUrl
 
   return (
-    <section className="relative isolate overflow-hidden border-b border-white/5 bg-transparent pt-[clamp(40px,6vw,72px)] pb-[clamp(16px,2.5vw,28px)] lg:pt-[clamp(16px,2.5vw,28px)]">
+    <section className="relative isolate overflow-hidden border-b border-white/5 bg-transparent pt-[clamp(20px,3vw,36px)] pb-[clamp(8px,1.5vw,16px)] lg:pt-[clamp(12px,2vw,24px)]">
       {/* Phase 71 — animated gradient mesh + dot overlay backdrop (motion-gated via CSS). */}
       <div aria-hidden className="hero-mesh" />
       <div aria-hidden className="hero-dots" />
@@ -36,8 +36,8 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
         <div
           className={
             hasImage
-              ? 'flex flex-col gap-11 lg:flex-row lg:items-end lg:gap-10'
-              : 'flex flex-col items-center gap-11 text-center'
+              ? 'flex flex-col gap-6 lg:flex-row lg:items-end lg:gap-8'
+              : 'flex flex-col items-center gap-6 text-center'
           }
         >
           {/* Left: headline + CTAs */}
@@ -49,7 +49,7 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
               hidden: {},
               show: { transition: { staggerChildren: 0.15 } },
             }}
-            className={hasImage ? 'relative z-10 min-w-0 space-y-6 lg:w-[58%] lg:shrink-0 lg:self-center' : 'max-w-3xl space-y-6'}
+            className={hasImage ? 'relative z-10 min-w-0 space-y-4 lg:w-[58%] lg:shrink-0 lg:self-center' : 'max-w-3xl space-y-4'}
           >
             <motion.div
               variants={FADE_UP_ANIMATION_VARIANTS}
@@ -114,7 +114,7 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
               initial={reduce ? false : { opacity: 0, scale: 0.95, rotate: -2 }}
               animate={{ opacity: 1, scale: 1, rotate: 0 }}
               transition={{ duration: 1, type: 'spring', delay: 0.3 }}
-              className="relative z-0 flex w-[calc(100%+6rem)] -mx-12 sm:w-[calc(100%+8rem)] sm:-mx-16 -mb-[clamp(16px,2.5vw,28px)] lg:w-[58%] lg:mx-0 lg:shrink-0 lg:items-end lg:self-stretch lg:-mr-[clamp(20px,2vw,40px)] lg:-ml-[clamp(80px,10vw,160px)]"
+              className="relative z-0 flex w-[calc(100%+4rem)] -mx-8 sm:w-[calc(100%+6rem)] sm:-mx-12 -mb-[clamp(8px,1.5vw,16px)] lg:w-[50%] lg:mx-0 lg:shrink-0 lg:items-end lg:self-stretch lg:-mr-[clamp(16px,1.5vw,28px)] lg:-ml-[clamp(48px,6vw,96px)]"
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
