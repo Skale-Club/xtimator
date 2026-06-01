@@ -25,7 +25,7 @@ progress:
 Phase: 999.1
 Plan: Not started
 Status: Phase complete — ready for verification
-Last activity: 2026-06-01 - Completed quick tasks rqa (bulletproof base-URL + sibling 0.0.0.0 redirect fixes) + s1w (subdomain type error unblocking next build). CI build now compiles; pending human: GH Actions Variables (Supabase NEXT_PUBLIC_*), Coolify Docker-Image switch + APP_ORIGIN, Supabase redirect allowlist
+Last activity: 2026-06-01 - Completed quick task 260601-k5e: WhatsApp voice message bubbles now playable (audio uploaded to storage, signed URLs generated in fetchThread, native <audio> player in MessageBubble)
 Stopped at: Completed 93-03-PLAN.md (event log list page + detail page + EventStepTimeline)
 
 ## v3.1.1 Phases
@@ -739,6 +739,7 @@ v3.1: Phases 61-65 (started 2026-05-15). Production Go-Live — 27 requirements 
 | 260531-npx | Build Docker image in GitHub Actions → push to GHCR → Coolify only pulls prebuilt image (no on-VPS builds). New .github/workflows/build-deploy.yml + README-DEPLOY.md. Fixes root cause of VPS OOM-freeze (next build was running on the 8GB CX32). LOCAL ONLY — human must reboot VPS + disable Coolify source-build before push | 2026-05-31 | 387dec3 | [260531-npx-build-docker-image-in-github-actions-and](.planning/quick/260531-npx-build-docker-image-in-github-actions-and/) |
 | 260531-rqa | Bulletproof server-side base-URL resolution: resolveBaseUrl gains APP_ORIGIN runtime tier (no-rebuild override) + getCanonicalBaseUrl() request-less variant; fixed all sibling 0.0.0.0 redirect routes (demo, Stripe connect/initiate/callback, estimate pay) + unified NEXT_PUBLIC_SITE_URL/APP_URL across 7 files. 26 unit tests green | 2026-05-31 | d444988 | [260531-rqa-bulletproof-server-side-base-url-resolut](.planning/quick/260531-rqa-bulletproof-server-side-base-url-resolut/) |
 | 260531-s1w | Fix subdomain zod input/output type mismatch that broke `next build` (blocked ALL Docker image builds). Dropped .optional().default('') from auth-dialog companySchema + added subdomain:'' to onboarding INITIAL defaults + test fixture. tsc --noEmit now exit 0 | 2026-06-01 | 0c8dceb | [260531-s1w-fix-subdomain-zod-input-output-type-mism](.planning/quick/260531-s1w-fix-subdomain-zod-input-output-type-mism/) |
+| 260601-k5e | Make WhatsApp voice message bubbles playable | 2026-06-01 | 1ea3103 | [260601-k5e-make-whatsapp-voice-message-bubbles-play](.planning/quick/260601-k5e-make-whatsapp-voice-message-bubbles-play/) |
 | 2026-05-18 | fast | Center auth card logo+wordmark | done |
 | 2026-05-19 | fast | Make audio capture screen scrollable on smaller viewports | done |
 | 2026-05-18 | fast | Restyle sidebar New Project as filled gradient, remove dashboard CTA | done |
