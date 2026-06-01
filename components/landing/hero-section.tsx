@@ -13,13 +13,6 @@ type HeroContent = {
   heroImageUrl: string | null
 }
 
-// Trust band copy — placeholder strings, i18n-ready (centralize here so a
-// future t() wiring is a 1-line swap per entry).
-const TRUST_BAND = {
-  contractors: 'Used by 500+ contractors',
-  estimates:   '12,000+ estimates sent',
-  rating:      '4.9/5 average rating',
-}
 
 const FADE_UP_ANIMATION_VARIANTS: Variants = {
   hidden: { opacity: 0, y: 30 },
@@ -113,22 +106,6 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
             </motion.div>
 
 
-            {/* Trust band — placeholder stats, i18n-ready via TRUST_BAND constants. */}
-            <motion.div
-              variants={FADE_UP_ANIMATION_VARIANTS}
-              className={
-                hasImage
-                  ? 'mt-6 flex flex-col gap-4 border-t border-white/10 pt-6 sm:flex-row sm:items-center sm:gap-8'
-                  : 'mt-6 flex flex-col gap-4 border-t border-white/10 pt-6 sm:flex-row sm:items-center sm:justify-center sm:gap-8'
-              }
-            >
-              {[TRUST_BAND.contractors, TRUST_BAND.estimates, TRUST_BAND.rating].map((stat) => (
-                <div key={stat} className="flex items-center gap-2 text-xs font-medium text-muted-foreground/90">
-                  <span className="size-1.5 rounded-full bg-gradient-to-br from-primary to-secondary" />
-                  {stat}
-                </div>
-              ))}
-            </motion.div>
           </motion.div>
 
           {/* Right: 1:1 photo (hidden on mobile to keep CTA above the fold). */}
