@@ -60,7 +60,7 @@ export default async function BillingPage() {
 
       <div className="w-full space-y-8 px-6">
         {/* Current plan + usage */}
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <Card variant="glass" className="p-6">
             <CardHeader className="border-b border-[var(--glass-border)] p-0 pb-4">
               <div className="flex items-start gap-3">
@@ -103,24 +103,39 @@ export default async function BillingPage() {
               </div>
             </CardHeader>
             <CardContent className="space-y-3 px-0 pt-4 text-sm">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-3">
                 <span className="text-muted-foreground"><T>Estimates</T></span>
-                <span className="font-mono font-medium">
-                  {data.estimatesThisMonth}
-                  {' / '}
-                  {data.entitlements.maxEstimatesPerMonth !== null
-                    ? data.entitlements.maxEstimatesPerMonth
-                    : <T>Unlimited</T>}
+                <span className="whitespace-nowrap font-mono font-medium">
+                  {data.entitlements.maxEstimatesPerMonth !== null ? (
+                    `${data.estimatesThisMonth} / ${data.entitlements.maxEstimatesPerMonth}`
+                  ) : (
+                    <>
+                      {data.estimatesThisMonth}{' '}
+                      <span className="font-sans text-xs text-muted-foreground">
+                        <T>/ Unlimited</T>
+                      </span>
+                    </>
+                  )}
                 </span>
               </div>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-3">
                 <span className="text-muted-foreground"><T>Photos analyzed</T></span>
-                <span className="font-mono font-medium">
-                  {data.photosThisMonth}
-                  {' / '}
-                  {data.entitlements.maxPhotosPerEstimate !== null
-                    ? <T text={`${data.entitlements.maxPhotosPerEstimate} per estimate`} />
-                    : <T>Unlimited</T>}
+                <span className="whitespace-nowrap text-right font-mono font-medium">
+                  {data.entitlements.maxPhotosPerEstimate !== null ? (
+                    <>
+                      {data.photosThisMonth} / {data.entitlements.maxPhotosPerEstimate}{' '}
+                      <span className="font-sans text-xs text-muted-foreground">
+                        <T>per estimate</T>
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      {data.photosThisMonth}{' '}
+                      <span className="font-sans text-xs text-muted-foreground">
+                        <T>/ Unlimited</T>
+                      </span>
+                    </>
+                  )}
                 </span>
               </div>
             </CardContent>

@@ -10,7 +10,10 @@ export type AdminContext = {
   email: string
 }
 
-// DB lookup cached for 60s per userId — avoids a round-trip on every admin page nav.
+// DB lookup cached per userId — avoids a round-trip on every admin page nav.
+// S03 remediation: TTL lowered 60s -> 30s to shrink the window in which a
+// just-revoked admin can still act. Mutations to platform_admins should also
+// call revalidateTag('platform_admins') for immediate invalidation.
 const cachedIsAdmin = unstable_cache(
   async (userId: string): Promise<boolean> => {
     const svc = requireServiceClient()
@@ -22,7 +25,7 @@ const cachedIsAdmin = unstable_cache(
     return !!data
   },
   ['admin-check'],
-  { revalidate: 60, tags: ['platform_admins'] }
+  { revalidate: 30, tags: ['platform_admins'] }
 )
 
 export const getAdminContext = cache(async (): Promise<AdminContext | null> => {

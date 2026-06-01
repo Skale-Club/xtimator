@@ -12,6 +12,7 @@ import type { OnboardingValues } from '@/lib/schemas/onboarding'
 
 const INITIAL: OnboardingValues = {
   companyName: '',
+  subdomain: '',
   ownerName: '',
   phone: '',
   email: '',
@@ -36,12 +37,14 @@ export function OnboardingSurvey({
   appName,
   logoUrl,
   mode = 'first',
+  initialValues,
 }: {
   appName: string
   logoUrl: string | null
   mode?: 'first' | 'add'
+  initialValues?: Partial<OnboardingValues>
 }) {
-  const state = useSurveyState(INITIAL)
+  const state = useSurveyState({ ...INITIAL, ...initialValues })
   const [isSubmitting, startTransition] = useTransition()
 
   function handleComplete() {

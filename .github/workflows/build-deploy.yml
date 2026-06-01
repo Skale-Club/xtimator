@@ -1,0 +1,96 @@
+name: Build and Deploy
+
+# Build the Docker image in CI, push it to GHCR, then ping Coolify to PULL it.
+# The memory-heavy `next build` runs on GitHub-hosted runners and NEVER on the
+# VPS — the on-VPS build OOM-thrashed the 8GB CX32 and froze Coolify + every
+# app on the box. Coolify only ever pulls a prebuilt image now.
+#
+# ── Change these two lines when copying to another repo ──────────────────────
+#   IMAGE_NAME   ghcr.io/skale-club/<app-name>  (must be lowercase)
+#   APP_UUID     Coolify resource UUID (app Settings → UUID in the Coolify UI)
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# Required GitHub Actions Variables (Settings → Secrets and variables → Variables):
+#   NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY,
+#   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, NEXT_PUBLIC_TURNSTILE_SITE_KEY
+#   (NEXT_PUBLIC_SITE_URL is hardcoded below — never a Variable, to avoid \n bugs)
+#
+# Required GitHub secret:
+#   COOLIFY_TOKEN   Coolify API token (coolify.skale.club → Profile → API Tokens).
+#                   One token, set once per repo. Skipped gracefully if absent.
+# GHCR push uses the built-in GITHUB_TOKEN — no extra registry secret needed.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE_NAME: ghcr.io/skale-club/xtimator
+  APP_UUID: wucewun01rpf7z29qjmhhvbn
+  COOLIFY_BASE: https://coolify.skale.club
+  # Canonical site URL — hardcoded (NOT a Variable) so no stray newline/quote
+  # can be reintroduced. The old Coolify value had a literal \n; do not repeat.
+  SITE_URL: https://xtimator.com
+
+jobs:
+  build-and-push:
+    name: Build image and push to GHCR
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          # env.IMAGE_NAME is already lowercase. GHCR requires a lowercase
+          # repository path — template-reusers whose org/app names contain
+          # capitals MUST lowercase IMAGE_NAME themselves (keep it lowercase).
+          tags: |
+            ${{ env.IMAGE_NAME }}:latest
+            ${{ env.IMAGE_NAME }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          # NEXT_PUBLIC_* are PUBLIC build args (inlined into the client bundle),
+          # NOT secrets — they come from vars.* except SITE_URL (hardcoded above).
+          build-args: |
+            NEXT_PUBLIC_SUPABASE_URL=${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+            NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+            NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${{ vars.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+            NEXT_PUBLIC_SITE_URL=${{ env.SITE_URL }}
+            NEXT_PUBLIC_TURNSTILE_SITE_KEY=${{ vars.NEXT_PUBLIC_TURNSTILE_SITE_KEY }}
+
+      - name: Trigger Coolify deploy (pull prebuilt image)
+        env:
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+        run: |
+          if [ -z "${COOLIFY_TOKEN}" ]; then
+            echo "::warning::COOLIFY_TOKEN not set — skipping Coolify trigger."
+            echo "Image is built and pushed to GHCR. Set COOLIFY_TOKEN secret to auto-deploy."
+            exit 0
+          fi
+          echo "Triggering Coolify pull for app ${APP_UUID}…"
+          curl --fail-with-body -sS --retry 3 --retry-all-errors \
+            "${COOLIFY_BASE}/api/v1/deploy?uuid=${APP_UUID}" \
+            -H "Authorization: Bearer ${COOLIFY_TOKEN}"
+          echo
+          echo "Deploy queued. Coolify will pull ghcr.io/…:latest and restart."

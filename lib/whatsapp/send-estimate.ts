@@ -18,6 +18,7 @@ import { formatEstimateForWhatsApp, type FormatterEstimate } from '@/lib/whatsap
 import { generateAndUploadEstimatePDF } from '@/lib/whatsapp/pdf-delivery'
 import { getBranding } from '@/lib/platform-config'
 import { logOutboundMessage, toE164 } from '@/lib/whatsapp/conversations'
+import { getCanonicalBaseUrl } from '@/lib/utils/site-url'
 
 export interface DeliverEstimateResult {
   ok: boolean
@@ -67,7 +68,7 @@ export async function deliverEstimateViaWhatsApp(params: {
   const companyName = (company?.name as string | null) ?? null
 
   const branding = await getBranding()
-  const baseUrl = branding.canonicalBaseUrl ?? process.env.NEXT_PUBLIC_APP_URL ?? ''
+  const baseUrl = branding.canonicalBaseUrl ?? getCanonicalBaseUrl()
   const shareUrl = `${baseUrl}/estimate/${estimate.share_token}`
   const shareMessage =
     params.customMessage?.trim() ||

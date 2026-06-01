@@ -10,6 +10,7 @@ import {
   getDemoUserEmail,
   getDemoUserPassword,
 } from '@/lib/demo/config'
+import { resolveBaseUrl } from '@/lib/utils/site-url'
 
 // Auto-login mutates session cookies, so this must run on the Node runtime and
 // never be statically cached.
@@ -27,7 +28,7 @@ export const dynamic = 'force-dynamic'
  * the demo user can browse but never mutate or trigger external side effects.
  */
 export async function GET(request: Request) {
-  const { origin } = new URL(request.url)
+  const origin = resolveBaseUrl(request)
 
   const email = getDemoUserEmail()
   const password = getDemoUserPassword()

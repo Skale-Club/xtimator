@@ -4,6 +4,7 @@ import { requireServiceClient } from '@/lib/supabase/service'
 import { getTwilioConfig, getBranding } from '@/lib/platform-config'
 import { rateLimit } from '@/lib/ratelimit'
 import { demoGuardResponse } from '@/lib/demo/guard'
+import { getCanonicalBaseUrl } from '@/lib/utils/site-url'
 
 interface SendSmsRequestBody {
   to: string
@@ -104,7 +105,7 @@ export async function POST(
 
     // Build share URL
     const branding = await getBranding()
-    const baseUrl = branding.canonicalBaseUrl ?? process.env.NEXT_PUBLIC_APP_URL ?? ''
+    const baseUrl = branding.canonicalBaseUrl ?? getCanonicalBaseUrl()
     const shareUrl = `${baseUrl}/estimate/${estimate.share_token}`
 
     const smsBody = message?.trim() ||

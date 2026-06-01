@@ -4,6 +4,7 @@ import { getAuthClaims } from '@/lib/queries/auth'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { verifyOAuthState, exchangeCode } from '@/lib/billing/connect-oauth'
 import { getStripeClient } from '@/lib/billing/stripe-client'
+import { resolveBaseUrl } from '@/lib/utils/site-url'
 
 /**
  * GET /api/stripe/connect/callback
@@ -22,7 +23,8 @@ export async function GET(req: NextRequest) {
   const code = url.searchParams.get('code')
   const state = url.searchParams.get('state')
   const stripeError = url.searchParams.get('error')
-  const settingsUrl = new URL('/settings/payments', req.url)
+  const base = resolveBaseUrl(req)
+  const settingsUrl = new URL('/settings/payments', base)
 
   if (stripeError) {
     settingsUrl.searchParams.set('error', stripeError)
@@ -34,7 +36,7 @@ export async function GET(req: NextRequest) {
   }
 
   const claims = await getAuthClaims()
-  if (!claims) return NextResponse.redirect(new URL('/?auth=login', req.url))
+  if (!claims) return NextResponse.redirect(new URL('/?auth=login', base))
 
   const svc = requireServiceClient()
   const { data: company } = await svc
@@ -42,7 +44,7 @@ export async function GET(req: NextRequest) {
     .select('id, stripe_account_id')
     .eq('user_id', claims.sub as string)
     .single()
-  if (!company) return NextResponse.redirect(new URL('/onboarding', req.url))
+  if (!company) return NextResponse.redirect(new URL('/onboarding', base))
 
   // Clear cookie immediately — single-use state (Pitfall 3).
   const cookieJar = await cookies()

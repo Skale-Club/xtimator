@@ -52,7 +52,7 @@ type SignupPasswordValues = z.infer<typeof signupPasswordSchema>
 // ---------------------------------------------------------------------------
 
 type Mode = 'login' | 'signup' | 'reset'
-type Step = 'email' | 'password'
+type Step = 'email' | 'password' | 'company'
 
 interface AuthDialogProps {
   branding: { appName: string; logoUrl: string | null }
@@ -376,38 +376,22 @@ function LoginStep2({ email, captchaToken, onBack, onForgot, onError }: LoginSte
 
 interface SignupStep2Props {
   email: string
-  captchaToken: string | null
+  initialPassword: string
   onBack: () => void
-  onError: (message: string) => void
+  onContinue: (password: string) => void
 }
 
-function SignupStep2({ email, captchaToken, onBack, onError }: SignupStep2Props) {
+function SignupStep2({ email, initialPassword, onBack, onContinue }: SignupStep2Props) {
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
-  const [formError, setFormError] = useState<string | null>(null)
-  const [isPending, startTransition] = useTransition()
 
   const form = useForm<SignupPasswordValues>({
     resolver: zodResolver(signupPasswordSchema),
-    defaultValues: { password: '', confirmPassword: '' },
+    defaultValues: { password: initialPassword, confirmPassword: initialPassword },
   })
 
   function onSubmit(values: SignupPasswordValues) {
-    if (!captchaToken) {
-      onError('Your CAPTCHA token expired. Please try again.')
-      return
-    }
-    setFormError(null)
-    startTransition(async () => {
-      const formData = new FormData()
-      formData.append('email', email)
-      formData.append('password', values.password)
-      formData.append('captchaToken', captchaToken)
-      const result = await signUp(formData)
-      if (result?.error) {
-        onError(result.error)
-      }
-    })
+    onContinue(values.password)
   }
 
   return (
@@ -415,12 +399,6 @@ function SignupStep2({ email, captchaToken, onBack, onError }: SignupStep2Props)
       <p className="text-center text-[0.8125rem] text-[#71717A]">
         Creating account for <span className="text-[#FAFAFA]">{email}</span>
       </p>
-
-      {formError && (
-        <p className="rounded-lg border border-red-500/20 bg-red-500/[0.08] p-3 text-sm text-red-400">
-          {formError}
-        </p>
-      )}
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -436,7 +414,6 @@ function SignupStep2({ email, captchaToken, onBack, onError }: SignupStep2Props)
                       type={showPassword ? 'text' : 'password'}
                       placeholder="••••••••"
                       autoComplete="new-password"
-                      disabled={isPending}
                       autoFocus
                       className={`${inputCls} pr-10`}
                       {...field}
@@ -469,7 +446,6 @@ function SignupStep2({ email, captchaToken, onBack, onError }: SignupStep2Props)
                       type={showConfirm ? 'text' : 'password'}
                       placeholder="••••••••"
                       autoComplete="new-password"
-                      disabled={isPending}
                       className={`${inputCls} pr-10`}
                       {...field}
                     />
@@ -484,6 +460,136 @@ function SignupStep2({ email, captchaToken, onBack, onError }: SignupStep2Props)
                     {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
+                <FormMessage className="text-xs text-red-400" />
+              </FormItem>
+            )}
+          />
+
+          <button
+            type="submit"
+            className="flex h-10 w-full items-center justify-center gap-2 rounded-md bg-primary text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+          >
+            Continue
+          </button>
+
+          <button
+            type="button"
+            onClick={onBack}
+            className="flex w-full items-center justify-center gap-1.5 text-[0.8125rem] text-[#71717A] transition-colors hover:text-[#A1A1AA]"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            Back
+          </button>
+        </form>
+      </Form>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Step 3 — Signup (company name + subdomain)
+// ---------------------------------------------------------------------------
+
+const companySchema = z.object({
+  companyName: z.string().min(2, 'Company name must be at least 2 characters.'),
+  subdomain: z
+    .string()
+    .regex(/^[a-z0-9-]*$/, 'Use lowercase letters, numbers, and hyphens only.'),
+})
+
+type CompanyValues = z.infer<typeof companySchema>
+
+interface SignupCompanyStepProps {
+  email: string
+  password: string
+  captchaToken: string | null
+  onBack: () => void
+  onError: (message: string) => void
+}
+
+function SignupCompanyStep({ email, password, captchaToken, onBack, onError }: SignupCompanyStepProps) {
+  const [isPending, startTransition] = useTransition()
+
+  const form = useForm<CompanyValues>({
+    resolver: zodResolver(companySchema),
+    defaultValues: { companyName: '', subdomain: '' },
+  })
+
+  const subdomainValue = form.watch('subdomain')
+
+  function onSubmit(values: CompanyValues) {
+    if (!captchaToken) {
+      onError('Your CAPTCHA token expired. Please try again.')
+      return
+    }
+    startTransition(async () => {
+      const formData = new FormData()
+      formData.append('email', email)
+      formData.append('password', password)
+      formData.append('captchaToken', captchaToken)
+      formData.append('companyName', values.companyName)
+      formData.append('subdomain', values.subdomain ?? '')
+      const result = await signUp(formData)
+      if (result?.error) {
+        onError(result.error)
+      }
+    })
+  }
+
+  return (
+    <div className="space-y-5">
+      <p className="text-center text-[0.8125rem] text-[#71717A]">
+        Set up your workspace
+      </p>
+
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <FormField
+            control={form.control}
+            name="companyName"
+            render={({ field }) => (
+              <FormItem className="space-y-1.5">
+                <FormLabel className={labelCls}>Company name</FormLabel>
+                <FormControl>
+                  <Input
+                    type="text"
+                    placeholder="Smith Painting LLC"
+                    autoComplete="organization"
+                    autoFocus
+                    disabled={isPending}
+                    className={inputCls}
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage className="text-xs text-red-400" />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="subdomain"
+            render={({ field }) => (
+              <FormItem className="space-y-1.5">
+                <FormLabel className={labelCls}>Subdomain</FormLabel>
+                <FormControl>
+                  <Input
+                    type="text"
+                    placeholder="yourcompany"
+                    autoComplete="off"
+                    autoCapitalize="none"
+                    spellCheck={false}
+                    disabled={isPending}
+                    className={inputCls}
+                    {...field}
+                  />
+                </FormControl>
+                <p className="text-xs text-[#71717A]">
+                  Your workspace will be at{' '}
+                  <span className="text-[#A1A1AA]">
+                    {(subdomainValue || 'yourcompany').toLowerCase()}.xtimator.com
+                  </span>
+                </p>
                 <FormMessage className="text-xs text-red-400" />
               </FormItem>
             )}
@@ -548,6 +654,7 @@ export function AuthDialog({ branding, initialMode = 'login', open, onClose }: A
   const [mode, setMode] = useState<Mode>(initialMode)
   const [step, setStep] = useState<Step>('email')
   const [email, setEmail] = useState('')
+  const [signupPassword, setSignupPassword] = useState('')
   const [captchaToken, setCaptchaToken] = useState<string | null>(null)
   const [resetSent, setResetSent] = useState(false)
   const [topLevelError, setTopLevelError] = useState<string | null>(null)
@@ -561,6 +668,7 @@ export function AuthDialog({ branding, initialMode = 'login', open, onClose }: A
       setMode(initialMode)
       setStep('email')
       setEmail('')
+      setSignupPassword('')
       setCaptchaToken(null)
       setResetSent(false)
       setTopLevelError(null)
@@ -612,16 +720,18 @@ export function AuthDialog({ branding, initialMode = 'login', open, onClose }: A
   // ----- Heading + subheading -----
   const heading =
     mode === 'login'
-      ? 'Welcome back'
+      ? `Sign in to ${branding.appName}`
       : mode === 'signup'
         ? 'Create account'
         : 'Reset your password'
 
   const subheading =
     mode === 'login'
-      ? 'Sign in to your workspace'
+      ? 'Use your email to continue'
       : mode === 'signup'
-        ? 'Get started in seconds'
+        ? step === 'company'
+          ? 'Tell us about your business'
+          : 'Get started in seconds'
         : "Enter your email and we'll send you a reset link."
 
   // ----- Step 1 submit handlers -----
@@ -665,6 +775,7 @@ export function AuthDialog({ branding, initialMode = 'login', open, onClose }: A
   function switchMode(newMode: Mode, resetStep: boolean = true) {
     setMode(newMode)
     if (resetStep) setStep('email')
+    setSignupPassword('')
     setTopLevelError(null)
     setResetSent(false)
   }
@@ -720,16 +831,34 @@ export function AuthDialog({ branding, initialMode = 'login', open, onClose }: A
         />
       )
     }
+    if (step === 'company' && mode === 'signup') {
+      return (
+        <SignupCompanyStep
+          email={email}
+          password={signupPassword}
+          captchaToken={captchaToken}
+          onBack={() => {
+            setStep('password')
+            setTopLevelError(null)
+          }}
+          onError={handleStep2Error}
+        />
+      )
+    }
     if (mode === 'signup') {
       return (
         <SignupStep2
           email={email}
-          captchaToken={captchaToken}
+          initialPassword={signupPassword}
           onBack={() => {
             setStep('email')
             setTopLevelError(null)
           }}
-          onError={handleStep2Error}
+          onContinue={(password) => {
+            setSignupPassword(password)
+            setStep('company')
+            setTopLevelError(null)
+          }}
         />
       )
     }
