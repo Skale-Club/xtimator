@@ -22,6 +22,7 @@ import { generateEstimateForProject } from '@/lib/services/generate-estimate'
 import { generateAndUploadEstimatePDF } from '@/lib/whatsapp/pdf-delivery'
 import { formatMoney } from '@/lib/money/currency'
 import { getCanonicalBaseUrl } from '@/lib/utils/site-url'
+import { logOutboundMessage } from '@/lib/whatsapp/conversations'
 
 type Session = {
   id: string
@@ -47,19 +48,19 @@ export async function processConfirmationReply(
       await handleSend(session, companyId, ownerPhone, supabase)
       return
     case 'cancel':
-      await handleCancel(session, ownerPhone, supabase)
+      await handleCancel(session, companyId, ownerPhone, supabase)
       return
     case 'edit-total':
-      await handleEditField(session, ownerPhone, supabase, { total: command.value })
+      await handleEditField(session, companyId, ownerPhone, supabase, { total: command.value })
       return
     case 'edit-timeline':
-      await handleEditField(session, ownerPhone, supabase, { timeline: command.value })
+      await handleEditField(session, companyId, ownerPhone, supabase, { timeline: command.value })
       return
     case 'edit-payment':
-      await handleEditField(session, ownerPhone, supabase, { payment_terms: command.value })
+      await handleEditField(session, companyId, ownerPhone, supabase, { payment_terms: command.value })
       return
     case 'edit-summary':
-      await handleEditField(session, ownerPhone, supabase, { summary: command.value })
+      await handleEditField(session, companyId, ownerPhone, supabase, { summary: command.value })
       return
     case 'set-client':
       await handleSetClient(session, companyId, ownerPhone, supabase, command.name, command.phone)
@@ -73,6 +74,13 @@ export async function processConfirmationReply(
         type: 'text',
         text: { body: EDIT_HELP_MESSAGE },
       })
+      logOutboundMessage(supabase, {
+        companyId,
+        contactPhone: ownerPhone,
+        body: EDIT_HELP_MESSAGE,
+        msgType: 'text',
+        status: 'sent',
+      }).catch(() => undefined)
   }
 }
 
@@ -97,15 +105,24 @@ type EditableFields = {
 
 async function handleEditField(
   session: Session,
+  companyId: string,
   ownerPhone: string,
   supabase: SupabaseClient,
   patch: EditableFields
 ): Promise<void> {
   if (!session.draft_estimate_id) {
+    const body = 'No estimate to edit. Please start a new one.'
     await sendWhatsAppMessage(ownerPhone, {
       type: 'text',
-      text: { body: 'No estimate to edit. Please start a new one.' },
+      text: { body },
     })
+    logOutboundMessage(supabase, {
+      companyId,
+      contactPhone: ownerPhone,
+      body,
+      msgType: 'text',
+      status: 'sent',
+    }).catch(() => undefined)
     return
   }
 
@@ -116,14 +133,22 @@ async function handleEditField(
 
   if (error) {
     console.error('[WhatsApp] edit failed:', error)
+    const body = 'Could not apply that edit. Please try again.'
     await sendWhatsAppMessage(ownerPhone, {
       type: 'text',
-      text: { body: 'Could not apply that edit. Please try again.' },
+      text: { body },
     })
+    logOutboundMessage(supabase, {
+      companyId,
+      contactPhone: ownerPhone,
+      body,
+      msgType: 'text',
+      status: 'sent',
+    }).catch(() => undefined)
     return
   }
 
-  await resendSummary(session.draft_estimate_id, ownerPhone, supabase, '✏️ *Updated*')
+  await resendSummary(session.draft_estimate_id, companyId, ownerPhone, supabase, '✏️ *Updated*')
 }
 
 async function handleSetClient(
@@ -135,10 +160,18 @@ async function handleSetClient(
   phone: string
 ): Promise<void> {
   if (!session.draft_project_id) {
+    const body = 'No project to attach a client to. Please start a new estimate.'
     await sendWhatsAppMessage(ownerPhone, {
       type: 'text',
-      text: { body: 'No project to attach a client to. Please start a new estimate.' },
+      text: { body },
     })
+    logOutboundMessage(supabase, {
+      companyId,
+      contactPhone: ownerPhone,
+      body,
+      msgType: 'text',
+      status: 'sent',
+    }).catch(() => undefined)
     return
   }
 
@@ -168,10 +201,18 @@ async function handleSetClient(
       .single()
     if (createErr || !created) {
       console.error('[WhatsApp] client create failed:', createErr)
+      const body = 'Could not save that client. Please try again.'
       await sendWhatsAppMessage(ownerPhone, {
         type: 'text',
-        text: { body: 'Could not save that client. Please try again.' },
+        text: { body },
       })
+      logOutboundMessage(supabase, {
+        companyId,
+        contactPhone: ownerPhone,
+        body,
+        msgType: 'text',
+        status: 'sent',
+      }).catch(() => undefined)
       return
     }
     clientId = created.id as string
@@ -185,19 +226,33 @@ async function handleSetClient(
 
   if (updateErr) {
     console.error('[WhatsApp] project-client link failed:', updateErr)
+    const body = 'Could not link client. Please try again.'
     await sendWhatsAppMessage(ownerPhone, {
       type: 'text',
-      text: { body: 'Could not link client. Please try again.' },
+      text: { body },
     })
+    logOutboundMessage(supabase, {
+      companyId,
+      contactPhone: ownerPhone,
+      body,
+      msgType: 'text',
+      status: 'sent',
+    }).catch(() => undefined)
     return
   }
 
+  const clientSetBody = `👤 Client set to *${name}* (${phone}).\n\nReply *send* to deliver, *cancel* to discard, or use *edit* commands to adjust the estimate.`
   await sendWhatsAppMessage(ownerPhone, {
     type: 'text',
-    text: {
-      body: `👤 Client set to *${name}* (${phone}).\n\nReply *send* to deliver, *cancel* to discard, or use *edit* commands to adjust the estimate.`,
-    },
+    text: { body: clientSetBody },
   })
+  logOutboundMessage(supabase, {
+    companyId,
+    contactPhone: ownerPhone,
+    body: clientSetBody,
+    msgType: 'text',
+    status: 'sent',
+  }).catch(() => undefined)
 }
 
 async function handleRegenerate(
@@ -207,10 +262,18 @@ async function handleRegenerate(
   supabase: SupabaseClient
 ): Promise<void> {
   if (!session.draft_project_id) {
+    const body = 'No project to regenerate. Please start a new estimate.'
     await sendWhatsAppMessage(ownerPhone, {
       type: 'text',
-      text: { body: 'No project to regenerate. Please start a new estimate.' },
+      text: { body },
     })
+    logOutboundMessage(supabase, {
+      companyId,
+      contactPhone: ownerPhone,
+      body,
+      msgType: 'text',
+      status: 'sent',
+    }).catch(() => undefined)
     return
   }
 
@@ -225,10 +288,18 @@ async function handleRegenerate(
     newEstimateId = result.estimateId
   } catch (err) {
     console.error('[WhatsApp] regenerate failed:', err)
+    const body = 'Regeneration failed. Please try again.'
     await sendWhatsAppMessage(ownerPhone, {
       type: 'text',
-      text: { body: 'Regeneration failed. Please try again.' },
+      text: { body },
     })
+    logOutboundMessage(supabase, {
+      companyId,
+      contactPhone: ownerPhone,
+      body,
+      msgType: 'text',
+      status: 'sent',
+    }).catch(() => undefined)
     return
   }
 
@@ -238,12 +309,13 @@ async function handleRegenerate(
     .update({ draft_estimate_id: newEstimateId })
     .eq('id', session.id)
 
-  await resendSummary(newEstimateId, ownerPhone, supabase, '🔄 *Regenerated*')
+  await resendSummary(newEstimateId, companyId, ownerPhone, supabase, '🔄 *Regenerated*')
 }
 
 // Helper: reload estimate + re-send summary text after any edit
 async function resendSummary(
   estimateId: string,
+  companyId: string,
   ownerPhone: string,
   supabase: SupabaseClient,
   prefix: string
@@ -259,6 +331,13 @@ async function resendSummary(
     type: 'text',
     text: { body },
   })
+  logOutboundMessage(supabase, {
+    companyId,
+    contactPhone: ownerPhone,
+    body,
+    msgType: 'text',
+    status: 'sent',
+  }).catch(() => undefined)
 }
 
 function buildConfirmationMessage(
@@ -306,10 +385,18 @@ async function handleSend(
   const { draft_estimate_id, draft_project_id } = session
 
   if (!draft_estimate_id || !draft_project_id) {
+    const body = 'Could not find your estimate. Please create a new one.'
     await sendWhatsAppMessage(ownerPhone, {
       type: 'text',
-      text: { body: 'Could not find your estimate. Please create a new one.' },
+      text: { body },
     })
+    logOutboundMessage(supabase, {
+      companyId,
+      contactPhone: ownerPhone,
+      body,
+      msgType: 'text',
+      status: 'sent',
+    }).catch(() => undefined)
     await supabase.from('whatsapp_sessions').delete().eq('id', session.id)
     return
   }
@@ -350,10 +437,18 @@ async function handleSend(
   const companyName = (companyResult.data?.name as string | null) ?? null
 
   if (!estimate || !project) {
+    const body = 'Could not find your estimate. Please create a new one.'
     await sendWhatsAppMessage(ownerPhone, {
       type: 'text',
-      text: { body: 'Could not find your estimate. Please create a new one.' },
+      text: { body },
     })
+    logOutboundMessage(supabase, {
+      companyId,
+      contactPhone: ownerPhone,
+      body,
+      msgType: 'text',
+      status: 'sent',
+    }).catch(() => undefined)
     await supabase.from('whatsapp_sessions').delete().eq('id', session.id)
     return
   }
@@ -457,10 +552,18 @@ async function handleSend(
     type: 'text',
     text: { body: ownerMessage },
   })
+  logOutboundMessage(supabase, {
+    companyId,
+    contactPhone: ownerPhone,
+    body: ownerMessage,
+    msgType: 'text',
+    status: 'sent',
+  }).catch(() => undefined)
 }
 
 async function handleCancel(
   session: Session,
+  companyId: string,
   ownerPhone: string,
   supabase: SupabaseClient
 ): Promise<void> {
@@ -472,10 +575,18 @@ async function handleCancel(
 
   await supabase.from('whatsapp_sessions').delete().eq('id', session.id)
 
+  const body = "❌ Estimate discarded. Send a new audio, text, or photo when you're ready."
   await sendWhatsAppMessage(ownerPhone, {
     type: 'text',
-    text: { body: "❌ Estimate discarded. Send a new audio, text, or photo when you're ready." },
+    text: { body },
   })
+  logOutboundMessage(supabase, {
+    companyId,
+    contactPhone: ownerPhone,
+    body,
+    msgType: 'text',
+    status: 'sent',
+  }).catch(() => undefined)
 }
 
 function buildShareUrl(shareToken: string): string {
