@@ -27,6 +27,7 @@ import {
   buildAskDetailsMessage,
   revertVagueEstimate,
 } from '@/lib/whatsapp/ask-details'
+import { logOutboundMessage } from '@/lib/whatsapp/conversations'
 import { getServerStorage } from '@/lib/storage'
 
 const SESSION_TTL_MINUTES = 30
@@ -146,12 +147,16 @@ export const whatsAppProcessJob = inngest.createFunction(
     const hasUsableInput = stepResults.some((r) => r.ok)
     if (!hasUsableInput) {
       await step.run('send-audio-error', async () => {
-        await sendWhatsAppMessage(ownerPhone, {
-          type: 'text',
-          text: {
-            body: "Sorry, I couldn't process your audio message. Please describe the job in a text message and I'll generate an estimate for you.",
-          },
-        })
+        const body =
+          "Sorry, I couldn't process your audio message. Please describe the job in a text message and I'll generate an estimate for you."
+        await sendWhatsAppMessage(ownerPhone, { type: 'text', text: { body } })
+        logOutboundMessage(requireServiceClient(), {
+          companyId,
+          contactPhone: ownerPhone,
+          body,
+          msgType: 'text',
+          status: 'sent',
+        }).catch(() => undefined)
       })
       return
     }
@@ -202,10 +207,15 @@ export const whatsAppProcessJob = inngest.createFunction(
           draft_estimate_id: null,
           expires_at: expiresAt,
         })
-        await sendWhatsAppMessage(ownerPhone, {
-          type: 'text',
-          text: { body: buildAskDetailsMessage(result.language) },
-        })
+        const body = buildAskDetailsMessage(result.language)
+        await sendWhatsAppMessage(ownerPhone, { type: 'text', text: { body } })
+        logOutboundMessage(requireServiceClient(), {
+          companyId,
+          contactPhone: ownerPhone,
+          body,
+          msgType: 'text',
+          status: 'sent',
+        }).catch(() => undefined)
       })
       return result
     }
@@ -254,6 +264,13 @@ export const whatsAppProcessJob = inngest.createFunction(
         'Reply *send* to deliver to your client, or *cancel* to discard.',
       ].join('\n')
       await sendWhatsAppMessage(ownerPhone, { type: 'text', text: { body } })
+      logOutboundMessage(requireServiceClient(), {
+        companyId,
+        contactPhone: ownerPhone,
+        body,
+        msgType: 'text',
+        status: 'sent',
+      }).catch(() => undefined)
     })
 
     return result
