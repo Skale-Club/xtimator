@@ -14,11 +14,14 @@ import { T } from '@/components/i18n/t'
 
 export const NEW_PROJECT_MODAL_PARAM = 'modal'
 export const NEW_PROJECT_MODAL_VALUE = 'new-project'
+/** Optional: pre-link the new project to a client (used by the client page). */
+export const NEW_PROJECT_CLIENT_PARAM = 'clientId'
 
 /** Build the href that opens the new-project modal from any page. */
-export function newProjectHref(currentSearch?: string): string {
+export function newProjectHref(currentSearch?: string, clientId?: string): string {
   const params = new URLSearchParams(currentSearch ?? '')
   params.set(NEW_PROJECT_MODAL_PARAM, NEW_PROJECT_MODAL_VALUE)
+  if (clientId) params.set(NEW_PROJECT_CLIENT_PARAM, clientId)
   return `?${params.toString()}`
 }
 

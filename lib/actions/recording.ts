@@ -1,11 +1,14 @@
 'use server'
 
+import { randomUUID } from 'node:crypto'
 import { createClient } from '@/lib/supabase/server'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { createStorage } from '@/lib/storage'
 import { revalidatePath } from 'next/cache'
 import { getIntegrationKey } from '@/lib/platform-config'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
+import { recordPipelineEvent } from '@/lib/observability/pipeline-events'
+import { assertWritable } from '@/lib/demo/guard'
 
 async function getAuthContext() {
   const supabase = await createClient()
@@ -24,14 +27,21 @@ async function getAuthContext() {
 
   if (!company) return { error: 'No company found' as const }
 
+  const denied = await assertWritable()
+  if (denied) return denied
+
   return { supabase, company }
 }
 
 // Text-only recording — no audio file, transcript is the typed description
 export async function createTextRecording(
   projectId: string,
-  description: string
+  description: string,
+  attemptId?: string
 ) {
+  // Phase 92 (EVENT-02/D-08): server fallback so an event is never dropped.
+  const eventAttemptId = attemptId ?? randomUUID()
+  const t0 = Date.now()
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error }
   const { supabase, company } = ctx
@@ -49,6 +59,18 @@ export async function createTextRecording(
     .single()
 
   if (insertError || !recording) {
+    // Phase 92 (EVENT-02): terminal failed save_recording event (best-effort).
+    void recordPipelineEvent({
+      attemptId: eventAttemptId,
+      inputType: 'manual_text',
+      step: 'save_recording',
+      status: 'failed',
+      companyId: company.id,
+      projectId,
+      errorMessage: 'Failed to save description',
+      durationMs: Date.now() - t0,
+      provider: null,
+    })
     return { error: 'Failed to save description. Please try again.' }
   }
 
@@ -60,6 +82,20 @@ export async function createTextRecording(
     metadata: { source: 'text_input' },
   })
 
+  // Phase 92 (EVENT-02): single terminal succeeded save_recording event (D-03
+  // collapse — synchronous step, no started row). Additive; never blocks return.
+  void recordPipelineEvent({
+    attemptId: eventAttemptId,
+    inputType: 'manual_text',
+    step: 'save_recording',
+    status: 'succeeded',
+    companyId: company.id,
+    projectId,
+    estimateId: null,
+    durationMs: Date.now() - t0,
+    provider: null,
+  })
+
   revalidatePath(`/projects/${projectId}`)
   return { data: recording }
 }
@@ -67,8 +103,12 @@ export async function createTextRecording(
 export async function createRecording(
   projectId: string,
   storagePath: string,
-  durationSeconds: number
+  durationSeconds: number,
+  attemptId?: string
 ) {
+  // Phase 92 (EVENT-02/D-08): server fallback so an event is never dropped.
+  const eventAttemptId = attemptId ?? randomUUID()
+  const t0 = Date.now()
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error }
   const { supabase, company } = ctx
@@ -85,6 +125,18 @@ export async function createRecording(
     .single()
 
   if (insertError || !recording) {
+    // Phase 92 (EVENT-02): terminal failed save_recording event (best-effort).
+    void recordPipelineEvent({
+      attemptId: eventAttemptId,
+      inputType: 'recording',
+      step: 'save_recording',
+      status: 'failed',
+      companyId: company.id,
+      projectId,
+      errorMessage: 'Failed to create recording',
+      durationMs: Date.now() - t0,
+      provider: null,
+    })
     return { error: 'Failed to create recording. Please try again.' }
   }
 
@@ -109,6 +161,21 @@ export async function createRecording(
     metadata: { duration_seconds: durationSeconds },
   })
 
+  // Phase 92 (EVENT-02): single terminal succeeded save_recording event (D-03
+  // collapse — synchronous step, no started row). This is an ADDITIONAL insert
+  // into pipeline_events — the recording_added write above stays untouched (D-10).
+  void recordPipelineEvent({
+    attemptId: eventAttemptId,
+    inputType: 'recording',
+    step: 'save_recording',
+    status: 'succeeded',
+    companyId: company.id,
+    projectId,
+    estimateId: null,
+    durationMs: Date.now() - t0,
+    provider: null,
+  })
+
   revalidatePath(`/projects/${projectId}`)
   return { data: recording }
 }
@@ -126,7 +193,7 @@ export async function createRecording(
  *
  * Implements: INNGEST-03.
  */
-export async function transcribeRecording(recordingId: string) {
+export async function transcribeRecording(recordingId: string, attemptId?: string) {
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error }
   const { supabase } = ctx
@@ -157,6 +224,9 @@ export async function transcribeRecording(recordingId: string) {
       companyId: recording.company_id as string,
       recordingId,
       storagePath: recording.storage_path as string,
+      // REC-03: forward attempt lineage (in-flight only) so a Retry continues
+      // the same attempt; recordingId stays the stable idempotency seam.
+      attemptId,
     },
   })
 

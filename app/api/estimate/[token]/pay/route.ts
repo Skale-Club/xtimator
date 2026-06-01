@@ -3,6 +3,8 @@ import { getStripeClient } from '@/lib/billing/stripe-client'
 import { normalizeCurrencyCode } from '@/lib/money/currency'
 import { getEstimateByShareToken } from '@/lib/queries/share'
 import { requireServiceClient } from '@/lib/supabase/service'
+import { isDemoCompany } from '@/lib/demo/config'
+import { resolveBaseUrl } from '@/lib/utils/site-url'
 
 /**
  * Phase 70 — Stripe Connect customer payments (CONNECT-07).
@@ -50,6 +52,13 @@ export async function POST(
       { status: 400 }
     )
   }
+  // Demo estimates never initiate a real payment (D06 — no external side effects).
+  if (isDemoCompany(company.id)) {
+    return NextResponse.json(
+      { ok: false, message: 'Payments are disabled in the demo.' },
+      { status: 403 }
+    )
+  }
   if (estimate.payment_status === 'paid') {
     return NextResponse.json(
       { ok: false, message: 'Already paid' },
@@ -64,7 +73,7 @@ export async function POST(
     )
   }
 
-  const origin = new URL(req.url).origin
+  const origin = resolveBaseUrl(req)
   const stripe = await getStripeClient()
   const currencyCode = normalizeCurrencyCode(estimate.currency_code)
 

@@ -8,7 +8,7 @@ import type { NextConfig } from "next";
 // tighten to a nonce-based variant before flipping to enforce.
 const cspReportOnly = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' https://js.stripe.com https://challenges.cloudflare.com https://va.vercel-scripts.com",
+  "script-src 'self' 'unsafe-inline' https://js.stripe.com https://challenges.cloudflare.com",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https://*.supabase.co https://*.supabase.in",
   "font-src 'self'",

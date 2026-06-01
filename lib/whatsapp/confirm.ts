@@ -21,6 +21,7 @@ import { parseEditCommand, EDIT_HELP_MESSAGE } from '@/lib/whatsapp/edit-command
 import { generateEstimateForProject } from '@/lib/services/generate-estimate'
 import { generateAndUploadEstimatePDF } from '@/lib/whatsapp/pdf-delivery'
 import { formatMoney } from '@/lib/money/currency'
+import { getCanonicalBaseUrl } from '@/lib/utils/site-url'
 
 type Session = {
   id: string
@@ -478,7 +479,7 @@ async function handleCancel(
 }
 
 function buildShareUrl(shareToken: string): string {
-  const base = process.env.NEXT_PUBLIC_APP_URL ?? 'https://xtimator.com'
+  const base = getCanonicalBaseUrl()
   return `${base}/estimate/${shareToken}`
 }
 

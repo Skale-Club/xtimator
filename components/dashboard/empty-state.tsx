@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { LucideIcon } from 'lucide-react'
 import { T } from '@/components/i18n/t'
@@ -41,7 +42,10 @@ export function EmptyState({
       )}
 
       {actionLabel && onAction && !actionHref && (
-        <Button variant="primary" onClick={onAction}><T text={actionLabel} /></Button>
+        <Button variant="primary" onClick={onAction}>
+          <Plus className="h-4 w-4 mr-2" />
+          <T text={actionLabel} />
+        </Button>
       )}
 
       {onClearFilter && (

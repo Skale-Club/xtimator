@@ -18,6 +18,9 @@
 - âœ… **v3.0 Monetization** â€” Phases 55-60 (shipped 2026-05-14) Â· [archive](milestones/v3.0-ROADMAP.md)
 - âœ… **v3.1 Production Go-Live (rescoped)** â€” Phase 61 only (shipped 2026-05-15) Â· 4 phases deferred to v3.2 Â· [archive](milestones/v3.1-ROADMAP.md)
 - ðŸš§ **v3.1.1 MVP Launch Prep + Future-Proofing** â€” Phases 66-72 (started 2026-05-15, rescoped same day for Inngest + Storage abstraction)
+- ✅ **v4.0 Multi-Tenancy** — Phases 79-85 (shipped 2026-05-26) · [archive](milestones/v4.0-ROADMAP.md)
+- ✅ **v4.1 MCP Server** — Phases 86-90 (shipped 2026-05-26) · [archive](milestones/v4.1-ROADMAP.md)
+- ✅ **v4.2 Recording Reliability & Observability** — Phases 91-93 (shipped 2026-05-30)
 
 > **Phase numbering note:** v3.1.1 starts at **Phase 66**, not 62. Phases 62-65 are reserved as DEFERRED placeholders for the v3.2 Production Deploy milestone (Vercelâ†’Hetzner deploy + Stripe live + monitoring + UAT in prod). Skipping past 62-65 keeps the global phase counter unambiguous and prevents number reuse confusion when v3.2 begins.
 
@@ -968,3 +971,58 @@ Plans:
   - v3.2 deployment milestone — not yet started
 
 **Plans:** 0/0 — not planned yet
+
+### v4.2 Recording Reliability & Observability (Phases 91-93)
+
+- [x] **Phase 91: Recording Pipeline Reliability** -- Eliminate the opaque 503 from `GET /api/jobs/[jobId]`, degrade gracefully when Inngest is unconfigured, give the capture popup a human-readable failure + Retry + Edit-manually, and make pipeline jobs idempotent (carry-forward INNGEST-01/06)
+ (completed 2026-05-29)
+- [x] **Phase 92: Pipeline Event Persistence** -- New service-role-only events store plus backend instrumentation that records every pipeline step (success and failure) across all input types, additive to the existing `estimate_activity` write (completed 2026-05-30)
+- [x] **Phase 93: Super Admin Event Log** -- Generations-style Super Admin UI: recent attempts list, search, filters + counts + refresh, and a per-attempt step timeline, exposing only safe metadata (completed 2026-05-30)
+
+### Phase 91: Recording Pipeline Reliability
+**Goal**: A user whose recording pipeline hits an Inngest-config or processing problem always sees an actionable, recoverable state instead of an opaque 503 -- and retries never double-charge AI/transcription providers. Completes the unfinished v3.1.1 INNGEST-01 (worker registration/reachability) and INNGEST-06 (idempotency).
+**Depends on**: Phase 67 (Inngest pipeline + `/api/jobs/[jobId]` exist), Phase 90 (last shipped phase)
+**Requirements**: REC-01, REC-02, REC-03, REC-04, REC-05
+**Success Criteria** (what must be TRUE):
+  1. `GET /api/jobs/[jobId]` never returns an opaque 503 when Inngest is unconfigured -- it either reports a registered, reachable worker status or degrades to an actionable, non-error status the client can render
+  2. When the pipeline fails, the capture popup shows a plain-language reason plus a Retry button and an "Edit manually" button -- never a raw status code or stack trace
+  3. Tapping Retry continues the same attempt lineage (same attempt id), and "Edit manually" lands the user in the editor with all project context preserved -- no recording work is lost
+  4. Re-running or retrying a pipeline job does not double-charge Anthropic / OpenAI -- each job runs inside `step.run()` boundaries with an explicit `idempotencyKey`
+  5. `hooks/use-job-status.ts` distinguishes "still processing", "failed with reason", and "config unavailable" without throwing on any non-200 response
+**Plans**: 2 plans
+  - [x] 91-01-PLAN.md — Graceful job-status contract + hook rewrite + failure UI (REC-01/02/05)
+  - [x] 91-02-PLAN.md — Attempt-lineage + idempotency hardening; no double-charge on Retry (REC-03/04)
+**UI hint**: yes
+
+### Phase 92: Pipeline Event Persistence
+**Goal**: Every step of every recording-to-estimate attempt is durably recorded in a new, service-role-only events store so operators can later reconstruct exactly what happened -- which step broke, why, for whom, and how long it took -- without touching the database or losing the existing activity feed.
+**Depends on**: Phase 91 (the reliability fix defines the attempt-id lineage and graceful statuses the event store records)
+**Requirements**: EVENT-01, EVENT-02, EVENT-03, EVENT-04
+**Success Criteria** (what must be TRUE):
+  1. A new events table persists per-attempt, per-step records (attempt id, project/estimate/user/company id, input type, step, status, error message, error/HTTP code, provider, duration, retry count, timestamps) with deny-all RLS to the client, service-role writes, and super-admin read only
+  2. Backend instrumentation writes an event at each pipeline step transition (save recording, transcribe, analyze, generate estimate, preview redirect), capturing both success and failure with timing
+  3. All input types are captured (recording / photo / manual text); a retry increments `retry_count` and links back to its originating attempt id
+  4. The existing single `recording_added` write to `estimate_activity` still fires unchanged -- the new events store is additive, with no regression to the current activity feed
+**Plans**: 4 plans
+  - [x] 92-00-PLAN.md — Wave 0: 5 RED Nyquist test stubs + pipeline_events migration (applied to remote) + types block
+  - [x] 92-01-PLAN.md — Wave 1: best-effort recordPipelineEvent() helper (insert + swallow + retry_count)
+  - [ ] 92-02-PLAN.md — Wave 2: attemptId+inputType lineage threading (payloads + 3 entrypoints + 3 routes)
+  - [x] 92-03-PLAN.md — Wave 3: instrument 6 step boundaries + preview_redirect marker + EVENT-04 regression + phase gate
+
+### Phase 93: Super Admin Event Log
+**Goal**: A Super Admin can diagnose any recording failure in seconds from a Generations-style event log -- finding the attempt, seeing which step broke and why, across users and companies -- without ever exposing raw sensitive provider payloads.
+**Depends on**: Phase 92 (the events store and instrumentation must exist before the admin UI can read them)
+**Requirements**: ADMINLOG-01, ADMINLOG-02, ADMINLOG-03, ADMINLOG-04, ADMINLOG-05
+**Success Criteria** (what must be TRUE):
+  1. A Super Admin sees a recent-attempts list with Generations-style columns (timestamp, user/company, project/estimate, input type, step reached, status, duration), newest first and paginated
+  2. The admin can search attempts by user, project, estimate, attempt id, and error text
+  3. The admin can filter by status (success/failure/in-progress), input type, and step; success/failure counts are displayed; a manual refresh control is present
+  4. Opening an attempt renders a step timeline showing each step's timestamp, status, message, error code, safe metadata, and duration
+  5. No raw sensitive provider payloads (audio bytes, full transcripts, API keys) are rendered anywhere in the admin UI -- only safe, summarized metadata
+**Plans**: 4 plans
+Plans:
+- [x] 93-00-PLAN.md — Wave 0: 6 RED Nyquist test stubs (all ADMINLOG requirements)
+- [x] 93-01-PLAN.md — pipeline_attempts view DDL + apply script + database types extension
+- [x] 93-02-PLAN.md — events-helpers.ts (buildSearchOr/terminalStatus/formatDuration/SAFE_EVENT_COLUMNS) + EventsControls client + admin nav item
+- [x] 93-03-PLAN.md — list page (events/page.tsx) + EventStepTimeline component + detail page ([attemptId]/page.tsx)
+**UI hint**: yes

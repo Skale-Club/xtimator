@@ -41,6 +41,8 @@ interface SidebarProps {
     name: string
     logo_url: string | null
   }>
+  /** Read-only public demo session — hides sensitive nav entries. */
+  isDemo?: boolean
 }
 
 const COLLAPSE_KEY = 'sidebar_collapsed_desktop'
@@ -73,7 +75,7 @@ const TOUR_TARGET: Record<string, string> = {
   '/price-book':   'price-book',
 }
 
-export function Sidebar({ branding, company, memberships }: SidebarProps) {
+export function Sidebar({ branding, company, memberships, isDemo }: SidebarProps) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -94,11 +96,13 @@ export function Sidebar({ branding, company, memberships }: SidebarProps) {
   // company list + Add new company entry inside a single dropdown.
   const accountMenuSlot = (
     <>
-      <DropdownMenuItem asChild className="cursor-pointer">
-        <Link href="/settings" className="flex items-center gap-2">
-          <Settings className="h-4 w-4" />{t('Settings')}
-        </Link>
-      </DropdownMenuItem>
+      {!isDemo && (
+        <DropdownMenuItem asChild className="cursor-pointer">
+          <Link href="/settings" className="flex items-center gap-2">
+            <Settings className="h-4 w-4" />{t('Settings')}
+          </Link>
+        </DropdownMenuItem>
+      )}
       <DropdownMenuItem className="cursor-pointer gap-2" onClick={handleOpenTour}>
         <HelpCircle className="h-4 w-4" />{t('App Tour')}
       </DropdownMenuItem>
@@ -189,7 +193,7 @@ export function Sidebar({ branding, company, memberships }: SidebarProps) {
 
       {/* Navigation */}
       <nav className={cn('flex-1 flex flex-col gap-1', collapsed ? 'px-0 py-2 items-center' : 'p-2')}>
-        {NAV_ITEMS.map((item) => {
+        {NAV_ITEMS.filter((item) => !(isDemo && item.demoHidden)).map((item) => {
           const matchedHref = NAV_ITEMS
             .filter((i) =>
               i.exact
@@ -213,8 +217,8 @@ export function Sidebar({ branding, company, memberships }: SidebarProps) {
             : cn(
                 baseLayout,
                 'text-muted-foreground hover:bg-[var(--glass-bg-light)] hover:text-foreground',
-                'data-[active]:bg-[var(--glass-bg-light)] data-[active]:text-foreground',
-                'data-[active]:before:content-[""] data-[active]:before:absolute data-[active]:before:left-0 data-[active]:before:top-2 data-[active]:before:bottom-2 data-[active]:before:w-[1.5px] data-[active]:before:rounded-full data-[active]:before:bg-[image:var(--gradient-brand)]',
+                'data-[active]:bg-primary/10 data-[active]:text-primary',
+                'data-[active]:before:content-[""] data-[active]:before:absolute data-[active]:before:left-0 data-[active]:before:top-1.5 data-[active]:before:bottom-1.5 data-[active]:before:w-[3px] data-[active]:before:rounded-full data-[active]:before:bg-[image:var(--gradient-brand)]',
                 collapsed && 'w-9 h-9 mx-auto justify-center px-0 py-0 gap-0',
               )
 

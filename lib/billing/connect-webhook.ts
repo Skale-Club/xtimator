@@ -4,6 +4,7 @@ import type { requireServiceClient } from '@/lib/supabase/service'
 import { notify } from '@/lib/notifications/dispatch'
 import { buildNotificationCopy } from '@/lib/notifications/copy'
 import { formatMinorUnits } from '@/lib/money/currency'
+import { getCanonicalBaseUrl } from '@/lib/utils/site-url'
 
 /**
  * Connected-account Stripe webhook handler (Phase 70, plan 70-04).
@@ -151,10 +152,7 @@ async function handleCheckoutSessionCompleted(
     session.customer_details?.email ?? session.customer_email ?? null
   const customerName = session.customer_details?.name ?? null
 
-  const origin =
-    process.env.NEXT_PUBLIC_APP_URL ??
-    process.env.NEXT_PUBLIC_SITE_URL ??
-    'https://xtimator.com'
+  const origin = getCanonicalBaseUrl()
 
   // Dynamic import keeps the email module out of the hot path when no events fire.
   const { sendPaymentReceivedEmail, sendPaymentReceiptEmail } = await import(

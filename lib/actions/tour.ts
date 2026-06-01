@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
+import { assertWritable } from '@/lib/demo/guard'
 
 export type TourEventType =
   | 'tour_started'
@@ -33,6 +34,9 @@ async function getAuthContext() {
     .single()
 
   if (!company) return { error: 'No company found' as const }
+
+  const denied = await assertWritable()
+  if (denied) return denied
 
   return { supabase, company, userId: claims.sub }
 }

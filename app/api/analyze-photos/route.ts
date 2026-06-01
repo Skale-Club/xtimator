@@ -7,6 +7,7 @@ import {
 } from '@/lib/inngest/events'
 import { rateLimit } from '@/lib/ratelimit'
 import { checkQuota } from '@/lib/quota'
+import { demoGuardResponse } from '@/lib/demo/guard'
 
 /**
  * Phase 67: route refactor. Returns { jobId } in <1s.
@@ -31,6 +32,12 @@ export async function POST(request: Request) {
       )
     }
     const { projectId } = body as { projectId: string }
+    // Phase 92 (EVENT-03 / D-08): read the client-minted attemptId for lineage;
+    // fall back to a server-minted uuid so a legacy caller never drops an event.
+    const attemptId =
+      typeof body?.attemptId === 'string' && body.attemptId.length > 0
+        ? body.attemptId
+        : crypto.randomUUID()
 
     // Auth
     const supabase = await createClient()
@@ -39,6 +46,10 @@ export async function POST(request: Request) {
     if (!claims) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
     }
+
+    // Read-only demo: never dispatch a (paid) photo-analysis job.
+    const blocked = await demoGuardResponse()
+    if (blocked) return blocked
 
     // Rate limit (Vision is expensive)
     const rl = await rateLimit('photoAnalysisPerMinute', claims.sub)
@@ -86,7 +97,14 @@ export async function POST(request: Request) {
     }
 
     // Dispatch
-    const payload: AnalyzePhotosPayload = { companyId, projectId, requestId }
+    // Phase 92 (EVENT-03 / D-07): the analyze-photos path is always photo.
+    const payload: AnalyzePhotosPayload = {
+      companyId,
+      projectId,
+      requestId,
+      attemptId,
+      inputType: 'photo',
+    }
     const { ids } = await inngest.send({
       name: EVENT_ANALYZE_PHOTOS,
       id: `photos-${projectId}-${requestId}`,

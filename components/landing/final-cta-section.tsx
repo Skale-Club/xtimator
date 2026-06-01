@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { motion, useReducedMotion } from 'framer-motion'
@@ -43,12 +44,12 @@ export function FinalCtaSection({ onOpenAuth }: FinalCtaSectionProps) {
               <ArrowRight className="ml-2 size-5 transition-transform group-hover:translate-x-1" aria-hidden="true" />
             </Button>
             <Button
+              asChild
               size="lg"
               variant="outline"
               className="h-14 text-lg font-semibold border-white/10 bg-white/5 transition-all hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:min-w-40"
-              onClick={() => onOpenAuth?.('login')}
             >
-              See Demo
+              <Link href="/demo">See Demo</Link>
             </Button>
           </div>
         </motion.div>

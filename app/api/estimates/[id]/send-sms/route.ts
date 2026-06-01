@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase/server'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { getTwilioConfig, getBranding } from '@/lib/platform-config'
 import { rateLimit } from '@/lib/ratelimit'
+import { demoGuardResponse } from '@/lib/demo/guard'
+import { getCanonicalBaseUrl } from '@/lib/utils/site-url'
 
 interface SendSmsRequestBody {
   to: string
@@ -25,6 +27,10 @@ export async function POST(
     if (!claims) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
     }
+
+    // Read-only demo: never send a real SMS.
+    const blocked = await demoGuardResponse()
+    if (blocked) return blocked
 
     // Security Review S05 — rate limit outbound SMS (Twilio cost / spam).
     const rl = await rateLimit('sendPerMinute', claims.sub)
@@ -99,7 +105,7 @@ export async function POST(
 
     // Build share URL
     const branding = await getBranding()
-    const baseUrl = branding.canonicalBaseUrl ?? process.env.NEXT_PUBLIC_APP_URL ?? ''
+    const baseUrl = branding.canonicalBaseUrl ?? getCanonicalBaseUrl()
     const shareUrl = `${baseUrl}/estimate/${estimate.share_token}`
 
     const smsBody = message?.trim() ||

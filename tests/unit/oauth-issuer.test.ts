@@ -9,11 +9,15 @@ describe('resolveIssuer — canonical URL priority', () => {
 
   beforeEach(() => {
     envBackup = {
+      APP_ORIGIN: process.env.APP_ORIGIN,
       NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
+      NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,
       VERCEL_ENV: process.env.VERCEL_ENV,
       VERCEL_URL: process.env.VERCEL_URL,
     }
+    delete process.env.APP_ORIGIN
     delete process.env.NEXT_PUBLIC_APP_URL
+    delete process.env.NEXT_PUBLIC_SITE_URL
     delete process.env.VERCEL_ENV
     delete process.env.VERCEL_URL
     vi.resetModules()
@@ -51,6 +55,22 @@ describe('resolveIssuer — canonical URL priority', () => {
     process.env.VERCEL_ENV = 'production'
     const { resolveIssuer } = await import('@/lib/oauth/issuer')
     expect(await resolveIssuer()).toBe('https://xtimator.com')
+  })
+
+  it('1d. APP_ORIGIN (runtime) wins over NEXT_PUBLIC_APP_URL and NEXT_PUBLIC_SITE_URL', async () => {
+    process.env.APP_ORIGIN = 'https://xtimator.com'
+    process.env.NEXT_PUBLIC_APP_URL = 'https://legacy.example.com'
+    process.env.NEXT_PUBLIC_SITE_URL = 'https://site.example.com'
+    process.env.VERCEL_ENV = 'production'
+    process.env.VERCEL_URL = 'preview-abc.vercel.app'
+    const { resolveIssuer } = await import('@/lib/oauth/issuer')
+    expect(await resolveIssuer()).toBe('https://xtimator.com')
+  })
+
+  it('1e. NEXT_PUBLIC_SITE_URL used when APP_ORIGIN and NEXT_PUBLIC_APP_URL unset', async () => {
+    process.env.NEXT_PUBLIC_SITE_URL = 'https://site.example.com'
+    const { resolveIssuer } = await import('@/lib/oauth/issuer')
+    expect(await resolveIssuer()).toBe('https://site.example.com')
   })
 
   it('2. VERCEL_ENV=production resolves to canonical https://xtimator.com (not the preview URL)', async () => {

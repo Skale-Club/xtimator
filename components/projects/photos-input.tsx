@@ -29,6 +29,13 @@ export function PhotosInput({ project, companyId, projectId }: PhotosInputProps)
   const [photos, setPhotos] = useState<Photo[]>([])
   const [isGenerating, setIsGenerating] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
+  // Phase 92 (EVENT-03 / D-08): mint a stable attemptId once, reuse on Retry so
+  // the lineage survives a re-dispatch. Copies capture-recorder's ensureAttempt.
+  const attemptIdRef = useRef<string | null>(null)
+  const ensureAttempt = useCallback(() => {
+    if (!attemptIdRef.current) attemptIdRef.current = crypto.randomUUID()
+    return attemptIdRef.current
+  }, [])
 
   const handlePhotosUploaded = useCallback((newPhotos: Photo[]) => {
     setPhotos((prev) => [...prev, ...newPhotos])
@@ -46,7 +53,9 @@ export function PhotosInput({ project, companyId, projectId }: PhotosInputProps)
       const res = await fetch('/api/generate-estimate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId }),
+        // Phase 92 (EVENT-03 / D-07): explicit inputType so the route forwards
+        // it to pipeline_events instead of guessing.
+        body: JSON.stringify({ projectId, attemptId: ensureAttempt(), inputType: 'photo' }),
         signal: controller.signal,
       })
 
@@ -60,9 +69,23 @@ export function PhotosInput({ project, companyId, projectId }: PhotosInputProps)
       const { jobId } = (await res.json()) as { jobId: string }
 
       // Phase 67: /api/generate-estimate returns { jobId }; poll until terminal.
-      const output = (await pollJob(jobId, controller.signal)) as GenerateEstimateResponse
+      // Phase 91-02: pollJob resolves Plan 01's JobResult discriminant and never
+      // throws on failure — branch on result.state (no masking cast).
+      const result = await pollJob(jobId, controller.signal)
+      if (result.state !== 'completed') {
+        toast.error(
+          result.state === 'config_unavailable'
+            ? t('Processing service is temporarily unavailable — your photos are saved.')
+            : t('Failed to generate estimate')
+        )
+        setIsGenerating(false)
+        return
+      }
 
-      storeClientSuggestion(projectId, output.clientSuggestion ?? null)
+      // The run output IS the GenerateEstimateResponse; it now sits UNDER
+      // result.output. Narrow-cast result.output only.
+      const output = result.output as GenerateEstimateResponse | null
+      storeClientSuggestion(projectId, output?.clientSuggestion ?? null)
       // Overview is now the live estimate (project A R3) — drop ?tab=estimate.
       router.push(`/projects/${projectId}`)
     } catch (err) {

@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { PhoneInput } from '@/components/ui/phone-input'
@@ -23,6 +23,7 @@ import {
 import { Send, CheckCircle2, Loader2, MessageSquare, MessageCircle, Mail } from 'lucide-react'
 import { toast } from 'sonner'
 import { markAsSentAction } from '@/lib/actions/estimate'
+import { buildShareLink } from '@/lib/utils/share-link'
 import { useTranslation } from '@/lib/i18n/use-translation'
 
 const sendEmailSchema = z.object({
@@ -74,9 +75,9 @@ export function SendForm({
   const [sending, setSending] = useState(false)
   const [marking, setMarking] = useState(false)
 
-  const shareLink = typeof window !== 'undefined'
-    ? `${window.location.origin}/estimate/${shareToken}`
-    : `/estimate/${shareToken}`
+  const shareLink = buildShareLink(shareToken)
+
+  const channelCount = 1 + (smsDeliveryEnabled ? 1 : 0) + (whatsappSendEnabled ? 1 : 0)
 
   const emailForm = useForm<SendEmailValues>({
     resolver: zodResolver(sendEmailSchema) as any,
@@ -189,12 +190,12 @@ export function SendForm({
 
   return (
     <Card variant="glass">
-      <CardHeader>
-        <CardTitle className="text-lg">{t('Send Estimate')}</CardTitle>
-      </CardHeader>
-      <CardContent>
+      <CardContent className="pt-6">
         <Tabs defaultValue="email">
-          <TabsList className="mb-4">
+          <TabsList
+            className="grid w-full"
+            style={{ gridTemplateColumns: `repeat(${channelCount}, minmax(0, 1fr))` }}
+          >
             <TabsTrigger value="email" className="gap-2">
               <Mail className="h-4 w-4" />
               Email
@@ -213,7 +214,7 @@ export function SendForm({
             )}
           </TabsList>
 
-          <TabsContent value="email">
+          <TabsContent value="email" className="mt-4">
             <Form {...emailForm}>
               <form onSubmit={emailForm.handleSubmit(onEmailSubmit)} className="space-y-4">
                 <FormField
@@ -282,7 +283,7 @@ export function SendForm({
           </TabsContent>
 
           {smsDeliveryEnabled && (
-            <TabsContent value="sms">
+            <TabsContent value="sms" className="mt-4">
               <Form {...smsForm}>
                 <form onSubmit={smsForm.handleSubmit(onSmsSubmit)} className="space-y-4">
                   <FormField
@@ -336,7 +337,7 @@ export function SendForm({
           )}
 
           {whatsappSendEnabled && (
-            <TabsContent value="whatsapp">
+            <TabsContent value="whatsapp" className="mt-4">
               <Form {...whatsappForm}>
                 <form onSubmit={whatsappForm.handleSubmit(onWhatsAppSubmit)} className="space-y-4">
                   <FormField

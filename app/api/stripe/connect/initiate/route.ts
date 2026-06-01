@@ -4,6 +4,8 @@ import { getAuthClaims } from '@/lib/queries/auth'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { getIntegrationKey } from '@/lib/platform-config'
 import { mintOAuthState, buildAuthorizeUrl } from '@/lib/billing/connect-oauth'
+import { isDemoSession } from '@/lib/demo/guard'
+import { resolveBaseUrl } from '@/lib/utils/site-url'
 
 /**
  * GET /api/stripe/connect/initiate
@@ -15,8 +17,17 @@ import { mintOAuthState, buildAuthorizeUrl } from '@/lib/billing/connect-oauth'
  * friendly error param instead of producing a broken Stripe URL.
  */
 export async function GET(req: NextRequest) {
+  const base = resolveBaseUrl(req)
+
   const claims = await getAuthClaims()
-  if (!claims) return NextResponse.redirect(new URL('/?auth=login', req.url))
+  if (!claims) return NextResponse.redirect(new URL('/?auth=login', base))
+
+  // Read-only demo: never begin Stripe Connect onboarding.
+  if (await isDemoSession()) {
+    return NextResponse.redirect(
+      new URL('/settings/payments?error=demo_readonly', base)
+    )
+  }
 
   const svc = requireServiceClient()
   const { data: company } = await svc
@@ -24,12 +35,12 @@ export async function GET(req: NextRequest) {
     .select('id, email')
     .eq('user_id', claims.sub as string)
     .single()
-  if (!company) return NextResponse.redirect(new URL('/onboarding', req.url))
+  if (!company) return NextResponse.redirect(new URL('/onboarding', base))
 
   const clientId = await getIntegrationKey('stripe_connect_client_id')
   if (!clientId) {
     return NextResponse.redirect(
-      new URL('/settings/payments?error=platform_not_configured', req.url)
+      new URL('/settings/payments?error=platform_not_configured', base)
     )
   }
 
@@ -43,8 +54,7 @@ export async function GET(req: NextRequest) {
     path: '/',
   })
 
-  const origin = new URL(req.url).origin
-  const redirectUri = `${origin}/api/stripe/connect/callback`
+  const redirectUri = `${base}/api/stripe/connect/callback`
   const url = buildAuthorizeUrl({
     clientId,
     redirectUri,

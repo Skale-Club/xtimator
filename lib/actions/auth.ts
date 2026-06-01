@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { logAuthEvent } from '@/lib/auth-logger'
+import { getCanonicalBaseUrl } from '@/lib/utils/site-url'
 
 export async function signUp(formData: FormData) {
   const supabase = await createClient()
@@ -10,10 +11,24 @@ export async function signUp(formData: FormData) {
   const password = formData.get('password') as string
   const captchaToken = formData.get('captchaToken') as string | null
 
+  // Optional account-creation step two fields. Stored on the auth user's
+  // metadata so they survive the redirect into onboarding, which prefills from
+  // them. The company row itself is still created at the end of onboarding, so
+  // the "company exists = onboarding complete" guard stays valid.
+  const companyName = (formData.get('companyName') as string | null) || undefined
+  const subdomain = (formData.get('subdomain') as string | null) || undefined
+
+  const userMetadata: Record<string, string> = {}
+  if (companyName) userMetadata.company_name = companyName
+  if (subdomain) userMetadata.subdomain = subdomain.toLowerCase()
+
   const { error } = await supabase.auth.signUp({
     email,
     password,
-    options: captchaToken ? { captchaToken } : undefined,
+    options: {
+      ...(captchaToken ? { captchaToken } : {}),
+      ...(Object.keys(userMetadata).length > 0 ? { data: userMetadata } : {}),
+    },
   })
 
   if (error) {
@@ -80,7 +95,7 @@ export async function resetPassword(formData: FormData) {
   const supabase = await createClient()
   const email = formData.get('email') as string
   const captchaToken = formData.get('captchaToken') as string | null
-  const origin = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:9633'
+  const origin = getCanonicalBaseUrl()
 
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
     redirectTo: `${origin}/callback?type=recovery`,
@@ -111,6 +126,12 @@ export async function updatePassword(formData: FormData) {
   }
 
   logAuthEvent({ event: 'password_update', success: true })
+
+  // S02 remediation: a password change is the canonical response to account
+  // compromise — revoke every OTHER session so a hijacked device is kicked out.
+  // scope:'others' preserves the current session so the redirect below works
+  // without forcing the legitimate user to sign in again.
+  await supabase.auth.signOut({ scope: 'others' })
 
   const { data } = await supabase.auth.getClaims()
   const claims = data?.claims ?? null

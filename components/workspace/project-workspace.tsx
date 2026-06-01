@@ -1,7 +1,7 @@
 'use client'
 
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import { ClipboardList, Camera, Send, UserRound, Clock, ChevronLeft, ChevronRight } from 'lucide-react'
 import { SubNav, type SubNavItem } from '@/components/ui/sub-nav'
 import { OverviewTab } from './overview-tab'
@@ -66,6 +66,7 @@ export function ProjectWorkspace({
 
   const [activeTab, setActiveTab] = useState<WorkspaceTab>(initial)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [, startTabTransition] = useTransition()
 
   // Sync state when searchParams.tab changes (e.g., redirect from /capture)
   useEffect(() => {
@@ -77,12 +78,19 @@ export function ProjectWorkspace({
   function handleSelect(value: string) {
     if (!(ALLOWED_TABS as readonly string[]).includes(value)) return
     const next = value as WorkspaceTab
-    setActiveTab(next)
-    const params = new URLSearchParams(searchParams.toString())
-    if (next === 'overview') params.delete('tab')
-    else params.set('tab', next)
-    const qs = params.toString()
-    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
+    // Mark the tab switch (and the heavy estimate-subtree re-mount it triggers)
+    // as a non-urgent transition. This keeps the click handler from blocking on
+    // the synchronous render/mount of OverviewTab → EstimateEditor → EstimateDocument,
+    // which was costing ~190ms inside the click event and tripping the 200ms
+    // interaction-timing threshold.
+    startTabTransition(() => {
+      setActiveTab(next)
+      const params = new URLSearchParams(searchParams.toString())
+      if (next === 'overview') params.delete('tab')
+      else params.set('tab', next)
+      const qs = params.toString()
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
+    })
   }
 
   const NAV_ITEMS: SubNavItem[] = [

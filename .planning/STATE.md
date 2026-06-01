@@ -2,30 +2,31 @@
 gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Zero-friction Project Onboarding
-status: executing
-last_updated: "2026-05-26T18:51:21.123Z"
-last_activity: 2026-05-26 -- Phase 81 execution started
+status: verifying
+stopped_at: Completed 93-03-PLAN.md (event log list page + detail page + EventStepTimeline)
+last_updated: "2026-05-30T03:04:03.083Z"
+last_activity: 2026-05-30
 progress:
-  total_phases: 90
-  completed_phases: 61
-  total_plans: 190
-  completed_plans: 218
-  percent: 100
+  total_phases: 93
+  completed_phases: 64
+  total_plans: 200
+  completed_plans: 229
 ---
 
 # Project State
 
 ## Current Status
 
-- **Milestone**: v4.1 MCP Server — FEATURE-COMPLETE (5/5 phases: 86 ✓, 87 ✓, 88 ✓, 89 ✓, 90 ✓) — ready for milestone close-out (orchestrator: phase complete 90 + archive + tag v4.1 + push)
-- **Last updated**: 2026-05-26
+- **Milestone**: v4.2 Recording Reliability & Observability — STARTED 2026-05-28 (defining requirements). Predecessor v4.1 MCP Server shipped 2026-05-26 (phases 86-90); v4.0 Multi-Tenancy shipped 2026-05-26 (phases 79-85).
+- **Last updated**: 2026-05-28
 
 ## Current Position
 
-Phase: 81 (Add WhatsApp send option in SendTab and integrations settings) — EXECUTING
-Plan: 1 of 3
-Status: Executing Phase 81
-Last activity: 2026-05-29 - Completed quick task 260529-lc0: WhatsApp inbound asks for details on vague messages (awaiting_details session) instead of sending a $0 estimate
+Phase: 999.1
+Plan: Not started
+Status: Phase complete — ready for verification
+Last activity: 2026-06-01 - Completed quick tasks rqa (bulletproof base-URL + sibling 0.0.0.0 redirect fixes) + s1w (subdomain type error unblocking next build). CI build now compiles; pending human: GH Actions Variables (Supabase NEXT_PUBLIC_*), Coolify Docker-Image switch + APP_ORIGIN, Supabase redirect allowlist
+Stopped at: Completed 93-03-PLAN.md (event log list page + detail page + EventStepTimeline)
 
 ## v3.1.1 Phases
 
@@ -465,6 +466,22 @@ Last activity: 2026-05-29 - Completed quick task 260529-lc0: WhatsApp inbound as
 - [Phase 87]: Stateless MCP sessions (sessionIdGenerator: undefined, enableJsonResponse: true) for MVP — fresh Server + transport per request
 - [Phase 89]: Phase 89 refactored MCP tool registration into a shared registry (buildAllTools + registerAllTools) — required because Server.setRequestHandler accepts only one handler per request schema. Read + write tools now share the single tools/list + tools/call handler pair.
 - [Phase 89]: create_estimate dispatches the existing EVENT_ESTIMATE_GENERATE Inngest event (same path /api/generate-estimate uses); check_job_status reads Inngest /v1/events/{id}/runs (same path /api/jobs/[jobId] uses). No parallel job table.
+- [Phase 91]: [91-01] config_unavailable covers both missing signing key AND thrown fetch (dev-server-down maps to config_unavailable, not failed)
+- [Phase 91]: [91-01] Job-status endpoint returns 200 discriminated JobStatusContract for every known state; non-200 reserved for the 401 auth gate only
+- [Phase 91]: [91-01] pollJob resolves typed JobResult and only throws on aborted signal; JobResult/JobStatusState exported for Plan 02
+- [Phase 91]: [Phase 91-02]: attemptId lives only in the Inngest event payload (no recordings.attempt_id migration) — Phase 92's event store owns durable lineage
+- [Phase 91]: [Phase 91-02]: user Retry reuses the original requestId/recordingId so an already-completed step is memoized (no double-charge); a failed step still re-runs
+- [Phase 91]: [Phase 91-02]: removed masking 'as GenerateEstimateResponse' casts in text-describe/photos-input so tsc validates the JobResult union; all pollJob consumers branch on result.state
+- [Phase 92]: pipeline_events applied via one-off pg applier (db push blocked by remote migration-history drift); TEXT+CHECK enums, no updated_at, only company_id FK'd; Wave-0 helper scaffold throws so RED tests compile under tsc gate
+- [Phase 92]: retry_count computed via count of prior attempt_id+step+status rows; accepted TOCTOU race as diagnostic hint (D-09)
+- [Phase 92]: preview_redirect emitted server-side from generate succeeded path (client redirect non-instrumentable, D-04)
+- [Phase 93]: Wave 0 RED tests use expect.fail() for pure-function tests; try/catch+expect.fail for static-source readFileSync tests — two-tier pattern ensures collection never aborts on missing files
+- [Phase 93]: findViewMigration() pattern: readdirSync migrations dir with .find(n => n.includes('phase93')) for timestamp-agnostic migration lookup
+- [Phase 93]: events-route-gate.test.ts asserts adminIdx < svcIdx (ordering) not just presence — enforces requireAdmin() precedes requireServiceClient() as the load-bearing security constraint
+- [Phase 93]: pipeline_attempts view uses security_invoker=on + BOOL_OR terminal_status precedence; Views type replaced (not augmented) from [_ in never] placeholder
+- [Phase 93-super-admin-event-log]: buildSearchOr is pure fn (no DB calls) enabling Wave 0 unit tests; SAFE_EVENT_COLUMNS comment must avoid transcript/audio/apiKey/payload/raw tokens (static source guard covers full file)
+- [Phase 93-super-admin-event-log]: Inlined SAFE_SELECT string in detail page .select() call — test regex requires literal string after select( paren
+- [Phase 93-super-admin-event-log]: Wave 0 email-lookup stubs replaced with static source assertions — unconditional expect.fail() cannot turn GREEN
 
 ## Performance Metrics
 
@@ -620,13 +637,22 @@ Last activity: 2026-05-29 - Completed quick task 260529-lc0: WhatsApp inbound as
 | Phase 87 P— | 25min | 4 tasks | 9 files |
 | Phase 89 P— | 11min | 5 tasks | 9 files |
 | Phase 90 P01 | 25min | 5 tasks | 6 files |
+| Phase 91 P01 | 7min | 3 tasks | 8 files |
+| Phase 91 P02 | 11min | 4 tasks | 9 files |
+| Phase 92 P00 | 13min | 2 tasks | 10 files |
+| Phase 92 P01 | 3m | 1 tasks | 1 files |
+| Phase 92 P03 | ~6m | 3 tasks | 4 files |
+| Phase 93 P00 | 3 | 2 tasks | 6 files |
+| Phase 93 P01 | 5 | 2 tasks | 3 files |
+| Phase 93 P02 | 7 | 2 tasks | 5 files |
+| Phase 93-super-admin-event-log P03 | 5 | 2 tasks | 4 files |
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-13)
 
 **Core value:** Business owner → job site audio recording → sent professional estimate in under 5 minutes
-**Current focus:** Phase 81 — Add WhatsApp send option in SendTab and integrations settings
+**Current focus:** Phase 93 — super-admin-event-log
 
 ## Notes
 
@@ -703,10 +729,16 @@ v3.1: Phases 61-65 (started 2026-05-15). Production Go-Live — 27 requirements 
 | 260527-jhp | Fix React #418 hydration text mismatch from locale/timezone-dependent formatting in SSR client components | 2026-05-27 | 4dc07ab | [260527-jhp-fix-react-418-hydration-text-mismatch-fr](.planning/quick/260527-jhp-fix-react-418-hydration-text-mismatch-fr/) |
 | 260527-k4i | Treat OpenRouter 401 "User not found" as transient in transcribeAudioOR (route into retry + OpenAI fallback instead of throwing) | 2026-05-27 | 21962ab | [260527-k4i-treat-openrouter-401-user-not-found-as-t](.planning/quick/260527-k4i-treat-openrouter-401-user-not-found-as-t/) |
 | 260527-l9c | Remove obsolete OpenRouter transient-401 "User not found" handling; restore 4xx-throws-immediately behavior (reverts k4i premise — OpenRouter now returns 503, not 401, for infra/auth-lookup failures) | 2026-05-27 | 948144e | [260527-l9c-remove-obsolete-openrouter-transient-401](.planning/quick/260527-l9c-remove-obsolete-openrouter-transient-401/) |
+| 260529-aq7 | Vercel→Coolify migration §2: container-ready repo (Dockerfile node:24-alpine, sync npm lockfile + drop bun.lock, Vercel crons → GitHub Actions workflow, remove Caddy/compose artifacts, drop dead Vercel CSP entry) | 2026-05-29 | 3368069, 9cf0262, 4df1855 | [260529-aq7-xtimator-vercel-coolify-migration-step-2](.planning/quick/260529-aq7-xtimator-vercel-coolify-migration-step-2/) |
+| 260530-asz | Vercel→Coolify migration §3 follow-up: Dockerfile builder inlines 5 NEXT_PUBLIC_* via ARG+ENV before `npm run build` (Coolify must pass them as --build-arg) | 2026-05-30 | 381bd78 | [260530-asz-fix-dockerfile-builder-add-next-public-b](.planning/quick/260530-asz-fix-dockerfile-builder-add-next-public-b/) |
 | 260529-jh7 | Add UNIQUE (company_id) to company_whatsapp — fixes "no unique or exclusion constraint matching the ON CONFLICT specification" that broke the WhatsApp connect/verification flow; applied + verified on live Xtimator DB | 2026-05-29 | c44f6ac | [260529-jh7-add-unique-constraint-on-company-id-to-c](.planning/quick/260529-jh7-add-unique-constraint-on-company-id-to-c/) |
 | 260529-jo8 | Fix mobile auth: Start/CTA always opens the login dialog even with a persisted Supabase session (removed isAuthenticated short-circuit + getAuthClaims fetch); Google OAuth forces account selector (prompt=select_account) | 2026-05-29 | 4726fe9 | [260529-jo8-fix-mobile-auth-start-always-opens-login](.planning/quick/260529-jo8-fix-mobile-auth-start-always-opens-login/) |
 | 260529-joo | Link project ↔ client WhatsApp conversation in the panel: getProjectConversationLink query (project→client.phone→conversation, no migration) + WhatsApp card on project Client tab (link or empty state) + inbox deep-link auto-open via /whatsapp?c=&lt;id&gt; | 2026-05-29 | 9b9f99a | [260529-joo-vincular-projeto-a-conversa-de-whatsapp-](.planning/quick/260529-joo-vincular-projeto-a-conversa-de-whatsapp-/) |
 | 260529-lc0 | WhatsApp inbound: when an inbound message is too vague to price (estimate total≤0 or no line items), bot asks for more details (localized pt/en/es) and opens an `awaiting_details` session so the next message complements the SAME project + regenerates — instead of generating/sending a $0 estimate. Migration adds `awaiting_details` to whatsapp_sessions.state CHECK (applied to live DB) | 2026-05-29 | a98f0f9 | [260529-lc0-whatsapp-inbound-pedir-mais-detalhes-qua](.planning/quick/260529-lc0-whatsapp-inbound-pedir-mais-detalhes-qua/) |
+| 260531-mlx | Fix OAuth/login redirect to 0.0.0.0:3000 after Coolify migration — new lib/utils/site-url.ts resolveBaseUrl (sanitizes NEXT_PUBLIC_SITE_URL trailing \n/quotes → X-Forwarded headers → request origin); callback route builds all 4 redirects against it. Defensive against Coolify env holding a literal trailing newline | 2026-05-31 | 90bbe67 | [260531-mlx-fix-oauth-login-redirect-to-0-0-0-0-3000](.planning/quick/260531-mlx-fix-oauth-login-redirect-to-0-0-0-0-3000/) |
+| 260531-npx | Build Docker image in GitHub Actions → push to GHCR → Coolify only pulls prebuilt image (no on-VPS builds). New .github/workflows/build-deploy.yml + README-DEPLOY.md. Fixes root cause of VPS OOM-freeze (next build was running on the 8GB CX32). LOCAL ONLY — human must reboot VPS + disable Coolify source-build before push | 2026-05-31 | 387dec3 | [260531-npx-build-docker-image-in-github-actions-and](.planning/quick/260531-npx-build-docker-image-in-github-actions-and/) |
+| 260531-rqa | Bulletproof server-side base-URL resolution: resolveBaseUrl gains APP_ORIGIN runtime tier (no-rebuild override) + getCanonicalBaseUrl() request-less variant; fixed all sibling 0.0.0.0 redirect routes (demo, Stripe connect/initiate/callback, estimate pay) + unified NEXT_PUBLIC_SITE_URL/APP_URL across 7 files. 26 unit tests green | 2026-05-31 | d444988 | [260531-rqa-bulletproof-server-side-base-url-resolut](.planning/quick/260531-rqa-bulletproof-server-side-base-url-resolut/) |
+| 260531-s1w | Fix subdomain zod input/output type mismatch that broke `next build` (blocked ALL Docker image builds). Dropped .optional().default('') from auth-dialog companySchema + added subdomain:'' to onboarding INITIAL defaults + test fixture. tsc --noEmit now exit 0 | 2026-06-01 | 0c8dceb | [260531-s1w-fix-subdomain-zod-input-output-type-mism](.planning/quick/260531-s1w-fix-subdomain-zod-input-output-type-mism/) |
 | 2026-05-18 | fast | Center auth card logo+wordmark | done |
 | 2026-05-19 | fast | Make audio capture screen scrollable on smaller viewports | done |
 | 2026-05-18 | fast | Restyle sidebar New Project as filled gradient, remove dashboard CTA | done |

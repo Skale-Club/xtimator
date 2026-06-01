@@ -2,11 +2,5 @@
   "framework": "nextjs",
   "buildCommand": "bun run build",
   "devCommand": "bun run dev",
-  "installCommand": "bun install",
-  "crons": [
-    { "path": "/api/cron/cleanup-orphan-projects", "schedule": "0 3 * * *" },
-    { "path": "/api/cron/cleanup-whatsapp-sessions", "schedule": "0 4 * * *" },
-    { "path": "/api/cron/expire-trials", "schedule": "0 1 * * *" },
-    { "path": "/api/cron/trial-warning-emails", "schedule": "0 9 * * *" }
-  ]
+  "installCommand": "bun install"
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 import { requireServiceClient } from '@/lib/supabase/service'
+import { isDemoCompany } from '@/lib/demo/config'
 
 interface SignRequestBody {
   token: string
@@ -55,6 +56,11 @@ export async function POST(
 
     if (!company?.digital_signature_enabled) {
       return NextResponse.json({ error: 'Digital signature not enabled' }, { status: 403 })
+    }
+
+    // Demo estimates are not signable (D06 — demo data never mutated).
+    if (isDemoCompany(estimate.company_id)) {
+      return NextResponse.json({ error: 'Signing is disabled in the demo.' }, { status: 403 })
     }
 
     // Capture IP and user-agent for audit

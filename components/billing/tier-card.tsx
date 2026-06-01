@@ -49,7 +49,7 @@ export function TierCard({
     <Card
       variant={variant}
       className={cn(
-        'relative flex flex-col gap-6 p-8',
+        'relative flex flex-col gap-5 p-6',
         tier === 'business' &&
           "overflow-hidden before:absolute before:inset-x-0 before:top-0 before:h-[3px] before:rounded-t-[var(--radius-lg)] before:bg-[image:var(--gradient-premium)] before:content-['']"
       )}
@@ -64,16 +64,16 @@ export function TierCard({
         </Badge>
       )}
       <CardHeader className="p-0">
-        <CardTitle className="text-2xl"><T text={name} /></CardTitle>
+        <CardTitle className="text-xl"><T text={name} /></CardTitle>
       </CardHeader>
-      <div className="flex items-baseline gap-1">
-        <span className="font-mono text-4xl font-semibold">{price}</span>
-        <span className="text-sm text-muted-foreground">/ <T text={period} /></span>
+      <div className="flex items-baseline gap-1.5">
+        <span className="font-mono text-3xl font-semibold tracking-tight">{price}</span>
+        <span className="text-sm text-muted-foreground whitespace-nowrap">/ <T text={period} /></span>
       </div>
       <ul className="flex-1 space-y-2 text-sm">
         {features.map((f) => (
           <li key={f} className="flex items-start gap-2">
-            <span aria-hidden className="text-[hsl(var(--primary))]">
+            <span aria-hidden className="mt-0.5 text-[hsl(var(--primary))]">
               ✓
             </span>
             <span><T text={f} /></span>
@@ -84,7 +84,7 @@ export function TierCard({
         variant={buttonVariant}
         onClick={onSelect}
         disabled={current}
-        className="w-full"
+        className="h-auto min-h-10 w-full whitespace-normal py-2 text-center leading-tight"
       >
         <T text={current ? currentLabel : ctaLabel} />
       </Button>

@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { revalidatePath, revalidateTag } from 'next/cache'
 import { customDomainSchema } from '@/lib/schemas/custom-domain'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
+import { assertWritable } from '@/lib/demo/guard'
 
 // getAuthContext is duplicated per action file — established codebase convention (STATE.md Phase 03/20).
 async function getAuthContext() {
@@ -22,6 +23,10 @@ async function getAuthContext() {
     .single()
 
   if (!company) return { error: 'No company found' as const }
+
+  const denied = await assertWritable()
+  if (denied) return denied
+
   return { supabase, company }
 }
 
