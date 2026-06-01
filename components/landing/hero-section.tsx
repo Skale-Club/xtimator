@@ -24,7 +24,7 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
   const hasImage = !!content.heroImageUrl
 
   return (
-    <section className="relative isolate overflow-hidden border-b border-white/5 bg-transparent pt-[clamp(20px,3vw,36px)] pb-[clamp(8px,1.5vw,16px)] lg:pt-[clamp(12px,2vw,24px)]">
+    <section className="relative isolate flex flex-1 flex-col justify-center overflow-hidden border-b border-white/5 bg-transparent py-6 lg:py-8">
       {/* Phase 71 — animated gradient mesh + dot overlay backdrop (motion-gated via CSS). */}
       <div aria-hidden className="hero-mesh" />
       <div aria-hidden className="hero-dots" />

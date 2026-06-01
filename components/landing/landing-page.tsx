@@ -51,16 +51,18 @@ export function LandingPage({ content, branding }: LandingPageProps) {
       <div className="fixed inset-0 -z-10 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,hsl(var(--primary)/0.15),hsl(var(--foreground)/0))]" />
       <TopNav branding={branding} onOpenAuth={openAuth} />
       <main className="pt-16">
-        <HeroSection
-          content={{
-            heroHeadline: content.heroHeadline,
-            heroSubheadline: content.heroSubheadline,
-            ctaLabel: content.ctaLabel,
-            heroImageUrl: content.heroImageUrl ?? null,
-          }}
-          onOpenAuth={openAuth}
-        />
-        <TrustBar />
+        <div className="flex h-[calc(100vh-4rem)] flex-col">
+          <HeroSection
+            content={{
+              heroHeadline: content.heroHeadline,
+              heroSubheadline: content.heroSubheadline,
+              ctaLabel: content.ctaLabel,
+              heroImageUrl: content.heroImageUrl ?? null,
+            }}
+            onOpenAuth={openAuth}
+          />
+          <TrustBar />
+        </div>
         <HowItWorksSection steps={content.howItWorksSteps} />
         <FeaturesSection features={content.features} />
         <FinalCtaSection onOpenAuth={openAuth} />

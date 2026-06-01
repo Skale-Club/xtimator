@@ -18,10 +18,10 @@ export function TrustBar() {
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true }}
         transition={{ duration: 0.5 }}
-        className="mx-auto flex max-w-6xl flex-col items-center justify-center gap-6 px-6 py-16 sm:flex-row sm:gap-16 sm:px-8 lg:px-10"
+        className="mx-auto flex max-w-6xl flex-col items-center justify-center gap-6 px-6 py-10 sm:flex-row sm:gap-16 sm:px-8 lg:px-10"
       >
         {STATS.map((stat) => (
-          <div key={stat} className="flex items-center gap-3 text-base font-medium text-muted-foreground/90">
+          <div key={stat} className="flex items-center gap-3 text-lg font-medium text-muted-foreground/90">
             <span className="size-2.5 shrink-0 rounded-full bg-gradient-to-br from-primary to-secondary" />
             {stat}
           </div>
