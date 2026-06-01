@@ -7,9 +7,13 @@
 // that origin (e.g. the OAuth callback) sends users to https://0.0.0.0:3000/dashboard.
 //
 // Resolution precedence:
-//   1. Sanitized NEXT_PUBLIC_SITE_URL (explicit canonical domain — wins everywhere)
-//   2. Proxy headers: `${X-Forwarded-Proto}://${X-Forwarded-Host || Host}`
-//   3. Last resort: the incoming request's origin (localhost dev / no proxy)
+//   1. Sanitized APP_ORIGIN (RUNTIME, non-inlined — settable in Coolify without a
+//      rebuild + container restart; wins everywhere). This is the primary lever for
+//      fixing the public URL on the VPS since it does not require a new build.
+//   2. Sanitized NEXT_PUBLIC_SITE_URL (build-INLINED — baked in at `next build` time,
+//      so changing it requires a rebuild, which is what APP_ORIGIN avoids)
+//   3. Proxy headers: `${X-Forwarded-Proto}://${X-Forwarded-Host || Host}`
+//   4. Last resort: the incoming request's origin (localhost dev / no proxy)
 //
 // Synchronous (reads directly from the passed Request) — unlike resolveIssuer()
 // in lib/oauth/issuer.ts which is async via next/headers; here the caller already
@@ -36,15 +40,33 @@ function normalize(raw: string | undefined | null): string | null {
 }
 
 export function resolveBaseUrl(request: Request): string {
-  // 1. Sanitized explicit canonical domain.
+  // 1. Runtime, non-inlined APP_ORIGIN — wins everywhere.
+  const runtime = normalize(process.env.APP_ORIGIN)
+  if (runtime) return runtime
+
+  // 2. Build-inlined explicit canonical domain.
   const explicit = normalize(process.env.NEXT_PUBLIC_SITE_URL)
   if (explicit) return explicit
 
-  // 2. Proxy headers — only usable when a host is present.
+  // 3. Proxy headers — only usable when a host is present.
   const proto = request.headers.get('x-forwarded-proto') ?? 'http'
   const host = request.headers.get('x-forwarded-host') ?? request.headers.get('host')
   if (host) return `${proto}://${host}`
 
-  // 3. Last resort: the incoming request's origin.
+  // 4. Last resort: the incoming request's origin.
   return new URL(request.url).origin
+}
+
+/** Request-less canonical base-URL resolver for modules that have no Request in
+ *  scope (OAuth issuer, WhatsApp senders, cron jobs, Connect webhook, server
+ *  actions). Precedence mirrors resolveBaseUrl's env tiers, then adds the legacy
+ *  NEXT_PUBLIC_APP_URL alias, and finally falls back to the canonical production
+ *  domain (the literal final fallback below). */
+export function getCanonicalBaseUrl(): string {
+  return (
+    normalize(process.env.APP_ORIGIN) ??
+    normalize(process.env.NEXT_PUBLIC_SITE_URL) ??
+    normalize(process.env.NEXT_PUBLIC_APP_URL) ??
+    'https://xtimator.com'
+  )
 }
