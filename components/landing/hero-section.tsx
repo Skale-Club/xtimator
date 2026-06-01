@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { ArrowRight, Sparkles, CheckCircle2 } from 'lucide-react'
+import { ArrowRight, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { motion, useReducedMotion, type Variants } from 'framer-motion'
 
@@ -112,17 +112,6 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
               </Button>
             </motion.div>
 
-            <motion.div
-              variants={FADE_UP_ANIMATION_VARIANTS}
-              className={
-                hasImage
-                  ? 'flex flex-wrap items-center gap-x-4 gap-y-2 text-xs font-medium text-muted-foreground/80'
-                  : 'flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-xs font-medium text-muted-foreground/80'
-              }
-            >
-              <span className="flex items-center gap-1.5"><CheckCircle2 className="size-3.5 text-primary" /> No credit card required</span>
-              <span className="flex items-center gap-1.5"><CheckCircle2 className="size-3.5 text-primary" /> iPhone &amp; Android</span>
-            </motion.div>
 
             {/* Trust band — placeholder stats, i18n-ready via TRUST_BAND constants. */}
             <motion.div
