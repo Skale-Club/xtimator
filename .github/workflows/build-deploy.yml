@@ -5,30 +5,20 @@ name: Build and Deploy
 # VPS — the on-VPS build OOM-thrashed the 8GB CX32 and froze Coolify + every
 # app on the box. Coolify only ever pulls a prebuilt image now.
 #
-# TO REUSE FOR ANOTHER APP, change ONLY these:
-#   1. env.IMAGE_NAME            ghcr.io/skale-club/<app>  (MUST be lowercase)
-#   2. env.SITE_URL              the app's canonical https URL (no trailing
-#                                newline/quotes — a stray "\n" reintroduces the
-#                                exact bug this workflow was created to kill)
-#   3. the COOLIFY_WEBHOOK_<APP> secret name referenced in the final step
-#                                (e.g. COOLIFY_WEBHOOK_XPHERE)
+# ── Change these two lines when copying to another repo ──────────────────────
+#   IMAGE_NAME   ghcr.io/skale-club/<app-name>  (must be lowercase)
+#   APP_UUID     Coolify resource UUID (app Settings → UUID in the Coolify UI)
+# ─────────────────────────────────────────────────────────────────────────────
 #
-# Required GitHub Actions Variables (Settings -> Secrets and variables ->
-# Actions -> Variables). These NEXT_PUBLIC_* values are PUBLIC build args
-# (inlined into the client bundle by `next build`) — they are NOT secrets:
-#   - NEXT_PUBLIC_SUPABASE_URL
-#   - NEXT_PUBLIC_SUPABASE_ANON_KEY
-#   - NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
-#   - NEXT_PUBLIC_TURNSTILE_SITE_KEY
-# NEXT_PUBLIC_SITE_URL is NOT a Variable — it is hardcoded via env.SITE_URL
-# below so no stray newline/quote can ever be reintroduced.
+# Required GitHub Actions Variables (Settings → Secrets and variables → Variables):
+#   NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY,
+#   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, NEXT_PUBLIC_TURNSTILE_SITE_KEY
+#   (NEXT_PUBLIC_SITE_URL is hardcoded below — never a Variable, to avoid \n bugs)
 #
 # Required GitHub secret:
-#   - COOLIFY_WEBHOOK_XTIMATOR   Coolify "Deploy Webhook" URL. Optional until
-#                                Coolify is reconfigured — the final step skips
-#                                gracefully (workflow still succeeds) when it
-#                                is absent.
-# GHCR push uses the built-in GITHUB_TOKEN — no extra registry secret in CI.
+#   COOLIFY_TOKEN   Coolify API token (coolify.skale.club → Profile → API Tokens).
+#                   One token, set once per repo. Skipped gracefully if absent.
+# GHCR push uses the built-in GITHUB_TOKEN — no extra registry secret needed.
 
 on:
   push:
@@ -41,6 +31,8 @@ permissions:
 
 env:
   IMAGE_NAME: ghcr.io/skale-club/xtimator
+  APP_UUID: wucewun01rpf7z29qjmhhvbn
+  COOLIFY_BASE: https://coolify.skale.club
   # Canonical site URL — hardcoded (NOT a Variable) so no stray newline/quote
   # can be reintroduced. The old Coolify value had a literal \n; do not repeat.
   SITE_URL: https://xtimator.com
@@ -87,47 +79,18 @@ jobs:
             NEXT_PUBLIC_SITE_URL=${{ env.SITE_URL }}
             NEXT_PUBLIC_TURNSTILE_SITE_KEY=${{ vars.NEXT_PUBLIC_TURNSTILE_SITE_KEY }}
 
-      - name: Trigger Coolify deploy
+      - name: Trigger Coolify deploy (pull prebuilt image)
         env:
-          COOLIFY_WEBHOOK: ${{ secrets.COOLIFY_WEBHOOK_XTIMATOR }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
         run: |
-          set -u
-
-          if [ -z "${COOLIFY_WEBHOOK:-}" ]; then
-            echo "::notice::COOLIFY_WEBHOOK_XTIMATOR not set — skipping Coolify trigger (image is built & pushed). Wire the webhook secret once Coolify is reconfigured."
+          if [ -z "${COOLIFY_TOKEN}" ]; then
+            echo "::warning::COOLIFY_TOKEN not set — skipping Coolify trigger."
+            echo "Image is built and pushed to GHCR. Set COOLIFY_TOKEN secret to auto-deploy."
             exit 0
           fi
-
-          # Retry/backoff mirrors the hit() pattern in cron-jobs.yml.
-          attempt=1
-          max_attempts=3
-          delay=5
-
-          while [ $attempt -le $max_attempts ]; do
-            http_code=$(curl --silent --show-error --output /tmp/coolify_body \
-              --write-out "%{http_code}" \
-              --request POST \
-              --max-time 30 \
-              "$COOLIFY_WEBHOOK" || echo "000")
-
-            if [ "$http_code" = "200" ]; then
-              echo "Coolify deploy triggered OK (HTTP $http_code) on attempt $attempt"
-              exit 0
-            fi
-
-            echo "Coolify trigger attempt $attempt/$max_attempts failed (HTTP $http_code)"
-            if [ $attempt -lt $max_attempts ]; then
-              sleep $delay
-              delay=$((delay * 3))
-            fi
-            attempt=$((attempt + 1))
-          done
-
-          echo "::error::Coolify deploy trigger failed after $max_attempts attempts"
-          if [ -s /tmp/coolify_body ]; then
-            echo "::group::Coolify last response body"
-            head -c 2048 /tmp/coolify_body
-            echo ""
-            echo "::endgroup::"
-          fi
-          exit 1
+          echo "Triggering Coolify pull for app ${APP_UUID}…"
+          curl --fail-with-body -sS --retry 3 --retry-all-errors \
+            "${COOLIFY_BASE}/api/v1/deploy?uuid=${APP_UUID}" \
+            -H "Authorization: Bearer ${COOLIFY_TOKEN}"
+          echo
+          echo "Deploy queued. Coolify will pull ghcr.io/…:latest and restart."
