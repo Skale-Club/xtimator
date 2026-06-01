@@ -78,6 +78,22 @@ export const whatsAppProcessJob = inngest.createFunction(
             console.error('[WhatsApp] audio download failed:', err)
             return { ok: false, reason: 'download_failed' }
           }
+          // Upload audio to private storage bucket BEFORE transcription so the
+          // inbox can play it back even if transcription fails (e.g. missing key).
+          const storagePath = `${companyId}/whatsapp/${msg.id}.${ext}`
+          try {
+            await getServerStorage().upload('audio', storagePath, audioBuffer, {
+              contentType: mimeType,
+              upsert: false,
+            })
+            await supabase
+              .from('whatsapp_messages')
+              .update({ media_url: storagePath })
+              .eq('wa_message_id', msg.id)
+              .eq('company_id', companyId)
+          } catch {
+            // Non-fatal — inbox falls back to emoji text if storage fails
+          }
           let transcript: string
           try {
             transcript = await transcribeAudioOR(
@@ -96,22 +112,6 @@ export const whatsAppProcessJob = inngest.createFunction(
             transcript,
             duration_seconds: null,
           })
-          // Upload audio to private storage bucket so inbox can play it back.
-          // Non-fatal: transcript is already saved; playback just won't be available.
-          const storagePath = `${companyId}/whatsapp/${msg.id}.${ext}`
-          try {
-            await getServerStorage().upload('audio', storagePath, audioBuffer, {
-              contentType: mimeType,
-              upsert: false,
-            })
-            await supabase
-              .from('whatsapp_messages')
-              .update({ media_url: storagePath })
-              .eq('wa_message_id', msg.id)
-              .eq('company_id', companyId)
-          } catch {
-            // Non-fatal — transcript is saved; inbox falls back to emoji text
-          }
           return { ok: true }
         } else if (msg.type === 'image' && msg.image?.id) {
           const imageBuffer = await downloadWhatsAppMedia(msg.image.id)

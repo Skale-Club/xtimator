@@ -57,9 +57,12 @@ export function LandingFooter({ appName, logoUrl, onOpenAuth }: LandingFooterPro
         </div>
         
         <div className="mt-16 flex flex-col items-center justify-between gap-6 border-t border-white/5 pt-8 sm:flex-row">
-          <p className="text-sm text-muted-foreground">
-            &copy; {new Date().getFullYear()} {appName}. All rights reserved.
-          </p>
+          <div className="flex flex-col gap-1">
+            <p className="text-sm text-muted-foreground">
+              &copy; {new Date().getFullYear()} {appName}. All rights reserved.
+            </p>
+            <p className="text-xs text-muted-foreground/60">Developed by Skale Club</p>
+          </div>
           <div className="flex gap-6 text-muted-foreground">
             <Link href="#" className="transition-colors hover:text-white">
               <span className="sr-only">Twitter</span>

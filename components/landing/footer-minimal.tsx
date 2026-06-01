@@ -12,9 +12,12 @@ export function FooterMinimal({ appName }: FooterMinimalProps) {
           <Zap className="h-4 w-4 text-primary" aria-hidden="true" />
           <span className="text-[length:var(--font-size-sm)] font-[var(--font-weight-normal)]">{appName}</span>
         </div>
-        <p className="text-[length:var(--font-size-sm)] font-[var(--font-weight-normal)] tracking-[0.04em] text-muted-foreground">
-          © 2026 {appName}. All rights reserved.
-        </p>
+        <div className="flex flex-col items-center sm:items-end gap-0.5">
+          <p className="text-[length:var(--font-size-sm)] font-[var(--font-weight-normal)] tracking-[0.04em] text-muted-foreground">
+            © 2026 {appName}. All rights reserved.
+          </p>
+          <p className="text-xs text-muted-foreground/60">Developed by Skale Club</p>
+        </div>
       </div>
     </footer>
   )
