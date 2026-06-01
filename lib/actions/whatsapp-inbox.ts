@@ -5,6 +5,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { sendWhatsAppMessage } from '@/lib/whatsapp/client'
+import { getServerStorage } from '@/lib/storage'
 import {
   logOutboundMessage,
   markConversationRead,
@@ -50,7 +51,26 @@ async function fetchThread(
     .eq('conversation_id', conversationId)
     .order('created_at', { ascending: true })
     .limit(500)
-  return { conversation, messages: (messages ?? []) as WaMessageRow[] }
+  const rawMessages = (messages ?? []) as WaMessageRow[]
+
+  // Enrich audio messages that have a storage path with a fresh 1-hour signed URL.
+  // The DB stores storage paths (not signed URLs) so URLs never stale in the DB.
+  const storage = getServerStorage()
+  const enriched = await Promise.all(
+    rawMessages.map(async (m) => {
+      if (m.msg_type === 'audio' && m.media_url && !m.media_url.startsWith('http')) {
+        try {
+          const signedUrl = await storage.getSignedUrl('audio', m.media_url, 3600)
+          return { ...m, media_url: signedUrl }
+        } catch {
+          // If signing fails, return the row without a URL — bubble falls back to text
+          return { ...m, media_url: null }
+        }
+      }
+      return m
+    })
+  )
+  return { conversation, messages: enriched }
 }
 
 // ----- actions ------------------------------------------------------------
