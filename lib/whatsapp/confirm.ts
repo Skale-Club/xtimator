@@ -453,6 +453,17 @@ async function handleSend(
     return
   }
 
+  // Consolidate before delivery so the share link is publicly accessible.
+  // The public /estimate/[token] page returns 404 for non-consolidated estimates (SEED-028).
+  await supabase
+    .from('estimates')
+    .update({
+      workflow_status: 'consolidated',
+      consolidated_at: new Date().toISOString(),
+    })
+    .eq('id', draft_estimate_id)
+    .eq('workflow_status', 'draft')
+
   const shareUrl = buildShareUrl(estimate.share_token as string)
 
   let clientPhone: string | null = null
