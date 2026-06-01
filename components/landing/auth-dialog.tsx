@@ -494,9 +494,7 @@ const companySchema = z.object({
   companyName: z.string().min(2, 'Company name must be at least 2 characters.'),
   subdomain: z
     .string()
-    .regex(/^[a-z0-9-]*$/, 'Use lowercase letters, numbers, and hyphens only.')
-    .optional()
-    .default(''),
+    .regex(/^[a-z0-9-]*$/, 'Use lowercase letters, numbers, and hyphens only.'),
 })
 
 type CompanyValues = z.infer<typeof companySchema>

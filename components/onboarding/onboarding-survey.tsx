@@ -12,6 +12,7 @@ import type { OnboardingValues } from '@/lib/schemas/onboarding'
 
 const INITIAL: OnboardingValues = {
   companyName: '',
+  subdomain: '',
   ownerName: '',
   phone: '',
   email: '',
