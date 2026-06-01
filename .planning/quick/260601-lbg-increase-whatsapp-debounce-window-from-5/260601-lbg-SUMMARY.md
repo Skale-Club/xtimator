@@ -5,7 +5,7 @@ subsystem: whatsapp
 tags: [debounce, buffer, inngest, whatsapp, handler]
 dependency_graph:
   requires: [lib/redis, lib/whatsapp/buffer, lib/whatsapp/handler]
-  provides: [15s debounce window, buffered awaiting_details dispatch]
+  provides: [buffered awaiting_details dispatch]
   affects: [processInboundWithDebounce, processInboundMessage]
 tech_stack:
   added: []
@@ -15,8 +15,8 @@ key_files:
     - lib/whatsapp/buffer.ts
     - lib/whatsapp/handler.ts
 decisions:
-  - "DEBOUNCE_WAIT_MS raised from 5_000 to 15_000 — job-site usage has natural 10-30s gaps between audio/photos/text; 5s window caused missed batches"
-  - "awaiting_details path uses same pushToBuffer+debounceWait+tryClaimBuffer rolling-window pattern as the no-session path — single code path is easier to reason about"
+  - "DEBOUNCE_WAIT_MS kept at 5_000 — user confirmed 5s is the intended window"
+  - "awaiting_details path now uses same pushToBuffer+debounceWait+tryClaimBuffer rolling-window pattern as the no-session path — single code path is easier to reason about"
   - "Session re-queried after tryClaimBuffer wins to recover current draft_project_id — avoids using potentially-stale existingSession captured before the 15s wait"
   - "Redis-unavailable fallback preserved — immediate single-message dispatch if pushToBuffer returns false"
 metrics:
