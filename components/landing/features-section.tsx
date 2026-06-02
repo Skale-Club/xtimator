@@ -51,8 +51,8 @@ export function FeaturesSection({ features }: { features: Array<{ icon: string; 
                     <Icon className="size-3 sm:size-5 lg:size-6" aria-hidden="true" />
                   </span>
                   <h3 className="mb-1 text-sm font-semibold tracking-tight text-white sm:mb-2 sm:text-xl lg:text-2xl">{title}</h3>
-                  <p className="mb-1.5 text-sm leading-relaxed text-muted-foreground sm:mb-4 sm:text-base">{description}</p>
-                  <div className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-secondary shadow-[0_0_10px_hsl(var(--primary)/0.1)] transition-colors group-hover:bg-primary/20 sm:gap-1.5 sm:px-3 sm:py-1.5 sm:text-sm">
+                  <p className="mb-1.5 flex-1 text-sm leading-relaxed text-muted-foreground sm:mb-4 sm:text-base">{description}</p>
+                  <div className="mt-auto inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-secondary shadow-[0_0_10px_hsl(var(--primary)/0.1)] transition-colors group-hover:bg-primary/20 sm:gap-1.5 sm:px-3 sm:py-1.5 sm:text-sm">
                     {benefit}
                   </div>
                 </Card>
