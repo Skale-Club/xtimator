@@ -13,6 +13,7 @@ import { getIntegrationKey } from '@/lib/platform-config'
 import { buildSystemPrompt, buildUserContent } from '../prompt-builder'
 import { normalizeOutput } from '../normalize'
 import { formatMoney, normalizeCurrencyCode } from '@/lib/money/currency'
+import { getLangfuse } from '@/lib/observability/langfuse'
 
 const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1'
 
@@ -77,6 +78,7 @@ type OpenRouterChatResponse = {
     }
   }>
   error?: { message?: string }
+  usage?: { prompt_tokens?: number; completion_tokens?: number }
 }
 
 export class OpenRouterAdapter implements AIProvider {
@@ -88,6 +90,7 @@ export class OpenRouterAdapter implements AIProvider {
     const raw = await this.callTool({
       system: buildSystemPrompt(input),
       user: buildUserContent(input),
+      operationName: 'generate_estimate',
     })
     return normalizeOutput(raw)
   }
@@ -121,16 +124,20 @@ ${input.instruction}
 
 Task: Update the estimate to reflect the user's instruction. Return the full updated estimate in JSON format.`
 
-    const raw = await this.callTool({ system, user })
+    const raw = await this.callTool({ system, user, operationName: 'refine_estimate' })
     return normalizeOutput(raw)
   }
 
   private async callTool(args: {
     system: string
     user: string
+    operationName?: string
   }): Promise<Record<string, unknown>> {
     const apiKey = await getIntegrationKey('openrouter')
     if (!apiKey) throw new Error('OpenRouter API key not configured')
+
+    const startTime = new Date()
+    const operationName = args.operationName ?? 'generate_estimate'
 
     const body = {
       model: this.model,
@@ -191,9 +198,33 @@ Task: Update the estimate to reflect the user's instruction. Return the full upd
     }
 
     try {
-      return JSON.parse(argsJson) as Record<string, unknown>
-    } catch {
-      throw new Error('OpenRouter returned malformed tool-call arguments')
+      const parsed = JSON.parse(argsJson) as Record<string, unknown>
+      try {
+        const lf = getLangfuse()
+        if (lf) {
+          const trace = lf.trace({ name: operationName })
+          trace.generation({
+            name: operationName,
+            model: this.model,
+            input: body.messages,
+            output: parsed,
+            usage: {
+              input: json.usage?.prompt_tokens,
+              output: json.usage?.completion_tokens,
+            },
+            startTime,
+            endTime: new Date(),
+          })
+        }
+      } catch (err) {
+        console.warn('[langfuse] generation trace failed:', err)
+      }
+      return parsed
+    } catch (err) {
+      if (err instanceof SyntaxError) {
+        throw new Error('OpenRouter returned malformed tool-call arguments')
+      }
+      throw err
     }
   }
 }
