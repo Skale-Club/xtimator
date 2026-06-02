@@ -7,8 +7,10 @@ import { logInboundMessage, type WaMsgType } from '@/lib/whatsapp/conversations'
 import type { WhatsAppMessage, WhatsAppPayload } from '@/lib/whatsapp/types'
 import { rateLimit } from '@/lib/ratelimit'
 
-function phoneDigits(value: string | null | undefined): string {
-  return (value ?? '').replace(/\D/g, '')
+function normalizedPhoneDigits(value: string | null | undefined): string {
+  const digits = (value ?? '').replace(/\D/g, '')
+  if (digits.length === 10) return `1${digits}`
+  return digits
 }
 
 // Map a Meta inbound message to the inbox log's (type, body) pair.
@@ -123,7 +125,8 @@ async function handleInboundMessage(payload: WhatsAppPayload): Promise<void> {
     // company_whatsapp.owner_phone was backfilled/synced; without it, first
     // owner audio messages are silently ignored and no project is created.
     if (!resolvedCompanyId) {
-      const last4 = fromPhone.slice(-4)
+      const normalizedFromPhone = normalizedPhoneDigits(fromPhone)
+      const last4 = normalizedFromPhone.slice(-4)
       const { data: companyRows } = await supabase
         .from('companies')
         .select('id, phone')
@@ -131,7 +134,7 @@ async function handleInboundMessage(payload: WhatsAppPayload): Promise<void> {
         .limit(20)
       const match = (companyRows ?? []).find(
         (row: { id?: string | null; phone?: string | null }) =>
-          phoneDigits(row.phone) === fromPhone
+          normalizedPhoneDigits(row.phone) === normalizedFromPhone
       )
       resolvedCompanyId = match?.id ?? null
     }
@@ -161,6 +164,9 @@ async function handleInboundMessage(payload: WhatsAppPayload): Promise<void> {
 
     if (!resolvedCompanyId) {
       // Unknown sender — silent ignore per WA-06
+      console.warn('[WhatsApp] unknown inbound sender; no company resolved', {
+        fromLast4: fromPhone.slice(-4),
+      })
       return
     }
 

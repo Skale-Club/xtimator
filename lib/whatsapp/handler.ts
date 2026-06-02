@@ -45,8 +45,8 @@ export async function processInboundWithDebounce(
   const ownerPhone = `+${fromPhone}`
 
   // UX feedback first — both paths benefit
-  await markMessageAsRead(message.id)
-  await sendTypingIndicator(message.id)
+  await markMessageAsRead(message.id).catch(() => undefined)
+  await sendTypingIndicator(message.id).catch(() => undefined)
 
   // Check for active session — if found, skip debounce (confirmation flow)
   const { data: existingSession } = await supabase
@@ -148,8 +148,8 @@ export async function processInboundMessage(
   // 0. UX feedback: mark as read + show typing indicator (fire-and-forget)
   // These keep the user reassured during the 20-40s of AI work that follows.
   // Meta API failures are swallowed inside markMessageAsRead/sendTypingIndicator.
-  await markMessageAsRead(message.id)
-  await sendTypingIndicator(message.id)
+  await markMessageAsRead(message.id).catch(() => undefined)
+  await sendTypingIndicator(message.id).catch(() => undefined)
 
   // 1. Check for active awaiting_confirm session — Phase 43 handles confirm/cancel replies
   const { data: existingSession } = await supabase

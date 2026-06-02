@@ -145,7 +145,7 @@ describe('POST /api/webhooks/whatsapp', () => {
           select: vi.fn().mockReturnValue({
             ilike: vi.fn().mockReturnValue({
               limit: vi.fn().mockResolvedValue({
-                data: [{ id: 'company-1', phone: '+1 (555) 123-4567' }],
+                data: [{ id: 'company-1', phone: '555-123-4567' }],
                 error: null,
               }),
             }),
