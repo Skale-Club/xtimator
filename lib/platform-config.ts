@@ -57,6 +57,14 @@ const TTL_MS = 30_000
 let brandingCache: { value: Branding; fetchedAt: number } | null = null
 const integrationCache = new Map<string, { value: string; fetchedAt: number }>()
 
+export interface WhatsAppPlatformConfig {
+  accessToken: string | null
+  phoneNumberId: string | null
+  wabaId: string | null
+}
+
+let whatsAppConfigCache: { value: WhatsAppPlatformConfig; fetchedAt: number } | null = null
+
 export const DEFAULT_LANDING_CONTENT: LandingContent = {
   heroHeadline: 'Professional estimates in seconds.',
   heroSubheadline:
@@ -257,6 +265,7 @@ function toBuffer(value: unknown): Buffer {
 export function invalidatePlatformConfig(): void {
   brandingCache = null
   integrationCache.clear()
+  whatsAppConfigCache = null
 }
 
 export type TwilioConfig = {
@@ -318,4 +327,48 @@ export async function getOpenRouterDefaultModel(): Promise<string | null> {
   const model = (data?.metadata as { openrouter_default_model?: string } | null)
     ?.openrouter_default_model
   return model && model.trim() ? model : null
+}
+
+/**
+ * Load the WhatsApp platform config (access token + phone number ID + WABA ID)
+ * from the database with a 30s TTL cache. Falls back to env vars for local dev
+ * when the DB row is absent.
+ *
+ * All three values can be null if neither DB nor env var is configured.
+ */
+export async function getWhatsAppPlatformConfig(): Promise<WhatsAppPlatformConfig> {
+  const now = Date.now()
+  if (whatsAppConfigCache && now - whatsAppConfigCache.fetchedAt < TTL_MS) {
+    return whatsAppConfigCache.value
+  }
+
+  const key = await getIntegrationKey('meta_whatsapp')
+
+  const svc = createServiceClient()
+  if (!svc) {
+    const fallback: WhatsAppPlatformConfig = {
+      accessToken: key ?? process.env.META_WHATSAPP_ACCESS_TOKEN ?? null,
+      phoneNumberId: process.env.META_WHATSAPP_PHONE_NUMBER_ID ?? null,
+      wabaId: process.env.META_WHATSAPP_WABA_ID ?? null,
+    }
+    whatsAppConfigCache = { value: fallback, fetchedAt: now }
+    return fallback
+  }
+
+  const { data } = await svc
+    .from('platform_integrations')
+    .select('metadata')
+    .eq('provider', 'meta_whatsapp')
+    .maybeSingle()
+
+  const meta = (data?.metadata as { phone_number_id?: string; waba_id?: string } | null)
+
+  const config: WhatsAppPlatformConfig = {
+    accessToken: key ?? process.env.META_WHATSAPP_ACCESS_TOKEN ?? null,
+    phoneNumberId: meta?.phone_number_id ?? process.env.META_WHATSAPP_PHONE_NUMBER_ID ?? null,
+    wabaId: meta?.waba_id ?? process.env.META_WHATSAPP_WABA_ID ?? null,
+  }
+
+  whatsAppConfigCache = { value: config, fetchedAt: now }
+  return config
 }
