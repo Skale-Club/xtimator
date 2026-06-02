@@ -1,16 +1,9 @@
--- Add owner_phone to company_whatsapp for platform-managed inbound routing.
--- The platform has ONE WhatsApp Business number (Xtimator's).
--- When an owner sends a message to that number, we route by their sender phone
--- to identify the company. owner_phone stores that E.164 number.
+-- Backfill company_whatsapp.owner_phone for existing companies.
+--
+-- 20260602000002 added owner_phone for platform-managed inbound routing. If
+-- that migration had already run, editing it would not affect production, so
+-- this incremental migration performs the same idempotent backfill.
 
-ALTER TABLE company_whatsapp
-  ADD COLUMN IF NOT EXISTS owner_phone TEXT,
-  ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active';
-
--- Backfill platform-managed inbound routing for companies that existed before
--- owner_phone was introduced. The webhook resolves first-message senders via
--- company_whatsapp.owner_phone; without this, existing owners are silently
--- ignored until they save company settings again.
 WITH normalized_companies AS (
   SELECT
     id AS company_id,
@@ -53,8 +46,3 @@ WHERE company_whatsapp.owner_phone IS NULL
     WHERE existing.owner_phone = EXCLUDED.owner_phone
       AND existing.company_id <> company_whatsapp.company_id
   );
-
--- Unique index so one phone can only belong to one company.
-CREATE UNIQUE INDEX IF NOT EXISTS company_whatsapp_owner_phone_unique
-  ON company_whatsapp (owner_phone)
-  WHERE owner_phone IS NOT NULL;
