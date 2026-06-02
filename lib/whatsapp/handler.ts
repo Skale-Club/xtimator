@@ -346,6 +346,12 @@ export async function processInboundMessages(
     return
   }
   const projectId = (project as { id: string }).id
+  console.info('[WhatsApp] draft project created for inbound batch', {
+    companyId,
+    projectId,
+    messageCount: messages.length,
+    lastMessageId,
+  })
 
   // Dispatch the whole batch to Inngest. ONE event for the entire batch —
   // simpler than per-message events because the Inngest function already
@@ -366,6 +372,11 @@ export async function processInboundMessages(
       messages,
       batchKey,
     },
+  })
+  console.info('[WhatsApp] inbound batch dispatched to Inngest', {
+    companyId,
+    projectId,
+    batchKey,
   })
 
   // Phase 77 NOTIF-04: in-app notification for inbound WhatsApp.

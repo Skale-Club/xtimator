@@ -59,9 +59,17 @@ export async function POST(request: NextRequest) {
   // Step 1: raw body MUST come before JSON.parse (WA-01 pitfall)
   const rawBody = await request.text()
   const signature = request.headers.get('x-hub-signature-256')
+  console.info('[WhatsApp] webhook POST received', {
+    hasSignature: Boolean(signature),
+    bodyBytes: rawBody.length,
+  })
 
   // Step 2: HMAC verification
   if (!verifyWebhookSignature(rawBody, signature, process.env.META_WHATSAPP_APP_SECRET ?? '')) {
+    console.warn('[WhatsApp] webhook signature rejected', {
+      hasSignature: Boolean(signature),
+      appSecretConfigured: Boolean(process.env.META_WHATSAPP_APP_SECRET),
+    })
     return new Response('Unauthorized', { status: 401 })
   }
 
@@ -70,7 +78,10 @@ export async function POST(request: NextRequest) {
 
   // Step 4: status webhooks — early exit, no DB work needed (Pitfall 6)
   const isStatusUpdate = payload?.entry?.[0]?.changes?.[0]?.value?.statuses
-  if (isStatusUpdate) return new Response('OK', { status: 200 })
+  if (isStatusUpdate) {
+    console.info('[WhatsApp] status webhook ignored')
+    return new Response('OK', { status: 200 })
+  }
 
   // Step 5: fire-and-forget inbound message processing (WA-01)
   // after() runs after the response is sent — Next.js 15+ feature (confirmed: v16.2.3)
@@ -93,6 +104,11 @@ async function handleInboundMessage(payload: WhatsAppPayload): Promise<void> {
 
     const messageId = message.id  // wamid.* — deduplication key (WA-03)
     const fromPhone = message.from // E.164 without leading +
+    console.info('[WhatsApp] inbound message received', {
+      messageId,
+      type: message.type,
+      fromLast4: fromPhone.slice(-4),
+    })
 
     // Rate limit per phone (anti-abuse before any DB work or AI cost)
     const hourly = await rateLimit('whatsappPerHour', fromPhone)
@@ -169,6 +185,10 @@ async function handleInboundMessage(payload: WhatsAppPayload): Promise<void> {
       })
       return
     }
+    console.info('[WhatsApp] inbound sender resolved', {
+      companyId: resolvedCompanyId,
+      fromLast4: fromPhone.slice(-4),
+    })
 
     // Deduplication (WA-03): insert with PRIMARY KEY constraint
     // 23505 = unique_violation — message already processed
@@ -178,6 +198,7 @@ async function handleInboundMessage(payload: WhatsAppPayload): Promise<void> {
 
     if (dedupError?.code === '23505') {
       // Duplicate — silently discard
+      console.info('[WhatsApp] duplicate inbound message ignored', { messageId })
       return
     }
 
