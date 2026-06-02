@@ -7,6 +7,10 @@ import { logInboundMessage, type WaMsgType } from '@/lib/whatsapp/conversations'
 import type { WhatsAppMessage, WhatsAppPayload } from '@/lib/whatsapp/types'
 import { rateLimit } from '@/lib/ratelimit'
 
+function phoneDigits(value: string | null | undefined): string {
+  return (value ?? '').replace(/\D/g, '')
+}
+
 // Map a Meta inbound message to the inbox log's (type, body) pair.
 function inboxFieldsFor(message: WhatsAppMessage): { msgType: WaMsgType; body: string | null } {
   switch (message.type) {
@@ -115,7 +119,24 @@ async function handleInboundMessage(payload: WhatsAppPayload): Promise<void> {
 
     let resolvedCompanyId: string | null = ownerRow?.company_id ?? null
 
-    // Route 2: existing conversation thread (returning contacts who messaged before)
+    // Route 2: companies.phone fallback. This covers accounts created before
+    // company_whatsapp.owner_phone was backfilled/synced; without it, first
+    // owner audio messages are silently ignored and no project is created.
+    if (!resolvedCompanyId) {
+      const last4 = fromPhone.slice(-4)
+      const { data: companyRows } = await supabase
+        .from('companies')
+        .select('id, phone')
+        .ilike('phone', `%${last4}%`)
+        .limit(20)
+      const match = (companyRows ?? []).find(
+        (row: { id?: string | null; phone?: string | null }) =>
+          phoneDigits(row.phone) === fromPhone
+      )
+      resolvedCompanyId = match?.id ?? null
+    }
+
+    // Route 3: existing conversation thread (returning contacts who messaged before)
     if (!resolvedCompanyId) {
       const { data: convRow } = await supabase
         .from('whatsapp_conversations')
@@ -127,7 +148,7 @@ async function handleInboundMessage(payload: WhatsAppPayload): Promise<void> {
       resolvedCompanyId = convRow?.company_id ?? null
     }
 
-    // Route 3: clients table (known client contacts)
+    // Route 4: clients table (known client contacts)
     if (!resolvedCompanyId) {
       const { data: clientRow } = await supabase
         .from('clients')
