@@ -102,20 +102,32 @@ async function handleInboundMessage(payload: WhatsAppPayload): Promise<void> {
 
     const supabase = requireServiceClient()
 
-    // Route: find company via conversation history (contact_phone = sender's phone).
-    // whatsapp_conversations.contact_phone stores E.164 of the *other party*.
-    // ORDER BY last_message_at DESC picks the most-recently-active company thread.
-    const { data: convRow } = await supabase
-      .from('whatsapp_conversations')
+    // Route 1: company_whatsapp.owner_phone — explicit owner registration.
+    // This is the primary path: business owners register their personal WhatsApp
+    // number against their company so their messages are always routed correctly,
+    // even on the very first message before any conversation history exists.
+    const { data: ownerRow } = await supabase
+      .from('company_whatsapp')
       .select('company_id')
-      .eq('contact_phone', `+${fromPhone}`)
-      .order('last_message_at', { ascending: false })
-      .limit(1)
+      .eq('owner_phone', `+${fromPhone}`)
+      .eq('status', 'active')
       .maybeSingle()
 
-    let resolvedCompanyId: string | null = convRow?.company_id ?? null
+    let resolvedCompanyId: string | null = ownerRow?.company_id ?? null
 
-    // Fallback: check clients table by phone (new contacts have no conversation yet)
+    // Route 2: existing conversation thread (returning contacts who messaged before)
+    if (!resolvedCompanyId) {
+      const { data: convRow } = await supabase
+        .from('whatsapp_conversations')
+        .select('company_id')
+        .eq('contact_phone', `+${fromPhone}`)
+        .order('last_message_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      resolvedCompanyId = convRow?.company_id ?? null
+    }
+
+    // Route 3: clients table (known client contacts)
     if (!resolvedCompanyId) {
       const { data: clientRow } = await supabase
         .from('clients')
