@@ -25,7 +25,7 @@ progress:
 Phase: 999.1
 Plan: Not started
 Status: Phase complete — ready for verification
-Last activity: 2026-06-02 - Completed quick task 260602-iwk (Add Langfuse LLM observability)
+Last activity: 2026-06-02 - Completed quick task 260602-jns: Move WhatsApp integration to admin-only
 Stopped at: Completed 93-03-PLAN.md (event log list page + detail page + EventStepTimeline)
 
 ## v3.1.1 Phases
@@ -744,6 +744,7 @@ v3.1: Phases 61-65 (started 2026-05-15). Production Go-Live — 27 requirements 
 | 260601-lbg | Apply debounce buffer to awaiting_details path — prevents multiple parallel estimate regenerations when owner sends rapid burst of detail messages | 2026-06-01 | b85bd73 | [260601-lbg-increase-whatsapp-debounce-window-from-5](.planning/quick/260601-lbg-increase-whatsapp-debounce-window-from-5/) |
 | 260601-law | Log all outbound bot replies in confirm.ts and whatsapp-process.ts so they appear in the WhatsApp inbox panel | 2026-06-01 | 0dc2dfc | [260601-law-log-all-outbound-bot-replies-in-confirm-](.planning/quick/260601-law-log-all-outbound-bot-replies-in-confirm-/) |
 | 260602-iwk | Add Langfuse LLM observability | 2026-06-02 | f69af51 | [260602-iwk-add-langfuse-llm-observability](.planning/quick/260602-iwk-add-langfuse-llm-observability/) |
+| 260602-jns | Move WhatsApp integration to admin-only | 2026-06-02 | 7eaba97 | [260602-jns-move-whatsapp-integration-to-admin-only](.planning/quick/260602-jns-move-whatsapp-integration-to-admin-only/) |
 | 2026-05-18 | fast | Center auth card logo+wordmark | done |
 | 2026-05-19 | fast | Make audio capture screen scrollable on smaller viewports | done |
 | 2026-05-18 | fast | Restyle sidebar New Project as filled gradient, remove dashboard CTA | done |
