@@ -12,7 +12,7 @@ interface LandingFooterProps {
 export function LandingFooter({ appName, logoUrl, onOpenAuth }: LandingFooterProps) {
 
   return (
-    <footer className="border-t border-white/5 bg-background py-5 sm:py-16">
+    <footer className="border-t border-white/5 bg-background pt-5 pb-0 sm:py-16">
       <div className="mx-auto max-w-6xl px-6 sm:px-8 lg:px-10">
         <div className="grid gap-0 sm:gap-12 md:grid-cols-4 lg:gap-8">
           <div className="md:col-span-2">

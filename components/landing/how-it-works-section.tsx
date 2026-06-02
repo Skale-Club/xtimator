@@ -18,7 +18,7 @@ export function HowItWorksSection({ steps }: { steps: Array<{ eyebrow: string; t
           </p>
         </div>
 
-        <div className="mx-auto grid max-w-5xl grid-cols-1 gap-3 sm:gap-6 md:grid-cols-3 lg:gap-10">
+        <div className="mx-auto grid max-w-5xl grid-cols-1 gap-[11px] sm:gap-6 md:grid-cols-3 lg:gap-10">
           {steps.map(({ title, description }, index) => (
             <motion.div
               key={title}
@@ -34,7 +34,7 @@ export function HowItWorksSection({ steps }: { steps: Array<{ eyebrow: string; t
                   className="relative flex h-full w-full select-none flex-col rounded-[13px] p-4 sm:p-6 lg:p-8 backdrop-blur-none transition-colors duration-300 group-hover:border-primary/30 md:text-center"
                 >
                   <div className="pointer-events-none absolute inset-0 rounded-[13px] bg-gradient-to-br from-primary/10 via-transparent to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
-                  <h3 className="mb-1.5 text-base font-semibold tracking-tight text-white sm:mb-2 sm:text-xl lg:text-2xl">{title}</h3>
+                  <h3 className="-mb-[11.5px] text-base font-semibold tracking-tight text-white sm:mb-2 sm:text-xl lg:text-2xl">{title}</h3>
                   <p className="text-sm leading-relaxed text-muted-foreground sm:text-base lg:text-lg">{description}</p>
                 </Card>
               </div>

@@ -69,13 +69,16 @@ export function LandingPage({ content, branding }: LandingPageProps) {
       </div>
 
       {/* Snap page 3: features */}
-      <div className="h-[100dvh] snap-start flex flex-col justify-center">
+      <div className="h-[100dvh] pt-16 snap-start flex flex-col justify-center">
         <FeaturesSection features={content.features} />
       </div>
 
       {/* Snap page 4: final CTA + footer */}
-      <div className="h-[100dvh] pt-16 pb-10 snap-start flex flex-col justify-between">
-        <FinalCtaSection onOpenAuth={openAuth} />
+      <div className="relative h-[100dvh] pt-16 pb-3 snap-start flex flex-col sm:pb-0">
+        <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 gradient-hero" />
+        <div className="flex-1 flex items-center">
+          <FinalCtaSection onOpenAuth={openAuth} />
+        </div>
         <LandingFooter appName={branding.appName} logoUrl={branding.logoUrl} onOpenAuth={openAuth} />
       </div>
 

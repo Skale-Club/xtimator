@@ -13,8 +13,6 @@ export function FinalCtaSection({ onOpenAuth }: FinalCtaSectionProps) {
   const reduce = useReducedMotion()
   return (
     <section className="relative isolate bg-transparent py-[35px] sm:py-[clamp(40px,7vw,64px)]">
-      {/* Phase 71 gradient-hero radial backdrop (NO blur on landing — perf gate) */}
-      <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 gradient-hero" />
       <div className="mx-auto max-w-6xl px-6 sm:px-8 lg:px-10">
         <motion.div
           initial={reduce ? false : { opacity: 0, y: 30 }}
