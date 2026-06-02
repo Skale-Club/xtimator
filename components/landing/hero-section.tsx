@@ -56,7 +56,7 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
             }}
             className={
               hasImage
-                ? 'relative z-10 flex min-w-0 flex-col justify-center space-y-4 sm:w-[55%] sm:shrink-0 sm:py-10 lg:w-[65%]'
+                ? 'hero-left relative z-10 flex min-w-0 flex-col justify-center space-y-4 sm:w-[55%] sm:shrink-0 sm:py-10 lg:w-[65%]'
                 : 'max-w-3xl space-y-4'
             }
           >
@@ -72,7 +72,7 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
 
             <motion.h1
               variants={FADE_UP_ANIMATION_VARIANTS}
-              className="text-[clamp(28px,7vw,56px)] font-semibold leading-[1.05] tracking-[-0.03em] md:text-[46px] md:w-[475px] lg:text-[56px] lg:w-[580px]"
+              className="hero-h1 text-[clamp(28px,7vw,56px)] font-semibold leading-[1.05] tracking-[-0.03em] lg:w-[580px]"
             >
               {content.heroHeadline.split(' ')[0]}
               <br />
@@ -121,7 +121,7 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
               initial={reduce ? false : { opacity: 0, scale: 0.95, rotate: -2 }}
               animate={{ opacity: 1, scale: 1, rotate: 0 }}
               transition={{ duration: 1, type: 'spring', delay: 0.3 }}
-              className="relative z-0 flex-1 min-h-0 self-stretch sm:absolute sm:top-[1in] sm:bottom-0 sm:left-[calc(58%_-_100px)] sm:right-[-2rem] sm:scale-110 sm:origin-bottom lg:top-[36px] lg:left-[calc(35%_+_55px)] lg:right-[-2.5rem] lg:scale-100"
+              className="hero-image relative z-0 flex-1 min-h-0 self-stretch sm:absolute sm:top-[1in] sm:bottom-0 sm:left-[calc(58%_-_100px)] sm:right-[-2rem] sm:scale-110 sm:origin-bottom lg:top-[36px] lg:left-[calc(35%_+_55px)] lg:right-[-2.5rem] lg:scale-100"
             >
               <img
                 src={content.heroImageUrl!}

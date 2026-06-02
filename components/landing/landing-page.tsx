@@ -50,7 +50,7 @@ export function LandingPage({ content, branding }: LandingPageProps) {
       <TopNav branding={branding} onOpenAuth={openAuth} />
 
       {/* Snap page 1: hero + trust bar */}
-      <div className="h-[100dvh] pt-16 flex flex-col snap-start">
+      <div className="h-[100dvh] pt-16 flex flex-col snap-start overflow-hidden">
         <HeroSection
           content={{
             heroHeadline: content.heroHeadline,
@@ -64,17 +64,17 @@ export function LandingPage({ content, branding }: LandingPageProps) {
       </div>
 
       {/* Snap page 2: how it works */}
-      <div className="h-[100dvh] snap-start flex flex-col justify-center">
+      <div className="h-[100dvh] snap-start flex flex-col justify-center overflow-hidden">
         <HowItWorksSection steps={content.howItWorksSteps} />
       </div>
 
       {/* Snap page 3: features */}
-      <div className="h-[100dvh] pt-16 snap-start flex flex-col justify-center">
+      <div className="h-[100dvh] pt-16 snap-start flex flex-col justify-center overflow-hidden">
         <FeaturesSection features={content.features} />
       </div>
 
       {/* Snap page 4: final CTA + footer */}
-      <div className="relative h-[100dvh] pt-16 pb-3 snap-start flex flex-col sm:pb-0">
+      <div className="relative h-[100dvh] pt-16 pb-3 snap-start flex flex-col overflow-hidden sm:pb-0">
         <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 gradient-hero" />
         <div className="flex-1 flex items-center">
           <FinalCtaSection onOpenAuth={openAuth} />

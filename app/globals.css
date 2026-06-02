@@ -2,6 +2,50 @@
 @plugin "@tailwindcss/typography";
 @source not "../.planning";
 
+/* iPad portrait — 768px to 1023px (iPad mini, Air, Pro 11") */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .hero-left {
+    width: 100%;
+    justify-content: flex-start;
+    padding-top: calc(5rem + 10px);
+  }
+  .hero-h1 { font-size: 71px; width: auto !important; }  /* always 2 lines */
+  .hero-left p { font-size: 25px; line-height: 1.5; max-width: 42rem; }
+  .hero-left > div:last-child { width: 55%; display: flex; gap: 0.75rem; margin-top: 10px; }
+  .hero-left > div:last-child > * { flex: 1 !important; min-width: 0; }
+  .hero-left > div:last-child button,
+  .hero-left > div:last-child a { width: 100% !important; height: 66px !important; font-size: 22px !important; }
+  /* Image below text block, centered horizontally */
+  .hero-image { top: 47%; bottom: 0; left: 0; right: 0; transform: scale(1.29); transform-origin: center; }
+  .hero-image img { object-position: center; }
+  .trust-bar > div { padding-top: 1.5rem; padding-bottom: 1.5rem; }
+  .trust-bar [class*="tabular-nums"] { font-size: 34px; }
+  .trust-bar .fill-yellow-400 { width: 22px; height: 22px; }
+  .trust-bar span:not([class*="tabular-nums"]) { font-size: 14px; }
+}
+
+/* iPad Pro 12.9" portrait / iPad landscape — scaled up from 834px reference */
+@media (min-width: 1024px) and (max-width: 1279px) {
+  .hero-left {
+    width: 100% !important;    /* override Tailwind lg:w-[65%] */
+    justify-content: flex-start;
+    padding-top: calc(6rem + 10px);
+  }
+  .hero-h1 { font-size: 75px; width: auto !important; }
+  .hero-left p { font-size: 30px; line-height: 1.5; max-width: 52rem; }
+  .hero-left > div:last-child { width: 55%; display: flex; gap: 0.75rem; margin-top: 10px; }
+  .hero-left > div:last-child > * { flex: 1 !important; min-width: 0; }
+  .hero-left > div:last-child button,
+  .hero-left > div:last-child a { width: 100% !important; height: 80px !important; font-size: 26px !important; }
+  /* Image below text block, centered horizontally */
+  .hero-image { top: 47%; bottom: 0; left: 0; right: 0; transform: scale(1.29); transform-origin: center; }
+  .hero-image img { object-position: center; }
+  .trust-bar > div { padding-top: 2rem; padding-bottom: 2rem; }
+  .trust-bar [class*="tabular-nums"] { font-size: 42px; }
+  .trust-bar .fill-yellow-400 { width: 28px; height: 28px; }
+  .trust-bar span:not([class*="tabular-nums"]) { font-size: 17px; }
+}
+
 @layer base {
   :root {
     --system-primary: 224 86% 60%;

@@ -31,7 +31,7 @@ export function TrustBar() {
   const inView = useInView(ref, { once: true, margin: '-40px' })
 
   return (
-    <div ref={ref} className="border-b border-white/5 bg-white/[0.03]">
+    <div ref={ref} className="trust-bar border-b border-white/5 bg-white/[0.03]">
       <div className="mx-auto flex max-w-6xl flex-row items-center justify-around divide-x divide-white/10 px-4 py-3 sm:px-8 lg:px-10">
         {COUNTERS.map(({ value, suffix, label }, i) => (
           <motion.div
