@@ -23,7 +23,6 @@ export function LandingPage({ content, branding }: LandingPageProps) {
   const [authOpen, setAuthOpen] = useState(false)
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('signup')
 
-  // Auto-open modal from ?auth=login|signup, then strip the param.
   useEffect(() => {
     const authParam = searchParams.get('auth')
     if (authParam === 'login' || authParam === 'signup') {
@@ -31,10 +30,8 @@ export function LandingPage({ content, branding }: LandingPageProps) {
       setAuthOpen(true)
       router.replace('/', { scroll: false })
     } else if (authParam) {
-      // Unknown value — strip it but don't open the dialog.
       router.replace('/', { scroll: false })
     }
-    // We only want this to run once on mount based on initial search params.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -46,28 +43,42 @@ export function LandingPage({ content, branding }: LandingPageProps) {
   return (
     <div
       data-testid="landing-shell"
-      className="dark isolate min-h-screen overflow-x-hidden bg-background text-foreground selection:bg-primary/30"
+      className="dark isolate h-[100dvh] overflow-y-scroll overflow-x-hidden snap-y snap-mandatory scroll-smooth overscroll-none bg-background text-foreground selection:bg-primary/30 [&::-webkit-scrollbar]:hidden"
+      style={{ scrollbarWidth: 'none' }}
     >
       <div className="fixed inset-0 -z-10 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,hsl(var(--primary)/0.15),hsl(var(--foreground)/0))]" />
       <TopNav branding={branding} onOpenAuth={openAuth} />
-      <main className="pt-16">
-        <div className="flex h-[calc(100vh-4rem)] flex-col">
-          <HeroSection
-            content={{
-              heroHeadline: content.heroHeadline,
-              heroSubheadline: content.heroSubheadline,
-              ctaLabel: content.ctaLabel,
-              heroImageUrl: content.heroImageUrl ?? null,
-            }}
-            onOpenAuth={openAuth}
-          />
-          <TrustBar />
-        </div>
+
+      {/* Snap page 1: hero + trust bar */}
+      <div className="h-[100dvh] pt-16 flex flex-col snap-start">
+        <HeroSection
+          content={{
+            heroHeadline: content.heroHeadline,
+            heroSubheadline: content.heroSubheadline,
+            ctaLabel: content.ctaLabel,
+            heroImageUrl: content.heroImageUrl ?? null,
+          }}
+          onOpenAuth={openAuth}
+        />
+        <TrustBar />
+      </div>
+
+      {/* Snap page 2: how it works */}
+      <div className="h-[100dvh] snap-start flex flex-col justify-center">
         <HowItWorksSection steps={content.howItWorksSteps} />
+      </div>
+
+      {/* Snap page 3: features */}
+      <div className="h-[100dvh] snap-start flex flex-col justify-center">
         <FeaturesSection features={content.features} />
+      </div>
+
+      {/* Snap page 4: final CTA + footer */}
+      <div className="h-[100dvh] pt-16 pb-10 snap-start flex flex-col justify-between">
         <FinalCtaSection onOpenAuth={openAuth} />
-      </main>
-      <LandingFooter appName={branding.appName} logoUrl={branding.logoUrl} onOpenAuth={openAuth} />
+        <LandingFooter appName={branding.appName} logoUrl={branding.logoUrl} onOpenAuth={openAuth} />
+      </div>
+
       <AuthDialog branding={branding} open={authOpen} onClose={() => setAuthOpen(false)} initialMode={authMode} />
     </div>
   )

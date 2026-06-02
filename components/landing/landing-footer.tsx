@@ -12,20 +12,20 @@ interface LandingFooterProps {
 export function LandingFooter({ appName, logoUrl, onOpenAuth }: LandingFooterProps) {
 
   return (
-    <footer className="border-t border-white/5 bg-background py-16">
+    <footer className="border-t border-white/5 bg-background py-5 sm:py-16">
       <div className="mx-auto max-w-6xl px-6 sm:px-8 lg:px-10">
-        <div className="grid gap-12 md:grid-cols-4 lg:gap-8">
+        <div className="grid gap-0 sm:gap-12 md:grid-cols-4 lg:gap-8">
           <div className="md:col-span-2">
             <Link href="/" className="inline-flex items-center gap-2.5 transition-opacity hover:opacity-80">
               <AppIcon logoUrl={logoUrl} appName={appName} className="h-6 w-6" />
-              <span className="text-lg font-bold tracking-tight">{appName}</span>
+              <span className="text-[17px] font-bold tracking-tight sm:text-lg">{appName}</span>
             </Link>
-            <p className="mt-6 max-w-xs text-sm leading-relaxed text-muted-foreground">
+            <p className="mt-2 sm:mt-6 max-w-xs text-[13px] leading-relaxed text-muted-foreground sm:text-sm">
               AI-powered estimates for service businesses that quote on site. Built for speed, designed for pros.
             </p>
           </div>
           
-          <div>
+          <div className="hidden sm:block">
             <h4 className="text-sm font-semibold text-white">Product</h4>
             <ul className="mt-6 space-y-4 text-sm text-muted-foreground">
               <li>
@@ -40,7 +40,7 @@ export function LandingFooter({ appName, logoUrl, onOpenAuth }: LandingFooterPro
             </ul>
           </div>
 
-          <div>
+          <div className="hidden sm:block">
             <h4 className="text-sm font-semibold text-white">Legal</h4>
             <ul className="mt-6 space-y-4 text-sm text-muted-foreground">
               <li>
@@ -56,11 +56,11 @@ export function LandingFooter({ appName, logoUrl, onOpenAuth }: LandingFooterPro
           </div>
         </div>
         
-        <div className="mt-16 flex flex-col items-center justify-between gap-6 border-t border-white/5 pt-8 sm:flex-row">
-          <p className="text-sm text-muted-foreground">
+        <div className="mt-3 flex flex-col items-center justify-between gap-3 border-t border-white/5 pt-3 sm:mt-16 sm:gap-6 sm:pt-8 sm:flex-row">
+          <p className="text-[13px] text-muted-foreground sm:text-sm">
             &copy; {new Date().getFullYear()} {appName}. All rights reserved.
           </p>
-          <div className="flex gap-6 text-muted-foreground">
+          <div className="hidden sm:flex gap-6 text-muted-foreground">
             <Link href="#" className="transition-colors hover:text-white">
               <span className="sr-only">Twitter</span>
               <svg className="size-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
