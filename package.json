@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "git pull --rebase && rm -rf .next && cross-env NODE_OPTIONS=--max-http-header-size=32768 next dev --port 9633",
+    "dev": "git pull --rebase && npx rimraf .next && cross-env NODE_OPTIONS=--max-http-header-size=32768 next dev --port 9633",
     "dev:inngest": "npx inngest-cli@latest dev -u http://localhost:9633/api/inngest",
     "build": "next build",
     "start": "next start",
