@@ -7,6 +7,7 @@ import { T } from '@/components/i18n/t'
 import { AIProviderSelector } from './ai-provider-selector'
 import { IntegrationCard } from './integration-card'
 import { TwilioFromPhoneForm } from './twilio-from-phone-form'
+import { WhatsAppConfigForm } from './whatsapp-config-form'
 
 type IntegrationCategoryContentProps = {
   category: Category
@@ -30,6 +31,20 @@ export async function IntegrationCategoryContent({
       .eq('provider', 'twilio')
       .maybeSingle()
     twilioFromPhone = (data?.metadata as { from_phone?: string } | null)?.from_phone ?? ''
+  }
+
+  let waPhoneNumberId = ''
+  let waWabaId = ''
+  if (category.showWhatsAppConfig) {
+    const svc = requireServiceClient()
+    const { data } = await svc
+      .from('platform_integrations')
+      .select('metadata')
+      .eq('provider', 'meta_whatsapp')
+      .maybeSingle()
+    const meta = (data?.metadata as { phone_number_id?: string; waba_id?: string } | null) ?? {}
+    waPhoneNumberId = meta.phone_number_id ?? ''
+    waWabaId = meta.waba_id ?? ''
   }
 
   return (
@@ -63,6 +78,13 @@ export async function IntegrationCategoryContent({
 
       {category.showFromPhone && (
         <TwilioFromPhoneForm current={twilioFromPhone} />
+      )}
+
+      {category.showWhatsAppConfig && (
+        <WhatsAppConfigForm
+          currentPhoneNumberId={waPhoneNumberId}
+          currentWabaId={waWabaId}
+        />
       )}
     </div>
   )
