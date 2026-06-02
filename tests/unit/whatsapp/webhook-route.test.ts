@@ -85,17 +85,22 @@ describe('POST /api/webhooks/whatsapp', () => {
     expect(mockServiceClient).not.toHaveBeenCalled()
   })
 
-  it('returns 200 for valid message payload and calls handleInboundMessage', async () => {
+  it('returns 200 for valid message payload (unknown sender — silent ignore)', async () => {
     mockVerify.mockReturnValue(true)
 
-    // Mock Supabase: unregistered phone (no company_whatsapp row)
-    const selectMock = { data: null, error: null }
+    // Mock Supabase: unknown sender — no conversation row, no client row
+    // New routing: whatsapp_conversations (order/limit/maybeSingle) then clients (limit/maybeSingle)
     mockServiceClient.mockReturnValue({
       from: vi.fn().mockReturnValue({
         select: vi.fn().mockReturnValue({
           eq: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              single: vi.fn().mockResolvedValue(selectMock),
+            order: vi.fn().mockReturnValue({
+              limit: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+              }),
+            }),
+            limit: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
             }),
           }),
         }),

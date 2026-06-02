@@ -102,17 +102,32 @@ async function handleInboundMessage(payload: WhatsAppPayload): Promise<void> {
 
     const supabase = requireServiceClient()
 
-    // Route: find company by phone number
-    // phone_number stored as E.164 with '+', Meta sends without '+'
-    const { data: whatsappConfig } = await supabase
-      .from('company_whatsapp')
+    // Route: find company via conversation history (contact_phone = sender's phone).
+    // whatsapp_conversations.contact_phone stores E.164 of the *other party*.
+    // ORDER BY last_message_at DESC picks the most-recently-active company thread.
+    const { data: convRow } = await supabase
+      .from('whatsapp_conversations')
       .select('company_id')
-      .eq('phone_number', `+${fromPhone}`)
-      .eq('status', 'active')
-      .single()
+      .eq('contact_phone', `+${fromPhone}`)
+      .order('last_message_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
 
-    if (!whatsappConfig) {
-      // Unregistered or inactive number — silent ignore per WA-06
+    let resolvedCompanyId: string | null = convRow?.company_id ?? null
+
+    // Fallback: check clients table by phone (new contacts have no conversation yet)
+    if (!resolvedCompanyId) {
+      const { data: clientRow } = await supabase
+        .from('clients')
+        .select('company_id')
+        .eq('phone', `+${fromPhone}`)
+        .limit(1)
+        .maybeSingle()
+      resolvedCompanyId = clientRow?.company_id ?? null
+    }
+
+    if (!resolvedCompanyId) {
+      // Unknown sender — silent ignore per WA-06
       return
     }
 
@@ -120,7 +135,7 @@ async function handleInboundMessage(payload: WhatsAppPayload): Promise<void> {
     // 23505 = unique_violation — message already processed
     const { error: dedupError } = await supabase
       .from('whatsapp_processed_messages')
-      .insert({ message_id: messageId, company_id: whatsappConfig.company_id })
+      .insert({ message_id: messageId, company_id: resolvedCompanyId })
 
     if (dedupError?.code === '23505') {
       // Duplicate — silently discard
@@ -137,7 +152,7 @@ async function handleInboundMessage(payload: WhatsAppPayload): Promise<void> {
     try {
       const { msgType, body } = inboxFieldsFor(message)
       await logInboundMessage(supabase, {
-        companyId: whatsappConfig.company_id as string,
+        companyId: resolvedCompanyId,
         contactPhone: `+${fromPhone}`,
         contactName: value?.contacts?.[0]?.profile?.name ?? null,
         body,
@@ -151,7 +166,7 @@ async function handleInboundMessage(payload: WhatsAppPayload): Promise<void> {
     // Phase 42 + Phase 48: routes through debounce buffer when no session exists
     await processInboundWithDebounce(
       message,
-      whatsappConfig.company_id as string,
+      resolvedCompanyId,
       fromPhone,
       supabase
     )
