@@ -25,7 +25,7 @@ progress:
 Phase: 999.1
 Plan: Not started
 Status: Phase complete — ready for verification
-Last activity: 2026-06-02 - Completed quick task 260602-kiv: Add WhatsApp Phone Number ID and WABA ID to admin integrations
+Last activity: 2026-06-02 - Completed quick task 260602-mq2: Implement LangGraph estimate graph for WhatsApp inbound processing
 Stopped at: Completed 93-03-PLAN.md (event log list page + detail page + EventStepTimeline)
 
 ## v3.1.1 Phases
@@ -746,6 +746,7 @@ v3.1: Phases 61-65 (started 2026-05-15). Production Go-Live — 27 requirements 
 | 260602-iwk | Add Langfuse LLM observability | 2026-06-02 | f69af51 | [260602-iwk-add-langfuse-llm-observability](.planning/quick/260602-iwk-add-langfuse-llm-observability/) |
 | 260602-jns | Move WhatsApp integration to admin-only | 2026-06-02 | 7eaba97 | [260602-jns-move-whatsapp-integration-to-admin-only](.planning/quick/260602-jns-move-whatsapp-integration-to-admin-only/) |
 | 260602-kiv | Add WhatsApp Phone Number ID and WABA ID to admin integrations | 2026-06-02 | f137b61 | [260602-kiv-add-whatsapp-phone-number-id-and-waba-id](.planning/quick/260602-kiv-add-whatsapp-phone-number-id-and-waba-id/) |
+| 260602-mq2 | Implement LangGraph estimate graph for WhatsApp inbound processing | 2026-06-02 | 39515c3 | [260602-mq2-implement-langgraph-estimate-graph-for-w](.planning/quick/260602-mq2-implement-langgraph-estimate-graph-for-w/) |
 | 2026-05-18 | fast | Center auth card logo+wordmark | done |
 | 2026-05-19 | fast | Make audio capture screen scrollable on smaller viewports | done |
 | 2026-05-18 | fast | Restyle sidebar New Project as filled gradient, remove dashboard CTA | done |
