@@ -64,7 +64,7 @@ export function LandingPage({ content, branding }: LandingPageProps) {
       </div>
 
       {/* Snap page 2: how it works */}
-      <div className="h-[100dvh] snap-start flex flex-col justify-center overflow-hidden">
+      <div className="h-[100dvh] snap-start flex flex-col overflow-hidden">
         <HowItWorksSection steps={content.howItWorksSteps} />
       </div>
 

@@ -6,7 +6,7 @@ import { Card } from '@/components/ui/card'
 export function HowItWorksSection({ steps }: { steps: Array<{ eyebrow: string; title: string; description: string }> }) {
   const reduce = useReducedMotion()
   return (
-    <section className="relative border-b border-white/5 bg-transparent py-8 sm:py-16 lg:py-24">
+    <section className="relative flex flex-1 flex-col justify-center border-b border-white/5 bg-transparent py-8 sm:py-16 lg:py-24">
       <div className="mx-auto max-w-6xl px-6 sm:px-8 lg:px-10">
         <div className="mb-6 max-w-2xl text-center sm:mx-auto sm:mb-10 lg:mb-16">
           <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary sm:text-sm">How it works</p>

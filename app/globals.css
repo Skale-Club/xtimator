@@ -2,48 +2,54 @@
 @plugin "@tailwindcss/typography";
 @source not "../.planning";
 
-/* iPad portrait — 768px to 1023px (iPad mini, Air, Pro 11") */
-@media (min-width: 768px) and (max-width: 1023px) {
-  .hero-left {
-    width: 100%;
-    justify-content: flex-start;
-    padding-top: calc(5rem + 10px);
-  }
-  .hero-h1 { font-size: 71px; width: auto !important; }  /* always 2 lines */
+/* ── iPad Portrait 768-1023px (mini, Air, Pro 11") ── */
+@media (min-width: 768px) and (max-width: 1023px) and (orientation: portrait) {
+  .hero-left { width: 100%; justify-content: flex-start; padding-top: calc(5rem + 10px); padding-left: 2rem; }
+  .hero-h1 { font-size: 71px !important; width: auto !important; }
   .hero-left p { font-size: 25px; line-height: 1.5; max-width: 42rem; }
   .hero-left > div:last-child { width: 55%; display: flex; gap: 0.75rem; margin-top: 10px; }
   .hero-left > div:last-child > * { flex: 1 !important; min-width: 0; }
   .hero-left > div:last-child button,
   .hero-left > div:last-child a { width: 100% !important; height: 66px !important; font-size: 22px !important; }
-  /* Image below text block, centered horizontally */
-  .hero-image { top: 47%; bottom: 0; left: 0; right: 0; transform: scale(1.29); transform-origin: center; }
-  .hero-image img { object-position: center; }
+  .hero-image { position: absolute !important; top: 470px !important; bottom: 0 !important; left: 0 !important; right: 0 !important; transform: none !important; }
+  .hero-image img { object-fit: contain !important; object-position: center bottom; }
   .trust-bar > div { padding-top: 1.5rem; padding-bottom: 1.5rem; }
   .trust-bar [class*="tabular-nums"] { font-size: 34px; }
   .trust-bar .fill-yellow-400 { width: 22px; height: 22px; }
   .trust-bar span:not([class*="tabular-nums"]) { font-size: 14px; }
 }
 
-/* iPad Pro 12.9" portrait / iPad landscape — scaled up from 834px reference */
-@media (min-width: 1024px) and (max-width: 1279px) {
-  .hero-left {
-    width: 100% !important;    /* override Tailwind lg:w-[65%] */
-    justify-content: flex-start;
-    padding-top: calc(6rem + 10px);
-  }
-  .hero-h1 { font-size: 75px; width: auto !important; }
+/* ── iPad Portrait 1024-1279px (Pro 12.9") ── */
+@media (min-width: 1024px) and (max-width: 1279px) and (orientation: portrait) {
+  .hero-left { width: 100% !important; justify-content: flex-start; padding-top: calc(6rem + 10px); padding-left: 2.5rem; }
+  .hero-h1 { font-size: 75px !important; width: auto !important; }
   .hero-left p { font-size: 30px; line-height: 1.5; max-width: 52rem; }
   .hero-left > div:last-child { width: 55%; display: flex; gap: 0.75rem; margin-top: 10px; }
   .hero-left > div:last-child > * { flex: 1 !important; min-width: 0; }
   .hero-left > div:last-child button,
   .hero-left > div:last-child a { width: 100% !important; height: 80px !important; font-size: 26px !important; }
-  /* Image below text block, centered horizontally */
-  .hero-image { top: 47%; bottom: 0; left: 0; right: 0; transform: scale(1.29); transform-origin: center; }
-  .hero-image img { object-position: center; }
+  .hero-image { position: absolute !important; top: 540px !important; bottom: 0 !important; left: 0 !important; right: 0 !important; transform: none !important; }
+  .hero-image img { object-fit: contain !important; object-position: center bottom; }
   .trust-bar > div { padding-top: 2rem; padding-bottom: 2rem; }
   .trust-bar [class*="tabular-nums"] { font-size: 42px; }
   .trust-bar .fill-yellow-400 { width: 28px; height: 28px; }
   .trust-bar span:not([class*="tabular-nums"]) { font-size: 17px; }
+}
+
+/* ── iPad Landscape 768-1279px — side-by-side, font/button sizing only ── */
+@media (min-width: 768px) and (max-width: 1279px) and (orientation: landscape) {
+  .hero-left { justify-content: center; padding-top: 2rem; padding-left: 2rem; }
+  .hero-h1 { font-size: 38px !important; width: auto !important; }
+  .hero-left p { font-size: 17px; line-height: 1.5; }
+  .hero-left > div:last-child { width: 90%; display: flex; gap: 0.5rem; margin-top: 8px; }
+  .hero-left > div:last-child > * { flex: 1 !important; min-width: 0; }
+  .hero-left > div:last-child button,
+  .hero-left > div:last-child a { width: 100% !important; height: 50px !important; font-size: 17px !important; }
+  .hero-image img { object-fit: contain !important; object-position: bottom; }
+  .trust-bar > div { padding-top: 1rem; padding-bottom: 1rem; }
+  .trust-bar [class*="tabular-nums"] { font-size: 26px; }
+  .trust-bar .fill-yellow-400 { width: 18px; height: 18px; }
+  .trust-bar span:not([class*="tabular-nums"]) { font-size: 12px; }
 }
 
 @layer base {

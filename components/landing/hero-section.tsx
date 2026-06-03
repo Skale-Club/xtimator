@@ -41,7 +41,7 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
         <div
           className={
             hasImage
-              ? 'flex flex-1 min-h-0 flex-col gap-2 pt-8 sm:flex-row sm:items-stretch sm:gap-6 sm:pt-0'
+              ? 'flex flex-1 min-h-0 flex-col gap-2 pt-24 sm:flex-row sm:items-stretch sm:gap-6 sm:pt-0'
               : 'flex flex-col items-center justify-center gap-6 py-16 text-center'
           }
         >
@@ -56,7 +56,7 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
             }}
             className={
               hasImage
-                ? 'hero-left relative z-10 flex min-w-0 flex-col justify-center space-y-4 sm:w-[55%] sm:shrink-0 sm:py-10 lg:w-[65%]'
+                ? 'hero-left relative z-10 flex min-w-0 flex-col justify-center space-y-4 sm:w-[55%] sm:shrink-0 sm:py-10 lg:w-[55%]'
                 : 'max-w-3xl space-y-4'
             }
           >
@@ -87,7 +87,16 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
                   : 'mx-auto max-w-2xl text-sm leading-[1.5] text-muted-foreground sm:text-base'
               }
             >
-              {content.heroSubheadline}
+              {(() => {
+                const breakAt = 'and branded'
+                const idx = content.heroSubheadline.indexOf(breakAt)
+                if (idx === -1) return content.heroSubheadline
+                return <>
+                  {content.heroSubheadline.slice(0, idx)}
+                  <br />
+                  {content.heroSubheadline.slice(idx)}
+                </>
+              })()}
             </motion.p>
 
             <motion.div
