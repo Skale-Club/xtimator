@@ -42,6 +42,7 @@ vi.mock('@/lib/whatsapp/buffer', () => ({
 
 import { processInboundWithDebounce } from '@/lib/whatsapp/handler'
 import { sendWhatsAppMessage } from '@/lib/whatsapp/client'
+import { pushToBuffer, tryClaimBuffer } from '@/lib/whatsapp/buffer'
 import { getEntitlements } from '@/lib/entitlements'
 import type { WhatsAppMessage } from '@/lib/whatsapp/types'
 
@@ -168,14 +169,18 @@ describe('handler intent routing (Task 3)', () => {
     expect(event.name).toBe('whatsapp/intent.requested')
   })
 
-  it('Test 3: no session → still dispatches EVENT_WHATSAPP_PROCESS (create path unchanged)', async () => {
+  it('Test 3: no session (Redis-unavailable) → dispatches EVENT_WHATSAPP_INTENT with session=null', async () => {
+    // Standalone questions like "qual o último estimate do cliente X" must reach
+    // the QUERY path even with no active session — a single no-session message now
+    // goes through the intent classifier instead of straight to CREATE.
     const { client } = makeSupabaseMock({ existingSession: null, projectId: 'proj-new' })
 
     await processInboundWithDebounce(TEXT, 'company-1', '15551234567', client)
 
     expect(mockInngestSend).toHaveBeenCalledTimes(1)
-    const event = mockInngestSend.mock.calls[0][0] as { name: string }
-    expect(event.name).toBe('whatsapp/process.requested')
+    const event = mockInngestSend.mock.calls[0][0] as { name: string; data: { session: unknown } }
+    expect(event.name).toBe('whatsapp/intent.requested')
+    expect(event.data.session).toBeNull()
   })
 
   it('Test 4: markMessageAsRead + sendTypingIndicator fire before any dispatch', async () => {
@@ -210,5 +215,33 @@ describe('handler intent routing (Task 3)', () => {
     }
     expect(event.data.batchKey).toBe('wa-intent-wamid.audio')
     expect(event.id).toBe('wa-intent-wamid.audio')
+  })
+
+  it('Test 5: no session + debounced single-message batch → EVENT_WHATSAPP_INTENT (session=null)', async () => {
+    vi.mocked(pushToBuffer).mockResolvedValueOnce(true)
+    vi.mocked(tryClaimBuffer).mockResolvedValueOnce([{ message: TEXT }] as never)
+    const { client } = makeSupabaseMock({ existingSession: null })
+
+    await processInboundWithDebounce(TEXT, 'company-1', '15551234567', client)
+
+    expect(mockInngestSend).toHaveBeenCalledTimes(1)
+    const event = mockInngestSend.mock.calls[0][0] as { name: string; data: { session: unknown } }
+    expect(event.name).toBe('whatsapp/intent.requested')
+    expect(event.data.session).toBeNull()
+  })
+
+  it('Test 6: no session + debounced multi-message batch → EVENT_WHATSAPP_PROCESS (batch CREATE preserved)', async () => {
+    vi.mocked(pushToBuffer).mockResolvedValueOnce(true)
+    vi.mocked(tryClaimBuffer).mockResolvedValueOnce([
+      { message: AUDIO },
+      { message: TEXT },
+    ] as never)
+    const { client } = makeSupabaseMock({ existingSession: null, projectId: 'proj-batch' })
+
+    await processInboundWithDebounce(AUDIO, 'company-1', '15551234567', client)
+
+    expect(mockInngestSend).toHaveBeenCalledTimes(1)
+    const event = mockInngestSend.mock.calls[0][0] as { name: string }
+    expect(event.name).toBe('whatsapp/process.requested')
   })
 })

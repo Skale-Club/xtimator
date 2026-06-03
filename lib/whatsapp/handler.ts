@@ -123,8 +123,11 @@ export async function processInboundWithDebounce(
   // No session → debounce path
   const pushed = await pushToBuffer(fromPhone, message)
   if (!pushed) {
-    // Redis unavailable — fall back to immediate single-message processing
-    return processInboundMessages([message], companyId, fromPhone, supabase)
+    // Redis unavailable — classify this single message via the intent router
+    // (CREATE vs QUERY vs ...). Quick task 260603-lrf: standalone questions like
+    // "qual o último estimate do cliente X" must reach the QUERY path even with
+    // no active session, instead of always creating an estimate.
+    return dispatchIntentRouter(message, null, companyId, ownerPhone, fromPhone)
   }
 
   // Wait for the debounce window. If a newer message arrives during the wait,
@@ -137,6 +140,13 @@ export async function processInboundWithDebounce(
   const batch = await tryClaimBuffer(fromPhone, message.id)
   if (!batch) return  // Someone newer is processing
 
+  // A single message with no session → run the AI intent classifier so standalone
+  // QUERY ("qual o último estimate do cliente X") is answered instead of creating
+  // an estimate. A multi-message burst is a job description split across messages
+  // → go straight to the batch CREATE path (preserves debounce-collapse behavior).
+  if (batch.length === 1) {
+    return dispatchIntentRouter(batch[0].message, null, companyId, ownerPhone, fromPhone)
+  }
   await processInboundMessages(
     batch.map((b) => b.message),
     companyId,
@@ -238,7 +248,7 @@ export async function processInboundMessage(
 // -------------------------------------------------------------------------
 async function dispatchIntentRouter(
   message: WhatsAppMessage,
-  session: { id: string; state: string; draft_project_id: string | null; draft_estimate_id: string | null },
+  session: { id: string; state: string; draft_project_id: string | null; draft_estimate_id: string | null } | null,
   companyId: string,
   ownerPhone: string,
   fromPhone: string,
