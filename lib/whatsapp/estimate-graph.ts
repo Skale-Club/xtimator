@@ -58,19 +58,22 @@ type EstimateStateType = typeof EstimateState.State
 // Node: supervisor
 // ---------------------------------------------------------------------------
 
-function supervisorNode(state: EstimateStateType): Send[] {
+// No-op node. The dynamic fan-out to processMessage happens in supervisorEdge
+// via Send — a LangGraph NODE must return a state update (object) or Command[],
+// NEVER a raw Send[] (that throws InvalidUpdateError). The Send[] belongs on the
+// conditional edge below.
+function supervisorNode(_state: EstimateStateType): Partial<EstimateStateType> {
+  return {}
+}
+
+// Conditional edge for supervisor — map-reduce fan-out. Returns one Send per
+// message (each runs processMessage in parallel) or END when there are none.
+function supervisorEdge(state: EstimateStateType): Send[] | typeof END {
   const msgs = state.messages ?? []
-  if (msgs.length === 0) return []
+  if (msgs.length === 0) return END
   return msgs.map(
     (msg) => new Send('processMessage', { ...state, currentMessage: msg })
   )
-}
-
-// Edge function for supervisor — returns node name string or END symbol
-function supervisorEdge(state: EstimateStateType): string | typeof END {
-  const msgs = state.messages ?? []
-  if (msgs.length === 0) return END
-  return 'processMessage'
 }
 
 // ---------------------------------------------------------------------------
