@@ -13,7 +13,9 @@ import { sendTypingIndicator } from '@/lib/whatsapp/client'
 import type { WhatsAppMessage } from '@/lib/whatsapp/types'
 import {
   EVENT_WHATSAPP_PROCESS,
+  EVENT_WHATSAPP_INTENT,
   type WhatsAppProcessPayload,
+  type WhatsAppIntentPayload,
 } from '@/lib/inngest/events'
 
 export const whatsAppProcessJob = inngest.createFunction(
@@ -54,6 +56,50 @@ export const whatsAppProcessJob = inngest.createFunction(
         estimateLanguage: undefined,
         isVague: undefined,
       })
+    })
+  }
+)
+
+/**
+ * Quick task 260603-lrf — whatsAppIntentRouterJob.
+ *
+ * Runs the intent-router graph for session-state inbound (dispatched by
+ * handler.ts as EVENT_WHATSAPP_INTENT for awaiting_confirm). Heavy work
+ * (normalization: audio download + Whisper, the classifier LLM call) runs OFF
+ * the Meta webhook ack path. Idempotent via event.data.batchKey (wa-intent-{id}).
+ *
+ * whatsAppProcessJob (the CREATE path above) is intentionally untouched.
+ */
+export const whatsAppIntentRouterJob = inngest.createFunction(
+  {
+    id: 'whatsapp-intent',
+    idempotency: 'event.data.batchKey',
+    retries: 1,
+    triggers: [{ event: EVENT_WHATSAPP_INTENT }],
+  },
+  async ({ event, step }) => {
+    const data = event.data as Omit<WhatsAppIntentPayload, 'message'> & {
+      message: WhatsAppMessage
+    }
+    const { companyId, ownerPhone, fromPhone, message, session } = data
+
+    // Refresh typing indicator before the (slower) classify work — best-effort.
+    await step.run('refresh-typing', async () => {
+      if (message?.id) await sendTypingIndicator(message.id).catch(() => undefined)
+    })
+
+    return await step.run('route-intent', async () => {
+      const { classifyAndRoute } = await import('@/lib/whatsapp/intent-router')
+      const { requireServiceClient } = await import('@/lib/supabase/service')
+      await classifyAndRoute({
+        companyId,
+        ownerPhone,
+        fromPhone,
+        message,
+        session,
+        supabase: requireServiceClient(),
+      })
+      return { routed: true }
     })
   }
 )
