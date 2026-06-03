@@ -144,9 +144,8 @@ describe('processInboundMessage (handler.ts — dispatch-only after Plan 67-04)'
     })
   })
 
-  describe('awaiting_confirm session gate', () => {
-    it('delegates text reply to processConfirmationReply and does not dispatch', async () => {
-      mockConfirm.mockResolvedValue(undefined)
+  describe('awaiting_confirm session gate (Quick task 260603-lrf: routed via intent classifier)', () => {
+    it('dispatches a text reply to EVENT_WHATSAPP_INTENT (classifier decides, not a regex)', async () => {
       const { client } = makeSupabaseMock({
         existingSession: {
           id: 'session-1',
@@ -158,11 +157,14 @@ describe('processInboundMessage (handler.ts — dispatch-only after Plan 67-04)'
 
       await processInboundMessage(TEXT_MESSAGE, 'company-1', '15551234567', client)
 
-      expect(mockConfirm).toHaveBeenCalledOnce()
-      expect(mockInngestSend).not.toHaveBeenCalled()
+      expect(mockInngestSend).toHaveBeenCalledOnce()
+      const event = mockInngestSend.mock.calls[0][0] as { name: string }
+      expect(event.name).toBe('whatsapp/intent.requested')
+      // No inline confirmation reply — the router owns that now.
+      expect(mockConfirm).not.toHaveBeenCalled()
     })
 
-    it('sends reminder for non-text messages during awaiting_confirm', async () => {
+    it('dispatches non-text (audio) to EVENT_WHATSAPP_INTENT instead of the old canned reminder', async () => {
       const { client } = makeSupabaseMock({
         existingSession: {
           id: 'session-1',
@@ -174,8 +176,15 @@ describe('processInboundMessage (handler.ts — dispatch-only after Plan 67-04)'
 
       await processInboundMessage(AUDIO_MESSAGE, 'company-1', '15551234567', client)
 
-      expect(mockSend).toHaveBeenCalledOnce()
-      expect(mockInngestSend).not.toHaveBeenCalled()
+      expect(mockInngestSend).toHaveBeenCalledOnce()
+      const event = mockInngestSend.mock.calls[0][0] as {
+        name: string
+        data: { message: { type: string } }
+      }
+      expect(event.name).toBe('whatsapp/intent.requested')
+      expect(event.data.message.type).toBe('audio')
+      // No canned "reply send or cancel" reminder
+      expect(mockSend).not.toHaveBeenCalled()
     })
   })
 

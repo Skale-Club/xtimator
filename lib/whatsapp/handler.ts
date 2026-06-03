@@ -8,18 +8,27 @@
  *           the whatsAppProcessJob Inngest function so the Meta webhook ack
  *           returns in <1s regardless of inbound media size.
  *
+ * Quick task 260603-lrf: the awaiting_confirm branch no longer rejects
+ *           non-text media with a canned "reply send or cancel". It now
+ *           dispatches EVENT_WHATSAPP_INTENT (single message + session snapshot)
+ *           so the intent-router graph — running in Inngest, off the webhook ack
+ *           path — normalizes the message (audio→transcript, photo→analysis,
+ *           text→as-is) and classifies it into CONFIRM_OR_CANCEL / EDIT / CREATE
+ *           / QUERY. This mirrors how the no-session path dispatches
+ *           EVENT_WHATSAPP_PROCESS. The awaiting_details debounce path is left
+ *           exactly as-is (multi-message continuation must be preserved); only
+ *           awaiting_confirm is rerouted through the classifier.
+ *
  * Processes inbound WhatsApp messages from business owners.
  * After dispatch, the worker handles audio/text/image ingestion + estimate
  * generation + confirmation reply.
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
 import {
-  sendWhatsAppMessage,
+  sendWhatsAppMessage, // still used by processInboundMessages (entitlement rejection)
   markMessageAsRead,
   sendTypingIndicator,
 } from '@/lib/whatsapp/client'
-import { processConfirmationReply } from '@/lib/whatsapp/confirm'
-import { logOutboundMessage } from '@/lib/whatsapp/conversations'
 import { getEntitlements } from '@/lib/entitlements'
 import { PLACEHOLDER_PREFIX } from '@/lib/constants/project'
 import type { WhatsAppMessage } from '@/lib/whatsapp/types'
@@ -60,13 +69,16 @@ export async function processInboundWithDebounce(
     .single()
 
   if (existingSession?.state === 'awaiting_confirm') {
-    // Session exists → no debounce, process this single message immediately
-    return processSingleMessageWithSession(
+    // Quick task 260603-lrf: dispatch the single message + session snapshot to
+    // the intent router (Inngest) instead of the old canned reminder. The router
+    // normalizes audio/photo→text and classifies CONFIRM_OR_CANCEL/EDIT/CREATE/
+    // QUERY. Read receipt + typing already fired above, before this dispatch.
+    return dispatchIntentRouter(
       message,
       existingSession as { id: string; state: string; draft_project_id: string | null; draft_estimate_id: string | null },
       companyId,
       ownerPhone,
-      supabase
+      fromPhone,
     )
   }
 
@@ -163,12 +175,14 @@ export async function processInboundMessage(
     .single()
 
   if (existingSession?.state === 'awaiting_confirm') {
-    return processSingleMessageWithSession(
+    // Quick task 260603-lrf: route through the intent classifier (see twin in
+    // processInboundWithDebounce). No more canned send/cancel reminder.
+    return dispatchIntentRouter(
       message,
       existingSession as { id: string; state: string; draft_project_id: string | null; draft_estimate_id: string | null },
       companyId,
       ownerPhone,
-      supabase
+      fromPhone,
     )
   }
 
@@ -211,31 +225,39 @@ export async function processInboundMessage(
 }
 
 // -------------------------------------------------------------------------
-// Single-message handler for the awaiting_confirm path.
+// awaiting_confirm dispatch — Quick task 260603-lrf.
+//
+// Sends a single message + session snapshot to the intent-router Inngest job
+// (whatsAppIntentRouterJob) via EVENT_WHATSAPP_INTENT. The heavy work
+// (normalization + classifier LLM) runs off the Meta webhook ack path. Mirrors
+// processInboundMessages' dynamic-import dispatch pattern. Idempotent via the
+// wamid batchKey (`wa-intent-{messageId}`).
+//
+// ownerPhone carries the leading '+'; fromPhone does NOT (the shape
+// processInboundMessages expects for the CREATE branch inside the router).
 // -------------------------------------------------------------------------
-async function processSingleMessageWithSession(
+async function dispatchIntentRouter(
   message: WhatsAppMessage,
   session: { id: string; state: string; draft_project_id: string | null; draft_estimate_id: string | null },
   companyId: string,
   ownerPhone: string,
-  supabase: SupabaseClient
+  fromPhone: string,
 ): Promise<void> {
-  if (message.type === 'text' && message.text?.body) {
-    await processConfirmationReply(message.text.body, session, companyId, ownerPhone, supabase)
-  } else {
-    const body = 'Reply *send* to deliver your estimate or *cancel* to discard it.'
-    await sendWhatsAppMessage(ownerPhone, {
-      type: 'text',
-      text: { body },
-    })
-    logOutboundMessage(supabase, {
+  const batchKey = `wa-intent-${message.id}`
+  const { inngest } = await import('@/lib/inngest/client')
+  const { EVENT_WHATSAPP_INTENT } = await import('@/lib/inngest/events')
+  await inngest.send({
+    name: EVENT_WHATSAPP_INTENT,
+    id: batchKey,
+    data: {
       companyId,
-      contactPhone: ownerPhone,
-      body,
-      msgType: 'text',
-      status: 'sent',
-    }).catch(() => undefined)
-  }
+      ownerPhone,
+      fromPhone,
+      message,
+      session,
+      batchKey,
+    },
+  })
 }
 
 // -------------------------------------------------------------------------
