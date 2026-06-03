@@ -5,7 +5,7 @@
 
 import { getWhatsAppPlatformConfig } from '@/lib/platform-config'
 
-const GRAPH_BASE = 'https://graph.facebook.com/v21.0'
+const GRAPH_BASE = `https://graph.facebook.com/${process.env.META_WHATSAPP_API_VERSION ?? 'v21.0'}`
 
 /**
  * Send a WhatsApp message to a recipient phone number (E.164).
