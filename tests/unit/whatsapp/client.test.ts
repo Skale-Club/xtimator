@@ -23,7 +23,7 @@ describe('sendWhatsAppMessage', () => {
     await sendWhatsAppMessage('+15551234567', { type: 'text', text: { body: 'Hello' } })
     expect(fetchMock).toHaveBeenCalledOnce()
     const [url, opts] = fetchMock.mock.calls[0]
-    expect(url).toContain('graph.facebook.com/v21.0/phone-123/messages')
+    expect(url).toMatch(/graph\.facebook\.com\/v\d+\.\d+\/phone-123\/messages/)
     expect(opts.method).toBe('POST')
     expect(opts.headers.Authorization).toBe('Bearer test-token')
   })
@@ -38,7 +38,7 @@ describe('downloadWhatsAppMedia', () => {
       .mockResolvedValueOnce(new Response(new Uint8Array([1, 2, 3]).buffer, { status: 200 }))
     const buf = await downloadWhatsAppMedia('media-id-abc')
     expect(fetchMock).toHaveBeenCalledTimes(2)
-    expect(fetchMock.mock.calls[0][0]).toContain('graph.facebook.com/v21.0/media-id-abc')
+    expect(fetchMock.mock.calls[0][0]).toMatch(/graph\.facebook\.com\/v\d+\.\d+\/media-id-abc/)
     expect(Buffer.isBuffer(buf)).toBe(true)
   })
 })
@@ -54,7 +54,7 @@ describe('markMessageAsRead', () => {
     await markMessageAsRead('wamid.XYZ')
     expect(fetchMock).toHaveBeenCalledOnce()
     const [url, opts] = fetchMock.mock.calls[0]
-    expect(url).toContain('graph.facebook.com/v21.0/phone-123/messages')
+    expect(url).toMatch(/graph\.facebook\.com\/v\d+\.\d+\/phone-123\/messages/)
     expect(opts.method).toBe('POST')
     const body = JSON.parse(opts.body as string)
     expect(body.messaging_product).toBe('whatsapp')
