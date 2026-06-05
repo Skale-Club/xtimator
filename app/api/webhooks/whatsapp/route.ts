@@ -3,6 +3,7 @@ import { after } from 'next/server'
 import { verifyWebhookSignature } from '@/lib/whatsapp/verify'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { processInboundWithDebounce } from '@/lib/whatsapp/handler'
+import { sendWhatsAppMessage } from '@/lib/whatsapp/client'
 import { logInboundMessage, type WaMsgType } from '@/lib/whatsapp/conversations'
 import type { WhatsAppMessage, WhatsAppPayload } from '@/lib/whatsapp/types'
 import { rateLimit } from '@/lib/ratelimit'
@@ -179,9 +180,16 @@ async function handleInboundMessage(payload: WhatsAppPayload): Promise<void> {
     }
 
     if (!resolvedCompanyId) {
-      // Unknown sender — silent ignore per WA-06
       console.warn('[WhatsApp] unknown inbound sender; no company resolved', {
         fromLast4: fromPhone.slice(-4),
+      })
+      await sendWhatsAppMessage(`+${fromPhone}`, {
+        type: 'text',
+        text: {
+          body: "I couldn't find an Xtimator account for this phone number. Add this number to your company phone in Xtimator settings, then try again.",
+        },
+      }).catch((sendErr) => {
+        console.error('[WhatsApp] unknown sender reply failed:', sendErr)
       })
       return
     }

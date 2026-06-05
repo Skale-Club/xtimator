@@ -26,7 +26,7 @@ export async function syncOwnerPhone(
   await serviceClient
     .from('company_whatsapp')
     .upsert(
-      { company_id: companyId, owner_phone: ownerPhone },
+      { company_id: companyId, owner_phone: ownerPhone, status: 'active' },
       { onConflict: 'company_id' }
     )
 }
