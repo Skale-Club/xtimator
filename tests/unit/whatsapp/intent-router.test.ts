@@ -228,6 +228,28 @@ describe('classifyAndRoute', () => {
 
     expect(mockProcessInboundMessages).toHaveBeenCalledTimes(1)
   })
+
+  it('classifier failure defaults to CREATE so inbound messages still get processed', async () => {
+    mockNormalize.mockResolvedValue({
+      text: 'replace the bathroom vanity',
+      kind: 'text',
+      ok: true,
+    })
+    mockInvoke.mockRejectedValue(new Error('OpenAI key missing'))
+
+    await classifyAndRoute({
+      companyId: 'company-1',
+      ownerPhone: '+15551112222',
+      fromPhone: '15551112222',
+      message: TEXT('replace the bathroom vanity'),
+      session: null,
+      supabase: makeSupabase(),
+    })
+
+    expect(mockProcessInboundMessages).toHaveBeenCalledTimes(1)
+    expect(mockProcessInboundMessages.mock.calls[0][1]).toBe('company-1')
+    expect(mockProcessInboundMessages.mock.calls[0][2]).toBe('15551112222')
+  })
 })
 
 describe('Task 2: Inngest job + event registration', () => {

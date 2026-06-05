@@ -213,8 +213,15 @@ export async function classifyAndRoute(input: RouteInput): Promise<void> {
   // 2. History for classifier context.
   const history = await loadConversationHistory(supabase, companyId, ownerPhone)
 
-  // 3. Classify.
-  const intent = await classify(normalized.text, session, history)
+  // 3. Classify. If the classifier is unavailable/misconfigured, keep the
+  // primary estimating flow alive by falling back to the safe CREATE path.
+  let intent: Intent
+  try {
+    intent = await classify(normalized.text, session, history)
+  } catch (err) {
+    console.error('[WhatsApp] intent classification failed; defaulting to CREATE', err)
+    intent = 'CREATE'
+  }
 
   // 4. Dispatch to the existing flow.
   switch (intent) {
