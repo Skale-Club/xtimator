@@ -43,14 +43,14 @@ export function LandingPage({ content, branding }: LandingPageProps) {
   return (
     <div
       data-testid="landing-shell"
-      className="dark isolate h-[100dvh] overflow-y-scroll overflow-x-hidden snap-y snap-mandatory scroll-smooth overscroll-none bg-background text-foreground selection:bg-primary/30 [&::-webkit-scrollbar]:hidden"
+      className="dark isolate h-[100dvh] overflow-y-scroll overflow-x-hidden scroll-smooth overscroll-none bg-background text-foreground selection:bg-primary/30 [&::-webkit-scrollbar]:hidden"
       style={{ scrollbarWidth: 'none' }}
     >
       <div className="fixed inset-0 -z-10 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,hsl(var(--primary)/0.15),hsl(var(--foreground)/0))]" />
       <TopNav branding={branding} onOpenAuth={openAuth} />
 
       {/* Snap page 1: hero + trust bar */}
-      <div className="h-[100dvh] pt-16 flex flex-col snap-start overflow-hidden">
+      <div className="h-[100dvh] pt-16 flex flex-col overflow-hidden">
         <HeroSection
           content={{
             heroHeadline: content.heroHeadline,
@@ -64,17 +64,17 @@ export function LandingPage({ content, branding }: LandingPageProps) {
       </div>
 
       {/* Snap page 2: how it works */}
-      <div className="h-[100dvh] snap-start flex flex-col overflow-hidden">
+      <div className="h-[100dvh] flex flex-col overflow-hidden">
         <HowItWorksSection steps={content.howItWorksSteps} />
       </div>
 
       {/* Snap page 3: features */}
-      <div className="h-[100dvh] pt-16 snap-start flex flex-col justify-center overflow-hidden">
+      <div className="h-[100dvh] pt-16 flex flex-col justify-center overflow-hidden">
         <FeaturesSection features={content.features} />
       </div>
 
       {/* Snap page 4: final CTA + footer */}
-      <div className="relative h-[100dvh] pt-16 pb-3 snap-start flex flex-col overflow-hidden sm:pb-0">
+      <div className="relative h-[100dvh] pt-16 pb-3 flex flex-col overflow-hidden sm:pb-0">
         <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 gradient-hero" />
         <div className="flex-1 flex items-center">
           <FinalCtaSection onOpenAuth={openAuth} />

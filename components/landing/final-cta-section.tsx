@@ -45,7 +45,7 @@ export function FinalCtaSection({ onOpenAuth }: FinalCtaSectionProps) {
               asChild
               size="lg"
               variant="outline"
-              className="cta-glow relative overflow-hidden h-10 text-sm font-semibold sm:h-14 sm:text-lg border-white/10 bg-white/5 transition-all hover:bg-white/10 hover:-translate-y-[0.5px] active:translate-y-0 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:min-w-40 before:content-[''] before:absolute before:inset-0 before:-translate-x-full before:bg-gradient-to-r before:from-transparent before:via-white/10 before:to-transparent before:transition-transform before:duration-[var(--shimmer-duration)] hover:before:translate-x-full motion-reduce:before:hidden"
+              className="cta-glow h-10 text-sm font-semibold sm:h-14 sm:text-lg border-white/10 bg-white/5 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:min-w-40"
             >
               <Link href="/demo">See Demo</Link>
             </Button>
