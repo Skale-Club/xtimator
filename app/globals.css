@@ -538,13 +538,19 @@
 }
 
 /* Primary button on touch devices — always show hover state + looping shimmer */
-@media (hover: none) {
+/* pointer: coarse = touch screen; hover: none = no cursor — either catches mobile/tablet */
+@media (hover: none), (pointer: coarse) {
   [data-slot="button"][data-variant="primary"] {
     box-shadow: var(--glow-brand);
     transform: translateY(-0.5px);
   }
   [data-slot="button"][data-variant="primary"]::before {
+    /* Tailwind v4 uses the CSS `translate` property for -translate-x-full.
+       Reset it here so the animation's transform keyframes fully own the position. */
+    translate: 0 !important;
     animation: button-shimmer-sweep 2.4s linear infinite !important;
+    transition: none !important;
+    display: block !important;
   }
   [data-slot="button"][data-variant="primary"]:active {
     opacity: 0.88;
