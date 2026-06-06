@@ -13,11 +13,17 @@ name: Build and Deploy
 # Required GitHub Actions Variables (Settings → Secrets and variables → Variables):
 #   NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY,
 #   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, NEXT_PUBLIC_TURNSTILE_SITE_KEY
+#   NEXT_PUBLIC_SENTRY_DSN   (public DSN — safe as a variable, gets inlined into the bundle)
+#   SENTRY_ORG               Sentry organization slug
+#   SENTRY_PROJECT           Sentry project name (xtimator)
 #   (NEXT_PUBLIC_SITE_URL is hardcoded below — never a Variable, to avoid \n bugs)
 #
-# Required GitHub secret:
-#   COOLIFY_TOKEN   Coolify API token (coolify.skale.club → Profile → API Tokens).
-#                   One token, set once per repo. Skipped gracefully if absent.
+# Required GitHub secrets (Settings → Secrets and variables → Secrets):
+#   COOLIFY_TOKEN      Coolify API token (coolify.skale.club → Profile → API Tokens).
+#                      One token, set once per repo. Skipped gracefully if absent.
+#   SENTRY_AUTH_TOKEN  Sentry auth token for source map upload (build-time only).
+#                      Get from: sentry.io → Settings → Auth Tokens → project:releases scope.
+#                      Passed as a Docker build secret — never baked into the image.
 # GHCR push uses the built-in GITHUB_TOKEN — no extra registry secret needed.
 
 on:
@@ -78,6 +84,13 @@ jobs:
             NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${{ vars.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
             NEXT_PUBLIC_SITE_URL=${{ env.SITE_URL }}
             NEXT_PUBLIC_TURNSTILE_SITE_KEY=${{ vars.NEXT_PUBLIC_TURNSTILE_SITE_KEY }}
+            NEXT_PUBLIC_SENTRY_DSN=${{ vars.NEXT_PUBLIC_SENTRY_DSN }}
+            SENTRY_ORG=${{ vars.SENTRY_ORG }}
+            SENTRY_PROJECT=${{ vars.SENTRY_PROJECT }}
+          # SENTRY_AUTH_TOKEN is passed as a Docker build secret — never baked
+          # into any image layer. Absent token silently skips source map upload.
+          secrets: |
+            sentry_auth_token=${{ secrets.SENTRY_AUTH_TOKEN }}
 
       - name: Trigger Coolify deploy (pull prebuilt image)
         env:

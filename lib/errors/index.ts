@@ -7,6 +7,7 @@
  *
  *   try { ... } catch (err) { return asResponse(err) }
  */
+import * as Sentry from '@sentry/nextjs'
 import { NextResponse } from 'next/server'
 import { ZodError } from 'zod'
 import {
@@ -17,6 +18,10 @@ import {
   userMessageByCode,
   makeCode,
 } from './codes'
+
+// Only errors that require engineering action get sent to Sentry.
+// 4xx user errors, rate limits, and auth failures are intentional — not bugs.
+const SENTRY_CAPTURE_TYPES = new Set<ErrorType>(['internal', 'offline'])
 
 export { ErrorType, Surface }
 
@@ -80,6 +85,16 @@ export function asResponse(err: unknown): NextResponse {
     // Always log structured errors for observability
     console.error(`[${err.code}]`, err.message, err.meta ?? '', err.cause ?? '')
 
+    if (SENTRY_CAPTURE_TYPES.has(err.type)) {
+      Sentry.withScope((scope) => {
+        scope.setTag('error.code', err.code)
+        scope.setTag('error.surface', err.surface)
+        scope.setTag('error.type', err.type)
+        if (err.meta) scope.setContext('error.meta', err.meta as Record<string, unknown>)
+        Sentry.captureException(err.cause ?? err)
+      })
+    }
+
     const body = err.logOnly
       ? { error: defaultMessageByType.internal, code: err.code }
       : {
@@ -97,14 +112,16 @@ export function asResponse(err: unknown): NextResponse {
       message: issue.message,
     }))
     console.warn('[bad_request:validation]', fields)
+    Sentry.captureException(err)
     return NextResponse.json(
       { error: 'Invalid input.', code: 'bad_request:validation', meta: { fields } },
       { status: 400 }
     )
   }
 
-  // Unknown error — log full detail, return generic
+  // Unknown error — always capture: we can't tell if it's benign
   console.error('[internal:unknown]', err)
+  Sentry.captureException(err)
   return NextResponse.json(
     { error: defaultMessageByType.internal, code: 'internal:unknown' },
     { status: 500 }
