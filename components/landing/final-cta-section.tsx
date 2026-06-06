@@ -45,7 +45,7 @@ export function FinalCtaSection({ onOpenAuth }: FinalCtaSectionProps) {
               asChild
               size="lg"
               variant="outline"
-              className="h-9 text-sm px-2 font-semibold sm:h-14 sm:text-lg sm:px-6 border-white/10 bg-white/5 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:min-w-40"
+              className="h-9 text-sm px-1 font-semibold sm:h-14 sm:text-lg sm:px-6 border-white/10 bg-white/5 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:min-w-40"
             >
               <Link href="/demo">See Demo</Link>
             </Button>
