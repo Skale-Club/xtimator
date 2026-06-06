@@ -115,12 +115,13 @@ async function handleInboundMessage(payload: WhatsAppPayload): Promise<void> {
     // Rate limit per phone (anti-abuse before any DB work or AI cost)
     const hourly = await rateLimit('whatsappPerHour', fromPhone)
     if (!hourly.allowed) {
-      console.warn('[WhatsApp] rate limit hit (hour):', fromPhone, hourly)
+      // Log only the last 4 digits — never full PII in logs (repo convention).
+      console.warn('[WhatsApp] rate limit hit (hour):', fromPhone.slice(-4), hourly)
       return
     }
     const daily = await rateLimit('whatsappPerDay', fromPhone)
     if (!daily.allowed) {
-      console.warn('[WhatsApp] rate limit hit (day):', fromPhone, daily)
+      console.warn('[WhatsApp] rate limit hit (day):', fromPhone.slice(-4), daily)
       return
     }
 
