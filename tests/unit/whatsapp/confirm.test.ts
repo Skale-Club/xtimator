@@ -8,6 +8,83 @@ vi.mock('@/lib/whatsapp/pdf-delivery', () => ({
   generateAndUploadEstimatePDF: vi.fn(),
 }))
 
+// The real agent calls the OpenAI API — replace with the deterministic
+// confirm-actions layer so existing unit tests keep their coverage.
+vi.mock('@/lib/whatsapp/agent', () => ({
+  runConfirmationAgent: vi.fn(async (
+    text: string,
+    session: { id: string; draft_project_id: string | null; draft_estimate_id: string | null },
+    companyId: string,
+    ownerPhone: string,
+    supabase: import('@supabase/supabase-js').SupabaseClient,
+  ) => {
+    const { parseEditCommand, EDIT_HELP_MESSAGE } = await import('@/lib/whatsapp/edit-commands')
+    const {
+      actionSend, actionCancel, actionUpdateField, actionSetClient, actionRegenerate,
+      actionGetEstimateContext, formatEstimateContext,
+    } = await import('@/lib/whatsapp/confirm-actions')
+    const { sendWhatsAppMessage } = await import('@/lib/whatsapp/client')
+    const { logOutboundMessage } = await import('@/lib/whatsapp/conversations')
+
+    const cmd = parseEditCommand(text)
+
+    const reply = async (body: string) => {
+      await sendWhatsAppMessage(ownerPhone, { type: 'text', text: { body } })
+      logOutboundMessage(supabase, { companyId, contactPhone: ownerPhone, body, msgType: 'text', status: 'sent' }).catch(() => undefined)
+    }
+
+    const resend = async (prefix: string) => {
+      if (!session.draft_estimate_id) return
+      const ctx = await actionGetEstimateContext(supabase, session.draft_estimate_id)
+      await reply(`${prefix}\n\n${formatEstimateContext(ctx)}`)
+    }
+
+    switch (cmd.kind) {
+      case 'send': {
+        const result = await actionSend(session as never, companyId, supabase)
+        const ownerMsg = result.deliveredToClient
+          ? `✅ *Estimate sent!*\n\nYour client received the estimate via WhatsApp.\n\nShare link: ${result.shareUrl}`
+          : `✅ *Estimate ready!*\n\nShare link: ${result.shareUrl}\n\n_(No client phone on file — send the link manually)_`
+        await reply(ownerMsg)
+        break
+      }
+      case 'cancel': {
+        await actionCancel(session as never, supabase)
+        await reply("❌ Estimate discarded. Send a new audio, text, or photo when you're ready.")
+        break
+      }
+      case 'edit-total':
+        await actionUpdateField(session as never, supabase, { total: cmd.value })
+        await resend('✏️ *Updated*')
+        break
+      case 'edit-timeline':
+        await actionUpdateField(session as never, supabase, { timeline: cmd.value })
+        await resend('✏️ *Updated*')
+        break
+      case 'edit-payment':
+        await actionUpdateField(session as never, supabase, { payment_terms: cmd.value })
+        await resend('✏️ *Updated*')
+        break
+      case 'edit-summary':
+        await actionUpdateField(session as never, supabase, { summary: cmd.value })
+        await resend('✏️ *Updated*')
+        break
+      case 'set-client': {
+        await actionSetClient(session as never, companyId, supabase, cmd.name, cmd.phone)
+        await reply(`👤 Client set to *${cmd.name}* (${cmd.phone}).\n\nReply *send* to deliver, *cancel* to discard, or use *edit* commands to adjust the estimate.`)
+        break
+      }
+      case 'regenerate': {
+        const r = await actionRegenerate(session as never, companyId, supabase)
+        await reply(`🔄 *Regenerated*\n\n${formatEstimateContext(r.context)}`)
+        break
+      }
+      default:
+        await reply(EDIT_HELP_MESSAGE)
+    }
+  }),
+}))
+
 import { processConfirmationReply } from '@/lib/whatsapp/confirm'
 import { sendWhatsAppMessage } from '@/lib/whatsapp/client'
 import { generateAndUploadEstimatePDF } from '@/lib/whatsapp/pdf-delivery'
@@ -52,9 +129,15 @@ function makeSupabase({
   const deleteSpy = vi.fn().mockReturnValue({
     eq: vi.fn().mockResolvedValue({ error: null }),
   })
-  const updateSpy = vi.fn().mockReturnValue({
-    eq: vi.fn().mockResolvedValue({ error: null }),
-  })
+  // Chainable update builder: supports .eq().eq() and is directly awaitable
+  const makeUpdateChain = (): object => {
+    const chain: Record<string, unknown> = {}
+    chain['eq'] = vi.fn().mockReturnValue(chain)
+    chain['then'] = (res: (v: unknown) => unknown) => Promise.resolve({ error: null }).then(res)
+    chain['catch'] = (rej: (e: unknown) => unknown) => Promise.resolve({ error: null }).catch(rej)
+    return chain
+  }
+  const updateSpy = vi.fn().mockImplementation(makeUpdateChain)
 
   const fromMock = vi.fn().mockImplementation((table: string) => {
     if (table === 'estimates') {

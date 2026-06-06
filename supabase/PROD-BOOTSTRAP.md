@@ -17,7 +17,7 @@ Reads `.env.production` for `PROD_DB_URL` (currently same as dev `DATABASE_URL`)
 
 Pass criterion: all 4 checks return OK.
 - [1/4] RLS audit: zero FAIL rows
-- [2/4] Migration count: matches `supabase/migrations/` file count (currently 21)
+- [2/4] Migration count: matches `supabase/migrations/` file count
 - [3/4] Storage buckets: 5 expected buckets present (`audio`, `photos`, `pdfs`, `logos`, `platform-brand`)
 - [4/4] Super-admin bootstrap: `skale.club@gmail.com` present
 
@@ -62,7 +62,7 @@ SUPABASE_SERVICE_ROLE_KEY=<your-service-role-key>
 npx -y supabase db push --db-url "$PROD_DB_URL"
 ```
 
-Should apply all 21 migrations in order. If any fails, investigate (likely pg_cron not enabled).
+Should apply all migrations in order. If any fails, investigate (likely pg_cron not enabled).
 
 ### 5. Bootstrap super-admin (chicken-and-egg solution)
 

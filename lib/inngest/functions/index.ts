@@ -5,7 +5,7 @@
 export { generateEstimateJob } from './generate-estimate'
 export { transcribeAudioJob } from './transcribe-audio'
 export { analyzePhotosJob } from './analyze-photos'
-export { whatsAppProcessJob } from './whatsapp-process'
+export { whatsAppProcessJob, whatsAppIntentRouterJob } from './whatsapp-process'
 // Phase 77 plan 06 — notifications digest + cleanup crons.
 export { notificationEmailDigest } from './notification-email-digest'
 export { notificationCleanup } from './notification-cleanup'

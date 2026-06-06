@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Plug, ChevronRight, Sparkles, Mic } from 'lucide-react'
+import { Plug, ChevronRight, Sparkles, Mic, MessageCircle } from 'lucide-react'
 
 import { T } from '@/components/i18n/t'
 import {
@@ -10,13 +10,7 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { createServiceClient } from '@/lib/supabase/service'
-import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { getSelectedAIProvider } from '@/lib/platform-config'
-import {
-  WhatsAppConnectCard,
-  type WhatsAppStatus,
-} from '@/components/settings/whatsapp-connect-card'
 
 export const metadata = { title: 'Integrations | Settings' }
 
@@ -38,39 +32,10 @@ function SectionHeading({ children }: { children: React.ReactNode }) {
 }
 
 export default async function SettingsIntegrationsPage() {
-  // Active LLM provider is a non-secret display value; fetch in parallel with
-  // the company id so the read-only AI card can show what powers estimates.
-  const [companyId, aiProvider] = await Promise.all([
-    getActiveCompanyId(),
-    getSelectedAIProvider(),
-  ])
+  // Active LLM provider is a non-secret display value.
+  const aiProvider = await getSelectedAIProvider()
 
   const estimateModelLabel = AI_PROVIDER_LABELS[aiProvider] ?? AI_PROVIDER_LABELS.anthropic
-
-  // company_whatsapp is RLS deny-all → read via the service client, scoped to the
-  // validated active company (the same company the connect actions write to).
-  let initial: WhatsAppStatus = null
-  const svc = createServiceClient()
-  if (companyId && svc) {
-    const { data: row } = await svc
-      .from('company_whatsapp')
-      .select('phone_number, phone_number_id, waba_id, status, delivery_format')
-      .eq('company_id', companyId)
-      .maybeSingle()
-
-    if (row) {
-      initial = {
-        phoneNumber: row.phone_number as string,
-        phoneNumberId: row.phone_number_id as string,
-        wabaId: row.waba_id as string,
-        status: row.status as string,
-        deliveryFormat: row.delivery_format as
-          | 'share_link'
-          | 'formatted_text'
-          | 'pdf_attachment',
-      }
-    }
-  }
 
   return (
     <div className="space-y-8 p-6">
@@ -125,12 +90,30 @@ export default async function SettingsIntegrationsPage() {
         </Card>
       </section>
 
-      {/* Messaging channels — outbound delivery to clients. */}
+      {/* Messaging channels — platform-managed; no per-company setup required. */}
       <section className="space-y-3">
         <SectionHeading>
           <T>Messaging channels</T>
         </SectionHeading>
-        <WhatsAppConnectCard initial={initial} />
+        <Card className="bg-muted/30">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <MessageCircle className="h-5 w-5 text-primary" aria-hidden />
+              <CardTitle className="text-base">
+                <T>WhatsApp</T>
+              </CardTitle>
+              <Badge variant="secondary">
+                <T>Platform-managed</T>
+              </Badge>
+            </div>
+            <CardDescription>
+              <T>
+                WhatsApp delivery is managed by Xtimator. Send estimates directly
+                to clients via WhatsApp from the project Send tab — no setup required.
+              </T>
+            </CardDescription>
+          </CardHeader>
+        </Card>
       </section>
 
       {/* Assistants — use Xtimator from inside AI clients via MCP. */}

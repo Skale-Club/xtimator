@@ -28,6 +28,8 @@ export type Category = {
   showAISelector?: boolean
   /** SMS/Twilio category renders the from-phone field below the cards. */
   showFromPhone?: boolean
+  /** WhatsApp category renders the Phone Number ID + WABA ID fields below the cards. */
+  showWhatsAppConfig?: boolean
 }
 
 export const CATEGORIES: ReadonlyArray<Category> = [
@@ -63,6 +65,7 @@ export const CATEGORIES: ReadonlyArray<Category> = [
     slug: 'whatsapp',
     title: 'WhatsApp',
     description: 'Inbound message handling and estimate delivery via WhatsApp.',
+    showWhatsAppConfig: true,
     providers: [
       {
         id: 'meta_whatsapp' as IntegrationProvider,

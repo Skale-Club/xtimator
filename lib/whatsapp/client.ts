@@ -3,15 +3,17 @@
  * All calls are server-side only — never import from client components.
  */
 
-const GRAPH_BASE = 'https://graph.facebook.com/v21.0'
+import { getWhatsAppPlatformConfig } from '@/lib/platform-config'
+
+const GRAPH_BASE = `https://graph.facebook.com/${process.env.META_WHATSAPP_API_VERSION ?? 'v21.0'}`
 
 /**
  * Send a WhatsApp message to a recipient phone number (E.164).
  * body should be a partial Messages API object (type + content fields).
  */
 export async function sendWhatsAppMessage(to: string, body: object): Promise<void> {
-  const token = process.env.META_WHATSAPP_ACCESS_TOKEN
-  const phoneNumberId = process.env.META_WHATSAPP_PHONE_NUMBER_ID
+  const { accessToken: token, phoneNumberId } = await getWhatsAppPlatformConfig()
+  if (!token || !phoneNumberId) throw new Error('[WhatsApp] Missing platform config: access token or phone number ID not set')
   const res = await fetch(`${GRAPH_BASE}/${phoneNumberId}/messages`, {
     method: 'POST',
     headers: {
@@ -33,8 +35,7 @@ export async function sendWhatsAppMessage(to: string, body: object): Promise<voi
  * Meta docs: https://developers.facebook.com/docs/whatsapp/cloud-api/guides/mark-message-as-read
  */
 export async function markMessageAsRead(messageId: string): Promise<void> {
-  const token = process.env.META_WHATSAPP_ACCESS_TOKEN
-  const phoneNumberId = process.env.META_WHATSAPP_PHONE_NUMBER_ID
+  const { accessToken: token, phoneNumberId } = await getWhatsAppPlatformConfig()
   try {
     const res = await fetch(`${GRAPH_BASE}/${phoneNumberId}/messages`, {
       method: 'POST',
@@ -64,8 +65,7 @@ export async function markMessageAsRead(messageId: string): Promise<void> {
  * Fire-and-forget — failures swallowed.
  */
 export async function sendTypingIndicator(messageId: string): Promise<void> {
-  const token = process.env.META_WHATSAPP_ACCESS_TOKEN
-  const phoneNumberId = process.env.META_WHATSAPP_PHONE_NUMBER_ID
+  const { accessToken: token, phoneNumberId } = await getWhatsAppPlatformConfig()
   try {
     const res = await fetch(`${GRAPH_BASE}/${phoneNumberId}/messages`, {
       method: 'POST',
@@ -93,7 +93,8 @@ export async function sendTypingIndicator(messageId: string): Promise<void> {
  * Two-step: (1) resolve media URL via mediaId, (2) download binary.
  */
 export async function downloadWhatsAppMedia(mediaId: string): Promise<Buffer> {
-  const token = process.env.META_WHATSAPP_ACCESS_TOKEN
+  const { accessToken: token } = await getWhatsAppPlatformConfig()
+  if (!token) throw new Error('[WhatsApp] Missing platform config: access token not set')
 
   // Step 1: resolve download URL
   const urlRes = await fetch(`${GRAPH_BASE}/${mediaId}`, {

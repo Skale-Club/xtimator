@@ -1,34 +1,22 @@
 /**
- * Phase 67: Inngest function — replaces the inline Whisper/Vision/generate sequence
- * in lib/whatsapp/handler.ts:processInboundMessages. Single function, N+2 sequential
- * step.run blocks (one per inbound message + generate-estimate + confirm reply).
+ * Phase 67: Inngest function — processes inbound WhatsApp messages via a
+ * LangGraph StateGraph that fans out to parallel processMessage branches
+ * (one per inbound message), converges at gather, then runs
+ * generateEstimate → evaluateVagueness → askDetails | sendConfirmation.
  *
  * Implements:
  *   - INNGEST-07 (WhatsApp handler dispatches via Inngest)
  *   - INNGEST-06 (idempotent via event.data.batchKey)
  */
 import { inngest } from '@/lib/inngest/client'
-import { requireServiceClient } from '@/lib/supabase/service'
-import { transcribeAudioOR, analyzePhotoOR } from '@/lib/ai/openrouter-client'
-import { generateEstimateForProject } from '@/lib/services/generate-estimate'
-import {
-  downloadWhatsAppMedia,
-  sendWhatsAppMessage,
-  sendTypingIndicator,
-} from '@/lib/whatsapp/client'
+import { sendTypingIndicator } from '@/lib/whatsapp/client'
 import type { WhatsAppMessage } from '@/lib/whatsapp/types'
 import {
   EVENT_WHATSAPP_PROCESS,
+  EVENT_WHATSAPP_INTENT,
   type WhatsAppProcessPayload,
+  type WhatsAppIntentPayload,
 } from '@/lib/inngest/events'
-import { formatMoney } from '@/lib/money/currency'
-import {
-  isVagueEstimate,
-  buildAskDetailsMessage,
-  revertVagueEstimate,
-} from '@/lib/whatsapp/ask-details'
-
-const SESSION_TTL_MINUTES = 30
 
 export const whatsAppProcessJob = inngest.createFunction(
   {
@@ -43,157 +31,75 @@ export const whatsAppProcessJob = inngest.createFunction(
     }
     const { companyId, projectId, ownerPhone, messages } = data
 
-    // ONE step.run per inbound message — each independently retriable.
-    for (const msg of messages) {
-      await step.run(`process-${msg.id}`, async () => {
-        const supabase = requireServiceClient()
-        if (msg.type === 'text' && msg.text?.body) {
-          await supabase.from('recordings').insert({
-            project_id: projectId,
-            company_id: companyId,
-            storage_path: null,
-            transcript: msg.text.body,
-            duration_seconds: null,
-          })
-        } else if (msg.type === 'audio' && msg.audio?.id) {
-          const audioBuffer = await downloadWhatsAppMedia(msg.audio.id)
-          const transcript = await transcribeAudioOR(
-            new Blob([new Uint8Array(audioBuffer)], { type: 'audio/ogg' }),
-            'ogg'
-          )
-          if (!transcript) throw new Error('Empty transcription')
-          await supabase.from('recordings').insert({
-            project_id: projectId,
-            company_id: companyId,
-            storage_path: null,
-            transcript,
-            duration_seconds: null,
-          })
-        } else if (msg.type === 'image' && msg.image?.id) {
-          const imageBuffer = await downloadWhatsAppMedia(msg.image.id)
-          const mimeType = msg.image.mime_type ?? 'image/jpeg'
-          const ext = mimeType.split('/')[1] ?? 'jpg'
-          const storagePath = `${companyId}/whatsapp/${projectId}-${msg.image.id}.${ext}`
-          await supabase.storage.from('photos').upload(storagePath, imageBuffer, {
-            contentType: mimeType,
-            upsert: false,
-          })
-          const aiDescription = await analyzePhotoOR(
-            imageBuffer.toString('base64'),
-            mimeType
-          )
-          await supabase.from('photos').insert({
-            project_id: projectId,
-            company_id: companyId,
-            storage_path: storagePath,
-            ai_description: aiDescription || null,
-            caption: msg.image.caption ?? null,
-            sort_order: 0,
-          })
-        }
-      })
-    }
-
-    // Refresh typing indicator before AI generation (best-effort)
+    // Refresh typing indicator before AI generation (best-effort UX feedback).
+    // This step stays outside the graph so it fires before the graph starts.
     await step.run('refresh-typing', async () => {
       const lastMsgId = messages[messages.length - 1]?.id
       if (lastMsgId) await sendTypingIndicator(lastMsgId).catch(() => undefined)
     })
 
-    // Generate estimate from the aggregated project
-    const result = await step.run('generate-estimate', async () => {
-      return await generateEstimateForProject(companyId, projectId)
-    })
-
-    // Re-evaluate "vagueness" — vague inbound text often yields a $0 estimate
-    // with no line items. In that case ask the owner for more details instead of
-    // sending a useless $0 confirmation. (Quick task 260529-lc0)
-    const isVague = await step.run('evaluate-vagueness', async () => {
-      const supabase = requireServiceClient()
-      const { data: est } = await supabase
-        .from('estimates')
-        .select('total, sections:estimate_sections(items:estimate_items(id))')
-        .eq('id', result.estimateId)
-        .single()
-      return isVagueEstimate(
-        est as {
-          total: number | null
-          sections: Array<{ items?: Array<unknown> | null }> | null
-        } | null
-      )
-    })
-
-    if (isVague) {
-      await step.run('ask-details', async () => {
-        const supabase = requireServiceClient()
-        // Remove the $0 estimate and revert the project to draft so the next
-        // inbound message regenerates cleanly against the same project.
-        await revertVagueEstimate(supabase, projectId, result.estimateId)
-        const expiresAt = new Date(
-          Date.now() + SESSION_TTL_MINUTES * 60 * 1000
-        ).toISOString()
-        await supabase.from('whatsapp_sessions').insert({
-          company_id: companyId,
-          phone_number: ownerPhone,
-          state: 'awaiting_details',
-          draft_project_id: projectId,
-          draft_estimate_id: null,
-          expires_at: expiresAt,
-        })
-        await sendWhatsAppMessage(ownerPhone, {
-          type: 'text',
-          text: { body: buildAskDetailsMessage(result.language) },
-        })
+    // All media processing + estimate generation + confirmation reply run inside
+    // the LangGraph StateGraph. Fan-out is parallel (one processMessage branch per
+    // inbound message); graph handles the full supervisor → gather → generate →
+    // vagueness-check → send flow.
+    return await step.run('orchestrate-estimate', async () => {
+      const { buildEstimateGraph } = await import('@/lib/whatsapp/estimate-graph')
+      const graph = buildEstimateGraph()
+      return await graph.invoke({
+        companyId,
+        projectId,
+        ownerPhone,
+        messages,
+        currentMessage: undefined,
+        mediaResults: [],
+        estimateId: undefined,
+        estimateLanguage: undefined,
+        isVague: undefined,
       })
-      return result
+    })
+  }
+)
+
+/**
+ * Quick task 260603-lrf — whatsAppIntentRouterJob.
+ *
+ * Runs the intent-router graph for session-state inbound (dispatched by
+ * handler.ts as EVENT_WHATSAPP_INTENT for awaiting_confirm). Heavy work
+ * (normalization: audio download + Whisper, the classifier LLM call) runs OFF
+ * the Meta webhook ack path. Idempotent via event.data.batchKey (wa-intent-{id}).
+ *
+ * whatsAppProcessJob (the CREATE path above) is intentionally untouched.
+ */
+export const whatsAppIntentRouterJob = inngest.createFunction(
+  {
+    id: 'whatsapp-intent',
+    idempotency: 'event.data.batchKey',
+    retries: 1,
+    triggers: [{ event: EVENT_WHATSAPP_INTENT }],
+  },
+  async ({ event, step }) => {
+    const data = event.data as Omit<WhatsAppIntentPayload, 'message'> & {
+      message: WhatsAppMessage
     }
+    const { companyId, ownerPhone, fromPhone, message, session } = data
 
-    // Create awaiting_confirm session + send confirmation summary
-    await step.run('confirm-and-session', async () => {
-      const supabase = requireServiceClient()
-      const expiresAt = new Date(
-        Date.now() + SESSION_TTL_MINUTES * 60 * 1000
-      ).toISOString()
-      await supabase.from('whatsapp_sessions').insert({
-        company_id: companyId,
-        phone_number: ownerPhone,
-        state: 'awaiting_confirm',
-        draft_project_id: projectId,
-        draft_estimate_id: result.estimateId,
-        expires_at: expiresAt,
-      })
-      const { data: estimate } = await supabase
-        .from('estimates')
-        .select(
-          'total, currency_code, summary, sections:estimate_sections(title, subtotal)'
-        )
-        .eq('id', result.estimateId)
-        .single()
-      const totalNum =
-        (estimate as { total: number } | null)?.total ?? 0
-      const currencyCode =
-        (estimate as { currency_code: string | null } | null)?.currency_code ?? 'USD'
-      const total = formatMoney(totalNum, currencyCode)
-      const sectionRows =
-        (estimate as {
-          sections?: Array<{ title: string; subtotal: number }>
-        } | null)?.sections ?? []
-      const sections = sectionRows
-        .map(
-          (s) =>
-              `- ${s.title}: ${formatMoney(s.subtotal, currencyCode)}`
-        )
-        .join('\n')
-      const body = [
-        `Estimate ready - ${total}`,
-        '',
-        sections,
-        '',
-        'Reply *send* to deliver to your client, or *cancel* to discard.',
-      ].join('\n')
-      await sendWhatsAppMessage(ownerPhone, { type: 'text', text: { body } })
+    // Refresh typing indicator before the (slower) classify work — best-effort.
+    await step.run('refresh-typing', async () => {
+      if (message?.id) await sendTypingIndicator(message.id).catch(() => undefined)
     })
 
-    return result
+    return await step.run('route-intent', async () => {
+      const { classifyAndRoute } = await import('@/lib/whatsapp/intent-router')
+      const { requireServiceClient } = await import('@/lib/supabase/service')
+      await classifyAndRoute({
+        companyId,
+        ownerPhone,
+        fromPhone,
+        message,
+        session,
+        supabase: requireServiceClient(),
+      })
+      return { routed: true }
+    })
   }
 )

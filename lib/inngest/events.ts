@@ -11,6 +11,12 @@ export const EVENT_ESTIMATE_GENERATE = 'estimate/generate.requested' as const
 export const EVENT_TRANSCRIBE_AUDIO = 'audio/transcribe.requested' as const
 export const EVENT_ANALYZE_PHOTOS = 'photos/analyze.requested' as const
 export const EVENT_WHATSAPP_PROCESS = 'whatsapp/process.requested' as const
+/**
+ * Quick task 260603-lrf — dispatched by handler.ts for session-state inbound
+ * (awaiting_confirm). Carries a SINGLE message + session snapshot; the
+ * whatsAppIntentRouterJob runs the intent-router graph off the webhook ack path.
+ */
+export const EVENT_WHATSAPP_INTENT = 'whatsapp/intent.requested' as const
 
 export type EstimateGeneratePayload = {
   companyId: string
@@ -77,6 +83,30 @@ export type WhatsAppProcessPayload = {
   projectId: string
   ownerPhone: string
   messages: unknown[] // WhatsAppMessage[] in the handler — left as unknown[] here to avoid a circular import
+  batchKey: string
+}
+
+/**
+ * Quick task 260603-lrf — payload for EVENT_WHATSAPP_INTENT.
+ *
+ * Carries a single inbound message + the active session snapshot. The router
+ * normalizes the message (audio/photo→text), classifies the intent, and routes
+ * to the existing confirm/edit/create/query flows.
+ *
+ * ownerPhone is E.164 WITH '+'; fromPhone is E.164 WITHOUT '+' (the shape
+ * processInboundMessages expects for the CREATE path).
+ */
+export type WhatsAppIntentPayload = {
+  companyId: string
+  ownerPhone: string
+  fromPhone: string
+  message: unknown // WhatsAppMessage — unknown[] to avoid circular import
+  session: {
+    id: string
+    state: string
+    draft_project_id: string | null
+    draft_estimate_id: string | null
+  } | null
   batchKey: string
 }
 

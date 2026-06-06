@@ -12,6 +12,7 @@
  */
 
 import { getIntegrationKey } from '@/lib/platform-config'
+import { getLangfuse } from '@/lib/observability/langfuse'
 
 export const OPENROUTER_BASE = 'https://openrouter.ai/api/v1'
 export const OPENAI_TRANSCRIPTION_BASE = 'https://api.openai.com/v1'
@@ -68,6 +69,7 @@ export async function transcribeAudioOR(
     )
   }
 
+  const startTime = new Date()
   const form = new FormData()
   form.append('file', audioBlob, `recording.${ext}`)
   form.append('model', model)
@@ -84,7 +86,23 @@ export async function transcribeAudioOR(
     throw new Error(`OpenAI transcription failed (${res.status}): ${err.slice(0, 400)}`)
   }
 
-  return (await res.text()).trim()
+  const transcript = (await res.text()).trim()
+  try {
+    const lf = getLangfuse()
+    if (lf) {
+      const trace = lf.trace({ name: 'transcribe_audio' })
+      trace.span({
+        name: 'transcribe_audio',
+        input: { ext, model },
+        output: transcript.slice(0, 200),
+        startTime,
+        endTime: new Date(),
+      })
+    }
+  } catch (err) {
+    console.warn('[langfuse] transcribe_audio trace failed:', err)
+  }
+  return transcript
 }
 
 // ---------------------------------------------------------------------------
@@ -105,6 +123,7 @@ export async function analyzePhotoOR(
 ): Promise<string> {
   const apiKey = await getORKey()
   const visionModel = model ?? OR_DEFAULTS.chat
+  const startTime = new Date()
 
   const body = {
     model: visionModel,
@@ -144,7 +163,24 @@ export async function analyzePhotoOR(
   }
   if (json.error?.message) throw new Error(`OpenRouter vision error: ${json.error.message}`)
 
-  return json.choices?.[0]?.message?.content ?? ''
+  const result = json.choices?.[0]?.message?.content ?? ''
+  try {
+    const lf = getLangfuse()
+    if (lf) {
+      const trace = lf.trace({ name: 'analyze_photo' })
+      trace.generation({
+        name: 'analyze_photo',
+        model: visionModel,
+        input: { mimeType, prompt: PHOTO_PROMPT },
+        output: result,
+        startTime,
+        endTime: new Date(),
+      })
+    }
+  } catch (err) {
+    console.warn('[langfuse] analyze_photo trace failed:', err)
+  }
+  return result
 }
 
 // ---------------------------------------------------------------------------
@@ -162,6 +198,7 @@ export async function translateTextsOR(
   model = OR_DEFAULTS.translation
 ): Promise<Record<string, string>> {
   const apiKey = await getORKey()
+  const startTime = new Date()
   const langLabel =
     targetLanguage === 'pt' ? 'Brazilian Portuguese (PT-BR)' : 'Latin American Spanish (ES)'
 
@@ -199,5 +236,22 @@ export async function translateTextsOR(
 
   const raw = json.choices?.[0]?.message?.content ?? '{}'
   const clean = raw.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim()
-  return JSON.parse(clean) as Record<string, string>
+  const result = JSON.parse(clean) as Record<string, string>
+  try {
+    const lf = getLangfuse()
+    if (lf) {
+      const trace = lf.trace({ name: 'translate_texts' })
+      trace.generation({
+        name: 'translate_texts',
+        model,
+        input: { texts, targetLanguage },
+        output: result,
+        startTime,
+        endTime: new Date(),
+      })
+    }
+  } catch (err) {
+    console.warn('[langfuse] translate_texts trace failed:', err)
+  }
+  return result
 }

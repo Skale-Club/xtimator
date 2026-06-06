@@ -25,7 +25,7 @@ progress:
 Phase: 999.1
 Plan: Not started
 Status: Phase complete — ready for verification
-Last activity: 2026-06-01 - Completed quick tasks rqa (bulletproof base-URL + sibling 0.0.0.0 redirect fixes) + s1w (subdomain type error unblocking next build). CI build now compiles; pending human: GH Actions Variables (Supabase NEXT_PUBLIC_*), Coolify Docker-Image switch + APP_ORIGIN, Supabase redirect allowlist
+Last activity: 2026-06-03 - Completed quick task 260603-lrf: WhatsApp inbound AI intent routing (create/edit/confirm/query)
 Stopped at: Completed 93-03-PLAN.md (event log list page + detail page + EventStepTimeline)
 
 ## v3.1.1 Phases
@@ -739,6 +739,15 @@ v3.1: Phases 61-65 (started 2026-05-15). Production Go-Live — 27 requirements 
 | 260531-npx | Build Docker image in GitHub Actions → push to GHCR → Coolify only pulls prebuilt image (no on-VPS builds). New .github/workflows/build-deploy.yml + README-DEPLOY.md. Fixes root cause of VPS OOM-freeze (next build was running on the 8GB CX32). LOCAL ONLY — human must reboot VPS + disable Coolify source-build before push | 2026-05-31 | 387dec3 | [260531-npx-build-docker-image-in-github-actions-and](.planning/quick/260531-npx-build-docker-image-in-github-actions-and/) |
 | 260531-rqa | Bulletproof server-side base-URL resolution: resolveBaseUrl gains APP_ORIGIN runtime tier (no-rebuild override) + getCanonicalBaseUrl() request-less variant; fixed all sibling 0.0.0.0 redirect routes (demo, Stripe connect/initiate/callback, estimate pay) + unified NEXT_PUBLIC_SITE_URL/APP_URL across 7 files. 26 unit tests green | 2026-05-31 | d444988 | [260531-rqa-bulletproof-server-side-base-url-resolut](.planning/quick/260531-rqa-bulletproof-server-side-base-url-resolut/) |
 | 260531-s1w | Fix subdomain zod input/output type mismatch that broke `next build` (blocked ALL Docker image builds). Dropped .optional().default('') from auth-dialog companySchema + added subdomain:'' to onboarding INITIAL defaults + test fixture. tsc --noEmit now exit 0 | 2026-06-01 | 0c8dceb | [260531-s1w-fix-subdomain-zod-input-output-type-mism](.planning/quick/260531-s1w-fix-subdomain-zod-input-output-type-mism/) |
+| 260601-k5e | Make WhatsApp voice message bubbles playable | 2026-06-01 | 1ea3103 | [260601-k5e-make-whatsapp-voice-message-bubbles-play](.planning/quick/260601-k5e-make-whatsapp-voice-message-bubbles-play/) |
+| 260601-kt8 | Log outbound bot replies in WhatsApp inbox panel | 2026-06-01 | 1a5d982 | [260601-kt8-log-outbound-bot-replies-in-whatsapp-inb](.planning/quick/260601-kt8-log-outbound-bot-replies-in-whatsapp-inb/) |
+| 260601-lbg | Apply debounce buffer to awaiting_details path — prevents multiple parallel estimate regenerations when owner sends rapid burst of detail messages | 2026-06-01 | b85bd73 | [260601-lbg-increase-whatsapp-debounce-window-from-5](.planning/quick/260601-lbg-increase-whatsapp-debounce-window-from-5/) |
+| 260601-law | Log all outbound bot replies in confirm.ts and whatsapp-process.ts so they appear in the WhatsApp inbox panel | 2026-06-01 | 0dc2dfc | [260601-law-log-all-outbound-bot-replies-in-confirm-](.planning/quick/260601-law-log-all-outbound-bot-replies-in-confirm-/) |
+| 260602-iwk | Add Langfuse LLM observability | 2026-06-02 | f69af51 | [260602-iwk-add-langfuse-llm-observability](.planning/quick/260602-iwk-add-langfuse-llm-observability/) |
+| 260602-jns | Move WhatsApp integration to admin-only | 2026-06-02 | 7eaba97 | [260602-jns-move-whatsapp-integration-to-admin-only](.planning/quick/260602-jns-move-whatsapp-integration-to-admin-only/) |
+| 260602-kiv | Add WhatsApp Phone Number ID and WABA ID to admin integrations | 2026-06-02 | f137b61 | [260602-kiv-add-whatsapp-phone-number-id-and-waba-id](.planning/quick/260602-kiv-add-whatsapp-phone-number-id-and-waba-id/) |
+| 260602-mq2 | Implement LangGraph estimate graph for WhatsApp inbound processing | 2026-06-02 | 39515c3 | [260602-mq2-implement-langgraph-estimate-graph-for-w](.planning/quick/260602-mq2-implement-langgraph-estimate-graph-for-w/) |
+| 260603-lrf | WhatsApp inbound AI intent routing — normalize every message (audio→Whisper, photo→vision, text) then classify CONFIRM_OR_CANCEL/EDIT/CREATE/QUERY; awaiting_confirm no longer bounces audio/photo; multi-tenant-scoped read tools for the QUERY path; runs in Inngest after fast ack (Verified) | 2026-06-03 | df59e84, aafb88f, 8d39708 | [260603-lrf-whatsapp-inbound-ai-intent-routing-trans](.planning/quick/260603-lrf-whatsapp-inbound-ai-intent-routing-trans/) |
 | 2026-05-18 | fast | Center auth card logo+wordmark | done |
 | 2026-05-19 | fast | Make audio capture screen scrollable on smaller viewports | done |
 | 2026-05-18 | fast | Restyle sidebar New Project as filled gradient, remove dashboard CTA | done |

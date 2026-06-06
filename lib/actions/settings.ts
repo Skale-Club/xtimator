@@ -8,6 +8,7 @@ import { revalidatePath, revalidateTag } from 'next/cache'
 import { normalizeCurrencyCode } from '@/lib/money/currency'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { assertWritable } from '@/lib/demo/guard'
+import { syncOwnerPhone } from '@/lib/whatsapp/sync-owner-phone'
 
 async function getAuthContext() {
   const supabase = await createClient()
@@ -101,6 +102,10 @@ export async function updateCompanySettings(formData: FormData) {
   if (error) {
     return { error: 'Failed to save company settings. Please try again.' }
   }
+
+  // Keep company_whatsapp.owner_phone in sync (fire-and-forget, non-blocking)
+  const svc = requireServiceClient()
+  syncOwnerPhone(svc, company.id, phone).catch(() => undefined)
 
   await supabase
     .from('company_price_book')

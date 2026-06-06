@@ -3,9 +3,16 @@ import { after } from 'next/server'
 import { verifyWebhookSignature } from '@/lib/whatsapp/verify'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { processInboundWithDebounce } from '@/lib/whatsapp/handler'
+import { sendWhatsAppMessage } from '@/lib/whatsapp/client'
 import { logInboundMessage, type WaMsgType } from '@/lib/whatsapp/conversations'
 import type { WhatsAppMessage, WhatsAppPayload } from '@/lib/whatsapp/types'
 import { rateLimit } from '@/lib/ratelimit'
+
+function normalizedPhoneDigits(value: string | null | undefined): string {
+  const digits = (value ?? '').replace(/\D/g, '')
+  if (digits.length === 10) return `1${digits}`
+  return digits
+}
 
 // Map a Meta inbound message to the inbox log's (type, body) pair.
 function inboxFieldsFor(message: WhatsAppMessage): { msgType: WaMsgType; body: string | null } {
@@ -53,9 +60,17 @@ export async function POST(request: NextRequest) {
   // Step 1: raw body MUST come before JSON.parse (WA-01 pitfall)
   const rawBody = await request.text()
   const signature = request.headers.get('x-hub-signature-256')
+  console.info('[WhatsApp] webhook POST received', {
+    hasSignature: Boolean(signature),
+    bodyBytes: rawBody.length,
+  })
 
   // Step 2: HMAC verification
   if (!verifyWebhookSignature(rawBody, signature, process.env.META_WHATSAPP_APP_SECRET ?? '')) {
+    console.warn('[WhatsApp] webhook signature rejected', {
+      hasSignature: Boolean(signature),
+      appSecretConfigured: Boolean(process.env.META_WHATSAPP_APP_SECRET),
+    })
     return new Response('Unauthorized', { status: 401 })
   }
 
@@ -64,7 +79,10 @@ export async function POST(request: NextRequest) {
 
   // Step 4: status webhooks — early exit, no DB work needed (Pitfall 6)
   const isStatusUpdate = payload?.entry?.[0]?.changes?.[0]?.value?.statuses
-  if (isStatusUpdate) return new Response('OK', { status: 200 })
+  if (isStatusUpdate) {
+    console.info('[WhatsApp] status webhook ignored')
+    return new Response('OK', { status: 200 })
+  }
 
   // Step 5: fire-and-forget inbound message processing (WA-01)
   // after() runs after the response is sent — Next.js 15+ feature (confirmed: v16.2.3)
@@ -87,6 +105,11 @@ async function handleInboundMessage(payload: WhatsAppPayload): Promise<void> {
 
     const messageId = message.id  // wamid.* — deduplication key (WA-03)
     const fromPhone = message.from // E.164 without leading +
+    console.info('[WhatsApp] inbound message received', {
+      messageId,
+      type: message.type,
+      fromLast4: fromPhone.slice(-4),
+    })
 
     // Rate limit per phone (anti-abuse before any DB work or AI cost)
     const hourly = await rateLimit('whatsappPerHour', fromPhone)
@@ -102,28 +125,88 @@ async function handleInboundMessage(payload: WhatsAppPayload): Promise<void> {
 
     const supabase = requireServiceClient()
 
-    // Route: find company by phone number
-    // phone_number stored as E.164 with '+', Meta sends without '+'
-    const { data: whatsappConfig } = await supabase
+    // Route 1: company_whatsapp.owner_phone — explicit owner registration.
+    // This is the primary path: business owners register their personal WhatsApp
+    // number against their company so their messages are always routed correctly,
+    // even on the very first message before any conversation history exists.
+    const { data: ownerRow } = await supabase
       .from('company_whatsapp')
       .select('company_id')
-      .eq('phone_number', `+${fromPhone}`)
+      .eq('owner_phone', `+${fromPhone}`)
       .eq('status', 'active')
-      .single()
+      .maybeSingle()
 
-    if (!whatsappConfig) {
-      // Unregistered or inactive number — silent ignore per WA-06
+    let resolvedCompanyId: string | null = ownerRow?.company_id ?? null
+
+    // Route 2: companies.phone fallback. This covers accounts created before
+    // company_whatsapp.owner_phone was backfilled/synced; without it, first
+    // owner audio messages are silently ignored and no project is created.
+    if (!resolvedCompanyId) {
+      const normalizedFromPhone = normalizedPhoneDigits(fromPhone)
+      const last4 = normalizedFromPhone.slice(-4)
+      const { data: companyRows } = await supabase
+        .from('companies')
+        .select('id, phone')
+        .ilike('phone', `%${last4}%`)
+        .limit(20)
+      const match = (companyRows ?? []).find(
+        (row: { id?: string | null; phone?: string | null }) =>
+          normalizedPhoneDigits(row.phone) === normalizedFromPhone
+      )
+      resolvedCompanyId = match?.id ?? null
+    }
+
+    // Route 3: existing conversation thread (returning contacts who messaged before)
+    if (!resolvedCompanyId) {
+      const { data: convRow } = await supabase
+        .from('whatsapp_conversations')
+        .select('company_id')
+        .eq('contact_phone', `+${fromPhone}`)
+        .order('last_message_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      resolvedCompanyId = convRow?.company_id ?? null
+    }
+
+    // Route 4: clients table (known client contacts)
+    if (!resolvedCompanyId) {
+      const { data: clientRow } = await supabase
+        .from('clients')
+        .select('company_id')
+        .eq('phone', `+${fromPhone}`)
+        .limit(1)
+        .maybeSingle()
+      resolvedCompanyId = clientRow?.company_id ?? null
+    }
+
+    if (!resolvedCompanyId) {
+      console.warn('[WhatsApp] unknown inbound sender; no company resolved', {
+        fromLast4: fromPhone.slice(-4),
+      })
+      await sendWhatsAppMessage(`+${fromPhone}`, {
+        type: 'text',
+        text: {
+          body: "I couldn't find an Xtimator account for this phone number. Add this number to your company phone in Xtimator settings, then try again.",
+        },
+      }).catch((sendErr) => {
+        console.error('[WhatsApp] unknown sender reply failed:', sendErr)
+      })
       return
     }
+    console.info('[WhatsApp] inbound sender resolved', {
+      companyId: resolvedCompanyId,
+      fromLast4: fromPhone.slice(-4),
+    })
 
     // Deduplication (WA-03): insert with PRIMARY KEY constraint
     // 23505 = unique_violation — message already processed
     const { error: dedupError } = await supabase
       .from('whatsapp_processed_messages')
-      .insert({ message_id: messageId, company_id: whatsappConfig.company_id })
+      .insert({ message_id: messageId, company_id: resolvedCompanyId })
 
     if (dedupError?.code === '23505') {
       // Duplicate — silently discard
+      console.info('[WhatsApp] duplicate inbound message ignored', { messageId })
       return
     }
 
@@ -137,7 +220,7 @@ async function handleInboundMessage(payload: WhatsAppPayload): Promise<void> {
     try {
       const { msgType, body } = inboxFieldsFor(message)
       await logInboundMessage(supabase, {
-        companyId: whatsappConfig.company_id as string,
+        companyId: resolvedCompanyId,
         contactPhone: `+${fromPhone}`,
         contactName: value?.contacts?.[0]?.profile?.name ?? null,
         body,
@@ -151,7 +234,7 @@ async function handleInboundMessage(payload: WhatsAppPayload): Promise<void> {
     // Phase 42 + Phase 48: routes through debounce buffer when no session exists
     await processInboundWithDebounce(
       message,
-      whatsappConfig.company_id as string,
+      resolvedCompanyId,
       fromPhone,
       supabase
     )

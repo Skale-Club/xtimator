@@ -9,7 +9,7 @@
 # Exit codes:
 #   0 — all four checks passed
 #   1 — RLS audit returned FAIL rows
-#   2 — migration count != 21
+#   2 — migration count does not match supabase/migrations/*.sql
 #   3 — storage bucket count != 5
 #   4 — super-admin row missing
 #   5 — PROD_DB_URL not set
@@ -36,14 +36,15 @@ if [[ "$FAIL_COUNT" -ne 0 ]]; then
 fi
 echo "  OK (zero FAIL rows)"
 
-# 2. Migration count — must equal 21
+# 2. Migration count — must match files on disk
 echo "[2/4] Migration count..."
+EXPECTED_MIGRATIONS="$(find "$REPO_ROOT/supabase/migrations" -maxdepth 1 -type f -name '*.sql' | wc -l | tr -d '[:space:]')"
 MIGRATION_COUNT="$(bunx supabase migration list --db-url "$PROD_DB_URL" 2>/dev/null | grep -cE '^\s*[0-9]{14}' || true)"
-if [[ "$MIGRATION_COUNT" -ne 21 ]]; then
-  echo "  FAIL: $MIGRATION_COUNT migrations applied (expected 21)"
+if [[ "$MIGRATION_COUNT" -ne "$EXPECTED_MIGRATIONS" ]]; then
+  echo "  FAIL: $MIGRATION_COUNT migrations applied (expected $EXPECTED_MIGRATIONS)"
   exit 2
 fi
-echo "  OK (21 migrations applied)"
+echo "  OK ($MIGRATION_COUNT migrations applied)"
 
 # 3. Storage buckets — must equal 5
 echo "[3/4] Storage buckets..."

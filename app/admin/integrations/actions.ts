@@ -337,6 +337,62 @@ export async function saveTwilioFromPhone(
 }
 
 /**
+ * Save Phone Number ID and WABA ID for the Meta WhatsApp integration into
+ * platform_integrations.metadata. Preserves existing encrypted token fields.
+ * These are non-secret platform identifiers that enable DB-configurable routing
+ * without a redeploy.
+ */
+export async function saveWhatsAppConfig(input: {
+  phoneNumberId: string
+  wabaId: string
+}): Promise<ActionResult> {
+  const ctx = await requireAdmin()
+  const svc = requireServiceClient()
+
+  const { data: existing } = await svc
+    .from('platform_integrations')
+    .select('ciphertext, iv, auth_tag, metadata')
+    .eq('provider', 'meta_whatsapp')
+    .maybeSingle()
+
+  const { error } = await svc.from('platform_integrations').upsert(
+    {
+      provider: 'meta_whatsapp',
+      ciphertext: existing?.ciphertext ?? null,
+      iv: existing?.iv ?? null,
+      auth_tag: existing?.auth_tag ?? null,
+      metadata: {
+        ...((existing?.metadata as object) ?? {}),
+        phone_number_id: input.phoneNumberId.trim(),
+        waba_id: input.wabaId.trim(),
+      },
+      updated_at: new Date().toISOString(),
+      updated_by: ctx.userId,
+    },
+    { onConflict: 'provider' }
+  )
+
+  if (error) return { ok: false, message: error.message }
+
+  invalidatePlatformConfig()
+  revalidatePath('/admin/integrations')
+
+  void logAdminAction({
+    actorId: ctx.userId,
+    actorEmail: ctx.email,
+    action: 'integration.save',
+    targetType: 'integration',
+    targetId: 'meta_whatsapp_config',
+    metadata: {
+      phone_number_id: input.phoneNumberId.trim(),
+      waba_id: input.wabaId.trim(),
+    },
+  })
+
+  return { ok: true }
+}
+
+/**
  * Upsert the ai_config row in platform_integrations to switch the active AI
  * provider platform-wide. No redeploy required — factory reads from DB on every
  * request (D-04, D-19).

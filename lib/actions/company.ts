@@ -12,6 +12,7 @@ import {
   ACTIVE_COMPANY_COOKIE_OPTIONS,
   getActiveCompanyId,
 } from '@/lib/queries/active-company'
+import { syncOwnerPhone } from '@/lib/whatsapp/sync-owner-phone'
 
 interface CompanyFormData {
   companyName?: string
@@ -165,6 +166,9 @@ export async function createOrUpdateCompany(
       }
     }
 
+    // Sync owner phone to company_whatsapp for WhatsApp inbound routing
+    syncOwnerPhone(service, newCompanyId, data.phone).catch(() => undefined)
+
     // D-12: set the active_company_id cookie to the new company's id.
     const cookieStore = await cookies()
     cookieStore.set(ACTIVE_COMPANY_COOKIE, newCompanyId, ACTIVE_COMPANY_COOKIE_OPTIONS)
@@ -203,6 +207,9 @@ export async function createOrUpdateCompany(
           'Could not save your company details. Please check your connection and try again.',
       }
     }
+    // Sync owner phone for existing company update
+    const svcUpdate = requireServiceClient()
+    syncOwnerPhone(svcUpdate, existing.id, data.phone).catch(() => undefined)
   } else {
     // Insert new company
     // TIER-04: new companies start with a 14-day trial clock.
@@ -231,6 +238,9 @@ export async function createOrUpdateCompany(
       company_id: newCompany.id,
       role: 'owner',
     })
+
+    // Sync owner phone to company_whatsapp for WhatsApp inbound routing
+    syncOwnerPhone(service, newCompany.id, data.phone).catch(() => undefined)
 
     const cookieStore2 = await cookies()
     cookieStore2.set(ACTIVE_COMPANY_COOKIE, newCompany.id, ACTIVE_COMPANY_COOKIE_OPTIONS)
