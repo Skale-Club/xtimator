@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect } from 'react'
 import Link from 'next/link'
 import { ArrowRight, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -22,18 +23,25 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
   const reduce = useReducedMotion()
   const hasImage = !!content.heroImageUrl
 
+  useEffect(() => {
+    const els = Array.from(document.querySelectorAll<HTMLElement>('.cta-glow'))
+    els.forEach(el => { el.style.animation = 'none' })
+    void document.body.offsetHeight
+    els.forEach(el => { el.style.animation = '' })
+  }, [])
+
   return (
-    <section className="relative isolate flex flex-1 flex-col overflow-hidden border-b border-white/5 bg-transparent">
+    <section className="relative isolate flex flex-1 min-h-0 flex-col overflow-hidden border-b border-white/5 bg-transparent">
       <div aria-hidden className="hero-mesh" />
       <div aria-hidden className="hero-dots" />
       <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 gradient-hero" />
       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,transparent,hsl(var(--primary)/0.5),transparent)]" />
 
-      <div className="relative mx-auto flex w-full flex-1 flex-col max-w-6xl px-6 sm:px-8 lg:px-10">
+      <div className="relative mx-auto flex w-full flex-1 min-h-0 flex-col max-w-6xl px-6 sm:px-8 lg:px-10">
         <div
           className={
             hasImage
-              ? 'flex flex-1 flex-col gap-6 pt-8 lg:flex-row lg:items-stretch lg:gap-8 lg:pt-10'
+              ? 'flex flex-1 min-h-0 flex-col gap-2 pt-24 sm:flex-row sm:items-stretch sm:gap-6 sm:pt-0'
               : 'flex flex-col items-center justify-center gap-6 py-16 text-center'
           }
         >
@@ -48,7 +56,7 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
             }}
             className={
               hasImage
-                ? 'relative z-10 flex min-w-0 flex-col justify-center space-y-4 lg:w-[52%] lg:shrink-0 lg:pb-10'
+                ? 'hero-left relative z-10 flex min-w-0 flex-col justify-center space-y-4 sm:w-[55%] sm:shrink-0 sm:py-10 lg:w-[55%]'
                 : 'max-w-3xl space-y-4'
             }
           >
@@ -64,59 +72,70 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
 
             <motion.h1
               variants={FADE_UP_ANIMATION_VARIANTS}
-              className="text-balance text-[clamp(40px,7vw,56px)] font-semibold leading-[1.02] tracking-[-0.03em]"
+              className="hero-h1 text-[clamp(28px,7vw,56px)] font-semibold leading-[1.05] tracking-[-0.03em] lg:w-[580px]"
             >
-              {content.heroHeadline}
+              {content.heroHeadline.split(' ')[0]}
+              <br />
+              {content.heroHeadline.split(' ').slice(1).join(' ')}
             </motion.h1>
 
             <motion.p
               variants={FADE_UP_ANIMATION_VARIANTS}
               className={
                 hasImage
-                  ? 'max-w-2xl text-base leading-[1.55] text-muted-foreground sm:text-lg'
-                  : 'mx-auto max-w-2xl text-base leading-[1.55] text-muted-foreground sm:text-lg'
+                  ? 'max-w-2xl text-sm leading-[1.5] text-muted-foreground sm:text-base'
+                  : 'mx-auto max-w-2xl text-sm leading-[1.5] text-muted-foreground sm:text-base'
               }
             >
-              {content.heroSubheadline}
+              {(() => {
+                const breakAt = 'and branded'
+                const idx = content.heroSubheadline.indexOf(breakAt)
+                if (idx === -1) return content.heroSubheadline
+                return <>
+                  {content.heroSubheadline.slice(0, idx)}
+                  <br />
+                  {content.heroSubheadline.slice(idx)}
+                </>
+              })()}
             </motion.p>
 
             <motion.div
               variants={FADE_UP_ANIMATION_VARIANTS}
               className={
                 hasImage
-                  ? 'flex flex-col gap-3 sm:flex-row'
-                  : 'flex flex-col gap-3 sm:flex-row sm:justify-center'
+                  ? 'flex flex-row gap-2 sm:gap-3'
+                  : 'flex flex-row gap-2 sm:gap-3 sm:justify-center'
               }
             >
-              <div className="cta-glow inline-flex w-full sm:w-auto">
-                <Button variant="primary" size="lg" className="w-full sm:w-auto sm:min-w-40" onClick={() => onOpenAuth?.('signup')}>
+              <div className="cta-glow inline-flex flex-1 sm:flex-none">
+                <Button variant="primary" size="default" className="w-full sm:w-auto sm:min-w-40" onClick={() => onOpenAuth?.('signup')}>
                   {content.ctaLabel}
-                  <ArrowRight className="ml-2 size-4" aria-hidden="true" />
+                  <ArrowRight className="ml-1.5 size-4" aria-hidden="true" />
                 </Button>
               </div>
               <Button
                 asChild
-                size="lg"
+                size="default"
                 variant="outline"
-                className="w-full border-white/10 bg-white/5 font-semibold text-foreground transition-all hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:w-auto sm:min-w-36"
+                className="cta-glow relative overflow-hidden flex-1 sm:flex-none border-white/10 bg-white/5 font-semibold text-foreground transition-all hover:bg-white/10 hover:-translate-y-[0.5px] active:translate-y-0 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:w-auto sm:min-w-36 before:content-[''] before:absolute before:inset-0 before:-translate-x-full before:bg-gradient-to-r before:from-transparent before:via-white/20 before:to-transparent before:transition-transform before:duration-[var(--shimmer-duration)] hover:before:translate-x-full motion-reduce:before:hidden"
               >
                 <Link href="/demo">See Demo</Link>
               </Button>
             </motion.div>
           </motion.div>
 
-          {/* Right: image pinned to bottom, flush with trust bar */}
+          {/* Right: image */}
           {hasImage && (
             <motion.div
               initial={reduce ? false : { opacity: 0, scale: 0.95, rotate: -2 }}
               animate={{ opacity: 1, scale: 1, rotate: 0 }}
               transition={{ duration: 1, type: 'spring', delay: 0.3 }}
-              className="relative z-0 flex w-[calc(100%+3rem)] -mx-6 items-end sm:-mx-8 sm:w-[calc(100%+4rem)] lg:mx-0 lg:flex-1 lg:items-end lg:self-stretch lg:-mr-10"
+              className="hero-image relative z-0 flex-1 min-h-0 self-stretch sm:absolute sm:top-[1in] sm:bottom-0 sm:left-[calc(58%_-_100px)] sm:right-[-2rem] sm:scale-110 sm:origin-bottom lg:top-[36px] lg:left-[calc(35%_+_55px)] lg:right-[-2.5rem] lg:scale-100"
             >
               <img
                 src={content.heroImageUrl!}
                 alt=""
-                className="w-full object-contain object-bottom drop-shadow-[0_0_60px_hsl(var(--primary)/0.25)]"
+                className="absolute inset-0 h-full w-full object-contain object-bottom"
                 loading="eager"
               />
             </motion.div>

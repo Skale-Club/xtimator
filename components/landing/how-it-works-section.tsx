@@ -6,37 +6,36 @@ import { Card } from '@/components/ui/card'
 export function HowItWorksSection({ steps }: { steps: Array<{ eyebrow: string; title: string; description: string }> }) {
   const reduce = useReducedMotion()
   return (
-    <section className="relative border-b border-white/5 bg-transparent py-24 sm:py-32">
+    <section className="relative flex flex-1 flex-col justify-center border-b border-white/5 bg-transparent py-8 sm:py-16 lg:py-24">
       <div className="mx-auto max-w-6xl px-6 sm:px-8 lg:px-10">
-        <div className="mb-16 max-w-2xl text-center sm:mx-auto sm:text-center">
-          <p className="text-sm font-bold uppercase tracking-[0.14em] text-primary">How it works</p>
-          <h2 className="mt-3 text-[clamp(28px,5vw,48px)] font-semibold tracking-[-0.02em]">
+        <div className="mb-6 max-w-2xl text-center sm:mx-auto sm:mb-10 lg:mb-16">
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary sm:text-sm">How it works</p>
+          <h2 className="mt-2 text-[clamp(22px,5vw,48px)] font-semibold tracking-[-0.02em] sm:mt-3">
             Built around the way <span className="text-transparent bg-clip-text bg-gradient-to-r from-white to-white/50">estimates happen in the field.</span>
           </h2>
-          <p className="mt-6 text-lg leading-[1.55] text-muted-foreground">
+          <p className="mt-2 text-sm leading-[1.5] text-muted-foreground sm:mt-4 sm:text-lg">
             No clipboard rewrite later. Capture the job once and turn that visit into a professional quote package.
           </p>
         </div>
 
-        <div className="mx-auto grid max-w-5xl grid-cols-1 gap-8 md:grid-cols-3 lg:gap-10">
+        <div className="mx-auto grid max-w-5xl grid-cols-1 gap-[11px] sm:gap-6 md:grid-cols-3 lg:gap-10">
           {steps.map(({ title, description }, index) => (
             <motion.div
               key={title}
               initial={reduce ? false : { opacity: 0, y: 24 }}
               whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: '-100px' }}
+              viewport={{ once: true, margin: '-60px' }}
               transition={{ duration: 0.55, delay: index * 0.12, ease: 'easeOut' }}
               className="group h-full"
             >
-              {/* Outer halo wrapper — translucent white frame inset */}
-              <div className="relative h-full rounded-3xl bg-white/10 p-[5px] transition-all duration-300 group-hover:bg-white/15 group-hover:-translate-y-1.5 group-hover:shadow-[0_12px_40px_hsl(var(--primary)/0.15)]">
+              <div className="relative h-full rounded-2xl bg-white/10 p-[5px] transition-all duration-300 group-hover:bg-white/15 group-hover:-translate-y-1 group-hover:shadow-[0_12px_40px_hsl(var(--primary)/0.15)]">
                 <Card
                   variant="glass"
-                  className="relative flex h-full w-full select-none flex-col rounded-[19px] p-8 backdrop-blur-none transition-colors duration-300 group-hover:border-primary/30 md:text-center"
+                  className="relative flex h-full w-full select-none flex-col rounded-[13px] p-4 sm:p-6 lg:p-8 backdrop-blur-none transition-colors duration-300 group-hover:border-primary/30 md:text-center"
                 >
-                  <div className="pointer-events-none absolute inset-0 rounded-[19px] bg-gradient-to-br from-primary/10 via-transparent to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
-                  <h3 className="mb-3 text-2xl font-semibold tracking-tight text-white">{title}</h3>
-                  <p className="text-lg leading-relaxed text-muted-foreground">{description}</p>
+                  <div className="pointer-events-none absolute inset-0 rounded-[13px] bg-gradient-to-br from-primary/10 via-transparent to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
+                  <h3 className="-mb-[11.5px] text-base font-semibold tracking-tight text-white sm:mb-2 sm:text-xl lg:text-2xl">{title}</h3>
+                  <p className="text-sm leading-relaxed text-muted-foreground sm:text-base lg:text-lg">{description}</p>
                 </Card>
               </div>
             </motion.div>
