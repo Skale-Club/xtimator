@@ -25,8 +25,57 @@ vi.mock('resend', () => ({
   },
 }))
 
-import { sendWelcomeEmail, sendProfileUpdatedEmail } from '@/lib/email/account-emails'
+import { sendWelcomeEmail, sendProfileUpdatedEmail, diffProfileFields } from '@/lib/email/account-emails'
 import { getIntegrationKey, getBranding, getWhatsAppDisplayNumber } from '@/lib/platform-config'
+
+describe('diffProfileFields', () => {
+  it('returns no changes when nothing changed', () => {
+    const before = { name: 'ACME', ownerName: 'Jo', phone: '+1555', email: 'a@b.co', website: 'x.com' }
+    expect(diffProfileFields(before, { ...before })).toEqual([])
+  })
+
+  it('treats null (DB) and empty string (form) as equal — no phantom change', () => {
+    // The bug: a company with null fields saving a form that submits '' for blanks.
+    const before = { name: 'ACME', ownerName: null, phone: null, email: null, website: null }
+    const after = { name: 'ACME', ownerName: '', phone: '', email: '', website: '' }
+    expect(diffProfileFields(before, after)).toEqual([])
+  })
+
+  it('detects a real phone change', () => {
+    const changes = diffProfileFields(
+      { name: 'ACME', phone: '+15550000000' },
+      { name: 'ACME', phone: '+15551112222' }
+    )
+    expect(changes).toEqual([
+      { label: 'Phone', oldValue: '+15550000000', newValue: '+15551112222' },
+    ])
+  })
+
+  it('detects setting a previously-null field and clearing a set field', () => {
+    const changes = diffProfileFields(
+      { ownerName: null, website: 'old.com' },
+      { ownerName: 'New Owner', website: '' }
+    )
+    expect(changes).toEqual([
+      { label: 'Owner name', oldValue: null, newValue: 'New Owner' },
+      { label: 'Website', oldValue: 'old.com', newValue: null },
+    ])
+  })
+
+  it('reports each changed field with its human label, in order', () => {
+    const changes = diffProfileFields(
+      { name: 'Old Co', ownerName: 'A', phone: '+1', email: 'a@x.co', website: 'a.com' },
+      { name: 'New Co', ownerName: 'B', phone: '+2', email: 'b@x.co', website: 'b.com' }
+    )
+    expect(changes.map((c) => c.label)).toEqual([
+      'Company name',
+      'Owner name',
+      'Phone',
+      'Email',
+      'Website',
+    ])
+  })
+})
 
 describe('sendWelcomeEmail', () => {
   beforeEach(() => {

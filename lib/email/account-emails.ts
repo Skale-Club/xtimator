@@ -212,6 +212,42 @@ export interface ProfileChange {
   newValue: string | null
 }
 
+export interface ProfileFieldValues {
+  name?: string | null
+  ownerName?: string | null
+  phone?: string | null
+  email?: string | null
+  website?: string | null
+}
+
+const PROFILE_FIELD_LABELS: Array<[keyof ProfileFieldValues, string]> = [
+  ['name', 'Company name'],
+  ['ownerName', 'Owner name'],
+  ['phone', 'Phone'],
+  ['email', 'Email'],
+  ['website', 'Website'],
+]
+
+/**
+ * Compute the changed identity fields between the stored company and the
+ * submitted form. Blanks are normalized to null (`value || null`) so an empty
+ * form field ('') compares equal to a null DB value — matching how the DB write
+ * coerces blanks. This prevents phantom "— -> —" change rows on saves that
+ * didn't actually touch a null field.
+ */
+export function diffProfileFields(
+  before: ProfileFieldValues,
+  after: ProfileFieldValues
+): ProfileChange[] {
+  const changes: ProfileChange[] = []
+  for (const [key, label] of PROFILE_FIELD_LABELS) {
+    const oldValue = before[key] || null
+    const newValue = after[key] || null
+    if (oldValue !== newValue) changes.push({ label, oldValue, newValue })
+  }
+  return changes
+}
+
 export interface ProfileUpdatedEmailContext {
   toEmail: string
   ownerName?: string | null

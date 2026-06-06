@@ -9,7 +9,7 @@ import { normalizeCurrencyCode } from '@/lib/money/currency'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { assertWritable } from '@/lib/demo/guard'
 import { syncOwnerPhone } from '@/lib/whatsapp/sync-owner-phone'
-import { sendProfileUpdatedEmail, type ProfileChange } from '@/lib/email/account-emails'
+import { sendProfileUpdatedEmail, diffProfileFields } from '@/lib/email/account-emails'
 
 async function getAuthContext() {
   const supabase = await createClient()
@@ -117,21 +117,22 @@ export async function updateCompanySettings(formData: FormData) {
 
   // Detect changed fields and send a profile-update notification email
   if (currentCompany) {
-    const changes: ProfileChange[] = []
-    const track = (
-      label: string,
-      oldVal: string | null | undefined,
-      newVal: string | null | undefined
-    ) => {
-      const o = oldVal ?? null
-      const n = newVal ?? null
-      if (o !== n) changes.push({ label, oldValue: o, newValue: n })
-    }
-    track('Company name', currentCompany.name, name || 'My Company')
-    track('Owner name', currentCompany.owner_name, ownerName)
-    track('Phone', currentCompany.phone, phone)
-    track('Email', currentCompany.email, email)
-    track('Website', currentCompany.website, website)
+    const changes = diffProfileFields(
+      {
+        name: currentCompany.name,
+        ownerName: currentCompany.owner_name,
+        phone: currentCompany.phone,
+        email: currentCompany.email,
+        website: currentCompany.website,
+      },
+      {
+        name: name || 'My Company',
+        ownerName,
+        phone,
+        email,
+        website,
+      }
+    )
 
     if (changes.length > 0) {
       const userEmail = (claims as Record<string, unknown>).email as string | undefined
