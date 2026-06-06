@@ -56,7 +56,7 @@ export function LandingFooter({ appName, logoUrl, onOpenAuth }: LandingFooterPro
           </div>
         </div>
         
-        <div className="mt-3 flex flex-col items-center justify-between gap-3 border-t border-white/5 pt-3 sm:mt-16 sm:gap-6 sm:pt-8 sm:flex-row">
+        <div className="mt-3 flex flex-col items-start justify-between gap-3 border-t border-white/5 pt-3 sm:mt-16 sm:gap-6 sm:pt-8 sm:flex-row sm:items-center">
           <div className="flex flex-col gap-1">
             <p className="text-[13px] text-muted-foreground sm:text-sm">
               &copy; {new Date().getFullYear()} {appName}. All rights reserved.

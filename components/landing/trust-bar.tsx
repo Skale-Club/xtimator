@@ -32,7 +32,7 @@ export function TrustBar() {
 
   return (
     <div ref={ref} className="trust-bar border-b border-white/5 bg-white/[0.03]">
-      <div className="mx-auto flex max-w-6xl flex-row items-center justify-around divide-x divide-white/10 px-4 py-3 sm:px-8 lg:px-10">
+      <div className="mx-auto flex max-w-6xl flex-row items-center justify-around divide-x divide-white/10 px-4 py-5 sm:py-3 sm:px-8 lg:px-10">
         {COUNTERS.map(({ value, suffix, label }, i) => (
           <motion.div
             key={label}
@@ -41,10 +41,10 @@ export function TrustBar() {
             transition={{ duration: 0.4, delay: i * 0.1 }}
             className="flex flex-1 flex-col items-center gap-1"
           >
-            <span className="text-[clamp(17px,3.5vw,28px)] font-bold leading-none tracking-tight text-foreground tabular-nums">
+            <span className="text-[clamp(26px,3.5vw,28px)] font-bold leading-none tracking-tight text-foreground tabular-nums">
               <Counter value={value} suffix={suffix} inView={inView} />
             </span>
-            <span className="text-[12px] sm:text-[11px] font-medium text-muted-foreground">{label}</span>
+            <span className="text-[16px] sm:text-[11px] font-medium text-muted-foreground">{label}</span>
           </motion.div>
         ))}
 
@@ -56,10 +56,10 @@ export function TrustBar() {
         >
           <div className="flex items-center gap-0.5">
             {Array.from({ length: 5 }).map((_, i) => (
-              <Star key={i} className="size-[clamp(12px,2.5vw,18px)] fill-yellow-400 text-yellow-400" />
+              <Star key={i} className="size-[clamp(18px,2.5vw,22px)] fill-yellow-400 text-yellow-400" />
             ))}
           </div>
-          <span className="text-[12px] sm:text-[11px] font-medium text-muted-foreground">5 Stars</span>
+          <span className="text-[16px] sm:text-[11px] font-medium text-muted-foreground">5 Stars</span>
         </motion.div>
       </div>
     </div>
