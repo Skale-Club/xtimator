@@ -1,6 +1,7 @@
 import 'server-only'
-import { getIntegrationKey, getBranding } from '@/lib/platform-config'
+import { getIntegrationKey, getBranding, getWhatsAppDisplayNumber } from '@/lib/platform-config'
 import { getCanonicalBaseUrl } from '@/lib/utils/site-url'
+import { buildWaMeLink } from '@/lib/whatsapp/wa-link'
 
 /**
  * Transactional account lifecycle emails.
@@ -99,28 +100,50 @@ export async function sendWelcomeEmail(ctx: WelcomeEmailContext): Promise<void> 
     const brandColor = branding.primaryColor ?? '#111111'
     const greeting = ctx.ownerName ? `Hi ${escHtml(ctx.ownerName)},` : 'Hi there,'
 
+    // WhatsApp click-to-chat link (omitted gracefully when no platform number is set).
+    const waText = `Hi! I'd like to start creating estimates with ${branding.appName}.`
+    const waLink = buildWaMeLink(await getWhatsAppDisplayNumber(), waText)
+
+    const WA_GREEN = '#25D366'
+    const whatsappSection = waLink
+      ? `
+      <table cellpadding="0" cellspacing="0" border="0" role="presentation"
+             style="background:#f0fdf4;border:1px solid #c8f0d4;border-radius:8px;padding:20px 24px;margin:24px 0;width:100%;box-sizing:border-box;">
+        <tr><td>
+          <p style="margin:0 0 8px;font-size:15px;font-weight:700;color:#111111;">📱 Create estimates from WhatsApp</p>
+          <p style="margin:0 0 14px;font-size:14px;line-height:1.7;color:#444444;">
+            Tap the button below to start a chat. Send a <strong>voice note</strong> or text describing
+            the job and our assistant builds the estimate for you — you can also ask it questions any time.
+            Prefer Portuguese? Just write in Portuguese and it replies in Portuguese.
+          </p>
+          <table cellpadding="0" cellspacing="0" border="0" role="presentation">
+            <tr>
+              <td style="border-radius:6px;background:${WA_GREEN};">
+                <a href="${escHtml(waLink)}"
+                   style="display:inline-block;padding:12px 28px;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;border-radius:6px;">
+                  Get Started on WhatsApp →
+                </a>
+              </td>
+            </tr>
+          </table>
+          <p style="margin:12px 0 0;font-size:12px;color:#888888;line-height:1.5;">
+            Don't use WhatsApp? No problem — you can do everything in the app instead.
+          </p>
+        </td></tr>
+      </table>`
+      : ''
+
     const body = `
       <p style="margin:0 0 20px;font-size:16px;line-height:1.6;color:#111111;">${greeting}</p>
       <p style="margin:0 0 16px;font-size:15px;line-height:1.7;color:#444444;">
         Your <strong>${escHtml(branding.appName)}</strong> account has been successfully created.
-        You are ready to start generating professional estimates in minutes.
+        You are ready to start generating professional estimates in minutes — two ways to work:
       </p>
 
-      <table cellpadding="0" cellspacing="0" border="0" role="presentation"
-             style="background:#f8f9fa;border-radius:6px;padding:20px 24px;margin:20px 0;width:100%;box-sizing:border-box;">
-        <tr><td>
-          <p style="margin:0 0 12px;font-size:14px;font-weight:600;color:#111111;">Here is what you can do:</p>
-          <ul style="margin:0;padding-left:20px;color:#555555;font-size:14px;line-height:1.8;">
-            <li>Send a <strong>WhatsApp voice note</strong> or text describing a job — we generate the estimate for you</li>
-            <li>Create and manage estimates directly in the <strong>${escHtml(branding.appName)} app</strong></li>
-            <li>Send branded PDFs to your clients instantly</li>
-            <li>Use <strong>WhatsApp or the app</strong> — whichever works best for you on the job site</li>
-          </ul>
-        </td></tr>
-      </table>
+      ${whatsappSection}
 
       <p style="margin:24px 0 8px;font-size:15px;line-height:1.7;color:#444444;">
-        Head to your dashboard to get started:
+        Or jump straight into the app to create and manage estimates, send branded PDFs, and track your jobs:
       </p>
       <table cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin:0 0 24px;">
         <tr>
@@ -144,6 +167,29 @@ export async function sendWelcomeEmail(ctx: WelcomeEmailContext): Promise<void> 
       body,
     })
 
+    const textLines = [
+      `Hi${ctx.ownerName ? ' ' + ctx.ownerName : ' there'},`,
+      ``,
+      `Your ${branding.appName} account has been successfully created. There are two ways to work:`,
+      ``,
+    ]
+    if (waLink) {
+      textLines.push(
+        `1) Create estimates from WhatsApp — start a chat and send a voice note or text describing the job; the assistant builds the estimate and answers your questions. Prefer Portuguese? Write in Portuguese and it replies in Portuguese.`,
+        `   Get started on WhatsApp: ${waLink}`,
+        `   (Don't use WhatsApp? You can do everything in the app instead.)`,
+        ``,
+        `2) Use the ${branding.appName} app to create/manage estimates and send branded PDFs.`,
+        `   Go to your dashboard: ${appUrl}/dashboard`,
+      )
+    } else {
+      textLines.push(
+        `Create and manage estimates and send branded PDFs in the ${branding.appName} app.`,
+        `Go to your dashboard: ${appUrl}/dashboard`,
+      )
+    }
+    textLines.push(``, `If you have any questions, just reply to this email.`)
+
     const { Resend } = await import('resend')
     const resend = new Resend(key)
     await resend.emails.send({
@@ -151,20 +197,7 @@ export async function sendWelcomeEmail(ctx: WelcomeEmailContext): Promise<void> 
       to: ctx.toEmail,
       subject: `Welcome to ${branding.appName} — Your account is ready!`,
       html,
-      text: [
-        `Hi${ctx.ownerName ? ' ' + ctx.ownerName : ' there'},`,
-        ``,
-        `Your ${branding.appName} account has been successfully created.`,
-        ``,
-        `Here is what you can do:`,
-        `• Send a WhatsApp voice note or text describing a job — we generate the estimate for you`,
-        `• Create and manage estimates directly in the ${branding.appName} app`,
-        `• Send branded PDFs to your clients instantly`,
-        ``,
-        `Go to your dashboard: ${appUrl}/dashboard`,
-        ``,
-        `If you have any questions, just reply to this email.`,
-      ].join('\n'),
+      text: textLines.join('\n'),
     })
   } catch (e) {
     console.error('[account-emails] sendWelcomeEmail failed:', e)

@@ -4,6 +4,7 @@ import { verifyWebhookSignature } from '@/lib/whatsapp/verify'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { processInboundWithDebounce } from '@/lib/whatsapp/handler'
 import { sendWhatsAppMessage } from '@/lib/whatsapp/client'
+import { welcomeOnFirstContact } from '@/lib/whatsapp/send-welcome'
 import { logInboundMessage, type WaMsgType } from '@/lib/whatsapp/conversations'
 import type { WhatsAppMessage, WhatsAppPayload } from '@/lib/whatsapp/types'
 import { rateLimit } from '@/lib/ratelimit'
@@ -137,6 +138,9 @@ async function handleInboundMessage(payload: WhatsAppPayload): Promise<void> {
       .maybeSingle()
 
     let resolvedCompanyId: string | null = ownerRow?.company_id ?? null
+    // Whether this message came from a registered owner (Route 1). Only owners get
+    // the first-contact welcome — Routes 2-4 are fallbacks / client contacts.
+    const resolvedViaOwner = Boolean(ownerRow?.company_id)
 
     // Route 2: companies.phone fallback. This covers accounts created before
     // company_whatsapp.owner_phone was backfilled/synced; without it, first
@@ -229,6 +233,17 @@ async function handleInboundMessage(payload: WhatsAppPayload): Promise<void> {
       })
     } catch (logErr) {
       console.error('[WhatsApp] inbox logInboundMessage error:', logErr)
+    }
+
+    // First-contact welcome (owners only). Atomic claim ensures it's sent once,
+    // even across rapid back-to-back messages. Sent before processing so the
+    // owner sees the welcome ahead of any estimate reply. Best-effort.
+    if (resolvedViaOwner) {
+      try {
+        await welcomeOnFirstContact(supabase, resolvedCompanyId, `+${fromPhone}`)
+      } catch (welcomeErr) {
+        console.error('[WhatsApp] first-contact welcome error:', welcomeErr)
+      }
     }
 
     // Phase 42 + Phase 48: routes through debounce buffer when no session exists

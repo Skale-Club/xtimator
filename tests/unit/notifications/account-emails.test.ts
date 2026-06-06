@@ -10,6 +10,7 @@ vi.mock('@/lib/platform-config', () => ({
     emailFromName: null,
     siteTitle: null,
   }),
+  getWhatsAppDisplayNumber: vi.fn().mockResolvedValue('+15551234567'),
 }))
 vi.mock('@/lib/utils/site-url', () => ({
   getCanonicalBaseUrl: vi.fn().mockReturnValue('https://xtimator.com'),
@@ -25,7 +26,7 @@ vi.mock('resend', () => ({
 }))
 
 import { sendWelcomeEmail, sendProfileUpdatedEmail } from '@/lib/email/account-emails'
-import { getIntegrationKey, getBranding } from '@/lib/platform-config'
+import { getIntegrationKey, getBranding, getWhatsAppDisplayNumber } from '@/lib/platform-config'
 
 describe('sendWelcomeEmail', () => {
   beforeEach(() => {
@@ -39,6 +40,7 @@ describe('sendWelcomeEmail', () => {
       siteTitle: null,
       landingContent: {} as never,
     })
+    vi.mocked(getWhatsAppDisplayNumber).mockResolvedValue('+15551234567')
     sendMock.mockResolvedValue({ id: 'email-id' })
   })
 
@@ -78,6 +80,36 @@ describe('sendWelcomeEmail', () => {
     expect(call.html).toContain('WhatsApp')
     expect(call.html).toContain('/dashboard')
     expect(call.text).toContain('WhatsApp')
+  })
+
+  it('renders a "Get Started on WhatsApp" wa.me button when a display number is set', async () => {
+    await sendWelcomeEmail({ toEmail: 'owner@example.com', companyName: 'ACME' })
+
+    const call = sendMock.mock.calls[0]![0]
+    expect(call.html).toContain('https://wa.me/15551234567')
+    expect(call.html).toContain('Get Started on WhatsApp')
+    // Prefilled greeting is URL-encoded into the link
+    expect(call.html).toContain('text=')
+    expect(call.text).toContain('https://wa.me/15551234567')
+  })
+
+  it('omits the WhatsApp button gracefully when no display number is configured', async () => {
+    vi.mocked(getWhatsAppDisplayNumber).mockResolvedValue(null)
+
+    await sendWelcomeEmail({ toEmail: 'owner@example.com', companyName: 'ACME' })
+
+    const call = sendMock.mock.calls[0]![0]
+    expect(call.html).not.toContain('wa.me')
+    expect(call.html).not.toContain('Get Started on WhatsApp')
+    // Dashboard CTA still present so the email is never a dead end
+    expect(call.html).toContain('/dashboard')
+  })
+
+  it('mentions bilingual (Portuguese) support when the WhatsApp section renders', async () => {
+    await sendWelcomeEmail({ toEmail: 'owner@example.com', companyName: 'ACME' })
+
+    const call = sendMock.mock.calls[0]![0]
+    expect(call.html).toContain('Portuguese')
   })
 
   it('includes the logo URL in HTML when branding has one', async () => {
