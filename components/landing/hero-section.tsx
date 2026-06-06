@@ -72,7 +72,7 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
 
             <motion.h1
               variants={FADE_UP_ANIMATION_VARIANTS}
-              className="hero-h1 text-[clamp(28px,7vw,56px)] font-semibold leading-[1.05] tracking-[-0.03em] lg:w-[580px]"
+              className="hero-h1 text-[clamp(34px,7vw,56px)] font-semibold leading-[1.05] tracking-[-0.03em] lg:w-[580px]"
             >
               {content.heroHeadline.split(' ')[0]}
               <br />
@@ -117,7 +117,7 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
                 asChild
                 size="default"
                 variant="outline"
-                className="cta-glow relative overflow-hidden flex-1 sm:flex-none border-white/10 bg-white/5 font-semibold text-foreground transition-all hover:bg-white/10 hover:-translate-y-[0.5px] active:translate-y-0 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:w-auto sm:min-w-36 before:content-[''] before:absolute before:inset-0 before:-translate-x-full before:bg-gradient-to-r before:from-transparent before:via-white/20 before:to-transparent before:transition-transform before:duration-[var(--shimmer-duration)] hover:before:translate-x-full motion-reduce:before:hidden"
+                className="cta-glow flex-1 sm:flex-none border-white/10 bg-white/5 font-semibold text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:w-auto sm:min-w-36"
               >
                 <Link href="/demo">See Demo</Link>
               </Button>
