@@ -6,6 +6,7 @@ import { getEstimateById } from '@/lib/queries/estimate'
 import type { EstimateWithSections } from '@/lib/queries/estimate'
 import { DEFAULT_CURRENCY_CODE, normalizeCurrencyCode } from '@/lib/money/currency'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
+import { shareLinkExpiryFromNow } from '@/lib/estimates/share-link'
 
 // ---------------------------------------------------------------------------
 // Auth helper (same pattern as recording.ts)
@@ -618,10 +619,11 @@ export async function markAsSentAction(estimateId: string) {
 
   const projectId = estimate.project_id as string
 
-  // Update estimate sent_at
+  // Update estimate sent_at + refresh the share-link expiry (re-sending revives
+  // an expired link — the natural "regenerate link" path).
   const { error: updateError } = await supabase
     .from('estimates')
-    .update({ sent_at: new Date().toISOString() })
+    .update({ sent_at: new Date().toISOString(), share_expires_at: shareLinkExpiryFromNow() })
     .eq('id', estimateId)
 
   if (updateError) return { error: 'Failed to mark estimate as sent' }
@@ -680,6 +682,9 @@ export async function consolidateEstimate(estimateId: string) {
       workflow_status: 'consolidated',
       consolidated_at: new Date().toISOString(),
       consolidated_by: userId,
+      // Security: stamp the public share link with an expiry when it goes live,
+      // so a forwarded/guessed URL doesn't expose owner + client PII forever.
+      share_expires_at: shareLinkExpiryFromNow(),
       updated_at: new Date().toISOString(),
     })
     .eq('id', estimateId)
