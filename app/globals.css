@@ -524,17 +524,10 @@
   -webkit-mask-image: radial-gradient(ellipse at center, black 45%, transparent 85%);
 }
 
-/* CTA glow ring — animated breathing when motion allowed */
-@keyframes cta-glow-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 hsl(var(--primary) / 0.5), 0 0 40px -4px hsl(var(--primary) / 0.45); }
-  50%      { box-shadow: 0 0 0 8px hsl(var(--primary) / 0),   0 0 60px -2px hsl(var(--primary) / 0.65); }
-}
+/* CTA glow ring — static only, no pulse animation */
 .cta-glow {
   box-shadow: 0 0 40px -4px hsl(var(--primary) / 0.45);
   border-radius: var(--radius-md);
-}
-@media (prefers-reduced-motion: no-preference) {
-  .cta-glow { animation: cta-glow-pulse 3.4s ease-in-out infinite; }
 }
 
 /* Gradient-border auth card (mask-image trick — 1px gradient ring around glass surface) */
