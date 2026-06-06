@@ -19,6 +19,10 @@ vi.mock('@/lib/whatsapp/client', () => ({
   sendWhatsAppMessage: vi.fn().mockResolvedValue(undefined),
 }))
 
+vi.mock('@/lib/whatsapp/send-welcome', () => ({
+  welcomeOnFirstContact: vi.fn().mockResolvedValue(true),
+}))
+
 // Mock next/server after() to be a no-op in tests
 vi.mock('next/server', async (importOriginal) => {
   const actual = await importOriginal<typeof import('next/server')>()
@@ -29,12 +33,64 @@ import { verifyWebhookSignature } from '@/lib/whatsapp/verify'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { processInboundWithDebounce } from '@/lib/whatsapp/handler'
 import { sendWhatsAppMessage } from '@/lib/whatsapp/client'
+import { welcomeOnFirstContact } from '@/lib/whatsapp/send-welcome'
 import { GET, POST } from '@/app/api/webhooks/whatsapp/route'
 
 const mockVerify = vi.mocked(verifyWebhookSignature)
 const mockServiceClient = vi.mocked(requireServiceClient)
 const mockProcessInbound = vi.mocked(processInboundWithDebounce)
 const mockSendWhatsApp = vi.mocked(sendWhatsAppMessage)
+const mockWelcome = vi.mocked(welcomeOnFirstContact)
+
+/** fromMock for an owner resolved via Route 1 (company_whatsapp.owner_phone). */
+function makeOwnerResolvedFromMock(companyId: string, dedupError: unknown = null) {
+  return vi.fn().mockImplementation((table: string) => {
+    if (table === 'company_whatsapp') {
+      return {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({ data: { company_id: companyId }, error: null }),
+            }),
+          }),
+        }),
+      }
+    }
+    if (table === 'whatsapp_processed_messages') {
+      return { insert: vi.fn().mockResolvedValue({ error: dedupError }) }
+    }
+    // conversations logging + any other table: permissive catch-all
+    return {
+      insert: vi.fn().mockResolvedValue({ error: null }),
+      update: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) }),
+      }),
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          order: vi.fn().mockReturnValue({
+            limit: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+            }),
+          }),
+          maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+        }),
+      }),
+    }
+  })
+}
+
+function ownerTextPayload(messageId = 'wamid.owner1') {
+  return JSON.stringify({
+    entry: [{
+      changes: [{
+        value: {
+          contacts: [{ profile: { name: 'Owner' }, wa_id: '15551234567' }],
+          messages: [{ id: messageId, from: '15551234567', type: 'text', text: { body: 'Hi' } }],
+        },
+      }],
+    }],
+  })
+}
 
 function makeRequest(method: string, url: string, body?: string, headers?: Record<string, string>) {
   return new Request(url, {
@@ -76,6 +132,8 @@ describe('POST /api/webhooks/whatsapp', () => {
     mockProcessInbound.mockReset()
     mockSendWhatsApp.mockReset()
     mockSendWhatsApp.mockResolvedValue(undefined)
+    mockWelcome.mockReset()
+    mockWelcome.mockResolvedValue(true)
   })
 
   it('returns 401 when signature verification fails', async () => {
@@ -175,6 +233,45 @@ describe('POST /api/webhooks/whatsapp', () => {
         })
       )
     })
+  })
+
+  it('fires the first-contact welcome for an owner-resolved message, then still processes it', async () => {
+    mockVerify.mockReturnValue(true)
+    const serviceClient = { from: makeOwnerResolvedFromMock('company-7') } as unknown as ReturnType<typeof requireServiceClient>
+    mockServiceClient.mockReturnValue(serviceClient)
+
+    const req = makeRequest('POST', 'http://localhost/api/webhooks/whatsapp', ownerTextPayload())
+    const res = await POST(req)
+    expect(res.status).toBe(200)
+
+    await vi.waitFor(() => {
+      // Welcome attempted for the owner, scoped to their company + their phone (with +)
+      expect(mockWelcome).toHaveBeenCalledWith(serviceClient, 'company-7', '+15551234567')
+      // Message is still handed to normal processing
+      expect(mockProcessInbound).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'wamid.owner1', type: 'text' }),
+        'company-7',
+        '15551234567',
+        serviceClient
+      )
+    })
+  })
+
+  it('does NOT fire the welcome when the message is a duplicate (dedup short-circuits)', async () => {
+    mockVerify.mockReturnValue(true)
+    const serviceClient = {
+      from: makeOwnerResolvedFromMock('company-7', { code: '23505' }),
+    } as unknown as ReturnType<typeof requireServiceClient>
+    mockServiceClient.mockReturnValue(serviceClient)
+
+    const req = makeRequest('POST', 'http://localhost/api/webhooks/whatsapp', ownerTextPayload('wamid.dupe'))
+    const res = await POST(req)
+    expect(res.status).toBe(200)
+
+    // Give after() a tick; welcome and processing must both be skipped on duplicates
+    await new Promise((r) => setTimeout(r, 10))
+    expect(mockWelcome).not.toHaveBeenCalled()
+    expect(mockProcessInbound).not.toHaveBeenCalled()
   })
 
   it('routes first owner audio messages by normalized companies.phone fallback', async () => {

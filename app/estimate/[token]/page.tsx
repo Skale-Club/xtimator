@@ -2,7 +2,7 @@ import type { CSSProperties } from 'react'
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import { headers } from 'next/headers'
-import { getEstimateByShareToken } from '@/lib/queries/share'
+import { getEstimateByShareToken, getShareLinkState } from '@/lib/queries/share'
 import { logEstimateView } from './actions'
 import { EstimateView } from '@/components/share/estimate-view'
 import { getBranding } from '@/lib/platform-config'
@@ -36,6 +36,20 @@ export default async function SharePage({ params, searchParams }: SharePageProps
   const data = await getEstimateByShareToken(token)
 
   if (!data) {
+    // Distinguish an expired link from a genuinely missing one so the recipient
+    // gets a helpful message (and knows to ask for a fresh link) rather than a 404.
+    const linkState = await getShareLinkState(token)
+    if (linkState === 'expired') {
+      return (
+        <main className="max-w-lg mx-auto px-4 py-24 text-center">
+          <h1 className="text-2xl font-semibold tracking-tight">This estimate link has expired</h1>
+          <p className="mt-3 text-muted-foreground">
+            For your security, estimate links expire after a period of inactivity. Please ask the
+            sender to re-send the estimate — that will give you a fresh, working link.
+          </p>
+        </main>
+      )
+    }
     notFound()
   }
 

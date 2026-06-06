@@ -4,6 +4,7 @@ import { requireServiceClient } from '@/lib/supabase/service'
 import { getEntitlements } from '@/lib/entitlements'
 import { deliverEstimateViaWhatsApp } from '@/lib/whatsapp/send-estimate'
 import { demoGuardResponse } from '@/lib/demo/guard'
+import { shareLinkExpiryFromNow } from '@/lib/estimates/share-link'
 
 interface SendWhatsAppRequestBody {
   to: string
@@ -130,6 +131,12 @@ export async function POST(
     if (!result.ok) {
       return NextResponse.json({ error: result.error ?? 'Failed to send' }, { status: 500 })
     }
+
+    // Refresh the share-link expiry on send (revives an expired link).
+    await svc
+      .from('estimates')
+      .update({ share_expires_at: shareLinkExpiryFromNow() })
+      .eq('id', estimate.id)
 
     return NextResponse.json({ success: true, fallback: result.fallback ?? null })
   } catch (error) {

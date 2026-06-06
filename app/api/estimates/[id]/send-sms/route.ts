@@ -5,6 +5,7 @@ import { getTwilioConfig, getBranding } from '@/lib/platform-config'
 import { rateLimit } from '@/lib/ratelimit'
 import { demoGuardResponse } from '@/lib/demo/guard'
 import { getCanonicalBaseUrl } from '@/lib/utils/site-url'
+import { shareLinkExpiryFromNow } from '@/lib/estimates/share-link'
 
 interface SendSmsRequestBody {
   to: string
@@ -169,6 +170,12 @@ export async function POST(
       .update({ sent_at: new Date().toISOString() })
       .eq('id', id)
       .is('sent_at', null)
+
+    // Refresh the share-link expiry on every send (revives an expired link).
+    await supabase
+      .from('estimates')
+      .update({ share_expires_at: shareLinkExpiryFromNow() })
+      .eq('id', id)
 
     // Log activity
     await svc.from('estimate_activity').insert({

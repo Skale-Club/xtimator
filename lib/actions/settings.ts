@@ -9,6 +9,7 @@ import { normalizeCurrencyCode } from '@/lib/money/currency'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { assertWritable } from '@/lib/demo/guard'
 import { syncOwnerPhone } from '@/lib/whatsapp/sync-owner-phone'
+import { sendProfileUpdatedEmail, diffProfileFields } from '@/lib/email/account-emails'
 
 async function getAuthContext() {
   const supabase = await createClient()
@@ -74,6 +75,13 @@ export async function updateCompanySettings(formData: FormData) {
     logoUrl = storage.getPublicUrl('logos', storagePath)
   }
 
+  // Fetch current values before update so we can detect which fields changed
+  const { data: currentCompany } = await supabase
+    .from('companies')
+    .select('name, owner_name, phone, email, website')
+    .eq('id', company.id)
+    .single()
+
   const { error } = await supabase
     .from('companies')
     .update({
@@ -106,6 +114,35 @@ export async function updateCompanySettings(formData: FormData) {
   // Keep company_whatsapp.owner_phone in sync (fire-and-forget, non-blocking)
   const svc = requireServiceClient()
   syncOwnerPhone(svc, company.id, phone).catch(() => undefined)
+
+  // Detect changed fields and send a profile-update notification email
+  if (currentCompany) {
+    const changes = diffProfileFields(
+      {
+        name: currentCompany.name,
+        ownerName: currentCompany.owner_name,
+        phone: currentCompany.phone,
+        email: currentCompany.email,
+        website: currentCompany.website,
+      },
+      {
+        name: name || 'My Company',
+        ownerName,
+        phone,
+        email,
+        website,
+      }
+    )
+
+    if (changes.length > 0) {
+      const userEmail = (claims as Record<string, unknown>).email as string | undefined
+      sendProfileUpdatedEmail({
+        toEmail: userEmail ?? '',
+        ownerName: ownerName ?? undefined,
+        changes,
+      }).catch(() => undefined)
+    }
+  }
 
   await supabase
     .from('company_price_book')

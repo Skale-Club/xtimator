@@ -6,9 +6,14 @@ import type {
   EstimateWithSections,
 } from '@/lib/queries/estimate'
 import { toMinorUnits } from '@/lib/money/currency'
+import { isShareLinkExpired } from '@/lib/estimates/share-link'
+
+// Internal fields never sent to the public browser payload: share_token is a
+// bearer credential the viewer already holds, consolidated_by is a staff user id.
+export type ShareEstimate = Omit<EstimateWithSections, 'share_token' | 'consolidated_by'>
 
 export interface ShareEstimateData {
-  estimate: EstimateWithSections & {
+  estimate: ShareEstimate & {
     project: { name: string; project_type: string | null }
     company: {
       id: string
@@ -23,9 +28,8 @@ export interface ShareEstimateData {
       zip: string | null
       logo_url: string | null
       brand_primary_color: string | null
-      notify_on_view: boolean
-      notify_on_accept: boolean
-      notify_on_decline: boolean
+      // notify_on_* flags are internal prefs — intentionally NOT exposed to the
+      // public share payload (used only server-side by logEstimateView/respond).
       stripe_account_id: string | null
       stripe_connect_status: string | null
       digital_signature_enabled: boolean
@@ -64,6 +68,14 @@ export async function getEstimateByShareToken(
     .single()
 
   if (!estimateData) return null
+
+  // Security: expired share links serve NO data (no PII built or returned).
+  // The page distinguishes "expired" from "missing" via getShareLinkState().
+  const shareExpiresAt =
+    (estimateData as { share_expires_at?: string | null }).share_expires_at ?? null
+  if (isShareLinkExpired(shareExpiresAt)) {
+    return null
+  }
 
   const estimate = estimateData as Estimate
 
@@ -107,11 +119,13 @@ export async function getEstimateByShareToken(
 
   if (!projectData) return null
 
-  // Fetch company with notification prefs + Stripe Connect status (Phase 70)
+  // Fetch only the company fields the public document + pay button render.
+  // notify_on_* prefs are deliberately excluded — they're internal and were
+  // being serialized to anonymous viewers without ever being displayed.
   const { data: companyData } = await supabase
     .from('companies')
     .select(
-      'id, name, owner_name, phone, email, website, address, city, state, zip, logo_url, brand_primary_color, notify_on_view, notify_on_accept, notify_on_decline, stripe_account_id, stripe_connect_status, digital_signature_enabled, estimate_terms_enabled, estimate_terms_text'
+      'id, name, owner_name, phone, email, website, address, city, state, zip, logo_url, brand_primary_color, stripe_account_id, stripe_connect_status, digital_signature_enabled, estimate_terms_enabled, estimate_terms_text'
     )
     .eq('id', estimate.company_id)
     .single()
@@ -159,9 +173,15 @@ export async function getEstimateByShareToken(
     ? toMinorUnits(totalDollars, estimate.currency_code)
     : 0
 
+  // Strip internal fields from the estimate before it crosses to the client:
+  // share_token (bearer credential) and consolidated_by (staff user id).
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { share_token: _shareToken, consolidated_by: _consolidatedBy, ...safeEstimate } =
+    estimateWithSections
+
   return {
     estimate: {
-      ...estimateWithSections,
+      ...safeEstimate,
       project: {
         name: projectData.name as string,
         project_type: projectData.project_type as string | null,
@@ -175,4 +195,25 @@ export async function getEstimateByShareToken(
     },
     client,
   }
+}
+
+/**
+ * Lightweight, PII-free check of a share link's state — used by the public page
+ * to show a friendly "expired" message instead of a generic 404. Selects only
+ * non-PII columns.
+ */
+export type ShareLinkState = 'active' | 'expired' | 'missing'
+
+export async function getShareLinkState(token: string): Promise<ShareLinkState> {
+  const supabase = requireServiceClient()
+  const { data } = await supabase
+    .from('estimates')
+    .select('share_expires_at, workflow_status')
+    .eq('share_token', token)
+    .maybeSingle()
+
+  if (!data) return 'missing'
+  const exp = (data as { share_expires_at?: string | null }).share_expires_at ?? null
+  if (isShareLinkExpired(exp)) return 'expired'
+  return 'active'
 }
