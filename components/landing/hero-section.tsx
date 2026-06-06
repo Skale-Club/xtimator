@@ -117,7 +117,7 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
                 asChild
                 size="default"
                 variant="outline"
-                className="flex-1 sm:flex-none border-white/10 bg-white/5 font-semibold text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:w-auto sm:min-w-36 h-9 text-sm px-3 sm:h-10 sm:px-4"
+                className="flex-1 sm:flex-none border-white/10 bg-white/5 font-semibold text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:w-auto sm:min-w-36 h-9 text-sm px-1 sm:h-10 sm:px-4"
               >
                 <Link href="/demo">See Demo</Link>
               </Button>

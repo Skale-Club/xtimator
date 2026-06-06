@@ -537,6 +537,22 @@
   .cta-glow { animation: cta-glow-pulse 3.4s ease-in-out infinite; }
 }
 
+/* Primary button on touch devices — always show hover state + looping shimmer */
+@media (hover: none) {
+  [data-slot="button"][data-variant="primary"] {
+    box-shadow: var(--glow-brand);
+    transform: translateY(-0.5px);
+  }
+  [data-slot="button"][data-variant="primary"]::before {
+    animation: button-shimmer-sweep 2.4s linear infinite !important;
+  }
+  [data-slot="button"][data-variant="primary"]:active {
+    opacity: 0.88;
+    transform: translateY(0);
+    transition: opacity 80ms ease, transform 80ms ease;
+  }
+}
+
 /* Gradient-border auth card (mask-image trick — 1px gradient ring around glass surface) */
 .gradient-border-card {
   position: relative;
