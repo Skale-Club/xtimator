@@ -5,8 +5,8 @@ import { motion, useInView, animate } from 'framer-motion'
 import { Star } from 'lucide-react'
 
 const COUNTERS = [
-  { value: 500,   suffix: '+', label: 'Contractors' },
-  { value: 12000, suffix: '+', label: 'Estimates sent' },
+  { value: 50,  suffix: '+', label: 'Contractors' },
+  { value: 500, suffix: '+', label: 'Estimates sent' },
 ]
 
 function Counter({ value, suffix, inView }: { value: number; suffix: string; inView: boolean }) {
