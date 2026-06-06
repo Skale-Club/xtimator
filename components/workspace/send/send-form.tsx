@@ -224,7 +224,7 @@ export function SendForm({
                     <FormItem>
                       <FormLabel>{t('To')}</FormLabel>
                       <FormControl>
-                        <Input type="email" placeholder="client@example.com" {...field} />
+                        <Input type="email" placeholder="client@example.com" autoComplete="email" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

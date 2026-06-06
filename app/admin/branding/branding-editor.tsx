@@ -197,6 +197,7 @@ export function BrandingEditor({ initial }: BrandingEditorProps) {
                     value={field.value ?? ''}
                     onChange={field.onChange}
                     placeholder={DEFAULT_COLOR}
+                    autoComplete="off"
                   />
                 </div>
                 <FormDescription>

@@ -91,6 +91,7 @@ export function StepBusinessInfo({ form }: StepBusinessInfoProps) {
                 type="email"
                 placeholder="john@smithpainting.com"
                 className="min-h-[44px]"
+                autoComplete="email"
                 {...field}
               />
             </FormControl>
