@@ -41,7 +41,7 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
         <div
           className={
             hasImage
-              ? 'flex flex-1 min-h-0 flex-col gap-2 pt-24 sm:flex-row sm:items-stretch sm:gap-6 sm:pt-0'
+              ? 'flex flex-1 min-h-0 flex-col gap-2 pt-8 sm:flex-row sm:items-stretch sm:gap-6 sm:pt-0'
               : 'flex flex-col items-center justify-center gap-6 py-16 text-center'
           }
         >
@@ -72,7 +72,7 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
 
             <motion.h1
               variants={FADE_UP_ANIMATION_VARIANTS}
-              className="hero-h1 text-[clamp(34px,7vw,56px)] font-semibold leading-[1.05] tracking-[-0.03em] lg:w-[580px]"
+              className="hero-h1 text-[clamp(40px,7vw,56px)] font-semibold leading-[1.05] tracking-[-0.03em] lg:w-[580px]"
             >
               {content.heroHeadline.split(' ')[0]}
               <br />
