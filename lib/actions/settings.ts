@@ -9,6 +9,7 @@ import { normalizeCurrencyCode } from '@/lib/money/currency'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { assertWritable } from '@/lib/demo/guard'
 import { syncOwnerPhone } from '@/lib/whatsapp/sync-owner-phone'
+import { sendProfileUpdatedEmail, type ProfileChange } from '@/lib/email/account-emails'
 
 async function getAuthContext() {
   const supabase = await createClient()
@@ -74,6 +75,13 @@ export async function updateCompanySettings(formData: FormData) {
     logoUrl = storage.getPublicUrl('logos', storagePath)
   }
 
+  // Fetch current values before update so we can detect which fields changed
+  const { data: currentCompany } = await supabase
+    .from('companies')
+    .select('name, owner_name, phone, email, website')
+    .eq('id', company.id)
+    .single()
+
   const { error } = await supabase
     .from('companies')
     .update({
@@ -106,6 +114,34 @@ export async function updateCompanySettings(formData: FormData) {
   // Keep company_whatsapp.owner_phone in sync (fire-and-forget, non-blocking)
   const svc = requireServiceClient()
   syncOwnerPhone(svc, company.id, phone).catch(() => undefined)
+
+  // Detect changed fields and send a profile-update notification email
+  if (currentCompany) {
+    const changes: ProfileChange[] = []
+    const track = (
+      label: string,
+      oldVal: string | null | undefined,
+      newVal: string | null | undefined
+    ) => {
+      const o = oldVal ?? null
+      const n = newVal ?? null
+      if (o !== n) changes.push({ label, oldValue: o, newValue: n })
+    }
+    track('Company name', currentCompany.name, name || 'My Company')
+    track('Owner name', currentCompany.owner_name, ownerName)
+    track('Phone', currentCompany.phone, phone)
+    track('Email', currentCompany.email, email)
+    track('Website', currentCompany.website, website)
+
+    if (changes.length > 0) {
+      const userEmail = (claims as Record<string, unknown>).email as string | undefined
+      sendProfileUpdatedEmail({
+        toEmail: userEmail ?? '',
+        ownerName: ownerName ?? undefined,
+        changes,
+      }).catch(() => undefined)
+    }
+  }
 
   await supabase
     .from('company_price_book')
