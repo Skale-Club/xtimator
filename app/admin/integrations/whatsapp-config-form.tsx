@@ -11,19 +11,22 @@ import { saveWhatsAppConfig } from './actions'
 interface WhatsAppConfigFormProps {
   currentPhoneNumberId: string
   currentWabaId: string
+  currentDisplayNumber?: string
 }
 
 export function WhatsAppConfigForm({
   currentPhoneNumberId,
   currentWabaId,
+  currentDisplayNumber = '',
 }: WhatsAppConfigFormProps) {
   const [phoneNumberId, setPhoneNumberId] = useState(currentPhoneNumberId)
   const [wabaId, setWabaId] = useState(currentWabaId)
+  const [displayNumber, setDisplayNumber] = useState(currentDisplayNumber)
   const [isPending, startTransition] = useTransition()
 
   function handleSave() {
     startTransition(async () => {
-      const result = await saveWhatsAppConfig({ phoneNumberId, wabaId })
+      const result = await saveWhatsAppConfig({ phoneNumberId, wabaId, displayNumber })
       if (!result.ok) {
         toast.error(result.message)
       } else {
@@ -61,6 +64,20 @@ export function WhatsAppConfigForm({
             placeholder="123456789012345"
             disabled={isPending}
           />
+        </div>
+        <div className="space-y-1 sm:col-span-2">
+          <Label htmlFor="wa-display-number">Display Number (E.164)</Label>
+          <Input
+            id="wa-display-number"
+            value={displayNumber}
+            onChange={(e) => setDisplayNumber(e.target.value)}
+            placeholder="+15551234567"
+            disabled={isPending}
+          />
+          <p className="text-xs text-muted-foreground">
+            The public WhatsApp number customers message. Used to build the
+            &ldquo;Get Started on WhatsApp&rdquo; link in welcome emails.
+          </p>
         </div>
       </div>
       <Button onClick={handleSave} disabled={isPending} className="min-h-[44px]">

@@ -35,6 +35,7 @@ export async function IntegrationCategoryContent({
 
   let waPhoneNumberId = ''
   let waWabaId = ''
+  let waDisplayNumber = ''
   if (category.showWhatsAppConfig) {
     const svc = requireServiceClient()
     const { data } = await svc
@@ -42,9 +43,15 @@ export async function IntegrationCategoryContent({
       .select('metadata')
       .eq('provider', 'meta_whatsapp')
       .maybeSingle()
-    const meta = (data?.metadata as { phone_number_id?: string; waba_id?: string } | null) ?? {}
+    const meta =
+      (data?.metadata as {
+        phone_number_id?: string
+        waba_id?: string
+        display_number?: string
+      } | null) ?? {}
     waPhoneNumberId = meta.phone_number_id ?? ''
     waWabaId = meta.waba_id ?? ''
+    waDisplayNumber = meta.display_number ?? ''
   }
 
   return (
@@ -84,6 +91,7 @@ export async function IntegrationCategoryContent({
         <WhatsAppConfigForm
           currentPhoneNumberId={waPhoneNumberId}
           currentWabaId={waWabaId}
+          currentDisplayNumber={waDisplayNumber}
         />
       )}
     </div>

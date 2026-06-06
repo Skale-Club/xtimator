@@ -372,3 +372,24 @@ export async function getWhatsAppPlatformConfig(): Promise<WhatsAppPlatformConfi
   whatsAppConfigCache = { value: config, fetchedAt: now }
   return config
 }
+
+/**
+ * The platform's human-readable WhatsApp display number in E.164 (e.g. "+15551234567").
+ * Used to build click-to-chat (wa.me) links — NOT the same as phoneNumberId, which is
+ * Meta's internal id. Reads platform_integrations.meta_whatsapp metadata.display_number,
+ * falling back to the META_WHATSAPP_DISPLAY_NUMBER env var. Returns null when unset, so
+ * callers can gracefully omit the WhatsApp CTA.
+ */
+export async function getWhatsAppDisplayNumber(): Promise<string | null> {
+  const fromEnv = process.env.META_WHATSAPP_DISPLAY_NUMBER ?? null
+  const svc = createServiceClient()
+  if (!svc) return fromEnv
+  const { data } = await svc
+    .from('platform_integrations')
+    .select('metadata')
+    .eq('provider', 'meta_whatsapp')
+    .maybeSingle()
+  const fromDb = (data?.metadata as { display_number?: string } | null)?.display_number
+  const value = (fromDb && fromDb.trim()) || fromEnv
+  return value && value.trim() ? value.trim() : null
+}

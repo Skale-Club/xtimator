@@ -1,0 +1,13 @@
+-- SECURITY (PII): remove the over-broad anon SELECT policy on estimates.
+-- "FOR SELECT TO anon USING (share_token IS NOT NULL)" let the unauthenticated
+-- anon/publishable key read EVERY estimate row, because share_token defaults to a
+-- UUID on all rows. An attacker could SELECT * FROM estimates, harvest every
+-- share_token, then open each public share page to scrape every client's and
+-- owner's phone/email/address (mass PII disclosure).
+--
+-- No legitimate flow depends on this policy: the public share page loader
+-- (lib/queries/share.ts), logEstimateView/respondToEstimate
+-- (app/estimate/[token]/actions.ts), and the sign/pay routes all use the SERVICE
+-- role (which bypasses RLS) and filter by the exact share_token. Authenticated
+-- editing is governed by separate authenticated-role policies, untouched here.
+DROP POLICY IF EXISTS "estimates_anon_select_by_share_token" ON public.estimates;

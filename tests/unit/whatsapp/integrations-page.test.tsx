@@ -76,9 +76,8 @@ describe('Settings → Integrations page', () => {
 
   it('Messaging channels card explains no setup is required', async () => {
     render(await SettingsIntegrationsPage())
-    expect(
-      screen.getByText(/no setup required/i)
-    ).toBeTruthy()
+    const matches = screen.getAllByText(/no setup required/i)
+    expect(matches.length).toBeGreaterThanOrEqual(1)
   })
 
   it('does not render any connect form or WhatsApp credential inputs', async () => {

@@ -11,6 +11,7 @@ import { revalidatePath } from 'next/cache'
 import { getIntegrationKey, getBranding } from '@/lib/platform-config'
 import { rateLimit } from '@/lib/ratelimit'
 import { demoGuardResponse } from '@/lib/demo/guard'
+import { shareLinkExpiryFromNow } from '@/lib/estimates/share-link'
 
 interface SendRequestBody {
   to: string
@@ -222,10 +223,11 @@ export async function POST(
       sent_at: sentAt,
     })
 
-    // Update estimate sent_at
+    // Update estimate sent_at + refresh the share-link expiry (re-sending revives
+    // an expired link — the natural "regenerate link" path).
     await supabase
       .from('estimates')
-      .update({ sent_at: sentAt })
+      .update({ sent_at: sentAt, share_expires_at: shareLinkExpiryFromNow() })
       .eq('id', id)
 
     // Update project status to 'sent'

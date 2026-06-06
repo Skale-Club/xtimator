@@ -345,8 +345,16 @@ export async function saveTwilioFromPhone(
 export async function saveWhatsAppConfig(input: {
   phoneNumberId: string
   wabaId: string
+  /** Human-readable display number in E.164 (e.g. +15551234567) for wa.me links. */
+  displayNumber?: string
 }): Promise<ActionResult> {
   const ctx = await requireAdmin()
+
+  const displayNumber = input.displayNumber?.trim() ?? ''
+  if (displayNumber && !/^\+[1-9]\d{7,14}$/.test(displayNumber)) {
+    return { ok: false, message: 'Display number must be in E.164 format (e.g. +15551234567)' }
+  }
+
   const svc = requireServiceClient()
 
   const { data: existing } = await svc
@@ -365,6 +373,7 @@ export async function saveWhatsAppConfig(input: {
         ...((existing?.metadata as object) ?? {}),
         phone_number_id: input.phoneNumberId.trim(),
         waba_id: input.wabaId.trim(),
+        display_number: displayNumber,
       },
       updated_at: new Date().toISOString(),
       updated_by: ctx.userId,
@@ -386,6 +395,7 @@ export async function saveWhatsAppConfig(input: {
     metadata: {
       phone_number_id: input.phoneNumberId.trim(),
       waba_id: input.wabaId.trim(),
+      display_number: displayNumber,
     },
   })
 
