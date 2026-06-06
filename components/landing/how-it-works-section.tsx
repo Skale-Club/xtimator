@@ -34,7 +34,10 @@ export function HowItWorksSection({ steps }: { steps: Array<{ eyebrow: string; t
                   className="relative flex h-full w-full select-none flex-col rounded-[13px] p-4 sm:p-6 lg:p-8 backdrop-blur-none transition-colors duration-300 group-hover:border-primary/30 md:text-center"
                 >
                   <div className="pointer-events-none absolute inset-0 rounded-[13px] bg-gradient-to-br from-primary/10 via-transparent to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
-                  <h3 className="-mb-[11.5px] text-base font-semibold tracking-tight text-white sm:mb-2 sm:text-xl lg:text-2xl">{title}</h3>
+                  <span className="mb-3 inline-flex size-7 items-center justify-center rounded-full gradient-brand text-xs font-bold text-white shadow-[inset_0_0_12px_hsl(var(--primary)/0.2)] transition-transform duration-500 group-hover:scale-110 sm:mb-4 sm:size-9 md:mx-auto lg:size-10">
+                    {index + 1}
+                  </span>
+                  <h3 className="mb-1.5 text-base font-semibold tracking-tight text-white sm:mb-2 sm:text-xl lg:text-2xl">{title}</h3>
                   <p className="text-sm leading-relaxed text-muted-foreground sm:text-base lg:text-lg">{description}</p>
                 </Card>
               </div>
