@@ -50,6 +50,10 @@ const EstimateState = Annotation.Root({
   estimateId: Annotation<string | undefined>(),
   estimateLanguage: Annotation<string | undefined>(),
   isVague: Annotation<boolean | undefined>(),
+  // Set true when estimate generation throws (e.g. dead/missing OpenRouter key,
+  // 401 "User not found", model missing). Routes to sendError so the owner always
+  // gets a reply instead of the graph throwing → Inngest job dying silently.
+  generationFailed: Annotation<boolean | undefined>(),
 })
 
 type EstimateStateType = typeof EstimateState.State
@@ -237,11 +241,28 @@ function checkInputsEdge(state: EstimateStateType): string {
 async function generateEstimateNode(
   state: EstimateStateType
 ): Promise<Partial<EstimateStateType>> {
-  const result = await generateEstimateForProject(state.companyId, state.projectId)
-  return {
-    estimateId: result.estimateId,
-    estimateLanguage: result.language,
+  // NEVER re-throw: a throw here propagates out of graph.invoke → fails the
+  // Inngest orchestrate-estimate step → job dies after retries with NO reply to
+  // the owner (the recurring silent-failure bug). Instead, flag the failure and
+  // let checkGenerated route to sendError so the owner always gets a reply.
+  try {
+    const result = await generateEstimateForProject(state.companyId, state.projectId)
+    return {
+      estimateId: result.estimateId,
+      estimateLanguage: result.language,
+    }
+  } catch (err) {
+    console.error('[WhatsApp] generateEstimate failed; routing to error reply:', err)
+    return { generationFailed: true }
   }
+}
+
+// Edge function after generateEstimate: if generation threw, send the owner an
+// error reply; otherwise continue to the vagueness check.
+function checkGeneratedEdge(state: EstimateStateType): string {
+  return state.generationFailed || !state.estimateId
+    ? 'sendError'
+    : 'evaluateVagueness'
 }
 
 // ---------------------------------------------------------------------------
@@ -376,8 +397,15 @@ async function sendErrorNode(
   state: EstimateStateType
 ): Promise<Partial<EstimateStateType>> {
   const { companyId, ownerPhone } = state
-  const body =
-    "Sorry, I couldn't process your audio message. Please describe the job in a text message and I'll generate an estimate for you."
+  // Reached from two paths:
+  //   1. checkInputsEdge — no usable input (audio couldn't be read, no transcript)
+  //   2. checkGeneratedEdge — estimate generation threw (e.g. AI provider failure)
+  // A single message covers both: ask the owner to retry / describe in text. This
+  // is the LAST line of defense that guarantees the owner always gets SOME reply,
+  // turning the previously-silent failure into a visible, recoverable one.
+  const body = state.generationFailed
+    ? "Sorry, I hit a problem generating your estimate. Please try again in a moment — if it keeps happening, describe the job in a text message."
+    : "Sorry, I couldn't process your message. Please describe the job in a text message and I'll generate an estimate for you."
   await sendWhatsAppMessage(ownerPhone, { type: 'text', text: { body } })
   await logOutboundMessage(requireServiceClient(), {
     companyId,
@@ -406,7 +434,7 @@ const graph = new StateGraph(EstimateState)
   .addConditionalEdges('supervisor', supervisorEdge, ['processMessage', END])
   .addEdge('processMessage', 'gather')
   .addConditionalEdges('gather', checkInputsEdge, ['generateEstimate', 'sendError'])
-  .addEdge('generateEstimate', 'evaluateVagueness')
+  .addConditionalEdges('generateEstimate', checkGeneratedEdge, ['evaluateVagueness', 'sendError'])
   .addConditionalEdges('evaluateVagueness', checkVagueEdge, ['askDetails', 'sendConfirmation'])
   .addEdge('askDetails', END)
   .addEdge('sendConfirmation', END)
