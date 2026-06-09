@@ -25,7 +25,7 @@ progress:
 Phase: 999.1
 Plan: Not started
 Status: Phase complete — ready for verification
-Last activity: 2026-06-09 - Completed quick task 260609-hir: Add admin-configurable WhatsApp system prompt
+Last activity: 2026-06-09 - Completed quick task 260609-hwd: Fix React hydration mismatch in whatsapp-inbox formatTime
 Stopped at: Completed 93-03-PLAN.md (event log list page + detail page + EventStepTimeline)
 
 ## v3.1.1 Phases
@@ -751,6 +751,7 @@ v3.1: Phases 61-65 (started 2026-05-15). Production Go-Live — 27 requirements 
 | 260609-h0s | Fix multi-tenant data leak — migrate all 11 remaining page/route data-loaders from user_id-scoped getCachedCompany(claims.sub) to cookie-scoped getActiveCompany() (skipped Phase 79-04 follow-up). New companies no longer load the original company's price book / projects / dashboard / clients. Zero getCachedCompany callers remain under app/; D-10 export preserved; tsc --noEmit clean | 2026-06-09 | ef5b89d | [260609-h0s-fix-multi-tenant-data-leak-migrate-getca](.planning/quick/260609-h0s-fix-multi-tenant-data-leak-migrate-getca/) |
 | 260609-hkz | Add WhatsApp panel to admin dashboard (/admin/whatsapp) listing all phone numbers that sent messages cross-tenant — service-role read of whatsapp_conversations joined to companies, 6-column glass table ordered by last_message_at desc; sidebar nav entry added | 2026-06-09 | 3d111fd | [260609-hkz-add-whatsapp-panel-to-admin-dashboard-li](.planning/quick/260609-hkz-add-whatsapp-panel-to-admin-dashboard-li/) |
 | 260609-hir | Add admin-configurable WhatsApp system prompt — platform-wide addendum stored in platform_integrations meta_whatsapp.metadata.system_prompt, appended to buildSystemPrompt before the Security block, fetched+applied ONLY for WhatsApp-channel estimate generation; admin textarea form + saveWhatsAppSystemPrompt action; tsc --noEmit clean (no new errors) | 2026-06-09 | 0f5c527, ce55f91 | [260609-hir-add-admin-configurable-whatsapp-system-p](.planning/quick/260609-hir-add-admin-configurable-whatsapp-system-p/) |
+| 260609-hwd | Fix React hydration mismatch in whatsapp-inbox formatTime — pinned locale to en-US (was default locale: server "8 de jun." vs client "Jun 8") and removed time-dependent new Date() same-day branch; output now depends only on the iso arg. Tradeoff: same-day messages show date prefix (e.g. "Jun 8, 02:14 PM") instead of time-only | 2026-06-09 | 0f3b414 | [260609-hwd-fix-react-hydration-mismatch-in-whatsapp](.planning/quick/260609-hwd-fix-react-hydration-mismatch-in-whatsapp/) |
 | 2026-05-18 | fast | Center auth card logo+wordmark | done |
 | 2026-05-19 | fast | Make audio capture screen scrollable on smaller viewports | done |
 | 2026-05-18 | fast | Restyle sidebar New Project as filled gradient, remove dashboard CTA | done |
