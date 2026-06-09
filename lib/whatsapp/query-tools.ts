@@ -40,6 +40,13 @@ type EstimateRow = {
   summary?: string | null
   created_at: string
 }
+type PriceBookRow = {
+  id: string
+  name: string | null
+  unit: string | null
+  unit_price: number | null
+  currency_code: string | null
+}
 
 function formatDate(iso: string): string {
   try {
@@ -185,5 +192,71 @@ export function makeQueryTools(companyId: string, supabase: SupabaseClient) {
     }
   )
 
-  return [findClientByName, getLatestEstimateForClient, getProjectStatus, listRecentEstimates]
+  const listServices = tool(
+    async () => {
+      const CAP = 25
+      const { data } = await supabase
+        .from('company_price_book')
+        .select('id, name, unit, unit_price, currency_code')
+        .eq('company_id', companyId)
+        .order('name', { ascending: true })
+        .limit(CAP + 1)
+      const rows = (data as PriceBookRow[] | null) ?? []
+      if (rows.length === 0) return 'No services on file yet.'
+      const shown = rows.slice(0, CAP)
+      const lines = shown.map(
+        (r) =>
+          `- ${r.name ?? 'Unnamed'}: ${formatMoney(r.unit_price ?? 0, r.currency_code)}${
+            r.unit ? ` per ${r.unit}` : ''
+          }`
+      )
+      if (rows.length > CAP) lines.push('...and more services available.')
+      return lines.join('\n')
+    },
+    {
+      name: 'list_services',
+      description:
+        'List the services this business offers, with their prices. Use for questions like "what do you offer" or "what are your prices".',
+      schema: z.object({}),
+    }
+  )
+
+  const findServiceByName = tool(
+    async ({ name }: { name: string }) => {
+      const { data } = await supabase
+        .from('company_price_book')
+        .select('id, name, unit, unit_price, currency_code')
+        .eq('company_id', companyId)
+        .ilike('name', `%${name}%`)
+        .order('name', { ascending: true })
+        .limit(5)
+      const rows = (data as PriceBookRow[] | null) ?? []
+      if (rows.length === 0) return `No service found matching "${name}".`
+      return rows
+        .map(
+          (r) =>
+            `- ${r.name ?? 'Unnamed'}: ${formatMoney(r.unit_price ?? 0, r.currency_code)}${
+              r.unit ? ` per ${r.unit}` : ''
+            }`
+        )
+        .join('\n')
+    },
+    {
+      name: 'find_service_by_name',
+      description:
+        'Look up a specific service / price-book item by (partial) name. Use for "how much is X" or "do you do X".',
+      schema: z.object({
+        name: z.string().describe('Full or partial service / item name to search for'),
+      }),
+    }
+  )
+
+  return [
+    findClientByName,
+    getLatestEstimateForClient,
+    getProjectStatus,
+    listRecentEstimates,
+    listServices,
+    findServiceByName,
+  ]
 }
