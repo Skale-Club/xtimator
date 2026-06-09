@@ -39,6 +39,7 @@ import { processInboundMessages } from '@/lib/whatsapp/handler'
 import { makeQueryTools } from '@/lib/whatsapp/query-tools'
 import { sendWhatsAppMessage } from '@/lib/whatsapp/client'
 import { logOutboundMessage } from '@/lib/whatsapp/conversations'
+import { splitReply } from '@/lib/whatsapp/split-reply'
 
 const HISTORY_LIMIT = 20
 
@@ -125,6 +126,25 @@ async function sendOwnerReply(
   }).catch(() => undefined)
 }
 
+// Send a multi-part reply as ordered, sequential WhatsApp messages so a long
+// answer arrives as several short bubbles instead of one wall of text. Mirrors
+// sendOwnerReply's fire-and-forget logging for each chunk.
+async function sendOwnerReplyChunks(
+  input: RouteInput,
+  chunks: string[]
+): Promise<void> {
+  for (const chunk of chunks) {
+    await sendWhatsAppMessage(input.ownerPhone, { type: 'text', text: { body: chunk } })
+    logOutboundMessage(input.supabase, {
+      companyId: input.companyId,
+      contactPhone: input.ownerPhone,
+      body: chunk,
+      msgType: 'text',
+      status: 'sent',
+    }).catch(() => undefined)
+  }
+}
+
 async function classify(
   normalizedText: string,
   session: Session | null,
@@ -168,7 +188,47 @@ Use the recent conversation history for context. Reply with ONLY one of: CONFIRM
 // QUERY dispatch — ReAct agent over company-scoped read-only tools
 // ---------------------------------------------------------------------------
 
+// Build a compact, human-readable profile block from whatever company fields
+// are present. Null/empty fields are skipped. Never throws.
+function buildCompanyProfileBlock(
+  company: {
+    name?: string | null
+    owner_name?: string | null
+    phone?: string | null
+    email?: string | null
+    website?: string | null
+  } | null
+): string {
+  const lines: string[] = []
+  if (company?.name) lines.push(`- Business name: ${company.name}`)
+  if (company?.owner_name) lines.push(`- Owner: ${company.owner_name}`)
+  if (company?.phone) lines.push(`- Phone: ${company.phone}`)
+  if (company?.email) lines.push(`- Email: ${company.email}`)
+  if (company?.website) lines.push(`- Website: ${company.website}`)
+  return lines.length > 0 ? lines.join('\n') : '- (no additional profile on file)'
+}
+
 async function dispatchQuery(input: RouteInput, normalizedText: string): Promise<void> {
+  // Fetch the resolved company's profile (scoped to the trusted companyId).
+  // Reuse input.supabase — already a service client (same as query-tools). The
+  // LLM's only grounding is this profile + tool results; missing row degrades
+  // gracefully and never throws.
+  const { data: company } = await input.supabase
+    .from('companies')
+    .select('name, owner_name, phone, email, website')
+    .eq('id', input.companyId)
+    .maybeSingle()
+
+  const profile = company as {
+    name?: string | null
+    owner_name?: string | null
+    phone?: string | null
+    email?: string | null
+    website?: string | null
+  } | null
+  const companyName = (profile?.name as string) || 'this business'
+  const companyProfileBlock = buildCompanyProfileBlock(profile)
+
   const tools = makeQueryTools(input.companyId, input.supabase)
   const llm = new ChatOpenAI({
     apiKey: process.env.OPENAI_API_KEY,
@@ -176,10 +236,37 @@ async function dispatchQuery(input: RouteInput, normalizedText: string): Promise
     temperature: 0,
   })
 
-  const systemPrompt = `You are a helpful assistant answering a contractor's questions about their OWN business data (clients, projects, estimates) over WhatsApp.
-- Use the provided tools to look up data. You can ONLY see this business's data.
-- Respond in the same language the owner used.
-- Be concise — this is WhatsApp. Answer the question directly with the numbers/status found.`
+  // T-mk4-01/02: this prompt only REINFORCES single-tenant isolation in natural
+  // language. The actual isolation control is the companyId closure inside
+  // makeQueryTools — no tool schema accepts a tenant, so the LLM cannot switch
+  // companies even under prompt injection.
+  const systemPrompt = `You are the Xtimator assistant for ${companyName}, helping this business owner over WhatsApp.
+
+WHO YOU ARE TALKING TO
+- This conversation belongs to ONE company: ${companyName}. The person messaging is verified by their registered phone number.
+- You can ONLY see and talk about this company's data. You have no access to any other company, customer, or account. Never reference, compare to, or reveal anything outside this company.
+- If asked about another business or data you don't have, say you can only help with this company.
+
+WHAT YOU KNOW (your only source of truth)
+- Everything you answer MUST come from the company profile below and the data returned by your tools. That is all you know.
+${companyProfileBlock}
+
+HARD RULES — NEVER BREAK
+1. NEVER invent, guess, or assume information. If it is not in the company profile or a tool result, you do not know it.
+2. If the answer isn't available, say so plainly and offer what you CAN help with.
+3. Never make up prices, dates, client names, totals, or policies. Quote only exact values from tool results.
+4. Never expose internal IDs or another company's information.
+5. Stay on topic: this company's estimates, quotes, services, pricing, clients, projects.
+
+HOW TO REPLY
+- Be short, warm, and human. Reply in the SAME language the user writes in.
+- Keep each message to 1-3 short sentences. No long walls of text.
+- If the answer needs several points, separate them with a blank line so they can be sent as multiple short messages.
+- Lead with the answer; add a short follow-up question only when it helps.
+- For numbers/prices/dates, state them exactly as they appear in tool results.
+
+WHEN UNSURE
+- Don't bluff. Briefly say what you don't have, then suggest the closest thing you CAN do.`
 
   const agent = createReactAgent({ llm, tools })
   const result = await agent.invoke({
@@ -187,7 +274,10 @@ async function dispatchQuery(input: RouteInput, normalizedText: string): Promise
   })
 
   const answer = extractAIText((result as { messages: BaseMessage[] }).messages)
-  await sendOwnerReply(input, answer ?? "I couldn't find an answer to that.")
+  const fallback = "I couldn't find an answer to that."
+  let chunks = splitReply(answer ?? fallback)
+  if (chunks.length === 0) chunks = [fallback]
+  await sendOwnerReplyChunks(input, chunks)
 }
 
 // ---------------------------------------------------------------------------
