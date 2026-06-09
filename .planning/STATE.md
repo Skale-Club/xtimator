@@ -25,7 +25,7 @@ progress:
 Phase: 999.1
 Plan: Not started
 Status: Phase complete — ready for verification
-Last activity: 2026-06-09 - Completed quick task 260609-h0s: Fix multi-tenant data leak (migrate getCachedCompany loaders to getActiveCompany)
+Last activity: 2026-06-09 - Completed quick task 260609-hkz: Add WhatsApp panel to admin dashboard (cross-tenant inbound number list)
 Stopped at: Completed 93-03-PLAN.md (event log list page + detail page + EventStepTimeline)
 
 ## v3.1.1 Phases
@@ -749,6 +749,7 @@ v3.1: Phases 61-65 (started 2026-05-15). Production Go-Live — 27 requirements 
 | 260602-mq2 | Implement LangGraph estimate graph for WhatsApp inbound processing | 2026-06-02 | 39515c3 | [260602-mq2-implement-langgraph-estimate-graph-for-w](.planning/quick/260602-mq2-implement-langgraph-estimate-graph-for-w/) |
 | 260603-lrf | WhatsApp inbound AI intent routing — normalize every message (audio→Whisper, photo→vision, text) then classify CONFIRM_OR_CANCEL/EDIT/CREATE/QUERY; awaiting_confirm no longer bounces audio/photo; multi-tenant-scoped read tools for the QUERY path; runs in Inngest after fast ack (Verified) | 2026-06-03 | df59e84, aafb88f, 8d39708 | [260603-lrf-whatsapp-inbound-ai-intent-routing-trans](.planning/quick/260603-lrf-whatsapp-inbound-ai-intent-routing-trans/) |
 | 260609-h0s | Fix multi-tenant data leak — migrate all 11 remaining page/route data-loaders from user_id-scoped getCachedCompany(claims.sub) to cookie-scoped getActiveCompany() (skipped Phase 79-04 follow-up). New companies no longer load the original company's price book / projects / dashboard / clients. Zero getCachedCompany callers remain under app/; D-10 export preserved; tsc --noEmit clean | 2026-06-09 | ef5b89d | [260609-h0s-fix-multi-tenant-data-leak-migrate-getca](.planning/quick/260609-h0s-fix-multi-tenant-data-leak-migrate-getca/) |
+| 260609-hkz | Add WhatsApp panel to admin dashboard (/admin/whatsapp) listing all phone numbers that sent messages cross-tenant — service-role read of whatsapp_conversations joined to companies, 6-column glass table ordered by last_message_at desc; sidebar nav entry added | 2026-06-09 | 3d111fd | [260609-hkz-add-whatsapp-panel-to-admin-dashboard-li](.planning/quick/260609-hkz-add-whatsapp-panel-to-admin-dashboard-li/) |
 | 2026-05-18 | fast | Center auth card logo+wordmark | done |
 | 2026-05-19 | fast | Make audio capture screen scrollable on smaller viewports | done |
 | 2026-05-18 | fast | Restyle sidebar New Project as filled gradient, remove dashboard CTA | done |
