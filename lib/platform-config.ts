@@ -393,3 +393,22 @@ export async function getWhatsAppDisplayNumber(): Promise<string | null> {
   const value = (fromDb && fromDb.trim()) || fromEnv
   return value && value.trim() ? value.trim() : null
 }
+
+/**
+ * Platform-wide, admin-configured system-prompt addendum appended to the base
+ * estimate prompt ONLY for WhatsApp-channel estimate generation. Stored in
+ * platform_integrations.meta_whatsapp metadata.system_prompt. Read fresh (no
+ * separate TTL cache) — freshness is preferred for a low-frequency admin
+ * setting. Returns the trimmed value, or null when unset.
+ */
+export async function getWhatsAppSystemPrompt(): Promise<string | null> {
+  const svc = createServiceClient()
+  if (!svc) return null
+  const { data } = await svc
+    .from('platform_integrations')
+    .select('metadata')
+    .eq('provider', 'meta_whatsapp')
+    .maybeSingle()
+  const fromDb = (data?.metadata as { system_prompt?: string } | null)?.system_prompt
+  return fromDb && fromDb.trim() ? fromDb.trim() : null
+}

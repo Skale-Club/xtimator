@@ -246,7 +246,7 @@ async function generateEstimateNode(
   // the owner (the recurring silent-failure bug). Instead, flag the failure and
   // let checkGenerated route to sendError so the owner always gets a reply.
   try {
-    const result = await generateEstimateForProject(state.companyId, state.projectId)
+    const result = await generateEstimateForProject(state.companyId, state.projectId, { channel: 'whatsapp' })
     return {
       estimateId: result.estimateId,
       estimateLanguage: result.language,

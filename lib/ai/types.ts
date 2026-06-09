@@ -57,6 +57,13 @@ export type EstimateInput = {
    * Defaults to 'en'. EstimateOutput must be in this language.
    */
   language?: 'en' | 'pt' | 'es'
+  /**
+   * Admin-configured, platform-wide WhatsApp-only system prompt addendum.
+   * Appended to the base system prompt by buildSystemPrompt(), AFTER the
+   * price-book block and BEFORE the Security block. Only set for WhatsApp-channel
+   * estimate generation; null/undefined for web + MCP.
+   */
+  extraInstructions?: string
 }
 
 export type RefineEstimateInput = {

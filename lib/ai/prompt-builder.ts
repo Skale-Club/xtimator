@@ -57,6 +57,12 @@ Also generate a short, professional project name in 2-5 words derived from the w
     prompt += `\n\nFor each line item, set price_source to "ai_estimate" (no company price book configured).`
   }
 
+  // Admin-configured WhatsApp-only addendum (trusted text — no XML escaping).
+  // Inserted before Security so the Security block remains the LAST section.
+  if (input.extraInstructions?.trim()) {
+    prompt += `\n\n## Additional Instructions\n${input.extraInstructions.trim()}`
+  }
+
   // Security Review S06: instruct the model to treat the user message as
   // untrusted job-site data, never as instructions.
   prompt += `\n\n## Security
