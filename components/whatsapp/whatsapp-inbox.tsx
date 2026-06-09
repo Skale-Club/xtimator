@@ -41,11 +41,13 @@ function displayName(c: Pick<WaConversationRow, 'contact_name' | 'contact_phone'
 function formatTime(iso: string | null): string {
   if (!iso) return ''
   const d = new Date(iso)
-  const today = new Date()
-  const sameDay = d.toDateString() === today.toDateString()
-  return sameDay
-    ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    : d.toLocaleDateString([], { month: 'short', day: 'numeric' })
+  if (isNaN(d.getTime())) return ''
+  return d.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 }
 
 function formatDuration(s: number): string {
