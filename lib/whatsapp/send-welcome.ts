@@ -9,6 +9,7 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { sendWhatsAppMessage } from '@/lib/whatsapp/client'
+import { logOutboundMessage } from '@/lib/whatsapp/conversations'
 
 const WELCOME_TEXT = [
   '👋 Welcome to Xtimator!',
@@ -63,6 +64,13 @@ export async function welcomeOnFirstContact(
   if (!claimed) return false
   try {
     await sendWhatsAppWelcome(toPhone)
+    logOutboundMessage(serviceClient, {
+      companyId,
+      contactPhone: toPhone,
+      body: WELCOME_TEXT,
+      msgType: 'text',
+      status: 'sent',
+    }).catch(() => undefined)
     return true
   } catch (err) {
     console.warn('[WhatsApp] welcome message send failed', err)

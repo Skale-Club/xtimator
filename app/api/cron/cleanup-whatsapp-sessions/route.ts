@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { sendWhatsAppMessage } from '@/lib/whatsapp/client'
+import { logOutboundMessage } from '@/lib/whatsapp/conversations'
 import { isAuthorizedCron } from '@/lib/auth/cron-auth'
 
 export async function GET(request: Request) {
@@ -17,7 +18,7 @@ export async function GET(request: Request) {
     // Find expired awaiting_confirm sessions
     const { data: expiredSessions, error } = await supabase
       .from('whatsapp_sessions')
-      .select('id, phone_number, draft_project_id')
+      .select('id, phone_number, draft_project_id, company_id')
       .eq('state', 'awaiting_confirm')
       .lt('expires_at', new Date().toISOString())
 
@@ -30,13 +31,20 @@ export async function GET(request: Request) {
     // Notify each owner and delete their session
     await Promise.allSettled(
       sessions.map(async (session) => {
+        const body =
+          '⏰ Your estimate confirmation window has expired.\n\nSend a new audio, text, or photo to create a fresh estimate.'
         try {
           await sendWhatsAppMessage(session.phone_number as string, {
             type: 'text',
-            text: {
-              body: '⏰ Your estimate confirmation window has expired.\n\nSend a new audio, text, or photo to create a fresh estimate.',
-            },
+            text: { body },
           })
+          logOutboundMessage(supabase, {
+            companyId: session.company_id as string,
+            contactPhone: session.phone_number as string,
+            body,
+            msgType: 'text',
+            status: 'sent',
+          }).catch(() => undefined)
         } catch {
           // Non-fatal — still delete the session
         }
