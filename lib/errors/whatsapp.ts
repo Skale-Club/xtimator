@@ -6,8 +6,10 @@
  *   try { ... process inbound ... }
  *   catch (err) { await handleWhatsAppError(err, fromPhone) }
  */
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { XtimatorError } from '.'
 import { sendWhatsAppMessage } from '@/lib/whatsapp/client'
+import { logOutboundMessage } from '@/lib/whatsapp/conversations'
 
 /**
  * Codes that map to contextual WhatsApp messages.
@@ -52,8 +54,15 @@ const FALLBACK_MESSAGE =
  *
  * @param err - The thrown error
  * @param toPhone - E.164-format phone number with leading + (e.g. '+15551234567')
+ * @param opts - Optional service-role client + companyId to log the outbound error
+ *               message into whatsapp_messages (best-effort). Logs ONLY when both
+ *               are provided; backward-compatible with 2-arg callers.
  */
-export async function handleWhatsAppError(err: unknown, toPhone: string): Promise<void> {
+export async function handleWhatsAppError(
+  err: unknown,
+  toPhone: string,
+  opts?: { svc?: SupabaseClient; companyId?: string },
+): Promise<void> {
   let body: string
 
   if (err instanceof XtimatorError) {
@@ -66,6 +75,15 @@ export async function handleWhatsAppError(err: unknown, toPhone: string): Promis
 
   try {
     await sendWhatsAppMessage(toPhone, { type: 'text', text: { body } })
+    if (opts?.svc && opts.companyId) {
+      logOutboundMessage(opts.svc, {
+        companyId: opts.companyId,
+        contactPhone: toPhone,
+        body,
+        msgType: 'text',
+        status: 'sent',
+      }).catch(() => undefined)
+    }
   } catch (sendErr) {
     // Last-resort log; never re-throw from an error handler
     console.error('[whatsapp] Failed to send error message to user', sendErr)
