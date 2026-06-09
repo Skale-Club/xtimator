@@ -1,8 +1,7 @@
 import { requireAdmin } from '@/lib/auth/admin-context'
 import { requireServiceClient } from '@/lib/supabase/service'
-import { Card } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { T } from '@/components/i18n/t'
+import { AdminWhatsAppClient } from './admin-whatsapp-client'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,6 +15,8 @@ type ConversationRow = {
   last_inbound_at: string | null
   unread_count: number
 }
+
+type Row = ConversationRow & { company_name: string | null }
 
 export default async function AdminWhatsAppPage() {
   await requireAdmin()
@@ -36,6 +37,11 @@ export default async function AdminWhatsAppPage() {
   const companyNames = new Map(
     (companyData ?? []).map((c: { id: string; name: string }) => [c.id, c.name])
   )
+
+  const rows: Row[] = conversations.map((row) => ({
+    ...row,
+    company_name: companyNames.get(row.company_id) ?? null,
+  }))
 
   return (
     <div className="space-y-8">
@@ -58,70 +64,7 @@ export default async function AdminWhatsAppPage() {
         </p>
       </div>
 
-      <Card variant="glass" className="p-0 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/30 text-xs uppercase tracking-wide text-muted-foreground">
-              <tr>
-                <th className="text-left px-4 py-3 font-medium">Phone</th>
-                <th className="text-left px-4 py-3 font-medium">Name</th>
-                <th className="text-left px-4 py-3 font-medium">Company</th>
-                <th className="text-left px-4 py-3 font-medium">Unread</th>
-                <th className="text-left px-4 py-3 font-medium">Last message</th>
-                <th className="text-left px-4 py-3 font-medium">Last activity</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {conversations.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
-                    <T>No conversations found.</T>
-                  </td>
-                </tr>
-              ) : (
-                conversations.map((row) => {
-                  const companyName = companyNames.get(row.company_id)
-                  const ts = row.last_message_at ?? row.last_inbound_at
-                  return (
-                    <tr key={row.id} className="hover:bg-muted/20">
-                      <td className="px-4 py-3 font-mono text-xs">{row.contact_phone}</td>
-                      <td className="px-4 py-3">
-                        {row.contact_name ? (
-                          row.contact_name
-                        ) : (
-                          <span className="text-muted-foreground">
-                            <T>(unknown)</T>
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        {companyName ? (
-                          companyName
-                        ) : (
-                          <span className="text-muted-foreground">
-                            <T>(unknown company)</T>
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        <Badge variant="outline">{row.unread_count}</Badge>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="block max-w-[280px] truncate text-muted-foreground">
-                          {row.last_message_preview ?? '—'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
-                        {ts ? new Date(ts).toLocaleString() : '—'}
-                      </td>
-                    </tr>
-                  )
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </Card>
+      <AdminWhatsAppClient conversations={rows} />
     </div>
   )
 }
