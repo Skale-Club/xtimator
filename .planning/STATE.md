@@ -25,7 +25,7 @@ progress:
 Phase: 999.1
 Plan: Not started
 Status: Phase complete — ready for verification
-Last activity: 2026-06-09 - Completed quick task 260609-mdy: Make admin WhatsApp conversations clickable with read-only 30-day thread panel
+Last activity: 2026-06-09 - Completed quick task 260609-mk4: Integrate grounded WhatsApp QUERY assistant prompt (company isolation + anti-hallucination + multi-message reply splitting)
 Stopped at: Completed 93-03-PLAN.md (event log list page + detail page + EventStepTimeline)
 
 ## v3.1.1 Phases
@@ -753,6 +753,7 @@ v3.1: Phases 61-65 (started 2026-05-15). Production Go-Live — 27 requirements 
 | 260609-hir | Add admin-configurable WhatsApp system prompt — platform-wide addendum stored in platform_integrations meta_whatsapp.metadata.system_prompt, appended to buildSystemPrompt before the Security block, fetched+applied ONLY for WhatsApp-channel estimate generation; admin textarea form + saveWhatsAppSystemPrompt action; tsc --noEmit clean (no new errors) | 2026-06-09 | 0f5c527, ce55f91 | [260609-hir-add-admin-configurable-whatsapp-system-p](.planning/quick/260609-hir-add-admin-configurable-whatsapp-system-p/) |
 | 260609-hwd | Fix React hydration mismatch in whatsapp-inbox formatTime — pinned locale to en-US (was default locale: server "8 de jun." vs client "Jun 8") and removed time-dependent new Date() same-day branch; output now depends only on the iso arg. Tradeoff: same-day messages show date prefix (e.g. "Jun 8, 02:14 PM") instead of time-only | 2026-06-09 | 0f3b414 | [260609-hwd-fix-react-hydration-mismatch-in-whatsapp](.planning/quick/260609-hwd-fix-react-hydration-mismatch-in-whatsapp/) |
 | 260609-mdy | Make admin WhatsApp conversations clickable — opens a read-only right-side Sheet with the full message thread (last 30 days, cross-company). New loadAdminConversationThread action (requireAdmin + service client, no company filter, signed-URL media enrichment, zero writes); shared MessageBubble extracted from whatsapp-inbox; page.tsx now a server component passing serializable rows. No reply box (read-only) | 2026-06-09 | 86c7418 | [260609-mdy-tornar-conversas-clicaveis-na-pagina-wha](.planning/quick/260609-mdy-tornar-conversas-clicaveis-na-pagina-wha/) |
+| 260609-mk4 | Integrate grounded WhatsApp QUERY assistant prompt — dispatchQuery() now injects the resolved company's profile (name/owner/contact, scoped to companyId) into a single-tenant-isolation, anti-hallucination, short-friendly system prompt, and delivers long answers as ordered sequential WhatsApp messages via new pure splitReply() chunker (8 unit tests). Closure-based tenant isolation in query-tools unchanged (no company_id added to any tool schema) | 2026-06-09 | 5149d1a | [260609-mk4-integrate-whatsapp-assistant-system-prom](.planning/quick/260609-mk4-integrate-whatsapp-assistant-system-prom/) |
 | 2026-05-18 | fast | Center auth card logo+wordmark | done |
 | 2026-05-19 | fast | Make audio capture screen scrollable on smaller viewports | done |
 | 2026-05-18 | fast | Restyle sidebar New Project as filled gradient, remove dashboard CTA | done |
