@@ -1,7 +1,8 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getClients } from '@/lib/queries/clients'
-import { getAuthClaims, getCachedCompany } from '@/lib/queries/auth'
+import { getAuthClaims } from '@/lib/queries/auth'
+import { getActiveCompany } from '@/lib/queries/active-company'
 import { ClientList } from '@/components/clients/client-list'
 
 export default async function ClientsPage() {
@@ -9,7 +10,7 @@ export default async function ClientsPage() {
 
   if (!claims) redirect('/?auth=login')
 
-  const company = await getCachedCompany(claims.sub)
+  const company = await getActiveCompany()
 
   if (!company) redirect('/onboarding')
 

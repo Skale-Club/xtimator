@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
-import { getAuthClaims, getCachedCompany } from '@/lib/queries/auth'
+import { getAuthClaims } from '@/lib/queries/auth'
+import { getActiveCompany } from '@/lib/queries/active-company'
 import { createClient } from '@/lib/supabase/server'
 import { getPriceBookItems, getFolders } from '@/lib/queries/price-book'
 import { PriceBookList } from '@/components/price-book/price-book-list'
@@ -13,7 +14,7 @@ export default async function PriceBookPage() {
   const claims = await getAuthClaims()
   if (!claims) redirect('/?auth=login')
 
-  const company = await getCachedCompany(claims.sub as string)
+  const company = await getActiveCompany()
   if (!company) redirect('/onboarding')
 
   const supabase = await createClient()

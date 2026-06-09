@@ -2,7 +2,8 @@ import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getDashboardStats, getProjects } from '@/lib/queries/dashboard'
-import { getAuthClaims, getCachedCompany } from '@/lib/queries/auth'
+import { getAuthClaims } from '@/lib/queries/auth'
+import { getActiveCompany } from '@/lib/queries/active-company'
 import { DashboardStatsClient } from '@/components/dashboard/dashboard-stats-client'
 import { ProjectList } from '@/components/dashboard/project-list'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -15,7 +16,7 @@ export default async function DashboardPage() {
     redirect('/?auth=login')
   }
 
-  const company = await getCachedCompany(claims.sub)
+  const company = await getActiveCompany()
 
   if (!company) {
     redirect('/onboarding')

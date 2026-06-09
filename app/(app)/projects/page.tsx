@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { getAuthClaims, getCachedCompany } from '@/lib/queries/auth'
+import { getAuthClaims } from '@/lib/queries/auth'
+import { getActiveCompany } from '@/lib/queries/active-company'
 import { getProjectsForListPage, type ProjectListStatus } from '@/lib/queries/project'
 import { getClients } from '@/lib/queries/clients'
 import { ProjectsPageShell } from '@/components/projects/projects-page-shell'
@@ -24,7 +25,7 @@ export default async function ProjectsPage({
   const claims = await getAuthClaims()
   if (!claims) redirect('/?auth=login')
 
-  const company = await getCachedCompany(claims.sub)
+  const company = await getActiveCompany()
   if (!company) redirect('/onboarding')
 
   const sp = await searchParams
