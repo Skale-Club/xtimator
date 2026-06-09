@@ -8,6 +8,7 @@ import { AIProviderSelector } from './ai-provider-selector'
 import { IntegrationCard } from './integration-card'
 import { TwilioFromPhoneForm } from './twilio-from-phone-form'
 import { WhatsAppConfigForm } from './whatsapp-config-form'
+import { WhatsAppSystemPromptForm } from './whatsapp-system-prompt-form'
 
 type IntegrationCategoryContentProps = {
   category: Category
@@ -36,6 +37,7 @@ export async function IntegrationCategoryContent({
   let waPhoneNumberId = ''
   let waWabaId = ''
   let waDisplayNumber = ''
+  let waSystemPrompt = ''
   if (category.showWhatsAppConfig) {
     const svc = requireServiceClient()
     const { data } = await svc
@@ -48,10 +50,12 @@ export async function IntegrationCategoryContent({
         phone_number_id?: string
         waba_id?: string
         display_number?: string
+        system_prompt?: string
       } | null) ?? {}
     waPhoneNumberId = meta.phone_number_id ?? ''
     waWabaId = meta.waba_id ?? ''
     waDisplayNumber = meta.display_number ?? ''
+    waSystemPrompt = meta.system_prompt ?? ''
   }
 
   return (
@@ -88,11 +92,14 @@ export async function IntegrationCategoryContent({
       )}
 
       {category.showWhatsAppConfig && (
-        <WhatsAppConfigForm
-          currentPhoneNumberId={waPhoneNumberId}
-          currentWabaId={waWabaId}
-          currentDisplayNumber={waDisplayNumber}
-        />
+        <>
+          <WhatsAppConfigForm
+            currentPhoneNumberId={waPhoneNumberId}
+            currentWabaId={waWabaId}
+            currentDisplayNumber={waDisplayNumber}
+          />
+          <WhatsAppSystemPromptForm currentPrompt={waSystemPrompt} />
+        </>
       )}
     </div>
   )
