@@ -7,8 +7,8 @@ describe('entitlements', () => {
     expect(tiers.free.maxEstimatesPerMonth).toBe(10)
   })
 
-  it('free tier has whatsappEnabled false', () => {
-    expect(tiers.free.whatsappEnabled).toBe(false)
+  it('free tier has whatsappEnabled true (WhatsApp available on all plans)', () => {
+    expect(tiers.free.whatsappEnabled).toBe(true)
   })
 
   it('trial tier has unlimited monthly estimates (null, not Infinity)', () => {
