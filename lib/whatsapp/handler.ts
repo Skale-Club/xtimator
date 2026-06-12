@@ -30,6 +30,7 @@ import {
   sendTypingIndicator,
 } from '@/lib/whatsapp/client'
 import { getEntitlements } from '@/lib/entitlements'
+import { logOutboundMessage } from '@/lib/whatsapp/conversations'
 import { PLACEHOLDER_PREFIX } from '@/lib/constants/project'
 import type { WhatsAppMessage } from '@/lib/whatsapp/types'
 import {
@@ -342,12 +343,15 @@ export async function processInboundMessages(
   const entitlements = getEntitlements(tier)
 
   if (!entitlements.whatsappEnabled) {
-    await sendWhatsAppMessage(ownerPhone, {
-      type: 'text',
-      text: {
-        body: 'WhatsApp channel is not available on your current plan. Upgrade at /settings/billing',
-      },
-    })
+    const body = 'WhatsApp channel is not available on your current plan. Upgrade at /settings/billing'
+    await sendWhatsAppMessage(ownerPhone, { type: 'text', text: { body } })
+    logOutboundMessage(supabase, {
+      companyId,
+      contactPhone: ownerPhone,
+      body,
+      msgType: 'text',
+      status: 'sent',
+    }).catch(() => undefined)
     return
   }
 

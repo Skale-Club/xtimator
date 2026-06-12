@@ -1,10 +1,11 @@
 import { redirect } from 'next/navigation'
-import { getAuthClaims, getCachedCompany } from '@/lib/queries/auth'
+import { getAuthClaims } from '@/lib/queries/auth'
+import { getActiveCompany } from '@/lib/queries/active-company'
 
 export default async function CaptureLayout({ children }: { children: React.ReactNode }) {
   const claims = await getAuthClaims()
   if (!claims) redirect('/?auth=login')
-  const company = await getCachedCompany(claims.sub)
+  const company = await getActiveCompany()
   if (!company) redirect('/onboarding')
 
   return (

@@ -196,7 +196,7 @@ export function AccountSection() {
                   <FormItem>
                     <FormLabel>{t('New Email Address')}</FormLabel>
                     <FormControl>
-                      <Input type="email" placeholder="new@email.com" {...field} />
+                      <Input type="email" placeholder="new@email.com" autoComplete="email" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

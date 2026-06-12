@@ -9,7 +9,9 @@
  *   - INNGEST-06 (idempotent via event.data.batchKey)
  */
 import { inngest } from '@/lib/inngest/client'
-import { sendTypingIndicator } from '@/lib/whatsapp/client'
+import { sendTypingIndicator, sendWhatsAppMessage } from '@/lib/whatsapp/client'
+import { logOutboundMessage } from '@/lib/whatsapp/conversations'
+import { requireServiceClient } from '@/lib/supabase/service'
 import type { WhatsAppMessage } from '@/lib/whatsapp/types'
 import {
   EVENT_WHATSAPP_PROCESS,
@@ -18,11 +20,44 @@ import {
   type WhatsAppIntentPayload,
 } from '@/lib/inngest/events'
 
+// Last-line-of-defense reply. Sent when the estimate graph (or anything around it)
+// throws so the owner is NEVER left with read+typing and total silence — the
+// recurring whatsapp-inbound-no-reply bug. Best-effort: never throws.
+const FALLBACK_ERROR_REPLY =
+  "Sorry, I hit a problem generating your estimate. Please try again in a moment — if it keeps happening, describe the job in a text message."
+
+async function sendFallbackReply(ownerPhone: string, companyId?: string): Promise<void> {
+  await sendWhatsAppMessage(ownerPhone, {
+    type: 'text',
+    text: { body: FALLBACK_ERROR_REPLY },
+  }).catch((sendErr) => {
+    console.error('[WhatsApp] fallback error reply failed:', sendErr)
+  })
+  if (companyId) {
+    logOutboundMessage(requireServiceClient(), {
+      companyId,
+      contactPhone: ownerPhone,
+      body: FALLBACK_ERROR_REPLY,
+      msgType: 'text',
+      status: 'sent',
+    }).catch(() => undefined)
+  }
+}
+
 export const whatsAppProcessJob = inngest.createFunction(
   {
     id: 'whatsapp-process',
     idempotency: 'event.data.batchKey',
     retries: 1,
+    // After all retries exhaust, guarantee the owner gets a reply instead of
+    // silent read+typing. This is the durable fix for whatsapp-inbound-no-reply:
+    // whatever killed the run (dead OpenRouter key, transcription failure, etc.),
+    // the owner is told to retry rather than left waiting forever.
+    onFailure: async ({ event }) => {
+      const payload = (event as { data?: { event?: { data?: WhatsAppProcessPayload } } })
+        .data?.event?.data
+      if (payload?.ownerPhone) await sendFallbackReply(payload.ownerPhone, payload.companyId)
+    },
     triggers: [{ event: EVENT_WHATSAPP_PROCESS }],
   },
   async ({ event, step }) => {

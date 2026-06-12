@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getAuthClaims, getCachedCompany } from '@/lib/queries/auth'
+import { getAuthClaims } from '@/lib/queries/auth'
+import { getActiveCompany } from '@/lib/queries/active-company'
 import { listNotificationsPage } from '@/lib/notifications/queries'
 
 /**
@@ -19,7 +20,7 @@ export async function GET(req: NextRequest) {
   if (!claims?.sub) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
   }
-  const company = await getCachedCompany(claims.sub as string)
+  const company = await getActiveCompany()
   if (!company) {
     return NextResponse.json({ error: 'no_company' }, { status: 404 })
   }

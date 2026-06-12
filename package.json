@@ -29,6 +29,7 @@
     "@marsidev/react-turnstile": "^1.5.2",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@react-pdf/renderer": "^4.4.0",
+    "@sentry/nextjs": "^10.56.0",
     "@supabase/ssr": "^0.10.2",
     "@supabase/supabase-js": "^2.103.0",
     "@tailwindcss/typography": "^0.5.19",
@@ -87,6 +88,7 @@
     "unrs-resolver"
   ],
   "trustedDependencies": [
+    "@sentry/cli",
     "sharp",
     "unrs-resolver"
   ]

@@ -10,6 +10,7 @@ import {
   type EstimateLanguage,
 } from '@/lib/i18n/resolve-estimate-language'
 import { normalizeCurrencyCode } from '@/lib/money/currency'
+import { getWhatsAppSystemPrompt } from '@/lib/platform-config'
 
 export type ClientSuggestion = {
   detectedName: string
@@ -38,6 +39,12 @@ export interface GenerateEstimateOptions {
    * 2026-05-27.)
    */
   prompts?: string[]
+  /**
+   * Channel that triggered generation. When 'whatsapp', the admin-configured
+   * WhatsApp system-prompt addendum is fetched and appended to the base prompt.
+   * Omit for web/MCP so those channels are unaffected.
+   */
+  channel?: 'whatsapp'
 }
 
 function normalizeClientNameForMatch(name: string): string {
@@ -159,6 +166,13 @@ export async function generateEstimateForProject(
     defaultPaymentTerms: company.default_payment_terms ?? null,
     defaultWarrantyTerms: company.default_warranty_terms ?? null,
     language,
+  }
+
+  // WhatsApp-only: append the platform admin's system-prompt addendum.
+  // Not fetched for web/MCP so those channels are unaffected.
+  if (options.channel === 'whatsapp') {
+    const extra = await getWhatsAppSystemPrompt()
+    if (extra) estimateInput.extraInstructions = extra
   }
 
   const provider = await getAIProvider(companyId)

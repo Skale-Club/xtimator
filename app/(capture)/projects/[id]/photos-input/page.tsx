@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { getAuthClaims, getCachedCompany } from '@/lib/queries/auth'
+import { getAuthClaims } from '@/lib/queries/auth'
+import { getActiveCompany } from '@/lib/queries/active-company'
 import { getProjectById } from '@/lib/queries/project'
 import { PhotosInputClient } from './photos-input-client'
 
@@ -12,7 +13,7 @@ export default async function PhotosInputPage({
   const { id } = await params
   const claims = await getAuthClaims()
   if (!claims) notFound()
-  const company = await getCachedCompany(claims.sub)
+  const company = await getActiveCompany()
   if (!company) notFound()
 
   const supabase = await createClient()

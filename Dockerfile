@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1.7
+# syntax=docker/dockerfile:1.10
 
 # =========================================================================
 # Stage 1: deps — install production + build dependencies
@@ -25,6 +25,11 @@ COPY package.json package-lock.json* ./
 # tolerating that cross-platform gap. --ignore-scripts skips the postinstall
 # hooks for sharp + unrs-resolver (matches package.json "ignoreScripts").
 RUN npm install --ignore-scripts --no-audit --no-fund
+
+# Download the @sentry/cli binary (postinstall was skipped above by --ignore-scripts).
+# This binary is needed at build time only for source map upload — not at runtime.
+# Runs here in the deps stage so the builder cache layer reuses it on code-only changes.
+RUN node node_modules/@sentry/cli/scripts/install.js 2>/dev/null || true
 
 # =========================================================================
 # Stage 2: builder — compile Next.js to standalone output
@@ -59,9 +64,23 @@ ENV NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
 ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL
 ENV NEXT_PUBLIC_TURNSTILE_SITE_KEY=$NEXT_PUBLIC_TURNSTILE_SITE_KEY
 
-# Build. Requires output: 'standalone' in next.config.ts to produce
-# .next/standalone/server.js — verified by Task 1.
-RUN npm run build
+# NEXT_PUBLIC_SENTRY_DSN is inlined into the browser bundle — must be a build arg.
+# SENTRY_DSN (server-side, no NEXT_PUBLIC_) is NOT a build arg — it is a runtime
+# env var set in Coolify and read by the Node.js process at request time.
+# SENTRY_ORG / SENTRY_PROJECT are needed by withSentryConfig to upload source maps.
+ARG NEXT_PUBLIC_SENTRY_DSN
+ARG SENTRY_ORG
+ARG SENTRY_PROJECT
+ENV NEXT_PUBLIC_SENTRY_DSN=$NEXT_PUBLIC_SENTRY_DSN
+ENV SENTRY_ORG=$SENTRY_ORG
+ENV SENTRY_PROJECT=$SENTRY_PROJECT
+
+# Build. SENTRY_AUTH_TOKEN is mounted as a Docker secret so it is never baked
+# into any image layer. withSentryConfig reads it from env during `next build`
+# to upload source maps to Sentry; the token is gone after this RUN step.
+# Requires output: 'standalone' in next.config.ts to produce .next/standalone/server.js.
+RUN --mount=type=secret,id=sentry_auth_token,env=SENTRY_AUTH_TOKEN \
+    npm run build
 
 # =========================================================================
 # Stage 3: runner — minimal runtime image

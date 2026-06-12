@@ -94,7 +94,7 @@ export function ClientTab({ project }: ClientTabProps) {
                   <FormItem>
                     <FormLabel>Email</FormLabel>
                     <FormControl>
-                      <Input type="email" placeholder="Email address" {...field} />
+                      <Input type="email" placeholder="Email address" autoComplete="email" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

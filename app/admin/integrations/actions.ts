@@ -403,6 +403,58 @@ export async function saveWhatsAppConfig(input: {
 }
 
 /**
+ * Save the platform-wide WhatsApp system-prompt addendum into
+ * platform_integrations.meta_whatsapp metadata.system_prompt. Preserves the
+ * existing encrypted token fields and merges with other metadata keys.
+ * This text is appended to the estimate prompt ONLY for WhatsApp-channel
+ * generation (see lib/services/generate-estimate.ts).
+ */
+export async function saveWhatsAppSystemPrompt(
+  prompt: string
+): Promise<ActionResult> {
+  const ctx = await requireAdmin()
+  const trimmed = prompt.trim()
+  if (trimmed.length > 4000) {
+    return { ok: false, message: 'System prompt must be 4000 characters or fewer.' }
+  }
+
+  const svc = requireServiceClient()
+  const { data: existing } = await svc
+    .from('platform_integrations')
+    .select('ciphertext, iv, auth_tag, metadata')
+    .eq('provider', 'meta_whatsapp')
+    .maybeSingle()
+
+  const { error } = await svc.from('platform_integrations').upsert(
+    {
+      provider: 'meta_whatsapp',
+      ciphertext: existing?.ciphertext ?? null,
+      iv: existing?.iv ?? null,
+      auth_tag: existing?.auth_tag ?? null,
+      metadata: { ...((existing?.metadata as object) ?? {}), system_prompt: trimmed },
+      updated_at: new Date().toISOString(),
+      updated_by: ctx.userId,
+    },
+    { onConflict: 'provider' }
+  )
+  if (error) return { ok: false, message: error.message }
+
+  invalidatePlatformConfig()
+  revalidatePath('/admin/integrations')
+
+  void logAdminAction({
+    actorId: ctx.userId,
+    actorEmail: ctx.email,
+    action: 'integration.save',
+    targetType: 'integration',
+    targetId: 'meta_whatsapp_system_prompt',
+    metadata: { length: trimmed.length },
+  })
+
+  return { ok: true }
+}
+
+/**
  * Upsert the ai_config row in platform_integrations to switch the active AI
  * provider platform-wide. No redeploy required — factory reads from DB on every
  * request (D-04, D-19).

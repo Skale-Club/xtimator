@@ -55,7 +55,7 @@ describe('makeQueryTools — multi-tenant isolation (T-lrf-01)', () => {
   it('Test 1a: NO tool schema (zod) contains a company_id / companyId field', () => {
     const { client } = makeSupabaseMock({})
     const tools = makeQueryTools('company-SECRET', client)
-    expect(tools.length).toBeGreaterThanOrEqual(4)
+    expect(tools.length).toBeGreaterThanOrEqual(6)
 
     for (const t of tools) {
       // LangChain tool schema is exposed as .schema (a zod object)
@@ -74,6 +74,9 @@ describe('makeQueryTools — multi-tenant isolation (T-lrf-01)', () => {
       estimates: [
         { id: 'e1', total: 500, created_at: '2026-06-01T00:00:00Z', company_id: 'company-SECRET' },
       ],
+      company_price_book: [
+        { id: 's1', name: 'Drywall', unit: 'sqft', unit_price: 3.5, currency_code: 'USD', company_id: 'company-SECRET' },
+      ],
     })
     const tools = makeQueryTools('company-SECRET', client)
     const byName = Object.fromEntries(
@@ -84,9 +87,11 @@ describe('makeQueryTools — multi-tenant isolation (T-lrf-01)', () => {
     await byName.get_latest_estimate_for_client.invoke({ name: 'Joao' })
     await byName.get_project_status.invoke({ name: 'Deck' })
     await byName.list_recent_estimates.invoke({})
+    await byName.list_services.invoke({})
+    await byName.find_service_by_name.invoke({ name: 'Drywall' })
 
     // Every captured query that touched a tenant table must have filtered by company_id
-    const tenantTables = ['clients', 'projects', 'estimates']
+    const tenantTables = ['clients', 'projects', 'estimates', 'company_price_book']
     const tenantCaptures = captures.filter((c) => tenantTables.includes(c.table))
     expect(tenantCaptures.length).toBeGreaterThan(0)
     for (const c of tenantCaptures) {
@@ -128,5 +133,31 @@ describe('makeQueryTools — behavior', () => {
     const out = await tool.invoke({ name: 'Joao' })
     expect(out).toMatch(/1,?234/)
     expect(out).toContain('2026-06-01')
+  })
+
+  it('Test 4: list_services formats price-book items; find_service_by_name handles no match', async () => {
+    const withItems = makeSupabaseMock({
+      company_price_book: [
+        { id: 's1', name: 'Drywall', unit: 'sqft', unit_price: 3.5, currency_code: 'USD', company_id: 'company-1' },
+      ],
+    })
+    const tools = makeQueryTools('company-1', withItems.client)
+    const byName = Object.fromEntries(
+      tools.map((t) => [(t as { name: string }).name, t])
+    ) as Record<string, { invoke: (a: unknown) => Promise<string> }>
+    const listed = await byName.list_services.invoke({})
+    expect(listed).toContain('Drywall')
+    expect(listed).toMatch(/3\.50|3,50/)
+
+    const empty = makeSupabaseMock({ company_price_book: [] })
+    const emptyTools = makeQueryTools('company-1', empty.client)
+    const emptyByName = Object.fromEntries(
+      emptyTools.map((t) => [(t as { name: string }).name, t])
+    ) as Record<string, { invoke: (a: unknown) => Promise<string> }>
+    const emptyOut = await emptyByName.list_services.invoke({})
+    expect(emptyOut.toLowerCase()).toMatch(/no service|on file/)
+
+    const noMatch = await emptyByName.find_service_by_name.invoke({ name: 'Nothing' })
+    expect(noMatch.toLowerCase()).toMatch(/no|not found/)
   })
 })

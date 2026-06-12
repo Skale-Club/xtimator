@@ -4,19 +4,38 @@ import { resolve } from 'node:path'
 import { whatsAppProcessJob } from '@/lib/inngest/functions/whatsapp-process'
 
 /**
- * INNGEST-07: whatsAppProcessJob (Wave 1 GREEN).
+ * INNGEST-07: whatsAppProcessJob.
  *
- * Plan 67-02 delivers lib/inngest/functions/whatsapp-process.ts. Contract:
+ * Contract (post quick-260602-mq2 graph refactor):
  *   - createFunction id = 'whatsapp-process'
  *   - idempotency CEL = 'event.data.batchKey' (deduped across debounced batches)
- *   - At least 3 step.run blocks: per-message processing + generate-estimate + confirm
+ *   - The heavy work (per-message processing + generate-estimate + vagueness +
+ *     confirm) now lives in lib/whatsapp/estimate-graph.ts and is invoked via a
+ *     single step.run('orchestrate-estimate'). The job keeps refresh-typing +
+ *     orchestrate-estimate steps.
+ *
+ * whatsapp-inbound-no-reply-recurrence durable fix:
+ *   - The job MUST guarantee the owner gets a reply even when the estimate graph
+ *     throws. Two layers: (1) estimate-graph generateEstimateNode catches and
+ *     routes to sendError; (2) the job has an onFailure that sends a fallback
+ *     reply after retries exhaust.
  */
+
+const jobSrc = readFileSync(
+  resolve(process.cwd(), 'lib/inngest/functions/whatsapp-process.ts'),
+  'utf8'
+)
+const graphSrc = readFileSync(
+  resolve(process.cwd(), 'lib/whatsapp/estimate-graph.ts'),
+  'utf8'
+)
 
 type FnInternals = {
   opts: {
     id: string
     idempotency?: string
     retries?: number
+    onFailure?: unknown
   }
 }
 
@@ -27,33 +46,39 @@ describe('INNGEST-07: whatsAppProcessJob', () => {
     expect(fn.opts.idempotency).toBe('event.data.batchKey')
   })
 
-  it('function body has at least 3 step.run blocks: per-message processing + generate-estimate + confirm', () => {
-    const src = readFileSync(
-      resolve(process.cwd(), 'lib/inngest/functions/whatsapp-process.ts'),
-      'utf8'
-    )
-    const stepRunCount = (src.match(/step\.run\(/g) ?? []).length
-    expect(stepRunCount).toBeGreaterThanOrEqual(3)
-    // Specific named steps required by the contract
-    expect(src).toMatch(/step\.run\(`process-\$\{[^}]+\}`/)
-    expect(src).toMatch(/step\.run\(['"]generate-estimate['"]/)
-    expect(src).toMatch(/generateEstimateForProject\s*\(/)
+  it('invokes the estimate graph via the orchestrate-estimate step', () => {
+    expect(jobSrc).toMatch(/step\.run\(['"]orchestrate-estimate['"]/)
+    expect(jobSrc).toMatch(/buildEstimateGraph\(/)
   })
 
-  // Quick task 260529-lc0: vague inbound → ask for more details instead of $0 estimate.
-  it('has a vagueness branch that asks for details instead of awaiting_confirm', () => {
-    const src = readFileSync(
-      resolve(process.cwd(), 'lib/inngest/functions/whatsapp-process.ts'),
-      'utf8'
-    )
-    // Opens an awaiting_details session (not awaiting_confirm) when vague
-    expect(src).toMatch(/awaiting_details/)
-    // Uses the ask-details helpers
-    expect(src).toMatch(/isVagueEstimate\(/)
-    expect(src).toMatch(/buildAskDetailsMessage\(/)
-    expect(src).toMatch(/revertVagueEstimate\(/)
-    // Dedicated steps for evaluating vagueness and asking for details
-    expect(src).toMatch(/step\.run\(['"]evaluate-vagueness['"]/)
-    expect(src).toMatch(/step\.run\(['"]ask-details['"]/)
+  it('graph runs generate-estimate + vagueness branch (moved out of the job)', () => {
+    // The heavy work now lives in the graph, not the job file.
+    expect(graphSrc).toMatch(/generateEstimateForProject\s*\(/)
+    expect(graphSrc).toMatch(/awaiting_details/)
+    expect(graphSrc).toMatch(/isVagueEstimate\(/)
+    expect(graphSrc).toMatch(/buildAskDetailsMessage\(/)
+    expect(graphSrc).toMatch(/revertVagueEstimate\(/)
+  })
+
+  // whatsapp-inbound-no-reply-recurrence: guarantee a reply on failure.
+  describe('reply-on-failure guarantee (no silent failures)', () => {
+    it('registers an onFailure handler that sends a fallback reply', () => {
+      const fn = whatsAppProcessJob as unknown as FnInternals
+      expect(typeof fn.opts.onFailure).toBe('function')
+      expect(jobSrc).toMatch(/onFailure/)
+      expect(jobSrc).toMatch(/sendFallbackReply/)
+      // The fallback reads ownerPhone from the original (nested) event payload.
+      expect(jobSrc).toMatch(/data\?\.event\?\.data/)
+    })
+
+    it('graph generateEstimateNode catches failures and routes to sendError', () => {
+      // The node must NOT re-throw — it flags generationFailed instead.
+      expect(graphSrc).toMatch(/generationFailed/)
+      expect(graphSrc).toMatch(/checkGeneratedEdge/)
+      // sendError is reachable from the generateEstimate conditional edge.
+      expect(graphSrc).toMatch(
+        /addConditionalEdges\(['"]generateEstimate['"],\s*checkGeneratedEdge/
+      )
+    })
   })
 })
