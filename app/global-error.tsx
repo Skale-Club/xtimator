@@ -1,6 +1,7 @@
 "use client";
 
 import * as Sentry from "@sentry/nextjs";
+import { recoverFromStaleChunkError } from "@/lib/pwa/chunk-recovery";
 import NextError from "next/error";
 import { useEffect } from "react";
 
@@ -11,6 +12,7 @@ export default function GlobalError({
 }) {
   useEffect(() => {
     Sentry.captureException(error);
+    recoverFromStaleChunkError(error).catch(() => {});
   }, [error]);
 
   return (

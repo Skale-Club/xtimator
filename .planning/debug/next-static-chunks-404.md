@@ -36,12 +36,16 @@ updated: 2026-06-12
   observation: "public/sw.js used stale-while-revalidate for document navigations, allowing cached HTML to be served while online after a deploy."
 - timestamp: 2026-06-12
   observation: "public/sw.js also used cache version v2, so old pages-v2 cached documents would remain available until the worker changed cache versions."
+- timestamp: 2026-06-12
+  observation: "A browser still displayed the app error boundary while requesting stale chunk names such as /_next/static/chunks/07s-ujf.2tt_x.js and /_next/static/chunks/07dt03rov2ue8.js after the v3 service worker was deployed."
+- timestamp: 2026-06-12
+  observation: "Because the error boundary renders, the client can still run recovery code even when lazy/application chunks fail."
 
 ## Eliminated
 
 ## Resolution
 
 - root_cause: "The service worker could serve stale cached Next.js HTML while online. After a deployment, that HTML can reference chunk filenames from a previous build that no longer exist on the server, causing 404 text/plain script responses and strict MIME execution failures."
-- fix: "Changed document navigation caching from stale-while-revalidate to network-first with offline fallback, and bumped the service worker cache version from v2 to v3 to evict stale page caches."
-- verification: "npm test -- tests/unit/pwa-service-worker.test.ts passed; node --check public/sw.js passed. npm run lint still fails on pre-existing unrelated repo-wide lint errors."
-- files_changed: "public/sw.js; tests/unit/pwa-service-worker.test.ts"
+- fix: "Changed document navigation caching from stale-while-revalidate to network-first with offline fallback, bumped the service worker cache version from v2 to v3 to evict stale page caches, and added client-side error-boundary recovery for already-broken stale chunk/MIME failures."
+- verification: "npm test -- tests/unit/pwa-service-worker.test.ts tests/unit/pwa/chunk-recovery.test.ts passed; npx eslint app/error.tsx app/global-error.tsx lib/pwa/chunk-recovery.ts tests/unit/pwa/chunk-recovery.test.ts passed; node --check public/sw.js passed previously. Full tsc/lint still fail on pre-existing unrelated repo-wide errors."
+- files_changed: "public/sw.js; tests/unit/pwa-service-worker.test.ts; app/error.tsx; app/global-error.tsx; lib/pwa/chunk-recovery.ts; tests/unit/pwa/chunk-recovery.test.ts"
