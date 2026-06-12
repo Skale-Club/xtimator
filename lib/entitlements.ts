@@ -24,7 +24,7 @@ export const tiers: Record<TierName, Entitlements> = {
     maxEstimatesPerDay: 3,
     maxPhotosPerEstimate: 3,
     maxAudioMinutesPerEstimate: 2,
-    whatsappEnabled: false,
+    whatsappEnabled: true,
     pdfEnabled: true,
     priceBookEnabled: false,
     customDomainEnabled: false,
