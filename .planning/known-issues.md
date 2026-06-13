@@ -192,15 +192,19 @@ automatically.
 ## Unit Test Suite — residual after mock-drift fix (2026-06-13, quick task 260613-aoe)
 
 Quick task **260613-aoe** repaired the vitest **mock-drift** failures (`npx vitest run`: **54 → 10
-failing**, 1498 passing). The 10 tests below (8 files) are **NOT mock drift** — each is a test
-correctly catching a **product change**. They are left red on purpose: resolving them needs either a
-test **rewrite** for intentionally-changed behavior, or a **product-owner decision** (the change may
-be intentional evolution _or_ a regression). Per the task rules we don't edit product code to satisfy
-tests, nor silently flip assertions that could mask a regression.
+failing**, 1498 passing). The 10 tests below (8 files) were **NOT mock drift** — each was a test
+correctly catching a **product change** (an intentional refactor/redesign, or one genuine product gap).
 
-> **Update (2026-06-13, quick task 260613-coj):** TEST-ENV-01 below is now **RESOLVED** — it was the
-> one genuine product fix. **9 tests / 7 files** remain red, all FLAGGED test-rewrite / design-decision
-> items (no product gaps).
+> **✅ RESOLVED (2026-06-13) — suite is now 100% green: `npx vitest run` → 1516 passed, 0 failed (213 files).**
+> - **TEST-ENV-01** (genuine product gap): fixed by quick task **260613-coj** (commit `fc266ff`) — the
+>   WhatsApp agent + intent-router now load the OpenAI key via `getIntegrationKey('openai')`.
+> - **TEST-AI-01/02, TEST-ICONS-01, TEST-WIZ-01, TEST-BRAND-01, TEST-LAND-01, TEST-PB-01**: resolved by
+>   the **260613-aoe finalize** pass (commit `5dcbe57`) — OpenRouter test rewrites + reconciling the
+>   contract/copy/structure assertions with shipped behavior. No product regressions found; the
+>   landing-page `?auth=login` auto-open was verified intact (only the login heading copy changed,
+>   "Welcome back" → "Sign in to {appName}").
+>
+> The per-item entries below are retained as the fix record (their original pre-fix analysis).
 
 ### Category A — stale tests for intentional product changes (rewrite, then PASS)
 
@@ -266,5 +270,6 @@ tests, nor silently flip assertions that could mask a regression.
 - **Decision:** confirm intended separator, then switch to a function / `textContent` matcher.
 
 ### Verdict tally (this section)
-- **RESOLVED (product fix):** 1 — TEST-ENV-01 (WhatsApp keys now routed through platform-config loader; quick task 260613-coj, commit `fc266ff`).
-- **FLAGGED (test rewrite or design decision):** 7 files / 9 tests.
+- **RESOLVED (product fix):** 1 — TEST-ENV-01 (WhatsApp keys routed through platform-config loader; 260613-coj, commit `fc266ff`).
+- **RESOLVED (test rewrite / contract reconciliation):** 7 files / 9 tests (260613-aoe finalize, commit `5dcbe57`).
+- **Net:** 0 remaining — `npx vitest run` is 100% green (1516 passed, 0 failed).

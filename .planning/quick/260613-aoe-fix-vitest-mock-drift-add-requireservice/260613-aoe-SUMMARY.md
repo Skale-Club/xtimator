@@ -60,3 +60,21 @@ Files: custom-domain-action, price-book/import-action, price-book/bulk-adjust-ac
   test-infra (fixed) and ~10 are product-contract drift (documented). No product code was modified.
 - No shared mock helper was extracted: `vi.mock`/`vi.doMock` factories are hoisted and cannot reference
   external (non-`mock*`) symbols, and client shapes vary per file — per-file inline fixes are lower-risk.
+
+## Finalization (suite 100% green)
+
+Follow-up "finalize 100%" pass — `npx vitest run` → **1516 passed, 0 failed (213 files)**.
+
+- **TEST-ENV-01** (the one product gap) was fixed by sibling quick task **260613-coj** (commit `fc266ff`):
+  the WhatsApp agent + intent-router now load the OpenAI key via `getIntegrationKey('openai')` (falls back
+  to the same env var inside platform-config, so behavior is preserved). `tsc` clean on touched files.
+- The remaining 9 product-contract-drift tests were resolved (commit `5dcbe57`):
+  - provider-factory + translate-route: rewritten for the OpenRouter migration (assert `OpenRouterAdapter`
+    model resolution / `translateTextsOR`), dropping stale Anthropic-SDK mocks.
+  - app-icons: dropped the removed root `proxy.ts` read; manifest contract → `/icons/*` + maskable (Phase 15-03).
+  - wizard-client-only: reconciled with the shipped reduced `projectSchema` (clientId optional, STEP_FIELDS [1,2]).
+  - globals-brand-tokens: BRAND-03 reflects the auth dark-shell redesign (primary inherited via `--system-primary`).
+  - landing-page: login heading marker `Sign in to {appName}` — **auto-open logic verified intact**, only a copy change.
+  - bulk-adjust-dialog: title asserted via heading role (split text + `|` separator).
+- No product regressions surfaced; the only product change was the ADMIN-06 fix (justified by CLAUDE.md secret-handling).
+- `known-issues.md` residual section updated → **0 remaining**.
