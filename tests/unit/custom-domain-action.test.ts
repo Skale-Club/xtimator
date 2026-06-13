@@ -7,6 +7,14 @@ vi.mock('@/lib/supabase/server', () => ({
 vi.mock('next/cache', () => ({
   revalidatePath: vi.fn(),
   revalidateTag: vi.fn(),
+  // lib/queries/auth.ts wraps getCachedCompany in unstable_cache at import time.
+  unstable_cache: (fn: (...args: unknown[]) => unknown) => fn,
+}))
+
+// getAuthContext resolves the active company via getActiveCompanyId() (cookie-based);
+// mock it so the action doesn't call cookies() outside a request scope.
+vi.mock('@/lib/queries/active-company', () => ({
+  getActiveCompanyId: vi.fn().mockResolvedValue('company-123'),
 }))
 
 import { createClient } from '@/lib/supabase/server'

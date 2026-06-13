@@ -1,7 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
-vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
+vi.mock('next/cache', () => ({
+  revalidatePath: vi.fn(),
+  // lib/queries/auth.ts wraps getCachedCompany in unstable_cache at import time.
+  unstable_cache: (fn: (...args: unknown[]) => unknown) => fn,
+}))
+
+// getAuthContext resolves the active company via getActiveCompanyId() (cookie-based);
+// mock it so the action doesn't call cookies() outside a request scope.
+vi.mock('@/lib/queries/active-company', () => ({
+  getActiveCompanyId: vi.fn().mockResolvedValue('company-123'),
+}))
 
 import { createClient } from '@/lib/supabase/server'
 import { bulkAdjustPriceBookFolder } from '@/lib/actions/price-book'
