@@ -25,7 +25,17 @@ export async function POST(request: NextRequest) {
   const platformSecret = process.env.STRIPE_WEBHOOK_SECRET ?? ''
   const connectSecret = process.env.STRIPE_CONNECT_WEBHOOK_SECRET ?? ''
 
-  const stripe = await getStripeClient()
+  let stripe: Stripe
+  try {
+    stripe = await getStripeClient()
+  } catch (err) {
+    // Stripe secret key not configured for this deployment. Returning 500/throwing
+    // makes Stripe hammer the endpoint with retries and floods Sentry (XTIMATOR-1).
+    // Log for server-side visibility and return 503 so Stripe retries later once
+    // STRIPE_SECRET_KEY is configured (Coolify env or /admin/integrations).
+    console.error('[Stripe] Webhook received but Stripe is not configured:', err instanceof Error ? err.message : err)
+    return new Response('Stripe not configured', { status: 503 })
+  }
 
   // Step 2: verify signature — try platform secret first, then connect secret
   let event: Stripe.Event | null = null
