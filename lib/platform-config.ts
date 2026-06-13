@@ -212,13 +212,26 @@ export async function getIntegrationKey(
 
   if (!data) {
     // Fallback to env var for local dev (D-16). Warn so the fallback path is visible.
-    const envKey = process.env[`${provider.toUpperCase()}_API_KEY`]
-    if (envKey) {
-      console.warn(
-        `[platform-config] Falling back to env var ${provider.toUpperCase()}_API_KEY for provider ${provider}. Configure via /admin/integrations to remove this warning.`
-      )
-      integrationCache.set(provider, { value: envKey, fetchedAt: now })
-      return envKey
+    //
+    // Per-provider candidate list, tried in order. The default for every provider
+    // is the conventional `{PROVIDER}_API_KEY`. Stripe also accepts the documented
+    // `STRIPE_SECRET_KEY` name (preferred) with `STRIPE_API_KEY` kept for back-compat,
+    // so code and the .env examples agree. Every non-stripe provider keeps the single
+    // `{PROVIDER}_API_KEY` candidate — behaviour byte-for-byte unchanged.
+    const candidates =
+      provider === 'stripe'
+        ? ['STRIPE_SECRET_KEY', 'STRIPE_API_KEY']
+        : [`${provider.toUpperCase()}_API_KEY`]
+
+    for (const name of candidates) {
+      const envKey = process.env[name]
+      if (envKey) {
+        console.warn(
+          `[platform-config] Falling back to env var ${name} for provider ${provider}. Configure via /admin/integrations to remove this warning.`
+        )
+        integrationCache.set(provider, { value: envKey, fetchedAt: now })
+        return envKey
+      }
     }
     return null
   }

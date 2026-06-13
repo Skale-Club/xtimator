@@ -36,6 +36,8 @@ describe('lib/platform-config (ADMIN-05, R-04)', () => {
     delete process.env.RESEND_API_KEY
     delete process.env.ANTHROPIC_API_KEY
     delete process.env.OPENAI_API_KEY
+    delete process.env.STRIPE_SECRET_KEY
+    delete process.env.STRIPE_API_KEY
     vi.restoreAllMocks()
   })
 
@@ -177,6 +179,62 @@ describe('lib/platform-config (ADMIN-05, R-04)', () => {
     const { getIntegrationKey } = await import('@/lib/platform-config')
     const result = await getIntegrationKey('openai')
     expect(result).toBeNull()
+  })
+
+  it("getIntegrationKey('stripe') prefers STRIPE_SECRET_KEY over STRIPE_API_KEY", async () => {
+    process.env.STRIPE_SECRET_KEY = 'sk_secret_pref'
+    process.env.STRIPE_API_KEY = 'sk_api_old'
+
+    const serviceModule = await import('@/lib/supabase/service')
+    const mocked = serviceModule.createServiceClient as unknown as ReturnType<typeof vi.fn>
+    const client = makeClient({ data: null })
+    mocked.mockReturnValue(client)
+
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    const { getIntegrationKey } = await import('@/lib/platform-config')
+    const result = await getIntegrationKey('stripe')
+
+    expect(result).toBe('sk_secret_pref')
+    expect(warnSpy).toHaveBeenCalledTimes(1)
+    expect(warnSpy.mock.calls[0][0]).toContain('STRIPE_SECRET_KEY')
+  })
+
+  it("getIntegrationKey('stripe') falls back to STRIPE_API_KEY for back-compat", async () => {
+    // STRIPE_SECRET_KEY intentionally unset — only the legacy var is present.
+    process.env.STRIPE_API_KEY = 'sk_api_old'
+
+    const serviceModule = await import('@/lib/supabase/service')
+    const mocked = serviceModule.createServiceClient as unknown as ReturnType<typeof vi.fn>
+    const client = makeClient({ data: null })
+    mocked.mockReturnValue(client)
+
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    const { getIntegrationKey } = await import('@/lib/platform-config')
+    const result = await getIntegrationKey('stripe')
+
+    expect(result).toBe('sk_api_old')
+    expect(warnSpy).toHaveBeenCalledTimes(1)
+    expect(warnSpy.mock.calls[0][0]).toContain('STRIPE_API_KEY')
+  })
+
+  it('getIntegrationKey() leaves non-stripe providers on {PROVIDER}_API_KEY (regression)', async () => {
+    process.env.OPENAI_API_KEY = 'env-openai'
+
+    const serviceModule = await import('@/lib/supabase/service')
+    const mocked = serviceModule.createServiceClient as unknown as ReturnType<typeof vi.fn>
+    const client = makeClient({ data: null })
+    mocked.mockReturnValue(client)
+
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    const { getIntegrationKey } = await import('@/lib/platform-config')
+    const result = await getIntegrationKey('openai')
+
+    expect(result).toBe('env-openai')
+    expect(warnSpy).toHaveBeenCalledTimes(1)
+    expect(warnSpy.mock.calls[0][0]).toContain('OPENAI_API_KEY')
   })
 
   it('getIntegrationKey() caches: two calls return same value with ONE DB round-trip', async () => {
