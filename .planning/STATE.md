@@ -25,7 +25,7 @@ progress:
 Phase: 999.1
 Plan: Not started
 Status: Phase complete — ready for verification
-Last activity: 2026-06-13 - Completed fast task 260613-fc1: Center the Final CTA card horizontally (landing-page Page 4 wrapper flex items-center → flex flex-col justify-center); follow-up to 260613-9ov homepage clipping fix
+Last activity: 2026-06-13 - Completed quick task 260613-at4: Resolved 3 active Sentry issues — Stripe webhook degrades to logged 503 when STRIPE_SECRET_KEY absent (XTIMATOR-1, stops retry flood); Sentry server beforeSend drops 'POST /_not-found/page' bot/scanner framework noise (XTIMATOR-2, XTIMATOR-3). Two atomic commits referencing issue IDs for GitHub auto-resolve
 Stopped at: Completed 93-03-PLAN.md (event log list page + detail page + EventStepTimeline)
 
 ## v3.1.1 Phases
