@@ -186,3 +186,79 @@ These remaining warnings are baseline noise; the next /gsd:health cleanup pass s
 unless real new drift appears. If a future GSD release tightens the validator to understand
 archived milestones + deferred placeholders + `.x` decimals, these counters will go to zero
 automatically.
+
+---
+
+## Unit Test Suite — residual after mock-drift fix (2026-06-13, quick task 260613-aoe)
+
+Quick task **260613-aoe** repaired the vitest **mock-drift** failures (`npx vitest run`: **54 → 10
+failing**, 1498 passing). The 10 tests below (8 files) are **NOT mock drift** — each is a test
+correctly catching a **product change**. They are left red on purpose: resolving them needs either a
+test **rewrite** for intentionally-changed behavior, or a **product-owner decision** (the change may
+be intentional evolution _or_ a regression). Per the task rules we don't edit product code to satisfy
+tests, nor silently flip assertions that could mask a regression.
+
+### Category A — stale tests for intentional product changes (rewrite, then PASS)
+
+#### TEST-AI-01 — `ai/provider-factory.test.ts` (3 tests): **FLAGGED**
+- Asserts `getAIProvider()` returns `AnthropicAdapter`/`GeminiAdapter` by `selected_ai_provider`.
+- `lib/ai/index.ts` is now **OpenRouter-only** ("Anthropic/Gemini SDKs are no longer used here");
+  `getAIProvider()` always returns an `OpenRouterAdapter`, resolving the model from company
+  `ai_model_override` → platform `ai_config.openrouter_default_model` → `OR_DEFAULTS.chat`.
+- **Action:** rewrite to assert `OpenRouterAdapter` + that resolution order (mock
+  `@/lib/ai/providers/openrouter`), or delete if covered elsewhere.
+
+#### TEST-AI-02 — `translate-route.test.ts` (1 test "calls Claude and inserts…"): **FLAGGED**
+- Same OpenRouter migration. `app/api/translate/route.ts` calls `translateTextsOR()` from
+  `@/lib/ai/openrouter-client`; the test mocks `@anthropic-ai/sdk` (never called) and `getIntegrationKey`
+  (unused), so the real client throws → route returns **503** instead of 200. The DB-cache tests in the
+  file are still valid.
+- **Action:** replace the `@anthropic-ai/sdk` mock with `vi.mock('@/lib/ai/openrouter-client', …)`;
+  make the "AI unavailable" test reject it and the cache-miss test resolve it; assert `translateTextsOR`.
+
+#### TEST-ICONS-01 — `app-icons.test.ts` (whole suite fails to collect): **FLAGGED**
+- `readFileSync(resolve(root, 'proxy.ts'))` → `ENOENT` at module load (line 10). Only
+  `lib/supabase/proxy.ts` exists now; there is no root `proxy.ts`/`middleware.ts` — the middleware /
+  metadata-matcher layout changed.
+- **Action:** re-point the test at the current `manifest.webmanifest|icon|apple-icon` matcher location,
+  or drop the root-`proxy.ts` assertions.
+
+### Category B — product-owner decision needed (intentional vs regression)
+
+#### TEST-ENV-01 — `env-var-sweep.test.ts` (1 test): **FAIL (genuine product gap)** ⚠
+- Real ADMIN-06 violation — provider API key read directly from `process.env` outside
+  `lib/platform-config.ts`:
+  - `lib/whatsapp/agent.ts:111` → `apiKey: process.env.OPENAI_API_KEY`
+  - `lib/whatsapp/intent-router.ts:171` and `:234` → `apiKey: process.env.OPENAI_API_KEY`
+- The WhatsApp AI agent + intent-router were not migrated to `getIntegrationKey()` like the rest of the
+  app. The test is correct; this is a **product fix** (out of scope for the test-infra task).
+- **Action:** route those reads through the platform-config key loader; test goes green automatically.
+
+#### TEST-WIZ-01 — `wizard-client-only.test.ts` (2 tests): **FLAGGED**
+- Asserts `projectSchema` rejects empty `clientId` and `STEP_FIELDS` maps only `[1]`. Now empty
+  `clientId` is accepted and `STEP_FIELDS` is `[1, 2]`. File header says it's a "Wave 0 scaffold — RED
+  until Phase 18 plan 01" — the scaffold spec diverged from the shipped implementation.
+- **Decision:** is required-`clientId` + single-step the intent (→ product regression), or did Phase 18
+  intentionally keep `clientId` optional + a step 2 (→ update scaffold)?
+
+#### TEST-BRAND-01 — `globals-brand-tokens.test.ts` (1 test): **FLAGGED**
+- BRAND-03 asserts `app/(auth)/layout.tsx` uses `SYSTEM_COLORS.primaryHsl` (#406EF1). The auth layout
+  was redesigned to a dark shell (`bg-[#08090A]` + indigo glow) and no longer references it.
+- **Decision:** does the dark redesign supersede BRAND-03 (→ update/remove assertion) or should the auth
+  primary still be enforced (→ product fix)?
+
+#### TEST-LAND-01 — `components/landing-page.test.tsx` (1 test): **FLAGGED (verify — possible regression)**
+- With `?auth=login`, `LandingPage` should open `AuthDialog` (`/welcome back/i` heading) and strip the
+  param via `router.replace('/', { scroll:false })`. The heading is never found.
+- **Decision:** verify the `?auth=login` deep link still opens the login dialog in a real browser. Copy
+  change → update matcher; dialog no longer auto-opens → UX bug.
+
+#### TEST-PB-01 — `price-book/bulk-adjust-dialog.test.tsx` (1 test): **FLAGGED**
+- `getByText('Adjust prices — Labor')` (em dash). `bulk-adjust-dialog.tsx:104` renders
+  `Adjust prices | {folderName}` (pipe), and `{folderName}` is a separate node so the full-string match
+  fails either way.
+- **Decision:** confirm intended separator, then switch to a function / `textContent` matcher.
+
+### Verdict tally (this section)
+- **FAIL (product fix):** 1 — TEST-ENV-01 (WhatsApp keys bypass platform-config loader).
+- **FLAGGED (test rewrite or design decision):** 7 files / 9 tests.
