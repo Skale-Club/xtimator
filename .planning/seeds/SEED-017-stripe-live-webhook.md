@@ -34,31 +34,32 @@ This seed should be presented during `/gsd:new-milestone` when:
    - `invoice.paid`
    - `invoice.payment_failed`
    - `customer.subscription.deleted`
-5. Copy the **Signing secret** (`whsec_live_...`) shown after creation
-6. Add to **Vercel → Project → Environment Variables → Production**:
+5. Copy the **Signing secret** (`whsec_<your-secret>`) shown after creation
+6. Add to `/opt/xtimator/.env.production` on the Hetzner VPS (or the Coolify UI → service → Environment Variables):
    ```
-   STRIPE_WEBHOOK_SECRET = whsec_live_...
+   STRIPE_WEBHOOK_SECRET=whsec_<your-secret>
    ```
+   Then redeploy via Coolify so the running container picks up the new value.
 
-Alternatively via API with `sk_live_*` full secret key:
+Alternatively via API with the live full secret key:
 ```bash
 stripe webhook_endpoints create \
   --url="https://xtimator.com/api/webhooks/stripe" \
   --enabled-events="checkout.session.completed,invoice.paid,invoice.payment_failed,customer.subscription.deleted" \
-  --api-key sk_live_...
+  --api-key sk_live_<your-key>
 ```
 
 ## Current State (test mode — already done)
 
 - Test webhook registered (see Stripe Dashboard → Webhooks for ID/secret)
-- Test secret stored in Vercel env vars under `STRIPE_WEBHOOK_SECRET` (preview/staging)
+- Test secret lives in the Coolify-managed `/opt/xtimator/.env.production` under `STRIPE_WEBHOOK_SECRET` (staging/prod)
 - Local dev secret in `.env.local` as `STRIPE_WEBHOOK_SECRET` (from `stripe listen`)
 
-**SECURITY NOTE:** Never commit webhook secrets, API keys, or signing secrets. They go in `.env.local` (gitignored) or Vercel env vars only.
+**SECURITY NOTE:** Never commit webhook secrets, API keys, or signing secrets. They go in `.env.local` (gitignored) for local dev, or the Coolify-managed `/opt/xtimator/.env.production` only.
 
 ## Scope Estimate
 
-**Small** — 10 minutes in the Stripe Dashboard. No code changes required; only a Vercel env var update.
+**Small** — 10 minutes in the Stripe Dashboard. No code changes required; only a Coolify env var update (`/opt/xtimator/.env.production`) + redeploy.
 
 ## Breadcrumbs
 

@@ -60,13 +60,13 @@ stripe --live webhook_endpoints create \
   --description "Phase 70 — Stripe Connect customer payments (live)"
 ```
 
-Capture the returned `secret` (`whsec_live_...`).
+Capture the returned `secret` (`whsec_<your-connect-webhook-secret>`).
 
-### Part C: Env Variable Promotion (Vercel)
+### Part C: Env Variable Promotion (Coolify)
 
-Add to **Vercel → Project → Environment Variables → Production**:
-- `STRIPE_CONNECT_CLIENT_ID_API_KEY = ca_LIVE_...` (from Part A step 4)
-- `STRIPE_CONNECT_WEBHOOK_SECRET = whsec_live_...` (from Part B output)
+Add to `/opt/xtimator/.env.production` on the Hetzner VPS (or the Coolify UI → service → Environment Variables), then redeploy via Coolify so the container picks them up:
+- `STRIPE_CONNECT_CLIENT_ID_API_KEY=ca_<your-connect-client-id>` (from Part A step 4; read via `getIntegrationKey('stripe_connect_client_id')`, whose env fallback is `{PROVIDER}_API_KEY`)
+- `STRIPE_CONNECT_WEBHOOK_SECRET=whsec_<your-connect-webhook-secret>` (from Part B output)
 
 If using the `/admin/integrations` UI path instead of env vars, paste the Client ID into the Stripe Connect Client ID card (encrypted via existing AES-GCM `platform_integrations` pattern).
 
@@ -98,7 +98,7 @@ If using the `/admin/integrations` UI path instead of env vars, paste the Client
 - `app/api/webhooks/stripe/route.ts` — handler that needs the new Connect webhook secret
 - `lib/platform-config.ts` — `stripe_connect_client_id` provider in the `IntegrationProvider` union
 - `app/admin/integrations/page.tsx` — admin UI card to paste the live Client ID
-- `.env.local` — current test-mode values (copy structure for Vercel prod)
+- `.env.local` — current test-mode values (copy structure to `/opt/xtimator/.env.production` for Coolify prod)
 
 ## Notes
 

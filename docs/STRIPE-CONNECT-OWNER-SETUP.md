@@ -34,7 +34,7 @@ so **test mode is ready to use out of the box**:
 
 For **production live mode**, you still need to:
 1. Repeat steps via Dashboard in live mode (Stripe issues separate `ca_live_...` and live-mode webhook secrets)
-2. Set the live values on Vercel/Hetzner env vars
+2. Set the live values in `/opt/xtimator/.env.production` on the Hetzner VPS (or the Coolify UI → service → Environment Variables), then redeploy so the container picks them up — NOT Vercel
 3. Configure the Connect platform branding (logo, color) in Dashboard for end-user OAuth pages
 
 ---
