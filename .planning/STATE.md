@@ -25,7 +25,7 @@ progress:
 Phase: 999.1
 Plan: Not started
 Status: Phase complete — ready for verification
-Last activity: 2026-06-13 - Completed quick task 260613-9tv: Reconcile Stripe env var names (code↔docs) for live-mode go-live; repointed go-live env promotion Vercel→Coolify
+Last activity: 2026-06-13 - Completed quick task 260613-9ov: Fix homepage sections clipped at short viewport heights (landing-page snap wrappers h-[100dvh]→min-h-[100dvh], removed wrapper overflow-hidden; verified no clipping at 1280×800 / 1366×660 / 844×390)
 Stopped at: Completed 93-03-PLAN.md (event log list page + detail page + EventStepTimeline)
 
 ## v3.1.1 Phases
