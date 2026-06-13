@@ -198,6 +198,10 @@ test **rewrite** for intentionally-changed behavior, or a **product-owner decisi
 be intentional evolution _or_ a regression). Per the task rules we don't edit product code to satisfy
 tests, nor silently flip assertions that could mask a regression.
 
+> **Update (2026-06-13, quick task 260613-coj):** TEST-ENV-01 below is now **RESOLVED** — it was the
+> one genuine product fix. **9 tests / 7 files** remain red, all FLAGGED test-rewrite / design-decision
+> items (no product gaps).
+
 ### Category A — stale tests for intentional product changes (rewrite, then PASS)
 
 #### TEST-AI-01 — `ai/provider-factory.test.ts` (3 tests): **FLAGGED**
@@ -225,14 +229,16 @@ tests, nor silently flip assertions that could mask a regression.
 
 ### Category B — product-owner decision needed (intentional vs regression)
 
-#### TEST-ENV-01 — `env-var-sweep.test.ts` (1 test): **FAIL (genuine product gap)** ⚠
-- Real ADMIN-06 violation — provider API key read directly from `process.env` outside
+#### TEST-ENV-01 — `env-var-sweep.test.ts` (1 test): **RESOLVED (2026-06-13, quick task 260613-coj)** ✅
+- Was a real ADMIN-06 violation — provider API key read directly from `process.env` outside
   `lib/platform-config.ts`:
   - `lib/whatsapp/agent.ts:111` → `apiKey: process.env.OPENAI_API_KEY`
   - `lib/whatsapp/intent-router.ts:171` and `:234` → `apiKey: process.env.OPENAI_API_KEY`
 - The WhatsApp AI agent + intent-router were not migrated to `getIntegrationKey()` like the rest of the
-  app. The test is correct; this is a **product fix** (out of scope for the test-infra task).
-- **Action:** route those reads through the platform-config key loader; test goes green automatically.
+  app. The test was correct; this was a **product fix** (out of scope for the test-infra task).
+- **Fix (260613-coj, commit `fc266ff`):** all three call sites now use
+  `apiKey: (await getIntegrationKey('openai')) ?? undefined`. `env-var-sweep` passes; full WhatsApp unit
+  suite green (189 passed). Artifacts: `.planning/quick/260613-coj-route-whatsapp-openai-key-reads-through-/`.
 
 #### TEST-WIZ-01 — `wizard-client-only.test.ts` (2 tests): **FLAGGED**
 - Asserts `projectSchema` rejects empty `clientId` and `STEP_FIELDS` maps only `[1]`. Now empty
@@ -260,5 +266,5 @@ tests, nor silently flip assertions that could mask a regression.
 - **Decision:** confirm intended separator, then switch to a function / `textContent` matcher.
 
 ### Verdict tally (this section)
-- **FAIL (product fix):** 1 — TEST-ENV-01 (WhatsApp keys bypass platform-config loader).
+- **RESOLVED (product fix):** 1 — TEST-ENV-01 (WhatsApp keys now routed through platform-config loader; quick task 260613-coj, commit `fc266ff`).
 - **FLAGGED (test rewrite or design decision):** 7 files / 9 tests.
