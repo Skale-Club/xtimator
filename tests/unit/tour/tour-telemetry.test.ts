@@ -5,6 +5,15 @@ vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(),
 }))
 
+// logTourEvent's auth context now resolves the company via getActiveCompanyId() (cookie-based)
+// and checks assertWritable(); mock both so the flow reaches the tour_events insert.
+vi.mock('@/lib/queries/active-company', () => ({
+  getActiveCompanyId: vi.fn().mockResolvedValue('company-uuid'),
+}))
+vi.mock('@/lib/demo/guard', () => ({
+  assertWritable: vi.fn().mockResolvedValue(null),
+}))
+
 import { createClient } from '@/lib/supabase/server'
 import { logTourEvent } from '@/lib/actions/tour'
 

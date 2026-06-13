@@ -21,6 +21,12 @@ vi.mock('next/headers', () => ({
   cookies: vi.fn(),
 }))
 
+// saveThemePreference now scopes the update to the active company via getActiveCompanyId()
+// (cookie-based) instead of the user's id; mock it so the flow reaches the companies update.
+vi.mock('@/lib/queries/active-company', () => ({
+  getActiveCompanyId: vi.fn().mockResolvedValue('company-active'),
+}))
+
 type CookieStoreMock = {
   set: ReturnType<typeof vi.fn>
   get: ReturnType<typeof vi.fn>
@@ -123,7 +129,8 @@ describe('saveThemePreference (DARK-02 (b))', () => {
     expect(result).toEqual({ ok: true })
     expect(client.from).toHaveBeenCalledWith('companies')
     expect(client.update).toHaveBeenCalledWith({ theme_preference: 'dark' })
-    expect(client.eq).toHaveBeenCalledWith('user_id', 'user-abc')
+    // Per-company theme: update is scoped to the active company id, not the user id.
+    expect(client.eq).toHaveBeenCalledWith('id', 'company-active')
 
     expect(cookieStore.set).toHaveBeenCalledTimes(1)
     const [name, value, options] = cookieStore.set.mock.calls[0]

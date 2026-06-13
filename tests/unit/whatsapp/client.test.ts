@@ -8,6 +8,15 @@ vi.stubGlobal('fetch', fetchMock)
 process.env.META_WHATSAPP_ACCESS_TOKEN = 'test-token'
 process.env.META_WHATSAPP_PHONE_NUMBER_ID = 'phone-123'
 
+// client.ts reads credentials from getWhatsAppPlatformConfig() (encrypted platform-config),
+// not env vars. Mock it so the supabase config lookup never runs (it would otherwise consume
+// the stubbed fetch and leave the real Graph API call with an undefined response).
+vi.mock('@/lib/platform-config', () => ({
+  getWhatsAppPlatformConfig: vi
+    .fn()
+    .mockResolvedValue({ accessToken: 'test-token', phoneNumberId: 'phone-123' }),
+}))
+
 import {
   sendWhatsAppMessage,
   downloadWhatsAppMedia,

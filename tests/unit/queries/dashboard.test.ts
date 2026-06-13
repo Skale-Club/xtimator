@@ -38,17 +38,25 @@ function createMockSupabase(overrides: Record<string, unknown> = {}) {
   const originalSelect = mockSelect.select as ReturnType<typeof vi.fn>
   originalSelect.mockImplementation((_cols: string, selectOpts?: { count?: string; head?: boolean }) => {
     if (selectOpts?.head && selectOpts?.count === 'exact') {
-      // Count queries — return based on current table
+      // Count queries — return based on current table.
+      // The projects count now filters .eq('company_id').is('archived_at',null).is('deleted_at',null);
+      // make .is chainable and resolve to the projects count when finally awaited.
+      const projectsCountResult: Record<string, unknown> = Promise.resolve({
+        count: opts.projectsCount,
+      }) as unknown as Record<string, unknown>
+      projectsCountResult.is = () => projectsCountResult
       const countChain: Record<string, unknown> = {
         eq: vi.fn(() => countChain),
         in: vi.fn(() => {
           // pendingEstimates
           return Promise.resolve({ count: opts.pendingCount })
         }),
+        is: vi.fn(() => projectsCountResult),
       }
       countChain.eq = vi.fn((_col: string, val: unknown) => {
         if (currentTable === 'projects') {
-          return Promise.resolve({ count: opts.projectsCount })
+          // chain to .is('archived_at',null).is('deleted_at',null)
+          return countChain
         }
         if (val === 'accepted') {
           return Promise.resolve({ count: opts.acceptedCount })
@@ -75,9 +83,10 @@ function createMockSupabase(overrides: Record<string, unknown> = {}) {
       return revenueChain
     }
 
-    // getProjects select with joins
+    // getProjects select with joins — now also filters .is('archived_at',null).is('deleted_at',null)
     const projectChain: Record<string, unknown> = {
       eq: vi.fn(() => projectChain),
+      is: vi.fn(() => projectChain),
       order: vi.fn(() => Promise.resolve({ data: opts.projects })),
     }
     return projectChain
