@@ -12,6 +12,7 @@
  */
 import { createReactAgent } from '@langchain/langgraph/prebuilt'
 import { ChatOpenAI } from '@langchain/openai'
+import { getIntegrationKey } from '@/lib/platform-config'
 import { HumanMessage, AIMessage, SystemMessage } from '@langchain/core/messages'
 import type { BaseMessage } from '@langchain/core/messages'
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -108,7 +109,7 @@ Instructions:
   const tools = makeConfirmationTools(session, companyId, supabase)
 
   const model = new ChatOpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
+    apiKey: (await getIntegrationKey('openai')) ?? undefined,
     model: 'gpt-4o',
     temperature: 0,
   })

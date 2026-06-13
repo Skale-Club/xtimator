@@ -23,6 +23,7 @@
  */
 import { createReactAgent } from '@langchain/langgraph/prebuilt'
 import { ChatOpenAI } from '@langchain/openai'
+import { getIntegrationKey } from '@/lib/platform-config'
 import {
   HumanMessage,
   AIMessage,
@@ -168,7 +169,7 @@ Classify the owner's latest message into EXACTLY ONE of these labels. Reply with
 Use the recent conversation history for context. Reply with ONLY one of: CONFIRM_OR_CANCEL, EDIT, CREATE, QUERY.`
 
   const model = new ChatOpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
+    apiKey: (await getIntegrationKey('openai')) ?? undefined,
     model: 'gpt-4o',
     temperature: 0,
   })
@@ -231,7 +232,7 @@ async function dispatchQuery(input: RouteInput, normalizedText: string): Promise
 
   const tools = makeQueryTools(input.companyId, input.supabase)
   const llm = new ChatOpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
+    apiKey: (await getIntegrationKey('openai')) ?? undefined,
     model: 'gpt-4o',
     temperature: 0,
   })
