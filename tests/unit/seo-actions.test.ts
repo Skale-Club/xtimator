@@ -15,9 +15,12 @@ vi.mock('@/lib/auth/admin-context', () => ({
   requireAdmin: vi.fn(),
 }))
 
-vi.mock('@/lib/supabase/service', () => ({
-  createServiceClient: vi.fn(),
-}))
+vi.mock('@/lib/supabase/service', () => {
+  // saveSeo calls requireServiceClient(); alias both exports to one spy so tests that
+  // configure createServiceClient.mockReturnValue(...) also drive requireServiceClient().
+  const client = vi.fn()
+  return { createServiceClient: client, requireServiceClient: client }
+})
 
 vi.mock('@/lib/platform-config', () => ({
   invalidatePlatformConfig: vi.fn(),
@@ -52,10 +55,18 @@ vi.mock('@/lib/schemas/admin', async () => {
 
 function makeServiceClient(opts: {
   upsertResponse?: { data: unknown; error: { message: string } | null }
+  existingRow?: { app_name?: string | null; og_image_url?: string | null } | null
 }) {
   const upsertResp = opts.upsertResponse ?? { data: [{ id: 1 }], error: null }
   const upsert = vi.fn().mockResolvedValue(upsertResp)
-  const from = vi.fn().mockReturnValue({ upsert })
+  // saveSeo reads the existing row (app_name / og_image_url) via
+  // .from('platform_branding').select(...).eq('id', 1).maybeSingle() before the upsert.
+  const existing =
+    opts.existingRow !== undefined ? opts.existingRow : { app_name: 'Xtimator', og_image_url: null }
+  const maybeSingle = vi.fn().mockResolvedValue({ data: existing, error: null })
+  const eq = vi.fn().mockReturnValue({ maybeSingle })
+  const select = vi.fn().mockReturnValue({ eq })
+  const from = vi.fn().mockReturnValue({ select, upsert })
   return { from, upsert }
 }
 

@@ -30,9 +30,11 @@ vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(),
 }))
 
-vi.mock('@/lib/supabase/service', () => ({
-  createServiceClient: vi.fn(),
-}))
+vi.mock('@/lib/supabase/service', () => {
+  // Alias both exports to one spy (product uses requireServiceClient).
+  const client = vi.fn()
+  return { createServiceClient: client, requireServiceClient: client }
+})
 
 vi.mock('next/navigation', () => ({
   notFound: vi.fn(() => {

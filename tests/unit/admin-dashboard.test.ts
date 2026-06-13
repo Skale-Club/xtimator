@@ -1,7 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 
 vi.mock('@/lib/auth/admin-context', () => ({ requireAdmin: vi.fn() }))
-vi.mock('@/lib/supabase/service', () => ({ createServiceClient: vi.fn() }))
+vi.mock('@/lib/supabase/service', () => {
+  // Alias both exports to one spy (product uses requireServiceClient).
+  const client = vi.fn()
+  return { createServiceClient: client, requireServiceClient: client }
+})
 vi.mock('server-only', () => ({}))
 
 // Helper to build a chainable Supabase-like spy

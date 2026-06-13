@@ -1,10 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-vi.mock('@/lib/supabase/service', () => ({
-  createServiceClient: vi.fn(() => ({
+vi.mock('@/lib/supabase/service', () => {
+  // Route uses requireServiceClient(); alias both exports to one factory returning the rpc spy.
+  const client = vi.fn(() => ({
     rpc: vi.fn().mockResolvedValue({ data: [{ deleted_count: 7 }], error: null }),
-  })),
-}))
+  }))
+  return { createServiceClient: client, requireServiceClient: client }
+})
 
 describe('GET /api/cron/cleanup-orphan-projects', () => {
   beforeEach(() => {

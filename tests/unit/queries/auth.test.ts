@@ -26,15 +26,17 @@ describe('getCachedCompany', () => {
   beforeEach(() => { vi.resetModules() })
 
   it('returns null when company not found', async () => {
-    vi.doMock('@/lib/supabase/service', () => ({
-      createServiceClient: vi.fn(() => ({
+    vi.doMock('@/lib/supabase/service', () => {
+      // getCachedCompany calls requireServiceClient(); alias both to one factory.
+      const client = vi.fn(() => ({
         from: vi.fn(() => ({
           select: vi.fn(() => ({
             eq: vi.fn(() => ({ single: vi.fn().mockResolvedValue({ data: null }) })),
           })),
         })),
-      })),
-    }))
+      }))
+      return { createServiceClient: client, requireServiceClient: client }
+    })
     const { getCachedCompany } = await import('@/lib/queries/auth')
     const result = await getCachedCompany('user-123')
     expect(result).toBeNull()
@@ -42,15 +44,17 @@ describe('getCachedCompany', () => {
 
   it('returns company when found', async () => {
     const mockCompany = { id: 'co-1', name: 'Acme', logo_url: null, owner_name: 'Bob', theme_preference: 'dark', industry: null }
-    vi.doMock('@/lib/supabase/service', () => ({
-      createServiceClient: vi.fn(() => ({
+    vi.doMock('@/lib/supabase/service', () => {
+      // getCachedCompany calls requireServiceClient(); alias both to one factory.
+      const client = vi.fn(() => ({
         from: vi.fn(() => ({
           select: vi.fn(() => ({
             eq: vi.fn(() => ({ single: vi.fn().mockResolvedValue({ data: mockCompany }) })),
           })),
         })),
-      })),
-    }))
+      }))
+      return { createServiceClient: client, requireServiceClient: client }
+    })
     const { getCachedCompany } = await import('@/lib/queries/auth')
     const result = await getCachedCompany('user-123')
     expect(result).toMatchObject({ id: 'co-1', name: 'Acme' })

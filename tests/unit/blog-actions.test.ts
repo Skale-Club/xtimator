@@ -12,12 +12,20 @@ vi.mock('@/lib/auth/admin-context', () => ({
   requireAdmin: vi.fn(),
 }))
 
-vi.mock('@/lib/supabase/service', () => ({
-  createServiceClient: vi.fn(),
-}))
+vi.mock('@/lib/supabase/service', () => {
+  // Alias both exports to one spy (product uses requireServiceClient).
+  const client = vi.fn()
+  return { createServiceClient: client, requireServiceClient: client }
+})
 
 vi.mock('next/cache', () => ({
   revalidatePath: vi.fn(),
+}))
+
+// logAdminAction writes an audit row via the service client; mock it so its insert
+// doesn't pollute the blog_posts insert spy (it shares requireServiceClient()).
+vi.mock('@/lib/admin/audit-log', () => ({
+  logAdminAction: vi.fn(),
 }))
 
 // Local copy of blogPostSchema decoupled from lib/schemas/admin.ts wave timing.
@@ -59,8 +67,11 @@ function makeClient(opts: {
 
   const insert = vi.fn().mockResolvedValue(insertResp)
   const single = vi.fn().mockResolvedValue({ data: selectData })
+  // deletePost/togglePostStatus read the slug via .select().eq().maybeSingle();
+  // updatePost reads via .select().eq().single(). Support both terminals.
+  const maybeSingle = vi.fn().mockResolvedValue({ data: selectData })
   const eq = vi.fn().mockReturnThis()
-  const select = vi.fn().mockReturnValue({ eq, single })
+  const select = vi.fn().mockReturnValue({ eq, single, maybeSingle })
   const updateEq = vi.fn().mockResolvedValue(updateResp)
   const update = vi.fn().mockReturnValue({ eq: updateEq })
   const deleteEq = vi.fn().mockResolvedValue(deleteResp)

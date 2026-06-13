@@ -19,9 +19,12 @@ vi.mock('@/lib/auth/admin-context', () => ({
   requireAdmin: vi.fn().mockResolvedValue({ userId: 'admin-self', email: 'self@example.com' }),
 }))
 
-vi.mock('@/lib/supabase/service', () => ({
-  createServiceClient: vi.fn(),
-}))
+vi.mock('@/lib/supabase/service', () => {
+  // Product code calls requireServiceClient(); alias both exports to one spy so tests
+  // that configure createServiceClient.mockReturnValue(...) also drive requireServiceClient().
+  const client = vi.fn()
+  return { createServiceClient: client, requireServiceClient: client }
+})
 
 vi.mock('@/lib/schemas/admin', () => {
   const z = require('zod') as typeof import('zod')
