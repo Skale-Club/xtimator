@@ -116,8 +116,8 @@ describe('LandingPage modal auto-open', () => {
   it('opens the AuthDialog in login mode when ?auth=login and strips the param via router.replace', async () => {
     currentSearchParams = new URLSearchParams('auth=login')
     render(<LandingPage content={LANDING_CONTENT} branding={BRANDING} />)
-    // AuthDialog mounts in a portal; the heading "Welcome back" is the login marker.
-    const heading = await screen.findByRole('heading', { name: /welcome back/i })
+    // AuthDialog mounts in a portal; the login heading "Sign in to {appName}" is the marker.
+    const heading = await screen.findByRole('heading', { name: /sign in to/i })
     expect(heading).toBeTruthy()
     expect(routerReplace).toHaveBeenCalledWith('/', { scroll: false })
   })
@@ -126,7 +126,7 @@ describe('LandingPage modal auto-open', () => {
     currentSearchParams = new URLSearchParams('')
     render(<LandingPage content={LANDING_CONTENT} branding={BRANDING} />)
     // Heading from any mode of the dialog should NOT exist.
-    expect(screen.queryByRole('heading', { name: /welcome back/i })).toBeNull()
+    expect(screen.queryByRole('heading', { name: /sign in to/i })).toBeNull()
     expect(screen.queryByRole('heading', { name: /create account/i })).toBeNull()
     expect(routerReplace).not.toHaveBeenCalled()
   })

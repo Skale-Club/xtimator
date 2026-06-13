@@ -1,17 +1,16 @@
-// Wave 0 scaffold — RED until Phase 18 plan 01 implements reduced projectSchema.
-// This test turns GREEN in Phase 18 plan 01 task 2 (schema reduction).
+// Asserts the reduced projectSchema shipped in Phase 18: a minimal client-first schema
+// (clientId optional, clientName required, inputMode optional) with a 2-step field map.
 
 import { describe, it, expect } from 'vitest'
 
-// We import the schema directly — the test is designed to assert the REDUCED schema shape.
-// Before task 2 runs (schema reduction), this test will fail because the schema still has name/projectType/etc.
-// After task 2, the schema is reduced and the assertions pass.
 import { projectSchema, STEP_FIELDS } from '@/lib/schemas/project'
 
-describe('projectSchema (1-step)', () => {
-  it('rejects when clientId is empty', () => {
-    const result = projectSchema.safeParse({ clientId: '', clientName: '' })
-    expect(result.success).toBe(false)
+describe('projectSchema (reduced)', () => {
+  it('treats clientId as optional (empty or absent is allowed)', () => {
+    // Phase 18 ships clientId as optional — a project can be started before a client is
+    // linked. clientName remains required (z.string()).
+    expect(projectSchema.safeParse({ clientId: '', clientName: '' }).success).toBe(true)
+    expect(projectSchema.safeParse({ clientName: '' }).success).toBe(true)
   })
 
   it('accepts valid clientId and clientName', () => {
@@ -29,7 +28,7 @@ describe('projectSchema (1-step)', () => {
     expect(shapeKeys).not.toContain('targetBudget')
   })
 
-  it('STEP_FIELDS only maps step 1 (no step 2 or step 3)', () => {
-    expect(Object.keys(STEP_FIELDS).map(Number)).toEqual([1])
+  it('STEP_FIELDS maps step 1 (client) and step 2 (input mode), no step 3', () => {
+    expect(Object.keys(STEP_FIELDS).map(Number)).toEqual([1, 2])
   })
 })

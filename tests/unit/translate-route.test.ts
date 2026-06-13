@@ -1,35 +1,24 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-// Module-level mock function references (accessible from hoisted vi.mock factories)
-// These are assigned in beforeEach but referenced by the class in the mock factory
-const anthropicCreateMock = vi.fn()
-
 // Auth client
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(),
 }))
 
-// Service client (DB reads/writes)
+// Service client (DB cache reads/writes)
 vi.mock('@/lib/supabase/service', () => ({
   requireServiceClient: vi.fn(),
 }))
 
-// getIntegrationKey
-vi.mock('@/lib/platform-config', () => ({
-  getIntegrationKey: vi.fn(),
-}))
-
-// Anthropic SDK — class variant (constructible); delegates to module-level mock
-vi.mock('@anthropic-ai/sdk', () => ({
-  default: class {
-    messages = { create: anthropicCreateMock }
-  },
+// AI translation goes through OpenRouter (translateTextsOR), not the Anthropic SDK.
+vi.mock('@/lib/ai/openrouter-client', () => ({
+  translateTextsOR: vi.fn(),
 }))
 
 import { POST } from '@/app/api/translate/route'
 import { createClient } from '@/lib/supabase/server'
 import { requireServiceClient } from '@/lib/supabase/service'
-import { getIntegrationKey } from '@/lib/platform-config'
+import { translateTextsOR } from '@/lib/ai/openrouter-client'
 
 function makeRequest(body: unknown) {
   return new Request('http://localhost/api/translate', {
@@ -42,6 +31,7 @@ function makeRequest(body: unknown) {
 describe('/api/translate — I18N-05, I18N-08', () => {
   let getClaimsMock: ReturnType<typeof vi.fn>
   let fromMock: ReturnType<typeof vi.fn>
+  let upsertMock: ReturnType<typeof vi.fn>
 
   beforeEach(() => {
     vi.resetAllMocks()
@@ -52,24 +42,18 @@ describe('/api/translate — I18N-05, I18N-08', () => {
       auth: { getClaims: getClaimsMock },
     } as unknown as Awaited<ReturnType<typeof createClient>>)
 
-    // AI key: available by default
-    vi.mocked(getIntegrationKey).mockResolvedValue('test-key')
+    // OpenRouter: returns a translation by default
+    vi.mocked(translateTextsOR).mockResolvedValue({ 'Rare string': 'Frase rara' })
 
-    // Anthropic: returns translation by default
-    anthropicCreateMock.mockResolvedValue({
-      content: [{ type: 'text', text: '{"Rare string":"Frase rara"}' }],
-    })
-
-    // DB: cache miss by default
-    // Route calls: .from('translations').select(...).in(...).eq(...).eq(...)
-    // Route uses .upsert(..., { onConflict, ignoreDuplicates }) for writes
-    fromMock = vi.fn()
+    // DB: cache miss by default.
+    // Route reads: .from('translations').select(...).in(...).eq(...).eq(...)
+    // Route writes: .upsert(rows, { onConflict, ignoreDuplicates })
+    upsertMock = vi.fn().mockResolvedValue({ error: null })
     const eqMock2 = vi.fn().mockResolvedValue({ data: [] })
     const eqMock1 = vi.fn().mockReturnValue({ eq: eqMock2 })
     const inMock = vi.fn().mockReturnValue({ eq: eqMock1 })
     const selectMock = vi.fn().mockReturnValue({ in: inMock })
-    const upsertMock = vi.fn().mockResolvedValue({ error: null })
-    fromMock.mockReturnValue({ select: selectMock, upsert: upsertMock })
+    fromMock = vi.fn().mockReturnValue({ select: selectMock, upsert: upsertMock })
 
     vi.mocked(requireServiceClient).mockReturnValue({
       from: fromMock,
@@ -96,13 +80,13 @@ describe('/api/translate — I18N-05, I18N-08', () => {
     expect(body.error).toBeTruthy()
   })
 
-  it('returns 503 when getIntegrationKey returns null and no cache hit', async () => {
-    vi.mocked(getIntegrationKey).mockResolvedValue(null)
+  it('returns 503 when the AI is unavailable and there is no cache hit', async () => {
+    vi.mocked(translateTextsOR).mockRejectedValue(new Error('AI down'))
     const res = await POST(makeRequest({ texts: ['Rare string'], targetLanguage: 'pt' }))
     expect(res.status).toBe(503)
   })
 
-  it('returns cached translation without calling Claude when DB hit exists', async () => {
+  it('returns cached translation without calling the AI when DB hit exists', async () => {
     // Override: cache hit for 'Save' — two chained .eq() required
     const eqMock2 = vi.fn().mockResolvedValue({
       data: [{ source_text: 'Save', translated_text: 'Salvar' }],
@@ -110,42 +94,29 @@ describe('/api/translate — I18N-05, I18N-08', () => {
     const eqMock1 = vi.fn().mockReturnValue({ eq: eqMock2 })
     const inMock = vi.fn().mockReturnValue({ eq: eqMock1 })
     const selectMock = vi.fn().mockReturnValue({ in: inMock })
-    const upsertMock = vi.fn().mockResolvedValue({ error: null })
     fromMock.mockReturnValue({ select: selectMock, upsert: upsertMock })
 
     const res = await POST(makeRequest({ texts: ['Save'], targetLanguage: 'pt' }))
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.translations['Save']).toBe('Salvar')
-    // Claude should NOT have been called (all strings cached)
-    expect(anthropicCreateMock).not.toHaveBeenCalled()
+    // All strings cached → AI must NOT be called.
+    expect(translateTextsOR).not.toHaveBeenCalled()
   })
 
-  it('calls Claude and inserts with onConflict when DB cache miss', async () => {
-    // Build fresh upsert mock to verify call (route uses upsert with ignoreDuplicates)
-    const upsertMock = vi.fn().mockResolvedValue({ error: null })
-    const eqMock2 = vi.fn().mockResolvedValue({ data: [] })
-    const eqMock1 = vi.fn().mockReturnValue({ eq: eqMock2 })
-    const inMock = vi.fn().mockReturnValue({ eq: eqMock1 })
-    const selectMock = vi.fn().mockReturnValue({ in: inMock })
-    fromMock.mockReturnValue({ select: selectMock, upsert: upsertMock })
-
-    anthropicCreateMock.mockResolvedValue({
-      content: [{ type: 'text', text: '{"Rare string":"Frase rara"}' }],
-    })
+  it('translates via OpenRouter and upserts with onConflict when DB cache miss', async () => {
+    vi.mocked(translateTextsOR).mockResolvedValue({ 'Rare string': 'Frase rara' })
 
     const res = await POST(makeRequest({ texts: ['Rare string'], targetLanguage: 'pt' }))
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.translations['Rare string']).toBe('Frase rara')
 
-    // Verify Claude was called with haiku model
-    expect(anthropicCreateMock).toHaveBeenCalledOnce()
-    expect(anthropicCreateMock).toHaveBeenCalledWith(
-      expect.objectContaining({ model: 'claude-haiku-4-20250514' })
-    )
+    // OpenRouter translator invoked with the missing strings + target language.
+    expect(translateTextsOR).toHaveBeenCalledOnce()
+    expect(translateTextsOR).toHaveBeenCalledWith(['Rare string'], 'pt')
 
-    // Verify upsert was called with onConflict (ignoreDuplicates = ON CONFLICT DO NOTHING)
+    // Result cached via upsert with ON CONFLICT DO NOTHING.
     expect(upsertMock).toHaveBeenCalledWith(
       expect.arrayContaining([
         expect.objectContaining({

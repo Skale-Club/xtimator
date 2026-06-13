@@ -61,7 +61,8 @@ describe('BulkAdjustDialog', () => {
 
   it('renders dialog title with folder name', () => {
     render(<BulkAdjustDialog {...defaultProps} />)
-    expect(screen.getByText('Adjust prices — Labor')).toBeDefined()
+    // Title renders as "Adjust prices | {folderName}" across two text nodes; assert via the heading.
+    expect(screen.getByRole('heading', { name: /adjust prices/i }).textContent).toContain('Labor')
   })
 
   it('shows adjustment % input', () => {

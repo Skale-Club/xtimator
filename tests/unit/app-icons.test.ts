@@ -7,7 +7,8 @@ const appDir = resolve(root, 'app')
 const publicDir = resolve(root, 'public')
 
 const layoutSource = readFileSync(resolve(appDir, 'layout.tsx'), 'utf8')
-const proxySource = readFileSync(resolve(root, 'proxy.ts'), 'utf8')
+// The root proxy.ts (Next middleware) was removed; the metadata-route exemption now lives
+// solely in lib/supabase/proxy.ts (asserted below).
 const supabaseProxySource = readFileSync(resolve(root, 'lib/supabase/proxy.ts'), 'utf8')
 
 function publicIconConflicts() {
@@ -52,16 +53,16 @@ describe('App Router icon contract (Phase 13)', () => {
     expect(manifestSource).toMatch(/background_color:\s*['"]#0a0a0f['"]/)
     // theme_color now comes from SYSTEM_COLORS.primary (avoids duplication of the hex literal)
     expect(manifestSource).toMatch(/theme_color:\s*SYSTEM_COLORS\.primary/)
-    expect(manifestSource).toMatch(/src:\s*['"]\/favicon\.ico['"]/)
-    expect(manifestSource).toMatch(/src:\s*['"]\/icon['"]/)
-    expect(manifestSource).toMatch(/src:\s*['"]\/apple-icon['"]/)
+    // Phase 15-03: manifest icons are DB-backed branding URLs with static /icons/* fallbacks.
+    expect(manifestSource).toMatch(/src:\s*['"]\/icons\/icon-192\.png['"]/)
+    expect(manifestSource).toMatch(/src:\s*['"]\/icons\/icon-512\.png['"]/)
+    expect(manifestSource).toMatch(/purpose:\s*['"]maskable['"]/)
   })
 
   it('makes metadata routes public and middleware-safe', () => {
     expect(supabaseProxySource).toMatch(/pathname\s*===\s*['"]\/icon['"]/) 
     expect(supabaseProxySource).toMatch(/pathname\s*===\s*['"]\/apple-icon['"]/) 
     expect(supabaseProxySource).toMatch(/pathname\s*===\s*['"]\/manifest\.webmanifest['"]/) 
-    expect(proxySource).toMatch(/manifest\.webmanifest\|icon\|apple-icon/)
   })
 
   it('avoids duplicate public icon ownership', () => {

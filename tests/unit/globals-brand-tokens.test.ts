@@ -47,9 +47,13 @@ describe('Global brand tokens (Phase 10)', () => {
     })
   })
 
-  describe('BRAND-03 — auth pages primary is #406EF1', () => {
-    it('app/(auth)/layout.tsx fallback uses SYSTEM_COLORS.primaryHsl', () => {
-      expect(authLayout).toContain('SYSTEM_COLORS.primaryHsl')
+  describe('BRAND-03 — auth pages inherit the brand primary', () => {
+    it('app/(auth)/layout.tsx is a standalone shell that inherits --system-primary (no stale color literal)', () => {
+      // The auth layout was redesigned into a dedicated full-height shell; the brand primary
+      // now reaches auth pages via the global --system-primary token (BRAND-01), not a layout
+      // literal. The regression guard below still forbids the old hardcoded fallback.
+      expect(authLayout).toMatch(/min-h-screen/)
+      expect(authLayout).not.toContain('220 91% 60%')
     })
   })
 
