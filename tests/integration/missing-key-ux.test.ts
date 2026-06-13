@@ -32,7 +32,7 @@ vi.mock('@/lib/supabase/server', () => ({
 
 vi.mock('@/lib/queries/estimate', () => ({
   getEstimateWithContext: vi.fn().mockResolvedValue({
-    estimate: { id: 'e1', project_id: 'p1', company_id: 'c1' },
+    estimate: { id: 'e1', project_id: 'p1', company_id: 'c1', workflow_status: 'consolidated' },
     project: { name: 'Test', project_type: null, client: null },
     company: { id: 'c1', name: 'Acme' },
   }),

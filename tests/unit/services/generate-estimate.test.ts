@@ -262,7 +262,7 @@ describe('generateEstimateForProject', () => {
 
     await expect(
       generateEstimateForProject('company-1', 'project-1')
-    ).rejects.toThrow('At least one audio transcript or photo is required')
+    ).rejects.toThrow('At least one audio transcript, photo, or prompt is required')
   })
 
   it('accepts photos-only input (no transcript)', async () => {

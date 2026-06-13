@@ -183,6 +183,7 @@ describe('onboardingSchema', () => {
     it('step 1 contains exactly the right fields', () => {
       expect(STEP_FIELDS[1]).toEqual([
         'companyName',
+        'subdomain',
         'ownerName',
         'phone',
         'email',
