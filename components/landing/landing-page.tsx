@@ -76,7 +76,7 @@ export function LandingPage({ content, branding }: LandingPageProps) {
       {/* Snap page 4: final CTA + footer */}
       <div className="relative min-h-[100dvh] pt-16 pb-3 flex flex-col sm:pb-0">
         <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 gradient-hero" />
-        <div className="flex-1 flex items-center">
+        <div className="flex-1 flex flex-col justify-center">
           <FinalCtaSection onOpenAuth={openAuth} />
         </div>
         <LandingFooter appName={branding.appName} logoUrl={branding.logoUrl} onOpenAuth={openAuth} />
