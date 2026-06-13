@@ -4,8 +4,8 @@ milestone: v1.5
 milestone_name: Zero-friction Project Onboarding
 status: verifying
 stopped_at: Completed 93-03-PLAN.md (event log list page + detail page + EventStepTimeline)
-last_updated: "2026-05-30T03:04:03.083Z"
-last_activity: 2026-05-30
+last_updated: "2026-06-13T11:08:53.768Z"
+last_activity: 2026-06-13
 progress:
   total_phases: 93
   completed_phases: 64
@@ -25,7 +25,7 @@ progress:
 Phase: 999.1
 Plan: Not started
 Status: Phase complete — ready for verification
-Last activity: 2026-06-10 - Completed quick task 260610-fq2: Liberar canal de WhatsApp para o plano free
+Last activity: 2026-06-13 - Completed quick task 260613-9ov: Fix homepage sections being clipped at short viewport heights (landing-page snap wrappers min-h-[100dvh], removed wrapper overflow-hidden)
 Stopped at: Completed 93-03-PLAN.md (event log list page + detail page + EventStepTimeline)
 
 ## v3.1.1 Phases
