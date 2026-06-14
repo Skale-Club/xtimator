@@ -44,9 +44,18 @@ const supabase = createClient(SUPABASE_URL, SERVICE_KEY)
 
 // Deterministic child id derived from the demo company id + a stable suffix, so
 // re-runs upsert the same rows. Format: 0000de00-0000-0000-<grp>-<nnnnnnnnnnnn>.
+// The group label is hashed to hex because UUID segments must be valid hex —
+// raw labels like "pf"/"es"/"s0" contain non-hex chars and Postgres rejects them.
+// The full 32-bit group hash spans <grp> + the first 4 hex of the sequence, with
+// n in the trailing 8 hex, so distinct (group, n) pairs never collide.
 function demoId(group, n) {
-  const g = String(group).padStart(4, '0')
-  const seq = String(n).padStart(12, '0')
+  let h = 0
+  const s = String(group)
+  for (let i = 0; i < s.length; i++) h = (Math.imul(h, 31) + s.charCodeAt(i)) >>> 0
+  const g = (h & 0xffff).toString(16).padStart(4, '0')
+  const seq =
+    ((h >>> 16) & 0xffff).toString(16).padStart(4, '0') +
+    Number(n).toString(16).padStart(8, '0')
   return `0000de00-0000-0000-${g}-${seq}`
 }
 
@@ -211,9 +220,6 @@ async function main() {
     const it = PRICE_BOOK_ITEMS[i]
     await upsert('company_price_book', {
       id: demoId('pi', i), company_id: DEMO_COMPANY_ID, folder_id: folderIds[it.folderIdx],
-      // `category` predates the folder_id FK and is still NOT NULL — mirror the
-      // folder name so legacy and folder-based views both render.
-      category: PRICE_BOOK_FOLDERS[it.folderIdx],
       name: it.name, unit: it.unit, unit_price: it.unit_price, currency_code: 'USD',
     })
   }
@@ -245,6 +251,7 @@ async function main() {
     const consolidated = proj.estimateStatus !== 'draft'
     await upsert('estimates', {
       id: estimateId, project_id: projectId, company_id: DEMO_COMPANY_ID,
+      estimate_seq: p + 1,
       currency_code: 'USD', version: 1, is_current: true,
       status: proj.estimateStatus,
       workflow_status: consolidated ? 'consolidated' : 'draft',
@@ -253,7 +260,6 @@ async function main() {
       summary: proj.summary,
       payment_terms: '50% deposit, balance on completion.',
       warranty_terms: '1-year workmanship warranty.',
-      share_token: `demo-${p + 1}`,
       subtotal, discount_value: 0, discount_amount: 0,
       tax_rate: TAX_RATE, tax_amount: taxAmount, total,
       sent_at: ['sent', 'viewed', 'accepted'].includes(proj.estimateStatus) ? new Date().toISOString() : null,
