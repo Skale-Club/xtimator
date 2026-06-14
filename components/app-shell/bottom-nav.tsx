@@ -34,7 +34,7 @@ export function BottomNav({ isDemo }: { isDemo?: boolean }) {
   return (
     <nav
       data-testid="bottom-nav"
-      className="fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around border-t border-border bg-background md:hidden"
+      className="fixed bottom-0 left-0 right-0 z-50 flex items-start justify-around border-t border-border bg-background md:hidden pb-[env(safe-area-inset-bottom,_0px)]"
     >
       {NAV_ITEMS.filter((item) => !(isDemo && item.demoHidden)).map((item) => {
         const isActive =
