@@ -20,18 +20,19 @@ interface TopbarProps {
 }
 
 const TITLE_MAP: Record<string, string> = {
-  '/dashboard':          'Dashboard',
-  '/projects':           'Projects',
-  '/projects/new':       'New Project',
-  '/clients':            'Clients',
-  '/price-book':         'Price Book',
-  '/settings':           'Settings',
+  '/projects/new':       'New Xtimate',
   '/notifications':      'Notifications',
 }
 
+// Top-level pages reached from the bottom bar render their own heading on the
+// page (via <PageHeading>), so the navbar shows no title for them.
+const PAGE_OWNS_TITLE = new Set(['/dashboard', '/projects', '/clients', '/price-book'])
+
 function usePageTitle(pathname: string): string {
+  if (PAGE_OWNS_TITLE.has(pathname)) return ''
+  // Settings renders its own "Profile" heading across all its tabs.
+  if (pathname === '/settings' || pathname.startsWith('/settings/')) return ''
   if (TITLE_MAP[pathname]) return TITLE_MAP[pathname]
-  if (pathname.startsWith('/settings/')) return 'Settings'
   if (pathname.startsWith('/projects/')) return 'Project'
   if (pathname.startsWith('/clients/'))  return 'Client'
   if (pathname.startsWith('/admin'))     return 'Admin'

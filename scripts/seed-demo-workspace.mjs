@@ -65,86 +65,114 @@ const round = (v) => Math.round(v * 100) / 100
 // Fictional dataset — coherent across clients → projects → estimates.
 // ---------------------------------------------------------------------------
 const CLIENTS = [
-  { name: 'Maple Street Residence', email: 'owner@example.com', phone: '+15550100', city: 'Austin', state: 'TX', zip: '78701', address: '124 Maple St' },
-  { name: 'Riverside Cafe', email: 'manager@example.com', phone: '+15550101', city: 'Austin', state: 'TX', zip: '78702', address: '88 Riverside Dr' },
-  { name: 'Oakwood Apartments', email: 'pm@example.com', phone: '+15550102', city: 'Round Rock', state: 'TX', zip: '78664', address: '9 Oakwood Ln' },
-  { name: 'Sunset Dental Office', email: 'office@example.com', phone: '+15550103', city: 'Austin', state: 'TX', zip: '78704', address: '450 Sunset Blvd' },
+  { name: 'Maple Street Residence', email: 'owner@example.com', phone: '+15550100', city: 'Everett', state: 'MA', zip: '02149', address: '124 Maple St' },
+  { name: 'Harbor View Apartments', email: 'pm@example.com', phone: '+15550101', city: 'Chelsea', state: 'MA', zip: '02150', address: '9 Harbor View Ln' },
+  { name: 'Bright Smile Dental', email: 'office@example.com', phone: '+15550102', city: 'Malden', state: 'MA', zip: '02148', address: '450 Pleasant St' },
+  { name: 'The Cozy Cafe', email: 'manager@example.com', phone: '+15550103', city: 'Somerville', state: 'MA', zip: '02143', address: '88 Highland Ave' },
 ]
 
 // Each project belongs to clients[clientIdx] and carries one consolidated estimate.
 const PROJECTS = [
   {
-    clientIdx: 0, name: 'Kitchen Remodel — Cabinets & Counters', project_type: 'remodel',
-    status: 'sent', estimateStatus: 'sent', summary: 'Full kitchen refresh: new shaker cabinets, quartz counters, and tile backsplash.',
+    clientIdx: 0, name: 'Whole-Home Carpet Cleaning', project_type: 'cleaning',
+    status: 'sent', estimateStatus: 'sent', summary: 'Hot water extraction for five carpeted rooms, stairs, and hallway, with pet treatment and fabric protector.',
     sections: [
-      { title: 'Cabinetry', items: [
-        { description: 'Shaker base cabinets (linear ft)', quantity: 14, unit: 'ft', unit_price: 185 },
-        { description: 'Shaker wall cabinets (linear ft)', quantity: 12, unit: 'ft', unit_price: 160 },
-        { description: 'Cabinet hardware set', quantity: 1, unit: 'set', unit_price: 240 },
+      { title: 'Carpet Cleaning', items: [
+        { description: 'Carpet cleaning — per room', quantity: 5, unit: 'room', unit_price: 50 },
+        { description: 'Carpeted stairs (per step)', quantity: 13, unit: 'step', unit_price: 3 },
+        { description: 'Hallway cleaning', quantity: 1, unit: 'each', unit_price: 25 },
       ]},
-      { title: 'Countertops', items: [
-        { description: 'Quartz countertop, installed', quantity: 42, unit: 'sqft', unit_price: 78 },
-        { description: 'Undermount sink cutout', quantity: 1, unit: 'each', unit_price: 150 },
-      ]},
-      { title: 'Backsplash', items: [
-        { description: 'Subway tile backsplash, installed', quantity: 32, unit: 'sqft', unit_price: 22 },
+      { title: 'Treatments', items: [
+        { description: 'Pet odor / enzyme treatment (per room)', quantity: 2, unit: 'room', unit_price: 40 },
+        { description: 'Scotchgard / fabric protector (per room)', quantity: 5, unit: 'room', unit_price: 40 },
       ]},
     ],
   },
   {
-    clientIdx: 1, name: 'Patio Deck Build', project_type: 'construction',
-    status: 'approved', estimateStatus: 'accepted', summary: 'New 240 sqft pressure-treated deck with railing and stairs.',
+    clientIdx: 0, name: 'Living Room Upholstery Refresh', project_type: 'cleaning',
+    status: 'approved', estimateStatus: 'accepted', summary: 'Deep clean of sofa, loveseat, and armchairs with spot treatment.',
     sections: [
-      { title: 'Framing & Decking', items: [
-        { description: 'Pressure-treated framing & joists', quantity: 240, unit: 'sqft', unit_price: 14 },
-        { description: 'Composite decking boards, installed', quantity: 240, unit: 'sqft', unit_price: 19 },
+      { title: 'Upholstery Cleaning', items: [
+        { description: 'Sofa cleaning — 3-seat', quantity: 1, unit: 'each', unit_price: 150 },
+        { description: 'Loveseat cleaning — 2-seat', quantity: 1, unit: 'each', unit_price: 105 },
+        { description: 'Armchair cleaning', quantity: 2, unit: 'each', unit_price: 60 },
       ]},
-      { title: 'Railing & Stairs', items: [
-        { description: 'Aluminum railing (linear ft)', quantity: 44, unit: 'ft', unit_price: 32 },
-        { description: 'Stair set (3 steps)', quantity: 1, unit: 'set', unit_price: 480 },
+      { title: 'Treatments', items: [
+        { description: 'Stain / spot treatment (per area)', quantity: 2, unit: 'each', unit_price: 25 },
       ]},
     ],
   },
   {
-    clientIdx: 2, name: 'Exterior Repaint — Building C', project_type: 'painting',
-    status: 'draft', estimateStatus: 'draft', summary: 'Pressure wash and two-coat exterior repaint for a 3-story apartment building.',
+    clientIdx: 1, name: 'Move-Out Carpet Cleaning — Unit 4B', project_type: 'cleaning',
+    status: 'draft', estimateStatus: 'draft', summary: 'Full carpet clean for a vacated apartment ahead of new tenant move-in.',
     sections: [
-      { title: 'Prep', items: [
-        { description: 'Pressure washing', quantity: 4200, unit: 'sqft', unit_price: 0.35 },
-        { description: 'Surface prep & masking', quantity: 1, unit: 'job', unit_price: 850 },
+      { title: 'Carpet Cleaning', items: [
+        { description: 'Carpet cleaning — per sqft (hot water extraction)', quantity: 850, unit: 'sqft', unit_price: 0.35 },
+        { description: 'Closet / small area cleaning', quantity: 2, unit: 'each', unit_price: 20 },
       ]},
-      { title: 'Paint', items: [
-        { description: 'Exterior paint, two coats', quantity: 4200, unit: 'sqft', unit_price: 1.65 },
-        { description: 'Trim & accents', quantity: 1, unit: 'job', unit_price: 1200 },
+      { title: 'Add-ons', items: [
+        { description: 'Deodorizer treatment (per room)', quantity: 3, unit: 'room', unit_price: 30 },
       ]},
     ],
   },
   {
-    clientIdx: 3, name: 'HVAC System Replacement', project_type: 'hvac',
-    status: 'sent', estimateStatus: 'viewed', summary: 'Replace aging rooftop unit with a high-efficiency 5-ton system.',
+    clientIdx: 3, name: 'Cafe Carpet & Dining Chairs', project_type: 'cleaning',
+    status: 'sent', estimateStatus: 'viewed', summary: 'Commercial carpet cleaning for the dining area plus upholstered dining chairs.',
     sections: [
-      { title: 'Equipment', items: [
-        { description: '5-ton high-efficiency rooftop unit', quantity: 1, unit: 'each', unit_price: 6400 },
-        { description: 'Programmable thermostat', quantity: 2, unit: 'each', unit_price: 180 },
+      { title: 'Carpet Cleaning', items: [
+        { description: 'Carpet cleaning — per sqft (hot water extraction)', quantity: 1200, unit: 'sqft', unit_price: 0.35 },
+      ]},
+      { title: 'Upholstery Cleaning', items: [
+        { description: 'Dining chair cleaning', quantity: 12, unit: 'each', unit_price: 25 },
       ]},
       { title: 'Labor', items: [
-        { description: 'Removal & disposal of old unit', quantity: 1, unit: 'job', unit_price: 750 },
-        { description: 'Installation & commissioning', quantity: 1, unit: 'job', unit_price: 1900 },
+        { description: 'Service-call / minimum charge', quantity: 1, unit: 'each', unit_price: 99 },
       ]},
     ],
   },
 ]
 
-const PRICE_BOOK_FOLDERS = ['Carpentry', 'Painting', 'HVAC']
+const PRICE_BOOK_FOLDERS = ['Carpet Cleaning', 'Upholstery Cleaning', 'Mattresses & Specialty Rugs', 'Treatments & Add-ons', 'Labor & Trip']
 const PRICE_BOOK_ITEMS = [
-  { folderIdx: 0, name: 'Shaker base cabinet', unit: 'ft', unit_price: 185 },
-  { folderIdx: 0, name: 'Composite decking, installed', unit: 'sqft', unit_price: 19 },
-  { folderIdx: 1, name: 'Exterior paint, two coats', unit: 'sqft', unit_price: 1.65 },
-  { folderIdx: 1, name: 'Pressure washing', unit: 'sqft', unit_price: 0.35 },
-  { folderIdx: 2, name: '5-ton rooftop unit', unit: 'each', unit_price: 6400 },
+  // Carpet Cleaning
+  { folderIdx: 0, name: 'Carpet cleaning — per room', unit: 'room', unit_price: 50 },
+  { folderIdx: 0, name: 'Carpet cleaning — per sqft (hot water extraction)', unit: 'sqft', unit_price: 0.35 },
+  { folderIdx: 0, name: 'Hallway cleaning', unit: 'each', unit_price: 25 },
+  { folderIdx: 0, name: 'Carpeted stairs (per step)', unit: 'step', unit_price: 3 },
+  { folderIdx: 0, name: 'Whole-house carpet cleaning minimum', unit: 'each', unit_price: 199 },
+  { folderIdx: 0, name: 'Closet / small area cleaning', unit: 'each', unit_price: 20 },
+  // Upholstery Cleaning
+  { folderIdx: 1, name: 'Armchair cleaning', unit: 'each', unit_price: 60 },
+  { folderIdx: 1, name: 'Recliner cleaning', unit: 'each', unit_price: 75 },
+  { folderIdx: 1, name: 'Loveseat cleaning — 2-seat', unit: 'each', unit_price: 105 },
+  { folderIdx: 1, name: 'Sofa cleaning — 3-seat', unit: 'each', unit_price: 150 },
+  { folderIdx: 1, name: 'Sectional cleaning (per seat)', unit: 'seat', unit_price: 45 },
+  { folderIdx: 1, name: 'Dining chair cleaning', unit: 'each', unit_price: 25 },
+  { folderIdx: 1, name: 'Ottoman cleaning', unit: 'each', unit_price: 40 },
+  { folderIdx: 1, name: 'Leather conditioning / cleaning (per seat)', unit: 'seat', unit_price: 65 },
+  // Mattresses & Specialty Rugs
+  { folderIdx: 2, name: 'Mattress cleaning — Twin', unit: 'each', unit_price: 60 },
+  { folderIdx: 2, name: 'Mattress cleaning — Queen', unit: 'each', unit_price: 100 },
+  { folderIdx: 2, name: 'Mattress cleaning — King', unit: 'each', unit_price: 130 },
+  { folderIdx: 2, name: 'Area rug cleaning (per sqft)', unit: 'sqft', unit_price: 4 },
+  { folderIdx: 2, name: 'Oriental / wool rug cleaning (per sqft)', unit: 'sqft', unit_price: 6 },
+  { folderIdx: 2, name: 'Tile & grout cleaning (per sqft)', unit: 'sqft', unit_price: 1.5 },
+  // Treatments & Add-ons
+  { folderIdx: 3, name: 'Stain / spot treatment (per area)', unit: 'each', unit_price: 25 },
+  { folderIdx: 3, name: 'Pet odor / enzyme treatment (per room)', unit: 'room', unit_price: 40 },
+  { folderIdx: 3, name: 'Scotchgard / fabric protector (per room)', unit: 'room', unit_price: 40 },
+  { folderIdx: 3, name: 'Deodorizer treatment (per room)', unit: 'room', unit_price: 30 },
+  { folderIdx: 3, name: 'Carpet stretching (per room)', unit: 'room', unit_price: 150 },
+  { folderIdx: 3, name: 'Carpet patch / repair (per repair)', unit: 'each', unit_price: 200 },
+  // Labor & Trip
+  { folderIdx: 4, name: 'Service-call / minimum charge', unit: 'each', unit_price: 99 },
+  { folderIdx: 4, name: 'Technician labor (per hour)', unit: 'hr', unit_price: 75 },
+  { folderIdx: 4, name: 'Trip / travel fee (out-of-area)', unit: 'each', unit_price: 35 },
+  { folderIdx: 4, name: 'After-hours / emergency surcharge', unit: 'each', unit_price: 75 },
 ]
 
-const TAX_RATE = 0.0825 // 8.25% — typical TX sales tax
+// Cleaning services are generally not subject to sales tax in MA.
+const TAX_RATE = 0
 
 async function main() {
   console.log(`\nDemo workspace seed`)
@@ -183,16 +211,17 @@ async function main() {
   await upsert('companies', {
     id: DEMO_COMPANY_ID,
     user_id: demoUserId,
-    name: 'Lone Star Home Services',
-    owner_name: 'Sample Account',
+    name: 'Xcleaning Co',
+    // owner_name left null so the dashboard greeting reads "Welcome back, Xcleaning Co".
+    owner_name: null,
     email: 'demo@example.com',
     phone: '+15550199',
-    industry: 'general_contractor',
-    city: 'Austin', state: 'TX', zip: '78701', address: '500 Congress Ave',
+    industry: 'upholstery_carpet_cleaning',
+    city: 'Everett', state: 'MA', zip: '02149', address: '100 Broadway',
     currency_code: 'USD',
     default_tax_rate: TAX_RATE,
-    default_payment_terms: '50% deposit, balance on completion.',
-    default_warranty_terms: '1-year workmanship warranty.',
+    default_payment_terms: 'Payment due upon completion.',
+    default_warranty_terms: '100% satisfaction guarantee — we re-clean free if you are not happy.',
     default_validity_days: 30,
     tier: 'pro',
   })

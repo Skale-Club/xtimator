@@ -44,7 +44,7 @@ export function OnboardingSurvey({
   mode?: 'first' | 'add'
   initialValues?: Partial<OnboardingValues>
 }) {
-  const state = useSurveyState({ ...INITIAL, ...initialValues })
+  const state = useSurveyState({ ...INITIAL, ...initialValues }, `xtimator_onboarding_${mode}`)
   const [isSubmitting, startTransition] = useTransition()
 
   function handleComplete() {
@@ -83,6 +83,9 @@ export function OnboardingSurvey({
         )
         if (result?.error) {
           toast.error(result.error)
+        } else {
+          // Wipe the draft so a future visit to /onboarding starts fresh.
+          state.clearPersistedState()
         }
       } catch {
         // redirect throws NEXT_REDIRECT, which is expected

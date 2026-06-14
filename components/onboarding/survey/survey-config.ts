@@ -10,7 +10,6 @@ export type SurveyStepKey =
   | 'brandColor'
   | 'logo'
   | 'location'
-  | 'defaults'
   | 'review'
 
 export interface SurveyStepDef {
@@ -23,6 +22,12 @@ export interface SurveyStepDef {
   required: boolean
   /** Returns an error message string, or null when the current values pass validation for this step. */
   validate: (values: OnboardingValues, logoFile: File | null) => string | null
+  /**
+   * Returns true when the step's primary field(s) carry a user-provided value.
+   * Used to decide which action to show: filled → "Next", empty → "Skip".
+   * Required steps always advance with Next, so this is only consulted for optional steps.
+   */
+  isFilled: (values: OnboardingValues, logoFile: File | null) => boolean
 }
 
 function isValidEmail(v: string) {
@@ -51,6 +56,7 @@ export const SURVEY_STEPS: readonly SurveyStepDef[] = [
       }
       return null
     },
+    isFilled: (v) => !!v.companyName && v.companyName.trim().length >= 2,
   },
   {
     key: 'ownerName',
@@ -58,6 +64,7 @@ export const SURVEY_STEPS: readonly SurveyStepDef[] = [
     helper: 'Owner or primary contact for this business.',
     required: false,
     validate: () => null,
+    isFilled: (v) => !!v.ownerName?.trim(),
   },
   {
     key: 'phone',
@@ -65,6 +72,7 @@ export const SURVEY_STEPS: readonly SurveyStepDef[] = [
     helper: 'Customers may use this on estimates and invoices.',
     required: false,
     validate: () => null,
+    isFilled: (v) => !!v.phone?.trim(),
   },
   {
     key: 'email',
@@ -77,6 +85,7 @@ export const SURVEY_STEPS: readonly SurveyStepDef[] = [
       }
       return null
     },
+    isFilled: (v) => !!v.email?.trim(),
   },
   {
     key: 'industry',
@@ -89,6 +98,7 @@ export const SURVEY_STEPS: readonly SurveyStepDef[] = [
       }
       return null
     },
+    isFilled: (v) => !!v.industry?.trim(),
   },
   {
     key: 'language',
@@ -96,6 +106,8 @@ export const SURVEY_STEPS: readonly SurveyStepDef[] = [
     helper: 'Your estimates will default to this language. You can change it per estimate when needed.',
     required: false,
     validate: () => null,
+    // Always has a selection (defaults to 'en') — treat as always filled so Next shows instead of Skip.
+    isFilled: () => true,
   },
   {
     key: 'brandColor',
@@ -103,6 +115,8 @@ export const SURVEY_STEPS: readonly SurveyStepDef[] = [
     helper: 'Used for accents on PDFs and shareable estimates.',
     required: false,
     validate: () => null,
+    // Always has a color selected (defaults to the platform primary) — treat as always filled.
+    isFilled: () => true,
   },
   {
     key: 'logo',
@@ -110,6 +124,7 @@ export const SURVEY_STEPS: readonly SurveyStepDef[] = [
     helper: 'PNG or JPG, up to 2MB. Skip to add later.',
     required: false,
     validate: () => null,
+    isFilled: (_v, logoFile) => logoFile !== null,
   },
   {
     key: 'location',
@@ -117,24 +132,8 @@ export const SURVEY_STEPS: readonly SurveyStepDef[] = [
     helper: 'Used on the estimate header. All fields are optional.',
     required: false,
     validate: () => null,
-  },
-  {
-    key: 'defaults',
-    label: 'Project defaults',
-    helper: 'Sensible defaults for new estimates | you can change them anytime.',
-    required: false,
-    validate: (v) => {
-      if (
-        typeof v.defaultTaxRate === 'number' &&
-        (v.defaultTaxRate < 0 || v.defaultTaxRate > 100)
-      ) {
-        return 'Tax rate must be between 0 and 100'
-      }
-      if (typeof v.defaultValidityDays === 'number' && v.defaultValidityDays < 1) {
-        return 'Validity must be at least 1 day'
-      }
-      return null
-    },
+    isFilled: (v) =>
+      !!(v.address?.trim() || v.city?.trim() || v.state?.trim() || v.zip?.trim()),
   },
   {
     key: 'review',
@@ -142,6 +141,7 @@ export const SURVEY_STEPS: readonly SurveyStepDef[] = [
     helper: "Here's everything you've entered. Submit to complete setup.",
     required: false,
     validate: () => null,
+    isFilled: () => true,
   },
 ] as const
 

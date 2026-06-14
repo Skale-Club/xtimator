@@ -11,7 +11,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui"
+    "test:e2e:ui": "playwright test --ui",
+    "db:seed:demo": "node --env-file=.env.local scripts/seed-demo-workspace.mjs",
+    "db:seed:demo:reset": "node --env-file=.env.local scripts/seed-demo-workspace.mjs --reset"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
