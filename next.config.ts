@@ -50,6 +50,12 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   devIndicators: false,
   output: 'standalone',
+  experimental: {
+    serverActions: {
+      // 3 step images (4MB each) + hero image (4MB) + JSON content
+      bodySizeLimit: '20mb',
+    },
+  },
   images: {
     remotePatterns: [
       {

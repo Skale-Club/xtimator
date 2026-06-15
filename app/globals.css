@@ -627,4 +627,6 @@
 /* App-shell pixel alignment — unlayered rules override @layer utilities (.glass border shorthand).
    The aside border-top from .glass pushes the branding section 1px below the topbar bottom edge. */
 [data-testid="app-sidebar"] { border-top-width: 0; border-bottom-width: 0; border-left-width: 0; }
+
+
 [data-testid="app-topbar"]  { border-top-width: 0; border-left-width: 0; border-right-width: 0; }

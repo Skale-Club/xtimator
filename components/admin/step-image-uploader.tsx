@@ -74,7 +74,7 @@ export function StepImageUploader({
             <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-muted-foreground">
               <ImagePlus className="h-6 w-6" />
               <span className="text-sm">Upload step image</span>
-              <span className="text-xs opacity-70">PNG, JPG, or WebP — converted to WebP on save</span>
+              <span className="text-xs opacity-70">PNG, JPG, or WebP. Converted to WebP on save.</span>
             </div>
           )}
         </button>

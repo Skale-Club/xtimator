@@ -13,7 +13,7 @@ import { INDUSTRIES } from '@/lib/industries'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { PhoneInput } from '@/components/ui/phone-input'
 import { Button } from '@/components/ui/button'
@@ -164,6 +164,9 @@ export function CompanyInfoForm({ company, readOnly = false }: CompanyInfoFormPr
                       <FormControl>
                         <Input placeholder="John Doe" {...field} />
                       </FormControl>
+                      <FormDescription className="text-xs text-muted-foreground">
+                        {t('Appears on generated estimates when the owner name is included.')}
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}

@@ -128,7 +128,7 @@ export function HeroImageUploader({
           )}
           {offSquare && !tooSmall && (
             <span className="text-xs text-amber-500">
-              Image isn&apos;t square — it will be cropped to 1:1 on the page.
+              Image isn&apos;t square. It will be cropped to 1:1 on the page.
             </span>
           )}
         </div>

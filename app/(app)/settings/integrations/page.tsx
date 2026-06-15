@@ -64,7 +64,7 @@ export default async function SettingsIntegrationsPage() {
             </div>
             <CardDescription>
               <T>
-                Managed by Xtimator — no setup required. These models turn your
+                Managed by Xtimator. No setup required. These models turn your
                 audio and photos into a finished estimate.
               </T>
             </CardDescription>
@@ -109,7 +109,7 @@ export default async function SettingsIntegrationsPage() {
             <CardDescription>
               <T>
                 WhatsApp delivery is managed by Xtimator. Send estimates directly
-                to clients via WhatsApp from the project Send tab — no setup required.
+                to clients via WhatsApp from the project Send tab. No setup required.
               </T>
             </CardDescription>
           </CardHeader>

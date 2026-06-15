@@ -26,6 +26,7 @@ export type LandingContent = {
     eyebrow: string
     title: string
     description: string
+    imageUrl?: string | null
   }>
   features: Array<{
     icon: string
@@ -73,22 +74,22 @@ export const DEFAULT_LANDING_CONTENT: LandingContent = {
   heroImageUrl: null,
   howItWorksSteps: [
     {
-      eyebrow: 'Step 1',
+      eyebrow: 'Option 1',
       title: 'Record audio',
       description:
-        'Walk the property and talk through measurements, materials, and special requests while your hands stay free.',
+        'Walk the job site and talk through scope, measurements, and materials while your hands stay free. AI transcribes and builds the estimate.',
     },
     {
-      eyebrow: 'Step 2',
-      title: 'Add photos',
+      eyebrow: 'Option 2',
+      title: 'Describe the job',
       description:
-        'Drop in site photos so the AI can anchor line items to the real condition of the work.',
+        'Prefer to type? Write out what the job involves and the AI turns your notes into a complete, structured estimate draft.',
     },
     {
-      eyebrow: 'Step 3',
-      title: 'Get estimate',
+      eyebrow: 'Option 3',
+      title: 'Upload photos',
       description:
-        'Review the draft estimate, then send a branded PDF or live link without rebuilding the job from scratch.',
+        'Drop in site photos and let AI identify the work, anchor line items to real conditions, and generate an accurate quote.',
     },
   ],
   features: [

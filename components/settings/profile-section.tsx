@@ -51,7 +51,7 @@ export function ProfileSection({ profile }: ProfileSectionProps) {
     <Card className="w-full rounded-[var(--radius-md)]">
       <CardHeader className="border-b border-border">
         <CardTitle>General</CardTitle>
-        <CardDescription>Your personal profile — name, phone, and the photo shown on sign-in.</CardDescription>
+        <CardDescription>Your personal profile: name, phone, and the photo shown on sign-in.</CardDescription>
       </CardHeader>
       <CardContent className="py-6">
         <form ref={formRef} onSubmit={handleSubmit} className="space-y-8">
@@ -67,7 +67,7 @@ export function ProfileSection({ profile }: ProfileSectionProps) {
               <div className="relative">
                 <Avatar className="h-20 w-20">
                   {displayAvatar && <AvatarImage src={displayAvatar} alt="Profile photo" className="object-cover" />}
-                  <AvatarFallback className="text-2xl bg-primary/20 text-white">{initial}</AvatarFallback>
+                  <AvatarFallback className="text-2xl bg-primary text-white font-semibold">{initial}</AvatarFallback>
                 </Avatar>
                 <button
                   type="button"
@@ -98,11 +98,11 @@ export function ProfileSection({ profile }: ProfileSectionProps) {
           {/* Name */}
           <div className="grid gap-6 xl:grid-cols-[260px_minmax(0,1fr)]">
             <div>
-              <h3 className="text-sm font-medium">Full Name</h3>
-              <p className="mt-1 text-sm text-muted-foreground">How you'd like to be addressed.</p>
+              <h3 className="text-sm font-medium">Account Name</h3>
+              <p className="mt-1 text-sm text-muted-foreground">Your name on this Xtimator account.</p>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="fullName">Full name</Label>
+              <Label htmlFor="fullName">Account name</Label>
               <Input
                 id="fullName"
                 name="fullName"
@@ -119,8 +119,7 @@ export function ProfileSection({ profile }: ProfileSectionProps) {
               <h3 className="text-sm font-medium">Phone Number</h3>
               <p className="mt-1 text-sm text-muted-foreground">Used for account recovery and WhatsApp notifications.</p>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="phone">Phone number</Label>
+            <div>
               <Input
                 id="phone"
                 name="phone"

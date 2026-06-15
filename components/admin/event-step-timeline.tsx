@@ -116,14 +116,14 @@ export function EventStepTimeline({ events, attemptId }: EventStepTimelineProps)
                 <Card variant="glass" className="flex-1 p-4 space-y-2">
                   {/* Row 1: step name + status pill + timestamp */}
                   <div className="flex items-center justify-between gap-2 flex-wrap">
-                    <span className="text-sm font-semibold">{ev.step ?? '—'}</span>
+                    <span className="text-sm font-semibold">{ev.step ?? 'N/A'}</span>
                     <div className="flex items-center gap-2">
                       {/* Status pill — conveys status by BOTH color AND text (WCAG 1.4.1) */}
                       <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${pill}`}>
-                        {ev.status ?? '—'}
+                        {ev.status ?? 'N/A'}
                       </span>
                       <span className="text-xs text-muted-foreground font-mono">
-                        {ev.created_at ? new Date(ev.created_at).toLocaleString() : '—'}
+                        {ev.created_at ? new Date(ev.created_at).toLocaleString() : 'N/A'}
                       </span>
                     </div>
                   </div>

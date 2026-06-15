@@ -4,7 +4,7 @@
 // Claude Code, Claude.ai / Claude Desktop, and ChatGPT. The page is a pure
 // server component: it resolves the canonical issuer URL (Phase 86) and the
 // active company name (Phase 79) and renders static instructions plus copy
-// buttons. No DB writes — all OAuth / consent state is managed by the
+// buttons. No DB writes: all OAuth / consent state is managed by the
 // /api/oauth/* endpoints (Phase 86) and triggered by the connector itself on
 // first tool call.
 
@@ -86,7 +86,7 @@ export default async function McpSettingsPage() {
         </CardContent>
       </Card>
 
-      {/* How to connect — single button → dialog with per-client tabs */}
+      {/* How to connect: single button → dialog with per-client tabs */}
       <Card>
         <CardHeader>
           <CardTitle>How to connect</CardTitle>
