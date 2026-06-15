@@ -319,6 +319,37 @@ export async function changeEmail(data: { newEmail: string }) {
   return { success: true, message: 'Confirmation email sent to your new address.' }
 }
 
+export async function updateProfile(formData: FormData) {
+  const supabase = await createClient()
+  const { data: claimsData } = await supabase.auth.getClaims()
+  const claims = claimsData?.claims ?? null
+  if (!claims) return { error: 'Not authenticated' }
+
+  const fullName = (formData.get('fullName') as string | null)?.trim() || null
+  const phone = (formData.get('phone') as string | null)?.trim() || null
+
+  const updateData: Record<string, string | null> = { full_name: fullName, phone }
+
+  const avatarFile = formData.get('avatar') as File | null
+  if (avatarFile && avatarFile.size > 0) {
+    const ext = avatarFile.name.split('.').pop() ?? 'jpg'
+    const storagePath = `user-avatars/${claims.sub}/avatar.${ext}`
+    const storage = createStorage(supabase)
+    try {
+      await storage.upload('logos', storagePath, avatarFile, { upsert: true })
+      updateData.avatar_url = storage.getPublicUrl('logos', storagePath)
+    } catch {
+      return { error: 'Failed to upload photo. Please try again.' }
+    }
+  }
+
+  const { error } = await supabase.auth.updateUser({ data: updateData })
+  if (error) return { error: error.message }
+
+  revalidatePath('/settings/general')
+  return { ok: true }
+}
+
 export async function deleteAccount() {
   const supabase = await createClient()
   const { data: claimsData } = await supabase.auth.getClaims()

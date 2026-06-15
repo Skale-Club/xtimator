@@ -3,6 +3,7 @@ import { getCachedBranding } from '@/lib/platform-config'
 import { getAuthClaims } from '@/lib/queries/auth'
 import { getActiveCompany, getActiveCompanyId, getMembershipCompanies } from '@/lib/queries/active-company'
 import { requireServiceClient } from '@/lib/supabase/service'
+import { createClient } from '@/lib/supabase/server'
 import { Sidebar } from '@/components/app-shell/sidebar'
 import { Topbar } from '@/components/app-shell/topbar'
 import { BottomNav } from '@/components/app-shell/bottom-nav'
@@ -54,7 +55,8 @@ export default async function AppShellLayout({
   // Read-only public demo: the active company is the dedicated demo company.
   const isDemo = isDemoCompany(activeCompanyId)
 
-  const [branding, adminRow, billingRow, memberships] = await Promise.all([
+  const supabase = await createClient()
+  const [branding, adminRow, billingRow, memberships, { data: userData }] = await Promise.all([
     brandingPromise, // already in flight
     requireServiceClient()
       .from('platform_admins')
@@ -71,6 +73,7 @@ export default async function AppShellLayout({
     // Phase 81 (SWITCH-13): membership list for the company switcher dropdown.
     // Parallel fetch — no dependency on the prior awaits beyond auth (claims).
     getMembershipCompanies(),
+    supabase.auth.getUser(),
   ])
   const isAdmin = !!adminRow.data
 
@@ -81,6 +84,11 @@ export default async function AppShellLayout({
             (1000 * 60 * 60 * 24)
         )
       : null
+
+  const navUser = {
+    email: userData.user?.email ?? '',
+    avatarUrl: (userData.user?.user_metadata?.avatar_url as string | undefined) ?? null,
+  }
 
   return (
     <TourProvider>
@@ -96,8 +104,11 @@ export default async function AppShellLayout({
             isDemo={isDemo}
           />
           <div className="flex flex-1 flex-col overflow-hidden">
-            <Topbar company={company} userId={claims.sub as string} isAdmin={isAdmin} />
-            <MobileHeader />
+            <Topbar company={company} userId={claims.sub as string} isAdmin={isAdmin} navUser={navUser} />
+            <MobileHeader
+              branding={{ appName: branding.appName, logoUrl: branding.logoUrl }}
+              navUser={navUser}
+            />
             {isDemo && <DemoBanner />}
             {trialDaysRemaining !== null && trialDaysRemaining < 3 && (
               <TrialBanner daysRemaining={trialDaysRemaining} />

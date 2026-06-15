@@ -4,12 +4,6 @@ import { useEffect, useState, startTransition } from 'react'
 import { useTheme } from 'next-themes'
 import { Sun, Moon, Monitor } from 'lucide-react'
 import { toast } from 'sonner'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
@@ -24,19 +18,16 @@ const ITEMS: { value: Theme; label: string; Icon: typeof Sun }[] = [
 ]
 
 function persist(next: Theme, setTheme: (v: Theme) => void) {
-  // Use startTransition so the <html> class swap + full-page re-paint is
-  // treated as a non-urgent update and won't block input responsiveness (INP).
   startTransition(() => {
     setTheme(next)
   })
-  // Fire-and-forget server persistence — never blocks the click handler.
   saveThemePreference(next).then((res) => {
     if (!res.ok) toast.error(res.message)
   })
 }
 
 /**
- * 3-way theme toggle rendered as a ghost icon button with a dropdown.
+ * One-click light↔dark toggle.
  * Primary surface: Topbar (desktop) and MobileHeader (mobile).
  */
 export function ThemeToggle() {
@@ -44,42 +35,24 @@ export function ThemeToggle() {
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
 
-  const current = (mounted ? theme : undefined) as Theme | undefined
-  const Icon =
-    current === 'light' ? Sun : current === 'dark' ? Moon : Monitor
+  const current = (mounted ? theme : 'dark') as Theme
+  const Icon = current === 'light' ? Sun : Moon
+
+  function toggle() {
+    const next: Theme = current === 'light' ? 'dark' : 'light'
+    persist(next, setTheme as (v: Theme) => void)
+  }
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label="Toggle theme"
-          className="cursor-pointer"
-        >
-          <Icon className="h-4 w-4" aria-hidden={!mounted} />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="end"
-        className="glass-strong border border-[var(--glass-border)] shadow-glass"
-      >
-        {ITEMS.map(({ value, label, Icon: ItemIcon }) => (
-          <DropdownMenuItem
-            key={value}
-            onClick={() =>
-              persist(value, setTheme as (v: Theme) => void)
-            }
-            aria-checked={current === value}
-            role="menuitemradio"
-            className="cursor-pointer"
-          >
-            <ItemIcon className="h-4 w-4 mr-2" />
-            {label}
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <Button
+      variant="ghost"
+      size="icon"
+      onClick={toggle}
+      aria-label="Toggle theme"
+      className="cursor-pointer"
+    >
+      <Icon className="h-4 w-4" aria-hidden={!mounted} />
+    </Button>
   )
 }
 

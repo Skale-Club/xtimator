@@ -44,7 +44,7 @@ function NewProjectDialogInner() {
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="text-xl font-semibold">
-            <T>New project</T>
+            <T>New Xtimate</T>
           </DialogTitle>
           <DialogDescription>
             <T>Pick how you want to describe the job | audio, text, or photos.</T>
