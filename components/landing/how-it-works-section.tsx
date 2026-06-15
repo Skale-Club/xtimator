@@ -6,8 +6,13 @@ import { Ticker } from '@/components/landing/ticker'
 
 type Step = { eyebrow: string; title: string; description: string; imageUrl?: string | null }
 
-function StepCard({ step, fill = false }: { step: Step; fill?: boolean }) {
+function StepCard({
+  step, fill = false, imageScale = 1, imageOffsetY = 0,
+}: {
+  step: Step; fill?: boolean; imageScale?: number; imageOffsetY?: number
+}) {
   const { title, description, imageUrl } = step
+  const hasTransform = imageScale !== 1 || imageOffsetY !== 0
   return (
     <div
       className={[
@@ -17,11 +22,19 @@ function StepCard({ step, fill = false }: { step: Step; fill?: boolean }) {
         fill ? 'h-full' : '',
       ].join(' ')}
     >
-      {/* Image slot */}
-      <div className="h-52 w-full flex-shrink-0 bg-[var(--glass-bg)] px-4 pt-4">
+      {/* Image slot — overflow-hidden clips the transform so it never bleeds into text */}
+      <div className="h-52 w-full flex-shrink-0 overflow-hidden bg-[var(--glass-bg)] px-4 pt-4">
         {imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={imageUrl} alt={title} className="h-full w-full object-contain object-bottom" />
+          <img
+            src={imageUrl}
+            alt={title}
+            className="h-full w-full object-contain object-top"
+            style={hasTransform ? {
+              transform: `translateY(${imageOffsetY}%) scale(${imageScale})`,
+              transformOrigin: 'top center',
+            } : undefined}
+          />
         ) : (
           <div className="flex h-full w-full items-center justify-center">
             <span className="text-xs text-white/20 uppercase tracking-widest">Image</span>
@@ -82,7 +95,7 @@ export function HowItWorksSection({ steps }: { steps: Step[] }) {
               transition={{ duration: 0.55, delay: i * 0.12, ease: 'easeOut' }}
               className="h-full"
             >
-              <StepCard step={step} fill />
+              <StepCard step={step} fill imageScale={i === 1 ? 1.15 : 1} imageOffsetY={i === 1 ? -10 : 0} />
             </motion.div>
           ))}
         </div>
@@ -106,7 +119,7 @@ export function HowItWorksSection({ steps }: { steps: Step[] }) {
           <Ticker halfWidth={888}>
             {ticker.map((step, i) => (
               <div key={i} className="w-[280px] shrink-0 px-2 py-1">
-                <StepCard step={step} fill />
+                <StepCard step={step} fill imageScale={(i % steps.length) === 1 ? 1.15 : 1} imageOffsetY={(i % steps.length) === 1 ? -10 : 0} />
               </div>
             ))}
           </Ticker>
