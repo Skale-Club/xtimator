@@ -112,7 +112,7 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
                   : 'flex flex-col gap-2 min-[1280px]:flex-row min-[1280px]:gap-3 min-[1280px]:justify-center'
               }
             >
-              <div className="cta-glow max-sm:[box-shadow:none] max-sm:[animation:none] max-sm:self-start sm:self-auto sm:flex-none">
+              <div className="cta-glow max-sm:[box-shadow:none] max-sm:[animation:none] max-[1279px]:self-start min-[1280px]:self-auto min-[1280px]:flex-none">
                 <Button variant="primary" size="default" className="min-w-40" onClick={() => onOpenAuth?.('signup')}>
                   {content.ctaLabel}
                   <ArrowRight className="ml-1.5 size-4" aria-hidden="true" />
@@ -135,7 +135,7 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
               initial={reduce ? false : { opacity: 0, scale: 0.95, rotate: -2 }}
               animate={{ opacity: 1, scale: 1, rotate: 0 }}
               transition={{ duration: 1, type: 'spring', delay: 0.3 }}
-              className="hero-image absolute top-[23%] bottom-0 right-[-13px] w-[75%] z-0 sm:h-auto sm:absolute sm:top-[1in] sm:bottom-0 sm:left-[calc(58%_-_100px)] sm:right-[-2rem] sm:w-auto sm:scale-110 sm:origin-bottom md:top-16 lg:top-[36px] lg:left-[calc(35%_+_55px)] lg:right-[-2.5rem] lg:scale-100"
+              className="hero-image absolute top-[23%] bottom-0 right-[-15px] w-[75%] z-0 sm:h-auto sm:absolute sm:top-[1in] sm:bottom-0 sm:left-[calc(58%_-_100px)] sm:right-[-2rem] sm:w-auto sm:scale-110 sm:origin-bottom md:top-16 lg:top-[36px] lg:left-[calc(35%_+_55px)] lg:right-[-2.5rem] lg:scale-100"
             >
               <img
                 src={content.heroImageUrl!}
