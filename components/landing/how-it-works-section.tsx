@@ -58,10 +58,75 @@ function SoundWaveBackground() {
   )
 }
 
+function PhotoIcon() {
+  return (
+    <>
+      <rect x="0" y="0" width="70" height="56" rx="6" />
+      <circle cx="54" cy="13" r="6.5" />
+      <polyline points="0,38 20,20 32,30 45,20 70,38" />
+    </>
+  )
+}
+
+function PhotosBackground() {
+  const reduce = useReducedMotion()
+  // Four groups manage z-order swap via opacity:
+  // SVG paint order (back→front): A-back, B-back, A-front, B-front
+  // ph-show = opacity 1 during phase 1 | ph-hide = opacity 1 during phase 2
+  // Phase 1: A-back(ph-show) visible behind A-front(ph-show) → A at front, B at back
+  // Phase 2: B-back(ph-hide) visible behind B-front(ph-hide) → B at front, A at back
+  const backTx = 'translate(5,8) rotate(-13,35,28)'
+  const frontTx = 'translate(50,22)'
+  const dur = '5s'
+  return (
+    <div className="absolute inset-0 flex items-center justify-center pointer-events-none" aria-hidden>
+      <svg
+        viewBox="0 0 130 95"
+        className="w-[65%] opacity-[0.13]"
+        fill="none"
+        stroke="hsl(var(--primary))"
+        strokeWidth="4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <g transform={backTx}  style={reduce ? undefined : { animation: `ph-show ${dur} ease-in-out infinite` }}><PhotoIcon /></g>
+        <g transform={backTx}  style={reduce ? undefined : { animation: `ph-hide ${dur} ease-in-out infinite` }}><PhotoIcon /></g>
+        <g transform={frontTx} style={reduce ? undefined : { animation: `ph-show ${dur} ease-in-out infinite` }}><PhotoIcon /></g>
+        <g transform={frontTx} style={reduce ? undefined : { animation: `ph-hide ${dur} ease-in-out infinite` }}><PhotoIcon /></g>
+      </svg>
+    </div>
+  )
+}
+
+function TextCursorBackground() {
+  return (
+    <div className="absolute inset-0 flex items-center justify-center pointer-events-none" aria-hidden>
+      <svg
+        viewBox="0 0 120 80"
+        className="w-[60%] opacity-[0.13]"
+        fill="none"
+        stroke="hsl(var(--primary))"
+        strokeWidth="4.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        {/* Text input field */}
+        <rect x="4" y="26" width="88" height="28" rx="5" />
+        {/* I-beam: top serif */}
+        <line x1="100" y1="10" x2="116" y2="10" />
+        {/* I-beam: vertical stem */}
+        <line x1="108" y1="10" x2="108" y2="70" />
+        {/* I-beam: bottom serif */}
+        <line x1="100" y1="70" x2="116" y2="70" />
+      </svg>
+    </div>
+  )
+}
+
 function StepCard({
-  step, fill = false, imageScale = 1, imageOffsetY = 0, showWave = false,
+  step, fill = false, imageScale = 1, imageOffsetY = 0, showWave = false, showPhotos = false, showCursor = false,
 }: {
-  step: Step; fill?: boolean; imageScale?: number; imageOffsetY?: number; showWave?: boolean
+  step: Step; fill?: boolean; imageScale?: number; imageOffsetY?: number; showWave?: boolean; showPhotos?: boolean; showCursor?: boolean
 }) {
   const { title, description, imageUrl } = step
   const hasTransform = imageScale !== 1 || imageOffsetY !== 0
@@ -78,6 +143,8 @@ function StepCard({
       {/* Image slot — overflow-hidden clips the transform so it never bleeds into text */}
       <div className="relative h-52 w-full flex-shrink-0 overflow-hidden bg-[var(--glass-bg)] px-4 pt-4">
         {showWave && <SoundWaveBackground />}
+        {showPhotos && <PhotosBackground />}
+        {showCursor && <TextCursorBackground />}
         {imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -154,7 +221,7 @@ export function HowItWorksSection({ steps }: { steps: Step[] }) {
               transition={{ duration: 0.55, delay: i * 0.12, ease: 'easeOut' }}
               className="h-full"
             >
-              <StepCard step={step} fill imageScale={i === 1 ? 1.15 : 1} imageOffsetY={i === 1 ? -10 : 0} showWave={i === 0} />
+              <StepCard step={step} fill imageScale={i === 1 ? 1.15 : 1} imageOffsetY={i === 1 ? -10 : 0} showWave={i === 0} showCursor={i === 1} showPhotos={i === 2} />
             </motion.div>
           ))}
         </div>
@@ -178,7 +245,7 @@ export function HowItWorksSection({ steps }: { steps: Step[] }) {
           <Ticker halfWidth={888}>
             {ticker.map((step, i) => (
               <div key={i} className="w-[280px] shrink-0 px-2 py-1">
-                <StepCard step={step} fill imageScale={(i % steps.length) === 1 ? 1.15 : 1} imageOffsetY={(i % steps.length) === 1 ? -10 : 0} showWave={(i % steps.length) === 0} />
+                <StepCard step={step} fill imageScale={(i % steps.length) === 1 ? 1.15 : 1} imageOffsetY={(i % steps.length) === 1 ? -10 : 0} showWave={(i % steps.length) === 0} showCursor={(i % steps.length) === 1} showPhotos={(i % steps.length) === 2} />
               </div>
             ))}
           </Ticker>

@@ -7,6 +7,10 @@
   50% { transform: scaleY(0.25); }
 }
 
+/* Photo icon swap — ph-show: visible in phase 1 / ph-hide: visible in phase 2 */
+@keyframes ph-show { 0%,38% { opacity:1 } 46%,95% { opacity:0 } 100% { opacity:1 } }
+@keyframes ph-hide { 0%,44% { opacity:0 } 52%,90% { opacity:1 } 98%,100% { opacity:0 } }
+
 /* ── iPad Portrait 768-1023px (mini, Air, Pro 11") ── */
 @media (min-width: 768px) and (max-width: 1023px) and (orientation: portrait) {
   .hero-left { width: 100%; justify-content: flex-start; padding-top: 64px; padding-bottom: 64px; padding-left: 2rem; }
