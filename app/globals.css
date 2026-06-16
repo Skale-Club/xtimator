@@ -2,11 +2,16 @@
 @plugin "@tailwindcss/typography";
 @source not "../.planning";
 
+@keyframes bar-pulse {
+  0%, 100% { transform: scaleY(1); }
+  50% { transform: scaleY(0.25); }
+}
+
 /* ── iPad Portrait 768-1023px (mini, Air, Pro 11") ── */
 @media (min-width: 768px) and (max-width: 1023px) and (orientation: portrait) {
-  .hero-left { width: 100%; justify-content: flex-start; padding-top: calc(5rem + 10px); padding-left: 2rem; }
-  .hero-h1 { font-size: 71px !important; width: auto !important; }
-  .hero-left p { font-size: 25px; line-height: 1.5; max-width: 42rem; }
+  .hero-left { width: 100%; justify-content: flex-start; padding-top: 64px; padding-bottom: 64px; padding-left: 2rem; }
+  .hero-h1 { font-size: 58px !important; width: auto !important; }
+  .hero-left p { font-size: 20px; line-height: 1.5; max-width: 42rem; }
   .hero-left > div:last-child { width: 55%; display: flex; gap: 0.75rem; margin-top: 10px; }
   .hero-left > div:last-child > * { flex: 1 !important; min-width: 0; }
   .hero-left > div:last-child button,
@@ -21,9 +26,9 @@
 
 /* ── iPad Portrait 1024-1279px (Pro 12.9") ── */
 @media (min-width: 1024px) and (max-width: 1279px) and (orientation: portrait) {
-  .hero-left { width: 100% !important; justify-content: flex-start; padding-top: calc(6rem + 10px); padding-left: 2.5rem; }
-  .hero-h1 { font-size: 75px !important; width: auto !important; }
-  .hero-left p { font-size: 30px; line-height: 1.5; max-width: 52rem; }
+  .hero-left { width: 100% !important; justify-content: flex-start; padding-top: 64px; padding-bottom: 64px; padding-left: 2.5rem; }
+  .hero-h1 { font-size: 61px !important; width: auto !important; }
+  .hero-left p { font-size: 24px; line-height: 1.5; max-width: 52rem; }
   .hero-left > div:last-child { width: 55%; display: flex; gap: 0.75rem; margin-top: 10px; }
   .hero-left > div:last-child > * { flex: 1 !important; min-width: 0; }
   .hero-left > div:last-child button,

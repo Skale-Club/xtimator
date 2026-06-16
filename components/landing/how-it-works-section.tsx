@@ -6,48 +6,102 @@ import { Ticker } from '@/components/landing/ticker'
 
 type Step = { eyebrow: string; title: string; description: string; imageUrl?: string | null }
 
+// 52 bars × 7px (3.5 bar + 3.5 gap) + 2×18px padding = 400px viewBox
+const WAVEFORM_BARS = (() => {
+  const count = 52
+  return Array.from({ length: count }, (_, i) => {
+    const t = i / (count - 1)
+    // Bell-curve envelope so bars taper at the edges
+    const env = Math.sin(Math.PI * t)
+    // Multi-frequency variation simulates real audio content
+    const detail = 0.52
+      + 0.28 * Math.sin(t * 13 + 0.2)
+      + 0.13 * Math.sin(t * 29 + 1.5)
+      + 0.07 * Math.sin(t * 47 + 2.8)
+    // Round to 3dp so server and client floating-point serialization matches
+    const halfH = Math.round(Math.max(0.06, env * Math.abs(detail)) * 62 * 1000) / 1000
+    // Stagger animation speed + phase so bars pulse independently
+    const dur = (0.65 + 0.7 * Math.abs(Math.sin(i * 1.9 + 0.3))).toFixed(2)
+    const delay = (-Math.abs(Math.sin(i * 0.7 + 1.2)) * 1.4).toFixed(2)
+    return { halfH, dur, delay }
+  })
+})()
+
+function SoundWaveBackground() {
+  const reduce = useReducedMotion()
+  return (
+    <div className="absolute inset-0 flex items-center justify-center pointer-events-none" aria-hidden>
+      <svg viewBox="0 0 400 150" className="w-full h-full" preserveAspectRatio="xMidYMid meet">
+        {WAVEFORM_BARS.map(({ halfH, dur, delay }, i) => {
+          const x = 18 + i * 7
+          return (
+            <rect
+              key={i}
+              x={x}
+              y={75 - halfH}
+              width={3.5}
+              height={halfH * 2}
+              rx={1.75}
+              fill="hsl(var(--primary))"
+              fillOpacity={Math.min(0.85, 0.22 + (halfH / 62) * 0.7)}
+              style={reduce ? undefined : {
+                transformBox: 'fill-box',
+                transformOrigin: 'center',
+                animation: `bar-pulse ${dur}s ease-in-out infinite ${delay}s`,
+              }}
+            />
+          )
+        })}
+      </svg>
+    </div>
+  )
+}
+
 function StepCard({
-  step, fill = false, imageScale = 1, imageOffsetY = 0,
+  step, fill = false, imageScale = 1, imageOffsetY = 0, showWave = false,
 }: {
-  step: Step; fill?: boolean; imageScale?: number; imageOffsetY?: number
+  step: Step; fill?: boolean; imageScale?: number; imageOffsetY?: number; showWave?: boolean
 }) {
   const { title, description, imageUrl } = step
   const hasTransform = imageScale !== 1 || imageOffsetY !== 0
   return (
     <div
       className={[
-        'group flex flex-col rounded-2xl bg-white/10 overflow-hidden',
+        'group flex flex-col rounded-2xl overflow-hidden',
+        'bg-white/10 border border-white/10',
         'transition-all duration-300 hover:bg-white/15 hover:-translate-y-1',
-        'hover:shadow-[0_12px_40px_hsl(var(--primary)/0.15)]',
+        'hover:border-primary/30 hover:shadow-[0_12px_40px_hsl(var(--primary)/0.15)]',
         fill ? 'h-full' : '',
       ].join(' ')}
     >
       {/* Image slot — overflow-hidden clips the transform so it never bleeds into text */}
-      <div className="h-52 w-full flex-shrink-0 overflow-hidden bg-[var(--glass-bg)] px-4 pt-4">
+      <div className="relative h-52 w-full flex-shrink-0 overflow-hidden bg-[var(--glass-bg)] px-4 pt-4">
+        {showWave && <SoundWaveBackground />}
         {imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={imageUrl}
             alt={title}
-            className="h-full w-full object-contain object-top"
+            draggable={false}
+            className="relative z-10 h-full w-full object-contain object-top"
             style={hasTransform ? {
               transform: `translateY(${imageOffsetY}%) scale(${imageScale})`,
               transformOrigin: 'top center',
             } : undefined}
           />
         ) : (
-          <div className="flex h-full w-full items-center justify-center">
+          <div className="relative z-10 flex h-full w-full items-center justify-center">
             <span className="text-xs text-white/20 uppercase tracking-widest">Image</span>
           </div>
         )}
       </div>
-      {/* Text content */}
-      <div className="flex flex-1 flex-col px-[5px] pb-[5px]">
+      {/* Text content — flush to card edges, border on outer card handles the outline */}
+      <div className="flex flex-1 flex-col">
         <Card
           variant="glass"
-          className="relative flex flex-1 w-full select-none flex-col rounded-t-none rounded-b-[13px] backdrop-blur-none transition-colors duration-300 group-hover:border-primary/30 min-[720px]:text-center"
+          className="relative flex flex-1 w-full select-none flex-col rounded-none border-0 border-t border-[var(--glass-border)] backdrop-blur-none transition-colors duration-300 min-[720px]:text-center"
         >
-          <div className="pointer-events-none absolute inset-0 rounded-b-[13px] bg-gradient-to-br from-primary/10 via-transparent to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
           <div className="flex flex-col p-4 sm:p-5 lg:p-7">
             <h3 className="mb-1.5 text-[0.9rem] font-semibold tracking-tight text-white sm:mb-2 sm:text-lg lg:text-[1.35rem]">
               {title}
@@ -71,16 +125,20 @@ export function HowItWorksSection({ steps }: { steps: Step[] }) {
     <section className="relative flex flex-1 flex-col justify-center border-b border-white/5 bg-transparent py-8 sm:py-16 lg:py-24">
       {/* Section header — always inside the padded container */}
       <div className="mx-auto max-w-6xl px-6 sm:px-8 lg:px-10">
-        <div className="mb-6 max-w-2xl text-center sm:mx-auto sm:mb-10 lg:mb-16">
+        <div className="mb-8 max-w-2xl text-center sm:mx-auto sm:mb-16 lg:mb-24">
           <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary sm:text-sm">How it works</p>
-          <h2 className="mt-2 text-[clamp(22px,5vw,48px)] font-semibold tracking-[-0.02em] sm:mt-3">
-            Built around the way{' '}
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-white to-white/50">
-              estimates happen in the field.
+          <h2 className="mt-2 text-[clamp(24px,4vw,44px)] lg:text-[clamp(24px,3.8vw,42px)] font-semibold tracking-[-0.02em] sm:mt-3">
+            Built around the way
+            <br />
+            estimates{' '}
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-secondary">
+              happen in the field.
             </span>
           </h2>
-          <p className="mt-2 text-sm leading-[1.5] text-muted-foreground sm:mt-4 sm:text-lg">
-            No clipboard rewrite later. Capture the job once and turn that visit into a professional quote package.
+          <p className="mt-2 text-sm leading-[1.5] text-muted-foreground sm:mt-4 sm:text-base">
+            No clipboard rewrite later. Capture the job once and
+            <br />
+            turn that visit into a professional quote package.
           </p>
         </div>
 
@@ -95,14 +153,14 @@ export function HowItWorksSection({ steps }: { steps: Step[] }) {
               transition={{ duration: 0.55, delay: i * 0.12, ease: 'easeOut' }}
               className="h-full"
             >
-              <StepCard step={step} fill imageScale={i === 1 ? 1.15 : 1} imageOffsetY={i === 1 ? -10 : 0} />
+              <StepCard step={step} fill imageScale={i === 1 ? 1.15 : 1} imageOffsetY={i === 1 ? -10 : 0} showWave={i === 0} />
             </motion.div>
           ))}
         </div>
       </div>
 
       {/* Phone (<720px): auto-scrolling ticker */}
-      <div className="min-[720px]:hidden mt-6">
+      <div className="min-[720px]:hidden">
         {reduce ? (
           /* Reduced-motion: static horizontal scroll */
           <div className="overflow-x-auto px-6">
@@ -119,7 +177,7 @@ export function HowItWorksSection({ steps }: { steps: Step[] }) {
           <Ticker halfWidth={888}>
             {ticker.map((step, i) => (
               <div key={i} className="w-[280px] shrink-0 px-2 py-1">
-                <StepCard step={step} fill imageScale={(i % steps.length) === 1 ? 1.15 : 1} imageOffsetY={(i % steps.length) === 1 ? -10 : 0} />
+                <StepCard step={step} fill imageScale={(i % steps.length) === 1 ? 1.15 : 1} imageOffsetY={(i % steps.length) === 1 ? -10 : 0} showWave={(i % steps.length) === 0} />
               </div>
             ))}
           </Ticker>
