@@ -84,10 +84,9 @@ export function LandingPage({ content, branding, navUser }: LandingPageProps) {
         <div className="relative min-h-[100dvh] flex flex-col pb-3 sm:pb-0">
           <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 gradient-hero" />
           <div className="shrink-0 h-16" />
-          {/* min-h-[140px] on mobile forces equal visible space above/below the card and pushes the footer below the fold; sm:min-h-0 lets flex-1 split freely on larger screens */}
-          <div className="flex-1 min-h-[140px] sm:min-h-0" />
+          <div className="shrink-0 h-16 sm:h-auto sm:flex-1" />
           <FinalCtaSection onOpenAuth={openAuth} />
-          <div className="flex-1 min-h-[140px] sm:min-h-0" />
+          <div className="shrink-0 h-16 sm:h-auto sm:flex-1" />
           <LandingFooter appName={branding.appName} logoUrl={branding.logoUrl} onOpenAuth={openAuth} />
         </div>
       </div>
