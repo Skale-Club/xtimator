@@ -31,7 +31,7 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
   }, [])
 
   return (
-    <section className="relative isolate flex flex-1 min-h-0 flex-col overflow-hidden border-b border-white/5 bg-transparent min-h-[420px] sm:min-h-0 sm:max-h-[560px]">
+    <section className="relative isolate flex flex-1 min-h-0 flex-col overflow-hidden border-b border-white/5 bg-transparent min-h-[420px] sm:min-h-0 sm:max-h-[560px] md:max-h-[680px] lg:max-h-[560px]">
       <div aria-hidden className="hero-mesh" />
       <div aria-hidden className="hero-dots" />
       <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 gradient-hero" />
@@ -41,7 +41,7 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
         <div
           className={
             hasImage
-              ? 'flex flex-1 min-h-0 flex-col gap-2 pt-16 sm:flex-row sm:items-stretch sm:gap-6 sm:pt-0'
+              ? 'flex flex-1 min-h-0 flex-col gap-2 pt-16 sm:flex-row sm:items-center sm:gap-6 sm:pt-0'
               : 'flex flex-col items-center justify-center gap-6 py-16 text-center'
           }
         >
@@ -56,7 +56,7 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
             }}
             className={
               hasImage
-                ? 'hero-left relative z-10 flex min-w-0 flex-col justify-center space-y-4 sm:w-[55%] sm:shrink-0 lg:w-[55%]'
+                ? 'hero-left relative z-10 flex min-w-0 flex-col justify-center space-y-4 sm:w-[55%] sm:shrink-0 md:w-[58%] lg:w-[55%]'
                 : 'max-w-3xl space-y-4'
             }
           >
@@ -72,7 +72,7 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
 
             <motion.h1
               variants={FADE_UP_ANIMATION_VARIANTS}
-              className="hero-h1 text-[clamp(24px,6.4vw,56px)] sm:text-[clamp(27px,4.3vw,33px)] md:text-[clamp(28px,3.6vw,40px)] lg:text-[clamp(42px,4.5vw,56px)] font-semibold leading-[1.05] tracking-[-0.03em] lg:w-[580px]"
+              className="hero-h1 text-[clamp(24px,6.4vw,56px)] sm:text-[clamp(27px,4.3vw,33px)] md:text-[clamp(32px,4.5vw,46px)] lg:text-[clamp(42px,4.5vw,56px)] font-semibold leading-[1.05] tracking-[-0.03em] lg:w-[580px]"
             >
               {content.heroHeadline.split(' ')[0]}
               <br className="sm:hidden" />
@@ -90,13 +90,16 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
               }
             >
               {(() => {
-                const breakAt = 'and branded'
-                const idx = content.heroSubheadline.indexOf(breakAt)
-                if (idx === -1) return content.heroSubheadline
+                const text = content.heroSubheadline
+                const b1 = text.indexOf('pricing,')
+                const b2 = text.indexOf('leave the')
+                if (b1 === -1 || b2 === -1) return text
                 return <>
-                  {content.heroSubheadline.slice(0, idx)}
-                  <br />
-                  {content.heroSubheadline.slice(idx)}
+                  {text.slice(0, b1)}
+                  <br className="hidden md:block lg:hidden" />
+                  {text.slice(b1, b2)}
+                  <br className="hidden md:block lg:hidden" />
+                  {text.slice(b2)}
                 </>
               })()}
             </motion.p>
