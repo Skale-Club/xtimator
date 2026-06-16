@@ -14,8 +14,8 @@ export function LandingFooter({ appName, logoUrl, onOpenAuth }: LandingFooterPro
   return (
     <footer className="border-t border-white/5 bg-background pt-5 pb-0 sm:py-16">
       <div className="mx-auto max-w-6xl px-6 sm:px-8 lg:px-10">
-        <div className="grid gap-0 sm:gap-12 md:grid-cols-4 lg:gap-8">
-          <div className="md:col-span-2">
+        <div className="grid gap-8 sm:grid-cols-4 sm:gap-12 lg:gap-8">
+          <div className="sm:col-span-2">
             <Link href="/" className="inline-flex items-center gap-2.5 transition-opacity hover:opacity-80">
               <AppIcon logoUrl={logoUrl} appName={appName} className="h-6 w-6" />
               <span className="text-[17px] font-bold tracking-tight sm:text-lg">{appName}</span>
@@ -24,35 +24,37 @@ export function LandingFooter({ appName, logoUrl, onOpenAuth }: LandingFooterPro
               AI-powered estimates for service businesses that quote on site. Built for speed, designed for pros.
             </p>
           </div>
-          
-          <div className="hidden sm:block">
-            <h4 className="text-sm font-semibold text-white">Product</h4>
-            <ul className="mt-6 space-y-4 text-sm text-muted-foreground">
-              <li>
-                <Link href="#" className="transition-colors hover:text-white">Features</Link>
-              </li>
-              <li>
-                <Link href="#" className="transition-colors hover:text-white">How it works</Link>
-              </li>
-              <li>
-                <button type="button" onClick={() => onOpenAuth?.('signup')} className="transition-colors hover:text-white">Start</button>
-              </li>
-            </ul>
-          </div>
 
-          <div className="hidden sm:block">
-            <h4 className="text-sm font-semibold text-white">Legal</h4>
-            <ul className="mt-6 space-y-4 text-sm text-muted-foreground">
-              <li>
-                <Link href="/privacy-policy" className="transition-colors hover:text-white">Privacy Policy</Link>
-              </li>
-              <li>
-                <Link href="/terms-of-service" className="transition-colors hover:text-white">Terms of Service</Link>
-              </li>
-              <li>
-                <Link href="/demo" className="transition-colors hover:text-white">See Demo</Link>
-              </li>
-            </ul>
+          <div className="grid grid-cols-2 gap-6 sm:contents">
+            <div>
+              <h4 className="text-sm font-semibold text-white">Product</h4>
+              <ul className="mt-4 sm:mt-6 space-y-4 text-sm text-muted-foreground">
+                <li>
+                  <Link href="#" className="transition-colors hover:text-white">Features</Link>
+                </li>
+                <li>
+                  <Link href="#" className="transition-colors hover:text-white">How it works</Link>
+                </li>
+                <li>
+                  <button type="button" onClick={() => onOpenAuth?.('signup')} className="transition-colors hover:text-white">Start</button>
+                </li>
+              </ul>
+            </div>
+
+            <div>
+              <h4 className="text-sm font-semibold text-white">Legal</h4>
+              <ul className="mt-4 sm:mt-6 space-y-4 text-sm text-muted-foreground">
+                <li>
+                  <Link href="/privacy-policy" className="transition-colors hover:text-white">Privacy Policy</Link>
+                </li>
+                <li>
+                  <Link href="/terms-of-service" className="transition-colors hover:text-white">Terms of Service</Link>
+                </li>
+                <li>
+                  <Link href="/demo" className="transition-colors hover:text-white">See Demo</Link>
+                </li>
+              </ul>
+            </div>
           </div>
         </div>
         

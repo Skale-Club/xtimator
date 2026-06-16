@@ -57,7 +57,7 @@ export function Ticker({ halfWidth, speed = 38, className = '', children }: Tick
 
   return (
     <div
-      className={`relative overflow-hidden cursor-grab active:cursor-grabbing touch-none ${className}`}
+      className={`relative overflow-hidden cursor-grab active:cursor-grabbing touch-pan-y ${className}`}
       onMouseEnter={() => { isHoveredRef.current = true }}
       onMouseLeave={() => { isHoveredRef.current = false }}
     >

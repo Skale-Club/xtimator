@@ -37,32 +37,31 @@ export function FeaturesSection({ features }: { features: Feature[] }) {
   const ticker = [...features, ...features]
 
   return (
-    <section className="relative border-b border-white/5 bg-transparent py-8 sm:py-16 lg:py-24">
+    <section className="relative flex flex-1 flex-col lg:justify-center border-b border-white/5 bg-transparent py-8 sm:py-16 lg:py-24">
       <div className="mx-auto max-w-6xl px-6 sm:px-8 lg:px-10">
         <motion.div
           initial={reduce ? false : { opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: '-60px' }}
           transition={{ duration: 0.55, ease: 'easeOut' }}
-          className="mb-8 max-w-2xl text-center sm:mx-auto sm:mb-12 lg:mb-16"
+          className="mb-8 max-w-2xl lg:max-w-3xl text-center sm:mx-auto sm:mb-16 lg:mb-24"
         >
           <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary sm:text-sm">Why teams switch</p>
-          <h2 className="mt-2 text-[clamp(20px,5vw,48px)] font-semibold tracking-[-0.02em] sm:mt-3">
-            Four pieces that shorten the gap between{' '}
-            <br className="hidden md:block" />
+          <h2 className="mt-2 text-[clamp(24px,4vw,44px)] lg:text-[clamp(24px,3.8vw,42px)] font-semibold tracking-[-0.02em] sm:mt-3">
+            Four pieces that shorten the gap
+            <br />
+            between{' '}
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-secondary">
               site visit and signed work.
             </span>
           </h2>
-          <p className="mt-2 text-sm leading-[1.5] text-muted-foreground sm:mt-4 sm:text-lg">
+          <p className="mt-2 text-sm leading-[1.5] text-muted-foreground sm:mt-4 sm:text-base">
             Keep the quoting flow simple, fast, and consistent without giving up professionalism.
           </p>
         </motion.div>
-      </div>
 
-      {/* Desktop (≥1024px): static 4-col grid with stagger */}
-      <div className="hidden lg:block mx-auto max-w-6xl px-6 lg:px-10">
-        <div className="grid grid-cols-4 gap-4">
+        {/* Desktop (≥1024px): static 4-col grid with stagger */}
+        <div className="hidden lg:grid grid-cols-4 gap-4">
           {features.map((f, i) => (
             <motion.div
               key={i}

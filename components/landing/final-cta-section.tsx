@@ -12,7 +12,7 @@ interface FinalCtaSectionProps {
 export function FinalCtaSection({ onOpenAuth }: FinalCtaSectionProps) {
   const reduce = useReducedMotion()
   return (
-    <section className="relative isolate bg-transparent py-[35px] sm:py-[clamp(40px,7vw,64px)]">
+    <section className="relative isolate bg-transparent py-16 sm:py-[clamp(40px,7vw,64px)]">
       <div className="mx-auto max-w-6xl px-6 sm:px-8 lg:px-10">
         <motion.div
           initial={reduce ? false : { opacity: 0, y: 30 }}
@@ -27,9 +27,10 @@ export function FinalCtaSection({ onOpenAuth }: FinalCtaSectionProps) {
 
           <div className="relative z-10 max-w-2xl space-y-2 sm:space-y-4">
             <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary sm:text-sm">Ready to try it live?</p>
-            <h2 className="text-[24px] font-semibold leading-[1.1] tracking-[-0.02em] text-white sm:text-[clamp(28px,4.5vw,44px)]">
-              Start your next estimate <br className="hidden sm:block" />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-secondary">before you leave the property.</span>
+            <h2 className="text-[24px] font-semibold leading-[1.1] tracking-[-0.02em] text-white sm:text-[clamp(28px,4.5vw,44px)] lg:text-[clamp(27px,4.275vw,42px)]">
+              Start your next estimate <br />
+              before{' '}
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-secondary">you leave the property.</span>
             </h2>
             <p className="max-w-xl text-sm leading-relaxed text-muted-foreground sm:text-lg">
               Use the visit you already have to produce a cleaner, faster quote for the customer.
