@@ -84,9 +84,9 @@ export function LandingPage({ content, branding, navUser }: LandingPageProps) {
         <div className="relative min-h-[100dvh] flex flex-col pb-3 sm:pb-0">
           <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 gradient-hero" />
           <div className="shrink-0 h-16" />
-          <div className="shrink-0 h-16 sm:h-auto sm:flex-1" />
-          <FinalCtaSection onOpenAuth={openAuth} />
-          <div className="shrink-0 h-16 sm:h-auto sm:flex-1" />
+          <div className="flex-1 flex flex-col justify-center">
+            <FinalCtaSection onOpenAuth={openAuth} />
+          </div>
           <LandingFooter appName={branding.appName} logoUrl={branding.logoUrl} onOpenAuth={openAuth} />
         </div>
       </div>

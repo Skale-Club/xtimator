@@ -18,12 +18,11 @@ const WAVEFORM_BARS = (() => {
       + 0.28 * Math.sin(t * 13 + 0.2)
       + 0.13 * Math.sin(t * 29 + 1.5)
       + 0.07 * Math.sin(t * 47 + 2.8)
-    // Round to 3dp so server and client floating-point serialization matches
-    const halfH = Math.round(Math.max(0.06, env * Math.abs(detail)) * 62 * 1000) / 1000
+    const h = Math.max(0.06, env * Math.abs(detail))
     // Stagger animation speed + phase so bars pulse independently
     const dur = (0.65 + 0.7 * Math.abs(Math.sin(i * 1.9 + 0.3))).toFixed(2)
     const delay = (-Math.abs(Math.sin(i * 0.7 + 1.2)) * 1.4).toFixed(2)
-    return { halfH, dur, delay }
+    return { h, dur, delay }
   })
 })()
 
@@ -32,8 +31,10 @@ function SoundWaveBackground() {
   return (
     <div className="absolute inset-0 flex items-center justify-center pointer-events-none" aria-hidden>
       <svg viewBox="0 0 400 150" className="w-full h-full" preserveAspectRatio="xMidYMid meet">
-        {WAVEFORM_BARS.map(({ halfH, dur, delay }, i) => {
+        {WAVEFORM_BARS.map(({ h, dur, delay }, i) => {
           const x = 18 + i * 7
+          // Round to 3dp so server and client floating-point serialization matches
+          const halfH = Math.round(h * 62 * 1000) / 1000
           return (
             <rect
               key={i}
@@ -43,7 +44,7 @@ function SoundWaveBackground() {
               height={halfH * 2}
               rx={1.75}
               fill="hsl(var(--primary))"
-              fillOpacity={Math.min(0.85, 0.22 + (halfH / 62) * 0.7)}
+              fillOpacity={Math.round(Math.min(0.85, 0.22 + h * 0.7) * 10000) / 10000}
               style={reduce ? undefined : {
                 transformBox: 'fill-box',
                 transformOrigin: 'center',
@@ -122,7 +123,7 @@ export function HowItWorksSection({ steps }: { steps: Step[] }) {
   const ticker = [...steps, ...steps]
 
   return (
-    <section className="relative flex flex-1 flex-col justify-center border-b border-white/5 bg-transparent py-8 sm:py-16 lg:py-24">
+    <section className="relative flex flex-1 flex-col min-[720px]:justify-center border-b border-white/5 bg-transparent py-8 sm:py-16 lg:py-24">
       {/* Section header — always inside the padded container */}
       <div className="mx-auto max-w-6xl px-6 sm:px-8 lg:px-10">
         <div className="mb-8 max-w-2xl text-center sm:mx-auto sm:mb-16 lg:mb-24">
