@@ -99,25 +99,35 @@ function PhotosBackground() {
 }
 
 function TextCursorBackground() {
+  const reduce = useReducedMotion()
+  const dur = '5s'
+  const typeLen = 170
   return (
     <div className="absolute inset-0 flex items-center justify-center pointer-events-none" aria-hidden>
       <svg
-        viewBox="0 0 120 80"
-        className="w-[60%] opacity-[0.13]"
+        viewBox="0 0 380 140"
+        className="w-full h-full opacity-[0.45]"
+        preserveAspectRatio="xMidYMid meet"
         fill="none"
         stroke="hsl(var(--primary))"
-        strokeWidth="4.5"
+        strokeWidth="2"
         strokeLinecap="round"
-        strokeLinejoin="round"
       >
-        {/* Text input field */}
-        <rect x="4" y="26" width="88" height="28" rx="5" />
-        {/* I-beam: top serif */}
-        <line x1="100" y1="10" x2="116" y2="10" />
-        {/* I-beam: vertical stem */}
-        <line x1="108" y1="10" x2="108" y2="70" />
-        {/* I-beam: bottom serif */}
-        <line x1="100" y1="70" x2="116" y2="70" />
+        <line x1="20" y1="46" x2="356" y2="46"
+          style={reduce ? undefined : { animation: `tc-line ${dur} ease-in-out infinite` }} />
+        <line x1="20" y1="70" x2="285" y2="70"
+          style={reduce ? undefined : { animation: `tc-line ${dur} ease-in-out infinite` }} />
+        <line x1="20" y1="94" x2={20 + typeLen} y2="94"
+          style={reduce ? undefined : {
+            strokeDasharray: typeLen,
+            strokeDashoffset: typeLen,
+            animation: `tc-type ${dur} ease-out infinite`,
+          }} />
+        <g style={reduce ? undefined : { animation: `tc-cursor ${dur} ease-in-out infinite` }}>
+          <line x1="196" y1="86" x2="196" y2="102" />
+          <line x1="192" y1="86" x2="200" y2="86" />
+          <line x1="192" y1="102" x2="200" y2="102" />
+        </g>
       </svg>
     </div>
   )

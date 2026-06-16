@@ -11,6 +11,27 @@
 @keyframes ph-show { 0%,38% { opacity:1 } 46%,95% { opacity:0 } 100% { opacity:1 } }
 @keyframes ph-hide { 0%,44% { opacity:0 } 52%,90% { opacity:1 } 98%,100% { opacity:0 } }
 
+/* Text-cursor typing animation (5 s loop) */
+@keyframes tc-line {
+  0% { opacity:0 } 8% { opacity:1 } 82% { opacity:1 } 95%,100% { opacity:0 }
+}
+@keyframes tc-type {
+  0%,7% { stroke-dashoffset:170; opacity:0 }
+  9% { opacity:1 }
+  50% { stroke-dashoffset:0 }
+  82% { stroke-dashoffset:0; opacity:1 }
+  95%,100% { opacity:0; stroke-dashoffset:170 }
+}
+@keyframes tc-cursor {
+  0%,49% { opacity:0 }
+  51%,60% { opacity:1 }
+  62%,67% { opacity:0 }
+  69%,74% { opacity:1 }
+  76%,80% { opacity:0 }
+  82% { opacity:1 }
+  92%,100% { opacity:0 }
+}
+
 /* ── iPad Portrait 768-1023px (mini, Air, Pro 11") ── */
 @media (min-width: 768px) and (max-width: 1023px) and (orientation: portrait) {
   .hero-left { width: 100%; justify-content: flex-start; padding-top: 64px; padding-bottom: 64px; padding-left: 2rem; }
