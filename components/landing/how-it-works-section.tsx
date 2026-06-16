@@ -101,32 +101,40 @@ function PhotosBackground() {
 function TextCursorBackground() {
   const reduce = useReducedMotion()
   const dur = '5s'
-  const typeLen = 170
+  const typeLen = 160
+  const typeX = 26
+  const cursorX = typeX + typeLen + 4  // 190
   return (
     <div className="absolute inset-0 flex items-center justify-center pointer-events-none" aria-hidden>
       <svg
         viewBox="0 0 380 140"
-        className="w-full h-full opacity-[0.45]"
+        className="w-full h-full opacity-[0.35]"
         preserveAspectRatio="xMidYMid meet"
         fill="none"
         stroke="hsl(var(--primary))"
         strokeWidth="2"
         strokeLinecap="round"
+        strokeLinejoin="round"
       >
-        <line x1="20" y1="46" x2="356" y2="46"
+        {/* Input box — always visible, spans edge-to-edge */}
+        <rect x="12" y="22" width="356" height="96" rx="8" />
+        {/* Already-typed text lines inside the box */}
+        <line x1={typeX} y1="54" x2="340" y2="54"
           style={reduce ? undefined : { animation: `tc-line ${dur} ease-in-out infinite` }} />
-        <line x1="20" y1="70" x2="285" y2="70"
+        <line x1={typeX} y1="78" x2="270" y2="78"
           style={reduce ? undefined : { animation: `tc-line ${dur} ease-in-out infinite` }} />
-        <line x1="20" y1="94" x2={20 + typeLen} y2="94"
+        {/* Active typing line */}
+        <line x1={typeX} y1="102" x2={typeX + typeLen} y2="102"
           style={reduce ? undefined : {
             strokeDasharray: typeLen,
             strokeDashoffset: typeLen,
             animation: `tc-type ${dur} ease-out infinite`,
           }} />
+        {/* I-beam cursor blinking at end of active line */}
         <g style={reduce ? undefined : { animation: `tc-cursor ${dur} ease-in-out infinite` }}>
-          <line x1="196" y1="86" x2="196" y2="102" />
-          <line x1="192" y1="86" x2="200" y2="86" />
-          <line x1="192" y1="102" x2="200" y2="102" />
+          <line x1={cursorX} y1="94" x2={cursorX} y2="110" />
+          <line x1={cursorX - 4} y1="94" x2={cursorX + 4} y2="94" />
+          <line x1={cursorX - 4} y1="110" x2={cursorX + 4} y2="110" />
         </g>
       </svg>
     </div>

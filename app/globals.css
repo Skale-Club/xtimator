@@ -16,11 +16,11 @@
   0% { opacity:0 } 8% { opacity:1 } 82% { opacity:1 } 95%,100% { opacity:0 }
 }
 @keyframes tc-type {
-  0%,7% { stroke-dashoffset:170; opacity:0 }
+  0%,7% { stroke-dashoffset:160; opacity:0 }
   9% { opacity:1 }
   50% { stroke-dashoffset:0 }
   82% { stroke-dashoffset:0; opacity:1 }
-  95%,100% { opacity:0; stroke-dashoffset:170 }
+  95%,100% { opacity:0; stroke-dashoffset:160 }
 }
 @keyframes tc-cursor {
   0%,49% { opacity:0 }
