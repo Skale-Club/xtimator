@@ -41,7 +41,7 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
         <div
           className={
             hasImage
-              ? 'flex flex-1 min-h-0 flex-col gap-2 pt-16 sm:flex-row sm:items-center sm:gap-6 sm:pt-0'
+              ? 'flex flex-1 min-h-0 flex-col justify-center gap-2 sm:flex-row sm:justify-start sm:items-center sm:gap-6'
               : 'flex flex-col items-center justify-center gap-6 py-16 text-center'
           }
         >
@@ -112,8 +112,8 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
                   : 'flex flex-col gap-2 sm:flex-row sm:gap-3 sm:justify-center'
               }
             >
-              <div className="cta-glow max-sm:[box-shadow:none] max-sm:[animation:none] self-start sm:self-auto sm:flex-none">
-                <Button variant="primary" size="default" className="w-[200px] sm:w-auto sm:min-w-40" onClick={() => onOpenAuth?.('signup')}>
+              <div className="cta-glow max-sm:[box-shadow:none] max-sm:[animation:none] sm:self-auto sm:flex-none">
+                <Button variant="primary" size="default" className="w-full sm:w-auto sm:min-w-40" onClick={() => onOpenAuth?.('signup')}>
                   {content.ctaLabel}
                   <ArrowRight className="ml-1.5 size-4" aria-hidden="true" />
                 </Button>
