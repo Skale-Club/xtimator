@@ -41,7 +41,7 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
         <div
           className={
             hasImage
-              ? 'flex flex-1 min-h-0 flex-col gap-2 pt-16 sm:flex-row sm:items-center sm:gap-6 sm:pt-0'
+              ? 'hero-content flex flex-1 min-h-0 flex-col gap-2 pt-16 sm:flex-row sm:items-center sm:gap-6 sm:pt-0'
               : 'flex flex-col items-center justify-center gap-6 py-16 text-center'
           }
         >
@@ -75,7 +75,7 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
               className="hero-h1 text-[clamp(29px,7.7vw,56px)] sm:text-[clamp(35px,5.5vw,42px)] md:text-[clamp(32px,4.5vw,46px)] lg:text-[clamp(42px,4.5vw,56px)] font-semibold leading-[1.05] tracking-[-0.03em] lg:w-[580px]"
             >
               {content.heroHeadline.split(' ')[0]}
-              <br className="sm:hidden" />
+              <br className="min-[1280px]:hidden" />
               {' '}{content.heroHeadline.split(' ')[1]}
               <br className="hidden sm:block" />
               {' '}{content.heroHeadline.split(' ').slice(2).join(' ')}
@@ -122,7 +122,7 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
                 asChild
                 size="default"
                 variant="outline"
-                className="w-fit px-6 sm:flex-none border-white/10 bg-white/5 font-semibold text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:w-auto sm:min-w-36 h-10 text-sm sm:px-4"
+                className="w-fit px-6 self-start sm:flex-none border-white/10 bg-white/5 font-semibold text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:w-fit sm:min-w-36 h-10 text-sm sm:px-4"
               >
                 <Link href="/demo">See Demo</Link>
               </Button>

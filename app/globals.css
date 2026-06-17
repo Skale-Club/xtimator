@@ -72,9 +72,11 @@
 /* ── iPad Portrait 640-1023px (mini, Air, Pro 11") — side-by-side, big image ── */
 @media (min-width: 640px) and (max-width: 1023px) and (orientation: portrait) {
   .hero-shell { padding-top: 0 !important; }
+  section:has(.hero-left) { max-height: 680px !important; }
+  .hero-content { align-items: flex-start !important; padding-top: 128px !important; }
   .hero-left { justify-content: center; padding-left: 2rem; }
-  .hero-h1 { font-size: clamp(28px, 4.4vw, 44px) !important; width: auto !important; }
-  .hero-left p { font-size: clamp(14px, 1.9vw, 17px); line-height: 1.5; }
+  .hero-h1 { font-size: clamp(42px, 6.5vw, 60px) !important; width: auto !important; }
+  .hero-left p { font-size: clamp(16px, 2.2vw, 20px); line-height: 1.5; }
   .hero-left > div:last-child { display: flex; flex-direction: column; align-items: flex-start; width: auto; gap: 0.625rem; margin-top: 10px; }
   .hero-left > div:last-child button,
   .hero-left > div:last-child a { width: auto !important; height: 44px !important; font-size: 15px !important; }
@@ -88,9 +90,11 @@
 /* ── iPad Portrait 1024-1279px (Pro 12.9") — side-by-side; cancels lg: desktop image ── */
 @media (min-width: 1024px) and (max-width: 1279px) and (orientation: portrait) {
   .hero-shell { padding-top: 0 !important; }
+  section:has(.hero-left) { max-height: 680px !important; }
+  .hero-content { align-items: flex-start !important; padding-top: 128px !important; }
   .hero-left { width: 55% !important; justify-content: center; padding-left: 2.5rem; }
-  .hero-h1 { font-size: 44px !important; width: auto !important; }
-  .hero-left p { font-size: 17px; line-height: 1.5; }
+  .hero-h1 { font-size: 60px !important; width: auto !important; }
+  .hero-left p { font-size: 20px; line-height: 1.5; }
   .hero-left > div:last-child { display: flex; flex-direction: column; align-items: flex-start; width: auto; gap: 0.625rem; margin-top: 10px; }
   .hero-left > div:last-child button,
   .hero-left > div:last-child a { width: auto !important; height: 48px !important; font-size: 17px !important; }
@@ -105,9 +109,11 @@
 /* ── iPad Landscape 768-1279px — side-by-side, font/button sizing only ── */
 @media (min-width: 768px) and (max-width: 1279px) and (orientation: landscape) {
   .hero-shell { padding-top: 0 !important; }
-  .hero-left { justify-content: center; padding-top: 2rem; padding-left: 2rem; }
+  section:has(.hero-left) { max-height: 600px !important; }
+  .hero-content { align-items: flex-start !important; padding-top: 128px !important; }
+  .hero-left { justify-content: center; padding-left: 2rem; }
   .hero-h1 { font-size: 52px !important; width: auto !important; }
-  .hero-left p { font-size: 19px; line-height: 1.5; }
+  .hero-left p { font-size: 20px; line-height: 1.5; }
   .hero-left > div:last-child { display: flex; flex-direction: column; align-items: flex-start; gap: 0.625rem; margin-top: 8px; }
   .hero-left > div:last-child button,
   .hero-left > div:last-child a { width: auto !important; height: 40px !important; font-size: 15px !important; }
