@@ -100,7 +100,7 @@ function CameraBackground() {
           strokeLinejoin="round"
           preserveAspectRatio="xMidYMid meet"
         >
-          <g stroke="hsl(var(--primary))" opacity="0.4" strokeWidth="2">
+          <g stroke="hsl(var(--primary))" opacity="0.4" strokeWidth="4">
             {/*
              * Two-bump silhouette: small flash bump flush-left (x=5-55, y=36-50),
              * large viewfinder bump centered (x=75-185, y=22-50), body below.
@@ -137,7 +137,7 @@ function SpeechBubbleBackground() {
         <path
           d="M 34 12 H 226 A 24 24 0 0 1 250 36 V 132 A 24 24 0 0 1 226 156 H 62 L 26 178 L 50 156 H 34 A 24 24 0 0 1 10 132 V 36 A 24 24 0 0 1 34 12 Z"
           stroke="hsl(var(--primary))"
-          strokeWidth="2"
+          strokeWidth="4"
           strokeLinejoin="round"
           opacity="0.4"
         />
