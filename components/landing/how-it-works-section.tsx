@@ -58,84 +58,102 @@ function SoundWaveBackground() {
   )
 }
 
-function PhotoIcon() {
+function CameraBackground() {
+  const reduce = useReducedMotion()
+  const dur = '2.5s'
+
   return (
     <>
-      <rect x="0" y="0" width="70" height="56" rx="6" />
-      <circle cx="54" cy="13" r="6.5" />
-      <polyline points="0,38 20,20 32,30 45,20 70,38" />
+      {/*
+       * Single animated parent drives BOTH the glow and the flash unit.
+       * CSS opacity cascades to all children → perfect sync, zero drift.
+       */}
+      {!reduce && (
+        <div
+          className="absolute inset-0 pointer-events-none"
+          aria-hidden
+          style={{ animation: `cam-flash-unit ${dur} ease-out infinite` }}
+        >
+          {/* Glow */}
+          <div
+            className="absolute inset-0"
+            style={{
+              background: 'radial-gradient(ellipse at 20% 20%, hsl(var(--primary)) 0%, transparent 60%)',
+              opacity: 0.65,
+            }}
+          />
+          {/* Flash unit — inside small left bump */}
+          <div className="absolute top-[10px] right-[20px] bottom-[30px] left-[20px] flex items-center justify-center">
+            <svg viewBox="0 0 260 190" className="w-full h-full" fill="none" preserveAspectRatio="xMidYMid meet">
+              <rect x="18" y="38" width="22" height="10" rx="2" fill="hsl(var(--primary))" />
+            </svg>
+          </div>
+        </div>
+      )}
+      {/* Camera outline — always visible */}
+      <div className="absolute top-[10px] right-[20px] bottom-[30px] left-[20px] flex items-center justify-center pointer-events-none" aria-hidden>
+        <svg
+          viewBox="0 0 260 190"
+          className="w-full h-full"
+          fill="none"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          preserveAspectRatio="xMidYMid meet"
+        >
+          <g stroke="hsl(var(--primary))" opacity="0.4" strokeWidth="2">
+            {/*
+             * Two-bump silhouette: small flash bump flush-left (x=5-55, y=36-50),
+             * large viewfinder bump centered (x=75-185, y=22-50), body below.
+             * Single continuous path — no overlapping strokes.
+             */}
+            <path d="M 13 36 H 47 A 8 8 0 0 1 55 44 V 50 H 75 V 34 A 12 12 0 0 1 87 22 H 173 A 12 12 0 0 1 185 34 V 50 H 237 A 18 18 0 0 1 255 68 V 165 A 18 18 0 0 1 237 183 H 23 A 18 18 0 0 1 5 165 V 44 A 8 8 0 0 1 13 36 Z" />
+            {/* Horizontal stripes — just outside lens vertical extent */}
+            <line x1="5" y1="63" x2="255" y2="63" />
+            <line x1="5" y1="170" x2="255" y2="170" />
+            {/* Lens rings — centered on camera body: (5+255)/2 = 130 */}
+            <circle cx="130" cy="117" r="50" />
+            <circle cx="130" cy="117" r="37" />
+          </g>
+          {/* Lens inner — filled glass element */}
+          <circle cx="130" cy="117" r="22" fill="hsl(var(--primary))" stroke="hsl(var(--primary))" strokeWidth="2" opacity="0.4" />
+        </svg>
+      </div>
     </>
   )
 }
 
-function PhotosBackground() {
+function SpeechBubbleBackground() {
   const reduce = useReducedMotion()
-  // Four groups manage z-order swap via opacity:
-  // SVG paint order (back→front): A-back, B-back, A-front, B-front
-  // ph-show = opacity 1 during phase 1 | ph-hide = opacity 1 during phase 2
-  // Phase 1: A-back(ph-show) visible behind A-front(ph-show) → A at front, B at back
-  // Phase 2: B-back(ph-hide) visible behind B-front(ph-hide) → B at front, A at back
-  const backTx = 'translate(5,8) rotate(-13,35,28)'
-  const frontTx = 'translate(50,22)'
-  const dur = '5s'
+  const dur = '3.6s'
   return (
-    <div className="absolute inset-0 flex items-center justify-center pointer-events-none" aria-hidden>
+    <div className="absolute top-[25px] right-[20px] bottom-[15px] left-[20px] flex items-center justify-center pointer-events-none" aria-hidden>
       <svg
-        viewBox="0 0 130 95"
-        className="w-[65%] opacity-[0.13]"
+        viewBox="0 0 260 190"
+        className="w-full h-full"
         fill="none"
-        stroke="hsl(var(--primary))"
-        strokeWidth="4"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <g transform={backTx}  style={reduce ? undefined : { animation: `ph-show ${dur} ease-in-out infinite` }}><PhotoIcon /></g>
-        <g transform={backTx}  style={reduce ? undefined : { animation: `ph-hide ${dur} ease-in-out infinite` }}><PhotoIcon /></g>
-        <g transform={frontTx} style={reduce ? undefined : { animation: `ph-show ${dur} ease-in-out infinite` }}><PhotoIcon /></g>
-        <g transform={frontTx} style={reduce ? undefined : { animation: `ph-hide ${dur} ease-in-out infinite` }}><PhotoIcon /></g>
-      </svg>
-    </div>
-  )
-}
-
-function TextCursorBackground() {
-  const reduce = useReducedMotion()
-  const dur = '5s'
-  const typeLen = 160
-  const typeX = 26
-  const cursorX = typeX + typeLen + 4  // 190
-  return (
-    <div className="absolute inset-0 flex items-center justify-center pointer-events-none" aria-hidden>
-      <svg
-        viewBox="0 0 380 140"
-        className="w-full h-full opacity-[0.35]"
         preserveAspectRatio="xMidYMid meet"
-        fill="none"
-        stroke="hsl(var(--primary))"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
       >
-        {/* Input box — always visible, spans edge-to-edge */}
-        <rect x="12" y="22" width="356" height="96" rx="8" />
-        {/* Already-typed text lines inside the box */}
-        <line x1={typeX} y1="54" x2="340" y2="54"
-          style={reduce ? undefined : { animation: `tc-line ${dur} ease-in-out infinite` }} />
-        <line x1={typeX} y1="78" x2="270" y2="78"
-          style={reduce ? undefined : { animation: `tc-line ${dur} ease-in-out infinite` }} />
-        {/* Active typing line */}
-        <line x1={typeX} y1="102" x2={typeX + typeLen} y2="102"
-          style={reduce ? undefined : {
-            strokeDasharray: typeLen,
-            strokeDashoffset: typeLen,
-            animation: `tc-type ${dur} ease-out infinite`,
-          }} />
-        {/* I-beam cursor blinking at end of active line */}
-        <g style={reduce ? undefined : { animation: `tc-cursor ${dur} ease-in-out infinite` }}>
-          <line x1={cursorX} y1="94" x2={cursorX} y2="110" />
-          <line x1={cursorX - 4} y1="94" x2={cursorX + 4} y2="94" />
-          <line x1={cursorX - 4} y1="110" x2={cursorX + 4} y2="110" />
-        </g>
+        {/* Speech bubble outline — rounded rect body + bottom-left tail */}
+        <path
+          d="M 34 12 H 226 A 24 24 0 0 1 250 36 V 132 A 24 24 0 0 1 226 156 H 62 L 26 178 L 50 156 H 34 A 24 24 0 0 1 10 132 V 36 A 24 24 0 0 1 34 12 Z"
+          stroke="hsl(var(--primary))"
+          strokeWidth="2"
+          strokeLinejoin="round"
+          opacity="0.4"
+        />
+        {/* Six typing dots — appear 1→2→3→4→5→6, all disappear together, repeat */}
+        {([45, 79, 113, 147, 181, 215] as const).map((cx, i) => (
+          <circle
+            key={i}
+            cx={cx} cy="84" r="11.7"
+            fill="hsl(var(--primary))"
+            style={reduce ? { opacity: 0.25 } : {
+              animation: `bubble-dot-${i + 1} ${dur} ease-in-out infinite`,
+              transformBox: 'fill-box',
+              transformOrigin: 'center',
+            }}
+          />
+        ))}
       </svg>
     </div>
   )
@@ -158,11 +176,11 @@ function StepCard({
         fill ? 'h-full' : '',
       ].join(' ')}
     >
-      {/* Image slot — overflow-hidden clips the transform so it never bleeds into text */}
-      <div className="relative h-52 w-full flex-shrink-0 overflow-hidden bg-[var(--glass-bg)] px-4 pt-4">
+      {/* Image slot */}
+      <div className="relative h-44 w-full flex-shrink-0 overflow-hidden bg-[var(--glass-bg)] px-4 pt-4">
         {showWave && <SoundWaveBackground />}
-        {showPhotos && <PhotosBackground />}
-        {showCursor && <TextCursorBackground />}
+        {showPhotos && <CameraBackground />}
+        {showCursor && <SpeechBubbleBackground />}
         {imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -181,7 +199,7 @@ function StepCard({
           </div>
         )}
       </div>
-      {/* Text content — flush to card edges, border on outer card handles the outline */}
+      {/* Text content */}
       <div className="flex flex-1 flex-col">
         <Card
           variant="glass"

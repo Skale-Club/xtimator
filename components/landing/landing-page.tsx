@@ -57,7 +57,7 @@ export function LandingPage({ content, branding, navUser }: LandingPageProps) {
         style={{ scrollbarWidth: 'none' }}
       >
         {/* Snap page 1: hero + trust bar */}
-        <div className="min-h-[100dvh] pt-16 flex flex-col">
+        <div className="hero-shell min-h-[100dvh] pt-16 flex flex-col">
           <HeroSection
             content={{
               heroHeadline: content.heroHeadline,
