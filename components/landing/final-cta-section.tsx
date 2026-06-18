@@ -12,7 +12,7 @@ interface FinalCtaSectionProps {
 export function FinalCtaSection({ onOpenAuth }: FinalCtaSectionProps) {
   const reduce = useReducedMotion()
   return (
-    <section className="relative isolate bg-transparent py-16 sm:py-[clamp(40px,7vw,64px)]">
+    <section className="relative isolate bg-transparent py-16">
       <div className="mx-auto max-w-6xl px-6 sm:px-8 lg:px-10">
         <motion.div
           initial={reduce ? false : { opacity: 0, y: 30 }}

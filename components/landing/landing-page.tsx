@@ -57,7 +57,7 @@ export function LandingPage({ content, branding, navUser }: LandingPageProps) {
         style={{ scrollbarWidth: 'none' }}
       >
         {/* Snap page 1: hero + trust bar */}
-        <div className="min-h-[100dvh] pt-16 flex flex-col">
+        <div className="hero-shell min-h-[100dvh] pt-16 flex flex-col">
           <HeroSection
             content={{
               heroHeadline: content.heroHeadline,
@@ -83,10 +83,7 @@ export function LandingPage({ content, branding, navUser }: LandingPageProps) {
         {/* Snap page 4: final CTA + footer */}
         <div className="relative min-h-[100dvh] flex flex-col pb-3 sm:pb-0">
           <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 gradient-hero" />
-          <div className="shrink-0 h-16" />
-          <div className="flex-1 flex flex-col justify-center">
-            <FinalCtaSection onOpenAuth={openAuth} />
-          </div>
+          <FinalCtaSection onOpenAuth={openAuth} />
           <LandingFooter appName={branding.appName} logoUrl={branding.logoUrl} onOpenAuth={openAuth} />
         </div>
       </div>
