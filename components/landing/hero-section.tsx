@@ -75,7 +75,8 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
               className="hero-h1 text-[clamp(29px,7.7vw,56px)] sm:text-[clamp(35px,5.5vw,42px)] md:text-[clamp(32px,4.5vw,46px)] lg:text-[clamp(42px,4.5vw,56px)] font-semibold leading-[1.05] tracking-[-0.03em] lg:w-[580px]"
             >
               {content.heroHeadline.split(' ')[0]}
-              <br className="min-[1280px]:hidden" />
+              {/* Always break after word 1 — keeps the title 3 lines on desktop too */}
+              <br />
               {' '}{content.heroHeadline.split(' ')[1]}
               <br className="hidden sm:block" />
               {' '}{content.heroHeadline.split(' ').slice(2).join(' ')}
@@ -85,7 +86,9 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
               variants={FADE_UP_ANIMATION_VARIANTS}
               className={
                 hasImage
-                  ? 'sm:max-w-2xl text-[16.8px] leading-[1.5] text-muted-foreground sm:text-[14px] lg:text-base'
+                  // xl:text-[20px] keeps the title:subheadline ratio (~2.8) harmonic on
+                  // wide desktop — the iPad media queries already tune it for tablets.
+                  ? 'sm:max-w-2xl text-[16.8px] leading-[1.5] text-muted-foreground sm:text-[14px] lg:text-base xl:text-[20px]'
                   : 'mx-auto max-w-2xl text-[16.8px] leading-[1.5] text-muted-foreground sm:text-base'
               }
             >
@@ -96,9 +99,10 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
                 if (b1 === -1 || b2 === -1) return text
                 return <>
                   {text.slice(0, b1)}
-                  <br className="block sm:hidden md:block lg:hidden" />
+                  {/* 3-line break shown ≥768 (tablet + desktop); 640-767 stays natural-wrap */}
+                  <br className="block sm:hidden md:block" />
                   {text.slice(b1, b2)}
-                  <br className="block sm:hidden md:block lg:hidden" />
+                  <br className="block sm:hidden md:block" />
                   {text.slice(b2)}
                 </>
               })()}
@@ -135,7 +139,7 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
               initial={reduce ? false : { opacity: 0, scale: 0.95, rotate: -2 }}
               animate={{ opacity: 1, scale: 1, rotate: 0 }}
               transition={{ duration: 1, type: 'spring', delay: 0.3 }}
-              className="hero-image absolute top-[23%] bottom-0 right-[-15px] w-[75%] z-0 sm:h-auto sm:absolute sm:top-[1in] sm:bottom-0 sm:left-[calc(58%_-_100px)] sm:right-[-2rem] sm:w-auto sm:scale-110 sm:origin-bottom md:top-16 lg:top-[36px] lg:left-[calc(35%_+_55px)] lg:right-[-2.5rem] lg:scale-100"
+              className="hero-image absolute top-[23%] bottom-0 right-[-15px] w-[75%] z-0 sm:h-auto sm:absolute sm:top-[1in] sm:bottom-0 sm:left-[calc(58%_-_100px)] sm:right-[-2rem] sm:w-auto sm:scale-110 sm:origin-bottom md:top-16 lg:top-[36px] lg:left-[calc(35%_+_55px)] lg:right-[-2.5rem] lg:scale-100 xl:top-[65px] xl:left-[calc(35%_+_45px)] xl:right-[-30px]"
             >
               <img
                 src={content.heroImageUrl!}
