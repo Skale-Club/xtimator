@@ -767,3 +767,4 @@ v3.1: Phases 61-65 (started 2026-05-15). Production Go-Live — 27 requirements 
 | 2026-05-19 | fast | Make audio capture screen scrollable on smaller viewports | done |
 | 2026-05-18 | fast | Restyle sidebar New Project as filled gradient, remove dashboard CTA | done |
 | 2026-05-27 | fast | add standard mobile-web-app-capable meta tag | ✅ |
+| 2026-06-17 | fast | Symmetric CTA card spacing — card sat 128px below the CTA band top but only 64px above the footer. Removed the `h-16` (64px) top spacer + the `flex-1 justify-center` wrapper (added ~21px centering slack) in landing-page.tsx, and pinned the section to constant `py-16` (dropped `sm:py-[clamp(40px,7vw,64px)]`) in final-cta-section.tsx. Browser-verified at rest: exactly 64px above and 64px below the card, footer flush with band bottom | done |
