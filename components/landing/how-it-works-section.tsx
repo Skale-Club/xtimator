@@ -226,10 +226,10 @@ export function HowItWorksSection({ steps }: { steps: Step[] }) {
   const ticker = [...steps, ...steps]
 
   return (
-    <section className="relative flex flex-1 flex-col min-[720px]:justify-center border-b border-white/5 bg-transparent py-8 sm:py-16 lg:py-24">
+    <section className="relative flex flex-1 flex-col min-[720px]:justify-center border-b border-white/5 bg-transparent py-16">
       {/* Section header — always inside the padded container */}
       <div className="mx-auto max-w-6xl px-6 sm:px-8 lg:px-10">
-        <div className="mb-8 max-w-2xl text-center sm:mx-auto sm:mb-16 lg:mb-24">
+        <div className="mb-16 max-w-2xl text-center sm:mx-auto">
           <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary sm:text-sm">How it works</p>
           <h2 className="mt-2 text-[clamp(24px,4vw,44px)] lg:text-[clamp(24px,3.8vw,42px)] font-semibold tracking-[-0.02em] sm:mt-3">
             Built around the way

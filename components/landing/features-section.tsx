@@ -37,14 +37,14 @@ export function FeaturesSection({ features }: { features: Feature[] }) {
   const ticker = [...features, ...features]
 
   return (
-    <section className="relative flex flex-1 flex-col lg:justify-center border-b border-white/5 bg-transparent py-8 sm:py-16 lg:py-24">
+    <section className="relative flex flex-1 flex-col lg:justify-center border-b border-white/5 bg-transparent py-16">
       <div className="mx-auto max-w-6xl px-6 sm:px-8 lg:px-10">
         <motion.div
           initial={reduce ? false : { opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: '-60px' }}
           transition={{ duration: 0.55, ease: 'easeOut' }}
-          className="mb-8 max-w-2xl lg:max-w-3xl text-center sm:mx-auto sm:mb-16 lg:mb-24"
+          className="mb-16 max-w-2xl lg:max-w-3xl text-center sm:mx-auto"
         >
           <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary sm:text-sm">Why teams switch</p>
           <h2 className="mt-2 text-[clamp(24px,4vw,44px)] lg:text-[clamp(24px,3.8vw,42px)] font-semibold tracking-[-0.02em] sm:mt-3">
