@@ -119,12 +119,6 @@ export async function POST(
         { status: 400 }
       )
     }
-    if (estimate.workflow_status === 'consolidated') {
-      return NextResponse.json(
-        { error: 'This estimate is consolidated. Create a new version to refine it.' },
-        { status: 409 }
-      )
-    }
 
     // -------------------------------------------------------------------------
     // Parse multimodal input. Supports either FormData (multipart) or JSON.
@@ -264,7 +258,7 @@ export async function POST(
     const refined = await provider.refineEstimate(refineInput)
 
     // Activity log — refinement requested. Persistence (if any) happens via the
-    // editor when the user clicks Save Draft / Consolidate.
+    // editor when the user clicks Save Draft.
     await supabase.from('estimate_activity').insert({
       project_id: estimate.project_id,
       company_id: companyId,

@@ -35,14 +35,6 @@ export async function GET(
 
     const { estimate, project, company } = result
 
-    // SEED-028: PDF download requires consolidated estimate.
-    if (estimate.workflow_status !== 'consolidated') {
-      return NextResponse.json(
-        { error: 'Consolidate this estimate before downloading the PDF.' },
-        { status: 409 }
-      )
-    }
-
     const projectName = project?.name ?? 'Untitled Project'
     const projectType = project?.project_type ?? null
 

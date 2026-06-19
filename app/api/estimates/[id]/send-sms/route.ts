@@ -60,7 +60,7 @@ export async function POST(
     // Fetch estimate with company to verify ownership
     const { data: estimate } = await supabase
       .from('estimates')
-      .select('id, project_id, company_id, share_token, workflow_status')
+      .select('id, project_id, company_id, share_token')
       .eq('id', id)
       .single()
 
@@ -70,14 +70,6 @@ export async function POST(
 
     if (!estimate.share_token) {
       return NextResponse.json({ error: 'Estimate has no share link' }, { status: 400 })
-    }
-
-    // SEED-028: SMS sending requires consolidated estimate.
-    if (estimate.workflow_status !== 'consolidated') {
-      return NextResponse.json(
-        { error: 'Consolidate this estimate before sending it.' },
-        { status: 409 }
-      )
     }
 
     // Verify company belongs to user

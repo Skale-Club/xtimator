@@ -98,13 +98,6 @@ export async function POST(
 
     const { estimate, project, company } = result
 
-    // SEED-028: email sending requires consolidated estimate.
-    if (estimate.workflow_status !== 'consolidated') {
-      return NextResponse.json(
-        { error: 'Consolidate this estimate before sending it.' },
-        { status: 409 }
-      )
-    }
     const projectName = project?.name ?? 'Untitled Project'
     const projectType = project?.project_type ?? null
     const projectId = estimate.project_id
