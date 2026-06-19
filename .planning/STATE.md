@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.3
 milestone_name: Invoices & Always-Editable Estimates
 status: executing
-stopped_at: "Plan 94-02 complete (Stripe invoice layer); next: 94-03 webhook"
-last_updated: "2026-06-19T18:25:23.856Z"
+stopped_at: "Completed 94-03-PLAN.md (Connect invoice.paid webhook); next: 94-04 generate-invoice UX"
+last_updated: "2026-06-19T18:31:21.078Z"
 last_activity: 2026-06-19
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 6
-  completed_plans: 2
+  completed_plans: 3
 ---
 
 # Project State
@@ -23,10 +23,10 @@ progress:
 ## Current Position
 
 Phase: 94 (estimate-invoice-decoupling) — EXECUTING
-Plan: 2 of 6
+Plan: 3 of 6
 Status: Ready to execute
 Last activity: 2026-06-19
-Stopped at: Plan 94-02 complete (Stripe invoice layer); next: 94-03 webhook
+Stopped at: Completed 94-03-PLAN.md (Connect invoice.paid webhook); next: 94-04 generate-invoice UX
 
 ## v3.1.1 Phases
 
@@ -485,6 +485,8 @@ Stopped at: Plan 94-02 complete (Stripe invoice layer); next: 94-03 webhook
 - [Phase 94]: invoices RLS matches Phase 82 company_members subquery (D-09 correction), never companies.user_id — passes the migration assertion and stays consistent with every tenant table
 - [Phase 94]: Wave 0 RED foundation: 6 invoice contract tests fail loudly on missing Wave 1+ targets; 1 migration-contract test ships GREEN since the migration is additive in Plan 01
 - [Phase 94]: database.types.ts hand-extended with invoices typing (Docker-less Windows convention since Phase 19/24)
+- [Phase 94-03]: Connect invoice.paid lives ONLY in handleConnectEvent (event.account present); platform subscription invoice.paid stays in handlePlatformEvent — cleanly split by event.account
+- [Phase 94-03]: invoice.paid keys off metadata.invoice_id (our row PK) and uses the invoices snapshot amount for emails/notification — never re-derived from the now-mutable estimate (D-07)
 
 ## Performance Metrics
 
@@ -650,6 +652,7 @@ Stopped at: Plan 94-02 complete (Stripe invoice layer); next: 94-03 webhook
 | Phase 93 P02 | 7 | 2 tasks | 5 files |
 | Phase 93-super-admin-event-log P03 | 5 | 2 tasks | 4 files |
 | Phase 94 P01 | 6min | 3 tasks | 10 files |
+| Phase 94 P03 | ~4min | 2 tasks | 2 files |
 
 ## Project Reference
 
