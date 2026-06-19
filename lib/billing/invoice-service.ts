@@ -75,8 +75,10 @@ export async function createConnectInvoice(opts: {
     { ...reqOpt, idempotencyKey: `${opts.idempotencyBase}_inv` },
   )
 
-  // 4. Send — finalizes AND emails the hosted invoice in one step.
-  const sent = await stripe.invoices.sendInvoice(invoice.id, reqOpt)
+  // 4. Send — finalizes AND emails the hosted invoice in one step. The Stripe
+  //    SDK signature is sendInvoice(id, params?, options?) so the connected-account
+  //    request option ({ stripeAccount }) is the THIRD arg.
+  const sent = await stripe.invoices.sendInvoice(invoice.id, {}, reqOpt)
 
   // 5. Read back the hosted URL + PDF (null on a draft; populated once finalized/sent).
   return {
