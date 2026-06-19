@@ -832,6 +832,78 @@ export type Database = {
           },
         ]
       }
+      invoices: {
+        Row: {
+          amount_cents: number
+          company_id: string
+          created_at: string
+          currency_code: string
+          description: string | null
+          estimate_id: string
+          hosted_invoice_url: string | null
+          id: string
+          invoice_pdf_url: string | null
+          kind: "deposit" | "balance" | "full"
+          paid_at: string | null
+          project_name: string | null
+          status: "draft" | "open" | "paid" | "void" | "uncollectible"
+          stripe_customer_id: string | null
+          stripe_invoice_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          amount_cents: number
+          company_id: string
+          created_at?: string
+          currency_code: string
+          description?: string | null
+          estimate_id: string
+          hosted_invoice_url?: string | null
+          id?: string
+          invoice_pdf_url?: string | null
+          kind: "deposit" | "balance" | "full"
+          paid_at?: string | null
+          project_name?: string | null
+          status?: "draft" | "open" | "paid" | "void" | "uncollectible"
+          stripe_customer_id?: string | null
+          stripe_invoice_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          amount_cents?: number
+          company_id?: string
+          created_at?: string
+          currency_code?: string
+          description?: string | null
+          estimate_id?: string
+          hosted_invoice_url?: string | null
+          id?: string
+          invoice_pdf_url?: string | null
+          kind?: "deposit" | "balance" | "full"
+          paid_at?: string | null
+          project_name?: string | null
+          status?: "draft" | "open" | "paid" | "void" | "uncollectible"
+          stripe_customer_id?: string | null
+          stripe_invoice_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoices_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_estimate_id_fkey"
+            columns: ["estimate_id"]
+            isOneToOne: false
+            referencedRelation: "estimates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notification_preferences: {
         Row: {
           categories: Json
