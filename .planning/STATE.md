@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.3
 milestone_name: Invoices & Always-Editable Estimates
 status: executing
-stopped_at: Completed 94-01-PLAN.md (Wave 0 RED foundation)
-last_updated: "2026-06-19T18:09:59.533Z"
+stopped_at: "Plan 94-02 complete (Stripe invoice layer); next: 94-03 webhook"
+last_updated: "2026-06-19T18:25:23.856Z"
 last_activity: 2026-06-19
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 6
-  completed_plans: 1
+  completed_plans: 2
 ---
 
 # Project State
@@ -26,7 +26,7 @@ Phase: 94 (estimate-invoice-decoupling) — EXECUTING
 Plan: 2 of 6
 Status: Ready to execute
 Last activity: 2026-06-19
-Stopped at: Completed 94-01-PLAN.md (Wave 0 RED foundation)
+Stopped at: Plan 94-02 complete (Stripe invoice layer); next: 94-03 webhook
 
 ## v3.1.1 Phases
 
