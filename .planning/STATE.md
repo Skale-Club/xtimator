@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.3
 milestone_name: Invoices & Always-Editable Estimates
 status: executing
-stopped_at: Paused 94-04-PLAN.md at Task 4 (blocking human-verify checkpoint) — generate-invoice UX built (tasks 1-3 committed); awaiting human verification with a connected Stripe test-mode account
-last_updated: "2026-06-19T18:42:21.266Z"
+stopped_at: Completed 94-05-PLAN.md (consolidate retirement); next 94-06
+last_updated: "2026-06-19T19:34:28.650Z"
 last_activity: 2026-06-19
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 6
-  completed_plans: 4
+  completed_plans: 5
 ---
 
 # Project State
@@ -23,10 +23,10 @@ progress:
 ## Current Position
 
 Phase: 94 (estimate-invoice-decoupling) — EXECUTING
-Plan: 3 of 6
-Status: Ready to execute
+Plan: 6 of 6
+Status: Ready to execute (94-06 — invoice backfill + pay-route retirement)
 Last activity: 2026-06-19
-Stopped at: Paused 94-04-PLAN.md at Task 4 (blocking human-verify checkpoint) — generate-invoice UX built (tasks 1-3 committed); awaiting human verification with a connected Stripe test-mode account
+Stopped at: Completed 94-05-PLAN.md (consolidate retirement); next 94-06
 
 ## v3.1.1 Phases
 
@@ -490,6 +490,8 @@ Stopped at: Paused 94-04-PLAN.md at Task 4 (blocking human-verify checkpoint) �
 - [Phase 94]: [94-04] GenerateInvoiceDialog gated behind isCurrent — invoices issue from the live current estimate only; old read-only versions don't offer it
 - [Phase 94]: [94-04] Share-page invoices fetched with optional chaining + try/catch so the existing share-query unit test stays green (8/8) without the Plan-05 fixture update; only 6 safe fields exposed (no stripe ids)
 - [Phase 94]: [94-04] Threaded issuedInvoices through OverviewTab (the real ProjectWorkspace->EstimateTab intermediary) in addition to the plan-named files
+- [Phase 94-estimate-invoice-decoupling 94-05]: Consolidate lock retired by removing reads/gates only — KEEP workflow_status/consolidated_* columns dormant (NOT NULL DEFAULT 'draft') so live writers (confirm-actions, mcp read, generate-estimate, profile-field-map) keep compiling; only one_active_draft_per_project index dropped
+- [Phase 94-estimate-invoice-decoupling 94-05]: KEEP is_current/version columns (independent of consolidate); editor always opens the single current estimate, versioning UI retired
 
 ## Performance Metrics
 
@@ -657,6 +659,7 @@ Stopped at: Paused 94-04-PLAN.md at Task 4 (blocking human-verify checkpoint) �
 | Phase 94 P01 | 6min | 3 tasks | 10 files |
 | Phase 94 P03 | ~4min | 2 tasks | 2 files |
 | Phase 94 P04 | 7min | 3 tasks | 9 files |
+| Phase 94 P05 | 45min | 4 tasks | 21 files |
 
 ## Project Reference
 
