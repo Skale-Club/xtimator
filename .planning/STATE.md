@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.5
-milestone_name: Zero-friction Project Onboarding
+milestone: v4.3
+milestone_name: Invoices & Always-Editable Estimates
 status: verifying
-stopped_at: Completed 93-03-PLAN.md (event log list page + detail page + EventStepTimeline)
-last_updated: "2026-06-13T11:41:17.359Z"
-last_activity: 2026-06-13
+stopped_at: Phase 94 context gathered (estimate-invoice decoupling + Stripe Invoices)
+last_updated: "2026-06-19T17:05:03.235Z"
+last_activity: "2026-06-13 - Finalized the vitest suite to 100% green (260613-aoe): npx vitest run → 1516 passed, 0 failed (213 files). Builds on the mock-drift fix (54→10) + coj's ADMIN-06 product fix (TEST-ENV-01); the finalize pass (commit 5dcbe57) resolved the last 9 product-contract-drift tests — OpenRouter test rewrites (provider-factory, translate-route), app-icons proxy/manifest contract, wizard reduced-schema, auth-redesign brand token, landing-page login-copy, bulk-adjust title matcher. known-issues.md residual section marked fully resolved (0 remaining)"
 progress:
-  total_phases: 93
-  completed_phases: 64
-  total_plans: 200
-  completed_plans: 229
+  total_phases: 1
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
 ---
 
 # Project State
@@ -26,7 +26,7 @@ Phase: 999.1
 Plan: Not started
 Status: Phase complete — ready for verification
 Last activity: 2026-06-13 - Finalized the vitest suite to 100% green (260613-aoe): npx vitest run → 1516 passed, 0 failed (213 files). Builds on the mock-drift fix (54→10) + coj's ADMIN-06 product fix (TEST-ENV-01); the finalize pass (commit 5dcbe57) resolved the last 9 product-contract-drift tests — OpenRouter test rewrites (provider-factory, translate-route), app-icons proxy/manifest contract, wizard reduced-schema, auth-redesign brand token, landing-page login-copy, bulk-adjust title matcher. known-issues.md residual section marked fully resolved (0 remaining)
-Stopped at: Completed 93-03-PLAN.md (event log list page + detail page + EventStepTimeline)
+Stopped at: Phase 94 context gathered (estimate-invoice decoupling + Stripe Invoices)
 
 ## v3.1.1 Phases
 

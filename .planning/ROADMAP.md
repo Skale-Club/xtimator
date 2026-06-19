@@ -21,10 +21,28 @@
 - ✅ **v4.0 Multi-Tenancy** — Phases 79-85 (shipped 2026-05-26) · [archive](milestones/v4.0-ROADMAP.md)
 - ✅ **v4.1 MCP Server** — Phases 86-90 (shipped 2026-05-26) · [archive](milestones/v4.1-ROADMAP.md)
 - ✅ **v4.2 Recording Reliability & Observability** — Phases 91-93 (shipped 2026-05-30)
+- 🚧 **v4.3 Invoices & Always-Editable Estimates** — Phase 94 (started 2026-06-19)
 
 > **Phase numbering note:** v3.1.1 starts at **Phase 66**, not 62. Phases 62-65 are reserved as DEFERRED placeholders for the v3.2 Production Deploy milestone (Vercelâ†’Hetzner deploy + Stripe live + monitoring + UAT in prod). Skipping past 62-65 keeps the global phase counter unambiguous and prevents number reuse confusion when v3.2 begins.
 
 ## Phases
+
+### v4.3 Invoices & Always-Editable Estimates (Phase 94)
+
+### Phase 94: Estimate–Invoice Decoupling + Stripe Invoices
+**Goal**: Retire the estimate "consolidate" lock so estimates are always editable, and introduce a separate **Invoice** entity that issues real Stripe Invoices (hosted page + PDF + email) with deposit + balance support. Immutability moves off the estimate and onto the invoice — the object that actually carries money.
+**Depends on**: Phase 70 (Stripe Connect Direct Charges + webhook infrastructure), Phase 6 (estimate editor)
+**Requirements**: INVOICE-01, INVOICE-02, INVOICE-03, INVOICE-04, INVOICE-05, INVOICE-06, INVOICE-07
+**Success Criteria** (what must be TRUE):
+  1. Estimates are always editable — `consolidate` is gone: no `workflow_status` lock, no save write-block, no forced version fork; the share page, send routes, and pay flow no longer require `workflow_status = 'consolidated'`
+  2. A new `invoices` table stores an immutable snapshot (amount_cents, currency_code, kind ∈ {deposit, balance, full}, status mirroring Stripe, stripe ids, hosted invoice URL) with RLS scoped to company; one estimate → many invoices
+  3. From the estimate editor, "Generate invoice" lets the owner pick a deposit % or the full amount, creates/reuses a Stripe Customer on the connected account, creates a real Stripe Invoice (InvoiceItem + finalize), persists an `invoices` row, and returns the hosted invoice URL + PDF
+  4. Deposit + balance: the owner can issue a deposit invoice (e.g. 30%) and a separate balance invoice from the same estimate — each a real, independent Stripe Invoice
+  5. The Connect webhook handles `invoice.paid` (event.account present), matches by `metadata.invoice_id`, marks the `invoices` row paid, and reuses the existing payment-received + receipt emails and in-app notification
+  6. Editing an estimate after an invoice is issued does NOT mutate the issued invoice (snapshot frozen); the editor surfaces issued invoices inline ("Invoice issued: $X · {status}")
+  7. Migration backfills one `invoices` row per already-paid estimate, retires the old `/estimate/[token]/pay` Checkout Session route and the `consolidated` gate, and existing estimates load without error
+**Plans**: TBD (natural waves: schema + RLS → Stripe invoice service → generate-invoice UX → webhook + emails → migration + consolidate removal)
+**UI hint**: yes (estimate editor "Generate invoice" surface + issued-invoice display — run `/gsd:ui-phase 94` before planning if desired)
 
 <details>
 <summary>âœ… v1.0 MVP (Phases 1-8) â€” SHIPPED 2026-04-21</summary>
