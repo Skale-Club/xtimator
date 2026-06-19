@@ -71,7 +71,7 @@ const CLIENTS = [
   { name: 'The Cozy Cafe', email: 'manager@example.com', phone: '+15550103', city: 'Somerville', state: 'MA', zip: '02143', address: '88 Highland Ave' },
 ]
 
-// Each project belongs to clients[clientIdx] and carries one consolidated estimate.
+// Each project belongs to clients[clientIdx] and carries one always-editable estimate.
 const PROJECTS = [
   {
     clientIdx: 0, name: 'Whole-Home Carpet Cleaning', project_type: 'cleaning',
@@ -277,15 +277,13 @@ async function main() {
       input_mode: 'text', total,
     })
 
-    const consolidated = proj.estimateStatus !== 'draft'
+    // Consolidate is retired (Phase 94, D-01): estimates are always editable.
+    // workflow_status / consolidated_* columns stay dormant (DEFAULT 'draft'); do not write them.
     await upsert('estimates', {
       id: estimateId, project_id: projectId, company_id: DEMO_COMPANY_ID,
       estimate_seq: p + 1,
       currency_code: 'USD', version: 1, is_current: true,
       status: proj.estimateStatus,
-      workflow_status: consolidated ? 'consolidated' : 'draft',
-      consolidated_at: consolidated ? new Date().toISOString() : null,
-      consolidated_by: consolidated ? demoUserId : null,
       summary: proj.summary,
       payment_terms: '50% deposit, balance on completion.',
       warranty_terms: '1-year workmanship warranty.',
