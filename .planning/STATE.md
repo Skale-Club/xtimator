@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v4.3
 milestone_name: Invoices & Always-Editable Estimates
-status: verifying
-stopped_at: Phase 94 context gathered (estimate-invoice decoupling + Stripe Invoices)
-last_updated: "2026-06-19T17:05:03.235Z"
-last_activity: "2026-06-13 - Finalized the vitest suite to 100% green (260613-aoe): npx vitest run → 1516 passed, 0 failed (213 files). Builds on the mock-drift fix (54→10) + coj's ADMIN-06 product fix (TEST-ENV-01); the finalize pass (commit 5dcbe57) resolved the last 9 product-contract-drift tests — OpenRouter test rewrites (provider-factory, translate-route), app-icons proxy/manifest contract, wizard reduced-schema, auth-redesign brand token, landing-page login-copy, bulk-adjust title matcher. known-issues.md residual section marked fully resolved (0 remaining)"
+status: executing
+stopped_at: Completed 94-01-PLAN.md (Wave 0 RED foundation)
+last_updated: "2026-06-19T18:09:59.533Z"
+last_activity: 2026-06-19
 progress:
   total_phases: 1
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_plans: 6
+  completed_plans: 1
 ---
 
 # Project State
@@ -22,11 +22,11 @@ progress:
 
 ## Current Position
 
-Phase: 999.1
-Plan: Not started
-Status: Phase complete — ready for verification
-Last activity: 2026-06-13 - Finalized the vitest suite to 100% green (260613-aoe): npx vitest run → 1516 passed, 0 failed (213 files). Builds on the mock-drift fix (54→10) + coj's ADMIN-06 product fix (TEST-ENV-01); the finalize pass (commit 5dcbe57) resolved the last 9 product-contract-drift tests — OpenRouter test rewrites (provider-factory, translate-route), app-icons proxy/manifest contract, wizard reduced-schema, auth-redesign brand token, landing-page login-copy, bulk-adjust title matcher. known-issues.md residual section marked fully resolved (0 remaining)
-Stopped at: Phase 94 context gathered (estimate-invoice decoupling + Stripe Invoices)
+Phase: 94 (estimate-invoice-decoupling) — EXECUTING
+Plan: 2 of 6
+Status: Ready to execute
+Last activity: 2026-06-19
+Stopped at: Completed 94-01-PLAN.md (Wave 0 RED foundation)
 
 ## v3.1.1 Phases
 
@@ -482,6 +482,9 @@ Stopped at: Phase 94 context gathered (estimate-invoice decoupling + Stripe Invo
 - [Phase 93-super-admin-event-log]: buildSearchOr is pure fn (no DB calls) enabling Wave 0 unit tests; SAFE_EVENT_COLUMNS comment must avoid transcript/audio/apiKey/payload/raw tokens (static source guard covers full file)
 - [Phase 93-super-admin-event-log]: Inlined SAFE_SELECT string in detail page .select() call — test regex requires literal string after select( paren
 - [Phase 93-super-admin-event-log]: Wave 0 email-lookup stubs replaced with static source assertions — unconditional expect.fail() cannot turn GREEN
+- [Phase 94]: invoices RLS matches Phase 82 company_members subquery (D-09 correction), never companies.user_id — passes the migration assertion and stays consistent with every tenant table
+- [Phase 94]: Wave 0 RED foundation: 6 invoice contract tests fail loudly on missing Wave 1+ targets; 1 migration-contract test ships GREEN since the migration is additive in Plan 01
+- [Phase 94]: database.types.ts hand-extended with invoices typing (Docker-less Windows convention since Phase 19/24)
 
 ## Performance Metrics
 
@@ -646,13 +649,14 @@ Stopped at: Phase 94 context gathered (estimate-invoice decoupling + Stripe Invo
 | Phase 93 P01 | 5 | 2 tasks | 3 files |
 | Phase 93 P02 | 7 | 2 tasks | 5 files |
 | Phase 93-super-admin-event-log P03 | 5 | 2 tasks | 4 files |
+| Phase 94 P01 | 6min | 3 tasks | 10 files |
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-13)
 
 **Core value:** Business owner → job site audio recording → sent professional estimate in under 5 minutes
-**Current focus:** Phase 93 — super-admin-event-log
+**Current focus:** Phase 94 — estimate-invoice-decoupling
 
 ## Notes
 
