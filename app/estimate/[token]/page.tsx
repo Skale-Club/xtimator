@@ -11,7 +11,6 @@ import { SYSTEM_COLORS } from '@/lib/system-colors'
 
 interface SharePageProps {
   params: Promise<{ token: string }>
-  searchParams: Promise<{ stripe?: string }>
 }
 
 export async function generateMetadata({
@@ -30,9 +29,8 @@ export async function generateMetadata({
   }
 }
 
-export default async function SharePage({ params, searchParams }: SharePageProps) {
+export default async function SharePage({ params }: SharePageProps) {
   const { token } = await params
-  const sp = await searchParams
   const data = await getEstimateByShareToken(token)
 
   if (!data) {
@@ -63,16 +61,6 @@ export default async function SharePage({ params, searchParams }: SharePageProps
   const headersList = await headers()
   const isWhiteLabel = headersList.get('x-white-label') === '1'
 
-  // Phase 70 — Stripe Connect payment return state. The URL is the source of
-  // truth for the banner; the DB payment_status is updated by the webhook
-  // (Plan 70-04) which may land a few seconds after this redirect.
-  const stripeState: 'success' | 'canceled' | null =
-    sp.stripe === 'success'
-      ? 'success'
-      : sp.stripe === 'canceled'
-        ? 'canceled'
-        : null
-
   // Phase 71-09: inject tenant brand color as --platform-primary so the
   // forced-light scope cascades it into --primary, which gradient-brand +
   // gradient-hero consume via hsl(var(--primary)). RESEARCH G6 + G7.
@@ -96,7 +84,6 @@ export default async function SharePage({ params, searchParams }: SharePageProps
           alreadyResponded={alreadyResponded}
           appName={branding.appName}
           whiteLabelMode={isWhiteLabel}
-          stripeState={stripeState}
         />
       </main>
     </div>

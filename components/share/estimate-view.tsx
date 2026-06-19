@@ -7,11 +7,6 @@ import { CheckCircle, XCircle, Loader2, PenLine, Receipt, ExternalLink } from 'l
 import { respondToEstimate } from '@/app/estimate/[token]/actions'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
 import type { ShareEstimateData } from '@/lib/queries/share'
-import { PayNowButton } from '@/components/estimate/pay-now-button'
-import {
-  PaymentSuccessBanner,
-  PaymentCanceledNotice,
-} from '@/components/estimate/payment-success-banner'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { formatMinorUnits } from '@/lib/money/currency'
 import type { ComponentType } from 'react'
@@ -49,8 +44,6 @@ interface EstimateViewProps {
   alreadyResponded: boolean
   appName: string
   whiteLabelMode?: boolean
-  /** Phase 70 — return state from Stripe Checkout redirect (?stripe=success|canceled). */
-  stripeState?: 'success' | 'canceled' | null
 }
 
 export function EstimateView({
@@ -60,7 +53,6 @@ export function EstimateView({
   alreadyResponded,
   appName,
   whiteLabelMode = false,
-  stripeState = null,
 }: EstimateViewProps) {
   const { t } = useTranslation()
   const [responding, setResponding] = useState<'accepted' | 'declined' | null>(null)
@@ -225,30 +217,6 @@ export function EstimateView({
             <p className="text-sm text-muted-foreground whitespace-pre-line leading-relaxed">
               {estimate.company.estimate_terms_text}
             </p>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Phase 70 — Stripe payment return banners + Pay Now button */}
-      {(stripeState !== null ||
-        (estimate.company.stripe_account_id != null &&
-          estimate.company.stripe_connect_status === 'active' &&
-          estimate.payment_status !== 'paid' &&
-          estimate.total_amount_cents > 0)) && (
-        <Card variant="glass">
-          <CardContent className="p-6 sm:p-8 space-y-4">
-            {stripeState === 'success' && <PaymentSuccessBanner />}
-            {stripeState === 'canceled' && <PaymentCanceledNotice />}
-            <PayNowButton
-              token={token}
-              totalAmountCents={estimate.total_amount_cents}
-              stripeAccountId={estimate.company.stripe_account_id}
-              stripeConnectStatus={estimate.company.stripe_connect_status}
-              paymentStatus={
-                stripeState === 'success' ? 'paid' : (estimate.payment_status ?? 'unpaid')
-              }
-              currencyCode={estimate.currency_code ?? 'USD'}
-            />
           </CardContent>
         </Card>
       )}
