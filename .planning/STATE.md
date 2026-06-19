@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v4.3
 milestone_name: Invoices & Always-Editable Estimates
-status: executing
-stopped_at: Completed 94-05-PLAN.md (consolidate retirement); next 94-06
-last_updated: "2026-06-19T19:34:28.650Z"
+status: verifying
+stopped_at: Completed 94-06-PLAN.md (invoice backfill + Checkout pay-route retirement) — phase ready for verification
+last_updated: "2026-06-19T20:14:45.467Z"
 last_activity: 2026-06-19
 progress:
   total_phases: 1
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 6
-  completed_plans: 5
+  completed_plans: 6
 ---
 
 # Project State
@@ -24,9 +24,9 @@ progress:
 
 Phase: 94 (estimate-invoice-decoupling) — EXECUTING
 Plan: 6 of 6
-Status: Ready to execute (94-06 — invoice backfill + pay-route retirement)
+Status: Phase complete — ready for verification
 Last activity: 2026-06-19
-Stopped at: Completed 94-05-PLAN.md (consolidate retirement); next 94-06
+Stopped at: Completed 94-06-PLAN.md (invoice backfill + Checkout pay-route retirement) — phase ready for verification
 
 ## v3.1.1 Phases
 
@@ -492,6 +492,9 @@ Stopped at: Completed 94-05-PLAN.md (consolidate retirement); next 94-06
 - [Phase 94]: [94-04] Threaded issuedInvoices through OverviewTab (the real ProjectWorkspace->EstimateTab intermediary) in addition to the plan-named files
 - [Phase 94-estimate-invoice-decoupling 94-05]: Consolidate lock retired by removing reads/gates only — KEEP workflow_status/consolidated_* columns dormant (NOT NULL DEFAULT 'draft') so live writers (confirm-actions, mcp read, generate-estimate, profile-field-map) keep compiling; only one_active_draft_per_project index dropped
 - [Phase 94-estimate-invoice-decoupling 94-05]: KEEP is_current/version columns (independent of consolidate); editor always opens the single current estimate, versioning UI retired
+- [Phase 94]: Plan 94-06: backfill paid estimates into invoices via idempotent INSERT...SELECT with NOT EXISTS guard; only rows with payment_amount_cents > 0 (satisfies amount_cents>0 CHECK)
+- [Phase 94]: Plan 94-06: kept the Connect webhook checkout.session.completed case (event-sources.test.ts Phase 77 still asserts it) — harmless dead code per plan guardrail rather than break the suite
+- [Phase 94]: Plan 94-06: retired /estimate/[token]/pay Checkout route + deleted orphaned pay-now-button + payment-success-banner; share page pays exclusively via Plan 94-04 issued-invoice hosted links
 
 ## Performance Metrics
 
@@ -660,6 +663,7 @@ Stopped at: Completed 94-05-PLAN.md (consolidate retirement); next 94-06
 | Phase 94 P03 | ~4min | 2 tasks | 2 files |
 | Phase 94 P04 | 7min | 3 tasks | 9 files |
 | Phase 94 P05 | 45min | 4 tasks | 21 files |
+| Phase 94 P06 | 35 | 4 tasks | 8 files |
 
 ## Project Reference
 
@@ -669,6 +673,8 @@ See: .planning/PROJECT.md (updated 2026-05-13)
 **Current focus:** Phase 94 — estimate-invoice-decoupling
 
 ## Notes
+
+- [Phase 94, Plan 06] Requirements-traceability gap (pre-existing, not a code blocker): `.planning/REQUIREMENTS.md` is the v4.2 milestone file (REC/EVENT/ADMINLOG). Phase 94 belongs to v4.3 ("Invoices & Always-Editable Estimates"), whose INVOICE-* requirements were never seeded into a REQUIREMENTS.md, so `requirements mark-complete INVOICE-07 INVOICE-01` returned `not_found` (no-op). INVOICE-07 and INVOICE-01 are functionally complete (see 94-06-SUMMARY). A v4.3 REQUIREMENTS.md should be created/seeded so the traceability table reflects the shipped invoice work.
 
 Project initialized from comprehensive spec on 2026-04-09.
 v1.0: 8 phases, 32 plans, 151+ commits. v1.1: Phase 9, 8 plans, 38 commits. YOLO mode, standard granularity.
