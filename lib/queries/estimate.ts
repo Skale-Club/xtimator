@@ -29,10 +29,6 @@ export interface Estimate {
   tax_rate: number
   tax_amount: number
   total: number
-  /** SEED-028 Phase A: draft (editable) or consolidated (locked, sendable). */
-  workflow_status: 'draft' | 'consolidated'
-  consolidated_at: string | null
-  consolidated_by: string | null
   sent_at: string | null
   viewed_at: string | null
   responded_at: string | null

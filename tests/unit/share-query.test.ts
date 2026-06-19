@@ -77,10 +77,8 @@ const validEstimate: AnyRow = {
   company_id: 'c1',
   total: 100,
   currency_code: 'USD',
-  workflow_status: 'consolidated',
   summary: 'Job summary',
   share_token: 'tok-SECRET',
-  consolidated_by: 'staff-user-123',
   share_expires_at: null,
   payment_status: 'unpaid',
 }
@@ -101,13 +99,12 @@ const validCompany: AnyRow = {
 describe('getEstimateByShareToken', () => {
   beforeEach(() => vi.clearAllMocks())
 
-  it('strips internal fields (share_token, consolidated_by) from the returned estimate', async () => {
+  it('strips internal fields (share_token) from the returned estimate', async () => {
     installMock({ estimateRow: { ...validEstimate }, sections: [], projectRow: validProject, companyRow: validCompany })
     const result = await getEstimateByShareToken('tok-SECRET')
 
     expect(result).not.toBeNull()
     expect('share_token' in result!.estimate).toBe(false)
-    expect('consolidated_by' in result!.estimate).toBe(false)
     // Fields the document needs are preserved
     expect(result!.estimate.id).toBe('e1')
     expect(result!.estimate.summary).toBe('Job summary')
@@ -149,12 +146,12 @@ describe('getShareLinkState', () => {
   })
 
   it('returns "expired" when share_expires_at is in the past', async () => {
-    installMock({ stateRow: { share_expires_at: new Date(Date.now() - 1000).toISOString(), workflow_status: 'consolidated' } })
+    installMock({ stateRow: { share_expires_at: new Date(Date.now() - 1000).toISOString() } })
     expect(await getShareLinkState('tok')).toBe('expired')
   })
 
   it('returns "active" when not expired (or null expiry)', async () => {
-    installMock({ stateRow: { share_expires_at: null, workflow_status: 'consolidated' } })
+    installMock({ stateRow: { share_expires_at: null } })
     expect(await getShareLinkState('tok')).toBe('active')
   })
 })

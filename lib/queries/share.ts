@@ -9,8 +9,8 @@ import { toMinorUnits } from '@/lib/money/currency'
 import { isShareLinkExpired } from '@/lib/estimates/share-link'
 
 // Internal fields never sent to the public browser payload: share_token is a
-// bearer credential the viewer already holds, consolidated_by is a staff user id.
-export type ShareEstimate = Omit<EstimateWithSections, 'share_token' | 'consolidated_by'>
+// bearer credential the viewer already holds.
+export type ShareEstimate = Omit<EstimateWithSections, 'share_token'>
 
 export interface ShareEstimateData {
   estimate: ShareEstimate & {
@@ -205,10 +205,9 @@ export async function getEstimateByShareToken(
     : 0
 
   // Strip internal fields from the estimate before it crosses to the client:
-  // share_token (bearer credential) and consolidated_by (staff user id).
+  // share_token (bearer credential).
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { share_token: _shareToken, consolidated_by: _consolidatedBy, ...safeEstimate } =
-    estimateWithSections
+  const { share_token: _shareToken, ...safeEstimate } = estimateWithSections
 
   return {
     estimate: {
@@ -240,7 +239,7 @@ export async function getShareLinkState(token: string): Promise<ShareLinkState> 
   const supabase = requireServiceClient()
   const { data } = await supabase
     .from('estimates')
-    .select('share_expires_at, workflow_status')
+    .select('share_expires_at')
     .eq('share_token', token)
     .maybeSingle()
 
