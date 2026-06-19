@@ -54,7 +54,7 @@ export function StaffSection({ staff: initialStaff }: Props) {
     startTransition(async () => {
       const result = await createStaffMember(name.trim(), email.trim())
       if ('error' in result) {
-        setFormError(result.error)
+        setFormError(result.error ?? 'An unexpected error occurred.')
         return
       }
       const addedName = name.trim()
