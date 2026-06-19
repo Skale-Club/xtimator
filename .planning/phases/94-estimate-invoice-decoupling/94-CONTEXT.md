@@ -30,7 +30,7 @@ The core re-modeling: today the `estimates` table is both the negotiable proposa
 - **D-06:** New `invoices` table. One estimate → many invoices.
 - **D-07:** An invoice row is an **immutable snapshot** taken at issue time: `amount_cents`, `currency_code`, and enough of the estimate (project name / description) to render independently. Editing the estimate afterward never mutates an issued invoice.
 - **D-08:** Columns include at least: `id`, `estimate_id`, `company_id`, `kind` (`deposit` | `balance` | `full`), `amount_cents`, `currency_code`, `status` (mirrors Stripe lifecycle: `draft`/`open`/`paid`/`void`/`uncollectible`), `stripe_invoice_id`, `stripe_customer_id`, `hosted_invoice_url`, `invoice_pdf_url`, `paid_at`, `created_at`. (Exact names = Claude's discretion.)
-- **D-09:** RLS scoped to `company_id`, consistent with every other table (subquery pattern: `company_id IN (SELECT id FROM companies WHERE user_id = (SELECT auth.uid()))`).
+- **D-09:** RLS scoped to `company_id`, consistent with every other tenant table. ⚠️ **Correction (see 94-RESEARCH.md):** use the **`company_members` subquery pattern** introduced by Phase 82 (migration `20260526000001`), NOT the legacy `companies WHERE user_id` form — a migration assertion fails the build if any policy still references `companies.user_id`. RESEARCH.md has the exact policy SQL.
 - **D-10:** Payment state lives on the **invoice**, not the estimate. The legacy `estimates.payment_status` / `paid_at` / `stripe_payment_intent_id` / `payment_amount_cents` columns stop being the source of truth (kept for backfill/history; planner decides whether to deprecate in place vs migrate off).
 
 ### Stripe mechanism
