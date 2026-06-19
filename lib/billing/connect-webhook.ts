@@ -15,7 +15,10 @@ import { getCanonicalBaseUrl } from '@/lib/utils/site-url'
  * branches on that field and delegates Connect events here.
  *
  * Events handled:
- *   - checkout.session.completed → mark estimate paid + fire 2 emails
+ *   - checkout.session.completed → mark estimate paid + fire 2 emails (legacy)
+ *   - invoice.paid → mark invoices row paid by metadata.invoice_id + fire 2
+ *     emails + payment.received notification (Phase 94, INVOICE-05)
+ *   - charge.refunded → payment.refunded notification (best effort)
  *   - account.application.deauthorized → clear company connection
  *   - account.updated → sync display name / email (best effort)
  *   - other types → silently ignored
@@ -48,6 +51,16 @@ export async function handleConnectEvent(
 
     case 'account.updated':
       await handleAccountUpdated(event, svc)
+      return
+
+    case 'invoice.paid':
+      // Phase 94 INVOICE-05 — a real Stripe Invoice (issued on the connected
+      // account) was paid. Mark the matching `invoices` row paid by
+      // metadata.invoice_id and reuse the payment-received + receipt emails
+      // and the payment.received notification. The PLATFORM invoice.paid
+      // (subscription renewals) is handled in handlePlatformEvent — that path
+      // never reaches here because it carries no event.account.
+      await handleInvoicePaid(event, svc)
       return
 
     default:
@@ -176,6 +189,151 @@ async function handleCheckoutSessionCompleted(
   // Fire both — allSettled so a Resend failure on one doesn't block the other,
   // and so the surrounding `await` resolves without rethrowing (the helpers
   // already swallow their own errors, but allSettled is belt-and-suspenders).
+  await Promise.allSettled([
+    sendPaymentReceivedEmail(ctx),
+    sendPaymentReceiptEmail(ctx),
+  ])
+}
+
+// ------------------------------------------------------------------
+// invoice.paid — Phase 94 INVOICE-05 (D-20/D-21)
+//
+// A real Stripe Invoice issued on the connected account was paid. We match it
+// to our `invoices` row by `metadata.invoice_id` (set at creation by
+// createConnectInvoice in Plan 94-02), mark it paid, then reuse the existing
+// payment-received + receipt emails and the payment.received in-app
+// notification — repointed from the estimate to the invoice snapshot.
+//
+// Idempotency is handled upstream by the processed_stripe_events insert in
+// app/api/webhooks/stripe/route.ts, so by the time we run the event id has
+// been claimed exactly once — no extra dedup needed here.
+// ------------------------------------------------------------------
+async function handleInvoicePaid(
+  event: Stripe.Event,
+  svc: ServiceClient
+): Promise<void> {
+  const invoice = event.data.object as Stripe.Invoice
+  const invoiceRowId = invoice.metadata?.invoice_id
+  if (!invoiceRowId) {
+    console.warn(
+      '[stripe-webhook][connect] invoice.paid missing metadata.invoice_id'
+    )
+    return
+  }
+
+  // Mark the invoices row paid (service client bypasses RLS). Read back the
+  // snapshot fields we need for the email/notification payload.
+  const { data: updated, error } = await svc
+    .from('invoices')
+    .update({
+      status: 'paid',
+      paid_at: new Date().toISOString(),
+      hosted_invoice_url: invoice.hosted_invoice_url ?? null,
+      invoice_pdf_url: invoice.invoice_pdf ?? null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', invoiceRowId)
+    .select(
+      'id, company_id, estimate_id, amount_cents, currency_code, project_name'
+    )
+    .single()
+
+  if (error || !updated) {
+    console.error(
+      '[stripe-webhook][connect] failed to mark invoice paid:',
+      error,
+      'invoiceRowId=',
+      invoiceRowId
+    )
+    return
+  }
+
+  // Look up company (for branding/email + notification user) and the estimate
+  // (for the share-link URL) — mirrors handleCheckoutSessionCompleted's lookups.
+  const [companyRes, estimateRes] = await Promise.all([
+    svc
+      .from('companies')
+      .select('email, name, stripe_account_display_name, user_id')
+      .eq('id', updated.company_id)
+      .single(),
+    svc
+      .from('estimates')
+      .select('share_token, project_id')
+      .eq('id', updated.estimate_id)
+      .single(),
+  ])
+
+  const company = companyRes.data as
+    | {
+        email: string | null
+        name: string | null
+        stripe_account_display_name: string | null
+        user_id: string | null
+      }
+    | null
+  const estimate = estimateRes.data as
+    | { share_token: string | null; project_id: string | null }
+    | null
+
+  // Phase 77 NOTIF-04: payment.received in-app + email (force channels).
+  // Dedupe by Stripe event id so duplicate webhook deliveries collapse.
+  // Amount comes from the INVOICE snapshot, never re-derived from the estimate.
+  try {
+    const amountUSD = formatMinorUnits(
+      updated.amount_cents,
+      updated.currency_code
+    )
+    const copy = buildNotificationCopy('payment.received', {
+      amountUSD,
+      projectName: updated.project_name ?? undefined,
+    })
+    void notify({
+      companyId: updated.company_id,
+      userId: company?.user_id ?? null,
+      eventType: 'payment.received',
+      title: copy.title,
+      body: copy.body,
+      linkUrl: estimate?.project_id
+        ? `/projects/${estimate.project_id}/estimates/${updated.estimate_id}`
+        : undefined,
+      resourceType: 'invoice',
+      resourceId: updated.id,
+      channels: { inApp: true, email: true },
+      metadata: { dedupe_key: event.id },
+    })
+  } catch {
+    /* best-effort */
+  }
+
+  // Stripe Invoice carries the customer contact directly (no Checkout session).
+  const customerEmail = invoice.customer_email ?? null
+  const customerName = invoice.customer_name ?? null
+
+  const origin = getCanonicalBaseUrl()
+
+  // Dynamic import keeps the email module out of the hot path when no events fire.
+  const { sendPaymentReceivedEmail, sendPaymentReceiptEmail } = await import(
+    '@/lib/email/payment-emails'
+  )
+
+  const ctx = {
+    amountCents: updated.amount_cents,
+    currencyCode: updated.currency_code,
+    projectName: updated.project_name ?? 'Service estimate',
+    estimateShareUrl: estimate?.share_token
+      ? `${origin}/estimate/${estimate.share_token}`
+      : origin,
+    businessName:
+      company?.stripe_account_display_name ??
+      company?.name ??
+      'Your service provider',
+    businessEmail: company?.email ?? '',
+    customerEmail,
+    customerName,
+  }
+
+  // allSettled so a Resend failure on one doesn't block the other (the helpers
+  // already swallow their own errors — belt-and-suspenders).
   await Promise.allSettled([
     sendPaymentReceivedEmail(ctx),
     sendPaymentReceiptEmail(ctx),
