@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { CheckCircle, XCircle, Loader2, PenLine } from 'lucide-react'
+import { CheckCircle, XCircle, Loader2, PenLine, Receipt, ExternalLink } from 'lucide-react'
 import { respondToEstimate } from '@/app/estimate/[token]/actions'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
 import type { ShareEstimateData } from '@/lib/queries/share'
@@ -13,6 +13,7 @@ import {
   PaymentCanceledNotice,
 } from '@/components/estimate/payment-success-banner'
 import { useTranslation } from '@/lib/i18n/use-translation'
+import { formatMinorUnits } from '@/lib/money/currency'
 import type { ComponentType } from 'react'
 import { FlagUS, FlagBR, FlagES } from '@/components/app-shell/flags'
 import { LANGUAGE_LABELS, type EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
@@ -248,6 +249,63 @@ export function EstimateView({
               }
               currencyCode={estimate.currency_code ?? 'USD'}
             />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Phase 94 — issued-invoice pay links. Open invoices get a "Pay" button to
+          the Stripe-hosted invoice page; paid invoices show a muted confirmation. */}
+      {estimate.invoices.length > 0 && (
+        <Card variant="glass">
+          <CardContent className="p-6 sm:p-8 space-y-4">
+            <div className="flex items-center gap-2">
+              <Receipt className="h-5 w-5" style={{ color: brandColor }} />
+              <h3 className="text-base font-semibold">{t('Invoices')}</h3>
+            </div>
+            <div className="space-y-3">
+              {estimate.invoices.map((inv) => {
+                const amount = formatMinorUnits(inv.amount_cents, inv.currency_code)
+                const kindLabel =
+                  inv.kind === 'deposit'
+                    ? t('deposit')
+                    : inv.kind === 'balance'
+                      ? t('balance')
+                      : t('invoice')
+
+                if (inv.status === 'paid') {
+                  return (
+                    <div
+                      key={inv.id}
+                      className="flex items-center gap-2 text-sm text-muted-foreground"
+                    >
+                      <CheckCircle className="h-4 w-4 text-green-500" />
+                      <span>
+                        {t('Paid')}: {kindLabel} — {amount}
+                      </span>
+                    </div>
+                  )
+                }
+
+                if (inv.status === 'open' && inv.hosted_invoice_url) {
+                  return (
+                    <Button
+                      key={inv.id}
+                      asChild
+                      size="lg"
+                      className="w-full sm:w-auto text-white"
+                      style={{ backgroundColor: brandColor }}
+                    >
+                      <a href={inv.hosted_invoice_url} target="_blank" rel="noopener noreferrer">
+                        <ExternalLink className="mr-2 h-4 w-4" />
+                        {t('Pay')} {kindLabel} — {amount}
+                      </a>
+                    </Button>
+                  )
+                }
+
+                return null
+              })}
+            </div>
           </CardContent>
         </Card>
       )}

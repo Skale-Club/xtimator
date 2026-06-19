@@ -43,6 +43,19 @@ export interface ShareEstimateData {
     stripe_checkout_session_id: string | null
     paid_at: string | null
     payment_amount_cents: number | null
+    /**
+     * Phase 94 — issued invoices for this estimate, exposed to the client so they
+     * can pay open invoices from the share link. Only the safe fields are surfaced
+     * (no stripe_customer_id / stripe_invoice_id). Filtered to open/paid status.
+     */
+    invoices: {
+      id: string
+      kind: string
+      amount_cents: number
+      currency_code: string
+      status: string
+      hosted_invoice_url: string | null
+    }[]
   }
   client: {
     name: string
@@ -132,6 +145,24 @@ export async function getEstimateByShareToken(
 
   if (!companyData) return null
 
+  // Phase 94 — issued invoices for this estimate. Expose ONLY the 6 safe fields
+  // the client pay-links need; stripe_customer_id / stripe_invoice_id are never
+  // sent to the anonymous viewer. Filtered to open/paid (drafts/voids hidden).
+  // Defensively coded: degrades to [] if the select chain is unavailable.
+  type ShareInvoice = ShareEstimateData['estimate']['invoices'][number]
+  let invoices: ShareInvoice[] = []
+  try {
+    const invoicesQuery = supabase
+      .from('invoices')
+      .select('id, kind, amount_cents, currency_code, status, hosted_invoice_url')
+    const { data: invoiceRows } = (await invoicesQuery
+      ?.eq?.('estimate_id', estimate.id)
+      ?.in?.('status', ['open', 'paid'])) ?? { data: null }
+    invoices = (invoiceRows ?? []) as ShareInvoice[]
+  } catch {
+    invoices = []
+  }
+
   // Extract client from project join (Supabase returns it as array or object)
   const clientRaw = projectData.client as
     | {
@@ -192,6 +223,7 @@ export async function getEstimateByShareToken(
       stripe_checkout_session_id,
       paid_at,
       payment_amount_cents,
+      invoices,
     },
     client,
   }
