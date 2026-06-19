@@ -6,7 +6,6 @@ import type { Estimate } from '@/lib/queries/estimate'
 export interface VersionSlot {
   currentVersionId: string
   versions: Estimate[]
-  workflowStatus: string
   version: number
   isDirty: boolean
   isReadOnly: boolean

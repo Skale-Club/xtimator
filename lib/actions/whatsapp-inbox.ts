@@ -154,7 +154,7 @@ export async function sendReply(
   return { ok: true, thread }
 }
 
-/** List the conversation's linked-client consolidated estimates that can be sent. */
+/** List the conversation's linked-client estimates that can be sent. */
 export async function listSendableEstimates(
   conversationId: string,
 ): Promise<{ ok: true; clientLinked: boolean; estimates: SendableEstimate[] } | { ok: false; error: string }> {
@@ -193,7 +193,6 @@ export async function listSendableEstimates(
     .select('id, estimate_number, total, currency_code, project_id, created_at')
     .eq('company_id', companyId)
     .in('project_id', projectIds)
-    .eq('workflow_status', 'consolidated')
     .order('created_at', { ascending: false })
     .limit(25)
 
@@ -211,7 +210,7 @@ export async function listSendableEstimates(
   return { ok: true, clientLinked: true, estimates }
 }
 
-/** Send a consolidated estimate to the conversation's contact over WhatsApp. */
+/** Send an estimate to the conversation's contact over WhatsApp. */
 export async function sendEstimateToConversation(
   conversationId: string,
   estimateId: string,

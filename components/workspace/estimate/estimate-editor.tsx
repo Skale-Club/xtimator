@@ -6,8 +6,6 @@ import { toast } from 'sonner'
 import {
   saveEstimate,
   getEstimateByIdAction,
-  consolidateEstimate,
-  createNewDraftVersion,
 } from '@/lib/actions/estimate'
 import { renameProjectAction } from '@/lib/actions/project'
 import type { EstimateWithSections, Estimate } from '@/lib/queries/estimate'
@@ -158,10 +156,9 @@ export function EstimateEditor({
 
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
   const [currentVersionId, setCurrentVersionId] = useState(estimate.id)
-  const [isNewVersionPending, setIsNewVersionPending] = useState(false)
   const [localProjectName, setLocalProjectName] = useState(projectName)
 
-  const isReadOnly = !state.is_current || state.workflow_status === 'consolidated'
+  const isReadOnly = !state.is_current
   const isCurrent = state.is_current
 
   // -------------------------------------------------------------------------
@@ -188,17 +185,6 @@ export function EstimateEditor({
     if (ok) toast.success('Draft saved')
   }, [runSave])
 
-  const handleConsolidate = useCallback(async () => {
-    const saveOk = await runSave()
-    if (!saveOk) return
-    const result = await consolidateEstimate(stateRef.current.id)
-    if (result.error) { toast.error(result.error); return }
-    const refreshed = await getEstimateByIdAction(stateRef.current.id)
-    if (refreshed.data) dispatch({ type: 'INIT', estimate: refreshed.data })
-    toast.success('Estimate consolidated')
-    router.refresh()
-  }, [runSave, router, dispatch])
-
   const handleDiscard = useCallback(async () => {
     const result = await getEstimateByIdAction(stateRef.current.id)
     if (result.error || !result.data) { toast.error('Failed to reload estimate'); return }
@@ -213,21 +199,6 @@ export function EstimateEditor({
     setLocalProjectName(name)
     router.refresh()
   }, [projectId, router])
-
-  const handleNewVersion = useCallback(async () => {
-    setIsNewVersionPending(true)
-    try {
-      const result = await createNewDraftVersion(stateRef.current.id)
-      if (result.error || !result.data) {
-        toast.error(result.error ?? 'Failed to create new version')
-        return
-      }
-      toast.success(result.data.reused ? 'Opened existing draft' : 'New draft version created')
-      router.refresh()
-    } finally {
-      setIsNewVersionPending(false)
-    }
-  }, [router])
 
   // cmd/ctrl + S
   useEffect(() => {
@@ -274,7 +245,6 @@ export function EstimateEditor({
     setSlot({
       currentVersionId,
       versions,
-      workflowStatus: state.workflow_status,
       version: state.version,
       isDirty: state.isDirty,
       isReadOnly,
@@ -283,7 +253,7 @@ export function EstimateEditor({
       onProjectRenamed: setLocalProjectName,
     })
     return () => setSlot(null)
-  }, [currentVersionId, versions, state.workflow_status, state.version, state.isDirty, isReadOnly, setSlot, localProjectName])
+  }, [currentVersionId, versions, state.version, state.isDirty, isReadOnly, setSlot, localProjectName])
 
   // -------------------------------------------------------------------------
   // Render
@@ -327,15 +297,11 @@ export function EstimateEditor({
       )}
 
       <EstimateFloatingActions
-        workflowStatus={state.workflow_status}
         isCurrent={isCurrent}
         isDirty={state.isDirty}
         status={saveStatus === 'dirty' ? 'idle' : (saveStatus as 'idle' | 'saving' | 'saved' | 'error')}
         onSaveDraft={handleSaveDraft}
-        onConsolidate={handleConsolidate}
         onDiscard={handleDiscard}
-        onNewVersion={handleNewVersion}
-        isNewVersionPending={isNewVersionPending}
         onRecord={onRecord}
         linkClientSlot={linkClientSlot}
       />

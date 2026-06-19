@@ -6,21 +6,11 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import type { Estimate } from '@/lib/queries/estimate'
 import type { EstimateEditorState, EstimateAction } from './use-estimate-reducer'
 
 interface EstimateHeaderProps {
   state: EstimateEditorState
   dispatch: Dispatch<EstimateAction>
-  versions: Estimate[]
-  onVersionChange: (estimateId: string) => void
   onRegenerate: () => void
   isReadOnly?: boolean
   isCurrent?: boolean
@@ -29,28 +19,14 @@ interface EstimateHeaderProps {
 export function EstimateHeader({
   state,
   dispatch,
-  versions,
-  onVersionChange,
   onRegenerate,
   isReadOnly,
   isCurrent = true,
 }: EstimateHeaderProps) {
   return (
     <div className="space-y-4">
-      {/* Version bar */}
+      {/* Action bar */}
       <div className="flex items-center gap-3 flex-wrap">
-        <Select value={state.id} onValueChange={onVersionChange}>
-          <SelectTrigger className="w-[200px] h-9">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {versions.map((v) => (
-              <SelectItem key={v.id} value={v.id}>
-                Version {v.version}{v.is_current ? ' (Current)' : ''}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
         {!isReadOnly && (
           <Button variant="outline" size="sm" onClick={onRegenerate} className="gap-1.5">
             <RefreshCw className="h-3.5 w-3.5" />
@@ -59,9 +35,6 @@ export function EstimateHeader({
         )}
         {!isCurrent && (
           <Badge variant="secondary">Read-only | older version</Badge>
-        )}
-        {isCurrent && isReadOnly && (
-          <Badge variant="secondary">Read-only | consolidated</Badge>
         )}
       </div>
 

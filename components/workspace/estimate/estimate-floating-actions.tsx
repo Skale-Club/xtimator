@@ -2,8 +2,8 @@
 
 import type { ReactNode } from 'react'
 import {
-  Loader2, Save, CheckCircle2, Plus, Lock,
-  RotateCcw, Sparkles, Pencil, MoreHorizontal, UserPlus,
+  Loader2, Save, CheckCircle2,
+  RotateCcw, Pencil, MoreHorizontal, UserPlus,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -28,15 +28,11 @@ import {
 type Status = 'idle' | 'saving' | 'saved' | 'error'
 
 interface EstimateFloatingActionsProps {
-  workflowStatus: 'draft' | 'consolidated'
   isCurrent: boolean
   isDirty: boolean
   status: Status
   onSaveDraft: () => void
-  onConsolidate: () => void
   onDiscard: () => void
-  onNewVersion: () => void
-  isNewVersionPending?: boolean
   onRecord?: () => void
   linkClientSlot?: ReactNode
 }
@@ -100,50 +96,15 @@ function DiscardAlert({ onDiscard, children }: { onDiscard: () => void; children
 }
 
 // ---------------------------------------------------------------------------
-// Shared: Consolidate alert wrapper
-// ---------------------------------------------------------------------------
-
-function ConsolidateAlert({ onConsolidate, children }: { onConsolidate: () => void; children: ReactNode }) {
-  return (
-    <AlertDialog>
-      <AlertDialogTrigger asChild>{children}</AlertDialogTrigger>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>
-            <span className="inline-flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-primary" />
-              Consolidate this estimate?
-            </span>
-          </AlertDialogTitle>
-          <AlertDialogDescription>
-            Consolidating saves your changes and locks this version. After that you can
-            send it as PDF, email, SMS or share link. To make further changes, create a
-            new version from this one.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Not yet</AlertDialogCancel>
-          <AlertDialogAction onClick={onConsolidate}>Save & consolidate</AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-  )
-}
-
-// ---------------------------------------------------------------------------
 // Main export
 // ---------------------------------------------------------------------------
 
 export function EstimateFloatingActions({
-  workflowStatus,
   isCurrent,
   isDirty,
   status,
   onSaveDraft,
-  onConsolidate,
   onDiscard,
-  onNewVersion,
-  isNewVersionPending,
   onRecord,
   linkClientSlot,
 }: EstimateFloatingActionsProps) {
@@ -175,90 +136,7 @@ export function EstimateFloatingActions({
     )
   }
 
-  // ── Consolidated ──────────────────────────────────────────────────────────
-  if (workflowStatus === 'consolidated') {
-    return (
-      <>
-        {/* Desktop */}
-        <DesktopPill>
-          {/* md–lg: overflow dropdown for secondary actions */}
-          {(onRecord || linkClientSlot) && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button size="sm" variant="ghost" className="flex lg:hidden rounded-full px-2.5">
-                  <MoreHorizontal className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" side="top">
-                {onRecord && (
-                  <DropdownMenuItem onClick={onRecord} className="gap-2">
-                    <Pencil className="h-3.5 w-3.5" /> Edit Estimate
-                  </DropdownMenuItem>
-                )}
-                {linkClientSlot && (
-                  <DropdownMenuItem asChild>
-                    <span className="flex items-center gap-2 cursor-pointer">
-                      <UserPlus className="h-3.5 w-3.5" /> Link Client
-                    </span>
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-          {/* lg+: secondary actions inline */}
-          {onRecord && (
-            <Button size="sm" variant="ghost" onClick={onRecord} className="hidden lg:inline-flex rounded-full gap-1.5 text-foreground">
-              <Pencil className="h-3.5 w-3.5" />
-              Edit Estimate
-            </Button>
-          )}
-          {linkClientSlot && <span className="hidden lg:contents">{linkClientSlot}</span>}
-          <Button size="sm" onClick={onNewVersion} disabled={isNewVersionPending} className="rounded-full gap-1.5">
-            {isNewVersionPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
-            New version
-          </Button>
-        </DesktopPill>
-
-        {/* Mobile */}
-        <MobileBar>
-          {(onRecord || linkClientSlot) && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button size="sm" variant="ghost" className="rounded-full px-2.5">
-                  <MoreHorizontal className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" side="top">
-                {onRecord && (
-                  <DropdownMenuItem onClick={onRecord} className="gap-2">
-                    <Pencil className="h-3.5 w-3.5" /> Edit Estimate
-                  </DropdownMenuItem>
-                )}
-                {linkClientSlot && (
-                  <DropdownMenuItem asChild>
-                    <span className="flex items-center gap-2 cursor-pointer">
-                      <UserPlus className="h-3.5 w-3.5" /> Link Client
-                    </span>
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-          <Button
-            size="sm"
-            onClick={onNewVersion}
-            disabled={isNewVersionPending}
-            className="flex-1 gap-1.5 rounded-full"
-          >
-            {isNewVersionPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
-            New version
-          </Button>
-        </MobileBar>
-      </>
-    )
-  }
-
-  // ── Draft ─────────────────────────────────────────────────────────────────
+  // ── Editable estimate ───────────────────────────────────────────────────
   const isSaving = status === 'saving'
 
   return (
@@ -315,12 +193,6 @@ export function EstimateFloatingActions({
           {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
           Save draft
         </Button>
-        <ConsolidateAlert onConsolidate={onConsolidate}>
-          <Button size="sm" disabled={isSaving} className="rounded-full gap-1.5">
-            <Lock className="h-3.5 w-3.5" />
-            Consolidate
-          </Button>
-        </ConsolidateAlert>
       </DesktopPill>
 
       {/* Mobile bar */}
@@ -369,13 +241,6 @@ export function EstimateFloatingActions({
           {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
           Save draft
         </Button>
-
-        <ConsolidateAlert onConsolidate={onConsolidate}>
-          <Button size="sm" disabled={isSaving} className="flex-1 gap-1.5 rounded-full">
-            <Lock className="h-4 w-4" />
-            Consolidate
-          </Button>
-        </ConsolidateAlert>
       </MobileBar>
     </>
   )

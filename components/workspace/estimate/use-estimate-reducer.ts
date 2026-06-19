@@ -31,8 +31,6 @@ export interface EditorSection {
 export interface EstimateEditorState {
   id: string
   currency_code: string
-  /** SEED-028 Phase B: workflow + version flags carried in state so version switching works. */
-  workflow_status: 'draft' | 'consolidated'
   is_current: boolean
   version: number
   /** Per-company sequential identifier, auto-assigned, immutable. */
@@ -139,7 +137,6 @@ function initState(estimate: EstimateWithSections | null): EstimateEditorState {
     return {
       id: '',
       currency_code: DEFAULT_CURRENCY_CODE,
-      workflow_status: 'draft',
       is_current: true,
       version: 0,
       estimate_seq: 0,
@@ -165,7 +162,6 @@ function initState(estimate: EstimateWithSections | null): EstimateEditorState {
   return {
     id: estimate.id,
     currency_code: estimate.currency_code ?? DEFAULT_CURRENCY_CODE,
-    workflow_status: estimate.workflow_status,
     is_current: estimate.is_current,
     version: estimate.version,
     estimate_seq: estimate.estimate_seq,
