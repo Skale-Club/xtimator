@@ -11,10 +11,13 @@ import {
 } from '@/lib/actions/estimate'
 import { renameProjectAction } from '@/lib/actions/project'
 import type { EstimateWithSections, Estimate } from '@/lib/queries/estimate'
+import type { InvoiceRow } from '@/lib/queries/invoice'
 import type { Recording } from '@/lib/queries/recording'
 import type { Photo } from '@/lib/queries/photo'
 import { useEstimateReducer, type EstimateEditorState } from './use-estimate-reducer'
 import { EstimateFloatingActions } from './estimate-floating-actions'
+import { IssuedInvoicesPanel } from './issued-invoices-panel'
+import { GenerateInvoiceDialog } from './generate-invoice-dialog'
 import {
   EstimateDocument,
   type EstimateDocumentData,
@@ -110,6 +113,8 @@ type SaveStatus = 'idle' | 'saving' | 'saved' | 'dirty' | 'error'
 interface EstimateEditorProps {
   estimate: EstimateWithSections
   versions: Estimate[]
+  /** Phase 94 (D-19) — issued invoices for this estimate (frozen snapshot amounts). */
+  issuedInvoices: InvoiceRow[]
   projectId: string
   companyId: string
   companyBrandColor: string | null
@@ -133,6 +138,7 @@ interface EstimateEditorProps {
 export function EstimateEditor({
   estimate,
   versions,
+  issuedInvoices,
   projectId,
   companyBrandColor,
   company,
@@ -305,6 +311,20 @@ export function EstimateEditor({
         onRenameProject={isReadOnly ? undefined : handleRenameProject}
         priceBookItems={priceBookItems}
       />
+
+      {/* Phase 94 — issued-invoice display (D-19) + generate-invoice action (D-18). */}
+      <IssuedInvoicesPanel invoices={issuedInvoices} />
+
+      {isCurrent && (
+        <div className="flex justify-end">
+          <GenerateInvoiceDialog
+            estimateId={estimate.id}
+            currencyCode={state.currency_code}
+            estimateTotalCents={Math.round(state.total * 100)}
+            onIssued={() => router.refresh()}
+          />
+        </div>
+      )}
 
       <EstimateFloatingActions
         workflowStatus={state.workflow_status}

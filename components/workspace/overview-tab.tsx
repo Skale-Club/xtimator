@@ -10,6 +10,7 @@ import type { ProjectDetail } from '@/lib/queries/project'
 import type { Recording } from '@/lib/queries/recording'
 import type { Photo } from '@/lib/queries/photo'
 import type { EstimateWithSections, Estimate } from '@/lib/queries/estimate'
+import type { InvoiceRow } from '@/lib/queries/invoice'
 import type { PriceBookItem } from '@/lib/queries/price-book'
 import type { DocumentCompany, CompanyDefaults } from './estimate/estimate-document'
 
@@ -21,6 +22,7 @@ interface OverviewTabProps {
   companyDefaults: CompanyDefaults
   currentEstimate: EstimateWithSections | null
   allVersions: Estimate[]
+  issuedInvoices: InvoiceRow[]
   recordings: Recording[]
   photos: Photo[]
   priceBookItems: PriceBookItem[]
@@ -44,6 +46,7 @@ export function OverviewTab({
   companyDefaults,
   currentEstimate,
   allVersions,
+  issuedInvoices,
   recordings,
   photos,
   priceBookItems,
@@ -89,6 +92,7 @@ export function OverviewTab({
         companyDefaults={companyDefaults}
         currentEstimate={currentEstimate}
         allVersions={allVersions}
+        issuedInvoices={issuedInvoices}
         recordings={recordings}
         photos={photos}
         projectName={project.name}

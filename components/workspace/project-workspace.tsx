@@ -15,6 +15,7 @@ import type { ProjectConversationLink } from '@/lib/queries/whatsapp-inbox'
 import type { Recording } from '@/lib/queries/recording'
 import type { Photo } from '@/lib/queries/photo'
 import type { EstimateWithSections, Estimate } from '@/lib/queries/estimate'
+import type { InvoiceRow } from '@/lib/queries/invoice'
 import type { EstimateTemplate } from '@/lib/utils/estimate-template'
 import type { PriceBookItem } from '@/lib/queries/price-book'
 import type { DocumentCompany, CompanyDefaults } from './estimate/estimate-document'
@@ -31,6 +32,7 @@ interface ProjectWorkspaceProps {
   photos: Photo[]
   currentEstimate: EstimateWithSections | null
   allVersions: Estimate[]
+  issuedInvoices: InvoiceRow[]
   companyName: string
   ownerName: string
   companyBrandColor: string | null
@@ -46,7 +48,7 @@ interface ProjectWorkspaceProps {
 
 export function ProjectWorkspace({
   project, activity, stats, recordings, photos,
-  currentEstimate, allVersions, companyName,
+  currentEstimate, allVersions, issuedInvoices, companyName,
   ownerName, companyBrandColor, company, companyDefaults, estimateTemplate, smsDeliveryEnabled = false,
   whatsappSendEnabled = false,
   priceBookItems,
@@ -161,6 +163,7 @@ export function ProjectWorkspace({
             companyDefaults={companyDefaults}
             currentEstimate={currentEstimate}
             allVersions={allVersions}
+            issuedInvoices={issuedInvoices}
             recordings={recordings}
             photos={photos}
             priceBookItems={priceBookItems}

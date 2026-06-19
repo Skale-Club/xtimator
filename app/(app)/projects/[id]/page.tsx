@@ -5,6 +5,7 @@ import { getProjectById, getProjectActivity, getProjectQuickStats } from '@/lib/
 import { getProjectRecordings } from '@/lib/queries/recording'
 import { getProjectPhotos } from '@/lib/queries/photo'
 import { getCurrentEstimate, getProjectEstimates } from '@/lib/queries/estimate'
+import { getInvoicesByEstimateId } from '@/lib/queries/invoice'
 import { getPriceBookItems } from '@/lib/queries/price-book'
 import { getProjectConversationLink } from '@/lib/queries/whatsapp-inbox'
 import { createServiceClient } from '@/lib/supabase/service'
@@ -153,6 +154,12 @@ async function ProjectTabs({
   // Fetch current estimate for workspace tabs that need it
   const currentEstimate = await getCurrentEstimate(supabase, project.id)
 
+  // Phase 94 (INVOICE-06) — issued invoices for the current estimate. Read-back
+  // returns the frozen snapshot amounts (D-07); the editor surfaces them inline.
+  const issuedInvoices = currentEstimate
+    ? await getInvoicesByEstimateId(supabase, currentEstimate.id)
+    : []
+
   // Fetch the company's price book so the estimate editor can offer autocomplete
   const priceBookItems = await getPriceBookItems(supabase, project.company_id)
 
@@ -169,6 +176,7 @@ async function ProjectTabs({
       photos={photos}
       currentEstimate={currentEstimate}
       allVersions={allVersions}
+      issuedInvoices={issuedInvoices}
       companyName={companyName}
       ownerName={ownerName}
       companyBrandColor={companyBrandColor}

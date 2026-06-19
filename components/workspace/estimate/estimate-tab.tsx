@@ -14,6 +14,7 @@ import {
 import { toast } from 'sonner'
 import { createBlankEstimate } from '@/lib/actions/estimate'
 import type { EstimateWithSections, Estimate } from '@/lib/queries/estimate'
+import type { InvoiceRow } from '@/lib/queries/invoice'
 import type { Recording } from '@/lib/queries/recording'
 import type { Photo } from '@/lib/queries/photo'
 import { GenerationProgress } from './generation-progress'
@@ -40,6 +41,7 @@ interface EstimateTabProps {
   companyDefaults: CompanyDefaults
   currentEstimate: EstimateWithSections | null
   allVersions: Estimate[]
+  issuedInvoices: InvoiceRow[]
   recordings: Recording[]
   photos: Photo[]
   projectName: string
@@ -58,6 +60,7 @@ export function EstimateTab({
   companyDefaults,
   currentEstimate,
   allVersions,
+  issuedInvoices,
   recordings,
   photos,
   projectName,
@@ -154,6 +157,7 @@ export function EstimateTab({
       <EstimateEditor
         estimate={currentEstimate}
         versions={allVersions}
+        issuedInvoices={issuedInvoices}
         projectId={projectId}
         companyId={companyId}
         companyBrandColor={companyBrandColor}
