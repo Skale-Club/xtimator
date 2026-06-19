@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.3
 milestone_name: Invoices & Always-Editable Estimates
 status: executing
-stopped_at: "Completed 94-03-PLAN.md (Connect invoice.paid webhook); next: 94-04 generate-invoice UX"
-last_updated: "2026-06-19T18:31:21.078Z"
+stopped_at: Paused 94-04-PLAN.md at Task 4 (blocking human-verify checkpoint) — generate-invoice UX built (tasks 1-3 committed); awaiting human verification with a connected Stripe test-mode account
+last_updated: "2026-06-19T18:42:21.266Z"
 last_activity: 2026-06-19
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 6
-  completed_plans: 3
+  completed_plans: 4
 ---
 
 # Project State
@@ -26,7 +26,7 @@ Phase: 94 (estimate-invoice-decoupling) — EXECUTING
 Plan: 3 of 6
 Status: Ready to execute
 Last activity: 2026-06-19
-Stopped at: Completed 94-03-PLAN.md (Connect invoice.paid webhook); next: 94-04 generate-invoice UX
+Stopped at: Paused 94-04-PLAN.md at Task 4 (blocking human-verify checkpoint) — generate-invoice UX built (tasks 1-3 committed); awaiting human verification with a connected Stripe test-mode account
 
 ## v3.1.1 Phases
 
@@ -487,6 +487,9 @@ Stopped at: Completed 94-03-PLAN.md (Connect invoice.paid webhook); next: 94-04 
 - [Phase 94]: database.types.ts hand-extended with invoices typing (Docker-less Windows convention since Phase 19/24)
 - [Phase 94-03]: Connect invoice.paid lives ONLY in handleConnectEvent (event.account present); platform subscription invoice.paid stays in handlePlatformEvent — cleanly split by event.account
 - [Phase 94-03]: invoice.paid keys off metadata.invoice_id (our row PK) and uses the invoices snapshot amount for emails/notification — never re-derived from the now-mutable estimate (D-07)
+- [Phase 94]: [94-04] GenerateInvoiceDialog gated behind isCurrent — invoices issue from the live current estimate only; old read-only versions don't offer it
+- [Phase 94]: [94-04] Share-page invoices fetched with optional chaining + try/catch so the existing share-query unit test stays green (8/8) without the Plan-05 fixture update; only 6 safe fields exposed (no stripe ids)
+- [Phase 94]: [94-04] Threaded issuedInvoices through OverviewTab (the real ProjectWorkspace->EstimateTab intermediary) in addition to the plan-named files
 
 ## Performance Metrics
 
@@ -653,6 +656,7 @@ Stopped at: Completed 94-03-PLAN.md (Connect invoice.paid webhook); next: 94-04 
 | Phase 93-super-admin-event-log P03 | 5 | 2 tasks | 4 files |
 | Phase 94 P01 | 6min | 3 tasks | 10 files |
 | Phase 94 P03 | ~4min | 2 tasks | 2 files |
+| Phase 94 P04 | 7min | 3 tasks | 9 files |
 
 ## Project Reference
 

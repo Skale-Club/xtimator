@@ -46,7 +46,7 @@ Plans:
 - [x] 94-01-PLAN.md — Wave 0: invoices migration (table + company_members RLS + indexes) + types + 6 RED test stubs + Stripe invoice.paid fixture (INVOICE-02, INVOICE-03..07, INVOICE-01)
 - [x] 94-02-PLAN.md — Wave 1: splitDepositBalance helper + createConnectInvoice Stripe service + getInvoicesByEstimateId query + generateInvoice action (INVOICE-03, INVOICE-04, INVOICE-06)
 - [x] 94-03-PLAN.md — Wave 2: Connect webhook invoice.paid case (marks invoices row paid, reuses emails + notification) + connect-events test rewrite (INVOICE-05)
-- [ ] 94-04-PLAN.md — Wave 3: GenerateInvoiceDialog + IssuedInvoicesPanel in the editor + workspace wiring + share-page pay links + human-verify checkpoint (INVOICE-03, INVOICE-06)
+- [x] 94-04-PLAN.md — Wave 3: GenerateInvoiceDialog + IssuedInvoicesPanel in the editor + workspace wiring + share-page pay links + human-verify checkpoint (INVOICE-03, INVOICE-06)
 - [ ] 94-05-PLAN.md — Wave 4: consolidate removal — drop single-draft index, remove all gates + 2 actions + UI, fix WhatsApp inbox sendability, update fixtures (INVOICE-01)
 - [ ] 94-06-PLAN.md — Wave 5: backfill migration (paid estimate → invoices row) + retire /estimate/[token]/pay route + share-page Checkout removal (INVOICE-07, INVOICE-01)
 **UI hint**: yes (estimate editor "Generate invoice" surface + issued-invoice display — run `/gsd:ui-phase 94` before planning if desired)
