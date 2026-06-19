@@ -43,6 +43,8 @@ export type EstimateGeneratePayload = {
    * Optional so older callers still compile; routes default to `manual_text`.
    */
   inputType?: 'recording' | 'photo' | 'manual_text'
+  /** auth.users.id of the staff member or owner who triggered generation. Drives "Prepared by" in PDFs. */
+  createdByUserId?: string
 }
 
 export type TranscribeAudioPayload = {

@@ -29,7 +29,7 @@ async function getAuthContext() {
 
   if (!company) return { error: 'No company found' as const }
 
-  return { supabase, company }
+  return { supabase, company, claims }
 }
 
 // ---------------------------------------------------------------------------
@@ -316,7 +316,7 @@ export async function saveEstimate(estimateData: SaveEstimateInput) {
 export async function createBlankEstimate(projectId: string) {
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error }
-  const { supabase, company } = ctx
+  const { supabase, company, claims } = ctx
   const companyId = company.id as string
 
   // Mark existing estimates as not current
@@ -359,6 +359,7 @@ export async function createBlankEstimate(projectId: string) {
       discount_amount: 0,
       tax_amount: 0,
       total: 0,
+      created_by_user_id: claims.sub,
     })
     .select('id')
     .single()

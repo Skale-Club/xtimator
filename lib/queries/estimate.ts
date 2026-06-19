@@ -42,6 +42,8 @@ export interface Estimate {
   payment_status?: string | null
   paid_at?: string | null
   payment_amount_cents?: number | null
+  /** User who created this estimate — drives "Prepared by" in PDFs. */
+  created_by_user_id?: string | null
 }
 
 export interface EstimateSection {

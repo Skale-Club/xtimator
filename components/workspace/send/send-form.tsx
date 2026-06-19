@@ -25,6 +25,7 @@ import { toast } from 'sonner'
 import { markAsSentAction } from '@/lib/actions/estimate'
 import { buildShareLink } from '@/lib/utils/share-link'
 import { useTranslation } from '@/lib/i18n/use-translation'
+import { formatEstimateForWhatsApp, type FormatterEstimate } from '@/lib/whatsapp/formatter'
 
 const sendEmailSchema = z.object({
   to: z.string().email('Valid email required'),
@@ -51,11 +52,16 @@ interface SendFormProps {
   estimateId: string
   clientEmail: string | null
   clientPhone: string | null
+  clientName?: string | null
   companyName: string
   projectName: string
   shareToken: string
   smsDeliveryEnabled: boolean
   whatsappSendEnabled?: boolean
+  /** Full estimate data used to pre-fill the WhatsApp message field. */
+  estimate?: FormatterEstimate | null
+  ownerName?: string | null
+  companyWebsite?: string | null
   /** SEED-028 Phase D: disable all send/PDF actions when the estimate is a draft. */
   disabled?: boolean
 }
@@ -64,11 +70,15 @@ export function SendForm({
   estimateId,
   clientEmail,
   clientPhone,
+  clientName,
   companyName,
   projectName,
   shareToken,
   smsDeliveryEnabled,
   whatsappSendEnabled = false,
+  estimate,
+  ownerName,
+  companyWebsite,
   disabled,
 }: SendFormProps) {
   const { t } = useTranslation()
@@ -76,6 +86,10 @@ export function SendForm({
   const [marking, setMarking] = useState(false)
 
   const shareLink = buildShareLink(shareToken)
+
+  const whatsappDefaultMessage = estimate
+    ? formatEstimateForWhatsApp(estimate, clientName ?? null, companyName, ownerName ?? null, companyWebsite ?? null)
+    : ''
 
   const channelCount = 1 + (smsDeliveryEnabled ? 1 : 0) + (whatsappSendEnabled ? 1 : 0)
 
@@ -101,7 +115,7 @@ export function SendForm({
     resolver: zodResolver(sendWhatsAppSchema) as any,
     defaultValues: {
       to: clientPhone ?? '',
-      message: '',
+      message: whatsappDefaultMessage,
     },
   })
 
@@ -364,10 +378,10 @@ export function SendForm({
                     name="message"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Custom message (optional)</FormLabel>
+                        <FormLabel>Message</FormLabel>
                         <FormControl>
                           <Textarea
-                            rows={3}
+                            rows={12}
                             placeholder={`${companyName} sent you an estimate. Review and approve it here: ${shareLink}`}
                             {...field}
                           />

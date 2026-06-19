@@ -98,7 +98,7 @@
   .hero-left > div:last-child { display: flex; flex-direction: column; align-items: flex-start; width: auto; gap: 0.625rem; margin-top: 10px; }
   .hero-left > div:last-child button,
   .hero-left > div:last-child a { width: auto !important; height: 48px !important; font-size: 17px !important; }
-  .hero-image { top: 64px !important; bottom: 0 !important; left: calc(58% - 100px) !important; right: -2rem !important; }
+  .hero-image { top: 64px !important; bottom: 0 !important; left: 60% !important; right: -2rem !important; }
   .hero-image img { object-fit: contain !important; object-position: bottom; }
   .trust-bar > div { padding-top: 1.5rem; padding-bottom: 1.5rem; }
   .trust-bar [class*="tabular-nums"] { font-size: 36px; }

@@ -78,7 +78,7 @@ export const generateEstimateJob = inngest.createFunction(
   },
   async ({ event, step }) => {
     const data = event.data as EstimateGeneratePayload
-    const { companyId, projectId, requestId, language, prompts } = data
+    const { companyId, projectId, requestId, language, prompts, createdByUserId } = data
     // Phase 92 (EVENT-02/D-08): attempt lineage with server fallback.
     const attemptId = data.attemptId ?? randomUUID()
     const inputType = data.inputType ?? 'manual_text'
@@ -101,6 +101,7 @@ export const generateEstimateJob = inngest.createFunction(
       return await generateEstimateForProject(companyId, projectId, {
         language: language ?? undefined,
         prompts: prompts && prompts.length > 0 ? prompts : undefined,
+        createdByUserId: createdByUserId ?? undefined,
       })
     })
 
