@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.3
 milestone_name: Unified Agentic Estimate Engine
 status: verifying
-stopped_at: Completed quick-260620-lqh-PLAN.md (remove Danger Zone delete-account UI)
-last_updated: "2026-06-20T19:47:41.194Z"
-last_activity: "2026-06-20 - Completed quick task 260620-lia: Revisar animação de colapso da sidebar"
+stopped_at: Completed 97-01-PLAN.md (Wave 1 — Langfuse v5 packages + RED test stubs)
+last_updated: "2026-06-20T20:09:46.160Z"
+last_activity: "2026-06-20 - Completed quick task 260620-lqh: Remove Danger Zone / Delete Account section from account settings UI"
 progress:
   total_phases: 52
   completed_phases: 38
-  total_plans: 112
-  completed_plans: 125
+  total_plans: 116
+  completed_plans: 126
 ---
 
 # Project State
@@ -26,7 +26,7 @@ Phase: 999.1
 Plan: Not started
 Status: Phase complete — ready for verification
 Last activity: 2026-06-20 - Completed quick task 260620-lqh: Remove Danger Zone / Delete Account section from account settings UI
-Stopped at: Completed quick-260620-lqh-PLAN.md (remove Danger Zone delete-account UI)
+Stopped at: Completed 97-01-PLAN.md (Wave 1 — Langfuse v5 packages + RED test stubs)
 
 ## v4.3 Phases (current milestone)
 
@@ -503,6 +503,8 @@ Stopped at: Completed quick-260620-lqh-PLAN.md (remove Danger Zone delete-accoun
 - [Phase 96-intelligence-parity-auto-refine-needs-details-surfacing]: D-01 cap=1 conditional loop: checkVagueAfterAssessEdge replaces direct assess->finalize edge; both targets listed in 3rd arg for LangGraph reachability
 - [Phase 96-intelligence-parity-auto-refine-needs-details-surfacing]: ENGINE-01 neutrality scanner checks ALL source text including JSDoc comments - forbidden tokens like 'lib/whatsapp' must not appear even in comments in files under lib/estimate/quality/ and lib/estimate/graph/
 - [Phase 96-intelligence-parity-auto-refine-needs-details-surfacing]: QA-02 closure isolation: default adapter finalize uses closure companyId not state.companyId for .eq('company_id') filter on projects update (D-06)
+- [Phase 97-unified-observability-langfuse-v5-sentry-coexistence]: Single @opentelemetry/api@1.9.1 deduplicated across all langfuse v5 dependents — no manual pinning needed
+- [Phase 97-unified-observability-langfuse-v5-sentry-coexistence]: getLangfuse() absence test and negative safe-metadata assertions (OBS-03) pass in Wave 1 by design — clean-by-default assertions remain passing through all waves
 
 ## Performance Metrics
 
@@ -674,6 +676,7 @@ Stopped at: Completed quick-260620-lqh-PLAN.md (remove Danger Zone delete-accoun
 | Phase 95-migrate-web-mcp-onto-the-shared-graph-generate-only-passthrough P01 | 5 | 1 tasks | 1 files |
 | Phase 96 P01 | 3 | 2 tasks | 2 files |
 | Phase 96-intelligence-parity-auto-refine-needs-details-surfacing P02 | 17 | 3 tasks | 9 files |
+| Phase 97-unified-observability-langfuse-v5-sentry-coexistence P01 | 7 | 3 tasks | 4 files |
 
 ## Project Reference
 

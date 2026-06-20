@@ -44,9 +44,9 @@ This asymmetry is a real product gap: the web/MCP can silently produce a low-qua
 
 ### OBS — Unified Observability
 
-- [ ] **OBS-01**: All three channels emit a unified Langfuse trace per estimate run via a single `CallbackHandler` attached at `graph.invoke` (channels distinguished by `metadata`/`tags`).
-- [ ] **OBS-02**: Langfuse is migrated to the v5 OTel SDK (`@langfuse/langchain` + `@langfuse/otel` + `@langfuse/tracing`, replacing the LangChain-v1-incompatible `langfuse@3.38.20`) and coexists with `@sentry/nextjs` OTel without collision (shared tracer provider / `skipOpenTelemetrySetup`).
-- [ ] **OBS-03**: Per-channel AI call-count and latency are visible in the traces (the metric foundation that justifies the deferred durability refactor).
+- [x] **OBS-01**: All three channels emit a unified Langfuse trace per estimate run via a single `CallbackHandler` attached at `graph.invoke` (channels distinguished by `metadata`/`tags`).
+- [x] **OBS-02**: Langfuse is migrated to the v5 OTel SDK (`@langfuse/langchain` + `@langfuse/otel` + `@langfuse/tracing`, replacing the LangChain-v1-incompatible `langfuse@3.38.20`) and coexists with `@sentry/nextjs` OTel without collision (shared tracer provider / `skipOpenTelemetrySetup`).
+- [x] **OBS-03**: Per-channel AI call-count and latency are visible in the traces (the metric foundation that justifies the deferred durability refactor).
 
 ### DURABLE — Checkpoint Foundation (scaffold only; full refactor deferred)
 
@@ -112,9 +112,9 @@ Each v1 requirement maps to exactly one phase. Coverage = 100% (21/21).
 | SMART-04 | Phase 96 | Complete |
 | SMART-05 | Phase 96 | Complete |
 | QA-02 | Phase 96 | Complete |
-| OBS-01 | Phase 97 | Pending |
-| OBS-02 | Phase 97 | Pending |
-| OBS-03 | Phase 97 | Pending |
+| OBS-01 | Phase 97 | Complete |
+| OBS-02 | Phase 97 | Complete |
+| OBS-03 | Phase 97 | Complete |
 
 **Coverage:**
 - v1 requirements: 21 total (ENGINE 4, CHAN 4, SMART 5, OBS 3, DURABLE 2, QA 3)
