@@ -10,7 +10,8 @@
  *
  * Flow (equivalent to the source WhatsApp graph topology):
  *   START → ingest → (checkInputs) → generate → (checkGenerated)
- *         → assess → finalize | onError → END
+ *         → assess → (checkVagueAfterAssess) → finalize | autoRefine → onError → END
+ *         autoRefine → generate  ← back-edge (cap=1 loop, Phase 96)
  *
  * Durability (DURABLE-02): compiled with a plain `.compile()` taking NO
  * persistence argument. Inngest is the sole durability layer; finer per-node
@@ -25,7 +26,8 @@ import { EstimateState, type EstimateStateType } from './state'
 import { passthroughRunner, type ChannelAdapter, type StepRunner } from './types'
 import { makeGenerateNode } from './nodes/generate'
 import { assessNode } from './nodes/assess'
-import { checkGeneratedEdge } from './nodes/decide'
+import { autoRefineNode } from './nodes/auto-refine'
+import { checkGeneratedEdge, checkVagueAfterAssessEdge } from './nodes/decide'
 
 /**
  * After ingest: if the adapter could not produce any usable input it sets a
@@ -49,13 +51,17 @@ export function buildEstimateGraph(
     // Core nodes (channel-neutral).
     .addNode('generate', makeGenerateNode(runner))
     .addNode('assess', assessNode)
+    .addNode('autoRefine', autoRefineNode)
     // Topology.
     .addEdge(START, 'ingest')
     .addConditionalEdges('ingest', checkInputsEdge, ['generate', 'onError'])
     .addConditionalEdges('generate', checkGeneratedEdge, ['assess', 'onError'])
-    // finalize reads state.isVague to branch ask-details vs confirm (3-fn
-    // adapter surface, D-05); Phase 96 splits a dedicated refine edge.
-    .addEdge('assess', 'finalize')
+    // Phase 96 (D-01): conditional assess edge with cap=1 refine loop.
+    // checkVagueAfterAssessEdge routes to autoRefine on first vague result,
+    // then to finalize once refineAttempts >= 1. The BOTH targets MUST be
+    // listed in the 3rd argument for LangGraph 1.3.6 reachability (Pitfall 1).
+    .addConditionalEdges('assess', checkVagueAfterAssessEdge, ['finalize', 'autoRefine'])
+    .addEdge('autoRefine', 'generate')
     .addEdge('finalize', END)
     .addEdge('onError', END)
 

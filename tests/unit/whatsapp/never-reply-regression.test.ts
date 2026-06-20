@@ -185,10 +185,15 @@ describe('QA-01: WhatsApp never-throw / always-reply (frozen behavioral regressi
     expect(sessionInsert).not.toHaveBeenCalled()
   })
 
-  it('Path C — vague estimate: askDetails reverts + awaiting_details session + exactly one reply, invoke resolves', async () => {
-    // Generation succeeds…
-    generateEstimateForProject.mockResolvedValueOnce({ estimateId: 'est-1', language: 'en' })
-    // …but the re-read estimate is vague (total 0, no items) → isVague:true.
+  it('Path C — vague estimate: autoRefine + askDetails reverts + awaiting_details session + exactly one reply, invoke resolves', async () => {
+    // Phase 96: the graph now runs autoRefine before asking the human for details.
+    // First generate call returns an estimate; second generate call also returns
+    // an estimate (the auto-refined attempt). Both are assessed as vague so the
+    // graph proceeds to the WhatsApp finalize (askDetails path) after cap=1.
+    generateEstimateForProject
+      .mockResolvedValueOnce({ estimateId: 'est-1', language: 'en' })  // first pass
+      .mockResolvedValueOnce({ estimateId: 'est-2', language: 'en' })  // auto-refine pass
+    // Both assess reads return a vague estimate (total 0, no items).
     estimateRow = { total: 0, sections: [{ items: [] }] }
 
     await invokeNeverReject({
@@ -196,13 +201,17 @@ describe('QA-01: WhatsApp never-throw / always-reply (frozen behavioral regressi
       messages: [{ id: 'm1', type: 'text', text: { body: 'do some work' } }],
     })
 
-    expect(generateEstimateForProject).toHaveBeenCalledTimes(1)
-    // Vague path side-effects: revert the $0 estimate + persist an awaiting_details session.
+    // Phase 96: generate runs twice (first pass + auto-refine pass).
+    expect(generateEstimateForProject).toHaveBeenCalledTimes(2)
+    // revertVagueEstimate is tracked via the @/lib/whatsapp/ask-details mock path.
+    // autoRefineNode calls it via @/lib/estimate/quality/revert (separate import path),
+    // so only the WhatsApp adapter finalize call is captured by this spy (1 tracked call).
     expect(revertVagueEstimate).toHaveBeenCalledTimes(1)
+    // KEY INVARIANT (QA-01): exactly one awaiting_details session insert.
     expect(sessionInsert).toHaveBeenCalledTimes(1)
     const sessionArg = sessionInsert.mock.calls[0][0] as { state: string }
     expect(sessionArg.state).toBe('awaiting_details')
-    // Exactly one reply, carrying the ask-details copy (real buildAskDetailsMessage('en')).
+    // KEY INVARIANT (QA-01): exactly one WhatsApp reply, carrying the ask-details copy.
     expect(sendWhatsAppMessage).toHaveBeenCalledTimes(1)
     const [, payload] = sendWhatsAppMessage.mock.calls[0] as [string, { text: { body: string } }]
     expect(payload.text.body).toMatch(/details/i)
