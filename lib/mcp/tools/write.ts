@@ -186,6 +186,7 @@ async function handleCreateEstimate(
     companyId: auth.company_id,
     projectId: input.project_id,
     requestId,
+    channel: 'mcp',
     prompts: [input.prompt],
     ...(input.language ? { language: input.language } : {}),
   }

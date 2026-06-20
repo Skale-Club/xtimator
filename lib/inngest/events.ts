@@ -43,6 +43,14 @@ export type EstimateGeneratePayload = {
    * Optional so older callers still compile; routes default to `manual_text`.
    */
   inputType?: 'recording' | 'photo' | 'manual_text'
+  /**
+   * Phase 97 (OBS-01): channel discriminator for Langfuse trace tagging.
+   * 'mcp' when the estimate is triggered from the MCP create_estimate tool;
+   * 'web' (or absent) for the web UI path. WhatsApp uses a separate Inngest
+   * function and does not flow through this payload.
+   * Optional so all existing callers remain valid without changes.
+   */
+  channel?: 'web' | 'mcp'
 }
 
 export type TranscribeAudioPayload = {
