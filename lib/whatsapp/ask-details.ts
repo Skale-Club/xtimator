@@ -13,23 +13,16 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
 
-/** Minimal shape needed to decide whether an estimate is too vague to price. */
-export type VagueCheckEstimate = {
-  total: number | null
-  sections: Array<{ items?: Array<unknown> | null }> | null
-}
-
 /**
- * An estimate is "vague" when the total is <= 0 (null treated as 0) OR there is
- * not a single line item across all sections.
+ * Phase 94 (D-03 / ENGINE-03): `isVagueEstimate` + `VagueCheckEstimate` were
+ * MOVED to the channel-neutral `lib/estimate/quality/vagueness.ts`. They are
+ * re-exported here so the existing `@/lib/whatsapp/ask-details` import path
+ * (used by callers + tests) keeps working unchanged.
  */
-export function isVagueEstimate(e: VagueCheckEstimate | null): boolean {
-  const totalNum = e?.total ?? 0
-  const hasItems = (e?.sections ?? []).some(
-    (s) => (s?.items?.length ?? 0) > 0
-  )
-  return totalNum <= 0 || !hasItems
-}
+export {
+  isVagueEstimate,
+  type VagueCheckEstimate,
+} from '@/lib/estimate/quality/vagueness'
 
 const MESSAGES: Record<EstimateLanguage, string> = {
   pt:
