@@ -23,13 +23,13 @@ This asymmetry is a real product gap: the web/MCP can silently produce a low-qua
 ### ENGINE — Canonical Domain Graph
 
 - [x] **ENGINE-01**: A shared, channel-neutral estimate domain graph exists in a dedicated module (e.g. `lib/estimate/graph/`) with reusable nodes `ingest → generate → assess → refine/ask → finalize`. Graph state carries NO channel-specific fields (no `ownerPhone`, no `WhatsAppMessage`).
-- [ ] **ENGINE-02**: A `ChannelAdapter` abstraction (closure-factory, mirroring the existing `makeQueryTools` pattern) lets each channel plug ONLY its edge behaviors (`ingest`, `finalize`/reply, `onError`) without modifying the core graph.
+- [x] **ENGINE-02**: A `ChannelAdapter` abstraction (closure-factory, mirroring the existing `makeQueryTools` pattern) lets each channel plug ONLY its edge behaviors (`ingest`, `finalize`/reply, `onError`) without modifying the core graph.
 - [x] **ENGINE-03**: The deterministic quality gate (`isVagueEstimate`) is extracted into the shared graph and reused verbatim as the always-on, zero-cost check (no LLM call for the gate).
 - [x] **ENGINE-04**: The shared graph preserves the never-throw / always-finalize invariant — nodes signal failure via a state channel (`failure?`), never by throwing; the adapter maps the terminal failure outcome to the channel's reply/cleanup.
 
 ### CHAN — Channel Migration
 
-- [ ] **CHAN-01**: WhatsApp consumes the shared graph; its current `estimate-graph.ts` behavior is preserved exactly — inbound media fan-out + conversational reply/session become edge nodes supplied by the WhatsApp adapter.
+- [x] **CHAN-01**: WhatsApp consumes the shared graph; its current `estimate-graph.ts` behavior is preserved exactly — inbound media fan-out + conversational reply/session become edge nodes supplied by the WhatsApp adapter.
 - [ ] **CHAN-02**: The web generation path (`generate-estimate` Inngest job) consumes the shared graph, entering at the `generate` node — the web's decoupled upload-time ingestion (`transcribe-audio` / `analyze-photos`) is preserved; the graph's `ingest` node is a passthrough guard when transcripts/descriptions already exist.
 - [ ] **CHAN-03**: MCP `create_estimate` runs through the same shared graph (inherits the web path — no new dispatch contract, still `job_id` + poll).
 - [ ] **CHAN-04**: Behavior parity is verified — all three channels produce equivalent estimate output for equivalent inputs through the single engine; no channel regresses.
@@ -95,10 +95,10 @@ Each v1 requirement maps to exactly one phase. Coverage = 100% (21/21).
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | ENGINE-01 | Phase 94 | Complete |
-| ENGINE-02 | Phase 94 | Pending |
+| ENGINE-02 | Phase 94 | Complete |
 | ENGINE-03 | Phase 94 | Complete |
 | ENGINE-04 | Phase 94 | Complete |
-| CHAN-01 | Phase 94 | Pending |
+| CHAN-01 | Phase 94 | Complete |
 | DURABLE-01 | Phase 94 | Complete |
 | DURABLE-02 | Phase 94 | Complete |
 | QA-01 | Phase 94 | Complete |

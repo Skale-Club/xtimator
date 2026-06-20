@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.3
 milestone_name: Unified Agentic Estimate Engine
 status: executing
-stopped_at: Completed 94-02-PLAN.md
-last_updated: "2026-06-20T17:09:11.871Z"
+stopped_at: Completed 94-03-PLAN.md
+last_updated: "2026-06-20T17:20:52.226Z"
 last_activity: 2026-06-20
 progress:
   total_phases: 52
   completed_phases: 35
   total_plans: 108
-  completed_plans: 119
+  completed_plans: 120
 ---
 
 # Project State
@@ -23,10 +23,10 @@ progress:
 ## Current Position
 
 Phase: 94 (extract-canonical-graph-behind-whatsapp-behavior-preserving-steprunner-seam) — EXECUTING
-Plan: 3 of 4
+Plan: 4 of 4
 Status: Ready to execute
 Last activity: 2026-06-20
-Stopped at: Completed 94-02-PLAN.md
+Stopped at: Completed 94-03-PLAN.md
 
 ## v4.3 Phases (current milestone)
 
@@ -494,6 +494,8 @@ Stopped at: Completed 94-02-PLAN.md
 - [Phase 93-super-admin-event-log]: Inlined SAFE_SELECT string in detail page .select() call — test regex requires literal string after select( paren
 - [Phase 93-super-admin-event-log]: Wave 0 email-lookup stubs replaced with static source assertions — unconditional expect.fail() cannot turn GREEN
 - [Phase 94]: 94-02: extracted channel-neutral estimate core (vagueness + EstimateState + ChannelAdapter/StepRunner + generate/assess/decide + buildEstimateGraph); failure-as-state never-throw; no checkpointer; WhatsApp adapter deferred to 94-03
+- [Phase 94]: 94-03: WhatsApp ChannelAdapter is a closure-factory (companyId/ownerPhone/messages closure-captured, never graph inputs); ingest runs an internal Send fan-out sub-graph; vague-vs-confirm folded inside finalize (3-fn D-05 surface)
+- [Phase 94]: 94-03: buildEstimateGraph() stays zero-arg; .invoke(initial) constructs the WhatsApp adapter per-invocation so core state stays channel-neutral (D-07); whatsapp-process-job source-text anchor goes RED pending 94-04 path update (D-13)
 
 ## Performance Metrics
 
@@ -660,6 +662,7 @@ Stopped at: Completed 94-02-PLAN.md
 | Phase 93-super-admin-event-log P03 | 5 | 2 tasks | 4 files |
 | Phase 94 P01 | 6min | 3 tasks | 8 files |
 | Phase 94 P02 | 5 | 3 tasks | 8 files |
+| Phase 94 P03 | 7 | 3 tasks | 4 files |
 
 ## Project Reference
 
