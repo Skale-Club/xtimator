@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.3
 milestone_name: Unified Agentic Estimate Engine
 status: verifying
-stopped_at: Completed 97-03-PLAN.md — CallbackHandler at all graph.invoke sites
-last_updated: "2026-06-20T22:05:49.624Z"
+stopped_at: Completed 97-04-PLAN.md
+last_updated: "2026-06-20T22:16:10.593Z"
 last_activity: "2026-06-20 - Completed quick task 260620-m6p: WhatsApp multi-user support per-user owner_phone routing"
 progress:
   total_phases: 52
-  completed_phases: 38
+  completed_phases: 39
   total_plans: 116
-  completed_plans: 128
+  completed_plans: 129
 ---
 
 # Project State
@@ -26,7 +26,7 @@ Phase: 999.1
 Plan: Not started
 Status: Phase complete — ready for verification
 Last activity: 2026-06-20 - Completed quick task 260620-m6p: WhatsApp multi-user support per-user owner_phone routing
-Stopped at: Completed 97-03-PLAN.md — CallbackHandler at all graph.invoke sites
+Stopped at: Completed 97-04-PLAN.md
 
 ## v4.3 Phases (current milestone)
 
@@ -508,6 +508,7 @@ Stopped at: Completed 97-03-PLAN.md — CallbackHandler at all graph.invoke site
 - [Phase 97-unified-observability-langfuse-v5-sentry-coexistence]: Sentry.init moved into instrumentation.ts register() with skipOpenTelemetrySetup:true to enable shared NodeTracerProvider for Langfuse v5 + Sentry coexistence
 - [Phase 97]: CallbackHandler from @langfuse/langchain attached at all graph.invoke sites (web, MCP, WhatsApp) with safe-metadata: only projectId/companyId in handler metadata/tags
 - [Phase 97]: forceFlush() called inside every step.run before returning to prevent Langfuse span loss on serverless suspension (OBS-03 / Pitfall 3)
+- [Phase 97-unified-observability-langfuse-v5-sentry-coexistence]: Migrated all getLangfuse() v3 call sites to langfuseClient from @langfuse/tracing; uninstalled langfuse@3 to eliminate duplicate OTel spans
 
 ## Performance Metrics
 
@@ -681,6 +682,7 @@ Stopped at: Completed 97-03-PLAN.md — CallbackHandler at all graph.invoke site
 | Phase 96-intelligence-parity-auto-refine-needs-details-surfacing P02 | 17 | 3 tasks | 9 files |
 | Phase 97-unified-observability-langfuse-v5-sentry-coexistence P01 | 7 | 3 tasks | 4 files |
 | Phase 97-unified-observability-langfuse-v5-sentry-coexistence P02 | 5 | 2 tasks | 2 files |
+| Phase 97-unified-observability-langfuse-v5-sentry-coexistence P04 | 10 | 2 tasks | 5 files |
 
 ## Project Reference
 
