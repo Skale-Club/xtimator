@@ -1,6 +1,7 @@
 /**
- * Keeps company_whatsapp.owner_phone in sync whenever the company's phone changes.
- * Called from onboarding (company.ts) and company settings (settings.ts).
+ * Keeps company_whatsapp.owner_phone in sync whenever a user's phone changes.
+ * Called from onboarding (company.ts), company settings (settings.ts),
+ * and the per-user profile WhatsApp field (saveWhatsAppNumber action).
  *
  * The WhatsApp welcome is NOT sent here — not everyone has WhatsApp, so blindly
  * messaging a number would fail. Instead the welcome fires on the owner's first
@@ -9,6 +10,13 @@
  * first contact.
  *
  * company_whatsapp is RLS deny-all — always call with a service-role client.
+ *
+ * Multi-user behaviour:
+ *   - When userId is provided → upsert on (company_id, user_id) conflict.
+ *     Each user in a company owns their own row independently.
+ *   - When userId is null/undefined (legacy company-level path) → upsert on
+ *     (company_id) conflict WHERE user_id IS NULL, preserving backward compat
+ *     with the single-user onboarding flow.
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
 
@@ -25,29 +33,54 @@ function toOwnerPhone(raw: string | null | undefined): string | null {
 export async function syncOwnerPhone(
   serviceClient: SupabaseClient,
   companyId: string,
-  rawPhone: string | null | undefined
+  rawPhone: string | null | undefined,
+  userId?: string | null
 ): Promise<void> {
   const ownerPhone = toOwnerPhone(rawPhone)
 
-  // Read existing phone before upsert so we can detect a genuine change.
-  const { data: current } = await serviceClient
-    .from('company_whatsapp')
-    .select('owner_phone')
-    .eq('company_id', companyId)
-    .maybeSingle()
+  if (userId) {
+    // Per-user path: read existing row for this (company, user) pair.
+    const { data: current } = await serviceClient
+      .from('company_whatsapp')
+      .select('owner_phone')
+      .eq('company_id', companyId)
+      .eq('user_id', userId)
+      .maybeSingle()
 
-  const phoneChanged = ownerPhone !== (current?.owner_phone ?? null)
+    const phoneChanged = ownerPhone !== (current?.owner_phone ?? null)
 
-  const row: Record<string, unknown> = {
-    company_id: companyId,
-    owner_phone: ownerPhone,
-    status: 'active',
+    const row: Record<string, unknown> = {
+      company_id: companyId,
+      user_id: userId,
+      owner_phone: ownerPhone,
+      status: 'active',
+    }
+    if (phoneChanged) row.welcome_sent_at = null
+
+    await serviceClient
+      .from('company_whatsapp')
+      .upsert(row, { onConflict: 'company_id, user_id' })
+  } else {
+    // Legacy company-level path (userId not known — e.g. createOrUpdateCompany).
+    // Targets the NULL-user_id row via the company_whatsapp_company_no_user_unique index.
+    const { data: current } = await serviceClient
+      .from('company_whatsapp')
+      .select('owner_phone')
+      .eq('company_id', companyId)
+      .is('user_id', null)
+      .maybeSingle()
+
+    const phoneChanged = ownerPhone !== (current?.owner_phone ?? null)
+
+    const row: Record<string, unknown> = {
+      company_id: companyId,
+      owner_phone: ownerPhone,
+      status: 'active',
+    }
+    if (phoneChanged) row.welcome_sent_at = null
+
+    await serviceClient
+      .from('company_whatsapp')
+      .upsert(row, { onConflict: 'company_id' })
   }
-  // New/changed number → clear the welcome flag so it's re-welcomed on first contact.
-  // Unchanged number → leave welcome_sent_at untouched (don't overwrite on every save).
-  if (phoneChanged) row.welcome_sent_at = null
-
-  await serviceClient
-    .from('company_whatsapp')
-    .upsert(row, { onConflict: 'company_id' })
 }

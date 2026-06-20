@@ -112,8 +112,9 @@ export async function updateCompanySettings(formData: FormData) {
   }
 
   // Keep company_whatsapp.owner_phone in sync (fire-and-forget, non-blocking)
+  // Pass null as userId — this is the company-level path (legacy single-user row).
   const svc = requireServiceClient()
-  syncOwnerPhone(svc, company.id, phone).catch(() => undefined)
+  syncOwnerPhone(svc, company.id, phone, null).catch(() => undefined)
 
   // Detect changed fields and send a profile-update notification email
   if (currentCompany) {
@@ -345,6 +346,25 @@ export async function updateProfile(formData: FormData) {
 
   const { error } = await supabase.auth.updateUser({ data: updateData })
   if (error) return { error: error.message }
+
+  revalidatePath('/settings/general')
+  return { ok: true }
+}
+
+export async function saveWhatsAppNumber(phone: string | null) {
+  const supabase = await createClient()
+  const { data: claimsData } = await supabase.auth.getClaims()
+  const claims = claimsData?.claims ?? null
+  if (!claims) return { error: 'Not authenticated' }
+
+  const denied = await assertWritable()
+  if (denied) return denied
+
+  const activeCompanyId = await getActiveCompanyId()
+  if (!activeCompanyId) return { error: 'No company found' }
+
+  const svc = requireServiceClient()
+  await syncOwnerPhone(svc, activeCompanyId, phone, claims.sub as string)
 
   revalidatePath('/settings/general')
   return { ok: true }
