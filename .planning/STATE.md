@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.3
 milestone_name: Unified Agentic Estimate Engine
 status: verifying
-stopped_at: Completed 97-02-PLAN.md (Wave 2 — shared NodeTracerProvider)
-last_updated: "2026-06-20T20:14:38.663Z"
+stopped_at: Completed 97-03-PLAN.md — CallbackHandler at all graph.invoke sites
+last_updated: "2026-06-20T22:05:49.624Z"
 last_activity: "2026-06-20 - Completed quick task 260620-m6p: WhatsApp multi-user support per-user owner_phone routing"
 progress:
   total_phases: 52
   completed_phases: 38
   total_plans: 116
-  completed_plans: 127
+  completed_plans: 128
 ---
 
 # Project State
@@ -26,7 +26,7 @@ Phase: 999.1
 Plan: Not started
 Status: Phase complete — ready for verification
 Last activity: 2026-06-20 - Completed quick task 260620-m6p: WhatsApp multi-user support per-user owner_phone routing
-Stopped at: Completed 97-02-PLAN.md (Wave 2 — shared NodeTracerProvider)
+Stopped at: Completed 97-03-PLAN.md — CallbackHandler at all graph.invoke sites
 
 ## v4.3 Phases (current milestone)
 
@@ -506,6 +506,8 @@ Stopped at: Completed 97-02-PLAN.md (Wave 2 — shared NodeTracerProvider)
 - [Phase 97-unified-observability-langfuse-v5-sentry-coexistence]: Single @opentelemetry/api@1.9.1 deduplicated across all langfuse v5 dependents — no manual pinning needed
 - [Phase 97-unified-observability-langfuse-v5-sentry-coexistence]: getLangfuse() absence test and negative safe-metadata assertions (OBS-03) pass in Wave 1 by design — clean-by-default assertions remain passing through all waves
 - [Phase 97-unified-observability-langfuse-v5-sentry-coexistence]: Sentry.init moved into instrumentation.ts register() with skipOpenTelemetrySetup:true to enable shared NodeTracerProvider for Langfuse v5 + Sentry coexistence
+- [Phase 97]: CallbackHandler from @langfuse/langchain attached at all graph.invoke sites (web, MCP, WhatsApp) with safe-metadata: only projectId/companyId in handler metadata/tags
+- [Phase 97]: forceFlush() called inside every step.run before returning to prevent Langfuse span loss on serverless suspension (OBS-03 / Pitfall 3)
 
 ## Performance Metrics
 
