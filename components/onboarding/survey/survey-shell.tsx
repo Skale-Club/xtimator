@@ -16,7 +16,6 @@ import { LanguageStep } from './steps/language-step'
 import { BrandColorStep } from './steps/brand-color-step'
 import { LogoStep } from './steps/logo-step'
 import { LocationStep } from './steps/location-step'
-import { DefaultsStep } from './steps/defaults-step'
 import { ReviewStep } from './steps/review-step'
 
 interface SurveyShellProps {
@@ -49,6 +48,8 @@ export function SurveyShell({
     goBack,
     isFirst,
     isLast,
+    isStepFilled,
+    ready,
   } = state
 
   const stepProps = {
@@ -86,8 +87,6 @@ export function SurveyShell({
         return <LogoStep {...stepProps} />
       case 'location':
         return <LocationStep {...stepProps} />
-      case 'defaults':
-        return <DefaultsStep {...stepProps} />
       case 'review':
         return <ReviewStep {...stepProps} />
       default:
@@ -127,9 +126,6 @@ export function SurveyShell({
         setValue('state', '')
         setValue('zip', '')
         break
-      case 'defaults':
-        // keep defaults
-        break
       default:
         break
     }
@@ -155,65 +151,78 @@ export function SurveyShell({
 
           <Card variant="glass" className="mx-auto w-full max-w-2xl">
             <CardContent className="p-6 md:p-10">
-              <SurveyProgress current={stepIndex} total={totalSteps} />
-
-              <div
-                key={stepIndex}
-                className="mt-6 opacity-100 transition-all duration-150 ease-in-out motion-safe:animate-[surveyFadeIn_150ms_ease-out]"
-              >
-                <SurveyStep
-                  label={currentStep.label}
-                  helper={currentStep.helper}
-                  error={error}
-                >
-                  {renderStep()}
-                </SurveyStep>
-              </div>
-
-              <footer className="mt-8 flex items-center justify-between gap-3 pt-6">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  disabled={isFirst || isSubmitting}
-                  onClick={goBack}
-                >
-                  Back
-                </Button>
-                <div className="flex gap-2">
-                  {!currentStep.required && !isLast ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={handleSkip}
-                      disabled={isSubmitting}
-                    >
-                      Skip
-                    </Button>
-                  ) : null}
-                  {!isLast ? (
-                    <Button
-                      type="button"
-                      variant="primary"
-                      onClick={goNext}
-                      disabled={isSubmitting}
-                    >
-                      Next
-                    </Button>
-                  ) : (
-                    <Button
-                      type="button"
-                      variant="primary"
-                      onClick={onComplete}
-                      disabled={isSubmitting}
-                    >
-                      {isSubmitting ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : null}
-                      Complete setup
-                    </Button>
-                  )}
+              {!ready ? (
+                /* Shown for one frame while localStorage is read client-side.
+                   Prevents a hydration mismatch from server (step 0) vs client
+                   (persisted step N). */
+                <div className="flex h-64 items-center justify-center">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 </div>
-              </footer>
+              ) : (
+                <>
+                  <SurveyProgress current={stepIndex} total={totalSteps} />
+
+                  <div
+                    key={stepIndex}
+                    className="mt-6 opacity-100 transition-all duration-150 ease-in-out motion-safe:animate-[surveyFadeIn_150ms_ease-out]"
+                  >
+                    <SurveyStep
+                      label={currentStep.label}
+                      helper={currentStep.helper}
+                      error={error}
+                    >
+                      {renderStep()}
+                    </SurveyStep>
+                  </div>
+
+                  <footer className="mt-8 flex items-center justify-between gap-3 pt-6">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      disabled={isFirst || isSubmitting}
+                      onClick={goBack}
+                    >
+                      Back
+                    </Button>
+                    <div className="flex gap-2">
+                      {isLast ? (
+                        <Button
+                          type="button"
+                          variant="primary"
+                          onClick={onComplete}
+                          disabled={isSubmitting}
+                        >
+                          {isSubmitting ? (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          ) : null}
+                          Complete setup
+                        </Button>
+                      ) : (
+                        <>
+                          {!currentStep.required && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={handleSkip}
+                              disabled={isSubmitting}
+                            >
+                              Skip
+                            </Button>
+                          )}
+                          <Button
+                            type="button"
+                            variant="primary"
+                            onClick={goNext}
+                            disabled={(!currentStep.required && !isStepFilled) || isSubmitting}
+                          >
+                            Next
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </footer>
+                </>
+              )}
             </CardContent>
           </Card>
 

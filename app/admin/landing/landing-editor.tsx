@@ -23,6 +23,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { saveLandingContent } from './actions'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { HeroImageUploader } from '@/components/admin/hero-image-uploader'
+import { StepImageUploader } from '@/components/admin/step-image-uploader'
 
 interface LandingEditorProps {
   initial: LandingContentInput
@@ -50,6 +51,18 @@ export function LandingEditor({ initial }: LandingEditorProps) {
   const [heroImageFile, setHeroImageFile] = useState<File | null>(null)
   const [heroImageRemoved, setHeroImageRemoved] = useState(false)
 
+  // Per-step image state (3 steps)
+  const [stepImages, setStepImages] = useState<Array<{ file: File | null; removed: boolean }>>(
+    () => (initial.howItWorksSteps ?? []).map(() => ({ file: null, removed: false }))
+  )
+  // CDN URLs for each step — the only source of truth for what's actually saved.
+  // Never holds blob: URLs so the payload is always clean.
+  const [currentStepUrls, setCurrentStepUrls] = useState<Array<string | null>>(
+    () => (initial.howItWorksSteps ?? []).map(s => s.imageUrl ?? null)
+  )
+  // Incrementing key forces StepImageUploader remount after save, clearing local blob previews.
+  const [stepUploaderKey, setStepUploaderKey] = useState(0)
+
   function handleHeroImageSelect(file: File, preview: string) {
     setHeroImageFile(file)
     setHeroImagePreview(preview)
@@ -62,6 +75,15 @@ export function LandingEditor({ initial }: LandingEditorProps) {
     setHeroImageRemoved(true)
   }
 
+  function handleStepImageSelect(index: number, file: File) {
+    setStepImages(prev => prev.map((s, i) => i === index ? { file, removed: false } : s))
+  }
+
+  function handleStepImageRemove(index: number) {
+    setStepImages(prev => prev.map((s, i) => i === index ? { file: null, removed: true } : s))
+    setCurrentStepUrls(prev => prev.map((url, i) => i === index ? null : url))
+  }
+
   function onSubmit(values: LandingContentInput) {
     startTransition(async () => {
       const fd = new FormData()
@@ -70,16 +92,29 @@ export function LandingEditor({ initial }: LandingEditorProps) {
       const payload: LandingContentInput = {
         ...values,
         heroImageUrl: heroImageRemoved ? null : values.heroImageUrl ?? null,
+        // Always send the CDN URL (never a blob: URL) so the server's "no change"
+        // branch preserves the real URL rather than overwriting with null.
+        howItWorksSteps: values.howItWorksSteps.map((step, i) => ({
+          ...step,
+          imageUrl: stepImages[i]?.removed ? null : currentStepUrls[i] ?? null,
+        })),
       }
       fd.set('content', JSON.stringify(payload))
       if (heroImageFile) fd.set('heroImageFile', heroImageFile)
       fd.set('heroImageRemoved', String(heroImageRemoved))
+      stepImages.forEach((s, i) => {
+        if (s.file) fd.set(`stepImageFile_${i}`, s.file)
+        fd.set(`stepImageRemoved_${i}`, String(s.removed))
+      })
 
       const result = await saveLandingContent(fd)
       if (result.ok) {
         toast.success(t('Landing page updated.'))
         setHeroImageFile(null)
         setHeroImageRemoved(false)
+        setCurrentStepUrls(result.stepImageUrls)
+        setStepImages(prev => prev.map(() => ({ file: null, removed: false })))
+        setStepUploaderKey(k => k + 1)
       } else {
         toast.error(result.message)
       }
@@ -194,6 +229,18 @@ export function LandingEditor({ initial }: LandingEditorProps) {
                     render={({ field: f }) => (
                       <FormItem><FormLabel>{t('Description')}</FormLabel><FormControl><Textarea rows={3} placeholder={t('Step description')} {...f} /></FormControl><FormMessage /></FormItem>
                     )} />
+                  <FormItem>
+                    <FormLabel>{t('Step image')}</FormLabel>
+                    <FormControl>
+                      <StepImageUploader
+                        key={`${stepUploaderKey}-${index}`}
+                        currentUrl={currentStepUrls[index] ?? null}
+                        stepIndex={index}
+                        onFileSelect={(file) => handleStepImageSelect(index, file)}
+                        onRemove={() => handleStepImageRemove(index)}
+                      />
+                    </FormControl>
+                  </FormItem>
                 </div>
               )
             ))}

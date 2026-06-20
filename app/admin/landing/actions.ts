@@ -1,4 +1,5 @@
 'use server'
+import sharp from 'sharp'
 import { revalidatePath } from 'next/cache'
 import { requireAdmin } from '@/lib/auth/admin-context'
 import { logAdminAction } from '@/lib/admin/audit-log'
@@ -8,12 +9,16 @@ import { invalidatePlatformConfig } from '@/lib/platform-config'
 import {
   landingContentSchema,
   heroImageFileSchema,
+  stepImageFileSchema,
   type LandingContentInput,
 } from '@/lib/schemas/admin'
 
-export type SaveLandingResult = { ok: true } | { ok: false; message: string }
+export type SaveLandingResult =
+  | { ok: true; stepImageUrls: Array<string | null> }
+  | { ok: false; message: string }
 
 const MANAGED_HERO_PREFIX = '/platform-brand/hero-images/'
+const MANAGED_STEP_PREFIX = '/platform-brand/step-images/'
 
 /**
  * Sanitize an upload filename into a slug-safe storage key fragment.
@@ -108,9 +113,66 @@ export async function saveLandingContent(formData: FormData): Promise<SaveLandin
   if (newHeroUrl) finalHeroUrl = newHeroUrl
   else if (heroImageRemoved) finalHeroUrl = null
 
+  // --- Step images (0-2): convert to WebP, upload, or remove ------------
+  const stepImageUrls: Array<string | null | undefined> = []
+  for (let i = 0; i < 3; i++) {
+    const rawStepFile = formData.get(`stepImageFile_${i}`)
+    const stepFile = rawStepFile instanceof File && rawStepFile.size > 0 ? rawStepFile : null
+    const stepRemoved = formData.get(`stepImageRemoved_${i}`) === 'true'
+
+    if (stepFile) {
+      const fileCheck = stepImageFileSchema.safeParse(stepFile)
+      if (!fileCheck.success) {
+        return { ok: false, message: `Step ${i + 1} image: ${fileCheck.error.issues[0]?.message ?? 'Invalid file'}` }
+      }
+      // Convert to WebP with sharp regardless of original format
+      const webpBuffer = await sharp(Buffer.from(await stepFile.arrayBuffer()))
+        .webp({ quality: 85 })
+        .toBuffer()
+      const path = `step-images/${Date.now()}-step-${i}.webp`
+      try {
+        const result = await storage.upload('platform-brand', path, webpBuffer, {
+          contentType: 'image/webp',
+          upsert: true,
+        })
+        stepImageUrls.push(storage.getPublicUrl('platform-brand', result.path))
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Step image upload failed.'
+        return { ok: false, message }
+      }
+    } else if (stepRemoved) {
+      // Delete existing image from storage if it's one we manage
+      const existingStep = (parsed.data.howItWorksSteps ?? [])[i]
+      const existingUrl = existingStep?.imageUrl ?? null
+      if (existingUrl && existingUrl.includes(MANAGED_STEP_PREFIX)) {
+        const idx = existingUrl.indexOf(MANAGED_STEP_PREFIX)
+        const extracted = existingUrl.slice(idx + '/platform-brand/'.length)
+        try {
+          await storage.delete('platform-brand', extracted)
+        } catch (err) {
+          console.warn(`[saveLandingContent] step ${i} image storage delete failed:`, err)
+        }
+      }
+      stepImageUrls.push(null)
+    } else {
+      // No change — preserve existing URL from the submitted content
+      stepImageUrls.push(undefined)
+    }
+  }
+
+  // Merge step image URLs back into steps
+  const mergedSteps = (parsed.data.howItWorksSteps ?? []).map((step, i) => {
+    const urlResult = stepImageUrls[i]
+    return {
+      ...step,
+      imageUrl: urlResult !== undefined ? urlResult : (step.imageUrl ?? null),
+    }
+  })
+
   const persisted: LandingContentInput = {
     ...parsed.data,
     heroImageUrl: finalHeroUrl,
+    howItWorksSteps: mergedSteps as LandingContentInput['howItWorksSteps'],
   }
 
   // Preserve the required singleton app name so an upsert INSERT path never
@@ -143,5 +205,5 @@ export async function saveLandingContent(formData: FormData): Promise<SaveLandin
     },
   })
 
-  return { ok: true }
+  return { ok: true, stepImageUrls: mergedSteps.map(s => s.imageUrl ?? null) }
 }

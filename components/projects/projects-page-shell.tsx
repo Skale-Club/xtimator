@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useTransition } from 'react'
+import { useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { FolderPlus } from 'lucide-react'
@@ -17,7 +17,7 @@ import { T } from '@/components/i18n/t'
 import { cn } from '@/lib/utils'
 import { ProjectRowActions } from '@/components/projects/project-row-actions'
 import { ProjectTable } from '@/components/projects/project-table'
-import { useBreadcrumb } from '@/components/app-shell/breadcrumb-context'
+import { PageHeading } from '@/components/app-shell/page-heading'
 import type { ProjectListRow, ProjectListStatus } from '@/lib/queries/project'
 import type { ClientWithCount } from '@/lib/queries/clients'
 
@@ -43,8 +43,6 @@ export function ProjectsPageShell({
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
 
-  useBreadcrumb(useMemo(() => [{ label: 'Projects', badge: projects.length }], [projects.length]))
-
   function pushQuery(next: { status?: ProjectListStatus; client?: string | null }) {
     const params = new URLSearchParams()
     const s = next.status ?? status
@@ -57,6 +55,7 @@ export function ProjectsPageShell({
 
   return (
     <div className="space-y-6 p-6">
+      <PageHeading><T>Projects</T></PageHeading>
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
           <Tabs

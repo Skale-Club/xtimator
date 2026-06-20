@@ -3,11 +3,12 @@
 import { usePathname } from 'next/navigation'
 import {
   Bell, Building2, CreditCard, FileText, Globe,
-  PenLine, Plug, ShieldCheck, Send, Wallet,
+  PenLine, Plug, ShieldCheck, Send, Wallet, User,
 } from 'lucide-react'
 import { SubNav, type SubNavItem } from '@/components/ui/sub-nav'
 
 const ITEMS: SubNavItem[] = [
+  { value: 'general',            label: 'General',       Icon: User,        href: '/settings/general'            },
   { value: 'company',            label: 'Company',       Icon: Building2,   href: '/settings/company'            },
   { value: 'defaults',           label: 'Defaults',      Icon: FileText,    href: '/settings/defaults'           },
   { value: 'notifications',      label: 'Notifs',        Icon: Bell,        href: '/settings/notifications'      },
@@ -23,7 +24,6 @@ const ITEMS: SubNavItem[] = [
 export function SettingsNav() {
   const pathname = usePathname()
 
-  // Derive active value from the current pathname segment
   const activeValue =
     ITEMS.find(
       (item) =>

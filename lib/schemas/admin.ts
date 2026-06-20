@@ -76,6 +76,7 @@ export const landingContentSchema = z.object({
     eyebrow: z.string().max(30),
     title: z.string().max(60),
     description: z.string().max(300),
+    imageUrl: z.string().url().nullable().or(z.literal('')).transform(v => v || null).optional().nullable(),
   })).length(3),
   features: z.array(z.object({
     icon: z.string().max(40),
@@ -96,6 +97,15 @@ export const heroImageFileSchema = z
   .refine(
     f => ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'].includes(f.type),
     'Hero image must be a PNG, JPG, or WebP.'
+  )
+
+/** Server-side validation for How It Works step image uploads. */
+export const stepImageFileSchema = z
+  .instanceof(File)
+  .refine(f => f.size <= 4 * 1024 * 1024, 'Step image must be under 4MB.')
+  .refine(
+    f => ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'].includes(f.type),
+    'Step image must be a PNG, JPG, or WebP.'
   )
 
 export const blogPostSchema = z.object({

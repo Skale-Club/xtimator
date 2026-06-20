@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import {
   SprayCan,
+  Sofa,
   Paintbrush,
   TreePine,
   Zap,
@@ -18,6 +19,7 @@ import type { LucideIcon } from 'lucide-react'
 
 const ICON_MAP: Record<string, LucideIcon> = {
   SprayCan,
+  Sofa,
   Paintbrush,
   TreePine,
   Zap,

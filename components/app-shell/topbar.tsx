@@ -7,6 +7,7 @@ import { ShieldCheck } from 'lucide-react'
 import { ThemeToggle } from '@/components/app-shell/theme-toggle'
 import { LanguageToggle } from '@/components/app-shell/language-toggle'
 import { NotificationBell } from '@/components/notifications/notification-bell'
+import { NavUserDropdown } from '@/components/app-shell/nav-user-dropdown'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { ContextualTooltip, TOOLTIP_KEYS } from '@/components/tour/contextual-tooltip'
 import { useCurrentBreadcrumbs } from '@/components/app-shell/breadcrumb-context'
@@ -17,28 +18,30 @@ interface TopbarProps {
   }
   userId: string
   isAdmin?: boolean
+  navUser?: { email: string; avatarUrl: string | null } | null
 }
 
 const TITLE_MAP: Record<string, string> = {
-  '/dashboard':          'Dashboard',
-  '/projects':           'Projects',
-  '/projects/new':       'New Project',
-  '/clients':            'Clients',
-  '/price-book':         'Price Book',
-  '/settings':           'Settings',
+  '/projects/new':       'New Xtimate',
   '/notifications':      'Notifications',
 }
 
+// Top-level pages reached from the bottom bar render their own heading on the
+// page (via <PageHeading>), so the navbar shows no title for them.
+const PAGE_OWNS_TITLE = new Set(['/dashboard', '/projects', '/clients', '/price-book'])
+
 function usePageTitle(pathname: string): string {
+  if (PAGE_OWNS_TITLE.has(pathname)) return ''
+  // Settings renders its own "Profile" heading across all its tabs.
+  if (pathname === '/settings' || pathname.startsWith('/settings/')) return ''
   if (TITLE_MAP[pathname]) return TITLE_MAP[pathname]
-  if (pathname.startsWith('/settings/')) return 'Settings'
   if (pathname.startsWith('/projects/')) return 'Project'
   if (pathname.startsWith('/clients/'))  return 'Client'
   if (pathname.startsWith('/admin'))     return 'Admin'
   return ''
 }
 
-export function Topbar({ company, userId, isAdmin }: TopbarProps) {
+export function Topbar({ company, userId, isAdmin, navUser }: TopbarProps) {
   const pathname = usePathname()
   const { t } = useTranslation()
   const router = useRouter()
@@ -121,6 +124,7 @@ export function Topbar({ company, userId, isAdmin }: TopbarProps) {
         </ContextualTooltip>
         <NotificationBell companyId={company.id} userId={userId} />
         <ThemeToggle />
+        {navUser && <NavUserDropdown email={navUser.email} avatarUrl={navUser.avatarUrl} />}
       </div>
     </header>
   )

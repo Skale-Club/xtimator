@@ -7,15 +7,27 @@ export interface Industry {
 
 export const INDUSTRIES: Industry[] = [
   {
-    id: 'cleaning',
-    label: 'Cleaning',
+    id: 'house_cleaning',
+    label: 'House Cleaning',
     icon: 'SprayCan',
     projectTypes: [
       'Deep Cleaning',
       'Regular Maintenance',
       'Move-In/Out',
       'Post-Construction',
+      'Recurring Service',
+    ],
+  },
+  {
+    id: 'upholstery_carpet_cleaning',
+    label: 'Upholstery & Carpet Cleaning',
+    icon: 'Sofa',
+    projectTypes: [
       'Carpet Cleaning',
+      'Upholstery Cleaning',
+      'Area Rug Cleaning',
+      'Stain Removal',
+      'Pet Odor Treatment',
     ],
   },
   {

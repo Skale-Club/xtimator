@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest'
 import { INDUSTRIES, type Industry } from '@/lib/industries'
 
 describe('INDUSTRIES', () => {
-  it('has exactly 8 entries', () => {
-    expect(INDUSTRIES).toHaveLength(8)
+  it('has exactly 9 entries', () => {
+    expect(INDUSTRIES).toHaveLength(9)
   })
 
   it('every industry has non-empty id, label, icon, and projectTypes array', () => {
@@ -43,7 +43,8 @@ describe('INDUSTRIES', () => {
   it('contains all known industries', () => {
     const ids = INDUSTRIES.map((i) => i.id)
     const expected = [
-      'cleaning',
+      'house_cleaning',
+      'upholstery_carpet_cleaning',
       'painting',
       'landscaping',
       'electrical',

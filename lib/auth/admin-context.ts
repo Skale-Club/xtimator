@@ -1,6 +1,5 @@
 import 'server-only'
 import { cache } from 'react'
-import { unstable_cache } from 'next/cache'
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { requireServiceClient } from '@/lib/supabase/service'
@@ -10,24 +9,17 @@ export type AdminContext = {
   email: string
 }
 
-// DB lookup cached per userId — avoids a round-trip on every admin page nav.
-// S03 remediation: TTL lowered 60s -> 30s to shrink the window in which a
-// just-revoked admin can still act. Mutations to platform_admins should also
-// call revalidateTag('platform_admins') for immediate invalidation.
-const cachedIsAdmin = unstable_cache(
-  async (userId: string): Promise<boolean> => {
-    const svc = requireServiceClient()
-    const { data } = await svc
-      .from('platform_admins')
-      .select('user_id')
-      .eq('user_id', userId)
-      .maybeSingle()
-    return !!data
-  },
-  ['admin-check'],
-  { revalidate: 30, tags: ['platform_admins'] }
-)
-
+/**
+ * Resolves the current admin context, or null when the signed-in user is not a
+ * platform admin (or nobody is signed in).
+ *
+ * The lookup is a direct, per-request query (memoized within the request by
+ * React `cache`). It is intentionally NOT wrapped in `unstable_cache`: the prior
+ * implementation used a constant cache key (`['admin-check']`) which could share
+ * one cached result across different users, so a non-admin's cached `false`
+ * could be served to a real admin and 404 them out of /admin. A single indexed
+ * lookup on a low-traffic surface is not worth that risk.
+ */
 export const getAdminContext = cache(async (): Promise<AdminContext | null> => {
   const supabase = await createClient()
   const { data } = await supabase.auth.getClaims()
@@ -35,8 +27,14 @@ export const getAdminContext = cache(async (): Promise<AdminContext | null> => {
   const email = (data?.claims?.email as string | undefined) ?? ''
   if (!userId) return null
 
-  const isAdmin = await cachedIsAdmin(userId)
-  return isAdmin ? { userId, email } : null
+  const svc = requireServiceClient()
+  const { data: row } = await svc
+    .from('platform_admins')
+    .select('user_id')
+    .eq('user_id', userId)
+    .maybeSingle()
+
+  return row ? { userId, email } : null
 })
 
 export async function requireAdmin(): Promise<AdminContext> {

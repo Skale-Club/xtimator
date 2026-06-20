@@ -15,9 +15,10 @@ import { TopNav } from '@/components/landing/top-nav'
 interface LandingPageProps {
   content: LandingContent
   branding: { appName: string; logoUrl: string | null }
+  navUser?: { email: string; avatarUrl: string | null } | null
 }
 
-export function LandingPage({ content, branding }: LandingPageProps) {
+export function LandingPage({ content, branding, navUser }: LandingPageProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [authOpen, setAuthOpen] = useState(false)
@@ -41,45 +42,52 @@ export function LandingPage({ content, branding }: LandingPageProps) {
   }
 
   return (
-    <div
-      data-testid="landing-shell"
-      className="dark isolate h-[100dvh] overflow-y-scroll overflow-x-hidden scroll-smooth overscroll-none bg-background text-foreground selection:bg-primary/30 [&::-webkit-scrollbar]:hidden"
-      style={{ scrollbarWidth: 'none' }}
-    >
+    // Outer wrapper owns dark context + stacking context. No overflow here so
+    // that position:fixed children (TopNav, AuthDialog) are never clipped —
+    // iOS Safari clips fixed elements inside overflow:scroll/hidden containers.
+    <div className="dark isolate bg-background text-foreground selection:bg-primary/30">
       <div className="fixed inset-0 -z-10 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,hsl(var(--primary)/0.15),hsl(var(--foreground)/0))]" />
-      <TopNav branding={branding} onOpenAuth={openAuth} />
 
-      {/* Snap page 1: hero + trust bar */}
-      <div className="min-h-[100dvh] pt-16 flex flex-col">
-        <HeroSection
-          content={{
-            heroHeadline: content.heroHeadline,
-            heroSubheadline: content.heroSubheadline,
-            ctaLabel: content.ctaLabel,
-            heroImageUrl: content.heroImageUrl ?? null,
-          }}
-          onOpenAuth={openAuth}
-        />
-        <TrustBar />
-      </div>
+      <TopNav branding={branding} onOpenAuth={openAuth} navUser={navUser} />
 
-      {/* Snap page 2: how it works */}
-      <div className="min-h-[100dvh] flex flex-col">
-        <HowItWorksSection steps={content.howItWorksSteps} />
-      </div>
-
-      {/* Snap page 3: features */}
-      <div className="min-h-[100dvh] pt-16 flex flex-col justify-center">
-        <FeaturesSection features={content.features} />
-      </div>
-
-      {/* Snap page 4: final CTA + footer */}
-      <div className="relative min-h-[100dvh] pt-16 pb-3 flex flex-col sm:pb-0">
-        <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 gradient-hero" />
-        <div className="flex-1 flex flex-col justify-center">
-          <FinalCtaSection onOpenAuth={openAuth} />
+      {/* Scrollable shell — overflow lives here, not on the outer wrapper */}
+      <div
+        data-testid="landing-shell"
+        className="h-[100dvh] overflow-y-scroll overflow-x-hidden scroll-smooth overscroll-none [&::-webkit-scrollbar]:hidden"
+        style={{ scrollbarWidth: 'none' }}
+      >
+        {/* Snap page 1: hero + trust bar */}
+        <div className="min-h-[100dvh] pt-16 flex flex-col">
+          <HeroSection
+            content={{
+              heroHeadline: content.heroHeadline,
+              heroSubheadline: content.heroSubheadline,
+              ctaLabel: content.ctaLabel,
+              heroImageUrl: content.heroImageUrl ?? null,
+            }}
+            onOpenAuth={openAuth}
+          />
+          <TrustBar />
         </div>
-        <LandingFooter appName={branding.appName} logoUrl={branding.logoUrl} onOpenAuth={openAuth} />
+
+        {/* Snap page 2: how it works */}
+        <div className="min-h-[100dvh] flex flex-col">
+          <HowItWorksSection steps={content.howItWorksSteps} />
+        </div>
+
+        {/* Snap page 3: features */}
+        <div className="min-h-[100dvh] pt-16 flex flex-col justify-center">
+          <FeaturesSection features={content.features} />
+        </div>
+
+        {/* Snap page 4: final CTA + footer */}
+        <div className="relative min-h-[100dvh] pt-16 pb-3 flex flex-col sm:pb-0">
+          <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 gradient-hero" />
+          <div className="flex-1 flex flex-col justify-center">
+            <FinalCtaSection onOpenAuth={openAuth} />
+          </div>
+          <LandingFooter appName={branding.appName} logoUrl={branding.logoUrl} onOpenAuth={openAuth} />
+        </div>
       </div>
 
       <AuthDialog branding={branding} open={authOpen} onClose={() => setAuthOpen(false)} initialMode={authMode} />

@@ -14,6 +14,8 @@ import {
 } from '@/lib/queries/active-company'
 import { syncOwnerPhone } from '@/lib/whatsapp/sync-owner-phone'
 import { sendWelcomeEmail } from '@/lib/email/account-emails'
+import { seedIndustryPriceBook } from '@/lib/price-book-seed'
+import { getDefaultTaxRate } from '@/lib/tax-rates'
 
 interface CompanyFormData {
   companyName?: string
@@ -70,6 +72,11 @@ export async function createOrUpdateCompany(
   const resolvedIndustry =
     data.industry === 'other' ? data.customIndustry : data.industry
 
+  // Smart-fill the default tax rate from state + service type when the caller
+  // didn't supply one (onboarding no longer asks for tax). Editable later in
+  // Settings → Defaults.
+  const autoTaxRate = getDefaultTaxRate(resolvedIndustry, data.state)
+
   // Build the row object mapping form fields to DB columns
   const row = {
     user_id: claims.sub,
@@ -88,7 +95,7 @@ export async function createOrUpdateCompany(
     zip: data.zip || null,
     license_number: data.licenseNumber || null,
     insurance_info: data.insuranceInfo || null,
-    default_tax_rate: data.defaultTaxRate ?? 0,
+    default_tax_rate: data.defaultTaxRate ?? autoTaxRate ?? 0,
     default_payment_terms: data.defaultPaymentTerms || 'Net 30',
     default_warranty_terms: data.defaultWarrantyTerms || '1 year',
     default_validity_days: data.defaultValidityDays ?? 30,
@@ -170,6 +177,9 @@ export async function createOrUpdateCompany(
     // Sync owner phone to company_whatsapp for WhatsApp inbound routing
     syncOwnerPhone(service, newCompanyId, data.phone).catch(() => undefined)
 
+    // Seed industry-specific price book defaults (fire-and-forget)
+    seedIndustryPriceBook(service, newCompanyId, resolvedIndustry, row.currency_code).catch(() => undefined)
+
     // Send welcome email to new account owner (fire-and-forget)
     const userEmail = (claims as Record<string, unknown>).email as string | undefined
     sendWelcomeEmail({
@@ -250,6 +260,9 @@ export async function createOrUpdateCompany(
 
     // Sync owner phone to company_whatsapp for WhatsApp inbound routing
     syncOwnerPhone(service, newCompany.id, data.phone).catch(() => undefined)
+
+    // Seed industry-specific price book defaults (fire-and-forget)
+    seedIndustryPriceBook(service, newCompany.id, resolvedIndustry, row.currency_code).catch(() => undefined)
 
     // Send welcome email (fire-and-forget)
     const userEmail2 = (claims as Record<string, unknown>).email as string | undefined

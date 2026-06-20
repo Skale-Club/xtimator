@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react'
 import { Suspense } from 'react'
-import { notFound } from 'next/navigation'
+import { redirect } from 'next/navigation'
 import { ShieldCheck } from 'lucide-react'
 import { getAdminContext } from '@/lib/auth/admin-context'
 import { getCachedBranding } from '@/lib/platform-config'
@@ -15,7 +15,10 @@ export default async function AdminLayout({
   children: React.ReactNode
 }) {
   const [adminCtx, branding] = await Promise.all([getAdminContext(), getCachedBranding()])
-  if (!adminCtx) notFound()
+  // Not an admin — could be logged out, an expired session, or a leftover demo
+  // session. Clear any session and send to the login dialog so an admin can sign
+  // in, instead of a dead-end 404.
+  if (!adminCtx) redirect('/api/logout')
   const ctx = adminCtx
   const triplet = branding.primaryColor
     ? hexToHslTriplet(branding.primaryColor)

@@ -95,7 +95,7 @@ export function DefaultsForm({ company }: DefaultsFormProps) {
                         </span>
                       </div>
                     </FormControl>
-                    <FormDescription>{t('Applied to new estimates by default.')}</FormDescription>
+                    <FormDescription>{t('Auto-filled from your state and service type during setup. Adjust if your local rules differ. Applied to new estimates by default.')}</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}

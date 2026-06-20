@@ -13,7 +13,7 @@ import { INDUSTRIES } from '@/lib/industries'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { PhoneInput } from '@/components/ui/phone-input'
 import { Button } from '@/components/ui/button'
@@ -44,9 +44,11 @@ type CompanyInfoValues = z.infer<typeof companyInfoSchema>
 
 interface CompanyInfoFormProps {
   company: CompanySettings
+  /** Render every field disabled and hide the save action (public demo). */
+  readOnly?: boolean
 }
 
-export function CompanyInfoForm({ company }: CompanyInfoFormProps) {
+export function CompanyInfoForm({ company, readOnly = false }: CompanyInfoFormProps) {
   const { t } = useTranslation()
   const [logoFile, setLogoFile] = useState<File | null>(null)
   const [logoPreview, setLogoPreview] = useState<string | null>(company.logo_url)
@@ -119,6 +121,7 @@ export function CompanyInfoForm({ company }: CompanyInfoFormProps) {
       <CardContent className="py-6">
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+            <fieldset disabled={readOnly} className="m-0 min-w-0 space-y-8 border-0 p-0">
             <div className="grid gap-8 xl:grid-cols-[280px_minmax(0,1fr)]">
               <div className="flex items-center justify-center rounded-[var(--radius-md)] border border-dashed border-border bg-muted/30 p-6">
                 <LogoUploader
@@ -161,6 +164,9 @@ export function CompanyInfoForm({ company }: CompanyInfoFormProps) {
                       <FormControl>
                         <Input placeholder="John Doe" {...field} />
                       </FormControl>
+                      <FormDescription className="text-xs text-muted-foreground">
+                        {t('Appears on generated estimates when the owner name is included.')}
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -408,10 +414,18 @@ export function CompanyInfoForm({ company }: CompanyInfoFormProps) {
               )}
             />
 
-            <Button type="submit" disabled={isPending} className="min-w-40">
-              {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {t('Save Company Info')}
-            </Button>
+            </fieldset>
+
+            {readOnly ? (
+              <p className="text-sm text-muted-foreground">
+                {t('This is a read-only demo. Create a free account to edit your profile.')}
+              </p>
+            ) : (
+              <Button type="submit" disabled={isPending} className="min-w-40">
+                {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {t('Save Company Info')}
+              </Button>
+            )}
           </form>
         </Form>
       </CardContent>

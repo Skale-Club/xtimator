@@ -13,11 +13,11 @@ export interface NavItem {
 }
 
 export const NAV_ITEMS: NavItem[] = [
-  { label: 'New Project', href: '/projects/new', icon: FolderPlus, primary: true, exact: true, modal: 'new-project' },
-  { label: 'Dashboard',   href: '/dashboard',    icon: LayoutDashboard },
-  { label: 'Projects',    href: '/projects',     icon: FolderOpen },
-  { label: 'Clients',     href: '/clients',      icon: Users },
-  { label: 'Price Book',  href: '/price-book', icon: BookOpen },
-  { label: 'Settings',    href: '/settings',     icon: Settings, demoHidden: true },
-  { label: 'WhatsApp',    href: '/whatsapp',     icon: MessageCircle, demoHidden: true },
+  { label: 'Dashboard',    href: '/dashboard',    icon: LayoutDashboard },
+  { label: 'Projects',     href: '/projects',     icon: FolderOpen },
+  { label: 'New Xtimate',  href: '/projects/new', icon: FolderPlus, primary: true, exact: true, modal: 'new-project' },
+  { label: 'Clients',      href: '/clients',      icon: Users },
+  { label: 'Price Book',   href: '/price-book',   icon: BookOpen },
+  { label: 'Settings',     href: '/settings',     icon: Settings,   demoHidden: true },
+  { label: 'WhatsApp',     href: '/whatsapp',     icon: MessageCircle, demoHidden: true },
 ]

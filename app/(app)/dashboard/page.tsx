@@ -37,6 +37,9 @@ export default async function DashboardPage() {
                      [mask-image:linear-gradient(to_bottom,black_55%,transparent_100%)]
                      [-webkit-mask-image:linear-gradient(to_bottom,black_55%,transparent_100%)]"
         />
+        <h1 className="text-sm font-medium text-muted-foreground uppercase tracking-widest mb-3">
+          <T>Dashboard</T>
+        </h1>
         <p className="text-3xl font-semibold tracking-tight">
           <T text={`Welcome back, ${firstName}`} />
         </p>
