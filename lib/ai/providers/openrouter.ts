@@ -13,7 +13,7 @@ import { getIntegrationKey } from '@/lib/platform-config'
 import { buildSystemPrompt, buildUserContent } from '../prompt-builder'
 import { normalizeOutput } from '../normalize'
 import { formatMoney, normalizeCurrencyCode } from '@/lib/money/currency'
-import { getLangfuse } from '@/lib/observability/langfuse'
+import { langfuseClient } from '@/lib/observability/langfuse'
 
 const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1'
 
@@ -200,22 +200,18 @@ Task: Update the estimate to reflect the user's instruction. Return the full upd
     try {
       const parsed = JSON.parse(argsJson) as Record<string, unknown>
       try {
-        const lf = getLangfuse()
-        if (lf) {
-          const trace = lf.trace({ name: operationName })
-          trace.generation({
-            name: operationName,
-            model: this.model,
-            input: body.messages,
-            output: parsed,
-            usage: {
-              input: json.usage?.prompt_tokens,
-              output: json.usage?.completion_tokens,
-            },
-            startTime,
-            endTime: new Date(),
-          })
-        }
+        const gen = langfuseClient.generation({
+          name: operationName,
+          model: this.model,
+          input: body.messages,
+          startTime,
+          usage: {
+            input: json.usage?.prompt_tokens,
+            output: json.usage?.completion_tokens,
+          },
+        })
+        gen.end({ output: parsed, endTime: new Date() })
+        await langfuseClient.flushAsync()
       } catch (err) {
         console.warn('[langfuse] generation trace failed:', err)
       }

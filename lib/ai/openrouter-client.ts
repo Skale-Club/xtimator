@@ -12,7 +12,7 @@
  */
 
 import { getIntegrationKey } from '@/lib/platform-config'
-import { getLangfuse } from '@/lib/observability/langfuse'
+import { langfuseClient } from '@/lib/observability/langfuse'
 
 export const OPENROUTER_BASE = 'https://openrouter.ai/api/v1'
 export const OPENAI_TRANSCRIPTION_BASE = 'https://api.openai.com/v1'
@@ -88,17 +88,14 @@ export async function transcribeAudioOR(
 
   const transcript = (await res.text()).trim()
   try {
-    const lf = getLangfuse()
-    if (lf) {
-      const trace = lf.trace({ name: 'transcribe_audio' })
-      trace.span({
-        name: 'transcribe_audio',
-        input: { ext, model },
-        output: transcript.slice(0, 200),
-        startTime,
-        endTime: new Date(),
-      })
-    }
+    const gen = langfuseClient.generation({
+      name: 'transcribe_audio',
+      model,
+      input: { ext, model },
+      startTime,
+    })
+    gen.end({ output: { chars: transcript.length }, endTime: new Date() })
+    await langfuseClient.flushAsync()
   } catch (err) {
     console.warn('[langfuse] transcribe_audio trace failed:', err)
   }
@@ -165,18 +162,14 @@ export async function analyzePhotoOR(
 
   const result = json.choices?.[0]?.message?.content ?? ''
   try {
-    const lf = getLangfuse()
-    if (lf) {
-      const trace = lf.trace({ name: 'analyze_photo' })
-      trace.generation({
-        name: 'analyze_photo',
-        model: visionModel,
-        input: { mimeType, prompt: PHOTO_PROMPT },
-        output: result,
-        startTime,
-        endTime: new Date(),
-      })
-    }
+    const gen = langfuseClient.generation({
+      name: 'analyze_photo',
+      model: visionModel,
+      input: { mimeType, prompt: PHOTO_PROMPT },
+      startTime,
+    })
+    gen.end({ output: result.slice(0, 500), endTime: new Date() })
+    await langfuseClient.flushAsync()
   } catch (err) {
     console.warn('[langfuse] analyze_photo trace failed:', err)
   }
@@ -238,18 +231,14 @@ export async function translateTextsOR(
   const clean = raw.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim()
   const result = JSON.parse(clean) as Record<string, string>
   try {
-    const lf = getLangfuse()
-    if (lf) {
-      const trace = lf.trace({ name: 'translate_texts' })
-      trace.generation({
-        name: 'translate_texts',
-        model,
-        input: { texts, targetLanguage },
-        output: result,
-        startTime,
-        endTime: new Date(),
-      })
-    }
+    const gen = langfuseClient.generation({
+      name: 'translate_texts',
+      model,
+      input: { count: texts.length, targetLanguage },
+      startTime,
+    })
+    gen.end({ output: { keys: Object.keys(result) }, endTime: new Date() })
+    await langfuseClient.flushAsync()
   } catch (err) {
     console.warn('[langfuse] translate_texts trace failed:', err)
   }
