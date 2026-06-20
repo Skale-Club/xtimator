@@ -2,12 +2,12 @@
 gsd_state_version: 1.0
 milestone: v4.3
 milestone_name: Unified Agentic Estimate Engine
-status: defining-requirements
-stopped_at: Milestone v4.3 started — defining requirements
-last_updated: "2026-06-20T00:00:00.000Z"
+status: roadmap-complete
+stopped_at: Roadmap v4.3 created — phases 94-97 mapped, awaiting `/gsd:plan-phase 94`
+last_updated: "2026-06-20T12:00:00.000Z"
 last_activity: 2026-06-20
 progress:
-  total_phases: 93
+  total_phases: 97
   completed_phases: 64
   total_plans: 200
   completed_plans: 229
@@ -17,16 +17,27 @@ progress:
 
 ## Current Status
 
-- **Milestone**: v4.3 Unified Agentic Estimate Engine — STARTED 2026-06-20 (defining requirements). Predecessor v4.2 Recording Reliability & Observability shipped 2026-05-30 (phases 91-93); v4.1 MCP Server shipped 2026-05-26 (phases 86-90).
+- **Milestone**: v4.3 Unified Agentic Estimate Engine — ROADMAP COMPLETE 2026-06-20 (phases 94-97 defined; 21/21 requirements mapped). Predecessor v4.2 Recording Reliability & Observability shipped 2026-05-30 (phases 91-93); v4.1 MCP Server shipped 2026-05-26 (phases 86-90).
 - **Last updated**: 2026-06-20
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 94 — Extract Canonical Graph Behind WhatsApp (not started)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-06-20 — Milestone v4.3 Unified Agentic Estimate Engine started
-Stopped at: Milestone v4.3 started — defining requirements
+Status: Roadmap complete — ready to plan Phase 94
+Last activity: 2026-06-20 — v4.3 roadmap created (phases 94-97); 21/21 requirements mapped to phases
+Stopped at: Roadmap v4.3 created — awaiting `/gsd:plan-phase 94`
+
+## v4.3 Phases (current milestone)
+
+> **Numbering:** continues from v4.2's last phase (93); the global phase counter is NOT reset. v4.3 = phases 94-97.
+
+- Phase 94: Extract Canonical Graph Behind WhatsApp (behavior-preserving) + StepRunner Seam (ENGINE-01..04, CHAN-01, DURABLE-01, DURABLE-02, QA-01) — Not started (needs `/gsd:plan-phase 94`)
+- Phase 95: Migrate Web + MCP onto the Shared Graph (generate-only passthrough) (CHAN-02, CHAN-03, CHAN-04, QA-03) — Not started
+- Phase 96: Intelligence Parity — Auto-Refine + needs_details Surfacing (SMART-01..05, QA-02) — Not started
+- Phase 97: Unified Observability — Langfuse v5 + Sentry Coexistence (OBS-01, OBS-02, OBS-03) — Not started
+
+**Locked scope guardrails:** Inngest owns durability (no LangGraph checkpointer); auto-refine hard-capped at 1; web's decoupled ingestion preserved (graph enters at `generate`); only the `StepRunner` contract/scaffold ships (full granularity refactor deferred); intent-router unification out of scope.
 
 ## v3.1.1 Phases
 

@@ -90,10 +90,44 @@ This asymmetry is a real product gap: the web/MCP can silently produce a low-qua
 
 ## Traceability
 
-Populated during roadmap creation (each requirement maps to exactly one phase).
+Each v1 requirement maps to exactly one phase. Coverage = 100% (21/21).
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
+| ENGINE-01 | Phase 94 | Pending |
+| ENGINE-02 | Phase 94 | Pending |
+| ENGINE-03 | Phase 94 | Pending |
+| ENGINE-04 | Phase 94 | Pending |
+| CHAN-01 | Phase 94 | Pending |
+| DURABLE-01 | Phase 94 | Pending |
+| DURABLE-02 | Phase 94 | Pending |
+| QA-01 | Phase 94 | Pending |
+| CHAN-02 | Phase 95 | Pending |
+| CHAN-03 | Phase 95 | Pending |
+| CHAN-04 | Phase 95 | Pending |
+| QA-03 | Phase 95 | Pending |
+| SMART-01 | Phase 96 | Pending |
+| SMART-02 | Phase 96 | Pending |
+| SMART-03 | Phase 96 | Pending |
+| SMART-04 | Phase 96 | Pending |
+| SMART-05 | Phase 96 | Pending |
+| QA-02 | Phase 96 | Pending |
+| OBS-01 | Phase 97 | Pending |
+| OBS-02 | Phase 97 | Pending |
+| OBS-03 | Phase 97 | Pending |
+
+**Coverage:**
+- v1 requirements: 21 total (ENGINE 4, CHAN 4, SMART 5, OBS 3, DURABLE 2, QA 3)
+- Mapped to phases: 21 ✓
+- Unmapped: 0 ✓
+
+**Per-phase distribution:**
+- Phase 94 — Extract Canonical Graph + StepRunner Seam (8): ENGINE-01..04, CHAN-01, DURABLE-01, DURABLE-02, QA-01
+- Phase 95 — Migrate Web + MCP (passthrough) (4): CHAN-02, CHAN-03, CHAN-04, QA-03
+- Phase 96 — Intelligence Parity (auto-refine + needs_details) (6): SMART-01..05, QA-02
+- Phase 97 — Unified Observability (Langfuse v5) (3): OBS-01, OBS-02, OBS-03
+
+-------------|-------|--------|
 | (pending roadmap) | — | Pending |
 
 **Coverage:**
@@ -103,4 +137,4 @@ Populated during roadmap creation (each requirement maps to exactly one phase).
 
 ---
 *Requirements defined: 2026-06-20*
-*Last updated: 2026-06-20 after initial definition (milestone v4.3 start)*
+*Last updated: 2026-06-20 after roadmap creation (phases 94-97 mapped; 21/21 requirements covered)*
