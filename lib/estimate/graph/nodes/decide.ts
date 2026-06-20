@@ -24,3 +24,17 @@ export function checkGeneratedEdge(state: EstimateStateType): string {
 export function checkVagueEdge(state: EstimateStateType): string {
   return state.isVague ? 'finalizeAsk' : 'finalizeConfirm'
 }
+
+/**
+ * After assess (Phase 96, D-01): routes to autoRefine for a first vague
+ * result (cap-guarded), or to finalize when the estimate is non-vague OR
+ * refineAttempts >= 1. This replaces the direct assess → finalize edge.
+ *
+ * The adapter's finalize branches internally on state.isVague to produce the
+ * channel-appropriate needs_details outcome when refineAttempts >= 1.
+ */
+export function checkVagueAfterAssessEdge(state: EstimateStateType): string {
+  if (!state.isVague) return 'finalize'
+  if ((state.refineAttempts ?? 0) < 1) return 'autoRefine'
+  return 'finalize'
+}

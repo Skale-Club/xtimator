@@ -3,11 +3,10 @@
  *
  * Shared estimate revert helper (Phase 96, D-05).
  *
- * Moved verbatim from lib/whatsapp/ask-details.ts so the channel-neutral
- * auto-refine node (lib/estimate/graph/nodes/auto-refine.ts) can call it
- * without importing from lib/whatsapp/* (ENGINE-01 neutrality).
- *
- * lib/whatsapp/ask-details.ts re-exports this for backward compat.
+ * Moved verbatim from the WhatsApp ask-details helpers so the channel-neutral
+ * auto-refine node can call it without importing any channel-specific module
+ * (ENGINE-01 neutrality). The original WhatsApp module re-exports this for
+ * backward compatibility.
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
 
