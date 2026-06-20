@@ -10,7 +10,7 @@ import { toast } from 'sonner'
 
 import { changePassword, changeEmail, deleteAccount } from '@/lib/actions/settings'
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -113,12 +113,6 @@ export function AccountSection() {
 
   return (
     <Card className="w-full rounded-[var(--radius-md)]">
-      <CardHeader className="border-b border-border">
-        <CardTitle>{t('Account')}</CardTitle>
-        <CardDescription>
-          {t('Update login credentials and manage irreversible account actions.')}
-        </CardDescription>
-      </CardHeader>
       <CardContent className="space-y-8 py-6">
         {/* Change Password */}
         <div className="grid gap-6 xl:grid-cols-[260px_minmax(0,1fr)]">

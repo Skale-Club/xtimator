@@ -105,12 +105,17 @@ export function ProjectWorkspace({
     /*
      * Layout mirrors settings:
      *   Mobile  (< md): sticky horizontal nav bar on top, full-width content below
-     *   Desktop (md+):  vertical sidebar on the left, content on the right
+     *   Desktop (md+):  sticky vertical sidebar on the left (stays in view while
+     *     the page content scrolls), content on the right
      */
     <div className="flex min-h-full flex-col md:flex-row md:gap-0 md:items-start">
 
-      {/* Nav — horizontal sticky strip on mobile, vertical sidebar on desktop */}
-      <div className={`relative sticky top-0 z-20 shrink-0 md:sticky md:top-[72px] md:self-start transition-all duration-200 ${sidebarCollapsed ? 'md:w-14' : 'md:w-48'}`}>
+      {/* Nav — horizontal sticky strip on mobile, fixed vertical sidebar on desktop.
+          The primary sidebar exposes its width as --app-sidebar-width so this
+          sub-nav stays aligned even when the primary sidebar is collapsed. */}
+      <div
+        className={`relative sticky top-0 z-20 shrink-0 md:fixed md:left-[var(--app-sidebar-width)] md:top-[120px] md:z-30 md:h-[calc(100vh-120px)] md:overflow-y-auto transition-all duration-200 ${sidebarCollapsed ? 'md:w-14' : 'md:w-48'}`}
+      >
         {/* Right-edge fade gradient — signals horizontal scrollability on mobile */}
         <div
           aria-hidden
@@ -123,7 +128,7 @@ export function ProjectWorkspace({
             'w-full border-b px-2 py-2',
             'overflow-x-auto scrollbar-none',
             // desktop
-            'md:overflow-x-visible md:border-b-0 md:border-r md:py-4',
+            'md:overflow-x-visible md:overflow-y-auto md:border-b-0 md:border-r md:py-4',
             sidebarCollapsed ? 'md:px-1' : 'md:px-3',
           ].join(' ')}
         >
@@ -150,8 +155,8 @@ export function ProjectWorkspace({
         </aside>
       </div>
 
-      {/* Content */}
-      <div className="min-w-0 flex-1 px-4 py-6 md:px-6">
+      {/* Content — offset on desktop so it doesn't sit underneath the fixed sidebar */}
+      <div className={`min-w-0 flex-1 px-4 py-6 md:px-6 ${sidebarCollapsed ? 'md:ml-14' : 'md:ml-48'}`}>
         {activeTab === 'overview' && (
           <OverviewTab
             project={project}

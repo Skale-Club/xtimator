@@ -55,6 +55,7 @@
   :root {
     --system-primary: 224 86% 60%;
     --system-secondary: 221 84% 73%;
+    --app-sidebar-width: 213px;
     --background: 0 0% 100%;
     --foreground: 240 10% 3.9%;
     --card: 0 0% 100%;

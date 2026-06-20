@@ -11,7 +11,7 @@ const ITEMS: SubNavItem[] = [
   { value: 'general',            label: 'General',       Icon: User,        href: '/settings/general'            },
   { value: 'company',            label: 'Company',       Icon: Building2,   href: '/settings/company'            },
   { value: 'defaults',           label: 'Defaults',      Icon: FileText,    href: '/settings/defaults'           },
-  { value: 'notifications',      label: 'Notifs',        Icon: Bell,        href: '/settings/notifications'      },
+  { value: 'notifications',      label: 'Notifications', Icon: Bell,        href: '/settings/notifications'      },
   { value: 'delivery',           label: 'Delivery',      Icon: Send,        href: '/settings/delivery'           },
   { value: 'billing',            label: 'Billing',       Icon: CreditCard,  href: '/settings/billing'            },
   { value: 'payments',           label: 'Payments',      Icon: Wallet,      href: '/settings/payments'           },

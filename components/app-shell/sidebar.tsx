@@ -126,6 +126,12 @@ export function Sidebar({ branding, company, memberships, isDemo }: SidebarProps
   const [collapsed, setCollapsed] = useState(false)
   const offline = useIsOffline()
 
+  // Publish the primary sidebar width so secondary sidebars can pin themselves
+  // to its right edge using left-[var(--app-sidebar-width)].
+  useEffect(() => {
+    document.documentElement.style.setProperty('--app-sidebar-width', collapsed ? '64px' : '213px')
+  }, [collapsed])
+
   useEffect(() => {
     const mediaQuery = window.matchMedia(DESKTOP_SIDEBAR_QUERY)
 
@@ -157,7 +163,11 @@ export function Sidebar({ branding, company, memberships, isDemo }: SidebarProps
     <aside
       data-testid="app-sidebar"
       data-collapsed={collapsed || undefined}
-      style={{ borderTop: 0, borderBottom: 0, borderLeft: 0 }}
+      style={{
+        borderTop: 0,
+        borderBottom: 0,
+        borderLeft: 0,
+      }}
       className={cn(
         'hidden md:flex flex-col shrink-0 overflow-hidden transition-[width] duration-200 glass border-r border-[var(--glass-border)]',
         collapsed ? 'w-16' : 'w-[213px]',
