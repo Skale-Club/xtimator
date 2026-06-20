@@ -121,9 +121,7 @@ export function EstimateTab({
       }
       const generated = (await genRes.json()) as GenerateEstimateResponse
       setGenerationStep(2)
-      await new Promise((r) => setTimeout(r, 500))
       setGenerationStep(3)
-      await new Promise((r) => setTimeout(r, 1000))
       router.refresh()
       showClientSuggestionToast({ projectId, router, suggestion: generated.clientSuggestion })
     } catch (err) {
