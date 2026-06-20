@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v4.3
 milestone_name: Unified Agentic Estimate Engine
 status: verifying
-stopped_at: Completed 95-01-PLAN.md
-last_updated: "2026-06-20T18:21:02.256Z"
+stopped_at: Completed 95-02-PLAN.md
+last_updated: "2026-06-20T18:28:39Z"
 last_activity: 2026-06-20
 progress:
   total_phases: 52
@@ -22,11 +22,11 @@ progress:
 
 ## Current Position
 
-Phase: 999.1
-Plan: Not started
-Status: Phase complete — ready for verification
+Phase: 95
+Plan: 02 (complete)
+Status: Phase 95 complete — web + MCP now on shared graph; ready for verification
 Last activity: 2026-06-20
-Stopped at: Completed 95-01-PLAN.md
+Stopped at: Completed 95-02-PLAN.md
 
 ## v4.3 Phases (current milestone)
 
