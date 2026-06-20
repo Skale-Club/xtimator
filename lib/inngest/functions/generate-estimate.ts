@@ -9,7 +9,8 @@
  */
 import { randomUUID } from 'node:crypto'
 import { inngest } from '@/lib/inngest/client'
-import { generateEstimateForProject } from '@/lib/services/generate-estimate'
+import { makeDefaultAdapter } from '@/lib/estimate/adapters/default'
+import { buildEstimateGraph } from '@/lib/estimate/graph'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { recordUsage } from '@/lib/quota'
 import { notify } from '@/lib/notifications/dispatch'
@@ -96,11 +97,20 @@ export const generateEstimateJob = inngest.createFunction(
       userId: ownerUserId,
     })
 
-    // Step 1: Heavy AI call — checkpointed. A retry of step 2 will NOT re-call.
-    const result = await step.run('call-ai-provider', async () => {
-      return await generateEstimateForProject(companyId, projectId, {
-        language: language ?? undefined,
+    // Step 1: Shared graph invocation — checkpointed (DURABLE-02: whole graph in one step.run,
+    // mirroring lib/inngest/functions/whatsapp-process.ts). A retry of step 2 will NOT re-run
+    // the graph. The web/MCP adapter ingest + finalize are passthroughs; onError re-throws
+    // so Inngest retry + onFailure fires on generation failure (D-02).
+    const result = await step.run('orchestrate-estimate', async () => {
+      const supabase = requireServiceClient()
+      const adapter = makeDefaultAdapter({ companyId, supabase })
+      const graph = buildEstimateGraph(adapter)
+      return graph.invoke({
+        companyId,
+        projectId,
+        channel: 'web',
         prompts: prompts && prompts.length > 0 ? prompts : undefined,
+        estimateLanguage: language ?? undefined,
       })
     })
 
