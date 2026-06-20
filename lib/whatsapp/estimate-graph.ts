@@ -36,6 +36,7 @@ import type { WhatsAppMessage } from '@/lib/whatsapp/types'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { buildEstimateGraph as buildSharedEstimateGraph } from '@/lib/estimate/graph'
 import { makeWhatsAppAdapter } from '@/lib/estimate/adapters/whatsapp'
+import { CallbackHandler } from '@langfuse/langchain'
 
 /** WhatsApp-superset initial state the existing callers/tests pass to invoke. */
 interface WhatsAppInitialState {
@@ -70,17 +71,31 @@ export function buildEstimateGraph() {
         messages: initial.messages ?? [],
       })
       const graph = buildSharedEstimateGraph(adapter)
+
+      // OBS-01: unified Langfuse trace per WhatsApp estimate run.
+      // Safe-metadata rule v4.2: only project/company IDs allowed — no sensitive data.
+      const handler = new CallbackHandler({
+        metadata: {
+          langfuseSessionId: `whatsapp:${initial.projectId}`,
+          langfuseUserId: initial.companyId,
+        },
+        tags: ['whatsapp', 'estimate-engine'],
+      })
+
       // Core state is channel-neutral (D-07): ownerPhone/messages/currentMessage/
       // mediaResults are consumed by the adapter closure, NOT threaded as core
       // channels. `channel: 'whatsapp'` drives the generate-node opts.
-      return await graph.invoke({
-        companyId: initial.companyId,
-        projectId: initial.projectId,
-        channel: 'whatsapp',
-        estimateId: initial.estimateId,
-        estimateLanguage: initial.estimateLanguage,
-        isVague: initial.isVague,
-      })
+      return await graph.invoke(
+        {
+          companyId: initial.companyId,
+          projectId: initial.projectId,
+          channel: 'whatsapp',
+          estimateId: initial.estimateId,
+          estimateLanguage: initial.estimateLanguage,
+          isVague: initial.isVague,
+        },
+        { callbacks: [handler] }
+      )
     },
   }
 }
