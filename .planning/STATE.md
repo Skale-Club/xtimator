@@ -1,11 +1,11 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.5
-milestone_name: Zero-friction Project Onboarding
-status: verifying
-stopped_at: Completed 93-03-PLAN.md (event log list page + detail page + EventStepTimeline)
-last_updated: "2026-06-13T11:41:17.359Z"
-last_activity: 2026-06-13
+milestone: v4.3
+milestone_name: Unified Agentic Estimate Engine
+status: defining-requirements
+stopped_at: Milestone v4.3 started — defining requirements
+last_updated: "2026-06-20T00:00:00.000Z"
+last_activity: 2026-06-20
 progress:
   total_phases: 93
   completed_phases: 64
@@ -17,16 +17,16 @@ progress:
 
 ## Current Status
 
-- **Milestone**: v4.2 Recording Reliability & Observability — STARTED 2026-05-28 (defining requirements). Predecessor v4.1 MCP Server shipped 2026-05-26 (phases 86-90); v4.0 Multi-Tenancy shipped 2026-05-26 (phases 79-85).
-- **Last updated**: 2026-05-28
+- **Milestone**: v4.3 Unified Agentic Estimate Engine — STARTED 2026-06-20 (defining requirements). Predecessor v4.2 Recording Reliability & Observability shipped 2026-05-30 (phases 91-93); v4.1 MCP Server shipped 2026-05-26 (phases 86-90).
+- **Last updated**: 2026-06-20
 
 ## Current Position
 
-Phase: 999.1
-Plan: Not started
-Status: Phase complete — ready for verification
-Last activity: 2026-06-13 - Finalized the vitest suite to 100% green (260613-aoe): npx vitest run → 1516 passed, 0 failed (213 files). Builds on the mock-drift fix (54→10) + coj's ADMIN-06 product fix (TEST-ENV-01); the finalize pass (commit 5dcbe57) resolved the last 9 product-contract-drift tests — OpenRouter test rewrites (provider-factory, translate-route), app-icons proxy/manifest contract, wizard reduced-schema, auth-redesign brand token, landing-page login-copy, bulk-adjust title matcher. known-issues.md residual section marked fully resolved (0 remaining)
-Stopped at: Completed 93-03-PLAN.md (event log list page + detail page + EventStepTimeline)
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-06-20 — Milestone v4.3 Unified Agentic Estimate Engine started
+Stopped at: Milestone v4.3 started — defining requirements
 
 ## v3.1.1 Phases
 

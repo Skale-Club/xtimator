@@ -14,7 +14,22 @@ The platform includes:
 
 A business owner can go from job site audio recording to a sent, professional estimate in under 5 minutes without touching a keyboard.
 
-## Current Milestone: v4.2 Recording Reliability & Observability
+## Current Milestone: v4.3 Unified Agentic Estimate Engine
+
+**Goal:** Unify estimate creation across ALL channels (web UI, MCP, WhatsApp) under a single LangGraph-based agentic engine — extract the domain graph today exclusive to WhatsApp into a shared canonical core, and give web/MCP the same pipeline intelligence (assess quality → ask for details/refine) that only WhatsApp has today.
+
+**Target features:**
+- **Canonical domain graph** — `ingest → generate → assess quality → refine/ask-details → finalize` reusable nodes in a shared module (extracted from `lib/whatsapp/estimate-graph.ts`)
+- **Migrate web** — `lib/inngest/functions/generate-estimate.ts` consumes the shared graph instead of the linear `call-ai-provider` step
+- **Migrate MCP** — `create_estimate` (`lib/mcp/tools/write.ts`) routes through the same graph
+- **Migrate WhatsApp** — consume the shared graph, plugging only edge nodes (inbound media download + conversational reply)
+- **Intelligence parity** — quality assessment + refinement/ask-details for web and MCP (today single-shot)
+- **LangGraph↔Inngest relationship** — resolve checkpoint granularity (today the whole graph runs inside a single `step.run` in `whatsapp-process.ts`, no per-node checkpoint)
+- **Unified observability** — langfuse traces across all channels + tests/UAT
+
+**Key context:** the generation core `generateEstimateForProject` (`lib/services/generate-estimate.ts`) is ALREADY shared by all 3 channels; what diverges is orchestration and the quality/refinement intelligence. Central architectural decision for the phases: graph↔Inngest checkpoint granularity, and whether/how to preserve the web's decoupled ingestion (transcription at upload via separate Inngest jobs `transcribe-audio`/`analyze-photos` vs ingestion inside the graph).
+
+## Last Milestone: v4.2 Recording Reliability & Observability ✅ (shipped 2026-05-30)
 
 **Goal:** Make the recording→estimate pipeline reliable and diagnosable — fix the transcription 503, persist every pipeline step, and give Super Admin a Generations-style event log to debug failures without digging through server logs.
 
@@ -290,4 +305,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context
 
 ---
-*Last updated: 2026-05-30 — Phase 93 (Super Admin Event Log UI) complete; ADMINLOG-01..05 verified (7/7). v4.2 Recording Reliability & Observability COMPLETE — all 3 phases (91, 92, 93) shipped.*
+*Last updated: 2026-06-20 — v4.3 Unified Agentic Estimate Engine started (defining requirements). v4.2 Recording Reliability & Observability COMPLETE (phases 91-93, shipped 2026-05-30).*
