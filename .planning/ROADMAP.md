@@ -1042,7 +1042,7 @@ Plans:
 
 - [x] **Phase 94: Extract Canonical Graph Behind WhatsApp (behavior-preserving) + StepRunner Seam** — Lift the WhatsApp-only StateGraph into a shared, channel-neutral `lib/estimate/graph/` core (`ingest → generate → assess → refine/ask → finalize`) driven by a `ChannelAdapter`, with the deterministic `isVagueEstimate` gate extracted, the never-throw/failure-as-state invariant preserved, the `StepRunner` contract injected, and the checkpoint-granularity decision captured — WhatsApp behavior unchanged, its tests stay green (ENGINE-01..04, CHAN-01, DURABLE-01, DURABLE-02, QA-01) (completed 2026-06-20)
 - [x] **Phase 95: Migrate Web + MCP onto the Shared Graph (generate-only passthrough)** — Repoint the web `generate-estimate` Inngest job to invoke the shared graph via the default adapter (`ingest` = passthrough guard, `assess`/`refine`/`finalize` = no-op finalize); MCP inherits via the same event. Output is byte-equivalent to today across all three channels; the non-vague web happy path stays at exactly 1 AI call and writes no `whatsapp_*` rows (CHAN-02, CHAN-03, CHAN-04, QA-03) (completed 2026-06-20)
-- [ ] **Phase 96: Intelligence Parity — Auto-Refine + needs_details Surfacing** — Turn on the default adapter's real `assess` + one automatic self-refine (cap = 1) before a typed `needs_details` verdict; web persists `awaiting_details` (non-blocking UI prompt, no `interrupt()`), MCP returns a structured status (no elicitation), WhatsApp's inline ask-details is now driven by the shared verdict; multi-tenant isolation re-verified across the shared nodes + any refine tool (SMART-01..05, QA-02)
+- [x] **Phase 96: Intelligence Parity — Auto-Refine + needs_details Surfacing** — Turn on the default adapter's real `assess` + one automatic self-refine (cap = 1) before a typed `needs_details` verdict; web persists `awaiting_details` (non-blocking UI prompt, no `interrupt()`), MCP returns a structured status (no elicitation), WhatsApp's inline ask-details is now driven by the shared verdict; multi-tenant isolation re-verified across the shared nodes + any refine tool (SMART-01..05, QA-02) (completed 2026-06-20)
 - [ ] **Phase 97: Unified Observability — Langfuse v5 + Sentry Coexistence** — One unified Langfuse trace per estimate run via a single `CallbackHandler` at `graph.invoke` (channels distinguished by metadata/tags), migrated to the Langfuse v5 OTel SDK coexisting with Sentry on a shared tracer provider, exposing per-channel AI call-count and latency (OBS-01, OBS-02, OBS-03)
 
 ### Phase 94: Extract Canonical Graph Behind WhatsApp (behavior-preserving) + StepRunner Seam
@@ -1086,7 +1086,7 @@ Plans:
 **Plans**: 2 plans
 Plans:
 - [x] 96-01-PLAN.md — Wave 1: RED test stubs (auto-refine-isolation.test.ts + graph-neutrality extension)
-- [ ] 96-02-PLAN.md — Wave 2: Production code (revert.ts + state needsDetails + auto-refine.ts + decide.ts + index.ts + default.ts)
+- [x] 96-02-PLAN.md — Wave 2: Production code (revert.ts + state needsDetails + auto-refine.ts + decide.ts + index.ts + default.ts)
 
 ### Phase 97: Unified Observability — Langfuse v5 + Sentry Coexistence
 **Goal**: Every estimate run on every channel emits one unified Langfuse trace via a single `CallbackHandler` attached at `graph.invoke`, with channels distinguished by metadata/tags, so per-channel AI call-count and latency are visible — the metric foundation that will later justify the deferred durability refactor. Langfuse is migrated to the v5 OTel SDK and coexists with Sentry's OTel without colliding on the global tracer provider.

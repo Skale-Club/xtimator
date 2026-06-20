@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v4.3
 milestone_name: Unified Agentic Estimate Engine
-status: executing
-stopped_at: Completed 96-01-PLAN.md
-last_updated: "2026-06-20T19:06:06.754Z"
+status: verifying
+stopped_at: Completed 96-02-PLAN.md
+last_updated: "2026-06-20T19:22:13.066Z"
 last_activity: 2026-06-20
 progress:
   total_phases: 52
-  completed_phases: 37
+  completed_phases: 38
   total_plans: 112
-  completed_plans: 124
+  completed_plans: 125
 ---
 
 # Project State
@@ -24,9 +24,9 @@ progress:
 
 Phase: 96 (intelligence-parity-auto-refine-needs-details-surfacing) — EXECUTING
 Plan: 2 of 2
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-06-20
-Stopped at: Completed 96-01-PLAN.md
+Stopped at: Completed 96-02-PLAN.md
 
 ## v4.3 Phases (current milestone)
 
@@ -500,6 +500,9 @@ Stopped at: Completed 96-01-PLAN.md
 - [Phase 95]: Wave 0 RED state intentional: CHAN-02 anchor tests for orchestrate-estimate/buildEstimateGraph/makeDefaultAdapter fail until Plan 02 production changes land
 - [Phase 96]: Wave 0 stubs use expect.fail() for behavioral tests targeting not-yet-existing production code; source-text anchors use existsSync guard for clear RED failure messages
 - [Phase 96]: REQUIRED_CORE_FILES extended with auto-refine.ts so Wave 2 file creation automatically satisfies ENGINE-01 neutrality anchor without test change
+- [Phase 96-intelligence-parity-auto-refine-needs-details-surfacing]: D-01 cap=1 conditional loop: checkVagueAfterAssessEdge replaces direct assess->finalize edge; both targets listed in 3rd arg for LangGraph reachability
+- [Phase 96-intelligence-parity-auto-refine-needs-details-surfacing]: ENGINE-01 neutrality scanner checks ALL source text including JSDoc comments - forbidden tokens like 'lib/whatsapp' must not appear even in comments in files under lib/estimate/quality/ and lib/estimate/graph/
+- [Phase 96-intelligence-parity-auto-refine-needs-details-surfacing]: QA-02 closure isolation: default adapter finalize uses closure companyId not state.companyId for .eq('company_id') filter on projects update (D-06)
 
 ## Performance Metrics
 
@@ -670,6 +673,7 @@ Stopped at: Completed 96-01-PLAN.md
 | Phase 94 P04 | 6 | 2 tasks | 1 files |
 | Phase 95-migrate-web-mcp-onto-the-shared-graph-generate-only-passthrough P01 | 5 | 1 tasks | 1 files |
 | Phase 96 P01 | 3 | 2 tasks | 2 files |
+| Phase 96-intelligence-parity-auto-refine-needs-details-surfacing P02 | 17 | 3 tasks | 9 files |
 
 ## Project Reference
 

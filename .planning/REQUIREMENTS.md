@@ -40,7 +40,7 @@ This asymmetry is a real product gap: the web/MCP can silently produce a low-qua
 - [x] **SMART-02**: If still vague after the refine attempt, the engine ends at a typed `needs_details` verdict (never a 500/throw). Quota is charged only for a delivered estimate, not per internal attempt.
 - [x] **SMART-03**: Web surfaces the `needs_details` verdict as a persisted project-level state (`awaiting_details`) that prompts the user in the UI to add detail and regenerate — no `interrupt()` / no job blocking.
 - [x] **SMART-04**: MCP surfaces the `needs_details` verdict as a structured status in the job result the calling LLM can act on (compatible with the existing `job_id` + poll contract — no elicitation).
-- [ ] **SMART-05**: WhatsApp's existing inline ask-details behavior is preserved, now driven by the shared verdict.
+- [x] **SMART-05**: WhatsApp's existing inline ask-details behavior is preserved, now driven by the shared verdict.
 
 ### OBS — Unified Observability
 
@@ -110,7 +110,7 @@ Each v1 requirement maps to exactly one phase. Coverage = 100% (21/21).
 | SMART-02 | Phase 96 | Complete |
 | SMART-03 | Phase 96 | Complete |
 | SMART-04 | Phase 96 | Complete |
-| SMART-05 | Phase 96 | Pending |
+| SMART-05 | Phase 96 | Complete |
 | QA-02 | Phase 96 | Complete |
 | OBS-01 | Phase 97 | Pending |
 | OBS-02 | Phase 97 | Pending |
