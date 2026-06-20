@@ -21,6 +21,7 @@
 - ✅ **v4.0 Multi-Tenancy** — Phases 79-85 (shipped 2026-05-26) · [archive](milestones/v4.0-ROADMAP.md)
 - ✅ **v4.1 MCP Server** — Phases 86-90 (shipped 2026-05-26) · [archive](milestones/v4.1-ROADMAP.md)
 - ✅ **v4.2 Recording Reliability & Observability** — Phases 91-93 (shipped 2026-05-30)
+- 🚧 **v4.3 Unified Agentic Estimate Engine** — Phases 94-97 (started 2026-06-20)
 
 > **Phase numbering note:** v3.1.1 starts at **Phase 66**, not 62. Phases 62-65 are reserved as DEFERRED placeholders for the v3.2 Production Deploy milestone (Vercelâ†’Hetzner deploy + Stripe live + monitoring + UAT in prod). Skipping past 62-65 keeps the global phase counter unambiguous and prevents number reuse confusion when v3.2 begins.
 
@@ -1026,3 +1027,67 @@ Plans:
 - [x] 93-02-PLAN.md — events-helpers.ts (buildSearchOr/terminalStatus/formatDuration/SAFE_EVENT_COLUMNS) + EventsControls client + admin nav item
 - [x] 93-03-PLAN.md — list page (events/page.tsx) + EventStepTimeline component + detail page ([attemptId]/page.tsx)
 **UI hint**: yes
+### v4.3 Unified Agentic Estimate Engine (Phases 94-97)
+
+> **Numbering:** continues from v4.2's last phase (93). The global phase counter is NOT reset; v4.3 starts at **Phase 94**.
+
+> **Milestone goal:** Unify estimate creation across web UI, MCP, and WhatsApp under ONE shared, channel-neutral LangGraph engine driven by a `ChannelAdapter`, and bring the quality-assessment + auto-refine intelligence (today WhatsApp-only) to web and MCP — closing the silent-zero-estimate gap.
+
+> **Locked decisions (scope guardrails for planning):** Inngest owns durability — NO LangGraph checkpointer. Auto-refine is hard-capped at 1 iteration. Web's decoupled upload-time ingestion is preserved (graph enters at `generate`). Only the `StepRunner` contract + scaffold ships (DURABLE-01/02); the FULL durability granularity refactor is OUT OF SCOPE / deferred. Intent-router unification is OUT OF SCOPE.
+
+> **Keystone insight:** extraction must be behavior-preserving FIRST (WhatsApp tests stay green), THEN migrate web/MCP as a no-op, THEN add new intelligence, THEN observe — so the mechanical refactor and the product change are isolated and independently bisectable.
+
+- [ ] **Phase 94: Extract Canonical Graph Behind WhatsApp (behavior-preserving) + StepRunner Seam** — Lift the WhatsApp-only StateGraph into a shared, channel-neutral `lib/estimate/graph/` core (`ingest → generate → assess → refine/ask → finalize`) driven by a `ChannelAdapter`, with the deterministic `isVagueEstimate` gate extracted, the never-throw/failure-as-state invariant preserved, the `StepRunner` contract injected, and the checkpoint-granularity decision captured — WhatsApp behavior unchanged, its tests stay green (ENGINE-01..04, CHAN-01, DURABLE-01, DURABLE-02, QA-01)
+- [ ] **Phase 95: Migrate Web + MCP onto the Shared Graph (generate-only passthrough)** — Repoint the web `generate-estimate` Inngest job to invoke the shared graph via the default adapter (`ingest` = passthrough guard, `assess`/`refine`/`finalize` = no-op finalize); MCP inherits via the same event. Output is byte-equivalent to today across all three channels; the non-vague web happy path stays at exactly 1 AI call and writes no `whatsapp_*` rows (CHAN-02, CHAN-03, CHAN-04, QA-03)
+- [ ] **Phase 96: Intelligence Parity — Auto-Refine + needs_details Surfacing** — Turn on the default adapter's real `assess` + one automatic self-refine (cap = 1) before a typed `needs_details` verdict; web persists `awaiting_details` (non-blocking UI prompt, no `interrupt()`), MCP returns a structured status (no elicitation), WhatsApp's inline ask-details is now driven by the shared verdict; multi-tenant isolation re-verified across the shared nodes + any refine tool (SMART-01..05, QA-02)
+- [ ] **Phase 97: Unified Observability — Langfuse v5 + Sentry Coexistence** — One unified Langfuse trace per estimate run via a single `CallbackHandler` at `graph.invoke` (channels distinguished by metadata/tags), migrated to the Langfuse v5 OTel SDK coexisting with Sentry on a shared tracer provider, exposing per-channel AI call-count and latency (OBS-01, OBS-02, OBS-03)
+
+### Phase 94: Extract Canonical Graph Behind WhatsApp (behavior-preserving) + StepRunner Seam
+**Goal**: The estimate orchestration logic today exclusive to WhatsApp lives in a shared, channel-neutral domain graph (`lib/estimate/graph/`) consumed through a `ChannelAdapter`, built from day one with the durability `StepRunner` seam and the never-throw invariant — and WhatsApp, the only channel using it so far, behaves exactly as before with its full test suite green. This is the riskiest mechanical change done behind the richest test coverage, with zero behavior change and zero web/MCP impact.
+**Depends on**: Phase 93 (last shipped phase; no functional dependency)
+**Requirements**: ENGINE-01, ENGINE-02, ENGINE-03, ENGINE-04, CHAN-01, DURABLE-01, DURABLE-02, QA-01
+**Success Criteria** (what must be TRUE):
+  1. A shared `lib/estimate/graph/` module defines the canonical `generate → assess → decide` nodes with channel-neutral state (carrying `companyId`, `projectId`, `channel`, `prompts?`, `isVague`, `failure?`, `refineAttempts` — and NO `ownerPhone`, `WhatsAppMessage`, or `whatsapp_*` field); a static check confirms the shared core has zero WhatsApp imports
+  2. A `ChannelAdapter` closure-factory (`buildEstimateGraph(adapter)`) lets a channel plug only its edge behaviors (`ingest`, `refine`/`finalize`, `onError`); the WhatsApp adapter supplies media fan-out + conversational reply/session by importing existing `lib/whatsapp/*` primitives, leaving the core untouched
+  3. The deterministic `isVagueEstimate` gate is extracted to `lib/estimate/quality/vagueness.ts` and reused verbatim as the always-on, zero-cost (no-LLM) check; the shared graph never throws — nodes signal failure via the `failure?` state channel and the adapter maps the terminal failure to the channel's reply/cleanup
+  4. WhatsApp's inbound-estimate flow runs entirely on the shared graph (`whatsapp-process.ts` repointed to the new module + `channel:'whatsapp'`) with its behavior preserved exactly; the frozen never-throw / always-reply regression test stays green — the owner still gets a reply on every failure path
+  5. A `StepRunner` abstraction is defined and injected into the engine (default `passthroughRunner`) so AI-heavy nodes CAN later be promoted to their own durable Inngest `step.run` without coupling the core to Inngest, and a decision artifact captures the graph↔Inngest checkpoint-granularity contract (Inngest is the sole durability layer; no LangGraph checkpointer; cross-message wait stays in `whatsapp_sessions`/events; when to decompose + retry-cost trade-offs)
+**Plans**: 4 plans
+Plans:
+- [ ] 94-01-PLAN.md — Wave 0: DURABLE-02 decision artifact + 7 failing test stubs (the behavior-preserving safety net)
+- [ ] 94-02-PLAN.md — Extract channel-neutral core: vagueness gate + EstimateState + ChannelAdapter/StepRunner contracts + generate/assess/decide nodes + buildEstimateGraph factory
+- [ ] 94-03-PLAN.md — WhatsApp ChannelAdapter (ingest/finalize/onError) + default.ts stub; rewire estimate-graph.ts + repoint whatsapp-process.ts
+- [ ] 94-04-PLAN.md — Repoint source-text anchor test paths + full-suite green gate + D-13 behavior-preserving audit
+
+### Phase 95: Migrate Web + MCP onto the Shared Graph (generate-only passthrough)
+**Goal**: The web `generate-estimate` Inngest job and MCP `create_estimate` both flow through the same shared graph as today's single-shot path — producing byte-equivalent output with no behavior change yet — proving the shared engine works for web/MCP before any intelligence is switched on. Web's decoupled upload-time ingestion is preserved; the graph enters at `generate` via a passthrough `ingest` guard.
+**Depends on**: Phase 94 (the shared graph + default-adapter seam must exist)
+**Requirements**: CHAN-02, CHAN-03, CHAN-04, QA-03
+**Success Criteria** (what must be TRUE):
+  1. The web `generate-estimate` Inngest job invokes the shared graph through the default adapter; the default `ingest` is a passthrough guard (transcripts/photo descriptions already persisted by the decoupled `transcribe-audio`/`analyze-photos` jobs), and `assess`/`refine`/`finalize` behave as a no-op finalize so output is identical to today
+  2. MCP `create_estimate` inherits the shared graph for free via the existing `EVENT_ESTIMATE_GENERATE` dispatch — no new dispatch contract, still `job_id` + poll — and produces the same result it does today
+  3. Behavior parity is verified: all three channels (web, MCP, WhatsApp) produce equivalent estimate output for equivalent inputs through the single engine, and no channel regresses (existing per-channel test suites stay green)
+  4. The non-vague web fast path makes exactly 1 AI call per generation (no surprise extra AI calls), and a web/MCP run writes no `whatsapp_*` rows and triggers no conversational reply — confirmed by test
+**Plans**: TBD
+
+### Phase 96: Intelligence Parity — Auto-Refine + needs_details Surfacing
+**Goal**: Web and MCP gain the quality intelligence WhatsApp already has — the engine assesses every estimate, makes one automatic self-refine attempt when it detects a vague/low-quality result, and if still vague ends at a typed `needs_details` verdict surfaced in a channel-appropriate way (never a 500). This is the milestone's headline: closing the silent-zero-estimate gap on web/MCP, with multi-tenant isolation preserved across the now-shared nodes.
+**Depends on**: Phase 95 (web/MCP must already flow through the shared graph as no-op before behavior is flipped on)
+**Requirements**: SMART-01, SMART-02, SMART-03, SMART-04, SMART-05, QA-02
+**Success Criteria** (what must be TRUE):
+  1. When the engine detects a vague/low-quality estimate, it makes exactly ONE automatic self-refine attempt (re-prompt to be more specific) before involving the human — the loop is hard-capped at 1 iteration; if still vague, the run ends at a typed `needs_details` verdict, never a 500/throw, and quota is charged only for a delivered estimate (not per internal attempt)
+  2. Web surfaces `needs_details` as a persisted project-level `awaiting_details` state that prompts the user in the UI to add detail and regenerate — non-blocking, no `interrupt()`, no job hang
+  3. MCP surfaces `needs_details` as a structured status in the job result (compatible with the existing `job_id` + poll contract, no elicitation) that the calling LLM can act on
+  4. WhatsApp's existing inline ask-details behavior is preserved unchanged, now driven by the same shared quality verdict
+  5. Multi-tenant isolation is preserved: `companyId` stays a trusted closure/param across every shared node and any new refine tool — no LLM-suppliable tenant field — verified by extending the existing `query-tools` "no tenant input" test to cover the refine surface, and every shared-core query stays company-scoped
+**Plans**: TBD
+
+### Phase 97: Unified Observability — Langfuse v5 + Sentry Coexistence
+**Goal**: Every estimate run on every channel emits one unified Langfuse trace via a single `CallbackHandler` attached at `graph.invoke`, with channels distinguished by metadata/tags, so per-channel AI call-count and latency are visible — the metric foundation that will later justify the deferred durability refactor. Langfuse is migrated to the v5 OTel SDK and coexists with Sentry's OTel without colliding on the global tracer provider.
+**Depends on**: Phase 96 (behavior is now uniform across channels, so there is something uniform to observe)
+**Requirements**: OBS-01, OBS-02, OBS-03
+**Success Criteria** (what must be TRUE):
+  1. All three channels emit a unified Langfuse trace per estimate run via a single `CallbackHandler` attached once at `graph.invoke`; web/MCP/WhatsApp runs are distinguishable by `metadata`/`tags` on the trace
+  2. Langfuse is migrated to the v5 OTel SDK (`@langfuse/langchain` + `@langfuse/otel` + `@langfuse/tracing`, replacing the LangChain-v1-incompatible `langfuse@3.38.20`) and coexists with `@sentry/nextjs` OTel on a shared tracer provider without collision (Sentry set to `skipOpenTelemetrySetup: true`, both processors on one `NodeTracerProvider` in `instrumentation.ts`)
+  3. Per-channel AI call-count and latency (p95) per estimate are visible in the traces — and the deterministic vagueness gate is confirmed still in place so the web non-vague happy-path call count stays pinned at 1; no Langfuse keys/host or transcript/audio/key tokens are committed (env-var only, safe-metadata rule from v4.2)
+**Plans**: TBD

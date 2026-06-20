@@ -1,89 +1,140 @@
-# Requirements: v4.2 Recording Reliability & Observability
+# Requirements: v4.3 Unified Agentic Estimate Engine
 
-**Goal:** Make the recording → transcription → estimate pipeline reliable and observable. Eliminate the opaque 503 that breaks audio capture, persist every pipeline step to a durable events store, and give Super Admins a searchable event log to diagnose failures without touching the database.
+**Goal:** Unify estimate creation across ALL channels (web UI, MCP, WhatsApp) under a single LangGraph-based agentic engine. Extract the domain graph today exclusive to WhatsApp into a shared, channel-neutral canonical core, and bring the quality-assessment + refinement intelligence (today WhatsApp-only) to web and MCP.
 
-**Started:** 2026-05-28
+**Started:** 2026-06-20
 **Status:** Defining requirements
 
-## Why this milestone (the gap the recording 503 exposed)
+## Why this milestone (the gap)
 
-Audio capture currently fails with an opaque error. Root cause: `GET /api/jobs/[jobId]` returns `503 "Inngest not configured"` whenever `INNGEST_SIGNING_KEY` is missing. `hooks/use-job-status.ts` surfaces `"Status check failed: 503"`, and `components/capture/capture-recorder.tsx` marks the transcribing step as failed with no actionable recovery.
+The generation core `generateEstimateForProject` (`lib/services/generate-estimate.ts`) is ALREADY shared by all three channels. What diverges is **orchestration** and **pipeline intelligence**:
 
-This 503 is not a new bug — it is the unfinished tail of the v3.1.1 Inngest migration. **INNGEST-01** (worker registration + reachability) and **INNGEST-06** (idempotency) were never completed and are carried forward into this milestone as REC requirements.
+- **WhatsApp** runs a LangGraph `StateGraph` (`lib/whatsapp/estimate-graph.ts`) with a quality gate: it detects a vague/low-quality estimate (`evaluateVagueness` → `isVagueEstimate()`) and asks the owner for more detail (`askDetails`) instead of sending a $0/empty estimate.
+- **Web** (`lib/inngest/functions/generate-estimate.ts`) and **MCP** (`lib/mcp/tools/write.ts`) are **single-shot**: they generate once and return. No quality gate, no refinement — a vague estimate is delivered as-is.
 
-Beyond the fix, there is no observability: today only a single `recording_added` row lands in `estimate_activity`. When a capture fails, no one can see which step broke, why, or for whom. This milestone adds a per-step event store and a Super Admin event log UI (modeled on the reference Generations panel) so failures are diagnosable in seconds.
+This asymmetry is a real product gap: the web/MCP can silently produce a low-quality estimate that WhatsApp would have caught. This milestone unifies the orchestration into one shared graph driven by a `ChannelAdapter`, gives all channels the same quality verdict, and adds one automatic self-refine attempt before falling back to asking the human — turning today's one-pass gate into a true evaluator-optimizer loop.
 
-The user-facing capture popup stays simple (human-readable reason + Retry + Edit manually). Deep diagnostics live in Super Admin.
-
-**Source spec:** Notion project "Recording Failure Investigation - Super Admin Event Logs".
+**Source:** architecture analysis 2026-06-20 + research in `.planning/research/` (STACK / FEATURES / ARCHITECTURE / PITFALLS / SUMMARY).
 
 ---
 
 ## v1 Requirements (this milestone)
 
-### REC — Recording Pipeline Reliability
+### ENGINE — Canonical Domain Graph
 
-- [x] **REC-01**: `GET /api/jobs/[jobId]` no longer hard-503s when Inngest is unconfigured — either completes INNGEST-01 (worker functions registered at `app/api/inngest/route.ts` and publicly reachable) or degrades gracefully, returning an actionable, non-error status the client can render (never an opaque 503)
-- [x] **REC-02**: Capture popup (`components/capture/capture-recorder.tsx`) shows a human-readable failure reason plus Retry and "Edit manually" actions — never a raw status code or stack
-- [x] **REC-03**: Retry creates or continues a traceable attempt (same attempt id lineage); "Edit manually" preserves project context so no recording work is lost
-- [x] **REC-04**: Inngest pipeline jobs are idempotent — carry-forward INNGEST-06; `step.run()` boundaries + explicit `idempotencyKey` per job so retries never double-charge AI/transcription providers
-- [x] **REC-05**: `hooks/use-job-status.ts` interprets the new graceful statuses correctly — distinguishes "still processing", "failed with reason", and "config unavailable" without throwing on non-200
+- [ ] **ENGINE-01**: A shared, channel-neutral estimate domain graph exists in a dedicated module (e.g. `lib/estimate/graph/`) with reusable nodes `ingest → generate → assess → refine/ask → finalize`. Graph state carries NO channel-specific fields (no `ownerPhone`, no `WhatsAppMessage`).
+- [ ] **ENGINE-02**: A `ChannelAdapter` abstraction (closure-factory, mirroring the existing `makeQueryTools` pattern) lets each channel plug ONLY its edge behaviors (`ingest`, `finalize`/reply, `onError`) without modifying the core graph.
+- [ ] **ENGINE-03**: The deterministic quality gate (`isVagueEstimate`) is extracted into the shared graph and reused verbatim as the always-on, zero-cost check (no LLM call for the gate).
+- [ ] **ENGINE-04**: The shared graph preserves the never-throw / always-finalize invariant — nodes signal failure via a state channel (`failure?`), never by throwing; the adapter maps the terminal failure outcome to the channel's reply/cleanup.
 
-### EVENT — Pipeline Event Persistence
+### CHAN — Channel Migration
 
-- [x] **EVENT-01**: New events store (table) persists per-attempt, per-step records — attempt id, project id, estimate id, user id, company id, input type, step, status, error message, error/HTTP code, provider, duration, retry count, created/updated timestamps. RLS: deny-all to client, service-role writes, super-admin read only
-- [x] **EVENT-02**: Backend instrumentation writes an event at each pipeline step transition — save recording, transcribe, analyze, generate estimate, preview redirect — capturing both success and failure with timing
-- [x] **EVENT-03**: All input types are captured (recording / photo / manual text); retries increment `retry_count` and link to the originating attempt id
-- [x] **EVENT-04**: Existing single `recording_added` write to `estimate_activity` is preserved (no regression to current activity feed) — the new events store is additive, not a replacement
+- [ ] **CHAN-01**: WhatsApp consumes the shared graph; its current `estimate-graph.ts` behavior is preserved exactly — inbound media fan-out + conversational reply/session become edge nodes supplied by the WhatsApp adapter.
+- [ ] **CHAN-02**: The web generation path (`generate-estimate` Inngest job) consumes the shared graph, entering at the `generate` node — the web's decoupled upload-time ingestion (`transcribe-audio` / `analyze-photos`) is preserved; the graph's `ingest` node is a passthrough guard when transcripts/descriptions already exist.
+- [ ] **CHAN-03**: MCP `create_estimate` runs through the same shared graph (inherits the web path — no new dispatch contract, still `job_id` + poll).
+- [ ] **CHAN-04**: Behavior parity is verified — all three channels produce equivalent estimate output for equivalent inputs through the single engine; no channel regresses.
 
-### ADMINLOG — Super Admin Event Log UI
+### SMART — Intelligence Parity (quality + refine)
 
-- [x] **ADMINLOG-01**: Recent attempts list in Super Admin — Generations-style columns (timestamp, user/company, project/estimate, input type, step reached, status, duration); newest first; paginated
-- [x] **ADMINLOG-02**: Search across attempts by user, project, estimate, attempt id, and error text
-- [x] **ADMINLOG-03**: Filters for status (success/failure/in-progress), input type, and step; success/failure counts displayed; manual refresh control
-- [x] **ADMINLOG-04**: Per-attempt detail view renders a step timeline — each step's timestamp, status, message, error code, safe metadata, and duration
-- [x] **ADMINLOG-05**: No raw sensitive provider payloads (audio bytes, full transcripts, API keys) rendered in the admin UI — only safe, summarized metadata
+- [ ] **SMART-01**: When the engine detects a vague/low-quality estimate, it makes exactly ONE automatic self-refine attempt (e.g. re-prompt with a "be more specific" instruction) before involving the human — hard cap = 1 iteration.
+- [ ] **SMART-02**: If still vague after the refine attempt, the engine ends at a typed `needs_details` verdict (never a 500/throw). Quota is charged only for a delivered estimate, not per internal attempt.
+- [ ] **SMART-03**: Web surfaces the `needs_details` verdict as a persisted project-level state (`awaiting_details`) that prompts the user in the UI to add detail and regenerate — no `interrupt()` / no job blocking.
+- [ ] **SMART-04**: MCP surfaces the `needs_details` verdict as a structured status in the job result the calling LLM can act on (compatible with the existing `job_id` + poll contract — no elicitation).
+- [ ] **SMART-05**: WhatsApp's existing inline ask-details behavior is preserved, now driven by the shared verdict.
+
+### OBS — Unified Observability
+
+- [ ] **OBS-01**: All three channels emit a unified Langfuse trace per estimate run via a single `CallbackHandler` attached at `graph.invoke` (channels distinguished by `metadata`/`tags`).
+- [ ] **OBS-02**: Langfuse is migrated to the v5 OTel SDK (`@langfuse/langchain` + `@langfuse/otel` + `@langfuse/tracing`, replacing the LangChain-v1-incompatible `langfuse@3.38.20`) and coexists with `@sentry/nextjs` OTel without collision (shared tracer provider / `skipOpenTelemetrySetup`).
+- [ ] **OBS-03**: Per-channel AI call-count and latency are visible in the traces (the metric foundation that justifies the deferred durability refactor).
+
+### DURABLE — Checkpoint Foundation (scaffold only; full refactor deferred)
+
+- [ ] **DURABLE-01**: A `StepRunner` abstraction is defined and injected into the engine so AI-heavy nodes CAN later be promoted to their own durable Inngest `step.run` — without coupling the core graph to Inngest. Contract + scaffold only in this milestone.
+- [ ] **DURABLE-02**: The graph↔Inngest checkpoint-granularity decision is captured as a decision artifact (when to decompose, retry-cost trade-offs, why no LangGraph checkpointer) to guide the deferred full refactor.
+
+### QA — Reliability & Test Guardrails
+
+- [ ] **QA-01**: A frozen regression test asserts the WhatsApp never-throw / always-reply guarantee survives the extraction — the owner always gets a reply on every failure path.
+- [ ] **QA-02**: Multi-tenant isolation is preserved — `companyId` stays closure/param across all shared nodes and any new refine tool; no LLM-suppliable tenant field (extend the existing `query-tools` "no tenant input" test).
+- [ ] **QA-03**: The deterministic happy path stays at exactly 1 AI call per generation — no surprise extra AI calls on the non-vague web fast path.
 
 ---
 
 ## Out of Scope (deferred / future)
 
-- **Customer-facing diagnostics** — the capture popup stays minimal (reason + Retry + Edit manually); rich diagnostics are Super Admin only
-- **External APM / Sentry integration** — this milestone builds an in-app event store, not a third-party observability pipeline
-- **Alerting / paging on failure spikes** — event store is queryable but no automated alerts in v1
-- **Retention/archival policy for the events store** — TTL/cleanup cron deferred until volume warrants it
-- **Replaying or re-running a failed attempt from the admin UI** — read-only diagnostics in v1; Retry stays in the user-facing flow
-- **Remaining v3.1.1 UAT / FIX / PERF backlog** — those stay in `.planning/milestones/v3.1.1-REQUIREMENTS.md`; only INNGEST-01/06 are pulled forward (as REC-01/REC-04) because they are the direct root cause of the 503
+| Feature | Reason |
+|---------|--------|
+| LLM-as-judge soft quality scoring | High cost/latency + new failure surface; the deterministic `isVagueEstimate()` gate is sufficient for v4.3. Revisit once traces show where it's needed. |
+| Full durability granularity refactor (each AI node = own `step.run`) | Deferred until OBS metrics justify it; v4.3 ships only the `StepRunner` contract/scaffold (DURABLE-01/02). |
+| Multi-iteration / unbounded refine loops | Capped at 1 automatic attempt (SMART-01) to protect cost/latency and the <5-min core value. |
+| LangGraph `interrupt()` on web / MCP `elicitation` | Anti-features — they break the fire-and-forget async (`job_id`+poll) contracts and would hang the job. |
+| Intent-router unification (`lib/whatsapp/intent-router.ts`) | A separate graph (classification + ReAct query agent); not part of the estimate-creation core. |
+| Folding web's upload-time ingestion into the graph | Keep `transcribe-audio` / `analyze-photos` decoupled — better per-item checkpointing + staged UX; would double-charge web transcription. |
+| Retiring the legacy `langfuse@3` package | Cleanup can follow after the v5 migration lands. |
 
 ---
 
 ## Key Decisions (Critical)
 
-1. **The 503 is unfinished v3.1.1 work, not a fresh bug** — REC-01 and REC-04 explicitly complete INNGEST-01 and INNGEST-06. Fixing the symptom without finishing the migration would leave the pipeline fragile.
-2. **Graceful degradation over hard failure** — when Inngest config is genuinely absent, the job-status endpoint must return an actionable status the UI can render, never a 503 that the polling hook throws on.
-3. **Event store is additive** — `estimate_activity`'s `recording_added` write stays; the new table is a separate, richer, service-role-only store. No migration of existing activity data.
-4. **Super Admin owns deep diagnostics; the popup stays simple** — clear split so end users see a friendly recovery path while operators get full visibility.
-5. **No sensitive payloads in the admin UI** — store and display only safe metadata; raw audio/transcripts/keys never surface in ADMINLOG.
+| Decision | Rationale |
+|----------|-----------|
+| Inngest owns durability — NO LangGraph checkpointer | In-memory savers don't survive retries/restarts; a Postgres saver duplicates state Inngest already owns. Finer resume = Inngest step decomposition (DURABLE), not a saver. |
+| Keep web's decoupled ingestion; graph enters at `generate` | Preserves per-item checkpointing + staged capture UX; avoids double-charging transcription. `ingest` is a per-channel pluggable pre-node. |
+| One graph + `ChannelAdapter` (closure factory) | Only the domain core is canonical; channel ingestion + reply/session are edge concerns. Matches the existing `makeQueryTools` pattern. |
+| Auto-refine hard-capped at 1 | Makes the engine genuinely agentic (evaluator-optimizer) without runaway cost/latency. |
+| Graph ends at a verdict, not `interrupt()`/pause | Only WhatsApp has a human waiting inline; web/MCP are async. The terminal "ask" side-effect differs per channel adapter. |
+| Failure-as-state, reply-as-edge-node | Protects the WhatsApp never-throw/always-reply invariant when nodes are shared. |
 
 ---
 
 ## Traceability
 
-Coverage: to be completed by the roadmap (phase assignment starts at Phase 91). Every v1 requirement above must map to exactly one phase — no orphans, no duplicates.
+Each v1 requirement maps to exactly one phase. Coverage = 100% (21/21).
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| REC-01 | Phase 91 | Complete |
-| REC-02 | Phase 91 | Complete |
-| REC-03 | Phase 91 | Complete |
-| REC-04 | Phase 91 | Complete |
-| REC-05 | Phase 91 | Complete |
-| EVENT-01 | Phase 92 | Complete |
-| EVENT-02 | Phase 92 | Complete |
-| EVENT-03 | Phase 92 | Complete |
-| EVENT-04 | Phase 92 | Complete |
-| ADMINLOG-01 | Phase 93 | Complete |
-| ADMINLOG-02 | Phase 93 | Complete |
-| ADMINLOG-03 | Phase 93 | Complete |
-| ADMINLOG-04 | Phase 93 | Complete |
-| ADMINLOG-05 | Phase 93 | Complete |
+| ENGINE-01 | Phase 94 | Pending |
+| ENGINE-02 | Phase 94 | Pending |
+| ENGINE-03 | Phase 94 | Pending |
+| ENGINE-04 | Phase 94 | Pending |
+| CHAN-01 | Phase 94 | Pending |
+| DURABLE-01 | Phase 94 | Pending |
+| DURABLE-02 | Phase 94 | Pending |
+| QA-01 | Phase 94 | Pending |
+| CHAN-02 | Phase 95 | Pending |
+| CHAN-03 | Phase 95 | Pending |
+| CHAN-04 | Phase 95 | Pending |
+| QA-03 | Phase 95 | Pending |
+| SMART-01 | Phase 96 | Pending |
+| SMART-02 | Phase 96 | Pending |
+| SMART-03 | Phase 96 | Pending |
+| SMART-04 | Phase 96 | Pending |
+| SMART-05 | Phase 96 | Pending |
+| QA-02 | Phase 96 | Pending |
+| OBS-01 | Phase 97 | Pending |
+| OBS-02 | Phase 97 | Pending |
+| OBS-03 | Phase 97 | Pending |
+
+**Coverage:**
+- v1 requirements: 21 total (ENGINE 4, CHAN 4, SMART 5, OBS 3, DURABLE 2, QA 3)
+- Mapped to phases: 21 ✓
+- Unmapped: 0 ✓
+
+**Per-phase distribution:**
+- Phase 94 — Extract Canonical Graph + StepRunner Seam (8): ENGINE-01..04, CHAN-01, DURABLE-01, DURABLE-02, QA-01
+- Phase 95 — Migrate Web + MCP (passthrough) (4): CHAN-02, CHAN-03, CHAN-04, QA-03
+- Phase 96 — Intelligence Parity (auto-refine + needs_details) (6): SMART-01..05, QA-02
+- Phase 97 — Unified Observability (Langfuse v5) (3): OBS-01, OBS-02, OBS-03
+
+-------------|-------|--------|
+| (pending roadmap) | — | Pending |
+
+**Coverage:**
+- v1 requirements: 21 total (ENGINE 4, CHAN 4, SMART 5, OBS 3, DURABLE 2, QA 3)
+- Mapped to phases: 0 (pending roadmap)
+- Unmapped: 21 ⚠️
+
+---
+*Requirements defined: 2026-06-20*
+*Last updated: 2026-06-20 after roadmap creation (phases 94-97 mapped; 21/21 requirements covered)*

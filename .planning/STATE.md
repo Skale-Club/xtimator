@@ -1,32 +1,43 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.5
-milestone_name: Zero-friction Project Onboarding
-status: verifying
-stopped_at: Completed 93-03-PLAN.md (event log list page + detail page + EventStepTimeline)
-last_updated: "2026-06-13T11:41:17.359Z"
-last_activity: 2026-06-13
+milestone: v4.3
+milestone_name: Unified Agentic Estimate Engine
+status: executing
+stopped_at: Phase 94 context gathered
+last_updated: "2026-06-20T14:23:50.035Z"
+last_activity: 2026-06-20 -- Phase 94 execution started
 progress:
-  total_phases: 93
-  completed_phases: 64
-  total_plans: 200
-  completed_plans: 229
+  total_phases: 52
+  completed_phases: 35
+  total_plans: 108
+  completed_plans: 117
 ---
 
 # Project State
 
 ## Current Status
 
-- **Milestone**: v4.2 Recording Reliability & Observability — STARTED 2026-05-28 (defining requirements). Predecessor v4.1 MCP Server shipped 2026-05-26 (phases 86-90); v4.0 Multi-Tenancy shipped 2026-05-26 (phases 79-85).
-- **Last updated**: 2026-05-28
+- **Milestone**: v4.3 Unified Agentic Estimate Engine — ROADMAP COMPLETE 2026-06-20 (phases 94-97 defined; 21/21 requirements mapped). Predecessor v4.2 Recording Reliability & Observability shipped 2026-05-30 (phases 91-93); v4.1 MCP Server shipped 2026-05-26 (phases 86-90).
+- **Last updated**: 2026-06-20
 
 ## Current Position
 
-Phase: 999.1
-Plan: Not started
-Status: Phase complete — ready for verification
-Last activity: 2026-06-13 - Finalized the vitest suite to 100% green (260613-aoe): npx vitest run → 1516 passed, 0 failed (213 files). Builds on the mock-drift fix (54→10) + coj's ADMIN-06 product fix (TEST-ENV-01); the finalize pass (commit 5dcbe57) resolved the last 9 product-contract-drift tests — OpenRouter test rewrites (provider-factory, translate-route), app-icons proxy/manifest contract, wizard reduced-schema, auth-redesign brand token, landing-page login-copy, bulk-adjust title matcher. known-issues.md residual section marked fully resolved (0 remaining)
-Stopped at: Completed 93-03-PLAN.md (event log list page + detail page + EventStepTimeline)
+Phase: 94 (extract-canonical-graph-behind-whatsapp-behavior-preserving-steprunner-seam) — EXECUTING
+Plan: 1 of 4
+Status: Executing Phase 94
+Last activity: 2026-06-20 -- Phase 94 execution started
+Stopped at: Phase 94 context gathered
+
+## v4.3 Phases (current milestone)
+
+> **Numbering:** continues from v4.2's last phase (93); the global phase counter is NOT reset. v4.3 = phases 94-97.
+
+- Phase 94: Extract Canonical Graph Behind WhatsApp (behavior-preserving) + StepRunner Seam (ENGINE-01..04, CHAN-01, DURABLE-01, DURABLE-02, QA-01) — Not started (needs `/gsd:plan-phase 94`)
+- Phase 95: Migrate Web + MCP onto the Shared Graph (generate-only passthrough) (CHAN-02, CHAN-03, CHAN-04, QA-03) — Not started
+- Phase 96: Intelligence Parity — Auto-Refine + needs_details Surfacing (SMART-01..05, QA-02) — Not started
+- Phase 97: Unified Observability — Langfuse v5 + Sentry Coexistence (OBS-01, OBS-02, OBS-03) — Not started
+
+**Locked scope guardrails:** Inngest owns durability (no LangGraph checkpointer); auto-refine hard-capped at 1; web's decoupled ingestion preserved (graph enters at `generate`); only the `StepRunner` contract/scaffold ships (full granularity refactor deferred); intent-router unification out of scope.
 
 ## v3.1.1 Phases
 
@@ -652,7 +663,7 @@ Stopped at: Completed 93-03-PLAN.md (event log list page + detail page + EventSt
 See: .planning/PROJECT.md (updated 2026-05-13)
 
 **Core value:** Business owner → job site audio recording → sent professional estimate in under 5 minutes
-**Current focus:** Phase 93 — super-admin-event-log
+**Current focus:** Phase 94 — extract-canonical-graph-behind-whatsapp-behavior-preserving-steprunner-seam
 
 ## Notes
 
