@@ -19,6 +19,7 @@ import {
   type WhatsAppProcessPayload,
   type WhatsAppIntentPayload,
 } from '@/lib/inngest/events'
+import { langfuseProcessor } from '@/instrumentation'
 
 // Last-line-of-defense reply. Sent when the estimate graph (or anything around it)
 // throws so the owner is NEVER left with read+typing and total silence — the
@@ -80,7 +81,7 @@ export const whatsAppProcessJob = inngest.createFunction(
     return await step.run('orchestrate-estimate', async () => {
       const { buildEstimateGraph } = await import('@/lib/whatsapp/estimate-graph')
       const graph = buildEstimateGraph()
-      return await graph.invoke({
+      const result = await graph.invoke({
         companyId,
         projectId,
         channel: 'whatsapp',
@@ -92,6 +93,11 @@ export const whatsAppProcessJob = inngest.createFunction(
         estimateLanguage: undefined,
         isVague: undefined,
       })
+
+      // OBS-03: flush Langfuse spans before step.run returns (Pitfall 3 — serverless suspension).
+      await langfuseProcessor?.forceFlush()
+
+      return result
     })
   }
 )
