@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.3
 milestone_name: Unified Agentic Estimate Engine
 status: verifying
-stopped_at: Completed 97-01-PLAN.md (Wave 1 — Langfuse v5 packages + RED test stubs)
-last_updated: "2026-06-20T20:09:46.160Z"
+stopped_at: Completed 97-02-PLAN.md (Wave 2 — shared NodeTracerProvider)
+last_updated: "2026-06-20T20:14:38.663Z"
 last_activity: "2026-06-20 - Completed quick task 260620-lqh: Remove Danger Zone / Delete Account section from account settings UI"
 progress:
   total_phases: 52
   completed_phases: 38
   total_plans: 116
-  completed_plans: 126
+  completed_plans: 127
 ---
 
 # Project State
@@ -26,7 +26,7 @@ Phase: 999.1
 Plan: Not started
 Status: Phase complete — ready for verification
 Last activity: 2026-06-20 - Completed quick task 260620-lqh: Remove Danger Zone / Delete Account section from account settings UI
-Stopped at: Completed 97-01-PLAN.md (Wave 1 — Langfuse v5 packages + RED test stubs)
+Stopped at: Completed 97-02-PLAN.md (Wave 2 — shared NodeTracerProvider)
 
 ## v4.3 Phases (current milestone)
 
@@ -505,6 +505,7 @@ Stopped at: Completed 97-01-PLAN.md (Wave 1 — Langfuse v5 packages + RED test 
 - [Phase 96-intelligence-parity-auto-refine-needs-details-surfacing]: QA-02 closure isolation: default adapter finalize uses closure companyId not state.companyId for .eq('company_id') filter on projects update (D-06)
 - [Phase 97-unified-observability-langfuse-v5-sentry-coexistence]: Single @opentelemetry/api@1.9.1 deduplicated across all langfuse v5 dependents — no manual pinning needed
 - [Phase 97-unified-observability-langfuse-v5-sentry-coexistence]: getLangfuse() absence test and negative safe-metadata assertions (OBS-03) pass in Wave 1 by design — clean-by-default assertions remain passing through all waves
+- [Phase 97-unified-observability-langfuse-v5-sentry-coexistence]: Sentry.init moved into instrumentation.ts register() with skipOpenTelemetrySetup:true to enable shared NodeTracerProvider for Langfuse v5 + Sentry coexistence
 
 ## Performance Metrics
 
@@ -677,6 +678,7 @@ Stopped at: Completed 97-01-PLAN.md (Wave 1 — Langfuse v5 packages + RED test 
 | Phase 96 P01 | 3 | 2 tasks | 2 files |
 | Phase 96-intelligence-parity-auto-refine-needs-details-surfacing P02 | 17 | 3 tasks | 9 files |
 | Phase 97-unified-observability-langfuse-v5-sentry-coexistence P01 | 7 | 3 tasks | 4 files |
+| Phase 97-unified-observability-langfuse-v5-sentry-coexistence P02 | 5 | 2 tasks | 2 files |
 
 ## Project Reference
 
