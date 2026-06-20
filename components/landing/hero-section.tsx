@@ -139,12 +139,12 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
               initial={reduce ? false : { opacity: 0, scale: 0.95, rotate: -2 }}
               animate={{ opacity: 1, scale: 1, rotate: 0 }}
               transition={{ duration: 1, type: 'spring', delay: 0.3 }}
-              className="hero-image z-0 w-full flex-none sm:flex-1 sm:self-end"
+              className="hero-image absolute top-[23%] bottom-0 right-[-15px] w-[75%] z-0 sm:h-auto sm:absolute sm:top-[1in] sm:bottom-0 sm:left-[calc(58%_-_100px)] sm:right-[-2rem] sm:w-auto sm:scale-110 sm:origin-bottom md:top-16 lg:top-[36px] lg:left-[calc(35%_+_55px)] lg:right-[-2.5rem] lg:scale-100 xl:top-[65px] xl:left-[calc(35%_+_45px)] xl:right-[-30px]"
             >
               <img
                 src={content.heroImageUrl!}
                 alt=""
-                className="w-full object-contain object-bottom h-[300px] sm:h-[480px] sm:max-h-[calc(100vh-180px)]"
+                className="absolute inset-0 h-full w-full object-contain object-bottom"
                 loading="eager"
               />
             </motion.div>
