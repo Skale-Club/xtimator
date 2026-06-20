@@ -93,10 +93,19 @@ export function makeWhatsAppAdapter({
   companyId,
   supabase,
   ownerPhone,
+  messages = [],
 }: {
   companyId: string
   supabase: SupabaseClient
   ownerPhone: string
+  /**
+   * Inbound WhatsApp messages for this invocation. Closure-captured (like
+   * companyId/ownerPhone) because the channel-neutral core state intentionally
+   * does NOT carry WhatsApp fields (D-07) — the WhatsApp wiring supplies them to
+   * the factory, not through graph state. Defaults to [] so the closure-factory
+   * is also constructible without messages (e.g. the channel-adapter unit test).
+   */
+  messages?: WhatsAppMessage[]
 }): ChannelAdapter {
   // -------------------------------------------------------------------------
   // ingest internals — the Send fan-out + per-message processing (relocated
@@ -292,12 +301,17 @@ export function makeWhatsAppAdapter({
      * superset) initial state the WhatsApp wiring supplies.
      */
     async ingest(state: EstimateStateType): Promise<Partial<EstimateStateType>> {
-      const waState = state as unknown as WhatsAppIngestState
       const result = await ingestGraph.invoke({
-        companyId: waState.companyId,
-        projectId: waState.projectId,
-        ownerPhone: waState.ownerPhone ?? ownerPhone,
-        messages: waState.messages ?? [],
+        companyId,
+        projectId: state.projectId,
+        ownerPhone,
+        // Inbound messages come from the closure (the WhatsApp wiring supplies
+        // them to the factory) — the channel-neutral core state does not carry
+        // them. Fall back to any messages threaded through the (superset) initial
+        // state for invokers that pass them through state instead.
+        messages: messages.length
+          ? messages
+          : (state as unknown as WhatsAppIngestState).messages ?? [],
         currentMessage: undefined,
         mediaResults: [],
       })

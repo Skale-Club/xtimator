@@ -83,6 +83,7 @@ export const whatsAppProcessJob = inngest.createFunction(
       return await graph.invoke({
         companyId,
         projectId,
+        channel: 'whatsapp',
         ownerPhone,
         messages,
         currentMessage: undefined,
