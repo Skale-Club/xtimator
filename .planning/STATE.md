@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v4.3
 milestone_name: Unified Agentic Estimate Engine
-status: verifying
-stopped_at: Phase 96 context gathered
-last_updated: "2026-06-20T18:38:02.709Z"
+status: executing
+stopped_at: Completed 96-01-PLAN.md
+last_updated: "2026-06-20T19:06:06.754Z"
 last_activity: 2026-06-20
 progress:
   total_phases: 52
   completed_phases: 37
-  total_plans: 110
-  completed_plans: 123
+  total_plans: 112
+  completed_plans: 124
 ---
 
 # Project State
@@ -22,11 +22,11 @@ progress:
 
 ## Current Position
 
-Phase: 95
-Plan: 02 (complete)
-Status: Phase 95 complete — web + MCP now on shared graph; ready for verification
+Phase: 96 (intelligence-parity-auto-refine-needs-details-surfacing) — EXECUTING
+Plan: 2 of 2
+Status: Ready to execute
 Last activity: 2026-06-20
-Stopped at: Phase 96 context gathered
+Stopped at: Completed 96-01-PLAN.md
 
 ## v4.3 Phases (current milestone)
 
@@ -498,6 +498,8 @@ Stopped at: Phase 96 context gathered
 - [Phase 94]: 94-03: buildEstimateGraph() stays zero-arg; .invoke(initial) constructs the WhatsApp adapter per-invocation so core state stays channel-neutral (D-07); whatsapp-process-job source-text anchor goes RED pending 94-04 path update (D-13)
 - [Phase 94]: 94-04 D-13 audit confirmed behavior-preserving: anchor test changed only readFileSync paths + the documented ENGINE-04 generationFailed->failure rename; ask-details + QA-01 never-reply-regression tests unchanged (0 diff)
 - [Phase 95]: Wave 0 RED state intentional: CHAN-02 anchor tests for orchestrate-estimate/buildEstimateGraph/makeDefaultAdapter fail until Plan 02 production changes land
+- [Phase 96]: Wave 0 stubs use expect.fail() for behavioral tests targeting not-yet-existing production code; source-text anchors use existsSync guard for clear RED failure messages
+- [Phase 96]: REQUIRED_CORE_FILES extended with auto-refine.ts so Wave 2 file creation automatically satisfies ENGINE-01 neutrality anchor without test change
 
 ## Performance Metrics
 
@@ -667,13 +669,14 @@ Stopped at: Phase 96 context gathered
 | Phase 94 P03 | 7 | 3 tasks | 4 files |
 | Phase 94 P04 | 6 | 2 tasks | 1 files |
 | Phase 95-migrate-web-mcp-onto-the-shared-graph-generate-only-passthrough P01 | 5 | 1 tasks | 1 files |
+| Phase 96 P01 | 3 | 2 tasks | 2 files |
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-13)
 
 **Core value:** Business owner → job site audio recording → sent professional estimate in under 5 minutes
-**Current focus:** Phase 94 — extract-canonical-graph-behind-whatsapp-behavior-preserving-steprunner-seam
+**Current focus:** Phase 96 — intelligence-parity-auto-refine-needs-details-surfacing
 
 ## Notes
 

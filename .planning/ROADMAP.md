@@ -1085,7 +1085,7 @@ Plans:
   5. Multi-tenant isolation is preserved: `companyId` stays a trusted closure/param across every shared node and any new refine tool — no LLM-suppliable tenant field — verified by extending the existing `query-tools` "no tenant input" test to cover the refine surface, and every shared-core query stays company-scoped
 **Plans**: 2 plans
 Plans:
-- [ ] 96-01-PLAN.md — Wave 1: RED test stubs (auto-refine-isolation.test.ts + graph-neutrality extension)
+- [x] 96-01-PLAN.md — Wave 1: RED test stubs (auto-refine-isolation.test.ts + graph-neutrality extension)
 - [ ] 96-02-PLAN.md — Wave 2: Production code (revert.ts + state needsDetails + auto-refine.ts + decide.ts + index.ts + default.ts)
 
 ### Phase 97: Unified Observability — Langfuse v5 + Sentry Coexistence

@@ -36,10 +36,10 @@ This asymmetry is a real product gap: the web/MCP can silently produce a low-qua
 
 ### SMART — Intelligence Parity (quality + refine)
 
-- [ ] **SMART-01**: When the engine detects a vague/low-quality estimate, it makes exactly ONE automatic self-refine attempt (e.g. re-prompt with a "be more specific" instruction) before involving the human — hard cap = 1 iteration.
-- [ ] **SMART-02**: If still vague after the refine attempt, the engine ends at a typed `needs_details` verdict (never a 500/throw). Quota is charged only for a delivered estimate, not per internal attempt.
-- [ ] **SMART-03**: Web surfaces the `needs_details` verdict as a persisted project-level state (`awaiting_details`) that prompts the user in the UI to add detail and regenerate — no `interrupt()` / no job blocking.
-- [ ] **SMART-04**: MCP surfaces the `needs_details` verdict as a structured status in the job result the calling LLM can act on (compatible with the existing `job_id` + poll contract — no elicitation).
+- [x] **SMART-01**: When the engine detects a vague/low-quality estimate, it makes exactly ONE automatic self-refine attempt (e.g. re-prompt with a "be more specific" instruction) before involving the human — hard cap = 1 iteration.
+- [x] **SMART-02**: If still vague after the refine attempt, the engine ends at a typed `needs_details` verdict (never a 500/throw). Quota is charged only for a delivered estimate, not per internal attempt.
+- [x] **SMART-03**: Web surfaces the `needs_details` verdict as a persisted project-level state (`awaiting_details`) that prompts the user in the UI to add detail and regenerate — no `interrupt()` / no job blocking.
+- [x] **SMART-04**: MCP surfaces the `needs_details` verdict as a structured status in the job result the calling LLM can act on (compatible with the existing `job_id` + poll contract — no elicitation).
 - [ ] **SMART-05**: WhatsApp's existing inline ask-details behavior is preserved, now driven by the shared verdict.
 
 ### OBS — Unified Observability
@@ -56,7 +56,7 @@ This asymmetry is a real product gap: the web/MCP can silently produce a low-qua
 ### QA — Reliability & Test Guardrails
 
 - [x] **QA-01**: A frozen regression test asserts the WhatsApp never-throw / always-reply guarantee survives the extraction — the owner always gets a reply on every failure path.
-- [ ] **QA-02**: Multi-tenant isolation is preserved — `companyId` stays closure/param across all shared nodes and any new refine tool; no LLM-suppliable tenant field (extend the existing `query-tools` "no tenant input" test).
+- [x] **QA-02**: Multi-tenant isolation is preserved — `companyId` stays closure/param across all shared nodes and any new refine tool; no LLM-suppliable tenant field (extend the existing `query-tools` "no tenant input" test).
 - [x] **QA-03**: The deterministic happy path stays at exactly 1 AI call per generation — no surprise extra AI calls on the non-vague web fast path.
 
 ---
@@ -106,12 +106,12 @@ Each v1 requirement maps to exactly one phase. Coverage = 100% (21/21).
 | CHAN-03 | Phase 95 | Complete |
 | CHAN-04 | Phase 95 | Complete |
 | QA-03 | Phase 95 | Complete |
-| SMART-01 | Phase 96 | Pending |
-| SMART-02 | Phase 96 | Pending |
-| SMART-03 | Phase 96 | Pending |
-| SMART-04 | Phase 96 | Pending |
+| SMART-01 | Phase 96 | Complete |
+| SMART-02 | Phase 96 | Complete |
+| SMART-03 | Phase 96 | Complete |
+| SMART-04 | Phase 96 | Complete |
 | SMART-05 | Phase 96 | Pending |
-| QA-02 | Phase 96 | Pending |
+| QA-02 | Phase 96 | Complete |
 | OBS-01 | Phase 97 | Pending |
 | OBS-02 | Phase 97 | Pending |
 | OBS-03 | Phase 97 | Pending |
