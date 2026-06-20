@@ -35,6 +35,7 @@ const REQUIRED_CORE_FILES = [
   'lib/estimate/graph/state.ts',
   'lib/estimate/graph/types.ts',
   'lib/estimate/quality/vagueness.ts',
+  'lib/estimate/graph/nodes/auto-refine.ts',  // Phase 96: ENGINE-01 anchor
 ] as const
 
 function collectTsFiles(dirAbs: string): string[] {
