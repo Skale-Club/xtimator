@@ -1,31 +1,19 @@
 'use client'
 
 import { useTransition } from 'react'
-import { useRouter } from 'next/navigation'
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { changePassword, changeEmail, deleteAccount } from '@/lib/actions/settings'
+import { changePassword, changeEmail } from '@/lib/actions/settings'
 
 import { Card, CardContent } from '@/components/ui/card'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '@/components/ui/alert-dialog'
 import { useTranslation } from '@/lib/i18n/use-translation'
 
 // Password schema
@@ -51,10 +39,8 @@ type EmailValues = z.infer<typeof emailSchema>
 
 export function AccountSection() {
   const { t } = useTranslation()
-  const router = useRouter()
   const [isPendingPassword, startPasswordTransition] = useTransition()
   const [isPendingEmail, startEmailTransition] = useTransition()
-  const [isPendingDelete, startDeleteTransition] = useTransition()
 
   const passwordForm = useForm<PasswordValues>({
     resolver: zodResolver(passwordSchema) as Resolver<PasswordValues>,
@@ -95,18 +81,6 @@ export function AccountSection() {
       } else {
         toast.success(result.message || t('Confirmation email sent to your new address.'))
         emailForm.reset()
-      }
-    })
-  }
-
-  function onDeleteAccount() {
-    startDeleteTransition(async () => {
-      const result = await deleteAccount()
-      if (result.error) {
-        toast.error(result.error)
-      } else {
-        toast.success(t('Account deleted.'))
-        router.push(result.redirect || '/?auth=login')
       }
     })
   }
@@ -202,43 +176,6 @@ export function AccountSection() {
               </Button>
             </form>
           </Form>
-        </div>
-
-        <Separator />
-
-        {/* Delete Account */}
-        <div className="grid gap-6 xl:grid-cols-[260px_minmax(0,1fr)]">
-          <div>
-            <h3 className="text-sm font-medium text-destructive">{t('Danger Zone')}</h3>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {t('This permanently removes your company profile, projects, and account access.')}
-            </p>
-          </div>
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="destructive" disabled={isPendingDelete}>
-                {isPendingDelete && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {t('Delete Account')}
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>{t('Are you absolutely sure?')}</AlertDialogTitle>
-                <AlertDialogDescription>
-                  {t('This will permanently delete your account, company, and all projects. This action cannot be undone.')}
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>{t('Cancel')}</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={onDeleteAccount}
-                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                >
-                  {t('Delete Account')}
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
         </div>
       </CardContent>
     </Card>
