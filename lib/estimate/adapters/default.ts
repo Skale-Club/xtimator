@@ -11,8 +11,7 @@
  *   - ingest:   passthrough guard — returns {} (Phase 95 wires the real "has
  *               usable input" guard against the already-ingested recordings).
  *   - finalize: no-op — returns {} (the HTTP/poll layer surfaces the estimate).
- *   - onError:  no-op — returns {} (Phase 95 decides re-throw-so-Inngest-onFailure
- *               -fires vs surface-as-state for the web/MCP channel).
+ *   - onError:  re-throws so Inngest retry + onFailure fires (D-02).
  *
  * This module imports NOTHING from lib/whatsapp/* — the WhatsApp adapter is the
  * only place WhatsApp code lives (ENGINE-01 neutrality).
@@ -43,9 +42,9 @@ export function makeDefaultAdapter(_args: {
       return {}
     },
 
-    // No-op — Phase 95 decides re-throw (Inngest onFailure) vs surface-as-state.
-    async onError(_state: EstimateStateType): Promise<Partial<EstimateStateType>> {
-      return {}
+    // Re-throws so Inngest retry + onFailure fires (D-02).
+    async onError(state: EstimateStateType): Promise<Partial<EstimateStateType>> {
+      throw new Error(state.failure?.reason ?? 'generation_failed')
     },
   }
 }
