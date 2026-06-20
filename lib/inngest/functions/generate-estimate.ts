@@ -110,7 +110,7 @@ export const generateEstimateJob = inngest.createFunction(
 
       // OBS-01: unified Langfuse trace per estimate run.
       // channel from payload (mcp) or fallback to 'web' for UI path.
-      // Safe-metadata rule v4.2: only IDs in metadata — no transcript/audio/key tokens.
+      // Safe-metadata rule v4.2: only project/company IDs allowed — no sensitive data.
       const traceChannel = (data.channel ?? 'web') as 'web' | 'mcp'
       const handler = new CallbackHandler({
         metadata: {
