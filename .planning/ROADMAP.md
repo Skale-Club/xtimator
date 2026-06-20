@@ -1054,7 +1054,7 @@ Plans:
   5. A `StepRunner` abstraction is defined and injected into the engine (default `passthroughRunner`) so AI-heavy nodes CAN later be promoted to their own durable Inngest `step.run` without coupling the core to Inngest, and a decision artifact captures the graph↔Inngest checkpoint-granularity contract (Inngest is the sole durability layer; no LangGraph checkpointer; cross-message wait stays in `whatsapp_sessions`/events; when to decompose + retry-cost trade-offs)
 **Plans**: 4 plans
 Plans:
-- [ ] 94-01-PLAN.md — Wave 0: DURABLE-02 decision artifact + 7 failing test stubs (the behavior-preserving safety net)
+- [x] 94-01-PLAN.md — Wave 0: DURABLE-02 decision artifact + 7 failing test stubs (the behavior-preserving safety net)
 - [ ] 94-02-PLAN.md — Extract channel-neutral core: vagueness gate + EstimateState + ChannelAdapter/StepRunner contracts + generate/assess/decide nodes + buildEstimateGraph factory
 - [ ] 94-03-PLAN.md — WhatsApp ChannelAdapter (ingest/finalize/onError) + default.ts stub; rewire estimate-graph.ts + repoint whatsapp-process.ts
 - [ ] 94-04-PLAN.md — Repoint source-text anchor test paths + full-suite green gate + D-13 behavior-preserving audit

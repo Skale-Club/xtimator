@@ -51,11 +51,11 @@ This asymmetry is a real product gap: the web/MCP can silently produce a low-qua
 ### DURABLE — Checkpoint Foundation (scaffold only; full refactor deferred)
 
 - [ ] **DURABLE-01**: A `StepRunner` abstraction is defined and injected into the engine so AI-heavy nodes CAN later be promoted to their own durable Inngest `step.run` — without coupling the core graph to Inngest. Contract + scaffold only in this milestone.
-- [ ] **DURABLE-02**: The graph↔Inngest checkpoint-granularity decision is captured as a decision artifact (when to decompose, retry-cost trade-offs, why no LangGraph checkpointer) to guide the deferred full refactor.
+- [x] **DURABLE-02**: The graph↔Inngest checkpoint-granularity decision is captured as a decision artifact (when to decompose, retry-cost trade-offs, why no LangGraph checkpointer) to guide the deferred full refactor.
 
 ### QA — Reliability & Test Guardrails
 
-- [ ] **QA-01**: A frozen regression test asserts the WhatsApp never-throw / always-reply guarantee survives the extraction — the owner always gets a reply on every failure path.
+- [x] **QA-01**: A frozen regression test asserts the WhatsApp never-throw / always-reply guarantee survives the extraction — the owner always gets a reply on every failure path.
 - [ ] **QA-02**: Multi-tenant isolation is preserved — `companyId` stays closure/param across all shared nodes and any new refine tool; no LLM-suppliable tenant field (extend the existing `query-tools` "no tenant input" test).
 - [ ] **QA-03**: The deterministic happy path stays at exactly 1 AI call per generation — no surprise extra AI calls on the non-vague web fast path.
 
@@ -100,8 +100,8 @@ Each v1 requirement maps to exactly one phase. Coverage = 100% (21/21).
 | ENGINE-04 | Phase 94 | Pending |
 | CHAN-01 | Phase 94 | Pending |
 | DURABLE-01 | Phase 94 | Pending |
-| DURABLE-02 | Phase 94 | Pending |
-| QA-01 | Phase 94 | Pending |
+| DURABLE-02 | Phase 94 | Complete |
+| QA-01 | Phase 94 | Complete |
 | CHAN-02 | Phase 95 | Pending |
 | CHAN-03 | Phase 95 | Pending |
 | CHAN-04 | Phase 95 | Pending |
