@@ -10,7 +10,6 @@
  * These helpers are WhatsApp-only — generateEstimateForProject (shared with the
  * UI/MCP) is intentionally NOT touched.
  */
-import type { SupabaseClient } from '@supabase/supabase-js'
 import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
 
 /**
@@ -48,23 +47,7 @@ export function buildAskDetailsMessage(language: EstimateLanguage): string {
 }
 
 /**
- * Removes the $0 estimate (cascade deletes its sections/items, same pattern as
- * confirm.ts handleRegenerate) and reverts the project to draft / total 0 so the
- * next inbound message regenerates cleanly against the same project.
- *
- * Does not throw when estimateId is null/undefined — it only reverts the project.
+ * Phase 96 (D-05): moved to lib/estimate/quality/revert.ts (channel-neutral).
+ * Re-exported here for backward compat — existing callers and tests keep working.
  */
-export async function revertVagueEstimate(
-  supabase: SupabaseClient,
-  projectId: string,
-  estimateId: string | null
-): Promise<void> {
-  if (estimateId) {
-    // cascade removes estimate_sections + estimate_items
-    await supabase.from('estimates').delete().eq('id', estimateId)
-  }
-  await supabase
-    .from('projects')
-    .update({ status: 'draft', total: 0 })
-    .eq('id', projectId)
-}
+export { revertVagueEstimate } from '@/lib/estimate/quality/revert'

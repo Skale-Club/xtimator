@@ -35,6 +35,11 @@ export const EstimateState = Annotation.Root({
   failure: Annotation<{ reason: string } | undefined>(),
   /** Scaffolded for Phase 96 auto-refine; unused this phase. */
   refineAttempts: Annotation<number | undefined>(),
+  /**
+   * Set by default adapter finalize on the final-vague path (Phase 96, D-04).
+   * Surfaces in the Inngest job output so MCP/web callers detect needs_details.
+   */
+  needsDetails: Annotation<boolean | undefined>(),
 })
 
 export type EstimateStateType = typeof EstimateState.State
