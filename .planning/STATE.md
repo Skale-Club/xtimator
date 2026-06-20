@@ -25,7 +25,7 @@ progress:
 Phase: 999.1
 Plan: Not started
 Status: Phase complete — ready for verification
-Last activity: 2026-06-20
+Last activity: 2026-06-20 - Completed quick task 260620-lia: Revisar animação de colapso da sidebar
 Stopped at: Completed 96-02-PLAN.md
 
 ## v4.3 Phases (current milestone)
@@ -790,6 +790,7 @@ v3.1: Phases 61-65 (started 2026-05-15). Production Go-Live — 27 requirements 
 | 260613-fc1 | (fast) Center the Final CTA card horizontally — the Page 4 wrapper in components/landing/landing-page.tsx used "flex items-center" (row flex), which shrink-wrapped FinalCtaSection to its content width and pinned it left, defeating the section's own mx-auto max-w-6xl. Changed to "flex flex-col justify-center": column flex stretches the section to full width so mx-auto centers the card, justify-center preserves vertical centering. Single-class change; FinalCtaSection + other sections untouched. Follow-up to 260613-9ov | 2026-06-13 | 65ce35f | — (fast, no dir) |
 | 260613-aoe | Fix vitest mock drift: alias requireServiceClient in supabase/service mocks (7 files) + add unstable_cache/getActiveCompanyId/getWhatsAppPlatformConfig/assertWritable mocks + .is() soft-delete chains + 3 stale-assertion updates (generate-estimate copy, onboarding subdomain, send SEED-028 fixture). Suite 54→0 failing (1516 passing). First pass fixed mock drift (54→10); the 10 residual were product-contract drift documented in known-issues.md (incl. the WhatsApp ADMIN-06 gap, fixed by 260613-coj). Finalize pass (commit 5dcbe57) resolved the rest: OpenRouter test rewrites (provider-factory, translate-route), app-icons proxy/manifest contract, wizard reduced-schema, auth-redesign brand token, landing-page login-copy, bulk-adjust title matcher. npx vitest run 100% green | 2026-06-13 | debb379, d1c8668, 42aa7f5, 450efc2, 5dcbe57 | [260613-aoe-fix-vitest-mock-drift-add-requireservice](.planning/quick/260613-aoe-fix-vitest-mock-drift-add-requireservice/) |
 | 260613-coj | Route the WhatsApp AI layer's three direct process.env.OPENAI_API_KEY reads through getIntegrationKey('openai') — `apiKey: (await getIntegrationKey('openai')) ?? undefined` at all three ChatOpenAI sites (agent.ts runConfirmationAgent + intent-router.ts classifier & QUERY agent). Closes the last ADMIN-06 violation (TEST-ENV-01) so tests/unit/env-var-sweep.test.ts passes; full WhatsApp unit suite green (189 passed), tsc clean on touched files, env-var-sweep test left unmodified. Fix was already applied uncommitted in the working tree — reviewed, verified, committed | 2026-06-13 | fc266ff | [260613-coj-route-whatsapp-openai-key-reads-through-](.planning/quick/260613-coj-route-whatsapp-openai-key-reads-through-/) |
+| 260620-lia | Revisar animação de colapso da sidebar (jank): unificar transições para 200ms ease-in-out + labels com max-width animável (squeeze+fade em vez de w-0 instantâneo) + sincronizar consumidores de --app-sidebar-width (settings sub-nav) | 2026-06-20 | b6699ec, dc5fd6c | [260620-lia-revisar-animacao-de-colapso-da-sidebar-j](.planning/quick/260620-lia-revisar-animacao-de-colapso-da-sidebar-j/) |
 | 2026-05-18 | fast | Center auth card logo+wordmark | done |
 | 2026-05-19 | fast | Make audio capture screen scrollable on smaller viewports | done |
 | 2026-05-18 | fast | Restyle sidebar New Project as filled gradient, remove dashboard CTA | done |
