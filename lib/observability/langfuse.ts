@@ -18,7 +18,7 @@ import { Langfuse } from '@langfuse/tracing'
  * Module-level v5 Langfuse client for manual generation spans.
  * Gracefully no-ops when keys are absent — the Langfuse class handles this.
  * Exported directly so callers use `langfuseClient.generation(...)` without
- * the legacy getLangfuse() pattern.
+ * the legacy getLangfuse singleton pattern.
  */
 export const langfuseClient = new Langfuse({
   publicKey: process.env.LANGFUSE_PUBLIC_KEY ?? '',
