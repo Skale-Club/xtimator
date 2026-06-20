@@ -39,6 +39,13 @@ import {
   CommandList,
 } from '@/components/ui/command'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
   priceBookItemSchema,
   type PriceBookItemFormValues,
 } from '@/lib/schemas/price-book'
@@ -64,6 +71,43 @@ const EMPTY_FORM: PriceBookItemFormValues = {
   notes: '',
 }
 
+/** Built-in measures for the unit selector. Anything else routes to "other". */
+const UNIT_OPTIONS = [
+  { value: 'min', label: 'min' },
+  { value: 'hour', label: 'hour' },
+  { value: 'ft', label: 'ft' },
+  { value: 'ea', label: 'ea' },
+] as const
+
+interface UnitParts {
+  qty: string
+  measure: string // one of UNIT_OPTIONS value, 'other', or '' (none)
+  custom: string
+}
+
+/**
+ * Split a stored unit string ("30 min", "hr", "sq ft", "") into a leading
+ * quantity + a measure. Unknown measures route to the "other" (custom) slot so
+ * existing free-text/imported units round-trip without data loss.
+ */
+function parseUnit(raw: string | null | undefined): UnitParts {
+  const s = (raw ?? '').trim()
+  if (!s) return { qty: '', measure: '', custom: '' }
+  const m = s.match(/^(\d+(?:\.\d+)?)\s*(.*)$/)
+  const qty = m ? m[1] : ''
+  const rest = (m ? m[2] : s).trim()
+  if (!rest) return { qty, measure: '', custom: '' }
+  const known = UNIT_OPTIONS.find((o) => o.value === rest.toLowerCase())
+  if (known) return { qty, measure: known.value, custom: '' }
+  return { qty, measure: 'other', custom: rest }
+}
+
+/** Recombine quantity + measure into the stored unit string. */
+function composeUnit({ qty, measure, custom }: UnitParts): string {
+  const word = measure === 'other' ? custom.trim() : measure
+  return [qty.trim(), word].filter(Boolean).join(' ')
+}
+
 export function PriceBookItemDialog({
   open,
   onOpenChange,
@@ -76,6 +120,7 @@ export function PriceBookItemDialog({
   const [folderOpen, setFolderOpen] = useState(false)
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [unit, setUnit] = useState<UnitParts>({ qty: '', measure: '', custom: '' })
   const isEditing = !!item
 
   const form = useForm<PriceBookItemFormValues>({
@@ -98,10 +143,19 @@ export function PriceBookItemDialog({
       form.reset(EMPTY_FORM)
     }
     queueMicrotask(() => {
+      setUnit(parseUnit(item?.unit ?? ''))
       setImageFile(null)
       setImagePreview(item?.image_url ?? null)
     })
   }, [item, open, form])
+
+  // Update one part of the unit, recompose, and sync the hidden `unit` form field.
+  function applyUnit(patch: Partial<UnitParts>) {
+    const next = { ...unit, ...patch }
+    if (patch.measure !== undefined && patch.measure !== 'other') next.custom = ''
+    setUnit(next)
+    form.setValue('unit', composeUnit(next), { shouldDirty: true })
+  }
 
   function onSubmit(values: PriceBookItemFormValues) {
     startTransition(async () => {
@@ -198,7 +252,7 @@ export function PriceBookItemDialog({
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Item Name *</FormLabel>
+                  <FormLabel>Service Name *</FormLabel>
                   <FormControl>
                     <Input placeholder="e.g. General Labor" {...field} />
                   </FormControl>
@@ -207,52 +261,74 @@ export function PriceBookItemDialog({
               )}
             />
 
-            <div className="grid grid-cols-2 gap-3">
-              {/* Unit */}
-              <FormField
-                control={form.control}
-                name="unit"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Unit</FormLabel>
-                    <FormControl>
-                      <Input placeholder="e.g. hr, ft, ea" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              {/* Unit Price (z.coerce.number handles string→number) */}
-              <FormField
-                control={form.control}
-                name="unit_price"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Unit Price *</FormLabel>
-                    <FormControl>
-                      <div>
-                        <input
-                          type="hidden"
-                          value={field.value ?? ''}
-                          readOnly
-                          name={field.name}
-                          ref={field.ref}
-                        />
-                        <MoneyInput
-                          value={field.value}
-                          currencyCode={item?.currency_code ?? currencyCode}
-                          onValueChange={field.onChange}
-                          onBlur={field.onBlur}
-                          placeholder="0.00"
-                        />
-                      </div>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+            {/* Unit — quantity box + measure selector (min/hour/ft/ea or custom) */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium leading-none">Unit</label>
+              <div className="flex gap-2">
+                <Input
+                  inputMode="decimal"
+                  placeholder="Qty"
+                  aria-label="Unit quantity"
+                  className="w-20 shrink-0"
+                  value={unit.qty}
+                  onChange={(e) => applyUnit({ qty: e.target.value.replace(/[^\d.]/g, '') })}
+                />
+                <Select
+                  value={unit.measure || undefined}
+                  onValueChange={(value) => applyUnit({ measure: value })}
+                >
+                  <SelectTrigger className="flex-1" aria-label="Unit measure">
+                    <SelectValue placeholder="Select unit" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {UNIT_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                    <SelectItem value="other">Other…</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {unit.measure === 'other' && (
+                <Input
+                  placeholder="Custom unit (e.g. sqft, gal, visit)"
+                  aria-label="Custom unit"
+                  value={unit.custom}
+                  onChange={(e) => applyUnit({ custom: e.target.value })}
+                />
+              )}
             </div>
+
+            {/* Unit Price (z.coerce.number handles string→number) */}
+            <FormField
+              control={form.control}
+              name="unit_price"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Unit Price *</FormLabel>
+                  <FormControl>
+                    <div>
+                      <input
+                        type="hidden"
+                        value={field.value ?? ''}
+                        readOnly
+                        name={field.name}
+                        ref={field.ref}
+                      />
+                      <MoneyInput
+                        value={field.value}
+                        currencyCode={item?.currency_code ?? currencyCode}
+                        onValueChange={field.onChange}
+                        onBlur={field.onBlur}
+                        placeholder="0.00"
+                      />
+                    </div>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             {/* Notes */}
             <FormField

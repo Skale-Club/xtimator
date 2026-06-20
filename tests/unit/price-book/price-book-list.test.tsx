@@ -153,9 +153,9 @@ describe('PriceBookList', () => {
     expect(screen.getByText('No items match your search')).toBeDefined()
   })
 
-  it('add dialog opens when Add Item button clicked', () => {
+  it('add dialog opens when Add Service button clicked', () => {
     render(<PriceBookList items={mockItems} folders={mockFolders} companyId="c1" />)
-    const addBtn = screen.getByRole('button', { name: /Add Item/i })
+    const addBtn = screen.getByRole('button', { name: /Add Service/i })
     fireEvent.click(addBtn)
     expect(screen.getByTestId('price-book-dialog')).toBeDefined()
   })
