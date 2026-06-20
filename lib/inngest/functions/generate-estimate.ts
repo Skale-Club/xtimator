@@ -20,6 +20,8 @@ import {
   EVENT_ESTIMATE_GENERATE,
   type EstimateGeneratePayload,
 } from '@/lib/inngest/events'
+import { CallbackHandler } from '@langfuse/langchain'
+import { langfuseProcessor } from '@/instrumentation'
 
 async function loadOwnerUserId(companyId: string): Promise<string | null> {
   try {
@@ -105,13 +107,35 @@ export const generateEstimateJob = inngest.createFunction(
       const supabase = requireServiceClient()
       const adapter = makeDefaultAdapter({ companyId, supabase })
       const graph = buildEstimateGraph(adapter)
-      return graph.invoke({
-        companyId,
-        projectId,
-        channel: 'web',
-        prompts: prompts && prompts.length > 0 ? prompts : undefined,
-        estimateLanguage: language ?? undefined,
+
+      // OBS-01: unified Langfuse trace per estimate run.
+      // channel from payload (mcp) or fallback to 'web' for UI path.
+      // Safe-metadata rule v4.2: only IDs in metadata — no transcript/audio/key tokens.
+      const traceChannel = (data.channel ?? 'web') as 'web' | 'mcp'
+      const handler = new CallbackHandler({
+        metadata: {
+          langfuseSessionId: `${traceChannel}:${projectId}`,
+          langfuseUserId: companyId,
+        },
+        tags: [traceChannel, 'estimate-engine'],
       })
+
+      const invokeResult = await graph.invoke(
+        {
+          companyId,
+          projectId,
+          channel: traceChannel,
+          prompts: prompts && prompts.length > 0 ? prompts : undefined,
+          estimateLanguage: language ?? undefined,
+        },
+        { callbacks: [handler] }
+      )
+
+      // OBS-03 / Pitfall 3: flush Langfuse spans before the step.run returns.
+      // In serverless, the process may suspend before the buffer drains naturally.
+      await langfuseProcessor?.forceFlush()
+
+      return invokeResult
     })
 
     // Step 2: Record usage ONLY on AI success — separate step so a DB write
