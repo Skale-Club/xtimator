@@ -5,7 +5,7 @@ milestone_name: Unified Agentic Estimate Engine
 status: verifying
 stopped_at: Completed 97-02-PLAN.md (Wave 2 — shared NodeTracerProvider)
 last_updated: "2026-06-20T20:14:38.663Z"
-last_activity: "2026-06-20 - Completed quick task 260620-lqh: Remove Danger Zone / Delete Account section from account settings UI"
+last_activity: "2026-06-20 - Completed quick task 260620-m6p: WhatsApp multi-user support per-user owner_phone routing"
 progress:
   total_phases: 52
   completed_phases: 38
@@ -25,7 +25,7 @@ progress:
 Phase: 999.1
 Plan: Not started
 Status: Phase complete — ready for verification
-Last activity: 2026-06-20 - Completed quick task 260620-lqh: Remove Danger Zone / Delete Account section from account settings UI
+Last activity: 2026-06-20 - Completed quick task 260620-m6p: WhatsApp multi-user support per-user owner_phone routing
 Stopped at: Completed 97-02-PLAN.md (Wave 2 — shared NodeTracerProvider)
 
 ## v4.3 Phases (current milestone)
@@ -797,6 +797,7 @@ v3.1: Phases 61-65 (started 2026-05-15). Production Go-Live — 27 requirements 
 | 260613-coj | Route the WhatsApp AI layer's three direct process.env.OPENAI_API_KEY reads through getIntegrationKey('openai') — `apiKey: (await getIntegrationKey('openai')) ?? undefined` at all three ChatOpenAI sites (agent.ts runConfirmationAgent + intent-router.ts classifier & QUERY agent). Closes the last ADMIN-06 violation (TEST-ENV-01) so tests/unit/env-var-sweep.test.ts passes; full WhatsApp unit suite green (189 passed), tsc clean on touched files, env-var-sweep test left unmodified. Fix was already applied uncommitted in the working tree — reviewed, verified, committed | 2026-06-13 | fc266ff | [260613-coj-route-whatsapp-openai-key-reads-through-](.planning/quick/260613-coj-route-whatsapp-openai-key-reads-through-/) |
 | 260620-lia | Revisar animação de colapso da sidebar (jank): unificar transições para 200ms ease-in-out + labels com max-width animável (squeeze+fade em vez de w-0 instantâneo) + sincronizar consumidores de --app-sidebar-width (settings sub-nav) | 2026-06-20 | b6699ec, dc5fd6c | [260620-lia-revisar-animacao-de-colapso-da-sidebar-j](.planning/quick/260620-lia-revisar-animacao-de-colapso-da-sidebar-j/) |
 | 260620-lqh | Remove Danger Zone / Delete Account section from account settings UI | 2026-06-20 | b034f39, 2727438 | [260620-lqh-remove-danger-zone-delete-account-sectio](.planning/quick/260620-lqh-remove-danger-zone-delete-account-sectio/) |
+| 260620-m6p | WhatsApp multi-user support: per-user owner_phone routing with independent conversation history | 2026-06-20 | 44f1b78 | [260620-m6p-whatsapp-multi-user-support-per-user-own](.planning/quick/260620-m6p-whatsapp-multi-user-support-per-user-own/) |
 | 2026-05-18 | fast | Center auth card logo+wordmark | done |
 | 2026-05-19 | fast | Make audio capture screen scrollable on smaller viewports | done |
 | 2026-05-18 | fast | Restyle sidebar New Project as filled gradient, remove dashboard CTA | done |
