@@ -182,6 +182,7 @@ export type Database = {
           estimate_terms_text: string | null
           id: string
           industry: string | null
+          industries: string[]
           insurance_info: string | null
           license_number: string | null
           logo_url: string | null
@@ -234,6 +235,7 @@ export type Database = {
           estimate_terms_text?: string | null
           id?: string
           industry?: string | null
+          industries?: string[]
           insurance_info?: string | null
           license_number?: string | null
           logo_url?: string | null
@@ -286,6 +288,7 @@ export type Database = {
           estimate_terms_text?: string | null
           id?: string
           industry?: string | null
+          industries?: string[]
           insurance_info?: string | null
           license_number?: string | null
           logo_url?: string | null

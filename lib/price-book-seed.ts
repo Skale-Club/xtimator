@@ -138,6 +138,56 @@ const UPHOLSTERY_CARPET_CLEANING: DefaultFolder[] = [
   },
 ]
 
+const WINDOW_CLEANING: DefaultFolder[] = [
+  {
+    name: 'Residential Window Cleaning',
+    items: [
+      { name: 'Standard window — interior + exterior (each)', unit: 'each', unit_price: 8, notes: 'Typical $6–12 per window in/out' },
+      { name: 'Standard window — exterior only (each)', unit: 'each', unit_price: 5, notes: 'Typical $4–8 per window' },
+      { name: 'Standard window — interior only (each)', unit: 'each', unit_price: 4 },
+      { name: 'Large / picture window — in & out (each)', unit: 'each', unit_price: 15 },
+      { name: 'Sliding glass door (each)', unit: 'each', unit_price: 12 },
+      { name: 'French / divided-light pane surcharge (per pane)', unit: 'pane', unit_price: 1.5 },
+      { name: 'Whole-home package — small (up to ~10 windows, in & out)', unit: 'visit', unit_price: 120 },
+      { name: 'Whole-home package — mid (~10–20 windows, in & out)', unit: 'visit', unit_price: 220 },
+      { name: 'Whole-home package — large (20+ windows, in & out)', unit: 'visit', unit_price: 350 },
+      { name: 'General window-cleaning labor (per cleaner)', unit: 'hr', unit_price: 50 },
+    ],
+  },
+  {
+    name: 'Add-ons & Detailing',
+    items: [
+      { name: 'Window screen cleaning (each)', unit: 'each', unit_price: 4, notes: 'Typical $3–5 per screen' },
+      { name: 'Track & sill detailing (per window)', unit: 'each', unit_price: 4 },
+      { name: 'Storm window cleaning (each)', unit: 'each', unit_price: 5 },
+      { name: 'Skylight cleaning (each)', unit: 'each', unit_price: 35, notes: 'Typical $25–50' },
+      { name: 'Hard-water / mineral stain removal (per pane)', unit: 'pane', unit_price: 12, notes: 'Typical $5–25 by severity' },
+      { name: 'Screen repair / re-mesh (each)', unit: 'each', unit_price: 25 },
+      { name: 'Sun / solar screen cleaning (each)', unit: 'each', unit_price: 5 },
+      { name: 'Mirror / interior glass surface cleaning (each)', unit: 'each', unit_price: 10 },
+    ],
+  },
+  {
+    name: 'Commercial / Storefront',
+    items: [
+      { name: 'Storefront window — exterior (per pane)', unit: 'pane', unit_price: 4 },
+      { name: 'Storefront window — interior + exterior (per pane)', unit: 'pane', unit_price: 6 },
+      { name: 'Recurring storefront cleaning — monthly (per visit)', unit: 'visit', unit_price: 60, notes: 'Discounted recurring rate' },
+      { name: 'High-access / 2nd-story window surcharge (per window)', unit: 'each', unit_price: 5 },
+      { name: 'Commercial minimum / service call', unit: 'each', unit_price: 75 },
+    ],
+  },
+  {
+    name: 'Labor & Trip',
+    items: [
+      { name: 'Service-call / minimum charge', unit: 'each', unit_price: 125, notes: 'Typical minimum $100–150' },
+      { name: 'Window technician labor (per hour)', unit: 'hr', unit_price: 50, notes: 'Billed $40–60/hr per tech' },
+      { name: 'Trip / travel fee (out-of-area)', unit: 'each', unit_price: 35 },
+      { name: 'Ladder / extension-pole high-access surcharge', unit: 'each', unit_price: 40 },
+    ],
+  },
+]
+
 /**
  * Default, market-rate price books per onboarding industry.
  *
@@ -151,6 +201,7 @@ const INDUSTRY_PRICE_BOOK: Record<string, DefaultFolder[]> = {
   // Legacy alias: accounts created before the cleaning split stored industry = 'cleaning'.
   cleaning: HOUSE_CLEANING,
   upholstery_carpet_cleaning: UPHOLSTERY_CARPET_CLEANING,
+  window_cleaning: WINDOW_CLEANING,
 
   painting: [
     {
@@ -511,35 +562,57 @@ const INDUSTRY_PRICE_BOOK: Record<string, DefaultFolder[]> = {
   ],
 }
 
+/** Normalize a single id or array into a clean list of industry ids. */
+function toIndustryList(
+  industries: string | string[] | null | undefined
+): string[] {
+  if (!industries) return []
+  const arr = Array.isArray(industries) ? industries : [industries]
+  return arr.map((s) => (s ?? '').trim()).filter((s): s is string => s !== '')
+}
+
 /**
- * Seeds the price book for a newly created company using industry-specific defaults.
- * No-ops if the company already has any price book items (prevents double-seeding).
+ * Collect the price-book folder templates for the given industries, merged into
+ * one ordered list. De-dupes by template-array identity (so the legacy
+ * 'cleaning' alias + 'house_cleaning' don't double-seed) and defensively by
+ * folder name. Order follows the order of `industries`.
  */
-export async function seedIndustryPriceBook(
+export function buildMergedFolders(industries: string[]): DefaultFolder[] {
+  const seenTemplates = new Set<DefaultFolder[]>()
+  const seenFolderNames = new Set<string>()
+  const merged: DefaultFolder[] = []
+
+  for (const id of industries) {
+    const template = INDUSTRY_PRICE_BOOK[id]
+    if (!template || seenTemplates.has(template)) continue
+    seenTemplates.add(template)
+    for (const folder of template) {
+      if (seenFolderNames.has(folder.name)) continue
+      seenFolderNames.add(folder.name)
+      merged.push(folder)
+    }
+  }
+
+  return merged
+}
+
+/**
+ * Insert folders (with continuous sort_order starting at `startOrder`) and
+ * their items. Mirrors the per-folder error tolerance of the original seeder.
+ */
+async function insertFolders(
   supabase: SupabaseClient,
   companyId: string,
-  industry: string | null | undefined,
-  currencyCode = 'USD'
+  folders: DefaultFolder[],
+  currencyCode: string,
+  startOrder: number
 ): Promise<void> {
-  if (!industry) return
-
-  const folders = INDUSTRY_PRICE_BOOK[industry]
-  if (!folders) return
-
-  // Guard: skip if already seeded
-  const { count } = await supabase
-    .from('company_price_book')
-    .select('id', { count: 'exact', head: true })
-    .eq('company_id', companyId)
-
-  if ((count ?? 0) > 0) return
-
   for (let i = 0; i < folders.length; i++) {
     const folder = folders[i]
 
     const { data: folderRow, error: folderErr } = await supabase
       .from('price_book_folders')
-      .insert({ company_id: companyId, name: folder.name, sort_order: i })
+      .insert({ company_id: companyId, name: folder.name, sort_order: startOrder + i })
       .select('id')
       .single()
 
@@ -559,4 +632,62 @@ export async function seedIndustryPriceBook(
       await supabase.from('company_price_book').insert(items)
     }
   }
+}
+
+/**
+ * Seeds the price book for a newly created company using industry-specific
+ * defaults. Accepts one industry id or several (merged into one book).
+ * No-ops if the company already has any price book items (prevents
+ * double-seeding). Onboarding flow.
+ */
+export async function seedIndustryPriceBook(
+  supabase: SupabaseClient,
+  companyId: string,
+  industries: string | string[] | null | undefined,
+  currencyCode = 'USD'
+): Promise<void> {
+  const folders = buildMergedFolders(toIndustryList(industries))
+  if (folders.length === 0) return
+
+  // Guard: skip if already seeded (run once for the whole merged set).
+  const { count } = await supabase
+    .from('company_price_book')
+    .select('id', { count: 'exact', head: true })
+    .eq('company_id', companyId)
+
+  if ((count ?? 0) > 0) return
+
+  await insertFolders(supabase, companyId, folders, currencyCode, 0)
+}
+
+/**
+ * Append starter folders for the given industries to an EXISTING price book
+ * (Settings flow — e.g. the user added a new trade and opted in to starter
+ * prices). Unlike {@link seedIndustryPriceBook} there is NO "already has items"
+ * guard; instead we skip any folder whose name already exists and append the
+ * rest after the current max sort_order. Name collisions are skipped (not
+ * merged) to avoid surprising edits to existing folders.
+ */
+export async function appendIndustryPriceBook(
+  supabase: SupabaseClient,
+  companyId: string,
+  industries: string | string[] | null | undefined,
+  currencyCode = 'USD'
+): Promise<void> {
+  const candidate = buildMergedFolders(toIndustryList(industries))
+  if (candidate.length === 0) return
+
+  const { data: existing } = await supabase
+    .from('price_book_folders')
+    .select('name, sort_order')
+    .eq('company_id', companyId)
+
+  const existingRows = (existing ?? []) as Array<{ name: string; sort_order: number }>
+  const existingNames = new Set(existingRows.map((f) => f.name))
+  const maxOrder = existingRows.reduce((m, f) => Math.max(m, f.sort_order ?? 0), -1)
+
+  const folders = candidate.filter((f) => !existingNames.has(f.name))
+  if (folders.length === 0) return
+
+  await insertFolders(supabase, companyId, folders, currencyCode, maxOrder + 1)
 }

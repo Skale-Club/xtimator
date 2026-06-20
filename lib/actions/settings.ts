@@ -6,6 +6,8 @@ import { createStorage } from '@/lib/storage'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
 import { revalidatePath, revalidateTag } from 'next/cache'
 import { normalizeCurrencyCode } from '@/lib/money/currency'
+import { resolveIndustries } from '@/lib/industries'
+import { appendIndustryPriceBook } from '@/lib/price-book-seed'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { assertWritable } from '@/lib/demo/guard'
 import { syncOwnerPhone } from '@/lib/whatsapp/sync-owner-phone'
@@ -51,7 +53,13 @@ export async function updateCompanySettings(formData: FormData) {
   const zip = formData.get('zip') as string | null
   const licenseNumber = formData.get('licenseNumber') as string | null
   const insuranceInfo = formData.get('insuranceInfo') as string | null
-  const industry = formData.get('industry') as string | null
+  // Services: multiple repeated 'industries' entries (card ids) + the 'other'
+  // free-text. Resolve to the canonical array; `industry` stays the primary.
+  const industryIds = formData.getAll('industries').map((v) => String(v))
+  const customIndustry = (formData.get('customIndustry') as string | null) ?? ''
+  const prefillNewServices = formData.get('prefillNewServices') === '1'
+  const resolvedIndustries = resolveIndustries(industryIds, customIndustry)
+  const primaryIndustry = resolvedIndustries[0] ?? null
   const brandPrimaryColor = formData.get('brandPrimaryColor') as string | null
   const existingLogoUrl = formData.get('existingLogoUrl') as string | null
   const defaultEstimateLanguage = formData.get('defaultEstimateLanguage') as string | null
@@ -76,9 +84,10 @@ export async function updateCompanySettings(formData: FormData) {
   }
 
   // Fetch current values before update so we can detect which fields changed
+  // (and which services were newly added, for the optional price-book prefill).
   const { data: currentCompany } = await supabase
     .from('companies')
-    .select('name, owner_name, phone, email, website')
+    .select('name, owner_name, phone, email, website, industry, industries')
     .eq('id', company.id)
     .single()
 
@@ -96,7 +105,8 @@ export async function updateCompanySettings(formData: FormData) {
       zip: zip || null,
       license_number: licenseNumber || null,
       insurance_info: insuranceInfo || null,
-      industry: industry || null,
+      industry: primaryIndustry,
+      industries: resolvedIndustries,
       brand_primary_color: brandPrimaryColor || SYSTEM_COLORS.primary,
       logo_url: logoUrl || null,
       currency_code: currencyCode,
@@ -148,6 +158,21 @@ export async function updateCompanySettings(formData: FormData) {
     .from('company_price_book')
     .update({ currency_code: currencyCode })
     .eq('company_id', company.id)
+
+  // Optional: when the user added new service(s) and opted in, append starter
+  // prices for ONLY the newly added services. Never auto-seeds; existing
+  // folders are left untouched (appendIndustryPriceBook skips name collisions).
+  if (prefillNewServices) {
+    const previousIndustries =
+      (currentCompany?.industries as string[] | null) ??
+      (currentCompany?.industry ? [currentCompany.industry as string] : [])
+    const addedIndustries = resolvedIndustries.filter(
+      (v) => !previousIndustries.includes(v)
+    )
+    if (addedIndustries.length > 0) {
+      await appendIndustryPriceBook(supabase, company.id, addedIndustries, currencyCode)
+    }
+  }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ;(revalidateTag as any)('company')

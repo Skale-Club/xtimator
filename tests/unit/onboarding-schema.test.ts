@@ -89,16 +89,31 @@ describe('onboardingSchema', () => {
   })
 
   describe('step 2', () => {
-    it('industry is optional string', () => {
+    it('industries defaults to an empty array', () => {
       const result = onboardingSchema.safeParse({ companyName: 'Test Co' })
       expect(result.success).toBe(true)
-      expect(result.data?.industry).toBe('')
+      expect(result.data?.industries).toEqual([])
+    })
+
+    it('industries accepts multiple selected services', () => {
+      const result = onboardingSchema.safeParse({
+        companyName: 'Test Co',
+        industries: ['house_cleaning', 'window_cleaning'],
+      })
+      expect(result.success).toBe(true)
+      expect(result.data?.industries).toEqual(['house_cleaning', 'window_cleaning'])
     })
 
     it('customIndustry is optional string', () => {
       const result = onboardingSchema.safeParse({ companyName: 'Test Co' })
       expect(result.success).toBe(true)
       expect(result.data?.customIndustry).toBe('')
+    })
+
+    it('prefillPriceBook defaults to false', () => {
+      const result = onboardingSchema.safeParse({ companyName: 'Test Co' })
+      expect(result.success).toBe(true)
+      expect(result.data?.prefillPriceBook).toBe(false)
     })
 
     it('brandPrimaryColor defaults to "#406EF1"', () => {
@@ -169,8 +184,9 @@ describe('onboardingSchema', () => {
       expect(data.phone).toBe('')
       expect(data.email).toBe('')
       expect(data.website).toBe('')
-      expect(data.industry).toBe('')
+      expect(data.industries).toEqual([])
       expect(data.customIndustry).toBe('')
+      expect(data.prefillPriceBook).toBe(false)
       expect(data.brandPrimaryColor).toBe('#406EF1')
       expect(data.defaultTaxRate).toBe(0)
       expect(data.defaultPaymentTerms).toBe('Net 30')
@@ -193,8 +209,9 @@ describe('onboardingSchema', () => {
 
     it('step 2 contains exactly the right fields', () => {
       expect(STEP_FIELDS[2]).toEqual([
-        'industry',
+        'industries',
         'customIndustry',
+        'prefillPriceBook',
         'brandPrimaryColor',
       ])
     })

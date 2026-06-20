@@ -16,6 +16,7 @@ import { syncOwnerPhone } from '@/lib/whatsapp/sync-owner-phone'
 import { sendWelcomeEmail } from '@/lib/email/account-emails'
 import { seedIndustryPriceBook } from '@/lib/price-book-seed'
 import { getDefaultTaxRate } from '@/lib/tax-rates'
+import { resolveIndustries } from '@/lib/industries'
 
 interface CompanyFormData {
   companyName?: string
@@ -24,8 +25,9 @@ interface CompanyFormData {
   phone?: string
   email?: string
   website?: string
-  industry?: string
+  industries?: string[]
   customIndustry?: string
+  prefillPriceBook?: boolean
   brandPrimaryColor?: string
   address?: string
   city?: string
@@ -68,14 +70,19 @@ export async function createOrUpdateCompany(
   const claims = claimsData?.claims ?? null
   if (!claims) return { error: 'Not authenticated' }
 
-  // Resolve industry: if "other", use customIndustry value
-  const resolvedIndustry =
-    data.industry === 'other' ? data.customIndustry : data.industry
+  // Resolve services: replace the 'other' sentinel with the custom text and
+  // dedupe. `industry` (singular) keeps the primary (= industries[0]) for
+  // backward-compat readers: tax-rate defaults + the AI prompt builder.
+  const resolvedIndustries = resolveIndustries(
+    data.industries ?? [],
+    data.customIndustry ?? ''
+  )
+  const primaryIndustry = resolvedIndustries[0] ?? null
 
   // Smart-fill the default tax rate from state + service type when the caller
   // didn't supply one (onboarding no longer asks for tax). Editable later in
   // Settings → Defaults.
-  const autoTaxRate = getDefaultTaxRate(resolvedIndustry, data.state)
+  const autoTaxRate = getDefaultTaxRate(primaryIndustry, data.state)
 
   // Build the row object mapping form fields to DB columns
   const row = {
@@ -86,7 +93,8 @@ export async function createOrUpdateCompany(
     phone: data.phone || null,
     email: data.email || null,
     website: data.website || null,
-    industry: resolvedIndustry || null,
+    industry: primaryIndustry,
+    industries: resolvedIndustries,
     brand_primary_color: data.brandPrimaryColor || SYSTEM_COLORS.primary,
     logo_url: data.logoUrl || null,
     address: data.address || null,
@@ -177,8 +185,11 @@ export async function createOrUpdateCompany(
     // Sync owner phone to company_whatsapp for WhatsApp inbound routing
     syncOwnerPhone(service, newCompanyId, data.phone).catch(() => undefined)
 
-    // Seed industry-specific price book defaults (fire-and-forget)
-    seedIndustryPriceBook(service, newCompanyId, resolvedIndustry, row.currency_code).catch(() => undefined)
+    // Seed industry-specific price book defaults — ONLY when the user opted in
+    // (fire-and-forget). Unchecked → the price book starts empty.
+    if (data.prefillPriceBook) {
+      seedIndustryPriceBook(service, newCompanyId, resolvedIndustries, row.currency_code).catch(() => undefined)
+    }
 
     // Send welcome email to new account owner (fire-and-forget)
     const userEmail = (claims as Record<string, unknown>).email as string | undefined
@@ -261,8 +272,11 @@ export async function createOrUpdateCompany(
     // Sync owner phone to company_whatsapp for WhatsApp inbound routing
     syncOwnerPhone(service, newCompany.id, data.phone).catch(() => undefined)
 
-    // Seed industry-specific price book defaults (fire-and-forget)
-    seedIndustryPriceBook(service, newCompany.id, resolvedIndustry, row.currency_code).catch(() => undefined)
+    // Seed industry-specific price book defaults — ONLY when the user opted in
+    // (fire-and-forget). Unchecked → the price book starts empty.
+    if (data.prefillPriceBook) {
+      seedIndustryPriceBook(service, newCompany.id, resolvedIndustries, row.currency_code).catch(() => undefined)
+    }
 
     // Send welcome email (fire-and-forget)
     const userEmail2 = (claims as Record<string, unknown>).email as string | undefined
