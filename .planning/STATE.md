@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v4.3
 milestone_name: Unified Agentic Estimate Engine
 status: verifying
-stopped_at: Completed 96-02-PLAN.md
-last_updated: "2026-06-20T19:34:39.406Z"
-last_activity: 2026-06-20
+stopped_at: Completed quick-260620-lqh-PLAN.md (remove Danger Zone delete-account UI)
+last_updated: "2026-06-20T19:47:41.194Z"
+last_activity: "2026-06-20 - Completed quick task 260620-lia: Revisar animação de colapso da sidebar"
 progress:
   total_phases: 52
   completed_phases: 38
@@ -26,7 +26,7 @@ Phase: 999.1
 Plan: Not started
 Status: Phase complete — ready for verification
 Last activity: 2026-06-20 - Completed quick task 260620-lia: Revisar animação de colapso da sidebar
-Stopped at: Completed 96-02-PLAN.md
+Stopped at: Completed quick-260620-lqh-PLAN.md (remove Danger Zone delete-account UI)
 
 ## v4.3 Phases (current milestone)
 
