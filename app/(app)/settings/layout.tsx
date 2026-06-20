@@ -37,7 +37,7 @@ export default async function SettingsLayout({ children }: { children: React.Rea
       */}
 
       {/* Wrapper needed for the right-edge fade mask on mobile + fixed positioning on desktop */}
-      <div className="relative sticky top-0 z-20 shrink-0 md:fixed md:left-[var(--app-sidebar-width)] md:top-16 md:z-30 md:h-[calc(100vh-4rem)] md:w-52">
+      <div className="relative sticky top-0 z-20 shrink-0 md:fixed md:left-[var(--app-sidebar-width)] md:top-16 md:z-30 md:h-[calc(100vh-4rem)] md:w-52 transition-[left] duration-200 ease-in-out">
         {/* Fade gradient — visible only on mobile, hidden on desktop */}
         <div
           aria-hidden
