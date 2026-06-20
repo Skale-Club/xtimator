@@ -39,13 +39,6 @@ export default function AccountSettingsLoading() {
           </div>
         </div>
       </SettingsCard>
-
-      <SettingsCard className="border-destructive/30">
-        <div className="grid gap-6 xl:grid-cols-[260px_minmax(0,1fr)]">
-          <SettingsSection title="Danger Zone" description="This permanently removes your company profile, projects, and account access." />
-          <Skeleton className="h-10 w-36 rounded-md" />
-        </div>
-      </SettingsCard>
     </SettingsPageSkeleton>
   )
 }
