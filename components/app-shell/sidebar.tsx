@@ -169,7 +169,7 @@ export function Sidebar({ branding, company, memberships, isDemo }: SidebarProps
         borderLeft: 0,
       }}
       className={cn(
-        'hidden md:flex flex-col shrink-0 overflow-hidden transition-[width] duration-200 glass border-r border-[var(--glass-border)]',
+        'hidden md:flex flex-col shrink-0 overflow-hidden transition-[width] duration-200 ease-in-out glass border-r border-[var(--glass-border)]',
         collapsed ? 'w-16' : 'w-[213px]',
       )}
     >
@@ -193,8 +193,8 @@ export function Sidebar({ branding, company, memberships, isDemo }: SidebarProps
         </div>
         <span
           className={cn(
-            'truncate text-lg font-bold tracking-tight transition-opacity duration-150',
-            collapsed ? 'opacity-0 w-0 pointer-events-none' : 'opacity-100',
+            'truncate text-lg font-bold tracking-tight transition-all duration-200 ease-in-out overflow-hidden whitespace-nowrap',
+            collapsed ? 'opacity-0 max-w-0 pointer-events-none' : 'opacity-100 max-w-[160px]',
           )}
         >
           {branding.appName}
@@ -216,7 +216,7 @@ export function Sidebar({ branding, company, memberships, isDemo }: SidebarProps
           const Icon = item.icon
 
           const baseLayout =
-            'group relative flex items-center gap-3 rounded-[var(--radius-md)] px-3 py-2 text-sm font-[var(--font-weight-medium)] transition-all duration-150'
+            'group relative flex items-center gap-3 rounded-[var(--radius-md)] px-3 py-2 text-sm font-[var(--font-weight-medium)] transition-all duration-200 ease-in-out'
 
           const linkClassName = item.primary
             ? cn(
@@ -251,8 +251,8 @@ export function Sidebar({ branding, company, memberships, isDemo }: SidebarProps
               <Icon className="h-5 w-5 shrink-0" />
               <span
                 className={cn(
-                  'truncate transition-opacity duration-150 whitespace-nowrap',
-                  collapsed ? 'opacity-0 w-0 overflow-hidden' : 'opacity-100',
+                  'truncate transition-all duration-200 ease-in-out whitespace-nowrap overflow-hidden',
+                  collapsed ? 'opacity-0 max-w-0' : 'opacity-100 max-w-[160px]',
                 )}
               >
                 {t(item.label)}
@@ -269,8 +269,8 @@ export function Sidebar({ branding, company, memberships, isDemo }: SidebarProps
               <Icon className="h-5 w-5 shrink-0" />
               <span
                 className={cn(
-                  'truncate transition-opacity duration-150 whitespace-nowrap',
-                  collapsed ? 'opacity-0 w-0 overflow-hidden' : 'opacity-100',
+                  'truncate transition-all duration-200 ease-in-out whitespace-nowrap overflow-hidden',
+                  collapsed ? 'opacity-0 max-w-0' : 'opacity-100 max-w-[160px]',
                 )}
               >
                 {t(item.label)}
@@ -292,8 +292,8 @@ export function Sidebar({ branding, company, memberships, isDemo }: SidebarProps
                 <Icon className="h-5 w-5 shrink-0" />
                 <span
                   className={cn(
-                    'truncate transition-opacity duration-150 whitespace-nowrap',
-                    collapsed ? 'opacity-0 w-0 overflow-hidden' : 'opacity-100',
+                    'truncate transition-all duration-200 ease-in-out whitespace-nowrap overflow-hidden',
+                    collapsed ? 'opacity-0 max-w-0' : 'opacity-100 max-w-[160px]',
                   )}
                 >
                   {t(item.label)}
