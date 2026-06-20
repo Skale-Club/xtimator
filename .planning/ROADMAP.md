@@ -1052,7 +1052,12 @@ Plans:
   3. The deterministic `isVagueEstimate` gate is extracted to `lib/estimate/quality/vagueness.ts` and reused verbatim as the always-on, zero-cost (no-LLM) check; the shared graph never throws — nodes signal failure via the `failure?` state channel and the adapter maps the terminal failure to the channel's reply/cleanup
   4. WhatsApp's inbound-estimate flow runs entirely on the shared graph (`whatsapp-process.ts` repointed to the new module + `channel:'whatsapp'`) with its behavior preserved exactly; the frozen never-throw / always-reply regression test stays green — the owner still gets a reply on every failure path
   5. A `StepRunner` abstraction is defined and injected into the engine (default `passthroughRunner`) so AI-heavy nodes CAN later be promoted to their own durable Inngest `step.run` without coupling the core to Inngest, and a decision artifact captures the graph↔Inngest checkpoint-granularity contract (Inngest is the sole durability layer; no LangGraph checkpointer; cross-message wait stays in `whatsapp_sessions`/events; when to decompose + retry-cost trade-offs)
-**Plans**: TBD
+**Plans**: 4 plans
+Plans:
+- [ ] 94-01-PLAN.md — Wave 0: DURABLE-02 decision artifact + 7 failing test stubs (the behavior-preserving safety net)
+- [ ] 94-02-PLAN.md — Extract channel-neutral core: vagueness gate + EstimateState + ChannelAdapter/StepRunner contracts + generate/assess/decide nodes + buildEstimateGraph factory
+- [ ] 94-03-PLAN.md — WhatsApp ChannelAdapter (ingest/finalize/onError) + default.ts stub; rewire estimate-graph.ts + repoint whatsapp-process.ts
+- [ ] 94-04-PLAN.md — Repoint source-text anchor test paths + full-suite green gate + D-13 behavior-preserving audit
 
 ### Phase 95: Migrate Web + MCP onto the Shared Graph (generate-only passthrough)
 **Goal**: The web `generate-estimate` Inngest job and MCP `create_estimate` both flow through the same shared graph as today's single-shot path — producing byte-equivalent output with no behavior change yet — proving the shared engine works for web/MCP before any intelligence is switched on. Web's decoupled upload-time ingestion is preserved; the graph enters at `generate` via a passthrough `ingest` guard.
