@@ -22,10 +22,10 @@ This asymmetry is a real product gap: the web/MCP can silently produce a low-qua
 
 ### ENGINE — Canonical Domain Graph
 
-- [ ] **ENGINE-01**: A shared, channel-neutral estimate domain graph exists in a dedicated module (e.g. `lib/estimate/graph/`) with reusable nodes `ingest → generate → assess → refine/ask → finalize`. Graph state carries NO channel-specific fields (no `ownerPhone`, no `WhatsAppMessage`).
+- [x] **ENGINE-01**: A shared, channel-neutral estimate domain graph exists in a dedicated module (e.g. `lib/estimate/graph/`) with reusable nodes `ingest → generate → assess → refine/ask → finalize`. Graph state carries NO channel-specific fields (no `ownerPhone`, no `WhatsAppMessage`).
 - [ ] **ENGINE-02**: A `ChannelAdapter` abstraction (closure-factory, mirroring the existing `makeQueryTools` pattern) lets each channel plug ONLY its edge behaviors (`ingest`, `finalize`/reply, `onError`) without modifying the core graph.
-- [ ] **ENGINE-03**: The deterministic quality gate (`isVagueEstimate`) is extracted into the shared graph and reused verbatim as the always-on, zero-cost check (no LLM call for the gate).
-- [ ] **ENGINE-04**: The shared graph preserves the never-throw / always-finalize invariant — nodes signal failure via a state channel (`failure?`), never by throwing; the adapter maps the terminal failure outcome to the channel's reply/cleanup.
+- [x] **ENGINE-03**: The deterministic quality gate (`isVagueEstimate`) is extracted into the shared graph and reused verbatim as the always-on, zero-cost check (no LLM call for the gate).
+- [x] **ENGINE-04**: The shared graph preserves the never-throw / always-finalize invariant — nodes signal failure via a state channel (`failure?`), never by throwing; the adapter maps the terminal failure outcome to the channel's reply/cleanup.
 
 ### CHAN — Channel Migration
 
@@ -50,7 +50,7 @@ This asymmetry is a real product gap: the web/MCP can silently produce a low-qua
 
 ### DURABLE — Checkpoint Foundation (scaffold only; full refactor deferred)
 
-- [ ] **DURABLE-01**: A `StepRunner` abstraction is defined and injected into the engine so AI-heavy nodes CAN later be promoted to their own durable Inngest `step.run` — without coupling the core graph to Inngest. Contract + scaffold only in this milestone.
+- [x] **DURABLE-01**: A `StepRunner` abstraction is defined and injected into the engine so AI-heavy nodes CAN later be promoted to their own durable Inngest `step.run` — without coupling the core graph to Inngest. Contract + scaffold only in this milestone.
 - [x] **DURABLE-02**: The graph↔Inngest checkpoint-granularity decision is captured as a decision artifact (when to decompose, retry-cost trade-offs, why no LangGraph checkpointer) to guide the deferred full refactor.
 
 ### QA — Reliability & Test Guardrails
@@ -94,12 +94,12 @@ Each v1 requirement maps to exactly one phase. Coverage = 100% (21/21).
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ENGINE-01 | Phase 94 | Pending |
+| ENGINE-01 | Phase 94 | Complete |
 | ENGINE-02 | Phase 94 | Pending |
-| ENGINE-03 | Phase 94 | Pending |
-| ENGINE-04 | Phase 94 | Pending |
+| ENGINE-03 | Phase 94 | Complete |
+| ENGINE-04 | Phase 94 | Complete |
 | CHAN-01 | Phase 94 | Pending |
-| DURABLE-01 | Phase 94 | Pending |
+| DURABLE-01 | Phase 94 | Complete |
 | DURABLE-02 | Phase 94 | Complete |
 | QA-01 | Phase 94 | Complete |
 | CHAN-02 | Phase 95 | Pending |

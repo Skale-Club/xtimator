@@ -1055,7 +1055,7 @@ Plans:
 **Plans**: 4 plans
 Plans:
 - [x] 94-01-PLAN.md — Wave 0: DURABLE-02 decision artifact + 7 failing test stubs (the behavior-preserving safety net)
-- [ ] 94-02-PLAN.md — Extract channel-neutral core: vagueness gate + EstimateState + ChannelAdapter/StepRunner contracts + generate/assess/decide nodes + buildEstimateGraph factory
+- [x] 94-02-PLAN.md — Extract channel-neutral core: vagueness gate + EstimateState + ChannelAdapter/StepRunner contracts + generate/assess/decide nodes + buildEstimateGraph factory
 - [ ] 94-03-PLAN.md — WhatsApp ChannelAdapter (ingest/finalize/onError) + default.ts stub; rewire estimate-graph.ts + repoint whatsapp-process.ts
 - [ ] 94-04-PLAN.md — Repoint source-text anchor test paths + full-suite green gate + D-13 behavior-preserving audit
 
