@@ -64,6 +64,7 @@ const sampleRow: PriceBookItemFormValues = {
   unit: 'hr',
   unit_price: 75,
   notes: '',
+  pricing_type: 'fixed',
 }
 
 describe('importPriceBookItems', () => {
@@ -155,6 +156,7 @@ describe('importPriceBookItems', () => {
       unit: '',
       unit_price: 75,
       notes: '',
+      pricing_type: 'fixed',
     }
     await importPriceBookItems([rowWithBlanks])
 
@@ -176,8 +178,8 @@ describe('importPriceBookItems', () => {
     vi.mocked(createClient).mockResolvedValue(helper.client as any)
 
     const result = await importPriceBookItems([
-      { name: 'General Labor', unit: 'hr', unit_price: 75, notes: '' },
-      { name: 'PVC Pipe 2in', unit: 'ft', unit_price: 3.5, notes: '' },
+      { name: 'General Labor', unit: 'hr', unit_price: 75, notes: '', pricing_type: 'fixed' },
+      { name: 'PVC Pipe 2in', unit: 'ft', unit_price: 3.5, notes: '', pricing_type: 'fixed' },
     ])
 
     expect(result).toEqual({ data: { imported: 1, skipped: 1 } })

@@ -23,6 +23,11 @@ function makeItem(unit: string): PriceBookItem {
     notes: null,
     created_at: '2026-01-01T00:00:00Z',
     image_url: null,
+    pricing_type: 'fixed',
+    base_price: null,
+    price_per_unit: null,
+    minimum_price: null,
+    area_sizes: null,
   }
 }
 
