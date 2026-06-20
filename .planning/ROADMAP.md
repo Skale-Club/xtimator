@@ -1083,7 +1083,10 @@ Plans:
   3. MCP surfaces `needs_details` as a structured status in the job result (compatible with the existing `job_id` + poll contract, no elicitation) that the calling LLM can act on
   4. WhatsApp's existing inline ask-details behavior is preserved unchanged, now driven by the same shared quality verdict
   5. Multi-tenant isolation is preserved: `companyId` stays a trusted closure/param across every shared node and any new refine tool — no LLM-suppliable tenant field — verified by extending the existing `query-tools` "no tenant input" test to cover the refine surface, and every shared-core query stays company-scoped
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 96-01-PLAN.md — Wave 1: RED test stubs (auto-refine-isolation.test.ts + graph-neutrality extension)
+- [ ] 96-02-PLAN.md — Wave 2: Production code (revert.ts + state needsDetails + auto-refine.ts + decide.ts + index.ts + default.ts)
 
 ### Phase 97: Unified Observability — Langfuse v5 + Sentry Coexistence
 **Goal**: Every estimate run on every channel emits one unified Langfuse trace via a single `CallbackHandler` attached at `graph.invoke`, with channels distinguished by metadata/tags, so per-channel AI call-count and latency are visible — the metric foundation that will later justify the deferred durability refactor. Langfuse is migrated to the v5 OTel SDK and coexists with Sentry's OTel without colliding on the global tracer provider.
