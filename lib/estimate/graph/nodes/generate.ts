@@ -1,0 +1,38 @@
+/**
+ * lib/estimate/graph/nodes/generate.ts
+ *
+ * CORE generate node (channel-neutral). Wraps the shared, channel-agnostic
+ * generateEstimateForProject via the injected StepRunner (DURABLE-01) so the AI
+ * call can LATER become its own Inngest step.run without the core importing
+ * Inngest. With the default passthroughRunner this is exactly today's call.
+ *
+ * NEVER throws (ENGINE-04): on failure it RESOLVES with a `failure?` state
+ * channel (generalizing the old per-channel boolean failure flag). A throw would
+ * propagate out of graph.invoke → fail the Inngest step → job dies after retries
+ * with NO reply (the recurring silent-failure bug). decide() routes a failure
+ * state to the adapter's onError terminal so the user always gets a reply.
+ */
+import { generateEstimateForProject } from '@/lib/services/generate-estimate'
+import type { EstimateStateType } from '../state'
+import type { StepRunner } from '../types'
+
+export const makeGenerateNode =
+  (runner: StepRunner) =>
+  async (state: EstimateStateType): Promise<Partial<EstimateStateType>> => {
+    try {
+      const opts =
+        state.channel === 'whatsapp'
+          ? { channel: 'whatsapp' as const, prompts: state.prompts }
+          : { prompts: state.prompts }
+      const result = await runner.run('ai-generate', () =>
+        generateEstimateForProject(state.companyId, state.projectId, opts)
+      )
+      return {
+        estimateId: result.estimateId,
+        estimateLanguage: result.language,
+      }
+    } catch (err) {
+      console.error('[estimate-graph] generate failed; routing to onError:', err)
+      return { failure: { reason: 'generation_failed' } }
+    }
+  }
