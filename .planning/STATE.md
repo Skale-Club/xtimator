@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.3
 milestone_name: Unified Agentic Estimate Engine
 status: verifying
-stopped_at: Phase 95 context gathered
-last_updated: "2026-06-20T18:01:09.779Z"
+stopped_at: Completed 95-01-PLAN.md
+last_updated: "2026-06-20T18:21:02.256Z"
 last_activity: 2026-06-20
 progress:
   total_phases: 52
   completed_phases: 36
-  total_plans: 108
-  completed_plans: 121
+  total_plans: 110
+  completed_plans: 122
 ---
 
 # Project State
@@ -26,7 +26,7 @@ Phase: 999.1
 Plan: Not started
 Status: Phase complete — ready for verification
 Last activity: 2026-06-20
-Stopped at: Phase 95 context gathered
+Stopped at: Completed 95-01-PLAN.md
 
 ## v4.3 Phases (current milestone)
 
@@ -497,6 +497,7 @@ Stopped at: Phase 95 context gathered
 - [Phase 94]: 94-03: WhatsApp ChannelAdapter is a closure-factory (companyId/ownerPhone/messages closure-captured, never graph inputs); ingest runs an internal Send fan-out sub-graph; vague-vs-confirm folded inside finalize (3-fn D-05 surface)
 - [Phase 94]: 94-03: buildEstimateGraph() stays zero-arg; .invoke(initial) constructs the WhatsApp adapter per-invocation so core state stays channel-neutral (D-07); whatsapp-process-job source-text anchor goes RED pending 94-04 path update (D-13)
 - [Phase 94]: 94-04 D-13 audit confirmed behavior-preserving: anchor test changed only readFileSync paths + the documented ENGINE-04 generationFailed->failure rename; ask-details + QA-01 never-reply-regression tests unchanged (0 diff)
+- [Phase 95]: Wave 0 RED state intentional: CHAN-02 anchor tests for orchestrate-estimate/buildEstimateGraph/makeDefaultAdapter fail until Plan 02 production changes land
 
 ## Performance Metrics
 
@@ -665,6 +666,7 @@ Stopped at: Phase 95 context gathered
 | Phase 94 P02 | 5 | 3 tasks | 8 files |
 | Phase 94 P03 | 7 | 3 tasks | 4 files |
 | Phase 94 P04 | 6 | 2 tasks | 1 files |
+| Phase 95-migrate-web-mcp-onto-the-shared-graph-generate-only-passthrough P01 | 5 | 1 tasks | 1 files |
 
 ## Project Reference
 

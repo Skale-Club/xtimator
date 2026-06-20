@@ -279,7 +279,7 @@ Plans:
   5. `docs/HETZNER-DEPLOY.md` is a runbook a developer can follow end-to-end (provision CX22 â†’ Docker + Caddy install â†’ DNS A record â†’ populate `.env.production` on server â†’ `docker compose up -d` â†’ `/api/health` smoke â†’ UFW firewall â†’ cert renewal verification â†’ daily off-server backup of `.env.production`) â€” placeholder syntax only for any secret values, never real keys
 **Plans**: 2 plans
 Plans:
-- [ ] 95-01-PLAN.md — Wave 1: Update test anchors + add QA-03 behavioral test (RED until Wave 2)
+- [x] 95-01-PLAN.md — Wave 1: Update test anchors + add QA-03 behavioral test (RED until Wave 2)
 - [ ] 95-02-PLAN.md — Wave 2: Wire shared graph in generate-estimate.ts + onError re-throw in default.ts (makes Wave 1 GREEN)
 
 ### Phase 69: UAT Validation + Bug Triage + Perf Audit

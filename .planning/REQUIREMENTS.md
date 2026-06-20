@@ -30,9 +30,9 @@ This asymmetry is a real product gap: the web/MCP can silently produce a low-qua
 ### CHAN — Channel Migration
 
 - [x] **CHAN-01**: WhatsApp consumes the shared graph; its current `estimate-graph.ts` behavior is preserved exactly — inbound media fan-out + conversational reply/session become edge nodes supplied by the WhatsApp adapter.
-- [ ] **CHAN-02**: The web generation path (`generate-estimate` Inngest job) consumes the shared graph, entering at the `generate` node — the web's decoupled upload-time ingestion (`transcribe-audio` / `analyze-photos`) is preserved; the graph's `ingest` node is a passthrough guard when transcripts/descriptions already exist.
-- [ ] **CHAN-03**: MCP `create_estimate` runs through the same shared graph (inherits the web path — no new dispatch contract, still `job_id` + poll).
-- [ ] **CHAN-04**: Behavior parity is verified — all three channels produce equivalent estimate output for equivalent inputs through the single engine; no channel regresses.
+- [x] **CHAN-02**: The web generation path (`generate-estimate` Inngest job) consumes the shared graph, entering at the `generate` node — the web's decoupled upload-time ingestion (`transcribe-audio` / `analyze-photos`) is preserved; the graph's `ingest` node is a passthrough guard when transcripts/descriptions already exist.
+- [x] **CHAN-03**: MCP `create_estimate` runs through the same shared graph (inherits the web path — no new dispatch contract, still `job_id` + poll).
+- [x] **CHAN-04**: Behavior parity is verified — all three channels produce equivalent estimate output for equivalent inputs through the single engine; no channel regresses.
 
 ### SMART — Intelligence Parity (quality + refine)
 
@@ -57,7 +57,7 @@ This asymmetry is a real product gap: the web/MCP can silently produce a low-qua
 
 - [x] **QA-01**: A frozen regression test asserts the WhatsApp never-throw / always-reply guarantee survives the extraction — the owner always gets a reply on every failure path.
 - [ ] **QA-02**: Multi-tenant isolation is preserved — `companyId` stays closure/param across all shared nodes and any new refine tool; no LLM-suppliable tenant field (extend the existing `query-tools` "no tenant input" test).
-- [ ] **QA-03**: The deterministic happy path stays at exactly 1 AI call per generation — no surprise extra AI calls on the non-vague web fast path.
+- [x] **QA-03**: The deterministic happy path stays at exactly 1 AI call per generation — no surprise extra AI calls on the non-vague web fast path.
 
 ---
 
@@ -102,10 +102,10 @@ Each v1 requirement maps to exactly one phase. Coverage = 100% (21/21).
 | DURABLE-01 | Phase 94 | Complete |
 | DURABLE-02 | Phase 94 | Complete |
 | QA-01 | Phase 94 | Complete |
-| CHAN-02 | Phase 95 | Pending |
-| CHAN-03 | Phase 95 | Pending |
-| CHAN-04 | Phase 95 | Pending |
-| QA-03 | Phase 95 | Pending |
+| CHAN-02 | Phase 95 | Complete |
+| CHAN-03 | Phase 95 | Complete |
+| CHAN-04 | Phase 95 | Complete |
+| QA-03 | Phase 95 | Complete |
 | SMART-01 | Phase 96 | Pending |
 | SMART-02 | Phase 96 | Pending |
 | SMART-03 | Phase 96 | Pending |
