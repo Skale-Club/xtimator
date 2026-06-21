@@ -56,6 +56,13 @@ export const EstimateState = Annotation.Root({
    * Surfaces in the Inngest job output so MCP/web callers detect needs_details.
    */
   needsDetails: Annotation<boolean | undefined>(),
+  /**
+   * Neutral summary of inbound items that failed ingestion while the batch
+   * still had at least one usable item (HARD-05). Count + generic reason codes
+   * ONLY — no channel token — so a finalize node can report partial success.
+   * Absent when nothing was dropped.
+   */
+  droppedInputs: Annotation<{ count: number; reasons: string[] } | undefined>(),
   /** Refine-only input: the existing estimate being refined (preview, never persisted). */
   existingEstimate: Annotation<EstimateOutput | undefined>(),
   /** Refine-only input: the assembled, sanitized-downstream refine instruction. */

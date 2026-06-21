@@ -330,13 +330,26 @@ export function makeWhatsAppAdapter({
         mediaResults: [],
       })
 
+      // HARD-05: summarize the items that failed ingestion into a NEUTRAL
+      // count + reason-code summary (no channel token) so finalize can report
+      // partial success. The mediaResults array itself lives only in this
+      // WhatsApp-superset ingest sub-graph and is dropped after ingest returns.
+      const failed = (result.mediaResults ?? []).filter((r) => !r.ok)
+      const droppedInputs = failed.length
+        ? { count: failed.length, reasons: failed.map((r) => r.reason ?? 'unknown_error') }
+        : undefined
+
       const hasUsableInput = (result.mediaResults ?? []).some((r) => r.ok)
       if (!hasUsableInput) {
         // No usable input — signal failure-as-state so the core's checkInputs
         // edge routes to the adapter's onError terminal (no-input reply copy).
+        // Total failure is owned by onError; do NOT also attach droppedInputs —
+        // the per-item note is for partial success only.
         return { failure: { reason: 'no_usable_input' } }
       }
-      return {}
+      // Partial success: carry the neutral summary forward so finalize can note
+      // the dropped item(s) in the single reply. Omit it on full success.
+      return droppedInputs ? { droppedInputs } : {}
     },
 
     /**
