@@ -83,6 +83,7 @@ export const landingContentSchema = z.object({
     title: z.string().max(80),
     description: z.string().max(300),
     benefit: z.string().max(60),
+    imageUrl: z.string().url().nullable().or(z.literal('')).transform(v => v || null).optional().nullable(),
   })).min(1).max(6),
 })
 
@@ -106,6 +107,15 @@ export const stepImageFileSchema = z
   .refine(
     f => ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'].includes(f.type),
     'Step image must be a PNG, JPG, or WebP.'
+  )
+
+/** Server-side validation for Features section card image uploads. */
+export const featureImageFileSchema = z
+  .instanceof(File)
+  .refine(f => f.size <= 4 * 1024 * 1024, 'Feature image must be under 4MB.')
+  .refine(
+    f => ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'].includes(f.type),
+    'Feature image must be a PNG, JPG, or WebP.'
   )
 
 export const blogPostSchema = z.object({

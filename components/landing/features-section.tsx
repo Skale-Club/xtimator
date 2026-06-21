@@ -7,7 +7,7 @@ import { Ticker } from '@/components/landing/ticker'
 
 const ICON_MAP: Record<string, LucideIcon> = { BrainCircuit, FileBadge2, Link2, Smartphone }
 
-type Feature = { icon: string; title: string; description: string; benefit: string }
+type Feature = { icon: string; title: string; description: string; benefit: string; imageUrl?: string | null }
 
 function FeatureCard({ feature }: { feature: Feature }) {
   const Icon = ICON_MAP[feature.icon] ?? BrainCircuit
@@ -17,6 +17,18 @@ function FeatureCard({ feature }: { feature: Feature }) {
       className="group relative h-full overflow-hidden rounded-2xl p-5 backdrop-blur-none transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[0_0_60px_hsl(var(--primary)/0.22)]"
     >
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
+      {feature.imageUrl && (
+        // Full-bleed 3:1 landscape header image — negates the card's p-5 padding on all three sides.
+        <div className="aspect-[3/1] -mx-5 -mt-5 mb-4 w-[calc(100%+2.5rem)] overflow-hidden rounded-t-2xl">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={feature.imageUrl}
+            alt=""
+            aria-hidden
+            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+          />
+        </div>
+      )}
       <span className="mb-4 inline-flex size-10 items-center justify-center rounded-full gradient-brand text-white shadow-[inset_0_0_20px_hsl(var(--primary)/0.1)] transition-transform duration-500 group-hover:scale-110">
         <Icon className="size-5" aria-hidden="true" />
       </span>
