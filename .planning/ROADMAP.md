@@ -976,7 +976,7 @@ Plans:
   - Phase 68 (Hetzner Cloud deploy-readiness artifacts) — landed (but not yet exercised in prod)
   - v3.2 deployment milestone — not yet started
 
-**Plans:** 0/0 — not planned yet
+**Plans:** 1/3 plans executed
 
 ### v4.2 Recording Reliability & Observability (Phases 91-93)
 
@@ -1156,7 +1156,7 @@ Plans:
   4. The WhatsApp never-throw / always-reply invariant and the default-adapter re-throw-for-Inngest-retry contract both still hold after the error-model unification (frozen regression tests stay green)
 **Plans**: 3 plans
 Plans:
-- [ ] 99-00-PLAN.md — Wave 0: 7 RED Nyquist tests (callWithFallback, transcribe fallback, gemini vision, failure mapping, refine error-surface, never-throw provider_unavailable)
+- [x] 99-00-PLAN.md — Wave 0: 7 RED Nyquist tests (callWithFallback, transcribe fallback, gemini vision, failure mapping, refine error-surface, never-throw provider_unavailable)
 - [ ] 99-01-PLAN.md — Wave 1: HARD-03 shared OpenRouter→Gemini fallback (callWithFallback + analyzePhotoGemini + getAIProviderWithFallback + transcribe/vision wiring + generate swap)
 - [ ] 99-02-PLAN.md — Wave 1: HARD-04 typed FailureReason union + failure→XtimatorError/channel-copy map + typed graph state/adapters + refine route asResponse fix
 
