@@ -13,7 +13,7 @@
  * state to the adapter's onError terminal so the user always gets a reply.
  */
 import { generateEstimateForProject } from '@/lib/services/generate-estimate'
-import { ProvidersUnavailableError } from '@/lib/ai/with-fallback'
+import { ProvidersUnavailableError, InvalidEstimateOutputError } from '@/lib/ai/with-fallback'
 import type { FailureReason } from '@/lib/estimate/failure'
 import type { EstimateStateType } from '../state'
 import type { StepRunner } from '../types'
@@ -39,15 +39,21 @@ export const makeGenerateNode =
       }
     } catch (err) {
       console.error('[estimate-graph] generate failed; routing to onError:', err)
-      // Deterministic detection of the both-providers-down marker re-thrown by
-      // callWithFallback (99-01). The `instanceof` + `.providerUnavailable === true`
-      // brand check together recognize the marker even across module-instance
-      // boundaries. Everything else stays the verbatim 'generation_failed'.
+      // Deterministic detection of the typed markers via the SAME instanceof +
+      // brand-check duo (survives module-instance boundaries):
+      //   - both-providers-down marker re-thrown by callWithFallback (99-01) ->
+      //     'provider_unavailable'
+      //   - GUARD-01 schema-retry marker thrown when the bounded retry exhausts
+      //     (100-01) -> 'invalid_output'
+      // Everything else stays the verbatim 'generation_failed'.
       const reason: FailureReason =
         err instanceof ProvidersUnavailableError ||
         (err as { providerUnavailable?: unknown } | null)?.providerUnavailable === true
           ? 'provider_unavailable'
-          : 'generation_failed'
+          : err instanceof InvalidEstimateOutputError ||
+            (err as { invalidOutput?: unknown } | null)?.invalidOutput === true
+            ? 'invalid_output'
+            : 'generation_failed'
       return { failure: { reason } }
     }
   }
