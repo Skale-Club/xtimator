@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v4.3
 milestone_name: Unified Agentic Estimate Engine
 status: completed
-stopped_at: Completed 101-02-PLAN.md
-last_updated: "2026-06-21T18:55:08.642Z"
-last_activity: 2026-06-21 — executed 101-02-PLAN.md (Wave 2 — HARD-02/UNIFY-02 refine-aware shared prompt builder + bespoke-prompt deletion in all 3 adapters)
+stopped_at: Completed 101-03-PLAN.md
+last_updated: "2026-06-21T19:13:47.967Z"
+last_activity: 2026-06-21 — executed 101-03-PLAN.md (Wave 2/3 — HARD-01/UNIFY-03 refine through the canonical graph)
 progress:
   total_phases: 52
   completed_phases: 39
@@ -22,12 +22,12 @@ progress:
 
 ## Current Position
 
-Phase: 101 (Unified Multimodal Ingestion + Refine Through the Graph — HARD-01/02, UNIFY-01..03) — IN PROGRESS (3/4 plans)
-Plan: 101-00 + 101-01 + 101-02 complete; 101-03 remaining
-Status: 101-02 (Wave 2, HARD-02/UNIFY-02) shipped. Made the shared prompt builder refine-aware: `buildSystemPrompt(input, { mode: 'refine' })` swaps ONLY the opening role/task paragraph while `## Language` / `## Your Company Price Book` / `## Additional Instructions` / `## Security` run VERBATIM for both modes (one prompt source of truth). New exported `buildRefineUserContent` emits the existing estimate + the refine instruction wrapped in `<instruction>` and escaped via the module-internal `sanitizeField` — closing the refine prompt-injection hole; the `## Security` block now lists `<instruction>` as untrusted data. Deleted the bespoke `## Refinement Instruction` prompt from ALL THREE live adapters (`openrouter`, `gemini`, `anthropic`) and routed each `refineEstimate` through the shared builder via a new `lib/ai/providers/refine-input.ts` (`toRefineEstimateInput` — single RefineEstimateInput→EstimateInput mapping, no per-adapter drift). Widened `RefineEstimateInput` with OPTIONAL `industry`/`language`/`projectName` (additive) so the 101-03 node can thread real company context. Fixed a double-`appendRetryHint` on the gemini/anthropic refine paths (the shared user content already wraps the hint). `tests/unit/ai` 63/63 GREEN; `tests/unit/ai`+`tests/unit/estimate` 133/133 GREEN (excl. the two 101-03-owned RED scaffolds `refine-node`/`no-checkpointer`, missing-module RED only); tsc clean on all 5 touched source files; `## Refinement Instruction` grep-absent from all three adapters; HARD-02 + UNIFY-02 marked complete. The `tests/unit/estimate`+`tests/unit/whatsapp` cross-suite worker-reuse leakage was proven PRE-EXISTING (reproduces with all refine scaffolds excluded AND 101-02 changes stashed) — re-attributed in `deferred-items.md`; all 6 affected suites pass 26/26 in isolation. 2 atomic commits (d9c4953, d634ad7). xphere untouched.
-Last activity: 2026-06-21 — executed 101-02-PLAN.md (Wave 2 — HARD-02/UNIFY-02 refine-aware shared prompt builder + bespoke-prompt deletion in all 3 adapters)
-Stopped at: Completed 101-02-PLAN.md
-Next Up: execute 101-03 (Wave 3 — thin refine route wrapper + `makeRefineNode` + `buildRefineGraph` + refine adapter; consumes `ingestMultimodal` from 101-01 and the refine-aware shared builder from 101-02). Turns the remaining 101-03-owned RED scaffolds (refine-node, no-checkpointer/buildRefineGraph, refine-route-contract) GREEN.
+Phase: 101 (Unified Multimodal Ingestion + Refine Through the Graph — HARD-01/02, UNIFY-01..03) — COMPLETE (4/4 plans)
+Plan: 101-00 + 101-01 + 101-02 + 101-03 all complete
+Status: 101-03 (Wave 2/3, HARD-01/UNIFY-03) shipped — Phase 101 now fully delivered. Routed refine THROUGH the canonical graph: new `makeRefineNode(runner)` (`lib/estimate/graph/nodes/refine.ts`) calls `getAIProviderWithFallback` (NOT `getAIProvider`) so refine inherits the Phase-99 OpenRouter→Gemini fallback + Phase-100 zod validation/retry; it NEVER throws (failure-as-state mapping byte-identical to `generate.ts`) and resolves company language/industry/currency + price book by companyId (mirroring `generate-estimate.ts`). New `buildRefineGraph(adapter, { runner })` (`lib/estimate/graph/refine-graph.ts`) compiles a 4-node sub-graph (START→ingest→refine→finalize|onError→END) with NO checkpointer — invoked INLINE with the passthrough runner (synchronous, non-persisting preview; no Inngest). New `makeRefineAdapter` (`lib/estimate/adapters/refine.ts`) mirrors the default adapter: no-op ingest/finalize (preview, no DB write) + onError re-throw via `failureReasonToXtimatorError`. Added 3 channel-neutral state fields (`existingEstimate`/`instruction`/`refined`, type-only `EstimateOutput` import — graph-neutrality stays green). Rewrote `app/api/estimates/[id]/refine/route.ts` as a thin wrapper: kept every guard (auth/demo/rate-limit/version+consolidated/400/422/429) + the `estimate_refine_proposed` activity log; replaced inline transcribe/vision/getAIProvider + the storage round-trip with shared `ingestMultimodal` (101-01) + the graph; byte-stable `{ success, refined, instruction }` contract preserved (400-vs-422 split via a `hasRawInput` flag). All 8 target suites GREEN (refine-node, no-checkpointer/buildRefineGraph, refine-route-contract, refine-error-surface, generate-refine-equivalence, graph-neutrality, never-throw, channel-adapter) = 33/33 together. tsc: no new errors from this plan (9 remaining are pre-existing test-file issues). The full `tests/unit/ai estimate api` sweep shows 12 PRE-EXISTING worker-reuse timeout failures (generate-estimate-*, jobs-status, channel-adapter, step-runner) — proven identical at base commit 3e0dc1b and all green in isolation; logged in `deferred-items.md`. HARD-01 + UNIFY-03 marked complete. 3 atomic commits (6e1ee5e, ffa0219, 6dc0228). xphere untouched.
+Last activity: 2026-06-21 — executed 101-03-PLAN.md (Wave 2/3 — HARD-01/UNIFY-03 refine through the canonical graph)
+Stopped at: Completed 101-03-PLAN.md
+Next Up: Phase 101 complete (4/4). Next is Phase 102 (Resilience Hardening — batch isolation, configurable auto-refine cap + recourse, replay-safe TTL; HARD-05/06/07) via `/gsd:plan-phase 102`. Recommended non-blocking follow-up: a test-harness isolation pass to fix the pre-existing vitest worker-reuse leakage (see `deferred-items.md`).
 
 > Xtimator side (Fase B): plans 01–05 done on `dev`. Xphere side (Fase A): receiver
 > `POST /api/xtimator/webhook` + migration 1213 + pipeline seed on the **xphere** repo
@@ -561,6 +561,9 @@ Next Up: execute 101-03 (Wave 3 — thin refine route wrapper + `makeRefineNode`
 - [Phase 101]: [Phase 101 101-01]: UNIFY-01 shared ingestMultimodal (lib/estimate/ingest/multimodal.ts) over fallback-wrapped transcribeAudioOR/analyzePhotoOR — per-item skip-not-throw, no second fallback layer, no whatsapp import; WhatsApp processMessage routed through it via a 2-call-site swap that leaves Send[]/mediaResults batch atomicity unchanged
 - [Phase 101]: 101-02: Security <instruction> untrusted clause added UNCONDITIONALLY (shared by generate+refine) — the refine-shared-blocks test requires the Security block byte-identical across modes; the generate regression is self-relative so it stays green
 - [Phase 101]: 101-02: lib/ai/providers/refine-input.ts is the single RefineEstimateInput->EstimateInput mapping shared by all three live adapters (openrouter/gemini/anthropic) — no per-adapter drift; anthropic.ts aligned too as a live AIProvider with the same bespoke prompt
+- [Phase 101]: [101-03]: refine node resolves company language/industry/currency + price book by companyId (mirroring generate-estimate.ts); route only maps the existing estimate structure — strongest UNIFY-02 equivalence
+- [Phase 101]: [101-03]: 400 (nothing provided) vs 422 (provided-but-unusable) split via an explicit hasRawInput flag so whitespace-only input reaches the 422 guard; both editor-facing status codes preserved byte-stable
+- [Phase 101]: [101-03]: refine runs INLINE via buildRefineGraph + passthrough runner (no Inngest, no checkpointer) — synchronous non-persisting preview; refined preview rides state.refined with no DB write
 
 ## Performance Metrics
 
@@ -747,6 +750,7 @@ Next Up: execute 101-03 (Wave 3 — thin refine route wrapper + `makeRefineNode`
 | Phase 101 P00 | 18min | 2 tasks | 7 files |
 | Phase 101 P01 | 7min | 2 tasks | 2 files |
 | Phase 101 P02 | 18 | 2 tasks | 6 files |
+| Phase 101 P03 | 13 | 3 tasks | 6 files |
 
 ## Project Reference
 

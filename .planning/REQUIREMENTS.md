@@ -26,7 +26,7 @@ v4.3 (phases 94-96) extracted a channel-neutral **canonical estimate graph** (`l
 
 ### HARD — Pipeline Hardening
 
-- [ ] **HARD-01**: Estimate refine runs through the canonical estimate graph reusing the shared engine — the inline transcription/vision/prompt logic in `app/api/estimates/[id]/refine/route.ts` is removed in favor of the shared multimodal ingestion, prompt builder, provider fallback, and output validation. _(Decision 2026-06-21: refine stays a synchronous interactive preview and runs the graph INLINE with the passthrough StepRunner — intentionally NOT dispatched via Inngest, since it neither persists nor charges quota like generate. Inngest durability remains the generate/MCP contract.)_
+- [x] **HARD-01**: Estimate refine runs through the canonical estimate graph reusing the shared engine — the inline transcription/vision/prompt logic in `app/api/estimates/[id]/refine/route.ts` is removed in favor of the shared multimodal ingestion, prompt builder, provider fallback, and output validation. _(Decision 2026-06-21: refine stays a synchronous interactive preview and runs the graph INLINE with the passthrough StepRunner — intentionally NOT dispatched via Inngest, since it neither persists nor charges quota like generate. Inngest durability remains the generate/MCP contract.)_
 - [x] **HARD-02**: Refine reuses the single prompt source of truth (`buildSystemPrompt` / `buildUserContent` in `lib/ai/prompt-builder.ts`) — no separately maintained refine prompt.
 - [x] **HARD-03**: Every AI call path (generate, transcribe, vision, refine) uses the same provider-fallback policy (OpenRouter → Gemini) through one shared client wrapper.
 - [x] **HARD-04**: A single typed error/failure model is used across API routes, graph nodes, Inngest functions and adapters — one mapping from failure to channel response, no ad-hoc `throw → 500`.
@@ -45,7 +45,7 @@ v4.3 (phases 94-96) extracted a channel-neutral **canonical estimate graph** (`l
 
 - [x] **UNIFY-01**: A single multimodal ingestion path (audio + image + text) is shared by web, WhatsApp, MCP and refine — no channel re-implements transcription/vision/text assembly independently.
 - [x] **UNIFY-02**: Prompt construction for all channels and for refine goes through the same builder, so equivalent inputs yield equivalent prompts regardless of channel.
-- [ ] **UNIFY-03**: Refine accepts the same three modalities (audio, image, text) through the unified ingestion path with the same fallbacks and validation as initial generation.
+- [x] **UNIFY-03**: Refine accepts the same three modalities (audio, image, text) through the unified ingestion path with the same fallbacks and validation as initial generation.
 
 ### EVAL — Test & Evaluation Harness
 
@@ -82,11 +82,11 @@ v4.3 (phases 94-96) extracted a channel-neutral **canonical estimate graph** (`l
 | GUARD-02 | Phase 100 | Complete |
 | GUARD-03 | Phase 100 | Complete |
 | GUARD-04 | Phase 100 | Complete |
-| HARD-01 | Phase 101 | Pending |
+| HARD-01 | Phase 101 | Complete |
 | HARD-02 | Phase 101 | Complete |
 | UNIFY-01 | Phase 101 | Complete |
 | UNIFY-02 | Phase 101 | Complete |
-| UNIFY-03 | Phase 101 | Pending |
+| UNIFY-03 | Phase 101 | Complete |
 | HARD-05 | Phase 102 | Pending |
 | HARD-06 | Phase 102 | Pending |
 | HARD-07 | Phase 102 | Pending |

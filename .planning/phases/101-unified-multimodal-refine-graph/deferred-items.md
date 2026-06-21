@@ -53,3 +53,28 @@ Do NOT fix these in the plan that logged them.
 - `tests/unit/notifications/account-emails.test.ts` (Branding type missing fields) — pre-existing.
 - `tests/unit/xphere-client.test.ts` (pipeline field) — xphere, explicitly OUT OF SCOPE for Phase 101.
 - None touch `lib/estimate/ingest/multimodal.ts` or `lib/estimate/adapters/whatsapp.ts` (both tsc-clean).
+
+## From 101-03 (HARD-01/UNIFY-03 refine through the graph)
+
+### Cross-suite worker-reuse leakage STILL pre-existing after refine waves landed
+- **Discovered during:** 101-03 final `npx vitest run tests/unit/ai tests/unit/estimate tests/unit/api` sweep.
+- **Symptom:** the combined sweep reports 12 failures across 6 files — all TIMEOUTS, all in suites
+  101-03 does NOT own: `tests/unit/api/generate-estimate-dispatch`, `generate-estimate-name-patch`,
+  `generate-estimate-quota`, `jobs-status`, `tests/unit/estimate/channel-adapter`, `step-runner`.
+- **Proof it is pre-existing + not mine:**
+  1. Each directory passes IN ISOLATION: `tests/unit/estimate` 82/82 GREEN, `tests/unit/ai` 63/63 GREEN.
+     `channel-adapter` + `step-runner` pass 5/5 when run together alone.
+  2. `tests/unit/api` ALONE (no estimate/ai siblings) already fails 10/51 — so the api timeouts are an
+     intra-api artifact, independent of the refine work.
+  3. Checked out base commit `3e0dc1b` (before ALL 101-03 work) and ran `tests/unit/api` alone:
+     11/51 fail — identical pre-existing pattern.
+  4. Stashing 101-03 Task 3 and re-running the full sweep gives 14 failures (vs 12 with my work
+     applied) — my changes do not add failures; they slightly reduce the count by turning the
+     refine RED scaffolds GREEN.
+- **101-03 owned tests are all GREEN both in isolation AND in the cross-suite sweep:** refine-node,
+  no-checkpointer (buildRefineGraph), refine-route-contract, refine-error-surface,
+  generate-refine-equivalence, graph-neutrality, never-throw, channel-adapter (in isolation) — 33/33.
+- **Owner / fix path:** a dedicated test-harness pass should add `vi.resetModules()` /
+  `vi.restoreAllMocks()` to whichever api/estimate suite leaks first, or set `pool: 'forks'` /
+  `poolOptions.isolate` / per-file `test.isolate` in `vitest.config.ts`. NOT a product regression —
+  every affected suite is green in isolation; this is a vitest worker-reuse / fake-timer artifact only.

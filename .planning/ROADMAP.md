@@ -1142,7 +1142,7 @@ Plans:
 - [x] **Phase 99: Unified Error Model + Shared Provider-Fallback Wrapper** — One typed failure model across routes/nodes/Inngest/adapters, and one OpenRouter→Gemini fallback wrapper every AI call path uses (HARD-03, HARD-04)
  (completed 2026-06-21)
 - [x] **Phase 100: Output Guardrails — Schema Validation, Price Anchoring, Totals Authority, Correlation ID** — Every AI estimate output is zod-validated with bounded retry, price-anchored, server-totals-authoritative, and traceable end-to-end via one correlation ID (GUARD-01, GUARD-02, GUARD-03, GUARD-04) (completed 2026-06-21)
-- [ ] **Phase 101: Unified Multimodal Ingestion + Refine Through the Graph** — Refine runs through the canonical graph INLINE (synchronous preview, passthrough StepRunner — NOT Inngest) reusing the single ingestion path and prompt builder; web/WhatsApp/MCP/refine all share one audio+image+text path (HARD-01, HARD-02, UNIFY-01, UNIFY-02, UNIFY-03)
+- [x] **Phase 101: Unified Multimodal Ingestion + Refine Through the Graph** — Refine runs through the canonical graph INLINE (synchronous preview, passthrough StepRunner — NOT Inngest) reusing the single ingestion path and prompt builder; web/WhatsApp/MCP/refine all share one audio+image+text path (HARD-01, HARD-02, UNIFY-01, UNIFY-02, UNIFY-03) (completed 2026-06-21)
 - [ ] **Phase 102: Resilience Hardening — Batch Isolation, Configurable Auto-Refine + Recourse, Replay-Safe TTL** — A bad WhatsApp message no longer fails the batch; the auto-refine cap is configurable with explicit user recourse; TTLs are replay-safe (HARD-05, HARD-06, HARD-07)
 - [ ] **Phase 103: Eval/Test Harness + CI Regression Gate** — Golden multimodal fixtures + deterministic mocked providers + quality-metrics suite + CI gate prove the hardened engine does not regress (EVAL-01, EVAL-02, EVAL-03, EVAL-04)
 
@@ -1192,7 +1192,7 @@ Plans:
 - [x] 101-00-PLAN.md — Wave 0 RED/EXTEND test scaffold (5 new + 2 extended tests covering all 5 requirements)
 - [x] 101-01-PLAN.md — Shared `ingestMultimodal` module + WhatsApp processMessage routed through it (UNIFY-01)
 - [x] 101-02-PLAN.md — Prompt-builder refine mode + delete both bespoke adapter prompts (HARD-02, UNIFY-02)
-- [ ] 101-03-PLAN.md — Refine sub-graph (buildRefineGraph + makeRefineNode + makeRefineAdapter + `refined` state field) + route rewrite via getAIProviderWithFallback (HARD-01, UNIFY-03)
+- [x] 101-03-PLAN.md — Refine sub-graph (buildRefineGraph + makeRefineNode + makeRefineAdapter + `refined` state field) + route rewrite via getAIProviderWithFallback (HARD-01, UNIFY-03)
 
 #### Phase 102: Resilience Hardening — Batch Isolation, Configurable Auto-Refine + Recourse, Replay-Safe TTL
 **Goal**: Partial failures degrade gracefully and replays stay correct — a single bad WhatsApp message no longer poisons a whole batch, a still-vague estimate gives the user a way forward instead of a dead end, and promoting AI nodes to their own `step.run` later cannot corrupt session TTLs on retry.
