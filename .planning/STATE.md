@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v4.3
 milestone_name: Unified Agentic Estimate Engine
-status: Phase 100 IN PROGRESS (2/4 plans) — 100-01 GUARD-01 (zod schema validation + bounded retry) shipped. estimateOutputSchema single-sources EstimateOutput; normalize is a non-throwing safeParse (NormalizeResult); InvalidEstimateOutputError + schema-retry-once seam at the provider-fallback boundary (refine inherits it); generate node maps the marker to invalid_output. GUARD-01 targeted suites GREEN; 100-02 (GUARD-02/03) + 100-03 (GUARD-04) Wave-0 contracts still RED by design.
-stopped_at: Completed 100-01-PLAN.md
-last_updated: "2026-06-21T15:36:52.567Z"
-last_activity: 2026-06-21 — executed 100-01-PLAN.md (Phase 100 GUARD-01: zod schema + safeParse normalize + InvalidEstimateOutputError + bounded schema-retry + invalid_output mapping)
+status: Phase 100 IN PROGRESS (3/4 plans). 100-03 shipped GUARD-04: the existing attemptId (Phase 91/92 lineage) is promoted to THE correlation id — threaded into the Langfuse v5 graph.invoke config metadata { langfuseSessionId, langfuseUserId, correlationId } in generate-estimate.ts (closes the pre-existing OBS-03 RED token); failureReasonToXtimatorError gains an optional correlationId → XtimatorError.meta; asResponse tags the Sentry scope with correlation_id when present. All best-effort/never-throw. observability.test.ts GREEN (9/9, OBS-03 token + GUARD-04 correlationId closed). Remaining: 100-02 (GUARD-02/03) — its Wave-0 RED contracts (price-anchoring/totals-authority) are by design, not regressions.
+stopped_at: Completed 100-03-PLAN.md
+last_updated: "2026-06-21T15:46:32.242Z"
+last_activity: 2026-06-21 — executed 100-03-PLAN.md (GUARD-04 correlation id: Langfuse trace metadata + XtimatorError.meta.correlationId + Sentry correlation_id tag)
 progress:
   total_phases: 52
   completed_phases: 39
@@ -22,11 +22,11 @@ progress:
 
 ## Current Position
 
-Phase: 100 (Output Guardrails — Schema Validation, Price Anchoring, Totals Authority, Correlation ID) — IN PROGRESS (2/4 plans)
-Plan: 100-00 + 100-01 complete; 100-02 / 100-03 pending
-Status: 100-01 shipped GUARD-01. `lib/ai/schema.ts` `estimateOutputSchema` (zod v4) single-sources `EstimateOutput` (D-15 price_source preprocess + client-name trim/null transform in-schema); `normalizeOutput` is a non-throwing safeParse returning a discriminated `NormalizeResult`; `InvalidEstimateOutputError` (invalidOutput brand) added; all three adapters (openrouter/gemini/anthropic) validate output and throw it; `withSchemaRetry` OUTER seam (cap 1) over the INNER provider-fallback on `provider-with-fallback.ts` (refine inherits it for Phase 101); `callWithFallback` rethrows the marker immediately so validation never triggers provider fallback; generate node maps the marker to `'invalid_output'` (never throws). Targeted GUARD-01 suites GREEN (schema 16, output-retry 3, price-source-tagging 3, never-throw incl. invalid_output 6); tsc clean of all 100-01-introduced errors. Still-RED files (price-anchoring/totals-authority/observability GUARD-04) are Wave-0 contracts for 100-02/100-03 — not regressions.
-Last activity: 2026-06-21 — executed 100-01-PLAN.md (GUARD-01 schema validation + bounded retry)
-Stopped at: Completed 100-01-PLAN.md
+Phase: 100 (Output Guardrails — Schema Validation, Price Anchoring, Totals Authority, Correlation ID) — IN PROGRESS (3/4 plans)
+Plan: 100-00 + 100-01 + 100-03 complete; 100-02 pending
+Status: 100-03 shipped GUARD-04. The existing `attemptId` (Phase 91/92 lineage) is promoted to THE correlation id and threaded into the Langfuse v5 `graph.invoke` config metadata `{ langfuseSessionId, langfuseUserId, correlationId }` in `lib/inngest/functions/generate-estimate.ts` — closing the pre-existing OBS-03 RED token assertion. `failureReasonToXtimatorError` gains an optional `correlationId` arg that rides on `XtimatorError.meta`; `asResponse` tags the Sentry scope with `correlation_id` when `err.meta.correlationId` is present (back-compatible, guarded). All best-effort/never-throw (inert metadata + guarded tag — Phase 92 rule). `observability.test.ts` GREEN (9/9: OBS-01, OBS-03 token, GUARD-04 correlationId). 100-01 (GUARD-01) shipped earlier (zod schema + bounded retry + invalid_output). Still-RED files (price-anchoring/totals-authority) are Wave-0 contracts for 100-02 — not regressions.
+Last activity: 2026-06-21 — executed 100-03-PLAN.md (GUARD-04 correlation id)
+Stopped at: Completed 100-03-PLAN.md
 Next Up: `/gsd:execute-phase 100` — continue with 100-02 (GUARD-02 price anchoring + GUARD-03 totals authority/discrepancy in lib/services/generate-estimate.ts, lib/ai/price-anchoring.ts, lib/estimate/totals.ts).
 
 > Xtimator side (Fase B): plans 01–05 done on `dev`. Xphere side (Fase A): receiver
@@ -550,6 +550,7 @@ Next Up: `/gsd:execute-phase 100` — continue with 100-02 (GUARD-02 price ancho
 - [Phase 100]: [Phase 100-01 GUARD-01]: EstimateOutput single-sourced from zod estimateOutputSchema (lib/ai/schema.ts); normalizeOutput is a non-throwing safeParse returning NormalizeResult
 - [Phase 100]: [Phase 100-01 GUARD-01]: callWithFallback rethrows InvalidEstimateOutputError immediately (validation failure != provider-down) so schema-retry (OUTER, cap 1) stays orthogonal to provider-fallback (INNER, once)
 - [Phase 100]: [Phase 100-01 GUARD-01]: all three adapters (openrouter/gemini/anthropic) validate output + throw the typed marker; generate node maps it to 'invalid_output', never throwing
+- [Phase 100]: GUARD-04: correlationId === attemptId (reused Phase 91/92 lineage, not minted) threaded into Langfuse v5 graph.invoke config metadata + Sentry correlation_id tag in asResponse
 
 ## Performance Metrics
 
@@ -732,6 +733,7 @@ Next Up: `/gsd:execute-phase 100` — continue with 100-02 (GUARD-02 price ancho
 | Phase 99 P02 | 12min | 3 tasks | 6 files |
 | Phase 100 P00 | 9min | 3 tasks | 7 files |
 | Phase 100 P01 | 13min | 3 tasks | 9 files |
+| Phase 100 P03 | 7min | 2 tasks | 3 files |
 
 ## Project Reference
 

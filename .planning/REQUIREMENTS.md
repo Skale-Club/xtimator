@@ -39,7 +39,7 @@ v4.3 (phases 94-96) extracted a channel-neutral **canonical estimate graph** (`l
 - [x] **GUARD-01**: AI estimate output (generate and refine) is validated against a zod schema before persistence; invalid output triggers a structured, bounded retry instead of persisting garbage or 500ing.
 - [ ] **GUARD-02**: Price-hallucination guardrails are enforced — when a line item matches a price-book entry the anchored price is used, and out-of-bounds unit prices are flagged/clamped per documented rules.
 - [ ] **GUARD-03**: Server-side totals/markup/tax recalculation is the authoritative total and is asserted against the AI-proposed total, with a recorded discrepancy signal (the AI total is never trusted blindly).
-- [ ] **GUARD-04**: Each generation run carries one correlation ID that links `pipeline_events`, the Langfuse trace, and any Sentry event, so a single run can be traced end-to-end across all three systems.
+- [x] **GUARD-04**: Each generation run carries one correlation ID that links `pipeline_events`, the Langfuse trace, and any Sentry event, so a single run can be traced end-to-end across all three systems.
 
 ### UNIFY — Multimodal Modality Unification
 
@@ -81,7 +81,7 @@ v4.3 (phases 94-96) extracted a channel-neutral **canonical estimate graph** (`l
 | GUARD-01 | Phase 100 | Complete |
 | GUARD-02 | Phase 100 | Pending |
 | GUARD-03 | Phase 100 | Pending |
-| GUARD-04 | Phase 100 | Pending |
+| GUARD-04 | Phase 100 | Complete |
 | HARD-01 | Phase 101 | Pending |
 | HARD-02 | Phase 101 | Pending |
 | UNIFY-01 | Phase 101 | Pending |
