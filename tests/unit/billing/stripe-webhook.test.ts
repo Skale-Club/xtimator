@@ -15,6 +15,11 @@ vi.mock('@/lib/billing/stripe-client', () => ({
 const mockUpdate = vi.fn()
 const mockEq = vi.fn()
 const mockInsert = vi.fn()
+// customer.subscription.deleted now resolves the company BEFORE clearing the
+// subscription id via svc.from('companies').select('id').eq(...).maybeSingle().
+// Provide the select chain so the handler doesn't throw "select is not a function".
+const mockMaybeSingle = vi.fn()
+const mockSelect = vi.fn()
 
 vi.mock('@/lib/supabase/service', () => ({
   requireServiceClient: vi.fn().mockReturnValue({
@@ -22,7 +27,7 @@ vi.mock('@/lib/supabase/service', () => ({
       if (table === 'processed_stripe_events') {
         return { insert: mockInsert }
       }
-      return { insert: mockInsert, update: mockUpdate }
+      return { insert: mockInsert, update: mockUpdate, select: mockSelect }
     }),
   }),
 }))
@@ -49,6 +54,10 @@ beforeEach(() => {
   // Default: update chain returns eq which resolves cleanly
   mockEq.mockResolvedValue({ error: null })
   mockUpdate.mockReturnValue({ eq: mockEq })
+  // Default: select('id').eq(...).maybeSingle() resolves to no matching company
+  // (the deleted-subscription pre-lookup); keeps the handler off the CRM path.
+  mockMaybeSingle.mockResolvedValue({ data: null })
+  mockSelect.mockReturnValue({ eq: vi.fn().mockReturnValue({ maybeSingle: mockMaybeSingle }) })
 })
 
 describe('POST /api/webhooks/stripe — signature verification (STRIPE-02)', () => {

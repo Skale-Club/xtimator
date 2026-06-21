@@ -27,10 +27,18 @@ vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(),
 }))
 
+// The route now resolves the company via getActiveCompanyId() (cookie-based,
+// calls cookies()); mock it so the route doesn't call cookies() outside a
+// request scope (otherwise it throws → 500 instead of the expected status).
+vi.mock('@/lib/queries/active-company', () => ({
+  getActiveCompanyId: vi.fn(),
+}))
+
 import { POST } from '@/app/api/generate-estimate/route'
 import { createClient } from '@/lib/supabase/server'
 import { generateEstimateForProject } from '@/lib/services/generate-estimate'
 import { inngest } from '@/lib/inngest/client'
+import { getActiveCompanyId } from '@/lib/queries/active-company'
 
 const mockSend = vi.mocked(inngest.send)
 
@@ -69,6 +77,8 @@ describe('generate-estimate route (HTTP layer)', () => {
     const { checkQuota } = await import('@/lib/quota')
     vi.mocked(checkQuota).mockResolvedValue({ allowed: true, remaining: 5 })
     mockSend.mockResolvedValue({ ids: ['evt_abc'] } as never)
+    // Default: a resolvable active company; the "no company" case overrides to null.
+    vi.mocked(getActiveCompanyId).mockResolvedValue('company-1')
   })
 
   it('returns 401 when not authenticated', async () => {
@@ -84,6 +94,7 @@ describe('generate-estimate route (HTTP layer)', () => {
 
   it('returns 404 when no company found', async () => {
     vi.mocked(createClient).mockResolvedValue(makeAuthClient(null) as never)
+    vi.mocked(getActiveCompanyId).mockResolvedValue(null)
 
     const res = await POST(makeRequest('project-1'))
     // XtimatorError 'not_found' → 404 via asResponse

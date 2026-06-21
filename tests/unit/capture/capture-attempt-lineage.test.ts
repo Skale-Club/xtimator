@@ -48,6 +48,13 @@ vi.mock('@/lib/supabase/server', () => ({
   createClient: async () => makeSupabase(),
 }))
 
+// The route now resolves the company via getActiveCompanyId() (cookie-based,
+// calls cookies()); mock it so the route doesn't call cookies() outside a
+// request scope (otherwise it throws → 500 instead of 202).
+vi.mock('@/lib/queries/active-company', () => ({
+  getActiveCompanyId: async () => 'company-1',
+}))
+
 // Rate limit + quota always pass in this suite.
 vi.mock('@/lib/ratelimit', () => ({
   rateLimit: async () => ({ allowed: true, count: 0, max: 100 }),

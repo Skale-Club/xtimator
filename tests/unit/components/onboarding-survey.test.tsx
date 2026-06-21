@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest'
-import { renderHook, act, render } from '@testing-library/react'
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { renderHook, act, render, cleanup } from '@testing-library/react'
 import { useSurveyState } from '@/components/onboarding/survey/use-survey-state'
 import { SURVEY_STEPS } from '@/components/onboarding/survey/survey-config'
 import { SurveyProgress } from '@/components/onboarding/survey/survey-progress'
@@ -56,6 +56,18 @@ describe('SURVEY_STEPS configuration', () => {
 })
 
 describe('useSurveyState', () => {
+  // useSurveyState persists { stepIndex, values } to localStorage under
+  // 'xtimator_onboarding' and restores it on mount. Without clearing between
+  // tests, a prior test's persisted stepIndex/values leak into the next mount
+  // (e.g. stepIndex restored as 1 instead of 0). Clear the draft + unmount each.
+  beforeEach(() => {
+    localStorage.clear()
+  })
+  afterEach(() => {
+    cleanup()
+    localStorage.clear()
+  })
+
   it('starts at step 0 with the initial values', () => {
     const { result } = renderHook(() => useSurveyState(INITIAL))
     expect(result.current.stepIndex).toBe(0)
