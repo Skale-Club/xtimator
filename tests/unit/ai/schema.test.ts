@@ -1,30 +1,16 @@
-import { describe, it, expect, beforeAll } from 'vitest'
-import type { z } from 'zod'
+import { describe, it, expect } from 'vitest'
+import { estimateOutputSchema } from '@/lib/ai/schema'
 
 /**
- * GUARD-01 — zod schema validation (Wave 0 RED).
+ * GUARD-01 — zod schema validation.
  *
- * `estimateOutputSchema` (NEW `@/lib/ai/schema`, lands in Plan 100-01) is the
- * authoritative second gate over the AI tool-call JSON. It mirrors `EstimateOutput`
- * (`lib/ai/types.ts`): sections[].items[] with description/quantity/unit_price/
- * price_source, plus the top-level summary/suggested_project_name and the optional
- * suggested_client_name transform. `EstimateOutput = z.infer<typeof estimateOutputSchema>`.
- *
- * RED today: `@/lib/ai/schema` does not exist yet. The computed-specifier
- * importTarget defeats Vite transform-time import-analysis so the file COLLECTS
- * cleanly and each test fails at RUN time (real RED), not a transform error.
- * Mirrors never-throw.test.ts. The contract here is what Plan 100-01 builds to.
+ * `estimateOutputSchema` (`@/lib/ai/schema`) is the authoritative second gate over
+ * the AI tool-call JSON. It mirrors `EstimateOutput` (`lib/ai/types.ts`):
+ * sections[].items[] with description/quantity/unit_price/price_source, plus the
+ * top-level summary/suggested_project_name and the optional suggested_client_name
+ * transform. `EstimateOutput = z.infer<typeof estimateOutputSchema>` — so a static
+ * import keeps `safeParse(...).data` strongly typed (no TS18046).
  */
-
-const importTarget = (spec: string) => import(/* @vite-ignore */ spec)
-
-// Resolved in beforeAll so collection never fails on the missing module.
-let estimateOutputSchema: z.ZodTypeAny
-
-beforeAll(async () => {
-  const mod = await importTarget('@/lib/ai/schema')
-  estimateOutputSchema = mod.estimateOutputSchema
-})
 
 // A fully-valid raw object (the shape OpenRouter's create_estimate tool returns).
 function validRaw(): Record<string, unknown> {
