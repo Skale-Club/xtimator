@@ -21,7 +21,7 @@ const ITEMS: SubNavItem[] = [
   { value: 'account',            label: 'Account',       Icon: ShieldCheck, href: '/settings/account'            },
 ]
 
-export function SettingsNav() {
+export function SettingsNav({ collapsed }: { collapsed?: boolean }) {
   const pathname = usePathname()
 
   const activeValue =
@@ -30,5 +30,5 @@ export function SettingsNav() {
         pathname === item.href || pathname.startsWith(`${item.href}/`),
     )?.value ?? ''
 
-  return <SubNav items={ITEMS} activeValue={activeValue} />
+  return <SubNav items={ITEMS} activeValue={activeValue} collapsed={collapsed} />
 }

@@ -6,20 +6,22 @@ interface SettingsPageSkeletonProps {
   title?: string
   description?: string
   children?: ReactNode
+  noPadding?: boolean
 }
 
 /**
- * Reusable skeleton for all tabbed settings pages.
- * Renders a page header + content container that mirrors the real
- * `app/(app)/settings/*` pages wrapped in `<SettingsShellSkeleton>`.
+ * Reusable skeleton for all settings pages.
+ * Use `noPadding` for pages inside the `(tabs)` route group — their layout
+ * already provides `p-6`, so adding it here would double the padding.
  */
 export function SettingsPageSkeleton({
   title,
   description,
   children,
+  noPadding,
 }: SettingsPageSkeletonProps) {
   return (
-    <div className="space-y-6 p-6">
+    <div className={noPadding ? 'space-y-6' : 'space-y-6 p-6'}>
       <SettingsHeader title={title} description={description} />
       {children}
     </div>
