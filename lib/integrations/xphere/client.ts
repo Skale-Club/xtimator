@@ -31,7 +31,7 @@ export async function syncCompany(
     return null
   }
 
-  const res = await fetch(`${config.baseUrl}/api/xtimator/webhook`, {
+  const res = await fetch(`${config.baseUrl}/api/v1/sync`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

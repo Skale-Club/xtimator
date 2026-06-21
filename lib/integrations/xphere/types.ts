@@ -42,8 +42,10 @@ export interface XphereCompanyInput {
   created_at?: string | null
 }
 
-/** The FIXED webhook body sent to the Xphere receiver. */
+/** The body sent to the generic Xphere CRM-mirror endpoint POST /api/v1/sync. */
 export interface XphereSyncPayload {
+  /** Producing system in the shared org model — discriminates the mirror. */
+  source: 'xtimator'
   event: XphereSyncEvent
   /** ISO8601 — drives last-write-wins ordering in Xphere. */
   occurred_at: string
@@ -68,6 +70,8 @@ export interface XphereSyncPayload {
     status: 'open' | 'won' | 'lost'
     value: number
     title: string
+    /** Target pipeline name in the org (the receiver resolves the stage by name). */
+    pipeline: string
   }
   /** Optional — appended to the Contact timeline (only for meaningful events). */
   note?: { title: string; content: string }
@@ -76,9 +80,9 @@ export interface XphereSyncPayload {
 /** Always HTTP 200 from the Xphere receiver. */
 export interface XphereSyncResponse {
   ok: true
-  account_id: string
-  contact_id: string
-  opportunity_id?: string
+  account_id: string | null
+  contact_id: string | null
+  opportunity_id?: string | null
   /** Surfaced (not fatal) when the Xphere pipeline/stage setup is incomplete. */
   opportunity_skipped?: 'no_pipeline' | 'no_stage'
 }

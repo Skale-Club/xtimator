@@ -82,6 +82,7 @@ export function buildSyncPayload(
   }
 
   const payload: XphereSyncPayload = {
+    source: 'xtimator',
     event,
     occurred_at: new Date().toISOString(),
     company: {
@@ -108,6 +109,7 @@ export function buildSyncPayload(
       // Pure transform has no Stripe lookup; pass 0 (CONTEXT: plan value if readily available else 0).
       value: 0,
       title: `${company.name} — Subscription`, // em dash U+2014
+      pipeline: XPHERE_PIPELINE_NAME,
     },
   }
 
