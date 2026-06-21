@@ -1,5 +1,10 @@
 import { describe, it, expect, vi } from 'vitest'
 
+// Heavy real-module imports loaded at runtime via dynamic import; under vitest's
+// reused forked worker they can exceed the 5s default (import latency under
+// contention, not a mock leak). Per-file timeout keeps them deterministic.
+vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 })
+
 /**
  * ENGINE-04 (Wave 0 RED stub — source lands in Wave 2).
  *

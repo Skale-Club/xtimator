@@ -1,5 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
+// This file invokes the REAL WhatsApp-composed graph (buildEstimateGraph from
+// @/lib/whatsapp/estimate-graph) end-to-end. That heavy LangGraph tree is loaded
+// at runtime via `await import`; under vitest's reused forked worker (pool:
+// 'forks') the first such import can exceed the 5s default when many files share
+// a worker — import LATENCY under contention. A timed-out invoke also leaves a
+// pending async that bleeds a spy call into the next test (the spurious
+// "called 2 times" count cascade). A per-file timeout (test-authoring level, not
+// a global config or mock-reset flag) removes both the timeout and the cascade.
+vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 })
+
 /**
  * QA-01 — FROZEN never-throw / always-reply regression (Phase 94 Wave 0).
  *

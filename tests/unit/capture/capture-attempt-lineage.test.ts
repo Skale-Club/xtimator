@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
+// Imports the real /api/generate-estimate route + its Inngest events tree at
+// runtime; under vitest's reused forked worker the import can exceed the 5s
+// default (import latency under contention, not a mock leak). Per-file timeout.
+vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 })
+
 /**
  * REC-03 + REC-04: attempt lineage + idempotency-key stability across Retry.
  *

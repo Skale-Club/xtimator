@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { EstimateOutput } from '@/lib/ai/types'
 
+// Imports the real generate-estimate service (heavy AI/provider chain) at runtime;
+// under vitest's reused forked worker the import can exceed the 5s default (import
+// latency under contention, not a mock leak). Per-file timeout keeps it deterministic.
+vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 })
+
 const generateEstimateMock = vi.fn()
 
 vi.mock('@/lib/supabase/service', () => ({

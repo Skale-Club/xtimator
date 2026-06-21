@@ -1,5 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
+// Imports the real confirm-actions / edit-commands chain at runtime; under
+// vitest's reused forked worker the import can exceed the 5s default (import
+// latency under contention). A timed-out sibling also bleeds a sendWhatsAppMessage
+// spy call into this file's "help message" count assertion (called 2 times instead
+// of once). Per-file timeout removes both. (Not a global config / mock-reset flag.)
+vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 })
+
 vi.mock('@/lib/whatsapp/client', () => ({
   sendWhatsAppMessage: vi.fn(),
 }))

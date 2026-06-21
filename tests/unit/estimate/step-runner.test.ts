@@ -1,5 +1,12 @@
 import { describe, it, expect, vi } from 'vitest'
 
+// Heavy real-module imports (LangGraph + adapters) loaded at runtime via dynamic
+// import. Under vitest's reused forked worker (pool: 'forks') these can exceed the
+// 5s default when many files share a worker — import LATENCY under contention, not
+// a mock leak. Per-file timeout (test-authoring level, not a global config or
+// mock-reset flag) keeps the heavy imports deterministic.
+vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 })
+
 /**
  * DURABLE-01 (Wave 0 RED stub — source lands in Wave 2).
  *

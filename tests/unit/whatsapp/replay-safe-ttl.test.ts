@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
+// Invokes the REAL WhatsApp graph (heavy LangGraph tree, runtime dynamic import).
+// Under vitest's reused forked worker the import can exceed the 5s default (import
+// latency under contention); a timed-out invoke also bleeds a session insert into
+// the next test. Per-file timeout removes both. (Not a global config / mock-reset flag.)
+vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 })
+
 /**
  * HARD-07 (replay-safe session TTL) — Wave 0 RED scaffold (Phase 102).
  *

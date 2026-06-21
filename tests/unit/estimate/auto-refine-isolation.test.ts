@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { readFileSync, existsSync } from 'node:fs'
+
+// Loads the real graph tree at runtime via dynamic import; under vitest's reused
+// forked worker the import can exceed the 5s default (import latency under
+// contention, not a mock leak). Per-file timeout keeps it deterministic.
+vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 })
 import { resolve } from 'node:path'
 
 const ROOT = process.cwd()

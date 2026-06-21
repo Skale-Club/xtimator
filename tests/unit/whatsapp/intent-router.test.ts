@@ -2,6 +2,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
+// Imports the real intent-router (LangChain ChatOpenAI / ReAct agent tree) at
+// runtime; under vitest's reused forked worker the import can exceed the 5s
+// default (import latency under contention, not a mock leak). Per-file timeout.
+vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 })
+
 /**
  * Quick task 260603-lrf — Task 2.
  *

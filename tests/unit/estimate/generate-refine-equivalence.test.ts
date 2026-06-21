@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { readFileSync } from 'node:fs'
+
+// Heavy real-module imports (AI provider adapters) loaded at runtime via dynamic
+// import; under vitest's reused forked worker they can exceed the 5s default
+// (import latency under contention, not a mock leak). Per-file timeout.
+vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 })
 import { resolve } from 'node:path'
 
 /**
