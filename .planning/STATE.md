@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v4.3
 milestone_name: Unified Agentic Estimate Engine
 status: completed
-stopped_at: Completed 101-03-PLAN.md
-last_updated: "2026-06-21T19:13:47.967Z"
-last_activity: 2026-06-21 — executed 101-03-PLAN.md (Wave 2/3 — HARD-01/UNIFY-03 refine through the canonical graph)
+stopped_at: Completed 102-00-PLAN.md
+last_updated: "2026-06-21T19:51:47.470Z"
+last_activity: 2026-06-21 — executed 102-00-PLAN.md (Wave 0 — RED/EXTEND test scaffold for HARD-05/06/07)
 progress:
   total_phases: 52
   completed_phases: 39
@@ -22,12 +22,12 @@ progress:
 
 ## Current Position
 
-Phase: 101 (Unified Multimodal Ingestion + Refine Through the Graph — HARD-01/02, UNIFY-01..03) — COMPLETE (4/4 plans)
-Plan: 101-00 + 101-01 + 101-02 + 101-03 all complete
-Status: 101-03 (Wave 2/3, HARD-01/UNIFY-03) shipped — Phase 101 now fully delivered. Routed refine THROUGH the canonical graph: new `makeRefineNode(runner)` (`lib/estimate/graph/nodes/refine.ts`) calls `getAIProviderWithFallback` (NOT `getAIProvider`) so refine inherits the Phase-99 OpenRouter→Gemini fallback + Phase-100 zod validation/retry; it NEVER throws (failure-as-state mapping byte-identical to `generate.ts`) and resolves company language/industry/currency + price book by companyId (mirroring `generate-estimate.ts`). New `buildRefineGraph(adapter, { runner })` (`lib/estimate/graph/refine-graph.ts`) compiles a 4-node sub-graph (START→ingest→refine→finalize|onError→END) with NO checkpointer — invoked INLINE with the passthrough runner (synchronous, non-persisting preview; no Inngest). New `makeRefineAdapter` (`lib/estimate/adapters/refine.ts`) mirrors the default adapter: no-op ingest/finalize (preview, no DB write) + onError re-throw via `failureReasonToXtimatorError`. Added 3 channel-neutral state fields (`existingEstimate`/`instruction`/`refined`, type-only `EstimateOutput` import — graph-neutrality stays green). Rewrote `app/api/estimates/[id]/refine/route.ts` as a thin wrapper: kept every guard (auth/demo/rate-limit/version+consolidated/400/422/429) + the `estimate_refine_proposed` activity log; replaced inline transcribe/vision/getAIProvider + the storage round-trip with shared `ingestMultimodal` (101-01) + the graph; byte-stable `{ success, refined, instruction }` contract preserved (400-vs-422 split via a `hasRawInput` flag). All 8 target suites GREEN (refine-node, no-checkpointer/buildRefineGraph, refine-route-contract, refine-error-surface, generate-refine-equivalence, graph-neutrality, never-throw, channel-adapter) = 33/33 together. tsc: no new errors from this plan (9 remaining are pre-existing test-file issues). The full `tests/unit/ai estimate api` sweep shows 12 PRE-EXISTING worker-reuse timeout failures (generate-estimate-*, jobs-status, channel-adapter, step-runner) — proven identical at base commit 3e0dc1b and all green in isolation; logged in `deferred-items.md`. HARD-01 + UNIFY-03 marked complete. 3 atomic commits (6e1ee5e, ffa0219, 6dc0228). xphere untouched.
-Last activity: 2026-06-21 — executed 101-03-PLAN.md (Wave 2/3 — HARD-01/UNIFY-03 refine through the canonical graph)
-Stopped at: Completed 101-03-PLAN.md
-Next Up: Phase 101 complete (4/4). Next is Phase 102 (Resilience Hardening — batch isolation, configurable auto-refine cap + recourse, replay-safe TTL; HARD-05/06/07) via `/gsd:plan-phase 102`. Recommended non-blocking follow-up: a test-harness isolation pass to fix the pre-existing vitest worker-reuse leakage (see `deferred-items.md`).
+Phase: 102 (Resilience Hardening — Batch Isolation, Configurable Auto-Refine + Recourse, Replay-Safe TTL — HARD-05/06/07) — IN PROGRESS (Wave 0 done; 1/5 plans)
+Plan: 102-00 complete; 102-01..04 not started
+Status: 102-00 (Wave 0 RED/EXTEND test scaffold) shipped. Authored 4 failing-by-design test files that pin Phase 102's three behaviors before any implementation, each RED for the right reason (behavior-absent / module-not-yet-created, not import/compile error): (1) `tests/unit/estimate/auto-refine-cap.test.ts` — HARD-06 configurable cap; env-stubbed `checkVagueAfterAssessEdge` via `vi.resetModules()`+dynamic import; default cap=1 + non-vague cases GREEN, the `AUTO_REFINE_MAX_ATTEMPTS=2, refineAttempts:1 → autoRefine` case RED (source hard-codes `< 1`). (2) `tests/unit/whatsapp/replay-safe-ttl.test.ts` — HARD-07; invokes `buildEstimateGraph().invoke` twice with same `requestedAt`, captures `whatsapp_sessions` insert `expires_at` via a module-level array extending the chainable Supabase mock; RED because finalize mints `Date.now()`. (3) `tests/unit/whatsapp/batch-reporting.test.ts` — HARD-05; PARTIAL 1-of-2 ok:false builds estimate + exactly ONE reply (RED on the loose dropped-item note `/couldn't process 1/i`), TOTAL-failure no-input path GREEN (never-reply invariant pinned). (4) `tests/unit/workspace/needs-details-banner.test.tsx` — HARD-06 recourse UI (RTL render/gate/CTA), clean module-not-found RED (component lands in Plan 04); `use-translation` stubbed identity. `@testing-library/react@^16.3.2` confirmed present (no install). Consolidated: 4 failed (intended) + 6 passed; invariant suites never-reply + graph-neutrality + auto-refine-isolation stay 9/9 green. Key authoring detail: extended the non-vague `estimateRow` with `sections[].items` so the single chainable mock is read as non-vague by the `assess` node (one generate call, no auto-refine loop masking the assertions). 2 atomic commits (201afb0, 35e8537). xphere untouched. NOTE: requirements HARD-05/06/07 NOT marked complete — these are RED scaffolds; the implementation plans (102-01..04) turn them green and own the requirement completion.
+Last activity: 2026-06-21 — executed 102-00-PLAN.md (Wave 0 — RED/EXTEND test scaffold for HARD-05/06/07)
+Stopped at: Completed 102-00-PLAN.md
+Next Up: Phase 102 Wave 1+. Each implementation plan has a failing automated check ready: HARD-07 → 102-01, HARD-06 cap → 102-02, HARD-05 → 102-03, HARD-06 recourse UI → 102-04. Recommended non-blocking follow-up: a test-harness isolation pass for the pre-existing vitest worker-reuse leakage (see `deferred-items.md`).
 
 > Xtimator side (Fase B): plans 01–05 done on `dev`. Xphere side (Fase A): receiver
 > `POST /api/xtimator/webhook` + migration 1213 + pipeline seed on the **xphere** repo
@@ -564,6 +564,8 @@ Next Up: Phase 101 complete (4/4). Next is Phase 102 (Resilience Hardening — b
 - [Phase 101]: [101-03]: refine node resolves company language/industry/currency + price book by companyId (mirroring generate-estimate.ts); route only maps the existing estimate structure — strongest UNIFY-02 equivalence
 - [Phase 101]: [101-03]: 400 (nothing provided) vs 422 (provided-but-unusable) split via an explicit hasRawInput flag so whitespace-only input reaches the 422 guard; both editor-facing status codes preserved byte-stable
 - [Phase 101]: [101-03]: refine runs INLINE via buildRefineGraph + passthrough runner (no Inngest, no checkpointer) — synchronous non-persisting preview; refined preview rides state.refined with no DB write
+- [Phase 102]: 102-00: non-vague estimateRow in WhatsApp graph tests must include sections[].items — the single chainable mock serves both the assess re-read (total+items) and the finalize confirm re-read (title/subtotal); without items the estimate assessed vague and generate fired twice (cap=1 auto-refine), masking assertions
+- [Phase 102]: 102-00: HARD-05 dropped-item-note regex kept intentionally loose (/couldn't process 1/i) — Plan 03 owns exact wording; the load-bearing RED is mere presence of the note in the single reply
 
 ## Performance Metrics
 
@@ -751,6 +753,7 @@ Next Up: Phase 101 complete (4/4). Next is Phase 102 (Resilience Hardening — b
 | Phase 101 P01 | 7min | 2 tasks | 2 files |
 | Phase 101 P02 | 18 | 2 tasks | 6 files |
 | Phase 101 P03 | 13 | 3 tasks | 6 files |
+| Phase 102 P00 | 20 | 2 tasks | 4 files |
 
 ## Project Reference
 

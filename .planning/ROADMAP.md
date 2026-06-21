@@ -1206,7 +1206,7 @@ Plans:
   3. Session / awaiting-state TTLs are derived from durable state (replay-safe) rather than minted from `Date.now()` inside a node, so a node retry or a future promotion of an AI node to its own `step.run` cannot corrupt the TTL
   4. The never-throw / always-reply invariant still holds under partial-batch failure — every owner still gets exactly one reply per batch even when some items failed
 **Plans**: 5 plans (3 waves)
-- [ ] 102-00-PLAN.md — Wave-0 RED/EXTEND test scaffold (cap edge, replay-safe TTL, batch reporting, recourse banner RTL) (HARD-05/06/07)
+- [x] 102-00-PLAN.md — Wave-0 RED/EXTEND test scaffold (cap edge, replay-safe TTL, batch reporting, recourse banner RTL) (HARD-05/06/07)
 - [ ] 102-01-PLAN.md — HARD-07 replay-safe TTL: neutral requestedAt state field threaded through both Inngest invokes + both whatsapp finalize TTL sites
 - [ ] 102-02-PLAN.md — HARD-06 configurable cap: AUTO_REFINE_MAX_ATTEMPTS constant in decide.ts (default 1)
 - [ ] 102-03-PLAN.md — HARD-05 per-item batch reporting: neutral droppedInputs carry-forward + reason→copy note in both whatsapp reply builders
