@@ -7,7 +7,7 @@ import { Ticker } from '@/components/landing/ticker'
 
 const ICON_MAP: Record<string, LucideIcon> = { BrainCircuit, FileBadge2, Link2, Smartphone }
 
-type Feature = { icon: string; title: string; description: string; benefit: string }
+type Feature = { icon: string; title: string; description: string; benefit: string; imageUrl?: string | null }
 
 function FeatureCard({ feature }: { feature: Feature }) {
   const Icon = ICON_MAP[feature.icon] ?? BrainCircuit
@@ -17,7 +17,20 @@ function FeatureCard({ feature }: { feature: Feature }) {
       className="group relative h-full overflow-hidden rounded-2xl p-5 backdrop-blur-none transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[0_0_60px_hsl(var(--primary)/0.22)]"
     >
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
-      <span className="mb-4 inline-flex size-10 items-center justify-center rounded-full gradient-brand text-white shadow-[inset_0_0_20px_hsl(var(--primary)/0.1)] transition-transform duration-500 group-hover:scale-110">
+      {/* Full-bleed 3:1 landscape header — always reserved; shows image when set, subtle placeholder otherwise */}
+      <div className="aspect-[3/1] -mx-5 -mt-5 mb-4 w-[calc(100%+2.5rem)] overflow-hidden rounded-t-2xl bg-gradient-to-br from-primary/10 via-primary/5 to-transparent">
+        {feature.imageUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={feature.imageUrl}
+            alt=""
+            aria-hidden
+            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+          />
+        )}
+      </div>
+      {/* Icon badge — floats over the top-right corner of the image */}
+      <span className="absolute top-3 right-3 inline-flex size-10 items-center justify-center rounded-full gradient-brand text-white shadow-[0_4px_14px_rgba(0,0,0,0.45),inset_0_0_20px_hsl(var(--primary)/0.1)] transition-transform duration-500 group-hover:scale-110">
         <Icon className="size-5" aria-hidden="true" />
       </span>
       <h3 className="mb-2 text-base font-semibold tracking-tight text-white">{feature.title}</h3>
@@ -37,32 +50,31 @@ export function FeaturesSection({ features }: { features: Feature[] }) {
   const ticker = [...features, ...features]
 
   return (
-    <section className="relative border-b border-white/5 bg-transparent py-8 sm:py-16 lg:py-24">
+    <section className="relative flex flex-1 flex-col lg:justify-center border-b border-white/5 bg-transparent py-16">
       <div className="mx-auto max-w-6xl px-6 sm:px-8 lg:px-10">
         <motion.div
           initial={reduce ? false : { opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: '-60px' }}
           transition={{ duration: 0.55, ease: 'easeOut' }}
-          className="mb-8 max-w-2xl text-center sm:mx-auto sm:mb-12 lg:mb-16"
+          className="mb-16 max-w-2xl lg:max-w-3xl text-center sm:mx-auto"
         >
           <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary sm:text-sm">Why teams switch</p>
-          <h2 className="mt-2 text-[clamp(20px,5vw,48px)] font-semibold tracking-[-0.02em] sm:mt-3">
-            Four pieces that shorten the gap between{' '}
-            <br className="hidden md:block" />
+          <h2 className="mt-2 text-[clamp(24px,4vw,44px)] lg:text-[clamp(24px,3.8vw,42px)] font-semibold tracking-[-0.02em] sm:mt-3">
+            Four pieces that shorten the gap
+            <br />
+            between{' '}
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-secondary">
               site visit and signed work.
             </span>
           </h2>
-          <p className="mt-2 text-sm leading-[1.5] text-muted-foreground sm:mt-4 sm:text-lg">
+          <p className="mt-2 text-sm leading-[1.5] text-muted-foreground sm:mt-4 sm:text-base">
             Keep the quoting flow simple, fast, and consistent without giving up professionalism.
           </p>
         </motion.div>
-      </div>
 
-      {/* Desktop (≥1024px): static 4-col grid with stagger */}
-      <div className="hidden lg:block mx-auto max-w-6xl px-6 lg:px-10">
-        <div className="grid grid-cols-4 gap-4">
+        {/* Desktop (≥1024px): static 4-col grid with stagger */}
+        <div className="hidden lg:grid grid-cols-4 gap-4">
           {features.map((f, i) => (
             <motion.div
               key={i}

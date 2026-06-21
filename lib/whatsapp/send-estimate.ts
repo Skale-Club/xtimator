@@ -59,13 +59,15 @@ export async function deliverEstimateViaWhatsApp(params: {
   if (!estimate) return { ok: false, error: 'Estimate not found' }
   if (!estimate.share_token) return { ok: false, error: 'Estimate has no share link' }
 
-  // 2. Delivery format + company name.
+  // 2. Delivery format + company info.
   const [{ data: waConfig }, { data: company }] = await Promise.all([
     svc.from('company_whatsapp').select('delivery_format').eq('company_id', companyId).maybeSingle(),
-    svc.from('companies').select('name').eq('id', companyId).single(),
+    svc.from('companies').select('name, owner_name, website').eq('id', companyId).single(),
   ])
   const deliveryFormat = ((waConfig?.delivery_format as string | null) ?? 'share_link') as DeliveryFormat
   const companyName = (company?.name as string | null) ?? null
+  const ownerName = (company?.owner_name as string | null) ?? null
+  const companyWebsite = (company?.website as string | null) ?? null
 
   const branding = await getBranding()
   const baseUrl = branding.canonicalBaseUrl ?? getCanonicalBaseUrl()
@@ -104,7 +106,7 @@ export async function deliverEstimateViaWhatsApp(params: {
         fallback = 'share_link'
       }
     } else if (deliveryFormat === 'formatted_text') {
-      const formatted = formatEstimateForWhatsApp(estimate as unknown as FormatterEstimate, params.clientName ?? null, companyName)
+      const formatted = formatEstimateForWhatsApp(estimate as unknown as FormatterEstimate, params.clientName ?? null, companyName, ownerName, companyWebsite)
       await sendWhatsAppMessage(toPhone, { type: 'text', text: { body: formatted } })
       sentPreview = formatted
     } else {

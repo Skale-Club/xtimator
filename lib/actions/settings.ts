@@ -6,9 +6,13 @@ import { createStorage } from '@/lib/storage'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
 import { revalidatePath, revalidateTag } from 'next/cache'
 import { normalizeCurrencyCode } from '@/lib/money/currency'
+import { resolveIndustries } from '@/lib/industries'
+import { appendIndustryPriceBook } from '@/lib/price-book-seed'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { assertWritable } from '@/lib/demo/guard'
 import { syncOwnerPhone } from '@/lib/whatsapp/sync-owner-phone'
+import { inngest } from '@/lib/inngest/client'
+import { EVENT_WHATSAPP_WELCOME } from '@/lib/inngest/events'
 import { sendProfileUpdatedEmail, diffProfileFields } from '@/lib/email/account-emails'
 
 async function getAuthContext() {
@@ -51,7 +55,13 @@ export async function updateCompanySettings(formData: FormData) {
   const zip = formData.get('zip') as string | null
   const licenseNumber = formData.get('licenseNumber') as string | null
   const insuranceInfo = formData.get('insuranceInfo') as string | null
-  const industry = formData.get('industry') as string | null
+  // Services: multiple repeated 'industries' entries (card ids) + the 'other'
+  // free-text. Resolve to the canonical array; `industry` stays the primary.
+  const industryIds = formData.getAll('industries').map((v) => String(v))
+  const customIndustry = (formData.get('customIndustry') as string | null) ?? ''
+  const prefillNewServices = formData.get('prefillNewServices') === '1'
+  const resolvedIndustries = resolveIndustries(industryIds, customIndustry)
+  const primaryIndustry = resolvedIndustries[0] ?? null
   const brandPrimaryColor = formData.get('brandPrimaryColor') as string | null
   const existingLogoUrl = formData.get('existingLogoUrl') as string | null
   const defaultEstimateLanguage = formData.get('defaultEstimateLanguage') as string | null
@@ -76,9 +86,10 @@ export async function updateCompanySettings(formData: FormData) {
   }
 
   // Fetch current values before update so we can detect which fields changed
+  // (and which services were newly added, for the optional price-book prefill).
   const { data: currentCompany } = await supabase
     .from('companies')
-    .select('name, owner_name, phone, email, website')
+    .select('name, owner_name, phone, email, website, industry, industries')
     .eq('id', company.id)
     .single()
 
@@ -96,7 +107,8 @@ export async function updateCompanySettings(formData: FormData) {
       zip: zip || null,
       license_number: licenseNumber || null,
       insurance_info: insuranceInfo || null,
-      industry: industry || null,
+      industry: primaryIndustry,
+      industries: resolvedIndustries,
       brand_primary_color: brandPrimaryColor || SYSTEM_COLORS.primary,
       logo_url: logoUrl || null,
       currency_code: currencyCode,
@@ -111,10 +123,12 @@ export async function updateCompanySettings(formData: FormData) {
     return { error: 'Failed to save company settings. Please try again.' }
   }
 
-  // Note: the company business phone is intentionally NOT synced to company_whatsapp
-  // anymore. WhatsApp routing numbers are per-user and managed in Profile settings
-  // (saveWhatsAppNumber). The company phone seeds a user's WhatsApp number only once,
-  // at account creation (see lib/actions/company.ts), and is independent thereafter.
+  // NOTE: the company phone is the client-facing contact shown on estimates — it is
+  // intentionally NOT synced to company_whatsapp. WhatsApp routing numbers are per-user
+  // and managed in Profile settings: the owner number (company_whatsapp.owner_phone) is
+  // sourced from the owner's PROFILE phone in updateProfile / saveWhatsAppNumber (Phase 98).
+  // The company phone seeds a user's WhatsApp number only once, at account creation
+  // (see lib/actions/company.ts), and is independent thereafter.
 
   // Detect changed fields and send a profile-update notification email
   if (currentCompany) {
@@ -149,6 +163,21 @@ export async function updateCompanySettings(formData: FormData) {
     .from('company_price_book')
     .update({ currency_code: currencyCode })
     .eq('company_id', company.id)
+
+  // Optional: when the user added new service(s) and opted in, append starter
+  // prices for ONLY the newly added services. Never auto-seeds; existing
+  // folders are left untouched (appendIndustryPriceBook skips name collisions).
+  if (prefillNewServices) {
+    const previousIndustries =
+      (currentCompany?.industries as string[] | null) ??
+      (currentCompany?.industry ? [currentCompany.industry as string] : [])
+    const addedIndustries = resolvedIndustries.filter(
+      (v) => !previousIndustries.includes(v)
+    )
+    if (addedIndustries.length > 0) {
+      await appendIndustryPriceBook(supabase, company.id, addedIndustries, currencyCode)
+    }
+  }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ;(revalidateTag as any)('company')
@@ -346,6 +375,29 @@ export async function updateProfile(formData: FormData) {
 
   const { error } = await supabase.auth.updateUser({ data: updateData })
   if (error) return { error: error.message }
+
+  // Phase 98: the profile phone IS the owner's WhatsApp line. Sync it to
+  // company_whatsapp.owner_phone for the active company, and — only when the number
+  // is new/changed — fire the proactive welcome TEMPLATE off the request path via
+  // Inngest. Best-effort: a failure here must never block or fail the profile save.
+  try {
+    const activeCompanyId = await getActiveCompanyId()
+    if (activeCompanyId) {
+      const svc = requireServiceClient()
+      const { phoneChanged, ownerPhone } = await syncOwnerPhone(svc, activeCompanyId, phone)
+      if (phoneChanged && ownerPhone) {
+        await inngest.send({
+          name: EVENT_WHATSAPP_WELCOME,
+          data: { companyId: activeCompanyId, toPhone: ownerPhone },
+        })
+      }
+    }
+  } catch (e) {
+    console.warn(
+      '[settings.updateProfile] WhatsApp owner-phone sync/welcome failed:',
+      e instanceof Error ? e.message : String(e),
+    )
+  }
 
   revalidatePath('/settings/general')
   return { ok: true }

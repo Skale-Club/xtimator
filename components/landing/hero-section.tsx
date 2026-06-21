@@ -31,7 +31,7 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
   }, [])
 
   return (
-    <section className="relative isolate flex flex-1 min-h-0 flex-col overflow-hidden border-b border-white/5 bg-transparent sm:max-h-[560px]">
+    <section className="relative isolate flex flex-1 min-h-0 flex-col overflow-hidden border-b border-white/5 bg-transparent min-h-[420px] sm:min-h-0 sm:max-h-[560px] md:max-h-[680px] lg:max-h-[560px]">
       <div aria-hidden className="hero-mesh" />
       <div aria-hidden className="hero-dots" />
       <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 gradient-hero" />
@@ -41,7 +41,7 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
         <div
           className={
             hasImage
-              ? 'flex flex-1 min-h-0 flex-col gap-2 pt-8 sm:flex-row sm:items-stretch sm:gap-6 sm:pt-0'
+              ? 'hero-content flex flex-1 min-h-0 flex-col gap-2 pt-16 sm:flex-row sm:items-center sm:gap-6 sm:pt-0'
               : 'flex flex-col items-center justify-center gap-6 py-16 text-center'
           }
         >
@@ -56,7 +56,7 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
             }}
             className={
               hasImage
-                ? 'hero-left relative z-10 flex min-w-0 flex-col justify-center space-y-4 sm:w-[55%] sm:shrink-0 sm:py-10 lg:w-[55%]'
+                ? 'hero-left relative z-10 flex min-w-0 flex-col justify-center space-y-4 sm:w-[55%] sm:shrink-0 md:w-[58%] lg:w-[55%]'
                 : 'max-w-3xl space-y-4'
             }
           >
@@ -72,29 +72,38 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
 
             <motion.h1
               variants={FADE_UP_ANIMATION_VARIANTS}
-              className="hero-h1 text-[clamp(40px,7vw,56px)] font-semibold leading-[1.05] tracking-[-0.03em] lg:w-[580px]"
+              className="hero-h1 text-[clamp(29px,7.7vw,56px)] sm:text-[clamp(35px,5.5vw,42px)] md:text-[clamp(32px,4.5vw,46px)] lg:text-[clamp(42px,4.5vw,56px)] font-semibold leading-[1.05] tracking-[-0.03em] lg:w-[580px]"
             >
               {content.heroHeadline.split(' ')[0]}
+              {/* Always break after word 1 — keeps the title 3 lines on desktop too */}
               <br />
-              {content.heroHeadline.split(' ').slice(1).join(' ')}
+              {' '}{content.heroHeadline.split(' ')[1]}
+              <br className="hidden sm:block" />
+              {' '}{content.heroHeadline.split(' ').slice(2).join(' ')}
             </motion.h1>
 
             <motion.p
               variants={FADE_UP_ANIMATION_VARIANTS}
               className={
                 hasImage
-                  ? 'max-w-2xl text-sm leading-[1.5] text-muted-foreground sm:text-base'
-                  : 'mx-auto max-w-2xl text-sm leading-[1.5] text-muted-foreground sm:text-base'
+                  // xl:text-[20px] keeps the title:subheadline ratio (~2.8) harmonic on
+                  // wide desktop — the iPad media queries already tune it for tablets.
+                  ? 'sm:max-w-2xl text-[16.8px] leading-[1.5] text-muted-foreground sm:text-[14px] lg:text-base xl:text-[20px]'
+                  : 'mx-auto max-w-2xl text-[16.8px] leading-[1.5] text-muted-foreground sm:text-base'
               }
             >
               {(() => {
-                const breakAt = 'and branded'
-                const idx = content.heroSubheadline.indexOf(breakAt)
-                if (idx === -1) return content.heroSubheadline
+                const text = content.heroSubheadline
+                const b1 = text.indexOf('pricing,')
+                const b2 = text.indexOf('you leave')
+                if (b1 === -1 || b2 === -1) return text
                 return <>
-                  {content.heroSubheadline.slice(0, idx)}
-                  <br />
-                  {content.heroSubheadline.slice(idx)}
+                  {text.slice(0, b1)}
+                  {/* 3-line break shown ≥768 (tablet + desktop); 640-767 stays natural-wrap */}
+                  <br className="block sm:hidden md:block" />
+                  {text.slice(b1, b2)}
+                  <br className="block sm:hidden md:block" />
+                  {text.slice(b2)}
                 </>
               })()}
             </motion.p>
@@ -103,12 +112,12 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
               variants={FADE_UP_ANIMATION_VARIANTS}
               className={
                 hasImage
-                  ? 'flex flex-row gap-2 sm:gap-3'
-                  : 'flex flex-row gap-2 sm:gap-3 sm:justify-center'
+                  ? 'flex flex-col gap-2 min-[1280px]:flex-row min-[1280px]:gap-3'
+                  : 'flex flex-col gap-2 min-[1280px]:flex-row min-[1280px]:gap-3 min-[1280px]:justify-center'
               }
             >
-              <div className="cta-glow inline-flex flex-1 sm:flex-none">
-                <Button variant="primary" size="default" className="w-full sm:w-auto sm:min-w-40" onClick={() => onOpenAuth?.('signup')}>
+              <div className="cta-glow max-sm:[box-shadow:none] max-sm:[animation:none] max-[1279px]:self-start min-[1280px]:self-auto min-[1280px]:flex-none">
+                <Button variant="primary" size="default" className="min-w-40" onClick={() => onOpenAuth?.('signup')}>
                   {content.ctaLabel}
                   <ArrowRight className="ml-1.5 size-4" aria-hidden="true" />
                 </Button>
@@ -117,7 +126,7 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
                 asChild
                 size="default"
                 variant="outline"
-                className="flex-1 sm:flex-none border-white/10 bg-white/5 font-semibold text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:w-auto sm:min-w-36 h-9 text-sm px-1 sm:h-10 sm:px-4"
+                className="w-fit px-6 self-start sm:flex-none border-white/10 bg-white/5 font-semibold text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:w-fit sm:min-w-36 h-10 text-sm sm:px-4"
               >
                 <Link href="/demo">See Demo</Link>
               </Button>
@@ -130,7 +139,7 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
               initial={reduce ? false : { opacity: 0, scale: 0.95, rotate: -2 }}
               animate={{ opacity: 1, scale: 1, rotate: 0 }}
               transition={{ duration: 1, type: 'spring', delay: 0.3 }}
-              className="hero-image relative z-0 flex-1 min-h-0 self-stretch sm:absolute sm:top-[1in] sm:bottom-0 sm:left-[calc(58%_-_100px)] sm:right-[-2rem] sm:scale-110 sm:origin-bottom lg:top-[36px] lg:left-[calc(35%_+_55px)] lg:right-[-2.5rem] lg:scale-100"
+              className="hero-image absolute top-[23%] bottom-0 right-[-15px] w-[75%] z-0 sm:h-auto sm:absolute sm:top-[1in] sm:bottom-0 sm:left-[calc(58%_-_100px)] sm:right-[-2rem] sm:w-auto sm:scale-110 sm:origin-bottom md:top-16 lg:top-[36px] lg:left-[calc(35%_+_55px)] lg:right-[-2.5rem] lg:scale-100 xl:top-[65px] xl:left-[calc(35%_+_45px)] xl:right-[-30px]"
             >
               <img
                 src={content.heroImageUrl!}

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useMemo, useState, useTransition } from 'react'
 import { useForm, useWatch, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -9,7 +9,7 @@ import { toast } from 'sonner'
 
 import type { CompanySettings } from '@/lib/queries/company'
 import { updateCompanySettings } from '@/lib/actions/settings'
-import { INDUSTRIES } from '@/lib/industries'
+import { resolveIndustries, splitIndustries } from '@/lib/industries'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
 
 import { Card, CardContent } from '@/components/ui/card'
@@ -17,7 +17,9 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Input } from '@/components/ui/input'
 import { PhoneInput } from '@/components/ui/phone-input'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { IndustrySelector } from '@/components/onboarding/industry-selector'
 import { LogoUploader } from '@/components/onboarding/logo-uploader'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { DEFAULT_CURRENCY_CODE, SUPPORTED_CURRENCIES } from '@/lib/money/currency'
@@ -28,7 +30,8 @@ const companyInfoSchema = z.object({
   phone: z.string().optional().or(z.literal('')),
   email: z.string().email('Invalid email').optional().or(z.literal('')),
   website: z.string().optional().or(z.literal('')),
-  industry: z.string().optional().or(z.literal('')),
+  industries: z.array(z.string()),
+  customIndustry: z.string().optional().or(z.literal('')),
   address: z.string().optional().or(z.literal('')),
   city: z.string().optional().or(z.literal('')),
   state: z.string().optional().or(z.literal('')),
@@ -54,6 +57,20 @@ export function CompanyInfoForm({ company, readOnly = false }: CompanyInfoFormPr
   const [logoPreview, setLogoPreview] = useState<string | null>(company.logo_url)
   const [isPending, startTransition] = useTransition()
 
+  // Split the persisted industries array back into multi-select state.
+  // Falls back to the singular `industry` for rows not yet backfilled.
+  const initialServices = useMemo(() => {
+    const arr =
+      company.industries && company.industries.length > 0
+        ? company.industries
+        : company.industry
+          ? [company.industry]
+          : []
+    return splitIndustries(arr)
+  }, [company.industries, company.industry])
+
+  const [prefillNewServices, setPrefillNewServices] = useState(false)
+
   const form = useForm<CompanyInfoValues>({
     resolver: zodResolver(companyInfoSchema) as Resolver<CompanyInfoValues>,
     defaultValues: {
@@ -62,7 +79,8 @@ export function CompanyInfoForm({ company, readOnly = false }: CompanyInfoFormPr
       phone: company.phone || '',
       email: company.email || '',
       website: company.website || '',
-      industry: company.industry || '',
+      industries: initialServices.selectedIds,
+      customIndustry: initialServices.customIndustry,
       address: company.address || '',
       city: company.city || '',
       state: company.state || '',
@@ -76,6 +94,16 @@ export function CompanyInfoForm({ company, readOnly = false }: CompanyInfoFormPr
   })
 
   const companyName = useWatch({ control: form.control, name: 'name' })
+  const watchedIndustries = useWatch({ control: form.control, name: 'industries' }) ?? []
+  const watchedCustom = useWatch({ control: form.control, name: 'customIndustry' }) ?? ''
+
+  const initialResolved = useMemo(
+    () => resolveIndustries(initialServices.selectedIds, initialServices.customIndustry),
+    [initialServices]
+  )
+  const currentResolved = resolveIndustries(watchedIndustries, watchedCustom || '')
+  const addedServices = currentResolved.filter((v) => !initialResolved.includes(v))
+  const showPrefill = !readOnly && addedServices.length > 0
 
   function onSubmit(values: CompanyInfoValues) {
     startTransition(async () => {
@@ -85,7 +113,11 @@ export function CompanyInfoForm({ company, readOnly = false }: CompanyInfoFormPr
       fd.set('phone', values.phone || '')
       fd.set('email', values.email || '')
       fd.set('website', values.website || '')
-      fd.set('industry', values.industry || '')
+      for (const id of values.industries) {
+        fd.append('industries', id)
+      }
+      fd.set('customIndustry', values.customIndustry || '')
+      fd.set('prefillNewServices', prefillNewServices ? '1' : '')
       fd.set('address', values.address || '')
       fd.set('city', values.city || '')
       fd.set('state', values.state || '')
@@ -213,35 +245,46 @@ export function CompanyInfoForm({ company, readOnly = false }: CompanyInfoFormPr
                   )}
                 />
 
-                {/* Industry */}
-                <FormField
-                  control={form.control}
-                  name="industry"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t('Industry')}</FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
-                        defaultValue={field.value}
-                      >
-                        <FormControl>
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder={t('Select industry')} />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {INDUSTRIES.map((ind) => (
-                            <SelectItem key={ind.id} value={ind.id}>
-                              {t(ind.label)}
-                            </SelectItem>
-                          ))}
-                          <SelectItem value="other">{t('Other')}</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
+                {/* Services (multi-select) */}
+                <FormItem className="lg:col-span-2">
+                  <FormLabel>{t('Services')}</FormLabel>
+                  <FormDescription className="text-xs text-muted-foreground">
+                    {t('Select all the services your business offers. Used to tailor estimates and price-book starters.')}
+                  </FormDescription>
+                  <div className="mt-2">
+                    <IndustrySelector
+                      value={watchedIndustries}
+                      customValue={watchedCustom || ''}
+                      onChange={(ids) =>
+                        form.setValue('industries', ids, { shouldDirty: true })
+                      }
+                      onCustomChange={(v) =>
+                        form.setValue('customIndustry', v, { shouldDirty: true })
+                      }
+                    />
+                  </div>
+                  {showPrefill && (
+                    <label
+                      htmlFor="settings-prefill"
+                      className="mt-3 flex cursor-pointer items-start gap-3 rounded-lg border border-border bg-card p-3"
+                    >
+                      <Checkbox
+                        id="settings-prefill"
+                        checked={prefillNewServices}
+                        onCheckedChange={(checked) => setPrefillNewServices(checked === true)}
+                        className="mt-0.5"
+                      />
+                      <span className="text-sm">
+                        <span className="font-medium text-foreground">
+                          {t('Add starter prices for the service(s) you just added.')}
+                        </span>{' '}
+                        <span className="text-muted-foreground">
+                          {t("We'll add common services and average market prices for the newly selected service(s). These are starting points — edit them anytime.")}
+                        </span>
+                      </span>
+                    </label>
                   )}
-                />
+                </FormItem>
 
                 {/* Default Estimate Language */}
                 <FormField

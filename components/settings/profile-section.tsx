@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { updateProfile, saveWhatsAppNumber } from '@/lib/actions/settings'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { PhoneInput } from '@/components/ui/phone-input'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -25,6 +26,7 @@ export function ProfileSection({ profile }: ProfileSectionProps) {
   const [isWhatsAppPending, startWhatsAppTransition] = useTransition()
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
   const [whatsappValue, setWhatsappValue] = useState(profile.whatsappPhone)
+  const [phone, setPhone] = useState(profile.phone)
   const avatarInputRef = useRef<HTMLInputElement>(null)
   const formRef = useRef<HTMLFormElement>(null)
 
@@ -115,18 +117,16 @@ export function ProfileSection({ profile }: ProfileSectionProps) {
           {/* Phone */}
           <div className="grid gap-6 xl:grid-cols-[260px_minmax(0,1fr)]">
             <div>
-              <h3 className="text-sm font-medium">Phone Number</h3>
-              <p className="mt-1 text-sm text-muted-foreground">Used for account recovery and WhatsApp notifications.</p>
+              <h3 className="text-sm font-medium">WhatsApp Number</h3>
+              <p className="mt-1 text-sm text-muted-foreground">Your number for the Xtimator WhatsApp assistant (and account recovery). Save it and we&apos;ll send a welcome message so you can start building estimates by chat.</p>
             </div>
             <div>
-              <Input
-                id="phone"
-                name="phone"
-                type="tel"
-                defaultValue={profile.phone}
-                placeholder="+1 (555) 000-0000"
-                autoComplete="tel"
-              />
+              {/* PhoneInput is controlled; the country dropdown holds the dial code and the
+                  field masks to (XXX) XXX-XXXX as you type. We surface the full emitted value
+                  ("+1 (XXX) XXX-XXXX") via a hidden input so the plain FormData submit captures
+                  it — the PhoneInput's own input is intentionally name-less. */}
+              <PhoneInput id="phone" value={phone} onChange={setPhone} />
+              <input type="hidden" name="phone" value={phone} />
             </div>
           </div>
 

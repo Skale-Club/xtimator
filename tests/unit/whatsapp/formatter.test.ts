@@ -32,70 +32,92 @@ const BASE_ESTIMATE: FormatterEstimate = {
 describe('formatEstimateForWhatsApp', () => {
   it('includes client greeting when clientName is provided', () => {
     const result = formatEstimateForWhatsApp(BASE_ESTIMATE, 'Johnson', 'Acme Builders')
-    expect(result).toMatch(/Hi Johnson/)
+    expect(result).toMatch(/Hello Johnson/)
   })
 
   it('uses generic greeting when clientName is null', () => {
     const result = formatEstimateForWhatsApp(BASE_ESTIMATE, null, null)
-    expect(result).toMatch(/^Hi,/)
+    expect(result).toMatch(/^Hello,/)
   })
 
-  it('includes company name in the from line', () => {
+  it('includes company name in the intro line', () => {
     const result = formatEstimateForWhatsApp(BASE_ESTIMATE, null, 'Acme Builders')
-    expect(result).toMatch(/Acme Builders/)
+    expect(result).toMatch(/Thank you for reaching out to Acme Builders/)
   })
 
-  it('includes summary when present', () => {
+  it('renders section titles in bracket format', () => {
     const result = formatEstimateForWhatsApp(BASE_ESTIMATE, null, null)
-    expect(result).toMatch(/Kitchen cabinet replacement/)
+    expect(result).toMatch(/\[Labor\]/)
+    expect(result).toMatch(/\[Materials\]/)
   })
 
-  it('renders section titles and items', () => {
+  it('renders items with x-quantity format', () => {
     const result = formatEstimateForWhatsApp(BASE_ESTIMATE, null, null)
-    expect(result).toMatch(/\*Labor\*/)
-    expect(result).toMatch(/Demo/)
+    expect(result).toMatch(/- Demo x 1:/)
     expect(result).toMatch(/Install cabinets/)
-    expect(result).toMatch(/\*Materials\*/)
-    expect(result).toMatch(/Cabinet set/)
   })
 
-  it('renders unit in item line when unit is present', () => {
+  it('shows unit price in parentheses for qty > 1 items', () => {
     const result = formatEstimateForWhatsApp(BASE_ESTIMATE, null, null)
-    expect(result).toMatch(/2 day/)
+    expect(result).toMatch(/Install cabinets x 2 \(\$500\.00 each\)/)
   })
 
-  it('shows subtotal and tax lines when tax_rate > 0', () => {
+  it('shows subtotal and tax when tax_rate > 0', () => {
     const result = formatEstimateForWhatsApp(BASE_ESTIMATE, null, null)
-    expect(result).toMatch(/Subtotal/)
-    expect(result).toMatch(/Tax \(10%\)/)
+    expect(result).toMatch(/Subtotal:/)
+    expect(result).toMatch(/Tax \(10%\):/)
   })
 
-  it('omits tax lines when tax_rate is 0', () => {
+  it('omits subtotal and tax lines when tax_rate is 0 and no discount', () => {
     const noTax: FormatterEstimate = { ...BASE_ESTIMATE, tax_rate: 0, tax_amount: 0 }
     const result = formatEstimateForWhatsApp(noTax, null, null)
-    expect(result).not.toMatch(/Subtotal/)
+    expect(result).not.toMatch(/Subtotal:/)
     expect(result).not.toMatch(/Tax/)
   })
 
-  it('renders grand total in bold', () => {
-    const result = formatEstimateForWhatsApp(BASE_ESTIMATE, null, null)
-    expect(result).toMatch(/\*Total: \$2,750\.00\*/)
-  })
-
-  it('includes timeline and payment terms when present', () => {
-    const result = formatEstimateForWhatsApp(BASE_ESTIMATE, null, null)
-    expect(result).toMatch(/Timeline: 2 weeks/)
-    expect(result).toMatch(/Payment: Net 30/)
-  })
-
-  it('omits timeline and payment_terms lines when null', () => {
-    const minimal: FormatterEstimate = {
+  it('renders discount line when discount_amount > 0', () => {
+    const withDiscount: FormatterEstimate = {
       ...BASE_ESTIMATE,
-      timeline: null,
-      payment_terms: null,
+      tax_rate: 0,
+      tax_amount: 0,
+      discount_type: 'percentage',
+      discount_value: 10,
+      discount_amount: 250,
+      total: 2250,
     }
-    const result = formatEstimateForWhatsApp(minimal, null, null)
-    expect(result).not.toMatch(/Timeline:/)
-    expect(result).not.toMatch(/Payment:/)
+    const result = formatEstimateForWhatsApp(withDiscount, null, null)
+    expect(result).toMatch(/Discount \(10%\): -\$250\.00/)
+  })
+
+  it('renders grand total with "Total Estimate:" label', () => {
+    const result = formatEstimateForWhatsApp(BASE_ESTIMATE, null, null)
+    expect(result).toMatch(/Total Estimate: \$2,750\.00/)
+  })
+
+  it('includes friendly closing message', () => {
+    const result = formatEstimateForWhatsApp(BASE_ESTIMATE, null, null)
+    expect(result).toMatch(/Let me know if you have any questions/)
+  })
+
+  it('appends responsible name and website in sign-off when provided', () => {
+    const result = formatEstimateForWhatsApp(
+      BASE_ESTIMATE,
+      'Alice',
+      'Acme Builders',
+      'Bob Smith',
+      'www.acmebuilders.com',
+    )
+    expect(result).toMatch(/Best regards,/)
+    expect(result).toMatch(/Bob Smith/)
+    expect(result).toMatch(/www\.acmebuilders\.com/)
+  })
+
+  it('omits responsible and website lines when not provided', () => {
+    const result = formatEstimateForWhatsApp(BASE_ESTIMATE, null, null)
+    expect(result).toMatch(/Best regards,/)
+    // no extra lines after sign-off when responsible/website are omitted
+    const lines = result.split('\n')
+    const regardsIdx = lines.findIndex((l) => l === 'Best regards,')
+    expect(lines[regardsIdx + 1]).toBeUndefined()
   })
 })

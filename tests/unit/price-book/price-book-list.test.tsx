@@ -55,8 +55,17 @@ const mockFolders: PriceBookFolder[] = [
   { id: 'folder-labor', company_id: 'c1', name: 'Labor', sort_order: 0, created_at: '2026-01-01' },
 ]
 
+const ITEM_DEFAULTS = {
+  pricing_type: 'fixed' as const,
+  base_price: null,
+  price_per_unit: null,
+  minimum_price: null,
+  area_sizes: null,
+}
+
 const mockItems: PriceBookItem[] = [
   {
+    ...ITEM_DEFAULTS,
     id: '1',
     company_id: 'c1',
     folder_id: 'folder-labor',
@@ -69,6 +78,7 @@ const mockItems: PriceBookItem[] = [
     image_url: null,
   },
   {
+    ...ITEM_DEFAULTS,
     id: '2',
     company_id: 'c1',
     folder_id: 'folder-labor',
@@ -81,6 +91,7 @@ const mockItems: PriceBookItem[] = [
     image_url: null,
   },
   {
+    ...ITEM_DEFAULTS,
     id: '3',
     company_id: 'c1',
     folder_id: null,
@@ -153,9 +164,9 @@ describe('PriceBookList', () => {
     expect(screen.getByText('No items match your search')).toBeDefined()
   })
 
-  it('add dialog opens when Add Item button clicked', () => {
+  it('add dialog opens when Add Service button clicked', () => {
     render(<PriceBookList items={mockItems} folders={mockFolders} companyId="c1" />)
-    const addBtn = screen.getByRole('button', { name: /Add Item/i })
+    const addBtn = screen.getByRole('button', { name: /Add Service/i })
     fireEvent.click(addBtn)
     expect(screen.getByTestId('price-book-dialog')).toBeDefined()
   })

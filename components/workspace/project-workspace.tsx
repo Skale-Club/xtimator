@@ -183,6 +183,7 @@ export function ProjectWorkspace({
             clientPhone={project.client?.phone ?? null}
             clientName={project.client?.name ?? ''}
             ownerName={ownerName}
+            companyWebsite={company.website}
             estimateTemplate={estimateTemplate}
             smsDeliveryEnabled={smsDeliveryEnabled}
             whatsappSendEnabled={whatsappSendEnabled}

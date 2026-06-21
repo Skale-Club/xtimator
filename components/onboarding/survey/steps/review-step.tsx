@@ -1,6 +1,9 @@
 'use client'
 
 import type { OnboardingValues } from '@/lib/schemas/onboarding'
+import { INDUSTRIES, resolveIndustries } from '@/lib/industries'
+
+const LABEL_BY_ID = new Map(INDUSTRIES.map((i) => [i.id, i.label]))
 
 interface Props {
   values: OnboardingValues
@@ -16,17 +19,17 @@ function dash(v: string | number | undefined | null): string {
 }
 
 export function ReviewStep({ values, logoPreview }: Props) {
-  const industryLabel =
-    values.industry === 'other' && values.customIndustry
-      ? values.customIndustry
-      : values.industry
+  const servicesLabel = resolveIndustries(values.industries, values.customIndustry)
+    .map((v) => LABEL_BY_ID.get(v) ?? v)
+    .join(', ')
 
   const rows: Array<[string, string]> = [
     ['Company name', dash(values.companyName)],
     ['Owner name', dash(values.ownerName)],
     ['Phone', dash(values.phone)],
     ['Email', dash(values.email)],
-    ['Industry', dash(industryLabel)],
+    ['Services', dash(servicesLabel)],
+    ['Pre-fill price book', values.prefillPriceBook ? 'Yes' : 'No'],
     ['Brand color', dash(values.brandPrimaryColor)],
     ['Address', dash(values.address)],
     ['City / State / ZIP', dash(

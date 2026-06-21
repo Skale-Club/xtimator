@@ -13,3 +13,5 @@ export { notificationCleanup } from './notification-cleanup'
 export { cleanupAudioJob } from './cleanup-audio'
 // Phase 1000 (XPHERE-B4) — Xphere CRM sync job.
 export { xphereSyncJob } from './xphere-sync'
+// Phase 98 — proactive WhatsApp welcome template on owner-number save.
+export { whatsAppWelcomeJob } from './whatsapp-welcome'

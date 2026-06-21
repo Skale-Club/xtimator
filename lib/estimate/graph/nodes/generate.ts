@@ -23,7 +23,11 @@ export const makeGenerateNode =
       const opts =
         state.channel === 'whatsapp'
           ? { channel: 'whatsapp' as const, prompts: state.prompts }
-          : { prompts: state.prompts }
+          : {
+              prompts: state.prompts,
+              // origin/dev: stamp "Prepared by" on web/MCP-triggered estimates.
+              createdByUserId: state.createdByUserId,
+            }
       const result = await runner.run('ai-generate', () =>
         generateEstimateForProject(state.companyId, state.projectId, opts)
       )

@@ -25,6 +25,7 @@ import {
 } from './client-suggestion-toast'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { useLanguage } from '@/lib/i18n/language-context'
+import { pollJob } from '@/hooks/use-job-status'
 import {
   type EstimateLanguage,
   resolveEstimateLanguageWithSource,
@@ -108,6 +109,11 @@ export function EstimateTab({
           const err = await photoRes.json().catch(() => ({}))
           throw new Error(err.error || t('Photo analysis failed'))
         }
+        const { jobId: analyzeJobId } = (await photoRes.json()) as { jobId: string }
+        const analyzeResult = await pollJob(analyzeJobId, new AbortController().signal)
+        if (analyzeResult.state !== 'completed') {
+          throw new Error(t('Photo analysis failed'))
+        }
       }
       setGenerationStep(1)
       const genRes = await fetch('/api/generate-estimate', {
@@ -121,9 +127,7 @@ export function EstimateTab({
       }
       const generated = (await genRes.json()) as GenerateEstimateResponse
       setGenerationStep(2)
-      await new Promise((r) => setTimeout(r, 500))
       setGenerationStep(3)
-      await new Promise((r) => setTimeout(r, 1000))
       router.refresh()
       showClientSuggestionToast({ projectId, router, suggestion: generated.clientSuggestion })
     } catch (err) {

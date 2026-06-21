@@ -12,11 +12,12 @@ import {
   ACTIVE_COMPANY_COOKIE_OPTIONS,
   getActiveCompanyId,
 } from '@/lib/queries/active-company'
-import { syncOwnerPhone } from '@/lib/whatsapp/sync-owner-phone'
 import { sendWelcomeEmail } from '@/lib/email/account-emails'
+import { syncOwnerPhone } from '@/lib/whatsapp/sync-owner-phone'
 import { dispatchXphereSync } from '@/lib/integrations/xphere/dispatch'
 import { seedIndustryPriceBook } from '@/lib/price-book-seed'
 import { getDefaultTaxRate } from '@/lib/tax-rates'
+import { resolveIndustries } from '@/lib/industries'
 
 interface CompanyFormData {
   companyName?: string
@@ -25,8 +26,9 @@ interface CompanyFormData {
   phone?: string
   email?: string
   website?: string
-  industry?: string
+  industries?: string[]
   customIndustry?: string
+  prefillPriceBook?: boolean
   brandPrimaryColor?: string
   address?: string
   city?: string
@@ -69,14 +71,19 @@ export async function createOrUpdateCompany(
   const claims = claimsData?.claims ?? null
   if (!claims) return { error: 'Not authenticated' }
 
-  // Resolve industry: if "other", use customIndustry value
-  const resolvedIndustry =
-    data.industry === 'other' ? data.customIndustry : data.industry
+  // Resolve services: replace the 'other' sentinel with the custom text and
+  // dedupe. `industry` (singular) keeps the primary (= industries[0]) for
+  // backward-compat readers: tax-rate defaults + the AI prompt builder.
+  const resolvedIndustries = resolveIndustries(
+    data.industries ?? [],
+    data.customIndustry ?? ''
+  )
+  const primaryIndustry = resolvedIndustries[0] ?? null
 
   // Smart-fill the default tax rate from state + service type when the caller
   // didn't supply one (onboarding no longer asks for tax). Editable later in
   // Settings → Defaults.
-  const autoTaxRate = getDefaultTaxRate(resolvedIndustry, data.state)
+  const autoTaxRate = getDefaultTaxRate(primaryIndustry, data.state)
 
   // Build the row object mapping form fields to DB columns
   const row = {
@@ -87,7 +94,8 @@ export async function createOrUpdateCompany(
     phone: data.phone || null,
     email: data.email || null,
     website: data.website || null,
-    industry: resolvedIndustry || null,
+    industry: primaryIndustry,
+    industries: resolvedIndustries,
     brand_primary_color: data.brandPrimaryColor || SYSTEM_COLORS.primary,
     logo_url: data.logoUrl || null,
     address: data.address || null,
@@ -179,10 +187,17 @@ export async function createOrUpdateCompany(
     // At creation there is exactly one user (the owner) so the company phone becomes
     // their default WhatsApp routing number. Tied to claims.sub so it surfaces in their
     // Profile settings; additional users later get a blank field until they set their own.
+    // NOTE (Phase 98): the onboarding phone is the company's client-facing contact
+    // (companies.phone, shown on estimates). The owner's WhatsApp line is normally their
+    // PROFILE phone, synced to company_whatsapp.owner_phone in updateProfile; this is just
+    // a one-time creation-time seed and updateProfile overwrites it thereafter.
     syncOwnerPhone(service, newCompanyId, data.phone, claims.sub as string).catch(() => undefined)
 
-    // Seed industry-specific price book defaults (fire-and-forget)
-    seedIndustryPriceBook(service, newCompanyId, resolvedIndustry, row.currency_code).catch(() => undefined)
+    // Seed industry-specific price book defaults — ONLY when the user opted in
+    // (fire-and-forget). Unchecked → the price book starts empty.
+    if (data.prefillPriceBook) {
+      seedIndustryPriceBook(service, newCompanyId, resolvedIndustries, row.currency_code).catch(() => undefined)
+    }
 
     // Send welcome email to new account owner (fire-and-forget)
     const userEmail = (claims as Record<string, unknown>).email as string | undefined
@@ -233,7 +248,9 @@ export async function createOrUpdateCompany(
           'Could not save your company details. Please check your connection and try again.',
       }
     }
-    // Sync owner phone for existing company update (tie to the editing user's row)
+    // Sync owner phone for existing company update (tie to the editing user's row).
+    // (Phase 98) Company phone is the client-facing estimate contact; the owner's
+    // WhatsApp line is primarily synced from their profile phone in updateProfile.
     const svcUpdate = requireServiceClient()
     syncOwnerPhone(svcUpdate, existing.id, data.phone, claims.sub as string).catch(() => undefined)
 
@@ -270,10 +287,15 @@ export async function createOrUpdateCompany(
 
     // Auto-fill the creating user's personal WhatsApp number from the company phone
     // (single user at creation → company phone becomes their default routing number).
+    // (Phase 98) This is only a creation-time seed; owner_phone is primarily synced
+    // from the owner's profile phone in updateProfile thereafter.
     syncOwnerPhone(service, newCompany.id, data.phone, claims.sub as string).catch(() => undefined)
 
-    // Seed industry-specific price book defaults (fire-and-forget)
-    seedIndustryPriceBook(service, newCompany.id, resolvedIndustry, row.currency_code).catch(() => undefined)
+    // Seed industry-specific price book defaults — ONLY when the user opted in
+    // (fire-and-forget). Unchecked → the price book starts empty.
+    if (data.prefillPriceBook) {
+      seedIndustryPriceBook(service, newCompany.id, resolvedIndustries, row.currency_code).catch(() => undefined)
+    }
 
     // Send welcome email (fire-and-forget)
     const userEmail2 = (claims as Record<string, unknown>).email as string | undefined

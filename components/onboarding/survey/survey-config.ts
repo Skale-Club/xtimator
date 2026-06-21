@@ -89,16 +89,16 @@ export const SURVEY_STEPS: readonly SurveyStepDef[] = [
   },
   {
     key: 'industry',
-    label: 'Which industry best describes your business?',
-    helper: 'We use this to tailor estimate templates.',
+    label: 'Which services does your business offer?',
+    helper: 'Select all that apply — we use these to tailor estimates and price-book starters.',
     required: false,
     validate: (v) => {
-      if (v.industry === 'other' && (!v.customIndustry || v.customIndustry.trim() === '')) {
-        return 'Please describe your industry'
+      if (v.industries.includes('other') && (!v.customIndustry || v.customIndustry.trim() === '')) {
+        return 'Please describe your service'
       }
       return null
     },
-    isFilled: (v) => !!v.industry?.trim(),
+    isFilled: (v) => v.industries.length > 0,
   },
   {
     key: 'language',

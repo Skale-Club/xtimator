@@ -21,6 +21,12 @@ export const EstimateState = Annotation.Root({
   channel: Annotation<'whatsapp' | 'web' | 'mcp'>(),
   /** Free-form prompts (web/MCP describe-in-words, text-only inbound). */
   prompts: Annotation<string[] | undefined>(),
+  /**
+   * auth.users.id of the staff member or owner who triggered generation.
+   * Threaded into the generate node → service so it stamps created_by_user_id,
+   * which drives "Prepared by" in generated PDFs. Channel-neutral.
+   */
+  createdByUserId: Annotation<string | undefined>(),
   /** Output of the generate node. */
   estimateId: Annotation<string | undefined>(),
   /** Output of the generate node; used by the adapter for reply copy language. */

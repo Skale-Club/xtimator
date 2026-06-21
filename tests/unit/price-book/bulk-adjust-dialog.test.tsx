@@ -18,8 +18,17 @@ vi.mock('@/lib/actions/price-book', () => ({
 import { BulkAdjustDialog } from '@/components/price-book/bulk-adjust-dialog'
 import { toast } from 'sonner'
 
+const ITEM_DEFAULTS = {
+  pricing_type: 'fixed' as const,
+  base_price: null,
+  price_per_unit: null,
+  minimum_price: null,
+  area_sizes: null,
+}
+
 const mockItems: PriceBookItem[] = [
   {
+    ...ITEM_DEFAULTS,
     id: '1',
     company_id: 'c1',
     folder_id: 'folder-labor',
@@ -32,6 +41,7 @@ const mockItems: PriceBookItem[] = [
     image_url: null,
   },
   {
+    ...ITEM_DEFAULTS,
     id: '2',
     company_id: 'c1',
     folder_id: 'folder-labor',

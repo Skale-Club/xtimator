@@ -35,8 +35,9 @@ export async function syncOwnerPhone(
   companyId: string,
   rawPhone: string | null | undefined,
   userId?: string | null
-): Promise<void> {
+): Promise<{ phoneChanged: boolean; ownerPhone: string | null }> {
   const ownerPhone = toOwnerPhone(rawPhone)
+  let phoneChanged = false
 
   if (userId) {
     // Per-user path: read existing row for this (company, user) pair.
@@ -47,7 +48,7 @@ export async function syncOwnerPhone(
       .eq('user_id', userId)
       .maybeSingle()
 
-    const phoneChanged = ownerPhone !== (current?.owner_phone ?? null)
+    phoneChanged = ownerPhone !== (current?.owner_phone ?? null)
 
     const row: Record<string, unknown> = {
       company_id: companyId,
@@ -70,7 +71,7 @@ export async function syncOwnerPhone(
       .is('user_id', null)
       .maybeSingle()
 
-    const phoneChanged = ownerPhone !== (current?.owner_phone ?? null)
+    phoneChanged = ownerPhone !== (current?.owner_phone ?? null)
 
     const row: Record<string, unknown> = {
       company_id: companyId,
@@ -83,4 +84,8 @@ export async function syncOwnerPhone(
       .from('company_whatsapp')
       .upsert(row, { onConflict: 'company_id' })
   }
+
+  // Returned so callers can fire the proactive welcome template only on a real
+  // change (and target the normalized E.164 number). origin/dev (Phase 98).
+  return { phoneChanged, ownerPhone }
 }

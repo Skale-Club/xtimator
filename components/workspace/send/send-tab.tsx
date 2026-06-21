@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
-import { FileText, Lock } from 'lucide-react'
+import { FileText } from 'lucide-react'
 import { EstimatePreview, LanguageFlagChip } from './estimate-preview'
 import { SendForm } from './send-form'
 import { SendActionsMenu } from './send-actions-menu'
@@ -19,6 +19,7 @@ interface SendTabProps {
   clientPhone: string | null
   clientName: string
   ownerName: string
+  companyWebsite?: string | null
   estimateTemplate: EstimateTemplate
   smsDeliveryEnabled: boolean
   whatsappSendEnabled?: boolean
@@ -35,7 +36,7 @@ function StepHeading({ index, title }: { index: number; title: string }) {
   )
 }
 
-export function SendTab({ estimate, projectName, companyName, clientEmail, clientPhone, clientName, ownerName, estimateTemplate, smsDeliveryEnabled, whatsappSendEnabled = false }: SendTabProps) {
+export function SendTab({ estimate, projectName, companyName, clientEmail, clientPhone, clientName, ownerName, companyWebsite, estimateTemplate, smsDeliveryEnabled, whatsappSendEnabled = false }: SendTabProps) {
   const { t } = useTranslation()
   const [plainTextOpen, setPlainTextOpen] = useState(false)
 
@@ -52,8 +53,6 @@ export function SendTab({ estimate, projectName, companyName, clientEmail, clien
       </Card>
     )
   }
-
-  const isDraft = estimate.workflow_status !== 'consolidated'
 
   return (
     <div className="mx-auto w-full max-w-2xl space-y-6">
@@ -77,21 +76,9 @@ export function SendTab({ estimate, projectName, companyName, clientEmail, clien
           companyName={companyName}
           ownerName={ownerName}
           estimateTemplate={estimateTemplate}
-          disabled={isDraft}
           onOpenEditor={() => setPlainTextOpen(true)}
         />
       </div>
-
-      {isDraft && (
-        <Card variant="glass">
-          <CardContent className="flex items-center gap-3 py-4">
-            <Lock className="h-4 w-4 text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">
-              {t('This estimate is still a draft. Consolidate it from the Estimate tab to send, download, or share.')}
-            </p>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Step 1 — Review */}
       <div className="space-y-3">
@@ -106,12 +93,15 @@ export function SendTab({ estimate, projectName, companyName, clientEmail, clien
           estimateId={estimate.id}
           clientEmail={clientEmail}
           clientPhone={clientPhone}
+          clientName={clientName}
           companyName={companyName}
           projectName={projectName}
           shareToken={estimate.share_token}
           smsDeliveryEnabled={smsDeliveryEnabled}
           whatsappSendEnabled={whatsappSendEnabled}
-          disabled={isDraft}
+          estimate={estimate}
+          ownerName={ownerName}
+          companyWebsite={companyWebsite}
         />
       </div>
 

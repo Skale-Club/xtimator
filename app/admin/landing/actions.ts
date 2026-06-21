@@ -10,15 +10,17 @@ import {
   landingContentSchema,
   heroImageFileSchema,
   stepImageFileSchema,
+  featureImageFileSchema,
   type LandingContentInput,
 } from '@/lib/schemas/admin'
 
 export type SaveLandingResult =
-  | { ok: true; stepImageUrls: Array<string | null> }
+  | { ok: true; stepImageUrls: Array<string | null>; featureImageUrls: Array<string | null> }
   | { ok: false; message: string }
 
 const MANAGED_HERO_PREFIX = '/platform-brand/hero-images/'
 const MANAGED_STEP_PREFIX = '/platform-brand/step-images/'
+const MANAGED_FEATURE_PREFIX = '/platform-brand/feature-images/'
 
 /**
  * Sanitize an upload filename into a slug-safe storage key fragment.
@@ -169,10 +171,60 @@ export async function saveLandingContent(formData: FormData): Promise<SaveLandin
     }
   })
 
+  // --- Feature images (one per feature card): convert to WebP, upload, or remove ---
+  const featureImageUrls: Array<string | null | undefined> = []
+  for (let i = 0; i < (parsed.data.features?.length ?? 0); i++) {
+    const rawFeatureFile = formData.get(`featureImageFile_${i}`)
+    const featureFile = rawFeatureFile instanceof File && rawFeatureFile.size > 0 ? rawFeatureFile : null
+    const featureRemoved = formData.get(`featureImageRemoved_${i}`) === 'true'
+
+    if (featureFile) {
+      const fileCheck = featureImageFileSchema.safeParse(featureFile)
+      if (!fileCheck.success) {
+        return { ok: false, message: `Feature ${i + 1} image: ${fileCheck.error.issues[0]?.message ?? 'Invalid file'}` }
+      }
+      const webpBuffer = await sharp(Buffer.from(await featureFile.arrayBuffer()))
+        .webp({ quality: 85 })
+        .toBuffer()
+      const path = `feature-images/${Date.now()}-feature-${i}.webp`
+      try {
+        const result = await storage.upload('platform-brand', path, webpBuffer, {
+          contentType: 'image/webp',
+          upsert: true,
+        })
+        featureImageUrls.push(storage.getPublicUrl('platform-brand', result.path))
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Feature image upload failed.'
+        return { ok: false, message }
+      }
+    } else if (featureRemoved) {
+      const existingFeature = (parsed.data.features ?? [])[i]
+      const existingUrl = existingFeature?.imageUrl ?? null
+      if (existingUrl && existingUrl.includes(MANAGED_FEATURE_PREFIX)) {
+        const idx = existingUrl.indexOf(MANAGED_FEATURE_PREFIX)
+        const extracted = existingUrl.slice(idx + '/platform-brand/'.length)
+        try {
+          await storage.delete('platform-brand', extracted)
+        } catch (err) {
+          console.warn(`[saveLandingContent] feature ${i} image storage delete failed:`, err)
+        }
+      }
+      featureImageUrls.push(null)
+    } else {
+      featureImageUrls.push(undefined)
+    }
+  }
+
+  const mergedFeatures = (parsed.data.features ?? []).map((f, i) => ({
+    ...f,
+    imageUrl: featureImageUrls[i] !== undefined ? featureImageUrls[i] : (f.imageUrl ?? null),
+  }))
+
   const persisted: LandingContentInput = {
     ...parsed.data,
     heroImageUrl: finalHeroUrl,
     howItWorksSteps: mergedSteps as LandingContentInput['howItWorksSteps'],
+    features: mergedFeatures as LandingContentInput['features'],
   }
 
   // Preserve the required singleton app name so an upsert INSERT path never
@@ -205,5 +257,9 @@ export async function saveLandingContent(formData: FormData): Promise<SaveLandin
     },
   })
 
-  return { ok: true, stepImageUrls: mergedSteps.map(s => s.imageUrl ?? null) }
+  return {
+    ok: true,
+    stepImageUrls: mergedSteps.map(s => s.imageUrl ?? null),
+    featureImageUrls: mergedFeatures.map(f => f.imageUrl ?? null),
+  }
 }

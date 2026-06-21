@@ -45,6 +45,8 @@ export interface GenerateEstimateOptions {
    * Omit for web/MCP so those channels are unaffected.
    */
   channel?: 'whatsapp'
+  /** auth.users.id of the staff member or owner who triggered generation. Stored on the estimate for "Prepared by" attribution. */
+  createdByUserId?: string
 }
 
 function normalizeClientNameForMatch(name: string): string {
@@ -306,6 +308,7 @@ export async function generateEstimateForProject(
       tax_amount: taxAmount,
       total: grandTotal,
       language,
+      created_by_user_id: options.createdByUserId ?? null,
     })
     .select('id')
     .single()

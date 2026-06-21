@@ -24,6 +24,7 @@ import { saveLandingContent } from './actions'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { HeroImageUploader } from '@/components/admin/hero-image-uploader'
 import { StepImageUploader } from '@/components/admin/step-image-uploader'
+import { FeatureImageUploader } from '@/components/admin/feature-image-uploader'
 
 interface LandingEditorProps {
   initial: LandingContentInput
@@ -63,6 +64,15 @@ export function LandingEditor({ initial }: LandingEditorProps) {
   // Incrementing key forces StepImageUploader remount after save, clearing local blob previews.
   const [stepUploaderKey, setStepUploaderKey] = useState(0)
 
+  // Per-feature image state (one per feature card)
+  const [featureImages, setFeatureImages] = useState<Array<{ file: File | null; removed: boolean }>>(
+    () => (initial.features ?? []).map(() => ({ file: null, removed: false }))
+  )
+  const [currentFeatureUrls, setCurrentFeatureUrls] = useState<Array<string | null>>(
+    () => (initial.features ?? []).map(f => f.imageUrl ?? null)
+  )
+  const [featureUploaderKey, setFeatureUploaderKey] = useState(0)
+
   function handleHeroImageSelect(file: File, preview: string) {
     setHeroImageFile(file)
     setHeroImagePreview(preview)
@@ -84,6 +94,15 @@ export function LandingEditor({ initial }: LandingEditorProps) {
     setCurrentStepUrls(prev => prev.map((url, i) => i === index ? null : url))
   }
 
+  function handleFeatureImageSelect(index: number, file: File) {
+    setFeatureImages(prev => prev.map((s, i) => i === index ? { file, removed: false } : s))
+  }
+
+  function handleFeatureImageRemove(index: number) {
+    setFeatureImages(prev => prev.map((s, i) => i === index ? { file: null, removed: true } : s))
+    setCurrentFeatureUrls(prev => prev.map((url, i) => i === index ? null : url))
+  }
+
   function onSubmit(values: LandingContentInput) {
     startTransition(async () => {
       const fd = new FormData()
@@ -92,11 +111,15 @@ export function LandingEditor({ initial }: LandingEditorProps) {
       const payload: LandingContentInput = {
         ...values,
         heroImageUrl: heroImageRemoved ? null : values.heroImageUrl ?? null,
-        // Always send the CDN URL (never a blob: URL) so the server's "no change"
-        // branch preserves the real URL rather than overwriting with null.
+        // Always send CDN URLs (never blob: URLs) so the server's "no change"
+        // branch preserves real URLs rather than overwriting with null.
         howItWorksSteps: values.howItWorksSteps.map((step, i) => ({
           ...step,
           imageUrl: stepImages[i]?.removed ? null : currentStepUrls[i] ?? null,
+        })),
+        features: values.features.map((f, i) => ({
+          ...f,
+          imageUrl: featureImages[i]?.removed ? null : currentFeatureUrls[i] ?? null,
         })),
       }
       fd.set('content', JSON.stringify(payload))
@@ -105,6 +128,10 @@ export function LandingEditor({ initial }: LandingEditorProps) {
       stepImages.forEach((s, i) => {
         if (s.file) fd.set(`stepImageFile_${i}`, s.file)
         fd.set(`stepImageRemoved_${i}`, String(s.removed))
+      })
+      featureImages.forEach((s, i) => {
+        if (s.file) fd.set(`featureImageFile_${i}`, s.file)
+        fd.set(`featureImageRemoved_${i}`, String(s.removed))
       })
 
       const result = await saveLandingContent(fd)
@@ -115,6 +142,9 @@ export function LandingEditor({ initial }: LandingEditorProps) {
         setCurrentStepUrls(result.stepImageUrls)
         setStepImages(prev => prev.map(() => ({ file: null, removed: false })))
         setStepUploaderKey(k => k + 1)
+        setCurrentFeatureUrls(result.featureImageUrls)
+        setFeatureImages(prev => prev.map(() => ({ file: null, removed: false })))
+        setFeatureUploaderKey(k => k + 1)
       } else {
         toast.error(result.message)
       }
@@ -279,6 +309,18 @@ export function LandingEditor({ initial }: LandingEditorProps) {
                     render={({ field: f }) => (
                       <FormItem><FormLabel>{t('Benefit Tag')}</FormLabel><FormControl><Input placeholder={t('Benefit label')} {...f} /></FormControl><FormMessage /></FormItem>
                     )} />
+                  <FormItem>
+                    <FormLabel>{t('Card image')}</FormLabel>
+                    <FormControl>
+                      <FeatureImageUploader
+                        key={`${featureUploaderKey}-${index}`}
+                        currentUrl={currentFeatureUrls[index] ?? null}
+                        featureIndex={index}
+                        onFileSelect={(file) => handleFeatureImageSelect(index, file)}
+                        onRemove={() => handleFeatureImageRemove(index)}
+                      />
+                    </FormControl>
+                  </FormItem>
                 </div>
               )
             ))}

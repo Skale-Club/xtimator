@@ -2,7 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
-import { priceBookItemSchema, type PriceBookItemFormValues } from '@/lib/schemas/price-book'
+import { priceBookItemSchema, type PriceBookItemFormValues, type ItemOption } from '@/lib/schemas/price-book'
 import { createStorage, buildStorageKey } from '@/lib/storage'
 import {
   applyDedupeStrategy,
@@ -119,9 +119,36 @@ export async function resolveOrCreateFolders(
 
 // ── Item CRUD ────────────────────────────────────────────────
 
+function effectiveUnitPrice(formData: PriceBookItemFormValues): number {
+  if (formData.pricing_type === 'area_based') return formData.minimum_price ?? 0
+  if (formData.pricing_type === 'base_plus_addons') return formData.base_price ?? 0
+  return formData.unit_price
+}
+
+export async function setItemOptions(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  itemId: string,
+  companyId: string,
+  options: ItemOption[]
+) {
+  await supabase.from('price_book_item_options').delete().eq('item_id', itemId)
+  if (options.length === 0) return
+  await supabase.from('price_book_item_options').insert(
+    options.map((opt, i) => ({
+      item_id: itemId,
+      company_id: companyId,
+      name: opt.name,
+      price: opt.price,
+      max_quantity: opt.max_quantity ?? null,
+      sort_order: opt.sort_order ?? i,
+    }))
+  )
+}
+
 export async function createPriceBookItem(
   formData: PriceBookItemFormValues,
-  imageFile?: File | null
+  imageFile?: File | null,
+  options?: ItemOption[]
 ) {
   const denied = await assertWritable()
   if (denied) return denied
@@ -138,16 +165,26 @@ export async function createPriceBookItem(
       folder_id: formData.folder_id ?? null,
       name: formData.name,
       unit: formData.unit || null,
-      unit_price: formData.unit_price,
+      unit_price: effectiveUnitPrice(formData),
       notes: formData.notes || null,
       image_url: formData.image_url || null,
+      pricing_type: formData.pricing_type ?? 'fixed',
+      base_price: formData.base_price ?? null,
+      price_per_unit: formData.price_per_unit ?? null,
+      minimum_price: formData.minimum_price ?? null,
+      area_sizes: formData.area_sizes ?? null,
     })
     .select()
     .single()
 
   if (error) return { error: 'Failed to create item. Please try again.' }
 
-  // Upload image if provided — create-then-update pattern (Phase 03 logo)
+  // Save options for base_plus_addons
+  if (data && options && options.length > 0) {
+    await setItemOptions(supabase, data.id, company.id, options)
+  }
+
+  // Upload image if provided — create-then-update pattern
   if (imageFile && imageFile.size > 0 && data) {
     const ext = imageFile.name.split('.').pop() ?? 'jpg'
     const key = buildStorageKey({
@@ -175,7 +212,8 @@ export async function createPriceBookItem(
 export async function updatePriceBookItem(
   itemId: string,
   formData: PriceBookItemFormValues,
-  imageFile?: File | null
+  imageFile?: File | null,
+  options?: ItemOption[]
 ) {
   const denied = await assertWritable()
   if (denied) return denied
@@ -190,15 +228,25 @@ export async function updatePriceBookItem(
       folder_id: formData.folder_id ?? null,
       name: formData.name,
       unit: formData.unit || null,
-      unit_price: formData.unit_price,
+      unit_price: effectiveUnitPrice(formData),
       notes: formData.notes || null,
       image_url: formData.image_url || null,
+      pricing_type: formData.pricing_type ?? 'fixed',
+      base_price: formData.base_price ?? null,
+      price_per_unit: formData.price_per_unit ?? null,
+      minimum_price: formData.minimum_price ?? null,
+      area_sizes: formData.area_sizes ?? null,
     })
     .eq('id', itemId)
     .select()
     .single()
 
   if (error) return { error: 'Failed to update item. Please try again.' }
+
+  // Replace options for base_plus_addons (options array always passed; empty = clear)
+  if (options !== undefined) {
+    await setItemOptions(supabase, itemId, company.id, options)
+  }
 
   // Upload new image if provided
   if (imageFile && imageFile.size > 0 && data) {
@@ -223,6 +271,22 @@ export async function updatePriceBookItem(
 
   revalidatePath('/price-book')
   return { data }
+}
+
+export async function fetchItemOptions(itemId: string): Promise<
+  | { data: Array<{ id: string; item_id: string; company_id: string; name: string; price: number; max_quantity: number | null; sort_order: number }> }
+  | { error: string }
+> {
+  const ctx = await getAuthContext()
+  if ('error' in ctx) return { error: ctx.error as string }
+  const { supabase } = ctx
+  const { data, error } = await supabase
+    .from('price_book_item_options')
+    .select('id, item_id, company_id, name, price, max_quantity, sort_order')
+    .eq('item_id', itemId)
+    .order('sort_order')
+  if (error) return { error: 'Failed to load options.' }
+  return { data: data ?? [] }
 }
 
 export async function deletePriceBookItem(itemId: string) {

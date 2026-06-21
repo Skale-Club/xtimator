@@ -22,6 +22,7 @@
 - ✅ **v4.1 MCP Server** — Phases 86-90 (shipped 2026-05-26) · [archive](milestones/v4.1-ROADMAP.md)
 - ✅ **v4.2 Recording Reliability & Observability** — Phases 91-93 (shipped 2026-05-30)
 - 🚧 **v4.3 Unified Agentic Estimate Engine** — Phases 94-97 (started 2026-06-20)
+- 📋 **v4.4 WhatsApp Notifications** — Phase 98 (planned 2026-06-20, queued after v4.3)
 
 > **Phase numbering note:** v3.1.1 starts at **Phase 66**, not 62. Phases 62-65 are reserved as DEFERRED placeholders for the v3.2 Production Deploy milestone (Vercelâ†’Hetzner deploy + Stripe live + monitoring + UAT in prod). Skipping past 62-65 keeps the global phase counter unambiguous and prevents number reuse confusion when v3.2 begins.
 
@@ -1097,6 +1098,23 @@ Plans:
   2. Langfuse is migrated to the v5 OTel SDK (`@langfuse/langchain` + `@langfuse/otel` + `@langfuse/tracing`, replacing the LangChain-v1-incompatible `langfuse@3.38.20`) and coexists with `@sentry/nextjs` OTel on a shared tracer provider without collision (Sentry set to `skipOpenTelemetrySetup: true`, both processors on one `NodeTracerProvider` in `instrumentation.ts`)
   3. Per-channel AI call-count and latency (p95) per estimate are visible in the traces — and the deterministic vagueness gate is confirmed still in place so the web non-vague happy-path call count stays pinned at 1; no Langfuse keys/host or transcript/audio/key tokens are committed (env-var only, safe-metadata rule from v4.2)
 **Plans**: TBD
+
+### v4.4 WhatsApp Notifications (Phase 98)
+
+### Phase 98: WhatsApp Template Notifications — Owner Alerts via Approved HSM Templates
+**Goal**: The profile-settings promise "Used for account recovery and WhatsApp notifications" becomes true. The business owner actually receives WhatsApp messages for key estimate events (e.g. viewed / approved / paid), sent as Meta-approved **message templates (HSM)** so delivery works *outside* the 24-hour customer-service window. WhatsApp becomes a first-class, opt-in channel in the existing `notify()` notifications pipeline. Reuses Xtimator's own WABA (already configured; `wabaId` currently unused). `xphere` (`C:\Dev\xphere`) is the read-only reference implementation we port the send shape from — NOT a runtime dependency. Templates are authored manually in Meta WhatsApp Manager for the MVP; an in-app builder is deferred.
+**Depends on**: Phase 40 (WhatsApp client + `getWhatsAppPlatformConfig`), Phase 77 (notifications system + `notify()` dispatch), Phase 70 (estimate payment/activity events that trigger alerts)
+**Requirements**: WANOTIF-01, WANOTIF-02, WANOTIF-03, WANOTIF-04, WANOTIF-05
+**Success Criteria** (what must be TRUE):
+  1. `lib/whatsapp/client.ts` exports `sendWhatsAppTemplate(to, { name, languageCode, bodyVariables?, headerVariables? })` that POSTs a `type: 'template'` message to `/{phoneNumberId}/messages` using the existing platform config — `components` are built from the variable arrays exactly as xphere does, and the function follows the same throw-on-non-2xx convention as `sendWhatsAppMessage`
+  2. `lib/notifications/dispatch.ts` accepts a `whatsapp` channel on `NotifyParams.channels`; when enabled it resolves the owner's E.164 phone (`company_whatsapp.owner_phone`, falling back to `auth.users.user_metadata.phone`) and sends a mapped approved template — driven by a small explicit `EventType → { templateName, languageCode, variables }` registry (NOT auto-enabled for every event)
+  3. WhatsApp sends are opt-in via notification preferences and dispatched asynchronously (queued via Inngest, mirroring the email branch) so a slow Meta call never blocks the request path; a WhatsApp send failure is best-effort and never breaks the triggering business operation (same contract as in-app/email)
+  4. The profile-settings help text and the notification-preferences UI accurately reflect reality — the owner can toggle WhatsApp notifications on/off, and the label no longer promises an unbacked feature
+  5. Unit tests cover the `sendWhatsAppTemplate` payload (correct `type: 'template'`, components from variable arrays, language code) mirroring `tests/unit/whatsapp/client.test.ts`, plus a dispatch test asserting the `whatsapp` channel resolves the owner phone and calls the template sender, and that preference-off / missing-phone are no-ops; `npx vitest run` stays green
+**Plans**: TBD (needs `/gsd:plan-phase 98` once GSD tooling is installed, or manual plan authoring)
+**Prerequisite (manual, outside code)**: Author the MVP notification template(s) in Meta WhatsApp Manager under Xtimator's existing WABA (category UTILITY for fastest approval), submit for approval, and record the approved `name` + `language` for the event→template registry. Nothing sends until Meta marks the template APPROVED.
+**Deferred (Phase 4 of the plan)**: in-app template builder + Meta approval-status webhook sync (port `C:\Dev\xphere\src\lib\whatsapp\cloud\templates.ts` + `template-composer-dialog.tsx`; handle `message_template_status_update` in `app/api/webhooks/whatsapp/route.ts`). This is where the unused `wabaId` would finally be consumed.
+**Full approved analysis/plan**: `C:\Users\Leila\.claude\plans\analyze-deeply-the-part-sunny-pearl.md` (mirrored into this phase's CONTEXT doc).
 
 ### Phase 1000: Xphere CRM Sync
 **Goal**: Every Xtimator company is mirrored into the Xphere "Xtimator" org as an Account + Contact + Opportunity by POSTing the FIXED webhook contract to the already-built Xphere receiver `POST {XPHERE_BASE_URL}/api/xtimator/webhook` (Bearer XPHERE_API_KEY), dispatched via Inngest for retries + non-blocking UX. Stage mapping, custom_fields snapshot, and reliability rules honor 1000-CONTEXT.md verbatim (incl. the em-dash stage literals "Active — Pro" / "Active — Business").

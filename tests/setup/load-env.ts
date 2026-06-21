@@ -1,3 +1,13 @@
+// Radix UI components (RadioGroup, Select, etc.) use ResizeObserver internally.
+// JSDOM doesn't implement it, so provide a no-op stub.
+if (typeof global.ResizeObserver === 'undefined') {
+  global.ResizeObserver = class ResizeObserver {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  }
+}
+
 /**
  * Test setup: load .env.local into process.env before tests run.
  *
