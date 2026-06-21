@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v4.3
 milestone_name: Unified Agentic Estimate Engine
-status: Phase 99 COMPLETE (3/3 plans) — HARD-03 + HARD-04 GREEN. 99-02 landed the typed FailureReason union (lib/estimate/failure.ts) as the single source for both XtimatorError and channel copy; graph failure channel typed; provider_unavailable marker mapped in generate.ts; refine route returns typed { error, code } (no bare throw->500)
-stopped_at: Completed 99-02-PLAN.md
-last_updated: "2026-06-21T14:35:58.246Z"
-last_activity: 2026-06-21 — executed 99-02-PLAN.md (HARD-04 unified typed failure model + refine error surface)
+status: Phase 100 IN PROGRESS (1/4 plans) — 100-00 Wave-0 RED scaffold landed. 7 test files (4 new GUARD-01/02/03 suites + 3 migrated/extended) author the executable contracts; all RED-by-design until Waves 1-2 (100-01/02/03) add the source (schema.ts, normalize NormalizeResult, InvalidEstimateOutputError + retry, price-anchoring.ts, totals.ts, GUARD-04 correlation wiring). Nyquist contract satisfied for Phase 100.
+stopped_at: Completed 100-00-PLAN.md
+last_updated: "2026-06-21T15:18:59.172Z"
+last_activity: 2026-06-21 — executed 100-00-PLAN.md (Phase 100 Wave-0 RED test scaffold: GUARD-01..04 contracts)
 progress:
   total_phases: 52
   completed_phases: 39
@@ -22,12 +22,12 @@ progress:
 
 ## Current Position
 
-Phase: 99 (Unified Error Model + Shared Provider-Fallback Wrapper) — COMPLETE (3/3 plans)
-Plan: 99-00 + 99-01 + 99-02 complete
-Status: HARD-03 + HARD-04 GREEN. 99-02 added the single typed FailureReason union (lib/estimate/failure.ts) driving both XtimatorError (HTTP boundary) and channel copy; typed graph failure channel; generate.ts maps the ProvidersUnavailableError marker to 'provider_unavailable'; both adapters source onError through the map; refine route catch -> asResponse(err) (no bare throw->500, 422/429/demo-guard preserved).
-Last activity: 2026-06-21 — executed 99-02-PLAN.md (HARD-04 unified typed failure model + refine error surface)
-Stopped at: Completed 99-02-PLAN.md
-Next Up: `/gsd:execute-phase 100` — Output Guardrails (GUARD-01 produces the already-DEFINED 'invalid_output' reason; GUARD-02/03/04). Phase 99 done.
+Phase: 100 (Output Guardrails — Schema Validation, Price Anchoring, Totals Authority, Correlation ID) — IN PROGRESS (1/4 plans)
+Plan: 100-00 complete (Wave-0 RED scaffold); 100-01 / 100-02 / 100-03 pending
+Status: 100-00 authored the GUARD-01..04 RED contracts across 7 test files (schema accept/reject + price_source coercion + client-name transform; bounded-retry call counts + InvalidEstimateOutputError; price anchor/clamp/tenant-scope with UNIT_PRICE_CEILING=1_000_000; totals invariants + totals_discrepancy metric; NormalizeResult migration; invalid_output mapping; GUARD-04 correlationId source-anchor). All RED by design; tests-only diff; zero vite:import-analysis errors; no regressions in the 16 other ai/estimate test files. Phase 99 (HARD-03/04) COMPLETE.
+Last activity: 2026-06-21 — executed 100-00-PLAN.md (Phase 100 Wave-0 RED test scaffold)
+Stopped at: Completed 100-00-PLAN.md
+Next Up: `/gsd:execute-phase 100` — continue with 100-01 (GUARD-01: lib/ai/schema.ts + normalize NormalizeResult + InvalidEstimateOutputError + bounded retry + invalid_output mapping in generate.ts).
 
 > Xtimator side (Fase B): plans 01–05 done on `dev`. Xphere side (Fase A): receiver
 > `POST /api/xtimator/webhook` + migration 1213 + pipeline seed on the **xphere** repo
@@ -42,7 +42,7 @@ Next Up: `/gsd:execute-phase 100` — Output Guardrails (GUARD-01 produces the a
 > **Scope guardrails (inherited from v4.3, do NOT plan against):** Inngest is the sole durability layer (NO LangGraph checkpointer); full per-node `step.run` decomposition stays DEFERRED (only the existing `StepRunner` seam is used); WhatsApp intent-router unification out of scope; no new estimate features.
 
 - Phase 99: Unified Error Model + Shared Provider-Fallback Wrapper (HARD-03 ✅, HARD-04 ✅) — COMPLETE (3/3 plans: 99-00 Wave-0 RED scaffold + 99-01 HARD-03 fallback wrapper + 99-02 HARD-04 typed failure model) — FOUNDATIONAL
-- Phase 100: Output Guardrails — Schema Validation, Price Anchoring, Totals Authority, Correlation ID (GUARD-01, GUARD-02, GUARD-03, GUARD-04) — Not started. Depends on Phase 99.
+- Phase 100: Output Guardrails — Schema Validation, Price Anchoring, Totals Authority, Correlation ID (GUARD-01, GUARD-02, GUARD-03, GUARD-04) — IN PROGRESS (1/4 plans: 100-00 Wave-0 RED scaffold landed). Depends on Phase 99.
 - Phase 101: Unified Multimodal Ingestion + Refine Through the Graph (HARD-01, HARD-02, UNIFY-01, UNIFY-02, UNIFY-03) — Not started. Depends on Phases 99 + 100. Largest structural change (removes inline `app/api/estimates/[id]/refine/route.ts` logic).
 - Phase 102: Resilience Hardening — Batch Isolation, Configurable Auto-Refine + Recourse, Replay-Safe TTL (HARD-05, HARD-06, HARD-07) — Not started. Depends on Phase 101.
 - Phase 103: Eval/Test Harness + CI Regression Gate (EVAL-01, EVAL-02, EVAL-03, EVAL-04) — Not started. Depends on Phases 100 + 101 + 102. LAST — validates the hardened engine end-to-end.
@@ -727,6 +727,7 @@ Next Up: `/gsd:execute-phase 100` — Output Guardrails (GUARD-01 produces the a
 | Phase 99 P00 | 25 | 3 tasks | 7 files |
 | Phase 99 P01 | 12m | 3 tasks | 5 files |
 | Phase 99 P02 | 12min | 3 tasks | 6 files |
+| Phase 100 P00 | 9min | 3 tasks | 7 files |
 
 ## Project Reference
 
