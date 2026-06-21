@@ -30,12 +30,16 @@ function publicIconConflicts() {
 
 describe('App Router icon contract (Phase 13)', () => {
   it('ships all canonical icon assets under app/', () => {
-    // favicon.ico intentionally removed in 802890f — generateMetadata icons take priority
-    // over a static .ico; the manifest fallback still references /favicon.ico for legacy clients
     expect(existsSync(resolve(appDir, 'icon.svg'))).toBe(true)
     expect(existsSync(resolve(appDir, 'icon.png'))).toBe(true)
     expect(existsSync(resolve(appDir, 'apple-icon.png'))).toBe(true)
     expect(existsSync(resolve(appDir, 'manifest.ts'))).toBe(true)
+    // Regression guard: app/favicon.ico must NOT exist. As a Next.js file convention
+    // it always emits a high-priority <link rel="icon" type="image/x-icon"> that wins
+    // over the DB-backed admin favicon from generateMetadata (the browser tab then shows
+    // the static default instead of the org's favicon). It was removed in 802890f for
+    // exactly this reason, accidentally re-added in 8bf16a3, and removed again here.
+    expect(existsSync(resolve(appDir, 'favicon.ico'))).toBe(false)
   })
 
   it('keeps hardcoded icon link tags out of app/layout.tsx', () => {
