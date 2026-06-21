@@ -174,8 +174,11 @@ export async function createOrUpdateCompany(
       }
     }
 
-    // Sync owner phone to company_whatsapp for WhatsApp inbound routing
-    syncOwnerPhone(service, newCompanyId, data.phone).catch(() => undefined)
+    // Auto-fill the creating user's personal WhatsApp number from the company phone.
+    // At creation there is exactly one user (the owner) so the company phone becomes
+    // their default WhatsApp routing number. Tied to claims.sub so it surfaces in their
+    // Profile settings; additional users later get a blank field until they set their own.
+    syncOwnerPhone(service, newCompanyId, data.phone, claims.sub as string).catch(() => undefined)
 
     // Seed industry-specific price book defaults (fire-and-forget)
     seedIndustryPriceBook(service, newCompanyId, resolvedIndustry, row.currency_code).catch(() => undefined)
@@ -226,9 +229,9 @@ export async function createOrUpdateCompany(
           'Could not save your company details. Please check your connection and try again.',
       }
     }
-    // Sync owner phone for existing company update
+    // Sync owner phone for existing company update (tie to the editing user's row)
     const svcUpdate = requireServiceClient()
-    syncOwnerPhone(svcUpdate, existing.id, data.phone).catch(() => undefined)
+    syncOwnerPhone(svcUpdate, existing.id, data.phone, claims.sub as string).catch(() => undefined)
   } else {
     // Insert new company
     // TIER-04: new companies start with a 14-day trial clock.
@@ -258,8 +261,9 @@ export async function createOrUpdateCompany(
       role: 'owner',
     })
 
-    // Sync owner phone to company_whatsapp for WhatsApp inbound routing
-    syncOwnerPhone(service, newCompany.id, data.phone).catch(() => undefined)
+    // Auto-fill the creating user's personal WhatsApp number from the company phone
+    // (single user at creation → company phone becomes their default routing number).
+    syncOwnerPhone(service, newCompany.id, data.phone, claims.sub as string).catch(() => undefined)
 
     // Seed industry-specific price book defaults (fire-and-forget)
     seedIndustryPriceBook(service, newCompany.id, resolvedIndustry, row.currency_code).catch(() => undefined)

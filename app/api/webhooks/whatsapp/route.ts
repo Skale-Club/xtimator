@@ -133,15 +133,20 @@ async function handleInboundMessage(payload: WhatsAppPayload): Promise<void> {
     // even on the very first message before any conversation history exists.
     const { data: ownerRow } = await supabase
       .from('company_whatsapp')
-      .select('company_id')
+      .select('company_id, user_id')   // user_id added for per-user conversation scoping
       .eq('owner_phone', `+${fromPhone}`)
       .eq('status', 'active')
       .maybeSingle()
 
     let resolvedCompanyId: string | null = ownerRow?.company_id ?? null
+    let resolvedOwnerPhone: string | null = null   // track for conversation scoping
+    let resolvedUserId: string | null = ownerRow?.user_id ?? null
     // Whether this message came from a registered owner (Route 1). Only owners get
     // the first-contact welcome — Routes 2-4 are fallbacks / client contacts.
     const resolvedViaOwner = Boolean(ownerRow?.company_id)
+
+    // When Route 1 matches, capture the owner_phone for conversation scoping
+    if (ownerRow) resolvedOwnerPhone = `+${fromPhone}`
 
     // Route 2: companies.phone fallback. This covers accounts created before
     // company_whatsapp.owner_phone was backfilled/synced; without it, first
@@ -227,6 +232,7 @@ async function handleInboundMessage(payload: WhatsAppPayload): Promise<void> {
       await logInboundMessage(supabase, {
         companyId: resolvedCompanyId,
         contactPhone: `+${fromPhone}`,
+        ownerPhone: resolvedOwnerPhone,     // scopes conversation to this user's number
         contactName: value?.contacts?.[0]?.profile?.name ?? null,
         body,
         msgType,

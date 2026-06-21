@@ -20,6 +20,7 @@ export interface WaConversationRow {
   contact_phone: string
   contact_name: string | null
   client_id: string | null
+  owner_phone: string | null
   last_message_at: string | null
   last_message_preview: string | null
   last_inbound_at: string | null
@@ -70,21 +71,29 @@ function previewOf(body: string | null | undefined, type: WaMsgType): string {
 /**
  * Get the conversation id for (company, contactPhone), creating it if absent.
  * Backfills contact_name / client_id when newly known (never overwrites existing values).
+ *
+ * When ownerPhone is provided, the lookup and insert are scoped to that owner's thread,
+ * enabling separate conversation histories per user in multi-user companies.
  */
 export async function getOrCreateConversation(
   svc: SupabaseClient,
   companyId: string,
   contactPhone: string,
-  opts?: { contactName?: string | null; clientId?: string | null },
+  opts?: { contactName?: string | null; clientId?: string | null; ownerPhone?: string | null },
 ): Promise<string> {
   const phone = toE164(contactPhone)
 
-  const { data: existing } = await svc
+  let query = svc
     .from('whatsapp_conversations')
     .select('id, contact_name, client_id')
     .eq('company_id', companyId)
     .eq('contact_phone', phone)
-    .maybeSingle()
+
+  if (opts?.ownerPhone) {
+    query = query.eq('owner_phone', opts.ownerPhone)
+  }
+
+  const { data: existing } = await query.maybeSingle()
 
   if (existing) {
     const patch: Record<string, unknown> = {}
@@ -103,18 +112,22 @@ export async function getOrCreateConversation(
       contact_phone: phone,
       contact_name: opts?.contactName ?? null,
       client_id: opts?.clientId ?? null,
+      owner_phone: opts?.ownerPhone ?? null,
     })
     .select('id')
     .single()
 
   if (error || !created) {
-    // Likely a concurrent insert won the UNIQUE(company_id, contact_phone) race — re-select.
-    const { data: again } = await svc
+    // Likely a concurrent insert won the unique index race — re-select.
+    let retryQuery = svc
       .from('whatsapp_conversations')
       .select('id')
       .eq('company_id', companyId)
       .eq('contact_phone', phone)
-      .single()
+    if (opts?.ownerPhone) {
+      retryQuery = retryQuery.eq('owner_phone', opts.ownerPhone)
+    }
+    const { data: again } = await retryQuery.single()
     if (!again) throw new Error(`[whatsapp] could not get/create conversation: ${error?.message}`)
     return again.id as string
   }
@@ -151,6 +164,7 @@ export async function logInboundMessage(
   params: {
     companyId: string
     contactPhone: string
+    ownerPhone?: string | null   // scopes conversation to this owner's thread
     contactName?: string | null
     body?: string | null
     msgType?: WaMsgType
@@ -160,6 +174,7 @@ export async function logInboundMessage(
 ): Promise<string> {
   const conversationId = await getOrCreateConversation(svc, params.companyId, params.contactPhone, {
     contactName: params.contactName ?? null,
+    ownerPhone: params.ownerPhone ?? null,
   })
   const type = params.msgType ?? 'text'
   const now = new Date().toISOString()
@@ -191,6 +206,7 @@ export async function logOutboundMessage(
   params: {
     companyId: string
     contactPhone: string
+    ownerPhone?: string | null   // scopes conversation to this owner's thread
     contactName?: string | null
     clientId?: string | null
     body?: string | null
@@ -204,6 +220,7 @@ export async function logOutboundMessage(
   const conversationId = await getOrCreateConversation(svc, params.companyId, params.contactPhone, {
     contactName: params.contactName ?? null,
     clientId: params.clientId ?? null,
+    ownerPhone: params.ownerPhone ?? null,
   })
   const type = params.msgType ?? 'text'
   const now = new Date().toISOString()

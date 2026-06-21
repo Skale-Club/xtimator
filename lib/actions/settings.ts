@@ -111,10 +111,10 @@ export async function updateCompanySettings(formData: FormData) {
     return { error: 'Failed to save company settings. Please try again.' }
   }
 
-  // Keep company_whatsapp.owner_phone in sync (fire-and-forget, non-blocking)
-  // Pass null as userId — this is the company-level path (legacy single-user row).
-  const svc = requireServiceClient()
-  syncOwnerPhone(svc, company.id, phone, null).catch(() => undefined)
+  // Note: the company business phone is intentionally NOT synced to company_whatsapp
+  // anymore. WhatsApp routing numbers are per-user and managed in Profile settings
+  // (saveWhatsAppNumber). The company phone seeds a user's WhatsApp number only once,
+  // at account creation (see lib/actions/company.ts), and is independent thereafter.
 
   // Detect changed fields and send a profile-update notification email
   if (currentCompany) {
