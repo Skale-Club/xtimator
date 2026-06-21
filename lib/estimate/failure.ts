@@ -50,13 +50,21 @@ const REASON_TO_TYPE: Record<FailureReason, ErrorType> = {
 /**
  * Map a FailureReason to the canonical HTTP-boundary error. Used wherever a graph
  * failure must surface as a typed JSON response (`asResponse` consumes it).
+ *
+ * GUARD-04: the optional `correlationId` (the promoted `attemptId`) rides on
+ * `XtimatorError.meta` when supplied so `asResponse` can tag the Sentry scope with
+ * `correlation_id`, joining the HTTP-surfaced error to its Langfuse trace and
+ * pipeline_events timeline. The arg is optional — existing callers stay valid and
+ * unchanged behavior holds when it is absent.
  */
 export function failureReasonToXtimatorError(
   reason: FailureReason,
-  detail?: string
+  detail?: string,
+  correlationId?: string
 ): XtimatorError {
   return new XtimatorError(REASON_TO_TYPE[reason], 'estimates', detail ?? reason, undefined, {
     reason,
+    ...(correlationId ? { correlationId } : {}),
   })
 }
 
