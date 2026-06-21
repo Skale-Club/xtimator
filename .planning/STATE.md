@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.3
 milestone_name: Unified Agentic Estimate Engine
 status: completed
-stopped_at: Completed 102-02-PLAN.md
-last_updated: "2026-06-21T19:56:56.130Z"
-last_activity: 2026-06-21 — executed 102-00-PLAN.md (Wave 0 — RED/EXTEND test scaffold for HARD-05/06/07)
+stopped_at: Completed 102-01-PLAN.md
+last_updated: "2026-06-21T20:03:28Z"
+last_activity: 2026-06-21 — executed 102-01-PLAN.md (Wave 1 — HARD-07 replay-safe TTL, GREEN)
 progress:
   total_phases: 52
   completed_phases: 39
   total_plans: 116
-  completed_plans: 129
+  completed_plans: 130
 ---
 
 # Project State
@@ -22,13 +22,14 @@ progress:
 
 ## Current Position
 
-Phase: 102 (Resilience Hardening — Batch Isolation, Configurable Auto-Refine + Recourse, Replay-Safe TTL — HARD-05/06/07) — IN PROGRESS (Wave 0 done + 1 Wave-1 impl plan; 2/5 plans)
-Plan: 102-00 + 102-02 complete; 102-01, 102-03, 102-04 not started
-Status: 102-02 (HARD-06 cap half) shipped. Replaced the hard-coded `(state.refineAttempts ?? 0) < 1` literal in `checkVagueAfterAssessEdge` (`lib/estimate/graph/nodes/decide.ts`) with a single `AUTO_REFINE_MAX_ATTEMPTS` module constant — read once at module load via an IIFE (`Number.isFinite(raw) && raw >= 0 ? raw : 1`) from the optional non-secret `process.env.AUTO_REFINE_MAX_ATTEMPTS`, defaulting to 1. Operator kept exactly `<` so the default is byte-identical to today (Research Pitfall 1). `auto-refine.ts` doc comment updated to reference the configurable cap (documentation-only; increment logic untouched). Channel-neutral (no DB, no async, no channel import) → graph-neutrality stays green. `tests/unit/estimate/auto-refine-cap.test.ts` now fully GREEN (default=1 AND `AUTO_REFINE_MAX_ATTEMPTS=2` override cases); `auto-refine-isolation` + `graph-neutrality` (12/12) and `never-reply-regression` Path C (loops exactly once at default) stay green. No env VALUE committed — only the var NAME appears (CLAUDE.md secret-handling). 1 atomic commit (02a41f2). xphere untouched. HARD-06 NOT marked complete — only the configurable-cap half is done; the web recourse UI half is owned by Plan 102-04.
+Phase: 102 (Resilience Hardening — Batch Isolation, Configurable Auto-Refine + Recourse, Replay-Safe TTL — HARD-05/06/07) — IN PROGRESS (Wave 0 done + 2 Wave-1 impl plans; 3/5 plans)
+Plan: 102-00 + 102-01 + 102-02 complete; 102-03, 102-04 not started
+Status: 102-01 (HARD-07 replay-safe TTL) shipped. Added a neutral `requestedAt: Annotation<number | undefined>()` to the core `EstimateState` (`lib/estimate/graph/state.ts`) — channel-neutral, no WhatsApp token, graph-neutrality 2/2 stays green. Both WhatsApp finalize TTL mint sites (`lib/estimate/adapters/whatsapp.ts` awaiting_details + awaiting_confirm) now compute `const base = state.requestedAt ?? Date.now()` then `new Date(base + SESSION_TTL_MINUTES*60*1000).toISOString()` — `SESSION_TTL_MINUTES` (30) byte-identical; the `?? Date.now()` fallback keeps direct invokers (unit tests) valid (no Invalid Date). Threaded `requestedAt` end-to-end: `WhatsAppInitialState` (`lib/whatsapp/estimate-graph.ts`) → channel-neutral core invoke; `whatsapp-process.ts` captures `requestedAt = Date.now()` at handler entry OUTSIDE `step.run` (so an Inngest retry of the step reuses it — the replay-safety guarantee); `generate-estimate.ts` threads the existing `t0` into its invoke. `replay-safe-ttl.test.ts` now GREEN (same requestedAt → identical expires_at across re-invocation; equals requestedAt+30min, not a post-invoke Date.now() re-mint); graph-neutrality + never-reply-regression + auto-refine-isolation + auto-refine-cap + both inngest job tests all stay green. 2 atomic commits (23f42da state+TTL, c03cfde threading). xphere untouched. Note: 102-03 (HARD-05) also edits state.ts + whatsapp.ts after this — both left clean. HARD-07 marked complete.
+Prior: 102-02 (HARD-06 cap half) shipped. Replaced the hard-coded `(state.refineAttempts ?? 0) < 1` literal in `checkVagueAfterAssessEdge` (`lib/estimate/graph/nodes/decide.ts`) with a single `AUTO_REFINE_MAX_ATTEMPTS` module constant — read once at module load via an IIFE (`Number.isFinite(raw) && raw >= 0 ? raw : 1`) from the optional non-secret `process.env.AUTO_REFINE_MAX_ATTEMPTS`, defaulting to 1. Operator kept exactly `<` so the default is byte-identical to today (Research Pitfall 1). `auto-refine.ts` doc comment updated to reference the configurable cap (documentation-only; increment logic untouched). Channel-neutral (no DB, no async, no channel import) → graph-neutrality stays green. `tests/unit/estimate/auto-refine-cap.test.ts` now fully GREEN (default=1 AND `AUTO_REFINE_MAX_ATTEMPTS=2` override cases); `auto-refine-isolation` + `graph-neutrality` (12/12) and `never-reply-regression` Path C (loops exactly once at default) stay green. No env VALUE committed — only the var NAME appears (CLAUDE.md secret-handling). 1 atomic commit (02a41f2). xphere untouched. HARD-06 NOT marked complete — only the configurable-cap half is done; the web recourse UI half is owned by Plan 102-04.
 Prior (102-00, Wave 0 RED/EXTEND scaffold): authored 4 failing-by-design test files (auto-refine-cap [HARD-06 cap, now GREEN via 102-02], replay-safe-ttl [HARD-07, still RED → 102-01], batch-reporting [HARD-05, still RED → 102-03], needs-details-banner [HARD-06 recourse, still RED → 102-04]); 2 commits (201afb0, 35e8537).
-Last activity: 2026-06-21 — executed 102-02-PLAN.md (Wave 1 — HARD-06 configurable auto-refine cap, GREEN)
-Stopped at: Completed 102-02-PLAN.md
-Next Up: Phase 102 remaining Wave 1+ plans. Failing automated checks still ready: HARD-07 → 102-01 (replay-safe-ttl), HARD-05 → 102-03 (batch-reporting), HARD-06 recourse UI → 102-04 (needs-details-banner). HARD-06 closes only when 102-04 lands (cap half done by 102-02). Recommended non-blocking follow-up: a test-harness isolation pass for the pre-existing vitest worker-reuse leakage (see `deferred-items.md`).
+Last activity: 2026-06-21 — executed 102-01-PLAN.md (Wave 1 — HARD-07 replay-safe TTL, GREEN)
+Stopped at: Completed 102-01-PLAN.md
+Next Up: Phase 102 remaining plans. Failing automated checks still ready: HARD-05 → 102-03 (batch-reporting), HARD-06 recourse UI → 102-04 (needs-details-banner). HARD-06 closes only when 102-04 lands (cap half done by 102-02). 102-03 also touches state.ts + whatsapp.ts (left clean by 102-01). Recommended non-blocking follow-up: a test-harness isolation pass for the pre-existing vitest worker-reuse leakage (see `deferred-items.md`).
 
 > Xtimator side (Fase B): plans 01–05 done on `dev`. Xphere side (Fase A): receiver
 > `POST /api/xtimator/webhook` + migration 1213 + pipeline seed on the **xphere** repo
@@ -192,6 +193,7 @@ Next Up: Phase 102 remaining Wave 1+ plans. Failing automated checks still ready
 
 ## Decisions
 
+- [Phase 102 102-01]: HARD-07 replay-safe TTL — derive `expires_at` from a durable, server-trusted graph-entry timestamp (`state.requestedAt`, epoch ms) carried in the channel-neutral core state, never re-mint `Date.now()` inside a finalize node; `base = state.requestedAt ?? Date.now()` keeps direct invokers valid; the entry timestamp is captured OUTSIDE `step.run` so an Inngest retry of the step reuses it (replay stability in advance of HARD-08 per-node decomposition); `SESSION_TTL_MINUTES` (30) unchanged
 - [Phase 100 100-02]: `round2` itself coerces NaN/negative → 0 (totals-authority.test.ts asserts `round2(NaN)===0`, `round2(-5)===0`); `assertFinitePositive` kept as the documented sibling guard for already-rounded persisted totals
 - [Phase 100 100-02]: `computeTotalsDiscrepancy` preserves a SIGNED delta/delta_pct (compute on abs then reapply sign) so a server-below-AI divergence is not zeroed by round2 — the discrepancy signal stays meaningful in both directions
 - [Phase 100 100-02]: totals_discrepancy sink = structured `console.info('[totals_discrepancy]', ...)` inside try/catch; pipeline_events has no free-form metadata column, so Plan 100-03's Langfuse trace metadata is the documented seam for end-to-end correlation
