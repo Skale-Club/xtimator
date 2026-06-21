@@ -1145,7 +1145,8 @@ Plans:
  (completed 2026-06-21)
 - [x] **Phase 101: Unified Multimodal Ingestion + Refine Through the Graph** — Refine runs through the canonical graph INLINE (synchronous preview, passthrough StepRunner — NOT Inngest) reusing the single ingestion path and prompt builder; web/WhatsApp/MCP/refine all share one audio+image+text path (HARD-01, HARD-02, UNIFY-01, UNIFY-02, UNIFY-03)
  (completed 2026-06-21)
-- [x] **Phase 102: Resilience Hardening — Batch Isolation, Configurable Auto-Refine + Recourse, Replay-Safe TTL** — A bad WhatsApp message no longer fails the batch; the auto-refine cap is configurable with explicit user recourse; TTLs are replay-safe (HARD-05, HARD-06, HARD-07) (completed 2026-06-21)
+- [x] **Phase 102: Resilience Hardening — Batch Isolation, Configurable Auto-Refine + Recourse, Replay-Safe TTL** — A bad WhatsApp message no longer fails the batch; the auto-refine cap is configurable with explicit user recourse; TTLs are replay-safe (HARD-05, HARD-06, HARD-07)
+ (completed 2026-06-21)
 - [ ] **Phase 103: Eval/Test Harness + CI Regression Gate** — Golden multimodal fixtures + deterministic mocked providers + quality-metrics suite + CI gate prove the hardened engine does not regress (EVAL-01, EVAL-02, EVAL-03, EVAL-04)
 
 #### Phase 99: Unified Error Model + Shared Provider-Fallback Wrapper
@@ -1222,4 +1223,8 @@ Plans:
   2. Deterministic mocked AI providers (transcription, vision, generate, refine) let the full engine run end-to-end in tests with stable, asserted outputs
   3. A quality-metrics suite scores generated estimates on objective signals (non-zero total, minimum line-item count, vagueness verdict, zod-schema validity) and asserts thresholds
   4. A CI regression gate runs the eval harness on the estimate engine and fails the build when quality metrics or schema validity regress
-**Plans**: TBD
+**Plans**: 3 plans in 3 waves
+Plans:
+- [ ] 103-01-PLAN.md — Wave 1: isolation remediation (afterEach resetModules discipline → `npx vitest run` 3× green; prerequisite for a reliable EVAL-04 gate)
+- [ ] 103-02-PLAN.md — Wave 2: eval harness — golden fixtures (EVAL-01) + deterministic mocked providers driving the real engine (EVAL-02) + quality-metrics suite reusing isVagueEstimate/estimateOutputSchema (EVAL-03)
+- [ ] 103-03-PLAN.md — Wave 3: CI gate — scoped tsconfig.ci.json + .github/workflows/test.yml (secret-free, integration-excluded, double-run determinism) + test:eval script (EVAL-04)
