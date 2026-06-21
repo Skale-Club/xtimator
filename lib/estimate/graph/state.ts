@@ -36,6 +36,14 @@ export const EstimateState = Annotation.Root({
   /** Output of the assess node (deterministic vagueness gate). */
   isVague: Annotation<boolean | undefined>(),
   /**
+   * Server-trusted graph-entry timestamp (epoch ms), set ONCE from the Inngest
+   * event handler entry. Replay-safe source for any TTL/expiry computed in a
+   * finalize node — never re-mint Date.now() inside a node (HARD-07). On an
+   * Inngest retry/replay the value is stable, so the TTL does not drift.
+   * Channel-neutral: carries no channel token.
+   */
+  requestedAt: Annotation<number | undefined>(),
+  /**
    * Failure-as-state (ENGINE-04). Core nodes NEVER throw — on failure they set
    * this channel and the adapter's onError maps it to a terminal channel reply.
    * Generalizes the old per-channel generationFailed boolean.

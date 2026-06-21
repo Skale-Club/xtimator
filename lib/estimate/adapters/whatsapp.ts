@@ -31,12 +31,13 @@
  * a WhatsApp-superset Annotation (WhatsAppEstimateState) is defined HERE — never
  * in the core.
  *
- * NOTE (deferred-decomposition concern per PITFALLS Pitfall 2): the
- * SESSION_TTL_MINUTES / expiresAt computation mints Date.now() inside finalize.
- * Today this is safe because the whole graph runs inside ONE atomic Inngest
- * step.run (DURABLE-02), so there is no behavior change. When AI-heavy nodes are
- * later promoted to their own step.run via the injected StepRunner, coalesce the
- * TTL from state instead of re-minting it on replay.
+ * NOTE (replay-safe TTL, HARD-07 — DONE): the SESSION_TTL_MINUTES / expiresAt
+ * computation now derives from the durable, server-trusted graph-entry timestamp
+ * `state.requestedAt` (set ONCE at the Inngest handler entry), falling back to
+ * Date.now() only for direct invokers that omit it. This is replay-safe: when
+ * AI-heavy nodes are later promoted to their own step.run via the injected
+ * StepRunner (HARD-08), an Inngest retry/replay reuses the same requestedAt, so
+ * the TTL does not drift. SESSION_TTL_MINUTES (30) is unchanged.
  */
 import { Annotation, StateGraph, Send, START, END } from '@langchain/langgraph'
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -353,8 +354,11 @@ export function makeWhatsAppAdapter({
         // inbound message regenerates cleanly against the same project.
         await revertVagueEstimate(supabase, projectId, estimateId ?? null)
 
+        // HARD-07: derive expiry from the durable graph-entry timestamp (replay-safe);
+        // fall back to Date.now() so direct invokers (unit tests) without requestedAt still work.
+        const base = state.requestedAt ?? Date.now()
         const expiresAt = new Date(
-          Date.now() + SESSION_TTL_MINUTES * 60 * 1000
+          base + SESSION_TTL_MINUTES * 60 * 1000
         ).toISOString()
         await supabase.from('whatsapp_sessions').insert({
           company_id: companyId,
@@ -382,8 +386,11 @@ export function makeWhatsAppAdapter({
       }
 
       // --- sendConfirmation (usable estimate) ----------------------------------
+      // HARD-07: derive expiry from the durable graph-entry timestamp (replay-safe);
+      // fall back to Date.now() so direct invokers (unit tests) without requestedAt still work.
+      const base = state.requestedAt ?? Date.now()
       const expiresAt = new Date(
-        Date.now() + SESSION_TTL_MINUTES * 60 * 1000
+        base + SESSION_TTL_MINUTES * 60 * 1000
       ).toISOString()
       await supabase.from('whatsapp_sessions').insert({
         company_id: companyId,
