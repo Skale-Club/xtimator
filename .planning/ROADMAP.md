@@ -1105,7 +1105,7 @@ Plans:
 **Plans**: 5 plans
 Plans:
 - [x] 1000-01-PLAN.md — Wave 1: companies migration (xphere_* columns) + pure mapping/types (buildSyncPayload, stage literals)
-- [ ] 1000-02-PLAN.md — Wave 1: credentials (getXphereConfig + 'xphere' provider) + admin CRM config section
+- [x] 1000-02-PLAN.md — Wave 1: credentials (getXphereConfig + 'xphere' provider) + admin CRM config section
 - [ ] 1000-03-PLAN.md — Wave 2: Xphere HTTP client (syncCompany) + Inngest event + xphereSyncJob + serve registration
 - [ ] 1000-04-PLAN.md — Wave 3: lifecycle hooks (company/estimate/subscription/trial) via fire-and-forget dispatchXphereSync
 - [ ] 1000-05-PLAN.md — Wave 3: admin batched backfill route + xphere_sync_error observability panel
