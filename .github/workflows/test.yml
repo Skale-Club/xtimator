@@ -1,0 +1,54 @@
+name: Test
+
+# TEST gate only (EVAL-04) — NOT a deploy change.
+# Deploy lives entirely in build-deploy.yml: `next build` runs in Docker on a
+# GitHub runner, the image is pushed to GHCR, and Coolify PULLs it. This
+# workflow NEVER builds the app, builds no image, and touches no deploy path.
+# It runs a scoped typecheck + the unit/eval suite (twice, for determinism) and
+# fails the build the moment a quality metric, schema validity, or engine
+# behavior regresses.
+#
+# Secret-free by construction: the eval harness mocks every provider
+# (getAIProviderWithFallback + transcribeAudioOR/analyzePhotoOR) and the
+# Supabase service client, so NO AI keys and NO Supabase keys are required.
+# tests/integration/** (which needs a live Supabase) is intentionally EXCLUDED
+# from the gate so it stays secret-free.
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    name: Typecheck + unit/eval suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24 # matches .nvmrc and the local dev node
+          cache: npm
+
+      - run: npm ci
+
+      # Scoped typecheck — app/lib/components/hooks only (tsconfig.ci.json).
+      # The full `tsc --noEmit` is red on 9 pre-existing test-file-only errors
+      # (research Pitfall 7); the scoped gate is GREEN and meaningful.
+      - run: npx tsc --noEmit -p tsconfig.ci.json
+
+      # Unit + eval suite. tests/integration is EXCLUDED (it needs live
+      # Supabase → would break the secret-free gate; research Pitfall 6).
+      # tests/eval is collected because 103-02 added tests/eval/**/*.test.ts to
+      # the vitest `include` (otherwise this path would silently run zero tests).
+      - run: npx vitest run tests/unit tests/eval
+
+      # Determinism gate — the Wave-1 invariant made permanent. A re-emergent
+      # cross-file isolation leak fails CI on this identical second pass.
+      - run: npx vitest run tests/unit tests/eval
