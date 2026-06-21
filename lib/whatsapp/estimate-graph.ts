@@ -51,6 +51,12 @@ interface WhatsAppInitialState {
   estimateId?: string
   estimateLanguage?: string
   isVague?: boolean
+  /**
+   * HARD-07: server-trusted graph-entry timestamp (epoch ms), captured ONCE at
+   * the Inngest handler entry. Flows into the channel-neutral core state so the
+   * finalize TTL is replay-safe. Channel-neutral.
+   */
+  requestedAt?: number
 }
 
 /**
@@ -91,6 +97,9 @@ export function buildEstimateGraph() {
           estimateId: initial.estimateId,
           estimateLanguage: initial.estimateLanguage,
           isVague: initial.isVague,
+          // HARD-07: thread the durable graph-entry timestamp into core state so
+          // the finalize TTL is replay-safe (derived, not re-minted on replay).
+          requestedAt: initial.requestedAt,
         },
         { callbacks: [handler] }
       )

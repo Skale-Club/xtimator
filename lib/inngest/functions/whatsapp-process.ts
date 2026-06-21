@@ -66,6 +66,11 @@ export const whatsAppProcessJob = inngest.createFunction(
       messages: WhatsAppMessage[]
     }
     const { companyId, projectId, ownerPhone, messages } = data
+    // HARD-07: capture a single server-trusted graph-entry timestamp OUTSIDE
+    // step.run('orchestrate-estimate') so an Inngest retry of that step reuses the
+    // same value — the replay-safety guarantee for the finalize TTL (mirrors
+    // generate-estimate.ts t0).
+    const requestedAt = Date.now()
 
     // Refresh typing indicator before AI generation (best-effort UX feedback).
     // This step stays outside the graph so it fires before the graph starts.
@@ -92,6 +97,7 @@ export const whatsAppProcessJob = inngest.createFunction(
         estimateId: undefined,
         estimateLanguage: undefined,
         isVague: undefined,
+        requestedAt,
       })
 
       // OBS-03: flush Langfuse spans before step.run returns (Pitfall 3 — serverless suspension).

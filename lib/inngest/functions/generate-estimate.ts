@@ -123,6 +123,10 @@ export const generateEstimateJob = inngest.createFunction(
           companyId,
           projectId,
           channel: traceChannel,
+          // HARD-07: thread the handler-entry timestamp (t0, captured outside
+          // step.run) so any finalize TTL is replay-safe. The web/MCP adapter
+          // finalize is a passthrough today, but the field stays consistent.
+          requestedAt: t0,
           prompts: prompts && prompts.length > 0 ? prompts : undefined,
           estimateLanguage: language ?? undefined,
           // origin/dev: carry the triggering user so the service can stamp
