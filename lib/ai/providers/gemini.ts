@@ -6,6 +6,7 @@ import { getIntegrationKey } from '@/lib/platform-config'
 import { buildSystemPrompt, buildUserContent } from '../prompt-builder'
 import { normalizeOutput } from '../normalize'
 import { formatMoney, normalizeCurrencyCode } from '@/lib/money/currency'
+import { PHOTO_PROMPT } from '@/lib/ai/openrouter-client'
 
 /** File-extension → MIME type for inline audio sent to Gemini. */
 const AUDIO_EXT_TO_MIME: Record<string, string> = {
@@ -49,6 +50,30 @@ export async function transcribeAudioGemini(audioBlob: Blob, ext: string): Promi
     model: 'gemini-2.5-flash',
     contents: [
       { text: TRANSCRIBE_PROMPT },
+      { inlineData: { mimeType, data: base64 } },
+    ],
+  })
+
+  return (response.text ?? '').trim()
+}
+
+/**
+ * Analyse a single photo using Gemini's multimodal vision model.
+ *
+ * This is the OpenRouter-vision fallback (HARD-03): when `analyzePhotoOR`'s
+ * OpenRouter call fails, the shared fallback wrapper delegates here. Mirrors
+ * `transcribeAudioGemini`'s proven inlineData shape with an image MIME type.
+ * `base64` is the raw base64 string; `mimeType` is e.g. "image/jpeg".
+ */
+export async function analyzePhotoGemini(base64: string, mimeType: string): Promise<string> {
+  const apiKey = await getIntegrationKey('gemini')
+  if (!apiKey) throw new Error('Gemini API key not configured')
+
+  const ai = new GoogleGenAI({ apiKey })
+  const response = await ai.models.generateContent({
+    model: 'gemini-2.5-flash',
+    contents: [
+      { text: PHOTO_PROMPT },
       { inlineData: { mimeType, data: base64 } },
     ],
   })

@@ -110,7 +110,11 @@ export async function transcribeAudioOR(
 // Photo / vision analysis
 // ---------------------------------------------------------------------------
 
-const PHOTO_PROMPT =
+/**
+ * Shared vision prompt. Exported so the Gemini vision fallback
+ * (`analyzePhotoGemini`) imports the SAME constant — no duplication.
+ */
+export const PHOTO_PROMPT =
   "Describe this photo from a contractor's perspective. Note materials, conditions, measurements if visible, damage, and areas needing work. Be specific and concise."
 
 /**
