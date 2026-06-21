@@ -14,7 +14,19 @@ The platform includes:
 
 A business owner can go from job site audio recording to a sent, professional estimate in under 5 minutes without touching a keyboard.
 
-## Current Milestone: v4.3 Unified Agentic Estimate Engine
+## Current Milestone: v4.5 Estimate Engine Robustness & Reliability Harness
+
+**Goal:** Make the AI estimate generation/editing core (audio + image + text) bulletproof — one unified multimodal ingestion path, always-validated output, isolated/recoverable failures, and an evaluation harness that catches regressions before production. Builds directly on the v4.3 canonical graph.
+
+**Target features:**
+- **Pipeline hardening** — refine flows through the canonical graph + Inngest (idempotent/durable) instead of inline route logic (`app/api/estimates/[id]/refine/route.ts`); single prompt source of truth (`lib/ai/prompt-builder.ts`); consistent provider fallback (OpenRouter→Gemini) on every path; unified error model across routes/nodes/Inngest/adapters; per-message WhatsApp batch isolation; configurable auto-refine cap with user recourse; replay-safe session TTL (no `Date.now()`).
+- **Output guardrails** — zod schema validation on AI output (generate + refine) with structured retry; price-hallucination guardrails (price-book anchoring + bounds); server-side totals sanity checks; correlation ID linking pipeline-events ↔ Langfuse ↔ Sentry per run.
+- **Modality unification** — one multimodal ingestion path (audio+image+text) reused across web, WhatsApp, MCP and refine; identical prompt construction everywhere; refine accepts all three modalities through the unified path.
+- **Eval/test harness** — golden dataset fixtures (audio/photo/text), deterministic mocked providers, a quality-metrics suite (totals, item count, vagueness, schema validity), and a CI regression gate.
+
+**Key context:** This is a hardening + reliability milestone on top of the v4.3 canonical estimate graph (`lib/estimate/graph/`), its channel adapters (`lib/estimate/adapters/{default,whatsapp}.ts`), and the shared service `generateEstimateForProject` (`lib/services/generate-estimate.ts`). The biggest divergence to close is the stateless refine endpoint, which bypasses the graph/Inngest and reimplements multimodal parsing + its own prompt. GUARD-04 (correlation IDs) coordinates with v4.3's Phase 97 observability work. Started 2026-06-21. Numbering continues the global counter: v4.4 = Phase 98 (WhatsApp Notifications, queued); v4.5 = Phase 99+.
+
+## Recent Milestone: v4.3 Unified Agentic Estimate Engine
 
 **Goal:** Unify estimate creation across ALL channels (web UI, MCP, WhatsApp) under a single LangGraph-based agentic engine — extract the domain graph today exclusive to WhatsApp into a shared canonical core, and give web/MCP the same pipeline intelligence (assess quality → ask for details/refine) that only WhatsApp has today.
 
@@ -310,4 +322,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context
 
 ---
-*Last updated: 2026-06-20 — v4.3 Unified Agentic Estimate Engine in progress (phases 94–97). Phases 94, 95, 96 shipped 2026-06-20. Phase 97 (Unified Observability — Langfuse v5 + Sentry) pending. v4.2 Recording Reliability & Observability COMPLETE (phases 91-93, shipped 2026-05-30).*
+*Last updated: 2026-06-21 — v4.5 Estimate Engine Robustness & Reliability Harness started (phases 99+; defining requirements). Predecessor v4.3 Unified Agentic Estimate Engine built the canonical graph (phases 94-96 shipped 2026-06-20; Phase 97 observability pending); v4.4 WhatsApp Notifications (Phase 98) queued.*
