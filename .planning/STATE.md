@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v4.3
 milestone_name: Unified Agentic Estimate Engine
 status: completed
-stopped_at: Completed 102-01-PLAN.md
-last_updated: "2026-06-21T20:03:28Z"
-last_activity: 2026-06-21 — executed 102-01-PLAN.md (Wave 1 — HARD-07 replay-safe TTL, GREEN)
+stopped_at: Completed 102-04-PLAN.md
+last_updated: "2026-06-21T20:11:12.783Z"
+last_activity: 2026-06-21 — executed 102-04-PLAN.md (Wave 1 — HARD-06 web recourse UI, GREEN; HARD-06 complete)
 progress:
   total_phases: 52
   completed_phases: 39
@@ -22,14 +22,15 @@ progress:
 
 ## Current Position
 
-Phase: 102 (Resilience Hardening — Batch Isolation, Configurable Auto-Refine + Recourse, Replay-Safe TTL — HARD-05/06/07) — IN PROGRESS (Wave 0 done + 2 Wave-1 impl plans; 3/5 plans)
-Plan: 102-00 + 102-01 + 102-02 complete; 102-03, 102-04 not started
-Status: 102-01 (HARD-07 replay-safe TTL) shipped. Added a neutral `requestedAt: Annotation<number | undefined>()` to the core `EstimateState` (`lib/estimate/graph/state.ts`) — channel-neutral, no WhatsApp token, graph-neutrality 2/2 stays green. Both WhatsApp finalize TTL mint sites (`lib/estimate/adapters/whatsapp.ts` awaiting_details + awaiting_confirm) now compute `const base = state.requestedAt ?? Date.now()` then `new Date(base + SESSION_TTL_MINUTES*60*1000).toISOString()` — `SESSION_TTL_MINUTES` (30) byte-identical; the `?? Date.now()` fallback keeps direct invokers (unit tests) valid (no Invalid Date). Threaded `requestedAt` end-to-end: `WhatsAppInitialState` (`lib/whatsapp/estimate-graph.ts`) → channel-neutral core invoke; `whatsapp-process.ts` captures `requestedAt = Date.now()` at handler entry OUTSIDE `step.run` (so an Inngest retry of the step reuses it — the replay-safety guarantee); `generate-estimate.ts` threads the existing `t0` into its invoke. `replay-safe-ttl.test.ts` now GREEN (same requestedAt → identical expires_at across re-invocation; equals requestedAt+30min, not a post-invoke Date.now() re-mint); graph-neutrality + never-reply-regression + auto-refine-isolation + auto-refine-cap + both inngest job tests all stay green. 2 atomic commits (23f42da state+TTL, c03cfde threading). xphere untouched. Note: 102-03 (HARD-05) also edits state.ts + whatsapp.ts after this — both left clean. HARD-07 marked complete.
+Phase: 102 (Resilience Hardening — Batch Isolation, Configurable Auto-Refine + Recourse, Replay-Safe TTL — HARD-05/06/07) — IN PROGRESS (Wave 0 done + 3 Wave-1 impl plans; 4/5 plans)
+Plan: 102-00 + 102-01 + 102-02 + 102-04 complete; 102-03 not started
+Status: 102-04 (HARD-06 web recourse UI) shipped. New `components/workspace/needs-details-banner.tsx` — a `'use client'` `NeedsDetailsBanner({ onAddDetails })` that reuses the `Alert` primitive (default variant) + `Button` (no editor redesign): lucide `Info` icon, `AlertTitle` "We need a bit more detail", an `AlertDescription` body, and a `size="sm"` CTA "Add details & regenerate". All three copy strings are t()-wrapped via `@/lib/i18n/use-translation` so the existing pt/es pipeline translates them. `components/workspace/overview-tab.tsx` renders it gated on `project.status === 'awaiting_details'` (top of the `space-y-6` tree, above `<EstimateTab>`), CTA wired to the EXISTING `setModePickerOpen(true)` trigger → existing `CaptureModePicker` → `/api/generate-estimate` — no new generation path, no new query, no hook change, `project.status` already in scope. `tests/unit/workspace/needs-details-banner.test.tsx` now GREEN 4/4 (was RED via the 102-00 scaffold's missing-module import); tsc clean on both files; diff = exactly the 2 files_modified. 1 atomic commit (6983aed). xphere untouched. **HARD-06 marked complete** — both halves landed (configurable cap via 102-02 + web recourse via this plan). Remaining: 102-03 (HARD-05 batch-reporting, still RED by design).
+Prior: 102-01 (HARD-07 replay-safe TTL) shipped. Added a neutral `requestedAt: Annotation<number | undefined>()` to the core `EstimateState` (`lib/estimate/graph/state.ts`) — channel-neutral, no WhatsApp token, graph-neutrality 2/2 stays green. Both WhatsApp finalize TTL mint sites (`lib/estimate/adapters/whatsapp.ts` awaiting_details + awaiting_confirm) now compute `const base = state.requestedAt ?? Date.now()` then `new Date(base + SESSION_TTL_MINUTES*60*1000).toISOString()` — `SESSION_TTL_MINUTES` (30) byte-identical; the `?? Date.now()` fallback keeps direct invokers (unit tests) valid (no Invalid Date). Threaded `requestedAt` end-to-end: `WhatsAppInitialState` (`lib/whatsapp/estimate-graph.ts`) → channel-neutral core invoke; `whatsapp-process.ts` captures `requestedAt = Date.now()` at handler entry OUTSIDE `step.run` (so an Inngest retry of the step reuses it — the replay-safety guarantee); `generate-estimate.ts` threads the existing `t0` into its invoke. `replay-safe-ttl.test.ts` now GREEN (same requestedAt → identical expires_at across re-invocation; equals requestedAt+30min, not a post-invoke Date.now() re-mint); graph-neutrality + never-reply-regression + auto-refine-isolation + auto-refine-cap + both inngest job tests all stay green. 2 atomic commits (23f42da state+TTL, c03cfde threading). xphere untouched. Note: 102-03 (HARD-05) also edits state.ts + whatsapp.ts after this — both left clean. HARD-07 marked complete.
 Prior: 102-02 (HARD-06 cap half) shipped. Replaced the hard-coded `(state.refineAttempts ?? 0) < 1` literal in `checkVagueAfterAssessEdge` (`lib/estimate/graph/nodes/decide.ts`) with a single `AUTO_REFINE_MAX_ATTEMPTS` module constant — read once at module load via an IIFE (`Number.isFinite(raw) && raw >= 0 ? raw : 1`) from the optional non-secret `process.env.AUTO_REFINE_MAX_ATTEMPTS`, defaulting to 1. Operator kept exactly `<` so the default is byte-identical to today (Research Pitfall 1). `auto-refine.ts` doc comment updated to reference the configurable cap (documentation-only; increment logic untouched). Channel-neutral (no DB, no async, no channel import) → graph-neutrality stays green. `tests/unit/estimate/auto-refine-cap.test.ts` now fully GREEN (default=1 AND `AUTO_REFINE_MAX_ATTEMPTS=2` override cases); `auto-refine-isolation` + `graph-neutrality` (12/12) and `never-reply-regression` Path C (loops exactly once at default) stay green. No env VALUE committed — only the var NAME appears (CLAUDE.md secret-handling). 1 atomic commit (02a41f2). xphere untouched. HARD-06 NOT marked complete — only the configurable-cap half is done; the web recourse UI half is owned by Plan 102-04.
 Prior (102-00, Wave 0 RED/EXTEND scaffold): authored 4 failing-by-design test files (auto-refine-cap [HARD-06 cap, now GREEN via 102-02], replay-safe-ttl [HARD-07, still RED → 102-01], batch-reporting [HARD-05, still RED → 102-03], needs-details-banner [HARD-06 recourse, still RED → 102-04]); 2 commits (201afb0, 35e8537).
-Last activity: 2026-06-21 — executed 102-01-PLAN.md (Wave 1 — HARD-07 replay-safe TTL, GREEN)
-Stopped at: Completed 102-01-PLAN.md
-Next Up: Phase 102 remaining plans. Failing automated checks still ready: HARD-05 → 102-03 (batch-reporting), HARD-06 recourse UI → 102-04 (needs-details-banner). HARD-06 closes only when 102-04 lands (cap half done by 102-02). 102-03 also touches state.ts + whatsapp.ts (left clean by 102-01). Recommended non-blocking follow-up: a test-harness isolation pass for the pre-existing vitest worker-reuse leakage (see `deferred-items.md`).
+Last activity: 2026-06-21 — executed 102-04-PLAN.md (Wave 1 — HARD-06 web recourse UI, GREEN; HARD-06 complete)
+Stopped at: Completed 102-04-PLAN.md
+Next Up: Phase 102 has ONE plan remaining — 102-03 (HARD-05 per-message WhatsApp batch reporting), still RED by design (`tests/unit/whatsapp/batch-reporting.test.ts` failing). It also touches state.ts + whatsapp.ts (left clean by 102-01). Once 102-03 lands, Phase 102 is complete (HARD-05/06/07 all done). Task 2 of 102-04 (human-verify the recourse banner in staging) is deferred as a non-blocking UAT — see 102-04-SUMMARY.md manual-verification section. Recommended non-blocking follow-up: a test-harness isolation pass for the pre-existing vitest worker-reuse leakage (see `deferred-items.md`).
 
 > Xtimator side (Fase B): plans 01–05 done on `dev`. Xphere side (Fase A): receiver
 > `POST /api/xtimator/webhook` + migration 1213 + pipeline seed on the **xphere** repo
@@ -570,6 +571,7 @@ Next Up: Phase 102 remaining plans. Failing automated checks still ready: HARD-0
 - [Phase 102]: 102-00: non-vague estimateRow in WhatsApp graph tests must include sections[].items — the single chainable mock serves both the assess re-read (total+items) and the finalize confirm re-read (title/subtotal); without items the estimate assessed vague and generate fired twice (cap=1 auto-refine), masking assertions
 - [Phase 102]: 102-00: HARD-05 dropped-item-note regex kept intentionally loose (/couldn't process 1/i) — Plan 03 owns exact wording; the load-bearing RED is mere presence of the note in the single reply
 - [Phase 102]: [Phase 102 102-02]: auto-refine cap is a single AUTO_REFINE_MAX_ATTEMPTS module constant (default 1, Number-guarded non-secret env override); operator kept exactly < so default is byte-identical; HARD-06 cap half done, recourse UI half stays open (Plan 04)
+- [Phase 102]: HARD-06 web recourse — NeedsDetailsBanner reuses the Alert primitive + Button (no editor redesign); the awaiting_details gate lives in OverviewTab, the banner is a pure dispatcher; CTA → onAddDetails → setModePickerOpen(true) reuses the existing CaptureModePicker → /api/generate-estimate path (no new generation path, no new query/hook); all copy t()-wrapped so the existing pt/es pipeline translates it
 
 ## Performance Metrics
 
@@ -759,6 +761,7 @@ Next Up: Phase 102 remaining plans. Failing automated checks still ready: HARD-0
 | Phase 101 P03 | 13 | 3 tasks | 6 files |
 | Phase 102 P00 | 20 | 2 tasks | 4 files |
 | Phase 102 P02 | 2min | 1 tasks | 2 files |
+| Phase 102 P04 | 102 | 1 tasks | 2 files |
 
 ## Project Reference
 

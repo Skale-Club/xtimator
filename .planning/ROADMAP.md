@@ -1210,7 +1210,7 @@ Plans:
 - [x] 102-01-PLAN.md — HARD-07 replay-safe TTL: neutral requestedAt state field threaded through both Inngest invokes + both whatsapp finalize TTL sites
 - [x] 102-02-PLAN.md — HARD-06 configurable cap: AUTO_REFINE_MAX_ATTEMPTS constant in decide.ts (default 1)
 - [ ] 102-03-PLAN.md — HARD-05 per-item batch reporting: neutral droppedInputs carry-forward + reason→copy note in both whatsapp reply builders
-- [ ] 102-04-PLAN.md — HARD-06 web recourse banner: NeedsDetailsBanner in overview-tab on awaiting_details, reusing Alert + the existing generate trigger
+- [x] 102-04-PLAN.md — HARD-06 web recourse banner: NeedsDetailsBanner in overview-tab on awaiting_details, reusing Alert + the existing generate trigger
 **UI hint**: yes
 
 #### Phase 103: Eval/Test Harness + CI Regression Gate
