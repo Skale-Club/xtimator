@@ -3,10 +3,10 @@ import { GoogleGenAI, Type, FunctionCallingConfigMode } from '@google/genai'
 import type { AIProvider } from '../provider.interface'
 import type { EstimateInput, EstimateOutput, RefineEstimateInput } from '../types'
 import { getIntegrationKey } from '@/lib/platform-config'
-import { buildSystemPrompt, buildUserContent } from '../prompt-builder'
+import { buildSystemPrompt, buildUserContent, buildRefineUserContent } from '../prompt-builder'
 import { normalizeOutput, appendRetryHint } from '../normalize'
 import { InvalidEstimateOutputError } from '../with-fallback'
-import { formatMoney, normalizeCurrencyCode } from '@/lib/money/currency'
+import { toRefineEstimateInput } from './refine-input'
 import { PHOTO_PROMPT } from '@/lib/ai/openrouter-client'
 
 /** File-extension → MIME type for inline audio sent to Gemini. */
@@ -162,31 +162,20 @@ export class GeminiAdapter implements AIProvider {
   }
 
   async refineEstimate(input: RefineEstimateInput): Promise<EstimateOutput> {
-    const currencyCode = normalizeCurrencyCode(input.currencyCode)
     const apiKey = await getIntegrationKey('gemini')
     if (!apiKey) throw new Error('Gemini API key not configured')
 
     const ai = new GoogleGenAI({ apiKey })
 
-    const priceBookContext =
-      input.priceBookItems.length > 0
-        ? '## Company Price Book\n' +
-          input.priceBookItems
-            .map(item => `- ${item.folder_name ?? 'Uncategorized'} | ${item.name} | ${formatMoney(item.unit_price, item.currency_code ?? currencyCode)}/${item.unit ?? 'each'}`)
-            .join('\n')
-        : 'No company price book configured.'
-
-    const systemInstruction = `You are a professional estimator. Your task is to update an existing estimate based on a refinement instruction. Modify, add, or remove sections/items as needed to reflect the user's request. Keep everything else unchanged. Use ${currencyCode} for all numeric prices and return monetary values as plain numbers only, without currency symbols or formatted strings. Preserve the price_source tagging: use "price_book" for items from the price book, "ai_estimate" for items you estimate from market rates.`
-
-    const userContent = `${priceBookContext}
-
-## Current Estimate
-${JSON.stringify(input.existingEstimate, null, 2)}
-
-## Refinement Instruction
-${input.instruction}
-
-Task: Update the estimate to reflect the user's instruction. Return the full updated estimate in JSON format.`
+    // HARD-02/UNIFY-02: refine reuses the SHARED prompt builder — no bespoke
+    // prompt on the Gemini fallback path either (Pitfall 4). The instruction is
+    // escaped + tagged via buildRefineUserContent.
+    const refineInput = toRefineEstimateInput(input)
+    const systemInstruction = buildSystemPrompt(refineInput, { mode: 'refine' })
+    const userContent = appendRetryHint(
+      buildRefineUserContent(refineInput, input.existingEstimate, input.instruction),
+      input.retryHint
+    )
 
     const createEstimateDeclaration = {
       name: 'create_estimate',
@@ -235,7 +224,7 @@ Task: Update the estimate to reflect the user's instruction. Return the full upd
 
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
-      contents: appendRetryHint(userContent, input.retryHint),
+      contents: userContent,
       config: {
         systemInstruction,
         tools: [{ functionDeclarations: [createEstimateDeclaration] }],

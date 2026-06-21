@@ -3,10 +3,10 @@ import Anthropic from '@anthropic-ai/sdk'
 import type { AIProvider } from '../provider.interface'
 import type { EstimateInput, EstimateOutput, RefineEstimateInput } from '../types'
 import { getIntegrationKey } from '@/lib/platform-config'
-import { buildSystemPrompt, buildUserContent } from '../prompt-builder'
+import { buildSystemPrompt, buildUserContent, buildRefineUserContent } from '../prompt-builder'
 import { normalizeOutput, appendRetryHint } from '../normalize'
 import { InvalidEstimateOutputError } from '../with-fallback'
-import { formatMoney, normalizeCurrencyCode } from '@/lib/money/currency'
+import { toRefineEstimateInput } from './refine-input'
 
 export class AnthropicAdapter implements AIProvider {
   async generateEstimate(input: EstimateInput): Promise<EstimateOutput> {
@@ -102,37 +102,26 @@ export class AnthropicAdapter implements AIProvider {
   }
 
   async refineEstimate(input: RefineEstimateInput): Promise<EstimateOutput> {
-    const currencyCode = normalizeCurrencyCode(input.currencyCode)
     const apiKey = await getIntegrationKey('anthropic')
     if (!apiKey) throw new Error('Anthropic API key not configured')
 
     const anthropic = new Anthropic({ apiKey })
 
-    const priceBookContext =
-      input.priceBookItems.length > 0
-        ? '## Company Price Book\n' +
-          input.priceBookItems
-            .map(item => `- ${item.folder_name ?? 'Uncategorized'} | ${item.name} | ${formatMoney(item.unit_price, item.currency_code ?? currencyCode)}/${item.unit ?? 'each'}`)
-            .join('\n')
-        : 'No company price book configured.'
-
-    const systemPrompt = `You are a professional estimator. Your task is to update an existing estimate based on a refinement instruction. Modify, add, or remove sections/items as needed to reflect the user's request. Keep everything else unchanged. Use ${currencyCode} for all numeric prices and return monetary values as plain numbers only, without currency symbols or formatted strings. Preserve the price_source tagging: use "price_book" for items from the price book, "ai_estimate" for items you estimate from market rates.`
-
-    const userContent = `${priceBookContext}
-
-## Current Estimate
-${JSON.stringify(input.existingEstimate, null, 2)}
-
-## Refinement Instruction
-${input.instruction}
-
-Task: Update the estimate to reflect the user's instruction. Return the full updated estimate in JSON format.`
+    // HARD-02/UNIFY-02: refine reuses the SHARED prompt builder — all live
+    // adapters share one prompt source (no bespoke refine prompt anywhere). The
+    // instruction is escaped + tagged via buildRefineUserContent.
+    const refineInput = toRefineEstimateInput(input)
+    const systemPrompt = buildSystemPrompt(refineInput, { mode: 'refine' })
+    const userContent = appendRetryHint(
+      buildRefineUserContent(refineInput, input.existingEstimate, input.instruction),
+      input.retryHint
+    )
 
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 4096,
       system: systemPrompt,
-      messages: [{ role: 'user', content: appendRetryHint(userContent, input.retryHint) }],
+      messages: [{ role: 'user', content: userContent }],
       tools: [
         {
           name: 'create_estimate',

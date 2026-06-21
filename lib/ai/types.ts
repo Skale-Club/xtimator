@@ -81,4 +81,13 @@ export type RefineEstimateInput = {
    * Refine inherits the same retry seam in Phase 101 for free.
    */
   retryHint?: string
+  /**
+   * Phase 101 (HARD-02/UNIFY-02): builder-relevant company context the refine node
+   * (101-03) threads from companyId so the shared prompt builder gets the same
+   * language/industry/project context as generate — the strongest UNIFY-02
+   * equivalence. All OPTIONAL and additive (non-breaking for existing callers).
+   */
+  industry?: string | null
+  language?: 'en' | 'pt' | 'es'
+  projectName?: string
 }
