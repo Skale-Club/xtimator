@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v4.3
 milestone_name: Unified Agentic Estimate Engine
-status: verifying
-stopped_at: Completed 97-04-PLAN.md
-last_updated: "2026-06-20T22:16:10.593Z"
-last_activity: "2026-06-20 - Completed quick task 260620-m6p: WhatsApp multi-user support per-user owner_phone routing"
+status: executing
+stopped_at: Completed 1000-01-PLAN.md
+last_updated: "2026-06-21T03:21:46.679Z"
+last_activity: 2026-06-21
 progress:
-  total_phases: 52
+  total_phases: 53
   completed_phases: 39
-  total_plans: 116
-  completed_plans: 129
+  total_plans: 121
+  completed_plans: 130
 ---
 
 # Project State
@@ -22,11 +22,11 @@ progress:
 
 ## Current Position
 
-Phase: 999.1
-Plan: Not started
-Status: Phase complete — ready for verification
-Last activity: 2026-06-20 - Completed quick task 260620-m6p: WhatsApp multi-user support per-user owner_phone routing
-Stopped at: Completed 97-04-PLAN.md
+Phase: 1000 (xphere-crm-sync) — EXECUTING
+Plan: 2 of 5
+Status: Ready to execute
+Last activity: 2026-06-21
+Stopped at: Completed 1000-01-PLAN.md
 
 ## v4.3 Phases (current milestone)
 
@@ -509,6 +509,7 @@ Stopped at: Completed 97-04-PLAN.md
 - [Phase 97]: CallbackHandler from @langfuse/langchain attached at all graph.invoke sites (web, MCP, WhatsApp) with safe-metadata: only projectId/companyId in handler metadata/tags
 - [Phase 97]: forceFlush() called inside every step.run before returning to prevent Langfuse span loss on serverless suspension (OBS-03 / Pitfall 3)
 - [Phase 97-unified-observability-langfuse-v5-sentry-coexistence]: Migrated all getLangfuse() v3 call sites to langfuseClient from @langfuse/tracing; uninstalled langfuse@3 to eliminate duplicate OTel spans
+- [Phase 1000]: [Phase 1000-xphere-crm-sync 1000-01]: Stage literals centralized in XPHERE_STAGES with em dash U+2014 verbatim ('Active — Pro' / 'Active — Business'); trial.expired forces {Churned, lost}; opportunity.value=0 (pure layer has no Stripe lookup)
 
 ## Performance Metrics
 
@@ -683,13 +684,14 @@ Stopped at: Completed 97-04-PLAN.md
 | Phase 97-unified-observability-langfuse-v5-sentry-coexistence P01 | 7 | 3 tasks | 4 files |
 | Phase 97-unified-observability-langfuse-v5-sentry-coexistence P02 | 5 | 2 tasks | 2 files |
 | Phase 97-unified-observability-langfuse-v5-sentry-coexistence P04 | 10 | 2 tasks | 5 files |
+| Phase 1000 P01 | 3min | 2 tasks | 4 files |
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-13)
 
 **Core value:** Business owner → job site audio recording → sent professional estimate in under 5 minutes
-**Current focus:** Phase 96 — intelligence-parity-auto-refine-needs-details-surfacing
+**Current focus:** Phase 1000 — xphere-crm-sync
 
 ## Notes
 

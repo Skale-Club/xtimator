@@ -1104,7 +1104,7 @@ Plans:
 **Requirements**: XPHERE-B1, XPHERE-B2, XPHERE-B3-MAP, XPHERE-B3-CLIENT, XPHERE-B4, XPHERE-B5, XPHERE-B6, XPHERE-B7
 **Plans**: 5 plans
 Plans:
-- [ ] 1000-01-PLAN.md — Wave 1: companies migration (xphere_* columns) + pure mapping/types (buildSyncPayload, stage literals)
+- [x] 1000-01-PLAN.md — Wave 1: companies migration (xphere_* columns) + pure mapping/types (buildSyncPayload, stage literals)
 - [ ] 1000-02-PLAN.md — Wave 1: credentials (getXphereConfig + 'xphere' provider) + admin CRM config section
 - [ ] 1000-03-PLAN.md — Wave 2: Xphere HTTP client (syncCompany) + Inngest event + xphereSyncJob + serve registration
 - [ ] 1000-04-PLAN.md — Wave 3: lifecycle hooks (company/estimate/subscription/trial) via fire-and-forget dispatchXphereSync
