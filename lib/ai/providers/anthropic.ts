@@ -4,7 +4,8 @@ import type { AIProvider } from '../provider.interface'
 import type { EstimateInput, EstimateOutput, RefineEstimateInput } from '../types'
 import { getIntegrationKey } from '@/lib/platform-config'
 import { buildSystemPrompt, buildUserContent } from '../prompt-builder'
-import { normalizeOutput } from '../normalize'
+import { normalizeOutput, appendRetryHint } from '../normalize'
+import { InvalidEstimateOutputError } from '../with-fallback'
 import { formatMoney, normalizeCurrencyCode } from '@/lib/money/currency'
 
 export class AnthropicAdapter implements AIProvider {
@@ -18,7 +19,7 @@ export class AnthropicAdapter implements AIProvider {
       model: 'claude-sonnet-4-20250514',
       max_tokens: 4096,
       system: buildSystemPrompt(input),
-      messages: [{ role: 'user', content: buildUserContent(input) }],
+      messages: [{ role: 'user', content: appendRetryHint(buildUserContent(input), input.retryHint) }],
       tools: [
         {
           name: 'create_estimate',
@@ -95,7 +96,9 @@ export class AnthropicAdapter implements AIProvider {
       throw new Error('Claude did not return a structured estimate')
     }
     const raw = (toolBlock as { type: 'tool_use'; input: Record<string, unknown> }).input
-    return normalizeOutput(raw)
+    const r = normalizeOutput(raw)
+    if (!r.ok) throw new InvalidEstimateOutputError(r.error)
+    return r.value
   }
 
   async refineEstimate(input: RefineEstimateInput): Promise<EstimateOutput> {
@@ -129,7 +132,7 @@ Task: Update the estimate to reflect the user's instruction. Return the full upd
       model: 'claude-sonnet-4-20250514',
       max_tokens: 4096,
       system: systemPrompt,
-      messages: [{ role: 'user', content: userContent }],
+      messages: [{ role: 'user', content: appendRetryHint(userContent, input.retryHint) }],
       tools: [
         {
           name: 'create_estimate',
@@ -206,6 +209,8 @@ Task: Update the estimate to reflect the user's instruction. Return the full upd
       throw new Error('Claude did not return a structured estimate')
     }
     const raw = (toolBlock as { type: 'tool_use'; input: Record<string, unknown> }).input
-    return normalizeOutput(raw)
+    const r = normalizeOutput(raw)
+    if (!r.ok) throw new InvalidEstimateOutputError(r.error)
+    return r.value
   }
 }

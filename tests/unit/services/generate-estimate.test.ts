@@ -31,6 +31,9 @@ import { getAIProvider } from '@/lib/ai'
 
 const DEFAULT_AI_OUTPUT: EstimateOutput = {
   suggested_project_name: 'Smith Kitchen Reno',
+  // GUARD-01: EstimateOutput is now single-sourced from estimateOutputSchema, whose
+  // suggested_client_name transform always yields string | null (present in output).
+  suggested_client_name: null,
   summary: 'Kitchen renovation estimate',
   sections: [
     {

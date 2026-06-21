@@ -48,6 +48,26 @@ export class ProvidersUnavailableError extends Error {
 }
 
 /**
+ * GUARD-01 marker error thrown by the provider adapters when an AI estimate output
+ * fails `estimateOutputSchema` validation (`normalizeOutput` returns `{ ok: false }`).
+ *
+ * The `invalidOutput` brand is the deterministic signal the schema-retry seam
+ * (`provider-with-fallback.ts`) and the generate node (100-01) key off of —
+ * surviving module-instance boundaries exactly like `ProvidersUnavailableError`'s
+ * `providerUnavailable` brand. The generate node maps it to the already-declared
+ * typed reason `'invalid_output'`. It is ORTHOGONAL to `ProvidersUnavailableError`:
+ * a provider-down failure is NOT an InvalidEstimateOutputError, so the schema-retry
+ * rethrows it immediately (no retry storm).
+ */
+export class InvalidEstimateOutputError extends Error {
+  readonly invalidOutput = true as const
+  constructor(readonly zodError: import('zod').ZodError) {
+    super('Estimate output failed schema validation after one retry')
+    this.name = 'InvalidEstimateOutputError'
+  }
+}
+
+/**
  * Run `primary()`; on any throw run `fallback()` exactly once.
  *   - primary succeeds → { result, servedBy: 'primary', fallbackFired: false } (fallback NOT called).
  *   - primary throws, fallback succeeds → { result, servedBy: 'fallback', fallbackFired: true }.
@@ -66,6 +86,16 @@ export async function callWithFallback<T>(args: {
     const result = await args.primary()
     return { result, servedBy: 'primary', fallbackFired: false }
   } catch (primaryErr) {
+    // GUARD-01: a schema-validation failure is NOT a provider-availability failure.
+    // Falling back to the other provider would mask the invalid output and break the
+    // bounded schema-retry (which must re-call the SAME served provider once). Rethrow
+    // the marker so the OUTER `withSchemaRetry` seam handles it.
+    if (
+      primaryErr instanceof InvalidEstimateOutputError ||
+      (primaryErr as { invalidOutput?: unknown } | null)?.invalidOutput === true
+    ) {
+      throw primaryErr
+    }
     try {
       const result = await args.fallback()
       return { result, servedBy: 'fallback', fallbackFired: true }

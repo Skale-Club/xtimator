@@ -20,3 +20,13 @@ export function normalizeOutput(raw: Record<string, unknown>): NormalizeResult {
   if (!parsed.success) return { ok: false, error: parsed.error }
   return { ok: true, value: parsed.data }
 }
+
+/**
+ * Append the GUARD-01 schema-repair hint to an adapter's user content when the
+ * schema-retry seam set `input.retryHint` on the single corrective re-call.
+ * No hint (happy path) → content returned unchanged. Shared by both adapters so
+ * the retry-once behavior is identical regardless of which provider served.
+ */
+export function appendRetryHint(userContent: string, retryHint?: string): string {
+  return retryHint ? `${userContent}\n\n${retryHint}` : userContent
+}

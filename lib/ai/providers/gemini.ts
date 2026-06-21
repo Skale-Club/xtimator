@@ -4,7 +4,8 @@ import type { AIProvider } from '../provider.interface'
 import type { EstimateInput, EstimateOutput, RefineEstimateInput } from '../types'
 import { getIntegrationKey } from '@/lib/platform-config'
 import { buildSystemPrompt, buildUserContent } from '../prompt-builder'
-import { normalizeOutput } from '../normalize'
+import { normalizeOutput, appendRetryHint } from '../normalize'
+import { InvalidEstimateOutputError } from '../with-fallback'
 import { formatMoney, normalizeCurrencyCode } from '@/lib/money/currency'
 import { PHOTO_PROMPT } from '@/lib/ai/openrouter-client'
 
@@ -139,7 +140,7 @@ export class GeminiAdapter implements AIProvider {
 
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
-      contents: buildUserContent(input),
+      contents: appendRetryHint(buildUserContent(input), input.retryHint),
       config: {
         systemInstruction: buildSystemPrompt(input),
         tools: [{ functionDeclarations: [createEstimateDeclaration] }],
@@ -155,7 +156,9 @@ export class GeminiAdapter implements AIProvider {
     const fc = response.functionCalls?.[0]
     if (!fc) throw new Error('Gemini did not return a function call')
     const args = fc.args as Record<string, unknown>
-    return normalizeOutput(args)
+    const r = normalizeOutput(args)
+    if (!r.ok) throw new InvalidEstimateOutputError(r.error)
+    return r.value
   }
 
   async refineEstimate(input: RefineEstimateInput): Promise<EstimateOutput> {
@@ -232,7 +235,7 @@ Task: Update the estimate to reflect the user's instruction. Return the full upd
 
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
-      contents: userContent,
+      contents: appendRetryHint(userContent, input.retryHint),
       config: {
         systemInstruction,
         tools: [{ functionDeclarations: [createEstimateDeclaration] }],
@@ -248,6 +251,8 @@ Task: Update the estimate to reflect the user's instruction. Return the full upd
     const fc = response.functionCalls?.[0]
     if (!fc) throw new Error('Gemini did not return a function call')
     const args = fc.args as Record<string, unknown>
-    return normalizeOutput(args)
+    const r = normalizeOutput(args)
+    if (!r.ok) throw new InvalidEstimateOutputError(r.error)
+    return r.value
   }
 }

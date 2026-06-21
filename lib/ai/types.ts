@@ -1,4 +1,5 @@
 // lib/ai/types.ts
+import type { EstimateOutput } from './schema'
 
 export type PriceBookEntry = {
   folder_name: string | null
@@ -21,12 +22,12 @@ export type EstimateSectionOutput = {
   items: LineItemOutput[]
 }
 
-// EstimateOutput is single-sourced from the zod schema (GUARD-01). Re-exporting it
-// here keeps every existing `import { EstimateOutput } from './types'` working while
-// the schema in `./schema.ts` remains the only definition — the validator and the
-// type can never drift. LineItemOutput / EstimateSectionOutput above stay as the
-// structurally-compatible item/section shapes used by callers and normalize.
-export type { EstimateOutput } from './schema'
+// EstimateOutput is single-sourced from the zod schema (GUARD-01) — imported at the
+// top and re-exported here so every existing `import { EstimateOutput } from './types'`
+// keeps working while the schema in `./schema.ts` remains the only definition (the
+// validator and the type can never drift). LineItemOutput / EstimateSectionOutput
+// above stay as the structurally-compatible item/section shapes used by callers.
+export type { EstimateOutput }
 
 export type EstimateInput = {
   industry: string | null
@@ -60,6 +61,13 @@ export type EstimateInput = {
    * estimate generation; null/undefined for web + MCP.
    */
   extraInstructions?: string
+  /**
+   * GUARD-01 schema-repair hint. Set ONLY by the schema-retry seam
+   * (provider-with-fallback.ts) on the single corrective re-call after the first
+   * invalid output. When present, the adapter appends it to the user content it
+   * builds. Absent on the happy path (valid first time = no hint, no retry).
+   */
+  retryHint?: string
 }
 
 export type RefineEstimateInput = {
@@ -67,4 +75,10 @@ export type RefineEstimateInput = {
   instruction: string               // User's refinement request
   priceBookItems: PriceBookEntry[]  // Company's price book
   currencyCode?: string
+  /**
+   * GUARD-01 schema-repair hint (see EstimateInput.retryHint). Set only by the
+   * schema-retry seam on the single corrective re-call; appended to user content.
+   * Refine inherits the same retry seam in Phase 101 for free.
+   */
+  retryHint?: string
 }

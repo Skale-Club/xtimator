@@ -11,7 +11,8 @@ import type { AIProvider } from '../provider.interface'
 import type { EstimateInput, EstimateOutput, RefineEstimateInput } from '../types'
 import { getIntegrationKey } from '@/lib/platform-config'
 import { buildSystemPrompt, buildUserContent } from '../prompt-builder'
-import { normalizeOutput } from '../normalize'
+import { normalizeOutput, appendRetryHint } from '../normalize'
+import { InvalidEstimateOutputError } from '../with-fallback'
 import { formatMoney, normalizeCurrencyCode } from '@/lib/money/currency'
 import { langfuseClient } from '@/lib/observability/langfuse'
 
@@ -87,12 +88,15 @@ export class OpenRouterAdapter implements AIProvider {
   }
 
   async generateEstimate(input: EstimateInput): Promise<EstimateOutput> {
+    const user = appendRetryHint(buildUserContent(input), input.retryHint)
     const raw = await this.callTool({
       system: buildSystemPrompt(input),
-      user: buildUserContent(input),
+      user,
       operationName: 'generate_estimate',
     })
-    return normalizeOutput(raw)
+    const r = normalizeOutput(raw)
+    if (!r.ok) throw new InvalidEstimateOutputError(r.error)
+    return r.value
   }
 
   async refineEstimate(input: RefineEstimateInput): Promise<EstimateOutput> {
@@ -114,7 +118,7 @@ export class OpenRouterAdapter implements AIProvider {
     const system =
       `You are a professional estimator. Your task is to update an existing estimate based on a refinement instruction. Modify, add, or remove sections/items as needed to reflect the user's request. Keep everything else unchanged. Use ${currencyCode} for all numeric prices and return monetary values as plain numbers only, without currency symbols or formatted strings. Preserve the price_source tagging: use "price_book" for items from the price book, "ai_estimate" for items you estimate from market rates.`
 
-    const user = `${priceBookContext}
+    const baseUser = `${priceBookContext}
 
 ## Current Estimate
 ${JSON.stringify(input.existingEstimate, null, 2)}
@@ -123,9 +127,12 @@ ${JSON.stringify(input.existingEstimate, null, 2)}
 ${input.instruction}
 
 Task: Update the estimate to reflect the user's instruction. Return the full updated estimate in JSON format.`
+    const user = appendRetryHint(baseUser, input.retryHint)
 
     const raw = await this.callTool({ system, user, operationName: 'refine_estimate' })
-    return normalizeOutput(raw)
+    const r = normalizeOutput(raw)
+    if (!r.ok) throw new InvalidEstimateOutputError(r.error)
+    return r.value
   }
 
   private async callTool(args: {
