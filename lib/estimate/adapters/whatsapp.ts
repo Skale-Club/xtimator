@@ -42,7 +42,7 @@ import { Annotation, StateGraph, Send, START, END } from '@langchain/langgraph'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { WhatsAppMessage } from '@/lib/whatsapp/types'
 import { requireServiceClient } from '@/lib/supabase/service'
-import { transcribeAudioOR, analyzePhotoOR } from '@/lib/ai/openrouter-client'
+import { ingestMultimodal } from '@/lib/estimate/ingest/multimodal'
 import {
   buildAskDetailsMessage,
   revertVagueEstimate,
@@ -193,10 +193,18 @@ export function makeWhatsAppAdapter({
 
         let transcript: string
         try {
-          transcript = await transcribeAudioOR(
-            new Blob([new Uint8Array(audioBuffer)], { type: mimeType }),
-            ext
-          )
+          // Route transcription through the shared, channel-neutral ingestion
+          // path (UNIFY-01) instead of calling transcribeAudioOR directly. Same
+          // fallback-wrapped primitive underneath; the Send[]/mediaResults batch
+          // structure around it is unchanged. ingestMultimodal swallows a single
+          // item failure and returns transcripts: [], so the empty-transcript
+          // guard below preserves today's ok:false outcome for a failed item.
+          const { transcripts } = await ingestMultimodal({
+            audio: [
+              { blob: new Blob([new Uint8Array(audioBuffer)], { type: mimeType }), ext },
+            ],
+          })
+          transcript = transcripts[0] ?? ''
         } catch (err) {
           console.error('[WhatsApp] audio transcription failed:', err)
           return { mediaResults: [{ msgId, ok: false, reason: 'transcription_failed' }] }
@@ -240,10 +248,14 @@ export function makeWhatsAppAdapter({
           .eq('wa_message_id', msgId)
           .eq('company_id', companyId)
 
-        const aiDescription = await analyzePhotoOR(
-          imageBuffer.toString('base64'),
-          mimeType
-        )
+        // Route vision through the shared, channel-neutral ingestion path
+        // (UNIFY-01) instead of calling analyzePhotoOR directly. Same
+        // fallback-wrapped primitive underneath; storage upload + photos insert
+        // + mediaResults batch structure around it are unchanged.
+        const { photoDescriptions } = await ingestMultimodal({
+          photos: [{ base64: imageBuffer.toString('base64'), mimeType }],
+        })
+        const aiDescription = photoDescriptions[0] ?? ''
 
         await svc.from('photos').insert({
           project_id: projectId,
