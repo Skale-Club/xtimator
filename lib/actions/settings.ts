@@ -124,11 +124,10 @@ export async function updateCompanySettings(formData: FormData) {
   }
 
   // NOTE: the company phone is the client-facing contact shown on estimates — it is
-  // intentionally NOT synced to company_whatsapp. WhatsApp routing numbers are per-user
-  // and managed in Profile settings: the owner number (company_whatsapp.owner_phone) is
-  // sourced from the owner's PROFILE phone in updateProfile / saveWhatsAppNumber (Phase 98).
-  // The company phone seeds a user's WhatsApp number only once, at account creation
-  // (see lib/actions/company.ts), and is independent thereafter.
+  // intentionally NOT synced to company_whatsapp. WhatsApp routing numbers are per-user:
+  // each user sets their own via the dedicated "WhatsApp Number" field (saveWhatsAppNumber).
+  // The company phone seeds the owner's per-user WhatsApp number only once, at account
+  // creation (see lib/actions/company.ts), and is independent thereafter.
 
   // Detect changed fields and send a profile-update notification email
   if (currentCompany) {
@@ -376,28 +375,12 @@ export async function updateProfile(formData: FormData) {
   const { error } = await supabase.auth.updateUser({ data: updateData })
   if (error) return { error: error.message }
 
-  // Phase 98: the profile phone IS the owner's WhatsApp line. Sync it to
-  // company_whatsapp.owner_phone for the active company, and — only when the number
-  // is new/changed — fire the proactive welcome TEMPLATE off the request path via
-  // Inngest. Best-effort: a failure here must never block or fail the profile save.
-  try {
-    const activeCompanyId = await getActiveCompanyId()
-    if (activeCompanyId) {
-      const svc = requireServiceClient()
-      const { phoneChanged, ownerPhone } = await syncOwnerPhone(svc, activeCompanyId, phone)
-      if (phoneChanged && ownerPhone) {
-        await inngest.send({
-          name: EVENT_WHATSAPP_WELCOME,
-          data: { companyId: activeCompanyId, toPhone: ownerPhone },
-        })
-      }
-    }
-  } catch (e) {
-    console.warn(
-      '[settings.updateProfile] WhatsApp owner-phone sync/welcome failed:',
-      e instanceof Error ? e.message : String(e),
-    )
-  }
+  // NOTE: this profile `phone` is the user's profile / account-recovery phone only.
+  // It is intentionally NOT synced to company_whatsapp.owner_phone. The WhatsApp
+  // routing number is per-user and owned exclusively by saveWhatsAppNumber (the
+  // dedicated "WhatsApp Number" field), so there is a single writer per user — having
+  // two writers target different rows risked duplicate owner_phone rows, which breaks
+  // the inbound .maybeSingle() lookup in app/api/webhooks/whatsapp/route.ts.
 
   revalidatePath('/settings/general')
   return { ok: true }
@@ -416,7 +399,29 @@ export async function saveWhatsAppNumber(phone: string | null) {
   if (!activeCompanyId) return { error: 'No company found' }
 
   const svc = requireServiceClient()
-  await syncOwnerPhone(svc, activeCompanyId, phone, claims.sub as string)
+  // Per-user WhatsApp number (tied to this user's row). This is the single writer
+  // for company_whatsapp.owner_phone. When the number is new/changed, fire the
+  // proactive welcome TEMPLATE off the request path via Inngest so the user can
+  // start building estimates by chat. Best-effort: never block the save.
+  const { phoneChanged, ownerPhone } = await syncOwnerPhone(
+    svc,
+    activeCompanyId,
+    phone,
+    claims.sub as string,
+  )
+  if (phoneChanged && ownerPhone) {
+    try {
+      await inngest.send({
+        name: EVENT_WHATSAPP_WELCOME,
+        data: { companyId: activeCompanyId, toPhone: ownerPhone },
+      })
+    } catch (e) {
+      console.warn(
+        '[settings.saveWhatsAppNumber] WhatsApp welcome dispatch failed:',
+        e instanceof Error ? e.message : String(e),
+      )
+    }
+  }
 
   revalidatePath('/settings/general')
   return { ok: true }

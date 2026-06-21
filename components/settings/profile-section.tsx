@@ -114,11 +114,12 @@ export function ProfileSection({ profile }: ProfileSectionProps) {
             </div>
           </div>
 
-          {/* Phone */}
+          {/* Profile phone (account / recovery) — NOT the WhatsApp routing number.
+              The WhatsApp number is the dedicated per-user field below. */}
           <div className="grid gap-6 xl:grid-cols-[260px_minmax(0,1fr)]">
             <div>
-              <h3 className="text-sm font-medium">WhatsApp Number</h3>
-              <p className="mt-1 text-sm text-muted-foreground">Your number for the Xtimator WhatsApp assistant (and account recovery). Save it and we&apos;ll send a welcome message so you can start building estimates by chat.</p>
+              <h3 className="text-sm font-medium">Phone</h3>
+              <p className="mt-1 text-sm text-muted-foreground">Your contact phone for your account (and recovery). To use the Xtimator WhatsApp assistant, set your WhatsApp number below.</p>
             </div>
             <div>
               {/* PhoneInput is controlled; the country dropdown holds the dial code and the
