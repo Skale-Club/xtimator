@@ -75,3 +75,25 @@ describe('OBS-03: safe-metadata — no sensitive tokens in trace call sites', ()
     expect(src).toMatch(/langfuseSessionId|langfuseUserId/)
   })
 })
+
+// ── GUARD-04: correlation id threaded into the trace ──────────────────────────
+
+/**
+ * GUARD-04 (Phase 100, Wave 0 RED) — one correlation id (the promoted `attemptId`)
+ * threads into the Langfuse trace metadata in generate-estimate.ts. Source-text anchor:
+ * the wiring lands in Plan 100-03, which adds `correlationId` to the graph.invoke config
+ * metadata and ties it to the existing `attemptId` lineage. This case also closes the
+ * pre-existing OBS-03 RED (`langfuseSessionId`/`langfuseUserId` token) once 100-03 moves
+ * those into the config metadata.
+ *
+ * RED today: `correlationId` is absent from generate-estimate.ts. The forbidden-token
+ * assertions above are NOT weakened.
+ */
+describe('GUARD-04: generate-estimate.ts threads the correlation id into trace metadata', () => {
+  it('GUARD-04: generate-estimate.ts threads attemptId as correlationId into trace metadata', () => {
+    const src = read(GENERATE_ESTIMATE_FN)
+    // The promoted correlation id is the existing attemptId — both tokens must co-occur.
+    expect(src).toMatch(/correlationId/)
+    expect(src).toMatch(/attemptId/)
+  })
+})

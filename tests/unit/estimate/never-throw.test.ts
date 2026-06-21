@@ -132,3 +132,70 @@ describe('HARD-04: both providers down -> typed provider_unavailable failure', (
     expect((result as { failure?: { reason: string } }).failure?.reason).toBe('provider_unavailable')
   })
 })
+
+/**
+ * GUARD-01 invariant — invalid AI output resolves to a typed invalid_output failure (Wave 0 RED).
+ *
+ * When the schema-retry boundary (Plan 100-01) exhausts its single retry it throws a
+ * marked `InvalidEstimateOutputError` (`invalidOutput: true`), imported here from
+ * `@/lib/ai/with-fallback` (Plan 100-01 confirms the module). The generate node's
+ * existing never-throw catch must (a) still NOT throw, and (b) map that marker to the
+ * already-declared typed reason `'invalid_output'` (`lib/estimate/failure.ts`).
+ *
+ * Split into two tagged cases so the Wave-1 `-t` selectors resolve independently:
+ *   - "no throw"        — RED until 100-01 throws the marker through the node's catch
+ *   - "invalid_output"  — RED until 100-01 adds the marker -> typed-reason branch in generate.ts
+ *
+ * RED today: `InvalidEstimateOutputError` does not exist yet; generate.ts only maps
+ * ProvidersUnavailableError. Computed-specifier importTarget keeps collection clean.
+ * Pre-existing provider_unavailable / generation_failed cases above stay green.
+ */
+describe('GUARD-01: invalid output -> typed invalid_output failure', () => {
+  it('invalid output — graph resolves to a failure state and does not throw (no throw)', async () => {
+    const { InvalidEstimateOutputError } = await importTarget('@/lib/ai/with-fallback')
+
+    const { generateEstimateForProject } = await import('@/lib/services/generate-estimate')
+    ;(generateEstimateForProject as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+      new InvalidEstimateOutputError({ issues: [] } as never)
+    )
+
+    const { makeGenerateNode } = await importTarget('@/lib/estimate/graph/nodes/generate')
+    const { passthroughRunner } = await importTarget('@/lib/estimate/graph/types')
+    const node = makeGenerateNode(passthroughRunner)
+
+    let result: unknown
+    await expect(
+      (async () => {
+        result = await node({
+          companyId: 'company-1',
+          projectId: 'project-1',
+          channel: 'whatsapp',
+        } as never)
+      })()
+    ).resolves.not.toThrow()
+
+    expect((result as { failure?: unknown }).failure).toBeDefined()
+  })
+
+  it('invalid output — failure.reason is exactly invalid_output', async () => {
+    const { InvalidEstimateOutputError } = await importTarget('@/lib/ai/with-fallback')
+
+    const { generateEstimateForProject } = await import('@/lib/services/generate-estimate')
+    ;(generateEstimateForProject as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+      new InvalidEstimateOutputError({ issues: [] } as never)
+    )
+
+    const { makeGenerateNode } = await importTarget('@/lib/estimate/graph/nodes/generate')
+    const { passthroughRunner } = await importTarget('@/lib/estimate/graph/types')
+    const node = makeGenerateNode(passthroughRunner)
+
+    const result = await node({
+      companyId: 'company-1',
+      projectId: 'project-1',
+      channel: 'whatsapp',
+    } as never)
+
+    // EXACT string — 100-01 owns the marker -> typed-reason mapping in generate.ts.
+    expect((result as { failure?: { reason: string } }).failure?.reason).toBe('invalid_output')
+  })
+})
