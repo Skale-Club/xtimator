@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { updateProfile } from '@/lib/actions/settings'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { PhoneInput } from '@/components/ui/phone-input'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -22,6 +23,7 @@ interface ProfileSectionProps {
 export function ProfileSection({ profile }: ProfileSectionProps) {
   const [isPending, startTransition] = useTransition()
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
+  const [phone, setPhone] = useState(profile.phone)
   const avatarInputRef = useRef<HTMLInputElement>(null)
   const formRef = useRef<HTMLFormElement>(null)
 
@@ -120,14 +122,12 @@ export function ProfileSection({ profile }: ProfileSectionProps) {
               <p className="mt-1 text-sm text-muted-foreground">Your number for the Xtimator WhatsApp assistant (and account recovery). Save it and we&apos;ll send a welcome message so you can start building estimates by chat.</p>
             </div>
             <div>
-              <Input
-                id="phone"
-                name="phone"
-                type="tel"
-                defaultValue={profile.phone}
-                placeholder="+1 (555) 000-0000"
-                autoComplete="tel"
-              />
+              {/* PhoneInput is controlled; the country dropdown holds the dial code and the
+                  field masks to (XXX) XXX-XXXX as you type. We surface the full emitted value
+                  ("+1 (XXX) XXX-XXXX") via a hidden input so the plain FormData submit captures
+                  it — the PhoneInput's own input is intentionally name-less. */}
+              <PhoneInput id="phone" value={phone} onChange={setPhone} />
+              <input type="hidden" name="phone" value={phone} />
             </div>
           </div>
 
