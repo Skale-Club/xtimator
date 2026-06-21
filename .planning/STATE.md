@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v4.3
 milestone_name: Unified Agentic Estimate Engine
 status: completed
-stopped_at: Completed 102-00-PLAN.md
-last_updated: "2026-06-21T19:51:47.470Z"
+stopped_at: Completed 102-02-PLAN.md
+last_updated: "2026-06-21T19:56:56.130Z"
 last_activity: 2026-06-21 — executed 102-00-PLAN.md (Wave 0 — RED/EXTEND test scaffold for HARD-05/06/07)
 progress:
   total_phases: 52
@@ -22,12 +22,13 @@ progress:
 
 ## Current Position
 
-Phase: 102 (Resilience Hardening — Batch Isolation, Configurable Auto-Refine + Recourse, Replay-Safe TTL — HARD-05/06/07) — IN PROGRESS (Wave 0 done; 1/5 plans)
-Plan: 102-00 complete; 102-01..04 not started
-Status: 102-00 (Wave 0 RED/EXTEND test scaffold) shipped. Authored 4 failing-by-design test files that pin Phase 102's three behaviors before any implementation, each RED for the right reason (behavior-absent / module-not-yet-created, not import/compile error): (1) `tests/unit/estimate/auto-refine-cap.test.ts` — HARD-06 configurable cap; env-stubbed `checkVagueAfterAssessEdge` via `vi.resetModules()`+dynamic import; default cap=1 + non-vague cases GREEN, the `AUTO_REFINE_MAX_ATTEMPTS=2, refineAttempts:1 → autoRefine` case RED (source hard-codes `< 1`). (2) `tests/unit/whatsapp/replay-safe-ttl.test.ts` — HARD-07; invokes `buildEstimateGraph().invoke` twice with same `requestedAt`, captures `whatsapp_sessions` insert `expires_at` via a module-level array extending the chainable Supabase mock; RED because finalize mints `Date.now()`. (3) `tests/unit/whatsapp/batch-reporting.test.ts` — HARD-05; PARTIAL 1-of-2 ok:false builds estimate + exactly ONE reply (RED on the loose dropped-item note `/couldn't process 1/i`), TOTAL-failure no-input path GREEN (never-reply invariant pinned). (4) `tests/unit/workspace/needs-details-banner.test.tsx` — HARD-06 recourse UI (RTL render/gate/CTA), clean module-not-found RED (component lands in Plan 04); `use-translation` stubbed identity. `@testing-library/react@^16.3.2` confirmed present (no install). Consolidated: 4 failed (intended) + 6 passed; invariant suites never-reply + graph-neutrality + auto-refine-isolation stay 9/9 green. Key authoring detail: extended the non-vague `estimateRow` with `sections[].items` so the single chainable mock is read as non-vague by the `assess` node (one generate call, no auto-refine loop masking the assertions). 2 atomic commits (201afb0, 35e8537). xphere untouched. NOTE: requirements HARD-05/06/07 NOT marked complete — these are RED scaffolds; the implementation plans (102-01..04) turn them green and own the requirement completion.
-Last activity: 2026-06-21 — executed 102-00-PLAN.md (Wave 0 — RED/EXTEND test scaffold for HARD-05/06/07)
-Stopped at: Completed 102-00-PLAN.md
-Next Up: Phase 102 Wave 1+. Each implementation plan has a failing automated check ready: HARD-07 → 102-01, HARD-06 cap → 102-02, HARD-05 → 102-03, HARD-06 recourse UI → 102-04. Recommended non-blocking follow-up: a test-harness isolation pass for the pre-existing vitest worker-reuse leakage (see `deferred-items.md`).
+Phase: 102 (Resilience Hardening — Batch Isolation, Configurable Auto-Refine + Recourse, Replay-Safe TTL — HARD-05/06/07) — IN PROGRESS (Wave 0 done + 1 Wave-1 impl plan; 2/5 plans)
+Plan: 102-00 + 102-02 complete; 102-01, 102-03, 102-04 not started
+Status: 102-02 (HARD-06 cap half) shipped. Replaced the hard-coded `(state.refineAttempts ?? 0) < 1` literal in `checkVagueAfterAssessEdge` (`lib/estimate/graph/nodes/decide.ts`) with a single `AUTO_REFINE_MAX_ATTEMPTS` module constant — read once at module load via an IIFE (`Number.isFinite(raw) && raw >= 0 ? raw : 1`) from the optional non-secret `process.env.AUTO_REFINE_MAX_ATTEMPTS`, defaulting to 1. Operator kept exactly `<` so the default is byte-identical to today (Research Pitfall 1). `auto-refine.ts` doc comment updated to reference the configurable cap (documentation-only; increment logic untouched). Channel-neutral (no DB, no async, no channel import) → graph-neutrality stays green. `tests/unit/estimate/auto-refine-cap.test.ts` now fully GREEN (default=1 AND `AUTO_REFINE_MAX_ATTEMPTS=2` override cases); `auto-refine-isolation` + `graph-neutrality` (12/12) and `never-reply-regression` Path C (loops exactly once at default) stay green. No env VALUE committed — only the var NAME appears (CLAUDE.md secret-handling). 1 atomic commit (02a41f2). xphere untouched. HARD-06 NOT marked complete — only the configurable-cap half is done; the web recourse UI half is owned by Plan 102-04.
+Prior (102-00, Wave 0 RED/EXTEND scaffold): authored 4 failing-by-design test files (auto-refine-cap [HARD-06 cap, now GREEN via 102-02], replay-safe-ttl [HARD-07, still RED → 102-01], batch-reporting [HARD-05, still RED → 102-03], needs-details-banner [HARD-06 recourse, still RED → 102-04]); 2 commits (201afb0, 35e8537).
+Last activity: 2026-06-21 — executed 102-02-PLAN.md (Wave 1 — HARD-06 configurable auto-refine cap, GREEN)
+Stopped at: Completed 102-02-PLAN.md
+Next Up: Phase 102 remaining Wave 1+ plans. Failing automated checks still ready: HARD-07 → 102-01 (replay-safe-ttl), HARD-05 → 102-03 (batch-reporting), HARD-06 recourse UI → 102-04 (needs-details-banner). HARD-06 closes only when 102-04 lands (cap half done by 102-02). Recommended non-blocking follow-up: a test-harness isolation pass for the pre-existing vitest worker-reuse leakage (see `deferred-items.md`).
 
 > Xtimator side (Fase B): plans 01–05 done on `dev`. Xphere side (Fase A): receiver
 > `POST /api/xtimator/webhook` + migration 1213 + pipeline seed on the **xphere** repo
@@ -566,6 +567,7 @@ Next Up: Phase 102 Wave 1+. Each implementation plan has a failing automated che
 - [Phase 101]: [101-03]: refine runs INLINE via buildRefineGraph + passthrough runner (no Inngest, no checkpointer) — synchronous non-persisting preview; refined preview rides state.refined with no DB write
 - [Phase 102]: 102-00: non-vague estimateRow in WhatsApp graph tests must include sections[].items — the single chainable mock serves both the assess re-read (total+items) and the finalize confirm re-read (title/subtotal); without items the estimate assessed vague and generate fired twice (cap=1 auto-refine), masking assertions
 - [Phase 102]: 102-00: HARD-05 dropped-item-note regex kept intentionally loose (/couldn't process 1/i) — Plan 03 owns exact wording; the load-bearing RED is mere presence of the note in the single reply
+- [Phase 102]: [Phase 102 102-02]: auto-refine cap is a single AUTO_REFINE_MAX_ATTEMPTS module constant (default 1, Number-guarded non-secret env override); operator kept exactly < so default is byte-identical; HARD-06 cap half done, recourse UI half stays open (Plan 04)
 
 ## Performance Metrics
 
@@ -754,6 +756,7 @@ Next Up: Phase 102 Wave 1+. Each implementation plan has a failing automated che
 | Phase 101 P02 | 18 | 2 tasks | 6 files |
 | Phase 101 P03 | 13 | 3 tasks | 6 files |
 | Phase 102 P00 | 20 | 2 tasks | 4 files |
+| Phase 102 P02 | 2min | 1 tasks | 2 files |
 
 ## Project Reference
 
