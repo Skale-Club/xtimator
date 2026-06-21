@@ -56,6 +56,7 @@ import { getServerStorage } from '@/lib/storage'
 import { formatMoney } from '@/lib/money/currency'
 import type { EstimateStateType } from '@/lib/estimate/graph/state'
 import type { ChannelAdapter } from '@/lib/estimate/graph/types'
+import { failureReasonToChannelCopy } from '@/lib/estimate/failure'
 
 const SESSION_TTL_MINUTES = 30
 
@@ -428,9 +429,10 @@ export function makeWhatsAppAdapter({
      * reply, turning the previously-silent failure into a visible, recoverable one.
      */
     async onError(state: EstimateStateType): Promise<Partial<EstimateStateType>> {
-      const body = state.failure?.reason === 'generation_failed'
-        ? "Sorry, I hit a problem generating your estimate. Please try again in a moment — if it keeps happening, describe the job in a text message."
-        : "Sorry, I couldn't process your message. Please describe the job in a text message and I'll generate an estimate for you."
+      // Source the reply copy from the single failure map (HARD-04). The exact
+      // strings for generation_failed/no_usable_input are preserved verbatim there
+      // (regression-gated). Falls back to the no-input copy when failure is unset.
+      const body = failureReasonToChannelCopy(state.failure?.reason ?? 'no_usable_input')
       await sendWhatsAppMessage(ownerPhone, { type: 'text', text: { body } })
       await logOutboundMessage(requireServiceClient(), {
         companyId,

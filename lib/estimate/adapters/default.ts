@@ -20,6 +20,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { EstimateStateType } from '@/lib/estimate/graph/state'
 import type { ChannelAdapter } from '@/lib/estimate/graph/types'
 import { revertVagueEstimate } from '@/lib/estimate/quality/revert'
+import { failureReasonToXtimatorError } from '@/lib/estimate/failure'
 
 /**
  * Default (web/MCP) ChannelAdapter closure-factory. Mirrors the WhatsApp adapter
@@ -64,9 +65,14 @@ export function makeDefaultAdapter({ companyId, supabase }: {
       return {}
     },
 
-    // Re-throws so Inngest retry + onFailure fires (D-02).
+    // Re-throws so Inngest retry + onFailure fires (D-02). The thrown value is now a
+    // typed XtimatorError (HARD-04) — its .message still reads cleanly (detail ?? reason)
+    // so Inngest onFailure (which reads error.message) keeps working.
     async onError(state: EstimateStateType): Promise<Partial<EstimateStateType>> {
-      throw new Error(state.failure?.reason ?? 'generation_failed')
+      throw failureReasonToXtimatorError(
+        state.failure?.reason ?? 'generation_failed',
+        state.failure?.detail
+      )
     },
   }
 }
