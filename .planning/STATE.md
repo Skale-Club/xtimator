@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v4.5
 milestone_name: Estimate Engine Robustness & Reliability Harness
-status: defining_requirements
-stopped_at: v4.5 milestone started — defining requirements (roadmap pending)
+status: roadmap_complete
+stopped_at: v4.5 roadmap created (phases 99-103); ready for /gsd:plan-phase 99
 last_updated: "2026-06-21T12:00:00.000Z"
 last_activity: 2026-06-21
 progress:
@@ -17,22 +17,37 @@ progress:
 
 ## Current Status
 
-- **Milestone**: v4.5 Estimate Engine Robustness & Reliability Harness — STARTED 2026-06-21, defining requirements (roadmap pending). Builds on v4.3's canonical estimate graph (`lib/estimate/graph/`). Predecessor v4.3 Unified Agentic Estimate Engine (phases 94-96 shipped 2026-06-20, Phase 97 observability pending); v4.4 WhatsApp Notifications (Phase 98) queued.
+- **Milestone**: v4.5 Estimate Engine Robustness & Reliability Harness — STARTED 2026-06-21, roadmap complete (phases 99-103). Builds on v4.3's canonical estimate graph (`lib/estimate/graph/`). Predecessor v4.3 Unified Agentic Estimate Engine (phases 94-96 shipped 2026-06-20, Phase 97 observability pending); v4.4 WhatsApp Notifications (Phase 98) queued.
 - **Last updated**: 2026-06-21
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 99 (Unified Error Model + Shared Provider-Fallback Wrapper) — not started
 Plan: —
-Status: Defining requirements — v4.5 milestone
-Last activity: 2026-06-21 — Milestone v4.5 started
-Stopped at: Requirements defined; roadmap pending
+Status: Roadmap complete — v4.5 milestone (5 phases, 99-103; 18/18 requirements mapped)
+Last activity: 2026-06-21 — v4.5 roadmap created
+Stopped at: Roadmap created; ready for `/gsd:plan-phase 99`
+Next Up: `/gsd:plan-phase 99` — Unified Error Model + Shared Provider-Fallback Wrapper (HARD-03, HARD-04). It is foundational: the unified error model + OpenRouter→Gemini fallback wrapper that phases 100-103 depend on.
 
 > Xtimator side (Fase B): plans 01–05 done on `dev`. Xphere side (Fase A): receiver
 > `POST /api/xtimator/webhook` + migration 1213 + pipeline seed on the **xphere** repo
 > branch `feat/xtimator-crm-mirror`. Remaining = operational only (apply migration, run
 > seed, create API key, set XPHERE_API_KEY + XPHERE_BASE_URL). Integration is
 > disabled-by-default until both creds are set.
+
+## v4.5 Phases (current milestone)
+
+> **Numbering:** continues the GLOBAL phase counter. v4.4 = Phase 98; the out-of-band phases 999.1 (Inngest self-host) and 1000 (Xphere CRM sync) are NOT the sequence tail. v4.5 = phases 99-103.
+> **Coverage:** 18/18 v4.5 requirements mapped (HARD-01..07, GUARD-01..04, UNIFY-01..03, EVAL-01..04). No orphans.
+> **Scope guardrails (inherited from v4.3, do NOT plan against):** Inngest is the sole durability layer (NO LangGraph checkpointer); full per-node `step.run` decomposition stays DEFERRED (only the existing `StepRunner` seam is used); WhatsApp intent-router unification out of scope; no new estimate features.
+
+- Phase 99: Unified Error Model + Shared Provider-Fallback Wrapper (HARD-03, HARD-04) — Not started (needs `/gsd:plan-phase 99`) — FOUNDATIONAL
+- Phase 100: Output Guardrails — Schema Validation, Price Anchoring, Totals Authority, Correlation ID (GUARD-01, GUARD-02, GUARD-03, GUARD-04) — Not started. Depends on Phase 99.
+- Phase 101: Unified Multimodal Ingestion + Refine Through the Graph (HARD-01, HARD-02, UNIFY-01, UNIFY-02, UNIFY-03) — Not started. Depends on Phases 99 + 100. Largest structural change (removes inline `app/api/estimates/[id]/refine/route.ts` logic).
+- Phase 102: Resilience Hardening — Batch Isolation, Configurable Auto-Refine + Recourse, Replay-Safe TTL (HARD-05, HARD-06, HARD-07) — Not started. Depends on Phase 101.
+- Phase 103: Eval/Test Harness + CI Regression Gate (EVAL-01, EVAL-02, EVAL-03, EVAL-04) — Not started. Depends on Phases 100 + 101 + 102. LAST — validates the hardened engine end-to-end.
+
+**Next Up:** `/gsd:plan-phase 99`.
 
 ## v4.3 Phases (current milestone)
 

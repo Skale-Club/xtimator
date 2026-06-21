@@ -23,6 +23,7 @@
 - ✅ **v4.2 Recording Reliability & Observability** — Phases 91-93 (shipped 2026-05-30)
 - 🚧 **v4.3 Unified Agentic Estimate Engine** — Phases 94-97 (started 2026-06-20)
 - 📋 **v4.4 WhatsApp Notifications** — Phase 98 (planned 2026-06-20, queued after v4.3)
+- 🚧 **v4.5 Estimate Engine Robustness & Reliability Harness** — Phases 99-103 (started 2026-06-21)
 
 > **Phase numbering note:** v3.1.1 starts at **Phase 66**, not 62. Phases 62-65 are reserved as DEFERRED placeholders for the v3.2 Production Deploy milestone (Vercelâ†’Hetzner deploy + Stripe live + monitoring + UAT in prod). Skipping past 62-65 keeps the global phase counter unambiguous and prevents number reuse confusion when v3.2 begins.
 
@@ -1041,10 +1042,14 @@ Plans:
 
 > **Keystone insight:** extraction must be behavior-preserving FIRST (WhatsApp tests stay green), THEN migrate web/MCP as a no-op, THEN add new intelligence, THEN observe — so the mechanical refactor and the product change are isolated and independently bisectable.
 
-- [x] **Phase 94: Extract Canonical Graph Behind WhatsApp (behavior-preserving) + StepRunner Seam** — Lift the WhatsApp-only StateGraph into a shared, channel-neutral `lib/estimate/graph/` core (`ingest → generate → assess → refine/ask → finalize`) driven by a `ChannelAdapter`, with the deterministic `isVagueEstimate` gate extracted, the never-throw/failure-as-state invariant preserved, the `StepRunner` contract injected, and the checkpoint-granularity decision captured — WhatsApp behavior unchanged, its tests stay green (ENGINE-01..04, CHAN-01, DURABLE-01, DURABLE-02, QA-01) (completed 2026-06-20)
-- [x] **Phase 95: Migrate Web + MCP onto the Shared Graph (generate-only passthrough)** — Repoint the web `generate-estimate` Inngest job to invoke the shared graph via the default adapter (`ingest` = passthrough guard, `assess`/`refine`/`finalize` = no-op finalize); MCP inherits via the same event. Output is byte-equivalent to today across all three channels; the non-vague web happy path stays at exactly 1 AI call and writes no `whatsapp_*` rows (CHAN-02, CHAN-03, CHAN-04, QA-03) (completed 2026-06-20)
-- [x] **Phase 96: Intelligence Parity — Auto-Refine + needs_details Surfacing** — Turn on the default adapter's real `assess` + one automatic self-refine (cap = 1) before a typed `needs_details` verdict; web persists `awaiting_details` (non-blocking UI prompt, no `interrupt()`), MCP returns a structured status (no elicitation), WhatsApp's inline ask-details is now driven by the shared verdict; multi-tenant isolation re-verified across the shared nodes + any refine tool (SMART-01..05, QA-02) (completed 2026-06-20)
-- [x] **Phase 97: Unified Observability — Langfuse v5 + Sentry Coexistence** — One unified Langfuse trace per estimate run via a single `CallbackHandler` at `graph.invoke` (channels distinguished by metadata/tags), migrated to the Langfuse v5 OTel SDK coexisting with Sentry on a shared tracer provider, exposing per-channel AI call-count and latency (OBS-01, OBS-02, OBS-03) (completed 2026-06-20)
+- [x] **Phase 94: Extract Canonical Graph Behind WhatsApp (behavior-preserving) + StepRunner Seam** — Lift the WhatsApp-only StateGraph into a shared, channel-neutral `lib/estimate/graph/` core (`ingest → generate → assess → refine/ask → finalize`) driven by a `ChannelAdapter`, with the deterministic `isVagueEstimate` gate extracted, the never-throw/failure-as-state invariant preserved, the `StepRunner` contract injected, and the checkpoint-granularity decision captured — WhatsApp behavior unchanged, its tests stay green (ENGINE-01..04, CHAN-01, DURABLE-01, DURABLE-02, QA-01)
+ (completed 2026-06-20)
+- [x] **Phase 95: Migrate Web + MCP onto the Shared Graph (generate-only passthrough)** — Repoint the web `generate-estimate` Inngest job to invoke the shared graph via the default adapter (`ingest` = passthrough guard, `assess`/`refine`/`finalize` = no-op finalize); MCP inherits via the same event. Output is byte-equivalent to today across all three channels; the non-vague web happy path stays at exactly 1 AI call and writes no `whatsapp_*` rows (CHAN-02, CHAN-03, CHAN-04, QA-03)
+ (completed 2026-06-20)
+- [x] **Phase 96: Intelligence Parity — Auto-Refine + needs_details Surfacing** — Turn on the default adapter's real `assess` + one automatic self-refine (cap = 1) before a typed `needs_details` verdict; web persists `awaiting_details` (non-blocking UI prompt, no `interrupt()`), MCP returns a structured status (no elicitation), WhatsApp's inline ask-details is now driven by the shared verdict; multi-tenant isolation re-verified across the shared nodes + any refine tool (SMART-01..05, QA-02)
+ (completed 2026-06-20)
+- [x] **Phase 97: Unified Observability — Langfuse v5 + Sentry Coexistence** — One unified Langfuse trace per estimate run via a single `CallbackHandler` at `graph.invoke` (channels distinguished by metadata/tags), migrated to the Langfuse v5 OTel SDK coexisting with Sentry on a shared tracer provider, exposing per-channel AI call-count and latency (OBS-01, OBS-02, OBS-03)
+ (completed 2026-06-20)
 
 ### Phase 94: Extract Canonical Graph Behind WhatsApp (behavior-preserving) + StepRunner Seam
 **Goal**: The estimate orchestration logic today exclusive to WhatsApp lives in a shared, channel-neutral domain graph (`lib/estimate/graph/`) consumed through a `ChannelAdapter`, built from day one with the durability `StepRunner` seam and the never-throw invariant — and WhatsApp, the only channel using it so far, behaves exactly as before with its full test suite green. This is the riskiest mechanical change done behind the richest test coverage, with zero behavior change and zero web/MCP impact.
@@ -1127,3 +1132,72 @@ Plans:
 - [x] 1000-03-PLAN.md — Wave 2: Xphere HTTP client (syncCompany) + Inngest event + xphereSyncJob + serve registration
 - [ ] 1000-04-PLAN.md — Wave 3: lifecycle hooks (company/estimate/subscription/trial) via fire-and-forget dispatchXphereSync
 - [ ] 1000-05-PLAN.md — Wave 3: admin batched backfill route + xphere_sync_error observability panel
+
+### v4.5 Estimate Engine Robustness & Reliability Harness (Phases 99-103)
+
+> **Numbering:** continues the GLOBAL phase counter. v4.4's WhatsApp Notifications is Phase 98; the special out-of-band phases 999.1 (Inngest self-host) and 1000 (Xphere CRM sync) are NOT the sequence tail. v4.5 therefore starts at **Phase 99** and increments 99 → 100 → 101 → 102 → 103.
+>
+> **Scope guardrails (inherited from v4.3, do NOT plan against):** Inngest remains the sole durability layer (NO LangGraph checkpointer); the full per-node `step.run` durability decomposition stays DEFERRED (only the existing `StepRunner` seam is used); WhatsApp intent-router unification is out of scope; no new estimate features.
+
+- [ ] **Phase 99: Unified Error Model + Shared Provider-Fallback Wrapper** — One typed failure model across routes/nodes/Inngest/adapters, and one OpenRouter→Gemini fallback wrapper every AI call path uses (HARD-03, HARD-04)
+- [ ] **Phase 100: Output Guardrails — Schema Validation, Price Anchoring, Totals Authority, Correlation ID** — Every AI estimate output is zod-validated with bounded retry, price-anchored, server-totals-authoritative, and traceable end-to-end via one correlation ID (GUARD-01, GUARD-02, GUARD-03, GUARD-04)
+- [ ] **Phase 101: Unified Multimodal Ingestion + Refine Through the Graph** — Refine runs through the canonical graph + Inngest reusing the single ingestion path and prompt builder; web/WhatsApp/MCP/refine all share one audio+image+text path (HARD-01, HARD-02, UNIFY-01, UNIFY-02, UNIFY-03)
+- [ ] **Phase 102: Resilience Hardening — Batch Isolation, Configurable Auto-Refine + Recourse, Replay-Safe TTL** — A bad WhatsApp message no longer fails the batch; the auto-refine cap is configurable with explicit user recourse; TTLs are replay-safe (HARD-05, HARD-06, HARD-07)
+- [ ] **Phase 103: Eval/Test Harness + CI Regression Gate** — Golden multimodal fixtures + deterministic mocked providers + quality-metrics suite + CI gate prove the hardened engine does not regress (EVAL-01, EVAL-02, EVAL-03, EVAL-04)
+
+#### Phase 99: Unified Error Model + Shared Provider-Fallback Wrapper
+**Goal**: Every layer of the estimate engine speaks one failure language and every AI call path degrades the same way — so the rest of the milestone can rely on consistent errors and fallbacks instead of three coexisting conventions.
+**Depends on**: Phase 96 (canonical graph with `failure?` state channel + default/whatsapp adapters in place)
+**Requirements**: HARD-03, HARD-04
+**Success Criteria** (what must be TRUE):
+  1. A single typed failure model is shared by API routes, graph nodes, Inngest functions and adapters — there is one mapping from a failure to a channel response, and no estimate path does an ad-hoc `throw → 500` (the refine route's bare throw is replaced by the shared mapping)
+  2. Every AI call path (generate, transcribe, vision, refine) routes through one shared client wrapper that applies the same OpenRouter→Gemini fallback policy — the refine path, which today has no Gemini fallback, inherits it automatically
+  3. When the primary provider fails on any path, the fallback provider is attempted exactly once and the outcome (which provider served, whether fallback fired) is observable in the failure/result model rather than swallowed
+  4. The WhatsApp never-throw / always-reply invariant and the default-adapter re-throw-for-Inngest-retry contract both still hold after the error-model unification (frozen regression tests stay green)
+**Plans**: TBD
+
+#### Phase 100: Output Guardrails — Schema Validation, Price Anchoring, Totals Authority, Correlation ID
+**Goal**: No malformed, hallucinated, or mis-totaled AI output is ever persisted, and any single generation run can be traced end-to-end across pipeline events, Langfuse and Sentry — guardrails land on the generate path now so the refactored refine path inherits them in Phase 101.
+**Depends on**: Phase 99 (bounded retry and discrepancy signals are expressed in the unified failure model)
+**Requirements**: GUARD-01, GUARD-02, GUARD-03, GUARD-04
+**Success Criteria** (what must be TRUE):
+  1. A malformed AI estimate output (generate or refine) fails zod validation, triggers exactly one bounded structured retry, and never persists invalid output — a still-invalid second attempt surfaces a typed failure instead of writing garbage or 500ing
+  2. When a line item matches a price-book entry the anchored price is used, and an out-of-bounds unit price is flagged/clamped per documented rules rather than trusted as-is
+  3. The server-side totals/markup/tax recalculation is the authoritative total, is asserted against the AI-proposed total, and any discrepancy is recorded as a signal — the AI's own total is never persisted as authoritative
+  4. Each generation run carries one correlation ID that appears on its `pipeline_events`, its Langfuse trace, and any Sentry event, so a single run is traceable across all three systems (coordinated with v4.3 Phase 97 observability)
+**Plans**: TBD
+
+#### Phase 101: Unified Multimodal Ingestion + Refine Through the Graph
+**Goal**: The refine path stops being a parallel re-implementation — it runs through the same canonical graph, Inngest durability, ingestion path, prompt builder, fallbacks and guardrails as initial generation, so refine and generate produce equivalent estimates for equivalent inputs.
+**Depends on**: Phase 99 (shared error model + fallback wrapper), Phase 100 (guardrails the refactored refine must inherit)
+**Requirements**: HARD-01, HARD-02, UNIFY-01, UNIFY-02, UNIFY-03
+**Success Criteria** (what must be TRUE):
+  1. Estimate refine runs through the canonical graph and Inngest (idempotent, durable) — the inline generation/parsing logic in `app/api/estimates/[id]/refine/route.ts` is removed in favor of the shared engine
+  2. One multimodal ingestion path (audio + image + text) is shared by web, WhatsApp, MCP and refine — no channel re-implements transcription/vision/text assembly independently
+  3. Refine accepts all three modalities (audio, image, text) through the unified ingestion path with the same provider fallbacks and output validation as initial generation
+  4. Prompt construction for every channel and for refine goes through the single builder (`buildSystemPrompt` / `buildUserContent` in `lib/ai/prompt-builder.ts`) — there is no separately maintained refine prompt, and equivalent inputs yield equivalent prompts regardless of channel
+  5. Refine produces an estimate equivalent to generate for equivalent inputs because both now execute the same graph nodes, ingestion, and guardrails (asserted by a generate-vs-refine equivalence test)
+**Plans**: TBD
+
+#### Phase 102: Resilience Hardening — Batch Isolation, Configurable Auto-Refine + Recourse, Replay-Safe TTL
+**Goal**: Partial failures degrade gracefully and replays stay correct — a single bad WhatsApp message no longer poisons a whole batch, a still-vague estimate gives the user a way forward instead of a dead end, and promoting AI nodes to their own `step.run` later cannot corrupt session TTLs on retry.
+**Depends on**: Phase 101 (resilience fixes apply to the unified path, so they are not re-done against the old inline refine)
+**Requirements**: HARD-05, HARD-06, HARD-07
+**Success Criteria** (what must be TRUE):
+  1. A failing item in a WhatsApp multimodal batch is isolated — the good messages still produce an estimate and the failed item is reported per-message, rather than one bad message failing the whole batch
+  2. The auto-refine cap is configurable (no longer hard-coded at 1), and when the estimate is still vague after the cap the user gets an explicit recourse path (e.g. add detail and regenerate) instead of a dead end — reusing existing UI patterns, no editor redesign
+  3. Session / awaiting-state TTLs are derived from durable state (replay-safe) rather than minted from `Date.now()` inside a node, so a node retry or a future promotion of an AI node to its own `step.run` cannot corrupt the TTL
+  4. The never-throw / always-reply invariant still holds under partial-batch failure — every owner still gets exactly one reply per batch even when some items failed
+**Plans**: TBD
+**UI hint**: yes
+
+#### Phase 103: Eval/Test Harness + CI Regression Gate
+**Goal**: The hardened, unified engine is proven to stay good — a golden multimodal dataset run against deterministic mocked providers scores objective quality metrics, and CI fails the build the moment those metrics or schema validity regress.
+**Depends on**: Phase 100 (zod schema + quality signals to score against), Phase 101 (the unified engine is the thing being validated end-to-end), Phase 102 (resilience behaviors included in the harness)
+**Requirements**: EVAL-01, EVAL-02, EVAL-03, EVAL-04
+**Success Criteria** (what must be TRUE):
+  1. A golden-fixture dataset of representative audio, photo, and text inputs exists (stored or referenced deterministically) and is usable by the test suite without any live AI calls
+  2. Deterministic mocked AI providers (transcription, vision, generate, refine) let the full engine run end-to-end in tests with stable, asserted outputs
+  3. A quality-metrics suite scores generated estimates on objective signals (non-zero total, minimum line-item count, vagueness verdict, zod-schema validity) and asserts thresholds
+  4. A CI regression gate runs the eval harness on the estimate engine and fails the build when quality metrics or schema validity regress
+**Plans**: TBD

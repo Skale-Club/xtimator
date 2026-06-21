@@ -76,4 +76,21 @@ v4.3 (phases 94-96) extracted a channel-neutral **canonical estimate graph** (`l
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| _(filled by roadmap)_ | | |
+| HARD-03 | Phase 99 | Pending |
+| HARD-04 | Phase 99 | Pending |
+| GUARD-01 | Phase 100 | Pending |
+| GUARD-02 | Phase 100 | Pending |
+| GUARD-03 | Phase 100 | Pending |
+| GUARD-04 | Phase 100 | Pending |
+| HARD-01 | Phase 101 | Pending |
+| HARD-02 | Phase 101 | Pending |
+| UNIFY-01 | Phase 101 | Pending |
+| UNIFY-02 | Phase 101 | Pending |
+| UNIFY-03 | Phase 101 | Pending |
+| HARD-05 | Phase 102 | Pending |
+| HARD-06 | Phase 102 | Pending |
+| HARD-07 | Phase 102 | Pending |
+| EVAL-01 | Phase 103 | Pending |
+| EVAL-02 | Phase 103 | Pending |
+| EVAL-03 | Phase 103 | Pending |
+| EVAL-04 | Phase 103 | Pending |
