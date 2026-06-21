@@ -10,6 +10,7 @@ import { TwilioFromPhoneForm } from './twilio-from-phone-form'
 import { WhatsAppConfigForm } from './whatsapp-config-form'
 import { WhatsAppSystemPromptForm } from './whatsapp-system-prompt-form'
 import { XphereConfigForm } from './xphere-config-form'
+import { XphereStatus } from './xphere-status'
 
 type IntegrationCategoryContentProps = {
   category: Category
@@ -104,7 +105,10 @@ export async function IntegrationCategoryContent({
       )}
 
       {category.showXphereConfig && (
-        <XphereConfigForm current={xphereBaseUrl} />
+        <>
+          <XphereConfigForm current={xphereBaseUrl} />
+          <XphereStatus />
+        </>
       )}
 
       {category.showWhatsAppConfig && (
