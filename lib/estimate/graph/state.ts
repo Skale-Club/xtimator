@@ -12,6 +12,7 @@
  */
 import { Annotation } from '@langchain/langgraph'
 import type { FailureReason } from '@/lib/estimate/failure'
+import type { EstimateOutput } from '@/lib/ai/types'
 
 export const EstimateState = Annotation.Root({
   /** Trusted tenant scope (never LLM-derived) — used by every DB query filter. */
@@ -47,6 +48,12 @@ export const EstimateState = Annotation.Root({
    * Surfaces in the Inngest job output so MCP/web callers detect needs_details.
    */
   needsDetails: Annotation<boolean | undefined>(),
+  /** Refine-only input: the existing estimate being refined (preview, never persisted). */
+  existingEstimate: Annotation<EstimateOutput | undefined>(),
+  /** Refine-only input: the assembled, sanitized-downstream refine instruction. */
+  instruction: Annotation<string | undefined>(),
+  /** Refine-only output: the validated refined estimate PREVIEW. No DB write. */
+  refined: Annotation<EstimateOutput | undefined>(),
 })
 
 export type EstimateStateType = typeof EstimateState.State

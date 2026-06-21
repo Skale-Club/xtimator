@@ -110,7 +110,7 @@ describe('Phase 96 — auto-refine isolation (SMART-01/03/04, QA-02)', () => {
       needsDetails: undefined,
     }
 
-    const result = await autoRefineNode(state)
+    const result = await autoRefineNode(state as never)
 
     // refineAttempts: undefined → 1
     expect(result.refineAttempts).toBe(1)
@@ -151,7 +151,7 @@ describe('Phase 96 — auto-refine isolation (SMART-01/03/04, QA-02)', () => {
       needsDetails: undefined,
     }
 
-    const result = await adapter.finalize(state)
+    const result = await adapter.finalize(state as never)
 
     // SMART-04: returns needsDetails: true
     expect(result.needsDetails).toBe(true)
@@ -221,7 +221,7 @@ describe('Phase 96 — auto-refine isolation (SMART-01/03/04, QA-02)', () => {
       needsDetails: undefined,
     }
 
-    const result = await adapter.finalize(state)
+    const result = await adapter.finalize(state as never)
 
     // Must return needsDetails: true (vague-after-refine path)
     expect(result.needsDetails).toBe(true)
