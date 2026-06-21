@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v4.3
 milestone_name: Unified Agentic Estimate Engine
-status: Phase 100 COMPLETE (4/4 plans). 100-02 shipped GUARD-02 + GUARD-03. lib/ai/price-anchoring.ts (anchorAndClampSections + UNIT_PRICE_CEILING=1_000_000 + normalizeNameForMatch reused from the client matcher) overrides matched items to the price-book price (price_source='price_book') and clamps out-of-bounds ai_estimate prices to the ceiling (zero kept, anchor-before-clamp). lib/estimate/totals.ts (round2 NaN/neg->0, assertFinitePositive, computeTotalsDiscrepancy signed, TOTALS_EPSILON) formalizes the existing server math without rewriting it. generate-estimate.ts now anchors/clamps the AI sections BEFORE the unchanged recalculation, guards persisted subtotal/tax/total via assertFinitePositive, logs the grand==subtotal+tax invariant, and emits a best-effort totals_discrepancy (console sink; 100-03's Langfuse metadata is the documented seam). AI total never persisted. price-anchoring.test.ts + totals-authority.test.ts GREEN; full targeted run tests/unit/ai + tests/unit/estimate = 120/120, 0 regressions. Phase 100 GUARD-01..04 all landed.
-stopped_at: Completed 100-02-PLAN.md
-last_updated: "2026-06-21T15:55:00.000Z"
-last_activity: 2026-06-21 — executed 100-02-PLAN.md (GUARD-02 price anchoring + GUARD-03 totals authority/discrepancy)
+status: Phase 101 STARTED. 101-00 Wave-0 RED/EXTEND scaffold shipped (1/4 plans). Five new RED test files + two extensions lock every Phase 101 contract before implementation (Nyquist): UNIFY-01 (`multimodal-ingest.test.ts` — ingestMultimodal aggregation + per-item-skip-not-throw), UNIFY-03 (`refine-node.test.ts` — makeRefineNode never-throw + ProvidersUnavailableError→provider_unavailable / InvalidEstimateOutputError→invalid_output / no input→no_usable_input / else→generation_failed), criterion-5 (`generate-refine-equivalence.test.ts` — both paths call shared buildSystemPrompt; bespoke `## Refinement Instruction` deletion in openrouter+gemini), HARD-01 (`refine-route-contract.test.ts` — {success,refined,instruction}+200, 400/422/429/demo-guard/typed-failure; JSON back-compat path only since multipart hangs in jsdom), HARD-02/UNIFY-02 (`refine-shared-prompt.test.ts` + extended `prompt-builder.test.ts` — shared builder mode:'refine', Language/PriceBook/Security reuse, generate byte-identical regression guard, buildRefineUserContent <instruction> sanitization), DURABLE-02/101 (extended `no-checkpointer.test.ts` — buildRefineGraph compiles without a checkpointer). All target RED at RUN time (computed-specifier importTarget / fs source-grep / importActual spy); generate-path regression guards GREEN; frozen invariant suites (graph-neutrality, never-throw, never-reply-regression) 11/11 GREEN. xphere files untouched. 2 atomic commits (ffac9b5, a91d883).
+stopped_at: Completed 101-00-PLAN.md
+last_updated: "2026-06-21T17:00:00.000Z"
+last_activity: 2026-06-21 — executed 101-00-PLAN.md (Wave-0 RED/EXTEND test scaffold for Phase 101)
 progress:
   total_phases: 52
-  completed_phases: 40
+  completed_phases: 39
   total_plans: 116
-  completed_plans: 130
+  completed_plans: 129
 ---
 
 # Project State
@@ -22,12 +22,12 @@ progress:
 
 ## Current Position
 
-Phase: 100 (Output Guardrails — Schema Validation, Price Anchoring, Totals Authority, Correlation ID) — COMPLETE (4/4 plans)
-Plan: 100-00 + 100-01 + 100-02 + 100-03 all complete
-Status: 100-02 shipped GUARD-02 + GUARD-03. `lib/ai/price-anchoring.ts` exposes `anchorAndClampSections` (matched item → unit_price overridden with the price-book value + `price_source='price_book'`; unmatched `ai_estimate` price > `UNIT_PRICE_CEILING`=1_000_000 → clamped, zero kept; anchor takes precedence over clamp; tenant-safe — reads only the passed companyId-scoped book; non-fatal — malformed rows skipped). `lib/estimate/totals.ts` formalizes the existing math (`round2` coerces NaN/negative→0 per the test contract, `assertFinitePositive`, `computeTotalsDiscrepancy` with a SIGNED delta/delta_pct, `TOTALS_EPSILON`=0.01). `lib/services/generate-estimate.ts` snapshots the pre-anchor AI-implied subtotal, anchors/clamps the AI sections BEFORE the unchanged `calculatedSections` recalculation, guards persisted subtotal/tax/total via `assertFinitePositive`, logs the grand==subtotal+tax invariant (never throws), and emits a best-effort `totals_discrepancy` (console sink; pipeline_events has no metadata column, so 100-03's Langfuse trace metadata is the documented seam). The AI total is NEVER persisted — only the server `safeGrandTotal` writes to `estimates.total`. `price-anchoring.test.ts` + `totals-authority.test.ts` GREEN; full targeted run `tests/unit/ai` + `tests/unit/estimate` = 120/120, 0 regressions. Phase 100 GUARD-01..04 all landed across plans 00/01/02/03.
-Last activity: 2026-06-21 — executed 100-02-PLAN.md (GUARD-02 price anchoring + GUARD-03 totals authority/discrepancy)
-Stopped at: Completed 100-02-PLAN.md
-Next Up: `/gsd:plan-phase 101` — Unified Multimodal Ingestion + Refine Through the Graph (HARD-01/02, UNIFY-01..03). Refine inherits the GUARD-02/03 guardrails by routing through the same post-AI processing path.
+Phase: 101 (Unified Multimodal Ingestion + Refine Through the Graph — HARD-01/02, UNIFY-01..03) — IN PROGRESS (1/4 plans)
+Plan: 101-00 complete; 101-01 / 101-02 / 101-03 remaining
+Status: 101-00 Wave-0 RED/EXTEND scaffold shipped. Five new RED test files + two extensions lock every Phase 101 contract before implementation (Nyquist): UNIFY-01 (`tests/unit/estimate/multimodal-ingest.test.ts` — `ingestMultimodal` aggregates audio/photo/text, trims texts, SKIPS a single failed item without throwing), UNIFY-03 (`tests/unit/estimate/refine-node.test.ts` — `makeRefineNode` never throws; ProvidersUnavailableError→provider_unavailable, InvalidEstimateOutputError→invalid_output, missing input→no_usable_input, else→generation_failed; success→{refined}), criterion-5 (`tests/unit/estimate/generate-refine-equivalence.test.ts` — both generate+refine call the shared `buildSystemPrompt` (refine with mode:'refine'); bespoke `## Refinement Instruction` deletion asserted in openrouter.ts + gemini.ts), HARD-01 (`tests/unit/api/refine-route-contract.test.ts` — {success,refined,instruction}+200; 400/422/429/demo-guard preserved; provider failure→typed {error,code}; JSON {instruction} back-compat path only because multipart Request.formData() hangs in jsdom), HARD-02/UNIFY-02 (`tests/unit/ai/refine-shared-prompt.test.ts` NEW + EXTENDED `tests/unit/ai/prompt-builder.test.ts` — both adapters drop the bespoke prompt + call the shared builder mode:'refine'; refine reuses Language/PriceBook/Security verbatim; generate no-opts byte-identical regression guard GREEN; `buildRefineUserContent` <instruction>-tags + escapes the instruction), DURABLE-02/101 (EXTENDED `tests/unit/estimate/no-checkpointer.test.ts` — `buildRefineGraph` compiles with no checkpointer/saver). RED reasons are genuine RUN-time (target source modules/behaviors don't exist yet) via computed-specifier importTarget / fs source-grep / importActual spy — no transform/import errors. Generate-path regression guards stay GREEN; frozen invariant suites graph-neutrality + never-throw + never-reply-regression = 11/11 GREEN. xphere files untouched. 2 atomic commits (ffac9b5, a91d883).
+Last activity: 2026-06-21 — executed 101-00-PLAN.md (Wave-0 RED/EXTEND test scaffold)
+Stopped at: Completed 101-00-PLAN.md
+Next Up: execute 101-01 (Wave 1 — shared `ingestMultimodal` + prompt-builder refine mode + bespoke-prompt deletion in both adapters), then 101-02 (Wave 2 — `makeRefineNode` + `buildRefineGraph`) and 101-03 (thin route wrapper). These implement against the now-fixed RED contracts.
 
 > Xtimator side (Fase B): plans 01–05 done on `dev`. Xphere side (Fase A): receiver
 > `POST /api/xtimator/webhook` + migration 1213 + pipeline seed on the **xphere** repo
@@ -556,6 +556,8 @@ Next Up: `/gsd:plan-phase 101` — Unified Multimodal Ingestion + Refine Through
 - [Phase 100]: [Phase 100-01 GUARD-01]: callWithFallback rethrows InvalidEstimateOutputError immediately (validation failure != provider-down) so schema-retry (OUTER, cap 1) stays orthogonal to provider-fallback (INNER, once)
 - [Phase 100]: [Phase 100-01 GUARD-01]: all three adapters (openrouter/gemini/anthropic) validate output + throw the typed marker; generate node maps it to 'invalid_output', never throwing
 - [Phase 100]: GUARD-04: correlationId === attemptId (reused Phase 91/92 lineage, not minted) threaded into Langfuse v5 graph.invoke config metadata + Sentry correlation_id tag in asResponse
+- [Phase 101]: [Phase 101 101-00]: Wave-0 RED scaffold asserts bespoke-prompt deletion + shared-builder reuse against openrouter.ts + gemini.ts ONLY (Phase 101 scope per RESEARCH); anthropic.ts carries the same marker but is out of scope
+- [Phase 101]: [Phase 101 101-00]: refine route-contract test drives the JSON {instruction} back-compat path only — Request.formData() multipart hangs in vitest/jsdom; multimodal ingestion covered at the ingestMultimodal unit level
 
 ## Performance Metrics
 
@@ -739,6 +741,7 @@ Next Up: `/gsd:plan-phase 101` — Unified Multimodal Ingestion + Refine Through
 | Phase 100 P00 | 9min | 3 tasks | 7 files |
 | Phase 100 P01 | 13min | 3 tasks | 9 files |
 | Phase 100 P03 | 7min | 2 tasks | 3 files |
+| Phase 101 P00 | 18min | 2 tasks | 7 files |
 
 ## Project Reference
 
