@@ -51,7 +51,7 @@ describe('XPHERE-B3-CLIENT syncCompany', () => {
     expect(fetch).not.toHaveBeenCalled()
   })
 
-  it('Test 2 (success): POSTs the payload to /api/xtimator/webhook with Bearer auth and returns the response', async () => {
+  it('Test 2 (success): POSTs the payload to /api/v1/sync with Bearer auth and returns the response', async () => {
     mockGetXphereConfig.mockResolvedValue({
       apiKey: 'xph_test_key',
       baseUrl: 'https://crm.example.com',
@@ -74,7 +74,7 @@ describe('XPHERE-B3-CLIENT syncCompany', () => {
     expect(result).toEqual(responseBody)
     expect(fetch).toHaveBeenCalledTimes(1)
     const [url, init] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
-    expect(url).toBe('https://crm.example.com/api/xtimator/webhook')
+    expect(url).toBe('https://crm.example.com/api/v1/sync')
     expect(init.method).toBe('POST')
     expect(init.headers['Content-Type']).toBe('application/json')
     expect(init.headers.Authorization).toBe('Bearer xph_test_key')
