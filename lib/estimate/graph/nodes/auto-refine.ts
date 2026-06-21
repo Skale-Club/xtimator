@@ -7,8 +7,9 @@
  * ENGINE-01 static neutrality gate (graph-neutrality.test.ts) will catch any
  * violation at test time.
  *
- * Fires when the assess node sets isVague=true and refineAttempts < 1 (hard cap=1
- * per D-01). Responsibilities:
+ * Fires when the assess node sets isVague=true and refineAttempts <
+ * AUTO_REFINE_MAX_ATTEMPTS (configurable cap, default 1 — see decide.ts, HARD-06;
+ * originally a hard cap=1 per D-01). Responsibilities:
  *   1. Increment refineAttempts (undefined → 1).
  *   2. Delete the $0 estimate + revert project to draft (best-effort — errors
  *      swallowed; consistent with WhatsApp adapter pattern).

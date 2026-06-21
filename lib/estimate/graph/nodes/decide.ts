@@ -26,15 +26,31 @@ export function checkVagueEdge(state: EstimateStateType): string {
 }
 
 /**
- * After assess (Phase 96, D-01): routes to autoRefine for a first vague
- * result (cap-guarded), or to finalize when the estimate is non-vague OR
- * refineAttempts >= 1. This replaces the direct assess → finalize edge.
+ * HARD-06 (Phase 102): configurable auto-refine cap. Read once at module load,
+ * mirroring the SESSION_TTL_MINUTES tuning-constant pattern. Defaults to 1 —
+ * byte-identical to the prior hard-coded `(state.refineAttempts ?? 0) < 1`. An
+ * optional non-secret env override (`AUTO_REFINE_MAX_ATTEMPTS`) lets ops tune how
+ * many auto-refine loops run before the estimate is finalized as still-vague
+ * (which then drives the web recourse banner — Plan 04). A malformed/negative
+ * value falls back to the default. Channel-neutral: no DB read, no async, no
+ * channel-specific import (graph-neutrality stays green).
+ */
+const AUTO_REFINE_MAX_ATTEMPTS = (() => {
+  const raw = Number(process.env.AUTO_REFINE_MAX_ATTEMPTS)
+  return Number.isFinite(raw) && raw >= 0 ? raw : 1
+})()
+
+/**
+ * After assess (Phase 96, D-01): routes to autoRefine for a still-vague result
+ * while refineAttempts is below AUTO_REFINE_MAX_ATTEMPTS, or to finalize when the
+ * estimate is non-vague OR the cap has been reached. This replaces the direct
+ * assess → finalize edge.
  *
  * The adapter's finalize branches internally on state.isVague to produce the
- * channel-appropriate needs_details outcome when refineAttempts >= 1.
+ * channel-appropriate needs_details outcome when the cap is reached.
  */
 export function checkVagueAfterAssessEdge(state: EstimateStateType): string {
   if (!state.isVague) return 'finalize'
-  if ((state.refineAttempts ?? 0) < 1) return 'autoRefine'
+  if ((state.refineAttempts ?? 0) < AUTO_REFINE_MAX_ATTEMPTS) return 'autoRefine'
   return 'finalize'
 }
