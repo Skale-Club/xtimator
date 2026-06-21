@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v4.3
 milestone_name: Unified Agentic Estimate Engine
-status: Phase 100 IN PROGRESS (3/4 plans). 100-03 shipped GUARD-04: the existing attemptId (Phase 91/92 lineage) is promoted to THE correlation id — threaded into the Langfuse v5 graph.invoke config metadata { langfuseSessionId, langfuseUserId, correlationId } in generate-estimate.ts (closes the pre-existing OBS-03 RED token); failureReasonToXtimatorError gains an optional correlationId → XtimatorError.meta; asResponse tags the Sentry scope with correlation_id when present. All best-effort/never-throw. observability.test.ts GREEN (9/9, OBS-03 token + GUARD-04 correlationId closed). Remaining: 100-02 (GUARD-02/03) — its Wave-0 RED contracts (price-anchoring/totals-authority) are by design, not regressions.
-stopped_at: Completed 100-03-PLAN.md
-last_updated: "2026-06-21T15:46:32.242Z"
-last_activity: 2026-06-21 — executed 100-03-PLAN.md (GUARD-04 correlation id: Langfuse trace metadata + XtimatorError.meta.correlationId + Sentry correlation_id tag)
+status: Phase 100 COMPLETE (4/4 plans). 100-02 shipped GUARD-02 + GUARD-03. lib/ai/price-anchoring.ts (anchorAndClampSections + UNIT_PRICE_CEILING=1_000_000 + normalizeNameForMatch reused from the client matcher) overrides matched items to the price-book price (price_source='price_book') and clamps out-of-bounds ai_estimate prices to the ceiling (zero kept, anchor-before-clamp). lib/estimate/totals.ts (round2 NaN/neg->0, assertFinitePositive, computeTotalsDiscrepancy signed, TOTALS_EPSILON) formalizes the existing server math without rewriting it. generate-estimate.ts now anchors/clamps the AI sections BEFORE the unchanged recalculation, guards persisted subtotal/tax/total via assertFinitePositive, logs the grand==subtotal+tax invariant, and emits a best-effort totals_discrepancy (console sink; 100-03's Langfuse metadata is the documented seam). AI total never persisted. price-anchoring.test.ts + totals-authority.test.ts GREEN; full targeted run tests/unit/ai + tests/unit/estimate = 120/120, 0 regressions. Phase 100 GUARD-01..04 all landed.
+stopped_at: Completed 100-02-PLAN.md
+last_updated: "2026-06-21T15:55:00.000Z"
+last_activity: 2026-06-21 — executed 100-02-PLAN.md (GUARD-02 price anchoring + GUARD-03 totals authority/discrepancy)
 progress:
   total_phases: 52
-  completed_phases: 39
+  completed_phases: 40
   total_plans: 116
-  completed_plans: 129
+  completed_plans: 130
 ---
 
 # Project State
@@ -22,12 +22,12 @@ progress:
 
 ## Current Position
 
-Phase: 100 (Output Guardrails — Schema Validation, Price Anchoring, Totals Authority, Correlation ID) — IN PROGRESS (3/4 plans)
-Plan: 100-00 + 100-01 + 100-03 complete; 100-02 pending
-Status: 100-03 shipped GUARD-04. The existing `attemptId` (Phase 91/92 lineage) is promoted to THE correlation id and threaded into the Langfuse v5 `graph.invoke` config metadata `{ langfuseSessionId, langfuseUserId, correlationId }` in `lib/inngest/functions/generate-estimate.ts` — closing the pre-existing OBS-03 RED token assertion. `failureReasonToXtimatorError` gains an optional `correlationId` arg that rides on `XtimatorError.meta`; `asResponse` tags the Sentry scope with `correlation_id` when `err.meta.correlationId` is present (back-compatible, guarded). All best-effort/never-throw (inert metadata + guarded tag — Phase 92 rule). `observability.test.ts` GREEN (9/9: OBS-01, OBS-03 token, GUARD-04 correlationId). 100-01 (GUARD-01) shipped earlier (zod schema + bounded retry + invalid_output). Still-RED files (price-anchoring/totals-authority) are Wave-0 contracts for 100-02 — not regressions.
-Last activity: 2026-06-21 — executed 100-03-PLAN.md (GUARD-04 correlation id)
-Stopped at: Completed 100-03-PLAN.md
-Next Up: `/gsd:execute-phase 100` — continue with 100-02 (GUARD-02 price anchoring + GUARD-03 totals authority/discrepancy in lib/services/generate-estimate.ts, lib/ai/price-anchoring.ts, lib/estimate/totals.ts).
+Phase: 100 (Output Guardrails — Schema Validation, Price Anchoring, Totals Authority, Correlation ID) — COMPLETE (4/4 plans)
+Plan: 100-00 + 100-01 + 100-02 + 100-03 all complete
+Status: 100-02 shipped GUARD-02 + GUARD-03. `lib/ai/price-anchoring.ts` exposes `anchorAndClampSections` (matched item → unit_price overridden with the price-book value + `price_source='price_book'`; unmatched `ai_estimate` price > `UNIT_PRICE_CEILING`=1_000_000 → clamped, zero kept; anchor takes precedence over clamp; tenant-safe — reads only the passed companyId-scoped book; non-fatal — malformed rows skipped). `lib/estimate/totals.ts` formalizes the existing math (`round2` coerces NaN/negative→0 per the test contract, `assertFinitePositive`, `computeTotalsDiscrepancy` with a SIGNED delta/delta_pct, `TOTALS_EPSILON`=0.01). `lib/services/generate-estimate.ts` snapshots the pre-anchor AI-implied subtotal, anchors/clamps the AI sections BEFORE the unchanged `calculatedSections` recalculation, guards persisted subtotal/tax/total via `assertFinitePositive`, logs the grand==subtotal+tax invariant (never throws), and emits a best-effort `totals_discrepancy` (console sink; pipeline_events has no metadata column, so 100-03's Langfuse trace metadata is the documented seam). The AI total is NEVER persisted — only the server `safeGrandTotal` writes to `estimates.total`. `price-anchoring.test.ts` + `totals-authority.test.ts` GREEN; full targeted run `tests/unit/ai` + `tests/unit/estimate` = 120/120, 0 regressions. Phase 100 GUARD-01..04 all landed across plans 00/01/02/03.
+Last activity: 2026-06-21 — executed 100-02-PLAN.md (GUARD-02 price anchoring + GUARD-03 totals authority/discrepancy)
+Stopped at: Completed 100-02-PLAN.md
+Next Up: `/gsd:plan-phase 101` — Unified Multimodal Ingestion + Refine Through the Graph (HARD-01/02, UNIFY-01..03). Refine inherits the GUARD-02/03 guardrails by routing through the same post-AI processing path.
 
 > Xtimator side (Fase B): plans 01–05 done on `dev`. Xphere side (Fase A): receiver
 > `POST /api/xtimator/webhook` + migration 1213 + pipeline seed on the **xphere** repo
@@ -42,7 +42,7 @@ Next Up: `/gsd:execute-phase 100` — continue with 100-02 (GUARD-02 price ancho
 > **Scope guardrails (inherited from v4.3, do NOT plan against):** Inngest is the sole durability layer (NO LangGraph checkpointer); full per-node `step.run` decomposition stays DEFERRED (only the existing `StepRunner` seam is used); WhatsApp intent-router unification out of scope; no new estimate features.
 
 - Phase 99: Unified Error Model + Shared Provider-Fallback Wrapper (HARD-03 ✅, HARD-04 ✅) — COMPLETE (3/3 plans: 99-00 Wave-0 RED scaffold + 99-01 HARD-03 fallback wrapper + 99-02 HARD-04 typed failure model) — FOUNDATIONAL
-- Phase 100: Output Guardrails — Schema Validation, Price Anchoring, Totals Authority, Correlation ID (GUARD-01, GUARD-02, GUARD-03, GUARD-04) — IN PROGRESS (1/4 plans: 100-00 Wave-0 RED scaffold landed). Depends on Phase 99.
+- Phase 100: Output Guardrails — Schema Validation, Price Anchoring, Totals Authority, Correlation ID (GUARD-01 ✅, GUARD-02 ✅, GUARD-03 ✅, GUARD-04 ✅) — COMPLETE (4/4 plans: 100-00 Wave-0 RED scaffold + 100-01 GUARD-01 zod+retry + 100-02 GUARD-02/03 price-anchoring+totals + 100-03 GUARD-04 correlation id). Depends on Phase 99.
 - Phase 101: Unified Multimodal Ingestion + Refine Through the Graph (HARD-01, HARD-02, UNIFY-01, UNIFY-02, UNIFY-03) — Not started. Depends on Phases 99 + 100. Largest structural change (removes inline `app/api/estimates/[id]/refine/route.ts` logic).
 - Phase 102: Resilience Hardening — Batch Isolation, Configurable Auto-Refine + Recourse, Replay-Safe TTL (HARD-05, HARD-06, HARD-07) — Not started. Depends on Phase 101.
 - Phase 103: Eval/Test Harness + CI Regression Gate (EVAL-01, EVAL-02, EVAL-03, EVAL-04) — Not started. Depends on Phases 100 + 101 + 102. LAST — validates the hardened engine end-to-end.
@@ -191,6 +191,11 @@ Next Up: `/gsd:execute-phase 100` — continue with 100-02 (GUARD-02 price ancho
 
 ## Decisions
 
+- [Phase 100 100-02]: `round2` itself coerces NaN/negative → 0 (totals-authority.test.ts asserts `round2(NaN)===0`, `round2(-5)===0`); `assertFinitePositive` kept as the documented sibling guard for already-rounded persisted totals
+- [Phase 100 100-02]: `computeTotalsDiscrepancy` preserves a SIGNED delta/delta_pct (compute on abs then reapply sign) so a server-below-AI divergence is not zeroed by round2 — the discrepancy signal stays meaningful in both directions
+- [Phase 100 100-02]: totals_discrepancy sink = structured `console.info('[totals_discrepancy]', ...)` inside try/catch; pipeline_events has no free-form metadata column, so Plan 100-03's Langfuse trace metadata is the documented seam for end-to-end correlation
+- [Phase 100 100-02]: UNIT_PRICE_CEILING=1_000_000 USD per-unit clamp for unmatched ai_estimate prices; anchor-before-clamp (a price-book match wins over the ceiling); $0 lines kept; helper is tenant-safe (reads only the passed companyId-scoped book) and non-fatal (malformed rows skipped)
+- [Phase 100 100-02]: server math untouched — anchoring/assertions wrap the existing round2 recalculation; AI total never persisted (only server safeGrandTotal → estimates.total)
 - [Phase 59-billing-ui 59-01]: requireServiceClient (not createClient) for usage_events — deny-all RLS requires service role bypass; single event_type query counted in JS to avoid N+1
 - [Phase 59-billing-ui 59-01]: Billing entry card placed before Price Book on /settings — billing is a top-level business concern; Plan 02 owns interactive checkout/portal buttons (no client components in Plan 01 page)
 - shadcn/ui New York style (D-09 locked) with neutral base color and CSS variables
