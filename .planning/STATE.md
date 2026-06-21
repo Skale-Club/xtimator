@@ -39,6 +39,13 @@ Stopped at: Phase 94 context gathered
 
 **Locked scope guardrails:** Inngest owns durability (no LangGraph checkpointer); auto-refine hard-capped at 1; web's decoupled ingestion preserved (graph enters at `generate`); only the `StepRunner` contract/scaffold ships (full granularity refactor deferred); intent-router unification out of scope.
 
+## v4.4 Phases (next milestone — queued, not active)
+
+> **Numbering:** continues from v4.3's last phase (97); global counter not reset. v4.4 = Phase 98. Queued to start after v4.3 ships; active milestone remains v4.3.
+> **Setup note (2026-06-20):** Registered manually — the GSD execution backend (`~/.claude/get-shit-done/` + repo `gsd-tools.cjs`) is not installed on this machine, so `/gsd:phase` could not run its workflow. ROADMAP.md + this section + the phase CONTEXT doc were authored by hand to match existing conventions.
+
+- Phase 98: WhatsApp Template Notifications — Owner alerts via approved HSM templates on Xtimator's WABA (WANOTIF-01..05) — Not started (needs `/gsd:plan-phase 98`). Context: `.planning/phases/98-whatsapp-template-notifications/98-CONTEXT.md`. Reuses Xtimator's WABA; xphere (`C:\Dev\xphere`) is the read-only port reference. In-app template builder deferred.
+
 ## v3.1.1 Phases
 
 - Phase 66: Storage Abstraction Layer (STORAGE-01..07) — Not started (needs `/gsd:plan-phase 66`)
