@@ -44,26 +44,48 @@ export const makeRefineNode =
         // builder inputs (strongest UNIFY-02 equivalence). companyId is from state
         // (trusted, never LLM-derived).
         const svc = requireServiceClient()
-        const { data: company } = await svc
-          .from('companies')
-          .select('industry, currency_code, default_estimate_language')
-          .eq('id', state.companyId)
-          .single()
 
-        const currencyCode = normalizeCurrencyCode(company?.currency_code)
-        const industry = (company?.industry as string | null) ?? null
-        const language =
-          (company?.default_estimate_language as 'en' | 'pt' | 'es' | null) ?? undefined
+        // Builder-context enrichment is best-effort: a company-row lookup failure
+        // must NOT sink the refine pass — fall back to neutral defaults (USD, no
+        // industry, default language). The existingEstimate + instruction are the
+        // load-bearing inputs; this only sharpens prompt context.
+        let currencyCode = normalizeCurrencyCode(undefined)
+        let industry: string | null = null
+        let language: 'en' | 'pt' | 'es' | undefined
+        try {
+          const { data: company } = await svc
+            .from('companies')
+            .select('industry, currency_code, default_estimate_language')
+            .eq('id', state.companyId)
+            .single()
+          currencyCode = normalizeCurrencyCode(company?.currency_code)
+          industry = (company?.industry as string | null) ?? null
+          language =
+            (company?.default_estimate_language as 'en' | 'pt' | 'es' | null) ?? undefined
+        } catch {
+          // keep neutral defaults
+        }
 
-        const priceBookItems = (await getPriceBookItems(svc, state.companyId))
-          .filter((i) => normalizeCurrencyCode(i.currency_code) === currencyCode)
-          .map((i) => ({
-            folder_name: i.folder_name,
-            name: i.name,
-            unit: i.unit,
-            unit_price: i.unit_price,
-            currency_code: i.currency_code,
-          }))
+        let priceBookItems: Array<{
+          folder_name: string | null
+          name: string
+          unit: string | null
+          unit_price: number
+          currency_code?: string | null
+        }> = []
+        try {
+          priceBookItems = (await getPriceBookItems(svc, state.companyId))
+            .filter((i) => normalizeCurrencyCode(i.currency_code) === currencyCode)
+            .map((i) => ({
+              folder_name: i.folder_name,
+              name: i.name,
+              unit: i.unit,
+              unit_price: i.unit_price,
+              currency_code: i.currency_code,
+            }))
+        } catch {
+          // no price book = no injection (same as generate's empty-array path)
+        }
 
         const provider = await getAIProviderWithFallback(state.companyId)
         return provider.refineEstimate({
