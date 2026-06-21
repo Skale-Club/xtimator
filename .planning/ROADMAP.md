@@ -1154,7 +1154,11 @@ Plans:
   2. Every AI call path (generate, transcribe, vision, refine) routes through one shared client wrapper that applies the same OpenRouter→Gemini fallback policy — the refine path, which today has no Gemini fallback, inherits it automatically
   3. When the primary provider fails on any path, the fallback provider is attempted exactly once and the outcome (which provider served, whether fallback fired) is observable in the failure/result model rather than swallowed
   4. The WhatsApp never-throw / always-reply invariant and the default-adapter re-throw-for-Inngest-retry contract both still hold after the error-model unification (frozen regression tests stay green)
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+- [ ] 99-00-PLAN.md — Wave 0: 7 RED Nyquist tests (callWithFallback, transcribe fallback, gemini vision, failure mapping, refine error-surface, never-throw provider_unavailable)
+- [ ] 99-01-PLAN.md — Wave 1: HARD-03 shared OpenRouter→Gemini fallback (callWithFallback + analyzePhotoGemini + getAIProviderWithFallback + transcribe/vision wiring + generate swap)
+- [ ] 99-02-PLAN.md — Wave 1: HARD-04 typed FailureReason union + failure→XtimatorError/channel-copy map + typed graph state/adapters + refine route asResponse fix
 
 #### Phase 100: Output Guardrails — Schema Validation, Price Anchoring, Totals Authority, Correlation ID
 **Goal**: No malformed, hallucinated, or mis-totaled AI output is ever persisted, and any single generation run can be traced end-to-end across pipeline events, Langfuse and Sentry — guardrails land on the generate path now so the refactored refine path inherits them in Phase 101.
