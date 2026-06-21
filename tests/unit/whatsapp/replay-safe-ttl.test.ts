@@ -146,11 +146,14 @@ beforeEach(() => {
   // Drive the CONFIRM (non-vague) path so finalize hits sendConfirmation, which
   // performs the `whatsapp_sessions` (awaiting_confirm) insert with `expires_at`.
   generateEstimateForProject.mockResolvedValue({ estimateId: 'est-1', language: 'en' })
+  // Non-vague: the single chainable mock serves BOTH the assess re-read
+  // (total + sections.items) and the finalize confirm re-read (total +
+  // currency_code + sections.title/subtotal), so include every field.
   estimateRow = {
     total: 1234,
     currency_code: 'USD',
     summary: 'ok',
-    sections: [{ title: 'Work', subtotal: 1234 }],
+    sections: [{ title: 'Work', subtotal: 1234, items: [{ id: 'i1' }] }],
   }
 })
 
