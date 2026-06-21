@@ -30,7 +30,7 @@ v4.3 (phases 94-96) extracted a channel-neutral **canonical estimate graph** (`l
 - [x] **HARD-02**: Refine reuses the single prompt source of truth (`buildSystemPrompt` / `buildUserContent` in `lib/ai/prompt-builder.ts`) — no separately maintained refine prompt.
 - [x] **HARD-03**: Every AI call path (generate, transcribe, vision, refine) uses the same provider-fallback policy (OpenRouter → Gemini) through one shared client wrapper.
 - [x] **HARD-04**: A single typed error/failure model is used across API routes, graph nodes, Inngest functions and adapters — one mapping from failure to channel response, no ad-hoc `throw → 500`.
-- [ ] **HARD-05**: A failing item in a WhatsApp multimodal batch is isolated — good messages still produce an estimate, and the failed item is reported per-message rather than failing the whole batch.
+- [x] **HARD-05**: A failing item in a WhatsApp multimodal batch is isolated — good messages still produce an estimate, and the failed item is reported per-message rather than failing the whole batch.
 - [x] **HARD-06**: The auto-refine cap is configurable (not hard-coded) and, when the estimate is still vague after the cap, the user has an explicit recourse path (e.g. add detail and regenerate) rather than a dead end.
 - [x] **HARD-07**: Session/awaiting-state TTLs are derived from durable state (replay-safe), not minted from `Date.now()` inside a node — so promoting AI nodes to their own `step.run` cannot corrupt TTLs on retry.
 
@@ -87,7 +87,7 @@ v4.3 (phases 94-96) extracted a channel-neutral **canonical estimate graph** (`l
 | UNIFY-01 | Phase 101 | Complete |
 | UNIFY-02 | Phase 101 | Complete |
 | UNIFY-03 | Phase 101 | Complete |
-| HARD-05 | Phase 102 | Pending |
+| HARD-05 | Phase 102 | Complete |
 | HARD-06 | Phase 102 | Complete |
 | HARD-07 | Phase 102 | Complete (102-01) |
 | EVAL-01 | Phase 103 | Pending |

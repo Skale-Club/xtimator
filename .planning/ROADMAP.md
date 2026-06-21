@@ -1145,7 +1145,7 @@ Plans:
  (completed 2026-06-21)
 - [x] **Phase 101: Unified Multimodal Ingestion + Refine Through the Graph** — Refine runs through the canonical graph INLINE (synchronous preview, passthrough StepRunner — NOT Inngest) reusing the single ingestion path and prompt builder; web/WhatsApp/MCP/refine all share one audio+image+text path (HARD-01, HARD-02, UNIFY-01, UNIFY-02, UNIFY-03)
  (completed 2026-06-21)
-- [ ] **Phase 102: Resilience Hardening — Batch Isolation, Configurable Auto-Refine + Recourse, Replay-Safe TTL** — A bad WhatsApp message no longer fails the batch; the auto-refine cap is configurable with explicit user recourse; TTLs are replay-safe (HARD-05, HARD-06, HARD-07)
+- [x] **Phase 102: Resilience Hardening — Batch Isolation, Configurable Auto-Refine + Recourse, Replay-Safe TTL** — A bad WhatsApp message no longer fails the batch; the auto-refine cap is configurable with explicit user recourse; TTLs are replay-safe (HARD-05, HARD-06, HARD-07) (completed 2026-06-21)
 - [ ] **Phase 103: Eval/Test Harness + CI Regression Gate** — Golden multimodal fixtures + deterministic mocked providers + quality-metrics suite + CI gate prove the hardened engine does not regress (EVAL-01, EVAL-02, EVAL-03, EVAL-04)
 
 #### Phase 99: Unified Error Model + Shared Provider-Fallback Wrapper
@@ -1209,7 +1209,7 @@ Plans:
 - [x] 102-00-PLAN.md — Wave-0 RED/EXTEND test scaffold (cap edge, replay-safe TTL, batch reporting, recourse banner RTL) (HARD-05/06/07)
 - [x] 102-01-PLAN.md — HARD-07 replay-safe TTL: neutral requestedAt state field threaded through both Inngest invokes + both whatsapp finalize TTL sites
 - [x] 102-02-PLAN.md — HARD-06 configurable cap: AUTO_REFINE_MAX_ATTEMPTS constant in decide.ts (default 1)
-- [ ] 102-03-PLAN.md — HARD-05 per-item batch reporting: neutral droppedInputs carry-forward + reason→copy note in both whatsapp reply builders
+- [x] 102-03-PLAN.md — HARD-05 per-item batch reporting: neutral droppedInputs carry-forward + reason→copy note in both whatsapp reply builders
 - [x] 102-04-PLAN.md — HARD-06 web recourse banner: NeedsDetailsBanner in overview-tab on awaiting_details, reusing Alert + the existing generate trigger
 **UI hint**: yes
 
