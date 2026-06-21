@@ -976,7 +976,7 @@ Plans:
   - Phase 68 (Hetzner Cloud deploy-readiness artifacts) — landed (but not yet exercised in prod)
   - v3.2 deployment milestone — not yet started
 
-**Plans:** 1/3 plans executed
+**Plans:** 2/3 plans executed
 
 ### v4.2 Recording Reliability & Observability (Phases 91-93)
 
@@ -1157,7 +1157,7 @@ Plans:
 **Plans**: 3 plans
 Plans:
 - [x] 99-00-PLAN.md — Wave 0: 7 RED Nyquist tests (callWithFallback, transcribe fallback, gemini vision, failure mapping, refine error-surface, never-throw provider_unavailable)
-- [ ] 99-01-PLAN.md — Wave 1: HARD-03 shared OpenRouter→Gemini fallback (callWithFallback + analyzePhotoGemini + getAIProviderWithFallback + transcribe/vision wiring + generate swap)
+- [x] 99-01-PLAN.md — Wave 1: HARD-03 shared OpenRouter→Gemini fallback (callWithFallback + analyzePhotoGemini + getAIProviderWithFallback + transcribe/vision wiring + generate swap)
 - [ ] 99-02-PLAN.md — Wave 1: HARD-04 typed FailureReason union + failure→XtimatorError/channel-copy map + typed graph state/adapters + refine route asResponse fix
 
 #### Phase 100: Output Guardrails — Schema Validation, Price Anchoring, Totals Authority, Correlation ID

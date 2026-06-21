@@ -28,7 +28,7 @@ v4.3 (phases 94-96) extracted a channel-neutral **canonical estimate graph** (`l
 
 - [ ] **HARD-01**: Estimate refine runs through the canonical estimate graph and Inngest (idempotent, durable) — the inline generation/parsing logic in `app/api/estimates/[id]/refine/route.ts` is removed in favor of the shared engine.
 - [ ] **HARD-02**: Refine reuses the single prompt source of truth (`buildSystemPrompt` / `buildUserContent` in `lib/ai/prompt-builder.ts`) — no separately maintained refine prompt.
-- [ ] **HARD-03**: Every AI call path (generate, transcribe, vision, refine) uses the same provider-fallback policy (OpenRouter → Gemini) through one shared client wrapper.
+- [x] **HARD-03**: Every AI call path (generate, transcribe, vision, refine) uses the same provider-fallback policy (OpenRouter → Gemini) through one shared client wrapper.
 - [ ] **HARD-04**: A single typed error/failure model is used across API routes, graph nodes, Inngest functions and adapters — one mapping from failure to channel response, no ad-hoc `throw → 500`.
 - [ ] **HARD-05**: A failing item in a WhatsApp multimodal batch is isolated — good messages still produce an estimate, and the failed item is reported per-message rather than failing the whole batch.
 - [ ] **HARD-06**: The auto-refine cap is configurable (not hard-coded) and, when the estimate is still vague after the cap, the user has an explicit recourse path (e.g. add detail and regenerate) rather than a dead end.
@@ -76,7 +76,7 @@ v4.3 (phases 94-96) extracted a channel-neutral **canonical estimate graph** (`l
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| HARD-03 | Phase 99 | Pending |
+| HARD-03 | Phase 99 | Complete |
 | HARD-04 | Phase 99 | Pending |
 | GUARD-01 | Phase 100 | Pending |
 | GUARD-02 | Phase 100 | Pending |

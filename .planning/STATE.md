@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v4.3
 milestone_name: Unified Agentic Estimate Engine
-status: Wave-0 RED scaffold landed — 7 failing tests (5 new + 2 extended) pin the HARD-03/HARD-04 contracts for Wave-1
-stopped_at: Completed 99-00-PLAN.md (Wave-0 RED scaffold)
-last_updated: "2026-06-21T14:11:14.729Z"
-last_activity: 2026-06-21 — executed 99-00-PLAN.md (RED test scaffold)
+status: HARD-03 GREEN — shared OpenRouter->Gemini fallback wrapper landed (99-01); 99-02 (HARD-04 FailureReason model + refine error surface) next
+stopped_at: Completed 99-01-PLAN.md
+last_updated: "2026-06-21T14:22:40.671Z"
+last_activity: 2026-06-21 — executed 99-01-PLAN.md (HARD-03 provider-fallback wrapper)
 progress:
   total_phases: 52
   completed_phases: 39
@@ -22,12 +22,12 @@ progress:
 
 ## Current Position
 
-Phase: 99 (Unified Error Model + Shared Provider-Fallback Wrapper) — In Progress (1/3 plans complete)
-Plan: 99-00 complete (Wave-0 RED test scaffold); next 99-01
-Status: Wave-0 RED scaffold landed — 7 failing tests (5 new + 2 extended) pin the HARD-03/HARD-04 contracts for Wave-1
-Last activity: 2026-06-21 — executed 99-00-PLAN.md (RED test scaffold)
-Stopped at: Completed 99-00-PLAN.md (Wave-0 RED scaffold)
-Next Up: `/gsd:execute-phase 99` plan 99-01 — implement callWithFallback wrapper + ProvidersUnavailableError marker + transcribe/vision Gemini fallback (HARD-03). Then 99-02 (FailureReason model + refine error-surface, HARD-04). HARD-03/HARD-04 remain OPEN until Wave-1 implements them.
+Phase: 99 (Unified Error Model + Shared Provider-Fallback Wrapper) — In Progress (2/3 plans complete)
+Plan: 99-00 + 99-01 complete; next 99-02
+Status: HARD-03 GREEN — callWithFallback wrapper + ProvidersUnavailableError marker + analyzePhotoGemini vision fallback landed; transcribe/vision/generate now fall back OpenRouter->Gemini exactly once on failure; refine has a fallback-aware provider ready (Phase 101)
+Last activity: 2026-06-21 — executed 99-01-PLAN.md (HARD-03 provider-fallback wrapper)
+Stopped at: Completed 99-01-PLAN.md
+Next Up: `/gsd:execute-phase 99` plan 99-02 — FailureReason typed union (lib/estimate/failure.ts) + map ProvidersUnavailableError marker to provider_unavailable in generate.ts + refine route error surface (HARD-04). HARD-03 DONE; HARD-04 remains OPEN until 99-02.
 
 > Xtimator side (Fase B): plans 01–05 done on `dev`. Xphere side (Fase A): receiver
 > `POST /api/xtimator/webhook` + migration 1213 + pipeline seed on the **xphere** repo
@@ -41,7 +41,7 @@ Next Up: `/gsd:execute-phase 99` plan 99-01 — implement callWithFallback wrapp
 > **Coverage:** 18/18 v4.5 requirements mapped (HARD-01..07, GUARD-01..04, UNIFY-01..03, EVAL-01..04). No orphans.
 > **Scope guardrails (inherited from v4.3, do NOT plan against):** Inngest is the sole durability layer (NO LangGraph checkpointer); full per-node `step.run` decomposition stays DEFERRED (only the existing `StepRunner` seam is used); WhatsApp intent-router unification out of scope; no new estimate features.
 
-- Phase 99: Unified Error Model + Shared Provider-Fallback Wrapper (HARD-03, HARD-04) — In Progress (1/3 plans: 99-00 Wave-0 RED scaffold complete) — FOUNDATIONAL
+- Phase 99: Unified Error Model + Shared Provider-Fallback Wrapper (HARD-03 ✅, HARD-04) — In Progress (2/3 plans: 99-00 Wave-0 RED scaffold + 99-01 HARD-03 fallback wrapper complete) — FOUNDATIONAL
 - Phase 100: Output Guardrails — Schema Validation, Price Anchoring, Totals Authority, Correlation ID (GUARD-01, GUARD-02, GUARD-03, GUARD-04) — Not started. Depends on Phase 99.
 - Phase 101: Unified Multimodal Ingestion + Refine Through the Graph (HARD-01, HARD-02, UNIFY-01, UNIFY-02, UNIFY-03) — Not started. Depends on Phases 99 + 100. Largest structural change (removes inline `app/api/estimates/[id]/refine/route.ts` logic).
 - Phase 102: Resilience Hardening — Batch Isolation, Configurable Auto-Refine + Recourse, Replay-Safe TTL (HARD-05, HARD-06, HARD-07) — Not started. Depends on Phase 101.
@@ -542,6 +542,8 @@ Next Up: `/gsd:execute-phase 99` plan 99-01 — implement callWithFallback wrapp
 - [Phase 1000]: [Phase 1000-03] xphereSyncJob retries:3 with no Inngest idempotency key — idempotency is free via Xphere upsert-by-external_id; backfill re-runs safe
 - [Phase 1000]: [Phase 1000-03] Manually extended companies Row/Insert/Update in database.types.ts with 5 xphere_* columns (migration landed Plan 01; Docker-less Windows regen pattern from Phase 24/38)
 - [Phase 99]: [Phase 99-00]: refine route-level RED test drives the JSON { instruction } back-compat path (provider.refineEstimate rejects), not multipart — Request.formData() multipart parsing hangs in vitest/jsdom; still routes through the same bespoke top-level catch this phase replaces, so the RED is genuinely route-level (not asResponse-boundary)
+- [Phase 99]: [Phase 99 99-01]: One shared callWithFallback({op,primary,fallback}) policy backs generate/transcribe/vision; ProvidersUnavailableError marker (cause=primary err) thrown on both-down for 99-02 to map to provider_unavailable
+- [Phase 99]: [Phase 99 99-01]: getAIProviderWithFallback wraps getAIProvider (model selection untouched); did NOT write 'gemini' to pipeline_events.provider (servedBy/fallbackFired left as Phase 100 seam)
 
 ## Performance Metrics
 
@@ -720,6 +722,7 @@ Next Up: `/gsd:execute-phase 99` plan 99-01 — implement callWithFallback wrapp
 | Phase 1000 P02 | 6 min | 2 tasks | 5 files |
 | Phase 1000 P03 | 5 | 2 tasks | 7 files |
 | Phase 99 P00 | 25 | 3 tasks | 7 files |
+| Phase 99 P01 | 12m | 3 tasks | 5 files |
 
 ## Project Reference
 
