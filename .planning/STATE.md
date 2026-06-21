@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v4.3
 milestone_name: Unified Agentic Estimate Engine
-status: Phase 100 IN PROGRESS (1/4 plans) — 100-00 Wave-0 RED scaffold landed. 7 test files (4 new GUARD-01/02/03 suites + 3 migrated/extended) author the executable contracts; all RED-by-design until Waves 1-2 (100-01/02/03) add the source (schema.ts, normalize NormalizeResult, InvalidEstimateOutputError + retry, price-anchoring.ts, totals.ts, GUARD-04 correlation wiring). Nyquist contract satisfied for Phase 100.
-stopped_at: Completed 100-00-PLAN.md
-last_updated: "2026-06-21T15:18:59.172Z"
-last_activity: 2026-06-21 — executed 100-00-PLAN.md (Phase 100 Wave-0 RED test scaffold: GUARD-01..04 contracts)
+status: Phase 100 IN PROGRESS (2/4 plans) — 100-01 GUARD-01 (zod schema validation + bounded retry) shipped. estimateOutputSchema single-sources EstimateOutput; normalize is a non-throwing safeParse (NormalizeResult); InvalidEstimateOutputError + schema-retry-once seam at the provider-fallback boundary (refine inherits it); generate node maps the marker to invalid_output. GUARD-01 targeted suites GREEN; 100-02 (GUARD-02/03) + 100-03 (GUARD-04) Wave-0 contracts still RED by design.
+stopped_at: Completed 100-01-PLAN.md
+last_updated: "2026-06-21T15:36:52.567Z"
+last_activity: 2026-06-21 — executed 100-01-PLAN.md (Phase 100 GUARD-01: zod schema + safeParse normalize + InvalidEstimateOutputError + bounded schema-retry + invalid_output mapping)
 progress:
   total_phases: 52
   completed_phases: 39
@@ -22,12 +22,12 @@ progress:
 
 ## Current Position
 
-Phase: 100 (Output Guardrails — Schema Validation, Price Anchoring, Totals Authority, Correlation ID) — IN PROGRESS (1/4 plans)
-Plan: 100-00 complete (Wave-0 RED scaffold); 100-01 / 100-02 / 100-03 pending
-Status: 100-00 authored the GUARD-01..04 RED contracts across 7 test files (schema accept/reject + price_source coercion + client-name transform; bounded-retry call counts + InvalidEstimateOutputError; price anchor/clamp/tenant-scope with UNIT_PRICE_CEILING=1_000_000; totals invariants + totals_discrepancy metric; NormalizeResult migration; invalid_output mapping; GUARD-04 correlationId source-anchor). All RED by design; tests-only diff; zero vite:import-analysis errors; no regressions in the 16 other ai/estimate test files. Phase 99 (HARD-03/04) COMPLETE.
-Last activity: 2026-06-21 — executed 100-00-PLAN.md (Phase 100 Wave-0 RED test scaffold)
-Stopped at: Completed 100-00-PLAN.md
-Next Up: `/gsd:execute-phase 100` — continue with 100-01 (GUARD-01: lib/ai/schema.ts + normalize NormalizeResult + InvalidEstimateOutputError + bounded retry + invalid_output mapping in generate.ts).
+Phase: 100 (Output Guardrails — Schema Validation, Price Anchoring, Totals Authority, Correlation ID) — IN PROGRESS (2/4 plans)
+Plan: 100-00 + 100-01 complete; 100-02 / 100-03 pending
+Status: 100-01 shipped GUARD-01. `lib/ai/schema.ts` `estimateOutputSchema` (zod v4) single-sources `EstimateOutput` (D-15 price_source preprocess + client-name trim/null transform in-schema); `normalizeOutput` is a non-throwing safeParse returning a discriminated `NormalizeResult`; `InvalidEstimateOutputError` (invalidOutput brand) added; all three adapters (openrouter/gemini/anthropic) validate output and throw it; `withSchemaRetry` OUTER seam (cap 1) over the INNER provider-fallback on `provider-with-fallback.ts` (refine inherits it for Phase 101); `callWithFallback` rethrows the marker immediately so validation never triggers provider fallback; generate node maps the marker to `'invalid_output'` (never throws). Targeted GUARD-01 suites GREEN (schema 16, output-retry 3, price-source-tagging 3, never-throw incl. invalid_output 6); tsc clean of all 100-01-introduced errors. Still-RED files (price-anchoring/totals-authority/observability GUARD-04) are Wave-0 contracts for 100-02/100-03 — not regressions.
+Last activity: 2026-06-21 — executed 100-01-PLAN.md (GUARD-01 schema validation + bounded retry)
+Stopped at: Completed 100-01-PLAN.md
+Next Up: `/gsd:execute-phase 100` — continue with 100-02 (GUARD-02 price anchoring + GUARD-03 totals authority/discrepancy in lib/services/generate-estimate.ts, lib/ai/price-anchoring.ts, lib/estimate/totals.ts).
 
 > Xtimator side (Fase B): plans 01–05 done on `dev`. Xphere side (Fase A): receiver
 > `POST /api/xtimator/webhook` + migration 1213 + pipeline seed on the **xphere** repo
@@ -547,6 +547,9 @@ Next Up: `/gsd:execute-phase 100` — continue with 100-01 (GUARD-01: lib/ai/sch
 - [Phase 99]: [Phase 99 99-02]: Option A — keep 'no_usable_input' verbatim in the FailureReason union (not 'no_input') for zero behavior change at the single producer/reader
 - [Phase 99]: [Phase 99 99-02]: one FailureReason union is the single source both XtimatorError (HTTP) and channel copy derive from (lib/estimate/failure.ts); codes.ts left unchanged (offline default already user-appropriate)
 - [Phase 99]: [Phase 99 99-02]: refine route catch -> asResponse(err) yields typed { error, code }; 422 no-instruction / 429 rate-limit / demo-guard preserved exactly (no status-code changes on already-typed paths)
+- [Phase 100]: [Phase 100-01 GUARD-01]: EstimateOutput single-sourced from zod estimateOutputSchema (lib/ai/schema.ts); normalizeOutput is a non-throwing safeParse returning NormalizeResult
+- [Phase 100]: [Phase 100-01 GUARD-01]: callWithFallback rethrows InvalidEstimateOutputError immediately (validation failure != provider-down) so schema-retry (OUTER, cap 1) stays orthogonal to provider-fallback (INNER, once)
+- [Phase 100]: [Phase 100-01 GUARD-01]: all three adapters (openrouter/gemini/anthropic) validate output + throw the typed marker; generate node maps it to 'invalid_output', never throwing
 
 ## Performance Metrics
 
@@ -728,6 +731,7 @@ Next Up: `/gsd:execute-phase 100` — continue with 100-01 (GUARD-01: lib/ai/sch
 | Phase 99 P01 | 12m | 3 tasks | 5 files |
 | Phase 99 P02 | 12min | 3 tasks | 6 files |
 | Phase 100 P00 | 9min | 3 tasks | 7 files |
+| Phase 100 P01 | 13min | 3 tasks | 9 files |
 
 ## Project Reference
 

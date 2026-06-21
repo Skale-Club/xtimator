@@ -1173,7 +1173,7 @@ Plans:
 **Plans**: 4 plans
 Plans:
 - [x] 100-00-PLAN.md — Wave 0: RED/UPDATE tests (schema, output-retry, price-anchoring, totals-authority; migrate price-source-tagging; extend never-throw invalid_output + observability correlationId/OBS-03)
-- [ ] 100-01-PLAN.md — Wave 1: GUARD-01 zod estimateOutputSchema (single-sourced) + safeParse normalize + InvalidEstimateOutputError retry-once at the provider-fallback seam + generate-node invalid_output mapping
+- [x] 100-01-PLAN.md — Wave 1: GUARD-01 zod estimateOutputSchema (single-sourced) + safeParse normalize + InvalidEstimateOutputError retry-once at the provider-fallback seam + generate-node invalid_output mapping
 - [ ] 100-02-PLAN.md — Wave 2: GUARD-02 price anchoring + clamp (CEILING 1_000_000) and GUARD-03 server-totals authority + totals_discrepancy signal, wired into generate-estimate.ts (shared-file, sequential)
 - [ ] 100-03-PLAN.md — Wave 1: GUARD-04 promote attemptId to correlation id across Langfuse trace metadata (closes OBS-03) + Sentry correlation_id tag (best-effort)
 
