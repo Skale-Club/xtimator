@@ -1141,8 +1141,10 @@ Plans:
 
 - [x] **Phase 99: Unified Error Model + Shared Provider-Fallback Wrapper** — One typed failure model across routes/nodes/Inngest/adapters, and one OpenRouter→Gemini fallback wrapper every AI call path uses (HARD-03, HARD-04)
  (completed 2026-06-21)
-- [x] **Phase 100: Output Guardrails — Schema Validation, Price Anchoring, Totals Authority, Correlation ID** — Every AI estimate output is zod-validated with bounded retry, price-anchored, server-totals-authoritative, and traceable end-to-end via one correlation ID (GUARD-01, GUARD-02, GUARD-03, GUARD-04) (completed 2026-06-21)
-- [x] **Phase 101: Unified Multimodal Ingestion + Refine Through the Graph** — Refine runs through the canonical graph INLINE (synchronous preview, passthrough StepRunner — NOT Inngest) reusing the single ingestion path and prompt builder; web/WhatsApp/MCP/refine all share one audio+image+text path (HARD-01, HARD-02, UNIFY-01, UNIFY-02, UNIFY-03) (completed 2026-06-21)
+- [x] **Phase 100: Output Guardrails — Schema Validation, Price Anchoring, Totals Authority, Correlation ID** — Every AI estimate output is zod-validated with bounded retry, price-anchored, server-totals-authoritative, and traceable end-to-end via one correlation ID (GUARD-01, GUARD-02, GUARD-03, GUARD-04)
+ (completed 2026-06-21)
+- [x] **Phase 101: Unified Multimodal Ingestion + Refine Through the Graph** — Refine runs through the canonical graph INLINE (synchronous preview, passthrough StepRunner — NOT Inngest) reusing the single ingestion path and prompt builder; web/WhatsApp/MCP/refine all share one audio+image+text path (HARD-01, HARD-02, UNIFY-01, UNIFY-02, UNIFY-03)
+ (completed 2026-06-21)
 - [ ] **Phase 102: Resilience Hardening — Batch Isolation, Configurable Auto-Refine + Recourse, Replay-Safe TTL** — A bad WhatsApp message no longer fails the batch; the auto-refine cap is configurable with explicit user recourse; TTLs are replay-safe (HARD-05, HARD-06, HARD-07)
 - [ ] **Phase 103: Eval/Test Harness + CI Regression Gate** — Golden multimodal fixtures + deterministic mocked providers + quality-metrics suite + CI gate prove the hardened engine does not regress (EVAL-01, EVAL-02, EVAL-03, EVAL-04)
 
@@ -1203,7 +1205,12 @@ Plans:
   2. The auto-refine cap is configurable (no longer hard-coded at 1), and when the estimate is still vague after the cap the user gets an explicit recourse path (e.g. add detail and regenerate) instead of a dead end — reusing existing UI patterns, no editor redesign
   3. Session / awaiting-state TTLs are derived from durable state (replay-safe) rather than minted from `Date.now()` inside a node, so a node retry or a future promotion of an AI node to its own `step.run` cannot corrupt the TTL
   4. The never-throw / always-reply invariant still holds under partial-batch failure — every owner still gets exactly one reply per batch even when some items failed
-**Plans**: TBD
+**Plans**: 5 plans (3 waves)
+- [ ] 102-00-PLAN.md — Wave-0 RED/EXTEND test scaffold (cap edge, replay-safe TTL, batch reporting, recourse banner RTL) (HARD-05/06/07)
+- [ ] 102-01-PLAN.md — HARD-07 replay-safe TTL: neutral requestedAt state field threaded through both Inngest invokes + both whatsapp finalize TTL sites
+- [ ] 102-02-PLAN.md — HARD-06 configurable cap: AUTO_REFINE_MAX_ATTEMPTS constant in decide.ts (default 1)
+- [ ] 102-03-PLAN.md — HARD-05 per-item batch reporting: neutral droppedInputs carry-forward + reason→copy note in both whatsapp reply builders
+- [ ] 102-04-PLAN.md — HARD-06 web recourse banner: NeedsDetailsBanner in overview-tab on awaiting_details, reusing Alert + the existing generate trigger
 **UI hint**: yes
 
 #### Phase 103: Eval/Test Harness + CI Regression Gate
