@@ -53,9 +53,11 @@ export async function getORKey(): Promise<string> {
  * was unreliable for our usage, so transcription calls OpenAI directly. Vision
  * and translation in this module still use OpenRouter.
  *
- * Requires an OpenAI key, read via getIntegrationKey('openai') which falls back
- * to the OPENAI_API_KEY env var (see lib/platform-config.ts). Throws on any
- * non-2xx or network failure so Inngest's onFailure (ai_job.failed) surfaces it.
+ * Prefers an OpenAI key, read via getIntegrationKey('openai') which falls back
+ * to the OPENAI_API_KEY env var (see lib/platform-config.ts). When NO OpenAI key
+ * is configured, transcription falls back to Gemini (transcribeAudioGemini) using
+ * the platform's existing Gemini key. Throws on any non-2xx or network failure so
+ * Inngest's onFailure (ai_job.failed) surfaces it.
  */
 export async function transcribeAudioOR(
   audioBlob: Blob,
@@ -64,9 +66,11 @@ export async function transcribeAudioOR(
 ): Promise<string> {
   const apiKey = await getIntegrationKey('openai')
   if (!apiKey) {
-    throw new Error(
-      'OpenAI API key not configured (checked platform_integrations and OPENAI_API_KEY env)'
-    )
+    // No OpenAI Whisper key configured — fall back to Gemini multimodal
+    // transcription, which the platform already has set up. Dynamic import keeps
+    // the Gemini SDK out of bundles that only use the OpenRouter helpers.
+    const { transcribeAudioGemini } = await import('@/lib/ai/providers/gemini')
+    return transcribeAudioGemini(audioBlob, ext)
   }
 
   const startTime = new Date()

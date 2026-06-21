@@ -7,6 +7,55 @@ import { buildSystemPrompt, buildUserContent } from '../prompt-builder'
 import { normalizeOutput } from '../normalize'
 import { formatMoney, normalizeCurrencyCode } from '@/lib/money/currency'
 
+/** File-extension → MIME type for inline audio sent to Gemini. */
+const AUDIO_EXT_TO_MIME: Record<string, string> = {
+  webm: 'audio/webm',
+  ogg: 'audio/ogg',
+  oga: 'audio/ogg',
+  opus: 'audio/ogg',
+  mp3: 'audio/mp3',
+  mpeg: 'audio/mpeg',
+  mpga: 'audio/mpeg',
+  m4a: 'audio/mp4',
+  mp4: 'audio/mp4',
+  wav: 'audio/wav',
+  aac: 'audio/aac',
+  flac: 'audio/flac',
+}
+
+const TRANSCRIBE_PROMPT =
+  'Transcribe this audio recording to plain text. Return ONLY the spoken words as a ' +
+  'continuous transcript — no commentary, speaker labels, timestamps, or markdown. ' +
+  'If there is no discernible speech, return an empty string.'
+
+/**
+ * Transcribe audio to plain text using Gemini's multimodal model.
+ *
+ * This is the keyless-OpenAI fallback for transcription: when no OpenAI Whisper
+ * key is configured, `transcribeAudioOR` delegates here so the platform's
+ * existing Gemini key still produces transcripts. Gemini 2.5 Flash accepts
+ * inline audio and returns the spoken text directly.
+ */
+export async function transcribeAudioGemini(audioBlob: Blob, ext: string): Promise<string> {
+  const apiKey = await getIntegrationKey('gemini')
+  if (!apiKey) throw new Error('Gemini API key not configured')
+
+  const ai = new GoogleGenAI({ apiKey })
+  const buf = Buffer.from(await audioBlob.arrayBuffer())
+  const base64 = buf.toString('base64')
+  const mimeType = AUDIO_EXT_TO_MIME[ext.toLowerCase()] ?? 'audio/webm'
+
+  const response = await ai.models.generateContent({
+    model: 'gemini-2.5-flash',
+    contents: [
+      { text: TRANSCRIBE_PROMPT },
+      { inlineData: { mimeType, data: base64 } },
+    ],
+  })
+
+  return (response.text ?? '').trim()
+}
+
 export class GeminiAdapter implements AIProvider {
   async generateEstimate(input: EstimateInput): Promise<EstimateOutput> {
     const apiKey = await getIntegrationKey('gemini')
