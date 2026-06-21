@@ -113,10 +113,8 @@ export const generateEstimateJob = inngest.createFunction(
       // Safe-metadata rule v4.2: only project/company IDs allowed — no sensitive data.
       const traceChannel = (data.channel ?? 'web') as 'web' | 'mcp'
       const handler = new CallbackHandler({
-        metadata: {
-          langfuseSessionId: `${traceChannel}:${projectId}`,
-          langfuseUserId: companyId,
-        },
+        sessionId: `${traceChannel}:${projectId}`,
+        userId: companyId,
         tags: [traceChannel, 'estimate-engine'],
       })
 
