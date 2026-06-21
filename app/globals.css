@@ -133,6 +133,10 @@
     --system-primary: 224 86% 60%;
     --system-secondary: 221 84% 73%;
     --app-sidebar-width: 213px;
+    /* Shared bottom-bar height for the main sidebar footer (company switcher)
+       and the settings sub-sidebar footer (collapse toggle) so the two rails
+       line up exactly. Fits the company-selector row (avatar h-6 + py-1.5). */
+    --app-rail-footer-h: 53px;
     --background: 0 0% 100%;
     --foreground: 240 10% 3.9%;
     --card: 0 0% 100%;

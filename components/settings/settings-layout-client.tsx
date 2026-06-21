@@ -50,8 +50,10 @@ export function SettingsLayoutClient({ children }: { children: ReactNode }) {
         >
           <SettingsNav collapsed={collapsed} />
 
-          {/* Collapse toggle — desktop only, mirrors main sidebar bottom button */}
-          <div className="mt-auto hidden md:block border-t border-[var(--glass-border)] p-2">
+          {/* Collapse toggle — desktop only, mirrors main sidebar bottom button.
+              Same min-h + vertical centering as the main sidebar footer
+              (--app-rail-footer-h) so the two rail footers line up exactly. */}
+          <div className="mt-auto hidden md:flex md:flex-col md:justify-center md:min-h-[var(--app-rail-footer-h)] border-t border-[var(--glass-border)] p-2">
             {collapsed ? (
               <button
                 type="button"

@@ -333,8 +333,10 @@ export function Sidebar({ branding, company, memberships, isDemo }: SidebarProps
         })}
       </nav>
 
-      {/* Bottom: company switcher (Plan 81-04) + user menu + collapse toggle */}
-      <div className="border-t border-[var(--glass-border)] p-2">
+      {/* Bottom: company switcher (Plan 81-04) + user menu + collapse toggle.
+          min-h + vertical centering keeps this in lockstep with the settings
+          sub-sidebar footer (--app-rail-footer-h); collapsed can still grow. */}
+      <div className="flex flex-col justify-center min-h-[var(--app-rail-footer-h)] border-t border-[var(--glass-border)] p-2">
         {collapsed ? (
           /* Collapsed: company-switcher avatar + expand chevron only.
              User-menu items (Settings / App Tour / Sign Out) live INSIDE
