@@ -1139,7 +1139,8 @@ Plans:
 >
 > **Scope guardrails (inherited from v4.3, do NOT plan against):** Inngest remains the sole durability layer (NO LangGraph checkpointer); the full per-node `step.run` durability decomposition stays DEFERRED (only the existing `StepRunner` seam is used); WhatsApp intent-router unification is out of scope; no new estimate features.
 
-- [x] **Phase 99: Unified Error Model + Shared Provider-Fallback Wrapper** — One typed failure model across routes/nodes/Inngest/adapters, and one OpenRouter→Gemini fallback wrapper every AI call path uses (HARD-03, HARD-04) (completed 2026-06-21)
+- [x] **Phase 99: Unified Error Model + Shared Provider-Fallback Wrapper** — One typed failure model across routes/nodes/Inngest/adapters, and one OpenRouter→Gemini fallback wrapper every AI call path uses (HARD-03, HARD-04)
+ (completed 2026-06-21)
 - [ ] **Phase 100: Output Guardrails — Schema Validation, Price Anchoring, Totals Authority, Correlation ID** — Every AI estimate output is zod-validated with bounded retry, price-anchored, server-totals-authoritative, and traceable end-to-end via one correlation ID (GUARD-01, GUARD-02, GUARD-03, GUARD-04)
 - [ ] **Phase 101: Unified Multimodal Ingestion + Refine Through the Graph** — Refine runs through the canonical graph + Inngest reusing the single ingestion path and prompt builder; web/WhatsApp/MCP/refine all share one audio+image+text path (HARD-01, HARD-02, UNIFY-01, UNIFY-02, UNIFY-03)
 - [ ] **Phase 102: Resilience Hardening — Batch Isolation, Configurable Auto-Refine + Recourse, Replay-Safe TTL** — A bad WhatsApp message no longer fails the batch; the auto-refine cap is configurable with explicit user recourse; TTLs are replay-safe (HARD-05, HARD-06, HARD-07)
@@ -1169,7 +1170,12 @@ Plans:
   2. When a line item matches a price-book entry the anchored price is used, and an out-of-bounds unit price is flagged/clamped per documented rules rather than trusted as-is
   3. The server-side totals/markup/tax recalculation is the authoritative total, is asserted against the AI-proposed total, and any discrepancy is recorded as a signal — the AI's own total is never persisted as authoritative
   4. Each generation run carries one correlation ID that appears on its `pipeline_events`, its Langfuse trace, and any Sentry event, so a single run is traceable across all three systems (coordinated with v4.3 Phase 97 observability)
-**Plans**: TBD
+**Plans**: 4 plans
+Plans:
+- [ ] 100-00-PLAN.md — Wave 0: RED/UPDATE tests (schema, output-retry, price-anchoring, totals-authority; migrate price-source-tagging; extend never-throw invalid_output + observability correlationId/OBS-03)
+- [ ] 100-01-PLAN.md — Wave 1: GUARD-01 zod estimateOutputSchema (single-sourced) + safeParse normalize + InvalidEstimateOutputError retry-once at the provider-fallback seam + generate-node invalid_output mapping
+- [ ] 100-02-PLAN.md — Wave 2: GUARD-02 price anchoring + clamp (CEILING 1_000_000) and GUARD-03 server-totals authority + totals_discrepancy signal, wired into generate-estimate.ts (shared-file, sequential)
+- [ ] 100-03-PLAN.md — Wave 1: GUARD-04 promote attemptId to correlation id across Langfuse trace metadata (closes OBS-03) + Sentry correlation_id tag (best-effort)
 
 #### Phase 101: Unified Multimodal Ingestion + Refine Through the Graph
 **Goal**: The refine path stops being a parallel re-implementation — it runs through the same canonical graph, Inngest durability, ingestion path, prompt builder, fallbacks and guardrails as initial generation, so refine and generate produce equivalent estimates for equivalent inputs.
