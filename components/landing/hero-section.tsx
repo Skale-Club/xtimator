@@ -31,7 +31,7 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
   }, [])
 
   return (
-    <section className="relative isolate flex flex-1 min-h-0 flex-col overflow-hidden border-b border-white/5 bg-transparent min-h-[420px] sm:min-h-0 sm:max-h-[560px] md:max-h-[680px] lg:max-h-[560px]">
+    <section className="relative isolate flex flex-1 min-h-0 flex-col overflow-hidden border-b border-white/5 bg-transparent min-h-[420px] sm:min-h-0 sm:max-h-[520px] md:max-h-[620px] lg:max-h-[520px]">
       <div aria-hidden className="hero-mesh" />
       <div aria-hidden className="hero-dots" />
       <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 gradient-hero" />
