@@ -36,7 +36,12 @@ jobs:
           node-version: 24 # matches .nvmrc and the local dev node
           cache: npm
 
-      - run: npm ci
+      # Use `npm install` (not `npm ci`) on purpose — same as the Dockerfile.
+      # Several deps ship a platform-specific WASM subtree (@emnapi/*) that is
+      # NOT in the committed lock file (it resolves per-platform), so strict
+      # `npm ci` fails on linux with "Missing @emnapi/runtime from lock file".
+      # `npm install` reconciles that subtree at install time.
+      - run: npm install --no-audit --no-fund
 
       # Scoped typecheck — app/lib/components/hooks only (tsconfig.ci.json).
       # The full `tsc --noEmit` is red on 9 pre-existing test-file-only errors
