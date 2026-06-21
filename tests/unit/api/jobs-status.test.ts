@@ -46,15 +46,25 @@ function makeParams(jobId: string) {
 }
 
 describe('INNGEST-05: GET /api/jobs/[jobId] proxy', () => {
+  // The route added an isDevMode() branch (reads INNGEST_DEV): in dev mode it
+  // targets http://localhost:8288 and SKIPS the config_unavailable path. The
+  // local .env.local (loaded by tests/setup/load-env.ts) sets INNGEST_DEV=1, so
+  // without clearing it these assertions (cloud URL + config_unavailable) test
+  // the wrong branch. Force the non-dev (cloud) contract these tests describe.
+  let savedInngestDev: string | undefined
   beforeEach(() => {
     vi.resetAllMocks()
     vi.stubGlobal('fetch', mockFetch)
+    savedInngestDev = process.env.INNGEST_DEV
+    delete process.env.INNGEST_DEV
     process.env.INNGEST_SIGNING_KEY = 'test-signing-key'
   })
 
   afterEach(() => {
     vi.unstubAllGlobals()
     delete process.env.INNGEST_SIGNING_KEY
+    if (savedInngestDev === undefined) delete process.env.INNGEST_DEV
+    else process.env.INNGEST_DEV = savedInngestDev
   })
 
   it('requires authentication (401 when no claims)', async () => {

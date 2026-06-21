@@ -27,11 +27,21 @@ describe('Phase 83 server-action sweep — static contract', () => {
 
     it(`lib/actions/${name} does NOT use the legacy .eq('user_id', claims.sub) pattern`, () => {
       // We accept the new pattern: .eq('user_id', claims.sub) WHERE the target table is
-      // company_members (different domain). Practically, the codemod removed all legacy
-      // usages outside the allow-list. Assert via a strict grep:
-      expect(content, `${name} still contains legacy eq('user_id', claims.sub)`).not.toMatch(
-        /\.eq\(['"]user_id['"]\s*,\s*claims\.sub/,
+      // company_members (different domain — a membership/role lookup, NOT legacy
+      // tenant-data scoping by user). Such a lookup pairs an active-company filter
+      // with the user filter: `.eq('company_id', <id>).eq('user_id', claims.sub)`
+      // on company_members (e.g. staff.ts's owner-role check). Strip those legitimate
+      // membership lookups before grepping so only the LEGACY data-scoping pattern
+      // (a bare `.eq('user_id', claims.sub)` not gated by an active-company filter)
+      // can trip the assertion.
+      const withoutMembershipChecks = content.replace(
+        /\.eq\(['"]company_id['"][^)]*\)\s*\.eq\(['"]user_id['"]\s*,\s*claims\.sub[^)]*\)/g,
+        '',
       )
+      expect(
+        withoutMembershipChecks,
+        `${name} still contains legacy eq('user_id', claims.sub)`,
+      ).not.toMatch(/\.eq\(['"]user_id['"]\s*,\s*claims\.sub/)
     })
 
     it(`lib/actions/${name} imports getActiveCompanyId if it has a getAuthContext helper`, () => {
