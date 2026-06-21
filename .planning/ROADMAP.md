@@ -976,7 +976,7 @@ Plans:
   - Phase 68 (Hetzner Cloud deploy-readiness artifacts) — landed (but not yet exercised in prod)
   - v3.2 deployment milestone — not yet started
 
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 
 ### v4.2 Recording Reliability & Observability (Phases 91-93)
 
@@ -1139,7 +1139,7 @@ Plans:
 >
 > **Scope guardrails (inherited from v4.3, do NOT plan against):** Inngest remains the sole durability layer (NO LangGraph checkpointer); the full per-node `step.run` durability decomposition stays DEFERRED (only the existing `StepRunner` seam is used); WhatsApp intent-router unification is out of scope; no new estimate features.
 
-- [ ] **Phase 99: Unified Error Model + Shared Provider-Fallback Wrapper** — One typed failure model across routes/nodes/Inngest/adapters, and one OpenRouter→Gemini fallback wrapper every AI call path uses (HARD-03, HARD-04)
+- [x] **Phase 99: Unified Error Model + Shared Provider-Fallback Wrapper** — One typed failure model across routes/nodes/Inngest/adapters, and one OpenRouter→Gemini fallback wrapper every AI call path uses (HARD-03, HARD-04) (completed 2026-06-21)
 - [ ] **Phase 100: Output Guardrails — Schema Validation, Price Anchoring, Totals Authority, Correlation ID** — Every AI estimate output is zod-validated with bounded retry, price-anchored, server-totals-authoritative, and traceable end-to-end via one correlation ID (GUARD-01, GUARD-02, GUARD-03, GUARD-04)
 - [ ] **Phase 101: Unified Multimodal Ingestion + Refine Through the Graph** — Refine runs through the canonical graph + Inngest reusing the single ingestion path and prompt builder; web/WhatsApp/MCP/refine all share one audio+image+text path (HARD-01, HARD-02, UNIFY-01, UNIFY-02, UNIFY-03)
 - [ ] **Phase 102: Resilience Hardening — Batch Isolation, Configurable Auto-Refine + Recourse, Replay-Safe TTL** — A bad WhatsApp message no longer fails the batch; the auto-refine cap is configurable with explicit user recourse; TTLs are replay-safe (HARD-05, HARD-06, HARD-07)
@@ -1158,7 +1158,7 @@ Plans:
 Plans:
 - [x] 99-00-PLAN.md — Wave 0: 7 RED Nyquist tests (callWithFallback, transcribe fallback, gemini vision, failure mapping, refine error-surface, never-throw provider_unavailable)
 - [x] 99-01-PLAN.md — Wave 1: HARD-03 shared OpenRouter→Gemini fallback (callWithFallback + analyzePhotoGemini + getAIProviderWithFallback + transcribe/vision wiring + generate swap)
-- [ ] 99-02-PLAN.md — Wave 1: HARD-04 typed FailureReason union + failure→XtimatorError/channel-copy map + typed graph state/adapters + refine route asResponse fix
+- [x] 99-02-PLAN.md — Wave 1: HARD-04 typed FailureReason union + failure→XtimatorError/channel-copy map + typed graph state/adapters + refine route asResponse fix
 
 #### Phase 100: Output Guardrails — Schema Validation, Price Anchoring, Totals Authority, Correlation ID
 **Goal**: No malformed, hallucinated, or mis-totaled AI output is ever persisted, and any single generation run can be traced end-to-end across pipeline events, Langfuse and Sentry — guardrails land on the generate path now so the refactored refine path inherits them in Phase 101.

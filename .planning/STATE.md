@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v4.3
 milestone_name: Unified Agentic Estimate Engine
-status: HARD-03 GREEN — shared OpenRouter->Gemini fallback wrapper landed (99-01); 99-02 (HARD-04 FailureReason model + refine error surface) next
-stopped_at: Completed 99-01-PLAN.md
-last_updated: "2026-06-21T14:22:40.671Z"
-last_activity: 2026-06-21 — executed 99-01-PLAN.md (HARD-03 provider-fallback wrapper)
+status: Phase 99 COMPLETE (3/3 plans) — HARD-03 + HARD-04 GREEN. 99-02 landed the typed FailureReason union (lib/estimate/failure.ts) as the single source for both XtimatorError and channel copy; graph failure channel typed; provider_unavailable marker mapped in generate.ts; refine route returns typed { error, code } (no bare throw->500)
+stopped_at: Completed 99-02-PLAN.md
+last_updated: "2026-06-21T14:35:58.246Z"
+last_activity: 2026-06-21 — executed 99-02-PLAN.md (HARD-04 unified typed failure model + refine error surface)
 progress:
   total_phases: 52
   completed_phases: 39
@@ -22,12 +22,12 @@ progress:
 
 ## Current Position
 
-Phase: 99 (Unified Error Model + Shared Provider-Fallback Wrapper) — In Progress (2/3 plans complete)
-Plan: 99-00 + 99-01 complete; next 99-02
-Status: HARD-03 GREEN — callWithFallback wrapper + ProvidersUnavailableError marker + analyzePhotoGemini vision fallback landed; transcribe/vision/generate now fall back OpenRouter->Gemini exactly once on failure; refine has a fallback-aware provider ready (Phase 101)
-Last activity: 2026-06-21 — executed 99-01-PLAN.md (HARD-03 provider-fallback wrapper)
-Stopped at: Completed 99-01-PLAN.md
-Next Up: `/gsd:execute-phase 99` plan 99-02 — FailureReason typed union (lib/estimate/failure.ts) + map ProvidersUnavailableError marker to provider_unavailable in generate.ts + refine route error surface (HARD-04). HARD-03 DONE; HARD-04 remains OPEN until 99-02.
+Phase: 99 (Unified Error Model + Shared Provider-Fallback Wrapper) — COMPLETE (3/3 plans)
+Plan: 99-00 + 99-01 + 99-02 complete
+Status: HARD-03 + HARD-04 GREEN. 99-02 added the single typed FailureReason union (lib/estimate/failure.ts) driving both XtimatorError (HTTP boundary) and channel copy; typed graph failure channel; generate.ts maps the ProvidersUnavailableError marker to 'provider_unavailable'; both adapters source onError through the map; refine route catch -> asResponse(err) (no bare throw->500, 422/429/demo-guard preserved).
+Last activity: 2026-06-21 — executed 99-02-PLAN.md (HARD-04 unified typed failure model + refine error surface)
+Stopped at: Completed 99-02-PLAN.md
+Next Up: `/gsd:execute-phase 100` — Output Guardrails (GUARD-01 produces the already-DEFINED 'invalid_output' reason; GUARD-02/03/04). Phase 99 done.
 
 > Xtimator side (Fase B): plans 01–05 done on `dev`. Xphere side (Fase A): receiver
 > `POST /api/xtimator/webhook` + migration 1213 + pipeline seed on the **xphere** repo
@@ -41,7 +41,7 @@ Next Up: `/gsd:execute-phase 99` plan 99-02 — FailureReason typed union (lib/e
 > **Coverage:** 18/18 v4.5 requirements mapped (HARD-01..07, GUARD-01..04, UNIFY-01..03, EVAL-01..04). No orphans.
 > **Scope guardrails (inherited from v4.3, do NOT plan against):** Inngest is the sole durability layer (NO LangGraph checkpointer); full per-node `step.run` decomposition stays DEFERRED (only the existing `StepRunner` seam is used); WhatsApp intent-router unification out of scope; no new estimate features.
 
-- Phase 99: Unified Error Model + Shared Provider-Fallback Wrapper (HARD-03 ✅, HARD-04) — In Progress (2/3 plans: 99-00 Wave-0 RED scaffold + 99-01 HARD-03 fallback wrapper complete) — FOUNDATIONAL
+- Phase 99: Unified Error Model + Shared Provider-Fallback Wrapper (HARD-03 ✅, HARD-04 ✅) — COMPLETE (3/3 plans: 99-00 Wave-0 RED scaffold + 99-01 HARD-03 fallback wrapper + 99-02 HARD-04 typed failure model) — FOUNDATIONAL
 - Phase 100: Output Guardrails — Schema Validation, Price Anchoring, Totals Authority, Correlation ID (GUARD-01, GUARD-02, GUARD-03, GUARD-04) — Not started. Depends on Phase 99.
 - Phase 101: Unified Multimodal Ingestion + Refine Through the Graph (HARD-01, HARD-02, UNIFY-01, UNIFY-02, UNIFY-03) — Not started. Depends on Phases 99 + 100. Largest structural change (removes inline `app/api/estimates/[id]/refine/route.ts` logic).
 - Phase 102: Resilience Hardening — Batch Isolation, Configurable Auto-Refine + Recourse, Replay-Safe TTL (HARD-05, HARD-06, HARD-07) — Not started. Depends on Phase 101.
@@ -544,6 +544,9 @@ Next Up: `/gsd:execute-phase 99` plan 99-02 — FailureReason typed union (lib/e
 - [Phase 99]: [Phase 99-00]: refine route-level RED test drives the JSON { instruction } back-compat path (provider.refineEstimate rejects), not multipart — Request.formData() multipart parsing hangs in vitest/jsdom; still routes through the same bespoke top-level catch this phase replaces, so the RED is genuinely route-level (not asResponse-boundary)
 - [Phase 99]: [Phase 99 99-01]: One shared callWithFallback({op,primary,fallback}) policy backs generate/transcribe/vision; ProvidersUnavailableError marker (cause=primary err) thrown on both-down for 99-02 to map to provider_unavailable
 - [Phase 99]: [Phase 99 99-01]: getAIProviderWithFallback wraps getAIProvider (model selection untouched); did NOT write 'gemini' to pipeline_events.provider (servedBy/fallbackFired left as Phase 100 seam)
+- [Phase 99]: [Phase 99 99-02]: Option A — keep 'no_usable_input' verbatim in the FailureReason union (not 'no_input') for zero behavior change at the single producer/reader
+- [Phase 99]: [Phase 99 99-02]: one FailureReason union is the single source both XtimatorError (HTTP) and channel copy derive from (lib/estimate/failure.ts); codes.ts left unchanged (offline default already user-appropriate)
+- [Phase 99]: [Phase 99 99-02]: refine route catch -> asResponse(err) yields typed { error, code }; 422 no-instruction / 429 rate-limit / demo-guard preserved exactly (no status-code changes on already-typed paths)
 
 ## Performance Metrics
 
@@ -723,6 +726,7 @@ Next Up: `/gsd:execute-phase 99` plan 99-02 — FailureReason typed union (lib/e
 | Phase 1000 P03 | 5 | 2 tasks | 7 files |
 | Phase 99 P00 | 25 | 3 tasks | 7 files |
 | Phase 99 P01 | 12m | 3 tasks | 5 files |
+| Phase 99 P02 | 12min | 3 tasks | 6 files |
 
 ## Project Reference
 
