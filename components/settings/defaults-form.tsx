@@ -10,7 +10,7 @@ import { toast } from 'sonner'
 import type { CompanySettings } from '@/lib/queries/company'
 import { updateDefaults } from '@/lib/actions/settings'
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -63,12 +63,6 @@ export function DefaultsForm({ company }: DefaultsFormProps) {
 
   return (
     <Card className="w-full rounded-[var(--radius-md)]">
-      <CardHeader className="border-b border-border">
-        <CardTitle>{t('Estimate Defaults')}</CardTitle>
-        <CardDescription>
-          {t('Set the reusable terms and calculation defaults applied when new estimates are created.')}
-        </CardDescription>
-      </CardHeader>
       <CardContent className="py-6">
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">

@@ -150,12 +150,6 @@ export function NotificationsForm({ initial, defaults }: NotificationsFormProps)
   return (
     <div className="space-y-6">
       <Card className="w-full rounded-[var(--radius-md)]">
-        <CardHeader className="border-b border-border">
-          <CardTitle>{t('Notification preferences')}</CardTitle>
-          <CardDescription>
-            {t('Choose how you want to be notified for each event category.')}
-          </CardDescription>
-        </CardHeader>
         <CardContent className="space-y-6 py-6">
           <div className="flex items-center justify-between gap-4 rounded-[var(--radius-md)] border border-border bg-background p-4">
             <Label htmlFor="master-email-digest" className="grid flex-1 gap-1">

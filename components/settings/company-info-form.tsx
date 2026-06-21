@@ -12,7 +12,7 @@ import { updateCompanySettings } from '@/lib/actions/settings'
 import { INDUSTRIES } from '@/lib/industries'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { PhoneInput } from '@/components/ui/phone-input'
@@ -112,12 +112,6 @@ export function CompanyInfoForm({ company, readOnly = false }: CompanyInfoFormPr
 
   return (
     <Card className="w-full rounded-[var(--radius-md)]">
-      <CardHeader className="border-b border-border">
-        <CardTitle>{t('Company Information')}</CardTitle>
-        <CardDescription>
-          {t('Keep the business details that appear across estimates, client links, and generated documents up to date.')}
-        </CardDescription>
-      </CardHeader>
       <CardContent className="py-6">
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
