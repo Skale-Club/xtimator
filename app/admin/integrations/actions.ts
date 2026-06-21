@@ -9,6 +9,7 @@ import { requireServiceClient } from '@/lib/supabase/service'
 import { encrypt } from '@/lib/crypto/aes'
 import {
   getIntegrationKey,
+  getXphereConfig,
   invalidatePlatformConfig,
   type IntegrationProvider,
 } from '@/lib/platform-config'
@@ -267,6 +268,20 @@ async function runTestIntegrationKey(
       }
     }
 
+    if (input.provider === 'xphere') {
+      // The Xphere receiver (POST {baseUrl}/api/xtimator/webhook) mutates CRM
+      // state, so we must NOT call it as a reachability probe. Instead confirm
+      // both the API key and base URL resolve via getXphereConfig().
+      const config = await getXphereConfig()
+      if (!config) {
+        return { ok: false, message: 'Set both the API key and base URL.' }
+      }
+      return {
+        ok: true,
+        message: `Configured. Base URL ${config.baseUrl} set; key ends …${config.apiKey.slice(-4)}.`,
+      }
+    }
+
     if (input.provider === 'stripe') {
       const Stripe = (await import('stripe')).default
       const stripe = new Stripe(key, { apiVersion: '2026-04-22.dahlia' })
@@ -331,6 +346,67 @@ export async function saveTwilioFromPhone(
     targetType: 'integration',
     targetId: 'twilio_from_phone',
     metadata: { from_phone: trimmed },
+  })
+
+  return { ok: true }
+}
+
+/**
+ * Save the Xphere CRM base URL into platform_integrations.xphere metadata.
+ * Stored as { base_url: "https://..." } alongside the existing encrypted key.
+ * Validates that the value is a well-formed http(s) origin so getXphereConfig()
+ * (and the Plan 03 client) can safely append paths to it.
+ */
+export async function saveXphereBaseUrl(
+  baseUrl: string
+): Promise<ActionResult> {
+  const ctx = await requireAdmin()
+  const trimmed = baseUrl.trim()
+
+  if (trimmed) {
+    let parsedUrl: URL
+    try {
+      parsedUrl = new URL(trimmed)
+    } catch {
+      return { ok: false, message: 'Base URL must be a valid http(s) URL' }
+    }
+    if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
+      return { ok: false, message: 'Base URL must be a valid http(s) URL' }
+    }
+  }
+
+  const svc = requireServiceClient()
+  const { data: existing } = await svc
+    .from('platform_integrations')
+    .select('ciphertext, iv, auth_tag, metadata')
+    .eq('provider', 'xphere')
+    .maybeSingle()
+
+  const { error } = await svc.from('platform_integrations').upsert(
+    {
+      provider: 'xphere',
+      ciphertext: existing?.ciphertext ?? null,
+      iv: existing?.iv ?? null,
+      auth_tag: existing?.auth_tag ?? null,
+      metadata: { ...((existing?.metadata as object) ?? {}), base_url: trimmed },
+      updated_at: new Date().toISOString(),
+      updated_by: ctx.userId,
+    },
+    { onConflict: 'provider' }
+  )
+
+  if (error) return { ok: false, message: error.message }
+
+  invalidatePlatformConfig()
+  revalidatePath('/admin/integrations')
+
+  void logAdminAction({
+    actorId: ctx.userId,
+    actorEmail: ctx.email,
+    action: 'integration.save',
+    targetType: 'integration',
+    targetId: 'xphere_base_url',
+    metadata: { base_url: trimmed },
   })
 
   return { ok: true }

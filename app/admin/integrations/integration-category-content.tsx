@@ -9,6 +9,7 @@ import { IntegrationCard } from './integration-card'
 import { TwilioFromPhoneForm } from './twilio-from-phone-form'
 import { WhatsAppConfigForm } from './whatsapp-config-form'
 import { WhatsAppSystemPromptForm } from './whatsapp-system-prompt-form'
+import { XphereConfigForm } from './xphere-config-form'
 
 type IntegrationCategoryContentProps = {
   category: Category
@@ -58,6 +59,17 @@ export async function IntegrationCategoryContent({
     waSystemPrompt = meta.system_prompt ?? ''
   }
 
+  let xphereBaseUrl = ''
+  if (category.showXphereConfig) {
+    const svc = requireServiceClient()
+    const { data } = await svc
+      .from('platform_integrations')
+      .select('metadata')
+      .eq('provider', 'xphere')
+      .maybeSingle()
+    xphereBaseUrl = (data?.metadata as { base_url?: string } | null)?.base_url ?? ''
+  }
+
   return (
     <div className="flex flex-col gap-6">
       {category.description && (
@@ -89,6 +101,10 @@ export async function IntegrationCategoryContent({
 
       {category.showFromPhone && (
         <TwilioFromPhoneForm current={twilioFromPhone} />
+      )}
+
+      {category.showXphereConfig && (
+        <XphereConfigForm current={xphereBaseUrl} />
       )}
 
       {category.showWhatsAppConfig && (
