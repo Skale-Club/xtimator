@@ -1178,11 +1178,11 @@ Plans:
 - [x] 100-03-PLAN.md — Wave 1: GUARD-04 promote attemptId to correlation id across Langfuse trace metadata (closes OBS-03) + Sentry correlation_id tag (best-effort)
 
 #### Phase 101: Unified Multimodal Ingestion + Refine Through the Graph
-**Goal**: The refine path stops being a parallel re-implementation — it runs through the same canonical graph, Inngest durability, ingestion path, prompt builder, fallbacks and guardrails as initial generation, so refine and generate produce equivalent estimates for equivalent inputs.
+**Goal**: The refine path stops being a parallel re-implementation — it runs through the same canonical graph, ingestion path, prompt builder, fallbacks and guardrails as initial generation, so refine and generate produce equivalent estimates for equivalent inputs. **Decision 2026-06-21:** refine stays a SYNCHRONOUS interactive preview (it does not persist or charge quota like generate), so it executes the shared graph INLINE (passthrough StepRunner) rather than via Inngest; Inngest durability remains the generate/MCP contract.
 **Depends on**: Phase 99 (shared error model + fallback wrapper), Phase 100 (guardrails the refactored refine must inherit)
 **Requirements**: HARD-01, HARD-02, UNIFY-01, UNIFY-02, UNIFY-03
 **Success Criteria** (what must be TRUE):
-  1. Estimate refine runs through the canonical graph and Inngest (idempotent, durable) — the inline generation/parsing logic in `app/api/estimates/[id]/refine/route.ts` is removed in favor of the shared engine
+  1. Estimate refine runs through the canonical graph reusing the shared engine — the inline transcription/vision/prompt logic in `app/api/estimates/[id]/refine/route.ts` is removed in favor of the shared multimodal ingestion, prompt builder, provider fallback (Phase 99), and output validation/guardrails (Phase 100). Refine runs the graph INLINE (synchronous preview, passthrough StepRunner) — intentionally NOT dispatched via Inngest (it is an interactive non-persisting preview); Inngest durability stays the generate/MCP path's contract
   2. One multimodal ingestion path (audio + image + text) is shared by web, WhatsApp, MCP and refine — no channel re-implements transcription/vision/text assembly independently
   3. Refine accepts all three modalities (audio, image, text) through the unified ingestion path with the same provider fallbacks and output validation as initial generation
   4. Prompt construction for every channel and for refine goes through the single builder (`buildSystemPrompt` / `buildUserContent` in `lib/ai/prompt-builder.ts`) — there is no separately maintained refine prompt, and equivalent inputs yield equivalent prompts regardless of channel
