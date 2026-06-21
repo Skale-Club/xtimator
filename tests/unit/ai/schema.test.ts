@@ -106,7 +106,8 @@ describe('GUARD-01: price_source defensive coercion (D-15 as preprocess)', () =>
     items(raw)[0].price_source = 'garbage'
     const result = estimateOutputSchema.safeParse(raw)
     expect(result.success).toBe(true)
-    expect(result.success && result.data.sections[0].items[0].price_source).toBe('ai_estimate')
+    if (!result.success) return
+    expect(result.data.sections[0].items[0].price_source).toBe('ai_estimate')
   })
 
   it('a missing price_source defaults to ai_estimate', () => {
@@ -114,12 +115,15 @@ describe('GUARD-01: price_source defensive coercion (D-15 as preprocess)', () =>
     delete items(raw)[0].price_source
     const result = estimateOutputSchema.safeParse(raw)
     expect(result.success).toBe(true)
-    expect(result.success && result.data.sections[0].items[0].price_source).toBe('ai_estimate')
+    if (!result.success) return
+    expect(result.data.sections[0].items[0].price_source).toBe('ai_estimate')
   })
 
   it('an exact price_book passes through unchanged', () => {
     const result = estimateOutputSchema.safeParse(validRaw())
-    expect(result.success && result.data.sections[0].items[0].price_source).toBe('price_book')
+    expect(result.success).toBe(true)
+    if (!result.success) return
+    expect(result.data.sections[0].items[0].price_source).toBe('price_book')
   })
 })
 
@@ -128,18 +132,24 @@ describe('GUARD-01: suggested_client_name trim/null transform', () => {
     const raw = validRaw()
     raw.suggested_client_name = '  Acme  '
     const result = estimateOutputSchema.safeParse(raw)
-    expect(result.success && result.data.suggested_client_name).toBe('Acme')
+    expect(result.success).toBe(true)
+    if (!result.success) return
+    expect(result.data.suggested_client_name).toBe('Acme')
   })
 
   it('a whitespace-only client name becomes null', () => {
     const raw = validRaw()
     raw.suggested_client_name = '   '
     const result = estimateOutputSchema.safeParse(raw)
-    expect(result.success && result.data.suggested_client_name).toBe(null)
+    expect(result.success).toBe(true)
+    if (!result.success) return
+    expect(result.data.suggested_client_name).toBe(null)
   })
 
   it('an omitted client name becomes null', () => {
     const result = estimateOutputSchema.safeParse(validRaw())
-    expect(result.success && result.data.suggested_client_name).toBe(null)
+    expect(result.success).toBe(true)
+    if (!result.success) return
+    expect(result.data.suggested_client_name).toBe(null)
   })
 })
