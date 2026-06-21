@@ -29,7 +29,8 @@ function FeatureCard({ feature }: { feature: Feature }) {
           />
         )}
       </div>
-      <span className="mb-4 inline-flex size-10 items-center justify-center rounded-full gradient-brand text-white shadow-[inset_0_0_20px_hsl(var(--primary)/0.1)] transition-transform duration-500 group-hover:scale-110">
+      {/* Icon badge — floats over the top-right corner of the image */}
+      <span className="absolute top-3 right-3 inline-flex size-10 items-center justify-center rounded-full gradient-brand text-white shadow-[0_4px_14px_rgba(0,0,0,0.45),inset_0_0_20px_hsl(var(--primary)/0.1)] transition-transform duration-500 group-hover:scale-110">
         <Icon className="size-5" aria-hidden="true" />
       </span>
       <h3 className="mb-2 text-base font-semibold tracking-tight text-white">{feature.title}</h3>
