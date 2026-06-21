@@ -14,9 +14,11 @@ The platform includes:
 
 A business owner can go from job site audio recording to a sent, professional estimate in under 5 minutes without touching a keyboard.
 
-## Current Milestone: v4.5 Estimate Engine Robustness & Reliability Harness
+## Last Milestone: v4.5 Estimate Engine Robustness & Reliability Harness ✅ (shipped 2026-06-21)
 
-**Goal:** Make the AI estimate generation/editing core (audio + image + text) bulletproof — one unified multimodal ingestion path, always-validated output, isolated/recoverable failures, and an evaluation harness that catches regressions before production. Builds directly on the v4.3 canonical graph.
+**Shipped:** all 5 phases (99-103), 18/18 requirements, 19 plans, 99 commits. Full unit suite deterministic-green (250 files / 1732 tests) + a new secret-free CI regression gate. Audit PASSED (6/6 integration chains, 3/3 E2E flows). Archive: [milestones/v4.5-ROADMAP.md](milestones/v4.5-ROADMAP.md). Deferred human UAT (staging): live provider-outage fallback, editor refine E2E, needs-details banner + CTA, WhatsApp partial-batch reply, CI-gate-red-on-broken-metric.
+
+**Goal (delivered):** Make the AI estimate generation/editing core (audio + image + text) bulletproof — one unified multimodal ingestion path, always-validated output, isolated/recoverable failures, and an evaluation harness that catches regressions before production. Builds directly on the v4.3 canonical graph.
 
 **Target features:**
 - **Pipeline hardening** — refine flows through the canonical graph + Inngest (idempotent/durable) instead of inline route logic (`app/api/estimates/[id]/refine/route.ts`); single prompt source of truth (`lib/ai/prompt-builder.ts`); consistent provider fallback (OpenRouter→Gemini) on every path; unified error model across routes/nodes/Inngest/adapters; per-message WhatsApp batch isolation; configurable auto-refine cap with user recourse; replay-safe session TTL (no `Date.now()`).
@@ -322,4 +324,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context
 
 ---
-*Last updated: 2026-06-21 — v4.5 Estimate Engine Robustness & Reliability Harness started (phases 99+; defining requirements). Predecessor v4.3 Unified Agentic Estimate Engine built the canonical graph (phases 94-96 shipped 2026-06-20; Phase 97 observability pending); v4.4 WhatsApp Notifications (Phase 98) queued.*
+*Last updated: 2026-06-21 — v4.5 Estimate Engine Robustness & Reliability Harness SHIPPED (phases 99-103, 18/18 requirements). Predecessor v4.3 built the canonical graph (phases 94-96; Phase 97 Langfuse-v5 observability landed); v4.4 WhatsApp Notifications (Phase 98) queued. Next: /gsd:new-milestone.*

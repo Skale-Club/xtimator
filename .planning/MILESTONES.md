@@ -1,5 +1,21 @@
 # Milestones
 
+## v4.5 Estimate Engine Robustness & Reliability Harness (Shipped: 2026-06-21)
+
+**Phases completed:** 5 (99, 100, 101, 102, 103) · 19 plans · 99 commits · 163 files changed · +16,618/−476 LOC · full unit suite deterministic-green (250 files / 1732 tests, verified 3×)
+
+**Key accomplishments:**
+
+- **Unified error model + provider fallback (Phase 99)** — one typed `FailureReason` drives both the HTTP boundary (`XtimatorError`) and per-channel reply copy; one OpenRouter→Gemini fallback wrapper (`getAIProviderWithFallback`) every AI call path uses (generate, transcribe, vision, refine). The refine path, previously with no Gemini fallback, now inherits it.
+- **Output guardrails (Phase 100)** — authoritative zod `estimateOutputSchema` (single-sourced via `z.infer`) with a bounded schema-retry at the provider-fallback seam (`invalid_output` on exhaustion); server-side price anchoring + out-of-bounds clamp; totals authority + `totals_discrepancy` signal; one correlation id (attemptId) across pipeline_events ↔ Langfuse ↔ Sentry (closed the pending OBS-03 stub).
+- **Refine through the graph + modality unification (Phase 101)** — refine stops being a parallel re-implementation: it runs the shared graph INLINE (synchronous preview, passthrough StepRunner) reusing `ingestMultimodal`, the shared prompt builder (bespoke prompt deleted from all 3 adapters, closing an injection hole), the Phase-99 fallback and Phase-100 guardrails. Web/WhatsApp/MCP/refine share one audio+image+text path.
+- **Resilience hardening (Phase 102)** — per-message WhatsApp batch reporting (a bad item is surfaced, not silently dropped); configurable auto-refine cap (`AUTO_REFINE_MAX_ATTEMPTS`, default 1) + a web `NeedsDetailsBanner` recourse for stuck-vague estimates; replay-safe session TTLs derived from a durable `requestedAt` (no `Date.now()` re-mint).
+- **Eval harness + CI regression gate (Phase 103)** — 6 golden multimodal fixtures + deterministic mocked providers driving the REAL engine + a quality-metrics suite (reusing `isVagueEstimate` + `estimateOutputSchema`); a secret-free `.github/workflows/test.yml` running a scoped typecheck + the full unit/eval suite twice. Root-caused and fixed a flaky cross-file test-isolation problem (import-latency under vitest worker contention) so the gate is reliable — full suite now deterministic-green.
+
+**Full archive:** [.planning/milestones/v4.5-ROADMAP.md](milestones/v4.5-ROADMAP.md) · [v4.5-REQUIREMENTS.md](milestones/v4.5-REQUIREMENTS.md) · [audit](v4.5-MILESTONE-AUDIT.md)
+
+---
+
 ## v4.1 MCP Server (Shipped: 2026-05-26)
 
 **Phases completed:** 5 (86, 87, 88, 89, 90) · 7 new test files (~152 assertions) · 118 MCP-specific tests green · 1 prod migration applied (`oauth_*` tables)
