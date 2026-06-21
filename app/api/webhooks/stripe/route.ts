@@ -3,6 +3,7 @@ import type Stripe from 'stripe'
 import { getStripeClient } from '@/lib/billing/stripe-client'
 import { handleConnectEvent } from '@/lib/billing/connect-webhook'
 import { requireServiceClient } from '@/lib/supabase/service'
+import { dispatchXphereSync } from '@/lib/integrations/xphere/dispatch'
 
 // ------------------------------------------------------------------
 // POST: Stripe webhook handler (STRIPE-02, STRIPE-04)
@@ -127,6 +128,9 @@ async function handlePlatformEvent(
       if (error) {
         console.error('[Stripe] checkout.session.completed update failed:', error)
       }
+
+      // Mirror the subscription change into Xphere CRM (fire-and-forget).
+      if (companyId) dispatchXphereSync(companyId, 'subscription.updated')
       break
     }
 
@@ -166,6 +170,14 @@ async function handlePlatformEvent(
     case 'customer.subscription.deleted': {
       const subscription = event.data.object as Stripe.Subscription
 
+      // Resolve the company BEFORE the update — the update clears
+      // stripe_subscription_id, so the lookup must happen first.
+      const { data: c } = await svc
+        .from('companies')
+        .select('id')
+        .eq('stripe_subscription_id', subscription.id)
+        .maybeSingle()
+
       const { error } = await svc
         .from('companies')
         .update({
@@ -179,6 +191,9 @@ async function handlePlatformEvent(
       if (error) {
         console.error('[Stripe] customer.subscription.deleted update failed:', error)
       }
+
+      // Mirror the churn into Xphere CRM (mapping forces tier='free' → 'Churned').
+      if (c?.id) dispatchXphereSync(c.id, 'subscription.updated')
       break
     }
 

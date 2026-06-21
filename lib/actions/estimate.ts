@@ -7,6 +7,7 @@ import type { EstimateWithSections } from '@/lib/queries/estimate'
 import { DEFAULT_CURRENCY_CODE, normalizeCurrencyCode } from '@/lib/money/currency'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { shareLinkExpiryFromNow } from '@/lib/estimates/share-link'
+import { dispatchXphereSync } from '@/lib/integrations/xphere/dispatch'
 
 // ---------------------------------------------------------------------------
 // Auth helper (same pattern as recording.ts)
@@ -413,6 +414,9 @@ export async function createBlankEstimate(projectId: string) {
     metadata: { version: nextVersion },
   })
 
+  // Mirror estimate activity into Xphere CRM (fire-and-forget).
+  dispatchXphereSync(companyId, 'estimate.created')
+
   revalidatePath(`/projects/${projectId}`)
   return { data: { estimateId } }
 }
@@ -642,6 +646,9 @@ export async function markAsSentAction(estimateId: string) {
     event_type: 'estimate_marked_sent',
     metadata: { marked_manually: true },
   })
+
+  // Mirror the estimate-sent activity into Xphere CRM (fire-and-forget).
+  dispatchXphereSync(companyId, 'estimate.sent')
 
   revalidatePath(`/projects/${projectId}`)
   return { success: true }

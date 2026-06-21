@@ -14,6 +14,7 @@ import {
 } from '@/lib/queries/active-company'
 import { syncOwnerPhone } from '@/lib/whatsapp/sync-owner-phone'
 import { sendWelcomeEmail } from '@/lib/email/account-emails'
+import { dispatchXphereSync } from '@/lib/integrations/xphere/dispatch'
 import { seedIndustryPriceBook } from '@/lib/price-book-seed'
 import { getDefaultTaxRate } from '@/lib/tax-rates'
 
@@ -191,6 +192,9 @@ export async function createOrUpdateCompany(
       companyName: data.companyName ?? 'My Company',
     }).catch(() => undefined)
 
+    // Mirror the new company into Xphere CRM (fire-and-forget).
+    dispatchXphereSync(newCompanyId, 'company.created')
+
     // D-12: set the active_company_id cookie to the new company's id.
     const cookieStore = await cookies()
     cookieStore.set(ACTIVE_COMPANY_COOKIE, newCompanyId, ACTIVE_COMPANY_COOKIE_OPTIONS)
@@ -232,6 +236,9 @@ export async function createOrUpdateCompany(
     // Sync owner phone for existing company update (tie to the editing user's row)
     const svcUpdate = requireServiceClient()
     syncOwnerPhone(svcUpdate, existing.id, data.phone, claims.sub as string).catch(() => undefined)
+
+    // Mirror the company update into Xphere CRM (fire-and-forget).
+    dispatchXphereSync(existing.id, 'company.updated')
   } else {
     // Insert new company
     // TIER-04: new companies start with a 14-day trial clock.
@@ -275,6 +282,9 @@ export async function createOrUpdateCompany(
       ownerName: data.ownerName,
       companyName: data.companyName ?? 'My Company',
     }).catch(() => undefined)
+
+    // Mirror the new company into Xphere CRM (fire-and-forget).
+    dispatchXphereSync(newCompany.id, 'company.created')
 
     const cookieStore2 = await cookies()
     cookieStore2.set(ACTIVE_COMPANY_COOKIE, newCompany.id, ACTIVE_COMPANY_COOKIE_OPTIONS)
