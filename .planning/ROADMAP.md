@@ -1097,3 +1097,15 @@ Plans:
   2. Langfuse is migrated to the v5 OTel SDK (`@langfuse/langchain` + `@langfuse/otel` + `@langfuse/tracing`, replacing the LangChain-v1-incompatible `langfuse@3.38.20`) and coexists with `@sentry/nextjs` OTel on a shared tracer provider without collision (Sentry set to `skipOpenTelemetrySetup: true`, both processors on one `NodeTracerProvider` in `instrumentation.ts`)
   3. Per-channel AI call-count and latency (p95) per estimate are visible in the traces — and the deterministic vagueness gate is confirmed still in place so the web non-vague happy-path call count stays pinned at 1; no Langfuse keys/host or transcript/audio/key tokens are committed (env-var only, safe-metadata rule from v4.2)
 **Plans**: TBD
+
+### Phase 1000: Xphere CRM Sync
+**Goal**: Every Xtimator company is mirrored into the Xphere "Xtimator" org as an Account + Contact + Opportunity by POSTing the FIXED webhook contract to the already-built Xphere receiver `POST {XPHERE_BASE_URL}/api/xtimator/webhook` (Bearer XPHERE_API_KEY), dispatched via Inngest for retries + non-blocking UX. Stage mapping, custom_fields snapshot, and reliability rules honor 1000-CONTEXT.md verbatim (incl. the em-dash stage literals "Active — Pro" / "Active — Business").
+**Depends on**: Phase 999
+**Requirements**: XPHERE-B1, XPHERE-B2, XPHERE-B3-MAP, XPHERE-B3-CLIENT, XPHERE-B4, XPHERE-B5, XPHERE-B6, XPHERE-B7
+**Plans**: 5 plans
+Plans:
+- [ ] 1000-01-PLAN.md — Wave 1: companies migration (xphere_* columns) + pure mapping/types (buildSyncPayload, stage literals)
+- [ ] 1000-02-PLAN.md — Wave 1: credentials (getXphereConfig + 'xphere' provider) + admin CRM config section
+- [ ] 1000-03-PLAN.md — Wave 2: Xphere HTTP client (syncCompany) + Inngest event + xphereSyncJob + serve registration
+- [ ] 1000-04-PLAN.md — Wave 3: lifecycle hooks (company/estimate/subscription/trial) via fire-and-forget dispatchXphereSync
+- [ ] 1000-05-PLAN.md — Wave 3: admin batched backfill route + xphere_sync_error observability panel
