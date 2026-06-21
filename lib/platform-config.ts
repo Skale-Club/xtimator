@@ -52,6 +52,10 @@ export type IntegrationProvider =
   // Twilio — SMS delivery of estimate share links. Key stored as
   // "AccountSid:AuthToken". from_phone stored in metadata.from_phone.
   | 'twilio'
+  // Xphere — CRM mirror. API key (xph_… token) stored encrypted via the same
+  // platform_integrations path; non-secret base URL stored in metadata.base_url.
+  // Disabled-by-default: getXphereConfig() returns null unless both are present.
+  | 'xphere'
 
 const TTL_MS = 30_000
 
@@ -307,6 +311,38 @@ export async function getTwilioConfig(): Promise<TwilioConfig> {
   if (!fromPhone) return null
 
   return { accountSid, authToken, fromPhone }
+}
+
+export type XphereConfig = { apiKey: string; baseUrl: string } | null
+
+/**
+ * Read the Xphere CRM credentials: the encrypted API key (via getIntegrationKey,
+ * which falls back to the XPHERE_API_KEY env var) plus the non-secret base URL
+ * stored in platform_integrations.xphere metadata.base_url (falling back to the
+ * XPHERE_BASE_URL env var).
+ *
+ * Disabled-by-default: returns null unless BOTH the key and a base URL resolve.
+ * The trailing slash is stripped from the base URL so callers can append paths.
+ */
+export async function getXphereConfig(): Promise<XphereConfig> {
+  const apiKey = await getIntegrationKey('xphere') // env fallback → XPHERE_API_KEY
+  if (!apiKey) return null
+
+  // base URL from platform_integrations.xphere metadata.base_url, else env XPHERE_BASE_URL
+  let baseUrl = process.env.XPHERE_BASE_URL ?? ''
+  const svc = createServiceClient()
+  if (svc) {
+    const { data } = await svc
+      .from('platform_integrations')
+      .select('metadata')
+      .eq('provider', 'xphere')
+      .maybeSingle()
+    const fromDb = (data?.metadata as { base_url?: string } | null)?.base_url
+    if (fromDb && fromDb.trim()) baseUrl = fromDb.trim()
+  }
+  if (!baseUrl) return null
+
+  return { apiKey, baseUrl: baseUrl.replace(/\/+$/, '') } // strip trailing slash
 }
 
 export type SelectedAIProvider = 'anthropic' | 'gemini' | 'openrouter'

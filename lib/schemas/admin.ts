@@ -20,6 +20,7 @@ export const integrationKeySchema = z.object({
     'stripe',
     'stripe_connect_client_id',
     'twilio',
+    'xphere',
   ]),
   apiKey: z.string().min(1, 'API key is required'),
 })
