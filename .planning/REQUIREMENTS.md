@@ -43,7 +43,7 @@ v4.3 (phases 94-96) extracted a channel-neutral **canonical estimate graph** (`l
 
 ### UNIFY — Multimodal Modality Unification
 
-- [ ] **UNIFY-01**: A single multimodal ingestion path (audio + image + text) is shared by web, WhatsApp, MCP and refine — no channel re-implements transcription/vision/text assembly independently.
+- [x] **UNIFY-01**: A single multimodal ingestion path (audio + image + text) is shared by web, WhatsApp, MCP and refine — no channel re-implements transcription/vision/text assembly independently.
 - [ ] **UNIFY-02**: Prompt construction for all channels and for refine goes through the same builder, so equivalent inputs yield equivalent prompts regardless of channel.
 - [ ] **UNIFY-03**: Refine accepts the same three modalities (audio, image, text) through the unified ingestion path with the same fallbacks and validation as initial generation.
 
@@ -84,7 +84,7 @@ v4.3 (phases 94-96) extracted a channel-neutral **canonical estimate graph** (`l
 | GUARD-04 | Phase 100 | Complete |
 | HARD-01 | Phase 101 | Pending |
 | HARD-02 | Phase 101 | Pending |
-| UNIFY-01 | Phase 101 | Pending |
+| UNIFY-01 | Phase 101 | Complete |
 | UNIFY-02 | Phase 101 | Pending |
 | UNIFY-03 | Phase 101 | Pending |
 | HARD-05 | Phase 102 | Pending |
