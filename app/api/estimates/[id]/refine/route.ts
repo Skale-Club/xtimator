@@ -26,6 +26,7 @@ import { transcribeAudioOR, analyzePhotoOR } from '@/lib/ai/openrouter-client'
 import { normalizeCurrencyCode } from '@/lib/money/currency'
 import { rateLimit } from '@/lib/ratelimit'
 import { demoGuardResponse } from '@/lib/demo/guard'
+import { asResponse, XtimatorError, throwIfNotFound, throwIfForbidden } from '@/lib/errors'
 
 const MAX_PHOTOS = 5
 
@@ -77,7 +78,7 @@ export async function POST(
     const { data: claimsData } = await supabase.auth.getClaims()
     const claims = claimsData?.claims ?? null
     if (!claims) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+      throw new XtimatorError('unauthorized', 'estimates', 'Not authenticated')
     }
 
     // Read-only demo: refine runs paid AI (Whisper + Vision + Claude). Block it.
@@ -101,28 +102,26 @@ export async function POST(
       .single()
 
     if (!companyRow) {
-      return NextResponse.json({ error: 'No company found' }, { status: 401 })
+      throw new XtimatorError('unauthorized', 'estimates', 'No company found')
     }
     const companyId = companyRow.id as string
 
     // Fetch current estimate
     const estimate = await getEstimateById(supabase, estimateId)
-    if (!estimate) {
-      return NextResponse.json({ error: 'Estimate not found' }, { status: 404 })
-    }
-    if (estimate.company_id !== companyId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
-    }
+    throwIfNotFound(estimate, 'estimates', 'Estimate not found')
+    throwIfForbidden(estimate.company_id === companyId, 'estimates', 'Unauthorized')
     if (!estimate.is_current) {
-      return NextResponse.json(
-        { error: 'Cannot refine an old version. Switch to the current version first.' },
-        { status: 400 }
+      throw new XtimatorError(
+        'bad_request',
+        'estimates',
+        'Cannot refine an old version. Switch to the current version first.'
       )
     }
     if (estimate.workflow_status === 'consolidated') {
-      return NextResponse.json(
-        { error: 'This estimate is consolidated. Create a new version to refine it.' },
-        { status: 409 }
+      throw new XtimatorError(
+        'conflict',
+        'estimates',
+        'This estimate is consolidated. Create a new version to refine it.'
       )
     }
 
@@ -175,18 +174,13 @@ export async function POST(
     // Transcribe audio (if any) and append to instruction
     // -------------------------------------------------------------------------
     if (audioFile) {
-      try {
-        const transcript = await transcribeRefineAudio(audioFile, companyId, estimateId)
-        if (transcript) {
-          instructionText = instructionText
-            ? `${instructionText}\n\nVoice note: ${transcript}`
-            : transcript
-        }
-      } catch (err) {
-        return NextResponse.json(
-          { error: err instanceof Error ? err.message : 'Transcription failed' },
-          { status: 500 }
-        )
+      // A transcription failure now propagates to the outer catch -> asResponse,
+      // yielding the typed JSON envelope instead of a bespoke opaque 500 (HARD-04).
+      const transcript = await transcribeRefineAudio(audioFile, companyId, estimateId)
+      if (transcript) {
+        instructionText = instructionText
+          ? `${instructionText}\n\nVoice note: ${transcript}`
+          : transcript
       }
     }
 
@@ -282,11 +276,9 @@ export async function POST(
       refined,
       instruction: instructionText,
     })
-  } catch (error) {
-    console.error('Estimate refinement failed:', error)
-    return NextResponse.json(
-      { error: 'Refinement failed. Please try again.' },
-      { status: 500 }
-    )
+  } catch (err) {
+    // Every error path now returns the consistent typed JSON envelope { error, code }
+    // via asResponse — no opaque/bespoke 500. (HARD-04)
+    return asResponse(err)
   }
 }
