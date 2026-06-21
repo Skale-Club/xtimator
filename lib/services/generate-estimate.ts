@@ -299,6 +299,47 @@ export async function generateEstimateForProject(
   const taxAmount = Math.round(subtotal * taxRate * 100) / 100
   const grandTotal = Math.round((subtotal + taxAmount) * 100) / 100
 
+  // GUARD-03: the server recalculation above is the SINGLE authoritative source.
+  // Defensively coerce each persisted total to a finite, >= 0 value (no-op on the
+  // happy path — valid totals must not shift). Never throws.
+  const safeSubtotal = assertFinitePositive(subtotal)
+  const safeTaxAmount = assertFinitePositive(taxAmount)
+  const safeGrandTotal = assertFinitePositive(grandTotal)
+
+  // Log-only invariant guard (never blocks persistence): grand == subtotal + tax
+  // within rounding epsilon. True by construction; asserted as a regression guard.
+  const totalsSane =
+    Math.abs(safeGrandTotal - round2(safeSubtotal + safeTaxAmount)) <=
+    TOTALS_EPSILON
+  if (!totalsSane) {
+    console.warn('[generate-estimate] totals invariant violation', {
+      safeSubtotal,
+      safeTaxAmount,
+      safeGrandTotal,
+    })
+  }
+
+  // GUARD-03 discrepancy metric: server grand vs the naive AI-implied grand
+  // (pre-anchor), with anchored/clamped counts. The AI total is NEVER persisted —
+  // only the server safeGrandTotal writes to estimates.total. Best-effort: any
+  // emission failure is swallowed so observability can never break generation.
+  try {
+    const aiProposedGrand = round2(aiProposedSubtotal * (1 + taxRate))
+    const discrepancy = computeTotalsDiscrepancy({
+      serverGrand: safeGrandTotal,
+      aiGrand: aiProposedGrand,
+      anchoredCount,
+      clampedCount,
+    })
+    // SINK: pipeline_events has no free-form metadata column for this signal, so we
+    // emit it to the structured log here. Plan 100-03 owns the Langfuse trace
+    // metadata seam (the Inngest job carries attemptId/correlationId) and can attach
+    // `discrepancy` there for end-to-end correlation.
+    console.info('[totals_discrepancy]', discrepancy)
+  } catch (err) {
+    console.warn('[generate-estimate] discrepancy metric emission failed', err)
+  }
+
   // Version management
   await supabase
     .from('estimates')
@@ -332,13 +373,13 @@ export async function generateEstimateForProject(
         aiEstimate.payment_terms ?? company.default_payment_terms ?? null,
       warranty_terms:
         aiEstimate.warranty_terms ?? company.default_warranty_terms ?? null,
-      subtotal,
+      subtotal: safeSubtotal,
       discount_type: null,
       discount_value: 0,
       discount_amount: 0,
       tax_rate: taxRate,
-      tax_amount: taxAmount,
-      total: grandTotal,
+      tax_amount: safeTaxAmount,
+      total: safeGrandTotal,
       language,
       created_by_user_id: options.createdByUserId ?? null,
     })
@@ -399,7 +440,7 @@ export async function generateEstimateForProject(
   // Update project status
   await supabase
     .from('projects')
-    .update({ status: 'estimate_ready', total: grandTotal })
+    .update({ status: 'estimate_ready', total: safeGrandTotal })
     .eq('id', projectId)
 
   // Log activity
