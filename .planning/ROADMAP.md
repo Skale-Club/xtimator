@@ -1147,7 +1147,7 @@ Plans:
  (completed 2026-06-21)
 - [x] **Phase 102: Resilience Hardening — Batch Isolation, Configurable Auto-Refine + Recourse, Replay-Safe TTL** — A bad WhatsApp message no longer fails the batch; the auto-refine cap is configurable with explicit user recourse; TTLs are replay-safe (HARD-05, HARD-06, HARD-07)
  (completed 2026-06-21)
-- [ ] **Phase 103: Eval/Test Harness + CI Regression Gate** — Golden multimodal fixtures + deterministic mocked providers + quality-metrics suite + CI gate prove the hardened engine does not regress (EVAL-01, EVAL-02, EVAL-03, EVAL-04)
+- [x] **Phase 103: Eval/Test Harness + CI Regression Gate** — Golden multimodal fixtures + deterministic mocked providers + quality-metrics suite + CI gate prove the hardened engine does not regress (EVAL-01, EVAL-02, EVAL-03, EVAL-04) (completed 2026-06-21)
 
 #### Phase 99: Unified Error Model + Shared Provider-Fallback Wrapper
 **Goal**: Every layer of the estimate engine speaks one failure language and every AI call path degrades the same way — so the rest of the milestone can rely on consistent errors and fallbacks instead of three coexisting conventions.
@@ -1227,4 +1227,4 @@ Plans:
 Plans:
 - [x] 103-01-PLAN.md — Wave 1: isolation remediation (afterEach resetModules discipline → `npx vitest run` 3× green; prerequisite for a reliable EVAL-04 gate)
 - [x] 103-02-PLAN.md — Wave 2: eval harness — golden fixtures (EVAL-01) + deterministic mocked providers driving the real engine (EVAL-02) + quality-metrics suite reusing isVagueEstimate/estimateOutputSchema (EVAL-03)
-- [ ] 103-03-PLAN.md — Wave 3: CI gate — scoped tsconfig.ci.json + .github/workflows/test.yml (secret-free, integration-excluded, double-run determinism) + test:eval script (EVAL-04)
+- [x] 103-03-PLAN.md — Wave 3: CI gate — scoped tsconfig.ci.json + .github/workflows/test.yml (secret-free, integration-excluded, double-run determinism) + test:eval script (EVAL-04)
