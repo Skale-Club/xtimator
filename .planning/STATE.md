@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v4.3
 milestone_name: Unified Agentic Estimate Engine
 status: executing
-stopped_at: Completed 1000-03-PLAN.md
-last_updated: "2026-06-21T03:36:12.927Z"
+stopped_at: Completed 1000-05-PLAN.md (phase 1000 COMPLETE — all 5 plans shipped)
+last_updated: "2026-06-21T04:15:00.000Z"
 last_activity: 2026-06-21
 progress:
   total_phases: 53
@@ -22,11 +22,17 @@ progress:
 
 ## Current Position
 
-Phase: 1000 (xphere-crm-sync) — EXECUTING
-Plan: 4 of 5
-Status: Ready to execute
+Phase: 1000 (xphere-crm-sync) — COMPLETE (all 5 plans shipped)
+Plan: 5 of 5
+Status: Complete — pending operational deploy (see 1000-USER-SETUP.md)
 Last activity: 2026-06-21
-Stopped at: Completed 1000-03-PLAN.md
+Stopped at: Completed 1000-05-PLAN.md
+
+> Xtimator side (Fase B): plans 01–05 done on `dev`. Xphere side (Fase A): receiver
+> `POST /api/xtimator/webhook` + migration 1213 + pipeline seed on the **xphere** repo
+> branch `feat/xtimator-crm-mirror`. Remaining = operational only (apply migration, run
+> seed, create API key, set XPHERE_API_KEY + XPHERE_BASE_URL). Integration is
+> disabled-by-default until both creds are set.
 
 ## v4.3 Phases (current milestone)
 

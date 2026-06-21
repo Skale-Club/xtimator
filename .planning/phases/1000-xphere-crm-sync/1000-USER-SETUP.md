@@ -25,9 +25,18 @@ You can configure these EITHER via env vars (local dev) OR via the admin panel a
   - Enter the base URL (e.g. `https://app.xphere.example`) in the "Xphere Base URL" field and save
   - Use the card's Test button to confirm both resolve (it reports the base URL + key last-4 without echoing the full key)
 
-- [ ] **Create the "Xtimator Lifecycle" pipeline** (Phase A — manual, prerequisite for opportunity sync in Plan 03)
-  - Location: Xphere → Xtimator org → Pipelines
-  - Stages (names must match EXACTLY, including the em dash "—"): `Trial`, `Active — Pro`, `Active — Business`, `Churned`
+- [ ] **Create the "Xtimator Lifecycle" pipeline** (Fase A — prerequisite for opportunity sync)
+  - Easiest: run the seed script shipped in the xphere repo — `scripts/seed-xtimator-lifecycle-pipeline.sql` (idempotent; creates the pipeline + the 4 stages in the Xtimator org). Run it AFTER migration 1213 is applied.
+  - Or manually: Xphere → Xtimator org → Pipelines, stages (names must match EXACTLY, incl. the em dash "—"): `Trial`, `Active — Pro`, `Active — Business`, `Churned`
+
+## Xphere Repository (Fase A) — deploy
+
+The Xphere-side receiver was built in the **xphere** repo on branch **`feat/xtimator-crm-mirror`** (3 commits: migration 1213, `POST /api/xtimator/webhook`, pipeline seed). These ship through the normal Xphere deploy (merge the branch → CI → Coolify):
+
+- [ ] **Merge** `feat/xtimator-crm-mirror` into the Xphere deploy branch.
+- [ ] **Apply migration** `supabase/migrations/1213_xtimator_crm_mirror.sql` (adds `external_source` / `external_id` / `external_updated_at` mirror columns + partial unique indexes on contacts/accounts/opportunities). Additive + idempotent.
+- [ ] **Run the pipeline seed** `scripts/seed-xtimator-lifecycle-pipeline.sql` against the Xphere DB (org `aa2af131-…`).
+- [ ] **Create the API key**: Xphere → Xtimator org → Settings → API Keys → new key (any non-revoked org key authorizes the webhook). Copy the `xph_…` token ONCE — it becomes `XPHERE_API_KEY` above.
 
 ## Verification
 
