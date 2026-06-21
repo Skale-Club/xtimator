@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { EstimateInput } from '@/lib/ai/types'
+import type { EstimateInput, EstimateOutput } from '@/lib/ai/types'
+import * as promptBuilder from '@/lib/ai/prompt-builder'
 import { buildSystemPrompt, buildUserContent } from '@/lib/ai/prompt-builder'
 
 const baseInput: EstimateInput = {
@@ -107,5 +108,104 @@ describe('buildUserContent — prompt-injection hardening (S06)', () => {
     const inner = content.match(/<transcript>(a+)<\/transcript>/)
     expect(inner).not.toBeNull()
     expect(inner![1].length).toBe(50_000)
+  })
+})
+
+/**
+ * HARD-02 / UNIFY-02 — refine mode on the shared prompt builder (Wave 0 RED; source lands in Wave 1).
+ *
+ * `buildSystemPrompt(input, { mode: 'refine' })` must:
+ *   - swap ONLY the opening role/task sentence (mentions updating the existing estimate per the
+ *     instruction) — so the refine opening differs from the generate opening;
+ *   - REUSE the `## Language`, `## Your Company Price Book`, and `## Security` blocks verbatim
+ *     (one source of those strings — UNIFY-02);
+ * and `buildSystemPrompt(input)` with NO opts must stay byte-identical to today's generate output
+ * (regression guard — generate must not change when the mode param is added).
+ *
+ * `buildRefineUserContent(input, existingEstimate, instruction)` must wrap the instruction in
+ * `<instruction>...</instruction>` and escape angle brackets so injected text cannot forge tags.
+ *
+ * RED today: the builder has no `mode` param (the second arg is ignored at runtime, so the refine
+ * opening === the generate opening → the "opening differs" assertion fails), and
+ * `buildRefineUserContent` does not exist yet. Accessed via the `promptBuilder` namespace so the
+ * file COLLECTS cleanly and fails at RUN time.
+ */
+describe('buildSystemPrompt — refine mode', () => {
+  const priceBookInput: EstimateInput = {
+    ...baseInput,
+    priceBookItems: [
+      { folder_name: 'Labor', name: 'General Labor', unit: 'hr', unit_price: 65 },
+    ],
+  }
+
+  it('refine-mode opening differs from generate-mode opening', () => {
+    const generate = buildSystemPrompt(priceBookInput)
+    const refine = (buildSystemPrompt as (i: EstimateInput, o?: { mode?: string }) => string)(
+      priceBookInput,
+      { mode: 'refine' }
+    )
+    const generateOpening = generate.split('\n\n## Language')[0]
+    const refineOpening = refine.split('\n\n## Language')[0]
+    expect(refineOpening).not.toBe(generateOpening)
+    // refine opening references updating the existing estimate per the instruction.
+    expect(refineOpening.toLowerCase()).toMatch(/updat|existing estimate|refine/)
+  })
+
+  it('refine mode REUSES the Language, Price Book, and Security blocks verbatim', () => {
+    const generate = buildSystemPrompt(priceBookInput)
+    const refine = (buildSystemPrompt as (i: EstimateInput, o?: { mode?: string }) => string)(
+      priceBookInput,
+      { mode: 'refine' }
+    )
+
+    // Each shared block is present in refine output.
+    expect(refine).toContain('## Language')
+    expect(refine).toContain('## Your Company Price Book')
+    expect(refine).toContain('## Security')
+
+    // …and identical to the generate output (one source of truth).
+    const sharedBlock = (prompt: string, header: string) =>
+      prompt.slice(prompt.indexOf(`## ${header}`))
+    expect(sharedBlock(refine, 'Security')).toBe(sharedBlock(generate, 'Security'))
+
+    const langBlock = (prompt: string) =>
+      prompt.slice(prompt.indexOf('## Language'), prompt.indexOf('## Your Company Price Book'))
+    expect(langBlock(refine)).toBe(langBlock(generate))
+  })
+
+  it('buildSystemPrompt with NO opts is byte-identical to current generate output (regression guard)', () => {
+    const withoutOpts = buildSystemPrompt(priceBookInput)
+    const withGenerateMode = (
+      buildSystemPrompt as (i: EstimateInput, o?: { mode?: string }) => string
+    )(priceBookInput, { mode: 'generate' })
+    expect(withoutOpts).toBe(withGenerateMode)
+  })
+
+  it('buildRefineUserContent wraps the instruction in <instruction> and escapes angle brackets', () => {
+    const buildRefineUserContent = (
+      promptBuilder as unknown as {
+        buildRefineUserContent?: (
+          input: EstimateInput,
+          existingEstimate: EstimateOutput,
+          instruction: string
+        ) => string
+      }
+    ).buildRefineUserContent
+    // RED until Wave 1 adds buildRefineUserContent.
+    expect(typeof buildRefineUserContent).toBe('function')
+
+    const existingEstimate = {
+      suggested_project_name: 'Test Project',
+      suggested_client_name: null,
+      summary: 'Original',
+      sections: [],
+    } as unknown as EstimateOutput
+
+    const content = buildRefineUserContent!(baseInput, existingEstimate, '<b>do x</b>')
+    expect(content).toContain('<instruction>')
+    expect(content).toContain('</instruction>')
+    // Attacker angle brackets escaped — no raw <b> survives.
+    expect(content).toContain('&lt;b&gt;')
+    expect(content).not.toContain('<b>do x</b>')
   })
 })
