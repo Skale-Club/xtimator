@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.3
 milestone_name: Unified Agentic Estimate Engine
 status: executing
-stopped_at: Completed 1000-02-PLAN.md
-last_updated: "2026-06-21T03:28:02.712Z"
+stopped_at: Completed 1000-03-PLAN.md
+last_updated: "2026-06-21T03:36:12.927Z"
 last_activity: 2026-06-21
 progress:
   total_phases: 53
   completed_phases: 39
   total_plans: 121
-  completed_plans: 131
+  completed_plans: 132
 ---
 
 # Project State
@@ -23,10 +23,10 @@ progress:
 ## Current Position
 
 Phase: 1000 (xphere-crm-sync) — EXECUTING
-Plan: 3 of 5
+Plan: 4 of 5
 Status: Ready to execute
 Last activity: 2026-06-21
-Stopped at: Completed 1000-02-PLAN.md
+Stopped at: Completed 1000-03-PLAN.md
 
 ## v4.3 Phases (current milestone)
 
@@ -510,6 +510,9 @@ Stopped at: Completed 1000-02-PLAN.md
 - [Phase 97]: forceFlush() called inside every step.run before returning to prevent Langfuse span loss on serverless suspension (OBS-03 / Pitfall 3)
 - [Phase 97-unified-observability-langfuse-v5-sentry-coexistence]: Migrated all getLangfuse() v3 call sites to langfuseClient from @langfuse/tracing; uninstalled langfuse@3 to eliminate duplicate OTel spans
 - [Phase 1000]: [Phase 1000-xphere-crm-sync 1000-01]: Stage literals centralized in XPHERE_STAGES with em dash U+2014 verbatim ('Active — Pro' / 'Active — Business'); trial.expired forces {Churned, lost}; opportunity.value=0 (pure layer has no Stripe lookup)
+- [Phase 1000]: [Phase 1000-03] syncCompany throws on non-2xx (status in message) + network error so Inngest retries; returns null no-op when getXphereConfig() is null
+- [Phase 1000]: [Phase 1000-03] xphereSyncJob retries:3 with no Inngest idempotency key — idempotency is free via Xphere upsert-by-external_id; backfill re-runs safe
+- [Phase 1000]: [Phase 1000-03] Manually extended companies Row/Insert/Update in database.types.ts with 5 xphere_* columns (migration landed Plan 01; Docker-less Windows regen pattern from Phase 24/38)
 
 ## Performance Metrics
 
@@ -686,6 +689,7 @@ Stopped at: Completed 1000-02-PLAN.md
 | Phase 97-unified-observability-langfuse-v5-sentry-coexistence P04 | 10 | 2 tasks | 5 files |
 | Phase 1000 P01 | 3min | 2 tasks | 4 files |
 | Phase 1000 P02 | 6 min | 2 tasks | 5 files |
+| Phase 1000 P03 | 5 | 2 tasks | 7 files |
 
 ## Project Reference
 

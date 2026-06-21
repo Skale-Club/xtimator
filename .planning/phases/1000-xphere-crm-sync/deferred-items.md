@@ -12,3 +12,5 @@ Discovered during 1000-02 verification. Confirmed identical on clean HEAD via `g
 - `tests/unit/estimate/observability.test.ts` (3×) — regex `s` flag requires `es2018+` target.
 - `tests/unit/inngest/generate-estimate-job.test.ts(145,66)` — Mock not callable (needs `new`).
 - `tests/unit/notifications/account-emails.test.ts` (3×) — Branding test fixtures missing `metaDescription`/`ogImageUrl`/`canonicalBaseUrl`/`faviconUrl`.
+
+**Re-confirmed during 1000-03 (Task 2):** the same 10 errors are still present on the base commit (verified again via `git stash` of all 1000-03 changes → identical `tsc` error count). None of the files changed by 1000-03 (`client.ts`, `events.ts`, `xphere-sync.ts`, `functions/index.ts`, `route.ts`, `database.types.ts`, `xphere-client.test.ts`) introduce any new `tsc` error. Recommended owner: a follow-up Phase 97 Langfuse-type cleanup quick task + test-fixture refresh.
