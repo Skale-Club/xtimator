@@ -129,7 +129,27 @@ export const generateEstimateJob = inngest.createFunction(
           // created_by_user_id → drives "Prepared by" in generated PDFs.
           createdByUserId: createdByUserId ?? undefined,
         },
-        { callbacks: [handler] }
+        {
+          callbacks: [handler],
+          // GUARD-04: promote the existing attemptId (Phase 91/92 lineage) to THE
+          // correlation id and thread it into the Langfuse v5 trace via the runnable
+          // config metadata. The langfuseSessionId/langfuseUserId tokens are the v5
+          // (@langfuse/langchain@5.5.3) config-metadata form read by the CallbackHandler
+          // — they also close the pre-existing OBS-03 RED. correlationId === attemptId
+          // joins this trace to pipeline_events (which already carry attemptId) and to
+          // any Sentry event (asResponse tags correlation_id from XtimatorError.meta).
+          //
+          // SAFE-METADATA rule (OBS-03 / safe-metadata v4.2): ONLY non-sensitive
+          // identifiers are allowed here — no user content or secrets ever enter
+          // trace metadata. This object is inert (cannot throw), so it never fails
+          // or retries the generation job.
+          metadata: {
+            langfuseSessionId: `${traceChannel}:${projectId}`,
+            langfuseUserId: companyId,
+            correlationId: attemptId,
+          },
+          tags: [traceChannel, 'estimate-engine'],
+        }
       )
 
       // OBS-03 / Pitfall 3: flush Langfuse spans before the step.run returns.
