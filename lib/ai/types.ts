@@ -21,16 +21,12 @@ export type EstimateSectionOutput = {
   items: LineItemOutput[]
 }
 
-export type EstimateOutput = {
-  suggested_project_name: string
-  suggested_client_name?: string | null
-  summary: string
-  notes?: string
-  timeline?: string
-  payment_terms?: string
-  warranty_terms?: string
-  sections: EstimateSectionOutput[]
-}
+// EstimateOutput is single-sourced from the zod schema (GUARD-01). Re-exporting it
+// here keeps every existing `import { EstimateOutput } from './types'` working while
+// the schema in `./schema.ts` remains the only definition — the validator and the
+// type can never drift. LineItemOutput / EstimateSectionOutput above stay as the
+// structurally-compatible item/section shapes used by callers and normalize.
+export type { EstimateOutput } from './schema'
 
 export type EstimateInput = {
   industry: string | null

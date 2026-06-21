@@ -1,33 +1,22 @@
 // lib/ai/normalize.ts
-import type { EstimateOutput, LineItemOutput } from './types'
+//
+// GUARD-01 — `normalizeOutput` is now a thin, NON-THROWING `safeParse` over the
+// authoritative `estimateOutputSchema` (lib/ai/schema.ts). It returns a
+// discriminated `NormalizeResult` so the caller (the provider boundary) can decide
+// to retry-once vs. surface a typed error — `normalizeOutput` itself NEVER throws.
+//
+// The D-15 price_source defensive coercion and the suggested_client_name trim/null
+// transform now live IN the schema (preprocess/transform), so on success `parsed.data`
+// is already fully normalized; no manual casts remain.
+import { estimateOutputSchema, type EstimateOutput } from './schema'
+import type { ZodError } from 'zod'
 
-export function normalizeOutput(raw: Record<string, unknown>): EstimateOutput {
-  const rawClientName = raw.suggested_client_name
-  const suggestedClientName =
-    typeof rawClientName === 'string' && rawClientName.trim().length > 0
-      ? rawClientName.trim()
-      : null
+export type NormalizeResult =
+  | { ok: true; value: EstimateOutput }
+  | { ok: false; error: ZodError }
 
-  const sections = (raw.sections as Array<{ title: string; items: Array<Record<string, unknown>> }>).map(section => ({
-    title: section.title,
-    items: section.items.map((item): LineItemOutput => ({
-      description: item.description as string,
-      quantity: item.quantity as number,
-      unit: item.unit as string | undefined,
-      unit_price: item.unit_price as number,
-      // D-15 defensive fallback: anything other than exact 'price_book' becomes 'ai_estimate'
-      // This covers undefined, null, missing field, and unexpected values from the model.
-      price_source: item.price_source === 'price_book' ? 'price_book' : 'ai_estimate',
-    })),
-  }))
-  return {
-    suggested_project_name: raw.suggested_project_name as string,
-    suggested_client_name: suggestedClientName,
-    summary: raw.summary as string,
-    notes: raw.notes as string | undefined,
-    timeline: raw.timeline as string | undefined,
-    payment_terms: raw.payment_terms as string | undefined,
-    warranty_terms: raw.warranty_terms as string | undefined,
-    sections,
-  }
+export function normalizeOutput(raw: Record<string, unknown>): NormalizeResult {
+  const parsed = estimateOutputSchema.safeParse(raw)
+  if (!parsed.success) return { ok: false, error: parsed.error }
+  return { ok: true, value: parsed.data }
 }
