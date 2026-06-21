@@ -143,3 +143,19 @@ export type NotificationEmailQueuedEvent = {
   name: typeof EVENT_NOTIFICATION_EMAIL_QUEUED
   data: NotificationEmailQueuedPayload
 }
+
+/**
+ * Phase 1000 (XPHERE-B4) — Xphere CRM sync request.
+ *
+ * Every lifecycle hook (Plan 04) and the backfill route (Plan 05) drive a sync
+ * by `inngest.send({ name: EVENT_XPHERE_SYNC, data: { companyId, event } })`.
+ * The xphereSyncJob loads the company fresh, builds the payload, and POSTs it.
+ */
+export const EVENT_XPHERE_SYNC = 'xphere/sync.requested' as const
+
+export type XphereSyncRequestedPayload = {
+  companyId: string
+  event: import('@/lib/integrations/xphere/types').XphereSyncEvent
+  /** ISO8601; the job falls back to "now" if absent. */
+  occurredAt?: string
+}

@@ -208,6 +208,11 @@ export type Database = {
           updated_at: string
           user_id: string
           website: string | null
+          xphere_account_id: string | null
+          xphere_contact_id: string | null
+          xphere_opportunity_id: string | null
+          xphere_sync_error: string | null
+          xphere_synced_at: string | null
           zip: string | null
         }
         Insert: {
@@ -260,6 +265,11 @@ export type Database = {
           updated_at?: string
           user_id: string
           website?: string | null
+          xphere_account_id?: string | null
+          xphere_contact_id?: string | null
+          xphere_opportunity_id?: string | null
+          xphere_sync_error?: string | null
+          xphere_synced_at?: string | null
           zip?: string | null
         }
         Update: {
@@ -312,6 +322,11 @@ export type Database = {
           updated_at?: string
           user_id?: string
           website?: string | null
+          xphere_account_id?: string | null
+          xphere_contact_id?: string | null
+          xphere_opportunity_id?: string | null
+          xphere_sync_error?: string | null
+          xphere_synced_at?: string | null
           zip?: string | null
         }
         Relationships: []

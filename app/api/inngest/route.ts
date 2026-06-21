@@ -18,6 +18,7 @@ import {
   notificationEmailDigest,
   notificationCleanup,
   cleanupAudioJob,
+  xphereSyncJob,
 } from '@/lib/inngest/functions'
 
 export const { GET, POST, PUT } = serve({
@@ -31,5 +32,6 @@ export const { GET, POST, PUT } = serve({
     notificationEmailDigest,
     notificationCleanup,
     cleanupAudioJob,
+    xphereSyncJob,
   ],
 })

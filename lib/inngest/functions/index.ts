@@ -11,3 +11,5 @@ export { notificationEmailDigest } from './notification-email-digest'
 export { notificationCleanup } from './notification-cleanup'
 // Quick task 260522-kf2 — daily audio Storage auto-cleanup (7-day TTL).
 export { cleanupAudioJob } from './cleanup-audio'
+// Phase 1000 (XPHERE-B4) — Xphere CRM sync job.
+export { xphereSyncJob } from './xphere-sync'
