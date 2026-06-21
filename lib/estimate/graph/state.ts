@@ -11,6 +11,7 @@
  * channel-specific tokens may appear in this file.
  */
 import { Annotation } from '@langchain/langgraph'
+import type { FailureReason } from '@/lib/estimate/failure'
 
 export const EstimateState = Annotation.Root({
   /** Trusted tenant scope (never LLM-derived) — used by every DB query filter. */
@@ -38,7 +39,7 @@ export const EstimateState = Annotation.Root({
    * this channel and the adapter's onError maps it to a terminal channel reply.
    * Generalizes the old per-channel generationFailed boolean.
    */
-  failure: Annotation<{ reason: string } | undefined>(),
+  failure: Annotation<{ reason: FailureReason; detail?: string } | undefined>(),
   /** Scaffolded for Phase 96 auto-refine; unused this phase. */
   refineAttempts: Annotation<number | undefined>(),
   /**
