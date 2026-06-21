@@ -9,12 +9,18 @@ type DefaultItem = {
 
 type DefaultFolder = {
   name: string
+  image_url?: string
   items: DefaultItem[]
 }
+
+// Stable Pexels CDN thumbnail — photo IDs verified 200 at time of authoring.
+const PX = (id: number): string =>
+  `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&w=400&h=400&dpr=1`
 
 const HOUSE_CLEANING: DefaultFolder[] = [
   {
     name: 'Standard / Regular Cleaning',
+    image_url: PX(3768912),
     items: [
       { name: 'Standard cleaning — small home / apartment (1 bed, up to ~1,000 sqft)', unit: 'visit', unit_price: 120 },
       { name: 'Standard cleaning — mid-size home (2–3 bed, ~1,000–2,000 sqft)', unit: 'visit', unit_price: 175 },
@@ -27,6 +33,7 @@ const HOUSE_CLEANING: DefaultFolder[] = [
   },
   {
     name: 'Deep Cleaning',
+    image_url: PX(4107278),
     items: [
       { name: 'One-time deep clean — small home / apartment', unit: 'visit', unit_price: 250 },
       { name: 'One-time deep clean — mid-size home (~2,000 sqft)', unit: 'visit', unit_price: 375 },
@@ -39,6 +46,7 @@ const HOUSE_CLEANING: DefaultFolder[] = [
   },
   {
     name: 'Move-In / Move-Out & Post-Construction',
+    image_url: PX(4098354),
     items: [
       { name: 'Move-out / move-in cleaning — small home / apartment', unit: 'visit', unit_price: 200 },
       { name: 'Move-out / move-in cleaning — mid-size home', unit: 'visit', unit_price: 350 },
@@ -52,6 +60,7 @@ const HOUSE_CLEANING: DefaultFolder[] = [
   {
     // Kitchen / dish / appliance extras that house cleaners commonly bill separately.
     name: 'Kitchen & Appliance Add-ons',
+    image_url: PX(3768912),
     items: [
       { name: 'Wash dishes by hand (per sink load)', unit: 'each', unit_price: 25 },
       { name: 'Load / unload dishwasher', unit: 'each', unit_price: 15 },
@@ -65,6 +74,7 @@ const HOUSE_CLEANING: DefaultFolder[] = [
   },
   {
     name: 'Other Add-ons & Labor',
+    image_url: PX(4107278),
     items: [
       { name: 'Clean interior windows (per window)', unit: 'each', unit_price: 8, notes: 'Roughly $5–$10 each' },
       { name: 'Laundry — wash, dry & fold (per load)', unit: 'each', unit_price: 25, notes: 'Fold-only ~$9' },
@@ -83,6 +93,7 @@ const HOUSE_CLEANING: DefaultFolder[] = [
 const UPHOLSTERY_CARPET_CLEANING: DefaultFolder[] = [
   {
     name: 'Carpet Cleaning',
+    image_url: PX(2760242),
     items: [
       { name: 'Carpet cleaning — per room', unit: 'room', unit_price: 50, notes: 'Typical $35–75; ~200 sqft room' },
       { name: 'Carpet cleaning — per sqft (hot water extraction)', unit: 'sqft', unit_price: 0.35, notes: 'Range $0.20–0.50/sqft' },
@@ -94,6 +105,7 @@ const UPHOLSTERY_CARPET_CLEANING: DefaultFolder[] = [
   },
   {
     name: 'Upholstery Cleaning',
+    image_url: PX(2760242),
     items: [
       { name: 'Armchair cleaning (each)', unit: 'each', unit_price: 60 },
       { name: 'Recliner cleaning (each)', unit: 'each', unit_price: 75 },
@@ -107,6 +119,7 @@ const UPHOLSTERY_CARPET_CLEANING: DefaultFolder[] = [
   },
   {
     name: 'Mattresses & Specialty Rugs',
+    image_url: PX(2760242),
     items: [
       { name: 'Mattress cleaning — Twin (each)', unit: 'each', unit_price: 60 },
       { name: 'Mattress cleaning — Queen (each)', unit: 'each', unit_price: 100, notes: 'Varies by size' },
@@ -118,6 +131,7 @@ const UPHOLSTERY_CARPET_CLEANING: DefaultFolder[] = [
   },
   {
     name: 'Treatments & Add-ons',
+    image_url: PX(4107278),
     items: [
       { name: 'Stain / spot treatment (per area)', unit: 'each', unit_price: 25 },
       { name: 'Pet odor / enzyme treatment (per room)', unit: 'room', unit_price: 40 },
@@ -129,6 +143,7 @@ const UPHOLSTERY_CARPET_CLEANING: DefaultFolder[] = [
   },
   {
     name: 'Labor & Trip',
+    image_url: PX(1249611),
     items: [
       { name: 'Service-call / minimum charge', unit: 'each', unit_price: 99, notes: 'Typical minimum $75–125' },
       { name: 'Technician labor (per hour)', unit: 'hr', unit_price: 75, notes: 'Billed $60–100/hr per tech' },
@@ -141,6 +156,7 @@ const UPHOLSTERY_CARPET_CLEANING: DefaultFolder[] = [
 const WINDOW_CLEANING: DefaultFolder[] = [
   {
     name: 'Residential Window Cleaning',
+    image_url: PX(462235),
     items: [
       { name: 'Standard window — interior + exterior (each)', unit: 'each', unit_price: 8, notes: 'Typical $6–12 per window in/out' },
       { name: 'Standard window — exterior only (each)', unit: 'each', unit_price: 5, notes: 'Typical $4–8 per window' },
@@ -156,6 +172,7 @@ const WINDOW_CLEANING: DefaultFolder[] = [
   },
   {
     name: 'Add-ons & Detailing',
+    image_url: PX(9875428),
     items: [
       { name: 'Window screen cleaning (each)', unit: 'each', unit_price: 4, notes: 'Typical $3–5 per screen' },
       { name: 'Track & sill detailing (per window)', unit: 'each', unit_price: 4 },
@@ -169,6 +186,7 @@ const WINDOW_CLEANING: DefaultFolder[] = [
   },
   {
     name: 'Commercial / Storefront',
+    image_url: PX(9875428),
     items: [
       { name: 'Storefront window — exterior (per pane)', unit: 'pane', unit_price: 4 },
       { name: 'Storefront window — interior + exterior (per pane)', unit: 'pane', unit_price: 6 },
@@ -179,6 +197,7 @@ const WINDOW_CLEANING: DefaultFolder[] = [
   },
   {
     name: 'Labor & Trip',
+    image_url: PX(462235),
     items: [
       { name: 'Service-call / minimum charge', unit: 'each', unit_price: 125, notes: 'Typical minimum $100–150' },
       { name: 'Window technician labor (per hour)', unit: 'hr', unit_price: 50, notes: 'Billed $40–60/hr per tech' },
@@ -206,6 +225,7 @@ const INDUSTRY_PRICE_BOOK: Record<string, DefaultFolder[]> = {
   painting: [
     {
       name: 'Interior Painting',
+      image_url: PX(1545743),
       items: [
         { name: 'Interior walls — 2 coats (per sqft)', unit: 'sqft', unit_price: 2.75, notes: 'Wall area, standard prep, two coats' },
         { name: 'Walls, trim & ceilings — full room (per sqft)', unit: 'sqft', unit_price: 4.70, notes: 'Floor area; walls, trim and ceiling' },
@@ -219,6 +239,7 @@ const INDUSTRY_PRICE_BOOK: Record<string, DefaultFolder[]> = {
     },
     {
       name: 'Exterior Painting',
+      image_url: PX(5691614),
       items: [
         { name: 'Exterior body — 2 coats (per sqft)', unit: 'sqft', unit_price: 3.00, notes: 'Wall surface; standard prep, two coats' },
         { name: 'Trim & fascia (per lf)', unit: 'lf', unit_price: 3.00 },
@@ -232,6 +253,7 @@ const INDUSTRY_PRICE_BOOK: Record<string, DefaultFolder[]> = {
     },
     {
       name: 'Cabinet Refinishing & Staining',
+      image_url: PX(1669754),
       items: [
         { name: 'Cabinet painting — sprayed (per lf)', unit: 'lf', unit_price: 50, notes: 'Degrease, sand, prime, two finish coats' },
         { name: 'Cabinet refinishing / re-staining (per lf)', unit: 'lf', unit_price: 75 },
@@ -244,6 +266,7 @@ const INDUSTRY_PRICE_BOOK: Record<string, DefaultFolder[]> = {
     },
     {
       name: 'Wallpaper & Specialty Finishes',
+      image_url: PX(4792436),
       items: [
         { name: 'Wallpaper installation (per sqft)', unit: 'sqft', unit_price: 5.00, notes: 'Labor only; excludes wallpaper material' },
         { name: 'Wallpaper removal (per sqft)', unit: 'sqft', unit_price: 2.00, notes: 'Soak and scrape; add for stubborn glue' },
@@ -255,6 +278,7 @@ const INDUSTRY_PRICE_BOOK: Record<string, DefaultFolder[]> = {
     },
     {
       name: 'Materials & Labor',
+      image_url: PX(1669754),
       items: [
         { name: 'Standard interior/exterior paint (per gal)', unit: 'gal', unit_price: 45, notes: 'Mid-grade; covers ~350 sqft per coat' },
         { name: 'Premium paint (per gal)', unit: 'gal', unit_price: 65, notes: 'Professional-grade' },
@@ -270,6 +294,7 @@ const INDUSTRY_PRICE_BOOK: Record<string, DefaultFolder[]> = {
   landscaping: [
     {
       name: 'Lawn Care & Maintenance',
+      image_url: PX(589841),
       items: [
         { name: 'Lawn mowing & edging (per visit)', unit: 'visit', unit_price: 55, notes: 'Routine cut; quarter-acre lot' },
         { name: 'Lawn fertilization treatment (per application)', unit: 'visit', unit_price: 80, notes: 'Per 5,000 sqft' },
@@ -283,6 +308,7 @@ const INDUSTRY_PRICE_BOOK: Record<string, DefaultFolder[]> = {
     },
     {
       name: 'Garden Design & Planting',
+      image_url: PX(186461),
       items: [
         { name: 'Mulch installation (per cubic yard)', unit: 'cu yd', unit_price: 85, notes: 'Delivered and spread' },
         { name: 'Shrub planting (per shrub)', unit: 'each', unit_price: 55, notes: 'Includes plant and labor' },
@@ -295,6 +321,7 @@ const INDUSTRY_PRICE_BOOK: Record<string, DefaultFolder[]> = {
     },
     {
       name: 'Tree & Shrub Service',
+      image_url: PX(1453499),
       items: [
         { name: 'Tree trimming / pruning (per tree)', unit: 'each', unit_price: 450, notes: 'Medium tree; large trees higher' },
         { name: 'Tree removal (per tree)', unit: 'each', unit_price: 850, notes: 'Average tree; excludes large/hazardous' },
@@ -306,6 +333,7 @@ const INDUSTRY_PRICE_BOOK: Record<string, DefaultFolder[]> = {
     },
     {
       name: 'Hardscaping',
+      image_url: PX(4491461),
       items: [
         { name: 'Paver patio installation (per sqft)', unit: 'sqft', unit_price: 16, notes: 'Standard concrete pavers; materials + labor' },
         { name: 'Paver walkway installation (per sqft)', unit: 'sqft', unit_price: 15, notes: 'Includes base prep' },
@@ -318,6 +346,7 @@ const INDUSTRY_PRICE_BOOK: Record<string, DefaultFolder[]> = {
     },
     {
       name: 'Irrigation',
+      image_url: PX(589841),
       items: [
         { name: 'Sprinkler system installation (per zone)', unit: 'zone', unit_price: 800, notes: 'In-ground automatic system' },
         { name: 'Drip irrigation installation (per sqft)', unit: 'sqft', unit_price: 1.00, notes: 'Bed and border drip lines' },
@@ -330,6 +359,7 @@ const INDUSTRY_PRICE_BOOK: Record<string, DefaultFolder[]> = {
     },
     {
       name: 'Labor & Hauling',
+      image_url: PX(1453499),
       items: [
         { name: 'General landscaping labor (per hour)', unit: 'hr', unit_price: 65, notes: 'Per crew member' },
         { name: 'Skilled / lead crew labor (per hour)', unit: 'hr', unit_price: 95 },
@@ -343,6 +373,7 @@ const INDUSTRY_PRICE_BOOK: Record<string, DefaultFolder[]> = {
   electrical: [
     {
       name: 'Service & Repairs',
+      image_url: PX(257736),
       items: [
         { name: 'Standard labor rate (licensed electrician)', unit: 'hr', unit_price: 100, notes: 'National avg $75–130/hr' },
         { name: 'Service call / diagnostic fee', unit: 'visit', unit_price: 125, notes: 'Often credited toward first hour' },
@@ -357,6 +388,7 @@ const INDUSTRY_PRICE_BOOK: Record<string, DefaultFolder[]> = {
     },
     {
       name: 'Fixtures & Lighting',
+      image_url: PX(1145434),
       items: [
         { name: 'Install ceiling fan (existing wiring & box)', unit: 'each', unit_price: 250, notes: 'Add cost if box must be braced' },
         { name: 'Install light fixture (standard, existing wiring)', unit: 'each', unit_price: 175 },
@@ -369,6 +401,7 @@ const INDUSTRY_PRICE_BOOK: Record<string, DefaultFolder[]> = {
     },
     {
       name: 'Panels & Service Upgrades',
+      image_url: PX(257736),
       items: [
         { name: 'Panel upgrade to 200 amp', unit: 'job', unit_price: 2200, notes: 'Range $1,300–3,000; excludes permit fees' },
         { name: 'Panel upgrade to 100 amp', unit: 'job', unit_price: 1600, notes: 'Excludes permit fees' },
@@ -380,6 +413,7 @@ const INDUSTRY_PRICE_BOOK: Record<string, DefaultFolder[]> = {
     },
     {
       name: 'Large Projects',
+      image_url: PX(1145434),
       items: [
         { name: 'EV charger installation (Level 2, 240V)', unit: 'job', unit_price: 1200, notes: 'Dedicated circuit + install; excludes charger unit' },
         { name: 'Install dedicated circuit (120V, 20A)', unit: 'each', unit_price: 600, notes: 'Varies with distance to panel' },
@@ -394,6 +428,7 @@ const INDUSTRY_PRICE_BOOK: Record<string, DefaultFolder[]> = {
   plumbing: [
     {
       name: 'Repairs & Service',
+      image_url: PX(3637783),
       items: [
         { name: 'Standard service call / diagnostic visit', unit: 'visit', unit_price: 100, notes: 'Often credited toward repair' },
         { name: 'Plumbing labor — journeyman (standard rate)', unit: 'hr', unit_price: 90, notes: 'National avg $45–200/hr' },
@@ -407,6 +442,7 @@ const INDUSTRY_PRICE_BOOK: Record<string, DefaultFolder[]> = {
     },
     {
       name: 'Fixture Installation',
+      image_url: PX(3637783),
       items: [
         { name: 'Faucet installation — kitchen or bath', unit: 'each', unit_price: 260, notes: 'Labor + supply lines; fixture not included' },
         { name: 'Toilet installation / replacement', unit: 'each', unit_price: 375, notes: 'Labor + wax ring/bolts; toilet supplied separately' },
@@ -419,6 +455,7 @@ const INDUSTRY_PRICE_BOOK: Record<string, DefaultFolder[]> = {
     },
     {
       name: 'Water Heaters',
+      image_url: PX(3637783),
       items: [
         { name: 'Water heater — 40 gal, traditional gas (installed)', unit: 'each', unit_price: 1500, notes: 'Unit + labor; like-for-like swap' },
         { name: 'Water heater — 50 gal, traditional gas (installed)', unit: 'each', unit_price: 1700 },
@@ -431,6 +468,7 @@ const INDUSTRY_PRICE_BOOK: Record<string, DefaultFolder[]> = {
     },
     {
       name: 'Repiping & Sewer',
+      image_url: PX(3637783),
       items: [
         { name: 'Whole-house repipe — PEX', unit: 'job', unit_price: 6000, notes: 'Typical 2-bath home; $4,000–9,000' },
         { name: 'Whole-house repipe — copper', unit: 'job', unit_price: 10000, notes: '$8,000–15,000' },
@@ -445,6 +483,7 @@ const INDUSTRY_PRICE_BOOK: Record<string, DefaultFolder[]> = {
   handyman: [
     {
       name: 'General Repairs',
+      image_url: PX(1249611),
       items: [
         { name: 'Handyman labor (standard rate)', unit: 'hr', unit_price: 85, notes: 'National avg $65–$125/hr' },
         { name: 'Service call / minimum trip charge', unit: 'each', unit_price: 100, notes: 'Covers first hour or small task minimum' },
@@ -457,6 +496,7 @@ const INDUSTRY_PRICE_BOOK: Record<string, DefaultFolder[]> = {
     },
     {
       name: 'Assembly & Mounting',
+      image_url: PX(4491461),
       items: [
         { name: 'TV wall mount (drywall / standard)', unit: 'each', unit_price: 175, notes: 'Flat fee per TV' },
         { name: 'TV wall mount (over fireplace / brick / concrete)', unit: 'each', unit_price: 300, notes: 'Difficulty surcharge $50–$200' },
@@ -469,6 +509,7 @@ const INDUSTRY_PRICE_BOOK: Record<string, DefaultFolder[]> = {
     },
     {
       name: 'Carpentry & Doors',
+      image_url: PX(1249611),
       items: [
         { name: 'Interior door install (slab in existing frame)', unit: 'each', unit_price: 200, notes: 'Labor only; hang, shim, adjust' },
         { name: 'Interior door install (new pre-hung unit)', unit: 'each', unit_price: 350, notes: 'Includes frame set & casing labor' },
@@ -485,6 +526,7 @@ const INDUSTRY_PRICE_BOOK: Record<string, DefaultFolder[]> = {
   roofing: [
     {
       name: 'Asphalt Shingles',
+      image_url: PX(209315),
       items: [
         { name: 'Asphalt shingles — 3-tab (per sq)', unit: 'sq', unit_price: 400, notes: '1 sq = 100 sqft; materials + labor' },
         { name: 'Asphalt shingles — architectural / dimensional (per sq)', unit: 'sq', unit_price: 550, notes: '1 sq = 100 sqft; most common choice' },
@@ -497,6 +539,7 @@ const INDUSTRY_PRICE_BOOK: Record<string, DefaultFolder[]> = {
     },
     {
       name: 'Repairs & Specialty',
+      image_url: PX(209315),
       items: [
         { name: 'Shingle repair — small area', unit: 'job', unit_price: 400, notes: 'Replace a few missing / damaged shingles' },
         { name: 'Roof flashing repair / reseal', unit: 'job', unit_price: 350, notes: 'Chimney, vent, or wall flashing' },
@@ -509,6 +552,7 @@ const INDUSTRY_PRICE_BOOK: Record<string, DefaultFolder[]> = {
     },
     {
       name: 'Gutters',
+      image_url: PX(209315),
       items: [
         { name: 'Seamless gutter installation (per lf)', unit: 'lf', unit_price: 12, notes: 'Aluminum K-style, material + labor' },
         { name: 'Downspout installation (per lf)', unit: 'lf', unit_price: 9, notes: 'Aluminum downspout, installed' },
@@ -523,6 +567,7 @@ const INDUSTRY_PRICE_BOOK: Record<string, DefaultFolder[]> = {
   hvac: [
     {
       name: 'Repairs & Service',
+      image_url: PX(1463917),
       items: [
         { name: 'Standard labor rate', unit: 'hr', unit_price: 110, notes: 'Residential, per technician' },
         { name: 'Diagnostic / service call fee', unit: 'visit', unit_price: 125, notes: 'Often credited toward repair' },
@@ -536,6 +581,7 @@ const INDUSTRY_PRICE_BOOK: Record<string, DefaultFolder[]> = {
     },
     {
       name: 'Equipment Installation',
+      image_url: PX(1463917),
       items: [
         { name: 'Central AC — 2-ton (installed)', unit: 'each', unit_price: 4500, notes: '~24,000 BTU; equipment and labor' },
         { name: 'Central AC — 3-ton (installed)', unit: 'each', unit_price: 5800, notes: '~36,000 BTU; equipment and labor' },
@@ -549,6 +595,7 @@ const INDUSTRY_PRICE_BOOK: Record<string, DefaultFolder[]> = {
     },
     {
       name: 'Maintenance',
+      image_url: PX(1463917),
       items: [
         { name: 'HVAC tune-up / seasonal inspection', unit: 'visit', unit_price: 150, notes: 'Clean, inspect, test one system' },
         { name: 'Air filter replacement', unit: 'each', unit_price: 40, notes: 'Standard pleated filter' },
@@ -625,6 +672,7 @@ async function insertFolders(
       unit: item.unit,
       unit_price: item.unit_price,
       notes: item.notes ?? null,
+      image_url: folder.image_url ?? null,
       currency_code: currencyCode,
     }))
 
