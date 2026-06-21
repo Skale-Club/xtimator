@@ -3,7 +3,8 @@ import { requireServiceClient } from '@/lib/supabase/service'
 import { getProjectRecordings } from '@/lib/queries/recording'
 import { getProjectPhotos } from '@/lib/queries/photo'
 import { PLACEHOLDER_PREFIX } from '@/lib/constants/project'
-import { getAIProvider, type EstimateInput } from '@/lib/ai'
+import { type EstimateInput } from '@/lib/ai'
+import { getAIProviderWithFallback } from '@/lib/ai/provider-with-fallback'
 import { getPriceBookItems } from '@/lib/queries/price-book'
 import {
   resolveEstimateLanguage,
@@ -177,7 +178,7 @@ export async function generateEstimateForProject(
     if (extra) estimateInput.extraInstructions = extra
   }
 
-  const provider = await getAIProvider(companyId)
+  const provider = await getAIProviderWithFallback(companyId)
   const aiEstimate = await provider.generateEstimate(estimateInput)
 
   // Client suggestion — only when project has no linked client.
