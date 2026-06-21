@@ -1191,7 +1191,7 @@ Plans:
 Plans:
 - [x] 101-00-PLAN.md — Wave 0 RED/EXTEND test scaffold (5 new + 2 extended tests covering all 5 requirements)
 - [x] 101-01-PLAN.md — Shared `ingestMultimodal` module + WhatsApp processMessage routed through it (UNIFY-01)
-- [ ] 101-02-PLAN.md — Prompt-builder refine mode + delete both bespoke adapter prompts (HARD-02, UNIFY-02)
+- [x] 101-02-PLAN.md — Prompt-builder refine mode + delete both bespoke adapter prompts (HARD-02, UNIFY-02)
 - [ ] 101-03-PLAN.md — Refine sub-graph (buildRefineGraph + makeRefineNode + makeRefineAdapter + `refined` state field) + route rewrite via getAIProviderWithFallback (HARD-01, UNIFY-03)
 
 #### Phase 102: Resilience Hardening — Batch Isolation, Configurable Auto-Refine + Recourse, Replay-Safe TTL

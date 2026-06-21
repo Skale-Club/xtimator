@@ -26,6 +26,26 @@ Do NOT fix these in the plan that logged them.
   refine scaffolds. NOT fixed in 101-01 (out of scope — pre-existing, not caused by the
   ingestion module or the 2-call-site WhatsApp swap).
 
+## From 101-02 (HARD-02/UNIFY-02 shared refine prompt)
+
+### Cross-suite mock leakage is BROADER than the refine scaffolds (re-attribution)
+- **Discovered during:** 101-02 Task 2 verification (full `tests/unit/estimate` + `tests/unit/whatsapp` sweep).
+- **Refined root cause:** with ALL refine RED scaffolds excluded (`refine-node`, `no-checkpointer`,
+  `generate-refine-equivalence`, `refine-shared-prompt`) AND 101-02 source changes stashed, the same
+  four suites still fail in the combined sweep: `channel-adapter`, `step-runner`,
+  `whatsapp/confirm`, `whatsapp/never-reply-regression`. So the worker-reuse module-registry leak is
+  PRE-EXISTING and independent of the refine scaffolds — the 101-01 attribution (blaming
+  refine-node/equivalence) was incomplete. Some other suite in the estimate/whatsapp set leaks first.
+- **What 101-02 verified GREEN:** the plan's stated gate — `tests/unit/ai` + `tests/unit/estimate`
+  together = 133/133 GREEN (excluding only the two 101-03-owned RED scaffolds whose target modules
+  don't exist yet). The 101-02 suites (`refine-shared-prompt`, extended `prompt-builder`,
+  `generate-refine-equivalence`) do NOT leak into ai/estimate siblings. All six affected suites pass
+  26/26 in isolation. The whatsapp leakage combo is OUT OF SCOPE for 101-02 (touches only `lib/ai/`).
+- **Owner / fix path:** a future test-hardening pass (or 101-03 when it implements the refine
+  node/graph) should add `vi.resetModules()` / `vi.restoreAllMocks()` to whichever suite leaks first
+  in the estimate/whatsapp ordering, or set `test.isolate`/pool config. NOT a product regression —
+  every suite is green in isolation; this is a vitest worker-reuse artifact only.
+
 ### Pre-existing `tsc --noEmit` errors in unrelated suites
 - `tests/unit/ai/refine-shared-prompt.test.ts` (es2018 regex flag) — 101-02 RED scaffold, owned by 101-02.
 - `tests/unit/estimate/observability.test.ts` (es2018 regex flag) — pre-existing.

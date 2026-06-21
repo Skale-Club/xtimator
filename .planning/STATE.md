@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v4.3
 milestone_name: Unified Agentic Estimate Engine
-status: "101-01 (Wave 1, UNIFY-01) shipped — new lib/estimate/ingest/multimodal.ts (ingestMultimodal: channel-neutral raw-media→text over the Phase-99 fallback-wrapped transcribeAudioOR/analyzePhotoOR, per-item skip-not-throw, no second fallback layer, no whatsapp import; multimodal-ingest.test.ts GREEN 4/4) + WhatsApp processMessage routed through it via a 2-call-site swap that leaves the Send[]/mediaResults batch atomicity UNCHANGED (Phase 102 boundary); both files tsc-clean; never-reply-regression/channel-adapter/graph-neutrality GREEN in isolation; UNIFY-01 marked complete; deferred-items.md logs pre-existing 101-00-RED-scaffold full-sweep mock leakage; 2 commits c0017de/b2eb35b; xphere untouched. [Prior: 101-00 Wave-0 RED/EXTEND scaffold] Five new RED test files + two extensions lock every Phase 101 contract before implementation (Nyquist): UNIFY-01 (`tests/unit/estimate/multimodal-ingest.test.ts` — `ingestMultimodal` aggregates audio/photo/text, trims texts, SKIPS a single failed item without throwing), UNIFY-03 (`tests/unit/estimate/refine-node.test.ts` — `makeRefineNode` never throws; ProvidersUnavailableError→provider_unavailable, InvalidEstimateOutputError→invalid_output, missing input→no_usable_input, else→generation_failed; success→{refined}), criterion-5 (`tests/unit/estimate/generate-refine-equivalence.test.ts` — both generate+refine call the shared `buildSystemPrompt` (refine with mode:'refine'); bespoke `## Refinement Instruction` deletion asserted in openrouter.ts + gemini.ts), HARD-01 (`tests/unit/api/refine-route-contract.test.ts` — {success,refined,instruction}+200; 400/422/429/demo-guard preserved; provider failure→typed {error,code}; JSON {instruction} back-compat path only because multipart Request.formData() hangs in jsdom), HARD-02/UNIFY-02 (`tests/unit/ai/refine-shared-prompt.test.ts` NEW + EXTENDED `tests/unit/ai/prompt-builder.test.ts` — both adapters drop the bespoke prompt + call the shared builder mode:'refine'; refine reuses Language/PriceBook/Security verbatim; generate no-opts byte-identical regression guard GREEN; `buildRefineUserContent` <instruction>-tags + escapes the instruction), DURABLE-02/101 (EXTENDED `tests/unit/estimate/no-checkpointer.test.ts` — `buildRefineGraph` compiles with no checkpointer/saver). RED reasons are genuine RUN-time (target source modules/behaviors don't exist yet) via computed-specifier importTarget / fs source-grep / importActual spy — no transform/import errors. Generate-path regression guards stay GREEN; frozen invariant suites graph-neutrality + never-throw + never-reply-regression = 11/11 GREEN. xphere files untouched. 2 atomic commits (ffac9b5, a91d883)."
-stopped_at: Completed 101-01-PLAN.md
-last_updated: "2026-06-21T18:36:43.548Z"
-last_activity: 2026-06-21 — executed 101-01-PLAN.md (Wave 1 — UNIFY-01 shared ingestMultimodal + WhatsApp call-site swap)
+status: completed
+stopped_at: Completed 101-02-PLAN.md
+last_updated: "2026-06-21T18:55:08.642Z"
+last_activity: 2026-06-21 — executed 101-02-PLAN.md (Wave 2 — HARD-02/UNIFY-02 refine-aware shared prompt builder + bespoke-prompt deletion in all 3 adapters)
 progress:
   total_phases: 52
   completed_phases: 39
   total_plans: 116
-  completed_plans: 130
+  completed_plans: 129
 ---
 
 # Project State
@@ -22,12 +22,12 @@ progress:
 
 ## Current Position
 
-Phase: 101 (Unified Multimodal Ingestion + Refine Through the Graph — HARD-01/02, UNIFY-01..03) — IN PROGRESS (2/4 plans)
-Plan: 101-00 + 101-01 complete; 101-02 / 101-03 remaining
-Status: 101-01 (Wave 1, UNIFY-01) shipped. Created `lib/estimate/ingest/multimodal.ts` — the single channel-neutral raw-media→text `ingestMultimodal({ audio, photos, texts }) → { transcripts, photoDescriptions, texts }` over the Phase-99 fallback-wrapped `transcribeAudioOR`/`analyzePhotoOR` primitives: per-item skip-not-throw (a single failed media item is caught + SKIPPED, aggregate still resolves), texts trimmed/empties filtered, NO second fallback layer, NO `lib/whatsapp/*` import. `tests/unit/estimate/multimodal-ingest.test.ts` GREEN (4/4). Routed the WhatsApp adapter `processMessageNode` audio + photo branches through `ingestMultimodal` via a mechanical 2-call-site swap (import swap + `transcripts[0] ?? ''` / `photoDescriptions[0] ?? ''`) — the Send[] fan-out, `mediaResults` reducer, storage uploads, `recordings`/`photos` inserts, and every `ok:false` return are UNCHANGED (batch atomicity preserved — Phase 102 boundary). Both modified files `tsc --noEmit` clean; never-reply-regression (QA-01) + channel-adapter (ENGINE-02) + graph-neutrality (ENGINE-01) GREEN in isolation. 2 atomic commits (c0017de feat, b2eb35b refactor). Pre-existing full-sweep test-isolation leakage from the 101-00 RED scaffolds (refine-node / equivalence vi.mock leakage) reproduced on the clean baseline → logged to `deferred-items.md`, owned by 101-02/101-03. Remaining RED (101-02/101-03): refine-node, generate-refine-equivalence, no-checkpointer(buildRefineGraph), refine-shared-prompt + extended prompt-builder, refine-route-contract. xphere files untouched.
-Last activity: 2026-06-21 — executed 101-01-PLAN.md (Wave 1 — UNIFY-01 shared ingestMultimodal + WhatsApp call-site swap)
-Stopped at: Completed 101-01-PLAN.md
-Next Up: execute 101-02 (Wave 2 — prompt-builder refine mode + `makeRefineNode` + `buildRefineGraph` + bespoke-prompt deletion in both adapters), then 101-03 (thin refine route wrapper consuming `ingestMultimodal`). These implement against the now-fixed RED contracts.
+Phase: 101 (Unified Multimodal Ingestion + Refine Through the Graph — HARD-01/02, UNIFY-01..03) — IN PROGRESS (3/4 plans)
+Plan: 101-00 + 101-01 + 101-02 complete; 101-03 remaining
+Status: 101-02 (Wave 2, HARD-02/UNIFY-02) shipped. Made the shared prompt builder refine-aware: `buildSystemPrompt(input, { mode: 'refine' })` swaps ONLY the opening role/task paragraph while `## Language` / `## Your Company Price Book` / `## Additional Instructions` / `## Security` run VERBATIM for both modes (one prompt source of truth). New exported `buildRefineUserContent` emits the existing estimate + the refine instruction wrapped in `<instruction>` and escaped via the module-internal `sanitizeField` — closing the refine prompt-injection hole; the `## Security` block now lists `<instruction>` as untrusted data. Deleted the bespoke `## Refinement Instruction` prompt from ALL THREE live adapters (`openrouter`, `gemini`, `anthropic`) and routed each `refineEstimate` through the shared builder via a new `lib/ai/providers/refine-input.ts` (`toRefineEstimateInput` — single RefineEstimateInput→EstimateInput mapping, no per-adapter drift). Widened `RefineEstimateInput` with OPTIONAL `industry`/`language`/`projectName` (additive) so the 101-03 node can thread real company context. Fixed a double-`appendRetryHint` on the gemini/anthropic refine paths (the shared user content already wraps the hint). `tests/unit/ai` 63/63 GREEN; `tests/unit/ai`+`tests/unit/estimate` 133/133 GREEN (excl. the two 101-03-owned RED scaffolds `refine-node`/`no-checkpointer`, missing-module RED only); tsc clean on all 5 touched source files; `## Refinement Instruction` grep-absent from all three adapters; HARD-02 + UNIFY-02 marked complete. The `tests/unit/estimate`+`tests/unit/whatsapp` cross-suite worker-reuse leakage was proven PRE-EXISTING (reproduces with all refine scaffolds excluded AND 101-02 changes stashed) — re-attributed in `deferred-items.md`; all 6 affected suites pass 26/26 in isolation. 2 atomic commits (d9c4953, d634ad7). xphere untouched.
+Last activity: 2026-06-21 — executed 101-02-PLAN.md (Wave 2 — HARD-02/UNIFY-02 refine-aware shared prompt builder + bespoke-prompt deletion in all 3 adapters)
+Stopped at: Completed 101-02-PLAN.md
+Next Up: execute 101-03 (Wave 3 — thin refine route wrapper + `makeRefineNode` + `buildRefineGraph` + refine adapter; consumes `ingestMultimodal` from 101-01 and the refine-aware shared builder from 101-02). Turns the remaining 101-03-owned RED scaffolds (refine-node, no-checkpointer/buildRefineGraph, refine-route-contract) GREEN.
 
 > Xtimator side (Fase B): plans 01–05 done on `dev`. Xphere side (Fase A): receiver
 > `POST /api/xtimator/webhook` + migration 1213 + pipeline seed on the **xphere** repo
@@ -559,6 +559,8 @@ Next Up: execute 101-02 (Wave 2 — prompt-builder refine mode + `makeRefineNode
 - [Phase 101]: [Phase 101 101-00]: Wave-0 RED scaffold asserts bespoke-prompt deletion + shared-builder reuse against openrouter.ts + gemini.ts ONLY (Phase 101 scope per RESEARCH); anthropic.ts carries the same marker but is out of scope
 - [Phase 101]: [Phase 101 101-00]: refine route-contract test drives the JSON {instruction} back-compat path only — Request.formData() multipart hangs in vitest/jsdom; multimodal ingestion covered at the ingestMultimodal unit level
 - [Phase 101]: [Phase 101 101-01]: UNIFY-01 shared ingestMultimodal (lib/estimate/ingest/multimodal.ts) over fallback-wrapped transcribeAudioOR/analyzePhotoOR — per-item skip-not-throw, no second fallback layer, no whatsapp import; WhatsApp processMessage routed through it via a 2-call-site swap that leaves Send[]/mediaResults batch atomicity unchanged
+- [Phase 101]: 101-02: Security <instruction> untrusted clause added UNCONDITIONALLY (shared by generate+refine) — the refine-shared-blocks test requires the Security block byte-identical across modes; the generate regression is self-relative so it stays green
+- [Phase 101]: 101-02: lib/ai/providers/refine-input.ts is the single RefineEstimateInput->EstimateInput mapping shared by all three live adapters (openrouter/gemini/anthropic) — no per-adapter drift; anthropic.ts aligned too as a live AIProvider with the same bespoke prompt
 
 ## Performance Metrics
 
@@ -744,6 +746,7 @@ Next Up: execute 101-02 (Wave 2 — prompt-builder refine mode + `makeRefineNode
 | Phase 100 P03 | 7min | 2 tasks | 3 files |
 | Phase 101 P00 | 18min | 2 tasks | 7 files |
 | Phase 101 P01 | 7min | 2 tasks | 2 files |
+| Phase 101 P02 | 18 | 2 tasks | 6 files |
 
 ## Project Reference
 
