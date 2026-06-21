@@ -16,7 +16,7 @@ vi.mock('@/lib/ai/prompt-builder', () => ({
   buildUserContent: vi.fn().mockReturnValue('user content'),
 }))
 
-import { GeminiAdapter } from '@/lib/ai/providers/gemini'
+import { GeminiAdapter, analyzePhotoGemini } from '@/lib/ai/providers/gemini'
 import type { EstimateInput } from '@/lib/ai/types'
 
 const baseInput: EstimateInput = {
@@ -88,5 +88,33 @@ describe('GeminiAdapter', () => {
     )
     const result = await new GeminiAdapter().generateEstimate(baseInput)
     expect(result.sections[0].items[0].price_source).toBe('ai_estimate')
+  })
+})
+
+/**
+ * HARD-03 — Gemini vision fallback (Wave 0 RED extension).
+ *
+ * `analyzePhotoGemini(base64, mimeType)` is the OpenRouter-vision fallback added in
+ * plan 99-01, mirroring transcribeAudioGemini's inlineData shape with an image MIME.
+ * RED today: the export does not exist yet. The pre-existing GeminiAdapter cases above
+ * stay green.
+ */
+describe('analyzePhotoGemini vision', () => {
+  beforeEach(() => { vi.clearAllMocks() })
+
+  it('vision — returns a description from base64 + mimeType', async () => {
+    mockGeminiGenerate.mockResolvedValueOnce({ text: 'a wall with cracks' })
+
+    const result = await analyzePhotoGemini('aGVsbG8=', 'image/jpeg')
+
+    expect(result).toBe('a wall with cracks')
+    const callArgs = mockGeminiGenerate.mock.calls[0][0] as {
+      contents: Array<Record<string, unknown>>
+    }
+    expect(callArgs.contents).toEqual(
+      expect.arrayContaining([
+        { inlineData: { mimeType: 'image/jpeg', data: 'aGVsbG8=' } },
+      ])
+    )
   })
 })
