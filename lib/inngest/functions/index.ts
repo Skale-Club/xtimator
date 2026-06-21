@@ -11,3 +11,5 @@ export { notificationEmailDigest } from './notification-email-digest'
 export { notificationCleanup } from './notification-cleanup'
 // Quick task 260522-kf2 — daily audio Storage auto-cleanup (7-day TTL).
 export { cleanupAudioJob } from './cleanup-audio'
+// Phase 98 — proactive WhatsApp welcome template on owner-number save.
+export { whatsAppWelcomeJob } from './whatsapp-welcome'

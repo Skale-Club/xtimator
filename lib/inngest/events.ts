@@ -17,6 +17,13 @@ export const EVENT_WHATSAPP_PROCESS = 'whatsapp/process.requested' as const
  * whatsAppIntentRouterJob runs the intent-router graph off the webhook ack path.
  */
 export const EVENT_WHATSAPP_INTENT = 'whatsapp/intent.requested' as const
+/**
+ * Phase 98 — proactive WhatsApp welcome. Dispatched by `updateProfile` when the
+ * owner adds/changes their profile phone (their WhatsApp line). Handled by
+ * `whatsAppWelcomeJob`, which sends the approved welcome TEMPLATE off the request
+ * path (business-initiated, outside any 24h window → template required).
+ */
+export const EVENT_WHATSAPP_WELCOME = 'whatsapp/welcome.requested' as const
 
 export type EstimateGeneratePayload = {
   companyId: string
@@ -86,6 +93,15 @@ export type WhatsAppProcessPayload = {
   ownerPhone: string
   messages: unknown[] // WhatsAppMessage[] in the handler — left as unknown[] here to avoid a circular import
   batchKey: string
+}
+
+/**
+ * Phase 98 — payload for EVENT_WHATSAPP_WELCOME.
+ * `toPhone` is the owner's normalized E.164 WhatsApp number.
+ */
+export type WhatsAppWelcomePayload = {
+  companyId: string
+  toPhone: string
 }
 
 /**

@@ -11,6 +11,8 @@ import { appendIndustryPriceBook } from '@/lib/price-book-seed'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { assertWritable } from '@/lib/demo/guard'
 import { syncOwnerPhone } from '@/lib/whatsapp/sync-owner-phone'
+import { inngest } from '@/lib/inngest/client'
+import { EVENT_WHATSAPP_WELCOME } from '@/lib/inngest/events'
 import { sendProfileUpdatedEmail, diffProfileFields } from '@/lib/email/account-emails'
 
 async function getAuthContext() {
@@ -121,9 +123,10 @@ export async function updateCompanySettings(formData: FormData) {
     return { error: 'Failed to save company settings. Please try again.' }
   }
 
-  // Keep company_whatsapp.owner_phone in sync (fire-and-forget, non-blocking)
-  const svc = requireServiceClient()
-  syncOwnerPhone(svc, company.id, phone).catch(() => undefined)
+  // NOTE: the company phone is the client-facing contact shown on estimates — it is
+  // NOT the owner's WhatsApp line. The WhatsApp owner number (company_whatsapp.owner_phone)
+  // is sourced from the owner's PROFILE phone in updateProfile (Phase 98), so we do not
+  // sync the company phone here.
 
   // Detect changed fields and send a profile-update notification email
   if (currentCompany) {
@@ -370,6 +373,29 @@ export async function updateProfile(formData: FormData) {
 
   const { error } = await supabase.auth.updateUser({ data: updateData })
   if (error) return { error: error.message }
+
+  // Phase 98: the profile phone IS the owner's WhatsApp line. Sync it to
+  // company_whatsapp.owner_phone for the active company, and — only when the number
+  // is new/changed — fire the proactive welcome TEMPLATE off the request path via
+  // Inngest. Best-effort: a failure here must never block or fail the profile save.
+  try {
+    const activeCompanyId = await getActiveCompanyId()
+    if (activeCompanyId) {
+      const svc = requireServiceClient()
+      const { phoneChanged, ownerPhone } = await syncOwnerPhone(svc, activeCompanyId, phone)
+      if (phoneChanged && ownerPhone) {
+        await inngest.send({
+          name: EVENT_WHATSAPP_WELCOME,
+          data: { companyId: activeCompanyId, toPhone: ownerPhone },
+        })
+      }
+    }
+  } catch (e) {
+    console.warn(
+      '[settings.updateProfile] WhatsApp owner-phone sync/welcome failed:',
+      e instanceof Error ? e.message : String(e),
+    )
+  }
 
   revalidatePath('/settings/general')
   return { ok: true }

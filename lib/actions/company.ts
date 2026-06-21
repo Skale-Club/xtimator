@@ -12,7 +12,6 @@ import {
   ACTIVE_COMPANY_COOKIE_OPTIONS,
   getActiveCompanyId,
 } from '@/lib/queries/active-company'
-import { syncOwnerPhone } from '@/lib/whatsapp/sync-owner-phone'
 import { sendWelcomeEmail } from '@/lib/email/account-emails'
 import { seedIndustryPriceBook } from '@/lib/price-book-seed'
 import { getDefaultTaxRate } from '@/lib/tax-rates'
@@ -182,8 +181,10 @@ export async function createOrUpdateCompany(
       }
     }
 
-    // Sync owner phone to company_whatsapp for WhatsApp inbound routing
-    syncOwnerPhone(service, newCompanyId, data.phone).catch(() => undefined)
+    // NOTE (Phase 98): the onboarding phone is the company's client-facing contact
+    // (companies.phone, shown on estimates). The owner's WhatsApp line is their
+    // PROFILE phone, synced to company_whatsapp.owner_phone in updateProfile — so we
+    // no longer route the company phone into owner_phone here.
 
     // Seed industry-specific price book defaults — ONLY when the user opted in
     // (fire-and-forget). Unchecked → the price book starts empty.
@@ -237,9 +238,8 @@ export async function createOrUpdateCompany(
           'Could not save your company details. Please check your connection and try again.',
       }
     }
-    // Sync owner phone for existing company update
-    const svcUpdate = requireServiceClient()
-    syncOwnerPhone(svcUpdate, existing.id, data.phone).catch(() => undefined)
+    // (Phase 98) Company phone is the client-facing estimate contact; the owner's
+    // WhatsApp line is synced from their profile phone in updateProfile, not here.
   } else {
     // Insert new company
     // TIER-04: new companies start with a 14-day trial clock.
@@ -269,8 +269,8 @@ export async function createOrUpdateCompany(
       role: 'owner',
     })
 
-    // Sync owner phone to company_whatsapp for WhatsApp inbound routing
-    syncOwnerPhone(service, newCompany.id, data.phone).catch(() => undefined)
+    // (Phase 98) See note above: company phone ≠ owner WhatsApp line. owner_phone
+    // is synced from the owner's profile phone in updateProfile.
 
     // Seed industry-specific price book defaults — ONLY when the user opted in
     // (fire-and-forget). Unchecked → the price book starts empty.

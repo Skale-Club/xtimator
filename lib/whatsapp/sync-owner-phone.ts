@@ -26,7 +26,7 @@ export async function syncOwnerPhone(
   serviceClient: SupabaseClient,
   companyId: string,
   rawPhone: string | null | undefined
-): Promise<void> {
+): Promise<{ phoneChanged: boolean; ownerPhone: string | null }> {
   const ownerPhone = toOwnerPhone(rawPhone)
 
   // Read existing phone before upsert so we can detect a genuine change.
@@ -50,4 +50,8 @@ export async function syncOwnerPhone(
   await serviceClient
     .from('company_whatsapp')
     .upsert(row, { onConflict: 'company_id' })
+
+  // Returned so callers can fire the proactive welcome template only on a real
+  // change (and target the normalized E.164 number).
+  return { phoneChanged, ownerPhone }
 }

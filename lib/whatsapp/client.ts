@@ -29,6 +29,57 @@ export async function sendWhatsAppMessage(to: string, body: object): Promise<voi
 }
 
 /**
+ * Send a pre-approved WhatsApp **template** (HSM) message.
+ *
+ * Unlike sendWhatsAppMessage (free-form text/document), template messages are the
+ * ONLY way to start a business-initiated conversation OUTSIDE Meta's 24-hour
+ * customer-service window — i.e. the only way to send a real "notification" the
+ * owner hasn't just messaged us about. The template must already exist and be
+ * APPROVED in Meta WhatsApp Manager under our WABA; `name` + `languageCode` must
+ * match it exactly, and the variable arrays must match the `{{n}}` placeholders.
+ *
+ * Payload shape ported from the xphere Cloud integration (sendCloudTemplate):
+ *   { type: 'template', template: { name, language:{code}, components: [...] } }
+ * Header variables (text only) and body variables are each their own component,
+ * with parameters in `{{n}}` order.
+ *
+ * Reuses sendWhatsAppMessage so token/phoneNumberId resolution and error handling
+ * stay in one place. Throws on a non-2xx Meta response (same contract).
+ */
+export async function sendWhatsAppTemplate(
+  to: string,
+  opts: {
+    name: string
+    languageCode: string
+    bodyVariables?: string[]
+    headerVariables?: string[]
+  }
+): Promise<void> {
+  const components: Array<Record<string, unknown>> = []
+  if (opts.headerVariables && opts.headerVariables.length > 0) {
+    components.push({
+      type: 'header',
+      parameters: opts.headerVariables.map((text) => ({ type: 'text', text })),
+    })
+  }
+  if (opts.bodyVariables && opts.bodyVariables.length > 0) {
+    components.push({
+      type: 'body',
+      parameters: opts.bodyVariables.map((text) => ({ type: 'text', text })),
+    })
+  }
+
+  await sendWhatsAppMessage(to, {
+    type: 'template',
+    template: {
+      name: opts.name,
+      language: { code: opts.languageCode },
+      ...(components.length > 0 ? { components } : {}),
+    },
+  })
+}
+
+/**
  * Mark an inbound message as read (blue checks appear on user's phone).
  * Fire-and-forget — failures are swallowed and logged. Never blocks processing.
  *

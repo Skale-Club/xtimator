@@ -116,8 +116,8 @@ export function ProfileSection({ profile }: ProfileSectionProps) {
           {/* Phone */}
           <div className="grid gap-6 xl:grid-cols-[260px_minmax(0,1fr)]">
             <div>
-              <h3 className="text-sm font-medium">Phone Number</h3>
-              <p className="mt-1 text-sm text-muted-foreground">Used for account recovery and WhatsApp notifications.</p>
+              <h3 className="text-sm font-medium">WhatsApp Number</h3>
+              <p className="mt-1 text-sm text-muted-foreground">Your number for the Xtimator WhatsApp assistant (and account recovery). Save it and we&apos;ll send a welcome message so you can start building estimates by chat.</p>
             </div>
             <div>
               <Input
