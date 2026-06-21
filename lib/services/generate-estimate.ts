@@ -5,6 +5,13 @@ import { getProjectPhotos } from '@/lib/queries/photo'
 import { PLACEHOLDER_PREFIX } from '@/lib/constants/project'
 import { type EstimateInput } from '@/lib/ai'
 import { getAIProviderWithFallback } from '@/lib/ai/provider-with-fallback'
+import { anchorAndClampSections } from '@/lib/ai/price-anchoring'
+import {
+  round2,
+  assertFinitePositive,
+  computeTotalsDiscrepancy,
+  TOTALS_EPSILON,
+} from '@/lib/estimate/totals'
 import { getPriceBookItems } from '@/lib/queries/price-book'
 import {
   resolveEstimateLanguage,
@@ -248,7 +255,31 @@ export async function generateEstimateForProject(
   // Server-side math validation
   const taxRate = Number(company.default_tax_rate) || 0
 
-  const calculatedSections = aiEstimate.sections.map((section) => {
+  // GUARD-03 snapshot: capture the naive subtotal the AI's OWN numbers imply
+  // BEFORE anchoring/clamping mutates any unit_price. Used for the discrepancy
+  // metric below; the AI total itself is never persisted as authoritative.
+  const aiProposedSubtotal = round2(
+    aiEstimate.sections.reduce(
+      (sum, section) =>
+        sum +
+        section.items.reduce(
+          (s, item) => s + item.quantity * item.unit_price,
+          0
+        ),
+      0
+    )
+  )
+
+  // GUARD-02: anchor matched items to the (companyId-scoped, currency-filtered)
+  // price book and clamp out-of-bounds ai_estimate prices. Pass ONLY mapped
+  // { name, unit_price } so the pure helper stays tenant-safe. Non-fatal.
+  const { sections: guardedSections, anchoredCount, clampedCount } =
+    anchorAndClampSections(
+      aiEstimate.sections,
+      priceBookItems.map((p) => ({ name: p.name, unit_price: p.unit_price }))
+    )
+
+  const calculatedSections = guardedSections.map((section) => {
     const items = section.items.map((item) => ({
       ...item,
       total: Math.round(item.quantity * item.unit_price * 100) / 100,
