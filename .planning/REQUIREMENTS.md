@@ -49,9 +49,9 @@ v4.3 (phases 94-96) extracted a channel-neutral **canonical estimate graph** (`l
 
 ### EVAL — Test & Evaluation Harness
 
-- [ ] **EVAL-01**: A golden-fixture dataset exists for representative audio, photo, and text inputs (stored or referenced deterministically) usable by the test suite without live AI calls.
-- [ ] **EVAL-02**: Deterministic mocked AI providers (transcription, vision, generate, refine) let the full engine run in tests with stable, asserted outputs.
-- [ ] **EVAL-03**: A quality-metrics suite scores generated estimates on objective signals (non-zero total, minimum line-item count, vagueness verdict, zod-schema validity) and asserts thresholds.
+- [x] **EVAL-01**: A golden-fixture dataset exists for representative audio, photo, and text inputs (stored or referenced deterministically) usable by the test suite without live AI calls.
+- [x] **EVAL-02**: Deterministic mocked AI providers (transcription, vision, generate, refine) let the full engine run in tests with stable, asserted outputs.
+- [x] **EVAL-03**: A quality-metrics suite scores generated estimates on objective signals (non-zero total, minimum line-item count, vagueness verdict, zod-schema validity) and asserts thresholds.
 - [ ] **EVAL-04**: A CI regression gate runs the eval harness on the estimate engine and fails the build when quality metrics or schema validity regress.
 
 ---
@@ -90,7 +90,7 @@ v4.3 (phases 94-96) extracted a channel-neutral **canonical estimate graph** (`l
 | HARD-05 | Phase 102 | Complete |
 | HARD-06 | Phase 102 | Complete |
 | HARD-07 | Phase 102 | Complete (102-01) |
-| EVAL-01 | Phase 103 | Pending |
-| EVAL-02 | Phase 103 | Pending |
-| EVAL-03 | Phase 103 | Pending |
+| EVAL-01 | Phase 103 | Complete |
+| EVAL-02 | Phase 103 | Complete |
+| EVAL-03 | Phase 103 | Complete |
 | EVAL-04 | Phase 103 | Pending |

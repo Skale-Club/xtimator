@@ -1226,5 +1226,5 @@ Plans:
 **Plans**: 3 plans in 3 waves
 Plans:
 - [x] 103-01-PLAN.md — Wave 1: isolation remediation (afterEach resetModules discipline → `npx vitest run` 3× green; prerequisite for a reliable EVAL-04 gate)
-- [ ] 103-02-PLAN.md — Wave 2: eval harness — golden fixtures (EVAL-01) + deterministic mocked providers driving the real engine (EVAL-02) + quality-metrics suite reusing isVagueEstimate/estimateOutputSchema (EVAL-03)
+- [x] 103-02-PLAN.md — Wave 2: eval harness — golden fixtures (EVAL-01) + deterministic mocked providers driving the real engine (EVAL-02) + quality-metrics suite reusing isVagueEstimate/estimateOutputSchema (EVAL-03)
 - [ ] 103-03-PLAN.md — Wave 3: CI gate — scoped tsconfig.ci.json + .github/workflows/test.yml (secret-free, integration-excluded, double-run determinism) + test:eval script (EVAL-04)
