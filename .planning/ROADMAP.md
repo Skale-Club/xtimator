@@ -1140,7 +1140,7 @@ Plans:
 
 > **Numbering:** continues the GLOBAL phase counter. v4.5 ended at Phase 103; v4.4's WhatsApp Notifications is Phase 98. v4.6 = **Phase 104**.
 
-- [ ] **Phase 104: Notification Channels & Preferences Revamp** — Restructure owner notification preferences to a 3-category × 4-channel matrix (Estimates · Billing · System) and add WhatsApp + SMS as real delivery channels (NOTIF-01..07)
+- [x] **Phase 104: Notification Channels & Preferences Revamp** — Restructure owner notification preferences to a 3-category × 4-channel matrix (Estimates · Billing · System) and add WhatsApp + SMS as real delivery channels (NOTIF-01..07) (completed 2026-06-22)
 
 #### Phase 104: Notification Channels & Preferences Revamp
 **Goal**: The owner notification preferences become a tidy 3-category model (Estimates, Billing, System) delivered over 4 working channels (In-App, Email, WhatsApp, SMS), replacing today's noisy 8-category × 2-channel matrix.
@@ -1156,6 +1156,6 @@ Plans:
 - [x] 104-00-PLAN.md — Wave 0: RED/EXTEND test scaffold (6 new + 3 extended gaps)
 - [x] 104-01-PLAN.md — Wave 1: schema + 3 categories + `_dropped` sentinel + 4-channel matrix UI + idempotent remap migration (NOTIF-01, NOTIF-02, NOTIF-06)
 - [x] 104-02-PLAN.md — Wave 2: `sendSms()` + WhatsApp/SMS dispatch branches + owner-phone resolver + per-channel opt-in/consent (NOTIF-03, NOTIF-04, NOTIF-05, NOTIF-07)
-- [ ] 104-03-PLAN.md — Wave 3: super-admin WhatsApp-template panel + `message_template_status_update` webhook + Phase-98 superseded note (NOTIF-03)
+- [x] 104-03-PLAN.md — Wave 3: super-admin WhatsApp-template panel + `message_template_status_update` webhook + Phase-98 superseded note (NOTIF-03)
 
 > **Open product decisions for discuss-phase:** phone-number source & validation (profile field vs onboarding), SMS opt-in/consent flow + Twilio cost acceptance, WhatsApp template approval, and the fate of removed-category events (AI Jobs job-failure notices, inbound-WhatsApp notices) — re-route to a kept category, keep in-app-only, or drop. RESOLVED in 104-CONTEXT: reuse `owner_phone` (gate on non-null, no OTP re-add); explicit per-channel opt-in with paid-SMS consent; templates via super-admin panel; removed-category events → `_dropped` sentinel (no delivery).
