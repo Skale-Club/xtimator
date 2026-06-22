@@ -64,10 +64,10 @@ export function NotificationList({
   const emptyMessage = (): string => {
     if (search.trim()) return `No notifications match “${search.trim()}”.`
     if (unreadOnly && category)
-      return `No unread ${CATEGORY_LABELS[category].toLowerCase()} notifications.`
+      return `No unread ${(CATEGORY_LABELS[category] ?? category).toLowerCase()} notifications.`
     if (unreadOnly) return 'No unread notifications.'
     if (category)
-      return `No ${CATEGORY_LABELS[category].toLowerCase()} notifications yet.`
+      return `No ${(CATEGORY_LABELS[category] ?? category).toLowerCase()} notifications yet.`
     return 'No notifications yet.'
   }
 

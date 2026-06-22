@@ -19,6 +19,8 @@ import { DEFAULT_PREFERENCES } from '@/lib/notifications/event-types'
 const ChannelSchema = z.object({
   in_app: z.boolean().optional(),
   email: z.boolean().optional(),
+  whatsapp: z.boolean().optional(),
+  sms: z.boolean().optional(),
 })
 
 const PatchSchema = z.object({

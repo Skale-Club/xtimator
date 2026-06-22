@@ -51,13 +51,14 @@ describe('NotificationsForm', () => {
     fetchMock.mockResolvedValue({ ok: true, status: 204 })
   })
 
-  it('renders 16 channel toggles (8 categories × 2 channels)', () => {
+  it('renders 12 channel toggles (3 categories × 4 channels) + master', () => {
     render(
       <NotificationsForm initial={baseInitial} defaults={DEFAULT_PREFERENCES} />,
     )
     const switches = screen.getAllByRole('switch')
-    // 1 master email-digest + 16 per-category (8 × 2) + 1 push = 18 expected
-    expect(switches.length).toBeGreaterThanOrEqual(17)
+    // Phase 104: 1 master email-digest + 12 per-category (3 × 4) = 13.
+    // (The push control is a Button, not a switch.)
+    expect(switches.length).toBeGreaterThanOrEqual(13)
   })
 
   it('toggling master email-digest off disables every category email switch', async () => {

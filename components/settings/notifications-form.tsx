@@ -1,15 +1,21 @@
 'use client'
 
 /**
- * Phase 77 plan 07 (NOTIF-08 + NOTIF-09) — Per-category notification preferences
+ * Phase 77 / Phase 104 — Per-category notification preferences
  * + Web Push enable scaffold.
  *
- * Renders a category × channel matrix (8 categories × {in_app, email}) plus
- * a master "email digest enabled" switch and a browser-push enable button.
+ * Renders a 3-category × 4-channel matrix (Estimates, Billing, System ×
+ * {in_app, email, whatsapp, sms}) plus a master "email digest enabled" switch
+ * and a browser-push enable button.
+ *
+ * WhatsApp + SMS are paid/consent-gated channels: their switches render but are
+ * DISABLED until a verified phone is on file (Wave 2 wires the real enable + the
+ * per-channel opt-in). This wave only renders the disabled-by-default columns
+ * driven by the `verifiedPhone` prop.
  *
  * Save flow: PATCH /api/notifications/preferences with the full categories
- * object + email_digest_enabled. Push subscription is persisted by
- * `enableBrowserPush` directly (separate endpoint).
+ * object (now 4-channel) + email_digest_enabled. Push subscription is persisted
+ * by `enableBrowserPush` directly (separate endpoint).
  */
 
 import { useMemo, useState, useTransition } from 'react'
@@ -33,39 +39,45 @@ import {
   disableBrowserPush,
   isPushSupported,
 } from '@/lib/notifications/push-client'
-import type { EventCategory } from '@/lib/notifications/event-types'
+import type { EventCategory, ChannelPrefs } from '@/lib/notifications/event-types'
+
+// Only the 3 visible categories are configurable. `_dropped` is internal.
+type VisibleCategory = Extract<EventCategory, 'estimate' | 'billing' | 'system'>
 
 const CATEGORIES: ReadonlyArray<{
-  key: EventCategory
+  key: VisibleCategory
   label: string
   description: string
 }> = [
   { key: 'estimate', label: 'Estimates', description: 'Views, accepts, declines, expirations.' },
-  { key: 'payment', label: 'Payments', description: 'Payments received and refunded.' },
-  { key: 'trial', label: 'Trial', description: 'Trial expiring, expired, converted.' },
-  { key: 'quota', label: 'Quota', description: 'Plan usage warnings.' },
-  { key: 'whatsapp', label: 'WhatsApp', description: 'Inbound voice and photo messages.' },
-  { key: 'ai_job', label: 'AI Jobs', description: 'Background job completion and failures.' },
-  { key: 'admin', label: 'Admin', description: 'Tier changes and bonus credits.' },
+  { key: 'billing', label: 'Billing', description: 'Payments, trial, quota, plan changes.' },
   { key: 'system', label: 'System', description: 'Maintenance and platform announcements.' },
 ]
 
 export interface NotificationsFormInitial {
-  categories: Record<string, { in_app?: boolean; email?: boolean }>
+  categories: Record<
+    string,
+    { in_app?: boolean; email?: boolean; whatsapp?: boolean; sms?: boolean }
+  >
   email_digest_enabled: boolean
   push_enabled: boolean
 }
 
 export interface NotificationsFormProps {
   initial: NotificationsFormInitial
-  defaults: Record<EventCategory, { in_app: boolean; email: boolean }>
+  defaults: Record<EventCategory, ChannelPrefs>
+  /**
+   * The owner's verified phone (E.164) on file, or null when none. WhatsApp + SMS
+   * switches are disabled when null (Wave 2 passes the real value + opt-in state).
+   */
+  verifiedPhone?: string | null
 }
 
-type ChannelState = Record<EventCategory, { in_app: boolean; email: boolean }>
+type ChannelState = Record<VisibleCategory, ChannelPrefs>
 
 function buildState(
   initial: NotificationsFormInitial,
-  defaults: Record<EventCategory, { in_app: boolean; email: boolean }>,
+  defaults: Record<EventCategory, ChannelPrefs>,
 ): ChannelState {
   const out = {} as ChannelState
   for (const c of CATEGORIES) {
@@ -73,12 +85,18 @@ function buildState(
     out[c.key] = {
       in_app: fromInitial.in_app ?? defaults[c.key].in_app,
       email: fromInitial.email ?? defaults[c.key].email,
+      whatsapp: fromInitial.whatsapp ?? defaults[c.key].whatsapp,
+      sms: fromInitial.sms ?? defaults[c.key].sms,
     }
   }
   return out
 }
 
-export function NotificationsForm({ initial, defaults }: NotificationsFormProps) {
+export function NotificationsForm({
+  initial,
+  defaults,
+  verifiedPhone = null,
+}: NotificationsFormProps) {
   const { t } = useTranslation()
   const [isPending, startTransition] = useTransition()
   const [pushBusy, setPushBusy] = useState(false)
@@ -93,7 +111,13 @@ export function NotificationsForm({ initial, defaults }: NotificationsFormProps)
     return isPushSupported()
   }, [])
 
-  function setChannel(cat: EventCategory, channel: 'in_app' | 'email', value: boolean) {
+  const phoneOnFile = !!verifiedPhone
+
+  function setChannel(
+    cat: VisibleCategory,
+    channel: 'in_app' | 'email' | 'whatsapp' | 'sms',
+    value: boolean,
+  ) {
     setMatrix((prev) => ({
       ...prev,
       [cat]: { ...prev[cat], [channel]: value },
@@ -167,17 +191,19 @@ export function NotificationsForm({ initial, defaults }: NotificationsFormProps)
           </div>
 
           <div className="overflow-hidden rounded-[var(--radius-md)] border border-border">
-            <div className="grid grid-cols-[1fr_auto_auto] items-center gap-4 border-b border-border bg-muted/40 px-4 py-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            <div className="grid grid-cols-[1fr_auto_auto_auto_auto] items-center gap-4 border-b border-border bg-muted/40 px-4 py-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
               <span>{t('Category')}</span>
               <span className="w-16 text-center">{t('In-app')}</span>
               <span className="w-16 text-center">{t('Email')}</span>
+              <span className="w-16 text-center">{t('WhatsApp')}</span>
+              <span className="w-16 text-center">{t('SMS')}</span>
             </div>
             {CATEGORIES.map((c) => {
               const state = matrix[c.key]
               return (
                 <div
                   key={c.key}
-                  className="grid grid-cols-[1fr_auto_auto] items-center gap-4 border-b border-border px-4 py-3 last:border-b-0"
+                  className="grid grid-cols-[1fr_auto_auto_auto_auto] items-center gap-4 border-b border-border px-4 py-3 last:border-b-0"
                 >
                   <div className="flex items-center gap-3">
                     <CategoryIcon
@@ -208,9 +234,34 @@ export function NotificationsForm({ initial, defaults }: NotificationsFormProps)
                       aria-label={`${t(c.label)} ${t('Email')}`}
                     />
                   </div>
+                  <div className="flex w-16 justify-center">
+                    <Switch
+                      data-testid={`pref-whatsapp-${c.key}`}
+                      checked={state.whatsapp && phoneOnFile}
+                      disabled={!phoneOnFile}
+                      onCheckedChange={(v) => setChannel(c.key, 'whatsapp', v)}
+                      aria-label={`${t(c.label)} ${t('WhatsApp')}`}
+                    />
+                  </div>
+                  <div className="flex w-16 justify-center">
+                    <Switch
+                      data-testid={`pref-sms-${c.key}`}
+                      checked={state.sms && phoneOnFile}
+                      disabled={!phoneOnFile}
+                      onCheckedChange={(v) => setChannel(c.key, 'sms', v)}
+                      aria-label={`${t(c.label)} ${t('SMS')}`}
+                    />
+                  </div>
                 </div>
               )
             })}
+            {!phoneOnFile && (
+              <div className="border-t border-border bg-muted/20 px-4 py-2 text-xs text-muted-foreground">
+                {t(
+                  'Add a verified phone in your profile to enable WhatsApp and SMS notifications.',
+                )}
+              </div>
+            )}
           </div>
 
           <div className="flex justify-end">
