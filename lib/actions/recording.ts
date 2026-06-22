@@ -193,7 +193,15 @@ export async function createRecording(
  *
  * Implements: INNGEST-03.
  */
-export async function transcribeRecording(recordingId: string, attemptId?: string) {
+export async function transcribeRecording(
+  recordingId: string,
+  attemptId?: string,
+  options?: {
+    autoGenerateEstimate?: boolean
+    requestId?: string
+    estimateLanguage?: 'en' | 'pt' | 'es'
+  }
+) {
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error }
   const { supabase } = ctx
@@ -224,9 +232,12 @@ export async function transcribeRecording(recordingId: string, attemptId?: strin
       companyId: recording.company_id as string,
       recordingId,
       storagePath: recording.storage_path as string,
-      // REC-03: forward attempt lineage (in-flight only) so a Retry continues
-      // the same attempt; recordingId stays the stable idempotency seam.
       attemptId,
+      ...(options?.autoGenerateEstimate && {
+        autoGenerateEstimate: true,
+        requestId: options.requestId,
+        estimateLanguage: options.estimateLanguage,
+      }),
     },
   })
 

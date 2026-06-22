@@ -76,6 +76,15 @@ export type TranscribeAudioPayload = {
    * transcribe path is always `recording`. Optional so older callers compile.
    */
   inputType?: 'recording' | 'photo' | 'manual_text'
+  /**
+   * When true, the transcription job automatically dispatches EVENT_ESTIMATE_GENERATE
+   * after saving the transcript, enabling fire-and-forget from the client.
+   */
+  autoGenerateEstimate?: boolean
+  /** Forwarded to the generate-estimate event for idempotency. */
+  requestId?: string
+  /** Estimate language forwarded to the generate-estimate event. */
+  estimateLanguage?: 'en' | 'pt' | 'es'
 }
 
 export type AnalyzePhotosPayload = {

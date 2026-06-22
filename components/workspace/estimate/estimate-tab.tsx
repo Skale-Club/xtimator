@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, startTransition } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { Sparkles, FileText } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -74,9 +74,30 @@ export function EstimateTab({
   const { t } = useTranslation()
   const { language: appLanguage } = useLanguage()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const pathname = usePathname()
   const [isGenerating, setIsGenerating] = useState(false)
   const [generationStep, setGenerationStep] = useState(0)
   const [isCreatingBlank, setIsCreatingBlank] = useState(false)
+
+  // True when the user navigated here right after stopping a recording —
+  // the pipeline is running server-side (Inngest) and we poll until the
+  // estimate appears, then clear the param.
+  const isAutoGenerating = searchParams.get('autoGenerating') === 'true'
+
+  useEffect(() => {
+    if (!isAutoGenerating || currentEstimate) return
+    const id = setInterval(() => router.refresh(), 3000)
+    return () => clearInterval(id)
+  }, [isAutoGenerating, currentEstimate, router])
+
+  useEffect(() => {
+    if (!isAutoGenerating || !currentEstimate) return
+    const params = new URLSearchParams(searchParams.toString())
+    params.delete('autoGenerating')
+    const q = params.toString()
+    router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false })
+  }, [isAutoGenerating, currentEstimate, searchParams, pathname, router])
 
   const cascadeResult = resolveEstimateLanguageWithSource({
     userAppLanguage: appLanguage as EstimateLanguage,
@@ -150,6 +171,10 @@ export function EstimateTab({
       router.refresh()
     }
     startTransition(() => setIsCreatingBlank(false))
+  }
+
+  if (isAutoGenerating && !currentEstimate) {
+    return <GenerationProgress currentStep={0} />
   }
 
   if (isGenerating) {

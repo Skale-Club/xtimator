@@ -1,6 +1,6 @@
 'use client'
 
-import { useTransition } from 'react'
+import { useState, useTransition } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -16,15 +16,8 @@ import {
   captureHref,
   type CaptureMode,
 } from '@/components/projects/estimate-creation-popup'
+import { InlineAudioRecorder } from '@/components/projects/inline-audio-recorder'
 
-/**
- * Single-step modality picker. Clicking a card creates the project (with no
- * client; clientId = null) and hands off to the EstimateCreationPopup by
- * swapping URL params — `?modal=new-project` is removed and
- * `?capture=<mode>&projectId=<id>` is added, so the NewProjectDialog closes
- * and the EstimateCreationPopup opens without unmounting the app shell.
- * Linking a client happens later from the project workspace Overview.
- */
 const MODALITY_TO_CAPTURE: Record<InputMode, CaptureMode> = {
   audio: 'audio',
   text: 'text',
@@ -33,12 +26,14 @@ const MODALITY_TO_CAPTURE: Record<InputMode, CaptureMode> = {
 }
 
 interface NewProjectWizardProps {
-  /** Called when the user cancels or the dialog should close (modal mode). */
-  onClose?: () => void
+  /** Called when switching into/out of the inline recording step so the parent dialog can resize. */
+  onStepChange?: (step: 'modality' | 'recording') => void
 }
 
-export function NewProjectWizard(_props: NewProjectWizardProps = {}) {
+export function NewProjectWizard({ onStepChange }: NewProjectWizardProps = {}) {
   const [isPending, startTransition] = useTransition()
+  const [step, setStep] = useState<'modality' | 'recording'>('modality')
+  const [recordingProject, setRecordingProject] = useState<{ id: string; company_id: string } | null>(null)
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -61,8 +56,6 @@ export function NewProjectWizard(_props: NewProjectWizardProps = {}) {
     form.setValue('inputMode', mode, { shouldValidate: true })
 
     startTransition(async () => {
-      // Pre-link to a client when the modal was opened from a client page
-      // (?clientId=<id>). Falls back to the form value (currently always unset).
       const clientId = searchParams.get('clientId') ?? form.getValues().clientId
       const values = { ...form.getValues(), inputMode: mode, clientId }
       const result = await createProjectAction(values)
@@ -70,10 +63,16 @@ export function NewProjectWizard(_props: NewProjectWizardProps = {}) {
         toast.error(result.error)
         return
       }
-      // Swap URL params: drop ?modal=new-project (closes NewProjectDialog),
-      // add ?capture=<mode>&projectId=<id> (opens EstimateCreationPopup).
-      // Both dialogs are mounted in the app shell layout, so the user stays
-      // inside the same React tree — no hard navigation, no shell teardown.
+
+      if (mode === 'audio') {
+        // Audio: stay in this dialog and show the inline recording UI
+        setRecordingProject({ id: result.data.id, company_id: result.data.company_id as string })
+        setStep('recording')
+        onStepChange?.('recording')
+        return
+      }
+
+      // Text / Photos: hand off to EstimateCreationPopup via URL params (existing flow)
       const captureMode = MODALITY_TO_CAPTURE[mode]
       const next = captureHref({
         pathname,
@@ -85,6 +84,23 @@ export function NewProjectWizard(_props: NewProjectWizardProps = {}) {
     })
   }
 
+  function handleBack() {
+    setStep('modality')
+    setRecordingProject(null)
+    form.reset()
+    onStepChange?.('modality')
+  }
+
+  if (step === 'recording' && recordingProject) {
+    return (
+      <InlineAudioRecorder
+        projectId={recordingProject.id}
+        companyId={recordingProject.company_id}
+        onBack={handleBack}
+      />
+    )
+  }
+
   return (
     <Form {...form}>
       <form onSubmit={(e) => e.preventDefault()}>
@@ -94,8 +110,6 @@ export function NewProjectWizard(_props: NewProjectWizardProps = {}) {
           isPending={isPending}
           pendingMode={isPending ? selectedMode : undefined}
         />
-
-        {/* Dialog close is handled by the DialogContent X button */}
       </form>
     </Form>
   )

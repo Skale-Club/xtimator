@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense } from 'react'
+import { Suspense, useState } from 'react'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import {
   Dialog,
@@ -29,6 +29,7 @@ function NewProjectDialogInner() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const pathname = usePathname()
+  const [wizardStep, setWizardStep] = useState<'modality' | 'recording'>('modality')
 
   const isOpen = searchParams.get(NEW_PROJECT_MODAL_PARAM) === NEW_PROJECT_MODAL_VALUE
 
@@ -37,7 +38,10 @@ function NewProjectDialogInner() {
     params.delete(NEW_PROJECT_MODAL_PARAM)
     const q = params.toString()
     router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false })
+    setWizardStep('modality')
   }
+
+  const isRecording = wizardStep === 'recording'
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose() }}>
@@ -46,12 +50,18 @@ function NewProjectDialogInner() {
           <DialogTitle className="text-xl font-semibold">
             <T>New Xtimate</T>
           </DialogTitle>
-          <DialogDescription>
-            <T>Pick how you want to describe the job | audio, text, or photos.</T>
-          </DialogDescription>
+          {!isRecording && (
+            <DialogDescription>
+              <T>Pick how you want to describe the job | audio, text, or photos.</T>
+            </DialogDescription>
+          )}
         </DialogHeader>
 
-        {isOpen && <NewProjectWizard onClose={onClose} />}
+        {isOpen && (
+          <NewProjectWizard
+            onStepChange={setWizardStep}
+          />
+        )}
       </DialogContent>
     </Dialog>
   )

@@ -15,6 +15,7 @@ import { buildNotificationCopy } from '@/lib/notifications/copy'
 import { recordPipelineEvent } from '@/lib/observability/pipeline-events'
 import {
   EVENT_TRANSCRIBE_AUDIO,
+  EVENT_ESTIMATE_GENERATE,
   type TranscribeAudioPayload,
 } from '@/lib/inngest/events'
 
@@ -134,6 +135,28 @@ export const transcribeAudioJob = inngest.createFunction(
         .eq('id', recordingId)
       if (error) throw new Error(`Failed to save transcript: ${error.message}`)
     })
+
+    // When the client requested fire-and-forget mode, chain directly into
+    // estimate generation so the user can navigate away immediately after
+    // uploading the recording. ident.projectId is already loaded above.
+    if (data.autoGenerateEstimate && ident.projectId) {
+      await step.run('dispatch-generate-estimate', async () => {
+        const reqId = data.requestId ?? randomUUID()
+        await inngest.send({
+          name: EVENT_ESTIMATE_GENERATE,
+          id: `estimate-${ident.projectId}-${reqId}`,
+          data: {
+            companyId: data.companyId,
+            projectId: ident.projectId!,
+            requestId: reqId,
+            language: data.estimateLanguage,
+            attemptId: data.attemptId,
+            inputType: 'recording' as const,
+            channel: 'web' as const,
+          },
+        })
+      })
+    }
 
     // Phase 92 (EVENT-02/D-03): terminal succeeded event with duration_ms.
     void recordPipelineEvent({

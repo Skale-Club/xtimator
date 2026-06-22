@@ -83,6 +83,8 @@ export function OverviewTab({
         open={modePickerOpen}
         onOpenChange={setModePickerOpen}
         onSelect={handleModeSelect}
+        projectId={project.id}
+        companyId={companyId}
       />
 
       {project.status === 'awaiting_details' && (
