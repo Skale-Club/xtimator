@@ -127,3 +127,61 @@ describe('lib/notifications/preferences — resolveChannels() (NOTIF-02 + NOTIF-
     expect(result.inApp).toBe(true)
   })
 })
+
+/**
+ * Phase 104 plan 00 — Wave-0 EXTEND (NOTIF-02): 4-channel resolution + opt-in gate.
+ *
+ * RED until Wave 1 widens ResolvedChannels to { inApp, email, whatsapp, sms } and
+ * Wave 2 adds the phone/opt-in gate. The Wave-2 contract: `resolveChannels` returns
+ * the four keys; whatsapp/sms default false (opt-in + paid). The phone/opt-in gate
+ * keeps whatsapp/sms false unless the verified-phone + per-channel opt-in is
+ * satisfied — INCLUDING the explicit TCPA/consent defense that a category sms
+ * toggle alone (no recorded sms_opt_in_at) does NOT send.
+ */
+describe('lib/notifications/preferences — 4 channels + opt-in gate (NOTIF-02 RED)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('returns a 4-key { inApp, email, whatsapp, sms } object', async () => {
+    const { resolveChannels } = await import('@/lib/notifications/preferences')
+    const { requireServiceClient } = await import('@/lib/supabase/service')
+    ;(requireServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(
+      makePrefsClient({ data: null, error: null }),
+    )
+    const result = await resolveChannels('billing.invoice' as never, 'user_1')
+    expect(Object.keys(result).sort()).toEqual(['email', 'inApp', 'sms', 'whatsapp'])
+  })
+
+  it('whatsapp/sms resolve false by default (opt-in, no phone)', async () => {
+    const { resolveChannels } = await import('@/lib/notifications/preferences')
+    const { requireServiceClient } = await import('@/lib/supabase/service')
+    ;(requireServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(
+      makePrefsClient({ data: null, error: null }),
+    )
+    const result = await resolveChannels('estimate.viewed', 'user_1') as Record<string, boolean>
+    expect(result.whatsapp).toBe(false)
+    expect(result.sms).toBe(false)
+  })
+
+  it('TCPA gate: category sms toggle ON but NO sms_opt_in_at → sms stays false', async () => {
+    const { resolveChannels } = await import('@/lib/notifications/preferences')
+    const { requireServiceClient } = await import('@/lib/supabase/service')
+    ;(requireServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(
+      makePrefsClient({
+        data: {
+          user_id: 'user_1',
+          // Owner flipped the per-category sms toggle on...
+          categories: { billing: { in_app: true, email: true, sms: true, whatsapp: true } },
+          email_digest_enabled: true,
+          // ...but never recorded explicit SMS consent (no sms_opt_in_at).
+          sms_opt_in_at: null,
+        },
+        error: null,
+      }),
+    )
+    const result = await resolveChannels('payment.received', 'user_1') as Record<string, boolean>
+    // Consent is required before any SMS — the toggle alone must NOT send (TCPA).
+    expect(result.sms).toBe(false)
+  })
+})
