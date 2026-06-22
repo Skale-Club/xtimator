@@ -56,7 +56,10 @@ export function NewProjectWizard({ onComplete }: NewProjectWizardProps = {}) {
     if (!project) return
     router.push(`/projects/${project.id}?tab=estimate&estimate=${estimateId}`)
     router.refresh()
-    onComplete?.()
+    // Do NOT call onComplete() here — router.push changes the URL,
+    // removing ?modal=new-project, so the dialog closes naturally.
+    // Calling onComplete() (= router.replace) in the same tick races
+    // with router.push and drops the navigation in Next.js App Router.
   }
 
   if (isCreating || !project) {

@@ -345,6 +345,20 @@ export function CaptureRecorder({
         .single()
       const estimateId = (estRow?.id as string | undefined) ?? null
       if (!estimateId) {
+        const flags = result.output as { needsDetails?: boolean } | null
+        let isNeedsDetails = flags?.needsDetails === true
+        if (!isNeedsDetails) {
+          const { data: proj } = await supabase
+            .from('projects').select('status').eq('id', projectId).single()
+          isNeedsDetails = (proj as { status?: string } | null)?.status === 'awaiting_details'
+        }
+        if (isNeedsDetails) {
+          toast.error(t('Description too vague — please add more detail with specific tasks, materials, and quantities'))
+          attemptIdRef.current = null
+          requestIdRef.current = null
+          setStage('idle')
+          return
+        }
         failAt('generating', t('Estimate generation completed but no estimate was found'))
         return
       }
@@ -482,6 +496,25 @@ export function CaptureRecorder({
         .single()
       const estimateId = (estRow?.id as string | undefined) ?? null
       if (!estimateId) {
+        // The vague-estimate path ran: the AI generated no line items, auto-refine
+        // ran once, estimate was deleted, and project.status set to 'awaiting_details'.
+        // Check job output first (reliable in prod); fall back to project status (works in dev).
+        const flags = genResult.output as { needsDetails?: boolean } | null
+        let isNeedsDetails = flags?.needsDetails === true
+        if (!isNeedsDetails) {
+          const { data: proj } = await supabase
+            .from('projects').select('status').eq('id', projectId).single()
+          isNeedsDetails = (proj as { status?: string } | null)?.status === 'awaiting_details'
+        }
+        if (isNeedsDetails) {
+          toast.error(t('Description too vague — please record again with specific tasks, materials, and quantities'))
+          setAudioBlob(null)
+          recordingIdRef.current = null
+          attemptIdRef.current = null
+          requestIdRef.current = null
+          setStage('idle')
+          return
+        }
         failAt('analyzing', t('Estimate generation completed but no estimate was found'))
         return
       }
@@ -579,6 +612,20 @@ export function CaptureRecorder({
           .single()
         const estimateId = (estRow?.id as string | undefined) ?? null
         if (!estimateId) {
+          const flags = photosResult.output as { needsDetails?: boolean } | null
+          let isNeedsDetails = flags?.needsDetails === true
+          if (!isNeedsDetails) {
+            const { data: proj } = await supabase
+              .from('projects').select('status').eq('id', projectId).single()
+            isNeedsDetails = (proj as { status?: string } | null)?.status === 'awaiting_details'
+          }
+          if (isNeedsDetails) {
+            toast.error(t('Photos too vague — please add a voice description or more detailed photos'))
+            attemptIdRef.current = null
+            requestIdRef.current = null
+            setStage('idle')
+            return
+          }
           failAt('generating', t('Estimate generation completed but no estimate was found'))
           return
         }
@@ -847,14 +894,19 @@ interface RecorderBodyProps {
 function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progress, onToggle, descriptionText, setDescriptionText, uploadedPhotos, isUploadingPhotos, photoInputRef, onPhotoFileChange, hasAnyInput, onGenerate, estimateLanguage, setEstimateLanguage, mode, liveTranscript, interimTranscript, isHorizontal }: RecorderBodyProps) {
   const { t } = useTranslation()
 
-  // Horizontal 2-column layout — popup with all three inputs unified
+  // Unified layout — responsive: stacked on mobile, 2-column on sm+
   if (isHorizontal) {
     return (
       <div className="flex flex-col flex-1 min-h-0">
-        {/* 2-column body */}
-        <div className="flex flex-1 min-h-0 overflow-hidden">
-          {/* Left column: mic + waveform */}
-          <div className="flex flex-col items-center justify-center gap-3 px-4 py-5 border-r shrink-0 w-40">
+        {/* Body: stacked on mobile → side-by-side on sm+ */}
+        <div className="flex flex-col sm:flex-row flex-1 min-h-0 overflow-hidden">
+
+          {/* Mic section — full-width bar on mobile, narrow column on sm+ */}
+          <div className="
+            flex items-center gap-3 px-4 py-3 border-b shrink-0
+            sm:flex-col sm:items-center sm:justify-center
+            sm:border-b-0 sm:border-r sm:w-40 sm:py-5 sm:gap-3
+          ">
             <VoiceRecorder
               size="sm"
               analyser={analyser}
@@ -863,16 +915,17 @@ function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progre
               onToggle={onToggle}
               showTimer={true}
               micTestId="capture-mic"
+              className="flex-1 sm:flex-none sm:w-full"
             />
-            <p className="text-xs text-muted-foreground text-center leading-tight">
+            <p className="text-xs text-muted-foreground shrink-0 sm:shrink sm:text-center sm:leading-tight">
               {isRecording ? t('Tap to stop') : t('Tap to record')}
             </p>
           </div>
 
-          {/* Right column: unified text area (transcript preview or manual input) */}
+          {/* Text area — transcript preview while recording, manual input otherwise */}
           <div className="flex flex-1 flex-col p-3 min-h-0">
             {isRecording ? (
-              <div className="flex-1 rounded-md border border-input bg-muted/20 px-3 py-2 text-sm overflow-y-auto min-h-[140px]">
+              <div className="flex-1 rounded-md border border-input bg-muted/20 px-3 py-2 text-sm overflow-y-auto min-h-[100px] sm:min-h-[140px]">
                 {liveTranscript || interimTranscript ? (
                   <p className="text-foreground leading-relaxed whitespace-pre-wrap">
                     {liveTranscript}
@@ -891,7 +944,7 @@ function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progre
                 value={descriptionText}
                 onChange={e => setDescriptionText(e.target.value)}
                 placeholder={t('Describe the job here...')}
-                className="flex-1 w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring min-h-[140px]"
+                className="flex-1 w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring min-h-[100px] sm:min-h-[140px]"
                 data-testid="capture-description"
               />
             )}

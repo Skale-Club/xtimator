@@ -22,7 +22,6 @@ import { EstimateEditor } from './estimate-editor'
 import {
   popStoredClientSuggestion,
   showClientSuggestionToast,
-  type GenerateEstimateResponse,
 } from './client-suggestion-toast'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { useLanguage } from '@/lib/i18n/language-context'
@@ -149,11 +148,14 @@ export function EstimateTab({
         const err = await genRes.json().catch(() => ({}))
         throw new Error(err.error || t('Estimate generation failed'))
       }
-      const generated = (await genRes.json()) as GenerateEstimateResponse
+      const { jobId } = (await genRes.json()) as { jobId: string }
       setGenerationStep(2)
+      const genResult = await pollJob(jobId, new AbortController().signal)
+      if (genResult.state !== 'completed') {
+        throw new Error(t('Estimate generation failed'))
+      }
       setGenerationStep(3)
       router.refresh()
-      showClientSuggestionToast({ projectId, router, suggestion: generated.clientSuggestion })
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t('Generation failed. Please try again.'))
     } finally {

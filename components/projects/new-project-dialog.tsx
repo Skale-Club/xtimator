@@ -41,7 +41,7 @@ function NewProjectDialogInner() {
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose() }}>
-      <DialogContent className="p-0 gap-0 sm:max-w-xl max-h-[80vh] flex flex-col">
+      <DialogContent className="p-0 gap-0 sm:max-w-xl max-h-[85dvh] flex flex-col">
         <DialogHeader className="px-4 py-3 border-b shrink-0 text-left">
           <DialogTitle className="text-base font-semibold">
             <T>New Xtimate</T>
