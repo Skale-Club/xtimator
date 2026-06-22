@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-// Heavy real-module imports loaded at runtime via dynamic import; under vitest's
-// reused forked worker they can exceed the 5s default (import latency under
-// contention, not a mock leak). Per-file timeout keeps them deterministic.
+// Heavy real-module imports; under vitest's reused forked worker they can exceed
+// the 5s default (import latency under contention, not a mock leak). Per-file
+// timeout keeps them deterministic.
 vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 })
 
 /**
- * UNIFY-03 — core refine node never throws (failure-as-state). Wave 0 RED; source lands in Wave 2.
+ * UNIFY-03 — core refine node never throws (failure-as-state).
  *
  * `makeRefineNode(runner)` mirrors `makeGenerateNode`: it wraps the AI refine call in the
  * injected StepRunner and NEVER throws. On success it RESOLVES with `{ refined: EstimateOutput }`.
@@ -19,19 +19,13 @@ vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 })
  *
  * The refine node resolves the fallback-aware provider via `getAIProviderWithFallback(companyId)`
  * (inheriting Phase-99 fallback + Phase-100 schema-retry) and reads the price book by companyId.
- * Both are mocked here so assertions target node behavior, not the network.
- *
- * RED today: `@/lib/estimate/graph/nodes/refine` does not exist yet. The computed-specifier
- * `importTarget` + `/* @vite-ignore *​/` keeps collection clean; tests fail at RUN time (real RED).
- * The markers come from `@/lib/ai/with-fallback` (already exists) — a normal static import.
- *
- * Wave-2 owner: 101-02 (makeRefineNode implementation).
+ * Both are mocked here so assertions target node behavior, not the network. The static import of
+ * the module-under-test is below the vi.mock calls (which vitest hoists), so the mocks
+ * deterministically intercept the node's dependencies.
  */
 
 import { ProvidersUnavailableError, InvalidEstimateOutputError } from '@/lib/ai/with-fallback'
-
-// Computed specifier so Vite does not statically resolve a not-yet-existent module at transform.
-const importTarget = (spec: string) => import(/* @vite-ignore */ spec)
+import { makeRefineNode } from '@/lib/estimate/graph/nodes/refine'
 
 const mockRefineEstimate = vi.fn()
 
@@ -81,7 +75,6 @@ describe('UNIFY-03: makeRefineNode never throws + maps failures to typed reasons
   })
 
   it('success -> resolves { refined: EstimateOutput }', async () => {
-    const { makeRefineNode } = await importTarget('@/lib/estimate/graph/nodes/refine')
     mockRefineEstimate.mockResolvedValueOnce(validRefinedOutput)
 
     const node = makeRefineNode(passthroughRunner)
@@ -92,7 +85,6 @@ describe('UNIFY-03: makeRefineNode never throws + maps failures to typed reasons
   })
 
   it('ProvidersUnavailableError -> { failure: { reason: "provider_unavailable" } } (never throws)', async () => {
-    const { makeRefineNode } = await importTarget('@/lib/estimate/graph/nodes/refine')
     mockRefineEstimate.mockRejectedValueOnce(
       new ProvidersUnavailableError('both providers down', new Error('PRIMARY_ERR'))
     )
@@ -110,7 +102,6 @@ describe('UNIFY-03: makeRefineNode never throws + maps failures to typed reasons
   })
 
   it('InvalidEstimateOutputError -> { failure: { reason: "invalid_output" } }', async () => {
-    const { makeRefineNode } = await importTarget('@/lib/estimate/graph/nodes/refine')
     mockRefineEstimate.mockRejectedValueOnce(
       new InvalidEstimateOutputError({ issues: [] } as never)
     )
@@ -122,7 +113,6 @@ describe('UNIFY-03: makeRefineNode never throws + maps failures to typed reasons
   })
 
   it('missing existingEstimate or instruction -> { failure: { reason: "no_usable_input" } }', async () => {
-    const { makeRefineNode } = await importTarget('@/lib/estimate/graph/nodes/refine')
     const node = makeRefineNode(passthroughRunner)
 
     const missingInstruction = await node({
@@ -152,7 +142,6 @@ describe('UNIFY-03: makeRefineNode never throws + maps failures to typed reasons
   })
 
   it('any other error -> { failure: { reason: "generation_failed" } }', async () => {
-    const { makeRefineNode } = await importTarget('@/lib/estimate/graph/nodes/refine')
     mockRefineEstimate.mockRejectedValueOnce(new Error('something unexpected'))
 
     const node = makeRefineNode(passthroughRunner)

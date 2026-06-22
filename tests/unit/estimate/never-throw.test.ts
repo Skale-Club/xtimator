@@ -15,15 +15,15 @@ vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 })
  *   - `decide` (checkGenerated edge): a state with `failure` set routes to the adapter
  *     `onError` terminal, not to the vagueness/success path.
  *
- * RED today: `@/lib/estimate/graph/nodes/generate`, `@/lib/estimate/graph/nodes/decide` and
- * `@/lib/estimate/graph/types` do not exist yet. The `/* @vite-ignore *​/` + computed specifier
- * defeats Vite's transform-time import-analysis so the file COLLECTS cleanly and each test fails
- * at RUN time (real RED). `generateEstimateForProject` is mocked so the assertion targets node
- * behavior. Mirrors the Phase 12/67 Wave-0 scaffold convention.
+ * `generateEstimateForProject` is mocked so the assertion targets node behavior.
+ * The modules-under-test are imported statically below the vi.mock call (which
+ * vitest hoists), so the mock deterministically intercepts the node's dependency.
  */
 
-// Computed specifier so Vite does not statically resolve a not-yet-existent module at transform.
-const importTarget = (spec: string) => import(/* @vite-ignore */ spec)
+import { ProvidersUnavailableError, InvalidEstimateOutputError } from '@/lib/ai/with-fallback'
+import { makeGenerateNode } from '@/lib/estimate/graph/nodes/generate'
+import { checkGeneratedEdge } from '@/lib/estimate/graph/nodes/decide'
+import { passthroughRunner } from '@/lib/estimate/graph/types'
 
 vi.mock('@/lib/services/generate-estimate', () => ({
   generateEstimateForProject: vi.fn(),
@@ -36,8 +36,6 @@ describe('ENGINE-04: core nodes never throw (failure-as-state)', () => {
       new Error('OpenRouter 401 User not found')
     )
 
-    const { makeGenerateNode } = await importTarget('@/lib/estimate/graph/nodes/generate')
-    const { passthroughRunner } = await importTarget('@/lib/estimate/graph/types')
     const node = makeGenerateNode(passthroughRunner)
 
     // Must RESOLVE (never reject) and carry a failure channel.
@@ -52,8 +50,6 @@ describe('ENGINE-04: core nodes never throw (failure-as-state)', () => {
   })
 
   it('decide routes a state with failure set to the error terminal (not the success path)', async () => {
-    const { checkGeneratedEdge } = await importTarget('@/lib/estimate/graph/nodes/decide')
-
     const failed = checkGeneratedEdge({
       failure: { reason: 'generation_failed' },
       estimateId: undefined,
@@ -71,33 +67,20 @@ describe('ENGINE-04: core nodes never throw (failure-as-state)', () => {
 })
 
 /**
- * HARD-04 invariant — both-providers-down resolves to a typed failure (Wave 0 RED).
+ * HARD-04 invariant — both-providers-down resolves to a typed failure.
  *
  * When the shared OpenRouter→Gemini fallback wrapper exhausts BOTH providers it
- * re-throws a marked `ProvidersUnavailableError` (lands in 99-01). The generate node's
- * existing never-throw catch must (a) still NOT throw, and (b) map that marker to the
- * typed reason `'provider_unavailable'` (mapping lands in 99-02).
- *
- * Split into two tagged cases so the Wave-1 `-t` selectors resolve independently:
- *   - "no throw"             — 99-01 makes GREEN (marker re-throw lands the failure state)
- *   - "provider_unavailable" — 99-02 makes GREEN (marker -> typed reason in generate.ts)
- *
- * RED today: `@/lib/ai/with-fallback` (the marker) does not exist; and the generate node
- * still hardcodes `'generation_failed'`. Both cases use the computed-specifier importTarget
- * so the file COLLECTS cleanly and fails at RUN time. Pre-existing cases above stay green.
+ * re-throws a marked `ProvidersUnavailableError`. The generate node's existing
+ * never-throw catch must (a) still NOT throw, and (b) map that marker to the
+ * typed reason `'provider_unavailable'`.
  */
 describe('HARD-04: both providers down -> typed provider_unavailable failure', () => {
   it('both providers down — graph resolves to a failure state and does not throw (no throw)', async () => {
-    // The marker the fallback wrapper re-throws when BOTH providers fail.
-    const { ProvidersUnavailableError } = await importTarget('@/lib/ai/with-fallback')
-
     const { generateEstimateForProject } = await import('@/lib/services/generate-estimate')
     ;(generateEstimateForProject as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
       new ProvidersUnavailableError('both providers down', new Error('PRIMARY_ERR'))
     )
 
-    const { makeGenerateNode } = await importTarget('@/lib/estimate/graph/nodes/generate')
-    const { passthroughRunner } = await importTarget('@/lib/estimate/graph/types')
     const node = makeGenerateNode(passthroughRunner)
 
     let result: unknown
@@ -116,15 +99,11 @@ describe('HARD-04: both providers down -> typed provider_unavailable failure', (
   })
 
   it('both providers down — failure.reason is exactly provider_unavailable', async () => {
-    const { ProvidersUnavailableError } = await importTarget('@/lib/ai/with-fallback')
-
     const { generateEstimateForProject } = await import('@/lib/services/generate-estimate')
     ;(generateEstimateForProject as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
       new ProvidersUnavailableError('both providers down', new Error('PRIMARY_ERR'))
     )
 
-    const { makeGenerateNode } = await importTarget('@/lib/estimate/graph/nodes/generate')
-    const { passthroughRunner } = await importTarget('@/lib/estimate/graph/types')
     const node = makeGenerateNode(passthroughRunner)
 
     const result = await node({
@@ -139,33 +118,21 @@ describe('HARD-04: both providers down -> typed provider_unavailable failure', (
 })
 
 /**
- * GUARD-01 invariant — invalid AI output resolves to a typed invalid_output failure (Wave 0 RED).
+ * GUARD-01 invariant — invalid AI output resolves to a typed invalid_output failure.
  *
- * When the schema-retry boundary (Plan 100-01) exhausts its single retry it throws a
- * marked `InvalidEstimateOutputError` (`invalidOutput: true`), imported here from
- * `@/lib/ai/with-fallback` (Plan 100-01 confirms the module). The generate node's
- * existing never-throw catch must (a) still NOT throw, and (b) map that marker to the
- * already-declared typed reason `'invalid_output'` (`lib/estimate/failure.ts`).
- *
- * Split into two tagged cases so the Wave-1 `-t` selectors resolve independently:
- *   - "no throw"        — RED until 100-01 throws the marker through the node's catch
- *   - "invalid_output"  — RED until 100-01 adds the marker -> typed-reason branch in generate.ts
- *
- * RED today: `InvalidEstimateOutputError` does not exist yet; generate.ts only maps
- * ProvidersUnavailableError. Computed-specifier importTarget keeps collection clean.
- * Pre-existing provider_unavailable / generation_failed cases above stay green.
+ * When the schema-retry boundary exhausts its single retry it throws a marked
+ * `InvalidEstimateOutputError` (`invalidOutput: true`), imported here from
+ * `@/lib/ai/with-fallback`. The generate node's existing never-throw catch must
+ * (a) still NOT throw, and (b) map that marker to the already-declared typed
+ * reason `'invalid_output'` (`lib/estimate/failure.ts`).
  */
 describe('GUARD-01: invalid output -> typed invalid_output failure', () => {
   it('invalid output — graph resolves to a failure state and does not throw (no throw)', async () => {
-    const { InvalidEstimateOutputError } = await importTarget('@/lib/ai/with-fallback')
-
     const { generateEstimateForProject } = await import('@/lib/services/generate-estimate')
     ;(generateEstimateForProject as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
       new InvalidEstimateOutputError({ issues: [] } as never)
     )
 
-    const { makeGenerateNode } = await importTarget('@/lib/estimate/graph/nodes/generate')
-    const { passthroughRunner } = await importTarget('@/lib/estimate/graph/types')
     const node = makeGenerateNode(passthroughRunner)
 
     let result: unknown
@@ -183,15 +150,11 @@ describe('GUARD-01: invalid output -> typed invalid_output failure', () => {
   })
 
   it('invalid output — failure.reason is exactly invalid_output', async () => {
-    const { InvalidEstimateOutputError } = await importTarget('@/lib/ai/with-fallback')
-
     const { generateEstimateForProject } = await import('@/lib/services/generate-estimate')
     ;(generateEstimateForProject as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
       new InvalidEstimateOutputError({ issues: [] } as never)
     )
 
-    const { makeGenerateNode } = await importTarget('@/lib/estimate/graph/nodes/generate')
-    const { passthroughRunner } = await importTarget('@/lib/estimate/graph/types')
     const node = makeGenerateNode(passthroughRunner)
 
     const result = await node({

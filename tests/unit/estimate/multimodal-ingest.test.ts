@@ -15,17 +15,13 @@ vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 })
  * `transcribeAudioOR` / `analyzePhotoOR`. A SINGLE failed item is SKIPPED (never thrown);
  * texts are trimmed and empties filtered.
  *
- * RED today: `@/lib/estimate/ingest/multimodal` does not exist yet. The computed-specifier
- * `importTarget` + `/* @vite-ignore *​/` defeats Vite's transform-time import-analysis so this
- * file COLLECTS cleanly and each test fails at RUN time (real RED) — mirrors the
- * never-throw.test.ts / Phase-100 Wave-0 convention. The ingestion primitives are mocked so
- * the assertions target the aggregation/skip-on-failure behavior, not the network.
- *
- * Wave-1 owner: 101-01 (ingestMultimodal implementation).
+ * The ingestion primitives are mocked so the assertions target the aggregation/
+ * skip-on-failure behavior, not the network. The module-under-test is imported
+ * statically below the vi.mock calls (which vitest hoists), so the mocks
+ * deterministically intercept its dependencies.
  */
 
-// Computed specifier so Vite does not statically resolve a not-yet-existent module at transform.
-const importTarget = (spec: string) => import(/* @vite-ignore */ spec)
+import { ingestMultimodal } from '@/lib/estimate/ingest/multimodal'
 
 const mockTranscribe = vi.fn()
 const mockAnalyzePhoto = vi.fn()
@@ -47,8 +43,6 @@ describe('UNIFY-01: ingestMultimodal aggregates audio/photo/text', () => {
   })
 
   it('aggregates one audio + one photo + one text (texts trimmed, empties filtered)', async () => {
-    const { ingestMultimodal } = await importTarget('@/lib/estimate/ingest/multimodal')
-
     const result = await ingestMultimodal({
       audio: [{ blob: makeAudioBlob(), ext: 'webm' }],
       photos: [{ base64: 'AAAA', mimeType: 'image/jpeg' }],
@@ -63,8 +57,6 @@ describe('UNIFY-01: ingestMultimodal aggregates audio/photo/text', () => {
   })
 
   it('a single transcription failure is SKIPPED, not thrown — the good audio item still returns', async () => {
-    const { ingestMultimodal } = await importTarget('@/lib/estimate/ingest/multimodal')
-
     // First audio item rejects, second resolves. ingestMultimodal must still RESOLVE.
     mockTranscribe
       .mockRejectedValueOnce(new Error('Whisper 500'))
@@ -84,8 +76,6 @@ describe('UNIFY-01: ingestMultimodal aggregates audio/photo/text', () => {
   })
 
   it('a single vision failure is SKIPPED — the good photo description still returns', async () => {
-    const { ingestMultimodal } = await importTarget('@/lib/estimate/ingest/multimodal')
-
     mockAnalyzePhoto
       .mockRejectedValueOnce(new Error('vision down'))
       .mockResolvedValueOnce('GOOD_DESC')
@@ -103,8 +93,6 @@ describe('UNIFY-01: ingestMultimodal aggregates audio/photo/text', () => {
   })
 
   it('empty input {} returns empty arrays for every modality', async () => {
-    const { ingestMultimodal } = await importTarget('@/lib/estimate/ingest/multimodal')
-
     const result = await ingestMultimodal({})
 
     expect(result).toEqual({

@@ -17,13 +17,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
  * counts on the mocked primary's `generateEstimate`.
  *
  * `InvalidEstimateOutputError` is imported from `@/lib/ai/with-fallback` (Plan
- * 100-01 confirms the export module). It does NOT exist yet → RED.
- *
- * Computed-specifier importTarget defeats Vite transform-time import-analysis so
- * the file COLLECTS cleanly and fails at RUN time (real RED). Mirrors never-throw.test.ts.
+ * 100-01 confirms the export module). The module-under-test
+ * (`getAIProviderWithFallback`) is imported statically below the vi.mock calls
+ * (which vitest hoists), so the mocks deterministically intercept its deps.
  */
 
-const importTarget = (spec: string) => import(/* @vite-ignore */ spec)
+import { getAIProviderWithFallback } from '@/lib/ai/provider-with-fallback'
+import { InvalidEstimateOutputError } from '@/lib/ai/with-fallback'
 
 const primaryGenerate = vi.fn()
 const fallbackGenerate = vi.fn()
@@ -79,7 +79,6 @@ describe('GUARD-01: bounded schema-retry at the provider boundary', () => {
   it('valid first time = exactly one call (no retry)', async () => {
     primaryGenerate.mockResolvedValueOnce(VALID_OUTPUT)
 
-    const { getAIProviderWithFallback } = await importTarget('@/lib/ai/provider-with-fallback')
     const provider = await getAIProviderWithFallback('company-1')
     const result = await provider.generateEstimate(INPUT)
 
@@ -89,12 +88,10 @@ describe('GUARD-01: bounded schema-retry at the provider boundary', () => {
   })
 
   it('retry once then succeed = exactly two calls', async () => {
-    const { InvalidEstimateOutputError } = await importTarget('@/lib/ai/with-fallback')
     primaryGenerate
       .mockRejectedValueOnce(new InvalidEstimateOutputError({ issues: [] } as never))
       .mockResolvedValueOnce(VALID_OUTPUT)
 
-    const { getAIProviderWithFallback } = await importTarget('@/lib/ai/provider-with-fallback')
     const provider = await getAIProviderWithFallback('company-1')
     const result = await provider.generateEstimate(INPUT)
 
@@ -103,12 +100,10 @@ describe('GUARD-01: bounded schema-retry at the provider boundary', () => {
   })
 
   it('second invalid → InvalidEstimateOutputError propagates (invalidOutput: true)', async () => {
-    const { InvalidEstimateOutputError } = await importTarget('@/lib/ai/with-fallback')
     primaryGenerate
       .mockRejectedValueOnce(new InvalidEstimateOutputError({ issues: [] } as never))
       .mockRejectedValueOnce(new InvalidEstimateOutputError({ issues: [] } as never))
 
-    const { getAIProviderWithFallback } = await importTarget('@/lib/ai/provider-with-fallback')
     const provider = await getAIProviderWithFallback('company-1')
 
     await expect(provider.generateEstimate(INPUT)).rejects.toMatchObject({ invalidOutput: true })

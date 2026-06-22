@@ -1,58 +1,18 @@
-import { describe, it, expect, beforeAll, vi } from 'vitest'
-
-// Heavy real-module imports loaded at runtime via dynamic import; under vitest's
-// reused forked worker they can exceed the 5s default (import latency under
-// contention, not a mock leak). Per-file timeout keeps them deterministic.
-vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 })
+import { describe, it, expect } from 'vitest'
 
 /**
- * GUARD-03 — server-side totals authority + discrepancy signal (Wave 0 RED).
+ * GUARD-03 — server-side totals authority + discrepancy signal.
  *
- * Pure helpers `@/lib/estimate/totals` (land in Plan 100-02) formalize the existing
- * server-derived totals math (generate-estimate.ts:248-269) and add a discrepancy
- * metric comparing the server grand total against the naive AI-implied total:
+ * Pure helpers `@/lib/estimate/totals` formalize the existing server-derived totals math
+ * (generate-estimate.ts:248-269) and add a discrepancy metric comparing the server grand
+ * total against the naive AI-implied total:
  *   - round2: 2-dp rounding; NaN/negative coerced to 0 (defensive, never-throw).
  *   - SECTION invariant: section subtotal == round2(sum(item totals)) within TOTALS_EPSILON.
  *   - GRAND invariant: grand == round2(subtotal + taxAmount) within TOTALS_EPSILON.
  *   - computeTotalsDiscrepancy: { delta, delta_pct, moved_by_guardrails, ... }.
- *
- * RED today: `@/lib/estimate/totals` does not exist. The computed-specifier importTarget
- * defeats Vite transform-time import-analysis so the file COLLECTS cleanly and each test
- * fails at RUN time. Mirrors never-throw.test.ts.
  */
 
-// Type-only import for the contract surface. `import type` is erased at compile so it
-// never fails collection when the module is absent (RED lives in the runtime importTarget
-// in beforeAll below). It also encodes the key-link `from '@/lib/estimate/totals'`.
-import type { computeTotalsDiscrepancy as _DiscrepancyFn } from '@/lib/estimate/totals'
-
-const importTarget = (spec: string) => import(/* @vite-ignore */ spec)
-
-type TotalsDiscrepancy = {
-  ai_grand: number
-  server_grand: number
-  delta: number
-  delta_pct: number | null
-  anchored_count: number
-  clamped_count: number
-  moved_by_guardrails: boolean
-}
-
-let round2: (x: number) => number
-let computeTotalsDiscrepancy: (args: {
-  serverGrand: number
-  aiGrand: number
-  anchoredCount: number
-  clampedCount: number
-}) => TotalsDiscrepancy
-let TOTALS_EPSILON: number
-
-beforeAll(async () => {
-  const mod = await importTarget('@/lib/estimate/totals')
-  round2 = mod.round2
-  computeTotalsDiscrepancy = mod.computeTotalsDiscrepancy
-  TOTALS_EPSILON = mod.TOTALS_EPSILON
-})
+import { round2, computeTotalsDiscrepancy, TOTALS_EPSILON } from '@/lib/estimate/totals'
 
 describe('GUARD-03: totals invariants', () => {
   it('section subtotal equals round2(sum of item totals) within epsilon', () => {

@@ -1,15 +1,16 @@
-import { describe, it, expect, beforeAll } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import type { EstimateSectionOutput } from '@/lib/ai/types'
-// Type-only import for the contract surface. `import type` is erased at compile so it
-// never fails collection when the module is absent (RED lives in the runtime importTarget
-// in beforeAll below). It also encodes the key-link `from '@/lib/ai/price-anchoring'`.
-import type { anchorAndClampSections as _AnchorFn } from '@/lib/ai/price-anchoring'
+import {
+  anchorAndClampSections,
+  normalizeNameForMatch,
+  UNIT_PRICE_CEILING,
+} from '@/lib/ai/price-anchoring'
 
 /**
- * GUARD-02 — price-anchoring guardrails (Wave 0 RED).
+ * GUARD-02 — price-anchoring guardrails.
  *
- * Pure helper `@/lib/ai/price-anchoring` (lands in Plan 100-02) enforces server-side
- * price authority over AI output:
+ * Pure helper `@/lib/ai/price-anchoring` enforces server-side price authority over
+ * AI output:
  *   - ANCHOR: an item whose normalized description matches a price-book entry has its
  *     unit_price OVERRIDDEN with the book price and price_source set to 'price_book'.
  *   - CLAMP: an ai_estimate item whose unit_price exceeds UNIT_PRICE_CEILING (1_000_000)
@@ -18,34 +19,8 @@ import type { anchorAndClampSections as _AnchorFn } from '@/lib/ai/price-anchori
  *     price, never clamped.
  *   - TENANT SCOPE: the helper only ever reads the passed `priceBook` array — a name not
  *     present in the array never anchors (encodes the companyId-scoping invariant at the
- *     pure-function boundary; the caller in 100-02 passes the already companyId-scoped book).
- *
- * RED today: `@/lib/ai/price-anchoring` does not exist. The computed-specifier importTarget
- * defeats Vite transform-time import-analysis so the file COLLECTS cleanly and each test
- * fails at RUN time. Mirrors never-throw.test.ts.
+ *     pure-function boundary; the caller passes the already companyId-scoped book).
  */
-
-const importTarget = (spec: string) => import(/* @vite-ignore */ spec)
-
-type AnchorResult = {
-  sections: EstimateSectionOutput[]
-  anchoredCount: number
-  clampedCount: number
-}
-
-let anchorAndClampSections: (
-  sections: EstimateSectionOutput[],
-  priceBook: Array<{ name: string; unit_price: number }>
-) => AnchorResult
-let normalizeNameForMatch: (name: string) => string
-let UNIT_PRICE_CEILING: number
-
-beforeAll(async () => {
-  const mod = await importTarget('@/lib/ai/price-anchoring')
-  anchorAndClampSections = mod.anchorAndClampSections
-  normalizeNameForMatch = mod.normalizeNameForMatch
-  UNIT_PRICE_CEILING = mod.UNIT_PRICE_CEILING
-})
 
 function section(items: EstimateSectionOutput['items']): EstimateSectionOutput[] {
   return [{ title: 'Labor', items }]
