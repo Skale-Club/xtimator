@@ -19,11 +19,11 @@ The notification preferences page (`components/settings/notifications-form.tsx`)
 
 - [x] **NOTIF-01**: The notification preferences page presents exactly 3 event categories — **Estimates**, **Billing** (merging today's Payments + Trial + Quota + Admin), and **System**. The standalone "WhatsApp" and "AI Jobs" categories are removed.
 - [x] **NOTIF-02**: Notification delivery supports 4 channels — **In-App**, **Email**, **WhatsApp**, **SMS** — each independently toggleable per category (a category × channel matrix), gated by the existing email master switch where applicable.
-- [ ] **NOTIF-03**: A WhatsApp notification sender delivers owner notifications via the existing WhatsApp client (using an approved template for proactive/out-of-24h-session messages).
-- [ ] **NOTIF-04**: An SMS notification sender delivers owner notifications via Twilio (origin number + per-message send).
-- [ ] **NOTIF-05**: The owner's phone number used for WhatsApp/SMS is collected and validated, with explicit per-channel opt-in/consent before any message is sent.
+- [x] **NOTIF-03**: A WhatsApp notification sender delivers owner notifications via the existing WhatsApp client (using an approved template for proactive/out-of-24h-session messages).
+- [x] **NOTIF-04**: An SMS notification sender delivers owner notifications via Twilio (origin number + per-message send).
+- [x] **NOTIF-05**: The owner's phone number used for WhatsApp/SMS is collected and validated, with explicit per-channel opt-in/consent before any message is sent.
 - [x] **NOTIF-06**: Existing per-user preferences and the event→category mapping are migrated to the new model (payment/trial/quota/admin → billing; events in the removed whatsapp/ai_job categories are handled per a documented decision — re-routed or dropped).
-- [ ] **NOTIF-07**: Notification dispatch routes each event to its (new) category and delivers ONLY via the channels the owner enabled for that category, never throwing if a channel is unconfigured (best-effort per channel).
+- [x] **NOTIF-07**: Notification dispatch routes each event to its (new) category and delivers ONLY via the channels the owner enabled for that category, never throwing if a channel is unconfigured (best-effort per channel).
 
 ---
 
