@@ -163,6 +163,45 @@ export type NotificationEmailQueuedEvent = {
 }
 
 /**
+ * Phase 104 (NOTIF-03 / NOTIF-04 / NOTIF-07) — async WhatsApp/SMS owner-notification
+ * send. Emitted by `lib/notifications/dispatch.ts`'s whatsapp/sms branches (gated by
+ * channel-enabled + phone-on-file + per-channel opt-in) and handled by
+ * `notificationChannelSend`, which calls `sendWhatsAppTemplate` / `sendSms`
+ * off the request path. Best-effort — a failing send is logged, never blocks the
+ * in-app insert or the other channel.
+ */
+export const EVENT_NOTIFICATION_WHATSAPP_SEND =
+  'notification/whatsapp.send' as const
+export const EVENT_NOTIFICATION_SMS_SEND = 'notification/sms.send' as const
+
+export type NotificationChannelSendPayload =
+  | {
+      channel: 'whatsapp'
+      to: string
+      userId: string
+      companyId: string
+      eventType: string
+      templateName: string
+      languageCode: string
+      variables: string[]
+    }
+  | {
+      channel: 'sms'
+      to: string
+      userId: string
+      companyId: string
+      eventType: string
+      body: string
+    }
+
+export type NotificationChannelSendEvent = {
+  name:
+    | typeof EVENT_NOTIFICATION_WHATSAPP_SEND
+    | typeof EVENT_NOTIFICATION_SMS_SEND
+  data: NotificationChannelSendPayload
+}
+
+/**
  * Phase 1000 (XPHERE-B4) — Xphere CRM sync request.
  *
  * Every lifecycle hook (Plan 04) and the backfill route (Plan 05) drive a sync

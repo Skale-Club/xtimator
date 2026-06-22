@@ -3,6 +3,8 @@ import { requireServiceClient } from '@/lib/supabase/service'
 import { inngest } from '@/lib/inngest/client'
 import { type EventType, EVENT_CATEGORIES } from './event-types'
 import { resolveChannels } from './preferences'
+import { resolveOwnerPhone } from './owner-phone'
+import { getTemplateForEvent } from './whatsapp-registry'
 
 /**
  * Phase 77 (NOTIF-03) — Single fan-out entry point for the notifications system.
@@ -32,7 +34,12 @@ export interface NotifyParams {
   metadata?: Record<string, unknown>
   pinned?: boolean
   expiresAt?: Date | null
-  channels?: { inApp?: boolean; email?: boolean }
+  channels?: {
+    inApp?: boolean
+    email?: boolean
+    whatsapp?: boolean
+    sms?: boolean
+  }
 }
 
 export interface NotifyResult {
@@ -54,9 +61,16 @@ export async function notify(params: NotifyParams): Promise<NotifyResult> {
     const channels = {
       inApp: params.channels?.inApp ?? resolved.inApp,
       email: params.channels?.email ?? resolved.email,
+      whatsapp: params.channels?.whatsapp ?? resolved.whatsapp,
+      sms: params.channels?.sms ?? resolved.sms,
     }
 
-    if (!channels.inApp && !channels.email) {
+    if (
+      !channels.inApp &&
+      !channels.email &&
+      !channels.whatsapp &&
+      !channels.sms
+    ) {
       return { ok: true, skipped: 'channel_disabled' }
     }
 
@@ -142,6 +156,76 @@ export async function notify(params: NotifyParams): Promise<NotifyResult> {
           '[notifications.dispatch] inngest.send failed:',
           e instanceof Error ? e.message : String(e),
         )
+      }
+    }
+
+    // WhatsApp + SMS — paid/proactive owner channels (NOTIF-03/04/07).
+    //
+    // Both gate on a phone-on-file: resolve the per-user owner_phone ONCE and skip
+    // both channels when there is no number. The per-channel consent gate (incl.
+    // the TCPA requirement that an `sms_opt_in_at` timestamp — not the toggle alone
+    // — is recorded before any SMS) already lives in `resolveChannels`, so here we
+    // trust the resolved `channels.whatsapp` / `channels.sms` decision and only add
+    // the phone gate + the registry/template lookup.
+    //
+    // Each branch dispatches async via Inngest on the notification/channel.send
+    // family (`notification/whatsapp.send` + `notification/sms.send`, both handled
+    // by `notificationChannelSend`) and is wrapped in its OWN try/catch that logs +
+    // swallows — a throwing WhatsApp/SMS
+    // send must NEVER block the in-app insert (which already ran) or the other
+    // channel (Research Pitfall 4 / NOTIF-07).
+    if ((channels.whatsapp || channels.sms) && params.userId) {
+      const phone = await resolveOwnerPhone(params.companyId, params.userId)
+      if (phone) {
+        if (channels.whatsapp) {
+          try {
+            const tpl = getTemplateForEvent(params.eventType)
+            if (tpl) {
+              await inngest.send({
+                name: 'notification/whatsapp.send',
+                data: {
+                  channel: 'whatsapp',
+                  to: phone,
+                  userId: params.userId,
+                  companyId: params.companyId,
+                  eventType: params.eventType,
+                  templateName: tpl.templateName,
+                  languageCode: tpl.languageCode,
+                  variables: tpl.variables({
+                    title: params.title,
+                    body: params.body,
+                  }),
+                },
+              })
+            }
+          } catch (e) {
+            console.warn(
+              '[notifications.dispatch] whatsapp dispatch failed:',
+              e instanceof Error ? e.message : String(e),
+            )
+          }
+        }
+
+        if (channels.sms) {
+          try {
+            await inngest.send({
+              name: 'notification/sms.send',
+              data: {
+                channel: 'sms',
+                to: phone,
+                userId: params.userId,
+                companyId: params.companyId,
+                eventType: params.eventType,
+                body: `${params.title}: ${params.body}`,
+              },
+            })
+          } catch (e) {
+            console.warn(
+              '[notifications.dispatch] sms dispatch failed:',
+              e instanceof Error ? e.message : String(e),
+            )
+          }
+        }
       }
     }
 

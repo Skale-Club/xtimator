@@ -9,6 +9,8 @@ export { whatsAppProcessJob, whatsAppIntentRouterJob } from './whatsapp-process'
 // Phase 77 plan 06 — notifications digest + cleanup crons.
 export { notificationEmailDigest } from './notification-email-digest'
 export { notificationCleanup } from './notification-cleanup'
+// Phase 104 (NOTIF-03/04/07) — async WhatsApp/SMS owner-notification channel send.
+export { notificationChannelSend } from './notification-channel-send'
 // Quick task 260522-kf2 — daily audio Storage auto-cleanup (7-day TTL).
 export { cleanupAudioJob } from './cleanup-audio'
 // Phase 1000 (XPHERE-B4) — Xphere CRM sync job.
