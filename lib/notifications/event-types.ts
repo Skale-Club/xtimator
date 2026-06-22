@@ -1,9 +1,15 @@
 /**
- * Phase 77 — Notification event catalog.
+ * Phase 77 / Phase 104 — Notification event catalog.
  *
  * Single source of truth for event types + their category grouping + default
  * per-category channel preferences. Consumed by `lib/notifications/dispatch.ts`
  * (77-02) and `lib/notifications/preferences.ts` (77-02).
+ *
+ * Phase 104 (NOTIF-01) reduces the visible category set from 8 to 3 — Estimates,
+ * Billing, System — plus an internal `_dropped` sentinel for events that are no
+ * longer delivered to tenants (whatsapp.inbound, ai_job.*). The full `EventType`
+ * union is UNCHANGED so every existing `notify()` call site keeps working; the
+ * `_dropped` category simply resolves to no enabled channels (no notification).
  *
  * Adding a new event:
  *  1. Add to `EventType` union below
@@ -13,13 +19,12 @@
 
 export type EventCategory =
   | 'estimate'
-  | 'payment'
-  | 'trial'
-  | 'quota'
-  | 'whatsapp'
-  | 'ai_job'
-  | 'admin'
+  | 'billing'
   | 'system'
+  // Internal sentinel — never shown in any UI. Events mapped here resolve to no
+  // deliverable channel (in_app/email/whatsapp/sms all false), so call sites for
+  // dropped events (whatsapp.inbound, ai_job.*) stay intact but deliver nothing.
+  | '_dropped'
 
 export type EventType =
   | 'estimate.viewed'
@@ -45,19 +50,34 @@ export const EVENT_CATEGORIES: Record<EventType, EventCategory> = {
   'estimate.accepted': 'estimate',
   'estimate.declined': 'estimate',
   'estimate.expired': 'estimate',
-  'payment.received': 'payment',
-  'payment.refunded': 'payment',
-  'trial.expiring_3d': 'trial',
-  'trial.expired': 'trial',
-  'trial.converted': 'trial',
-  'quota.80pct': 'quota',
-  'quota.exhausted': 'quota',
-  'whatsapp.inbound': 'whatsapp',
-  'ai_job.failed': 'ai_job',
-  'ai_job.completed': 'ai_job',
-  'admin.tier_changed': 'admin',
-  'admin.bonus_credits_granted': 'admin',
+  // Billing = merge of today's Payments + Trial + Quota + Admin.
+  'payment.received': 'billing',
+  'payment.refunded': 'billing',
+  'trial.expiring_3d': 'billing',
+  'trial.expired': 'billing',
+  'trial.converted': 'billing',
+  'quota.80pct': 'billing',
+  'quota.exhausted': 'billing',
+  'admin.tier_changed': 'billing',
+  'admin.bonus_credits_granted': 'billing',
   'system.maintenance': 'system',
+  // Dropped for tenants — no category, no toggle, no delivery.
+  'whatsapp.inbound': '_dropped',
+  'ai_job.failed': '_dropped',
+  'ai_job.completed': '_dropped',
+}
+
+/**
+ * Per-category channel preference shape — 4 channels (Phase 104, NOTIF-02).
+ *
+ * `whatsapp` and `sms` are paid/consent-gated channels: they default to `false`
+ * everywhere and are NEVER auto-enabled by a default or a migration (Pitfall 5).
+ */
+export interface ChannelPrefs {
+  in_app: boolean
+  email: boolean
+  whatsapp: boolean
+  sms: boolean
 }
 
 /**
@@ -66,19 +86,15 @@ export const EVENT_CATEGORIES: Record<EventType, EventCategory> = {
  * `categories` JSONB.
  *
  * Rationale:
- *  - `ai_job` is opt-in (noisy for normal users)
- *  - `whatsapp` defaults to in_app only (avoid email spam for chat events)
- *  - everything else: in_app + email both on
+ *  - in_app + email default on for every visible category
+ *  - whatsapp + sms default OFF everywhere (opt-in + paid — TCPA/cost)
+ *  - `_dropped` is all-false (its events never deliver)
  */
-export const DEFAULT_PREFERENCES: Record<EventCategory, { in_app: boolean; email: boolean }> = {
-  estimate: { in_app: true, email: true },
-  payment: { in_app: true, email: true },
-  trial: { in_app: true, email: true },
-  quota: { in_app: true, email: true },
-  whatsapp: { in_app: true, email: false },
-  ai_job: { in_app: false, email: false },
-  admin: { in_app: true, email: true },
-  system: { in_app: true, email: true },
+export const DEFAULT_PREFERENCES: Record<EventCategory, ChannelPrefs> = {
+  estimate: { in_app: true, email: true, whatsapp: false, sms: false },
+  billing: { in_app: true, email: true, whatsapp: false, sms: false },
+  system: { in_app: true, email: true, whatsapp: false, sms: false },
+  _dropped: { in_app: false, email: false, whatsapp: false, sms: false },
 }
 
 export function getCategoryForEvent(eventType: EventType): EventCategory {

@@ -57,7 +57,7 @@ describe('lib/notifications/event-types — reduced catalog (NOTIF-01 RED)', () 
 
   it('DEFAULT_PREFERENCES has 4-channel shape; whatsapp+sms default false', () => {
     for (const cat of ['estimate', 'billing', 'system'] as const) {
-      const pref = (DEFAULT_PREFERENCES as Record<string, Record<string, boolean>>)[cat]
+      const pref = (DEFAULT_PREFERENCES as unknown as Record<string, Record<string, boolean>>)[cat]
       expect(pref).toBeDefined()
       expect(Object.keys(pref).sort()).toEqual(['email', 'in_app', 'sms', 'whatsapp'])
       expect(pref.whatsapp).toBe(false)

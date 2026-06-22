@@ -8,16 +8,19 @@ import {
 } from './event-types'
 
 /**
- * Phase 77 (NOTIF-02 + NOTIF-03) — Notification preferences resolver.
+ * Phase 77 / Phase 104 — Notification preferences resolver.
  *
- * `resolveChannels()` is the single source of truth for "should this event
- * fan out to in-app and/or email?" — used by `lib/notifications/dispatch.ts`.
+ * `resolveChannels()` is the single source of truth for "which channels should
+ * this event fan out to?" — used by `lib/notifications/dispatch.ts`.
  *
  * Resolution order (highest precedence last):
- *   1. DEFAULT_PREFERENCES[category]
+ *   1. DEFAULT_PREFERENCES[category]                       (4-channel defaults)
  *   2. userPrefs.categories[category]  (per-category JSONB override)
  *   3. userPrefs.email_digest_enabled=false → force email=false
- *   4. `override` param (used by force-send events e.g. trial.expired)
+ *   4. WhatsApp/SMS consent gate → force whatsapp/sms=false unless an explicit
+ *      per-channel opt-in timestamp is recorded (TCPA/cost defense — a toggle
+ *      alone never sends a paid channel). The verified-phone gate lands in Wave 2.
+ *   5. `override` param (used by force-send events e.g. trial.expired)
  *
  * Best-effort: a DB read failure falls back to DEFAULT_PREFERENCES.
  */
@@ -25,44 +28,71 @@ import {
 export interface UserPrefs {
   user_id: string
   categories: Partial<
-    Record<EventCategory, { in_app?: boolean; email?: boolean }>
+    Record<
+      EventCategory,
+      { in_app?: boolean; email?: boolean; whatsapp?: boolean; sms?: boolean }
+    >
   >
   push_subscription?: unknown | null
   email_digest_enabled: boolean
+  /** Explicit per-channel consent timestamps (NOTIF-05 / TCPA). */
+  whatsapp_opt_in_at?: string | null
+  sms_opt_in_at?: string | null
 }
 
 export interface ResolvedChannels {
   inApp: boolean
   email: boolean
+  whatsapp: boolean
+  sms: boolean
 }
 
 export async function resolveChannels(
   eventType: EventType,
   userId: string | null | undefined,
-  override?: { inApp?: boolean; email?: boolean },
+  override?: {
+    inApp?: boolean
+    email?: boolean
+    whatsapp?: boolean
+    sms?: boolean
+  },
 ): Promise<ResolvedChannels> {
-  const category = EVENT_CATEGORIES[eventType]
-  const defaults = DEFAULT_PREFERENCES[category]
+  // Unknown / dropped events resolve to the no-deliver `_dropped` defaults
+  // (all channels false) — never crash on a missing category lookup.
+  const category = EVENT_CATEGORIES[eventType] ?? '_dropped'
+  const defaults = DEFAULT_PREFERENCES[category] ?? DEFAULT_PREFERENCES._dropped
 
   const userPrefs = userId ? await getUserPreferences(userId) : null
   const userCat = (userPrefs?.categories?.[category] ?? {}) as {
     in_app?: boolean
     email?: boolean
+    whatsapp?: boolean
+    sms?: boolean
   }
 
   let inApp = userCat.in_app ?? defaults.in_app
   let email = userCat.email ?? defaults.email
+  let whatsapp = userCat.whatsapp ?? defaults.whatsapp
+  let sms = userCat.sms ?? defaults.sms
 
   // Global email gate
   if (userPrefs && userPrefs.email_digest_enabled === false) {
     email = false
   }
 
+  // Paid-channel consent gate (TCPA/cost): the per-category toggle is necessary
+  // but NOT sufficient — an explicit recorded opt-in timestamp is required
+  // before any WhatsApp/SMS send. (Verified-phone gating is added in Wave 2.)
+  if (!userPrefs?.whatsapp_opt_in_at) whatsapp = false
+  if (!userPrefs?.sms_opt_in_at) sms = false
+
   // Override wins absolutely (e.g. trial.expired forces email)
   if (override?.inApp !== undefined) inApp = override.inApp
   if (override?.email !== undefined) email = override.email
+  if (override?.whatsapp !== undefined) whatsapp = override.whatsapp
+  if (override?.sms !== undefined) sms = override.sms
 
-  return { inApp, email }
+  return { inApp, email, whatsapp, sms }
 }
 
 export async function getUserPreferences(

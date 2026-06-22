@@ -159,7 +159,7 @@ describe('lib/notifications/preferences — 4 channels + opt-in gate (NOTIF-02 R
     ;(requireServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(
       makePrefsClient({ data: null, error: null }),
     )
-    const result = await resolveChannels('estimate.viewed', 'user_1') as Record<string, boolean>
+    const result = await resolveChannels('estimate.viewed', 'user_1') as unknown as Record<string, boolean>
     expect(result.whatsapp).toBe(false)
     expect(result.sms).toBe(false)
   })
@@ -180,7 +180,7 @@ describe('lib/notifications/preferences — 4 channels + opt-in gate (NOTIF-02 R
         error: null,
       }),
     )
-    const result = await resolveChannels('payment.received', 'user_1') as Record<string, boolean>
+    const result = await resolveChannels('payment.received', 'user_1') as unknown as Record<string, boolean>
     // Consent is required before any SMS — the toggle alone must NOT send (TCPA).
     expect(result.sms).toBe(false)
   })
