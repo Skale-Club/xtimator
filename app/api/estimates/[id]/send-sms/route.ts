@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { getTwilioConfig, getBranding } from '@/lib/platform-config'
+import { sendSms } from '@/lib/sms/client'
 import { rateLimit } from '@/lib/ratelimit'
 import { demoGuardResponse } from '@/lib/demo/guard'
 import { getCanonicalBaseUrl } from '@/lib/utils/site-url'
@@ -112,29 +113,12 @@ export async function POST(
     const smsBody = message?.trim() ||
       `${company.name} sent you an estimate. Review and approve it here: ${shareUrl}`
 
-    // Send via Twilio REST API
-    const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${twilio.accountSid}/Messages.json`
-    const credentials = Buffer.from(`${twilio.accountSid}:${twilio.authToken}`).toString('base64')
-
-    const formData = new URLSearchParams()
-    formData.set('From', twilio.fromPhone)
-    formData.set('To', to)
-    formData.set('Body', smsBody)
-
-    const twilioRes = await fetch(twilioUrl, {
-      method: 'POST',
-      headers: {
-        Authorization: `Basic ${credentials}`,
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: formData.toString(),
-    })
-
-    const twilioData = await twilioRes.json()
+    // Send via the shared Twilio REST primitive (never-throw, returns ok/sid/error).
+    const result = await sendSms(to, smsBody)
 
     const svc = requireServiceClient()
 
-    if (!twilioRes.ok) {
+    if (!result.ok) {
       // Log failed delivery
       await svc.from('estimate_deliveries').insert({
         estimate_id: estimate.id,
@@ -143,7 +127,7 @@ export async function POST(
         recipient_phone: to,
         provider: 'twilio',
         status: 'failed',
-        error_message: twilioData.message ?? 'Twilio error',
+        error_message: result.error ?? 'Twilio error',
       })
 
       return NextResponse.json(
@@ -159,7 +143,7 @@ export async function POST(
       channel: 'sms',
       recipient_phone: to,
       provider: 'twilio',
-      provider_message_id: twilioData.sid ?? null,
+      provider_message_id: result.sid ?? null,
       status: 'sent',
       sent_at: new Date().toISOString(),
     })
@@ -186,7 +170,7 @@ export async function POST(
       metadata: { channel: 'sms', to },
     })
 
-    return NextResponse.json({ success: true, sid: twilioData.sid })
+    return NextResponse.json({ success: true, sid: result.sid })
   } catch (error) {
     console.error('Send SMS error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

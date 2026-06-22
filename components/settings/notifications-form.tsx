@@ -63,14 +63,25 @@ export interface NotificationsFormInitial {
   push_enabled: boolean
 }
 
+/**
+ * The exact paid-channel SMS consent copy shown at opt-in. Stored verbatim as
+ * `sms_opt_in_consent_text` for TCPA audit when the owner first enables SMS.
+ */
+export const SMS_CONSENT_COPY =
+  'SMS is a paid channel. By enabling it you agree to receive notification text messages — message and data rates may apply. You can turn this off at any time.'
+
 export interface NotificationsFormProps {
   initial: NotificationsFormInitial
   defaults: Record<EventCategory, ChannelPrefs>
   /**
    * The owner's verified phone (E.164) on file, or null when none. WhatsApp + SMS
-   * switches are disabled when null (Wave 2 passes the real value + opt-in state).
+   * switches are disabled when null.
    */
   verifiedPhone?: string | null
+  /** Whether the owner has already opted into WhatsApp notifications. */
+  whatsappOptIn?: boolean
+  /** Whether the owner has already recorded explicit paid-SMS consent (TCPA). */
+  smsOptIn?: boolean
 }
 
 type ChannelState = Record<VisibleCategory, ChannelPrefs>
@@ -96,6 +107,8 @@ export function NotificationsForm({
   initial,
   defaults,
   verifiedPhone = null,
+  whatsappOptIn = false,
+  smsOptIn = false,
 }: NotificationsFormProps) {
   const { t } = useTranslation()
   const [isPending, startTransition] = useTransition()
@@ -105,6 +118,12 @@ export function NotificationsForm({
   const [matrix, setMatrix] = useState<ChannelState>(() =>
     buildState(initial, defaults),
   )
+  // Per-channel opt-in state. SMS requires explicit paid-channel consent (TCPA)
+  // before any send; flipping any SMS toggle ON without prior consent surfaces the
+  // inline consent confirmation rather than silently enabling.
+  const [smsConsent, setSmsConsent] = useState(smsOptIn)
+  const [whatsappConsent, setWhatsappConsent] = useState(whatsappOptIn)
+  const [smsConsentPending, setSmsConsentPending] = useState(false)
 
   const pushSupported = useMemo(() => {
     if (typeof window === 'undefined') return true
@@ -118,21 +137,54 @@ export function NotificationsForm({
     channel: 'in_app' | 'email' | 'whatsapp' | 'sms',
     value: boolean,
   ) {
+    // First time SMS is turned ON without recorded consent → open the paid-channel
+    // consent confirmation instead of enabling. The toggle reflects the request but
+    // no SMS sends until consent is confirmed + saved.
+    if (channel === 'sms' && value && !smsConsent) {
+      setSmsConsentPending(true)
+    }
+    if (channel === 'whatsapp' && value && !whatsappConsent) {
+      // WhatsApp is consent-gated too, but is not a billed channel, so enabling it
+      // records opt-in directly (no paid-channel confirmation needed).
+      setWhatsappConsent(true)
+    }
     setMatrix((prev) => ({
       ...prev,
       [cat]: { ...prev[cat], [channel]: value },
     }))
   }
 
+  function confirmSmsConsent() {
+    setSmsConsent(true)
+    setSmsConsentPending(false)
+  }
+
+  function declineSmsConsent() {
+    // Roll the SMS toggles back off — consent was not given.
+    setSmsConsentPending(false)
+    setMatrix((prev) => {
+      const next = { ...prev }
+      for (const c of CATEGORIES) {
+        next[c.key] = { ...next[c.key], sms: false }
+      }
+      return next
+    })
+  }
+
   function onSave() {
     startTransition(async () => {
       try {
+        const nowIso = new Date().toISOString()
         const res = await fetch('/api/notifications/preferences', {
           method: 'PATCH',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
             categories: matrix,
             email_digest_enabled: emailDigest,
+            // Record the consent timestamps + the exact paid-SMS copy (TCPA audit).
+            sms_opt_in_at: smsConsent ? nowIso : null,
+            sms_opt_in_consent_text: smsConsent ? SMS_CONSENT_COPY : null,
+            whatsapp_opt_in_at: whatsappConsent ? nowIso : null,
           }),
         })
         if (!res.ok && res.status !== 204) {
@@ -263,6 +315,35 @@ export function NotificationsForm({
               </div>
             )}
           </div>
+
+          {smsConsentPending && (
+            <div
+              data-testid="sms-consent"
+              className="rounded-[var(--radius-md)] border border-amber-500/40 bg-amber-500/10 p-4 text-sm"
+            >
+              <p className="font-medium">{t('Enable paid SMS notifications?')}</p>
+              <p className="mt-1 text-muted-foreground">{t(SMS_CONSENT_COPY)}</p>
+              <div className="mt-3 flex gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  data-testid="sms-consent-confirm"
+                  onClick={confirmSmsConsent}
+                >
+                  {t('I agree — enable SMS')}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  data-testid="sms-consent-decline"
+                  onClick={declineSmsConsent}
+                >
+                  {t('Cancel')}
+                </Button>
+              </div>
+            </div>
+          )}
 
           <div className="flex justify-end">
             <Button

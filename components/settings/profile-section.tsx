@@ -143,8 +143,9 @@ export function ProfileSection({ profile }: ProfileSectionProps) {
             <div>
               <h3 className="text-sm font-medium">WhatsApp Number</h3>
               <p className="mt-1 text-sm text-muted-foreground">
-                Your personal WhatsApp number for receiving job requests. Must match the number
-                you use on WhatsApp. Leave blank if you don&apos;t use WhatsApp.
+                Your personal WhatsApp number for receiving job requests. It&apos;s also used to
+                deliver owner WhatsApp and SMS notifications when you opt in to those channels.
+                Must match the number you use on WhatsApp. Leave blank if you don&apos;t use WhatsApp.
               </p>
             </div>
             <div className="flex gap-2">
