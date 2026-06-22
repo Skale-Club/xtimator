@@ -126,6 +126,12 @@ export function Sidebar({ branding, company, memberships, isDemo }: SidebarProps
   const [collapsed, setCollapsed] = useState(false)
   const offline = useIsOffline()
 
+  // Publish the primary sidebar width so secondary sidebars can pin themselves
+  // to its right edge using left-[var(--app-sidebar-width)].
+  useEffect(() => {
+    document.documentElement.style.setProperty('--app-sidebar-width', collapsed ? '64px' : '213px')
+  }, [collapsed])
+
   useEffect(() => {
     const mediaQuery = window.matchMedia(DESKTOP_SIDEBAR_QUERY)
 
@@ -157,9 +163,13 @@ export function Sidebar({ branding, company, memberships, isDemo }: SidebarProps
     <aside
       data-testid="app-sidebar"
       data-collapsed={collapsed || undefined}
-      style={{ borderTop: 0, borderBottom: 0, borderLeft: 0 }}
+      style={{
+        borderTop: 0,
+        borderBottom: 0,
+        borderLeft: 0,
+      }}
       className={cn(
-        'hidden md:flex flex-col shrink-0 overflow-hidden transition-[width] duration-200 glass border-r border-[var(--glass-border)]',
+        'hidden md:flex flex-col shrink-0 overflow-hidden transition-[width] duration-200 ease-in-out glass border-r border-[var(--glass-border)]',
         collapsed ? 'w-16' : 'w-[213px]',
       )}
     >
@@ -183,8 +193,8 @@ export function Sidebar({ branding, company, memberships, isDemo }: SidebarProps
         </div>
         <span
           className={cn(
-            'truncate text-lg font-bold tracking-tight transition-opacity duration-150',
-            collapsed ? 'opacity-0 w-0 pointer-events-none' : 'opacity-100',
+            'truncate text-lg font-bold tracking-tight transition-all duration-200 ease-in-out overflow-hidden whitespace-nowrap',
+            collapsed ? 'opacity-0 max-w-0 pointer-events-none' : 'opacity-100 max-w-[160px]',
           )}
         >
           {branding.appName}
@@ -206,7 +216,7 @@ export function Sidebar({ branding, company, memberships, isDemo }: SidebarProps
           const Icon = item.icon
 
           const baseLayout =
-            'group relative flex items-center gap-3 rounded-[var(--radius-md)] px-3 py-2 text-sm font-[var(--font-weight-medium)] transition-all duration-150'
+            'group relative flex items-center gap-3 rounded-[var(--radius-md)] px-3 py-2 text-sm font-[var(--font-weight-medium)] transition-all duration-200 ease-in-out'
 
           const linkClassName = item.primary
             ? cn(
@@ -241,8 +251,8 @@ export function Sidebar({ branding, company, memberships, isDemo }: SidebarProps
               <Icon className="h-5 w-5 shrink-0" />
               <span
                 className={cn(
-                  'truncate transition-opacity duration-150 whitespace-nowrap',
-                  collapsed ? 'opacity-0 w-0 overflow-hidden' : 'opacity-100',
+                  'truncate transition-all duration-200 ease-in-out whitespace-nowrap overflow-hidden',
+                  collapsed ? 'opacity-0 max-w-0' : 'opacity-100 max-w-[160px]',
                 )}
               >
                 {t(item.label)}
@@ -259,8 +269,8 @@ export function Sidebar({ branding, company, memberships, isDemo }: SidebarProps
               <Icon className="h-5 w-5 shrink-0" />
               <span
                 className={cn(
-                  'truncate transition-opacity duration-150 whitespace-nowrap',
-                  collapsed ? 'opacity-0 w-0 overflow-hidden' : 'opacity-100',
+                  'truncate transition-all duration-200 ease-in-out whitespace-nowrap overflow-hidden',
+                  collapsed ? 'opacity-0 max-w-0' : 'opacity-100 max-w-[160px]',
                 )}
               >
                 {t(item.label)}
@@ -282,8 +292,8 @@ export function Sidebar({ branding, company, memberships, isDemo }: SidebarProps
                 <Icon className="h-5 w-5 shrink-0" />
                 <span
                   className={cn(
-                    'truncate transition-opacity duration-150 whitespace-nowrap',
-                    collapsed ? 'opacity-0 w-0 overflow-hidden' : 'opacity-100',
+                    'truncate transition-all duration-200 ease-in-out whitespace-nowrap overflow-hidden',
+                    collapsed ? 'opacity-0 max-w-0' : 'opacity-100 max-w-[160px]',
                   )}
                 >
                   {t(item.label)}
@@ -323,28 +333,34 @@ export function Sidebar({ branding, company, memberships, isDemo }: SidebarProps
         })}
       </nav>
 
-      {/* Bottom: company switcher (Plan 81-04) + user menu + collapse toggle */}
-      <div className="border-t border-[var(--glass-border)] p-2">
+      {/* Bottom: company switcher (Plan 81-04) + user menu + collapse toggle.
+          Fixed h keeps this in lockstep with the settings sub-sidebar footer
+          (--app-rail-footer-h). Collapsed uses px-1 + flex-row so both items
+          fit within the w-16 sidebar without stacking (which would overflow). */}
+      <div className={cn(
+        'flex flex-col justify-center h-[var(--app-rail-footer-h)] shrink-0 border-t border-[var(--glass-border)]',
+        collapsed ? 'px-1' : 'p-2',
+      )}>
         {collapsed ? (
-          /* Collapsed: company-switcher avatar + expand chevron only.
-             User-menu items (Settings / App Tour / Sign Out) live INSIDE
-             the CompanySelector dropdown via accountMenuSlot (2026-05-26 UX). */
-          <div className="flex flex-col items-center gap-1">
+          /* Collapsed: company-switcher avatar + expand chevron in a single row.
+             Row layout keeps height = max(h-9, h-7) = 36px, fitting within the
+             53px footer. User-menu items live inside the CompanySelector dropdown
+             via accountMenuSlot (2026-05-26 UX). */
+          <div className="flex items-center">
             <CompanySelector
               companies={memberships}
               activeCompanyId={company.id}
               collapsed={true}
               accountMenuSlot={accountMenuSlot}
             />
-
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
                   onClick={toggle}
-                  className="w-9 h-7 flex items-center justify-center rounded-[var(--radius-md)] text-muted-foreground/40 hover:text-muted-foreground hover:bg-[var(--glass-bg-light)] transition-colors"
+                  className="ml-auto h-7 w-5 flex items-center justify-center rounded-[var(--radius-md)] text-muted-foreground/40 hover:text-muted-foreground hover:bg-[var(--glass-bg-light)] transition-colors"
                   aria-label="Expand sidebar"
                 >
-                  <ChevronRight className="h-4 w-4" />
+                  <ChevronRight className="h-3.5 w-3.5" />
                 </button>
               </TooltipTrigger>
               <TooltipContent side="right">{t('Expand sidebar')}</TooltipContent>

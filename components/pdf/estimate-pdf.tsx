@@ -42,6 +42,7 @@ interface PdfLabels {
   of: string
   date: string
   estimateNum: string
+  preparedBy: string
 }
 
 const PDF_LABELS: Record<EstimateLanguage, PdfLabels> = {
@@ -68,6 +69,7 @@ const PDF_LABELS: Record<EstimateLanguage, PdfLabels> = {
     of: 'of',
     date: 'Date',
     estimateNum: 'Estimate #',
+    preparedBy: 'Prepared by',
   },
   pt: {
     estimate: 'ORÇAMENTO',
@@ -92,6 +94,7 @@ const PDF_LABELS: Record<EstimateLanguage, PdfLabels> = {
     of: 'de',
     date: 'Data',
     estimateNum: 'Orçamento Nº',
+    preparedBy: 'Preparado por',
   },
   es: {
     estimate: 'PRESUPUESTO',
@@ -116,6 +119,7 @@ const PDF_LABELS: Record<EstimateLanguage, PdfLabels> = {
     of: 'de',
     date: 'Fecha',
     estimateNum: 'Presupuesto Nº',
+    preparedBy: 'Preparado por',
   },
 }
 
@@ -167,6 +171,8 @@ export interface EstimatePDFProps {
   projectType: string | null
   /** Target language — defaults to 'en'. Drives label translations and locale formatting. */
   language?: EstimateLanguage
+  /** Name of the staff member or owner who generated this estimate. Shown as "Prepared by" in the PDF. */
+  preparedBy?: string | null
 }
 
 function formatAddress(obj: {
@@ -432,6 +438,7 @@ export default function EstimatePDF({
   projectName,
   projectType,
   language = 'en',
+  preparedBy,
 }: EstimatePDFProps) {
   const brandColor = company.brand_primary_color ?? SYSTEM_COLORS.primary
   const companyAddress = formatAddress(company)
@@ -756,6 +763,14 @@ export default function EstimatePDF({
                 <Text style={styles.termsText}>{estimate.notes}</Text>
               </>
             )}
+          </View>
+        )}
+
+        {/* Prepared by */}
+        {preparedBy && (
+          <View style={{ marginTop: 16 }}>
+            <Text style={styles.infoLabel}>{L.preparedBy}</Text>
+            <Text style={styles.infoValue}>{preparedBy}</Text>
           </View>
         )}
 

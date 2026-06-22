@@ -67,11 +67,14 @@ describe('ThemeToggle (dropdown variant)', () => {
     expect(svg?.getAttribute('class')?.toLowerCase()).toContain('sun')
   })
 
-  it('renders Monitor icon when theme === "system"', () => {
+  it('renders Moon icon when theme === "system" (dropdown trigger is light↔dark only; Monitor lives in the RadioGroup variant)', () => {
     setTheme('system')
     const { container } = render(<ThemeToggle />)
     const svg = container.querySelector('svg')
-    expect(svg?.getAttribute('class')?.toLowerCase()).toContain('monitor')
+    // ThemeToggle is the one-click light↔dark toggle: `Icon = current === 'light' ? Sun : Moon`,
+    // so any non-light theme (incl. 'system') shows Moon. The three-way Monitor icon is
+    // exercised by ThemeToggleRadioGroup below.
+    expect(svg?.getAttribute('class')?.toLowerCase()).toContain('moon')
   })
 })
 

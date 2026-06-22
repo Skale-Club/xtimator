@@ -67,7 +67,7 @@ export function StepBusinessInfo({ form }: StepBusinessInfoProps) {
         name="phone"
         render={({ field }) => (
           <FormItem>
-            <FormLabel>Phone</FormLabel>
+            <FormLabel>Business phone</FormLabel>
             <FormControl>
               <PhoneInput
                 value={field.value ?? ''}

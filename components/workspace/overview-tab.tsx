@@ -3,6 +3,7 @@
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useState } from 'react'
 import { LinkClientButton } from './link-client-button'
+import { NeedsDetailsBanner } from './needs-details-banner'
 import { EstimateTab } from './estimate/estimate-tab'
 import { captureHref, type CaptureMode } from '@/components/projects/estimate-creation-popup'
 import { CaptureModePicker } from '@/components/workspace/capture-mode-picker'
@@ -83,6 +84,10 @@ export function OverviewTab({
         onOpenChange={setModePickerOpen}
         onSelect={handleModeSelect}
       />
+
+      {project.status === 'awaiting_details' && (
+        <NeedsDetailsBanner onAddDetails={() => setModePickerOpen(true)} />
+      )}
 
       <EstimateTab
         projectId={project.id}

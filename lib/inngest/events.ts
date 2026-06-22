@@ -17,6 +17,13 @@ export const EVENT_WHATSAPP_PROCESS = 'whatsapp/process.requested' as const
  * whatsAppIntentRouterJob runs the intent-router graph off the webhook ack path.
  */
 export const EVENT_WHATSAPP_INTENT = 'whatsapp/intent.requested' as const
+/**
+ * Phase 98 — proactive WhatsApp welcome. Dispatched by `updateProfile` when the
+ * owner adds/changes their profile phone (their WhatsApp line). Handled by
+ * `whatsAppWelcomeJob`, which sends the approved welcome TEMPLATE off the request
+ * path (business-initiated, outside any 24h window → template required).
+ */
+export const EVENT_WHATSAPP_WELCOME = 'whatsapp/welcome.requested' as const
 
 export type EstimateGeneratePayload = {
   companyId: string
@@ -43,6 +50,16 @@ export type EstimateGeneratePayload = {
    * Optional so older callers still compile; routes default to `manual_text`.
    */
   inputType?: 'recording' | 'photo' | 'manual_text'
+  /**
+   * Phase 97 (OBS-01): channel discriminator for Langfuse trace tagging.
+   * 'mcp' when the estimate is triggered from the MCP create_estimate tool;
+   * 'web' (or absent) for the web UI path. WhatsApp uses a separate Inngest
+   * function and does not flow through this payload.
+   * Optional so all existing callers remain valid without changes.
+   */
+  channel?: 'web' | 'mcp'
+  /** auth.users.id of the staff member or owner who triggered generation. Drives "Prepared by" in PDFs. */
+  createdByUserId?: string
 }
 
 export type TranscribeAudioPayload = {
@@ -84,6 +101,15 @@ export type WhatsAppProcessPayload = {
   ownerPhone: string
   messages: unknown[] // WhatsAppMessage[] in the handler — left as unknown[] here to avoid a circular import
   batchKey: string
+}
+
+/**
+ * Phase 98 — payload for EVENT_WHATSAPP_WELCOME.
+ * `toPhone` is the owner's normalized E.164 WhatsApp number.
+ */
+export type WhatsAppWelcomePayload = {
+  companyId: string
+  toPhone: string
 }
 
 /**
@@ -134,4 +160,59 @@ export type NotificationEmailQueuedPayload = {
 export type NotificationEmailQueuedEvent = {
   name: typeof EVENT_NOTIFICATION_EMAIL_QUEUED
   data: NotificationEmailQueuedPayload
+}
+
+/**
+ * Phase 104 (NOTIF-03 / NOTIF-04 / NOTIF-07) — async WhatsApp/SMS owner-notification
+ * send. Emitted by `lib/notifications/dispatch.ts`'s whatsapp/sms branches (gated by
+ * channel-enabled + phone-on-file + per-channel opt-in) and handled by
+ * `notificationChannelSend`, which calls `sendWhatsAppTemplate` / `sendSms`
+ * off the request path. Best-effort — a failing send is logged, never blocks the
+ * in-app insert or the other channel.
+ */
+export const EVENT_NOTIFICATION_WHATSAPP_SEND =
+  'notification/whatsapp.send' as const
+export const EVENT_NOTIFICATION_SMS_SEND = 'notification/sms.send' as const
+
+export type NotificationChannelSendPayload =
+  | {
+      channel: 'whatsapp'
+      to: string
+      userId: string
+      companyId: string
+      eventType: string
+      templateName: string
+      languageCode: string
+      variables: string[]
+    }
+  | {
+      channel: 'sms'
+      to: string
+      userId: string
+      companyId: string
+      eventType: string
+      body: string
+    }
+
+export type NotificationChannelSendEvent = {
+  name:
+    | typeof EVENT_NOTIFICATION_WHATSAPP_SEND
+    | typeof EVENT_NOTIFICATION_SMS_SEND
+  data: NotificationChannelSendPayload
+}
+
+/**
+ * Phase 1000 (XPHERE-B4) — Xphere CRM sync request.
+ *
+ * Every lifecycle hook (Plan 04) and the backfill route (Plan 05) drive a sync
+ * by `inngest.send({ name: EVENT_XPHERE_SYNC, data: { companyId, event } })`.
+ * The xphereSyncJob loads the company fresh, builds the payload, and POSTs it.
+ */
+export const EVENT_XPHERE_SYNC = 'xphere/sync.requested' as const
+
+export type XphereSyncRequestedPayload = {
+  companyId: string
+  event: import('@/lib/integrations/xphere/types').XphereSyncEvent
+  /** ISO8601; the job falls back to "now" if absent. */
+  occurredAt?: string
 }

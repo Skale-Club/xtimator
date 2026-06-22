@@ -13,6 +13,14 @@ export default defineConfig({
       'tests/unit/**/*.test.tsx',
       'tests/integration/**/*.test.ts',
       'tests/integration/**/*.test.tsx',
+      // Eval harness (EVAL-01/02/03). Scoped strictly to *.test.ts so the helper
+      // modules (tests/eval/metrics.ts, fixtures/types.ts, fixtures/cases.ts,
+      // mock-providers.ts) are NEVER collected as test suites — only *.test.ts under
+      // tests/eval run. LOAD-BEARING: a `vitest run tests/eval` path arg FILTERS
+      // against `include` (it does not override it); without this entry every eval
+      // command silently finds "No test files found", exits 0, and runs ZERO tests,
+      // which would defeat the EVAL-02/03/04 regression gate.
+      'tests/eval/**/*.test.ts',
     ],
     exclude: ['tests/e2e/**', 'node_modules/**'],
     alias: {

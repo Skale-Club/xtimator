@@ -14,7 +14,41 @@ The platform includes:
 
 A business owner can go from job site audio recording to a sent, professional estimate in under 5 minutes without touching a keyboard.
 
-## Current Milestone: v4.2 Recording Reliability & Observability
+## Last Milestone: v4.5 Estimate Engine Robustness & Reliability Harness ✅ (shipped 2026-06-21)
+
+**Shipped:** all 5 phases (99-103), 18/18 requirements, 19 plans, 99 commits. Full unit suite deterministic-green (250 files / 1732 tests) + a new secret-free CI regression gate. Audit PASSED (6/6 integration chains, 3/3 E2E flows). Archive: [milestones/v4.5-ROADMAP.md](milestones/v4.5-ROADMAP.md). Deferred human UAT (staging): live provider-outage fallback, editor refine E2E, needs-details banner + CTA, WhatsApp partial-batch reply, CI-gate-red-on-broken-metric.
+
+**Goal (delivered):** Make the AI estimate generation/editing core (audio + image + text) bulletproof — one unified multimodal ingestion path, always-validated output, isolated/recoverable failures, and an evaluation harness that catches regressions before production. Builds directly on the v4.3 canonical graph.
+
+**Target features:**
+- **Pipeline hardening** — refine flows through the canonical graph + Inngest (idempotent/durable) instead of inline route logic (`app/api/estimates/[id]/refine/route.ts`); single prompt source of truth (`lib/ai/prompt-builder.ts`); consistent provider fallback (OpenRouter→Gemini) on every path; unified error model across routes/nodes/Inngest/adapters; per-message WhatsApp batch isolation; configurable auto-refine cap with user recourse; replay-safe session TTL (no `Date.now()`).
+- **Output guardrails** — zod schema validation on AI output (generate + refine) with structured retry; price-hallucination guardrails (price-book anchoring + bounds); server-side totals sanity checks; correlation ID linking pipeline-events ↔ Langfuse ↔ Sentry per run.
+- **Modality unification** — one multimodal ingestion path (audio+image+text) reused across web, WhatsApp, MCP and refine; identical prompt construction everywhere; refine accepts all three modalities through the unified path.
+- **Eval/test harness** — golden dataset fixtures (audio/photo/text), deterministic mocked providers, a quality-metrics suite (totals, item count, vagueness, schema validity), and a CI regression gate.
+
+**Key context:** This is a hardening + reliability milestone on top of the v4.3 canonical estimate graph (`lib/estimate/graph/`), its channel adapters (`lib/estimate/adapters/{default,whatsapp}.ts`), and the shared service `generateEstimateForProject` (`lib/services/generate-estimate.ts`). The biggest divergence to close is the stateless refine endpoint, which bypasses the graph/Inngest and reimplements multimodal parsing + its own prompt. GUARD-04 (correlation IDs) coordinates with v4.3's Phase 97 observability work. Started 2026-06-21. Numbering continues the global counter: v4.4 = Phase 98 (WhatsApp Notifications, queued); v4.5 = Phase 99+.
+
+## Recent Milestone: v4.3 Unified Agentic Estimate Engine
+
+**Goal:** Unify estimate creation across ALL channels (web UI, MCP, WhatsApp) under a single LangGraph-based agentic engine — extract the domain graph today exclusive to WhatsApp into a shared canonical core, and give web/MCP the same pipeline intelligence (assess quality → ask for details/refine) that only WhatsApp has today.
+
+**Target features:**
+- **Canonical domain graph** — `ingest → generate → assess quality → refine/ask-details → finalize` reusable nodes in a shared module (extracted from `lib/whatsapp/estimate-graph.ts`)
+- **Migrate web** — `lib/inngest/functions/generate-estimate.ts` consumes the shared graph instead of the linear `call-ai-provider` step
+- **Migrate MCP** — `create_estimate` (`lib/mcp/tools/write.ts`) routes through the same graph
+- **Migrate WhatsApp** — consume the shared graph, plugging only edge nodes (inbound media download + conversational reply)
+- **Intelligence parity** — quality assessment + refinement/ask-details for web and MCP (today single-shot)
+- **LangGraph↔Inngest relationship** — resolve checkpoint granularity (today the whole graph runs inside a single `step.run` in `whatsapp-process.ts`, no per-node checkpoint)
+- **Unified observability** — langfuse traces across all channels + tests/UAT
+
+**Key context:** the generation core `generateEstimateForProject` (`lib/services/generate-estimate.ts`) is ALREADY shared by all 3 channels; what diverges is orchestration and the quality/refinement intelligence. Central architectural decision for the phases: graph↔Inngest checkpoint granularity, and whether/how to preserve the web's decoupled ingestion (transcription at upload via separate Inngest jobs `transcribe-audio`/`analyze-photos` vs ingestion inside the graph).
+
+**Progress (2026-06-20):**
+- ✅ **Phase 94: Extract Canonical Graph Behind WhatsApp + StepRunner Seam** — shipped 2026-06-20. The WhatsApp `StateGraph` is now a shared, channel-neutral core in `lib/estimate/graph/` (state + `generate`/`assess`/`decide` nodes + `buildEstimateGraph(adapter, { runner })` factory) driven by a `ChannelAdapter` closure-factory (`lib/estimate/adapters/whatsapp.ts`, mirroring `makeQueryTools`). `isVagueEstimate` extracted to `lib/estimate/quality/vagueness.ts` (re-exported from `ask-details.ts`). `generationFailed` generalized to a `failure?: { reason }` state channel — never-throw/always-reply invariant preserved. `StepRunner` passthrough seam injected (DURABLE-01) + `lib/estimate/graph/CHECKPOINTING.md` decision artifact (Inngest is sole durability; NO LangGraph checkpointer — DURABLE-02). Frozen `never-reply-regression.test.ts` (QA-01) green. **Behavior-preserving:** `buildEstimateGraph()` contract stable, `whatsapp-process.ts` untouched, anchor source-text test repointed (paths only, 1 documented `generationFailed→failure` rename); phase-94 scope 237 tests / 0 failures. ENGINE-01..04, CHAN-01, DURABLE-01/02, QA-01 all verified (8/8). 4/4 plans.
+- ✅ **Phase 95: Migrate Web + MCP onto Shared Graph (generate-only passthrough)** — shipped 2026-06-20. The `generate-estimate` Inngest job now invokes `buildEstimateGraph(makeDefaultAdapter({ companyId, supabase }))` via a single `step.run('orchestrate-estimate', ...)` instead of calling `generateEstimateForProject` directly. MCP inherits automatically via the same Inngest event (`EVENT_ESTIMATE_GENERATE`) — zero changes to `lib/mcp/tools/write.ts`. The default adapter (`lib/estimate/adapters/default.ts`) has a real `onError` that re-throws so Inngest retry/`onFailure` fires (never-throw invariant). Step ID renamed `call-ai-provider` → `orchestrate-estimate` (safe: no LangGraph checkpointer, jobs replay from start). CHAN-02/03/04 verified; 1530/1540 suite green; 0 new regressions. 2/2 plans.
+- ✅ **Phase 96: Intelligence Parity — Auto-Refine + needs_details Surfacing** — shipped 2026-06-20. Added cap=1 auto-refine evaluator-optimizer loop to the shared estimate graph. New core node `autoRefineNode` (`lib/estimate/graph/nodes/auto-refine.ts`, ENGINE-01 neutral — zero `lib/whatsapp/*` imports) fires when `isVague=true && refineAttempts < 1`: increments `refineAttempts`, reverts the $0 estimate, resets `estimateId`/`isVague`, appends a refine-hint to `prompts`, then routes back to `generate` (back-edge `autoRefine → generate`). `checkVagueAfterAssessEdge` replaces the direct `assess → finalize` edge. After one failed auto-refine, default adapter `finalize` writes `projects.status='awaiting_details'` (using closure-captured `companyId`, not `state.companyId` — QA-02) and returns `{ needsDetails: true }` so Inngest job output surfaces the signal to MCP/web callers. `revertVagueEstimate` moved to `lib/estimate/quality/revert.ts` (shared core) with backward-compat re-export from `lib/whatsapp/ask-details.ts` (D-05). `needsDetails: Annotation<boolean | undefined>()` added to canonical state (D-04). WhatsApp adapter/Inngest/MCP unchanged (SMART-02/04/05). SMART-01..05 + QA-02 all verified (6/6). 2/2 plans. _(Observability → Phase 97.)_
+
+## Last Milestone: v4.2 Recording Reliability & Observability ✅ (shipped 2026-05-30)
 
 **Goal:** Make the recording→estimate pipeline reliable and diagnosable — fix the transcription 503, persist every pipeline step, and give Super Admin a Generations-style event log to debug failures without digging through server logs.
 
@@ -290,4 +324,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context
 
 ---
-*Last updated: 2026-05-30 — Phase 93 (Super Admin Event Log UI) complete; ADMINLOG-01..05 verified (7/7). v4.2 Recording Reliability & Observability COMPLETE — all 3 phases (91, 92, 93) shipped.*
+*Last updated: 2026-06-21 — v4.5 Estimate Engine Robustness & Reliability Harness SHIPPED (phases 99-103, 18/18 requirements). Predecessor v4.3 built the canonical graph (phases 94-96; Phase 97 Langfuse-v5 observability landed); v4.4 WhatsApp Notifications (Phase 98) queued. Next: /gsd:new-milestone.*

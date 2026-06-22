@@ -283,7 +283,7 @@ export function PriceBookList({
           </Button>
           <Button onClick={handleAddItem}>
             <Plus className="h-4 w-4 mr-2" />
-            Add Item
+            Add Service
           </Button>
         </div>
       </div>

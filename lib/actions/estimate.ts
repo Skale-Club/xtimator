@@ -7,6 +7,7 @@ import type { EstimateWithSections } from '@/lib/queries/estimate'
 import { DEFAULT_CURRENCY_CODE, normalizeCurrencyCode } from '@/lib/money/currency'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { shareLinkExpiryFromNow } from '@/lib/estimates/share-link'
+import { dispatchXphereSync } from '@/lib/integrations/xphere/dispatch'
 
 // ---------------------------------------------------------------------------
 // Auth helper (same pattern as recording.ts)
@@ -29,7 +30,7 @@ async function getAuthContext() {
 
   if (!company) return { error: 'No company found' as const }
 
-  return { supabase, company }
+  return { supabase, company, claims }
 }
 
 // ---------------------------------------------------------------------------
@@ -306,7 +307,7 @@ export async function saveEstimate(estimateData: SaveEstimateInput) {
 export async function createBlankEstimate(projectId: string) {
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error }
-  const { supabase, company } = ctx
+  const { supabase, company, claims } = ctx
   const companyId = company.id as string
 
   // Mark existing estimates as not current
@@ -349,6 +350,7 @@ export async function createBlankEstimate(projectId: string) {
       discount_amount: 0,
       tax_amount: 0,
       total: 0,
+      created_by_user_id: claims.sub,
     })
     .select('id')
     .single()
@@ -402,6 +404,9 @@ export async function createBlankEstimate(projectId: string) {
     event_type: 'estimate_created_blank',
     metadata: { version: nextVersion },
   })
+
+  // Mirror estimate activity into Xphere CRM (fire-and-forget).
+  dispatchXphereSync(companyId, 'estimate.created')
 
   revalidatePath(`/projects/${projectId}`)
   return { data: { estimateId } }
@@ -632,6 +637,9 @@ export async function markAsSentAction(estimateId: string) {
     event_type: 'estimate_marked_sent',
     metadata: { marked_manually: true },
   })
+
+  // Mirror the estimate-sent activity into Xphere CRM (fire-and-forget).
+  dispatchXphereSync(companyId, 'estimate.sent')
 
   revalidatePath(`/projects/${projectId}`)
   return { success: true }

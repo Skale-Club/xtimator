@@ -36,11 +36,19 @@ vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(),
 }))
 
+// The route now resolves the company via getActiveCompanyId() (cookie-based,
+// calls cookies()); mock it so the route doesn't call cookies() outside a
+// request scope (otherwise it throws → 500 instead of the expected status).
+vi.mock('@/lib/queries/active-company', () => ({
+  getActiveCompanyId: vi.fn(),
+}))
+
 import { POST } from '@/app/api/generate-estimate/route'
 import { createClient } from '@/lib/supabase/server'
 import { generateEstimateForProject } from '@/lib/services/generate-estimate'
 import { checkQuota, recordUsage } from '@/lib/quota'
 import { inngest } from '@/lib/inngest/client'
+import { getActiveCompanyId } from '@/lib/queries/active-company'
 
 const mockSend = vi.mocked(inngest.send)
 const mockGenerate = vi.mocked(generateEstimateForProject)
@@ -85,6 +93,7 @@ describe('INNGEST-02: POST /api/generate-estimate dispatch', () => {
     })
     mockSend.mockResolvedValue({ ids: ['evt_abc123'] } as never)
     mockCheckQuota.mockResolvedValue({ allowed: true, remaining: 5 })
+    vi.mocked(getActiveCompanyId).mockResolvedValue('company-1')
   })
 
   it('returns { jobId } HTTP 202 in <1s', async () => {

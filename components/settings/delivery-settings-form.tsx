@@ -8,7 +8,7 @@ import { toast } from 'sonner'
 import type { CompanySettings } from '@/lib/queries/company'
 import { updateDeliverySettings } from '@/lib/actions/settings'
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
@@ -49,12 +49,6 @@ export function DeliverySettingsForm({ company }: DeliverySettingsFormProps) {
 
   return (
     <Card className="w-full rounded-[var(--radius-md)]">
-      <CardHeader className="border-b border-border">
-        <CardTitle>Estimate Delivery & Signature</CardTitle>
-        <CardDescription>
-          Choose how estimates are delivered and whether clients must sign before accepting.
-        </CardDescription>
-      </CardHeader>
       <CardContent className="py-6">
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
           <div className="grid gap-3 lg:grid-cols-3">

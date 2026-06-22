@@ -88,13 +88,13 @@ describe('components/notifications/NotificationList (NOTIF-06 + NOTIF-12)', () =
       <NotificationList
         items={[]}
         nextCursor={null}
-        category="payment"
+        category="billing"
         unreadOnly={false}
       />,
     )
     expect(
       screen.getByTestId('notifications-empty').textContent,
-    ).toMatch(/No payments notifications yet/i)
+    ).toMatch(/No billing notifications yet/i)
   })
 
   it('shows tailored empty state when unread + category combined', () => {
@@ -159,10 +159,10 @@ describe('components/notifications/NotificationList (NOTIF-06 + NOTIF-12)', () =
         unreadOnly={false}
       />,
     )
-    fireEvent.click(screen.getByTestId('filter-cat-payment'))
+    fireEvent.click(screen.getByTestId('filter-cat-billing'))
     expect(pushMock).toHaveBeenCalledTimes(1)
     const arg = pushMock.mock.calls[0][0] as string
-    expect(arg).toMatch(/category=payment/)
+    expect(arg).toMatch(/category=billing/)
     expect(arg).not.toMatch(/cursor=/)
   })
 

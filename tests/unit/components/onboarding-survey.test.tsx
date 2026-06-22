@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest'
-import { renderHook, act, render } from '@testing-library/react'
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { renderHook, act, render, cleanup } from '@testing-library/react'
 import { useSurveyState } from '@/components/onboarding/survey/use-survey-state'
 import { SURVEY_STEPS } from '@/components/onboarding/survey/survey-config'
 import { SurveyProgress } from '@/components/onboarding/survey/survey-progress'
@@ -13,8 +13,9 @@ const INITIAL: OnboardingValues = {
   email: '',
   website: '',
   language: 'en',
-  industry: '',
-  customIndustry: '',
+  industries: [],
+  customIndustries: [],
+  prefillPriceBook: false,
   brandPrimaryColor: '#0D9488',
   address: '',
   city: '',
@@ -29,8 +30,8 @@ const INITIAL: OnboardingValues = {
 }
 
 describe('SURVEY_STEPS configuration', () => {
-  it('exports exactly 11 ordered steps', () => {
-    expect(SURVEY_STEPS).toHaveLength(11)
+  it('exports exactly 10 ordered steps', () => {
+    expect(SURVEY_STEPS).toHaveLength(10)
   })
 
   it('lists step keys in the documented order', () => {
@@ -44,7 +45,6 @@ describe('SURVEY_STEPS configuration', () => {
       'brandColor',
       'logo',
       'location',
-      'defaults',
       'review',
     ])
   })
@@ -56,10 +56,22 @@ describe('SURVEY_STEPS configuration', () => {
 })
 
 describe('useSurveyState', () => {
+  // useSurveyState persists { stepIndex, values } to localStorage under
+  // 'xtimator_onboarding' and restores it on mount. Without clearing between
+  // tests, a prior test's persisted stepIndex/values leak into the next mount
+  // (e.g. stepIndex restored as 1 instead of 0). Clear the draft + unmount each.
+  beforeEach(() => {
+    localStorage.clear()
+  })
+  afterEach(() => {
+    cleanup()
+    localStorage.clear()
+  })
+
   it('starts at step 0 with the initial values', () => {
     const { result } = renderHook(() => useSurveyState(INITIAL))
     expect(result.current.stepIndex).toBe(0)
-    expect(result.current.totalSteps).toBe(11)
+    expect(result.current.totalSteps).toBe(10)
     expect(result.current.values.companyName).toBe('')
     expect(result.current.isFirst).toBe(true)
     expect(result.current.isLast).toBe(false)

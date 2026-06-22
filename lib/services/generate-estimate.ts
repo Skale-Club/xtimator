@@ -3,7 +3,15 @@ import { requireServiceClient } from '@/lib/supabase/service'
 import { getProjectRecordings } from '@/lib/queries/recording'
 import { getProjectPhotos } from '@/lib/queries/photo'
 import { PLACEHOLDER_PREFIX } from '@/lib/constants/project'
-import { getAIProvider, type EstimateInput } from '@/lib/ai'
+import { type EstimateInput } from '@/lib/ai'
+import { getAIProviderWithFallback } from '@/lib/ai/provider-with-fallback'
+import { anchorAndClampSections } from '@/lib/ai/price-anchoring'
+import {
+  round2,
+  assertFinitePositive,
+  computeTotalsDiscrepancy,
+  TOTALS_EPSILON,
+} from '@/lib/estimate/totals'
 import { getPriceBookItems } from '@/lib/queries/price-book'
 import {
   resolveEstimateLanguage,
@@ -45,6 +53,8 @@ export interface GenerateEstimateOptions {
    * Omit for web/MCP so those channels are unaffected.
    */
   channel?: 'whatsapp'
+  /** auth.users.id of the staff member or owner who triggered generation. Stored on the estimate for "Prepared by" attribution. */
+  createdByUserId?: string
 }
 
 function normalizeClientNameForMatch(name: string): string {
@@ -175,7 +185,7 @@ export async function generateEstimateForProject(
     if (extra) estimateInput.extraInstructions = extra
   }
 
-  const provider = await getAIProvider(companyId)
+  const provider = await getAIProviderWithFallback(companyId)
   const aiEstimate = await provider.generateEstimate(estimateInput)
 
   // Client suggestion — only when project has no linked client.
@@ -245,7 +255,31 @@ export async function generateEstimateForProject(
   // Server-side math validation
   const taxRate = Number(company.default_tax_rate) || 0
 
-  const calculatedSections = aiEstimate.sections.map((section) => {
+  // GUARD-03 snapshot: capture the naive subtotal the AI's OWN numbers imply
+  // BEFORE anchoring/clamping mutates any unit_price. Used for the discrepancy
+  // metric below; the AI total itself is never persisted as authoritative.
+  const aiProposedSubtotal = round2(
+    aiEstimate.sections.reduce(
+      (sum, section) =>
+        sum +
+        section.items.reduce(
+          (s, item) => s + item.quantity * item.unit_price,
+          0
+        ),
+      0
+    )
+  )
+
+  // GUARD-02: anchor matched items to the (companyId-scoped, currency-filtered)
+  // price book and clamp out-of-bounds ai_estimate prices. Pass ONLY mapped
+  // { name, unit_price } so the pure helper stays tenant-safe. Non-fatal.
+  const { sections: guardedSections, anchoredCount, clampedCount } =
+    anchorAndClampSections(
+      aiEstimate.sections,
+      priceBookItems.map((p) => ({ name: p.name, unit_price: p.unit_price }))
+    )
+
+  const calculatedSections = guardedSections.map((section) => {
     const items = section.items.map((item) => ({
       ...item,
       total: Math.round(item.quantity * item.unit_price * 100) / 100,
@@ -264,6 +298,47 @@ export async function generateEstimateForProject(
     ) / 100
   const taxAmount = Math.round(subtotal * taxRate * 100) / 100
   const grandTotal = Math.round((subtotal + taxAmount) * 100) / 100
+
+  // GUARD-03: the server recalculation above is the SINGLE authoritative source.
+  // Defensively coerce each persisted total to a finite, >= 0 value (no-op on the
+  // happy path — valid totals must not shift). Never throws.
+  const safeSubtotal = assertFinitePositive(subtotal)
+  const safeTaxAmount = assertFinitePositive(taxAmount)
+  const safeGrandTotal = assertFinitePositive(grandTotal)
+
+  // Log-only invariant guard (never blocks persistence): grand == subtotal + tax
+  // within rounding epsilon. True by construction; asserted as a regression guard.
+  const totalsSane =
+    Math.abs(safeGrandTotal - round2(safeSubtotal + safeTaxAmount)) <=
+    TOTALS_EPSILON
+  if (!totalsSane) {
+    console.warn('[generate-estimate] totals invariant violation', {
+      safeSubtotal,
+      safeTaxAmount,
+      safeGrandTotal,
+    })
+  }
+
+  // GUARD-03 discrepancy metric: server grand vs the naive AI-implied grand
+  // (pre-anchor), with anchored/clamped counts. The AI total is NEVER persisted —
+  // only the server safeGrandTotal writes to estimates.total. Best-effort: any
+  // emission failure is swallowed so observability can never break generation.
+  try {
+    const aiProposedGrand = round2(aiProposedSubtotal * (1 + taxRate))
+    const discrepancy = computeTotalsDiscrepancy({
+      serverGrand: safeGrandTotal,
+      aiGrand: aiProposedGrand,
+      anchoredCount,
+      clampedCount,
+    })
+    // SINK: pipeline_events has no free-form metadata column for this signal, so we
+    // emit it to the structured log here. Plan 100-03 owns the Langfuse trace
+    // metadata seam (the Inngest job carries attemptId/correlationId) and can attach
+    // `discrepancy` there for end-to-end correlation.
+    console.info('[totals_discrepancy]', discrepancy)
+  } catch (err) {
+    console.warn('[generate-estimate] discrepancy metric emission failed', err)
+  }
 
   // Version management
   await supabase
@@ -298,14 +373,15 @@ export async function generateEstimateForProject(
         aiEstimate.payment_terms ?? company.default_payment_terms ?? null,
       warranty_terms:
         aiEstimate.warranty_terms ?? company.default_warranty_terms ?? null,
-      subtotal,
+      subtotal: safeSubtotal,
       discount_type: null,
       discount_value: 0,
       discount_amount: 0,
       tax_rate: taxRate,
-      tax_amount: taxAmount,
-      total: grandTotal,
+      tax_amount: safeTaxAmount,
+      total: safeGrandTotal,
       language,
+      created_by_user_id: options.createdByUserId ?? null,
     })
     .select('id')
     .single()
@@ -364,7 +440,7 @@ export async function generateEstimateForProject(
   // Update project status
   await supabase
     .from('projects')
-    .update({ status: 'estimate_ready', total: grandTotal })
+    .update({ status: 'estimate_ready', total: safeGrandTotal })
     .eq('id', projectId)
 
   // Log activity

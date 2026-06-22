@@ -29,8 +29,9 @@ import { getEntitlements } from '@/lib/entitlements'
  *   companies: .from('companies').select('tier').eq('id', companyId).single() → { data: { tier }, error: null }
  *   usage_events (SELECT): .from('usage_events').select('id').eq('company_id', ...).gte('created_at', ...) → { data: rows, error: null }
  *
- * recordUsage upsert chain:
- *   usage_events: .from('usage_events').upsert({...}, { onConflict, ignoreDuplicates: true }) → { error: upsertError }
+ * recordUsage check-then-insert chain:
+ *   dedup SELECT: .from('usage_events').select('id').eq('company_id', ...).eq('idempotency_key', ...).limit(1).maybeSingle() → { data: existing }
+ *   INSERT:       .from('usage_events').insert({...}) → { error: insertError }
  *
  * monthCount = total rows returned for the month query.
  * dayCount   = rows returned for the day sub-filter (implemented via second .gte() call).
@@ -39,13 +40,14 @@ function makeSupabase({
   tier = 'free',
   monthCount = 0,
   dayCount = 0,
-  upsertError = null as unknown,
+  existing = null as unknown,
+  insertError = null as unknown,
 } = {}) {
   // Build rows for month and day counts
   const monthRows = Array(monthCount).fill({ id: 'x' })
   const dayRows = Array(dayCount).fill({ id: 'x' })
 
-  const upsertMock = vi.fn().mockResolvedValue({ error: upsertError })
+  const insertMock = vi.fn().mockResolvedValue({ error: insertError })
 
   const fromMock = vi.fn().mockImplementation((table: string) => {
     if (table === 'companies') {
@@ -59,39 +61,42 @@ function makeSupabase({
     }
 
     if (table === 'usage_events') {
-      // SELECT chain for checkQuota:
-      //   .select('id').eq('company_id', id).gte('created_at', startOfMonth).gte('created_at', startOfDay)
-      // The implementation calls gte twice: first for startOfMonth, then for startOfDay.
-      // We simulate this by returning dayRows on the second .gte() (most restrictive filter).
-      let gteCallCount = 0
-      const gteMock: ReturnType<typeof vi.fn> = vi.fn().mockImplementation(() => {
-        gteCallCount++
-        if (gteCallCount === 1) {
-          // First gte = month filter — returns month rows, but still chainable for day filter
-          return {
-            gte: vi.fn().mockResolvedValue({ data: dayRows, error: null }),
+      // The select() result must serve two different chains:
+      //   checkQuota:  .eq('company_id', id).gte(startOfMonth).gte(startOfDay)
+      //   recordUsage: .eq('company_id', id).eq('idempotency_key', key).limit(1).maybeSingle()
+      const eqMock = vi.fn().mockImplementation(() => {
+        // checkQuota path: .gte() called twice (month, then day).
+        let gteCallCount = 0
+        const gteMock: ReturnType<typeof vi.fn> = vi.fn().mockImplementation(() => {
+          gteCallCount++
+          if (gteCallCount === 1) {
+            return { gte: vi.fn().mockResolvedValue({ data: dayRows, error: null }) }
           }
-        }
-        // Should not be reached in this chain structure
-        return Promise.resolve({ data: dayRows, error: null })
+          return Promise.resolve({ data: dayRows, error: null })
+        })
+
+        // recordUsage dedup path: .eq('idempotency_key', ...).limit(1).maybeSingle()
+        const eqIdempotency = vi.fn().mockReturnValue({
+          limit: vi.fn().mockReturnValue({
+            maybeSingle: vi.fn().mockResolvedValue({ data: existing, error: null }),
+          }),
+        })
+
+        return { gte: gteMock, eq: eqIdempotency }
       })
 
       return {
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            gte: gteMock,
-          }),
-        }),
-        upsert: upsertMock,
+        select: vi.fn().mockReturnValue({ eq: eqMock }),
+        insert: insertMock,
       }
     }
   })
 
   return {
     from: fromMock,
-    upsertMock,
-    _upsertMock: upsertMock,
-  } as unknown as SupabaseClient & { upsertMock: ReturnType<typeof vi.fn>; _upsertMock: ReturnType<typeof vi.fn> }
+    insertMock,
+    _insertMock: insertMock,
+  } as unknown as SupabaseClient & { insertMock: ReturnType<typeof vi.fn>; _insertMock: ReturnType<typeof vi.fn> }
 }
 
 // ---------------------------------------------------------------------------
@@ -164,38 +169,46 @@ describe('quota', () => {
     expect(result.remaining).toBeNull()
   })
 
-  // Test 5: recordUsage — new idempotency key → inserts row (upsert mock called once)
+  // Test 5: recordUsage — new idempotency key → inserts row (insert mock called once)
   it('recordUsage inserts a usage_events row for a new idempotency key', async () => {
-    const supabase = makeSupabase()
-    const typedSupabase = supabase as unknown as SupabaseClient & { _upsertMock: ReturnType<typeof vi.fn> }
+    const supabase = makeSupabase() // existing = null → no dedup hit, insert runs
+    const insertSpy = (supabase as unknown as { insertMock: ReturnType<typeof vi.fn> }).insertMock
 
     await recordUsage(supabase, 'company-123', 'estimate_generated', 1, 'idem-key-001')
 
-    // Access the upsert spy through the from() mock
     expect((supabase as unknown as { from: ReturnType<typeof vi.fn> }).from).toHaveBeenCalledWith('usage_events')
+    expect(insertSpy).toHaveBeenCalledTimes(1)
   })
 
-  // Test 6: recordUsage — duplicate idempotency key → no error thrown (idempotent)
-  it('recordUsage with a duplicate idempotency key does NOT throw (ON CONFLICT DO NOTHING)', async () => {
-    // Simulate DB returning no error even on conflict (ignoreDuplicates: true)
-    const supabase = makeSupabase({ upsertError: null })
+  // Test 6: recordUsage — duplicate idempotency key → no insert, no throw (idempotent)
+  it('recordUsage with a duplicate idempotency key does NOT throw and skips the insert', async () => {
+    // Dedup SELECT finds an existing row → recordUsage returns early.
+    const supabase = makeSupabase({ existing: { id: 'already-recorded' } })
+    const insertSpy = (supabase as unknown as { insertMock: ReturnType<typeof vi.fn> }).insertMock
 
-    // Should not throw on duplicate
     await expect(
       recordUsage(supabase, 'company-123', 'estimate_generated', 1, 'duplicate-key')
     ).resolves.toBeUndefined()
+    expect(insertSpy).not.toHaveBeenCalled()
   })
 
-  // Test 7: recordUsage — second different key → second distinct upsert call
-  it('recordUsage with a different idempotency key inserts a new row (second upsert call)', async () => {
+  // Test 6b: recordUsage — concurrent retry races insert → 23505 swallowed, no throw
+  it('recordUsage swallows a unique-violation (23505) from a concurrent retry', async () => {
+    const supabase = makeSupabase({ insertError: { code: '23505', message: 'duplicate key' } })
+
+    await expect(
+      recordUsage(supabase, 'company-123', 'estimate_generated', 1, 'raced-key')
+    ).resolves.toBeUndefined()
+  })
+
+  // Test 7: recordUsage — two different keys → two distinct inserts
+  it('recordUsage with a different idempotency key inserts a new row (second insert call)', async () => {
     const supabase = makeSupabase()
-    const fromSpy = (supabase as unknown as { from: ReturnType<typeof vi.fn> }).from
+    const insertSpy = (supabase as unknown as { insertMock: ReturnType<typeof vi.fn> }).insertMock
 
     await recordUsage(supabase, 'company-123', 'estimate_generated', 1, 'key-A')
     await recordUsage(supabase, 'company-123', 'estimate_generated', 1, 'key-B')
 
-    // from('usage_events') should have been called twice
-    const usageCalls = fromSpy.mock.calls.filter((c: unknown[]) => c[0] === 'usage_events')
-    expect(usageCalls.length).toBe(2)
+    expect(insertSpy).toHaveBeenCalledTimes(2)
   })
 })

@@ -15,7 +15,10 @@ export const TOUR_STEPS: TourStep[] = [
   },
   {
     id: 'projects',
-    target: '[data-tour="projects"]',
+    // On mobile, Projects lives inside the bottom-bar "More" menu — fall back to
+    // that button when the sidebar anchor isn't visible (findVisibleTarget picks
+    // the first visible match: sidebar item on desktop, More button on mobile).
+    target: '[data-tour="projects"], [data-tour="more-menu"]',
     title: 'Your projects',
     description: 'All job sites in one place. Open any to view its estimate.',
   },
@@ -27,7 +30,9 @@ export const TOUR_STEPS: TourStep[] = [
   },
   {
     id: 'price-book',
-    target: '[data-tour="price-book"]',
+    // On mobile, Price Book lives inside the bottom-bar "More" menu — same
+    // fallback-to-More-button pattern as the Projects step above.
+    target: '[data-tour="price-book"], [data-tour="more-menu"]',
     title: 'Price Book',
     description: 'Save your most-used items to speed up future estimates.',
   },

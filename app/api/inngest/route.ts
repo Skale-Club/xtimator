@@ -17,7 +17,10 @@ import {
   whatsAppIntentRouterJob,
   notificationEmailDigest,
   notificationCleanup,
+  notificationChannelSend,
   cleanupAudioJob,
+  xphereSyncJob,
+  whatsAppWelcomeJob,
 } from '@/lib/inngest/functions'
 
 export const { GET, POST, PUT } = serve({
@@ -30,6 +33,9 @@ export const { GET, POST, PUT } = serve({
     whatsAppIntentRouterJob,
     notificationEmailDigest,
     notificationCleanup,
+    notificationChannelSend,
     cleanupAudioJob,
+    xphereSyncJob,
+    whatsAppWelcomeJob,
   ],
 })

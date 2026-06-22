@@ -1,4 +1,5 @@
 // lib/ai/types.ts
+import type { EstimateOutput } from './schema'
 
 export type PriceBookEntry = {
   folder_name: string | null
@@ -21,16 +22,12 @@ export type EstimateSectionOutput = {
   items: LineItemOutput[]
 }
 
-export type EstimateOutput = {
-  suggested_project_name: string
-  suggested_client_name?: string | null
-  summary: string
-  notes?: string
-  timeline?: string
-  payment_terms?: string
-  warranty_terms?: string
-  sections: EstimateSectionOutput[]
-}
+// EstimateOutput is single-sourced from the zod schema (GUARD-01) — imported at the
+// top and re-exported here so every existing `import { EstimateOutput } from './types'`
+// keeps working while the schema in `./schema.ts` remains the only definition (the
+// validator and the type can never drift). LineItemOutput / EstimateSectionOutput
+// above stay as the structurally-compatible item/section shapes used by callers.
+export type { EstimateOutput }
 
 export type EstimateInput = {
   industry: string | null
@@ -64,6 +61,13 @@ export type EstimateInput = {
    * estimate generation; null/undefined for web + MCP.
    */
   extraInstructions?: string
+  /**
+   * GUARD-01 schema-repair hint. Set ONLY by the schema-retry seam
+   * (provider-with-fallback.ts) on the single corrective re-call after the first
+   * invalid output. When present, the adapter appends it to the user content it
+   * builds. Absent on the happy path (valid first time = no hint, no retry).
+   */
+  retryHint?: string
 }
 
 export type RefineEstimateInput = {
@@ -71,4 +75,19 @@ export type RefineEstimateInput = {
   instruction: string               // User's refinement request
   priceBookItems: PriceBookEntry[]  // Company's price book
   currencyCode?: string
+  /**
+   * GUARD-01 schema-repair hint (see EstimateInput.retryHint). Set only by the
+   * schema-retry seam on the single corrective re-call; appended to user content.
+   * Refine inherits the same retry seam in Phase 101 for free.
+   */
+  retryHint?: string
+  /**
+   * Phase 101 (HARD-02/UNIFY-02): builder-relevant company context the refine node
+   * (101-03) threads from companyId so the shared prompt builder gets the same
+   * language/industry/project context as generate — the strongest UNIFY-02
+   * equivalence. All OPTIONAL and additive (non-breaking for existing callers).
+   */
+  industry?: string | null
+  language?: 'en' | 'pt' | 'es'
+  projectName?: string
 }

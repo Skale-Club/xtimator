@@ -29,6 +29,9 @@ export type FormatterEstimate = {
   summary: string | null
   total: number
   subtotal: number
+  discount_type?: string | null
+  discount_value?: number
+  discount_amount?: number
   tax_rate: number
   tax_amount: number
   payment_terms: string | null
@@ -42,111 +45,128 @@ export type FormatterEstimate = {
 interface FormatterLabels {
   greetingWithName: (name: string) => string
   greetingAnon: string
-  fromCompany: (name: string) => string
-  fromAnon: string
+  intro: (company: string) => string
+  introAnon: string
   subtotal: string
+  discount: (type: string | null | undefined, value: number) => string
   tax: (pct: string) => string
   total: string
-  timeline: string
-  payment: string
   closing: string
+  regards: string
 }
 
 const LABELS: Record<'en' | 'pt' | 'es', FormatterLabels> = {
   en: {
-    greetingWithName: (n) => `Hi ${n},`,
-    greetingAnon: 'Hi,',
-    fromCompany: (c) => `*${c}* has prepared an estimate for you:`,
-    fromAnon: 'Here is your estimate:',
+    greetingWithName: (n) => `Hello ${n},`,
+    greetingAnon: 'Hello,',
+    intro: (c) => `Thank you for reaching out to ${c}! Here's your estimate:`,
+    introAnon: "Here's your estimate:",
     subtotal: 'Subtotal',
+    discount: (type, value) =>
+      type === 'percentage' ? `Discount (${value}%)` : 'Discount',
     tax: (pct) => `Tax (${pct}%)`,
-    total: 'Total',
-    timeline: 'Timeline',
-    payment: 'Payment',
-    closing: 'Questions? Just reply to this message.',
+    total: 'Total Estimate',
+    closing:
+      "Let me know if you have any questions or would like to schedule. I'd be happy to assist you!",
+    regards: 'Best regards,',
   },
   pt: {
     greetingWithName: (n) => `Olá ${n},`,
     greetingAnon: 'Olá,',
-    fromCompany: (c) => `*${c}* preparou um orçamento para você:`,
-    fromAnon: 'Aqui está seu orçamento:',
+    intro: (c) => `Obrigado por entrar em contato com ${c}! Segue seu orçamento:`,
+    introAnon: 'Segue seu orçamento:',
     subtotal: 'Subtotal',
+    discount: (type, value) =>
+      type === 'percentage' ? `Desconto (${value}%)` : 'Desconto',
     tax: (pct) => `Imposto (${pct}%)`,
-    total: 'Total',
-    timeline: 'Prazo',
-    payment: 'Pagamento',
-    closing: 'Dúvidas? É só responder esta mensagem.',
+    total: 'Total do Orçamento',
+    closing: 'Fique à vontade para entrar em contato com dúvidas ou para agendar. Terei prazer em ajudar!',
+    regards: 'Atenciosamente,',
   },
   es: {
     greetingWithName: (n) => `Hola ${n},`,
     greetingAnon: 'Hola,',
-    fromCompany: (c) => `*${c}* ha preparado un presupuesto para usted:`,
-    fromAnon: 'Aquí está su presupuesto:',
+    intro: (c) => `¡Gracias por contactar a ${c}! Aquí está su presupuesto:`,
+    introAnon: 'Aquí está su presupuesto:',
     subtotal: 'Subtotal',
+    discount: (type, value) =>
+      type === 'percentage' ? `Descuento (${value}%)` : 'Descuento',
     tax: (pct) => `Impuesto (${pct}%)`,
-    total: 'Total',
-    timeline: 'Plazo',
-    payment: 'Pago',
-    closing: '¿Preguntas? Solo responda este mensaje.',
+    total: 'Total del Presupuesto',
+    closing:
+      '¿Preguntas? Con gusto le ayudamos a programar. ¡Estamos a su disposición!',
+    regards: 'Saludos,',
   },
 }
 
 /**
  * Build a WhatsApp message body for the full estimate.
- * Uses *bold* and line breaks — renders well in WhatsApp.
+ * Uses plain text with line breaks — renders well in WhatsApp without
+ * requiring Meta template approval.
+ *
+ * @param responsibleName - Name of the person sending the estimate (owner / rep)
+ * @param companyWebsite  - Company website URL shown in the sign-off
  */
 export function formatEstimateForWhatsApp(
   estimate: FormatterEstimate,
   clientName: string | null,
-  companyName: string | null
+  companyName: string | null,
+  responsibleName?: string | null,
+  companyWebsite?: string | null,
 ): string {
   const language = estimate.language ?? 'en'
   const L = LABELS[language]
   const money = (n: number) => formatMoney(n, estimate.currency_code)
   const lines: string[] = []
 
+  // ── Greeting + intro ─────────────────────────────────────────────────────
   lines.push(clientName ? L.greetingWithName(clientName) : L.greetingAnon)
+  lines.push(companyName ? L.intro(companyName) : L.introAnon)
   lines.push('')
-  lines.push(companyName ? L.fromCompany(companyName) : L.fromAnon)
 
-  if (estimate.summary) {
-    lines.push('')
-    lines.push(estimate.summary)
-  }
-
-  lines.push('')
-  lines.push('─────────────────')
-
+  // ── Sections ─────────────────────────────────────────────────────────────
   for (const section of estimate.sections) {
-    lines.push('')
-    lines.push(`*${section.title}* — ${money(section.subtotal)}`)
+    lines.push(`[${section.title}]`)
     for (const item of section.items) {
-      const unitLabel = item.unit ? ` ${item.unit}` : ''
-      lines.push(
-        `  • ${item.description} — ${item.quantity}${unitLabel} × ${money(item.unit_price)} = ${money(item.total)}`
-      )
+      if (item.quantity > 1) {
+        lines.push(
+          `- ${item.description} x ${item.quantity} (${money(item.unit_price)} each): ${money(item.total)}`
+        )
+      } else {
+        lines.push(`- ${item.description} x ${item.quantity}: ${money(item.total)}`)
+      }
     }
-  }
-
-  lines.push('')
-  lines.push('─────────────────')
-
-  if (estimate.tax_rate > 0) {
-    lines.push(`${L.subtotal}: ${money(estimate.subtotal)}`)
-    lines.push(`${L.tax((estimate.tax_rate * 100).toFixed(0))}: ${money(estimate.tax_amount)}`)
-  }
-  lines.push(`*${L.total}: ${money(estimate.total)}*`)
-
-  if (estimate.timeline) {
     lines.push('')
-    lines.push(`${L.timeline}: ${estimate.timeline}`)
-  }
-  if (estimate.payment_terms) {
-    lines.push(`${L.payment}: ${estimate.payment_terms}`)
   }
 
+  // ── Totals ────────────────────────────────────────────────────────────────
+  const discountAmount = estimate.discount_amount ?? 0
+  const hasDiscount = discountAmount > 0
+  const hasTax = estimate.tax_rate > 0 && estimate.tax_amount > 0
+  const needsSubtotal = hasDiscount || hasTax
+
+  if (needsSubtotal) {
+    lines.push(`${L.subtotal}: ${money(estimate.subtotal)}`)
+  }
+  if (hasDiscount) {
+    const label = L.discount(estimate.discount_type, estimate.discount_value ?? 0)
+    lines.push(`${label}: -${money(discountAmount)}`)
+  }
+  if (hasTax) {
+    lines.push(
+      `${L.tax((estimate.tax_rate * 100).toFixed(0))}: ${money(estimate.tax_amount)}`
+    )
+  }
   lines.push('')
+  lines.push(`${L.total}: ${money(estimate.total)}`)
+  lines.push('')
+
+  // ── Closing + sign-off ────────────────────────────────────────────────────
   lines.push(L.closing)
+  lines.push('')
+  lines.push(L.regards)
+  if (responsibleName) lines.push(responsibleName)
+  if (companyWebsite) lines.push(companyWebsite)
 
   return lines.join('\n')
 }

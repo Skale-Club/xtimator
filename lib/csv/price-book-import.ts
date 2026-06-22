@@ -26,9 +26,13 @@ export type RowError =
   | 'invalid_unit_price'
   | 'negative_unit_price'
 
-// Extend PriceBookItemFormValues with a transient folder_name for import
-// folder_name is NOT in the Zod schema — resolved to folder_id by the action layer
-export type ImportRow = PriceBookItemFormValues & { folder_name?: string }
+// Extend PriceBookItemFormValues with a transient folder_name for import.
+// folder_name is NOT in the Zod schema — resolved to folder_id by the action layer.
+// pricing_type is optional here: CSV files don't include it; the action defaults to 'fixed'.
+export type ImportRow = Omit<PriceBookItemFormValues, 'pricing_type'> & {
+  pricing_type?: PriceBookItemFormValues['pricing_type']
+  folder_name?: string
+}
 
 export interface ParsedRow {
   rowNumber: number

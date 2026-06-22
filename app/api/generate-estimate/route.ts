@@ -10,6 +10,7 @@ import { XtimatorError, asResponse } from '@/lib/errors'
 import { checkQuota } from '@/lib/quota'
 import { isSupportedLanguage } from '@/lib/i18n/resolve-estimate-language'
 import { demoGuardResponse } from '@/lib/demo/guard'
+import { getActiveCompanyId } from '@/lib/queries/active-company'
 
 /**
  * Phase 91 (REC-03/REC-04): pure, exported helper deriving the Inngest event id
@@ -69,16 +70,11 @@ export async function POST(request: Request) {
       )
     }
 
-    // Company lookup
-    const { data: companyRow } = await supabase
-      .from('companies')
-      .select('id')
-      .eq('user_id', userId)
-      .single()
-    if (!companyRow) {
+    // Company lookup — use active-company cookie so staff members resolve correctly
+    const companyId = await getActiveCompanyId()
+    if (!companyId) {
       throw new XtimatorError('not_found', 'company', 'No company found')
     }
-    const companyId = (companyRow as { id: string }).id
 
     // QUOTA-03: gate dispatch — recordUsage now lives inside the Inngest function
     const { allowed } = await checkQuota(supabase, companyId, 'estimate')
@@ -136,6 +132,7 @@ export async function POST(request: Request) {
       language,
       attemptId,
       inputType,
+      createdByUserId: userId,
     }
     const { ids } = await inngest.send({
       name: EVENT_ESTIMATE_GENERATE,

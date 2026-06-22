@@ -1,23 +1,14 @@
-import {
-  MessageSquare,
-  DollarSign,
-  FileText,
-  Clock,
-  Activity,
-  ShieldCheck,
-  Cpu,
-  Wrench,
-} from 'lucide-react'
+import { DollarSign, FileText, Wrench } from 'lucide-react'
 import type { EventCategory } from '@/lib/notifications/event-types'
 
-const MAP: Record<EventCategory, React.ComponentType<{ className?: string }>> = {
-  whatsapp: MessageSquare,
-  payment: DollarSign,
+// Phase 104: reduced to the 3 visible categories. Legacy feed rows whose
+// event_type maps to `_dropped` (or any unknown category) fall back to Wrench
+// via the `?? Wrench` guard below — no crash.
+const MAP: Partial<
+  Record<EventCategory, React.ComponentType<{ className?: string }>>
+> = {
   estimate: FileText,
-  trial: Clock,
-  quota: Activity,
-  admin: ShieldCheck,
-  ai_job: Cpu,
+  billing: DollarSign,
   system: Wrench,
 }
 

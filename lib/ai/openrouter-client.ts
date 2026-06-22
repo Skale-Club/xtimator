@@ -12,7 +12,7 @@
  */
 
 import { getIntegrationKey } from '@/lib/platform-config'
-import { getLangfuse } from '@/lib/observability/langfuse'
+import { langfuseClient } from '@/lib/observability/langfuse'
 
 export const OPENROUTER_BASE = 'https://openrouter.ai/api/v1'
 export const OPENAI_TRANSCRIPTION_BASE = 'https://api.openai.com/v1'
@@ -53,9 +53,11 @@ export async function getORKey(): Promise<string> {
  * was unreliable for our usage, so transcription calls OpenAI directly. Vision
  * and translation in this module still use OpenRouter.
  *
- * Requires an OpenAI key, read via getIntegrationKey('openai') which falls back
- * to the OPENAI_API_KEY env var (see lib/platform-config.ts). Throws on any
- * non-2xx or network failure so Inngest's onFailure (ai_job.failed) surfaces it.
+ * Prefers an OpenAI key, read via getIntegrationKey('openai') which falls back
+ * to the OPENAI_API_KEY env var (see lib/platform-config.ts). When NO OpenAI key
+ * is configured, transcription falls back to Gemini (transcribeAudioGemini) using
+ * the platform's existing Gemini key. Throws on any non-2xx or network failure so
+ * Inngest's onFailure (ai_job.failed) surfaces it.
  */
 export async function transcribeAudioOR(
   audioBlob: Blob,
@@ -64,52 +66,72 @@ export async function transcribeAudioOR(
 ): Promise<string> {
   const apiKey = await getIntegrationKey('openai')
   if (!apiKey) {
-    throw new Error(
-      'OpenAI API key not configured (checked platform_integrations and OPENAI_API_KEY env)'
-    )
+    // No OpenAI Whisper key configured — short-circuit straight to Gemini
+    // multimodal transcription, which the platform already has set up. This
+    // key-absent path is PRESERVED ahead of the failure-based fallback below.
+    // Dynamic import keeps the Gemini SDK out of bundles that only use the
+    // OpenRouter helpers.
+    const { transcribeAudioGemini } = await import('@/lib/ai/providers/gemini')
+    return transcribeAudioGemini(audioBlob, ext)
   }
 
-  const startTime = new Date()
-  const form = new FormData()
-  form.append('file', audioBlob, `recording.${ext}`)
-  form.append('model', model)
-  form.append('response_format', 'text')
+  // Key-present primary: OpenAI Whisper. On failure, fall back to Gemini exactly
+  // once via the shared provider-fallback policy (HARD-03).
+  async function whisperPrimary(): Promise<string> {
+    const startTime = new Date()
+    const form = new FormData()
+    form.append('file', audioBlob, `recording.${ext}`)
+    form.append('model', model)
+    form.append('response_format', 'text')
 
-  const res = await fetch(`${OPENAI_TRANSCRIPTION_BASE}/audio/transcriptions`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${apiKey}` },
-    body: form,
-  })
+    const res = await fetch(`${OPENAI_TRANSCRIPTION_BASE}/audio/transcriptions`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}` },
+      body: form,
+    })
 
-  if (!res.ok) {
-    const err = await res.text().catch(() => 'unknown')
-    throw new Error(`OpenAI transcription failed (${res.status}): ${err.slice(0, 400)}`)
-  }
-
-  const transcript = (await res.text()).trim()
-  try {
-    const lf = getLangfuse()
-    if (lf) {
-      const trace = lf.trace({ name: 'transcribe_audio' })
-      trace.span({
-        name: 'transcribe_audio',
-        input: { ext, model },
-        output: transcript.slice(0, 200),
-        startTime,
-        endTime: new Date(),
-      })
+    if (!res.ok) {
+      const err = await res.text().catch(() => 'unknown')
+      throw new Error(`OpenAI transcription failed (${res.status}): ${err.slice(0, 400)}`)
     }
-  } catch (err) {
-    console.warn('[langfuse] transcribe_audio trace failed:', err)
+
+    const transcript = (await res.text()).trim()
+    try {
+      const gen = langfuseClient.generation({
+        name: 'transcribe_audio',
+        model,
+        input: { ext, model },
+        startTime,
+      })
+      gen.end({ output: { chars: transcript.length }, endTime: new Date() })
+      await langfuseClient.flushAsync()
+    } catch (err) {
+      console.warn('[langfuse] transcribe_audio trace failed:', err)
+    }
+    return transcript
   }
-  return transcript
+
+  const { callWithFallback } = await import('@/lib/ai/with-fallback')
+  const { result } = await callWithFallback({
+    op: 'transcribe',
+    primary: whisperPrimary,
+    fallback: async () => {
+      const { transcribeAudioGemini } = await import('@/lib/ai/providers/gemini')
+      return transcribeAudioGemini(audioBlob, ext)
+    },
+  })
+  return result
 }
 
 // ---------------------------------------------------------------------------
 // Photo / vision analysis
 // ---------------------------------------------------------------------------
 
-const PHOTO_PROMPT =
+/**
+ * Shared vision prompt. Exported so the Gemini vision fallback
+ * (`analyzePhotoGemini`) imports the SAME constant — no duplication.
+ */
+export const PHOTO_PROMPT =
   "Describe this photo from a contractor's perspective. Note materials, conditions, measurements if visible, damage, and areas needing work. Be specific and concise."
 
 /**
@@ -121,65 +143,76 @@ export async function analyzePhotoOR(
   mimeType: string,
   model?: string
 ): Promise<string> {
-  const apiKey = await getORKey()
-  const visionModel = model ?? OR_DEFAULTS.chat
-  const startTime = new Date()
+  // Primary: OpenRouter vision. On failure, fall back to Gemini vision exactly
+  // once via the shared provider-fallback policy (HARD-03).
+  async function visionPrimary(): Promise<string> {
+    const apiKey = await getORKey()
+    const visionModel = model ?? OR_DEFAULTS.chat
+    const startTime = new Date()
 
-  const body = {
-    model: visionModel,
-    max_tokens: 300,
-    messages: [
-      {
-        role: 'user',
-        content: [
-          {
-            type: 'image_url',
-            image_url: { url: `data:${mimeType};base64,${base64}` },
-          },
-          { type: 'text', text: PHOTO_PROMPT },
-        ],
+    const body = {
+      model: visionModel,
+      max_tokens: 300,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'image_url',
+              image_url: { url: `data:${mimeType};base64,${base64}` },
+            },
+            { type: 'text', text: PHOTO_PROMPT },
+          ],
+        },
+      ],
+    }
+
+    const res = await fetch(`${OPENROUTER_BASE}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        ...SITE_HEADERS,
       },
-    ],
-  }
+      body: JSON.stringify(body),
+    })
 
-  const res = await fetch(`${OPENROUTER_BASE}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-      ...SITE_HEADERS,
-    },
-    body: JSON.stringify(body),
-  })
+    if (!res.ok) {
+      const err = await res.text().catch(() => 'unknown')
+      throw new Error(`OpenRouter vision failed (${res.status}): ${err.slice(0, 400)}`)
+    }
 
-  if (!res.ok) {
-    const err = await res.text().catch(() => 'unknown')
-    throw new Error(`OpenRouter vision failed (${res.status}): ${err.slice(0, 400)}`)
-  }
+    const json = (await res.json()) as {
+      choices?: Array<{ message?: { content?: string | null } }>
+      error?: { message?: string }
+    }
+    if (json.error?.message) throw new Error(`OpenRouter vision error: ${json.error.message}`)
 
-  const json = (await res.json()) as {
-    choices?: Array<{ message?: { content?: string | null } }>
-    error?: { message?: string }
-  }
-  if (json.error?.message) throw new Error(`OpenRouter vision error: ${json.error.message}`)
-
-  const result = json.choices?.[0]?.message?.content ?? ''
-  try {
-    const lf = getLangfuse()
-    if (lf) {
-      const trace = lf.trace({ name: 'analyze_photo' })
-      trace.generation({
+    const result = json.choices?.[0]?.message?.content ?? ''
+    try {
+      const gen = langfuseClient.generation({
         name: 'analyze_photo',
         model: visionModel,
         input: { mimeType, prompt: PHOTO_PROMPT },
-        output: result,
         startTime,
-        endTime: new Date(),
       })
+      gen.end({ output: result.slice(0, 500), endTime: new Date() })
+      await langfuseClient.flushAsync()
+    } catch (err) {
+      console.warn('[langfuse] analyze_photo trace failed:', err)
     }
-  } catch (err) {
-    console.warn('[langfuse] analyze_photo trace failed:', err)
+    return result
   }
+
+  const { callWithFallback } = await import('@/lib/ai/with-fallback')
+  const { result } = await callWithFallback({
+    op: 'vision',
+    primary: visionPrimary,
+    fallback: async () => {
+      const { analyzePhotoGemini } = await import('@/lib/ai/providers/gemini')
+      return analyzePhotoGemini(base64, mimeType)
+    },
+  })
   return result
 }
 
@@ -238,18 +271,14 @@ export async function translateTextsOR(
   const clean = raw.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim()
   const result = JSON.parse(clean) as Record<string, string>
   try {
-    const lf = getLangfuse()
-    if (lf) {
-      const trace = lf.trace({ name: 'translate_texts' })
-      trace.generation({
-        name: 'translate_texts',
-        model,
-        input: { texts, targetLanguage },
-        output: result,
-        startTime,
-        endTime: new Date(),
-      })
-    }
+    const gen = langfuseClient.generation({
+      name: 'translate_texts',
+      model,
+      input: { count: texts.length, targetLanguage },
+      startTime,
+    })
+    gen.end({ output: { keys: Object.keys(result) }, endTime: new Date() })
+    await langfuseClient.flushAsync()
   } catch (err) {
     console.warn('[langfuse] translate_texts trace failed:', err)
   }

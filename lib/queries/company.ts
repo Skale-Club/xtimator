@@ -15,6 +15,7 @@ export interface CompanySettings {
   license_number: string | null
   insurance_info: string | null
   industry: string | null
+  industries: string[] | null
   brand_primary_color: string | null
   logo_url: string | null
   currency_code: string

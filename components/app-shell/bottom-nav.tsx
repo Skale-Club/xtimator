@@ -3,9 +3,16 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { MoreHorizontal } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { NAV_ITEMS } from './nav-items'
 import { useTranslation } from '@/lib/i18n/use-translation'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 
 // Map from href to data-tour value — mirrors sidebar targets for mobile (Phase 74)
 const TOUR_TARGET: Record<string, string> = {
@@ -31,14 +38,20 @@ export function BottomNav({ isDemo }: { isDemo?: boolean }) {
     router.push(`${pathname}?${params.toString()}`, { scroll: false })
   }
 
-  // Reorder so the primary CTA always sits in the dead center of the visible
-  // items — regardless of whether demo-hidden items are shown (5 vs 7 items).
+  // Split visible items into the ones shown directly on the bar and the ones
+  // tucked inside the "More" overflow menu (Projects / Price Book / Settings).
   const visibleItems = NAV_ITEMS.filter((item) => !(isDemo && item.demoHidden))
-  const primary = visibleItems.find((item) => item.primary)
-  const rest = visibleItems.filter((item) => !item.primary)
+  const barItems = visibleItems.filter((item) => !item.overflow)
+  const overflowItems = visibleItems.filter((item) => item.overflow)
+
+  // Reorder so the primary CTA sits in the dead center of the bar, leaving the
+  // rightmost slot for the "More" button (ceil splits the extra to the left).
+  const primary = barItems.find((item) => item.primary)
+  const rest = barItems.filter((item) => !item.primary)
+  const leftCount = Math.ceil(rest.length / 2)
   const orderedItems = primary
-    ? [...rest.slice(0, Math.floor(rest.length / 2)), primary, ...rest.slice(Math.floor(rest.length / 2))]
-    : visibleItems
+    ? [...rest.slice(0, leftCount), primary, ...rest.slice(leftCount)]
+    : barItems
 
   return (
     <nav
@@ -62,9 +75,11 @@ export function BottomNav({ isDemo }: { isDemo?: boolean }) {
         ) : (
           <Icon className={cn('h-5 w-5', isActive ? 'text-[hsl(var(--primary))]' : '')} />
         )
-        const labelEl = item.primary ? (
-          <span className="text-[10px] font-medium leading-none mt-1">{t(item.label)}</span>
-        ) : null
+        const labelEl = (
+          <span className="text-[10px] font-medium leading-none mt-1 max-w-[64px] truncate">
+            {t(item.label)}
+          </span>
+        )
         if (item.modal) {
           return (
             <button
@@ -95,6 +110,35 @@ export function BottomNav({ isDemo }: { isDemo?: boolean }) {
           </Link>
         )
       })}
+
+      {overflowItems.length > 0 && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              data-tour="more-menu"
+              aria-label={t('More')}
+              className="flex min-h-[44px] min-w-[44px] flex-col items-center justify-center px-3 py-2 text-muted-foreground transition-colors duration-150 hover:text-foreground"
+            >
+              <MoreHorizontal className="h-5 w-5" />
+              <span className="text-[10px] font-medium leading-none mt-1">{t('More')}</span>
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent side="top" align="end" sideOffset={8} className="mb-1 min-w-[10rem]">
+            {overflowItems.map((item) => {
+              const Icon = item.icon
+              return (
+                <DropdownMenuItem key={item.href} asChild className="cursor-pointer gap-2">
+                  <Link href={item.href}>
+                    <Icon className="h-4 w-4" />
+                    {t(item.label)}
+                  </Link>
+                </DropdownMenuItem>
+              )
+            })}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
     </nav>
   )
 }

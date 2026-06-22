@@ -19,23 +19,44 @@ import type { ConversationThread, SendableEstimate } from '@/lib/whatsapp/inbox-
 
 // ----- internal helpers --------------------------------------------------
 
-async function resolve(): Promise<{ companyId: string; svc: SupabaseClient } | null> {
+async function resolve(): Promise<{ companyId: string; svc: SupabaseClient; ownerPhone: string | null } | null> {
   const companyId = await getActiveCompanyId()
   if (!companyId) return null
-  return { companyId, svc: requireServiceClient() }
+  const svc = requireServiceClient()
+
+  // Fetch the current user's id from auth context to look up their WhatsApp number.
+  const { createClient } = await import('@/lib/supabase/server')
+  const client = await createClient()
+  const { data: claimsData } = await client.auth.getClaims()
+  const userId = (claimsData?.claims?.sub as string | null) ?? null
+
+  let ownerPhone: string | null = null
+  if (userId) {
+    const { data: waRow } = await svc
+      .from('company_whatsapp')
+      .select('owner_phone')
+      .eq('company_id', companyId)
+      .eq('user_id', userId)
+      .maybeSingle()
+    ownerPhone = waRow?.owner_phone ?? null
+  }
+
+  return { companyId, svc, ownerPhone }
 }
 
 async function fetchConversation(
   svc: SupabaseClient,
   companyId: string,
   conversationId: string,
+  ownerPhone?: string | null,
 ): Promise<WaConversationRow | null> {
-  const { data } = await svc
+  let query = svc
     .from('whatsapp_conversations')
     .select('*')
     .eq('id', conversationId)
     .eq('company_id', companyId)
-    .maybeSingle()
+  if (ownerPhone) query = query.eq('owner_phone', ownerPhone)
+  const { data } = await query.maybeSingle()
   return (data as WaConversationRow | null) ?? null
 }
 
@@ -43,8 +64,9 @@ async function fetchThread(
   svc: SupabaseClient,
   companyId: string,
   conversationId: string,
+  ownerPhone?: string | null,
 ): Promise<ConversationThread | null> {
-  const conversation = await fetchConversation(svc, companyId, conversationId)
+  const conversation = await fetchConversation(svc, companyId, conversationId, ownerPhone)
   if (!conversation) return null
   const { data: messages } = await svc
     .from('whatsapp_messages')
@@ -82,7 +104,7 @@ export async function loadConversation(
 ): Promise<{ ok: true; thread: ConversationThread } | { ok: false; error: string }> {
   const ctx = await resolve()
   if (!ctx) return { ok: false, error: 'No active company' }
-  const thread = await fetchThread(ctx.svc, ctx.companyId, conversationId)
+  const thread = await fetchThread(ctx.svc, ctx.companyId, conversationId, ctx.ownerPhone)
   if (!thread) return { ok: false, error: 'Conversation not found' }
   await markConversationRead(ctx.svc, conversationId)
   revalidatePath('/whatsapp')
@@ -103,16 +125,16 @@ export async function sendReply(
 
   const ctx = await resolve()
   if (!ctx) return { ok: false, error: 'No active company' }
-  const { svc, companyId } = ctx
+  const { svc, companyId, ownerPhone } = ctx
 
-  const conversation = await fetchConversation(svc, companyId, conversationId)
+  const conversation = await fetchConversation(svc, companyId, conversationId, ownerPhone)
   if (!conversation) return { ok: false, error: 'Conversation not found' }
 
   if (!isWithinReplyWindow(conversation.last_inbound_at)) {
     return {
       ok: false,
       error:
-        'The 24-hour reply window has closed. WhatsApp only allows free-text replies within 24h of the client’s last message.',
+        "The 24-hour reply window has closed. WhatsApp only allows free-text replies within 24h of the client's last message.",
     }
   }
 
@@ -125,6 +147,7 @@ export async function sendReply(
     await logOutboundMessage(svc, {
       companyId,
       contactPhone: conversation.contact_phone,
+      ownerPhone,
       clientId: conversation.client_id,
       contactName: conversation.contact_name,
       body: trimmed,
@@ -132,7 +155,7 @@ export async function sendReply(
       status: 'failed',
       errorMessage: err instanceof Error ? err.message : 'send failed',
     })
-    const thread = await fetchThread(svc, companyId, conversationId)
+    const thread = await fetchThread(svc, companyId, conversationId, ownerPhone)
     return thread
       ? { ok: false, error: 'Failed to send. The message was logged as failed.' }
       : { ok: false, error: 'Failed to send.' }
@@ -141,6 +164,7 @@ export async function sendReply(
   await logOutboundMessage(svc, {
     companyId,
     contactPhone: conversation.contact_phone,
+    ownerPhone,
     clientId: conversation.client_id,
     contactName: conversation.contact_name,
     body: trimmed,
@@ -148,7 +172,7 @@ export async function sendReply(
     status: 'sent',
   })
 
-  const thread = await fetchThread(svc, companyId, conversationId)
+  const thread = await fetchThread(svc, companyId, conversationId, ownerPhone)
   if (!thread) return { ok: false, error: 'Conversation not found' }
   revalidatePath('/whatsapp')
   return { ok: true, thread }
@@ -160,9 +184,9 @@ export async function listSendableEstimates(
 ): Promise<{ ok: true; clientLinked: boolean; estimates: SendableEstimate[] } | { ok: false; error: string }> {
   const ctx = await resolve()
   if (!ctx) return { ok: false, error: 'No active company' }
-  const { svc, companyId } = ctx
+  const { svc, companyId, ownerPhone } = ctx
 
-  const conversation = await fetchConversation(svc, companyId, conversationId)
+  const conversation = await fetchConversation(svc, companyId, conversationId, ownerPhone)
   if (!conversation) return { ok: false, error: 'Conversation not found' }
 
   let clientId = conversation.client_id
@@ -220,9 +244,9 @@ export async function sendEstimateToConversation(
 
   const ctx = await resolve()
   if (!ctx) return { ok: false, error: 'No active company' }
-  const { svc, companyId } = ctx
+  const { svc, companyId, ownerPhone } = ctx
 
-  const conversation = await fetchConversation(svc, companyId, conversationId)
+  const conversation = await fetchConversation(svc, companyId, conversationId, ownerPhone)
   if (!conversation) return { ok: false, error: 'Conversation not found' }
 
   const result = await deliverEstimateViaWhatsApp({
@@ -234,7 +258,7 @@ export async function sendEstimateToConversation(
     clientName: conversation.contact_name,
   })
 
-  const thread = await fetchThread(svc, companyId, conversationId)
+  const thread = await fetchThread(svc, companyId, conversationId, ownerPhone)
   if (!result.ok) return { ok: false, error: result.error ?? 'Failed to send estimate' }
   if (!thread) return { ok: false, error: 'Conversation not found' }
 

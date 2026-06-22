@@ -9,7 +9,8 @@
  */
 import { randomUUID } from 'node:crypto'
 import { inngest } from '@/lib/inngest/client'
-import { generateEstimateForProject } from '@/lib/services/generate-estimate'
+import { makeDefaultAdapter } from '@/lib/estimate/adapters/default'
+import { buildEstimateGraph } from '@/lib/estimate/graph'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { recordUsage } from '@/lib/quota'
 import { notify } from '@/lib/notifications/dispatch'
@@ -19,6 +20,8 @@ import {
   EVENT_ESTIMATE_GENERATE,
   type EstimateGeneratePayload,
 } from '@/lib/inngest/events'
+import { CallbackHandler } from '@langfuse/langchain'
+import { langfuseProcessor } from '@/instrumentation'
 
 async function loadOwnerUserId(companyId: string): Promise<string | null> {
   try {
@@ -78,7 +81,7 @@ export const generateEstimateJob = inngest.createFunction(
   },
   async ({ event, step }) => {
     const data = event.data as EstimateGeneratePayload
-    const { companyId, projectId, requestId, language, prompts } = data
+    const { companyId, projectId, requestId, language, prompts, createdByUserId } = data
     // Phase 92 (EVENT-02/D-08): attempt lineage with server fallback.
     const attemptId = data.attemptId ?? randomUUID()
     const inputType = data.inputType ?? 'manual_text'
@@ -96,12 +99,68 @@ export const generateEstimateJob = inngest.createFunction(
       userId: ownerUserId,
     })
 
-    // Step 1: Heavy AI call — checkpointed. A retry of step 2 will NOT re-call.
-    const result = await step.run('call-ai-provider', async () => {
-      return await generateEstimateForProject(companyId, projectId, {
-        language: language ?? undefined,
-        prompts: prompts && prompts.length > 0 ? prompts : undefined,
+    // Step 1: Shared graph invocation — checkpointed (DURABLE-02: whole graph in one step.run,
+    // mirroring lib/inngest/functions/whatsapp-process.ts). A retry of step 2 will NOT re-run
+    // the graph. The web/MCP adapter ingest + finalize are passthroughs; onError re-throws
+    // so Inngest retry + onFailure fires on generation failure (D-02).
+    const result = await step.run('orchestrate-estimate', async () => {
+      const supabase = requireServiceClient()
+      const adapter = makeDefaultAdapter({ companyId, supabase })
+      const graph = buildEstimateGraph(adapter)
+
+      // OBS-01: unified Langfuse trace per estimate run.
+      // channel from payload (mcp) or fallback to 'web' for UI path.
+      // Safe-metadata rule v4.2: only project/company IDs allowed — no sensitive data.
+      const traceChannel = (data.channel ?? 'web') as 'web' | 'mcp'
+      const handler = new CallbackHandler({
+        sessionId: `${traceChannel}:${projectId}`,
+        userId: companyId,
+        tags: [traceChannel, 'estimate-engine'],
       })
+
+      const invokeResult = await graph.invoke(
+        {
+          companyId,
+          projectId,
+          channel: traceChannel,
+          // HARD-07: thread the handler-entry timestamp (t0, captured outside
+          // step.run) so any finalize TTL is replay-safe. The web/MCP adapter
+          // finalize is a passthrough today, but the field stays consistent.
+          requestedAt: t0,
+          prompts: prompts && prompts.length > 0 ? prompts : undefined,
+          estimateLanguage: language ?? undefined,
+          // origin/dev: carry the triggering user so the service can stamp
+          // created_by_user_id → drives "Prepared by" in generated PDFs.
+          createdByUserId: createdByUserId ?? undefined,
+        },
+        {
+          callbacks: [handler],
+          // GUARD-04: promote the existing attemptId (Phase 91/92 lineage) to THE
+          // correlation id and thread it into the Langfuse v5 trace via the runnable
+          // config metadata. The langfuseSessionId/langfuseUserId tokens are the v5
+          // (@langfuse/langchain@5.5.3) config-metadata form read by the CallbackHandler
+          // — they also close the pre-existing OBS-03 RED. correlationId === attemptId
+          // joins this trace to pipeline_events (which already carry attemptId) and to
+          // any Sentry event (asResponse tags correlation_id from XtimatorError.meta).
+          //
+          // SAFE-METADATA rule (OBS-03 / safe-metadata v4.2): ONLY non-sensitive
+          // identifiers are allowed here — no user content or secrets ever enter
+          // trace metadata. This object is inert (cannot throw), so it never fails
+          // or retries the generation job.
+          metadata: {
+            langfuseSessionId: `${traceChannel}:${projectId}`,
+            langfuseUserId: companyId,
+            correlationId: attemptId,
+          },
+          tags: [traceChannel, 'estimate-engine'],
+        }
+      )
+
+      // OBS-03 / Pitfall 3: flush Langfuse spans before the step.run returns.
+      // In serverless, the process may suspend before the buffer drains naturally.
+      await langfuseProcessor?.forceFlush()
+
+      return invokeResult
     })
 
     // Step 2: Record usage ONLY on AI success — separate step so a DB write

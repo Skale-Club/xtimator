@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
+// Imports the real /api/generate-estimate route + its Inngest events tree at
+// runtime; under vitest's reused forked worker the import can exceed the 5s
+// default (import latency under contention, not a mock leak). Per-file timeout.
+vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 })
+
 /**
  * REC-03 + REC-04: attempt lineage + idempotency-key stability across Retry.
  *
@@ -46,6 +51,13 @@ function makeSupabase() {
 }
 vi.mock('@/lib/supabase/server', () => ({
   createClient: async () => makeSupabase(),
+}))
+
+// The route now resolves the company via getActiveCompanyId() (cookie-based,
+// calls cookies()); mock it so the route doesn't call cookies() outside a
+// request scope (otherwise it throws → 500 instead of 202).
+vi.mock('@/lib/queries/active-company', () => ({
+  getActiveCompanyId: async () => 'company-1',
 }))
 
 // Rate limit + quota always pass in this suite.

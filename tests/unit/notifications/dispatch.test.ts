@@ -27,7 +27,25 @@ vi.mock('@/lib/inngest/client', () => ({
 }))
 
 vi.mock('@/lib/notifications/preferences', () => ({
-  resolveChannels: vi.fn().mockResolvedValue({ inApp: true, email: false }),
+  // Phase 104 (NOTIF-07): 4-channel resolved shape. whatsapp/sms added (default
+  // false) so existing Phase-77 cases (which only assert inApp/email) stay green.
+  resolveChannels: vi
+    .fn()
+    .mockResolvedValue({ inApp: true, email: false, whatsapp: false, sms: false }),
+}))
+
+// Phase 104 — owner-phone resolver + registry the WhatsApp branch consumes (Wave 2).
+// Mocked here so the EXTEND cases below compile before the modules exist (RED).
+vi.mock('@/lib/notifications/owner-phone', () => ({
+  resolveOwnerPhone: vi.fn().mockResolvedValue('+15551230000'),
+}))
+
+vi.mock('@/lib/notifications/whatsapp-registry', () => ({
+  getTemplateForEvent: vi.fn().mockReturnValue({
+    templateName: 'owner_billing_alert',
+    languageCode: 'en_US',
+    variables: () => ['Acme', '$100'],
+  }),
 }))
 
 type SimpleResp<T = unknown> = { data: T; error: { message: string } | null }
@@ -198,5 +216,80 @@ describe('lib/notifications/dispatch — notify() (NOTIF-01 + NOTIF-12 RED)', ()
       body: 'b',
     })
     expect(resolveChannels).toHaveBeenCalled()
+  })
+})
+
+/**
+ * Phase 104 plan 00 — Wave-0 EXTEND (NOTIF-07): 4-channel routing + best-effort.
+ *
+ * These cases are RED until Wave 2 adds the whatsapp/sms branches to notify().
+ * They assert: (1) enabling whatsapp/sms fires the corresponding async dispatch,
+ * and (2) a THROWING whatsapp/sms send does NOT block the in-app notifications
+ * insert and never makes notify() throw (Research Pitfall 4).
+ */
+describe('lib/notifications/dispatch — 4-channel routing + best-effort (NOTIF-07 RED)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('dispatches a whatsapp/sms send via Inngest when those channels resolve true', async () => {
+    const { notify } = await import('@/lib/notifications/dispatch')
+    const { requireServiceClient } = await import('@/lib/supabase/service')
+    const { resolveChannels } = await import('@/lib/notifications/preferences')
+    const { inngest } = await import('@/lib/inngest/client')
+    const svc = makeServiceClient({})
+    ;(requireServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(svc)
+    ;(resolveChannels as ReturnType<typeof vi.fn>).mockResolvedValue({
+      inApp: true,
+      email: false,
+      whatsapp: true,
+      sms: true,
+    })
+
+    await notify({
+      companyId: 'co_1',
+      userId: 'user_1',
+      eventType: 'payment.received',
+      title: 'Payment received',
+      body: '$100',
+    })
+
+    const sendMock = inngest.send as ReturnType<typeof vi.fn>
+    const names = sendMock.mock.calls.map(([evt]) =>
+      String((evt as { name?: string })?.name ?? ''),
+    )
+    expect(names.some((n) => n.includes('whatsapp'))).toBe(true)
+    expect(names.some((n) => n.includes('sms'))).toBe(true)
+  })
+
+  it('a throwing WhatsApp/SMS send does NOT block the in-app insert and notify() still returns', async () => {
+    const { notify } = await import('@/lib/notifications/dispatch')
+    const { requireServiceClient } = await import('@/lib/supabase/service')
+    const { resolveChannels } = await import('@/lib/notifications/preferences')
+    const { inngest } = await import('@/lib/inngest/client')
+    const svc = makeServiceClient({ insertSingle: { data: { id: 'notif_inapp' }, error: null } })
+    ;(requireServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(svc)
+    ;(resolveChannels as ReturnType<typeof vi.fn>).mockResolvedValue({
+      inApp: true,
+      email: false,
+      whatsapp: true,
+      sms: true,
+    })
+    // The async whatsapp/sms dispatch path rejects.
+    ;(inngest.send as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('send failed'))
+
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const result = await notify({
+      companyId: 'co_1',
+      userId: 'user_1',
+      eventType: 'payment.received',
+      title: 'Payment received',
+      body: '$100',
+    })
+
+    // In-app insert STILL ran despite the throwing channel sends.
+    expect(svc.__from.insert).toHaveBeenCalled()
+    expect(result).toHaveProperty('ok')
+    warn.mockRestore()
   })
 })

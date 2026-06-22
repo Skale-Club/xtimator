@@ -3,9 +3,84 @@ import { GoogleGenAI, Type, FunctionCallingConfigMode } from '@google/genai'
 import type { AIProvider } from '../provider.interface'
 import type { EstimateInput, EstimateOutput, RefineEstimateInput } from '../types'
 import { getIntegrationKey } from '@/lib/platform-config'
-import { buildSystemPrompt, buildUserContent } from '../prompt-builder'
-import { normalizeOutput } from '../normalize'
-import { formatMoney, normalizeCurrencyCode } from '@/lib/money/currency'
+import { buildSystemPrompt, buildUserContent, buildRefineUserContent } from '../prompt-builder'
+import { normalizeOutput, appendRetryHint } from '../normalize'
+import { InvalidEstimateOutputError } from '../with-fallback'
+import { toRefineEstimateInput } from './refine-input'
+import { PHOTO_PROMPT } from '@/lib/ai/openrouter-client'
+
+/** File-extension → MIME type for inline audio sent to Gemini. */
+const AUDIO_EXT_TO_MIME: Record<string, string> = {
+  webm: 'audio/webm',
+  ogg: 'audio/ogg',
+  oga: 'audio/ogg',
+  opus: 'audio/ogg',
+  mp3: 'audio/mp3',
+  mpeg: 'audio/mpeg',
+  mpga: 'audio/mpeg',
+  m4a: 'audio/mp4',
+  mp4: 'audio/mp4',
+  wav: 'audio/wav',
+  aac: 'audio/aac',
+  flac: 'audio/flac',
+}
+
+const TRANSCRIBE_PROMPT =
+  'Transcribe this audio recording to plain text. Return ONLY the spoken words as a ' +
+  'continuous transcript — no commentary, speaker labels, timestamps, or markdown. ' +
+  'If there is no discernible speech, return an empty string.'
+
+/**
+ * Transcribe audio to plain text using Gemini's multimodal model.
+ *
+ * This is the keyless-OpenAI fallback for transcription: when no OpenAI Whisper
+ * key is configured, `transcribeAudioOR` delegates here so the platform's
+ * existing Gemini key still produces transcripts. Gemini 2.5 Flash accepts
+ * inline audio and returns the spoken text directly.
+ */
+export async function transcribeAudioGemini(audioBlob: Blob, ext: string): Promise<string> {
+  const apiKey = await getIntegrationKey('gemini')
+  if (!apiKey) throw new Error('Gemini API key not configured')
+
+  const ai = new GoogleGenAI({ apiKey })
+  const buf = Buffer.from(await audioBlob.arrayBuffer())
+  const base64 = buf.toString('base64')
+  const mimeType = AUDIO_EXT_TO_MIME[ext.toLowerCase()] ?? 'audio/webm'
+
+  const response = await ai.models.generateContent({
+    model: 'gemini-2.5-flash',
+    contents: [
+      { text: TRANSCRIBE_PROMPT },
+      { inlineData: { mimeType, data: base64 } },
+    ],
+  })
+
+  return (response.text ?? '').trim()
+}
+
+/**
+ * Analyse a single photo using Gemini's multimodal vision model.
+ *
+ * This is the OpenRouter-vision fallback (HARD-03): when `analyzePhotoOR`'s
+ * OpenRouter call fails, the shared fallback wrapper delegates here. Mirrors
+ * `transcribeAudioGemini`'s proven inlineData shape with an image MIME type.
+ * `base64` is the raw base64 string; `mimeType` is e.g. "image/jpeg".
+ */
+export async function analyzePhotoGemini(base64: string, mimeType: string): Promise<string> {
+  const apiKey = await getIntegrationKey('gemini')
+  if (!apiKey) throw new Error('Gemini API key not configured')
+
+  const ai = new GoogleGenAI({ apiKey })
+  const response = await ai.models.generateContent({
+    model: 'gemini-2.5-flash',
+    contents: [
+      { text: PHOTO_PROMPT },
+      { inlineData: { mimeType, data: base64 } },
+    ],
+  })
+
+  return (response.text ?? '').trim()
+}
 
 export class GeminiAdapter implements AIProvider {
   async generateEstimate(input: EstimateInput): Promise<EstimateOutput> {
@@ -65,7 +140,7 @@ export class GeminiAdapter implements AIProvider {
 
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
-      contents: buildUserContent(input),
+      contents: appendRetryHint(buildUserContent(input), input.retryHint),
       config: {
         systemInstruction: buildSystemPrompt(input),
         tools: [{ functionDeclarations: [createEstimateDeclaration] }],
@@ -81,35 +156,26 @@ export class GeminiAdapter implements AIProvider {
     const fc = response.functionCalls?.[0]
     if (!fc) throw new Error('Gemini did not return a function call')
     const args = fc.args as Record<string, unknown>
-    return normalizeOutput(args)
+    const r = normalizeOutput(args)
+    if (!r.ok) throw new InvalidEstimateOutputError(r.error)
+    return r.value
   }
 
   async refineEstimate(input: RefineEstimateInput): Promise<EstimateOutput> {
-    const currencyCode = normalizeCurrencyCode(input.currencyCode)
     const apiKey = await getIntegrationKey('gemini')
     if (!apiKey) throw new Error('Gemini API key not configured')
 
     const ai = new GoogleGenAI({ apiKey })
 
-    const priceBookContext =
-      input.priceBookItems.length > 0
-        ? '## Company Price Book\n' +
-          input.priceBookItems
-            .map(item => `- ${item.folder_name ?? 'Uncategorized'} | ${item.name} | ${formatMoney(item.unit_price, item.currency_code ?? currencyCode)}/${item.unit ?? 'each'}`)
-            .join('\n')
-        : 'No company price book configured.'
-
-    const systemInstruction = `You are a professional estimator. Your task is to update an existing estimate based on a refinement instruction. Modify, add, or remove sections/items as needed to reflect the user's request. Keep everything else unchanged. Use ${currencyCode} for all numeric prices and return monetary values as plain numbers only, without currency symbols or formatted strings. Preserve the price_source tagging: use "price_book" for items from the price book, "ai_estimate" for items you estimate from market rates.`
-
-    const userContent = `${priceBookContext}
-
-## Current Estimate
-${JSON.stringify(input.existingEstimate, null, 2)}
-
-## Refinement Instruction
-${input.instruction}
-
-Task: Update the estimate to reflect the user's instruction. Return the full updated estimate in JSON format.`
+    // HARD-02/UNIFY-02: refine reuses the SHARED prompt builder — no bespoke
+    // prompt on the Gemini fallback path either (Pitfall 4). The instruction is
+    // escaped + tagged via buildRefineUserContent.
+    const refineInput = toRefineEstimateInput(input)
+    const systemInstruction = buildSystemPrompt(refineInput, { mode: 'refine' })
+    const userContent = appendRetryHint(
+      buildRefineUserContent(refineInput, input.existingEstimate, input.instruction),
+      input.retryHint
+    )
 
     const createEstimateDeclaration = {
       name: 'create_estimate',
@@ -174,6 +240,8 @@ Task: Update the estimate to reflect the user's instruction. Return the full upd
     const fc = response.functionCalls?.[0]
     if (!fc) throw new Error('Gemini did not return a function call')
     const args = fc.args as Record<string, unknown>
-    return normalizeOutput(args)
+    const r = normalizeOutput(args)
+    if (!r.ok) throw new InvalidEstimateOutputError(r.error)
+    return r.value
   }
 }

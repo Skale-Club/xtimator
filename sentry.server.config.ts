@@ -1,20 +1,16 @@
-import * as Sentry from "@sentry/nextjs";
-
-Sentry.init({
-  dsn: process.env.SENTRY_DSN,
-  environment: process.env.NODE_ENV,
-  sendDefaultPii: true,
-  tracesSampleRate: process.env.NODE_ENV === "production" ? 0.1 : 1.0,
-  includeLocalVariables: true,
-  enableLogs: true,
-  beforeSend(event) {
-    // Drop framework noise from bots/scanners that POST garbage to non-existent
-    // Server Action / RSC endpoints. Next.js routes these bogus POSTs to the
-    // not-found page and throws "Failed to find Server Action" / "Failed to parse
-    // body as FormData" — not app bugs. Real Server Actions never target
-    // /_not-found/page, so this filter is precise and does NOT suppress genuine
-    // Server Action errors on real routes. (Sentry XTIMATOR-2, XTIMATOR-3)
-    if (event.transaction === 'POST /_not-found/page') return null
-    return event
-  },
-});
+/**
+ * sentry.server.config.ts — Phase 97 (OBS-02)
+ *
+ * INTENTIONALLY EMPTY.
+ *
+ * Sentry.init() was moved into instrumentation.ts `register()` in Phase 97
+ * to allow a shared NodeTracerProvider with Langfuse v5's LangfuseSpanProcessor
+ * (skipOpenTelemetrySetup: true coexistence pattern).
+ *
+ * This file is retained so existing `await import('./sentry.server.config')`
+ * references in any other files do not break at the import level, but it
+ * performs no initialization. If no other file imports this module, it can
+ * be deleted in a future cleanup.
+ *
+ * See instrumentation.ts for the actual Sentry + Langfuse OTel setup.
+ */

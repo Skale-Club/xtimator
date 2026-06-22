@@ -22,6 +22,7 @@ const NAV_ITEMS = [
   { href: '/admin/billing',      label: 'Billing',      Icon: CreditCard },
   { href: '/admin/companies',    label: 'Companies',    Icon: Building2 },
   { href: '/admin/whatsapp',     label: 'WhatsApp',     Icon: MessageCircle },
+  { href: '/admin/whatsapp-templates', label: 'WA Templates', Icon: MessageCircle },
   { href: '/admin/admins',       label: 'Admins',       Icon: Users },
   { href: '/admin/events',       label: 'Event Log',    Icon: ScrollText },
 ] as const
@@ -40,13 +41,13 @@ export function AdminNav({ appName, logoUrl, adminEmail }: AdminNavProps) {
   return (
     <nav
       aria-label={t('Platform admin navigation')}
-      className="w-[240px] flex-shrink-0 border-r border-[var(--glass-border)] bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] flex flex-col"
+      className="w-[240px] flex-shrink-0 border-r border-[var(--glass-border)] bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] flex flex-col h-full overflow-y-auto"
     >
       <div className="px-4 pt-6 pb-6 flex items-center gap-2">
         <AppIcon logoUrl={logoUrl} appName={appName} className="h-10 w-10" />
         <span className="font-semibold text-sm">{appName} {t('Admin')}</span>
       </div>
-      <ul className="flex-1 flex flex-col gap-1 px-2">
+      <ul className="flex-1 flex flex-col gap-1 px-2 pb-4">
         {NAV_ITEMS.map(({ href, label, Icon, ...item }) => {
           const activeBase = 'activeBase' in item ? item.activeBase : href
           const isActive =

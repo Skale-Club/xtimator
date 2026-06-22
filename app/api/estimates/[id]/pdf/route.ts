@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { renderToBuffer } from '@react-pdf/renderer'
 import { createElement } from 'react'
 import { createClient } from '@/lib/supabase/server'
+import { requireServiceClient } from '@/lib/supabase/service'
 import { getEstimateWithContext } from '@/lib/queries/estimate'
 import EstimatePDF from '@/components/pdf/estimate-pdf'
 import { isSupportedLanguage } from '@/lib/i18n/resolve-estimate-language'
@@ -42,6 +43,23 @@ export async function GET(
     const clientRaw = project?.client
     const client = Array.isArray(clientRaw) ? clientRaw[0] ?? null : clientRaw ?? null
 
+    // Resolve "Prepared by" — staff member who created the estimate, or company owner name
+    let preparedBy: string | null = company.owner_name ?? null
+    if (estimate.created_by_user_id) {
+      try {
+        const svc = requireServiceClient()
+        const { data: member } = await svc
+          .from('company_members')
+          .select('display_name')
+          .eq('user_id', estimate.created_by_user_id)
+          .eq('company_id', estimate.company_id)
+          .single()
+        if (member?.display_name) preparedBy = member.display_name
+      } catch {
+        // non-fatal: fall back to owner_name already set above
+      }
+    }
+
     // Render PDF to buffer — pass estimate language for localized labels
     const estimateLanguage = isSupportedLanguage(estimate.language) ? estimate.language : 'en'
     const element = createElement(EstimatePDF, {
@@ -51,6 +69,7 @@ export async function GET(
       projectName,
       projectType,
       language: estimateLanguage,
+      preparedBy,
     })
     const pdfBuffer = await renderToBuffer(element as any)
 

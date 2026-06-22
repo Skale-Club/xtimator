@@ -51,13 +51,14 @@ describe('NotificationsForm', () => {
     fetchMock.mockResolvedValue({ ok: true, status: 204 })
   })
 
-  it('renders 16 channel toggles (8 categories × 2 channels)', () => {
+  it('renders 12 channel toggles (3 categories × 4 channels) + master', () => {
     render(
       <NotificationsForm initial={baseInitial} defaults={DEFAULT_PREFERENCES} />,
     )
     const switches = screen.getAllByRole('switch')
-    // 1 master email-digest + 16 per-category (8 × 2) + 1 push = 18 expected
-    expect(switches.length).toBeGreaterThanOrEqual(17)
+    // Phase 104: 1 master email-digest + 12 per-category (3 × 4) = 13.
+    // (The push control is a Button, not a switch.)
+    expect(switches.length).toBeGreaterThanOrEqual(13)
   })
 
   it('toggling master email-digest off disables every category email switch', async () => {
@@ -117,5 +118,70 @@ describe('NotificationsForm', () => {
     )
     const btn = screen.getByTestId('enable-push') as HTMLButtonElement
     expect(btn.disabled).toBe(true)
+  })
+})
+
+/**
+ * Phase 104 plan 00 — Wave-0 EXTEND (NOTIF-01/02): 3 categories × 4 channels.
+ *
+ * RED until Wave 1 reduces the matrix to 3 category rows (Estimates, Billing,
+ * System) + 4 channel columns (In-app, Email, WhatsApp, SMS) and Wave 2 adds the
+ * phone/opt-in gating that disables the whatsapp/sms switches when no verified
+ * phone is passed in props.
+ */
+describe('NotificationsForm — 3 categories × 4 channels (NOTIF-01/02 RED)', () => {
+  beforeEach(() => {
+    fetchMock.mockReset()
+    enableBrowserPushMock.mockReset()
+    isPushSupportedMock.mockReset().mockReturnValue(true)
+    fetchMock.mockResolvedValue({ ok: true, status: 204 })
+  })
+
+  it('renders exactly the 3 reduced category rows (Estimates, Billing, System)', () => {
+    render(
+      <NotificationsForm
+        initial={baseInitial}
+        defaults={DEFAULT_PREFERENCES}
+        verifiedPhone={null}
+      />,
+    )
+    expect(screen.getByText('Billing')).toBeTruthy()
+    expect(screen.getByText('Estimates')).toBeTruthy()
+    expect(screen.getByText('System')).toBeTruthy()
+    // The old categories must be gone.
+    expect(screen.queryByText('Payments')).toBeNull()
+    expect(screen.queryByText('Trial')).toBeNull()
+    expect(screen.queryByText('Quota')).toBeNull()
+    expect(screen.queryByText('AI Jobs')).toBeNull()
+  })
+
+  it('renders a WhatsApp + SMS switch per category (4 channel columns)', () => {
+    render(
+      <NotificationsForm
+        initial={baseInitial}
+        defaults={DEFAULT_PREFERENCES}
+        verifiedPhone={null}
+      />,
+    )
+    expect(screen.getByTestId('pref-whatsapp-billing')).toBeTruthy()
+    expect(screen.getByTestId('pref-sms-billing')).toBeTruthy()
+  })
+
+  it('disables the WhatsApp + SMS switches when no verified phone is provided', () => {
+    render(
+      <NotificationsForm
+        initial={baseInitial}
+        defaults={DEFAULT_PREFERENCES}
+        verifiedPhone={null}
+      />,
+    )
+    const whatsapp = screen.getByTestId('pref-whatsapp-billing')
+    const sms = screen.getByTestId('pref-sms-billing')
+    const isDisabled = (el: HTMLElement) =>
+      el.hasAttribute('disabled') ||
+      el.getAttribute('data-disabled') !== null ||
+      el.getAttribute('aria-disabled') === 'true'
+    expect(isDisabled(whatsapp)).toBe(true)
+    expect(isDisabled(sms)).toBe(true)
   })
 })

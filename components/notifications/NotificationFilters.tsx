@@ -3,13 +3,8 @@
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useCallback, useTransition } from 'react'
 import {
-  Activity,
-  Clock,
-  Cpu,
   DollarSign,
   FileText,
-  MessageSquare,
-  ShieldCheck,
   Wrench,
   type LucideIcon,
 } from 'lucide-react'
@@ -18,38 +13,20 @@ import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import type { EventCategory } from '@/lib/notifications/event-types'
 
-export const CATEGORY_ICONS: Record<EventCategory, LucideIcon> = {
+// Phase 104: only the 3 visible categories are filterable.
+export const CATEGORY_ICONS: Partial<Record<EventCategory, LucideIcon>> = {
   estimate: FileText,
-  payment: DollarSign,
-  trial: Clock,
-  quota: Activity,
-  whatsapp: MessageSquare,
-  ai_job: Cpu,
-  admin: ShieldCheck,
+  billing: DollarSign,
   system: Wrench,
 }
 
-export const CATEGORY_LABELS: Record<EventCategory, string> = {
+export const CATEGORY_LABELS: Partial<Record<EventCategory, string>> = {
   estimate: 'Estimates',
-  payment: 'Payments',
-  trial: 'Trial',
-  quota: 'Quota',
-  whatsapp: 'WhatsApp',
-  ai_job: 'AI Jobs',
-  admin: 'Admin',
+  billing: 'Billing',
   system: 'System',
 }
 
-const ORDER: EventCategory[] = [
-  'estimate',
-  'payment',
-  'trial',
-  'quota',
-  'whatsapp',
-  'ai_job',
-  'admin',
-  'system',
-]
+const ORDER: EventCategory[] = ['estimate', 'billing', 'system']
 
 export interface NotificationFiltersProps {
   category: EventCategory | null
@@ -142,7 +119,7 @@ export function NotificationFilters({
           Unread only
         </button>
         {ORDER.map((cat) => {
-          const Icon = CATEGORY_ICONS[cat]
+          const Icon = CATEGORY_ICONS[cat] ?? Wrench
           const active = category === cat
           return (
             <button
@@ -177,9 +154,9 @@ export function NotificationFilters({
   )
 }
 
-// Helper used by list rows
+// Helper used by list rows. Legacy / `_dropped` feed rows fall back to Wrench.
 export function categoryIconFor(category: EventCategory): LucideIcon {
-  return CATEGORY_ICONS[category]
+  return CATEGORY_ICONS[category] ?? Wrench
 }
 
 // re-export Badge so consumers don't need a second import

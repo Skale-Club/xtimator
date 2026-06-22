@@ -1,31 +1,30 @@
 // app/api/estimates/[id]/refine/route.ts
 //
-// SEED-028 Phase C: stateless multimodal refinement.
+// SEED-028 Phase C → Phase 101 (HARD-01, UNIFY-03): refine THROUGH the canonical graph.
 //
 // Accepts FormData with optional `instruction` (text), `audio` (file), and
-// `photos[]` (image files). Transcribes audio via Whisper, analyzes photos
-// via Claude Vision, composes a unified instruction, runs the Claude refine
-// pipeline, and returns the refined estimate JSON.
+// `photos[]` (image files), OR JSON `{ instruction }` (text-only back-compat).
+// Audio + image + text are ingested via the SHARED `ingestMultimodal` module
+// (one transcription/vision implementation with Phase-99 fallbacks), assembled
+// into a single instruction, then handed to `buildRefineGraph` invoked INLINE
+// (passthrough StepRunner). Refine thereby inherits the Phase-99 provider
+// fallback + Phase-100 zod validation/retry + guardrails for free.
 //
-// This endpoint never writes to the database. The caller is expected to:
-//   - dispatch the refined state into the editor (mark dirty), OR
-//   - persist by calling saveEstimate.
-//
-// For text-only callers, JSON `{ instruction }` is still accepted as a
-// back-compat path.
+// This endpoint never writes the estimate to the database — refine is a PREVIEW.
+// The caller dispatches the refined state into the editor (mark dirty) and
+// persists later via saveEstimate. The response contract `{ success, refined,
+// instruction }` + status codes (400/422/429/demo-guard) are byte-stable.
 
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { requireServiceClient } from '@/lib/supabase/service'
-import { createStorage } from '@/lib/storage'
 import { getEstimateById } from '@/lib/queries/estimate'
-import { getPriceBookItems } from '@/lib/queries/price-book'
-import { getAIProvider, type RefineEstimateInput } from '@/lib/ai'
 import type { EstimateOutput, EstimateSectionOutput } from '@/lib/ai/types'
-import { transcribeAudioOR, analyzePhotoOR } from '@/lib/ai/openrouter-client'
-import { normalizeCurrencyCode } from '@/lib/money/currency'
+import { ingestMultimodal } from '@/lib/estimate/ingest/multimodal'
+import { buildRefineGraph } from '@/lib/estimate/graph/refine-graph'
+import { makeRefineAdapter } from '@/lib/estimate/adapters/refine'
 import { rateLimit } from '@/lib/ratelimit'
 import { demoGuardResponse } from '@/lib/demo/guard'
+import { asResponse, XtimatorError, throwIfNotFound, throwIfForbidden } from '@/lib/errors'
 
 const MAX_PHOTOS = 5
 
@@ -38,31 +37,14 @@ function getImageMimeType(file: Blob): string {
   }
 }
 
-/** Upload audio to storage, hand to OpenRouter Whisper, then clean up. */
-async function transcribeRefineAudio(
-  file: Blob,
-  companyId: string,
-  estimateId: string
-): Promise<string> {
-  const serviceClient = requireServiceClient()
-  const storage = createStorage(serviceClient)
-  const path = `${companyId}/refine-voice/${estimateId}-${Date.now()}.webm`
-
-  await storage.upload('audio', path, file, {
-    contentType: file.type || 'audio/webm',
-    upsert: false,
-  }).catch(() => { throw new Error('Failed to upload audio for transcription') })
-
-  let downloaded: Blob
-  try {
-    downloaded = await storage.download('audio', path)
-  } catch {
-    storage.delete('audio', path).catch(() => {})
-    throw new Error('Failed to read audio for transcription')
+/** Map an audio MIME type to the container ext `transcribeAudioOR` expects. */
+function extFromMime(type: string): string {
+  switch (type) {
+    case 'audio/mp4':  return 'mp4'
+    case 'audio/mpeg': return 'mp3'
+    case 'audio/webm': return 'webm'
+    default:           return 'webm'
   }
-
-  storage.delete('audio', path).catch(() => {})
-  return transcribeAudioOR(downloaded, 'webm')
 }
 
 export async function POST(
@@ -77,7 +59,7 @@ export async function POST(
     const { data: claimsData } = await supabase.auth.getClaims()
     const claims = claimsData?.claims ?? null
     if (!claims) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+      throw new XtimatorError('unauthorized', 'estimates', 'Not authenticated')
     }
 
     // Read-only demo: refine runs paid AI (Whisper + Vision + Claude). Block it.
@@ -101,22 +83,19 @@ export async function POST(
       .single()
 
     if (!companyRow) {
-      return NextResponse.json({ error: 'No company found' }, { status: 401 })
+      throw new XtimatorError('unauthorized', 'estimates', 'No company found')
     }
     const companyId = companyRow.id as string
 
     // Fetch current estimate
     const estimate = await getEstimateById(supabase, estimateId)
-    if (!estimate) {
-      return NextResponse.json({ error: 'Estimate not found' }, { status: 404 })
-    }
-    if (estimate.company_id !== companyId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
-    }
+    throwIfNotFound(estimate, 'estimates', 'Estimate not found')
+    throwIfForbidden(estimate.company_id === companyId, 'estimates', 'Unauthorized')
     if (!estimate.is_current) {
-      return NextResponse.json(
-        { error: 'Cannot refine an old version. Switch to the current version first.' },
-        { status: 400 }
+      throw new XtimatorError(
+        'bad_request',
+        'estimates',
+        'Cannot refine an old version. Switch to the current version first.'
       )
     }
 
@@ -126,12 +105,18 @@ export async function POST(
     let instructionText = ''
     let audioFile: Blob | null = null
     const photoFiles: Blob[] = []
+    // Tracks whether ANY raw input was supplied (even whitespace-only text). Drives
+    // the 400 (nothing provided) vs 422 (provided but unusable after assembly) split.
+    let hasRawInput = false
 
     const contentType = request.headers.get('content-type') ?? ''
     if (contentType.includes('multipart/form-data')) {
       const form = await request.formData()
       const text = form.get('instruction')
-      if (typeof text === 'string') instructionText = text.trim()
+      if (typeof text === 'string') {
+        instructionText = text.trim()
+        if (text.length > 0) hasRawInput = true
+      }
 
       const audio = form.get('audio')
       if (audio instanceof Blob && audio.size > 0) {
@@ -153,12 +138,15 @@ export async function POST(
       }
     } else {
       const body = await request.json().catch(() => null)
-      if (body?.instruction && typeof body.instruction === 'string') {
+      if (typeof body?.instruction === 'string' && body.instruction.length > 0) {
         instructionText = body.instruction.trim()
+        hasRawInput = true
       }
     }
 
-    if (!instructionText && !audioFile && photoFiles.length === 0) {
+    if (audioFile || photoFiles.length > 0) hasRawInput = true
+
+    if (!hasRawInput) {
       return NextResponse.json(
         { error: 'Provide an instruction, audio, or at least one photo.' },
         { status: 400 }
@@ -166,48 +154,36 @@ export async function POST(
     }
 
     // -------------------------------------------------------------------------
-    // Transcribe audio (if any) and append to instruction
+    // SHARED multimodal ingestion (UNIFY-03): audio + photos + text flow through
+    // the one transcription/vision implementation with Phase-99 fallbacks. No
+    // storage round-trip — `transcribeAudioOR` accepts the Blob directly (the old
+    // upload→download→delete dance had no retention purpose).
     // -------------------------------------------------------------------------
-    if (audioFile) {
-      try {
-        const transcript = await transcribeRefineAudio(audioFile, companyId, estimateId)
-        if (transcript) {
-          instructionText = instructionText
-            ? `${instructionText}\n\nVoice note: ${transcript}`
-            : transcript
-        }
-      } catch (err) {
-        return NextResponse.json(
-          { error: err instanceof Error ? err.message : 'Transcription failed' },
-          { status: 500 }
-        )
-      }
-    }
+    const ingest = await ingestMultimodal({
+      audio: audioFile ? [{ blob: audioFile, ext: extFromMime(audioFile.type) }] : [],
+      photos: await Promise.all(
+        photoFiles.map(async (f) => ({
+          base64: Buffer.from(await f.arrayBuffer()).toString('base64'),
+          mimeType: getImageMimeType(f),
+        }))
+      ),
+      texts: instructionText ? [instructionText] : [],
+    })
 
-    // -------------------------------------------------------------------------
-    // Analyze photos (if any) and append findings to instruction
-    // -------------------------------------------------------------------------
-    if (photoFiles.length > 0) {
-      const descriptions: string[] = []
-      for (let i = 0; i < photoFiles.length; i++) {
-        try {
-          const mimeType = getImageMimeType(photoFiles[i])
-          const base64 = Buffer.from(await photoFiles[i].arrayBuffer()).toString('base64')
-          const desc = await analyzePhotoOR(base64, mimeType)
-          if (desc) descriptions.push(`Photo ${i + 1}: ${desc}`)
-        } catch (err) {
-          console.error('[refine] photo analysis failed:', err)
-        }
-      }
-      if (descriptions.length > 0) {
-        const block = descriptions.join('\n')
-        instructionText = instructionText
-          ? `${instructionText}\n\nFrom new photo(s):\n${block}`
-          : `From new photo(s):\n${block}`
-      }
-    }
+    // Assemble the single instruction string the refine node consumes — matching
+    // today's "Voice note:" / "From new photo(s):" joins so the prompt content is
+    // equivalent to the pre-Phase-101 inline assembly.
+    const parts: string[] = []
+    if (ingest.texts.length) parts.push(ingest.texts.join('\n\n'))
+    if (ingest.transcripts.length) parts.push('Voice note: ' + ingest.transcripts.join('\n'))
+    if (ingest.photoDescriptions.length)
+      parts.push(
+        'From new photo(s):\n' +
+          ingest.photoDescriptions.map((d, i) => `Photo ${i + 1}: ${d}`).join('\n')
+      )
+    const instruction = parts.join('\n\n').trim()
 
-    if (!instructionText) {
+    if (!instruction) {
       return NextResponse.json(
         { error: 'No usable instruction could be extracted from the input.' },
         { status: 422 }
@@ -215,13 +191,10 @@ export async function POST(
     }
 
     // -------------------------------------------------------------------------
-    // Call Claude refine with the unified instruction
+    // Map the existing estimate (preview input) from the DB row. Currency, price
+    // book, language + industry are resolved inside the refine node by companyId
+    // (mirroring generate) — the route only supplies the existing structure.
     // -------------------------------------------------------------------------
-    const currencyCode = normalizeCurrencyCode(estimate.currency_code)
-    const priceBookItems = (await getPriceBookItems(supabase, companyId)).filter(
-      (item) => normalizeCurrencyCode(item.currency_code) === currencyCode
-    )
-
     const existingEstimate: EstimateOutput = {
       suggested_project_name: estimate.summary ?? 'Estimate',
       suggested_client_name: null,
@@ -242,20 +215,21 @@ export async function POST(
       })) as EstimateSectionOutput[],
     }
 
-    const provider = await getAIProvider(companyId)
-    const refineInput: RefineEstimateInput = {
+    // -------------------------------------------------------------------------
+    // Invoke the canonical refine sub-graph INLINE (passthrough runner default →
+    // synchronous; NO Inngest, NO checkpointer). A failure routes through the
+    // adapter's onError which re-throws a typed XtimatorError → caught by the
+    // outer try/catch → asResponse maps it to { error, code } with the right status.
+    // -------------------------------------------------------------------------
+    const adapter = makeRefineAdapter({ companyId, supabase })
+    const graph = buildRefineGraph(adapter)
+    const result = await graph.invoke({
+      companyId,
+      projectId: estimate.project_id,
+      channel: 'web',
       existingEstimate,
-      instruction: instructionText,
-      currencyCode,
-      priceBookItems: priceBookItems.map((item) => ({
-        folder_name: item.folder_name,
-        name: item.name,
-        unit: item.unit,
-        unit_price: item.unit_price,
-        currency_code: item.currency_code,
-      })),
-    }
-    const refined = await provider.refineEstimate(refineInput)
+      instruction,
+    })
 
     // Activity log — refinement requested. Persistence (if any) happens via the
     // editor when the user clicks Save Draft.
@@ -265,7 +239,7 @@ export async function POST(
       estimate_id: estimateId,
       event_type: 'estimate_refine_proposed',
       metadata: {
-        instruction: instructionText,
+        instruction,
         has_audio: !!audioFile,
         photo_count: photoFiles.length,
       },
@@ -273,14 +247,12 @@ export async function POST(
 
     return NextResponse.json({
       success: true,
-      refined,
-      instruction: instructionText,
+      refined: result.refined,
+      instruction,
     })
-  } catch (error) {
-    console.error('Estimate refinement failed:', error)
-    return NextResponse.json(
-      { error: 'Refinement failed. Please try again.' },
-      { status: 500 }
-    )
+  } catch (err) {
+    // Every error path returns the consistent typed JSON envelope { error, code }
+    // via asResponse — no opaque/bespoke 500. (HARD-04)
+    return asResponse(err)
   }
 }

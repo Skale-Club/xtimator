@@ -10,10 +10,11 @@
 import type { AIProvider } from '../provider.interface'
 import type { EstimateInput, EstimateOutput, RefineEstimateInput } from '../types'
 import { getIntegrationKey } from '@/lib/platform-config'
-import { buildSystemPrompt, buildUserContent } from '../prompt-builder'
-import { normalizeOutput } from '../normalize'
-import { formatMoney, normalizeCurrencyCode } from '@/lib/money/currency'
-import { getLangfuse } from '@/lib/observability/langfuse'
+import { buildSystemPrompt, buildUserContent, buildRefineUserContent } from '../prompt-builder'
+import { normalizeOutput, appendRetryHint } from '../normalize'
+import { InvalidEstimateOutputError } from '../with-fallback'
+import { toRefineEstimateInput } from './refine-input'
+import { langfuseClient } from '@/lib/observability/langfuse'
 
 const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1'
 
@@ -87,45 +88,32 @@ export class OpenRouterAdapter implements AIProvider {
   }
 
   async generateEstimate(input: EstimateInput): Promise<EstimateOutput> {
+    const user = appendRetryHint(buildUserContent(input), input.retryHint)
     const raw = await this.callTool({
       system: buildSystemPrompt(input),
-      user: buildUserContent(input),
+      user,
       operationName: 'generate_estimate',
     })
-    return normalizeOutput(raw)
+    const r = normalizeOutput(raw)
+    if (!r.ok) throw new InvalidEstimateOutputError(r.error)
+    return r.value
   }
 
   async refineEstimate(input: RefineEstimateInput): Promise<EstimateOutput> {
-    const currencyCode = normalizeCurrencyCode(input.currencyCode)
-    const priceBookContext =
-      input.priceBookItems.length > 0
-        ? '## Company Price Book\n' +
-          input.priceBookItems
-            .map(
-              (item) =>
-                `- ${item.folder_name ?? 'Uncategorized'} | ${item.name} | ${formatMoney(
-                  item.unit_price,
-                  item.currency_code ?? currencyCode
-                )}/${item.unit ?? 'each'}`
-            )
-            .join('\n')
-        : 'No company price book configured.'
-
-    const system =
-      `You are a professional estimator. Your task is to update an existing estimate based on a refinement instruction. Modify, add, or remove sections/items as needed to reflect the user's request. Keep everything else unchanged. Use ${currencyCode} for all numeric prices and return monetary values as plain numbers only, without currency symbols or formatted strings. Preserve the price_source tagging: use "price_book" for items from the price book, "ai_estimate" for items you estimate from market rates.`
-
-    const user = `${priceBookContext}
-
-## Current Estimate
-${JSON.stringify(input.existingEstimate, null, 2)}
-
-## Refinement Instruction
-${input.instruction}
-
-Task: Update the estimate to reflect the user's instruction. Return the full updated estimate in JSON format.`
+    // HARD-02/UNIFY-02: refine reuses the SHARED prompt builder — no bespoke
+    // prompt. Gains the language, price-book, Additional-Instructions, Security,
+    // and sanitizeField blocks for free; the instruction is escaped + tagged.
+    const refineInput = toRefineEstimateInput(input)
+    const system = buildSystemPrompt(refineInput, { mode: 'refine' })
+    const user = appendRetryHint(
+      buildRefineUserContent(refineInput, input.existingEstimate, input.instruction),
+      input.retryHint
+    )
 
     const raw = await this.callTool({ system, user, operationName: 'refine_estimate' })
-    return normalizeOutput(raw)
+    const r = normalizeOutput(raw)
+    if (!r.ok) throw new InvalidEstimateOutputError(r.error)
+    return r.value
   }
 
   private async callTool(args: {
@@ -200,22 +188,18 @@ Task: Update the estimate to reflect the user's instruction. Return the full upd
     try {
       const parsed = JSON.parse(argsJson) as Record<string, unknown>
       try {
-        const lf = getLangfuse()
-        if (lf) {
-          const trace = lf.trace({ name: operationName })
-          trace.generation({
-            name: operationName,
-            model: this.model,
-            input: body.messages,
-            output: parsed,
-            usage: {
-              input: json.usage?.prompt_tokens,
-              output: json.usage?.completion_tokens,
-            },
-            startTime,
-            endTime: new Date(),
-          })
-        }
+        const gen = langfuseClient.generation({
+          name: operationName,
+          model: this.model,
+          input: body.messages,
+          startTime,
+          usage: {
+            input: json.usage?.prompt_tokens,
+            output: json.usage?.completion_tokens,
+          },
+        })
+        gen.end({ output: parsed, endTime: new Date() })
+        await langfuseClient.flushAsync()
       } catch (err) {
         console.warn('[langfuse] generation trace failed:', err)
       }

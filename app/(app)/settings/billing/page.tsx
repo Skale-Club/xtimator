@@ -43,22 +43,19 @@ export default async function BillingPage() {
   const isPaid = data.tier === 'pro' || data.tier === 'business'
 
   return (
-    <div className="space-y-12 pb-12">
-      {/* Hero zone — Phase 71 pattern: gradient-hero radial backdrop */}
-      <section className="relative isolate px-6 py-6 text-center">
-        <div
-          aria-hidden
-          className="absolute inset-0 -z-10 gradient-hero"
-        />
-        <h1 className="text-[clamp(36px,5vw,56px)] font-semibold tracking-[-0.025em]">
+    <div className="space-y-6 p-6">
+      <header className="flex flex-col gap-1">
+        <h1 className="text-[clamp(28px,3.5vw,40px)] font-semibold tracking-tight">
           <T>Billing</T>
         </h1>
-        <p className="mx-auto mt-3 max-w-xl text-base text-muted-foreground">
-          <T>You&rsquo;re on the</T> <strong className="text-foreground"><T text={tierDisplay} /></strong> <T>plan. Choose the tier that fits your business | upgrade or downgrade anytime.</T>
+        <p className="text-sm text-muted-foreground">
+          <T>You&rsquo;re on the</T>{' '}
+          <strong className="text-foreground"><T text={tierDisplay} /></strong>{' '}
+          <T>plan. Choose the tier that fits your business | upgrade or downgrade anytime.</T>
         </p>
-      </section>
+      </header>
 
-      <div className="w-full space-y-8 px-6">
+      <div className="w-full space-y-8">
         {/* Current plan + usage */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <Card variant="glass" className="p-6">
@@ -162,7 +159,7 @@ export default async function BillingPage() {
             </CardContent>
           </Card>
         )}
-      </div>
+        </div>
     </div>
   )
 }

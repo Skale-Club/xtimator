@@ -77,7 +77,7 @@ describe('saveLandingContent server action (LP-01)', () => {
     const { saveLandingContent } = await import('@/app/admin/landing/actions')
     const result = await saveLandingContent(makeFormData(VALID_CONTENT))
 
-    expect(result).toEqual({ ok: true })
+    expect(result).toEqual(expect.objectContaining({ ok: true })) // success now also returns step/featureImageUrls arrays
     expect(client.from).toHaveBeenCalledWith('platform_branding')
     const upsertArg = client.upsert.mock.calls[0][0]
     expect(upsertArg.id).toBe(1)
@@ -95,7 +95,7 @@ describe('saveLandingContent server action (LP-01)', () => {
     const { saveLandingContent } = await import('@/app/admin/landing/actions')
     const result = await saveLandingContent(makeFormData(VALID_CONTENT))
 
-    expect(result).toEqual({ ok: true })
+    expect(result).toEqual(expect.objectContaining({ ok: true })) // success now also returns step/featureImageUrls arrays
     const upsertArg = client.upsert.mock.calls[0][0]
     expect(upsertArg.app_name).toBe('Custom App')
   })
@@ -108,7 +108,7 @@ describe('saveLandingContent server action (LP-01)', () => {
     const { saveLandingContent } = await import('@/app/admin/landing/actions')
     const result = await saveLandingContent(makeFormData(VALID_CONTENT))
 
-    expect(result).toEqual({ ok: true })
+    expect(result).toEqual(expect.objectContaining({ ok: true })) // success now also returns step/featureImageUrls arrays
     const upsertArg = client.upsert.mock.calls[0][0]
     expect(upsertArg.landing_content.howItWorksSteps).toHaveLength(3)
     expect(upsertArg.landing_content.howItWorksSteps[0]).toMatchObject({
@@ -125,7 +125,7 @@ describe('saveLandingContent server action (LP-01)', () => {
     const { saveLandingContent } = await import('@/app/admin/landing/actions')
     const result = await saveLandingContent(makeFormData(VALID_CONTENT))
 
-    expect(result).toEqual({ ok: true })
+    expect(result).toEqual(expect.objectContaining({ ok: true })) // success now also returns step/featureImageUrls arrays
     const upsertArg = client.upsert.mock.calls[0][0]
     expect(upsertArg.landing_content.features).toHaveLength(4)
     expect(upsertArg.landing_content.features[0]).toMatchObject({

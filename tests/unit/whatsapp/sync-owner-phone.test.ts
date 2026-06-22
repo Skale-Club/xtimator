@@ -6,10 +6,16 @@ function makeServiceClient(existingPhone: string | null = null) {
   const maybeSingle = vi
     .fn()
     .mockResolvedValue({ data: existingPhone ? { owner_phone: existingPhone } : null })
-  const eq = vi.fn().mockReturnValue({ maybeSingle })
-  const select = vi.fn().mockReturnValue({ eq })
+  // Self-referential chain so any combination of .eq()/.is() resolves to maybeSingle.
+  // Legacy path: .eq('company_id').is('user_id', null). Per-user path: .eq().eq().
+  const chain: Record<string, unknown> = { maybeSingle }
+  const eq = vi.fn().mockReturnValue(chain)
+  const is = vi.fn().mockReturnValue(chain)
+  chain.eq = eq
+  chain.is = is
+  const select = vi.fn().mockReturnValue(chain)
   const from = vi.fn().mockReturnValue({ select, upsert })
-  return { from, upsert, select, eq, maybeSingle }
+  return { from, upsert, select, eq, is, maybeSingle }
 }
 
 describe('syncOwnerPhone', () => {
@@ -70,5 +76,21 @@ describe('syncOwnerPhone', () => {
     const payload = upsert.mock.calls[0]![0]
     expect(payload.owner_phone).toBeNull()
     expect(payload.welcome_sent_at).toBeNull()
+  })
+
+  it('per-user path upserts on (company_id, user_id) and includes user_id in the row', async () => {
+    const { from, upsert } = makeServiceClient(null)
+    await syncOwnerPhone({ from } as never, 'company-5', '15551234567', 'user-abc')
+
+    expect(upsert).toHaveBeenCalledWith(
+      {
+        company_id: 'company-5',
+        user_id: 'user-abc',
+        owner_phone: '+15551234567',
+        status: 'active',
+        welcome_sent_at: null,
+      },
+      { onConflict: 'company_id, user_id' }
+    )
   })
 })

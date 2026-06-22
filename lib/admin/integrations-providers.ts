@@ -30,6 +30,8 @@ export type Category = {
   showFromPhone?: boolean
   /** WhatsApp category renders the Phone Number ID + WABA ID fields below the cards. */
   showWhatsAppConfig?: boolean
+  /** CRM/Xphere category renders the base-URL field below the cards. */
+  showXphereConfig?: boolean
 }
 
 export const CATEGORIES: ReadonlyArray<Category> = [
@@ -99,6 +101,20 @@ export const CATEGORIES: ReadonlyArray<Category> = [
         title: 'Twilio',
         description:
           'Enter as "AccountSid:AuthToken". Set the outbound phone number in the From Phone field below after saving.',
+      },
+    ],
+  },
+  {
+    slug: 'crm',
+    title: 'CRM',
+    description: 'Mirror every company into the Xphere CRM (Account + Contact + Opportunity).',
+    showXphereConfig: true,
+    providers: [
+      {
+        id: 'xphere' as IntegrationProvider,
+        title: 'Xphere',
+        description:
+          'API key (xph_… token, scope sync:write) for the Xphere Xtimator org. Set the base URL below.',
       },
     ],
   },

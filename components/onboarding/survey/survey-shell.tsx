@@ -107,8 +107,9 @@ export function SurveyShell({
         setValue('email', '')
         break
       case 'industry':
-        setValue('industry', '')
-        setValue('customIndustry', '')
+        setValue('industries', [])
+        setValue('customIndustries', [])
+        setValue('prefillPriceBook', false)
         break
       case 'language':
         setValue('language', 'en')

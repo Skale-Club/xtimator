@@ -90,6 +90,12 @@ export function asResponse(err: unknown): NextResponse {
         scope.setTag('error.code', err.code)
         scope.setTag('error.surface', err.surface)
         scope.setTag('error.type', err.type)
+        // GUARD-04: when a correlation id (the promoted attemptId) rides on the
+        // error meta, tag the Sentry scope with correlation_id so this event joins
+        // the same run's Langfuse trace + pipeline_events timeline. Best-effort:
+        // only fires when present; absent it is a no-op (unchanged behavior).
+        if (err.meta?.correlationId)
+          scope.setTag('correlation_id', String(err.meta.correlationId))
         if (err.meta) scope.setContext('error.meta', err.meta as Record<string, unknown>)
         Sentry.captureException(err.cause ?? err)
       })

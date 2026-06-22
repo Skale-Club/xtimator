@@ -217,6 +217,7 @@ async function main() {
     email: 'demo@example.com',
     phone: '+15550199',
     industry: 'upholstery_carpet_cleaning',
+    industries: ['upholstery_carpet_cleaning'],
     city: 'Everett', state: 'MA', zip: '02149', address: '100 Broadway',
     currency_code: 'USD',
     default_tax_rate: TAX_RATE,

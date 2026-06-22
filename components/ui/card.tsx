@@ -14,7 +14,7 @@ const cardVariants = cva(
         "glass-strong":
           "border border-[var(--glass-border)] bg-[var(--glass-bg-strong)] backdrop-blur-[var(--glass-blur-strong)] shadow-glass",
         stat:
-          "relative overflow-hidden border border-[var(--glass-border)] bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] shadow-glass " +
+          "relative border border-[var(--glass-border)] bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] shadow-glass " +
           "before:content-[''] before:absolute before:inset-x-0 before:top-0 before:h-[3px] before:gradient-brand before:rounded-t-[var(--radius-lg)]",
       },
     },

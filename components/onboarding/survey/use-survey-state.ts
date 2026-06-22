@@ -93,7 +93,17 @@ export function useSurveyState(
     // render at step 0.
     startTransition(() => {
       if (draft.stepIndex !== undefined) setStepIndex(draft.stepIndex)
-      if (draft.values) setValues((prev) => ({ ...prev, ...draft.values }))
+      if (draft.values) {
+        setValues((prev) => {
+          const merged = { ...prev, ...draft.values }
+          // Migrate legacy single-industry drafts (pre multi-select) → industries[].
+          const legacy = (draft.values as { industry?: string }).industry
+          if (legacy && (!merged.industries || merged.industries.length === 0)) {
+            merged.industries = [legacy]
+          }
+          return merged
+        })
+      }
       setReady(true)
     })
   }, [storageKey]) // eslint-disable-line react-hooks/exhaustive-deps

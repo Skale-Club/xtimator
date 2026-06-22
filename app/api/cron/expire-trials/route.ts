@@ -3,6 +3,7 @@ import { requireServiceClient } from '@/lib/supabase/service'
 import { notify } from '@/lib/notifications/dispatch'
 import { buildNotificationCopy } from '@/lib/notifications/copy'
 import { isAuthorizedCron } from '@/lib/auth/cron-auth'
+import { dispatchXphereSync } from '@/lib/integrations/xphere/dispatch'
 
 export async function GET(request: Request) {
   if (!process.env.CRON_SECRET) {
@@ -59,6 +60,10 @@ export async function GET(request: Request) {
           })
         )
       )
+
+      // Mirror each expired trial into Xphere CRM (fire-and-forget).
+      // The mapping forces an expired trial → stage 'Churned'.
+      for (const row of rows) dispatchXphereSync(row.id, 'trial.expired')
     }
 
     return NextResponse.json({ expired: ids.length }, { status: 200 })

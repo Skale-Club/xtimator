@@ -108,15 +108,23 @@ export async function checkQuota(
   return { allowed: true, remaining }
 }
 
+/** Postgres unique_violation — the dedup index already has this row. */
+const PG_UNIQUE_VIOLATION = '23505'
+
 /**
  * Record a usage event for a company with idempotency deduplication.
  *
- * Uses upsert with ignoreDuplicates: true (ON CONFLICT DO NOTHING) on the
- * (company_id, idempotency_key) unique index added by Phase 56 migration.
+ * Dedups retries by (company_id, idempotency_key) via check-then-insert. We do
+ * NOT use upsert's ON CONFLICT here: the usage_events unique index on those
+ * columns is PARTIAL (`WHERE idempotency_key IS NOT NULL`), and Postgres refuses
+ * a partial index as an ON CONFLICT arbiter unless the predicate is restated —
+ * which supabase-js's `onConflict` (column list only) cannot express. That
+ * mismatch raised "no unique or exclusion constraint matching the ON CONFLICT
+ * specification" and failed estimate/photo jobs at the record-usage step.
  *
- * Per STATE.md Phase 12 pattern: `upsert(rows, { onConflict, ignoreDuplicates: true })`
- * is the established codebase pattern — supabase-js TypeScript types only support
- * `onConflict` on `upsert()`, not on `insert()`.
+ * Instead: skip if the (company_id, idempotency_key) row already exists, then
+ * insert. If a concurrent retry races us, the partial unique index raises
+ * 23505 — we swallow it (that's the dedup working, not a failure).
  *
  * Throws only on genuine DB errors (not on duplicate-key conflicts).
  *
@@ -133,19 +141,28 @@ export async function recordUsage(
   units: number,
   idempotencyKey: string
 ): Promise<void> {
-  const { error } = await supabase
-    .from('usage_events')
-    .upsert(
-      {
-        company_id: companyId,
-        event_type: eventType,
-        units,
-        idempotency_key: idempotencyKey,
-      },
-      { onConflict: 'company_id,idempotency_key', ignoreDuplicates: true }
-    )
+  // Dedup: a retry with the same key is a no-op.
+  if (idempotencyKey) {
+    const { data: existing } = await supabase
+      .from('usage_events')
+      .select('id')
+      .eq('company_id', companyId)
+      .eq('idempotency_key', idempotencyKey)
+      .limit(1)
+      .maybeSingle()
+    if (existing) return
+  }
 
-  if (error) {
+  const { error } = await supabase.from('usage_events').insert({
+    company_id: companyId,
+    event_type: eventType,
+    units,
+    idempotency_key: idempotencyKey,
+  })
+
+  // A concurrent retry beat us to the insert — the unique index rejected the
+  // duplicate. That is the intended dedup outcome, so treat it as success.
+  if (error && (error as { code?: string }).code !== PG_UNIQUE_VIOLATION) {
     throw new Error(`recordUsage failed: ${error.message}`)
   }
 }

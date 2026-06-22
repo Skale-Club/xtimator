@@ -12,6 +12,7 @@ import { CaptureProcessingOverlay } from '@/components/capture/capture-processin
 import { CaptureFailure } from '@/components/capture/capture-failure'
 import { VoiceRecorder } from '@/components/workspace/audio/voice-recorder'
 import { createRecording, transcribeRecording, createTextRecording } from '@/lib/actions/recording'
+import { createBlankEstimate } from '@/lib/actions/estimate'
 import { createPhoto } from '@/lib/actions/photo'
 import { createClient } from '@/lib/supabase/client'
 import { createStorage } from '@/lib/storage'
@@ -496,10 +497,35 @@ export function CaptureRecorder({
       // Audio path (existing) — audio blob triggers runPipeline
       runPipeline(audioBlob)
     } else if (uploadedPhotos.length > 0) {
-      // Photos-only path: photos were uploaded during selection (saving already done),
-      // so we jump straight to analyzing (dispatch) → generating (poll).
+      // Photos-only path: analyze photos first so ai_description is written to DB,
+      // then generate the estimate with that context.
       setStage('analyzing')
       try {
+        // Step 1: dispatch photo analysis and wait for ai_description to be written
+        const analyzeRes = await fetch('/api/analyze-photos', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            projectId,
+            requestId: requestIdRef.current,
+            attemptId: attemptIdRef.current,
+          }),
+          signal: abortControllerRef.current.signal,
+        })
+        if (!analyzeRes.ok) {
+          const body = await analyzeRes.json().catch(() => ({}))
+          failAt('analyzing', (body as { error?: string }).error ?? t('Photo analysis failed'))
+          return
+        }
+        const { jobId: analyzeJobId } = (await analyzeRes.json()) as { jobId: string }
+        const analyzeResult = await pollJob(analyzeJobId, abortControllerRef.current.signal)
+        if (analyzeResult.state !== 'completed') {
+          failAt('analyzing', reasonForJobState(analyzeResult, 'generation'))
+          return
+        }
+
+        // Step 2: generate estimate (photos now have ai_description in DB)
+        setStage('generating')
         const dispatchRes = await fetch('/api/generate-estimate', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
@@ -508,19 +534,16 @@ export function CaptureRecorder({
             language: estimateLanguage,
             requestId: requestIdRef.current,
             attemptId: attemptIdRef.current,
-            // Phase 92 (EVENT-03): tag the recording path explicitly for lineage.
-            inputType: 'recording',
+            inputType: 'photo',
           }),
           signal: abortControllerRef.current.signal,
         })
         if (!dispatchRes.ok) {
           const body = await dispatchRes.json().catch(() => ({}))
-          failAt('analyzing', (body as { error?: string }).error ?? t('Estimate generation failed'))
+          failAt('generating', (body as { error?: string }).error ?? t('Estimate generation failed'))
           return
         }
         const { jobId } = (await dispatchRes.json()) as { jobId: string }
-        setStage('generating')
-        // pollJob resolves Plan 01's JobResult discriminant; branch on state.
         // Read estimate from DB after completion — see runPipeline note for why
         // the Inngest dev server returns an empty function output.
         const photosResult = await pollJob(jobId, abortControllerRef.current.signal)
@@ -548,7 +571,7 @@ export function CaptureRecorder({
         }
       } catch (err) {
         if ((err as Error).name === 'AbortError') return
-        failAt('generating', (err as Error).message ?? t('Estimate generation failed'))
+        failAt('analyzing', (err as Error).message ?? t('Estimate generation failed'))
       }
     }
   }, [descriptionText, audioBlob, uploadedPhotos, projectId, runPipeline, triggerEstimateGeneration, estimateLanguage, t, onComplete, router, ensureAttempt, reasonForJobState])
@@ -617,6 +640,14 @@ export function CaptureRecorder({
       startRecording()
     }
   }, [isRecording, startRecording, stopRecording])
+
+  // Create a blank estimate then navigate — used by "Edit manually" so the user
+  // lands on the EstimateEditor instead of the empty-state card (which has a
+  // disabled Generate button when no transcript exists).
+  async function handleEditManually() {
+    await createBlankEstimate(projectId)
+    router.push(`/projects/${projectId}`)
+  }
 
   // Color class for ring and timer (D-07)
   const ringColorClass =
@@ -702,10 +733,7 @@ export function CaptureRecorder({
                     setRetriesUsed(r => r + 1)
                     runPipeline(audioBlob)
                   } : undefined}
-                  onEditManually={() => {
-                    toast.info(t('Continue manually in the workspace tabs.'))
-                    router.push(`/projects/${projectId}`)
-                  }}
+                  onEditManually={handleEditManually}
                 />
               </div>
             </div>
@@ -724,10 +752,7 @@ export function CaptureRecorder({
                   setRetriesUsed(r => r + 1)
                   runPipeline(audioBlob)
                 } : undefined}
-                onEditManually={() => {
-                  toast.info(t('Continue manually in the workspace tabs.'))
-                  router.push(`/projects/${projectId}`)
-                }}
+                onEditManually={handleEditManually}
               />
             )}
           </div>

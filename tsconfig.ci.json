@@ -1,0 +1,31 @@
+{
+  // Scoped CI typecheck config (EVAL-04, research Option A / Pitfall 7).
+  //
+  // A full-repo `tsc --noEmit` is ALREADY red: 9 pre-existing errors, ALL in
+  // tests/** (regex-flag/es2018, a Mock-not-callable, drifted Branding stubs,
+  // an Xphere `pipeline` field), 0 in app/lib. Gating the build on the full
+  // typecheck would fail on day one and be useless. This config narrows the
+  // typecheck to the SHIPPED production source (app/lib/components/hooks +
+  // the instrumentation/sentry entrypoints) and excludes tests/**, so
+  // `tsc --noEmit -p tsconfig.ci.json` is a meaningful, GREEN gate. Test files
+  // are still typechecked by vitest's collection + the full suite — they just
+  // don't gate CI on the 9 pre-existing test-file errors.
+  "extends": "./tsconfig.json",
+  "include": [
+    "app/**/*.ts",
+    "app/**/*.tsx",
+    "lib/**/*.ts",
+    "lib/**/*.tsx",
+    "components/**/*.ts",
+    "components/**/*.tsx",
+    "hooks/**/*.ts",
+    "hooks/**/*.tsx",
+    "instrumentation.ts",
+    "instrumentation-client.ts",
+    "sentry.edge.config.ts",
+    "sentry.server.config.ts",
+    "next-env.d.ts",
+    ".next/types/**/*.ts"
+  ],
+  "exclude": ["node_modules", "tests/**", ".next/dev/**"]
+}

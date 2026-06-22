@@ -1,4 +1,4 @@
-import { LayoutDashboard, Users, FolderPlus, FolderOpen, BookOpen, Settings, MessageCircle, type LucideIcon } from 'lucide-react'
+import { LayoutDashboard, Users, FolderPlus, FolderOpen, BookOpen, Settings, type LucideIcon } from 'lucide-react'
 
 export interface NavItem {
   label: string
@@ -10,14 +10,15 @@ export interface NavItem {
   modal?: string
   /** Hidden from the read-only public demo (sensitive / non-functional there). */
   demoHidden?: boolean
+  /** On mobile, lives inside the bottom-bar "More" overflow menu instead of on the bar. */
+  overflow?: boolean
 }
 
 export const NAV_ITEMS: NavItem[] = [
-  { label: 'Dashboard',    href: '/dashboard',    icon: LayoutDashboard },
-  { label: 'Projects',     href: '/projects',     icon: FolderOpen },
   { label: 'New Xtimate',  href: '/projects/new', icon: FolderPlus, primary: true, exact: true, modal: 'new-project' },
+  { label: 'Dashboard',    href: '/dashboard',    icon: LayoutDashboard },
+  { label: 'Projects',     href: '/projects',     icon: FolderOpen, overflow: true },
   { label: 'Clients',      href: '/clients',      icon: Users },
-  { label: 'Price Book',   href: '/price-book',   icon: BookOpen },
-  { label: 'Settings',     href: '/settings',     icon: Settings,   demoHidden: true },
-  { label: 'WhatsApp',     href: '/whatsapp',     icon: MessageCircle, demoHidden: true },
+  { label: 'Price Book',   href: '/price-book',   icon: BookOpen, overflow: true },
+  { label: 'Settings',     href: '/settings',     icon: Settings,   demoHidden: true, overflow: true },
 ]
