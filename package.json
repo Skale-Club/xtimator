@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "git pull --rebase && npx rimraf .next && concurrently --kill-others \"cross-env NODE_OPTIONS=--max-http-header-size=32768 next dev --port 9633\" \"npx inngest-cli@latest dev -u http://localhost:9633/api/inngest\"",
+    "dev": "npx rimraf .next && concurrently --kill-others \"cross-env NODE_OPTIONS=--max-http-header-size=32768 next dev --port 9633\" \"npx inngest-cli@latest dev -u http://localhost:9633/api/inngest\"",
+    "dev:sync": "git pull --rebase --autostash && npm run dev",
     "dev:inngest": "npx inngest-cli@latest dev -u http://localhost:9633/api/inngest",
     "build": "next build",
     "start": "next start",
