@@ -22,6 +22,7 @@ const NAV_ITEMS = [
   { href: '/admin/billing',      label: 'Billing',      Icon: CreditCard },
   { href: '/admin/companies',    label: 'Companies',    Icon: Building2 },
   { href: '/admin/whatsapp',     label: 'WhatsApp',     Icon: MessageCircle },
+  { href: '/admin/whatsapp-templates', label: 'WA Templates', Icon: MessageCircle },
   { href: '/admin/admins',       label: 'Admins',       Icon: Users },
   { href: '/admin/events',       label: 'Event Log',    Icon: ScrollText },
 ] as const

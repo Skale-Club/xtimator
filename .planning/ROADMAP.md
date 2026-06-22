@@ -22,7 +22,7 @@
 - ✅ **v4.1 MCP Server** — Phases 86-90 (shipped 2026-05-26) · [archive](milestones/v4.1-ROADMAP.md)
 - ✅ **v4.2 Recording Reliability & Observability** — Phases 91-93 (shipped 2026-05-30)
 - 🚧 **v4.3 Unified Agentic Estimate Engine** — Phases 94-97 (started 2026-06-20)
-- 📋 **v4.4 WhatsApp Notifications** — Phase 98 (planned 2026-06-20, queued after v4.3)
+- 🗄️ **v4.4 WhatsApp Notifications** — Phase 98 (planned 2026-06-20) — **SUPERSEDED by Phase 104** (owner-facing WhatsApp notifications + in-app template builder built in 104). Do not run; revive only if a distinct customer-facing scope is ever needed.
 - ✅ **v4.5 Estimate Engine Robustness & Reliability Harness** — Phases 99-103 (shipped 2026-06-21) · [archive](milestones/v4.5-ROADMAP.md)
 - 🚧 **v4.6 Notification Channels & Preferences** — Phase 104 (started 2026-06-21)
 
@@ -1108,6 +1108,8 @@ Plans:
 ### v4.4 WhatsApp Notifications (Phase 98)
 
 ### Phase 98: WhatsApp Template Notifications — Owner Alerts via Approved HSM Templates
+> **SUPERSEDED by Phase 104** (owner-facing WhatsApp notifications + in-app template builder built in 104). Do not run; revive only if a distinct customer-facing scope is ever needed. Phase 104 delivered the `sendWhatsAppTemplate` client, the dispatch WhatsApp branch + event→template registry, opt-in preferences UI, AND the super-admin in-app template builder (104.3) Phase 98 had deferred. Phase 98 artifacts are left untouched as historical reference only.
+
 **Goal**: The profile-settings promise "Used for account recovery and WhatsApp notifications" becomes true. The business owner actually receives WhatsApp messages for key estimate events (e.g. viewed / approved / paid), sent as Meta-approved **message templates (HSM)** so delivery works *outside* the 24-hour customer-service window. WhatsApp becomes a first-class, opt-in channel in the existing `notify()` notifications pipeline. Reuses Xtimator's own WABA (already configured; `wabaId` currently unused). `xphere` (`C:\Dev\xphere`) is the read-only reference implementation we port the send shape from — NOT a runtime dependency. Templates are authored manually in Meta WhatsApp Manager for the MVP; an in-app builder is deferred.
 **Depends on**: Phase 40 (WhatsApp client + `getWhatsAppPlatformConfig`), Phase 77 (notifications system + `notify()` dispatch), Phase 70 (estimate payment/activity events that trigger alerts)
 **Requirements**: WANOTIF-01, WANOTIF-02, WANOTIF-03, WANOTIF-04, WANOTIF-05

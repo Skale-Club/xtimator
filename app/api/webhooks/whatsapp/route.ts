@@ -31,6 +31,41 @@ function inboxFieldsFor(message: WhatsAppMessage): { msgType: WaMsgType; body: s
   }
 }
 
+/**
+ * Detect a `message_template_status_update` change in the webhook payload
+ * (Phase 104.3). Meta delivers it under
+ * `entry[].changes[].field === 'message_template_status_update'` with a
+ * `value: { message_template_id, message_template_name, message_template_language,
+ * event, reason? }`. The shared `WhatsAppPayload.field` type is narrowed to
+ * 'messages', so we read the change loosely here without touching that type or
+ * the inbound path. Returns null when no such change is present.
+ */
+function findTemplateStatusChange(payload: WhatsAppPayload): {
+  message_template_id?: string
+  message_template_name?: string
+  message_template_language?: string
+  event: string
+  reason?: string
+} | null {
+  const entries = (payload as { entry?: Array<{ changes?: unknown[] }> })?.entry ?? []
+  for (const entry of entries) {
+    for (const change of entry.changes ?? []) {
+      const c = change as { field?: string; value?: Record<string, unknown> }
+      if (c.field === 'message_template_status_update' && c.value) {
+        const v = c.value
+        return {
+          message_template_id: v.message_template_id as string | undefined,
+          message_template_name: v.message_template_name as string | undefined,
+          message_template_language: v.message_template_language as string | undefined,
+          event: String(v.event ?? ''),
+          reason: v.reason as string | undefined,
+        }
+      }
+    }
+  }
+  return null
+}
+
 // ------------------------------------------------------------------
 // GET: Meta webhook challenge verification (WA-02)
 // Meta sends: hub.mode=subscribe, hub.verify_token, hub.challenge
@@ -82,6 +117,31 @@ export async function POST(request: NextRequest) {
   const isStatusUpdate = payload?.entry?.[0]?.changes?.[0]?.value?.statuses
   if (isStatusUpdate) {
     console.info('[WhatsApp] status webhook ignored')
+    return new Response('OK', { status: 200 })
+  }
+
+  // Step 4b (Phase 104.3): message_template_status_update — Meta tells us a
+  // template was approved/rejected/etc. Flip the stored template status. This is
+  // ADDITIVE: it runs AFTER HMAC verification + the `statuses` early-exit and does
+  // NOT touch the inbound-message routing below. Best-effort via after().
+  const templateStatusChange = findTemplateStatusChange(payload)
+  if (templateStatusChange) {
+    after(async () => {
+      try {
+        const { applyTemplateStatusUpdate } = await import(
+          '@/lib/actions/admin-whatsapp-templates'
+        )
+        await applyTemplateStatusUpdate({
+          message_template_id: templateStatusChange.message_template_id,
+          template_name: templateStatusChange.message_template_name,
+          language: templateStatusChange.message_template_language,
+          event: templateStatusChange.event,
+          reason: templateStatusChange.reason,
+        })
+      } catch (err) {
+        console.error('[WhatsApp] template status update error:', err)
+      }
+    })
     return new Response('OK', { status: 200 })
   }
 
