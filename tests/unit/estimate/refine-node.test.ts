@@ -39,6 +39,23 @@ vi.mock('@/lib/queries/price-book', () => ({
   getPriceBookItems: vi.fn(async () => []),
 }))
 
+// The refine node calls requireServiceClient() to resolve company language/
+// currency/industry. Without this mock it throws in a secret-free environment
+// (no Supabase env, e.g. CI) — passing locally only because .env.local is
+// loaded. Stub it so the company-row lookup returns no data (node keeps neutral
+// defaults) and never depends on real Supabase credentials.
+vi.mock('@/lib/supabase/service', () => ({
+  requireServiceClient: () => ({
+    from: () => ({
+      select: () => ({
+        eq: () => ({
+          single: async () => ({ data: null, error: null }),
+        }),
+      }),
+    }),
+  }),
+}))
+
 const passthroughRunner = { run: <T>(_name: string, fn: () => Promise<T>) => fn() }
 
 const validRefinedOutput = {
