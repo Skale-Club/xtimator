@@ -38,6 +38,8 @@ export interface UserPrefs {
   /** Explicit per-channel consent timestamps (NOTIF-05 / TCPA). */
   whatsapp_opt_in_at?: string | null
   sms_opt_in_at?: string | null
+  /** The exact paid-channel consent copy shown at SMS opt-in (audit). */
+  sms_opt_in_consent_text?: string | null
 }
 
 export interface ResolvedChannels {
@@ -143,6 +145,21 @@ export async function upsertUserPreferences(
         patch.email_digest_enabled ??
         existing?.email_digest_enabled ??
         true,
+      // Phase 104 (NOTIF-05) — per-channel opt-in/consent. Only overwrite when
+      // the patch carries the field, else preserve the recorded value (consent
+      // timestamps are never silently cleared).
+      sms_opt_in_at:
+        patch.sms_opt_in_at !== undefined
+          ? patch.sms_opt_in_at
+          : (existing?.sms_opt_in_at ?? null),
+      sms_opt_in_consent_text:
+        patch.sms_opt_in_consent_text !== undefined
+          ? patch.sms_opt_in_consent_text
+          : (existing?.sms_opt_in_consent_text ?? null),
+      whatsapp_opt_in_at:
+        patch.whatsapp_opt_in_at !== undefined
+          ? patch.whatsapp_opt_in_at
+          : (existing?.whatsapp_opt_in_at ?? null),
       updated_at: new Date().toISOString(),
     }
     const { error } = await svc

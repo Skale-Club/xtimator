@@ -27,6 +27,10 @@ const PatchSchema = z.object({
   categories: z.record(z.string(), ChannelSchema).optional(),
   email_digest_enabled: z.boolean().optional(),
   push_subscription: z.unknown().nullable().optional(),
+  // Phase 104 (NOTIF-05) — explicit per-channel opt-in/consent (TCPA/cost).
+  sms_opt_in_at: z.string().nullable().optional(),
+  sms_opt_in_consent_text: z.string().nullable().optional(),
+  whatsapp_opt_in_at: z.string().nullable().optional(),
 })
 
 export async function GET() {
@@ -40,6 +44,8 @@ export async function GET() {
       categories: prefs?.categories ?? {},
       email_digest_enabled: prefs?.email_digest_enabled ?? true,
       push_enabled: !!prefs?.push_subscription,
+      sms_opt_in_at: prefs?.sms_opt_in_at ?? null,
+      whatsapp_opt_in_at: prefs?.whatsapp_opt_in_at ?? null,
       defaults: DEFAULT_PREFERENCES,
     })
   } catch (e) {
