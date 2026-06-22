@@ -67,3 +67,47 @@ export function getTemplateForEvent(
 ): NotificationTemplate | null {
   return REGISTRY[eventType] ?? null
 }
+
+/**
+ * Wave-3 (104.3) DB-backed resolver: resolve an APPROVED row from
+ * `whatsapp_notification_templates` (the super-admin panel registry) for an
+ * event, falling back to the static REGISTRY above when no approved DB row
+ * matches. Reads via the service client (the table is service-role-only).
+ *
+ * Seam note: the synchronous `getTemplateForEvent` above remains the source for
+ * the existing Wave-2 dispatch path (it must stay sync + side-effect-free for the
+ * frozen Wave-2 tests). The dispatch MAY adopt this async variant later once the
+ * DB registry is populated + approved; until then this is the forward path that
+ * lets approved DB rows drive `getTemplateForEvent` per the plan must-have.
+ */
+export async function getApprovedTemplateForEvent(
+  eventType: EventType,
+): Promise<NotificationTemplate | null> {
+  try {
+    // Lazy import to keep this module free of a service-client dependency for the
+    // sync path (and to avoid pulling server-only deps into static analysis).
+    const { createServiceClient } = await import('@/lib/supabase/service')
+    const svc = createServiceClient()
+    if (!svc) return getTemplateForEvent(eventType)
+
+    const { data } = await svc
+      .from('whatsapp_notification_templates')
+      .select('template_name, language_code')
+      .eq('event_type', eventType)
+      .eq('status', 'approved')
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (data?.template_name) {
+      return {
+        templateName: data.template_name as string,
+        languageCode: (data.language_code as string) ?? 'en_US',
+        variables: titleBodyVars,
+      }
+    }
+  } catch (err) {
+    console.warn('[whatsapp-registry] getApprovedTemplateForEvent fell back to static map:', err)
+  }
+  return getTemplateForEvent(eventType)
+}
