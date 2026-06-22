@@ -33,8 +33,8 @@ export function WaveformVisualizer({ analyser, isRecording, height = 96 }: Wavef
 
     canvas.width = width
     canvas.height = height
-    const barCount = Math.max(48, Math.floor(width / 6))
-    const barWidth = width / barCount - 1
+    const barCount = Math.max(Math.floor(width / 6), 1)
+    const barWidth = Math.max(0, width / barCount - 1)
     const dataArray = analyser ? new Uint8Array(analyser.frequencyBinCount) : null
 
     // Read brand HSL triplets from CSS vars; fall back to literals for test envs

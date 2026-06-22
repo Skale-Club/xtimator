@@ -18,13 +18,14 @@ export type VagueCheckEstimate = {
 }
 
 /**
- * An estimate is "vague" when the total is <= 0 (null treated as 0) OR there is
- * not a single line item across all sections.
+ * An estimate is "vague" when there are no line items across all sections.
+ * A zero or null total alone is not sufficient — the AI may generate items
+ * with $0 prices (anchoring edge cases, free services) that the user can
+ * correct in the editor. Only a completely itemless estimate is unrecoverable.
  */
 export function isVagueEstimate(e: VagueCheckEstimate | null): boolean {
-  const totalNum = e?.total ?? 0
   const hasItems = (e?.sections ?? []).some(
     (s) => (s?.items?.length ?? 0) > 0
   )
-  return totalNum <= 0 || !hasItems
+  return !hasItems
 }

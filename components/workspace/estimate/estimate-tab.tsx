@@ -87,7 +87,7 @@ export function EstimateTab({
 
   useEffect(() => {
     if (!isAutoGenerating || currentEstimate) return
-    const id = setInterval(() => router.refresh(), 3000)
+    const id = setInterval(() => router.refresh(), 2000)
     return () => clearInterval(id)
   }, [isAutoGenerating, currentEstimate, router])
 
@@ -174,7 +174,18 @@ export function EstimateTab({
   }
 
   if (isAutoGenerating && !currentEstimate) {
-    return <GenerationProgress currentStep={0} />
+    const hasTranscript = recordings.some(r => r.transcript && r.transcript.trim().length > 0)
+    const statusLabel = hasTranscript ? t('Generating estimate...') : t('Transcribing audio...')
+    return (
+      <div className="flex flex-col items-center justify-center py-24 gap-4">
+        <div className="flex items-center gap-2">
+          <span className="h-2.5 w-2.5 rounded-full bg-primary animate-bounce" style={{ animationDelay: '-0.3s' }} />
+          <span className="h-2.5 w-2.5 rounded-full bg-primary animate-bounce" style={{ animationDelay: '-0.15s' }} />
+          <span className="h-2.5 w-2.5 rounded-full bg-primary animate-bounce" style={{ animationDelay: '0s' }} />
+        </div>
+        <p className="text-sm text-muted-foreground">{statusLabel}</p>
+      </div>
+    )
   }
 
   if (isGenerating) {

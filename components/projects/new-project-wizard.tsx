@@ -1,116 +1,79 @@
 'use client'
 
-import { useState, useTransition } from 'react'
-import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
+import { useEffect, useRef, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
+import { Loader2 } from 'lucide-react'
 
-import { projectSchema } from '@/lib/schemas/project'
-import type { ProjectFormValues, InputMode } from '@/lib/schemas/project'
-import { createProjectAction } from '@/lib/actions/project'
-
-import { Form } from '@/components/ui/form'
-import { StepModalitySelect } from '@/components/projects/step-modality-select'
-import {
-  captureHref,
-  type CaptureMode,
-} from '@/components/projects/estimate-creation-popup'
-import { InlineAudioRecorder } from '@/components/projects/inline-audio-recorder'
-
-const MODALITY_TO_CAPTURE: Record<InputMode, CaptureMode> = {
-  audio: 'audio',
-  text: 'text',
-  photos: 'photos',
-  mixed: 'audio',
-}
+import { createProjectAction, getProjectMinimalAction } from '@/lib/actions/project'
+import { CaptureRecorder } from '@/components/capture/capture-recorder'
+import type { ProjectDetail } from '@/lib/queries/project'
 
 interface NewProjectWizardProps {
-  /** Called when switching into/out of the inline recording step so the parent dialog can resize. */
-  onStepChange?: (step: 'modality' | 'recording') => void
+  /** Called after navigating to the project page so the dialog can close/reset. */
+  onComplete?: () => void
 }
 
-export function NewProjectWizard({ onStepChange }: NewProjectWizardProps = {}) {
-  const [isPending, startTransition] = useTransition()
-  const [step, setStep] = useState<'modality' | 'recording'>('modality')
-  const [recordingProject, setRecordingProject] = useState<{ id: string; company_id: string } | null>(null)
+export function NewProjectWizard({ onComplete }: NewProjectWizardProps = {}) {
   const router = useRouter()
-  const pathname = usePathname()
   const searchParams = useSearchParams()
+  const [project, setProject] = useState<ProjectDetail | null>(null)
+  const [isCreating, setIsCreating] = useState(false)
+  const createdRef = useRef(false)
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const form = useForm<ProjectFormValues>({
-    resolver: zodResolver(projectSchema) as any,
-    mode: 'onBlur',
-    defaultValues: {
-      clientId: undefined,
-      clientName: '',
-      inputMode: undefined,
-    },
-  })
+  useEffect(() => {
+    if (createdRef.current) return
+    createdRef.current = true
+    setIsCreating(true)
 
-  const selectedMode = form.watch('inputMode')
-
-  function handleSelect(mode: InputMode) {
-    if (isPending) return
-    form.setValue('inputMode', mode, { shouldValidate: true })
-
-    startTransition(async () => {
-      const clientId = searchParams.get('clientId') ?? form.getValues().clientId
-      const values = { ...form.getValues(), inputMode: mode, clientId }
-      const result = await createProjectAction(values)
+    void (async () => {
+      const clientId = searchParams.get('clientId') ?? undefined
+      const result = await createProjectAction({
+        clientId,
+        clientName: '',
+        inputMode: undefined,
+      })
       if ('error' in result) {
         toast.error(result.error)
+        setIsCreating(false)
         return
       }
 
-      if (mode === 'audio') {
-        // Audio: stay in this dialog and show the inline recording UI
-        setRecordingProject({ id: result.data.id, company_id: result.data.company_id as string })
-        setStep('recording')
-        onStepChange?.('recording')
+      const fetched = await getProjectMinimalAction(result.data.id)
+      if ('error' in fetched) {
+        toast.error(fetched.error)
+        setIsCreating(false)
         return
       }
 
-      // Text / Photos: hand off to EstimateCreationPopup via URL params (existing flow)
-      const captureMode = MODALITY_TO_CAPTURE[mode]
-      const next = captureHref({
-        pathname,
-        search: searchParams.toString(),
-        mode: captureMode,
-        projectId: result.data.id,
-      })
-      router.replace(next, { scroll: false })
-    })
+      setProject(fetched.data)
+      setIsCreating(false)
+    })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  function handleComplete(estimateId: string) {
+    if (!project) return
+    router.push(`/projects/${project.id}?tab=estimate&estimate=${estimateId}`)
+    router.refresh()
+    onComplete?.()
   }
 
-  function handleBack() {
-    setStep('modality')
-    setRecordingProject(null)
-    form.reset()
-    onStepChange?.('modality')
-  }
-
-  if (step === 'recording' && recordingProject) {
+  if (isCreating || !project) {
     return (
-      <InlineAudioRecorder
-        projectId={recordingProject.id}
-        companyId={recordingProject.company_id}
-        onBack={handleBack}
-      />
+      <div className="flex items-center justify-center py-16">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
     )
   }
 
   return (
-    <Form {...form}>
-      <form onSubmit={(e) => e.preventDefault()}>
-        <StepModalitySelect
-          form={form}
-          onSelect={handleSelect}
-          isPending={isPending}
-          pendingMode={isPending ? selectedMode : undefined}
-        />
-      </form>
-    </Form>
+    <CaptureRecorder
+      project={project}
+      companyId={project.company_id}
+      projectId={project.id}
+      variant="popup"
+      onComplete={handleComplete}
+    />
   )
 }

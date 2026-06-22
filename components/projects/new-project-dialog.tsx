@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useState } from 'react'
+import { Suspense } from 'react'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import {
   Dialog,
@@ -29,7 +29,6 @@ function NewProjectDialogInner() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const pathname = usePathname()
-  const [wizardStep, setWizardStep] = useState<'modality' | 'recording'>('modality')
 
   const isOpen = searchParams.get(NEW_PROJECT_MODAL_PARAM) === NEW_PROJECT_MODAL_VALUE
 
@@ -38,29 +37,22 @@ function NewProjectDialogInner() {
     params.delete(NEW_PROJECT_MODAL_PARAM)
     const q = params.toString()
     router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false })
-    setWizardStep('modality')
   }
-
-  const isRecording = wizardStep === 'recording'
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose() }}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle className="text-xl font-semibold">
+      <DialogContent className="p-0 gap-0 sm:max-w-xl max-h-[80vh] flex flex-col">
+        <DialogHeader className="px-4 py-3 border-b shrink-0 text-left">
+          <DialogTitle className="text-base font-semibold">
             <T>New Xtimate</T>
           </DialogTitle>
-          {!isRecording && (
-            <DialogDescription>
-              <T>Pick how you want to describe the job | audio, text, or photos.</T>
-            </DialogDescription>
-          )}
+          <DialogDescription className="sr-only">
+            <T>Record audio, type, or upload photos to generate an estimate.</T>
+          </DialogDescription>
         </DialogHeader>
 
         {isOpen && (
-          <NewProjectWizard
-            onStepChange={setWizardStep}
-          />
+          <NewProjectWizard onComplete={onClose} />
         )}
       </DialogContent>
     </Dialog>
@@ -70,7 +62,7 @@ function NewProjectDialogInner() {
 /**
  * Mount in the app-shell layout — renders the new-project dialog controlled
  * by the `?modal=new-project` search param. Any page in the app can open it
- * by setting that param without navigating away.
+ * by setting that param without navigating away from the current page.
  */
 export function NewProjectDialog() {
   return (

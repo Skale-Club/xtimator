@@ -35,6 +35,17 @@ export const AMBER_AT_MS  =  8 * 60 * 1000   // 480000  D-07 — neutral→amber
 export const RED_AT_MS    =  9.5 * 60 * 1000 // 570000  D-07 — amber→red
 const TICK_MS = 250                            // RESEARCH Pattern 4
 
+type SpeechRecognitionInstance = {
+  start: () => void
+  stop: () => void
+  continuous: boolean
+  interimResults: boolean
+  lang: string
+  onresult: ((event: { resultIndex: number; results: ArrayLike<ArrayLike<{ transcript: string }> & { isFinal: boolean }> }) => void) | null
+  onerror: ((event: unknown) => void) | null
+}
+type SpeechRecognitionCtor = new () => SpeechRecognitionInstance
+
 type Stage = 'idle' | 'saving' | 'transcribing' | 'analyzing' | 'generating' | 'done'
 type StageKey = 'saving' | 'transcribing' | 'analyzing' | 'generating'
 
@@ -105,6 +116,10 @@ export function CaptureRecorder({
   const [uploadedPhotos, setUploadedPhotos] = useState<Photo[]>([])
   const [isUploadingPhotos, setIsUploadingPhotos] = useState(false)
 
+  // Live transcript state (Web Speech API preview — horizontal layout only)
+  const [liveTranscript, setLiveTranscript] = useState('')
+  const [interimTranscript, setInterimTranscript] = useState('')
+
   // Language for the estimate — default from app language (cascade layer 4)
   const [estimateLanguage, setEstimateLanguage] = useState<EstimateLanguage>(
     appLanguage === 'pt' || appLanguage === 'es' ? appLanguage : 'en'
@@ -121,6 +136,7 @@ export function CaptureRecorder({
   const warnedRef = useRef<boolean>(false)
   const abortControllerRef = useRef<AbortController>(new AbortController())
   const photoInputRef = useRef<HTMLInputElement>(null)
+  const speechRecognitionRef = useRef<SpeechRecognitionInstance | null>(null)
 
   // REC-03/REC-04 attempt lineage. attemptId/requestId are minted ONCE on the
   // first Generate and reused on Retry (NOT reset) so the generate-estimate
@@ -171,8 +187,10 @@ export function CaptureRecorder({
       audioContextRef.current.close().catch(() => {})
       audioContextRef.current = null
     }
+    speechRecognitionRef.current?.stop()
     setAnalyser(null)
     setIsRecording(false)
+    setInterimTranscript('')
     // Flip stage synchronously so React never paints an interim frame with
     // stage='idle' && isRecording=false (which would re-show the recorder UI).
     // runPipeline() will also call setStage('saving') from the async onstop
@@ -237,6 +255,7 @@ export function CaptureRecorder({
     if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
       audioContextRef.current.close().catch(() => {})
     }
+    speechRecognitionRef.current?.stop()
     abortControllerRef.current?.abort()
   }, [])
 
@@ -581,6 +600,8 @@ export function CaptureRecorder({
     chunksRef.current = []
     setElapsedMs(0)
     warnedRef.current = false
+    setLiveTranscript('')
+    setInterimTranscript('')
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
@@ -620,6 +641,33 @@ export function CaptureRecorder({
       setIsRecording(true)
 
       tickIntervalRef.current = setInterval(tick, TICK_MS)
+
+      // Web Speech API for live transcript preview (horizontal layout, Chrome/Edge only)
+      const w = window as typeof window & {
+        SpeechRecognition?: SpeechRecognitionCtor
+        webkitSpeechRecognition?: SpeechRecognitionCtor
+      }
+      const SpeechRecognitionAPI = w.SpeechRecognition ?? w.webkitSpeechRecognition
+      if (SpeechRecognitionAPI) {
+        const recognition = new SpeechRecognitionAPI()
+        recognition.continuous = true
+        recognition.interimResults = true
+        recognition.lang = estimateLanguage === 'pt' ? 'pt-BR' : estimateLanguage === 'es' ? 'es-ES' : 'en-US'
+        recognition.onresult = (event) => {
+          let interim = ''
+          let final = ''
+          for (let i = event.resultIndex; i < event.results.length; i++) {
+            const phrase = event.results[i][0].transcript
+            if (event.results[i].isFinal) final += phrase + ' '
+            else interim += phrase
+          }
+          if (final) setLiveTranscript(prev => prev + final)
+          setInterimTranscript(interim)
+        }
+        recognition.onerror = () => {}
+        recognition.start()
+        speechRecognitionRef.current = recognition
+      }
     } catch (err: unknown) {
       const error = err as { name?: string }
       if (error?.name === 'NotAllowedError') {
@@ -715,6 +763,11 @@ export function CaptureRecorder({
           setEstimateLanguage={setEstimateLanguage}
           // Single-modality lock (undefined in legacy fullscreen route → all three blocks)
           mode={mode}
+          // Live transcript
+          liveTranscript={liveTranscript}
+          interimTranscript={interimTranscript}
+          // Horizontal layout: popup with no mode lock
+          isHorizontal={isPopup && mode === undefined}
         />
       ) : isPopup ? (
         // Popup variant — calm three-blue-dots overlay over a neutral surface.
@@ -762,7 +815,7 @@ export function CaptureRecorder({
   )
 }
 
-// RecorderBody — the full-screen visual recorder (waveform + timer + ring + mic button)
+// RecorderBody — the visual recorder (waveform + timer + ring + mic button + inputs)
 interface RecorderBodyProps {
   analyser: AnalyserNode | null
   isRecording: boolean
@@ -782,12 +835,109 @@ interface RecorderBodyProps {
   // Language selector props
   estimateLanguage: EstimateLanguage
   setEstimateLanguage: (lang: EstimateLanguage) => void
-  // Single-modality lock — undefined renders the legacy all-three-inputs layout
+  // Single-modality lock — undefined renders the unified layout
   mode?: CaptureMode
+  // Live transcript props (Web Speech API preview)
+  liveTranscript: string
+  interimTranscript: string
+  // Horizontal 2-column layout (popup + unified mode)
+  isHorizontal: boolean
 }
 
-function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progress, onToggle, descriptionText, setDescriptionText, uploadedPhotos, isUploadingPhotos, photoInputRef, onPhotoFileChange, hasAnyInput, onGenerate, estimateLanguage, setEstimateLanguage, mode }: RecorderBodyProps) {
+function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progress, onToggle, descriptionText, setDescriptionText, uploadedPhotos, isUploadingPhotos, photoInputRef, onPhotoFileChange, hasAnyInput, onGenerate, estimateLanguage, setEstimateLanguage, mode, liveTranscript, interimTranscript, isHorizontal }: RecorderBodyProps) {
   const { t } = useTranslation()
+
+  // Horizontal 2-column layout — popup with all three inputs unified
+  if (isHorizontal) {
+    return (
+      <div className="flex flex-col flex-1 min-h-0">
+        {/* 2-column body */}
+        <div className="flex flex-1 min-h-0 overflow-hidden">
+          {/* Left column: mic + waveform */}
+          <div className="flex flex-col items-center justify-center gap-3 px-4 py-5 border-r shrink-0 w-40">
+            <VoiceRecorder
+              size="sm"
+              analyser={analyser}
+              isRecording={isRecording}
+              elapsedMs={elapsedMs}
+              onToggle={onToggle}
+              showTimer={true}
+              micTestId="capture-mic"
+            />
+            <p className="text-xs text-muted-foreground text-center leading-tight">
+              {isRecording ? t('Tap to stop') : t('Tap to record')}
+            </p>
+          </div>
+
+          {/* Right column: unified text area (transcript preview or manual input) */}
+          <div className="flex flex-1 flex-col p-3 min-h-0">
+            {isRecording ? (
+              <div className="flex-1 rounded-md border border-input bg-muted/20 px-3 py-2 text-sm overflow-y-auto min-h-[140px]">
+                {liveTranscript || interimTranscript ? (
+                  <p className="text-foreground leading-relaxed whitespace-pre-wrap">
+                    {liveTranscript}
+                    {interimTranscript && (
+                      <span className="text-muted-foreground">{interimTranscript}</span>
+                    )}
+                  </p>
+                ) : (
+                  <p className="text-muted-foreground/60 italic text-xs leading-relaxed">
+                    {t('Listening...')}
+                  </p>
+                )}
+              </div>
+            ) : (
+              <textarea
+                value={descriptionText}
+                onChange={e => setDescriptionText(e.target.value)}
+                placeholder={t('Describe the job here...')}
+                className="flex-1 w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring min-h-[140px]"
+                data-testid="capture-description"
+              />
+            )}
+          </div>
+        </div>
+
+        {/* Footer: photos + language + generate */}
+        <div className="border-t px-3 py-2.5 flex items-center gap-2 shrink-0 flex-wrap">
+          <input
+            ref={photoInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            className="hidden"
+            onChange={onPhotoFileChange}
+          />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => photoInputRef.current?.click()}
+            disabled={isUploadingPhotos}
+            data-testid="capture-add-photos"
+          >
+            {isUploadingPhotos ? (
+              <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+            ) : (
+              <Camera className="h-4 w-4 mr-1.5" />
+            )}
+            {uploadedPhotos.length > 0 ? `${uploadedPhotos.length} ${t('photos')}` : t('Photos')}
+          </Button>
+          <div className="flex-1" />
+          <EstimateLanguageSelector value={estimateLanguage} onChange={setEstimateLanguage} />
+          <Button
+            onClick={onGenerate}
+            disabled={!hasAnyInput || isRecording}
+            size="sm"
+            data-testid="generate-estimate-btn"
+          >
+            {t('Generate')}
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  // Stacked layout — single-mode popup (audio | text | photos) or legacy fullscreen route
   return (
     <div className="flex-1 flex flex-col overflow-y-auto min-h-0">
       {/* PRIMARY ACTION: glass card with waveform + timer + ring-wrapped mic */}
@@ -809,8 +959,7 @@ function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progre
         </div>
       )}
 
-      {/* "OR" divider — separates primary mic action from secondary text/photo path.
-          Rendered ONLY in the legacy fullscreen route (mode === undefined). */}
+      {/* "OR" divider — legacy fullscreen route only */}
       {mode === undefined && (
         <div className="px-4 flex items-center gap-3">
           <div className="flex-1 h-px bg-border" />
@@ -819,7 +968,6 @@ function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progre
         </div>
       )}
 
-      {/* Secondary inputs: text + photos */}
       {(mode === 'text' || mode === undefined) && (
         <div className="px-4 pt-4">
           <textarea
@@ -859,14 +1007,9 @@ function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progre
         </div>
       )}
 
-      {/* Language selector — visible in all modes (used by runPipeline in audio too) */}
       <div className="px-4 pt-4 pb-2">
-        <EstimateLanguageSelector
-          value={estimateLanguage}
-          onChange={setEstimateLanguage}
-        />
+        <EstimateLanguageSelector value={estimateLanguage} onChange={setEstimateLanguage} />
       </div>
-      {/* Generate Estimate button — hidden in audio mode (recorder.onstop auto-triggers runPipeline) */}
       {mode !== 'audio' && (
         <div className="px-4 pt-2 pb-6 sm:pb-8 mt-auto">
           <Button
