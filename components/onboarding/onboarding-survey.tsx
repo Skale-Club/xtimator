@@ -19,7 +19,7 @@ const INITIAL: OnboardingValues = {
   website: '',
   language: 'en',
   industries: [],
-  customIndustry: '',
+  customIndustries: [],
   prefillPriceBook: false,
   brandPrimaryColor: SYSTEM_COLORS.primary,
   address: '',

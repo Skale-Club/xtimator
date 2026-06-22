@@ -1,4 +1,5 @@
 import type { OnboardingValues } from '@/lib/schemas/onboarding'
+import { OTHER_INDUSTRY_ID } from '@/lib/industries'
 
 export type SurveyStepKey =
   | 'companyName'
@@ -93,7 +94,8 @@ export const SURVEY_STEPS: readonly SurveyStepDef[] = [
     helper: 'Select all that apply — we use these to tailor estimates and price-book starters.',
     required: false,
     validate: (v) => {
-      if (v.industries.includes('other') && (!v.customIndustry || v.customIndustry.trim() === '')) {
+      const hasOther = v.industries.includes(OTHER_INDUSTRY_ID)
+      if (hasOther && v.customIndustries.length === 0) {
         return 'Please describe your service'
       }
       return null

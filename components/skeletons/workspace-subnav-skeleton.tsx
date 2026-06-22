@@ -29,22 +29,20 @@ export function WorkspaceSubnavSkeleton({ collapsed = false }: { collapsed?: boo
       <aside
         aria-busy
         className={[
-          'shrink-0 border-border bg-background h-full',
+          'shrink-0 border-border bg-background h-full flex flex-col',
           'w-full border-b px-2 py-2 overflow-x-auto scrollbar-none',
-          'md:overflow-x-visible md:overflow-y-auto md:border-b-0 md:border-r md:py-4',
+          'md:overflow-x-visible md:overflow-y-auto md:border-b-0 md:border-r md:pt-4 md:pb-0',
           collapsed ? 'md:px-1' : 'md:px-3',
         ].join(' ')}
       >
         {/* Collapse toggle chevron — desktop only */}
-        <div
-          className={`hidden md:flex mb-3 ${collapsed ? 'justify-center' : 'justify-end'}`}
-        >
+        <div className="hidden md:flex mb-3 justify-end">
           <Skeleton className="h-6 w-6 rounded" />
         </div>
 
         <nav
           aria-label="Section navigation"
-          className="flex flex-row gap-1 overflow-x-auto scrollbar-none md:flex-col md:overflow-x-visible md:overflow-y-auto"
+          className="flex flex-row gap-1 overflow-x-auto scrollbar-none md:flex-col md:overflow-x-visible md:overflow-y-auto flex-1"
         >
           {Array.from({ length: 5 }).map((_, i) => (
             <div
@@ -64,6 +62,12 @@ export function WorkspaceSubnavSkeleton({ collapsed = false }: { collapsed?: boo
             </div>
           ))}
         </nav>
+
+        <div className="mt-auto hidden md:flex md:flex-col md:justify-center md:h-[var(--app-rail-footer-h)] md:shrink-0 border-t border-[var(--glass-border)] p-2">
+          <div className={`flex ${collapsed ? 'justify-center' : 'justify-end'}`}>
+            <Skeleton className="h-6 w-6 rounded" />
+          </div>
+        </div>
       </aside>
     </div>
   )

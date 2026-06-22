@@ -104,10 +104,10 @@ describe('onboardingSchema', () => {
       expect(result.data?.industries).toEqual(['house_cleaning', 'window_cleaning'])
     })
 
-    it('customIndustry is optional string', () => {
+    it('customIndustries defaults to an empty array', () => {
       const result = onboardingSchema.safeParse({ companyName: 'Test Co' })
       expect(result.success).toBe(true)
-      expect(result.data?.customIndustry).toBe('')
+      expect(result.data?.customIndustries).toEqual([])
     })
 
     it('prefillPriceBook defaults to false', () => {
@@ -185,7 +185,7 @@ describe('onboardingSchema', () => {
       expect(data.email).toBe('')
       expect(data.website).toBe('')
       expect(data.industries).toEqual([])
-      expect(data.customIndustry).toBe('')
+      expect(data.customIndustries).toEqual([])
       expect(data.prefillPriceBook).toBe(false)
       expect(data.brandPrimaryColor).toBe('#406EF1')
       expect(data.defaultTaxRate).toBe(0)
@@ -210,7 +210,7 @@ describe('onboardingSchema', () => {
     it('step 2 contains exactly the right fields', () => {
       expect(STEP_FIELDS[2]).toEqual([
         'industries',
-        'customIndustry',
+        'customIndustries',
         'prefillPriceBook',
         'brandPrimaryColor',
       ])

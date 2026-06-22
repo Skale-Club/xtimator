@@ -31,7 +31,7 @@ const companyInfoSchema = z.object({
   email: z.string().email('Invalid email').optional().or(z.literal('')),
   website: z.string().optional().or(z.literal('')),
   industries: z.array(z.string()),
-  customIndustry: z.string().optional().or(z.literal('')),
+  customIndustries: z.array(z.string()),
   address: z.string().optional().or(z.literal('')),
   city: z.string().optional().or(z.literal('')),
   state: z.string().optional().or(z.literal('')),
@@ -80,7 +80,7 @@ export function CompanyInfoForm({ company, readOnly = false }: CompanyInfoFormPr
       email: company.email || '',
       website: company.website || '',
       industries: initialServices.selectedIds,
-      customIndustry: initialServices.customIndustry,
+      customIndustries: initialServices.customIndustries,
       address: company.address || '',
       city: company.city || '',
       state: company.state || '',
@@ -95,13 +95,13 @@ export function CompanyInfoForm({ company, readOnly = false }: CompanyInfoFormPr
 
   const companyName = useWatch({ control: form.control, name: 'name' })
   const watchedIndustries = useWatch({ control: form.control, name: 'industries' }) ?? []
-  const watchedCustom = useWatch({ control: form.control, name: 'customIndustry' }) ?? ''
+  const watchedCustoms = useWatch({ control: form.control, name: 'customIndustries' }) ?? []
 
   const initialResolved = useMemo(
-    () => resolveIndustries(initialServices.selectedIds, initialServices.customIndustry),
+    () => resolveIndustries([...initialServices.selectedIds, ...initialServices.customIndustries]),
     [initialServices]
   )
-  const currentResolved = resolveIndustries(watchedIndustries, watchedCustom || '')
+  const currentResolved = resolveIndustries([...watchedIndustries, ...watchedCustoms])
   const addedServices = currentResolved.filter((v) => !initialResolved.includes(v))
   const showPrefill = !readOnly && addedServices.length > 0
 
@@ -116,7 +116,9 @@ export function CompanyInfoForm({ company, readOnly = false }: CompanyInfoFormPr
       for (const id of values.industries) {
         fd.append('industries', id)
       }
-      fd.set('customIndustry', values.customIndustry || '')
+      for (const custom of values.customIndustries) {
+        fd.append('customIndustries', custom)
+      }
       fd.set('prefillNewServices', prefillNewServices ? '1' : '')
       fd.set('address', values.address || '')
       fd.set('city', values.city || '')
@@ -254,12 +256,12 @@ export function CompanyInfoForm({ company, readOnly = false }: CompanyInfoFormPr
                   <div className="mt-2">
                     <IndustrySelector
                       value={watchedIndustries}
-                      customValue={watchedCustom || ''}
+                      customValues={watchedCustoms}
                       onChange={(ids) =>
                         form.setValue('industries', ids, { shouldDirty: true })
                       }
-                      onCustomChange={(v) =>
-                        form.setValue('customIndustry', v, { shouldDirty: true })
+                      onCustomChange={(customs) =>
+                        form.setValue('customIndustries', customs, { shouldDirty: true })
                       }
                     />
                   </div>

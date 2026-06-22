@@ -27,7 +27,7 @@ interface CompanyFormData {
   email?: string
   website?: string
   industries?: string[]
-  customIndustry?: string
+  customIndustries?: string[]
   prefillPriceBook?: boolean
   brandPrimaryColor?: string
   address?: string
@@ -74,10 +74,10 @@ export async function createOrUpdateCompany(
   // Resolve services: replace the 'other' sentinel with the custom text and
   // dedupe. `industry` (singular) keeps the primary (= industries[0]) for
   // backward-compat readers: tax-rate defaults + the AI prompt builder.
-  const resolvedIndustries = resolveIndustries(
-    data.industries ?? [],
-    data.customIndustry ?? ''
-  )
+  const resolvedIndustries = resolveIndustries([
+    ...(data.industries ?? []),
+    ...(data.customIndustries ?? []),
+  ])
   const primaryIndustry = resolvedIndustries[0] ?? null
 
   // Smart-fill the default tax rate from state + service type when the caller

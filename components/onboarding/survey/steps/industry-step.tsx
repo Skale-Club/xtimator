@@ -15,9 +15,9 @@ export function IndustryStep({ values, setValue }: Props) {
     <div className="space-y-4">
       <IndustrySelector
         value={values.industries}
-        customValue={values.customIndustry}
+        customValues={values.customIndustries}
         onChange={(ids) => setValue('industries', ids)}
-        onCustomChange={(v) => setValue('customIndustry', v)}
+        onCustomChange={(customs) => setValue('customIndustries', customs)}
       />
 
       <label

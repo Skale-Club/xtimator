@@ -58,9 +58,12 @@ export async function updateCompanySettings(formData: FormData) {
   // Services: multiple repeated 'industries' entries (card ids) + the 'other'
   // free-text. Resolve to the canonical array; `industry` stays the primary.
   const industryIds = formData.getAll('industries').map((v) => String(v))
-  const customIndustry = (formData.get('customIndustry') as string | null) ?? ''
+  const customIndustries = formData
+    .getAll('customIndustries')
+    .map((v) => String(v).trim())
+    .filter(Boolean)
   const prefillNewServices = formData.get('prefillNewServices') === '1'
-  const resolvedIndustries = resolveIndustries(industryIds, customIndustry)
+  const resolvedIndustries = resolveIndustries([...industryIds, ...customIndustries])
   const primaryIndustry = resolvedIndustries[0] ?? null
   const brandPrimaryColor = formData.get('brandPrimaryColor') as string | null
   const existingLogoUrl = formData.get('existingLogoUrl') as string | null

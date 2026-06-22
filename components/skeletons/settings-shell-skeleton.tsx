@@ -21,8 +21,15 @@ export function SettingsShellSkeleton({ children }: { children: ReactNode }) {
             aria-hidden
             className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-background to-transparent md:hidden"
           />
-          <aside className="shrink-0 border-border bg-background h-full w-full border-b px-2 py-2 overflow-x-auto scrollbar-none md:overflow-x-visible md:overflow-y-auto md:border-b-0 md:border-r md:px-3 md:py-8">
-            <SettingsSubnavSkeleton />
+          <aside className="shrink-0 border-border bg-background h-full w-full border-b px-2 py-2 overflow-x-auto scrollbar-none md:overflow-x-visible md:overflow-y-auto md:border-b-0 md:border-r md:px-3 md:pt-8 md:pb-0 flex flex-col">
+            <div className="flex-1">
+              <SettingsSubnavSkeleton />
+            </div>
+            <div className="mt-auto hidden md:flex md:flex-col md:justify-center md:h-[var(--app-rail-footer-h)] md:shrink-0 border-t border-[var(--glass-border)] p-2">
+              <div className="flex justify-end">
+                <Skeleton className="h-6 w-6 rounded" />
+              </div>
+            </div>
           </aside>
         </div>
         <div className="min-w-0 flex-1">

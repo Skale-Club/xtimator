@@ -19,7 +19,7 @@ function dash(v: string | number | undefined | null): string {
 }
 
 export function ReviewStep({ values, logoPreview }: Props) {
-  const servicesLabel = resolveIndustries(values.industries, values.customIndustry)
+  const servicesLabel = resolveIndustries([...values.industries, ...values.customIndustries])
     .map((v) => LABEL_BY_ID.get(v) ?? v)
     .join(', ')
 

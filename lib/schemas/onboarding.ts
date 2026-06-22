@@ -31,7 +31,7 @@ export const onboardingSchema = z.object({
 
   // Step 2: Brand Identity
   industries: z.array(z.string()).default([]),
-  customIndustry: z.string().optional().default(''),
+  customIndustries: z.array(z.string()).default([]),
   /** Opt-in: seed the price book with starter services + market prices. */
   prefillPriceBook: z.boolean().default(false),
   brandPrimaryColor: z.string().default(SYSTEM_COLORS.primary),
@@ -58,7 +58,7 @@ export type OnboardingInput = z.input<typeof onboardingSchema>
 
 export const STEP_FIELDS: Record<number, (keyof OnboardingValues)[]> = {
   1: ['companyName', 'subdomain', 'ownerName', 'phone', 'email', 'website'],
-  2: ['industries', 'customIndustry', 'prefillPriceBook', 'brandPrimaryColor'],
+  2: ['industries', 'customIndustries', 'prefillPriceBook', 'brandPrimaryColor'],
   3: [
     'address',
     'city',

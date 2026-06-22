@@ -4,6 +4,7 @@ import {
   resolveIndustries,
   splitIndustries,
   OTHER_INDUSTRY_ID,
+  isKnownIndustry,
   type Industry,
 } from '@/lib/industries'
 
@@ -66,66 +67,98 @@ describe('INDUSTRIES', () => {
   })
 })
 
+describe('isKnownIndustry', () => {
+  it('returns true for predefined ids', () => {
+    expect(isKnownIndustry('house_cleaning')).toBe(true)
+  })
+
+  it('returns false for custom strings', () => {
+    expect(isKnownIndustry('Pressure Washing')).toBe(false)
+  })
+})
+
 describe('resolveIndustries', () => {
   it('emits selected known ids in INDUSTRIES display order', () => {
-    // Pass in a deliberately out-of-order selection.
-    const result = resolveIndustries(
-      ['window_cleaning', 'house_cleaning'],
-      ''
-    )
+    const result = resolveIndustries(['window_cleaning', 'house_cleaning'])
     expect(result).toEqual(['house_cleaning', 'window_cleaning'])
   })
 
-  it('replaces the "other" sentinel with trimmed custom text, appended last', () => {
-    const result = resolveIndustries(
-      ['house_cleaning', OTHER_INDUSTRY_ID],
-      '  Pressure Washing  '
-    )
+  it('appends custom strings after known ids, preserving order', () => {
+    const result = resolveIndustries([
+      'window_cleaning',
+      'Pressure Washing',
+      'house_cleaning',
+      'Solar Panels',
+    ])
+    expect(result).toEqual([
+      'house_cleaning',
+      'window_cleaning',
+      'Pressure Washing',
+      'Solar Panels',
+    ])
+  })
+
+  it('drops the legacy "other" sentinel', () => {
+    const result = resolveIndustries([
+      'house_cleaning',
+      OTHER_INDUSTRY_ID,
+      'Pressure Washing',
+    ])
     expect(result).toEqual(['house_cleaning', 'Pressure Washing'])
   })
 
-  it('drops the "other" sentinel when custom text is blank', () => {
-    const result = resolveIndustries(['house_cleaning', OTHER_INDUSTRY_ID], '   ')
-    expect(result).toEqual(['house_cleaning'])
-  })
-
   it('returns an empty array when nothing is selected', () => {
-    expect(resolveIndustries([], '')).toEqual([])
+    expect(resolveIndustries([])).toEqual([])
   })
 
-  it('dedupes repeated ids', () => {
-    const result = resolveIndustries(['house_cleaning', 'house_cleaning'], '')
-    expect(result).toEqual(['house_cleaning'])
+  it('dedupes repeated ids and custom strings', () => {
+    const result = resolveIndustries([
+      'house_cleaning',
+      'house_cleaning',
+      'Pressure Washing',
+      'Pressure Washing',
+    ])
+    expect(result).toEqual(['house_cleaning', 'Pressure Washing'])
   })
 })
 
 describe('splitIndustries', () => {
   it('maps known ids to selected cards', () => {
-    const { selectedIds, customIndustry } = splitIndustries([
+    const { selectedIds, customIndustries } = splitIndustries([
       'house_cleaning',
       'window_cleaning',
     ])
     expect(selectedIds).toEqual(['house_cleaning', 'window_cleaning'])
-    expect(customIndustry).toBe('')
+    expect(customIndustries).toEqual([])
   })
 
-  it('maps the first unknown value to the "other" card + custom text', () => {
-    const { selectedIds, customIndustry } = splitIndustries([
+  it('maps unknown values to customIndustries', () => {
+    const { selectedIds, customIndustries } = splitIndustries([
       'house_cleaning',
       'Pressure Washing',
     ])
-    expect(selectedIds).toEqual(['house_cleaning', OTHER_INDUSTRY_ID])
-    expect(customIndustry).toBe('Pressure Washing')
+    expect(selectedIds).toEqual(['house_cleaning'])
+    expect(customIndustries).toEqual(['Pressure Washing'])
+  })
+
+  it('maps multiple unknown values to customIndustries', () => {
+    const { selectedIds, customIndustries } = splitIndustries([
+      'house_cleaning',
+      'Pressure Washing',
+      'Solar Panels',
+    ])
+    expect(selectedIds).toEqual(['house_cleaning'])
+    expect(customIndustries).toEqual(['Pressure Washing', 'Solar Panels'])
   })
 
   it('round-trips through resolveIndustries', () => {
     const stored = ['house_cleaning', 'window_cleaning', 'Pressure Washing']
-    const { selectedIds, customIndustry } = splitIndustries(stored)
-    expect(resolveIndustries(selectedIds, customIndustry)).toEqual(stored)
+    const { selectedIds, customIndustries } = splitIndustries(stored)
+    expect(resolveIndustries([...selectedIds, ...customIndustries])).toEqual(stored)
   })
 
   it('handles null / empty input', () => {
-    expect(splitIndustries(null)).toEqual({ selectedIds: [], customIndustry: '' })
-    expect(splitIndustries([])).toEqual({ selectedIds: [], customIndustry: '' })
+    expect(splitIndustries(null)).toEqual({ selectedIds: [], customIndustries: [] })
+    expect(splitIndustries([])).toEqual({ selectedIds: [], customIndustries: [] })
   })
 })

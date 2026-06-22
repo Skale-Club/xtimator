@@ -334,29 +334,33 @@ export function Sidebar({ branding, company, memberships, isDemo }: SidebarProps
       </nav>
 
       {/* Bottom: company switcher (Plan 81-04) + user menu + collapse toggle.
-          min-h + vertical centering keeps this in lockstep with the settings
-          sub-sidebar footer (--app-rail-footer-h); collapsed can still grow. */}
-      <div className="flex flex-col justify-center min-h-[var(--app-rail-footer-h)] border-t border-[var(--glass-border)] p-2">
+          Fixed h keeps this in lockstep with the settings sub-sidebar footer
+          (--app-rail-footer-h). Collapsed uses px-1 + flex-row so both items
+          fit within the w-16 sidebar without stacking (which would overflow). */}
+      <div className={cn(
+        'flex flex-col justify-center h-[var(--app-rail-footer-h)] shrink-0 border-t border-[var(--glass-border)]',
+        collapsed ? 'px-1' : 'p-2',
+      )}>
         {collapsed ? (
-          /* Collapsed: company-switcher avatar + expand chevron only.
-             User-menu items (Settings / App Tour / Sign Out) live INSIDE
-             the CompanySelector dropdown via accountMenuSlot (2026-05-26 UX). */
-          <div className="flex flex-col items-center gap-1">
+          /* Collapsed: company-switcher avatar + expand chevron in a single row.
+             Row layout keeps height = max(h-9, h-7) = 36px, fitting within the
+             53px footer. User-menu items live inside the CompanySelector dropdown
+             via accountMenuSlot (2026-05-26 UX). */
+          <div className="flex items-center">
             <CompanySelector
               companies={memberships}
               activeCompanyId={company.id}
               collapsed={true}
               accountMenuSlot={accountMenuSlot}
             />
-
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
                   onClick={toggle}
-                  className="w-9 h-7 flex items-center justify-center rounded-[var(--radius-md)] text-muted-foreground/40 hover:text-muted-foreground hover:bg-[var(--glass-bg-light)] transition-colors"
+                  className="ml-auto h-7 w-5 flex items-center justify-center rounded-[var(--radius-md)] text-muted-foreground/40 hover:text-muted-foreground hover:bg-[var(--glass-bg-light)] transition-colors"
                   aria-label="Expand sidebar"
                 >
-                  <ChevronRight className="h-4 w-4" />
+                  <ChevronRight className="h-3.5 w-3.5" />
                 </button>
               </TooltipTrigger>
               <TooltipContent side="right">{t('Expand sidebar')}</TooltipContent>

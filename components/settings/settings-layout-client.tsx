@@ -45,7 +45,7 @@ export function SettingsLayoutClient({ children }: { children: ReactNode }) {
           className={cn(
             'shrink-0 border-border bg-background h-full flex flex-col',
             'w-full border-b px-2 py-2 overflow-x-auto scrollbar-none',
-            'md:overflow-x-visible md:overflow-y-auto md:border-b-0 md:border-r md:px-3 md:py-8',
+            'md:overflow-x-visible md:overflow-y-auto md:border-b-0 md:border-r md:px-3 md:pt-8 md:pb-0',
           )}
         >
           <SettingsNav collapsed={collapsed} />
@@ -53,7 +53,7 @@ export function SettingsLayoutClient({ children }: { children: ReactNode }) {
           {/* Collapse toggle — desktop only, mirrors main sidebar bottom button.
               Same min-h + vertical centering as the main sidebar footer
               (--app-rail-footer-h) so the two rail footers line up exactly. */}
-          <div className="mt-auto hidden md:flex md:flex-col md:justify-center md:min-h-[var(--app-rail-footer-h)] border-t border-[var(--glass-border)] p-2">
+          <div className="mt-auto hidden md:flex md:flex-col md:justify-center md:h-[var(--app-rail-footer-h)] md:shrink-0 border-t border-[var(--glass-border)] p-2">
             {collapsed ? (
               <button
                 type="button"

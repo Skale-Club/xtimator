@@ -16,7 +16,7 @@ export function SettingsSubnavSkeleton({ itemCount = 11 }: { itemCount?: number 
     <nav
       aria-label="Section navigation"
       aria-busy
-      className="flex h-full flex-row gap-1 overflow-x-auto scrollbar-none md:flex-col md:overflow-x-visible md:overflow-y-auto"
+      className="flex h-full flex-row gap-1 overflow-x-auto scrollbar-none md:flex-col md:overflow-x-visible md:overflow-y-auto flex-1"
     >
       {Array.from({ length: itemCount }).map((_, i) => (
         <div

@@ -128,60 +128,80 @@ export const INDUSTRIES: Industry[] = [
   },
 ] as const satisfies Industry[]
 
-/** Sentinel id used by the multi-select to represent a free-text "Other" trade. */
+/** Sentinel id used by legacy multi-select to represent a free-text "Other" trade. */
 export const OTHER_INDUSTRY_ID = 'other'
 
 const KNOWN_INDUSTRY_IDS = new Set(INDUSTRIES.map((i) => i.id))
 
+export function isKnownIndustry(id: string): boolean {
+  return KNOWN_INDUSTRY_IDS.has(id)
+}
+
 /**
- * Resolve the multi-select state (selected card ids + the free-text "Other"
- * value) into the canonical `industries` array persisted on the company.
+ * Resolve the multi-select state into the canonical `industries` array persisted
+ * on the company.
  *
- * - Known ids are emitted in INDUSTRIES display order (deterministic), so
- *   `result[0]` is a known industry id whenever any predefined trade is picked.
- * - The `'other'` sentinel is replaced by the trimmed custom text, appended last.
- * - Empties and duplicates are dropped.
+ * - Known ids are emitted in INDUSTRIES display order (deterministic).
+ * - Custom (unknown) strings are appended after known ids, preserving insertion
+ *   order and deduping.
+ * - The legacy 'other' sentinel is dropped; custom strings are persisted directly.
  */
-export function resolveIndustries(
-  selectedIds: string[],
-  customIndustry: string
-): string[] {
-  const selected = new Set(selectedIds.filter(Boolean))
+export function resolveIndustries(values: string[]): string[] {
+  const selected = new Set(values.filter(Boolean))
   const result: string[] = []
+  const seen = new Set<string>()
 
   for (const ind of INDUSTRIES) {
-    if (selected.has(ind.id)) result.push(ind.id)
+    if (selected.has(ind.id) && !seen.has(ind.id)) {
+      result.push(ind.id)
+      seen.add(ind.id)
+    }
   }
 
-  if (selected.has(OTHER_INDUSTRY_ID)) {
-    const custom = customIndustry.trim()
-    if (custom && !result.includes(custom)) result.push(custom)
+  for (const value of values) {
+    if (!value || isKnownIndustry(value) || value === OTHER_INDUSTRY_ID) continue
+    const trimmed = value.trim()
+    if (!trimmed || seen.has(trimmed)) continue
+    result.push(trimmed)
+    seen.add(trimmed)
   }
 
   return result
 }
 
 /**
- * Reverse of {@link resolveIndustries}: split a persisted `industries` array
- * back into multi-select state. Known ids map to selected cards; the first
- * value that isn't a known id becomes the free-text "Other" entry.
+ * Split a persisted `industries` array into the component-friendly shape.
+ *
+ * - Known ids map to selected predefined industries.
+ * - Unknown strings become custom industries.
+ * - The legacy 'other' sentinel is ignored.
  */
-export function splitIndustries(industries: string[] | null | undefined): {
+export function splitIndustries(
+  industries: string[] | null | undefined
+): {
   selectedIds: string[]
-  customIndustry: string
+  customIndustries: string[]
 } {
   const list = (industries ?? []).filter(Boolean)
   const selectedIds: string[] = []
-  let customIndustry = ''
+  const customIndustries: string[] = []
 
   for (const value of list) {
-    if (KNOWN_INDUSTRY_IDS.has(value)) {
+    if (value === OTHER_INDUSTRY_ID) continue
+    if (isKnownIndustry(value)) {
       selectedIds.push(value)
-    } else if (!customIndustry) {
-      customIndustry = value
-      selectedIds.push(OTHER_INDUSTRY_ID)
+    } else {
+      customIndustries.push(value)
     }
   }
 
-  return { selectedIds, customIndustry }
+  return { selectedIds, customIndustries }
+}
+
+/**
+ * Build a display label for a single industry value.
+ */
+export function getIndustryLabel(value: string): string {
+  const known = INDUSTRIES.find((i) => i.id === value)
+  return known?.label ?? value
 }

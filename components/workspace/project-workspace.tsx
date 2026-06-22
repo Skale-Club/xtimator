@@ -123,35 +123,52 @@ export function ProjectWorkspace({
         />
         <aside
           className={[
-            'shrink-0 border-border bg-background h-full',
+            'shrink-0 border-border bg-background h-full flex flex-col',
             // mobile
             'w-full border-b px-2 py-2',
             'overflow-x-auto scrollbar-none',
             // desktop
-            'md:overflow-x-visible md:overflow-y-auto md:border-b-0 md:border-r md:py-4',
+            'md:overflow-x-visible md:overflow-y-auto md:border-b-0 md:border-r md:pt-4 md:pb-0',
             sidebarCollapsed ? 'md:px-1' : 'md:px-3',
           ].join(' ')}
         >
-          {/* Toggle — desktop only, sits above nav items */}
-          <div className={`hidden md:flex mb-3 ${sidebarCollapsed ? 'justify-center' : 'justify-end'}`}>
-            <button
-              type="button"
-              onClick={() => setSidebarCollapsed((c) => !c)}
-              title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-              className="p-1 rounded text-muted-foreground/40 hover:text-muted-foreground hover:bg-muted/40 transition-colors"
-            >
-              {sidebarCollapsed
-                ? <ChevronRight className="h-4 w-4" />
-                : <ChevronLeft className="h-4 w-4" />}
-            </button>
+          <div className="flex flex-col flex-1 md:overflow-y-auto">
+            {/* Toggle — desktop only, sits above nav items */}
+            <div className={`hidden md:flex mb-3 ${sidebarCollapsed ? 'justify-center' : 'justify-end'}`}>
+              <button
+                type="button"
+                onClick={() => setSidebarCollapsed((c) => !c)}
+                title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                className="p-1 rounded text-muted-foreground/40 hover:text-muted-foreground hover:bg-muted/40 transition-colors"
+              >
+                {sidebarCollapsed
+                  ? <ChevronRight className="h-4 w-4" />
+                  : <ChevronLeft className="h-4 w-4" />}
+              </button>
+            </div>
+
+            <SubNav
+              items={NAV_ITEMS}
+              activeValue={activeTab}
+              onSelect={handleSelect}
+              collapsed={sidebarCollapsed}
+            />
           </div>
 
-          <SubNav
-            items={NAV_ITEMS}
-            activeValue={activeTab}
-            onSelect={handleSelect}
-            collapsed={sidebarCollapsed}
-          />
+          <div className="mt-auto hidden md:flex md:flex-col md:justify-center md:h-[var(--app-rail-footer-h)] md:shrink-0 border-t border-[var(--glass-border)] p-2">
+            <div className={`flex ${sidebarCollapsed ? 'justify-center' : 'justify-end'}`}>
+              <button
+                type="button"
+                onClick={() => setSidebarCollapsed((c) => !c)}
+                title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                className="p-1 rounded text-muted-foreground/40 hover:text-muted-foreground hover:bg-muted/40 transition-colors"
+              >
+                {sidebarCollapsed
+                  ? <ChevronRight className="h-4 w-4" />
+                  : <ChevronLeft className="h-4 w-4" />}
+              </button>
+            </div>
+          </div>
         </aside>
       </div>
 
