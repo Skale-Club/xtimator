@@ -13,12 +13,13 @@ import { CaptureFailure } from '@/components/capture/capture-failure'
 import { VoiceRecorder } from '@/components/workspace/audio/voice-recorder'
 import { createRecording, transcribeRecording, createTextRecording } from '@/lib/actions/recording'
 import { createBlankEstimate } from '@/lib/actions/estimate'
-import { createPhoto } from '@/lib/actions/photo'
+import { createPhoto, deletePhoto } from '@/lib/actions/photo'
 import { createClient } from '@/lib/supabase/client'
 import { createStorage } from '@/lib/storage'
 import { getSupportedAudioMimeType, getFileExtension } from '@/lib/utils/media-format'
 import { compressImage } from '@/lib/utils/image-compressor'
-import { Camera, Loader2 } from 'lucide-react'
+import { Camera } from 'lucide-react'
+import { TowerLoader } from '@/components/ui/tower-loader'
 import type { ProjectDetail } from '@/lib/queries/project'
 import type { Photo } from '@/lib/queries/photo'
 import { pollJob, type JobResult } from '@/hooks/use-job-status'
@@ -35,6 +36,20 @@ export const AMBER_AT_MS  =  8 * 60 * 1000   // 480000  D-07 — neutral→amber
 export const RED_AT_MS    =  9.5 * 60 * 1000 // 570000  D-07 — amber→red
 const TICK_MS = 250                            // RESEARCH Pattern 4
 
+// Hard cap on photos attachable to a single capture (popup New Xtimate flow).
+const MAX_PHOTOS = 15
+
+// Pure cap math: given how many photos are already present and how many are
+// incoming, return how many to take and whether the incoming set overflowed.
+export function clampToPhotoLimit(
+  currentCount: number,
+  incoming: number
+): { take: number; overflowed: boolean } {
+  const remaining = Math.max(0, MAX_PHOTOS - currentCount)
+  const take = Math.min(remaining, incoming)
+  return { take, overflowed: incoming > remaining }
+}
+
 type SpeechRecognitionInstance = {
   start: () => void
   stop: () => void
@@ -45,6 +60,14 @@ type SpeechRecognitionInstance = {
   onerror: ((event: unknown) => void) | null
 }
 type SpeechRecognitionCtor = new () => SpeechRecognitionInstance
+
+type PhotoItemStatus = 'uploading' | 'done' | 'error'
+interface PhotoItem {
+  id: string                 // client-minted photoId (storage filename source pre-success)
+  status: PhotoItemStatus
+  previewUrl: string         // object URL for instant thumbnail
+  photo?: Photo              // present once status === 'done'
+}
 
 type Stage = 'idle' | 'saving' | 'transcribing' | 'analyzing' | 'generating' | 'done'
 type StageKey = 'saving' | 'transcribing' | 'analyzing' | 'generating'
@@ -114,7 +137,10 @@ export function CaptureRecorder({
   // Multi-modal input state
   const [descriptionText, setDescriptionText] = useState('')
   const [uploadedPhotos, setUploadedPhotos] = useState<Photo[]>([])
-  const [isUploadingPhotos, setIsUploadingPhotos] = useState(false)
+  // Per-photo items (uploading | done | error) drive the thumbnail strip.
+  // `uploadedPhotos` stays the pipeline source of truth (only 'done' photos).
+  const [photoItems, setPhotoItems] = useState<PhotoItem[]>([])
+  const isUploadingPhotos = photoItems.some(i => i.status === 'uploading')
 
   // Live transcript state (Web Speech API preview — horizontal layout only)
   const [liveTranscript, setLiveTranscript] = useState('')
@@ -137,6 +163,11 @@ export function CaptureRecorder({
   const abortControllerRef = useRef<AbortController>(new AbortController())
   const photoInputRef = useRef<HTMLInputElement>(null)
   const speechRecognitionRef = useRef<SpeechRecognitionInstance | null>(null)
+
+  // Mirror photoItems into a ref so the unmount cleanup + remove handler read
+  // the latest items without re-subscribing / re-creating callbacks.
+  const photoItemsRef = useRef<PhotoItem[]>([])
+  useEffect(() => { photoItemsRef.current = photoItems }, [photoItems])
 
   // REC-03/REC-04 attempt lineage. attemptId/requestId are minted ONCE on the
   // first Generate and reused on Retry (NOT reset) so the generate-estimate
@@ -259,6 +290,11 @@ export function CaptureRecorder({
     abortControllerRef.current?.abort()
   }, [])
 
+  // Revoke all photo preview object URLs on unmount (no leaks).
+  useEffect(() => () => {
+    for (const it of photoItemsRef.current) URL.revokeObjectURL(it.previewUrl)
+  }, [])
+
   // Pipeline helper: set failure state
   function failAt(s: StageKey, msg: string) {
     setFailedAt(s)
@@ -268,37 +304,88 @@ export function CaptureRecorder({
   // Multi-modal helpers
   const hasAnyInput = !!audioBlob || descriptionText.trim().length > 0 || uploadedPhotos.length > 0
 
-  // Handle photo file selection
+  // Handle photo file selection. Each accepted file gets an immediate
+  // 'uploading' thumbnail placeholder that flips to 'done' (with its Photo) or
+  // 'error'. Enforces the MAX_PHOTOS hard cap with a toast on overflow.
   const handlePhotoFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (!files || files.length === 0) return
-    setIsUploadingPhotos(true)
-    const newPhotos: Photo[] = []
-    for (const file of Array.from(files)) {
-      if (!file.type.startsWith('image/')) continue
+
+    const images = Array.from(files).filter(f => f.type.startsWith('image/'))
+    if (images.length === 0) {
+      if (photoInputRef.current) photoInputRef.current.value = ''
+      return
+    }
+
+    // Cap math against the current item count (uploading + done + error).
+    const currentCount = photoItemsRef.current.length
+    const { take, overflowed } = clampToPhotoLimit(currentCount, images.length)
+    if (overflowed) toast.info(t('You can add up to 15 photos.'))
+    if (take <= 0) {
+      if (photoInputRef.current) photoInputRef.current.value = ''
+      return
+    }
+    const accepted = images.slice(0, take)
+
+    const supabase = createClient()
+    const storage = createStorage(supabase)
+
+    // sort_order base: number of already-done photos. Each accepted file gets
+    // base + its index among the accepted set, matching the prior semantics.
+    const sortBase = photoItemsRef.current.filter(i => i.status === 'done').length
+
+    await Promise.all(accepted.map(async (file, index) => {
+      let blob: Blob
       try {
-        var blob = await compressImage(file, 2000, 0.85)
+        blob = await compressImage(file, 2000, 0.85)
       } catch {
         blob = file
       }
       const photoId = crypto.randomUUID()
+      const previewUrl = URL.createObjectURL(blob)
       const storagePath = `${companyId}/${projectId}/${photoId}.jpg`
-      const supabase = createClient()
-      const storage = createStorage(supabase)
+
+      // Show the placeholder immediately (before awaiting upload).
+      setPhotoItems(prev => [...prev, { id: photoId, status: 'uploading', previewUrl }])
+
+      const flip = (status: PhotoItemStatus, photo?: Photo) =>
+        setPhotoItems(prev => prev.map(it => it.id === photoId ? { ...it, status, photo } : it))
+
       try {
         await storage.upload('photos', storagePath, blob, { contentType: 'image/jpeg', upsert: false })
       } catch (err) {
         console.error('[capture] photo upload failed:', err)
-        continue
+        flip('error')
+        return
       }
-      const result = await createPhoto(projectId, storagePath, uploadedPhotos.length + newPhotos.length)
-      if ('error' in result) continue
-      newPhotos.push(result.data as Photo)
-    }
-    setIsUploadingPhotos(false)
-    setUploadedPhotos(prev => [...prev, ...newPhotos])
+
+      const result = await createPhoto(projectId, storagePath, sortBase + index)
+      if ('error' in result) {
+        flip('error')
+        return
+      }
+      const photo = result.data as Photo
+      flip('done', photo)
+      setUploadedPhotos(prev => [...prev, photo])
+    }))
+
     if (photoInputRef.current) photoInputRef.current.value = ''
-  }, [companyId, projectId, uploadedPhotos.length])
+  }, [companyId, projectId, t])
+
+  // Remove a photo from the strip; revoke its preview URL and best-effort
+  // delete the server-side row/file once it was successfully created.
+  const handleRemovePhoto = useCallback(async (itemId: string) => {
+    const item = photoItemsRef.current.find(i => i.id === itemId)
+    if (!item) return
+    URL.revokeObjectURL(item.previewUrl)
+    setPhotoItems(prev => prev.filter(i => i.id !== itemId))
+    if (item.photo) {
+      const photoId = item.photo.id
+      setUploadedPhotos(prev => prev.filter(p => p.id !== photoId))
+      try { await deletePhoto(photoId) } catch { /* best-effort */ }
+    }
+    if (photoInputRef.current) photoInputRef.current.value = ''
+  }, [])
 
   // Trigger estimate generation (shared by text-only and photos-only paths)
   // Phase 67: route now returns { jobId }; poll until terminal, then read output.
@@ -801,6 +888,8 @@ export function CaptureRecorder({
           setDescriptionText={setDescriptionText}
           uploadedPhotos={uploadedPhotos}
           isUploadingPhotos={isUploadingPhotos}
+          photoItems={photoItems}
+          onRemovePhoto={handleRemovePhoto}
           photoInputRef={photoInputRef}
           onPhotoFileChange={handlePhotoFileChange}
           hasAnyInput={hasAnyInput}
@@ -875,6 +964,8 @@ interface RecorderBodyProps {
   setDescriptionText: React.Dispatch<React.SetStateAction<string>>
   uploadedPhotos: Photo[]
   isUploadingPhotos: boolean
+  photoItems: PhotoItem[]
+  onRemovePhoto: (id: string) => void
   photoInputRef: React.RefObject<HTMLInputElement | null>
   onPhotoFileChange: (e: React.ChangeEvent<HTMLInputElement>) => Promise<void>
   hasAnyInput: boolean
@@ -891,7 +982,7 @@ interface RecorderBodyProps {
   isHorizontal: boolean
 }
 
-function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progress, onToggle, descriptionText, setDescriptionText, uploadedPhotos, isUploadingPhotos, photoInputRef, onPhotoFileChange, hasAnyInput, onGenerate, estimateLanguage, setEstimateLanguage, mode, liveTranscript, interimTranscript, isHorizontal }: RecorderBodyProps) {
+function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progress, onToggle, descriptionText, setDescriptionText, uploadedPhotos, isUploadingPhotos, photoItems, onRemovePhoto, photoInputRef, onPhotoFileChange, hasAnyInput, onGenerate, estimateLanguage, setEstimateLanguage, mode, liveTranscript, interimTranscript, isHorizontal }: RecorderBodyProps) {
   const { t } = useTranslation()
 
   // Unified layout — responsive: stacked on mobile, 2-column on sm+
@@ -951,6 +1042,9 @@ function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progre
           </div>
         </div>
 
+        {/* Per-photo thumbnail strip — only when items exist */}
+        <PhotoThumbnailGrid items={photoItems} onRemove={onRemovePhoto} />
+
         {/* Footer: photos + language + generate */}
         <div className="border-t px-3 py-2.5 flex items-center gap-2 shrink-0 flex-wrap">
           <input
@@ -965,15 +1059,15 @@ function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progre
             variant="outline"
             size="sm"
             onClick={() => photoInputRef.current?.click()}
-            disabled={isUploadingPhotos}
+            disabled={isUploadingPhotos || photoItems.length >= MAX_PHOTOS}
             data-testid="capture-add-photos"
           >
             {isUploadingPhotos ? (
-              <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+              <TowerLoader size={0.55} className="mr-1.5" label="Loading..." />
             ) : (
               <Camera className="h-4 w-4 mr-1.5" />
             )}
-            {uploadedPhotos.length > 0 ? `${uploadedPhotos.length} ${t('photos')}` : t('Photos')}
+            {photoItems.length > 0 ? `${photoItems.length}/${MAX_PHOTOS}` : t('Photos')}
           </Button>
           <div className="flex-1" />
           <EstimateLanguageSelector value={estimateLanguage} onChange={setEstimateLanguage} />
@@ -1051,7 +1145,7 @@ function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progre
             data-testid="capture-add-photos"
           >
             {isUploadingPhotos ? (
-              <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+              <TowerLoader size={0.55} className="mr-1.5" label="Loading..." />
             ) : (
               <Camera className="h-4 w-4 mr-1.5" />
             )}
@@ -1076,6 +1170,44 @@ function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progre
           </Button>
         </div>
       )}
+    </div>
+  )
+}
+
+// PhotoThumbnailGrid — per-photo thumbnail strip with uploading / error overlays
+// and a remove (×) button. Renders nothing when there are no items.
+export function PhotoThumbnailGrid({ items, onRemove }: { items: PhotoItem[]; onRemove: (id: string) => void }) {
+  const { t } = useTranslation()
+  if (items.length === 0) return null
+  return (
+    <div className="border-t px-3 py-2.5 shrink-0" data-testid="capture-photo-grid">
+      <div className="flex flex-wrap gap-2">
+        {items.map(item => (
+          <div key={item.id} className="relative h-14 w-14 rounded-md overflow-hidden border border-border bg-muted/30 group">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={item.previewUrl} alt="" className="h-full w-full object-cover" />
+            {item.status === 'uploading' && (
+              <div className="absolute inset-0 flex items-center justify-center bg-background/60">
+                <TowerLoader size={0.5} label="Loading..." />
+              </div>
+            )}
+            {item.status === 'error' && (
+              <div className="absolute inset-0 flex items-center justify-center bg-destructive/30">
+                <X className="h-4 w-4 text-destructive-foreground" />
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => onRemove(item.id)}
+              aria-label={t('Remove photo')}
+              className="absolute top-0.5 right-0.5 h-4 w-4 rounded-full bg-background/80 hover:bg-background flex items-center justify-center shadow"
+              data-testid="capture-remove-photo"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
