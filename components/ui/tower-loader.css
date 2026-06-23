@@ -1,30 +1,32 @@
 .tower-loader {
   --tl-size: 1.5;
-  --tl-color-left: hsl(var(--primary) / 0.7);
-  --tl-color-right: hsl(var(--primary) / 0.9);
-  --tl-color-top: hsl(var(--primary) / 0.5);
+  /* 3D shading: left face darkest, right mid, top lightest — derived from the
+     brand primary so it themes but keeps the cube-face contrast. */
+  --tl-color-left: color-mix(in srgb, hsl(var(--primary)) 72%, #000 28%);
+  --tl-color-right: hsl(var(--primary));
+  --tl-color-top: color-mix(in srgb, hsl(var(--primary)) 60%, #fff 40%);
 
-  /* Reserve the SCALED footprint as the real layout box so the loader is
-     correctly sized/centred and never overflows or overlaps its siblings. */
-  display: inline-block;
-  position: relative;
+  /* Reserve the scaled footprint and centre the scaled scene inside it, so the
+     loader is correctly sized and never overflows/overlaps its siblings. */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: calc(40px * var(--tl-size));
   height: calc(50px * var(--tl-size));
 }
 
-/* The fixed 40x50 scene; this is the element that gets visually scaled. */
+/* The fixed 40x50 scene, scaled from its centre (matches the original loader). */
 .tower-loader__stage {
-  position: absolute;
-  top: 0;
-  left: 0;
+  position: relative;
+  flex: none;
   width: 40px;
   height: 50px;
   scale: var(--tl-size);
-  transform-origin: top left;
 }
 
+/* Boxes are RELATIVE (like the original) — absolute broke the stacking. */
 .tower-loader__box {
-  position: absolute;
+  position: relative;
   opacity: 0;
   left: 10px;
 }
