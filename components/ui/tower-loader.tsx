@@ -20,13 +20,18 @@ export function TowerLoader({ size = 1.5, label = 'Loading...', className }: Tow
       aria-label={label}
       aria-live="polite"
     >
-      {[1, 2, 3, 4].map((i) => (
-        <div key={i} className={cn('tower-loader__box', `tower-loader__box--${i}`)}>
-          <div className="tower-loader__side-left" />
-          <div className="tower-loader__side-right" />
-          <div className="tower-loader__side-top" />
-        </div>
-      ))}
+      {/* Inner stage holds the fixed 40x50 scene and is the element actually
+          scaled, so the outer .tower-loader can reserve the correct (scaled)
+          layout footprint and never overflow / overlap its neighbours. */}
+      <div className="tower-loader__stage">
+        {[1, 2, 3, 4].map((i) => (
+          <div key={i} className={cn('tower-loader__box', `tower-loader__box--${i}`)}>
+            <div className="tower-loader__side-left" />
+            <div className="tower-loader__side-right" />
+            <div className="tower-loader__side-top" />
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

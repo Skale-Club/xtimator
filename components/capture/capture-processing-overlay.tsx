@@ -1,6 +1,7 @@
 'use client'
 
 import { useTranslation } from '@/lib/i18n/use-translation'
+import { TowerLoader } from '@/components/ui/tower-loader'
 
 export type CaptureProcessingStage =
   | 'idle'
@@ -33,23 +34,10 @@ export function CaptureProcessingOverlay({ stage }: CaptureProcessingOverlayProp
       data-testid="capture-processing-overlay"
     >
       <div
-        role="status"
-        aria-label={t('Loading')}
-        className="flex items-center gap-2"
-        data-testid="capture-processing-dots"
+        className="flex items-center justify-center"
+        data-testid="capture-processing-loader"
       >
-        <span
-          className="h-2.5 w-2.5 rounded-full bg-primary animate-bounce"
-          style={{ animationDelay: '-0.3s' }}
-        />
-        <span
-          className="h-2.5 w-2.5 rounded-full bg-primary animate-bounce"
-          style={{ animationDelay: '-0.15s' }}
-        />
-        <span
-          className="h-2.5 w-2.5 rounded-full bg-primary animate-bounce"
-          style={{ animationDelay: '0s' }}
-        />
+        <TowerLoader size={1.8} label={t('Loading')} />
       </div>
       <p
         className="text-sm text-muted-foreground"
