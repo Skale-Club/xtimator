@@ -2,11 +2,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 
 /**
- * QUICK-U4F: photo thumbnails + per-photo upload feedback + 15-photo cap in the
+ * QUICK-U4F: photo thumbnails + per-photo upload feedback + 16-photo cap in the
  * New Xtimate capture popup.
  *
  * Two focused suites:
- *  - clampToPhotoLimit: the pure 15-cap math used by handlePhotoFileChange.
+ *  - clampToPhotoLimit: the pure 16-cap math used by handlePhotoFileChange.
  *  - PhotoThumbnailGrid: the presentational strip (uploading / done thumbnails
  *    + remove button), rendered in isolation so we never mount the whole
  *    pipeline (supabase / inngest / AI).
@@ -27,17 +27,17 @@ import {
   PhotoThumbnailGrid,
 } from '@/components/capture/capture-recorder'
 
-describe('clampToPhotoLimit (15-photo hard cap)', () => {
-  it('caps an over-large first selection to 15 and flags overflow', () => {
-    expect(clampToPhotoLimit(0, 20)).toEqual({ take: 15, overflowed: true })
+describe('clampToPhotoLimit (16-photo hard cap)', () => {
+  it('caps an over-large first selection to 16 and flags overflow', () => {
+    expect(clampToPhotoLimit(0, 20)).toEqual({ take: 16, overflowed: true })
   })
 
   it('takes only the remaining slots when near the cap', () => {
-    expect(clampToPhotoLimit(13, 5)).toEqual({ take: 2, overflowed: true })
+    expect(clampToPhotoLimit(13, 5)).toEqual({ take: 3, overflowed: true })
   })
 
   it('takes nothing once already at the cap', () => {
-    expect(clampToPhotoLimit(15, 1)).toEqual({ take: 0, overflowed: true })
+    expect(clampToPhotoLimit(16, 1)).toEqual({ take: 0, overflowed: true })
   })
 
   it('takes everything when under the cap with room to spare', () => {

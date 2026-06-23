@@ -37,7 +37,7 @@ export const RED_AT_MS    =  9.5 * 60 * 1000 // 570000  D-07 — amber→red
 const TICK_MS = 250                            // RESEARCH Pattern 4
 
 // Hard cap on photos attachable to a single capture (popup New Xtimate flow).
-const MAX_PHOTOS = 15
+const MAX_PHOTOS = 16
 
 // Pure cap math: given how many photos are already present and how many are
 // incoming, return how many to take and whether the incoming set overflowed.
@@ -320,7 +320,7 @@ export function CaptureRecorder({
     // Cap math against the current item count (uploading + done + error).
     const currentCount = photoItemsRef.current.length
     const { take, overflowed } = clampToPhotoLimit(currentCount, images.length)
-    if (overflowed) toast.info(t('You can add up to 15 photos.'))
+    if (overflowed) toast.info(t('You can add up to 16 photos.'))
     if (take <= 0) {
       if (photoInputRef.current) photoInputRef.current.value = ''
       return
