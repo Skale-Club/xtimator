@@ -9,6 +9,11 @@ vi.mock('@/lib/platform-config', () => ({
     primaryColor: '#111111',
     emailFromName: null,
     siteTitle: null,
+    metaDescription: null,
+    ogImageUrl: null,
+    canonicalBaseUrl: null,
+    faviconUrl: null,
+    landingContent: {} as never,
   }),
   getWhatsAppDisplayNumber: vi.fn().mockResolvedValue('+15551234567'),
 }))
@@ -87,6 +92,10 @@ describe('sendWelcomeEmail', () => {
       primaryColor: '#111111',
       emailFromName: null,
       siteTitle: null,
+      metaDescription: null,
+      ogImageUrl: null,
+      canonicalBaseUrl: null,
+      faviconUrl: null,
       landingContent: {} as never,
     })
     vi.mocked(getWhatsAppDisplayNumber).mockResolvedValue('+15551234567')
@@ -175,6 +184,10 @@ describe('sendWelcomeEmail', () => {
       primaryColor: '#111111',
       emailFromName: null,
       siteTitle: null,
+      metaDescription: null,
+      ogImageUrl: null,
+      canonicalBaseUrl: null,
+      faviconUrl: null,
       landingContent: {} as never,
     })
 
@@ -222,6 +235,10 @@ describe('sendProfileUpdatedEmail', () => {
       primaryColor: '#111111',
       emailFromName: null,
       siteTitle: null,
+      metaDescription: null,
+      ogImageUrl: null,
+      canonicalBaseUrl: null,
+      faviconUrl: null,
       landingContent: {} as never,
     })
     sendMock.mockResolvedValue({ id: 'email-id' })

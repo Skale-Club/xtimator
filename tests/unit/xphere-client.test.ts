@@ -13,6 +13,7 @@ const mockGetXphereConfig = vi.mocked(getXphereConfig)
 
 function makePayload(): XphereSyncPayload {
   return {
+    source: 'xtimator',
     event: 'company.created',
     occurred_at: '2026-01-01T00:00:00.000Z',
     company: {
@@ -32,6 +33,7 @@ function makePayload(): XphereSyncPayload {
       status: 'won',
       value: 0,
       title: 'Acme Landscaping — Subscription',
+      pipeline: 'Xtimator Lifecycle',
     },
   }
 }
