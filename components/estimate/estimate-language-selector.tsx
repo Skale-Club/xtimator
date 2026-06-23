@@ -77,21 +77,27 @@ interface EstimateLanguageSelectorProps {
   onChange: (lang: EstimateLanguage) => void
   /** Small helper text indicating where the default came from (optional) */
   hint?: string
+  /** Compact mode: drop the "Estimate language:" label (globe + select only),
+   * for tight spots like the dialog header. */
+  compact?: boolean
 }
 
 export function EstimateLanguageSelector({
   value,
   onChange,
   hint,
+  compact = false,
 }: EstimateLanguageSelectorProps) {
   const { t } = useTranslation()
   return (
     <div className="flex flex-col gap-0.5">
       <div className="flex items-center gap-2">
         <Globe className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-        <span className="text-xs text-muted-foreground">{t('Estimate language')}:</span>
+        {!compact && (
+          <span className="text-xs text-muted-foreground">{t('Estimate language')}:</span>
+        )}
         <Select value={value} onValueChange={(v) => onChange(v as EstimateLanguage)}>
-          <SelectTrigger size="sm" className="h-7 min-w-[160px] text-xs">
+          <SelectTrigger size="sm" className={compact ? 'h-7 min-w-[130px] text-xs' : 'h-7 min-w-[160px] text-xs'}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

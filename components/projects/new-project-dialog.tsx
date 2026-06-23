@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense } from 'react'
+import { Suspense, useState } from 'react'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import {
   Dialog,
@@ -11,6 +11,9 @@ import {
 } from '@/components/ui/dialog'
 import { NewProjectWizard } from './new-project-wizard'
 import { T } from '@/components/i18n/t'
+import { EstimateLanguageSelector } from '@/components/estimate/estimate-language-selector'
+import { useLanguage } from '@/lib/i18n/language-context'
+import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
 
 export const NEW_PROJECT_MODAL_PARAM = 'modal'
 export const NEW_PROJECT_MODAL_VALUE = 'new-project'
@@ -29,6 +32,10 @@ function NewProjectDialogInner() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const pathname = usePathname()
+  const { language: appLanguage } = useLanguage()
+  const [estimateLanguage, setEstimateLanguage] = useState<EstimateLanguage>(
+    appLanguage === 'pt' || appLanguage === 'es' ? appLanguage : 'en'
+  )
 
   const isOpen = searchParams.get(NEW_PROJECT_MODAL_PARAM) === NEW_PROJECT_MODAL_VALUE
 
@@ -42,17 +49,26 @@ function NewProjectDialogInner() {
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose() }}>
       <DialogContent className="p-0 gap-0 sm:max-w-xl max-h-[85dvh] flex flex-col">
-        <DialogHeader className="px-4 py-3 border-b shrink-0 text-left">
+        <DialogHeader className="px-4 py-3 border-b shrink-0 flex flex-row items-center justify-between gap-2 text-left pr-12">
           <DialogTitle className="text-base font-semibold">
             <T>New Xtimate</T>
           </DialogTitle>
+          <EstimateLanguageSelector
+            value={estimateLanguage}
+            onChange={setEstimateLanguage}
+            compact
+          />
           <DialogDescription className="sr-only">
             <T>Record audio, type, or upload photos to generate an estimate.</T>
           </DialogDescription>
         </DialogHeader>
 
         {isOpen && (
-          <NewProjectWizard onComplete={onClose} />
+          <NewProjectWizard
+            onComplete={onClose}
+            estimateLanguage={estimateLanguage}
+            setEstimateLanguage={setEstimateLanguage}
+          />
         )}
       </DialogContent>
     </Dialog>

@@ -100,6 +100,13 @@ interface CaptureRecorderProps {
    * instead of navigating away. The parent dismisses the dialog.
    */
   onCancel?: () => void
+  /**
+   * Optional controlled estimate-language state. When provided (e.g. the popup
+   * lifts it into the Dialog header), the recorder uses these instead of its own
+   * internal state. When omitted, it manages the language internally.
+   */
+  estimateLanguage?: EstimateLanguage
+  setEstimateLanguage?: (lang: EstimateLanguage) => void
 }
 
 export function CaptureRecorder({
@@ -115,6 +122,8 @@ export function CaptureRecorder({
   // the popup chrome (Dialog onOpenChange) owns the X/overlay close path.
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   onCancel,
+  estimateLanguage: estimateLanguageProp,
+  setEstimateLanguage: setEstimateLanguageProp,
 }: CaptureRecorderProps) {
   const { t } = useTranslation()
   const { language: appLanguage } = useLanguage()
@@ -145,10 +154,14 @@ export function CaptureRecorder({
   const [liveTranscript, setLiveTranscript] = useState('')
   const [interimTranscript, setInterimTranscript] = useState('')
 
-  // Language for the estimate — default from app language (cascade layer 4)
-  const [estimateLanguage, setEstimateLanguage] = useState<EstimateLanguage>(
+  // Language for the estimate — default from app language (cascade layer 4).
+  // Controlled by the parent when props are supplied (popup lifts it into the
+  // Dialog header); otherwise managed internally (fullscreen /capture route).
+  const [internalEstimateLanguage, setInternalEstimateLanguage] = useState<EstimateLanguage>(
     appLanguage === 'pt' || appLanguage === 'es' ? appLanguage : 'en'
   )
+  const estimateLanguage = estimateLanguageProp ?? internalEstimateLanguage
+  const setEstimateLanguage = setEstimateLanguageProp ?? setInternalEstimateLanguage
 
   // Refs
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
@@ -1079,7 +1092,6 @@ function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progre
             {photoItems.length > 0 ? `${photoItems.length}/${MAX_PHOTOS}` : t('Photos')}
           </Button>
           <div className="flex-1" />
-          <EstimateLanguageSelector value={estimateLanguage} onChange={setEstimateLanguage} />
           <Button
             onClick={onGenerate}
             disabled={!hasAnyInput || isRecording}

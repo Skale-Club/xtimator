@@ -8,13 +8,21 @@ import { Loader2 } from 'lucide-react'
 import { createProjectAction, getProjectMinimalAction } from '@/lib/actions/project'
 import { CaptureRecorder } from '@/components/capture/capture-recorder'
 import type { ProjectDetail } from '@/lib/queries/project'
+import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
 
 interface NewProjectWizardProps {
   /** Called after navigating to the project page so the dialog can close/reset. */
   onComplete?: () => void
+  /** Lifted estimate-language state so the Dialog header can own the selector. */
+  estimateLanguage?: EstimateLanguage
+  setEstimateLanguage?: (lang: EstimateLanguage) => void
 }
 
-export function NewProjectWizard({ onComplete }: NewProjectWizardProps = {}) {
+export function NewProjectWizard({
+  onComplete,
+  estimateLanguage,
+  setEstimateLanguage,
+}: NewProjectWizardProps = {}) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [project, setProject] = useState<ProjectDetail | null>(null)
@@ -77,6 +85,8 @@ export function NewProjectWizard({ onComplete }: NewProjectWizardProps = {}) {
       projectId={project.id}
       variant="popup"
       onComplete={handleComplete}
+      estimateLanguage={estimateLanguage}
+      setEstimateLanguage={setEstimateLanguage}
     />
   )
 }
