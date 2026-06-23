@@ -93,7 +93,7 @@ export default async function AppShellLayout({
   return (
     <TourProvider>
       <BreadcrumbProvider>
-        <div className="flex h-screen">
+        <div className="flex h-[100dvh] overflow-hidden">
           <Sidebar
             branding={{
               appName: branding.appName,
