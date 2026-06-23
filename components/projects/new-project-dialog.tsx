@@ -70,7 +70,7 @@ function NewProjectDialogInner() {
             the popup + the estimate, never the rest of the app. */}
         <ScopedLanguageProvider language={estimateLanguage} setLanguage={setEstimateLanguage}>
           <DialogHeader className="px-4 py-3 border-b shrink-0 flex flex-row items-center justify-between gap-2 text-left">
-            <DialogTitle className="text-base font-semibold">
+            <DialogTitle className="text-base font-semibold whitespace-nowrap">
               {editProjectId ? <T>Edit with AI</T> : <T>New Xtimate</T>}
             </DialogTitle>
             {/* Selector + close button share one items-center row so the X is

@@ -1068,7 +1068,7 @@ function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progre
         <PhotoThumbnailGrid items={photoItems} onRemove={onRemovePhoto} />
 
         {/* Footer: photos + language + generate */}
-        <div className="border-t px-3 py-2.5 flex items-center gap-2 shrink-0 flex-wrap">
+        <div className="border-t px-3 py-2.5 grid grid-cols-2 gap-3 sm:gap-[256px] shrink-0">
           <input
             ref={photoInputRef}
             type="file"
@@ -1079,27 +1079,26 @@ function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progre
           />
           <Button
             variant="outline"
-            size="sm"
+            className="h-10 w-full"
             onClick={() => photoInputRef.current?.click()}
             disabled={isUploadingPhotos || photoItems.length >= MAX_PHOTOS}
             data-testid="capture-add-photos"
           >
             {isUploadingPhotos ? (
-              <LoadingDots className="mr-1.5" />
+              <LoadingDots />
             ) : (
-              <Camera className="h-4 w-4 mr-1.5" />
+              <Camera />
             )}
             {photoItems.length > 0 ? `${photoItems.length}/${MAX_PHOTOS}` : t('Photos')}
           </Button>
-          <div className="flex-1" />
           <Button
+            className="h-[38px] w-full"
             onClick={onGenerate}
             disabled={!hasAnyInput || isRecording}
-            size="sm"
             data-testid="generate-estimate-btn"
           >
             {t('Generate')}
-            <Sparkles className="h-4 w-4 ml-1.5" />
+            <Sparkles />
           </Button>
         </div>
       </div>
@@ -1161,7 +1160,8 @@ function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progre
           />
           <Button
             variant="outline"
-            size="sm"
+            size="lg"
+            className="w-full"
             onClick={() => photoInputRef.current?.click()}
             disabled={isUploadingPhotos}
             data-testid="capture-add-photos"
