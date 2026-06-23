@@ -911,6 +911,7 @@ v3.1: Phases 61-65 (started 2026-05-15). Production Go-Live — 27 requirements 
 | 260620-lqh | Remove Danger Zone / Delete Account section from account settings UI | 2026-06-20 | b034f39, 2727438 | [260620-lqh-remove-danger-zone-delete-account-sectio](.planning/quick/260620-lqh-remove-danger-zone-delete-account-sectio/) |
 | 260620-m6p | WhatsApp multi-user support: per-user owner_phone routing with independent conversation history | 2026-06-20 | 44f1b78 | [260620-m6p-whatsapp-multi-user-support-per-user-own](.planning/quick/260620-m6p-whatsapp-multi-user-support-per-user-own/) |
 | 260621-sv5 | Remove WhatsApp nav item from tenant sidebar (super-admin only; was missed pre-phase 99) | 2026-06-21 | 0e0c2ec | — (inline edit, nav-items.ts) |
+| 260622-u4f | Photo thumbnails + per-photo upload feedback (uploading/done/error) + hard 15-photo cap (clampToPhotoLimit, N/15 indicator, disabled-at-cap) + remove (×) with object-URL revoke on remove/unmount, in the New Xtimate capture popup; uploadedPhotos still drives Generate | 2026-06-22 | 2d56ff0 | [260622-u4f-photo-thumbnails-per-photo-upload-feedba](.planning/quick/260622-u4f-photo-thumbnails-per-photo-upload-feedba/) |
 | 2026-05-18 | fast | Center auth card logo+wordmark | done |
 | 2026-05-19 | fast | Make audio capture screen scrollable on smaller viewports | done |
 | 2026-05-18 | fast | Restyle sidebar New Project as filled gradient, remove dashboard CTA | done |
