@@ -3,9 +3,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
-import { Loader2 } from 'lucide-react'
 
 import { createProjectAction, getProjectMinimalAction } from '@/lib/actions/project'
+import { LoadingDots } from '@/components/ui/loading-dots'
 import { CaptureRecorder } from '@/components/capture/capture-recorder'
 import type { ProjectDetail } from '@/lib/queries/project'
 import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
@@ -73,7 +73,7 @@ export function NewProjectWizard({
   if (isCreating || !project) {
     return (
       <div className="flex items-center justify-center py-16">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <LoadingDots className="text-muted-foreground" dotClassName="h-2.5 w-2.5" />
       </div>
     )
   }

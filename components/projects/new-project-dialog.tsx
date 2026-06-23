@@ -32,10 +32,17 @@ function NewProjectDialogInner() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const pathname = usePathname()
-  const { language: appLanguage } = useLanguage()
+  const { language: appLanguage, setLanguage } = useLanguage()
   const [estimateLanguage, setEstimateLanguage] = useState<EstimateLanguage>(
     appLanguage === 'pt' || appLanguage === 'es' ? appLanguage : 'en'
   )
+
+  // Selecting a language sets BOTH the estimate target language AND the app UI
+  // language, so the popup content re-renders in the chosen language too.
+  function handleLanguageChange(lang: EstimateLanguage) {
+    setEstimateLanguage(lang)
+    setLanguage(lang)
+  }
 
   const isOpen = searchParams.get(NEW_PROJECT_MODAL_PARAM) === NEW_PROJECT_MODAL_VALUE
 
@@ -55,7 +62,7 @@ function NewProjectDialogInner() {
           </DialogTitle>
           <EstimateLanguageSelector
             value={estimateLanguage}
-            onChange={setEstimateLanguage}
+            onChange={handleLanguageChange}
             compact
           />
           <DialogDescription className="sr-only">

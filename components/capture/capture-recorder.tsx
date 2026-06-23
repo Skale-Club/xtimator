@@ -18,7 +18,8 @@ import { createClient } from '@/lib/supabase/client'
 import { createStorage } from '@/lib/storage'
 import { getSupportedAudioMimeType, getFileExtension } from '@/lib/utils/media-format'
 import { compressImage } from '@/lib/utils/image-compressor'
-import { Camera, Loader2 } from 'lucide-react'
+import { Camera } from 'lucide-react'
+import { LoadingDots } from '@/components/ui/loading-dots'
 import type { ProjectDetail } from '@/lib/queries/project'
 import type { Photo } from '@/lib/queries/photo'
 import { pollJob, type JobResult } from '@/hooks/use-job-status'
@@ -1085,7 +1086,7 @@ function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progre
             data-testid="capture-add-photos"
           >
             {isUploadingPhotos ? (
-              <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+              <LoadingDots className="mr-1.5" />
             ) : (
               <Camera className="h-4 w-4 mr-1.5" />
             )}
@@ -1166,7 +1167,7 @@ function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progre
             data-testid="capture-add-photos"
           >
             {isUploadingPhotos ? (
-              <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+              <LoadingDots className="mr-1.5" />
             ) : (
               <Camera className="h-4 w-4 mr-1.5" />
             )}
@@ -1209,7 +1210,7 @@ export function PhotoThumbnailGrid({ items, onRemove }: { items: PhotoItem[]; on
             <img src={item.previewUrl} alt="" className="h-full w-full object-cover" />
             {item.status === 'uploading' && (
               <div className="absolute inset-0 flex items-center justify-center bg-background/60">
-                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                <LoadingDots className="text-primary" dotClassName="h-2 w-2" />
               </div>
             )}
             {item.status === 'error' && (
