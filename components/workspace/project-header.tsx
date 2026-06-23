@@ -5,6 +5,7 @@ import { ProjectTitle } from '@/components/workspace/project-title'
 import type { ProjectDetail } from '@/lib/queries/project'
 import { useEstimateVersionSlot } from './estimate-version-context'
 import { EditEstimateHeaderButton } from '@/components/workspace/edit-estimate-header-button'
+import { useBreadcrumb } from '@/components/app-shell/breadcrumb-context'
 
 interface ProjectHeaderProps {
   project: ProjectDetail
@@ -19,6 +20,13 @@ const STATUS_DOT: Record<string, string> = {
 
 export function ProjectHeader({ project }: ProjectHeaderProps) {
   const { slot } = useEstimateVersionSlot()
+
+  // Feed the global breadcrumb so the top bar (desktop) and mobile header show
+  // the project name instead of falling back to the raw project-id URL segment.
+  useBreadcrumb([
+    { label: 'Projects', href: '/projects' },
+    { label: project.name },
+  ])
 
   const statusLabel = STATUS_LABEL[project.status] ?? 'In progress'
   const statusDot = STATUS_DOT[project.status] ?? 'bg-blue-400'
