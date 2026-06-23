@@ -34,9 +34,10 @@ interface InlineAudioRecorderProps {
   projectId: string
   companyId: string
   onBack: () => void
+  onComplete?: () => void
 }
 
-export function InlineAudioRecorder({ projectId, companyId, onBack }: InlineAudioRecorderProps) {
+export function InlineAudioRecorder({ projectId, companyId, onBack, onComplete }: InlineAudioRecorderProps) {
   const { t } = useTranslation()
   const { language: appLanguage } = useLanguage()
   const router = useRouter()
@@ -176,8 +177,12 @@ export function InlineAudioRecorder({ projectId, companyId, onBack }: InlineAudi
     }
 
     // Navigate immediately — pipeline continues server-side via Inngest
-    router.push(`/projects/${projectId}?autoGenerating=true`)
-  }, [companyId, projectId, estimateLanguage, ensureAttempt, router, t])
+    if (onComplete) {
+      onComplete()
+    } else {
+      router.push(`/projects/${projectId}?autoGenerating=true`)
+    }
+  }, [companyId, projectId, estimateLanguage, ensureAttempt, onComplete, router, t])
 
   const startRecording = useCallback(async () => {
     chunksRef.current = []
