@@ -62,10 +62,6 @@ export function OverviewTab({
       <LinkClientButton projectId={project.id} />
     ) : null
 
-  function handleRecord() {
-    setModePickerOpen(true)
-  }
-
   function handleModeSelect(mode: CaptureMode) {
     router.push(
       captureHref({
@@ -113,7 +109,6 @@ export function OverviewTab({
           state: null,
           zip: null,
         } : null}
-        onRecord={handleRecord}
         linkClientSlot={linkClientSlot}
         priceBookItems={priceBookItems}
       />

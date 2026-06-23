@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils'
 import { ProjectTitle } from '@/components/workspace/project-title'
 import type { ProjectDetail } from '@/lib/queries/project'
 import { useEstimateVersionSlot } from './estimate-version-context'
+import { EditEstimateHeaderButton } from '@/components/workspace/edit-estimate-header-button'
 
 interface ProjectHeaderProps {
   project: ProjectDetail
@@ -34,16 +35,20 @@ export function ProjectHeader({ project }: ProjectHeaderProps) {
           />
         </div>
 
-        {/* Right: status pill */}
-        {slot && (
-          <div className="flex items-stretch shrink-0 rounded-md border border-border/60 overflow-hidden text-xs bg-muted/10">
-            {/* Status */}
-            <div className="flex items-center gap-1.5 px-3 py-1.5 text-muted-foreground font-medium">
-              <span className={cn('h-1.5 w-1.5 rounded-full shrink-0', statusDot)} />
-              {statusLabel}
+        {/* Right: Edit-with-AI + status pill — one items-center row so the pill
+            is vertically aligned with the button. */}
+        <div className="flex items-center gap-2 shrink-0">
+          <EditEstimateHeaderButton projectId={project.id} />
+          {slot && (
+            <div className="flex items-stretch shrink-0 rounded-md border border-border/60 overflow-hidden text-xs bg-muted/10">
+              {/* Status */}
+              <div className="flex items-center gap-1.5 px-3 py-1.5 text-muted-foreground font-medium">
+                <span className={cn('h-1.5 w-1.5 rounded-full shrink-0', statusDot)} />
+                {statusLabel}
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {project.client && (

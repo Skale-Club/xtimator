@@ -13,6 +13,9 @@ import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
 interface NewProjectWizardProps {
   /** Called after navigating to the project page so the dialog can close/reset. */
   onComplete?: () => void
+  /** Edit mode: when set, the popup edits THIS existing project's estimate
+   * instead of creating a new project. Same popup, shared between new + edit. */
+  editProjectId?: string
   /** Lifted estimate-language state so the Dialog header can own the selector. */
   estimateLanguage?: EstimateLanguage
   setEstimateLanguage?: (lang: EstimateLanguage) => void
@@ -20,6 +23,7 @@ interface NewProjectWizardProps {
 
 export function NewProjectWizard({
   onComplete,
+  editProjectId,
   estimateLanguage,
   setEstimateLanguage,
 }: NewProjectWizardProps = {}) {
@@ -35,19 +39,26 @@ export function NewProjectWizard({
     setIsCreating(true)
 
     void (async () => {
-      const clientId = searchParams.get('clientId') ?? undefined
-      const result = await createProjectAction({
-        clientId,
-        clientName: '',
-        inputMode: undefined,
-      })
-      if ('error' in result) {
-        toast.error(result.error)
-        setIsCreating(false)
-        return
+      // Edit mode: reuse the existing project. New mode: create one first.
+      let targetId: string
+      if (editProjectId) {
+        targetId = editProjectId
+      } else {
+        const clientId = searchParams.get('clientId') ?? undefined
+        const result = await createProjectAction({
+          clientId,
+          clientName: '',
+          inputMode: undefined,
+        })
+        if ('error' in result) {
+          toast.error(result.error)
+          setIsCreating(false)
+          return
+        }
+        targetId = result.data.id
       }
 
-      const fetched = await getProjectMinimalAction(result.data.id)
+      const fetched = await getProjectMinimalAction(targetId)
       if ('error' in fetched) {
         toast.error(fetched.error)
         setIsCreating(false)

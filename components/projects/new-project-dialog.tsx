@@ -20,12 +20,23 @@ export const NEW_PROJECT_MODAL_PARAM = 'modal'
 export const NEW_PROJECT_MODAL_VALUE = 'new-project'
 /** Optional: pre-link the new project to a client (used by the client page). */
 export const NEW_PROJECT_CLIENT_PARAM = 'clientId'
+/** Optional: when set, the popup edits an EXISTING project's estimate (Edit with
+ * AI) instead of creating a new project. Same popup, shared between new + edit. */
+export const NEW_PROJECT_EDIT_PARAM = 'editProjectId'
 
 /** Build the href that opens the new-project modal from any page. */
 export function newProjectHref(currentSearch?: string, clientId?: string): string {
   const params = new URLSearchParams(currentSearch ?? '')
   params.set(NEW_PROJECT_MODAL_PARAM, NEW_PROJECT_MODAL_VALUE)
   if (clientId) params.set(NEW_PROJECT_CLIENT_PARAM, clientId)
+  return `?${params.toString()}`
+}
+
+/** Build the href that opens the SAME popup in edit mode for an existing project. */
+export function editEstimateHref(currentSearch: string | undefined, projectId: string): string {
+  const params = new URLSearchParams(currentSearch ?? '')
+  params.set(NEW_PROJECT_MODAL_PARAM, NEW_PROJECT_MODAL_VALUE)
+  params.set(NEW_PROJECT_EDIT_PARAM, projectId)
   return `?${params.toString()}`
 }
 
@@ -39,10 +50,12 @@ function NewProjectDialogInner() {
   )
 
   const isOpen = searchParams.get(NEW_PROJECT_MODAL_PARAM) === NEW_PROJECT_MODAL_VALUE
+  const editProjectId = searchParams.get(NEW_PROJECT_EDIT_PARAM) ?? undefined
 
   function onClose() {
     const params = new URLSearchParams(searchParams.toString())
     params.delete(NEW_PROJECT_MODAL_PARAM)
+    params.delete(NEW_PROJECT_EDIT_PARAM)
     const q = params.toString()
     router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false })
   }
@@ -58,7 +71,7 @@ function NewProjectDialogInner() {
         <ScopedLanguageProvider language={estimateLanguage} setLanguage={setEstimateLanguage}>
           <DialogHeader className="px-4 py-3 border-b shrink-0 flex flex-row items-center justify-between gap-2 text-left">
             <DialogTitle className="text-base font-semibold">
-              <T>New Xtimate</T>
+              {editProjectId ? <T>Edit with AI</T> : <T>New Xtimate</T>}
             </DialogTitle>
             {/* Selector + close button share one items-center row so the X is
                 vertically aligned with the language selector. */}
@@ -85,6 +98,7 @@ function NewProjectDialogInner() {
           {isOpen && (
             <NewProjectWizard
               onComplete={onClose}
+              editProjectId={editProjectId}
               estimateLanguage={estimateLanguage}
               setEstimateLanguage={setEstimateLanguage}
             />
