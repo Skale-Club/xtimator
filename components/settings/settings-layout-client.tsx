@@ -25,35 +25,30 @@ export function SettingsLayoutClient({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="relative flex flex-1 flex-col min-h-0 md:flex-row md:gap-0">
-      {/* Sub-sidebar */}
+    <div className="relative flex flex-1 flex-row min-h-0 gap-0 items-start">
+      {/* Sub-sidebar — vertical collapsible rail at ALL breakpoints. In-flow
+          sticky on mobile; fixed (after the primary sidebar) on desktop. */}
       <div
         className={cn(
-          'relative sticky top-0 z-20 shrink-0',
+          'relative sticky top-0 z-20 shrink-0 self-start h-[calc(100dvh-56px)] overflow-y-auto',
           'md:fixed md:left-[var(--app-sidebar-width)] md:top-16 md:z-30 md:h-[calc(100vh-4rem)]',
           'transition-[width] duration-200 ease-in-out',
-          collapsed ? 'md:w-14' : 'md:w-52',
+          collapsed ? 'w-14 md:w-14' : 'w-40 md:w-52',
         )}
       >
-        {/* Mobile fade mask */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-background to-transparent md:hidden"
-        />
-
         <aside
           className={cn(
             'shrink-0 border-border bg-background h-full flex flex-col',
-            'w-full border-b px-2 py-2 overflow-x-auto scrollbar-none',
-            'md:overflow-x-visible md:overflow-y-auto md:border-b-0 md:border-r md:px-3 md:pt-8 md:pb-0',
+            'border-r overflow-y-auto pt-3 pb-0 md:pt-8',
+            collapsed ? 'px-1' : 'px-2 md:px-3',
           )}
         >
           <SettingsNav collapsed={collapsed} />
 
-          {/* Collapse toggle — desktop only, mirrors main sidebar bottom button.
-              Same min-h + vertical centering as the main sidebar footer
-              (--app-rail-footer-h) so the two rail footers line up exactly. */}
-          <div className="mt-auto hidden md:flex md:flex-col md:justify-center md:h-[var(--app-rail-footer-h)] md:shrink-0 border-t border-[var(--glass-border)] p-2">
+          {/* Collapse toggle — visible at all breakpoints. Same min-h + vertical
+              centering as the main sidebar footer (--app-rail-footer-h) so the
+              two rail footers line up on desktop. */}
+          <div className="mt-auto flex flex-col justify-center shrink-0 md:h-[var(--app-rail-footer-h)] border-t border-[var(--glass-border)] p-2">
             {collapsed ? (
               <button
                 type="button"

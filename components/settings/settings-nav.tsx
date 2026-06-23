@@ -31,5 +31,5 @@ export function SettingsNav({ collapsed }: { collapsed?: boolean }) {
         pathname === item.href || pathname.startsWith(`${item.href}/`),
     )?.value ?? ''
 
-  return <SubNav items={ITEMS} activeValue={activeValue} collapsed={collapsed} />
+  return <SubNav items={ITEMS} activeValue={activeValue} collapsed={collapsed} alwaysVertical />
 }
