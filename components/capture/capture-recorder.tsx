@@ -992,12 +992,21 @@ function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progre
         {/* Body: stacked on mobile → side-by-side on sm+ */}
         <div className="flex flex-col sm:flex-row flex-1 min-h-0 overflow-hidden">
 
-          {/* Mic section — full-width bar on mobile, narrow column on sm+ */}
-          <div className="
-            flex items-center gap-3 px-4 py-3 border-b shrink-0
-            sm:flex-col sm:items-center sm:justify-center
-            sm:border-b-0 sm:border-r sm:w-40 sm:py-5 sm:gap-3
-          ">
+          {/* Mic section — full-width bar on mobile, narrow column on sm+.
+              The WHOLE area is a tap target (mic + waveform + timer + label);
+              clicks on the inner mic button are skipped so its own onClick
+              doesn't double-fire onToggle. */}
+          <div
+            onClick={(e) => {
+              if ((e.target as HTMLElement).closest('button')) return
+              onToggle()
+            }}
+            className="
+              flex items-center gap-3 px-4 py-3 border-b shrink-0 cursor-pointer
+              sm:flex-col sm:items-center sm:justify-center
+              sm:border-b-0 sm:border-r sm:w-40 sm:py-5 sm:gap-3
+            "
+          >
             <VoiceRecorder
               size="sm"
               analyser={analyser}
