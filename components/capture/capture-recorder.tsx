@@ -1009,7 +1009,7 @@ function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progre
               Sits FIRST (left on desktop / top on mobile). */}
           <div className="flex flex-1 flex-col p-3 min-h-0">
             {isRecording ? (
-              <div className="flex-1 rounded-md border border-input bg-muted/20 px-3 py-2 text-sm overflow-y-auto min-h-[170px] sm:min-h-[230px]">
+              <div className="flex-1 rounded-md border border-input bg-muted/20 px-3 py-2 text-sm overflow-y-auto min-h-[85px] sm:min-h-[115px]">
                 {liveTranscript || interimTranscript ? (
                   <p className="text-foreground leading-relaxed whitespace-pre-wrap">
                     {liveTranscript}
@@ -1028,7 +1028,7 @@ function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progre
                 value={descriptionText}
                 onChange={e => setDescriptionText(e.target.value)}
                 placeholder={t('Describe the job here...')}
-                className="flex-1 w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring min-h-[170px] sm:min-h-[230px]"
+                className="flex-1 w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring min-h-[85px] sm:min-h-[115px]"
                 data-testid="capture-description"
               />
             )}
