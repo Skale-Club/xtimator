@@ -147,7 +147,7 @@ export function VoiceRecorder(props: VoiceRecorderProps) {
         <div className={cn('flex items-center gap-3 sm:flex-col sm:items-center sm:gap-2', className)}>
           {micButton}
           <div className="flex items-center gap-2 flex-1 min-w-0 sm:w-full sm:flex-none sm:justify-center">
-            <div className="flex-1 min-w-0 sm:flex-none sm:w-24">
+            <div className="flex-1 min-w-0 sm:flex-none sm:w-16">
               <WaveformVisualizer analyser={analyser} isRecording={isRecording} height={40} />
             </div>
             {showTimer && (
