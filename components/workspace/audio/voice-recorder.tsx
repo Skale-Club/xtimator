@@ -42,6 +42,10 @@ export interface VoiceRecorderProps {
 
   // Optional test id override for the mic button (defaults to "voice-recorder-mic")
   micTestId?: string
+
+  // size="sm" only: on >=sm screens, stack the mic ABOVE the waveform+timer
+  // row (mic on top) instead of a single inline row. Mobile stays inline.
+  smStack?: boolean
 }
 
 function fmt(ms: number): string {
@@ -68,6 +72,7 @@ export function VoiceRecorder(props: VoiceRecorderProps) {
     belowWaveform,
     belowMic,
     micTestId = 'voice-recorder-mic',
+    smStack = false,
   } = props
 
   // Shared mic button class fragments
@@ -134,7 +139,27 @@ export function VoiceRecorder(props: VoiceRecorderProps) {
   }
 
   // -- size="sm" : inline row (mic | waveform | timer). No Card wrapper.
+  // With smStack, the mic moves ABOVE the waveform+timer on >=sm screens
+  // (mobile stays a single inline row).
   if (size === 'sm') {
+    if (smStack) {
+      return (
+        <div className={cn('flex items-center gap-3 sm:flex-col sm:items-center sm:gap-2', className)}>
+          {micButton}
+          <div className="flex items-center gap-2 flex-1 min-w-0 sm:w-full sm:flex-none">
+            <div className="flex-1 min-w-0">
+              <WaveformVisualizer analyser={analyser} isRecording={isRecording} height={40} />
+            </div>
+            {showTimer && (
+              <span className="font-mono text-xs text-muted-foreground tabular-nums shrink-0">
+                {fmt(elapsedMs)}
+              </span>
+            )}
+          </div>
+          {belowMic}
+        </div>
+      )
+    }
     return (
       <div className={cn('flex items-center gap-3', className)}>
         {micButton}

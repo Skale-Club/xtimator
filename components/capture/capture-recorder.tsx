@@ -18,8 +18,7 @@ import { createClient } from '@/lib/supabase/client'
 import { createStorage } from '@/lib/storage'
 import { getSupportedAudioMimeType, getFileExtension } from '@/lib/utils/media-format'
 import { compressImage } from '@/lib/utils/image-compressor'
-import { Camera } from 'lucide-react'
-import { TowerLoader } from '@/components/ui/tower-loader'
+import { Camera, Loader2 } from 'lucide-react'
 import type { ProjectDetail } from '@/lib/queries/project'
 import type { Photo } from '@/lib/queries/photo'
 import { pollJob, type JobResult } from '@/hooks/use-job-status'
@@ -1015,6 +1014,7 @@ function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progre
               onToggle={onToggle}
               showTimer={true}
               micTestId="capture-mic"
+              smStack
               className="flex-1 sm:flex-none sm:w-full"
             />
             <p className="text-xs text-muted-foreground shrink-0 sm:shrink sm:text-center sm:leading-tight">
@@ -1072,7 +1072,7 @@ function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progre
             data-testid="capture-add-photos"
           >
             {isUploadingPhotos ? (
-              <TowerLoader size={0.55} className="mr-1.5" label="Loading..." />
+              <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
             ) : (
               <Camera className="h-4 w-4 mr-1.5" />
             )}
@@ -1154,7 +1154,7 @@ function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progre
             data-testid="capture-add-photos"
           >
             {isUploadingPhotos ? (
-              <TowerLoader size={0.55} className="mr-1.5" label="Loading..." />
+              <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
             ) : (
               <Camera className="h-4 w-4 mr-1.5" />
             )}
@@ -1197,7 +1197,7 @@ export function PhotoThumbnailGrid({ items, onRemove }: { items: PhotoItem[]; on
             <img src={item.previewUrl} alt="" className="h-full w-full object-cover" />
             {item.status === 'uploading' && (
               <div className="absolute inset-0 flex items-center justify-center bg-background/60">
-                <TowerLoader size={0.5} label="Loading..." />
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
               </div>
             )}
             {item.status === 'error' && (
