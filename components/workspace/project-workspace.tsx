@@ -110,28 +110,19 @@ export function ProjectWorkspace({
      *   Desktop (md+):  sticky vertical sidebar on the left (stays in view while
      *     the page content scrolls), content on the right
      */
-    <div className="flex min-h-full flex-col md:flex-row md:gap-0 md:items-start">
+    <div className="flex min-h-full flex-row gap-0 items-start">
 
-      {/* Nav — horizontal sticky strip on mobile, fixed vertical sidebar on desktop.
-          The primary sidebar exposes its width as --app-sidebar-width so this
-          sub-nav stays aligned even when the primary sidebar is collapsed. */}
+      {/* Nav — vertical collapsible sub-sidebar at ALL breakpoints. In-flow sticky
+          on mobile; fixed (aligned after the primary sidebar) on desktop. */}
       <div
-        className={`relative sticky top-0 z-20 shrink-0 md:fixed md:left-[var(--app-sidebar-width)] md:top-[120px] md:z-30 md:h-[calc(100vh-120px)] md:overflow-y-auto transition-all duration-200 ${sidebarCollapsed ? 'md:w-14' : 'md:w-48'}`}
+        className={`relative sticky top-0 z-20 shrink-0 self-start h-[calc(100dvh-56px)] overflow-y-auto md:fixed md:left-[var(--app-sidebar-width)] md:top-[120px] md:z-30 md:h-[calc(100vh-120px)] transition-all duration-200 ${sidebarCollapsed ? 'w-14 md:w-14' : 'w-40 md:w-48'}`}
       >
-        {/* Right-edge fade gradient — signals horizontal scrollability on mobile */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-background to-transparent md:hidden"
-        />
         <aside
           className={[
             'shrink-0 border-border bg-background h-full flex flex-col',
-            // mobile
-            'w-full border-b px-2 py-2',
-            'overflow-x-auto scrollbar-none',
-            // desktop
-            'md:overflow-x-visible md:overflow-y-auto md:border-b-0 md:border-r md:pt-4 md:pb-0',
-            sidebarCollapsed ? 'md:px-1' : 'md:px-3',
+            'border-r overflow-y-auto pt-3 pb-0',
+            'md:pt-4',
+            sidebarCollapsed ? 'px-1' : 'px-2 md:px-3',
           ].join(' ')}
         >
           <div className="flex flex-col flex-1 md:overflow-y-auto md:pt-1">
@@ -141,10 +132,11 @@ export function ProjectWorkspace({
               activeValue={activeTab}
               onSelect={handleSelect}
               collapsed={sidebarCollapsed}
+              alwaysVertical
             />
           </div>
 
-          <div className="mt-auto hidden md:flex md:flex-col md:justify-center md:h-[var(--app-rail-footer-h)] md:shrink-0 border-t border-[var(--glass-border)] p-2">
+          <div className="mt-auto flex flex-col justify-center shrink-0 md:h-[var(--app-rail-footer-h)] border-t border-[var(--glass-border)] p-2">
             <div className={`flex ${sidebarCollapsed ? 'justify-center' : 'justify-end'}`}>
               <button
                 type="button"
