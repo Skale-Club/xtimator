@@ -143,10 +143,13 @@ export function VoiceRecorder(props: VoiceRecorderProps) {
   // (mobile stays a single inline row).
   if (size === 'sm') {
     if (smStack) {
+      // Order via flexbox so the pieces sit differently per breakpoint:
+      //   mobile (row):     [ wave+timer | label | mic ]   (mic on the right)
+      //   desktop (column): [ mic / wave+timer / label ]   (mic on top)
       return (
         <div className={cn('flex items-center gap-3 sm:flex-col sm:items-center sm:gap-2', className)}>
-          {micButton}
-          <div className="flex items-center gap-2 flex-1 min-w-0 sm:w-full sm:flex-none sm:justify-center">
+          <div className="order-3 sm:order-1 shrink-0">{micButton}</div>
+          <div className="order-1 sm:order-2 flex items-center gap-2 flex-1 min-w-0 sm:w-full sm:flex-none sm:justify-center">
             <div className="flex-1 min-w-0 sm:flex-none sm:w-12">
               <WaveformVisualizer analyser={analyser} isRecording={isRecording} height={30} />
             </div>
@@ -156,6 +159,11 @@ export function VoiceRecorder(props: VoiceRecorderProps) {
               </span>
             )}
           </div>
+          {helperText && (
+            <p className="order-2 sm:order-3 shrink-0 text-xs text-muted-foreground sm:text-center sm:leading-tight">
+              {helperText}
+            </p>
+          )}
           {belowMic}
         </div>
       )

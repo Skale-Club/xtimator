@@ -1009,7 +1009,7 @@ function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progre
               Sits FIRST (left on desktop / top on mobile). */}
           <div className="flex flex-1 flex-col p-3 min-h-0">
             {isRecording ? (
-              <div className="flex-1 rounded-md border border-input bg-muted/20 px-3 py-2 text-sm overflow-y-auto min-h-[100px] sm:min-h-[140px]">
+              <div className="flex-1 rounded-md border border-input bg-muted/20 px-3 py-2 text-sm overflow-y-auto min-h-[170px] sm:min-h-[230px]">
                 {liveTranscript || interimTranscript ? (
                   <p className="text-foreground leading-relaxed whitespace-pre-wrap">
                     {liveTranscript}
@@ -1028,24 +1028,25 @@ function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progre
                 value={descriptionText}
                 onChange={e => setDescriptionText(e.target.value)}
                 placeholder={t('Describe the job here...')}
-                className="flex-1 w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring min-h-[100px] sm:min-h-[140px]"
+                className="flex-1 w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring min-h-[170px] sm:min-h-[230px]"
                 data-testid="capture-description"
               />
             )}
           </div>
 
-          {/* Mic section — now on the RIGHT (desktop) / bottom (mobile). The WHOLE
-              area is a tap target (mic + waveform + timer + label); clicks on the
-              inner mic button are skipped so its own onClick doesn't double-fire. */}
+          {/* Mic section — FIRST on mobile (recording before the text), RIGHT
+              column on desktop. The WHOLE area is a tap target; clicks on the
+              inner mic button are skipped so its own onClick doesn't double-fire.
+              VoiceRecorder (smStack) lays out wave/timer/label/mic responsively:
+              [wave | label | mic] on mobile, [mic / wave / label] on desktop. */}
           <div
             onClick={(e) => {
               if ((e.target as HTMLElement).closest('button')) return
               onToggle()
             }}
             className="
-              flex items-center gap-3 px-4 py-3 border-t shrink-0 cursor-pointer
-              sm:flex-col sm:items-center sm:justify-center
-              sm:border-t-0 sm:border-l sm:w-40 sm:py-5 sm:gap-3
+              order-first sm:order-none flex items-center px-4 py-3 border-b shrink-0 cursor-pointer
+              sm:border-b-0 sm:border-l sm:w-40 sm:py-5
             "
           >
             <VoiceRecorder
@@ -1057,11 +1058,9 @@ function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progre
               showTimer={true}
               micTestId="capture-mic"
               smStack
-              className="flex-1 sm:flex-none sm:w-full"
+              helperText={isRecording ? t('Tap to stop') : t('Tap to record')}
+              className="flex-1 sm:w-full"
             />
-            <p className="text-xs text-muted-foreground shrink-0 sm:shrink sm:text-center sm:leading-tight">
-              {isRecording ? t('Tap to stop') : t('Tap to record')}
-            </p>
           </div>
         </div>
 
