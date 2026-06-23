@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/dialog'
 import { NewProjectWizard } from './new-project-wizard'
 import { T } from '@/components/i18n/t'
+import { X } from 'lucide-react'
 import { EstimateLanguageSelector } from '@/components/estimate/estimate-language-selector'
 import { useLanguage } from '@/lib/i18n/language-context'
 import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
@@ -55,16 +56,31 @@ function NewProjectDialogInner() {
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose() }}>
-      <DialogContent className="p-0 gap-0 sm:max-w-xl max-h-[85dvh] flex flex-col">
-        <DialogHeader className="px-4 py-3 border-b shrink-0 flex flex-row items-center justify-between gap-2 text-left pr-12">
+      <DialogContent
+        showCloseButton={false}
+        className="p-0 gap-0 sm:max-w-xl max-h-[85dvh] flex flex-col"
+      >
+        <DialogHeader className="px-4 py-3 border-b shrink-0 flex flex-row items-center justify-between gap-2 text-left">
           <DialogTitle className="text-base font-semibold">
             <T>New Xtimate</T>
           </DialogTitle>
-          <EstimateLanguageSelector
-            value={estimateLanguage}
-            onChange={handleLanguageChange}
-            compact
-          />
+          {/* Selector + close button share one items-center row so the X is
+              vertically aligned with the language selector. */}
+          <div className="flex items-center gap-1.5">
+            <EstimateLanguageSelector
+              value={estimateLanguage}
+              onChange={handleLanguageChange}
+              compact
+            />
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close"
+              className="rounded-xs opacity-70 transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
           <DialogDescription className="sr-only">
             <T>Record audio, type, or upload photos to generate an estimate.</T>
           </DialogDescription>

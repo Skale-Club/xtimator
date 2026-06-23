@@ -18,7 +18,7 @@ import { createClient } from '@/lib/supabase/client'
 import { createStorage } from '@/lib/storage'
 import { getSupportedAudioMimeType, getFileExtension } from '@/lib/utils/media-format'
 import { compressImage } from '@/lib/utils/image-compressor'
-import { Camera } from 'lucide-react'
+import { Camera, Sparkles } from 'lucide-react'
 import { LoadingDots } from '@/components/ui/loading-dots'
 import type { ProjectDetail } from '@/lib/queries/project'
 import type { Photo } from '@/lib/queries/photo'
@@ -1099,6 +1099,7 @@ function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progre
             size="sm"
             data-testid="generate-estimate-btn"
           >
+            <Sparkles className="h-4 w-4 mr-1.5" />
             {t('Generate')}
           </Button>
         </div>

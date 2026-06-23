@@ -81,6 +81,6 @@ export function resolveEstimateLanguageWithSource(
  */
 export const LANGUAGE_LABELS: Record<EstimateLanguage, string> = {
   en: 'English',
-  pt: 'Portuguese (Brazil)',
-  es: 'Spanish (Latin American)',
+  pt: 'Portuguese',
+  es: 'Spanish',
 }
