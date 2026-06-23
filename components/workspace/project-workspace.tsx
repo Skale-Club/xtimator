@@ -134,21 +134,8 @@ export function ProjectWorkspace({
             sidebarCollapsed ? 'md:px-1' : 'md:px-3',
           ].join(' ')}
         >
-          <div className="flex flex-col flex-1 md:overflow-y-auto">
-            {/* Toggle — desktop only, sits above nav items */}
-            <div className={`hidden md:flex mb-3 ${sidebarCollapsed ? 'justify-center' : 'justify-end'}`}>
-              <button
-                type="button"
-                onClick={() => setSidebarCollapsed((c) => !c)}
-                title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-                className="p-1 rounded text-muted-foreground/40 hover:text-muted-foreground hover:bg-muted/40 transition-colors"
-              >
-                {sidebarCollapsed
-                  ? <ChevronRight className="h-4 w-4" />
-                  : <ChevronLeft className="h-4 w-4" />}
-              </button>
-            </div>
-
+          <div className="flex flex-col flex-1 md:overflow-y-auto md:pt-1">
+            {/* Collapse toggle lives in the footer below — a single control. */}
             <SubNav
               items={NAV_ITEMS}
               activeValue={activeTab}

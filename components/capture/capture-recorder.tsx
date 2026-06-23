@@ -1099,8 +1099,8 @@ function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progre
             size="sm"
             data-testid="generate-estimate-btn"
           >
-            <Sparkles className="h-4 w-4 mr-1.5" />
             {t('Generate')}
+            <Sparkles className="h-4 w-4 ml-1.5" />
           </Button>
         </div>
       </div>

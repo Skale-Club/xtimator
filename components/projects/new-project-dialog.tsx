@@ -13,7 +13,7 @@ import { NewProjectWizard } from './new-project-wizard'
 import { T } from '@/components/i18n/t'
 import { X } from 'lucide-react'
 import { EstimateLanguageSelector } from '@/components/estimate/estimate-language-selector'
-import { useLanguage } from '@/lib/i18n/language-context'
+import { useLanguage, ScopedLanguageProvider } from '@/lib/i18n/language-context'
 import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
 
 export const NEW_PROJECT_MODAL_PARAM = 'modal'
@@ -33,17 +33,10 @@ function NewProjectDialogInner() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const pathname = usePathname()
-  const { language: appLanguage, setLanguage } = useLanguage()
+  const { language: appLanguage } = useLanguage()
   const [estimateLanguage, setEstimateLanguage] = useState<EstimateLanguage>(
     appLanguage === 'pt' || appLanguage === 'es' ? appLanguage : 'en'
   )
-
-  // Selecting a language sets BOTH the estimate target language AND the app UI
-  // language, so the popup content re-renders in the chosen language too.
-  function handleLanguageChange(lang: EstimateLanguage) {
-    setEstimateLanguage(lang)
-    setLanguage(lang)
-  }
 
   const isOpen = searchParams.get(NEW_PROJECT_MODAL_PARAM) === NEW_PROJECT_MODAL_VALUE
 
@@ -60,39 +53,43 @@ function NewProjectDialogInner() {
         showCloseButton={false}
         className="p-0 gap-0 sm:max-w-xl max-h-[85dvh] flex flex-col"
       >
-        <DialogHeader className="px-4 py-3 border-b shrink-0 flex flex-row items-center justify-between gap-2 text-left">
-          <DialogTitle className="text-base font-semibold">
-            <T>New Xtimate</T>
-          </DialogTitle>
-          {/* Selector + close button share one items-center row so the X is
-              vertically aligned with the language selector. */}
-          <div className="flex items-center gap-1.5">
-            <EstimateLanguageSelector
-              value={estimateLanguage}
-              onChange={handleLanguageChange}
-              compact
-            />
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="Close"
-              className="rounded-xs opacity-70 transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-          <DialogDescription className="sr-only">
-            <T>Record audio, type, or upload photos to generate an estimate.</T>
-          </DialogDescription>
-        </DialogHeader>
+        {/* Scope the language to this popup only — selecting a language re-skins
+            the popup + the estimate, never the rest of the app. */}
+        <ScopedLanguageProvider language={estimateLanguage} setLanguage={setEstimateLanguage}>
+          <DialogHeader className="px-4 py-3 border-b shrink-0 flex flex-row items-center justify-between gap-2 text-left">
+            <DialogTitle className="text-base font-semibold">
+              <T>New Xtimate</T>
+            </DialogTitle>
+            {/* Selector + close button share one items-center row so the X is
+                vertically aligned with the language selector. */}
+            <div className="flex items-center gap-1.5">
+              <EstimateLanguageSelector
+                value={estimateLanguage}
+                onChange={setEstimateLanguage}
+                compact
+              />
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="Close"
+                className="rounded-xs opacity-70 transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <DialogDescription className="sr-only">
+              <T>Record audio, type, or upload photos to generate an estimate.</T>
+            </DialogDescription>
+          </DialogHeader>
 
-        {isOpen && (
-          <NewProjectWizard
-            onComplete={onClose}
-            estimateLanguage={estimateLanguage}
-            setEstimateLanguage={setEstimateLanguage}
-          />
-        )}
+          {isOpen && (
+            <NewProjectWizard
+              onComplete={onClose}
+              estimateLanguage={estimateLanguage}
+              setEstimateLanguage={setEstimateLanguage}
+            />
+          )}
+        </ScopedLanguageProvider>
       </DialogContent>
     </Dialog>
   )

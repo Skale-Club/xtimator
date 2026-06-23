@@ -44,6 +44,37 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   )
 }
 
+/**
+ * Overrides the language for a subtree WITHOUT touching the global app language.
+ * Every `useTranslation()` inside renders in `language`; the rest of the app is
+ * unaffected. Reuses the parent's pendingCount/setPendingCount so async
+ * translations still trigger a re-render. Used by the New Xtimate popup so its
+ * language selector re-skins only the popup (and the estimate), not the app.
+ */
+export function ScopedLanguageProvider({
+  language,
+  setLanguage,
+  children,
+}: {
+  language: Language
+  setLanguage: (lang: Language) => void
+  children: React.ReactNode
+}) {
+  const parent = useContext(LanguageContext)
+  return (
+    <LanguageContext.Provider
+      value={{
+        language,
+        setLanguage,
+        pendingCount: parent.pendingCount,
+        setPendingCount: parent.setPendingCount,
+      }}
+    >
+      {children}
+    </LanguageContext.Provider>
+  )
+}
+
 export function useLanguage() {
   return useContext(LanguageContext)
 }
