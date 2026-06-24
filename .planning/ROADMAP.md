@@ -1285,7 +1285,7 @@ Plans:
  (completed 2026-06-24)
 - [x] **Phase 111: `billing_config` Store + Super-Admin Billing Panel** — A `billing_config` section in the encrypted runtime-config store + a super-admin "Billing" panel editing markup, denomination, per-tier grant, prices, top-up packs, Whisper rate, fee %, thresholds — applied at runtime, tenant has no access. Every downstream phase reads from it. **2 plans (2 waves).**
  (completed 2026-06-24)
-- [ ] **Phase 112: Credit Ledger + Consumption Metering** — Append-only tenant-scoped `credit_ledger` (grant/debit/topup/adjust) with fast-read cached balance; each instrumented `usage_events` op debits `real_cost × markup`; per-tier `monthlyCreditGrant`; idempotent debits; pre-op balance check with top-up path; zero-debit for non-spend ops (MCP conversation).
+- [x] **Phase 112: Credit Ledger + Consumption Metering** — Append-only tenant-scoped `credit_ledger` (grant/debit/topup/adjust) with fast-read cached balance; each instrumented `usage_events` op debits `real_cost × markup`; per-tier `monthlyCreditGrant`; idempotent debits; pre-op balance check with top-up path; zero-debit for non-spend ops (MCP conversation). (completed 2026-06-24)
 - [ ] **Phase 113: Stripe Rail — Grants, Top-Ups + Parallel-Run Transition** — `invoice.paid` grants the tier allowance idempotently; one-time top-up checkout credits the ledger; low/zero balance offers top-up + upgrade without silent mid-job block; credits run in parallel with count-based tiers so no existing account breaks (counts degrade to secondary guard-rails).
 - [ ] **Phase 114: Estimate Payment Fee + Payment-UI Gating + Disclosure** — Fill the omitted `application_fee_amount` hook on both the invoice and Phase-70 checkout paths (fee % from `billing_config`, sane minimum/rounding); a single `usePaymentsEnabled` guard gates ALL payment UI to `stripe_connect_status = 'active'` (no orphan elements, both states tested); clear fee disclosure at the Stripe connection flow.
 - [ ] **Phase 115: Credit Balance UX (owner-facing)** — Owner sees a simple credit balance (header/settings) with consumption history and rough per-action guidance (never token math); low/zero-balance states show a warning + top-up/upgrade CTA reusing the existing threshold-notification path.
@@ -1334,7 +1334,7 @@ Plans:
 - [x] 112-01-PLAN.md — credit_ledger migration (tenant-readable RLS) + companies.credit_balance column + static contract test [Wave 1]
 - [x] 112-02-PLAN.md — billing_config enforcementEnabled flag (default false) + entitlements monthlyCreditGrant on 4 tiers [Wave 1]
 - [x] 112-03-PLAN.md — lib/billing/credit-ledger.ts: recordCreditDebit / grantCredits / checkCredits / reconcileBalance (never-throw, idempotent, config-driven) [Wave 2]
-- [ ] 112-04-PLAN.md — wire the debit into generate-estimate / analyze-photos / transcribe-audio / price-research orchestrator [Wave 3]
+- [x] 112-04-PLAN.md — wire the debit into generate-estimate / analyze-photos / transcribe-audio / price-research orchestrator [Wave 3]
 
 ### Phase 113: Stripe Rail — Grants, Top-Ups + Parallel-Run Transition
 **Goal**: Stripe is wired as the payment rail for the credit model: a paid subscription invoice grants the tier's monthly credit allowance to the ledger idempotently, a one-time top-up checkout credits the ledger, low/zero balance offers a top-up (and an upgrade suggestion when the usage pattern justifies it) without silently blocking a job mid-flow, and the whole credit model runs in parallel with the existing count-based tiers so no existing account breaks during the transition.
