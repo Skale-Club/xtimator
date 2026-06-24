@@ -337,3 +337,135 @@ describe('researchUnmatchedPrices — composition (Task 2)', () => {
     expect(keysRun2).toEqual(keysRun1)
   })
 })
+
+describe('researchUnmatchedPrices — cost-control cap + in-run memo (Phase 109, Task 1)', () => {
+  // Default cap is 25 (env-overridable). We build 28 ai_estimate misses so the cap
+  // drops 3 — without setting the env, asserting against the documented default.
+  const DEFAULT_CAP = 25
+
+  it('Test 11 (cap): with > cap ai_estimate candidates, provider.lookup gets at most the cap; over-cap items keep ai_estimate; the dropped count is logged', async () => {
+    const total = DEFAULT_CAP + 3
+    const items = Array.from({ length: total }, (_, i) =>
+      item({ description: `Service ${i}`, unit_price: 10 + i, price_source: 'ai_estimate' })
+    )
+    const sections = [section('Work', items)]
+
+    vi.mocked(cacheGet).mockResolvedValue(null) // every candidate misses → provider path
+    vi.mocked(checkQuota).mockResolvedValue({ allowed: true, remaining: 1000 })
+    // Evidence-gate every result so re-tags happen for the researched slice.
+    const lookup = vi.fn(async (reqs: { name: string }[]) =>
+      reqs.map((r) => usable(r.name, 100))
+    )
+    vi.mocked(getPriceResearchProvider).mockResolvedValue({ lookup } as never)
+    vi.mocked(isUsableCandidate).mockReturnValue(true)
+    vi.mocked(recordUsage).mockResolvedValue(undefined)
+    vi.mocked(cachePut).mockResolvedValue(undefined)
+
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    const out = await researchUnmatchedPrices(sections, ctx())
+
+    // Provider.lookup received AT MOST the cap count of names.
+    expect(lookup).toHaveBeenCalledTimes(1)
+    const lookedUpNames: string[] = lookup.mock.calls[0][0].map((x: { name: string }) => x.name)
+    expect(lookedUpNames.length).toBe(DEFAULT_CAP)
+
+    // The 3 over-cap items (the LAST 3) were NOT sent to the provider...
+    const overCap = items.slice(DEFAULT_CAP)
+    for (const oc of overCap) expect(lookedUpNames).not.toContain(oc.description)
+
+    // ...and they KEEP their non-zero ai_estimate price (not $0, not dropped from output).
+    const outItems = out.sections[0].items
+    expect(outItems.length).toBe(total) // nothing dropped from the tree
+    for (let i = DEFAULT_CAP; i < total; i++) {
+      expect(outItems[i].price_source).toBe('ai_estimate')
+      expect(outItems[i].unit_price).toBe(10 + i) // model price untouched, non-zero
+    }
+    // The researched slice was re-tagged.
+    expect(outItems[0].price_source).toBe('researched')
+
+    // NO-SILENT-CAPS: a "cap hit / dropped" warning logged the dropped count.
+    expect(warnSpy).toHaveBeenCalled()
+    const msg = warnSpy.mock.calls.map((c) => String(c[0])).join('\n')
+    expect(msg).toMatch(/cap hit/)
+    expect(msg).toMatch(/3 dropped/)
+    expect(msg).toContain(`MAX_RESEARCH_ITEMS_PER_ESTIMATE=${DEFAULT_CAP}`)
+
+    warnSpy.mockRestore()
+  })
+
+  it('Test 12 (no cap warning under the cap): a small candidate set logs no cap warning', async () => {
+    const sections = [
+      section('Work', [item({ description: 'Drywall repair', unit_price: 0, price_source: 'ai_estimate' })]),
+    ]
+    vi.mocked(cacheGet).mockResolvedValue(null)
+    vi.mocked(checkQuota).mockResolvedValue({ allowed: true, remaining: 5 })
+    const lookup = vi.fn().mockResolvedValue([usable('Drywall repair', 175)])
+    vi.mocked(getPriceResearchProvider).mockResolvedValue({ lookup } as never)
+    vi.mocked(isUsableCandidate).mockReturnValue(true)
+    vi.mocked(recordUsage).mockResolvedValue(undefined)
+    vi.mocked(cachePut).mockResolvedValue(undefined)
+
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    await researchUnmatchedPrices(sections, ctx())
+    const capWarn = warnSpy.mock.calls.map((c) => String(c[0])).filter((m) => /cap hit/.test(m))
+    expect(capWarn.length).toBe(0)
+    warnSpy.mockRestore()
+  })
+
+  it('Test 13 (in-run memo): two items with the same normalized (name, region) → ONE provider lookup for that key + ONE recordUsage; both re-tagged', async () => {
+    // Two distinct line items whose descriptions normalize to the same key.
+    const sections = [
+      section('Work', [
+        item({ description: 'Couch cleaning 8 seats', unit_price: 0, price_source: 'ai_estimate' }),
+        item({ description: 'Couch cleaning 8 seats', unit_price: 0, price_source: 'ai_estimate' }),
+      ]),
+    ]
+    vi.mocked(cacheGet).mockResolvedValue(null)
+    vi.mocked(checkQuota).mockResolvedValue({ allowed: true, remaining: 50 })
+    // The provider would echo one result per requested name; the orchestrator must
+    // request the key only ONCE (dedup), so the lookup arg carries a single item.
+    const lookup = vi.fn(async (reqs: { name: string }[]) =>
+      reqs.map((r) => usable(r.name, 180))
+    )
+    vi.mocked(getPriceResearchProvider).mockResolvedValue({ lookup } as never)
+    vi.mocked(isUsableCandidate).mockReturnValue(true)
+    vi.mocked(recordUsage).mockResolvedValue(undefined)
+    vi.mocked(cachePut).mockResolvedValue(undefined)
+
+    const out = await researchUnmatchedPrices(sections, ctx())
+
+    // ONE batched lookup carrying a SINGLE deduped item for that key.
+    expect(lookup).toHaveBeenCalledTimes(1)
+    expect(lookup.mock.calls[0][0]).toEqual([{ name: 'Couch cleaning 8 seats' }])
+
+    // recordUsage fired ONCE for that key (no double-pay within the run).
+    expect(recordUsage).toHaveBeenCalledTimes(1)
+
+    // BOTH items re-tagged 'researched' from the single result.
+    const items = out.sections[0].items
+    expect(items[0].price_source).toBe('researched')
+    expect(items[0].unit_price).toBe(180)
+    expect(items[1].price_source).toBe('researched')
+    expect(items[1].unit_price).toBe(180)
+  })
+
+  it('Test 14 (never-throw under cap/memo path): a throwing provider on a capped+duplicate set still returns the input sections', async () => {
+    const sections = [
+      section('Work', [
+        item({ description: 'Couch cleaning 8 seats', unit_price: 0, price_source: 'ai_estimate' }),
+        item({ description: 'Couch cleaning 8 seats', unit_price: 0, price_source: 'ai_estimate' }),
+      ]),
+    ]
+    vi.mocked(cacheGet).mockResolvedValue(null)
+    vi.mocked(checkQuota).mockResolvedValue({ allowed: true, remaining: 50 })
+    const lookup = vi.fn().mockRejectedValue(new Error('provider exploded'))
+    vi.mocked(getPriceResearchProvider).mockResolvedValue({ lookup } as never)
+
+    const out = await researchUnmatchedPrices(sections, ctx())
+
+    // No throw → input sections returned; the two $0 items are flagged.
+    expect(out.sections).toEqual(sections)
+    expect(out.flaggedUnpriced).toBe(2)
+  })
+})

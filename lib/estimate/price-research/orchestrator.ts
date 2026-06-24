@@ -81,6 +81,18 @@ export interface ResearchOutcome {
   flaggedUnpriced: number
 }
 
+/**
+ * COST/LATENCY BOUND (Phase 109): research at most this many unmatched items per
+ * estimate. Mirrors AUTO_REFINE_MAX_ATTEMPTS (decide.ts) EXACTLY — env-overridable,
+ * a malformed/non-positive value falls back to the default. Items beyond the cap KEEP
+ * their non-zero ai_estimate price (never $0) and NEVER reach the provider; the dropped
+ * count is LOGGED (no silent truncation). Default 25 (a sane worst-case per estimate).
+ */
+const MAX_RESEARCH_ITEMS_PER_ESTIMATE = (() => {
+  const raw = Number(process.env.MAX_RESEARCH_ITEMS_PER_ESTIMATE)
+  return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : 25
+})()
+
 /** True when a unit_price is a finite, strictly-positive number (a real price). */
 function isPriced(unit_price: number): boolean {
   return typeof unit_price === 'number' && Number.isFinite(unit_price) && unit_price > 0
@@ -112,6 +124,17 @@ function buildIdemKey(ctx: ResearchContext, name: string): string {
 }
 
 /**
+ * IN-RUN MEMO KEY (Phase 109): `${normName}@@${region}` — the same normalized
+ * (name, region) derivation the cache uses. The memo is a per-CALL `Map` (see below):
+ * within a single generation run the Phase-96 auto-refine loop re-invokes generate in
+ * the SAME process, so a second pass over the same item is a memo HIT — it pays NO
+ * provider call and NO allowance. It is a plain Map; lookups never throw.
+ */
+function buildMemoKey(region: ResearchContext['region'], name: string): string {
+  return `${normalizeServiceNameKey(name)}@@${normalizeRegion(region)}`
+}
+
+/**
  * Research the post-anchor `ai_estimate` items against the tenant cache + the gated
  * provider, evidence-gate the re-tag, meter each search, and never resolve to $0.
  * NEVER throws — any error returns the input sections + a best-effort flagged count.
@@ -135,6 +158,27 @@ export async function researchUnmatchedPrices(
       return { sections, flaggedUnpriced: countFlaggedUnpriced(sections) }
     }
 
+    // --- Cost-control CAP (Phase 109): research at most MAX_RESEARCH_ITEMS_PER_ESTIMATE
+    // items. The over-cap remainder is left untouched — those items KEEP their non-zero
+    // ai_estimate price (the model already priced them; they are never $0'd here) and
+    // never reach the cache/provider. NO-SILENT-CAPS: the dropped count is logged.
+    const researchTargets = candidates.slice(0, MAX_RESEARCH_ITEMS_PER_ESTIMATE)
+    const droppedCount = candidates.length - researchTargets.length
+    if (droppedCount > 0) {
+      console.warn(
+        `[price-research] cap hit: researching ${researchTargets.length}/${candidates.length} items ` +
+          `(MAX_RESEARCH_ITEMS_PER_ESTIMATE=${MAX_RESEARCH_ITEMS_PER_ESTIMATE}); ${droppedCount} dropped to ai_estimate`
+      )
+    }
+
+    // IN-RUN MEMO (Phase 109): keyed by `${normName}@@${region}`. SCOPE = this CALL.
+    // Two candidates sharing a normalized (name, region) within one estimate hit the
+    // memo on the second lookup → ONE provider call + ONE recordUsage for that key. (A
+    // memo HIT stages a result without re-querying the provider or re-paying allowance.)
+    // It is a plain Map → lookups never throw. A null entry records a known MISS so a
+    // duplicate miss is not re-searched within the same call.
+    const memo = new Map<string, import('./provider').PriceResearchResult | null>()
+
     // Staged re-tags: candidate item reference → its rewritten 'researched' item.
     // Items absent from this map are returned untouched (price_book, owner-edited,
     // and ai_estimate items the research could not improve all stay as-is).
@@ -142,7 +186,7 @@ export async function researchUnmatchedPrices(
 
     // --- Step 1: cache pass (a HIT is free — no provider call, no allowance) ---
     const misses: LineItemOutput[] = []
-    for (const item of candidates) {
+    for (const item of researchTargets) {
       let cached = null
       try {
         cached = await cacheGet(ctx.companyId, item.description, ctx.region, ctx.currency)
@@ -156,51 +200,90 @@ export async function researchUnmatchedPrices(
       }
     }
 
-    // --- Step 2: gated, batched provider pass for the misses ---
+    // --- Step 2: gated, fallback-aware, batched provider pass for the misses ---
     if (misses.length > 0) {
-      // Over-allowance SKIPS the provider for the whole miss set (RMETER-03). The
-      // misses keep ai_estimate; the call still returns sections (never hard-fails).
-      const quota = await checkQuota(ctx.supabase, ctx.companyId, 'price_research')
-      if (quota.allowed) {
-        const provider = await getPriceResearchProvider()
-        // Unconfigured provider (null) → misses keep ai_estimate (safe no-op).
-        if (provider) {
-          const results = await provider.lookup(
-            misses.map((m) => ({ name: m.description })),
-            ctx.region,
-            ctx.currency
-          )
+      // First, satisfy any miss whose memo key was already resolved earlier in THIS
+      // call (a duplicate (normName, region) within the estimate). A memo HIT re-tags
+      // from the stored result with NO provider call and NO allowance; a memoized
+      // null is a known miss. The remainder still needs a real search.
+      const stillMissing: LineItemOutput[] = []
+      for (const m of misses) {
+        const mk = buildMemoKey(ctx.region, m.description)
+        if (memo.has(mk)) {
+          const memoized = memo.get(mk) ?? null
+          if (memoized && isUsableCandidate(memoized) && typeof memoized.unit_price === 'number') {
+            retag.set(m, { ...m, unit_price: memoized.unit_price, price_source: 'researched' as const })
+          }
+          // memoized null (or unusable) → known miss; item keeps ai_estimate.
+        } else {
+          stillMissing.push(m)
+        }
+      }
 
-          // Re-associate each result to its requested item by name.
-          const byName = new Map<string, LineItemOutput>()
-          for (const m of misses) byName.set(m.description, m)
-
-          for (const result of results) {
-            const item = byName.get(result.name)
-            if (!item) continue
-
-            // Meter once per searched item (idempotent — RMETER-01). A cache HIT
-            // never reaches here, so a hit consumes no allowance.
-            try {
-              await recordUsage(ctx.supabase, ctx.companyId, 'price_researched', 1, buildIdemKey(ctx, result.name))
-            } catch {
-              // Metering is best-effort; a ledger error must not drop the price.
+      if (stillMissing.length > 0) {
+        // Over-allowance SKIPS the provider for the whole miss set (RMETER-03). The
+        // misses keep ai_estimate; the call still returns sections (never hard-fails).
+        const quota = await checkQuota(ctx.supabase, ctx.companyId, 'price_research')
+        if (quota.allowed) {
+          const provider = await getPriceResearchProvider()
+          // Unconfigured provider (null) → misses keep ai_estimate (safe no-op).
+          if (provider) {
+            // Dedup the lookup by memo key so a batch never carries two items sharing
+            // a normalized (name, region): the search runs ONCE per key and every item
+            // sharing that key re-tags from the one result + one recordUsage.
+            const repByKey = new Map<string, LineItemOutput>()
+            for (const m of stillMissing) {
+              const mk = buildMemoKey(ctx.region, m.description)
+              if (!repByKey.has(mk)) repByKey.set(mk, m)
             }
+            const lookupItems = Array.from(repByKey.values())
 
-            // EVIDENCE GATE (RPRICE-04): re-tag 'researched' ONLY with a usable,
-            // cited, positive price; otherwise the item KEEPS ai_estimate (no put).
-            if (isUsableCandidate(result) && typeof result.unit_price === 'number') {
-              retag.set(item, { ...item, unit_price: result.unit_price, price_source: 'researched' as const })
+            const results = await provider.lookup(
+              lookupItems.map((m) => ({ name: m.description })),
+              ctx.region,
+              ctx.currency
+            )
+
+            // Re-associate each result to its requested item by name.
+            const byName = new Map<string, LineItemOutput>()
+            for (const m of lookupItems) byName.set(m.description, m)
+
+            for (const result of results) {
+              if (!byName.has(result.name)) continue
+              const mk = buildMemoKey(ctx.region, result.name)
+
+              // Meter once per searched key (idempotent — RMETER-01). A cache HIT or a
+              // memo HIT never reaches here, so neither consumes allowance.
               try {
-                await cachePut({
-                  companyId: ctx.companyId,
-                  name: result.name,
-                  region: ctx.region,
-                  currency: ctx.currency,
-                  datum: { unit_price: result.unit_price, source: result.source_url, confidence: result.confidence },
-                })
+                await recordUsage(ctx.supabase, ctx.companyId, 'price_researched', 1, buildIdemKey(ctx, result.name))
               } catch {
-                // A cache write failure must not break the (already staged) re-tag.
+                // Metering is best-effort; a ledger error must not drop the price.
+              }
+
+              const usable = isUsableCandidate(result) && typeof result.unit_price === 'number'
+              // Memoize the outcome (a usable result, or null for a known miss) so a
+              // duplicate (normName, region) later in THIS call is a free memo HIT.
+              memo.set(mk, usable ? result : null)
+
+              // EVIDENCE GATE (RPRICE-04): re-tag 'researched' ONLY with a usable,
+              // cited, positive price — across ALL items sharing this memo key.
+              if (usable) {
+                for (const m of stillMissing) {
+                  if (buildMemoKey(ctx.region, m.description) === mk) {
+                    retag.set(m, { ...m, unit_price: result.unit_price as number, price_source: 'researched' as const })
+                  }
+                }
+                try {
+                  await cachePut({
+                    companyId: ctx.companyId,
+                    name: result.name,
+                    region: ctx.region,
+                    currency: ctx.currency,
+                    datum: { unit_price: result.unit_price as number, source: result.source_url, confidence: result.confidence },
+                  })
+                } catch {
+                  // A cache write failure must not break the (already staged) re-tag.
+                }
               }
             }
           }
