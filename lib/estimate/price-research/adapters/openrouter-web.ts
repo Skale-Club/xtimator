@@ -67,6 +67,34 @@ type OpenRouterResearchResponse = {
  * 'native' ONLY for the literal 'native'; every other value (including unset/error)
  * falls back to 'exa', the deterministic-cost default per STACK.md.
  */
+/**
+ * Robustly extract the JSON `{results:[...]}` object from the model's reply.
+ *
+ * Web-search models (e.g. claude-sonnet-4) routinely wrap the JSON in PROSE — a
+ * "Let me search…" preamble, a fenced ```json block, and a trailing "Note: …".
+ * The naive "whole content is JSON" parse fails on that shape (→ every item a
+ * miss), so we try, in order: (1) the inner of a fenced ```json block anywhere in
+ * the text, (2) the substring from the first `{` to the last `}`, (3) the trimmed
+ * whole content. Returns the first candidate that JSON.parses, else null.
+ */
+function extractJsonObject(content: string): unknown | null {
+  const candidates: string[] = []
+  const fence = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/i)
+  if (fence?.[1]) candidates.push(fence[1])
+  const first = content.indexOf('{')
+  const last = content.lastIndexOf('}')
+  if (first !== -1 && last > first) candidates.push(content.slice(first, last + 1))
+  candidates.push(content.trim())
+  for (const c of candidates) {
+    try {
+      return JSON.parse(c)
+    } catch {
+      // try the next candidate
+    }
+  }
+  return null
+}
+
 async function resolveEngine(): Promise<ResearchEngine> {
   try {
     const svc = createServiceClient()
@@ -148,15 +176,10 @@ export function makeOpenRouterWebProvider(): PriceResearchProvider {
           }
         }
 
-        // Parse the model JSON. Tolerate a fenced ```json block.
-        let parsedUnknown: unknown
-        try {
-          const stripped = content
-            .replace(/^```(?:json)?\s*/i, '')
-            .replace(/\s*```\s*$/i, '')
-            .trim()
-          parsedUnknown = JSON.parse(stripped)
-        } catch {
+        // Parse the model JSON — tolerant of prose-wrapped / fenced ```json replies
+        // (web-search models routinely return a preamble + fenced block + a note).
+        const parsedUnknown = extractJsonObject(content)
+        if (parsedUnknown == null) {
           return items.map((i) => missFor(i, currency))
         }
 

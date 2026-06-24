@@ -175,6 +175,57 @@ describe('makeOpenRouterWebProvider — evidence gate', () => {
     expect(isUsableCandidate(out[0])).toBe(true)
   })
 
+  it('extracts the price from a PROSE-WRAPPED reply (preamble + fenced ```json block + trailing note)', async () => {
+    // Regression for the live UAT bug: web-search models (claude-sonnet-4) return a
+    // "Let me search…" preamble, a fenced ```json block, and a "Note: …" suffix — NOT
+    // a bare JSON body. The old whole-content JSON.parse failed → every item a miss.
+    const inner = JSON.stringify({
+      results: [
+        {
+          name: 'Couch cleaning 8 seats',
+          unit_price: 237,
+          currency: 'USD',
+          source_url: 'https://kandmsteamcleaning.com/prices',
+          snippet: 'self-asserted (replaced by the cited content)',
+        },
+      ],
+    })
+    const content =
+      "I'll search for the average market price of couch cleaning in Austin, TX.\n" +
+      'Let me search for more specific information.\n\n' +
+      'Based on my search results, here is the pricing:\n\n' +
+      '```json\n' +
+      inner +
+      '\n```\n\n' +
+      'Note: the price is calculated from the sectional pricing structure ($179 + 2×$29).'
+    const annotations = [
+      {
+        type: 'url_citation',
+        url_citation: {
+          url: 'https://kandmsteamcleaning.com/prices',
+          title: 'Furniture & Upholstery Cleaning Price List | K&M Steam Cleaning',
+          content: 'Sectional 1st 6 feet Cleaning $179. Each Additional Foot $29.',
+        },
+      },
+    ]
+    const fetchMock = vi.fn(async () =>
+      orResponse(content, annotations) as unknown as Response
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const out = await makeOpenRouterWebProvider().lookup(
+      [{ name: 'Couch cleaning 8 seats' }],
+      region,
+      'USD'
+    )
+
+    expect(out).toHaveLength(1)
+    expect(out[0].unit_price).toBe(237)
+    expect(out[0].source_url).toBe('https://kandmsteamcleaning.com/prices')
+    expect(out[0].snippet).toContain('$179')
+    expect(isUsableCandidate(out[0])).toBe(true)
+  })
+
   it('nulls out source_url/snippet when the model cites a url NOT in the annotations', async () => {
     const content = JSON.stringify({
       results: [
