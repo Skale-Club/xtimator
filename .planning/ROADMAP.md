@@ -772,7 +772,7 @@ Plans:
 | 73. Language Onboarding + Estimate Language UI | v3.1.1 | 5/5 | Complete    | 2026-05-19 |
 | 74. Post-Onboarding App Feature Tour | v3.1.1 | 4/4 | Complete    | 2026-05-19 |
 | 104. Notification Channels & Preferences Revamp | v4.5.1 | 4/4 | Complete | 2026-06-22 |
-| 105. `price_source: 'researched'` Threading | v4.6 | 1/2 | In Progress|  |
+| 105. `price_source: 'researched'` Threading | v4.6 | 2/2 | Complete   | 2026-06-24 |
 | 106. Cache Table + Tenant-Scoped Cache Module | v4.6 | 0/TBD | Not started | - |
 | 107. Provider Seam + First Source + Determinism Seam | v4.6 | 0/TBD | Not started | - |
 | 108. Orchestrator + Service Integration | v4.6 | 0/TBD | Not started | - |
@@ -1182,7 +1182,7 @@ Plans:
 
 ### Phases
 
-- [ ] **Phase 105: `price_source: 'researched'` Threading** — Plumb the new `'researched'` enum value through schema/types/DB CHECK/editor badge; ships dormant (no behavior change), unblocks everything
+- [x] **Phase 105: `price_source: 'researched'` Threading** — Plumb the new `'researched'` enum value through schema/types/DB CHECK/editor badge; ships dormant (no behavior change), unblocks everything (completed 2026-06-24)
 - [ ] **Phase 106: Cache Table + Tenant-Scoped Cache Module** — `price_research_cache` table (company-scoped, deny-all RLS, 30d TTL) + canonical-key cache module; parallelizable with 105
 - [ ] **Phase 107: Provider Seam + First Source + Determinism Seam** — `PriceResearchProvider` port + OpenRouter-web adapter + Anthropic quality-fallback adapter + deterministic fixture adapter for CI + prompt-injection hardening
 - [ ] **Phase 108: Orchestrator + Service Integration (the payoff)** — `researchUnmatchedPrices` wired into `generateEstimateForProject` after anchoring; precedence + evidence-gated tagging + no-$0 fallback ladder + vagueness-gate fix + "Couch cleaning 8seats" regression fixture + quota metering
@@ -1202,7 +1202,7 @@ Plans:
 **Plans**: 2 plans (1 wave — parallel, disjoint files)
 Plans:
 - [x] 105-01-PLAN.md — DB CHECK widen migration + AI schema/types/anchoring type-widen for `'researched'` (RPRICE-02, RPRICE-03)
-- [ ] 105-02-PLAN.md — Dormant "Researched" editor badge (item-row + item-card-mobile) + editor `price_source` union widen (RPRICE-02, RPRICE-03)
+- [x] 105-02-PLAN.md — Dormant "Researched" editor badge (item-row + item-card-mobile) + editor `price_source` union widen (RPRICE-02, RPRICE-03)
 **UI hint**: yes
 
 ### Phase 106: Cache Table + Tenant-Scoped Cache Module
