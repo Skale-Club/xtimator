@@ -1143,7 +1143,7 @@ Plans:
 - [ ] 1000-04-PLAN.md — Wave 3: lifecycle hooks (company/estimate/subscription/trial) via fire-and-forget dispatchXphereSync
 - [ ] 1000-05-PLAN.md — Wave 3: admin batched backfill route + xphere_sync_error observability panel
 
-### v4.6 Notification Channels & Preferences (Phase 104)
+### v4.5.1 Notification Channels & Preferences (Phase 104)
 
 > **Numbering:** continues the GLOBAL phase counter. v4.5 ended at Phase 103; v4.4's WhatsApp Notifications is Phase 98. v4.6 = **Phase 104**.
 
@@ -1188,7 +1188,7 @@ Plans:
 - [ ] **Phase 108: Orchestrator + Service Integration (the payoff)** — `researchUnmatchedPrices` wired into `generateEstimateForProject` after anchoring; precedence + evidence-gated tagging + no-$0 fallback ladder + vagueness-gate fix + "Couch cleaning 8seats" regression fixture + quota metering
 - [ ] **Phase 109: Durability + Cost-Control Hardening** — dedicated `step.run('price-research')` retry isolation + provider fallback ordering + per-estimate item caps + refine-loop memoization
 
-## Phase Details (v4.6)
+### Phase Details — v4.6 Pricing Intelligence
 
 ### Phase 105: `price_source: 'researched'` Threading
 **Goal**: The estimate stack understands a third price provenance — `researched` — end to end (output schema, types, DB constraint, persistence, editor badge), shipped with zero runtime behavior change because nothing tags an item `researched` yet. This is the dormant foundation that unblocks the real research wiring.
