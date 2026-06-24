@@ -200,7 +200,21 @@ describe('BILLCFG-03: getBillingConfig consumed ONLY by the reader + credit-ledg
   it('only the reader module and credit-ledger.ts reference the getBillingConfig SYMBOL', () => {
     const ROOTS = ['lib', 'app', 'components']
     const CREDIT_LEDGER_PATH = resolve(process.cwd(), 'lib/billing/credit-ledger.ts')
-    const ALLOWLIST = new Set([MODULE_PATH, CREDIT_LEDGER_PATH])
+    // Phase 113 (Stripe rail): the invoice.paid grant + checkout top-up arm read
+    // tier grants from getBillingConfig (113-02), and the create-topup-session
+    // route reads topUpPacks to build the inline price_data (113-03). Both are
+    // the runtime-authoritative billing source — legitimate config consumers.
+    const STRIPE_WEBHOOK_PATH = resolve(process.cwd(), 'app/api/webhooks/stripe/route.ts')
+    const TOPUP_SESSION_PATH = resolve(
+      process.cwd(),
+      'app/api/billing/create-topup-session/route.ts'
+    )
+    const ALLOWLIST = new Set([
+      MODULE_PATH,
+      CREDIT_LEDGER_PATH,
+      STRIPE_WEBHOOK_PATH,
+      TOPUP_SESSION_PATH,
+    ])
 
     const collected: string[] = []
     function walk(dir: string) {
