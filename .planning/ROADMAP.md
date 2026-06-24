@@ -1347,7 +1347,7 @@ Plans:
   4. Credits run in parallel with the existing count-based tiers during the transition — no existing account breaks, and the count-based limits continue to function as secondary guard-rails rather than being removed
 **Plans**: 3 plans in `.planning/phases/113-stripe-rail-grants-top-ups-parallel-run-transition/`
 Plans:
-- [ ] 113-01-PLAN.md — Wave 0 RED tests: invoice.paid grant + checkout top-up arm (webhook), top-up route, overage affordance + MIG-01 guard
+- [x] 113-01-PLAN.md — Wave 0 RED tests: invoice.paid grant + checkout top-up arm (webhook), top-up route, overage affordance + MIG-01 guard
 - [ ] 113-02-PLAN.md — Webhook wiring: invoice.paid grants tier allowance (TOPUP-01) + checkout.session.completed top-up arm before the subscription early-break (TOPUP-02)
 - [ ] 113-03-PLAN.md — create-topup-session route (TOPUP-02) + buildOverageAffordance + enriched 402 (TOPUP-03), count path untouched (MIG-01)
 
