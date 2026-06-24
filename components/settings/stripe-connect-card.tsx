@@ -23,10 +23,22 @@ export type ConnectState =
  * `not_connected` branch shows the Connect CTA; the `connected` branch shows
  * the linked Stripe account + a Disconnect button (POST to disconnect API).
  */
-export function StripeConnectCard({ state }: { state: ConnectState }) {
+export function StripeConnectCard({
+  state,
+  feePct,
+}: {
+  state: ConnectState
+  feePct: number
+}) {
   const { t } = useTranslation()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
+
+  // Disclosed % is driven entirely by the live billing_config value passed in
+  // (feePct × 100) — never a hard-coded literal, so it can never diverge from
+  // the % actually charged (FEE-03). e.g. 0.02 → "2%", 0.005 → "0.5%".
+  const feeWhole = feePct * 100
+  const feeLabel = `${Number.isInteger(feeWhole) ? feeWhole : feeWhole.toFixed(2)}%`
 
   function handleDisconnect() {
     setError(null)
@@ -62,9 +74,17 @@ export function StripeConnectCard({ state }: { state: ConnectState }) {
           </p>
         )}
         {state.kind === 'not_connected' && (
-          <p className="text-sm text-muted-foreground">
-            {t('Connect your Stripe account in one click. Test mode works for setup.')}
-          </p>
+          <>
+            <p className="text-sm text-muted-foreground">
+              {t('Connect your Stripe account in one click. Test mode works for setup.')}
+            </p>
+            <p
+              data-testid="fee-disclosure"
+              className="mt-3 rounded-md border-l-[3px] border-l-amber-500 bg-amber-500/5 p-3 text-sm text-muted-foreground"
+            >
+              {t(`Xtimator charges a ${feeLabel} fee on each payment you receive through the platform | this is separate from Stripe's processing fees.`)}
+            </p>
+          </>
         )}
         {state.kind === 'connected' && (
           <div className="text-sm">
