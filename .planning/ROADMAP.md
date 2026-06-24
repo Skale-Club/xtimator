@@ -1245,7 +1245,13 @@ Plans:
   3. No fallback rung is ever $0 (research → non-zero `ai_estimate` → flagged unpriced item routed to the existing `awaiting_details` path); the vagueness gate now distinguishes a fully empty estimate (block → needs-details) from a single flagged unpriced item (allow → estimate proceeds)
   4. The "Couch cleaning 8seats" regression fixture — including the empty-research-response variant — produces a non-zero, non-vague estimate, asserted in the eval harness
   5. Each research search is metered through `usage_events` / `recordUsage` via a new count-based `price_researched` event type (1 unit/search, idempotent), each tier has a monthly research allowance in `entitlements`, and when a company is over allowance `checkQuota` skips research and items fall back to a non-zero `ai_estimate` — the estimate still generates and never hard-fails; a cache hit consumes no allowance
-**Plans**: TBD
+**Plans**: 5 plans in 4 waves
+Plans:
+- [ ] 108-01-PLAN.md — Metering primitives: usage_events CHECK widen migration + price_researched EventType/QUOTA mapping + maxPriceResearchPerMonth entitlement + checkQuota research gating (RMETER-01, RMETER-02, RMETER-03) [Wave 1]
+- [ ] 108-02-PLAN.md — Vagueness-gate refinement: isVagueEstimate distinguishes empty/all-$0 (block) from a partially-priced estimate with a flagged unpriced line (allow) (RFALL-02) [Wave 1]
+- [ ] 108-03-PLAN.md — Orchestrator researchUnmatchedPrices: never-throws, precedence (ai_estimate-only), cache→quota-gated batched provider→evidence-gated re-tag→metering→never-$0 ladder (RPRICE-01, RPRICE-03, RPRICE-04, RFALL-01) [Wave 2]
+- [ ] 108-04-PLAN.md — Integrate into generateEstimateForProject after anchoring/before totals; researched prices flow into totals; flaggedUnpriced→awaiting_details (RPRICE-01, RPRICE-03, RFALL-01) [Wave 3]
+- [ ] 108-05-PLAN.md — Eval regression: "Couch cleaning 8seats" full-graph case non-zero/non-vague incl. empty-research variant; all-empty still blocks; zero live network (RFALL-03) [Wave 4]
 
 ### Phase 109: Durability + Cost-Control Hardening
 **Goal**: Once a real source's latency and cost are observable, harden the research path: give it its own Inngest `step.run` so a research-source timeout retries in isolation without re-charging the already-paid generate call, add provider fallback ordering (OpenRouter-web → Anthropic quality fallback) mirroring the AI fallback, cap items researched per estimate, and memoize research across the auto-refine loop so a refine pass never re-pays for the same lookups. Kept minimal/foldable if Phase 108 already covers a given concern.
