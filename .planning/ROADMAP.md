@@ -1289,7 +1289,8 @@ Plans:
 - [x] **Phase 113: Stripe Rail — Grants, Top-Ups + Parallel-Run Transition** — `invoice.paid` grants the tier allowance idempotently; one-time top-up checkout credits the ledger; low/zero balance offers top-up + upgrade without silent mid-job block; credits run in parallel with count-based tiers so no existing account breaks (counts degrade to secondary guard-rails). (completed 2026-06-24)
 - [x] **Phase 114: Estimate Payment Fee + Payment-UI Gating + Disclosure** — Fill the omitted `application_fee_amount` hook on both the invoice and Phase-70 checkout paths (fee % from `billing_config`, sane minimum/rounding); a single `usePaymentsEnabled` guard gates ALL payment UI to `stripe_connect_status = 'active'` (no orphan elements, both states tested); clear fee disclosure at the Stripe connection flow.
  (completed 2026-06-24)
-- [x] **Phase 115: Credit Balance UX (owner-facing)** — Owner sees a simple credit balance (header/settings) with consumption history and rough per-action guidance (never token math); low/zero-balance states show a warning + top-up/upgrade CTA reusing the existing threshold-notification path. (completed 2026-06-24)
+- [x] **Phase 115: Credit Balance UX (owner-facing)** — Owner sees a simple credit balance (header/settings) with consumption history and rough per-action guidance (never token math); low/zero-balance states show a warning + top-up/upgrade CTA reusing the existing threshold-notification path.
+ (completed 2026-06-24)
 - [x] **Phase 116: Calibration & Charge-On Validation** — Derive grant/markup/price from the measured real cost collected since Phase 110 and validate the margin invariant (real cost of the full monthly grant ≤ ~30% of subscription price), documented. This LATE phase consumes CALIB-01's data + the ledger/config and gates turning real charging ON.
  (completed 2026-06-24)
 
@@ -1389,4 +1390,6 @@ Plans:
   1. Grant, markup, and subscription price for each tier are derived from the measured real per-operation cost collected since Phase 110 — not from the illustrative seed numbers
   2. The margin invariant is validated and documented: the real cost of a full monthly grant is ≤ ~30% of that tier's subscription price, so a power-user at 100% grant usage still profits and a typical user is near-pure margin
   3. The calibrated numbers are written into `billing_config` and the decision to enable real charging is explicitly gated on this validation existing — no real billing is switched on before the measured numbers and the documented invariant exist
-**Plans**: TBD
+**Plans**: 2 plans (2 waves)
+- [ ] 116-01-PLAN.md — pure calibration core: validateMarginInvariant (correct-FAIL trap) + recommendFromAggregate + aggregateAiCostByOperation over ai_cost_events (CALIB-02)
+- [ ] 116-02-PLAN.md — charge-on gate in saveBillingConfig (the CALIB-02 wiring proof) + analyze-ai-cost.mjs ops script + CALIBRATION-RUNBOOK (CALIB-02)
