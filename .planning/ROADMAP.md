@@ -784,7 +784,7 @@ Plans:
 | 117. Knowledge Schema + pgvector + Dual RLS | v4.8 | 1/1 | Complete    | 2026-06-24 |
 | 118. Channel-Neutral lib/knowledge/ Module | v4.8 | 3/3 | Complete    | 2026-06-24 |
 | 119. Super-Admin Industry KB Curation + Bulk Import | v4.8 | 3/3 | Complete    | 2026-06-24 |
-| 120. Company KB Overlay (tenant settings) | v4.8 | 0/0 | Not started | - |
+| 120. Company KB Overlay (tenant settings) | v4.8 | 1/2 | In Progress|  |
 | 121. WhatsApp KNOWLEDGE Intent | v4.8 | 0/0 | Not started | - |
 
 ### Phase 75: Tour and Tooltip QA
@@ -1461,7 +1461,7 @@ Plans:
   1. A company owner can add, edit, and delete private KB entries in the company's OWN settings panel — a surface distinct from the super-admin panel — and a company that creates no overlay entries still gets answers from the industry KB alone (the overlay is optional)
   2. Each overlay entry generates and persists an embedding the same way as industry curation, scoped to the owning company so it merges into that company's retrieval but never leaks to another tenant
 **Plans**: 2 plans
-- [ ] 120-01-PLAN.md — Tenant overlay actions + schema + Wave-0 test (createCompanyEntry/updateCompanyEntry/deleteCompanyEntry; authed client, scope=company, embed-then-insert)
+- [x] 120-01-PLAN.md — Tenant overlay actions + schema + Wave-0 test (createCompanyEntry/updateCompanyEntry/deleteCompanyEntry; authed client, scope=company, embed-then-insert)
 - [ ] 120-02-PLAN.md — /settings/knowledge tenant UI sub-route (list + new + edit + delete) + settings-nav entry
 **UI hint**: yes
 

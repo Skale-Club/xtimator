@@ -37,8 +37,8 @@ Requirements for this milestone. Each maps to exactly one roadmap phase.
 
 ### Company KB Overlay (optional, tenant)
 
-- [ ] **KOVL-01**: A company owner can add/edit/delete private KB entries in the company's OWN settings panel (distinct from the super-admin panel); the overlay is optional — a company with no overlay uses only the industry KB.
-- [ ] **KOVL-02**: Company overlay entries generate embeddings the same way, scoped to the owning company.
+- [x] **KOVL-01**: A company owner can add/edit/delete private KB entries in the company's OWN settings panel (distinct from the super-admin panel); the overlay is optional — a company with no overlay uses only the industry KB.
+- [x] **KOVL-02**: Company overlay entries generate embeddings the same way, scoped to the owning company.
 
 ### WhatsApp KNOWLEDGE Intent
 
@@ -89,8 +89,8 @@ Which phases cover which requirements. Populated during roadmap creation.
 | KCUR-01 | Phase 119 | Complete |
 | KCUR-02 | Phase 119 | Complete |
 | KCUR-03 | Phase 119 | Complete |
-| KOVL-01 | Phase 120 | Pending |
-| KOVL-02 | Phase 120 | Pending |
+| KOVL-01 | Phase 120 | Complete |
+| KOVL-02 | Phase 120 | Complete |
 | WAKB-01 | Phase 121 | Pending |
 | WAKB-02 | Phase 121 | Pending |
 | KSEC-01 | Phase 118 | Complete |
