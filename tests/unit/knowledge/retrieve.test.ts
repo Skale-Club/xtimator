@@ -70,4 +70,21 @@ describe('KMOD-02: retrieve() — never-throws RAG read path', () => {
       retrieve('q', { industries: ['carpet_cleaning'], companyId: null })
     ).resolves.toEqual([])
   })
+
+  it('forwards the caller-supplied industries/companyId verbatim to the RPC', async () => {
+    const rpc = mockRpc({ data: [], error: null })
+    await retrieve('q', {
+      industries: ['carpet_cleaning', 'janitorial'],
+      companyId: 'company-123',
+      k: 2,
+    })
+    expect(rpc).toHaveBeenCalledWith(
+      'match_knowledge_entries',
+      expect.objectContaining({
+        match_industries: ['carpet_cleaning', 'janitorial'],
+        match_company: 'company-123',
+        match_count: 2,
+      })
+    )
+  })
 })
