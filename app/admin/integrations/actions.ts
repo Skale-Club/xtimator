@@ -657,3 +657,95 @@ export async function setGlobalOpenRouterModel(
 
   return { ok: true, message: `Default OpenRouter model set to ${trimmed}.` }
 }
+
+/**
+ * Configure the v4.6 price-research source (the deferred super-admin control).
+ *
+ * Upserts the `platform_integrations` row `provider='price_research'` with
+ * `metadata = { research_source, research_engine }`. The readers query the DB
+ * live (no redeploy):
+ *   - getActiveResearchSource() (lib/estimate/price-research/provider.ts) activates
+ *     ONLY on research_source ∈ { 'openrouter_web', 'anthropic_web' }; anything else
+ *     (incl. null) → null → getPriceResearchProvider() returns null (dormant no-op).
+ *   - resolveEngine() (adapters/openrouter-web.ts): research_engine 'native' literal, else 'exa'.
+ *
+ * DISABLE therefore persists research_source: null (a non-matching value) so the
+ * readers go dormant while research_engine is preserved (re-enabling restores it).
+ * Mirrors setActiveAIProvider: requireAdmin gate FIRST, service-role upsert,
+ * invalidate cache + revalidate path + audit. No API key involved — price_research
+ * reuses the existing OpenRouter / Anthropic credentials.
+ */
+export async function setPriceResearchSource(input: {
+  enabled: boolean
+  source: 'openrouter_web' | 'anthropic_web'
+  engine: 'exa' | 'native'
+}): Promise<ActionResult> {
+  const ctx = await requireAdmin()
+
+  if (input.source !== 'openrouter_web' && input.source !== 'anthropic_web') {
+    return { ok: false, message: 'Invalid source' }
+  }
+  if (input.engine !== 'exa' && input.engine !== 'native') {
+    return { ok: false, message: 'Invalid engine' }
+  }
+
+  const svc = requireServiceClient()
+
+  // Best-effort read of existing metadata so we preserve any unrelated keys.
+  let prevMeta: Record<string, unknown> = {}
+  try {
+    const { data: prev } = await svc
+      .from('platform_integrations')
+      .select('metadata')
+      .eq('provider', 'price_research')
+      .maybeSingle()
+    prevMeta = (prev?.metadata ?? {}) as Record<string, unknown>
+  } catch {
+    // non-fatal — fall back to an empty metadata base
+  }
+
+  // ENABLE writes the activating source; DISABLE writes null (NON-matching) so
+  // getActiveResearchSource() returns null → getPriceResearchProvider() resolves
+  // null → the Phase-108 enrichment is a safe no-op. research_engine is preserved
+  // either way so re-enabling restores the prior engine.
+  const metadata = {
+    ...prevMeta,
+    research_source: input.enabled ? input.source : null,
+    research_engine: input.engine,
+  }
+
+  const { error } = await svc.from('platform_integrations').upsert(
+    {
+      provider: 'price_research',
+      ciphertext: null,
+      iv: null,
+      auth_tag: null,
+      metadata,
+      updated_at: new Date().toISOString(),
+      updated_by: ctx.userId,
+    },
+    { onConflict: 'provider' }
+  )
+  if (error) {
+    return { ok: false, message: error.message }
+  }
+
+  invalidatePlatformConfig()
+  revalidatePath('/admin/integrations')
+
+  void logAdminAction({
+    actorId: ctx.userId,
+    actorEmail: ctx.email,
+    action: 'price_research.set',
+    targetType: 'price_research',
+    targetId: input.enabled ? input.source : 'disabled',
+    metadata: { enabled: input.enabled, source: input.source, engine: input.engine },
+  })
+
+  return {
+    ok: true,
+    message: input.enabled
+      ? `Price research enabled (${input.source}).`
+      : 'Price research disabled.',
+  }
+}
