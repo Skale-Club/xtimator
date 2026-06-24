@@ -1,10 +1,10 @@
 ---
 gsd_state_version: 1.0
-milestone: v3.1.1
-milestone_name: MVP Launch Prep + Future-Proofing
-status: verifying
+milestone: v4.7
+milestone_name: Monetização — Credit-Based Billing + Estimate Payment Fee
+status: in-progress
 stopped_at: Completed 112-04-PLAN.md
-last_updated: "2026-06-24T17:08:21.647Z"
+last_updated: "2026-06-24T17:12:52.663Z"
 last_activity: 2026-06-24
 progress:
   total_phases: 18
@@ -29,12 +29,11 @@ progress:
 - **Dependency spine:** 110 (cost capture) → 112 (ledger) needs 110 + 111; 113 (Stripe rail) needs 112; 115 (balance UX) needs 112 + 113; 116 (calibration) needs 110 + 111 + 112. 111 (`billing_config`) is structurally independent and feeds everything. 114 (payment fee) needs only 111 + the already-shipped Connect infra (phases 70/94) — sequenceable in parallel with the credit track.
 - **Locked guardrails:** Stripe = rail only (credit ledger is OURS, NOT Stripe metered billing); everything billing reads from `billing_config` (no hard-coded numbers, no env vars, super-admin only); migrations idempotent + deploy CI→GHCR→Coolify (never build on VPS); channel-neutral domain stays neutral + never-throw enrichment preserved; CALIBRATE before charging (no real billing before CALIB-02's measured numbers exist).
 - **Previous milestone**: v4.6 Pricing Intelligence — Researched Pricing Agent — SHIPPED 2026-06-24 (phases 105-109, 17/17 requirements, full unit+eval suite green 275 files / 1932 tests).
-- **Position**: Phase 111 COMPLETE (2/2 plans, verified 9/9 — billing_config store + super-admin Billing panel; reader dormant; suite 283 files/1986 green). Next: `/gsd:plan-phase 112` (Credit Ledger). NOTE: `phase complete` mis-points next at stale 999.1 — real next is **112**.- **Last updated**: 2026-06-24
-
+- **Position**: Phase 112 COMPLETE (4/4 plans, verified 7/7 — credit_ledger table + recordCreditDebit/grantCredits/checkCredits + debits wired into 4 AI seams; enforcement OFF until calibration; suite green). Next: `/gsd:plan-phase 113` (Stripe Rail — Grants, Top-Ups). NOTE: `phase complete` mis-points next at stale 999.1 — real next is **113**.
 ## Current Position
 
-Phase: 112 (Credit Ledger + Consumption Metering) — EXECUTING
-Plan: 4 of 4
+Phase: 112
+Plan: Not started
 Status: Phase complete — ready for verification
 
 ---
