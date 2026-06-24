@@ -12,6 +12,7 @@ import { inngest } from '@/lib/inngest/client'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { analyzePhotoOR } from '@/lib/ai/openrouter-client'
 import { recordUsage } from '@/lib/quota'
+import { recordCreditDebit } from '@/lib/billing/credit-ledger'
 import { notify } from '@/lib/notifications/dispatch'
 import { buildNotificationCopy } from '@/lib/notifications/copy'
 import { recordPipelineEvent } from '@/lib/observability/pipeline-events'
@@ -164,6 +165,36 @@ export const analyzePhotosJob = inngest.createFunction(
         photos.length,
         requestId
       )
+    })
+
+    // Phase 112 (CREDIT-02): fire the credit debit AFTER record-usage, in its own
+    // retry-isolated step. recordCreditDebit is never-throw, so a ledger failure
+    // never breaks analysis; enforcement is OFF, so this RECORDS but never blocks.
+    // The per-photo vision cost was captured deep at the provider seam (void
+    // recordAICost — RESEARCH Pitfall 6), so read it BACK from ai_cost_events by
+    // attemptId and SUM all rows — the per-photo `vision` sub-calls roll up into the
+    // single `photo_batch` debit (Open Question 2). Bounded read-back: up to 3×150ms
+    // (~450ms worst case) ONLY on the cost-miss path — fine for a background step.
+    // All-null costs → realCostUsd: null (recordCreditDebit no-ops; null vs guessed 0).
+    await step.run('record-credit-debit', async () => {
+      const svc = requireServiceClient()
+      let realCostUsd: number | null = null
+      for (let i = 0; i < 3; i++) {
+        const { data } = await svc
+          .from('ai_cost_events')
+          .select('real_cost_usd')
+          .eq('attempt_id', attemptId)
+        const rows = (data ?? []) as { real_cost_usd: number | null }[]
+        if (rows.length > 0) {
+          const known = rows
+            .map((r) => r.real_cost_usd)
+            .filter((c): c is number => c != null)
+          realCostUsd = known.length > 0 ? known.reduce((a, b) => a + b, 0) : null
+          break
+        }
+        await new Promise((r) => setTimeout(r, 150))
+      }
+      await recordCreditDebit({ companyId, operationType: 'photo_batch', realCostUsd, attemptId })
     })
 
     // Phase 92 (EVENT-02/D-03): terminal succeeded analyze event with duration_ms.
