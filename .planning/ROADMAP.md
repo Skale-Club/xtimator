@@ -772,7 +772,7 @@ Plans:
 | 73. Language Onboarding + Estimate Language UI | v3.1.1 | 5/5 | Complete    | 2026-05-19 |
 | 74. Post-Onboarding App Feature Tour | v3.1.1 | 4/4 | Complete    | 2026-05-19 |
 | 104. Notification Channels & Preferences Revamp | v4.5.1 | 4/4 | Complete | 2026-06-22 |
-| 105. `price_source: 'researched'` Threading | v4.6 | 0/TBD | Not started | - |
+| 105. `price_source: 'researched'` Threading | v4.6 | 1/2 | In Progress|  |
 | 106. Cache Table + Tenant-Scoped Cache Module | v4.6 | 0/TBD | Not started | - |
 | 107. Provider Seam + First Source + Determinism Seam | v4.6 | 0/TBD | Not started | - |
 | 108. Orchestrator + Service Integration | v4.6 | 0/TBD | Not started | - |
@@ -1201,7 +1201,7 @@ Plans:
   4. The full unit/eval suite stays green with no item ever tagged `researched` yet (badge dormant) — proving the threading is additive and behavior-preserving
 **Plans**: 2 plans (1 wave — parallel, disjoint files)
 Plans:
-- [ ] 105-01-PLAN.md — DB CHECK widen migration + AI schema/types/anchoring type-widen for `'researched'` (RPRICE-02, RPRICE-03)
+- [x] 105-01-PLAN.md — DB CHECK widen migration + AI schema/types/anchoring type-widen for `'researched'` (RPRICE-02, RPRICE-03)
 - [ ] 105-02-PLAN.md — Dormant "Researched" editor badge (item-row + item-card-mobile) + editor `price_source` union widen (RPRICE-02, RPRICE-03)
 **UI hint**: yes
 

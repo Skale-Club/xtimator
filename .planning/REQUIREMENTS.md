@@ -20,8 +20,8 @@
 ### RPRICE — Researched Pricing Core
 
 - [ ] **RPRICE-01**: For each estimate line item with no price-book match, the system researches an average regional market price using the client's city + state, instead of letting the AI guess.
-- [ ] **RPRICE-02**: A researched price is tagged `price_source: 'researched'` (distinct from `price_book` and `ai_estimate`), threaded through the output schema, persistence (`estimate_items.price_source` CHECK), and the estimate editor price badge.
-- [ ] **RPRICE-03**: Price precedence `price_book > researched > ai_estimate` is enforced — research runs only on no-match items, never overrides a price-book item, and never re-researches an item the owner has edited.
+- [x] **RPRICE-02**: A researched price is tagged `price_source: 'researched'` (distinct from `price_book` and `ai_estimate`), threaded through the output schema, persistence (`estimate_items.price_source` CHECK), and the estimate editor price badge.
+- [x] **RPRICE-03**: Price precedence `price_book > researched > ai_estimate` is enforced — research runs only on no-match items, never overrides a price-book item, and never re-researches an item the owner has edited.
 - [ ] **RPRICE-04**: An item is tagged `researched` only when the lookup returns real evidence (a source URL + snippet); without evidence it falls back to a non-zero `ai_estimate`. (Internal correctness gate — source data is not shown in the UI.)
 
 ### RSRC — Research Source / Provider
@@ -76,8 +76,8 @@
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | RPRICE-01 | Phase 108 | Pending |
-| RPRICE-02 | Phase 105 | Pending |
-| RPRICE-03 | Phase 108 | Pending |
+| RPRICE-02 | Phase 105 | Complete |
+| RPRICE-03 | Phase 108 | Complete |
 | RPRICE-04 | Phase 108 | Pending |
 | RSRC-01 | Phase 107 | Pending |
 | RSRC-02 | Phase 107 | Pending |
