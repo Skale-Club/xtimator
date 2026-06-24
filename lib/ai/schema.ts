@@ -20,8 +20,8 @@ const lineItemSchema = z.object({
   // D-15 defensive coercion expressed as a preprocess so a missing/garbage value
   // never rejects the whole parse — anything other than exact 'price_book' → 'ai_estimate'.
   price_source: z.preprocess(
-    (v) => (v === 'price_book' ? 'price_book' : 'ai_estimate'),
-    z.enum(['price_book', 'ai_estimate'])
+    (v) => (v === 'price_book' || v === 'researched' ? v : 'ai_estimate'),
+    z.enum(['price_book', 'ai_estimate', 'researched'])
   ),
 })
 

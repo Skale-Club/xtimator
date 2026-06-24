@@ -14,7 +14,7 @@ export type LineItemOutput = {
   quantity: number
   unit?: string
   unit_price: number
-  price_source: 'price_book' | 'ai_estimate'  // D-03: required on every item
+  price_source: 'price_book' | 'ai_estimate' | 'researched'  // D-03: required on every item; 'researched' added in Phase 105 (v4.6, dormant until Phase 108)
 }
 
 export type EstimateSectionOutput = {
