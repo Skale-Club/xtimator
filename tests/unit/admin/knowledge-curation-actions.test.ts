@@ -65,9 +65,9 @@ vi.mock('@/lib/knowledge/embed', () => ({
   embed: () => embedMock(),
 }))
 
-const logAdminActionMock = vi.fn(async () => undefined)
+const logAdminActionMock = vi.fn(async (_params: { action?: string }) => undefined)
 vi.mock('@/lib/admin/audit-log', () => ({
-  logAdminAction: (params: unknown) => logAdminActionMock(params as never),
+  logAdminAction: (params: { action?: string }) => logAdminActionMock(params),
 }))
 
 vi.mock('next/cache', () => ({
@@ -202,7 +202,7 @@ describe('deleteEntry (KCUR-01)', () => {
     expect(res.ok).toBe(true)
     expect(deleteEqMock).toHaveBeenCalledTimes(1)
     expect(logAdminActionMock).toHaveBeenCalledTimes(1)
-    const arg = logAdminActionMock.mock.calls[0]?.[0] as { action?: string } | undefined
+    const arg = logAdminActionMock.mock.calls[0]?.[0]
     expect(arg?.action).toBe('knowledge_entry.delete')
   })
 

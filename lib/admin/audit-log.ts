@@ -18,6 +18,8 @@ export type AuditAction =
   | 'blog.update'
   | 'blog.delete'
   | 'blog.publish'
+  | 'knowledge_entry.save'
+  | 'knowledge_entry.delete'
   | 'legal.save'
   | 'admin.add'
   | 'admin.remove'
