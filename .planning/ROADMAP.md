@@ -1345,7 +1345,11 @@ Plans:
   2. A company can buy a one-time credit top-up pack via Stripe checkout, and the paid webhook credits the corresponding pack's credits to the ledger
   3. When credits run low or hit zero, the company is offered a top-up (and an upgrade suggestion when the usage pattern justifies it) and generation is not silently blocked mid-job
   4. Credits run in parallel with the existing count-based tiers during the transition — no existing account breaks, and the count-based limits continue to function as secondary guard-rails rather than being removed
-**Plans**: TBD
+**Plans**: 3 plans in `.planning/phases/113-stripe-rail-grants-top-ups-parallel-run-transition/`
+Plans:
+- [ ] 113-01-PLAN.md — Wave 0 RED tests: invoice.paid grant + checkout top-up arm (webhook), top-up route, overage affordance + MIG-01 guard
+- [ ] 113-02-PLAN.md — Webhook wiring: invoice.paid grants tier allowance (TOPUP-01) + checkout.session.completed top-up arm before the subscription early-break (TOPUP-02)
+- [ ] 113-03-PLAN.md — create-topup-session route (TOPUP-02) + buildOverageAffordance + enriched 402 (TOPUP-03), count path untouched (MIG-01)
 
 ### Phase 114: Estimate Payment Fee + Payment-UI Gating + Disclosure
 **Goal**: Xtimator earns a 1% platform application fee on every estimate payment via `application_fee_amount` on the Direct Charge (owner stays merchant of record; Xtimator never custodies funds), on both the Phase-94 invoice path and the Phase-70 checkout path, with the percentage read from `billing_config`. A single `usePaymentsEnabled` guard gates ALL payment UI so nothing payment-related renders unless Stripe Connect is `active`, and the connection flow clearly discloses the fee. This block is cohesive and independent of the credit work.
