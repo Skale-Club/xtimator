@@ -29,6 +29,12 @@ export const EstimateState = Annotation.Root({
    * which drives "Prepared by" in generated PDFs. Channel-neutral.
    */
   createdByUserId: Annotation<string | undefined>(),
+  /**
+   * Phase 110 (COST-01): non-LLM cost-correlation id (channel-neutral — carries
+   * no channel token). Threaded from the Inngest job into the generate node so
+   * the OpenRouter adapter can attribute the captured real cost to this attempt.
+   */
+  attemptId: Annotation<string | undefined>(),
   /** Output of the generate node. */
   estimateId: Annotation<string | undefined>(),
   /** Output of the generate node; used by the adapter for reply copy language. */

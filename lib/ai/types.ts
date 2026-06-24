@@ -68,6 +68,18 @@ export type EstimateInput = {
    * builds. Absent on the happy path (valid first time = no hint, no retry).
    */
   retryHint?: string
+  /**
+   * Phase 110 (COST-01): non-LLM correlation context for cost capture. NEVER
+   * derived from model output — threaded from the Inngest job through the graph
+   * state → generate node → service. Absent → cost is still recorded with null
+   * ids. Rides INSIDE EstimateInput so the AIProvider.generateEstimate signature
+   * stays unchanged.
+   */
+  costContext?: {
+    attemptId?: string | null
+    companyId?: string | null
+    projectId?: string | null
+  }
 }
 
 export type RefineEstimateInput = {

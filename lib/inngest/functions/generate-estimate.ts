@@ -123,6 +123,11 @@ export const generateEstimateJob = inngest.createFunction(
           companyId,
           projectId,
           channel: traceChannel,
+          // Phase 110 (COST-01): thread the attempt id (Phase 91/92 lineage) into
+          // the graph state so the generate node can build a non-LLM costContext
+          // for OpenRouter cost attribution. Same id used as the Langfuse
+          // correlationId below — joins the cost row to the trace + pipeline_events.
+          attemptId,
           // HARD-07: thread the handler-entry timestamp (t0, captured outside
           // step.run) so any finalize TTL is replay-safe. The web/MCP adapter
           // finalize is a passthrough today, but the field stays consistent.

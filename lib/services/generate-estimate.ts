@@ -56,6 +56,17 @@ export interface GenerateEstimateOptions {
   channel?: 'whatsapp'
   /** auth.users.id of the staff member or owner who triggered generation. Stored on the estimate for "Prepared by" attribution. */
   createdByUserId?: string
+  /**
+   * Phase 110 (COST-01): non-LLM cost-correlation context threaded into
+   * EstimateInput.costContext so the OpenRouter adapter can attribute the real
+   * captured cost. companyId/projectId here come from the TRUSTED params, never
+   * from LLM output. All optional/additive.
+   */
+  costContext?: {
+    attemptId?: string | null
+    companyId?: string | null
+    projectId?: string | null
+  }
 }
 
 function normalizeClientNameForMatch(name: string): string {
@@ -177,6 +188,9 @@ export async function generateEstimateForProject(
     defaultPaymentTerms: company.default_payment_terms ?? null,
     defaultWarrantyTerms: company.default_warranty_terms ?? null,
     language,
+    // Phase 110 (COST-01): non-LLM correlation context for cost capture. Comes
+    // from the TRUSTED params (companyId is a function param, never LLM-derived).
+    costContext: options.costContext,
   }
 
   // WhatsApp-only: append the platform admin's system-prompt addendum.

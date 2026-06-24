@@ -22,13 +22,22 @@ export const makeGenerateNode =
   (runner: StepRunner) =>
   async (state: EstimateStateType): Promise<Partial<EstimateStateType>> => {
     try {
+      // Phase 110 (COST-01): non-LLM cost-correlation context, built ONLY from
+      // trusted state (never any LLM/`parsed` value). Threaded into the service →
+      // EstimateInput.costContext so the OpenRouter adapter can attribute cost.
+      const costContext = {
+        attemptId: state.attemptId ?? null,
+        companyId: state.companyId,
+        projectId: state.projectId,
+      }
       const opts =
         state.channel === 'whatsapp'
-          ? { channel: 'whatsapp' as const, prompts: state.prompts }
+          ? { channel: 'whatsapp' as const, prompts: state.prompts, costContext }
           : {
               prompts: state.prompts,
               // origin/dev: stamp "Prepared by" on web/MCP-triggered estimates.
               createdByUserId: state.createdByUserId,
+              costContext,
             }
       const result = await runner.run('ai-generate', () =>
         generateEstimateForProject(state.companyId, state.projectId, opts)
