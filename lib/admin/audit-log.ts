@@ -21,6 +21,7 @@ export type AuditAction =
   | 'legal.save'
   | 'admin.add'
   | 'admin.remove'
+  | 'billing_config.save'
 
 interface LogParams {
   actorId: string

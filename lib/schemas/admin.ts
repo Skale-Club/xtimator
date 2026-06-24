@@ -130,6 +130,40 @@ export const blogPostSchema = z.object({
   metaDescription: z.string().max(300).nullable(),
 })
 
+/**
+ * billing_config (Phase 111 / v4.7 Monetização) — the super-admin-editable
+ * billing parameters stored in the metadata-only `platform_integrations`
+ * `billing_config` row. Shared source-of-truth shape: the client form, the
+ * Plan 02 save action, and the getBillingConfig() reader all agree on it.
+ *
+ * MONEY is INTEGER CENTS; PERCENTAGES are 0..1 decimals (research Pitfall 4).
+ */
+const tierBillingSchema = z.object({
+  monthlyCreditGrant: z.number().int().min(0),
+  subscriptionPriceCents: z.number().int().min(0),
+})
+
+export const billingConfigSchema = z.object({
+  markup: z.number().positive().max(100),
+  creditUnitUsd: z.number().positive().max(1),
+  whisperUsdPerMinute: z.number().min(0).max(10),
+  estimateFeePct: z.number().min(0).max(1),
+  estimateFeeMinCents: z.number().int().min(0),
+  tiers: z.object({
+    free: tierBillingSchema,
+    trial: tierBillingSchema,
+    pro: tierBillingSchema,
+    business: tierBillingSchema,
+  }),
+  topUpPacks: z
+    .array(z.object({ credits: z.number().int().positive(), priceCents: z.number().int().positive() }))
+    .max(10),
+  lowBalanceThresholds: z.array(z.number().int().min(0)).max(5),
+  meteredOperations: z.record(z.string(), z.boolean()),
+  absorbedChatRateLimitPerMin: z.number().int().min(0).max(1000),
+})
+export type BillingConfigInput = z.infer<typeof billingConfigSchema>
+
 export const legalPageSchema = z.object({
   title: z.string().min(1, 'Title is required').max(200),
   content: z.string().min(1, 'Content is required'),
