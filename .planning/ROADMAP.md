@@ -299,7 +299,7 @@ Plans:
   5. Every critical bug surfaced is fixed in this milestone with a linked commit reference; every non-critical finding is captured in `.planning/known-issues.md` with severity, repro steps, and a proposed fix direction; the file exists at milestone close even on a "zero bugs found" outcome
   6. Lighthouse scores >= 80 in Performance and Accessibility on `/` (landing) and `/dashboard` (authenticated); `npm run build` reports First Load JS for `/dashboard` under 500 KB or the rationale is captured in `.planning/known-issues.md`
 **Plans**: 2 plans (2 waves)
-- [ ] 111-01-PLAN.md — billing_config store core: getBillingConfig() reader + DEFAULT_BILLING_CONFIG + billingConfigSchema (zod) + 'billing_config.save' AuditAction + 30s TTL cache, ships dormant (BILLCFG-01, BILLCFG-03)
+- [x] 111-01-PLAN.md — billing_config store core: getBillingConfig() reader + DEFAULT_BILLING_CONFIG + billingConfigSchema (zod) + 'billing_config.save' AuditAction + 30s TTL cache, ships dormant (BILLCFG-01, BILLCFG-03)
 - [ ] 111-02-PLAN.md — super-admin Billing panel: saveBillingConfig() action (requireAdmin-first, zod, metadata-only upsert, invalidate, audit) + 'billing' category + inline BillingConfigForm (BILLCFG-02, BILLCFG-03)
 **UI hint**: yes
 

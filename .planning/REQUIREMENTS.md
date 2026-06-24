@@ -36,9 +36,9 @@ Requirements for this milestone. Each maps to exactly one roadmap phase.
 
 ### Super-Admin Billing Config
 
-- [ ] **BILLCFG-01**: A `billing_config` section in the encrypted runtime-config store (`platform_integrations`/`ai_config` pattern) holds all billing parameters — no hard-coded values, no env vars.
+- [x] **BILLCFG-01**: A `billing_config` section in the encrypted runtime-config store (`platform_integrations`/`ai_config` pattern) holds all billing parameters — no hard-coded values, no env vars.
 - [ ] **BILLCFG-02**: A super-admin "Billing" panel edits markup, credit denomination, per-tier monthly grant, subscription prices, top-up packs, Whisper rate, fee %, low-balance thresholds — applied at runtime without deploy.
-- [ ] **BILLCFG-03**: All billing logic (`recordAICost`/`checkCredits`/grant/fee) reads parameters from `billing_config` at runtime; the business owner (tenant) has no access to these controls.
+- [x] **BILLCFG-03**: All billing logic (`recordAICost`/`checkCredits`/grant/fee) reads parameters from `billing_config` at runtime; the business owner (tenant) has no access to these controls.
 
 ### Subscription & Top-Up Rail (Stripe)
 
@@ -112,9 +112,9 @@ Which phases cover which requirements. Populated during roadmap creation.
 | CREDIT-05 | Phase 112 | Pending |
 | CREDIT-06 | Phase 112 | Pending |
 | CREDIT-07 | Phase 112 | Pending |
-| BILLCFG-01 | Phase 111 | Pending |
+| BILLCFG-01 | Phase 111 | Complete |
 | BILLCFG-02 | Phase 111 | Pending |
-| BILLCFG-03 | Phase 111 | Pending |
+| BILLCFG-03 | Phase 111 | Complete |
 | TOPUP-01 | Phase 113 | Pending |
 | TOPUP-02 | Phase 113 | Pending |
 | TOPUP-03 | Phase 113 | Pending |
