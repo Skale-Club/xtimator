@@ -4,7 +4,7 @@ import 'server-only'
  *
  * THE PAYOFF (Phase 108) — `researchUnmatchedPrices(sections, ctx)`.
  *
- * Channel-neutral (ENGINE-01): this module imports NOTHING from `lib/whatsapp`.
+ * Channel-neutral (ENGINE-01): this module imports NOTHING from any channel package.
  * NEVER-THROWS: any cache/provider/quota error is swallowed and the INPUT sections
  * are returned unchanged (mirrors `anchorAndClampSections`'s non-fatal contract —
  * a research failure must never break estimate generation).
@@ -40,6 +40,10 @@ import 'server-only'
  */
 import type { EstimateSectionOutput, LineItemOutput } from '@/lib/ai/types'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { getPriceResearchProvider, isUsableCandidate } from './provider'
+import { get as cacheGet, put as cachePut } from './cache'
+import { checkQuota, recordUsage } from '@/lib/quota'
+import { normalizeServiceNameKey, normalizeRegion } from './normalize'
 
 /**
  * Context supplied by the caller (generate-estimate.ts, in 108-04). Region/currency/
@@ -77,17 +81,34 @@ export interface ResearchOutcome {
   flaggedUnpriced: number
 }
 
+/** True when a unit_price is a finite, strictly-positive number (a real price). */
+function isPriced(unit_price: number): boolean {
+  return typeof unit_price === 'number' && Number.isFinite(unit_price) && unit_price > 0
+}
+
 /** Count items whose unit_price is not a finite positive number (the $0 risk set). */
 function countFlaggedUnpriced(sections: EstimateSectionOutput[]): number {
   let n = 0
   for (const section of sections) {
     for (const item of section.items) {
-      if (!(typeof item.unit_price === 'number' && Number.isFinite(item.unit_price) && item.unit_price > 0)) {
-        n++
-      }
+      if (!isPriced(item.unit_price)) n++
     }
   }
   return n
+}
+
+/**
+ * Build the metering idempotency key for a single research SEARCH (Warning-#1 fix).
+ *
+ * The seed is per-generation-attempt (`attemptId`) when supplied — retry-stable for
+ * the SAME attempt, distinct across estimates so research is not under-metered across
+ * estimates. Falls back to a PROJECT-scoped seed (`projectId`), then a company-scoped
+ * seed. A finer-than-company seed is safe because a repeat of the same service+region
+ * within the cache TTL is a HIT (which consumes NO allowance regardless of the seed).
+ */
+function buildIdemKey(ctx: ResearchContext, name: string): string {
+  const seed = ctx.attemptId ?? ctx.projectId ?? ctx.companyId
+  return `${seed}:research:${normalizeServiceNameKey(name)}:${normalizeRegion(ctx.region)}`
 }
 
 /**
@@ -114,10 +135,93 @@ export async function researchUnmatchedPrices(
       return { sections, flaggedUnpriced: countFlaggedUnpriced(sections) }
     }
 
-    // The cache/provider/metering body lands in Task 2. Until then the contract is
-    // a safe no-op: nothing is re-tagged, and the flagged count reflects any
-    // pre-existing $0 ai_estimate items so the integration signal already works.
-    return { sections, flaggedUnpriced: countFlaggedUnpriced(sections) }
+    // Staged re-tags: candidate item reference → its rewritten 'researched' item.
+    // Items absent from this map are returned untouched (price_book, owner-edited,
+    // and ai_estimate items the research could not improve all stay as-is).
+    const retag = new Map<LineItemOutput, LineItemOutput>()
+
+    // --- Step 1: cache pass (a HIT is free — no provider call, no allowance) ---
+    const misses: LineItemOutput[] = []
+    for (const item of candidates) {
+      let cached = null
+      try {
+        cached = await cacheGet(ctx.companyId, item.description, ctx.region, ctx.currency)
+      } catch {
+        cached = null // a cache read failure degrades to a MISS, never throws
+      }
+      if (cached && isPriced(cached.unit_price)) {
+        retag.set(item, { ...item, unit_price: cached.unit_price, price_source: 'researched' as const })
+      } else {
+        misses.push(item)
+      }
+    }
+
+    // --- Step 2: gated, batched provider pass for the misses ---
+    if (misses.length > 0) {
+      // Over-allowance SKIPS the provider for the whole miss set (RMETER-03). The
+      // misses keep ai_estimate; the call still returns sections (never hard-fails).
+      const quota = await checkQuota(ctx.supabase, ctx.companyId, 'price_research')
+      if (quota.allowed) {
+        const provider = await getPriceResearchProvider()
+        // Unconfigured provider (null) → misses keep ai_estimate (safe no-op).
+        if (provider) {
+          const results = await provider.lookup(
+            misses.map((m) => ({ name: m.description })),
+            ctx.region,
+            ctx.currency
+          )
+
+          // Re-associate each result to its requested item by name.
+          const byName = new Map<string, LineItemOutput>()
+          for (const m of misses) byName.set(m.description, m)
+
+          for (const result of results) {
+            const item = byName.get(result.name)
+            if (!item) continue
+
+            // Meter once per searched item (idempotent — RMETER-01). A cache HIT
+            // never reaches here, so a hit consumes no allowance.
+            try {
+              await recordUsage(ctx.supabase, ctx.companyId, 'price_researched', 1, buildIdemKey(ctx, result.name))
+            } catch {
+              // Metering is best-effort; a ledger error must not drop the price.
+            }
+
+            // EVIDENCE GATE (RPRICE-04): re-tag 'researched' ONLY with a usable,
+            // cited, positive price; otherwise the item KEEPS ai_estimate (no put).
+            if (isUsableCandidate(result) && typeof result.unit_price === 'number') {
+              retag.set(item, { ...item, unit_price: result.unit_price, price_source: 'researched' as const })
+              try {
+                await cachePut({
+                  companyId: ctx.companyId,
+                  name: result.name,
+                  region: ctx.region,
+                  currency: ctx.currency,
+                  datum: { unit_price: result.unit_price, source: result.source_url, confidence: result.confidence },
+                })
+              } catch {
+                // A cache write failure must not break the (already staged) re-tag.
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // --- Step 3: apply the staged re-tags to an immutable section tree ---
+    const rewritten: EstimateSectionOutput[] =
+      retag.size === 0
+        ? sections
+        : sections.map((section) => ({
+            ...section,
+            items: section.items.map((item) => retag.get(item) ?? item),
+          }))
+
+    // --- Step 4: never-$0 ladder — count items still at unit_price<=0 ---
+    // price_book is never $0 by definition; researched is >0 by the evidence gate;
+    // the only $0 risk is an ai_estimate item priced at 0 with no research improvement.
+    // Those FLAGGED UNPRICED items keep ai_estimate (not mutated, not dropped).
+    return { sections: rewritten, flaggedUnpriced: countFlaggedUnpriced(rewritten) }
   } catch {
     // NEVER-THROWS: return the original sections + a best-effort flagged count.
     try {
