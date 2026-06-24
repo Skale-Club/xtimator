@@ -782,7 +782,7 @@ Plans:
 | 108. Orchestrator + Service Integration | v4.6 | 5/5 | Complete    | 2026-06-24 |
 | 109. Durability + Cost-Control Hardening | v4.6 | 2/2 | Complete    | 2026-06-24 |
 | 117. Knowledge Schema + pgvector + Dual RLS | v4.8 | 1/1 | Complete    | 2026-06-24 |
-| 118. Channel-Neutral lib/knowledge/ Module | v4.8 | 1/3 | In Progress|  |
+| 118. Channel-Neutral lib/knowledge/ Module | v4.8 | 2/3 | In Progress|  |
 | 119. Super-Admin Industry KB Curation + Bulk Import | v4.8 | 0/0 | Not started | - |
 | 120. Company KB Overlay (tenant settings) | v4.8 | 0/0 | Not started | - |
 | 121. WhatsApp KNOWLEDGE Intent | v4.8 | 0/0 | Not started | - |
@@ -1436,7 +1436,7 @@ Plans:
 
 Plans:
 - [x] 118-01-PLAN.md — Foundations: KnowledgeProvider port + types, embed(text) (KMOD-01), match_knowledge_entries RPC migration, + all Wave-0 test stubs
-- [ ] 118-02-PLAN.md — retrieve() over the RPC merging industry KB + overlay, never-throws (KMOD-02) + deterministic fixture provider (KMOD-04) + channel-neutrality gate
+- [x] 118-02-PLAN.md — retrieve() over the RPC merging industry KB + overlay, never-throws (KMOD-02) + deterministic fixture provider (KMOD-04) + channel-neutrality gate
 - [ ] 118-03-PLAN.md — answer() RAG via OpenRouter chat, never-throws (KMOD-03) + <knowledge> injection-hardening in the prompt-builder Security block (KSEC-01)
 
 ### Phase 119: Super-Admin Industry KB Curation + Bulk Import
