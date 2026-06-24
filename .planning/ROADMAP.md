@@ -775,7 +775,7 @@ Plans:
 | 105. `price_source: 'researched'` Threading | v4.6 | 2/2 | Complete    | 2026-06-24 |
 | 106. Cache Table + Tenant-Scoped Cache Module | v4.6 | 2/2 | Complete    | 2026-06-24 |
 | 107. Provider Seam + First Source + Determinism Seam | v4.6 | 3/3 | Complete    | 2026-06-24 |
-| 108. Orchestrator + Service Integration | v4.6 | 4/5 | In Progress|  |
+| 108. Orchestrator + Service Integration | v4.6 | 5/5 | Complete   | 2026-06-24 |
 | 109. Durability + Cost-Control Hardening | v4.6 | 0/TBD | Not started | - |
 
 ### Phase 75: Tour and Tooltip QA
@@ -1186,7 +1186,7 @@ Plans:
  (completed 2026-06-24)
 - [x] **Phase 106: Cache Table + Tenant-Scoped Cache Module** — `price_research_cache` table (company-scoped, deny-all RLS, 30d TTL) + canonical-key cache module; parallelizable with 105
 - [x] **Phase 107: Provider Seam + First Source + Determinism Seam** — `PriceResearchProvider` port + OpenRouter-web adapter + Anthropic quality-fallback adapter + deterministic fixture adapter for CI + prompt-injection hardening (completed 2026-06-24)
-- [ ] **Phase 108: Orchestrator + Service Integration (the payoff)** — `researchUnmatchedPrices` wired into `generateEstimateForProject` after anchoring; precedence + evidence-gated tagging + no-$0 fallback ladder + vagueness-gate fix + "Couch cleaning 8seats" regression fixture + quota metering
+- [x] **Phase 108: Orchestrator + Service Integration (the payoff)** — `researchUnmatchedPrices` wired into `generateEstimateForProject` after anchoring; precedence + evidence-gated tagging + no-$0 fallback ladder + vagueness-gate fix + "Couch cleaning 8seats" regression fixture + quota metering (completed 2026-06-24)
 - [ ] **Phase 109: Durability + Cost-Control Hardening** — dedicated `step.run('price-research')` retry isolation + provider fallback ordering + per-estimate item caps + refine-loop memoization
 
 ### Phase Details — v4.6 Pricing Intelligence
@@ -1251,7 +1251,7 @@ Plans:
 - [x] 108-02-PLAN.md — Vagueness-gate refinement: isVagueEstimate distinguishes empty/all-$0 (block) from a partially-priced estimate with a flagged unpriced line (allow) (RFALL-02) [Wave 1] ✅ 2026-06-24
 - [x] 108-03-PLAN.md — Orchestrator researchUnmatchedPrices: never-throws, precedence (ai_estimate-only), cache→quota-gated batched provider→evidence-gated re-tag→metering→never-$0 ladder (RPRICE-01, RPRICE-03, RPRICE-04, RFALL-01) [Wave 2]
 - [x] 108-04-PLAN.md — Integrate into generateEstimateForProject after anchoring/before totals; researched prices flow into totals; flaggedUnpriced→awaiting_details (RPRICE-01, RPRICE-03, RFALL-01) [Wave 3] ✅ 2026-06-24
-- [ ] 108-05-PLAN.md — Eval regression: "Couch cleaning 8seats" full-graph case non-zero/non-vague incl. empty-research variant; all-empty still blocks; zero live network (RFALL-03) [Wave 4]
+- [x] 108-05-PLAN.md — Eval regression: "Couch cleaning 8seats" full-graph case non-zero/non-vague incl. empty-research variant; all-empty still blocks; zero live network (RFALL-03) [Wave 4]
 
 ### Phase 109: Durability + Cost-Control Hardening
 **Goal**: Once a real source's latency and cost are observable, harden the research path: give it its own Inngest `step.run` so a research-source timeout retries in isolation without re-charging the already-paid generate call, add provider fallback ordering (OpenRouter-web → Anthropic quality fallback) mirroring the AI fallback, cap items researched per estimate, and memoize research across the auto-refine loop so a refine pass never re-pays for the same lookups. Kept minimal/foldable if Phase 108 already covers a given concern.
