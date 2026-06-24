@@ -48,10 +48,10 @@ Requirements for this milestone. Each maps to exactly one roadmap phase.
 
 ### Estimate Payment Platform Fee
 
-- [ ] **FEE-01**: The Stripe Connect invoice path (`lib/billing/invoice-service.ts`) charges a platform `application_fee_amount` (the deliberately omitted hook at line 17), routing the fee to the Xtimator platform account.
-- [ ] **FEE-02**: The Phase-70 estimate checkout path charges the same platform fee via `payment_intent_data.application_fee_amount`.
-- [ ] **FEE-03**: The fee percentage is read from `billing_config` (super-admin, default 1%) — never hard-coded.
-- [ ] **FEE-04**: The fee is computed on the amount actually charged (deposit or full total), with a sane minimum/rounding so Stripe never receives an invalid (e.g. $0) fee.
+- [x] **FEE-01**: The Stripe Connect invoice path (`lib/billing/invoice-service.ts`) charges a platform `application_fee_amount` (the deliberately omitted hook at line 17), routing the fee to the Xtimator platform account.
+- [x] **FEE-02**: The Phase-70 estimate checkout path charges the same platform fee via `payment_intent_data.application_fee_amount`.
+- [x] **FEE-03**: The fee percentage is read from `billing_config` (super-admin, default 1%) — never hard-coded.
+- [x] **FEE-04**: The fee is computed on the amount actually charged (deposit or full total), with a sane minimum/rounding so Stripe never receives an invalid (e.g. $0) fee.
 
 ### Payment UI Gating
 
@@ -118,10 +118,10 @@ Which phases cover which requirements. Populated during roadmap creation.
 | TOPUP-01 | Phase 113 | Complete |
 | TOPUP-02 | Phase 113 | Complete |
 | TOPUP-03 | Phase 113 | Complete |
-| FEE-01 | Phase 114 | Pending |
-| FEE-02 | Phase 114 | Pending |
-| FEE-03 | Phase 114 | Pending |
-| FEE-04 | Phase 114 | Pending |
+| FEE-01 | Phase 114 | Complete |
+| FEE-02 | Phase 114 | Complete |
+| FEE-03 | Phase 114 | Complete |
+| FEE-04 | Phase 114 | Complete |
 | PAYGATE-01 | Phase 114 | Pending |
 | PAYGATE-02 | Phase 114 | Pending |
 | DISCLOSE-01 | Phase 114 | Pending |

@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v4.7
 milestone_name: Monetização — Credit-Based Billing + Estimate Payment Fee
-status: in-progress
-stopped_at: Completed 113-03-PLAN.md
-last_updated: "2026-06-24T17:54:05.669Z"
+status: executing
+stopped_at: Completed 114-01-PLAN.md
+last_updated: "2026-06-24T18:52:15.693Z"
 last_activity: 2026-06-24
 progress:
   total_phases: 67
   completed_phases: 51
-  total_plans: 157
-  completed_plans: 170
+  total_plans: 163
+  completed_plans: 171
 ---
 
 # Project State
@@ -29,16 +29,19 @@ progress:
 - **Dependency spine:** 110 (cost capture) → 112 (ledger) needs 110 + 111; 113 (Stripe rail) needs 112; 115 (balance UX) needs 112 + 113; 116 (calibration) needs 110 + 111 + 112. 111 (`billing_config`) is structurally independent and feeds everything. 114 (payment fee) needs only 111 + the already-shipped Connect infra (phases 70/94) — sequenceable in parallel with the credit track.
 - **Locked guardrails:** Stripe = rail only (credit ledger is OURS, NOT Stripe metered billing); everything billing reads from `billing_config` (no hard-coded numbers, no env vars, super-admin only); migrations idempotent + deploy CI→GHCR→Coolify (never build on VPS); channel-neutral domain stays neutral + never-throw enrichment preserved; CALIBRATE before charging (no real billing before CALIB-02's measured numbers exist).
 - **Previous milestone**: v4.6 Pricing Intelligence — Researched Pricing Agent — SHIPPED 2026-06-24 (phases 105-109, 17/17 requirements, full unit+eval suite green 275 files / 1932 tests).
-- **Position**: Phase 113 COMPLETE (3/3 plans, verified 4/4 — invoice.paid grants tier credits, top-up checkout + webhook arm, overage affordance, count-path additive). Next: `/gsd:plan-phase 114` (Estimate Payment Fee + Gating + Disclosure). NOTE: `phase complete` mis-points next at stale 999.1 — real next is **114**.
+- **Position**: Phase 114 EXECUTING — **Plan 114-01 COMPLETE (3/3 tasks)**: the 1% estimate application fee is live on the Connect hosted-invoice path. `computeApplicationFee` pure helper (FEE-04), `application_fee_amount` conditionally set on `stripe.invoices.create` (FEE-01), `generateInvoice` reads fee%/min from `billing_config` and threads `applicationFeeCents` (FEE-03), FEE-02 documented satisfied-by-FEE-01 (no checkout pay-route exists; sub/top-up checkouts carry no fee). FEE-01..04 marked complete. Next: `/gsd:execute-phase 114` (Plan 114-02 — payment-UI gating, PAYGATE-01/02). See 114-01-SUMMARY.md.
+
 ## Current Position
 
-Phase: 999.1
-Plan: Not started
-Status: Phase complete — ready for verification
+Phase: 114 (Estimate Payment Fee + Payment-UI Gating + Disclosure) — EXECUTING
+Plan: 2 of 3
+Status: Ready to execute Plan 114-02
 
 ---
 
 ### Accumulated Context (v4.7)
+
+Status (114-01, Wave 1 — FEE-01/02/03/04): shipped — the **1% estimate application fee is live** on the single real customer-payment surface (the Stripe Connect hosted invoice). **FEE-04 (Task 1, TDD):** NEW `lib/billing/estimate-fee.ts` — PURE module (NO `import 'server-only'`, no DB read, reusable by any future pay-route) `computeApplicationFee(amountCents, feePct, minCents)`: `amount<=0||pct<=0 → 0`, else `Math.min(Math.max(Math.round(amount*pct), minCents), amount-1)`. Integer cents, floored at min, **clamped STRICTLY below the charge** (Stripe rejects fee>=charge); the 1-cent edge yields `amount-1=0` so the caller omits the field. NEW `tests/unit/billing/estimate-fee.test.ts` (10 cases — the full math + 1-cent/zero/neg/zero-pct ladder). **FEE-01 (Task 2, TDD):** `lib/billing/invoice-service.ts` `createConnectInvoice` opts gain a REQUIRED `applicationFeeCents` (0 = omit); `stripe.invoices.create` conditionally spreads `application_fee_amount` ONLY when `>0` (Pitfall 1 — Stripe rejects a \$0 fee). Fee rides on the **Invoice** object, NEVER the InvoiceItem (Pitfall 2); `idempotencyBase` byte-unchanged (Pitfall 6); the `{ stripeAccount }` reqOpt already supplies the Direct-Charge header. The old "OMITS everywhere" test split into omitted-when-0 + present-on-invoice-when>0 (250). **FEE-03 (Task 3):** `lib/actions/invoice.ts` `generateInvoice`, after the `amountCents<=0` guard (amount now >0), reads `{ estimateFeePct, estimateFeeMinCents }` from `getBillingConfig()` (runtime, never hard-coded, applies w/o deploy) → `computeApplicationFee(...)` → threads `applicationFeeCents` into `createConnectInvoice`. **FEE-02 documented satisfied-by-FEE-01** in an in-code note: the Phase-70 standalone estimate checkout pay-route no longer exists (superseded by Phase-94 hosted invoices); the invoice path is the single customer-payment surface; subscription/top-up checkouts are platform-account charges and carry NO fee (verified — `grep application_fee_amount app/api/billing/create-checkout-session create-topup-session` → NOTHING). **DEVIATION (0 — pre-declared pattern, not a deviation):** extended the Phase-111 `BILLCFG-03` dormancy allowlist (`tests/unit/billing/billing-config.test.ts`) for BOTH new `getBillingConfig` consumers — `lib/actions/invoice.ts` (this plan) + `app/(app)/settings/payments/page.tsx` (Plan-03 disclosure %, added pre-emptively so the guard stays green when Plan 03 lands; the Set tolerates the not-yet-referencing path); the guard still fails on any OTHER consumer. `npx vitest run tests/unit/billing tests/unit/actions/invoice.test.ts` → **21 files / 160 passed**; the 4 plan-touched files → 40/40. `tsc --noEmit -p tsconfig.json` clean on the 3 touched source files. FULL `npx vitest run` → 289 passed | **1 failed** = `tests/unit/mcp-route-contract.test.ts` GET-405 — a pre-existing PARALLEL-ONLY flake (passes 8/8 in isolation), touches no Phase-114 file; logged out-of-scope to `deferred-items.md`, not fixed (scope boundary). 3 atomic commits (b5c749bb FEE-04 helper, 1fd7f787 FEE-01 invoice field, 294a2754 FEE-03 action+allowlist); all normal hooked (gitleaks ran, no `--no-verify`), no leaks (placeholder Stripe ids only). FEE-01/02/03/04 marked complete. **Phase 114 now 1/3 plans.** Next: `/gsd:execute-phase 114` (Plan 114-02 — total payment-UI gating, PAYGATE-01/02). See 114-01-SUMMARY.md.
 
 Status (113-03, Wave 1 — TOPUP-02 route + TOPUP-03 + MIG-01): shipped — **Phase 113 COMPLETE (3/3 plans) — the LAST plan; the Stripe rail is fully wired.** Two additive features flip the last 113-01 RED files GREEN, no overlap with 113-02. **TOPUP-02 (route side):** NEW `app/api/billing/create-topup-session/route.ts` — a near-copy of `create-checkout-session` keeping the auth 401 / `demoGuardResponse()` / company lookup (`select('id, stripe_customer_id').eq('user_id', claims.sub).single()`) / `getStripeClient()` blocks IDENTICAL, but `mode:'payment'` + inline `line_items[0].price_data` (`currency:'usd'`, `unit_amount:pack.priceCents`, `product_data.name`) + `metadata:{ type:'credit_topup', companyId:company.id, credits:String(pack.credits) }`. The pack is looked up SERVER-SIDE from `getBillingConfig().topUpPacks[packIndex]` (`Number.isInteger` guard) — credits/price NEVER trusted from the body (Pitfall 4); bad packIndex → 400 (no `sessions.create`), unauth → 401. NO pre-created Stripe Price (inline price_data only). 3/3 topup-checkout tests green. **TOPUP-03 (affordance PATH):** NEW pure `lib/billing/overage-affordance.ts` `buildOverageAffordance(check)` — `shortfall>0` → `{ topUpUrl:'/settings/billing?topup=1', upgradeUrl:'/settings/billing' }`, `shortfall===0` → `null`; keys on `shortfall` independent of `allowed`, so an enforcement-off shortfall still yields an affordance (proving TOPUP-03 is a path, not a block). 3/3 overage tests green. **MIG-01:** the existing `generate-estimate` count-based 402 (`if (!allowed)` after `checkQuota(supabase, companyId, 'estimate')`) is ENRICHED in place — `checkCredits(supabase, companyId)` + `buildOverageAffordance` spread-merge a `topUpUrl` field onto the SAME response (`...(affordance ? { topUpUrl } : {})`); the checkQuota call + its condition are byte-unchanged, NO `credit.allowed` gating path added; `checkCredits` is enforcement-off (always `allowed:true`) so it can never block. `tsc --noEmit -p tsconfig.json` clean on all 3 touched source files. **DEVIATION (1, Rule 3 — pre-declared pattern):** extended the Phase-111 `BILLCFG-03` dormancy guard (`tests/unit/billing/billing-config.test.ts`) allowlist to cover the two Stripe-rail config consumers — the 113-02 webhook grant arm (`app/api/webhooks/stripe/route.ts`, reads `cfg.tiers`) and the new `create-topup-session` route (reads `topUpPacks`); both are runtime-authoritative billing readers, the guard still fails on any OTHER consumer (identical to 112-03's credit-ledger allowlisting). FULL `npx vitest run` → **289 files passed | 3 skipped, 2054 passed | 2 skipped | 33 todo** (113-02 baseline 288/2053; +1 file / +1 — the previously-RED topup/overage sets now green, plus the guard fix). `quota.test.ts` + `quota-price-research.test.ts` → 17/17 (count gate untouched). 3 atomic commits (a09fe12 top-up route, 6f62056 affordance+402 enrich, 72f35836 BILLCFG-03 allowlist); all normal hooked (gitleaks ran, no `--no-verify`), no leaks found (placeholder Stripe ids only). TOPUP-02/03 + MIG-01 marked complete. Enforcement stays OFF until Phase 116 calibration by design. **Phase 113 now 3/3 plans — the Stripe rail track (grants + top-ups + parallel-run affordance) is fully executed.** Next: `/gsd:verify-work 113`, then `/gsd:execute-phase 114` (estimate payment fee + payment-UI gating + disclosure — independent of the credit track). See 113-03-SUMMARY.md.
 
@@ -82,7 +85,7 @@ Prior: 102-01 (HARD-07 replay-safe TTL) shipped. Added a neutral `requestedAt: A
 Prior: 102-02 (HARD-06 cap half) shipped. Replaced the hard-coded `(state.refineAttempts ?? 0) < 1` literal in `checkVagueAfterAssessEdge` (`lib/estimate/graph/nodes/decide.ts`) with a single `AUTO_REFINE_MAX_ATTEMPTS` module constant — read once at module load via an IIFE (`Number.isFinite(raw) && raw >= 0 ? raw : 1`) from the optional non-secret `process.env.AUTO_REFINE_MAX_ATTEMPTS`, defaulting to 1. Operator kept exactly `<` so the default is byte-identical to today (Research Pitfall 1). `auto-refine.ts` doc comment updated to reference the configurable cap (documentation-only; increment logic untouched). Channel-neutral (no DB, no async, no channel import) → graph-neutrality stays green. `tests/unit/estimate/auto-refine-cap.test.ts` now fully GREEN (default=1 AND `AUTO_REFINE_MAX_ATTEMPTS=2` override cases); `auto-refine-isolation` + `graph-neutrality` (12/12) and `never-reply-regression` Path C (loops exactly once at default) stay green. No env VALUE committed — only the var NAME appears (CLAUDE.md secret-handling). 1 atomic commit (02a41f2). xphere untouched. HARD-06 NOT marked complete — only the configurable-cap half is done; the web recourse UI half is owned by Plan 102-04.
 Prior (102-00, Wave 0 RED/EXTEND scaffold): authored 4 failing-by-design test files (auto-refine-cap [HARD-06 cap, now GREEN via 102-02], replay-safe-ttl [HARD-07, still RED → 102-01], batch-reporting [HARD-05, still RED → 102-03], needs-details-banner [HARD-06 recourse, still RED → 102-04]); 2 commits (201afb0, 35e8537).
 Last activity: 2026-06-24
-Stopped at: Completed 113-03-PLAN.md
+Stopped at: Completed 114-01-PLAN.md
 Next Up: **Phase 108 COMPLETE (5/5 plans — 108-01 metering [RMETER-01/02/03], 108-02 vagueness gate [RFALL-02], 108-03 orchestrator `researchUnmatchedPrices` [RPRICE-01/03/04, RFALL-01], 108-04 wire into `generateEstimateForProject` [RPRICE-01/03, RFALL-01], 108-05 "Couch cleaning 8 seats" full-graph regression [RFALL-03]).** THE PAYOFF is live in the production generation path AND locked by a green deterministic full-graph regression (EVIDENCED → $180/non-vague, empty-research+context → never-$0 ladder/non-vague, all-empty → still blocks). All three price-research adapters (`openrouter-web`, gated `anthropic-web`, deterministic `fixture`) remain configured-via-`platform_integrations` (all-misses no-op when unconfigured). Suggested: `/gsd:verify-work 108`, then `/gsd:execute-phase 109` (durability + cost-control hardening — dedicated `step.run('price-research')` retry isolation, runtime OpenRouter→Anthropic fallback ordering, per-estimate item caps, refine-loop memoization). DEFERRED (operational, carried from 108-01): apply migration `20260624000002_phase108_usage_event_price_researched.sql` (+ the earlier `20260624000001` price_research_cache) to remote via CI→GHCR→Coolify.
 Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gsd:verify-work 104` to validate the phase, then address the operational deferrals. DEFERRED (operational, all of Phase 104): apply migrations `20260621000001_notification_categories_remap.sql` + `20260621000002_notification_opt_in_consent.sql` + `20260621000003_whatsapp_notification_templates.sql` to the remote DB; ensure the Twilio from-number is SMS-capable; verify the Meta token carries `whatsapp_business_management` scope + author/approve the registry templates in Meta WhatsApp Manager (the `message_template_status_update` webhook then flips them to approved). Also still queued: `/gsd:verify-work 103` + `/gsd:complete-milestone` (v4.5) carry-over UATs.
 
@@ -656,6 +659,8 @@ Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gs
 - [Phase 113]: Wave-0 RED scaffolding: tests written against the exact Wave-1 contract (grant shape, mode:'payment' inline price_data session, buildOverageAffordance), committed failing; module-not-found-as-RED for not-yet-created route/module
 - [Phase 113]: TOPUP-01: invoice.paid grants tiers[tier].monthlyCreditGrant via grantCredits idempotent on event.id (covers first-subscribe + renewal); free tier no-ops at 0
 - [Phase 113]: TOPUP-02 webhook: credit_topup arm sits BEFORE the mode!=='subscription' early-break, parses STRING metadata.credits via Number(), grants reason:'topup' idempotent on event.id
+- [Phase 114]: FEE-02 satisfied-by-FEE-01: Phase-70 estimate checkout pay-route no longer exists; invoice path is the single customer-payment surface; sub/top-up checkouts carry no fee
+- [Phase 114]: Estimate fee clamps strictly below the charge (amount-1); 1-cent invoice omits application_fee_amount entirely (Stripe rejects $0/>=charge)
 
 ## Performance Metrics
 
@@ -872,13 +877,14 @@ Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gs
 | Phase 113 P01 | 4min | 3 tasks | 3 files |
 | Phase 113 P02 | 3min | 2 tasks | 1 files |
 | Phase 113 P03 | 8min | 2 tasks | 4 files |
+| Phase 114 P01 | 13m | 3 tasks | 7 files |
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-13)
 
 **Core value:** Business owner → job site audio recording → sent professional estimate in under 5 minutes
-**Current focus:** Phase 113 — Stripe Rail — Grants, Top-Ups + Parallel-Run Transition
+**Current focus:** Phase 114 — Estimate Payment Fee + Payment-UI Gating + Disclosure
 
 ## Notes
 
