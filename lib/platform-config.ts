@@ -2,6 +2,7 @@ import 'server-only'
 import { cache } from 'react'
 import { createServiceClient } from '@/lib/supabase/service'
 import { decrypt } from '@/lib/crypto/aes'
+import { invalidateBillingConfigCache } from '@/lib/billing/billing-config'
 
 export type Branding = {
   appName: string
@@ -284,6 +285,9 @@ export function invalidatePlatformConfig(): void {
   brandingCache = null
   integrationCache.clear()
   whatsAppConfigCache = null
+  // Flush the 30s billing_config TTL so a Plan 02 admin save applies at runtime
+  // without a deploy (BILLCFG-02 runtime-apply key link).
+  invalidateBillingConfigCache()
 }
 
 export type TwilioConfig = {

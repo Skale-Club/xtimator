@@ -134,7 +134,7 @@ export const blogPostSchema = z.object({
  * billing_config (Phase 111 / v4.7 Monetização) — the super-admin-editable
  * billing parameters stored in the metadata-only `platform_integrations`
  * `billing_config` row. Shared source-of-truth shape: the client form, the
- * Plan 02 save action, and the getBillingConfig() reader all agree on it.
+ * Plan 02 save action, and the billing-config reader all agree on it.
  *
  * MONEY is INTEGER CENTS; PERCENTAGES are 0..1 decimals (research Pitfall 4).
  */

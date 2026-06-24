@@ -62,25 +62,49 @@ export const DEFAULT_BILLING_CONFIG: BillingConfig = {
   absorbedChatRateLimitPerMin: 20,
 }
 
+// 30s TTL cache mirroring brandingCache (lib/platform-config.ts). The
+// invalidator is called from invalidatePlatformConfig() so a Plan 02 admin
+// save flushes immediately — the new config applies at runtime without a
+// deploy (BILLCFG-02 "applied without deploy", research Pitfall 5).
+const BILLING_CONFIG_TTL_MS = 30_000
+let billingConfigCache: { value: BillingConfig; fetchedAt: number } | null = null
+
+export function invalidateBillingConfigCache(): void {
+  billingConfigCache = null
+}
+
 /**
  * Null-safe reader. Returns {@link DEFAULT_BILLING_CONFIG} when no row exists or
  * the service client is unavailable (static build). When a row is present, it
  * shallow-merges the stored metadata over the defaults and DEEP-merges `tiers`
  * so a row written before a field existed still resolves (research Pitfall 6).
+ * Cached for 30s; flush via {@link invalidateBillingConfigCache}.
  */
 export async function getBillingConfig(): Promise<BillingConfig> {
+  const now = Date.now()
+  if (billingConfigCache && now - billingConfigCache.fetchedAt < BILLING_CONFIG_TTL_MS) {
+    return billingConfigCache.value
+  }
   const svc = createServiceClient()
-  if (!svc) return DEFAULT_BILLING_CONFIG
+  if (!svc) {
+    billingConfigCache = { value: DEFAULT_BILLING_CONFIG, fetchedAt: now }
+    return DEFAULT_BILLING_CONFIG
+  }
   const { data } = await svc
     .from('platform_integrations')
     .select('metadata')
     .eq('provider', 'billing_config')
     .maybeSingle()
   const stored = (data?.metadata ?? null) as Partial<BillingConfig> | null
-  if (!stored) return DEFAULT_BILLING_CONFIG
-  return {
+  if (!stored) {
+    billingConfigCache = { value: DEFAULT_BILLING_CONFIG, fetchedAt: now }
+    return DEFAULT_BILLING_CONFIG
+  }
+  const value: BillingConfig = {
     ...DEFAULT_BILLING_CONFIG,
     ...stored,
     tiers: { ...DEFAULT_BILLING_CONFIG.tiers, ...(stored.tiers ?? {}) },
   }
+  billingConfigCache = { value, fetchedAt: now }
+  return value
 }
