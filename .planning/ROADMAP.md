@@ -782,7 +782,7 @@ Plans:
 | 108. Orchestrator + Service Integration | v4.6 | 5/5 | Complete    | 2026-06-24 |
 | 109. Durability + Cost-Control Hardening | v4.6 | 2/2 | Complete    | 2026-06-24 |
 | 117. Knowledge Schema + pgvector + Dual RLS | v4.8 | 1/1 | Complete    | 2026-06-24 |
-| 118. Channel-Neutral lib/knowledge/ Module | v4.8 | 2/3 | In Progress|  |
+| 118. Channel-Neutral lib/knowledge/ Module | v4.8 | 3/3 | Complete   | 2026-06-24 |
 | 119. Super-Admin Industry KB Curation + Bulk Import | v4.8 | 0/0 | Not started | - |
 | 120. Company KB Overlay (tenant settings) | v4.8 | 0/0 | Not started | - |
 | 121. WhatsApp KNOWLEDGE Intent | v4.8 | 0/0 | Not started | - |
@@ -1403,7 +1403,7 @@ Plans:
 ## Phases — v4.8 Industry Knowledge Base
 
 - [x] **Phase 117: Knowledge Schema + pgvector + Dual RLS** - Enable pgvector and ship the `knowledge_entries` table with both RLS postures: industry entries neutral/shared (service-role-write, read scoped by industry, mirroring `price_research_cache`) and company-overlay entries tenant-scoped (`company_members` membership). The retrieval foundation — nothing embeds or retrieves without it. (completed 2026-06-24)
-- [ ] **Phase 118: Channel-Neutral `lib/knowledge/` Module — embed + retrieve + answer + injection-hardening + fixture** - The neutral domain module: `embed()`, `retrieve()` merging industry KB + company overlay over pgvector, `answer()` RAG with `sanitizeField` + `<knowledge>` injection-hardening, and a deterministic fixture adapter for CI. Imports no channel; never-throws.
+- [x] **Phase 118: Channel-Neutral `lib/knowledge/` Module — embed + retrieve + answer + injection-hardening + fixture** - The neutral domain module: `embed()`, `retrieve()` merging industry KB + company overlay over pgvector, `answer()` RAG with `sanitizeField` + `<knowledge>` injection-hardening, and a deterministic fixture adapter for CI. Imports no channel; never-throws. (completed 2026-06-24)
 - [ ] **Phase 119: Super-Admin Industry KB Curation + Bulk Import** - The super-admin panel CRUD that POPULATES the industry KB scoped by industry, (re)generating embeddings on save, plus a markdown/CSV bulk import to seed an industry in one operation.
 - [ ] **Phase 120: Company KB Overlay (tenant settings)** - The company owner's OWN settings panel (distinct from super-admin — the two-panel rule) to add/edit/delete private overlay entries, embeddings generated the same way, scoped to the owning company; optional.
 - [ ] **Phase 121: WhatsApp KNOWLEDGE Intent** - The 5th `classifyAndRoute` intent + QUERY-vs-KNOWLEDGE disambiguation (safe CREATE default preserved), dispatching to `lib/knowledge/answer` scoped by the company's `industries[]` + overlay and delivered via the existing chunked owner reply. The consumer that proves the module end-to-end.
@@ -1437,7 +1437,7 @@ Plans:
 Plans:
 - [x] 118-01-PLAN.md — Foundations: KnowledgeProvider port + types, embed(text) (KMOD-01), match_knowledge_entries RPC migration, + all Wave-0 test stubs
 - [x] 118-02-PLAN.md — retrieve() over the RPC merging industry KB + overlay, never-throws (KMOD-02) + deterministic fixture provider (KMOD-04) + channel-neutrality gate
-- [ ] 118-03-PLAN.md — answer() RAG via OpenRouter chat, never-throws (KMOD-03) + <knowledge> injection-hardening in the prompt-builder Security block (KSEC-01)
+- [x] 118-03-PLAN.md — answer() RAG via OpenRouter chat, never-throws (KMOD-03) + <knowledge> injection-hardening in the prompt-builder Security block (KSEC-01)
 
 ### Phase 119: Super-Admin Industry KB Curation + Bulk Import
 **Goal**: A super-admin can populate and maintain the industry knowledge base from the super-admin panel — create, edit, and delete entries scoped to an industry, with each save (re)generating the entry's embedding, plus a one-shot markdown/CSV bulk import to seed an entire industry's KB at once. This is what makes the industry KB a real platform asset; curate once per industry, serve every tenant in it.

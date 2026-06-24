@@ -26,7 +26,7 @@ Requirements for this milestone. Each maps to exactly one roadmap phase.
 
 - [x] **KMOD-01**: An `embed(text)` function generates embeddings via the configured provider (model-agnostic via the existing platform-config pattern), reusing `getIntegrationKey`.
 - [x] **KMOD-02**: `retrieve(question, { industries, companyId, k })` returns ranked passages by pgvector similarity, MERGING the company's industry KB(s) + its own company overlay; channel-neutral (imports no channel) and never-throws.
-- [ ] **KMOD-03**: `answer(question, ctx)` composes a RAG prompt from retrieved passages and returns a short conversational answer; the prompt is injection-hardened (see KSEC-01).
+- [x] **KMOD-03**: `answer(question, ctx)` composes a RAG prompt from retrieved passages and returns a short conversational answer; the prompt is injection-hardened (see KSEC-01).
 - [x] **KMOD-04**: A deterministic fixture adapter lets the CI/eval harness exercise retrieve/answer with zero live network (mirroring the price-research fixture provider).
 
 ### Super-Admin Industry KB Curation
@@ -47,7 +47,7 @@ Requirements for this milestone. Each maps to exactly one roadmap phase.
 
 ### Injection Hardening
 
-- [ ] **KSEC-01**: Retrieved KB content is sanitized through the existing `sanitizeField` and wrapped in a new `<knowledge>` tag, enumerated in the prompt-builder Security block, before entering any prompt; a static test asserts knowledge prompts are built through this hardened boundary (not ad-hoc concatenation).
+- [x] **KSEC-01**: Retrieved KB content is sanitized through the existing `sanitizeField` and wrapped in a new `<knowledge>` tag, enumerated in the prompt-builder Security block, before entering any prompt; a static test asserts knowledge prompts are built through this hardened boundary (not ad-hoc concatenation).
 
 ## v2 Requirements
 
@@ -84,7 +84,7 @@ Which phases cover which requirements. Populated during roadmap creation.
 | KB-03 | Phase 117 | Complete |
 | KMOD-01 | Phase 118 | Complete |
 | KMOD-02 | Phase 118 | Complete |
-| KMOD-03 | Phase 118 | Pending |
+| KMOD-03 | Phase 118 | Complete |
 | KMOD-04 | Phase 118 | Complete |
 | KCUR-01 | Phase 119 | Pending |
 | KCUR-02 | Phase 119 | Pending |
@@ -93,7 +93,7 @@ Which phases cover which requirements. Populated during roadmap creation.
 | KOVL-02 | Phase 120 | Pending |
 | WAKB-01 | Phase 121 | Pending |
 | WAKB-02 | Phase 121 | Pending |
-| KSEC-01 | Phase 118 | Pending |
+| KSEC-01 | Phase 118 | Complete |
 
 **Coverage:**
 - v1 requirements: 15 total
