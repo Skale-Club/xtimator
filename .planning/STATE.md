@@ -17,8 +17,10 @@ progress:
 
 ## Current Status
 
-- **Milestone**: v4.5 Estimate Engine Robustness & Reliability Harness — STARTED 2026-06-21, roadmap complete (phases 99-103). Builds on v4.3's canonical estimate graph (`lib/estimate/graph/`). Predecessor v4.3 Unified Agentic Estimate Engine (phases 94-96 shipped 2026-06-20, Phase 97 observability pending); v4.4 WhatsApp Notifications (Phase 98) queued.
-- **Last updated**: 2026-06-21
+- **Milestone**: v4.6 Pricing Intelligence — Researched Pricing Agent — STARTED 2026-06-23, defining requirements. Delivers Pillar 2 (researched regional pricing for items with no price-book match; new `price_source: 'researched'`) on top of the v4.3 canonical graph. Locked: OpenRouter primary provider; Brave Search a candidate web-search source. Numbering continues globally — v4.6 starts at Phase 105.
+- **Previous milestone**: v4.5 Estimate Engine Robustness & Reliability Harness — SHIPPED 2026-06-21 (phases 99-103, 18/18 requirements).
+- **Position**: Phase 105 not started — defining requirements (research → requirements → roadmap).
+- **Last updated**: 2026-06-23
 
 ## Current Position
 

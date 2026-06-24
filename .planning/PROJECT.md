@@ -14,6 +14,19 @@ The platform includes:
 
 A business owner can go from job site audio recording to a sent, professional estimate in under 5 minutes without touching a keyboard.
 
+## Current Milestone: v4.6 Pricing Intelligence — Researched Pricing Agent
+
+**Goal:** When an estimate line item has no match in the company price book, instead of the AI guessing a price (today `price_source: 'ai_estimate'`, which can come out $0 and trip the "too vague" gate), a specialized agent researches the average market price for that service/product **in the client's region** and writes it into the estimate with traceability.
+
+**Target features:**
+- **Regional price research** — a dedicated step that, for each line item with no price-book match, looks up an average US market price using the client's city/state (already on the address).
+- **Research source (critical open decision)** — pick the pricing-lookup mechanism: Claude web search vs Gemini `googleSearch` grounding vs **Brave Search** vs a dedicated pricing API vs scraping. Weigh cost, latency, reliability. The runtime AI calls route primarily through **OpenRouter** (project's main provider), so the chosen source must fit that path.
+- **Admin-panel config** — what feeds the research (region parameters, margins, fallback behavior) is controlled from the existing super-admin panel.
+- **Traceability** — a new `price_source: 'researched'` value separating "researched" from `price_book` (authoritative) and `ai_estimate` (guess).
+- **Graph integration** — wire the research step into the channel-neutral estimate graph (`lib/estimate/graph`) running inside the Inngest job, before `assess`, without breaking channel neutrality.
+
+**Key context:** Pillar 1 (price-book priority via `anchorAndClampSections`) already ships; this milestone delivers Pillar 2 (researched pricing). Builds on the v4.3 canonical graph + the Phase-99 provider-fallback wrapper (`getAIProviderWithFallback`, OpenRouter→Gemini). **Locked constraints:** OpenRouter is the primary AI provider; Brave Search is an explicit candidate for the web-search source. Originating bug: "Couch cleaning 8seats" generated $0 and was blocked as vague. Numbering continues the global counter — v4.5 ended at Phase 103, so v4.6 starts at **Phase 105**.
+
 ## Last Milestone: v4.5 Estimate Engine Robustness & Reliability Harness ✅ (shipped 2026-06-21)
 
 **Shipped:** all 5 phases (99-103), 18/18 requirements, 19 plans, 99 commits. Full unit suite deterministic-green (250 files / 1732 tests) + a new secret-free CI regression gate. Audit PASSED (6/6 integration chains, 3/3 E2E flows). Archive: [milestones/v4.5-ROADMAP.md](milestones/v4.5-ROADMAP.md). Deferred human UAT (staging): live provider-outage fallback, editor refine E2E, needs-details banner + CTA, WhatsApp partial-batch reply, CI-gate-red-on-broken-metric.
@@ -324,4 +337,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context
 
 ---
-*Last updated: 2026-06-21 — v4.5 Estimate Engine Robustness & Reliability Harness SHIPPED (phases 99-103, 18/18 requirements). Predecessor v4.3 built the canonical graph (phases 94-96; Phase 97 Langfuse-v5 observability landed); v4.4 WhatsApp Notifications (Phase 98) queued. Next: /gsd:new-milestone.*
+*Last updated: 2026-06-23 — v4.6 Pricing Intelligence (Researched Pricing Agent) STARTED; defining requirements. Delivers Pillar 2 (researched regional pricing for items with no price-book match; new `price_source: 'researched'`) on top of the v4.3 canonical graph. Locked: OpenRouter primary provider; Brave Search a candidate web-search source. Numbering continues globally — v4.6 starts at Phase 105. Predecessor v4.5 SHIPPED (phases 99-103, 18/18 requirements).*
