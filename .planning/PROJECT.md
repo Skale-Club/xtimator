@@ -14,6 +14,22 @@ The platform includes:
 
 A business owner can go from job site audio recording to a sent, professional estimate in under 5 minutes without touching a keyboard.
 
+## Current Milestone: v4.7 Monetização — Credit-Based Billing + Estimate Payment Fee
+
+**Goal:** Transform billing from count-based tiers into a credit model with built-in margin (monthly subscription grants AI credits consumed as real OpenRouter/Whisper cost × markup), and add a 1% platform application fee on estimate payments — every billing parameter configurable from the super-admin panel.
+
+**Target features:**
+- **Real OpenRouter cost capture (foundation)** — today only tokens are captured (for Langfuse); capture the real USD cost per AI call. This is the prerequisite for the entire credit ledger.
+- **Credit ledger** — append-only `credit_ledger`; debit = `real_cost × markup` (4.5x target), mapped onto the points already instrumented in `usage_events` (`estimate`/`photo_batch`/`audio_minutes`/`price_research` + new `knowledge`). Rule: debit wherever WE spend AI; MCP external conversation = zero credit.
+- **Stripe as the rail** — recurring subscription + one-time top-ups via Stripe; the credit ledger is OURS (NOT Stripe metered billing). Webhook `invoice.paid` → grant credits per tier.
+- **`billing_config` in super-admin** — markup, credit denomination, per-tier monthly grant, subscription prices, top-up packs, fee %, Whisper rate, low-balance thresholds — nothing hard-coded, runtime-editable (extends the `ai_config`/`platform_integrations` pattern).
+- **1% estimate application fee** — `application_fee_amount` on the Direct Charge (the hook is deliberately omitted at `lib/billing/invoice-service.ts:17` — fill it). Owner stays merchant of record; Xtimator never custodies funds.
+- **Total payment-UI gating** — every payment page/screen/button/element only renders when Stripe Connect is `active`; a single `usePaymentsEnabled` guard, audited so no orphan element shows when disconnected.
+- **Fee disclosure at connection** — a clear notice of the 1% (read from `billing_config`, never hard-coded copy) in the Stripe connect flow.
+- **Calibration before charging** — measure real cost in production WITHOUT billing first; derive grant/markup/price from data, not guesses.
+
+**Key context:** Two distinct payment flows — (1) owner → Xtimator (subscription/credits, this milestone's core) vs (2) end-customer → owner (the 1% fee on Stripe Connect Direct Charges). Extends `lib/quota.ts` (checkQuota/recordUsage/usage_events), `lib/entitlements.ts` (count-based tiers → add `monthlyCreditGrant`), `lib/ai/providers/openrouter.ts` (cost capture), `lib/billing/invoice-service.ts` (fee hook), `lib/platform-config.ts` (`billing_config`). Stripe already wired (phase55/58/70/94). Full design + locked decisions: [SEED-035](seeds/SEED-035-credit-based-subscription-billing.md) + [SEED-036](seeds/SEED-036-estimate-payment-platform-fee.md). Synergy: model slots (SEED-031, dormant) lower real cost → fewer credits debited → margin rises. Numbering continues the global counter — v4.6 ended at Phase 109, so v4.7 starts at **Phase 110**.
+
 ## Last Milestone: v4.6 Pricing Intelligence — Researched Pricing Agent ✅ (shipped 2026-06-24)
 
 **Shipped:** all 5 phases (105-109), 17/17 requirements, 12 plans, ~40 commits. Full unit+eval suite green (275 files / 1932 tests). The originating "Couch cleaning 8seats → $0 → blocked as vague" bug is fixed (now a green eval regression: $180, non-vague). Archive: [milestones/v4.6-ROADMAP.md](milestones/v4.6-ROADMAP.md). Operational deferrals: apply 3 migrations to remote (CI→GHCR→Coolify) + configure a research source in `platform_integrations` to activate (null = dormant no-op); 1 live-e2e human UAT.
@@ -339,4 +355,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context
 
 ---
-*Last updated: 2026-06-24 — v4.6 Pricing Intelligence (Researched Pricing Agent) SHIPPED (phases 105-109, 17/17 requirements, full suite green). Delivers Pillar 2 (researched regional pricing; `price_source: 'researched'`) on top of the v4.3 canonical graph; OpenRouter web search (engine exa/native) + Anthropic quality fallback; reuses the existing quota. The "$0 → too vague" bug is fixed. Next: apply the 3 deferred migrations + configure a research source to activate, then /gsd:new-milestone.*
+*Last updated: 2026-06-24 — v4.7 Monetização (Credit-Based Billing + Estimate Payment Fee) STARTED. Transforms count-based tiers into a credit model (debit = real OpenRouter/Whisper cost × markup, super-admin-configurable via `billing_config`, Stripe as rail) + a 1% application fee on estimate payments with total payment-UI gating + fee disclosure. Foundation: capture real OpenRouter cost (today only tokens). Design in SEED-035 + SEED-036. Numbering continues — v4.7 starts at Phase 110. Defining requirements next.*

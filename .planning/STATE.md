@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v4.6
-milestone_name: Pricing Intelligence — Researched Pricing Agent
-status: completed
-stopped_at: Completed 109-01-PLAN.md
-last_updated: "2026-06-24T11:16:35.807Z"
+milestone: v4.7
+milestone_name: Monetização — Credit-Based Billing + Estimate Payment Fee
+status: defining-requirements
+stopped_at: Milestone v4.7 started — defining requirements
+last_updated: "2026-06-24T12:00:00.000Z"
 last_activity: 2026-06-24
 progress:
-  total_phases: 5
-  completed_phases: 5
-  total_plans: 145
-  completed_plans: 158
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
 ---
 
 # Project State
@@ -24,6 +24,14 @@ progress:
 - **Last updated**: 2026-06-23
 
 ## Current Position
+
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements — Milestone v4.7 Monetização started 2026-06-24. Scope = SEED-035 (credit-based billing) + SEED-036 (1% estimate payment fee). Foundation phase = capture real OpenRouter cost per AI call. Numbering continues globally — v4.7 starts at Phase 110. Next: define requirements → roadmap.
+
+---
+
+### Accumulated Context (v4.6 and prior — historical log)
 
 Phase: 999.1
 Status (109-02, Wave 1 — RMETER-01/02/03 hardening): shipped — **Phase 109 COMPLETE (2/2 plans) — the LAST plan of v4.6.** Cost-control + resilience hardening of the live Phase-108 price-research orchestrator, every path NEVER-THROW + channel-neutral (`grep -c "lib/whatsapp"` on orchestrator.ts + provider.ts → 0/0), and the live `generate-estimate.ts` wire UNTOUCHED. **(1) Per-estimate research CAP** — `MAX_RESEARCH_ITEMS_PER_ESTIMATE` env-overridable module const mirroring `AUTO_REFINE_MAX_ATTEMPTS` EXACTLY (`Number(env)` → `Number.isFinite && >0 ? Math.floor(raw) : 25`). Applied after building `candidates`, BEFORE the cache pass: `researchTargets = candidates.slice(0,cap)`; the over-cap remainder is left untouched (KEEPS its non-zero `ai_estimate` price, never $0, never reaches cache/provider). NO-SILENT-CAPS: `console.warn('[price-research] cap hit: …; N dropped to ai_estimate')`. **(2) Gated provider FALLBACK ordering** — NEW `getPriceResearchProviderChain(): Promise<PriceResearchProvider[]>` in provider.ts returns `[primary, gated-anthropic?]`: configured primary first (existing dispatch), then Anthropic-web quality-fallback appended ONLY when primary is NOT `anthropic_web` AND `getIntegrationKey('anthropic')` resolves; `[]` when unconfigured (Phase-108 safe no-op preserved); gate read failure omits the fallback (never throws). Orchestrator swapped from the single `getPriceResearchProvider()` to ITERATING the chain over the SHRINKING miss set: `provider.lookup` per round (try/catch → an erroring provider falls through to the next), evidence-gate + re-tag + meter + cache.put usable results, then feed ONLY still-unresolved items to the next provider — fallback attempted ONLY for items the primary left without evidence/errored on, before they degrade to `ai_estimate`. **(3) In-run MEMO** — per-CALL `Map<string, PriceResearchResult|null>` keyed `${normName}@@${region}`; the miss batch is deduped by memo key so two items sharing a normalized (name,region) issue ONE provider lookup + ONE `recordUsage` and both re-tag from the single result (a memoized null = known miss). Avoids in-run double-pay across the Phase-96 auto-refine loop. **DEFERRED (documented, not dropped — `.planning/deferred-items.md`):** Item 5 `step.run('price-research')` retry isolation — `generateEstimateForProject` takes no `StepRunner` today + the research call is an inline non-fatal `await`; threading a real StepRunner through `GenerateEstimateOptions` → the call site is too invasive for the freshly-wired 108 path (CONTEXT #4 + "DEFER IF RISKY" guardrail); the never-throw inline call already guarantees a research failure never blocks/fails the estimate. EXTENDED `tests/unit/estimate/price-research-orchestrator.test.ts` → 18 tests (10 existing + 4 cap/memo + 4 fallback-ordering: primary-evidenced skips fallback, primary-zero-evidence triggers evidenced fallback re-tag, primary-throws falls through never-throw, empty chain byte-identical). `tsc --noEmit -p tsconfig.json` clean on orchestrator.ts + provider.ts + both test files. FULL `npx vitest run` → **275 files passed | 3 skipped, 1932 passed | 2 skipped | 33 todo** (no regressions vs the 108 baseline 275/1924; +8 new orchestrator assertions). 3 atomic commits (d9211fc0 cap+memo, 290563f8 provider chain fallback, f8afce0 eval-regression mock fix); all normal hooked (gitleaks ran, no `--no-verify`), no leaks found. 1 deviation auto-fixed (Rule 3 — the RFALL-03 eval regression test spread-mocked `getPriceResearchProvider`; the orchestrator now calls `getPriceResearchProviderChain`, so the mock was extended to resolve a single-element chain from the fixture-provider mock). RMETER-01/02/03 hardened (no net-new requirement). The pre-existing unrelated working-tree files (layout/sidebar/actions/queries/i18n/capture etc.) left untouched. **Phase 109 now 2/2 plans — v4.6 is fully executed (all 5 phases 105-109 shipped).** Next: `/gsd:verify-work 109`, then `/gsd:complete-milestone v4.6`. See 109-02-SUMMARY.md.
