@@ -34,6 +34,8 @@ export type Category = {
   showXphereConfig?: boolean
   /** Price-research category renders the source/engine config card below the cards. */
   showPriceResearchConfig?: boolean
+  /** Billing category renders the billing-parameters config form below. */
+  showBillingConfig?: boolean
 }
 
 export const CATEGORIES: ReadonlyArray<Category> = [
@@ -127,6 +129,15 @@ export const CATEGORIES: ReadonlyArray<Category> = [
     description:
       'Researched regional pricing for estimate items with no price-book match. Reuses the configured OpenRouter / Anthropic key — no separate API key.',
     showPriceResearchConfig: true,
+    providers: [],
+  },
+  {
+    slug: 'billing',
+    title: 'Billing',
+    navLabel: 'Billing',
+    description:
+      'Platform billing parameters — markup, credit denomination, per-tier grants and prices, top-up packs, Whisper rate, estimate fee %, low-balance thresholds. Applied at runtime, no redeploy. Tenants never see these controls. Defaults are illustrative — calibrate before charging (CALIB-02).',
+    showBillingConfig: true,
     providers: [],
   },
 ] as const

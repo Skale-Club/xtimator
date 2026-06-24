@@ -12,6 +12,8 @@ import { WhatsAppSystemPromptForm } from './whatsapp-system-prompt-form'
 import { XphereConfigForm } from './xphere-config-form'
 import { XphereStatus } from './xphere-status'
 import { PriceResearchConfigForm } from './price-research-config-form'
+import { DEFAULT_BILLING_CONFIG } from '@/lib/billing/billing-config'
+import { BillingConfigForm } from './billing-config-form'
 
 type IntegrationCategoryContentProps = {
   category: Category
@@ -94,6 +96,24 @@ export async function IntegrationCategoryContent({
     }
   }
 
+  let billingConfig = DEFAULT_BILLING_CONFIG
+  if (category.showBillingConfig) {
+    const svc = requireServiceClient()
+    const { data } = await svc
+      .from('platform_integrations')
+      .select('metadata')
+      .eq('provider', 'billing_config')
+      .maybeSingle()
+    const stored = (data?.metadata as Partial<typeof DEFAULT_BILLING_CONFIG> | null) ?? null
+    billingConfig = stored
+      ? {
+          ...DEFAULT_BILLING_CONFIG,
+          ...stored,
+          tiers: { ...DEFAULT_BILLING_CONFIG.tiers, ...(stored.tiers ?? {}) },
+        }
+      : DEFAULT_BILLING_CONFIG
+  }
+
   return (
     <div className="flex flex-col gap-6">
       {category.description && (
@@ -148,6 +168,8 @@ export async function IntegrationCategoryContent({
       {category.showPriceResearchConfig && (
         <PriceResearchConfigForm current={priceResearch} />
       )}
+
+      {category.showBillingConfig && <BillingConfigForm current={billingConfig} />}
     </div>
   )
 }
