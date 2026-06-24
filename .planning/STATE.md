@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v4.7
 milestone_name: Monetização — Credit-Based Billing + Estimate Payment Fee
-status: verifying
+status: in-progress
 stopped_at: Completed 111-02-PLAN.md
-last_updated: "2026-06-24T16:05:31.885Z"
+last_updated: "2026-06-24T16:10:24.471Z"
 last_activity: 2026-06-24
 progress:
   total_phases: 67
-  completed_phases: 48
+  completed_phases: 49
   total_plans: 150
-  completed_plans: 164
+  completed_plans: 163
 ---
 
 # Project State
@@ -29,13 +29,12 @@ progress:
 - **Dependency spine:** 110 (cost capture) → 112 (ledger) needs 110 + 111; 113 (Stripe rail) needs 112; 115 (balance UX) needs 112 + 113; 116 (calibration) needs 110 + 111 + 112. 111 (`billing_config`) is structurally independent and feeds everything. 114 (payment fee) needs only 111 + the already-shipped Connect infra (phases 70/94) — sequenceable in parallel with the credit track.
 - **Locked guardrails:** Stripe = rail only (credit ledger is OURS, NOT Stripe metered billing); everything billing reads from `billing_config` (no hard-coded numbers, no env vars, super-admin only); migrations idempotent + deploy CI→GHCR→Coolify (never build on VPS); channel-neutral domain stays neutral + never-throw enrichment preserved; CALIBRATE before charging (no real billing before CALIB-02's measured numbers exist).
 - **Previous milestone**: v4.6 Pricing Intelligence — Researched Pricing Agent — SHIPPED 2026-06-24 (phases 105-109, 17/17 requirements, full unit+eval suite green 275 files / 1932 tests).
-- **Position**: Phase 110 COMPLETE (3/3 plans, verified passed — COST-01/02/03 + CALIB-01 done; `ai_cost_events` table + `recordAICost` + OpenRouter `usage.cost` capture + computed Whisper cost, all measure-only; full suite 281 files / 1967 green). Next: `/gsd:plan-phase 111` (`billing_config` + super-admin Billing panel). NOTE: `phase complete` mis-points "next" at the stale 999.1 placeholder — the real next phase is **111**.
-- **Last updated**: 2026-06-24
+- **Position**: Phase 111 COMPLETE (2/2 plans, verified 9/9 — billing_config store + super-admin Billing panel; reader dormant; suite 283 files/1986 green). Next: `/gsd:plan-phase 112` (Credit Ledger). NOTE: `phase complete` mis-points next at stale 999.1 — real next is **112**.- **Last updated**: 2026-06-24
 
 ## Current Position
 
-Phase: 111 (billing_config Store + Super-Admin Billing Panel) — EXECUTING
-Plan: 2 of 2
+Phase: 999.1
+Plan: Not started
 Status: Phase complete — ready for verification
 
 ---
