@@ -111,6 +111,25 @@ async function handlePlatformEvent(
   switch (event.type) {
     case 'checkout.session.completed': {
       const session = event.data.object as Stripe.Checkout.Session
+
+      // TOPUP-02: one-time credit top-up (mode:'payment'). Handle BEFORE the
+      // subscription-mode early-break below, or this arm never runs (Pitfall 3).
+      // metadata values are STRINGS — parse credits (Pitfall 5). Idempotent on event.id.
+      if (session.metadata?.type === 'credit_topup' && session.payment_status === 'paid') {
+        const topupCompanyId = session.metadata.companyId
+        const credits = Number(session.metadata.credits)
+        if (topupCompanyId && credits > 0) {
+          await grantCredits({
+            companyId: topupCompanyId,
+            credits,
+            reason: 'topup',
+            refId: session.id,
+            idempotencyKey: event.id,
+          })
+        }
+        break
+      }
+
       const companyId = session.metadata?.companyId
       if (!companyId || session.mode !== 'subscription') break
 
