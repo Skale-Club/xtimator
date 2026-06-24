@@ -774,7 +774,7 @@ Plans:
 | 104. Notification Channels & Preferences Revamp | v4.5.1 | 4/4 | Complete | 2026-06-22 |
 | 105. `price_source: 'researched'` Threading | v4.6 | 2/2 | Complete    | 2026-06-24 |
 | 106. Cache Table + Tenant-Scoped Cache Module | v4.6 | 2/2 | Complete    | 2026-06-24 |
-| 107. Provider Seam + First Source + Determinism Seam | v4.6 | 3/3 | Complete   | 2026-06-24 |
+| 107. Provider Seam + First Source + Determinism Seam | v4.6 | 3/3 | Complete    | 2026-06-24 |
 | 108. Orchestrator + Service Integration | v4.6 | 0/TBD | Not started | - |
 | 109. Durability + Cost-Control Hardening | v4.6 | 0/TBD | Not started | - |
 
