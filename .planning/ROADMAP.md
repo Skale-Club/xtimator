@@ -1199,7 +1199,10 @@ Plans:
   2. The AI output schema (`lib/ai/schema.ts`, relaxing the D-15 preprocess) and `LineItemOutput` type (`lib/ai/types.ts`) accept `'researched'`; `price-anchoring.ts` is type-widened only so a price-book match still wins (precedence preserved at the type layer)
   3. The estimate editor (`item-row.tsx` + `item-card-mobile.tsx`) renders a distinct "Researched" badge as a third variant alongside "Price book" and "AI estimate"; editing an item still clears `price_source` to null (the existing `Edited` rule already covers it — confirmed, not re-implemented)
   4. The full unit/eval suite stays green with no item ever tagged `researched` yet (badge dormant) — proving the threading is additive and behavior-preserving
-**Plans**: TBD
+**Plans**: 2 plans (1 wave — parallel, disjoint files)
+Plans:
+- [ ] 105-01-PLAN.md — DB CHECK widen migration + AI schema/types/anchoring type-widen for `'researched'` (RPRICE-02, RPRICE-03)
+- [ ] 105-02-PLAN.md — Dormant "Researched" editor badge (item-row + item-card-mobile) + editor `price_source` union widen (RPRICE-02, RPRICE-03)
 **UI hint**: yes
 
 ### Phase 106: Cache Table + Tenant-Scoped Cache Module
