@@ -774,7 +774,7 @@ Plans:
 | 104. Notification Channels & Preferences Revamp | v4.5.1 | 4/4 | Complete | 2026-06-22 |
 | 105. `price_source: 'researched'` Threading | v4.6 | 2/2 | Complete    | 2026-06-24 |
 | 106. Cache Table + Tenant-Scoped Cache Module | v4.6 | 2/2 | Complete    | 2026-06-24 |
-| 107. Provider Seam + First Source + Determinism Seam | v4.6 | 2/3 | In Progress|  |
+| 107. Provider Seam + First Source + Determinism Seam | v4.6 | 3/3 | Complete   | 2026-06-24 |
 | 108. Orchestrator + Service Integration | v4.6 | 0/TBD | Not started | - |
 | 109. Durability + Cost-Control Hardening | v4.6 | 0/TBD | Not started | - |
 
@@ -1185,7 +1185,7 @@ Plans:
 - [x] **Phase 105: `price_source: 'researched'` Threading** — Plumb the new `'researched'` enum value through schema/types/DB CHECK/editor badge; ships dormant (no behavior change), unblocks everything
  (completed 2026-06-24)
 - [x] **Phase 106: Cache Table + Tenant-Scoped Cache Module** — `price_research_cache` table (company-scoped, deny-all RLS, 30d TTL) + canonical-key cache module; parallelizable with 105
-- [ ] **Phase 107: Provider Seam + First Source + Determinism Seam** — `PriceResearchProvider` port + OpenRouter-web adapter + Anthropic quality-fallback adapter + deterministic fixture adapter for CI + prompt-injection hardening
+- [x] **Phase 107: Provider Seam + First Source + Determinism Seam** — `PriceResearchProvider` port + OpenRouter-web adapter + Anthropic quality-fallback adapter + deterministic fixture adapter for CI + prompt-injection hardening (completed 2026-06-24)
 - [ ] **Phase 108: Orchestrator + Service Integration (the payoff)** — `researchUnmatchedPrices` wired into `generateEstimateForProject` after anchoring; precedence + evidence-gated tagging + no-$0 fallback ladder + vagueness-gate fix + "Couch cleaning 8seats" regression fixture + quota metering
 - [ ] **Phase 109: Durability + Cost-Control Hardening** — dedicated `step.run('price-research')` retry isolation + provider fallback ordering + per-estimate item caps + refine-loop memoization
 
@@ -1233,7 +1233,7 @@ Plans:
 Plans:
 - [x] 107-01-PLAN.md — Port + zod schema + evidence-gated isUsableCandidate + injection hardening (export sanitizeField, &lt;search_result&gt; in ## Security, buildResearchSearchPrompt) [Wave 1]
 - [x] 107-02-PLAN.md — OpenRouter-web adapter (separate openrouter:web_search call, engine exa default/native configurable) + gated Anthropic-web adapter (user_location) [Wave 2]
-- [ ] 107-03-PLAN.md — Deterministic fixture adapter + golden (service,region)->candidates fixtures + fixed clock + gated eval source test (zero live network) [Wave 2]
+- [x] 107-03-PLAN.md — Deterministic fixture adapter + golden (service,region)->candidates fixtures + fixed clock + gated eval source test (zero live network) [Wave 2]
 
 ### Phase 108: Orchestrator + Service Integration (the payoff)
 **Goal**: The bug is actually fixed. `researchUnmatchedPrices` is wired into `generateEstimateForProject` immediately after `anchorAndClampSections` and before totals/persistence, so the vagueness gate sees real numbers. Research runs only on no-match items, never overrides a price-book item or an owner edit, is evidence-gated, is metered through the existing quota, and degrades to a non-zero `ai_estimate` (never $0) on any failure. The originating "Couch cleaning 8seats" case now produces a non-zero, non-vague estimate.
