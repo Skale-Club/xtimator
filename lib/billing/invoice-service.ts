@@ -14,8 +14,10 @@ import { getStripeClient } from '@/lib/billing/stripe-client'
  *     + automatic reminders)
  *   - `metadata.invoice_id` (our invoices-row PK) + `metadata.company_id` route
  *     the `invoice.paid` webhook back to the right row
- *   - the platform application fee is OMITTED everywhere — Stripe rejects a 0
- *     fee, and omitting it yields 100% to the connected account (Pitfall 1)
+ *   - the platform application fee (FEE-01) rides on the INVOICE object via
+ *     `application_fee_amount`, and ONLY when `applicationFeeCents > 0` — Stripe
+ *     rejects a 0 fee (Pitfall 1), so a 0 omits the field and yields 100% to the
+ *     connected account. The fee is NEVER an InvoiceItem field (Pitfall 2).
  *   - a stable `idempotencyKey` guards every create against double-issue on retry
  *     (Pitfall 5)
  *   - an existing customer id is reused when present (D-14)
@@ -31,6 +33,7 @@ export async function createConnectInvoice(opts: {
   metadata: { invoice_id: string; company_id: string }
   daysUntilDue: number
   idempotencyBase: string
+  applicationFeeCents: number // FEE-01: platform fee in cents; 0 means omit (Stripe rejects $0)
 }): Promise<{
   stripeInvoiceId: string
   stripeCustomerId: string
@@ -71,6 +74,11 @@ export async function createConnectInvoice(opts: {
       days_until_due: opts.daysUntilDue,
       pending_invoice_items_behavior: 'include',
       metadata: opts.metadata,
+      // FEE-01: omit when 0 — Stripe rejects a $0 application fee (Pitfall 1).
+      // The { stripeAccount } reqOpt already supplies the Direct-Charge header.
+      ...(opts.applicationFeeCents > 0
+        ? { application_fee_amount: opts.applicationFeeCents }
+        : {}),
     },
     { ...reqOpt, idempotencyKey: `${opts.idempotencyBase}_inv` },
   )

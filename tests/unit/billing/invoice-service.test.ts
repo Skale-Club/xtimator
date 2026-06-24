@@ -8,7 +8,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
  *   - the InvoiceItem is amount-based (no price_data / Price object)
  *   - the Invoice body uses collection_method 'send_invoice' + days_until_due
  *   - metadata carries invoice_id + company_id so the webhook can route by it
- *   - application_fee_amount is OMITTED everywhere (Stripe rejects 0 — Pitfall 1)
+ *   - application_fee_amount (FEE-01) is set on the INVOICE object ONLY when
+ *     applicationFeeCents > 0 (Stripe rejects a 0 fee — Pitfall 1); it is NEVER
+ *     an InvoiceItem field (Pitfall 2)
  *   - every request-options arg carries a stable idempotencyKey (Pitfall 5)
  *   - a stored customer id is reused (customers.create NOT called)
  *
@@ -54,6 +56,7 @@ function baseOpts(overrides: Record<string, unknown> = {}) {
     metadata: { invoice_id: 'inv_row_1', company_id: 'co_1' },
     daysUntilDue: 7,
     idempotencyBase: 'inv_est_1_deposit',
+    applicationFeeCents: 0,
     ...overrides,
   }
 }
@@ -101,13 +104,24 @@ describe('INVOICE-03: createConnectInvoice (Stripe Connect invoice sequence)', (
     )
   })
 
-  it('OMITS application_fee_amount on both the invoice and the invoice item (Pitfall 1)', async () => {
+  it('OMITS application_fee_amount when applicationFeeCents is 0 (Pitfall 1)', async () => {
     const { createConnectInvoice } = await import('@/lib/billing/invoice-service')
-    await createConnectInvoice(baseOpts())
+    await createConnectInvoice(baseOpts({ applicationFeeCents: 0 }))
 
     const invoiceBody = invoicesCreate.mock.calls[0][0]
     const itemBody = invoiceItemsCreate.mock.calls[0][0]
     expect('application_fee_amount' in invoiceBody).toBe(false)
+    expect('application_fee_amount' in itemBody).toBe(false)
+  })
+
+  it('SETS application_fee_amount on the INVOICE (never the item) when applicationFeeCents > 0 (FEE-01)', async () => {
+    const { createConnectInvoice } = await import('@/lib/billing/invoice-service')
+    await createConnectInvoice(baseOpts({ applicationFeeCents: 250 }))
+
+    const invoiceBody = invoicesCreate.mock.calls[0][0]
+    const itemBody = invoiceItemsCreate.mock.calls[0][0]
+    // The fee rides on the Invoice object (Pitfall 2 — never an InvoiceItem field).
+    expect(invoiceBody.application_fee_amount).toBe(250)
     expect('application_fee_amount' in itemBody).toBe(false)
   })
 
