@@ -70,7 +70,7 @@ Requirements for this milestone. Each maps to exactly one roadmap phase.
 ### Calibration & Transition
 
 - [x] **CALIB-01**: Cost capture can run in production in measure-only mode (instrumented, no charging) so real per-operation cost is collected before any billing is enabled.
-- [ ] **CALIB-02**: Grant/markup/price are derived from measured real cost and satisfy the margin invariant (real cost of the full monthly grant ≤ ~30% of the subscription price), documented.
+- [x] **CALIB-02**: Grant/markup/price are derived from measured real cost and satisfy the margin invariant (real cost of the full monthly grant ≤ ~30% of the subscription price), documented.
 - [x] **MIG-01**: Credits run in parallel with the existing count-based tiers during transition; no existing account breaks, and the count-based limits degrade to secondary guard-rails.
 
 ## v2 Requirements
@@ -128,7 +128,7 @@ Which phases cover which requirements. Populated during roadmap creation.
 | CREDITUI-01 | Phase 115 | Complete |
 | CREDITUI-02 | Phase 115 | Complete |
 | CALIB-01 | Phase 110 | Complete |
-| CALIB-02 | Phase 116 | Pending |
+| CALIB-02 | Phase 116 | Complete |
 | MIG-01 | Phase 113 | Complete |
 
 **Coverage:**

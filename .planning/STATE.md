@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.7
 milestone_name: Monetização — Credit-Based Billing + Estimate Payment Fee
 status: in-progress
-stopped_at: Completed 115-02-PLAN.md
-last_updated: "2026-06-24T20:01:39.513Z"
+stopped_at: Completed 116-01-PLAN.md
+last_updated: "2026-06-24T20:21:07.444Z"
 last_activity: 2026-06-24
 progress:
   total_phases: 67
   completed_phases: 53
-  total_plans: 162
-  completed_plans: 175
+  total_plans: 163
+  completed_plans: 176
 ---
 
 # Project State
@@ -30,11 +30,12 @@ progress:
 - **Locked guardrails:** Stripe = rail only (credit ledger is OURS, NOT Stripe metered billing); everything billing reads from `billing_config` (no hard-coded numbers, no env vars, super-admin only); migrations idempotent + deploy CI→GHCR→Coolify (never build on VPS); channel-neutral domain stays neutral + never-throw enrichment preserved; CALIBRATE before charging (no real billing before CALIB-02's measured numbers exist).
 - **Previous milestone**: v4.6 Pricing Intelligence — Researched Pricing Agent — SHIPPED 2026-06-24 (phases 105-109, 17/17 requirements, full unit+eval suite green 275 files / 1932 tests).
 - **Position**: Phase 115 COMPLETE (2/2 plans, verified 9/9 — owner credit balance card + history + per-action guidance + low/zero top-up CTA; owner-safe projection, additive to count-based card). Next: `/gsd:plan-phase 116` (Calibration & Charge-On Validation — the FINAL phase). NOTE: `phase complete` mis-points next at stale 999.1 — real next is **116**.
+
 ## Current Position
 
-Phase: 999.1
-Plan: Not started
-Status: Phase complete — ready for verification (`/gsd:verify-work 115`)
+Phase: 116 (Calibration & Charge-On Validation) — EXECUTING
+Plan: 2 of 2
+Status: Ready to execute
 
 ---
 
@@ -92,7 +93,7 @@ Prior: 102-01 (HARD-07 replay-safe TTL) shipped. Added a neutral `requestedAt: A
 Prior: 102-02 (HARD-06 cap half) shipped. Replaced the hard-coded `(state.refineAttempts ?? 0) < 1` literal in `checkVagueAfterAssessEdge` (`lib/estimate/graph/nodes/decide.ts`) with a single `AUTO_REFINE_MAX_ATTEMPTS` module constant — read once at module load via an IIFE (`Number.isFinite(raw) && raw >= 0 ? raw : 1`) from the optional non-secret `process.env.AUTO_REFINE_MAX_ATTEMPTS`, defaulting to 1. Operator kept exactly `<` so the default is byte-identical to today (Research Pitfall 1). `auto-refine.ts` doc comment updated to reference the configurable cap (documentation-only; increment logic untouched). Channel-neutral (no DB, no async, no channel import) → graph-neutrality stays green. `tests/unit/estimate/auto-refine-cap.test.ts` now fully GREEN (default=1 AND `AUTO_REFINE_MAX_ATTEMPTS=2` override cases); `auto-refine-isolation` + `graph-neutrality` (12/12) and `never-reply-regression` Path C (loops exactly once at default) stay green. No env VALUE committed — only the var NAME appears (CLAUDE.md secret-handling). 1 atomic commit (02a41f2). xphere untouched. HARD-06 NOT marked complete — only the configurable-cap half is done; the web recourse UI half is owned by Plan 102-04.
 Prior (102-00, Wave 0 RED/EXTEND scaffold): authored 4 failing-by-design test files (auto-refine-cap [HARD-06 cap, now GREEN via 102-02], replay-safe-ttl [HARD-07, still RED → 102-01], batch-reporting [HARD-05, still RED → 102-03], needs-details-banner [HARD-06 recourse, still RED → 102-04]); 2 commits (201afb0, 35e8537).
 Last activity: 2026-06-24
-Stopped at: Completed 115-02-PLAN.md
+Stopped at: Completed 116-01-PLAN.md
 Next Up: **Phase 108 COMPLETE (5/5 plans — 108-01 metering [RMETER-01/02/03], 108-02 vagueness gate [RFALL-02], 108-03 orchestrator `researchUnmatchedPrices` [RPRICE-01/03/04, RFALL-01], 108-04 wire into `generateEstimateForProject` [RPRICE-01/03, RFALL-01], 108-05 "Couch cleaning 8 seats" full-graph regression [RFALL-03]).** THE PAYOFF is live in the production generation path AND locked by a green deterministic full-graph regression (EVIDENCED → $180/non-vague, empty-research+context → never-$0 ladder/non-vague, all-empty → still blocks). All three price-research adapters (`openrouter-web`, gated `anthropic-web`, deterministic `fixture`) remain configured-via-`platform_integrations` (all-misses no-op when unconfigured). Suggested: `/gsd:verify-work 108`, then `/gsd:execute-phase 109` (durability + cost-control hardening — dedicated `step.run('price-research')` retry isolation, runtime OpenRouter→Anthropic fallback ordering, per-estimate item caps, refine-loop memoization). DEFERRED (operational, carried from 108-01): apply migration `20260624000002_phase108_usage_event_price_researched.sql` (+ the earlier `20260624000001` price_research_cache) to remote via CI→GHCR→Coolify.
 Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gsd:verify-work 104` to validate the phase, then address the operational deferrals. DEFERRED (operational, all of Phase 104): apply migrations `20260621000001_notification_categories_remap.sql` + `20260621000002_notification_opt_in_consent.sql` + `20260621000003_whatsapp_notification_templates.sql` to the remote DB; ensure the Twilio from-number is SMS-capable; verify the Meta token carries `whatsapp_business_management` scope + author/approve the registry templates in Meta WhatsApp Manager (the `message_template_status_update` webhook then flips them to approved). Also still queued: `/gsd:verify-work 103` + `/gsd:complete-milestone` (v4.5) carry-over UATs.
 
@@ -673,6 +674,8 @@ Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gs
 - [Phase 115]: Credit history projection lists ONLY operation_type/delta_credits/reason/created_at — cost/markup never selected (owner-safe by construction)
 - [Phase 115]: Low-balance notify reuses quota.80pct/quota.exhausted events (no new EventType); informational copy, dedupe per company/threshold/month
 - [Phase 115]: 115-02: owner-facing credit balance UX — CreditBalanceCard (static 10-15 guidance, low/zero informational warning + top-up/upgrade CTA), CreditHistoryList (owner-safe rows), TopUpButton, topbar CreditChip; mounted on /settings/billing below the count-based Usage card (MIG-01 additive); chip fed by the existing layout billingRow select (credit_balance), no second query
+- [Phase 116]: validateMarginInvariant inverts the debit math; the illustrative DEFAULT_BILLING_CONFIG correctly FAILS the 30% margin invariant (pro 0.69, business 0.67) — defaults are NOT edited, the test asserts the FAIL
+- [Phase 116]: calibration.ts pure validator carries NO 'server-only' (importable by the Plan 02 gate + a client badge); only aggregateAiCostByOperation guards I/O via a lazy service-client import
 
 ## Performance Metrics
 
@@ -894,13 +897,14 @@ Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gs
 | Phase 114 P03 | ~8m | 3 tasks | 4 files |
 | Phase 115 P01 | 7m | 3 tasks | 5 files |
 | Phase 115 P02 | 6m | 4 tasks | 8 files |
+| Phase 116 P01 | 5min | 3 tasks | 2 files |
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-13)
 
 **Core value:** Business owner → job site audio recording → sent professional estimate in under 5 minutes
-**Current focus:** Phase 115 — Credit Balance UX (owner-facing)
+**Current focus:** Phase 116 — Calibration & Charge-On Validation
 
 ## Notes
 
