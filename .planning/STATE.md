@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v4.7
 milestone_name: Monetização — Credit-Based Billing + Estimate Payment Fee
-status: verifying
+status: in-progress
 stopped_at: Completed 115-02-PLAN.md
-last_updated: "2026-06-24T19:55:51.339Z"
+last_updated: "2026-06-24T20:01:39.513Z"
 last_activity: 2026-06-24
 progress:
   total_phases: 67
-  completed_phases: 52
+  completed_phases: 53
   total_plans: 162
   completed_plans: 175
 ---
@@ -29,12 +29,11 @@ progress:
 - **Dependency spine:** 110 (cost capture) → 112 (ledger) needs 110 + 111; 113 (Stripe rail) needs 112; 115 (balance UX) needs 112 + 113; 116 (calibration) needs 110 + 111 + 112. 111 (`billing_config`) is structurally independent and feeds everything. 114 (payment fee) needs only 111 + the already-shipped Connect infra (phases 70/94) — sequenceable in parallel with the credit track.
 - **Locked guardrails:** Stripe = rail only (credit ledger is OURS, NOT Stripe metered billing); everything billing reads from `billing_config` (no hard-coded numbers, no env vars, super-admin only); migrations idempotent + deploy CI→GHCR→Coolify (never build on VPS); channel-neutral domain stays neutral + never-throw enrichment preserved; CALIBRATE before charging (no real billing before CALIB-02's measured numbers exist).
 - **Previous milestone**: v4.6 Pricing Intelligence — Researched Pricing Agent — SHIPPED 2026-06-24 (phases 105-109, 17/17 requirements, full unit+eval suite green 275 files / 1932 tests).
-- **Position**: Phase 114 COMPLETE (3/3 plans, verified 12/12 — 1% application_fee on Connect invoice, single paymentsEnabled gate over forward affordances, config-driven fee disclosure at Connect). Next: `/gsd:plan-phase 115` (Credit Balance UX). NOTE: `phase complete` mis-points next at stale 999.1 — real next is **115**.
-
+- **Position**: Phase 115 COMPLETE (2/2 plans, verified 9/9 — owner credit balance card + history + per-action guidance + low/zero top-up CTA; owner-safe projection, additive to count-based card). Next: `/gsd:plan-phase 116` (Calibration & Charge-On Validation — the FINAL phase). NOTE: `phase complete` mis-points next at stale 999.1 — real next is **116**.
 ## Current Position
 
-Phase: 115 (Credit Balance UX (owner-facing)) — COMPLETE (2/2 plans)
-Plan: 2 of 2 (COMPLETE)
+Phase: 999.1
+Plan: Not started
 Status: Phase complete — ready for verification (`/gsd:verify-work 115`)
 
 ---
