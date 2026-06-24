@@ -8,6 +8,7 @@ import { isDemoCompany } from '@/lib/demo/config'
 import { createConnectInvoice } from '@/lib/billing/invoice-service'
 import { getBillingConfig } from '@/lib/billing/billing-config'
 import { computeApplicationFee } from '@/lib/billing/estimate-fee'
+import { paymentsEnabled } from '@/lib/billing/payments-enabled'
 import { splitDepositBalance } from '@/lib/money/invoice-split'
 import { toMinorUnits } from '@/lib/money/currency'
 import { getInvoicesByEstimateId, type InvoiceRow } from '@/lib/queries/invoice'
@@ -90,14 +91,17 @@ export async function generateInvoice(
   }
 
   // 4. Connect-active check. The auth context does not carry Connect status, so
-  //    read it explicitly (mirror pay route).
+  //    read it explicitly (mirror pay route). The gate calls the single
+  //    `paymentsEnabled` predicate (PAYGATE-01) — same source of truth as the
+  //    owner editor's Generate-invoice affordance, so the action and the UI can
+  //    never drift on what "payments are on" means.
   const { data: company } = await supabase
     .from('companies')
     .select('stripe_account_id, stripe_connect_status')
     .eq('id', companyId)
     .single()
 
-  if (!company?.stripe_account_id || company.stripe_connect_status !== 'active') {
+  if (!company || !paymentsEnabled(company)) {
     return { error: 'Connect a Stripe account in Settings → Payments before issuing invoices.' }
   }
 
