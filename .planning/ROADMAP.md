@@ -1283,7 +1283,8 @@ Plans:
 
 - [x] **Phase 110: Real Cost Capture Foundation + Measure-Only Mode** — Capture real USD cost per OpenRouter call + computed Whisper cost; correlate to `usage_events`/`pipeline_events`; runs measure-only (no charging) so production cost is collected before billing exists. The foundation that gates the entire ledger.
  (completed 2026-06-24)
-- [x] **Phase 111: `billing_config` Store + Super-Admin Billing Panel** — A `billing_config` section in the encrypted runtime-config store + a super-admin "Billing" panel editing markup, denomination, per-tier grant, prices, top-up packs, Whisper rate, fee %, thresholds — applied at runtime, tenant has no access. Every downstream phase reads from it. **2 plans (2 waves).** (completed 2026-06-24)
+- [x] **Phase 111: `billing_config` Store + Super-Admin Billing Panel** — A `billing_config` section in the encrypted runtime-config store + a super-admin "Billing" panel editing markup, denomination, per-tier grant, prices, top-up packs, Whisper rate, fee %, thresholds — applied at runtime, tenant has no access. Every downstream phase reads from it. **2 plans (2 waves).**
+ (completed 2026-06-24)
 - [ ] **Phase 112: Credit Ledger + Consumption Metering** — Append-only tenant-scoped `credit_ledger` (grant/debit/topup/adjust) with fast-read cached balance; each instrumented `usage_events` op debits `real_cost × markup`; per-tier `monthlyCreditGrant`; idempotent debits; pre-op balance check with top-up path; zero-debit for non-spend ops (MCP conversation).
 - [ ] **Phase 113: Stripe Rail — Grants, Top-Ups + Parallel-Run Transition** — `invoice.paid` grants the tier allowance idempotently; one-time top-up checkout credits the ledger; low/zero balance offers top-up + upgrade without silent mid-job block; credits run in parallel with count-based tiers so no existing account breaks (counts degrade to secondary guard-rails).
 - [ ] **Phase 114: Estimate Payment Fee + Payment-UI Gating + Disclosure** — Fill the omitted `application_fee_amount` hook on both the invoice and Phase-70 checkout paths (fee % from `billing_config`, sane minimum/rounding); a single `usePaymentsEnabled` guard gates ALL payment UI to `stripe_connect_status = 'active'` (no orphan elements, both states tested); clear fee disclosure at the Stripe connection flow.
@@ -1329,7 +1330,11 @@ Plans:
   3. A company's current credit balance is derivable from the ledger via a fast-read cached balance that reconciles exactly to the sum of ledger deltas, and each tier grants a configurable `monthlyCreditGrant` on entitlements
   4. Credit debits are idempotent (reusing the existing `recordUsage` idempotency key) so a retried operation never double-charges; before an AI operation the system checks balance and an insufficient balance surfaces a top-up path rather than hard-failing mid-flow where avoidable
   5. Operations that do not spend our AI budget never debit — an MCP external-assistant conversation (which runs on the user's assistant, not our AI) and an absorbed lightweight web-chat conversation produce zero ledger movement — because metering happens at the point of real spend
-**Plans**: TBD
+**Plans**: 4 plans (3 waves)
+- [ ] 112-01-PLAN.md — credit_ledger migration (tenant-readable RLS) + companies.credit_balance column + static contract test [Wave 1]
+- [ ] 112-02-PLAN.md — billing_config enforcementEnabled flag (default false) + entitlements monthlyCreditGrant on 4 tiers [Wave 1]
+- [ ] 112-03-PLAN.md — lib/billing/credit-ledger.ts: recordCreditDebit / grantCredits / checkCredits / reconcileBalance (never-throw, idempotent, config-driven) [Wave 2]
+- [ ] 112-04-PLAN.md — wire the debit into generate-estimate / analyze-photos / transcribe-audio / price-research orchestrator [Wave 3]
 
 ### Phase 113: Stripe Rail — Grants, Top-Ups + Parallel-Run Transition
 **Goal**: Stripe is wired as the payment rail for the credit model: a paid subscription invoice grants the tier's monthly credit allowance to the ledger idempotently, a one-time top-up checkout credits the ledger, low/zero balance offers a top-up (and an upgrade suggestion when the usage pattern justifies it) without silently blocking a job mid-flow, and the whole credit model runs in parallel with the existing count-based tiers so no existing account breaks during the transition.
