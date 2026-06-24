@@ -6,6 +6,7 @@ import { PLACEHOLDER_PREFIX } from '@/lib/constants/project'
 import { type EstimateInput } from '@/lib/ai'
 import { getAIProviderWithFallback } from '@/lib/ai/provider-with-fallback'
 import { anchorAndClampSections } from '@/lib/ai/price-anchoring'
+import { researchUnmatchedPrices } from '@/lib/estimate/price-research/orchestrator'
 import {
   round2,
   assertFinitePositive,
@@ -279,7 +280,38 @@ export async function generateEstimateForProject(
       priceBookItems.map((p) => ({ name: p.name, unit_price: p.unit_price }))
     )
 
-  const calculatedSections = guardedSections.map((section) => {
+  // RPRICE-01/03 + RFALL-01 (THE PAYOFF): research the items anchoring left as
+  // 'ai_estimate' (price_book + owner-edited items are NEVER touched). The
+  // orchestrator is channel-neutral and NEVER-THROWS — a research failure must never
+  // break generation (mirrors the anchoring non-fatal contract). This runs BEFORE the
+  // server totals + persistence so researched regional prices flow into the
+  // authoritative totals and the vagueness gate (assess) sees real numbers — the
+  // originating "Couch cleaning 8seats → $0 → blocked as vague" fix. Region = the
+  // project client's city+state; currency = the estimate currency; companyId is the
+  // param (NEVER LLM-derived). projectId seeds the metering idempotency key (Warning #1:
+  // the orchestrator builds ${attemptId ?? projectId ?? companyId}:... — no real
+  // attemptId is reachable at this call site, so the project-scoped seed is the best
+  // available per-generation token; it is retry-stable and finer than company-scoped).
+  // Defensive try/catch in addition to the never-throws contract: a thrown research
+  // error degrades to the anchored (pre-research) sections, never an estimate failure.
+  let researchedSections = guardedSections
+  let flaggedUnpriced = 0
+  try {
+    const research = await researchUnmatchedPrices(guardedSections, {
+      companyId, // param — NEVER LLM-derived
+      region: { city: client?.city ?? null, state: client?.state ?? null },
+      currency: currencyCode,
+      supabase, // reuse the service client
+      projectId, // best available per-generation metering seed (Warning #1)
+    })
+    researchedSections = research.sections
+    flaggedUnpriced = research.flaggedUnpriced
+  } catch (err) {
+    // Non-fatal: keep the anchored sections; generation must still complete.
+    console.warn('[generate-estimate] price research failed (non-fatal)', err)
+  }
+
+  const calculatedSections = researchedSections.map((section) => {
     const items = section.items.map((item) => ({
       ...item,
       total: Math.round(item.quantity * item.unit_price * 100) / 100,
@@ -437,10 +469,18 @@ export async function generateEstimateForProject(
     }
   }
 
-  // Update project status
+  // Update project status. RFALL-01: when research flagged an unpriced item AND the
+  // estimate still carries real value (total>0), surface it via the EXISTING
+  // awaiting_details recourse path (the needs-details banner renders on this status)
+  // — a partially-priced estimate is NOT blocked (the 108-02 vagueness gate permits a
+  // total>0 estimate), the owner is just prompted to fill the flagged line. When
+  // nothing is flagged (or total===0), status stays 'estimate_ready' — byte-identical
+  // to before. projects.status is unconstrained TEXT (no migration).
+  const projectStatus =
+    flaggedUnpriced > 0 && safeGrandTotal > 0 ? 'awaiting_details' : 'estimate_ready'
   await supabase
     .from('projects')
-    .update({ status: 'estimate_ready', total: safeGrandTotal })
+    .update({ status: projectStatus, total: safeGrandTotal })
     .eq('id', projectId)
 
   // Log activity
