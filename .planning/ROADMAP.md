@@ -781,7 +781,7 @@ Plans:
 | 107. Provider Seam + First Source + Determinism Seam | v4.6 | 3/3 | Complete    | 2026-06-24 |
 | 108. Orchestrator + Service Integration | v4.6 | 5/5 | Complete    | 2026-06-24 |
 | 109. Durability + Cost-Control Hardening | v4.6 | 2/2 | Complete    | 2026-06-24 |
-| 117. Knowledge Schema + pgvector + Dual RLS | v4.8 | 1/1 | Complete   | 2026-06-24 |
+| 117. Knowledge Schema + pgvector + Dual RLS | v4.8 | 1/1 | Complete    | 2026-06-24 |
 | 118. Channel-Neutral lib/knowledge/ Module | v4.8 | 0/0 | Not started | - |
 | 119. Super-Admin Industry KB Curation + Bulk Import | v4.8 | 0/0 | Not started | - |
 | 120. Company KB Overlay (tenant settings) | v4.8 | 0/0 | Not started | - |
