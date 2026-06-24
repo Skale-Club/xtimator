@@ -21,8 +21,9 @@
  * be importable from a client badge AND the server gate, so it stays pure-
  * importable; requireServiceClient is itself server-guarded and is only ever
  * reached inside aggregateAiCostByOperation. The BillingConfig import is TYPE-ONLY
- * (`import type`), so this module does NOT reference the getBillingConfig symbol
- * and does not trip the Phase-111 dormancy guard.
+ * (`import type`), so this module does NOT reference the billing-config reader
+ * SYMBOL — it stays out of the Phase-111 dormancy allowlist (it is not a config
+ * consumer; it validates a config that is passed IN).
  */
 
 import type { BillingConfig, BillingTier } from '@/lib/billing/billing-config'
