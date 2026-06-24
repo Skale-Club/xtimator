@@ -8,6 +8,8 @@ import {
 import { rateLimit } from '@/lib/ratelimit'
 import { XtimatorError, asResponse } from '@/lib/errors'
 import { checkQuota } from '@/lib/quota'
+import { checkCredits } from '@/lib/billing/credit-ledger'
+import { buildOverageAffordance } from '@/lib/billing/overage-affordance'
 import { isSupportedLanguage } from '@/lib/i18n/resolve-estimate-language'
 import { demoGuardResponse } from '@/lib/demo/guard'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
@@ -79,8 +81,18 @@ export async function POST(request: Request) {
     // QUOTA-03: gate dispatch — recordUsage now lives inside the Inngest function
     const { allowed } = await checkQuota(supabase, companyId, 'estimate')
     if (!allowed) {
+      // TOPUP-03 / MIG-01: ADDITIVE enrichment only. The count-based gate above
+      // is unchanged; credit enforcement is OFF this milestone (checkCredits
+      // keeps allowed:true), so this never introduces a new block — it only
+      // surfaces a top-up path on the SAME 402 the count path already returns.
+      const credit = await checkCredits(supabase, companyId)
+      const affordance = buildOverageAffordance(credit)
       return NextResponse.json(
-        { error: 'plan_limit_reached', upgradeUrl: '/settings/billing' },
+        {
+          error: 'plan_limit_reached',
+          upgradeUrl: '/settings/billing',
+          ...(affordance ? { topUpUrl: affordance.topUpUrl } : {}),
+        },
         { status: 402 }
       )
     }
