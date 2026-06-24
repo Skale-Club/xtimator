@@ -1348,7 +1348,7 @@ Plans:
 **Plans**: 3 plans in `.planning/phases/113-stripe-rail-grants-top-ups-parallel-run-transition/`
 Plans:
 - [x] 113-01-PLAN.md — Wave 0 RED tests: invoice.paid grant + checkout top-up arm (webhook), top-up route, overage affordance + MIG-01 guard
-- [ ] 113-02-PLAN.md — Webhook wiring: invoice.paid grants tier allowance (TOPUP-01) + checkout.session.completed top-up arm before the subscription early-break (TOPUP-02)
+- [x] 113-02-PLAN.md — Webhook wiring: invoice.paid grants tier allowance (TOPUP-01) + checkout.session.completed top-up arm before the subscription early-break (TOPUP-02)
 - [ ] 113-03-PLAN.md — create-topup-session route (TOPUP-02) + buildOverageAffordance + enriched 402 (TOPUP-03), count path untouched (MIG-01)
 
 ### Phase 114: Estimate Payment Fee + Payment-UI Gating + Disclosure
