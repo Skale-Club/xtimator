@@ -22,7 +22,7 @@ Requirements for this milestone. Each maps to exactly one roadmap phase.
 
 - [ ] **COST-01**: System captures the real USD cost of every OpenRouter AI call (today only tokens are captured for Langfuse) — OpenRouter now returns it automatically under `usage.cost` (USD, 1:1 credits); the `usage.include` request flag is deprecated/no-op and no `/api/v1/generation` round-trip is needed (per Phase-110 RESEARCH, verified against current OpenRouter docs).
 - [ ] **COST-02**: System computes Whisper/STT cost from audio minutes × a configurable rate (cost not returned by the provider).
-- [ ] **COST-03**: Real cost per AI operation is recorded and correlated to the existing attempt/usage instrumentation (`usage_events`/`pipeline_events`), available for calibration analysis.
+- [x] **COST-03**: Real cost per AI operation is recorded and correlated to the existing attempt/usage instrumentation (`usage_events`/`pipeline_events`), available for calibration analysis.
 
 ### Credit Ledger & Consumption
 
@@ -69,7 +69,7 @@ Requirements for this milestone. Each maps to exactly one roadmap phase.
 
 ### Calibration & Transition
 
-- [ ] **CALIB-01**: Cost capture can run in production in measure-only mode (instrumented, no charging) so real per-operation cost is collected before any billing is enabled.
+- [x] **CALIB-01**: Cost capture can run in production in measure-only mode (instrumented, no charging) so real per-operation cost is collected before any billing is enabled.
 - [ ] **CALIB-02**: Grant/markup/price are derived from measured real cost and satisfy the margin invariant (real cost of the full monthly grant ≤ ~30% of the subscription price), documented.
 - [ ] **MIG-01**: Credits run in parallel with the existing count-based tiers during transition; no existing account breaks, and the count-based limits degrade to secondary guard-rails.
 
@@ -104,7 +104,7 @@ Which phases cover which requirements. Populated during roadmap creation.
 |-------------|-------|--------|
 | COST-01 | Phase 110 | Pending |
 | COST-02 | Phase 110 | Pending |
-| COST-03 | Phase 110 | Pending |
+| COST-03 | Phase 110 | Complete |
 | CREDIT-01 | Phase 112 | Pending |
 | CREDIT-02 | Phase 112 | Pending |
 | CREDIT-03 | Phase 112 | Pending |
@@ -127,7 +127,7 @@ Which phases cover which requirements. Populated during roadmap creation.
 | DISCLOSE-01 | Phase 114 | Pending |
 | CREDITUI-01 | Phase 115 | Pending |
 | CREDITUI-02 | Phase 115 | Pending |
-| CALIB-01 | Phase 110 | Pending |
+| CALIB-01 | Phase 110 | Complete |
 | CALIB-02 | Phase 116 | Pending |
 | MIG-01 | Phase 113 | Pending |
 
