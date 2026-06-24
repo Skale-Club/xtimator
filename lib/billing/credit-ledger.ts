@@ -2,6 +2,8 @@ import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { getBillingConfig } from '@/lib/billing/billing-config'
+import { notify } from '@/lib/notifications/dispatch'
+import { buildNotificationCopy } from '@/lib/notifications/copy'
 
 /**
  * Phase 112 — Credit Ledger metering CORE (CREDIT-02/03/04/05/06/07).
@@ -109,9 +111,93 @@ export async function recordCreditDebit(input: {
       .from('companies')
       .update({ credit_balance: balanceAfter })
       .eq('id', input.companyId)
+
+    // Phase 115 (CREDITUI-02): best-effort low-balance heads-up. `void` so a
+    // notification delay never blocks the debit return; the helper is itself
+    // self-guarded (never throws). cfg is already in scope (read above). No
+    // userId in this scope — pass null (notify tolerates it, like quota).
+    void notifyLowCreditBalance({
+      companyId: input.companyId,
+      userId: null,
+      previousBalance: current,
+      newBalance: balanceAfter,
+      thresholds: cfg.lowBalanceThresholds,
+    })
   } catch (err) {
     // Best-effort: a ledger-write failure must NEVER break generation.
     console.warn('[recordCreditDebit] swallowed write failure:', err)
+  }
+}
+
+/** UTC month key `YYYY-MM` for per-month dedupe (local copy of the lib/quota.ts
+ * helper — kept local to avoid coupling credit-ledger to the quota module). */
+function monthKey(now = new Date()): string {
+  return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`
+}
+
+/**
+ * Phase 115 (CREDITUI-02) — best-effort low-balance notification, mirroring
+ * `notifyQuotaThresholds` (lib/quota.ts). Fires only on a DOWNWARD crossing of a
+ * configured threshold, deduped per company + threshold + month so the owner is
+ * pinged at most once per threshold per billing month.
+ *
+ * Reuses the EXISTING billing-category events (`quota.exhausted` for the zero
+ * state, `quota.80pct` for a low non-zero crossing) — no new EventType.
+ *
+ * Copy is INFORMATIONAL only: this milestone runs with enforcement OFF, so the
+ * notification is a heads-up + top-up/upgrade nudge — never enforcement language
+ * (the account keeps working; this is a reminder, not a wall).
+ *
+ * Never throws (best-effort) — a notification failure must never break the
+ * credit debit write that triggered it.
+ */
+export async function notifyLowCreditBalance(params: {
+  companyId: string
+  userId?: string | null
+  previousBalance: number
+  newBalance: number
+  thresholds: number[]
+}): Promise<void> {
+  const { companyId, userId, previousBalance, newBalance, thresholds } = params
+  const month = monthKey()
+
+  try {
+    // Zero / exhausted state takes precedence over any low-threshold crossing.
+    if (previousBalance > 0 && newBalance <= 0) {
+      const copy = buildNotificationCopy('quota.exhausted', {})
+      void notify({
+        companyId,
+        userId: userId ?? null,
+        eventType: 'quota.exhausted',
+        title: copy.title,
+        body: copy.body,
+        linkUrl: '/settings/billing',
+        channels: { inApp: true, email: true },
+        metadata: { dedupe_key: `credit-zero-${companyId}-${month}` },
+      })
+      return
+    }
+
+    // Low (non-zero) crossing — fire at most ONCE, for the highest threshold the
+    // balance crossed downward on this debit.
+    const sorted = [...thresholds].sort((a, b) => b - a)
+    const crossed = sorted.find(
+      (t) => t > 0 && previousBalance > t && newBalance <= t
+    )
+    if (crossed === undefined) return
+
+    const copy = buildNotificationCopy('quota.80pct', { quotaPercent: 0 })
+    void notify({
+      companyId,
+      userId: userId ?? null,
+      eventType: 'quota.80pct',
+      title: copy.title,
+      body: copy.body,
+      linkUrl: '/settings/billing',
+      metadata: { dedupe_key: `credit-low-${companyId}-${crossed}-${month}` },
+    })
+  } catch {
+    /* best-effort — never throws (a notify failure must not break the debit). */
   }
 }
 
