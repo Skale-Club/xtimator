@@ -210,7 +210,7 @@ export async function POST(
           quantity: item.quantity,
           unit: item.unit ?? undefined,
           unit_price: item.unit_price,
-          price_source: (item.price_source ?? 'ai_estimate') as 'price_book' | 'ai_estimate',
+          price_source: (item.price_source ?? 'ai_estimate') as 'price_book' | 'ai_estimate' | 'researched',
         })),
       })) as EstimateSectionOutput[],
     }

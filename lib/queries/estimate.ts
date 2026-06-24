@@ -61,7 +61,7 @@ export interface EstimateItem {
   unit_price: number
   total: number
   sort_order: number
-  price_source: 'price_book' | 'ai_estimate' | null
+  price_source: 'price_book' | 'ai_estimate' | 'researched' | null
 }
 
 export interface EstimateWithSections extends Estimate {
@@ -142,31 +142,25 @@ async function fetchEstimateWithSections(
   supabase: SupabaseClient,
   estimate: Estimate
 ): Promise<EstimateWithSections> {
+  // Single query: fetch every section with its items embedded via the
+  // estimate_items.section_id FK, replacing the prior N+1 (one items query per
+  // section). Both levels are ordered by sort_order.
   const { data: sectionsData } = await supabase
     .from('estimate_sections')
-    .select('*')
+    .select('*, items:estimate_items(*)')
     .eq('estimate_id', estimate.id)
     .order('sort_order', { ascending: true })
+    .order('sort_order', { foreignTable: 'estimate_items', ascending: true })
 
-  const sections = (sectionsData ?? []) as EstimateSection[]
-
-  const sectionsWithItems = await Promise.all(
-    sections.map(async (section) => {
-      const { data: itemsData } = await supabase
-        .from('estimate_items')
-        .select('*')
-        .eq('section_id', section.id)
-        .order('sort_order', { ascending: true })
-
-      return {
-        ...section,
-        items: (itemsData ?? []) as EstimateItem[],
-      }
-    })
-  )
+  const sections = (sectionsData ?? []) as unknown as (EstimateSection & {
+    items: EstimateItem[] | null
+  })[]
 
   return {
     ...estimate,
-    sections: sectionsWithItems,
+    sections: sections.map((section) => ({
+      ...section,
+      items: (section.items ?? []) as EstimateItem[],
+    })),
   }
 }
