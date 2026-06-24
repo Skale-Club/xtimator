@@ -11,8 +11,20 @@
  *   api.openai.com /audio/transcriptions — Whisper speech-to-text
  */
 
+import { randomUUID } from 'node:crypto'
 import { getIntegrationKey } from '@/lib/platform-config'
 import { langfuseClient } from '@/lib/observability/langfuse'
+import { recordAICost } from '@/lib/billing/record-ai-cost'
+
+/**
+ * Phase 110 (COST-01): non-LLM cost-correlation context. Optional/additive on the
+ * vision + translation call sites — absent → cost still captured with null ids.
+ */
+type CostContext = {
+  attemptId?: string | null
+  companyId?: string | null
+  projectId?: string | null
+}
 
 export const OPENROUTER_BASE = 'https://openrouter.ai/api/v1'
 export const OPENAI_TRANSCRIPTION_BASE = 'https://api.openai.com/v1'
@@ -141,7 +153,8 @@ export const PHOTO_PROMPT =
 export async function analyzePhotoOR(
   base64: string,
   mimeType: string,
-  model?: string
+  model?: string,
+  costContext?: CostContext
 ): Promise<string> {
   // Primary: OpenRouter vision. On failure, fall back to Gemini vision exactly
   // once via the shared provider-fallback policy (HARD-03).
@@ -185,10 +198,24 @@ export async function analyzePhotoOR(
     const json = (await res.json()) as {
       choices?: Array<{ message?: { content?: string | null } }>
       error?: { message?: string }
+      // Phase 110 (COST-01): real USD cost returned automatically (no flag).
+      usage?: { cost?: number }
     }
     if (json.error?.message) throw new Error(`OpenRouter vision error: ${json.error.message}`)
 
     const result = json.choices?.[0]?.message?.content ?? ''
+    // Phase 110 (COST-01): capture the vision call's real USD cost. null when
+    // absent (NEVER 0). Correlation ids come ONLY from the non-LLM costContext.
+    // void so a cost-write failure can never affect the return (never-throws).
+    void recordAICost({
+      attemptId: costContext?.attemptId ?? randomUUID(),
+      operationType: 'vision',
+      provider: 'openrouter',
+      model: visionModel,
+      realCostUsd: json.usage?.cost ?? null,
+      companyId: costContext?.companyId ?? null,
+      projectId: costContext?.projectId ?? null,
+    })
     try {
       const gen = langfuseClient.generation({
         name: 'analyze_photo',
@@ -228,7 +255,8 @@ export async function analyzePhotoOR(
 export async function translateTextsOR(
   texts: string[],
   targetLanguage: 'pt' | 'es',
-  model = OR_DEFAULTS.translation
+  model = OR_DEFAULTS.translation,
+  costContext?: CostContext
 ): Promise<Record<string, string>> {
   const apiKey = await getORKey()
   const startTime = new Date()
@@ -264,12 +292,25 @@ export async function translateTextsOR(
   const json = (await res.json()) as {
     choices?: Array<{ message?: { content?: string | null } }>
     error?: { message?: string }
+    // Phase 110 (COST-01): real USD cost returned automatically (no flag).
+    usage?: { cost?: number }
   }
   if (json.error?.message) throw new Error(`OpenRouter translation error: ${json.error.message}`)
 
   const raw = json.choices?.[0]?.message?.content ?? '{}'
   const clean = raw.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim()
   const result = JSON.parse(clean) as Record<string, string>
+  // Phase 110 (COST-01): capture the translation call's real USD cost. null when
+  // absent (NEVER 0). Correlation ids come ONLY from the non-LLM costContext.
+  void recordAICost({
+    attemptId: costContext?.attemptId ?? randomUUID(),
+    operationType: 'translation',
+    provider: 'openrouter',
+    model,
+    realCostUsd: json.usage?.cost ?? null,
+    companyId: costContext?.companyId ?? null,
+    projectId: costContext?.projectId ?? null,
+  })
   try {
     const gen = langfuseClient.generation({
       name: 'translate_texts',
