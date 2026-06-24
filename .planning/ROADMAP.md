@@ -776,7 +776,7 @@ Plans:
 | 106. Cache Table + Tenant-Scoped Cache Module | v4.6 | 2/2 | Complete    | 2026-06-24 |
 | 107. Provider Seam + First Source + Determinism Seam | v4.6 | 3/3 | Complete    | 2026-06-24 |
 | 108. Orchestrator + Service Integration | v4.6 | 5/5 | Complete    | 2026-06-24 |
-| 109. Durability + Cost-Control Hardening | v4.6 | 1/2 | In Progress|  |
+| 109. Durability + Cost-Control Hardening | v4.6 | 2/2 | Complete    | 2026-06-24 |
 
 ### Phase 75: Tour and Tooltip QA
 
@@ -1187,7 +1187,7 @@ Plans:
 - [x] **Phase 106: Cache Table + Tenant-Scoped Cache Module** — `price_research_cache` table (company-scoped, deny-all RLS, 30d TTL) + canonical-key cache module; parallelizable with 105
 - [x] **Phase 107: Provider Seam + First Source + Determinism Seam** — `PriceResearchProvider` port + OpenRouter-web adapter + Anthropic quality-fallback adapter + deterministic fixture adapter for CI + prompt-injection hardening (completed 2026-06-24)
 - [x] **Phase 108: Orchestrator + Service Integration (the payoff)** — `researchUnmatchedPrices` wired into `generateEstimateForProject` after anchoring; precedence + evidence-gated tagging + no-$0 fallback ladder + vagueness-gate fix + "Couch cleaning 8seats" regression fixture + quota metering (completed 2026-06-24)
-- [ ] **Phase 109: Durability + Cost-Control Hardening** — dedicated `step.run('price-research')` retry isolation + provider fallback ordering + per-estimate item caps + refine-loop memoization
+- [x] **Phase 109: Durability + Cost-Control Hardening** — per-estimate research item CAP (env-overridable, logged drops) + gated OpenRouter-web→Anthropic-web provider fallback ordering + in-run memo (refine-loop double-pay guard); `step.run('price-research')` retry isolation documented-as-deferred (inline call already non-fatal). Carried 108 render-path `price_source` build-fix landed in 109-01. (completed 2026-06-24)
 
 ### Phase Details — v4.6 Pricing Intelligence
 
@@ -1265,4 +1265,4 @@ Plans:
 **Plans**: 2 plans (1 wave — parallel, disjoint file sets)
 Plans:
 - [x] 109-01-PLAN.md — Widen the document/PDF/share/query/refine `price_source` unions to include `researched` (the carried 108 build-fix; `next build` type-checks clean)
-- [ ] 109-02-PLAN.md — Orchestrator hardening: per-estimate research item CAP (env-overridable, logged drops) + gated OpenRouter-web→Anthropic-web fallback ordering + in-run memo; step.run isolation documented-as-deferred
+- [x] 109-02-PLAN.md — Orchestrator hardening: per-estimate research item CAP (env-overridable, logged drops) + gated OpenRouter-web→Anthropic-web fallback ordering + in-run memo; step.run isolation documented-as-deferred
