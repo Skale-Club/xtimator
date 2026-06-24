@@ -62,6 +62,10 @@ export function BillingConfigForm({ current }: Props) {
     current.lowBalanceThresholds.join(', ')
   )
 
+  // Master charging switch (CREDIT-05). Default false = measure-only safety:
+  // debits RECORD but checkCredits never blocks until calibration flips it on.
+  const [enforcementEnabled, setEnforcementEnabled] = useState(current.enforcementEnabled)
+
   function updateTier(
     tier: BillingTier,
     field: 'monthlyCreditGrant' | 'subscriptionPriceCents',
@@ -112,6 +116,7 @@ export function BillingConfigForm({ current }: Props) {
         .map((s) => s.trim())
         .filter((s) => s.length > 0)
         .map((s) => Number(s)),
+      enforcementEnabled,
       // Carried through unchanged this phase so the saved row keeps the final shape.
       meteredOperations: current.meteredOperations,
       absorbedChatRateLimitPerMin: current.absorbedChatRateLimitPerMin,
@@ -317,6 +322,28 @@ export function BillingConfigForm({ current }: Props) {
             className={inputClass}
             placeholder="200, 50"
           />
+        </label>
+      </fieldset>
+
+      {/* Enforcement (master charging switch) */}
+      <fieldset className={fieldsetClass}>
+        <legend className={legendClass}>{t('Enforcement')}</legend>
+        <label className="flex items-start gap-3">
+          <input
+            type="checkbox"
+            checked={enforcementEnabled}
+            onChange={(e) => setEnforcementEnabled(e.target.checked)}
+            disabled={isPending}
+            className="mt-1 h-4 w-4"
+          />
+          <span className="flex flex-col gap-1">
+            <span className="text-sm font-medium">{t('Enforce credit charging')}</span>
+            <span className="text-xs text-muted-foreground max-w-2xl">
+              {t(
+                'Master charging switch. When OFF (default), debits are recorded but never block any operation — measure-only safety. Leave OFF until calibration (CALIB-02). Turn ON only when ready to charge real credits.'
+              )}
+            </span>
+          </span>
         </label>
       </fieldset>
 

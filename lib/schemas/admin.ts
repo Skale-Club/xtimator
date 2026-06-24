@@ -161,6 +161,11 @@ export const billingConfigSchema = z.object({
   lowBalanceThresholds: z.array(z.number().int().min(0)).max(5),
   meteredOperations: z.record(z.string(), z.boolean()),
   absorbedChatRateLimitPerMin: z.number().int().min(0).max(1000),
+  /**
+   * Master charging switch (CREDIT-05). Default FALSE — debits RECORD but
+   * checkCredits NEVER blocks until Phase 116 calibration flips it on.
+   */
+  enforcementEnabled: z.boolean(),
 })
 export type BillingConfigInput = z.infer<typeof billingConfigSchema>
 

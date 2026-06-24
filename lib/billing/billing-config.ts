@@ -34,6 +34,12 @@ export type BillingConfig = {
   lowBalanceThresholds: number[] // credit balances at which to warn; default [200, 50]
   meteredOperations: Record<string, boolean> // which ops debit vs absorbed (schema slot for Phase 112; minimal UI now)
   absorbedChatRateLimitPerMin: number // anti-abuse for absorbed chat; default 20
+  /**
+   * Master charging switch (CREDIT-05). Default FALSE — debits RECORD but
+   * checkCredits NEVER blocks until Phase 116 calibration flips it on
+   * (calibrate before charging).
+   */
+  enforcementEnabled: boolean
 }
 
 /**
@@ -60,6 +66,7 @@ export const DEFAULT_BILLING_CONFIG: BillingConfig = {
   lowBalanceThresholds: [200, 50],
   meteredOperations: { estimate: true, photo_batch: true, audio_minutes: true, price_research: true },
   absorbedChatRateLimitPerMin: 20,
+  enforcementEnabled: false,
 }
 
 // 30s TTL cache mirroring brandingCache (lib/platform-config.ts). The

@@ -100,6 +100,27 @@ describe('BILLCFG-01: getBillingConfig merge', () => {
 })
 
 // =============================================================================
+// CREDIT-05 — enforcementEnabled master charging switch (default false)
+// =============================================================================
+describe('CREDIT-05: enforcementEnabled (measure-only safety)', () => {
+  it('DEFAULT_BILLING_CONFIG.enforcementEnabled is false (calibrate before charging)', () => {
+    expect(DEFAULT_BILLING_CONFIG.enforcementEnabled).toBe(false)
+  })
+
+  it('a stored row WITHOUT enforcementEnabled still resolves to false (deep-merge tolerates absence)', async () => {
+    serviceClientImpl = () => makeServiceClient({ metadata: { markup: 5 } })
+    const cfg = await getBillingConfig()
+    expect(cfg.enforcementEnabled).toBe(false)
+  })
+
+  it('a stored row WITH enforcementEnabled: true overrides the default to true', async () => {
+    serviceClientImpl = () => makeServiceClient({ metadata: { enforcementEnabled: true } })
+    const cfg = await getBillingConfig()
+    expect(cfg.enforcementEnabled).toBe(true)
+  })
+})
+
+// =============================================================================
 // BILLCFG-02 — schema (validated here so the writer can trust it)
 // =============================================================================
 describe('BILLCFG-02: billingConfigSchema', () => {
