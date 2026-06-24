@@ -85,6 +85,28 @@ describe('entitlements', () => {
     expect(getEntitlements('free').maxPriceResearchPerMonth).toBe(50)
     expect(getEntitlements('business').maxPriceResearchPerMonth).toBeNull()
   })
+
+  // Phase 112 (CREDIT-04): monthlyCreditGrant on every tier, mirroring
+  // billing_config.tiers defaults (free 0 / trial 2000 / pro 9000 / business 30000).
+  it('documents the per-tier monthly credit grant: free 0 / trial 2000 / pro 9000 / business 30000', () => {
+    expect(tiers.free.monthlyCreditGrant).toBe(0)
+    expect(tiers.trial.monthlyCreditGrant).toBe(2000)
+    expect(tiers.pro.monthlyCreditGrant).toBe(9000)
+    expect(tiers.business.monthlyCreditGrant).toBe(30000)
+  })
+
+  it('every tier has a numeric monthlyCreditGrant (never Infinity)', () => {
+    const tierNames: TierName[] = ['free', 'trial', 'pro', 'business']
+    for (const name of tierNames) {
+      const v = tiers[name].monthlyCreditGrant
+      expect(typeof v).toBe('number')
+      expect(v).not.toBe(Infinity)
+    }
+  })
+
+  it('getEntitlements falls back to free grant (0) for an unknown tier', () => {
+    expect(getEntitlements('garbage').monthlyCreditGrant).toBe(0)
+  })
 })
 
 // ---------------------------------------------------------------------------

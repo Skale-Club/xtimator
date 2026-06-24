@@ -127,6 +127,7 @@ beforeEach(() => {
     maxPhotosPerEstimate: 10,
     maxAudioMinutesPerEstimate: 5,
     maxPriceResearchPerMonth: null,
+    monthlyCreditGrant: 2000,
     pdfEnabled: true,
     priceBookEnabled: true,
     customDomainEnabled: false,

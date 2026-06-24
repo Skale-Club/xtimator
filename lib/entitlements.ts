@@ -18,6 +18,14 @@ export type Entitlements = {
    * lookups — actual searches — are metered).
    */
   maxPriceResearchPerMonth: number | null
+  /**
+   * Static/fallback per-tier monthly credit grant (CREDIT-04). Mirrors
+   * billing_config.tiers[tier].monthlyCreditGrant — the AUTHORITATIVE runtime
+   * value is read from the billing-config reader at grant time (BILLCFG-03, no
+   * hard-coded billing numbers). This field keeps static callers null-safe,
+   * exactly as maxPriceResearchPerMonth was added in Phase 108.
+   */
+  monthlyCreditGrant: number
   maxPhotosPerEstimate: number
   maxAudioMinutesPerEstimate: number
   whatsappEnabled: boolean
@@ -31,6 +39,7 @@ export const tiers: Record<TierName, Entitlements> = {
     maxEstimatesPerMonth: 10,
     maxEstimatesPerDay: 3,
     maxPriceResearchPerMonth: 50, // ~$0.25/mo research ceiling at ~$0.005/search
+    monthlyCreditGrant: 0, // mirrors DEFAULT_BILLING_CONFIG.tiers.free
     maxPhotosPerEstimate: 3,
     maxAudioMinutesPerEstimate: 2,
     whatsappEnabled: true,
@@ -42,6 +51,7 @@ export const tiers: Record<TierName, Entitlements> = {
     maxEstimatesPerMonth: null, // unlimited during trial
     maxEstimatesPerDay: 20,
     maxPriceResearchPerMonth: 200, // generous trial allowance (~$1/mo)
+    monthlyCreditGrant: 2000, // mirrors DEFAULT_BILLING_CONFIG.tiers.trial
     maxPhotosPerEstimate: 10,
     maxAudioMinutesPerEstimate: 5,
     whatsappEnabled: true,
@@ -53,6 +63,7 @@ export const tiers: Record<TierName, Entitlements> = {
     maxEstimatesPerMonth: 200,
     maxEstimatesPerDay: 30,
     maxPriceResearchPerMonth: 1000, // ~$5/mo research ceiling
+    monthlyCreditGrant: 9000, // mirrors DEFAULT_BILLING_CONFIG.tiers.pro
     maxPhotosPerEstimate: 20,
     maxAudioMinutesPerEstimate: 15,
     whatsappEnabled: true,
@@ -64,6 +75,7 @@ export const tiers: Record<TierName, Entitlements> = {
     maxEstimatesPerMonth: null, // unlimited
     maxEstimatesPerDay: 100,
     maxPriceResearchPerMonth: null, // unlimited research
+    monthlyCreditGrant: 30000, // mirrors DEFAULT_BILLING_CONFIG.tiers.business
     maxPhotosPerEstimate: 50,
     maxAudioMinutesPerEstimate: 30,
     whatsappEnabled: true,
