@@ -187,11 +187,20 @@ describe('BILLCFG-03: server-only reader', () => {
 
 // =============================================================================
 // BILLCFG-03 (dormancy — SYMBOL-scoped, NOT path-scoped)
+//
+// Phase 111 shipped getBillingConfig DORMANT (no production consumer). Phase 112
+// introduces the FIRST legitimate consumer: lib/billing/credit-ledger.ts, the
+// credit metering core, which reads markup/creditUnitUsd/enforcementEnabled at
+// call time (BILLCFG-03 — no hard-coded billing numbers). That module is
+// therefore allowlisted here. The guard still holds the intent: no OTHER
+// production module may reference the symbol — it remains tightly scoped to the
+// reader + its single credit-ledger consumer.
 // =============================================================================
-describe('BILLCFG-03: getBillingConfig function ships dormant', () => {
-  it('no production module under lib/ app/ components/ references the getBillingConfig SYMBOL', () => {
+describe('BILLCFG-03: getBillingConfig consumed ONLY by the reader + credit-ledger', () => {
+  it('only the reader module and credit-ledger.ts reference the getBillingConfig SYMBOL', () => {
     const ROOTS = ['lib', 'app', 'components']
-    const ALLOWLIST = new Set([MODULE_PATH])
+    const CREDIT_LEDGER_PATH = resolve(process.cwd(), 'lib/billing/credit-ledger.ts')
+    const ALLOWLIST = new Set([MODULE_PATH, CREDIT_LEDGER_PATH])
 
     const collected: string[] = []
     function walk(dir: string) {
@@ -224,16 +233,17 @@ describe('BILLCFG-03: getBillingConfig function ships dormant', () => {
     }
     for (const root of ROOTS) walk(resolve(process.cwd(), root))
 
-    // The dormancy assertion is SYMBOL-scoped: nothing outside the reader module
-    // imports or calls the getBillingConfig FUNCTION. The module PATH
-    // '@/lib/billing/billing-config' is DELIBERATELY allowed — Plan 02's panel
-    // legitimately imports DEFAULT_BILLING_CONFIG and the BillingConfig type from it.
+    // The assertion is SYMBOL-scoped: nothing OUTSIDE the reader module and its
+    // single Phase-112 credit-ledger consumer imports or calls the
+    // getBillingConfig FUNCTION. The module PATH '@/lib/billing/billing-config'
+    // is DELIBERATELY allowed — Plan 02's panel legitimately imports
+    // DEFAULT_BILLING_CONFIG and the BillingConfig type from it.
     const symbolRe = /\bgetBillingConfig\b/
     const offenders = collected.filter((file) => symbolRe.test(readFileSync(file, 'utf8')))
 
     expect(
       offenders,
-      `getBillingConfig is DORMANT this phase — these files reference the function symbol: ${offenders.join(', ')}`
+      `getBillingConfig may only be referenced by the reader + credit-ledger.ts — these other files reference the symbol: ${offenders.join(', ')}`
     ).toEqual([])
   })
 })
