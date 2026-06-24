@@ -1360,7 +1360,10 @@ Plans:
   2. The fee percentage is read from `billing_config` (default 1%, never hard-coded) and is computed on the amount actually charged (deposit or full total) with a sane minimum/rounding so Stripe never receives an invalid (e.g. $0) fee
   3. A single `usePaymentsEnabled` guard gates every payment page, screen, button, and element so they render only when the company's Stripe Connect status is `active`; with Stripe disconnected, no payment-related element appears anywhere (no orphan) and the product otherwise works fully — both states covered by tests
   4. The Stripe connection flow shows a clear disclosure that Xtimator charges the platform fee (e.g. 1%), separate from Stripe's own fees, with the live percentage read from `billing_config` so the disclosed number never diverges from the charged number
-**Plans**: TBD
+**Plans**: 3 plans (2 waves)
+- [ ] 114-01-PLAN.md — application_fee_amount on the Connect invoice path + computeApplicationFee helper + fee read from billing_config (FEE-01..04)
+- [ ] 114-02-PLAN.md — single paymentsEnabled(company) predicate + gate the Generate-invoice affordance, no orphan when disconnected (PAYGATE-01, PAYGATE-02)
+- [ ] 114-03-PLAN.md — config-driven fee disclosure in the not_connected Connect card (live estimateFeePct × 100) (DISCLOSE-01)
 **UI hint**: yes
 
 ### Phase 115: Credit Balance UX (owner-facing)
