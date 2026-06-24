@@ -3,8 +3,10 @@ import { revalidatePath } from 'next/cache'
 import { requireAdmin } from '@/lib/auth/admin-context'
 import { logAdminAction } from '@/lib/admin/audit-log'
 import { requireServiceClient } from '@/lib/supabase/service'
-import { embed } from '@/lib/knowledge/embed'
+import { embed, embedMany } from '@/lib/knowledge/embed'
+import { isKnownIndustry } from '@/lib/industries'
 import { knowledgeEntrySchema, type KnowledgeEntryInput } from '@/lib/schemas/knowledge'
+import type { KnowledgeImportRow } from '@/lib/csv/knowledge-import'
 
 /**
  * app/admin/knowledge/actions.ts
@@ -23,7 +25,9 @@ import { knowledgeEntrySchema, type KnowledgeEntryInput } from '@/lib/schemas/kn
  * row is invisible to retrieve() (the HNSW KNN can't rank it), so we never write
  * one. This is the FIRST writer of the `embedding vector(1536)` column.
  */
-export type KnowledgeActionResult = { ok: true } | { ok: false; message: string }
+export type KnowledgeActionResult =
+  | { ok: true; imported?: number }
+  | { ok: false; message: string }
 
 /**
  * Serialize a number[] embedding for the pgvector column. supabase-js sends a
@@ -148,4 +152,68 @@ export async function deleteEntry(id: string): Promise<KnowledgeActionResult> {
   })
 
   return { ok: true }
+}
+
+/**
+ * KCUR-03: bulk import. Seed an ENTIRE industry's KB in one operation. The CSV
+ * carries only title,body,source — the industry is chosen in the UI (one import
+ * = one industry), so `industryId` is applied to EVERY inserted row.
+ *
+ * Mirrors importPriceBookItems (lib/actions/price-book.ts): server-side
+ * re-validate -> filter -> a SINGLE bulk .insert. Two KCUR guardrails:
+ *   - requireAdmin() FIRST — the only access control (service client bypasses RLS).
+ *   - batch-embed every valid row via embedMany() BEFORE the insert; a batch-embed
+ *     failure aborts the WHOLE import (transactional feel — no partial/NULL-embedding
+ *     rows reach the table, Pitfall 4).
+ */
+export async function bulkImportEntries(
+  industryId: string,
+  rows: KnowledgeImportRow[]
+): Promise<KnowledgeActionResult> {
+  const ctx = await requireAdmin() // gate FIRST — the service client bypasses RLS
+
+  if (!isKnownIndustry(industryId)) {
+    return { ok: false, message: 'Unknown industry.' }
+  }
+
+  // Server-side re-validate every row (defense in depth — the parser already
+  // classified, but never trust the client payload).
+  const valid = rows.filter((r) => r.title?.trim() && r.body?.trim())
+  if (valid.length === 0) {
+    return { ok: false, message: 'No valid rows to import.' }
+  }
+
+  // Batch-embed BEFORE any insert. A failure here imports NOTHING (Pitfall 4).
+  let embeddings: number[][]
+  try {
+    embeddings = await embedMany(valid.map((r) => `${r.title.trim()}\n\n${r.body.trim()}`))
+  } catch {
+    return { ok: false, message: 'Could not generate embeddings — nothing imported. Try again.' }
+  }
+
+  const svc = requireServiceClient()
+  const { error } = await svc.from('knowledge_entries').insert(
+    valid.map((r, i) => ({
+      scope: 'industry',
+      industry_id: industryId,
+      company_id: null, // industry rows: company_id NULL (scope CHECK)
+      title: r.title.trim(),
+      body: r.body.trim(),
+      source: r.source ?? null,
+      embedding: toVectorLiteral(embeddings[i]),
+    }))
+  )
+  if (error) return { ok: false, message: error.message }
+  revalidatePath('/admin/knowledge')
+
+  void logAdminAction({
+    actorId: ctx.userId,
+    actorEmail: ctx.email,
+    action: 'knowledge_entry.save',
+    targetType: 'knowledge_entry',
+    targetId: industryId,
+    metadata: { imported: valid.length, industry_id: industryId },
+  })
+
+  return { ok: true, imported: valid.length }
 }
