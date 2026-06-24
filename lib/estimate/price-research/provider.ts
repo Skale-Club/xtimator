@@ -120,3 +120,46 @@ export async function getPriceResearchProvider(): Promise<PriceResearchProvider 
       return null
   }
 }
+
+/**
+ * Resolve the ORDERED, gated provider chain `[primary, fallback?]` (Phase 109).
+ *
+ * The configured PRIMARY source comes first (via the same dispatch as
+ * {@link getPriceResearchProvider}). The Anthropic-web quality-fallback is appended
+ * ONLY when it is BOTH (a) not already the primary AND (b) configured/available — the
+ * gate is `getIntegrationKey('anthropic')` resolving to a real key, the same credential
+ * the Anthropic adapter itself uses. Mirrors the AI provider-fallback ordering
+ * (lib/ai/provider-with-fallback.ts): primary first, fallback attempted at most once.
+ *
+ * Returns `[]` when nothing is configured (the Phase-108 safe no-op is preserved —
+ * the orchestrator touches no provider). Never throws: a gate read failure simply
+ * omits the fallback. The orchestrator iterates this chain over the SHRINKING miss
+ * set, attempting the fallback only for items the primary left without evidence.
+ */
+export async function getPriceResearchProviderChain(): Promise<PriceResearchProvider[]> {
+  const source = await getActiveResearchSource()
+  const primary = await getPriceResearchProvider()
+  // Unconfigured → empty chain (safe no-op; orchestrator never touches a provider).
+  if (!primary) return []
+
+  const chain: PriceResearchProvider[] = [primary]
+
+  // Append the gated Anthropic-web quality-fallback when the primary is NOT already
+  // Anthropic AND an Anthropic key is configured. The gate keeps the fallback dormant
+  // on installs without Anthropic credentials (no wasted call that all-misses anyway).
+  if (source !== 'anthropic_web') {
+    let anthropicKey: string | null = null
+    try {
+      const { getIntegrationKey } = await import('@/lib/platform-config')
+      anthropicKey = await getIntegrationKey('anthropic')
+    } catch {
+      anthropicKey = null // a gate read failure simply omits the fallback (never throws)
+    }
+    if (anthropicKey) {
+      const { makeAnthropicWebProvider } = await import('./adapters/anthropic-web')
+      chain.push(makeAnthropicWebProvider())
+    }
+  }
+
+  return chain
+}

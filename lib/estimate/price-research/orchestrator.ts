@@ -40,7 +40,7 @@ import 'server-only'
  */
 import type { EstimateSectionOutput, LineItemOutput } from '@/lib/ai/types'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { getPriceResearchProvider, isUsableCandidate } from './provider'
+import { getPriceResearchProviderChain, isUsableCandidate } from './provider'
 import { get as cacheGet, put as cachePut } from './cache'
 import { checkQuota, recordUsage } from '@/lib/quota'
 import { normalizeServiceNameKey, normalizeRegion } from './normalize'
@@ -225,24 +225,41 @@ export async function researchUnmatchedPrices(
         // misses keep ai_estimate; the call still returns sections (never hard-fails).
         const quota = await checkQuota(ctx.supabase, ctx.companyId, 'price_research')
         if (quota.allowed) {
-          const provider = await getPriceResearchProvider()
-          // Unconfigured provider (null) → misses keep ai_estimate (safe no-op).
-          if (provider) {
-            // Dedup the lookup by memo key so a batch never carries two items sharing
-            // a normalized (name, region): the search runs ONCE per key and every item
-            // sharing that key re-tags from the one result + one recordUsage.
+          // ORDERED provider chain: OpenRouter-web primary → gated Anthropic-web
+          // quality-fallback (Phase 109). An empty chain (unconfigured) is a safe
+          // no-op — misses keep ai_estimate.
+          const chain = await getPriceResearchProviderChain()
+
+          // The shrinking miss set fed to each provider in turn. The fallback is
+          // attempted only for items the primary left WITHOUT usable evidence (or that
+          // it errored on), before they degrade to ai_estimate.
+          let remaining = stillMissing
+
+          for (const provider of chain) {
+            if (remaining.length === 0) break
+
+            // Dedup THIS round's lookup by memo key so a batch never carries two items
+            // sharing a normalized (name, region): the search runs ONCE per key and
+            // every item sharing that key re-tags from the one result + one recordUsage.
             const repByKey = new Map<string, LineItemOutput>()
-            for (const m of stillMissing) {
+            for (const m of remaining) {
               const mk = buildMemoKey(ctx.region, m.description)
               if (!repByKey.has(mk)) repByKey.set(mk, m)
             }
             const lookupItems = Array.from(repByKey.values())
 
-            const results = await provider.lookup(
-              lookupItems.map((m) => ({ name: m.description })),
-              ctx.region,
-              ctx.currency
-            )
+            let results: import('./provider').PriceResearchResult[] = []
+            try {
+              results = await provider.lookup(
+                lookupItems.map((m) => ({ name: m.description })),
+                ctx.region,
+                ctx.currency
+              )
+            } catch {
+              // A provider erroring falls through to the NEXT provider in the chain
+              // (never throws). `remaining` is unchanged → the fallback re-searches them.
+              continue
+            }
 
             // Re-associate each result to its requested item by name.
             const byName = new Map<string, LineItemOutput>()
@@ -252,8 +269,9 @@ export async function researchUnmatchedPrices(
               if (!byName.has(result.name)) continue
               const mk = buildMemoKey(ctx.region, result.name)
 
-              // Meter once per searched key (idempotent — RMETER-01). A cache HIT or a
-              // memo HIT never reaches here, so neither consumes allowance.
+              // Meter once per actual search per key (idempotent — RMETER-01). A cache
+              // HIT or a memo HIT never reaches here, so neither consumes allowance. A
+              // fallback re-search of a still-missing key IS a real second search.
               try {
                 await recordUsage(ctx.supabase, ctx.companyId, 'price_researched', 1, buildIdemKey(ctx, result.name))
               } catch {
@@ -268,7 +286,7 @@ export async function researchUnmatchedPrices(
               // EVIDENCE GATE (RPRICE-04): re-tag 'researched' ONLY with a usable,
               // cited, positive price — across ALL items sharing this memo key.
               if (usable) {
-                for (const m of stillMissing) {
+                for (const m of remaining) {
                   if (buildMemoKey(ctx.region, m.description) === mk) {
                     retag.set(m, { ...m, unit_price: result.unit_price as number, price_source: 'researched' as const })
                   }
@@ -286,6 +304,10 @@ export async function researchUnmatchedPrices(
                 }
               }
             }
+
+            // Items with no USABLE result this round fall through to the NEXT provider
+            // (the gated fallback). An item already re-tagged 'researched' is resolved.
+            remaining = remaining.filter((m) => !retag.has(m))
           }
         }
       }

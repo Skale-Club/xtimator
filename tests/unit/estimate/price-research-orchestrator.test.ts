@@ -16,6 +16,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 // ---- Mocks (declared before importing the module under test) ----
 vi.mock('@/lib/estimate/price-research/provider', () => ({
   getPriceResearchProvider: vi.fn(),
+  getPriceResearchProviderChain: vi.fn(),
   isUsableCandidate: vi.fn(),
 }))
 vi.mock('@/lib/estimate/price-research/cache', () => ({
@@ -28,7 +29,10 @@ vi.mock('@/lib/quota', () => ({
 }))
 
 import { researchUnmatchedPrices, type ResearchContext } from '@/lib/estimate/price-research/orchestrator'
-import { getPriceResearchProvider, isUsableCandidate } from '@/lib/estimate/price-research/provider'
+import {
+  getPriceResearchProviderChain,
+  isUsableCandidate,
+} from '@/lib/estimate/price-research/provider'
 import { get as cacheGet, put as cachePut } from '@/lib/estimate/price-research/cache'
 import { checkQuota, recordUsage } from '@/lib/quota'
 import type { EstimateSectionOutput, LineItemOutput } from '@/lib/ai/types'
@@ -62,6 +66,11 @@ function section(title: string, items: LineItemOutput[]): EstimateSectionOutput 
   return { title, items }
 }
 
+/** Stub the provider CHAIN with one or more providers (each exposing `lookup`). */
+function mockChain(...providers: Array<{ lookup: ReturnType<typeof vi.fn> }>) {
+  vi.mocked(getPriceResearchProviderChain).mockResolvedValue(providers as never)
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
 })
@@ -82,7 +91,7 @@ describe('researchUnmatchedPrices — contract (Task 1)', () => {
     expect(typeof out.flaggedUnpriced).toBe('number')
     // No candidates → byte-identical sections; provider never resolved.
     expect(out.sections).toBe(sections)
-    expect(getPriceResearchProvider).not.toHaveBeenCalled()
+    expect(getPriceResearchProviderChain).not.toHaveBeenCalled()
     expect(cacheGet).not.toHaveBeenCalled()
     // A price_book item at $500 is priced → not flagged.
     expect(out.flaggedUnpriced).toBe(0)
@@ -93,7 +102,7 @@ describe('researchUnmatchedPrices — contract (Task 1)', () => {
     // even if every dependency throws, the call must resolve to the input sections.
     vi.mocked(cacheGet).mockRejectedValue(new Error('cache exploded'))
     vi.mocked(checkQuota).mockRejectedValue(new Error('quota exploded'))
-    vi.mocked(getPriceResearchProvider).mockRejectedValue(new Error('provider exploded'))
+    vi.mocked(getPriceResearchProviderChain).mockRejectedValue(new Error('provider exploded'))
 
     const sections = [
       section('Misc', [item({ description: 'Couch cleaning 8 seats', unit_price: 0, price_source: 'ai_estimate' })]),
@@ -119,7 +128,7 @@ describe('researchUnmatchedPrices — contract (Task 1)', () => {
     const out = await researchUnmatchedPrices(sections, ctx())
 
     expect(out.sections).toBe(sections)
-    expect(getPriceResearchProvider).not.toHaveBeenCalled()
+    expect(getPriceResearchProviderChain).not.toHaveBeenCalled()
     expect(cacheGet).not.toHaveBeenCalled()
     expect(isUsableCandidate).not.toHaveBeenCalled()
     expect(cachePut).not.toHaveBeenCalled()
@@ -157,7 +166,7 @@ describe('researchUnmatchedPrices — composition (Task 2)', () => {
     vi.mocked(cacheGet).mockResolvedValue(null) // miss → provider path
     vi.mocked(checkQuota).mockResolvedValue({ allowed: true, remaining: 10 })
     const lookup = vi.fn().mockResolvedValue([usable('Drywall repair', 175)])
-    vi.mocked(getPriceResearchProvider).mockResolvedValue({ lookup } as never)
+    mockChain({ lookup })
     vi.mocked(isUsableCandidate).mockReturnValue(true)
     vi.mocked(recordUsage).mockResolvedValue(undefined)
     vi.mocked(cachePut).mockResolvedValue(undefined)
@@ -189,13 +198,13 @@ describe('researchUnmatchedPrices — composition (Task 2)', () => {
       expires_at: new Date(Date.now() + 1000).toISOString(),
     })
     const lookup = vi.fn()
-    vi.mocked(getPriceResearchProvider).mockResolvedValue({ lookup } as never)
+    mockChain({ lookup })
 
     const out = await researchUnmatchedPrices(sections, ctx())
 
     expect(out.sections[0].items[0].price_source).toBe('researched')
     expect(out.sections[0].items[0].unit_price).toBe(180)
-    expect(getPriceResearchProvider).not.toHaveBeenCalled() // never resolved on a pure hit
+    expect(getPriceResearchProviderChain).not.toHaveBeenCalled() // never resolved on a pure hit
     expect(lookup).not.toHaveBeenCalled()
     expect(checkQuota).not.toHaveBeenCalled() // no misses → no quota check
     expect(recordUsage).not.toHaveBeenCalled() // HIT consumes no allowance
@@ -209,7 +218,7 @@ describe('researchUnmatchedPrices — composition (Task 2)', () => {
     vi.mocked(cacheGet).mockResolvedValue(null)
     vi.mocked(checkQuota).mockResolvedValue({ allowed: true, remaining: 5 })
     const lookup = vi.fn().mockResolvedValue([usable('Drywall repair', 250)])
-    vi.mocked(getPriceResearchProvider).mockResolvedValue({ lookup } as never)
+    mockChain({ lookup })
     vi.mocked(isUsableCandidate).mockReturnValue(true)
     vi.mocked(recordUsage).mockResolvedValue(undefined)
     vi.mocked(cachePut).mockResolvedValue(undefined)
@@ -248,7 +257,7 @@ describe('researchUnmatchedPrices — composition (Task 2)', () => {
     vi.mocked(cacheGet).mockResolvedValue(null)
     vi.mocked(checkQuota).mockResolvedValue({ allowed: true, remaining: 5 })
     const lookup = vi.fn().mockResolvedValue([ungrounded('Fence painting')])
-    vi.mocked(getPriceResearchProvider).mockResolvedValue({ lookup } as never)
+    mockChain({ lookup })
     vi.mocked(isUsableCandidate).mockReturnValue(false) // no evidence
     vi.mocked(recordUsage).mockResolvedValue(undefined)
 
@@ -268,11 +277,11 @@ describe('researchUnmatchedPrices — composition (Task 2)', () => {
     vi.mocked(cacheGet).mockResolvedValue(null)
     vi.mocked(checkQuota).mockResolvedValue({ allowed: false, remaining: 0 })
     const lookup = vi.fn()
-    vi.mocked(getPriceResearchProvider).mockResolvedValue({ lookup } as never)
+    mockChain({ lookup })
 
     const out = await researchUnmatchedPrices(sections, ctx())
 
-    expect(getPriceResearchProvider).not.toHaveBeenCalled()
+    expect(getPriceResearchProviderChain).not.toHaveBeenCalled()
     expect(lookup).not.toHaveBeenCalled()
     expect(recordUsage).not.toHaveBeenCalled()
     expect(out.sections[0].items[0].price_source).toBe('ai_estimate') // kept
@@ -289,7 +298,7 @@ describe('researchUnmatchedPrices — composition (Task 2)', () => {
     vi.mocked(cacheGet).mockResolvedValue(null)
     vi.mocked(checkQuota).mockResolvedValue({ allowed: true, remaining: 5 })
     const lookup = vi.fn().mockResolvedValue([ungrounded('Mystery task')]) // no evidence
-    vi.mocked(getPriceResearchProvider).mockResolvedValue({ lookup } as never)
+    mockChain({ lookup })
     vi.mocked(isUsableCandidate).mockReturnValue(false)
     vi.mocked(recordUsage).mockResolvedValue(undefined)
 
@@ -314,7 +323,7 @@ describe('researchUnmatchedPrices — composition (Task 2)', () => {
     const lookup = vi
       .fn()
       .mockResolvedValue([usable('Drywall repair', 175), usable('Fence painting', 90)])
-    vi.mocked(getPriceResearchProvider).mockResolvedValue({ lookup } as never)
+    mockChain({ lookup })
     vi.mocked(isUsableCandidate).mockReturnValue(true)
     vi.mocked(recordUsage).mockResolvedValue(undefined)
     vi.mocked(cachePut).mockResolvedValue(undefined)
@@ -356,7 +365,7 @@ describe('researchUnmatchedPrices — cost-control cap + in-run memo (Phase 109,
     const lookup = vi.fn(async (reqs: { name: string }[]) =>
       reqs.map((r) => usable(r.name, 100))
     )
-    vi.mocked(getPriceResearchProvider).mockResolvedValue({ lookup } as never)
+    mockChain({ lookup })
     vi.mocked(isUsableCandidate).mockReturnValue(true)
     vi.mocked(recordUsage).mockResolvedValue(undefined)
     vi.mocked(cachePut).mockResolvedValue(undefined)
@@ -401,7 +410,7 @@ describe('researchUnmatchedPrices — cost-control cap + in-run memo (Phase 109,
     vi.mocked(cacheGet).mockResolvedValue(null)
     vi.mocked(checkQuota).mockResolvedValue({ allowed: true, remaining: 5 })
     const lookup = vi.fn().mockResolvedValue([usable('Drywall repair', 175)])
-    vi.mocked(getPriceResearchProvider).mockResolvedValue({ lookup } as never)
+    mockChain({ lookup })
     vi.mocked(isUsableCandidate).mockReturnValue(true)
     vi.mocked(recordUsage).mockResolvedValue(undefined)
     vi.mocked(cachePut).mockResolvedValue(undefined)
@@ -428,7 +437,7 @@ describe('researchUnmatchedPrices — cost-control cap + in-run memo (Phase 109,
     const lookup = vi.fn(async (reqs: { name: string }[]) =>
       reqs.map((r) => usable(r.name, 180))
     )
-    vi.mocked(getPriceResearchProvider).mockResolvedValue({ lookup } as never)
+    mockChain({ lookup })
     vi.mocked(isUsableCandidate).mockReturnValue(true)
     vi.mocked(recordUsage).mockResolvedValue(undefined)
     vi.mocked(cachePut).mockResolvedValue(undefined)
@@ -460,12 +469,103 @@ describe('researchUnmatchedPrices — cost-control cap + in-run memo (Phase 109,
     vi.mocked(cacheGet).mockResolvedValue(null)
     vi.mocked(checkQuota).mockResolvedValue({ allowed: true, remaining: 50 })
     const lookup = vi.fn().mockRejectedValue(new Error('provider exploded'))
-    vi.mocked(getPriceResearchProvider).mockResolvedValue({ lookup } as never)
+    mockChain({ lookup })
 
     const out = await researchUnmatchedPrices(sections, ctx())
 
     // No throw → input sections returned; the two $0 items are flagged.
     expect(out.sections).toEqual(sections)
     expect(out.flaggedUnpriced).toBe(2)
+  })
+})
+
+describe('researchUnmatchedPrices — gated provider fallback ordering (Phase 109, Task 2)', () => {
+  it('Test 15 (primary has evidence): the fallback provider is NEVER called', async () => {
+    const sections = [
+      section('Work', [item({ description: 'Drywall repair', unit_price: 0, price_source: 'ai_estimate' })]),
+    ]
+    vi.mocked(cacheGet).mockResolvedValue(null)
+    vi.mocked(checkQuota).mockResolvedValue({ allowed: true, remaining: 50 })
+    const primary = vi.fn().mockResolvedValue([usable('Drywall repair', 175)])
+    const fallback = vi.fn().mockResolvedValue([usable('Drywall repair', 999)])
+    mockChain({ lookup: primary }, { lookup: fallback })
+    vi.mocked(isUsableCandidate).mockReturnValue(true)
+    vi.mocked(recordUsage).mockResolvedValue(undefined)
+    vi.mocked(cachePut).mockResolvedValue(undefined)
+
+    const out = await researchUnmatchedPrices(sections, ctx())
+
+    expect(primary).toHaveBeenCalledTimes(1)
+    expect(fallback).not.toHaveBeenCalled() // primary evidenced → no fallback
+    expect(out.sections[0].items[0].price_source).toBe('researched')
+    expect(out.sections[0].items[0].unit_price).toBe(175) // the PRIMARY's price
+  })
+
+  it('Test 16 (primary zero-evidence → fallback attempted): an evidenced fallback re-tags researched from the fallback price', async () => {
+    const sections = [
+      section('Work', [item({ description: 'Drywall repair', unit_price: 0, price_source: 'ai_estimate' })]),
+    ]
+    vi.mocked(cacheGet).mockResolvedValue(null)
+    vi.mocked(checkQuota).mockResolvedValue({ allowed: true, remaining: 50 })
+    // Primary returns an UNGROUNDED result (no evidence) for the item.
+    const primary = vi.fn().mockResolvedValue([ungrounded('Drywall repair')])
+    // Fallback returns an EVIDENCED result.
+    const fallback = vi.fn().mockResolvedValue([usable('Drywall repair', 220)])
+    mockChain({ lookup: primary }, { lookup: fallback })
+    // isUsableCandidate: false for the ungrounded (null source_url), true for the usable.
+    vi.mocked(isUsableCandidate).mockImplementation((r) => r.source_url != null)
+    vi.mocked(recordUsage).mockResolvedValue(undefined)
+    vi.mocked(cachePut).mockResolvedValue(undefined)
+
+    const out = await researchUnmatchedPrices(sections, ctx())
+
+    expect(primary).toHaveBeenCalledTimes(1)
+    // Fallback attempted with the STILL-MISSING item.
+    expect(fallback).toHaveBeenCalledTimes(1)
+    expect(fallback.mock.calls[0][0]).toEqual([{ name: 'Drywall repair' }])
+    // The item re-tagged 'researched' from the FALLBACK's evidenced price.
+    expect(out.sections[0].items[0].price_source).toBe('researched')
+    expect(out.sections[0].items[0].unit_price).toBe(220)
+  })
+
+  it('Test 17 (primary throws → fallback still attempted; both empty → item keeps ai_estimate, sections returned)', async () => {
+    const sections = [
+      section('Work', [item({ description: 'Fence painting', unit_price: 0, price_source: 'ai_estimate' })]),
+    ]
+    vi.mocked(cacheGet).mockResolvedValue(null)
+    vi.mocked(checkQuota).mockResolvedValue({ allowed: true, remaining: 50 })
+    const primary = vi.fn().mockRejectedValue(new Error('primary exploded'))
+    const fallback = vi.fn().mockResolvedValue([ungrounded('Fence painting')]) // no evidence
+    mockChain({ lookup: primary }, { lookup: fallback })
+    vi.mocked(isUsableCandidate).mockReturnValue(false)
+    vi.mocked(recordUsage).mockResolvedValue(undefined)
+
+    const out = await researchUnmatchedPrices(sections, ctx())
+
+    expect(primary).toHaveBeenCalledTimes(1)
+    // Primary threw → fallback still attempted with the still-missing item (never-throw).
+    expect(fallback).toHaveBeenCalledTimes(1)
+    expect(fallback.mock.calls[0][0]).toEqual([{ name: 'Fence painting' }])
+    // Both empty → item keeps ai_estimate; sections returned; the $0 item is flagged.
+    expect(out.sections[0].items[0].price_source).toBe('ai_estimate')
+    expect(out.flaggedUnpriced).toBe(1)
+  })
+
+  it('Test 18 (chain empty / unconfigured): no provider touched, byte-identical sections', async () => {
+    const sections = [
+      section('Work', [item({ description: 'Mystery task', unit_price: 0, price_source: 'ai_estimate' })]),
+    ]
+    vi.mocked(cacheGet).mockResolvedValue(null)
+    vi.mocked(checkQuota).mockResolvedValue({ allowed: true, remaining: 50 })
+    vi.mocked(getPriceResearchProviderChain).mockResolvedValue([]) // unconfigured
+
+    const out = await researchUnmatchedPrices(sections, ctx())
+
+    expect(recordUsage).not.toHaveBeenCalled()
+    expect(cachePut).not.toHaveBeenCalled()
+    // The candidate stays ai_estimate; the $0 item is flagged.
+    expect(out.sections[0].items[0].price_source).toBe('ai_estimate')
+    expect(out.sections[0].items[0].unit_price).toBe(0)
+    expect(out.flaggedUnpriced).toBe(1)
   })
 })
