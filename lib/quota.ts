@@ -43,6 +43,41 @@ export async function checkQuota(
   companyId: string,
   quotaType: QuotaType
 ): Promise<{ allowed: boolean; remaining: number | null }> {
+  // Phase 108 (RMETER-03): 'price_research' is gated against a monthly allowance
+  // BEFORE the non-estimate early-return below — over-allowance is a clean
+  // {allowed:false} skip (the caller falls items back to non-zero ai_estimate),
+  // NEVER a hard fail. A null (unlimited) tier returns remaining:null.
+  if (quotaType === 'price_research') {
+    const { data: company } = await supabase
+      .from('companies')
+      .select('tier')
+      .eq('id', companyId)
+      .single()
+
+    const tier = (company as { tier: string } | null)?.tier ?? 'free'
+    const { maxPriceResearchPerMonth: limit } = getEntitlements(tier)
+
+    // Unlimited research tier.
+    if (limit === null) {
+      return { allowed: true, remaining: null }
+    }
+
+    // Count this month's price_researched events (UTC month boundary).
+    const now = new Date()
+    const startOfMonth = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)
+    )
+    const { data: rows } = await supabase
+      .from('usage_events')
+      .select('id')
+      .eq('company_id', companyId)
+      .eq('event_type', QUOTA_TO_EVENT.price_research)
+      .gte('created_at', startOfMonth.toISOString())
+
+    const count = (rows ?? []).length
+    return { allowed: count < limit, remaining: Math.max(0, limit - count) }
+  }
+
   // Phase 56: only 'estimate' has monthly+daily limits. Others are per-estimate (Phase 57).
   if (quotaType !== 'estimate') {
     return { allowed: true, remaining: null }

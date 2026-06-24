@@ -1,5 +1,6 @@
 // tests/unit/entitlements.test.ts
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { getEntitlements, tiers, type TierName } from '@/lib/entitlements'
 
 describe('entitlements', () => {
@@ -61,5 +62,97 @@ describe('entitlements', () => {
 
   it('free tier has customDomainEnabled false', () => {
     expect(tiers.free.customDomainEnabled).toBe(false)
+  })
+
+  // Phase 108 (RMETER-02): maxPriceResearchPerMonth on every tier.
+  it('every tier has a numeric or null maxPriceResearchPerMonth', () => {
+    const tierNames: TierName[] = ['free', 'trial', 'pro', 'business']
+    for (const name of tierNames) {
+      const v = tiers[name].maxPriceResearchPerMonth
+      expect(v === null || typeof v === 'number').toBe(true)
+      expect(v).not.toBe(Infinity)
+    }
+  })
+
+  it('documents the per-tier research allowance: free 50 / trial 200 / pro 1000 / business null', () => {
+    expect(tiers.free.maxPriceResearchPerMonth).toBe(50)
+    expect(tiers.trial.maxPriceResearchPerMonth).toBe(200)
+    expect(tiers.pro.maxPriceResearchPerMonth).toBe(1000)
+    expect(tiers.business.maxPriceResearchPerMonth).toBeNull()
+  })
+
+  it('getEntitlements resolves the research allowance (free 50, business null)', () => {
+    expect(getEntitlements('free').maxPriceResearchPerMonth).toBe(50)
+    expect(getEntitlements('business').maxPriceResearchPerMonth).toBeNull()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Phase 108 (RMETER-03): checkQuota gates 'price_research' against the allowance.
+// ---------------------------------------------------------------------------
+
+// We exercise the REAL getEntitlements here (no mock) so the gating reads the
+// actual per-tier numbers above.
+function makeResearchSupabase({
+  tier = 'free',
+  priorCount = 0,
+}: { tier?: string; priorCount?: number } = {}) {
+  const rows = Array(priorCount).fill({ id: 'x' })
+
+  const fromMock = vi.fn().mockImplementation((table: string) => {
+    if (table === 'companies') {
+      return {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({ data: { tier }, error: null }),
+          }),
+        }),
+      }
+    }
+    if (table === 'usage_events') {
+      // checkQuota price_research chain: .select('id').eq().eq().gte() -> rows
+      return {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              gte: vi.fn().mockResolvedValue({ data: rows, error: null }),
+            }),
+          }),
+        }),
+      }
+    }
+    return {}
+  })
+
+  return { from: fromMock } as unknown as SupabaseClient
+}
+
+describe('checkQuota price_research gating', () => {
+  beforeEach(() => {
+    vi.resetModules()
+  })
+
+  it('free company at the allowance (50 prior) -> { allowed: false, remaining: 0 }', async () => {
+    const { checkQuota } = await import('@/lib/quota')
+    const supabase = makeResearchSupabase({ tier: 'free', priorCount: 50 })
+    const result = await checkQuota(supabase, 'company-1', 'price_research')
+    expect(result.allowed).toBe(false)
+    expect(result.remaining).toBe(0)
+  })
+
+  it('free company with 0 prior -> { allowed: true, remaining: 50 }', async () => {
+    const { checkQuota } = await import('@/lib/quota')
+    const supabase = makeResearchSupabase({ tier: 'free', priorCount: 0 })
+    const result = await checkQuota(supabase, 'company-1', 'price_research')
+    expect(result.allowed).toBe(true)
+    expect(result.remaining).toBe(50)
+  })
+
+  it('business company (null limit) -> { allowed: true, remaining: null }', async () => {
+    const { checkQuota } = await import('@/lib/quota')
+    const supabase = makeResearchSupabase({ tier: 'business', priorCount: 9999 })
+    const result = await checkQuota(supabase, 'company-1', 'price_research')
+    expect(result.allowed).toBe(true)
+    expect(result.remaining).toBeNull()
   })
 })
