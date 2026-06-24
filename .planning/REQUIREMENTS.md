@@ -33,7 +33,7 @@ Requirements for this milestone. Each maps to exactly one roadmap phase.
 
 - [x] **KCUR-01**: A super-admin can create/edit/delete industry KB entries scoped to an industry, in the super-admin panel.
 - [x] **KCUR-02**: Saving or editing an entry (re)generates its embedding.
-- [ ] **KCUR-03**: A super-admin can bulk-import entries (markdown or CSV) to seed an industry's KB in one operation.
+- [x] **KCUR-03**: A super-admin can bulk-import entries (markdown or CSV) to seed an industry's KB in one operation.
 
 ### Company KB Overlay (optional, tenant)
 
@@ -88,7 +88,7 @@ Which phases cover which requirements. Populated during roadmap creation.
 | KMOD-04 | Phase 118 | Complete |
 | KCUR-01 | Phase 119 | Complete |
 | KCUR-02 | Phase 119 | Complete |
-| KCUR-03 | Phase 119 | Pending |
+| KCUR-03 | Phase 119 | Complete |
 | KOVL-01 | Phase 120 | Pending |
 | KOVL-02 | Phase 120 | Pending |
 | WAKB-01 | Phase 121 | Pending |

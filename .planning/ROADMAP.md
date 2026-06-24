@@ -783,7 +783,7 @@ Plans:
 | 109. Durability + Cost-Control Hardening | v4.6 | 2/2 | Complete    | 2026-06-24 |
 | 117. Knowledge Schema + pgvector + Dual RLS | v4.8 | 1/1 | Complete    | 2026-06-24 |
 | 118. Channel-Neutral lib/knowledge/ Module | v4.8 | 3/3 | Complete    | 2026-06-24 |
-| 119. Super-Admin Industry KB Curation + Bulk Import | v4.8 | 1/3 | In Progress|  |
+| 119. Super-Admin Industry KB Curation + Bulk Import | v4.8 | 2/3 | In Progress|  |
 | 120. Company KB Overlay (tenant settings) | v4.8 | 0/0 | Not started | - |
 | 121. WhatsApp KNOWLEDGE Intent | v4.8 | 0/0 | Not started | - |
 
@@ -1449,7 +1449,7 @@ Plans:
   3. A super-admin can bulk-import entries from a markdown or CSV file to seed an industry's KB in a single operation, each imported entry getting its embedding generated
 **Plans**: 3 plans
 - [x] 119-01-PLAN.md — Curation actions (create/edit/delete) + embed-then-insert + embedMany helper (KCUR-01, KCUR-02) [Wave 1]
-- [ ] 119-02-PLAN.md — CSV parser + bulkImportEntries batch-embed + bulk-insert (KCUR-03) [Wave 2]
+- [x] 119-02-PLAN.md — CSV parser + bulkImportEntries batch-embed + bulk-insert (KCUR-03) [Wave 2]
 - [ ] 119-03-PLAN.md — Super-admin /admin/knowledge UI (list, form, import card, nav) (KCUR-01, KCUR-03) [Wave 3]
 **UI hint**: yes
 
