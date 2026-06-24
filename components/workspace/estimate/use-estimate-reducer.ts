@@ -16,7 +16,7 @@ export interface EditorItem {
   unit_price: number
   total: number
   sort_order: number
-  price_source: 'price_book' | 'ai_estimate' | null
+  price_source: 'price_book' | 'ai_estimate' | 'researched' | null
   isManuallyEdited?: boolean
 }
 
@@ -91,7 +91,7 @@ export interface RefinementPayload {
       quantity: number
       unit?: string
       unit_price: number
-      price_source: 'price_book' | 'ai_estimate'
+      price_source: 'price_book' | 'ai_estimate' | 'researched'
     }>
   }>
 }

@@ -48,7 +48,7 @@ interface SaveItemInput {
   unit: string | null
   unit_price: number
   sort_order: number
-  price_source: 'price_book' | 'ai_estimate' | null
+  price_source: 'price_book' | 'ai_estimate' | 'researched' | null
   isManuallyEdited?: boolean
 }
 
