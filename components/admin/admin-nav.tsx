@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { AppIcon } from '@/components/ui/app-icon'
-import { Settings2, Palette, Users, LayoutDashboard, Globe, Layout, FileText, CreditCard, Building2, Scale, ScrollText, MessageCircle } from 'lucide-react'
+import { Settings2, Palette, Users, LayoutDashboard, Globe, Layout, FileText, CreditCard, Building2, Scale, ScrollText, MessageCircle, BookOpen } from 'lucide-react'
 import { useTranslation } from '@/lib/i18n/use-translation'
 
 const NAV_ITEMS = [
@@ -11,6 +11,7 @@ const NAV_ITEMS = [
   { href: '/admin/seo',          label: 'SEO',          Icon: Globe },
   { href: '/admin/landing',      label: 'Landing Page', Icon: Layout },
   { href: '/admin/blog',         label: 'Blog',         Icon: FileText },
+  { href: '/admin/knowledge',    label: 'Knowledge',    Icon: BookOpen },
   { href: '/admin/legal',        label: 'Legal Pages',  Icon: Scale },
   { href: '/admin/branding',     label: 'Branding',     Icon: Palette },
   {
