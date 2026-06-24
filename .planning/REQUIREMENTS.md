@@ -1,94 +1,141 @@
-# Requirements — Milestone v4.6 Pricing Intelligence (Researched Pricing Agent)
+# Requirements: Xtimator — Milestone v4.7 Monetização
 
-**Defined:** 2026-06-23
-**Status:** Approved — ready for roadmap
+**Defined:** 2026-06-24
+**Core Value:** A business owner can go from job site audio recording to a sent, professional estimate in under 5 minutes without touching a keyboard.
+**Milestone goal:** Transform billing from count-based tiers into a credit model with built-in margin (subscription grants AI credits consumed as real OpenRouter/Whisper cost × markup), and add a 1% platform application fee on estimate payments — every billing parameter configurable from the super-admin panel. Sources: [SEED-035](seeds/SEED-035-credit-based-subscription-billing.md), [SEED-036](seeds/SEED-036-estimate-payment-platform-fee.md).
 
-> **Goal:** When an estimate line item has no match in the company price book, a specialized step researches the average regional market price (client's city + state) and writes it with `price_source: 'researched'` — instead of the AI guessing a price that can come out $0 and trip the "too vague" gate. Delivers Pillar 2 (researched pricing) on top of the existing Pillar 1 (price-book priority via `anchorAndClampSections`).
+> **Locked decisions (from design sessions 2026-06-24):**
+> - **Stripe is the rail, the credit ledger is OURS** — Stripe Billing charges the recurring subscription + one-time top-ups; the credit metering lives in our `credit_ledger`, NOT Stripe metered billing. Founder is US-based with EIN + Stripe.
+> - **Hybrid credit model** — backend debits `real_cost × markup` (margin-safe by construction); frontend shows a simple credit balance ("≈ an estimate = 10–15 credits"), never token math. Denomination: 1 credit = $0.01 of charged AI value.
+> - **Markup target 4.5x** (~75–80% margin); grant sized so the real OpenRouter cost of the FULL monthly grant is ≤ ~30% of the subscription price (power-user at 100% still profits).
+> - **Consumption rule** — debit wherever WE spend AI (the points already in `usage_events`); MCP external-assistant conversation = zero credit; lightweight web-chat conversation absorbed.
+> - **Overage = top-up** (buy more credits) + upgrade prompt; no silent mid-job block.
+> - **1% estimate application fee** via Direct Charges (owner stays merchant of record; Xtimator never custodies funds). Total payment-UI gating on Stripe-connected; clear fee disclosure at connection.
+> - **Everything super-admin-configurable** via a new `billing_config` (the `ai_config`/`platform_integrations` pattern) — no hard-coded billing numbers, no env vars. The tenant only experiences the result.
+> - **Calibrate before charging** — measure real cost in production with billing OFF; derive grant/markup/price from data.
 
-> **Locked decisions (from discussion 2026-06-23):**
-> - Search source: **OpenRouter web search** (primary provider), engine configurable `exa` (fixed ~$0.005/req) vs `native` (model's own search). Anthropic web search (`user_location`) as a gated quality fallback. Brave / dedicated pricing APIs / scraping rejected.
-> - Region granularity: **city + state** (already on the client address) — also the cache key.
-> - Markup/margin: **none in MVP** (deferred to admin config).
-> - Cache scope: **per-tenant** (`company_id`).
-> - Metering: **reuse the existing quota** (`usage_events` / `checkQuota` / `recordUsage`) with a new `price_researched` event type, **count-based** (1 unit/search), per-tier monthly allowance. No new credit/billing subsystem.
-> - Source citations / ranges / confidence are NOT surfaced in the UI this milestone.
+## v1 Requirements
 
----
+Requirements for this milestone. Each maps to exactly one roadmap phase.
 
-## v4.6 Requirements
+### Cost Capture (foundation)
 
-### RPRICE — Researched Pricing Core
+- [ ] **COST-01**: System captures the real USD cost of every OpenRouter AI call (today only tokens are captured for Langfuse) — via `usage.include` in the request or the `/api/v1/generation` lookup.
+- [ ] **COST-02**: System computes Whisper/STT cost from audio minutes × a configurable rate (cost not returned by the provider).
+- [ ] **COST-03**: Real cost per AI operation is recorded and correlated to the existing attempt/usage instrumentation (`usage_events`/`pipeline_events`), available for calibration analysis.
 
-- [x] **RPRICE-01**: For each estimate line item with no price-book match, the system researches an average regional market price using the client's city + state, instead of letting the AI guess.
-- [x] **RPRICE-02**: A researched price is tagged `price_source: 'researched'` (distinct from `price_book` and `ai_estimate`), threaded through the output schema, persistence (`estimate_items.price_source` CHECK), and the estimate editor price badge.
-- [x] **RPRICE-03**: Price precedence `price_book > researched > ai_estimate` is enforced — research runs only on no-match items, never overrides a price-book item, and never re-researches an item the owner has edited.
-- [x] **RPRICE-04**: An item is tagged `researched` only when the lookup returns real evidence (a source URL + snippet); without evidence it falls back to a non-zero `ai_estimate`. (Internal correctness gate — source data is not shown in the UI.)
+### Credit Ledger & Consumption
 
-### RSRC — Research Source / Provider
+- [ ] **CREDIT-01**: A tenant-scoped append-only `credit_ledger` records every credit movement (grant, debit, topup, adjust) with real cost, markup, and resulting balance.
+- [ ] **CREDIT-02**: Each AI operation already instrumented in `usage_events` (`estimate`, `photo_batch`, `audio_minutes`, `price_research`) debits credits = `real_cost × markup`.
+- [ ] **CREDIT-03**: A company's current credit balance is derivable from the ledger with a fast-read path (cached balance, reconcilable to the ledger).
+- [ ] **CREDIT-04**: Each subscription tier grants a configurable monthly credit allowance (`monthlyCreditGrant` on entitlements).
+- [ ] **CREDIT-05**: Before an AI operation, the system checks credit balance; insufficient balance surfaces a top-up path rather than hard-failing mid-flow where avoidable.
+- [ ] **CREDIT-06**: Credit debits are idempotent (reuse the existing `recordUsage` idempotency) — a retried operation never double-charges.
+- [ ] **CREDIT-07**: Operations that do not spend our AI budget never debit credits (MCP external-assistant conversation = zero credit; lightweight web-chat conversation absorbed), enforced by metering at the point of real spend.
 
-- [x] **RSRC-01**: Price research runs through OpenRouter's web search (the primary AI provider), as a separate call ahead of the unchanged forced `create_estimate` call.
-- [x] **RSRC-02**: The search engine is configurable between `exa` (OpenRouter/Exa, fixed cost) and `native` (the model's own web search), behind a swappable `PriceResearchProvider` seam mirroring `getAIProviderWithFallback`.
-- [x] **RSRC-03**: Anthropic web search (with `user_location` city/state) is available as a pluggable quality-fallback source, gated and not the default.
-- [x] **RSRC-04**: The research source is seamed so a deterministic fixture adapter drives it in tests/CI (no live calls) — the v4.5 eval harness + CI regression gate stay green.
+### Super-Admin Billing Config
 
-### RFALL — Fallback & Correctness (the $0 fix)
+- [ ] **BILLCFG-01**: A `billing_config` section in the encrypted runtime-config store (`platform_integrations`/`ai_config` pattern) holds all billing parameters — no hard-coded values, no env vars.
+- [ ] **BILLCFG-02**: A super-admin "Billing" panel edits markup, credit denomination, per-tier monthly grant, subscription prices, top-up packs, Whisper rate, fee %, low-balance thresholds — applied at runtime without deploy.
+- [ ] **BILLCFG-03**: All billing logic (`recordAICost`/`checkCredits`/grant/fee) reads parameters from `billing_config` at runtime; the business owner (tenant) has no access to these controls.
 
-- [x] **RFALL-01**: No fallback rung is ever $0 — research → non-zero `ai_estimate` → flagged unpriced item, never zero.
-- [x] **RFALL-02**: The vagueness gate distinguishes a fully empty estimate (block → needs-details) from a single flagged unpriced item (allow → estimate proceeds).
-- [x] **RFALL-03**: The originating "Couch cleaning 8seats" case is a regression fixture that produces a non-zero, non-vague estimate.
-- [x] **RFALL-04**: Web-search content is sanitized against prompt injection (reusing `sanitizeField` + a tagged `<search_result>` block + the `## Security` clause) before entering the LLM prompt.
+### Subscription & Top-Up Rail (Stripe)
 
-### RMETER — Metering & Cost (reuse existing quota)
+- [ ] **TOPUP-01**: On `invoice.paid` for a subscription, the system grants the tier's monthly credit allowance to the company's ledger, idempotently (via the existing `stripe_processed_events`).
+- [ ] **TOPUP-02**: A company can buy a one-time credit top-up pack via Stripe checkout; the paid webhook credits the ledger.
+- [ ] **TOPUP-03**: When credits run low or hit zero, the company is offered top-up (and an upgrade suggestion when the usage pattern justifies it) — generation is not silently blocked mid-job.
 
-- [x] **RMETER-01**: Each price-research search is metered through the existing usage system (`usage_events` / `recordUsage`) via a new `price_researched` event type, count-based (1 unit/search), idempotent.
-- [x] **RMETER-02**: Each tier gets a monthly price-research allowance in `entitlements`, sized from the per-search cost in cents.
-- [x] **RMETER-03**: `checkQuota` gates research; when a company is over its research allowance, research is skipped and items fall back to a non-zero `ai_estimate` — the estimate still generates and never hard-fails.
+### Estimate Payment Platform Fee
 
-### RCACHE — Caching
+- [ ] **FEE-01**: The Stripe Connect invoice path (`lib/billing/invoice-service.ts`) charges a platform `application_fee_amount` (the deliberately omitted hook at line 17), routing the fee to the Xtimator platform account.
+- [ ] **FEE-02**: The Phase-70 estimate checkout path charges the same platform fee via `payment_intent_data.application_fee_amount`.
+- [ ] **FEE-03**: The fee percentage is read from `billing_config` (super-admin, default 1%) — never hard-coded.
+- [ ] **FEE-04**: The fee is computed on the amount actually charged (deposit or full total), with a sane minimum/rounding so Stripe never receives an invalid (e.g. $0) fee.
 
-- [x] **RCACHE-01**: Researched prices are cached in a new `price_research_cache` table keyed by (`company_id`, normalized service name, city + state), with service-role/deny-all RLS (the `pipeline_events` posture).
-- [x] **RCACHE-02**: Cache entries expire after a TTL (~30 days); a cache hit reuses the price without a new search and without consuming the research allowance.
+### Payment UI Gating
 
----
+- [ ] **PAYGATE-01**: A single `usePaymentsEnabled` guard gates all payment UI; every payment page, screen, button, and element renders only when the company's Stripe Connect status is `active`.
+- [ ] **PAYGATE-02**: With Stripe disconnected, no payment-related element appears anywhere (no orphan) and the product otherwise works fully; both states are covered by tests.
 
-## Future Requirements (deferred)
+### Fee Disclosure
 
-- Source citations in the estimate UI ("researched from N sources" + links).
-- Low / avg / high price range as captured metadata + display.
-- Confidence indicator on researched prices.
-- Admin-panel UI for source selection, engine choice, spend caps, and research on/off.
-- Configurable markup / margin applied to researched prices.
+- [ ] **DISCLOSE-01**: The Stripe connection flow shows a clear disclosure that Xtimator charges the platform fee (e.g. 1%), separate from Stripe's fees, with the live percentage read from `billing_config`.
 
----
+### Credit Balance UX (owner-facing)
+
+- [ ] **CREDITUI-01**: The business owner sees a simple credit balance (header/settings) with consumption history and rough per-action guidance — never token math.
+- [ ] **CREDITUI-02**: Low-balance and zero-balance states show a warning and a top-up/upgrade CTA, reusing the existing threshold-notification path.
+
+### Calibration & Transition
+
+- [ ] **CALIB-01**: Cost capture can run in production in measure-only mode (instrumented, no charging) so real per-operation cost is collected before any billing is enabled.
+- [ ] **CALIB-02**: Grant/markup/price are derived from measured real cost and satisfy the margin invariant (real cost of the full monthly grant ≤ ~30% of the subscription price), documented.
+- [ ] **MIG-01**: Credits run in parallel with the existing count-based tiers during transition; no existing account breaks, and the count-based limits degrade to secondary guard-rails.
+
+## v2 Requirements
+
+Deferred to a future milestone. Tracked but not in this roadmap.
+
+### Granular Billing
+
+- **GRAN-01**: Per-operation-type markup (e.g. research markup ≠ generation markup).
+- **GRAN-02**: Per-tier fee differentiation (e.g. Free 2%, Business 0.5%).
+- **GRAN-03**: Credit rollover for unused balance (current decision: no rollover — expire at cycle end).
+- **GRAN-04**: Platform transactional-revenue reporting dashboard (how much 1% fee accrued per period).
+- **GRAN-05**: `refund_application_fee` policy when an owner refunds a customer.
 
 ## Out of Scope
 
-- **Direct scraping** of HomeAdvisor / Angi / Yelp cost pages — ToS/legal exposure, brittleness, and a headless-browser dependency the project deliberately avoids.
-- **In-house RSMeans-style priced database** — maintenance trap; on-demand research is the chosen mechanism.
-- **In-house cost-of-living multiplier table** — direct city/state lookup is used instead.
-- **A new cents-based credit wallet / billing subsystem** — explicitly reuse the existing count-based quota instead.
-- **Silent auto-apply without review** — estimates remain user-editable; researched prices are a starting point.
-
----
+| Feature | Reason |
+|---------|--------|
+| Stripe metered/usage-based billing for credits | The credit ledger is OURS; tying it to a gateway's metered billing makes us hostage to that gateway |
+| Platform custodying funds (Destination Charges) | Owner stays merchant of record; custody brings chargeback liability + money-transmitter exposure (Option B rejected) |
+| Charging real money before calibration | Must measure real cost in production first; charging on guessed numbers risks margin |
+| Switching off Stripe entirely | Founder is US-based with EIN + Stripe; Stripe is the rail (only the credit logic is ours) |
+| Model Complexity Gate (SEED-031) | Dormant optimization; synergistic with margin but not required for this milestone |
+| Owner-editable billing parameters | Billing config is super-admin only; the tenant only experiences the result |
 
 ## Traceability
 
+Which phases cover which requirements. Populated during roadmap creation.
+
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| RPRICE-01 | Phase 108 | Complete |
-| RPRICE-02 | Phase 105 | Complete |
-| RPRICE-03 | Phase 108 | Complete |
-| RPRICE-04 | Phase 108 | Complete |
-| RSRC-01 | Phase 107 | Complete |
-| RSRC-02 | Phase 107 | Complete |
-| RSRC-03 | Phase 107 | Complete |
-| RSRC-04 | Phase 107 | Complete |
-| RFALL-01 | Phase 108 | Complete |
-| RFALL-02 | Phase 108 | Complete |
-| RFALL-03 | Phase 108 | Complete |
-| RFALL-04 | Phase 107 | Complete |
-| RMETER-01 | Phase 108 | Complete |
-| RMETER-02 | Phase 108 | Complete |
-| RMETER-03 | Phase 108 | Complete |
-| RCACHE-01 | Phase 106 | Complete |
-| RCACHE-02 | Phase 106 | Complete |
+| COST-01 | TBD | Pending |
+| COST-02 | TBD | Pending |
+| COST-03 | TBD | Pending |
+| CREDIT-01 | TBD | Pending |
+| CREDIT-02 | TBD | Pending |
+| CREDIT-03 | TBD | Pending |
+| CREDIT-04 | TBD | Pending |
+| CREDIT-05 | TBD | Pending |
+| CREDIT-06 | TBD | Pending |
+| CREDIT-07 | TBD | Pending |
+| BILLCFG-01 | TBD | Pending |
+| BILLCFG-02 | TBD | Pending |
+| BILLCFG-03 | TBD | Pending |
+| TOPUP-01 | TBD | Pending |
+| TOPUP-02 | TBD | Pending |
+| TOPUP-03 | TBD | Pending |
+| FEE-01 | TBD | Pending |
+| FEE-02 | TBD | Pending |
+| FEE-03 | TBD | Pending |
+| FEE-04 | TBD | Pending |
+| PAYGATE-01 | TBD | Pending |
+| PAYGATE-02 | TBD | Pending |
+| DISCLOSE-01 | TBD | Pending |
+| CREDITUI-01 | TBD | Pending |
+| CREDITUI-02 | TBD | Pending |
+| CALIB-01 | TBD | Pending |
+| CALIB-02 | TBD | Pending |
+| MIG-01 | TBD | Pending |
+
+**Coverage:**
+- v1 requirements: 28 total
+- Mapped to phases: 0 (roadmap pending)
+- Unmapped: 28 ⚠️ (resolved by roadmap)
+
+---
+*Requirements defined: 2026-06-24*
+*Last updated: 2026-06-24 — milestone v4.7 Monetização initial definition*
