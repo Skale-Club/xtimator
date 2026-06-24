@@ -18,9 +18,9 @@ Requirements for this milestone. Each maps to exactly one roadmap phase.
 
 ### Knowledge Base Schema & Storage
 
-- [ ] **KB-01**: pgvector is enabled and a `knowledge_entries` table exists (scope 'industry'|'company', industry_id nullable, company_id nullable, title, body, source, embedding vector, created_at, updated_at) with a vector similarity index. Idempotent migration, authored-only (deploy via CI→GHCR→Coolify).
-- [ ] **KB-02**: Industry KB entries are neutral/shared — RLS service-role-write, read scoped by industry (mirroring the `price_research_cache` posture); no tenant can write them.
-- [ ] **KB-03**: Company KB overlay entries are tenant-scoped — RLS gates read/write to the owning company (`company_members` membership, like the multi-tenant tables).
+- [x] **KB-01**: pgvector is enabled and a `knowledge_entries` table exists (scope 'industry'|'company', industry_id nullable, company_id nullable, title, body, source, embedding vector, created_at, updated_at) with a vector similarity index. Idempotent migration, authored-only (deploy via CI→GHCR→Coolify).
+- [x] **KB-02**: Industry KB entries are neutral/shared — RLS service-role-write, read scoped by industry (mirroring the `price_research_cache` posture); no tenant can write them.
+- [x] **KB-03**: Company KB overlay entries are tenant-scoped — RLS gates read/write to the owning company (`company_members` membership, like the multi-tenant tables).
 
 ### Knowledge Domain Module (channel-neutral)
 
@@ -79,9 +79,9 @@ Which phases cover which requirements. Populated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| KB-01 | Phase 117 | Pending |
-| KB-02 | Phase 117 | Pending |
-| KB-03 | Phase 117 | Pending |
+| KB-01 | Phase 117 | Complete |
+| KB-02 | Phase 117 | Complete |
+| KB-03 | Phase 117 | Complete |
 | KMOD-01 | Phase 118 | Pending |
 | KMOD-02 | Phase 118 | Pending |
 | KMOD-03 | Phase 118 | Pending |

@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v4.8
 milestone_name: Industry Knowledge Base — Channel-Neutral Conversational Assistant
-status: roadmap-created
-stopped_at: Milestone v4.8 roadmap created — 5 phases (117-121), 15/15 requirements mapped
-last_updated: "2026-06-24T21:30:00.000Z"
+status: verifying
+stopped_at: Completed 117-01-PLAN.md
+last_updated: "2026-06-24T21:08:00.190Z"
 last_activity: 2026-06-24
 progress:
-  total_phases: 5
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_phases: 73
+  completed_phases: 54
+  total_plans: 166
+  completed_plans: 178
 ---
 
 # Project State
@@ -27,15 +27,19 @@ progress:
 - **Dependency spine:** 117 (schema/pgvector/RLS) is the foundation. 118 (neutral module) needs 117. 119 (super-admin curation) + 120 (company overlay) each need 117 + 118 (`embed`) and can run in PARALLEL (distinct surfaces — the two-panel rule). 121 (WhatsApp intent) needs 118 (`answer`) + a populated KB (117 + at least curation from 119), and is the last/consumer phase.
 - **Locked guardrails (SEED-033 + PROJECT.md):** `lib/knowledge/` is channel-neutral — imports NO channel (WhatsApp/web-chat/MCP are thin consumers); retrieval = pgvector + embeddings ONLY in v1 (NO Cohere reranker — deferred, data-driven phase-2 with an explicit trigger); the two-panel rule (industry KB = super-admin platform asset; company overlay = tenant settings — distinct surfaces, distinct RLS); NO owner-facing KB browser (consult via chat only); injection-hardening via existing `sanitizeField` + a new `<knowledge>` tag (curated ≠ trusted as LLM context); migrations idempotent + authored-only + deploy CI→GHCR→Coolify (never build on the VPS); never-throw on retrieve/answer. Web chat (SEED-034) + MCP `ask_knowledge` (SEED-030) are OUT — separate milestones; this milestone makes the module MCP-ready but wires only WhatsApp.
 - **Previous milestone**: v4.7 Monetização — Credit-Based Billing + Estimate Payment Fee — SHIPPED 2026-06-24 (phases 110-116, 28/28 requirements, full unit suite green 298 files / 2110 tests; enforcement OFF/safe until production cost calibration).
-- **Position**: v4.8 roadmap created; ready to plan Phase 117. Next: `/gsd:plan-phase 117`.
+- **Position**: Phase 117 EXECUTED (1/1 plans) — the v4.8 knowledge schema foundation shipped (pgvector + `knowledge_entries` + dual RLS). Next: `/gsd:verify-work 117`, then `/gsd:execute-phase 118` (the channel-neutral `lib/knowledge/` module — `embed`/`retrieve`/`answer` over the new table).
 
 ## Current Position
 
-Phase: 117
-Plan: Not started
-Status: Roadmap created — ready to plan Phase 117 (`/gsd:plan-phase 117`)
+Phase: 117 (Knowledge Schema + pgvector + Dual RLS) — EXECUTING
+Plan: 1 of 1
+Status: Phase complete — ready for verification
 
 ---
+
+### Accumulated Context (v4.8)
+
+Status (117-01, Wave 1 — KB-01/02/03): shipped — **the v4.8 Industry Knowledge Base FOUNDATION: one idempotent, authored-only migration + one static SQL-contract test.** NEW `supabase/migrations/20260625000001_phase117_knowledge_entries.sql` (filename sorts strictly after the newest `20260624000004_phase112_credit_ledger.sql`): (1) `create extension if not exists vector with schema extensions` (pgvector, idempotent); (2) `public.knowledge_entries` — `id uuid pk`, `scope text not null check (scope in ('industry','company'))`, nullable `industry_id text` (a `lib/industries.ts` code-side id, NOT a FK) + `company_id uuid references public.companies(id) on delete cascade`, `title`/`body` not null, nullable `source`, **`embedding vector(1536)` NULLABLE** (text-embedding-3-small; DORMANT — nothing writes it until Phase 118), `created_at`/`updated_at timestamptz not null default now()`, and a scope-keys CHECK (`industry => industry_id not null and company_id is null` OR `company => company_id not null`); (3) HNSW cosine index `knowledge_entries_embedding_hnsw_idx using hnsw (embedding vector_cosine_ops)` (builds on the empty curated table — no IVFFlat training step); (4) **DUAL RLS on one table via permissive-policy OR semantics** — `enable row level security` + ONE `knowledge_entries_select` policy OR-ing `scope='industry'` (readable to ALL authenticated — neutral; the `industries[]` relevance filter is a Phase-118 `retrieve()` WHERE, NOT RLS) with the company arm `scope='company' and company_id in (select company_members.company_id from company_members where company_members.user_id = (select auth.uid()))`; plus company-scoped `for insert/update/delete to authenticated` policies (KB-03) each gated by the same `company_members` subquery. **KB-02 service-role-only industry writes = the ABSENCE of any `scope='industry'` write policy** (the service role bypasses RLS; a tenant literally cannot write an industry row). Mirrors `price_research_cache` (neutral/service-role posture) + `credit_ledger`/phase82 (company_members subquery + `(select auth.uid())` idiom). **Phase-82 invariant holds: zero `companies.user_id` references.** Idempotent: `CREATE EXTENSION/TABLE/INDEX IF NOT EXISTS` + `DROP POLICY IF EXISTS` before each `CREATE POLICY`. NEW `tests/unit/knowledge/knowledge-entries-migration.test.ts` (15 assertions, new `tests/unit/knowledge/` dir) — pure `readFileSync` + regex, no DB/secrets, mirroring `credit-ledger-migration.test.ts` (with `stripComments` for the no-`companies.user_id` + no-`WITH CHECK scope='industry'` negative assertions). **TDD RED→GREEN:** Task 1 the test went RED-by-missing-migration (`ENOENT`, not a syntax/import error — correct Wave-0 state); Task 2 the migration turned it fully GREEN (15/15). Per-wave gate `npx vitest run tests/unit/knowledge tests/unit/estimate/price-research-cache-migration.test.ts tests/unit/billing/credit-ledger-migration.test.ts` → 34/34 (neighbors did not regress). FULL `npx vitest run` → **299 files passed | 3 skipped, 2125 passed | 2 skipped | 33 todo** (baseline 116-02 298/2110; +1 file / +15) — no regressions; the known parallel-only `mcp-route-contract.test.ts` flake did not surface. **0 deviations** — the migration SQL was lifted verbatim from the plan's locked `<action>` block; the test implements the exact assertion checklist. **Authored-only — NO remote apply** (no `supabase db push`, no `apply_migration` MCP); deploy is owned by CI→GHCR→Coolify (operational deferral: apply the migration to remote through the pipeline). The table ships DORMANT (no app code embeds/retrieves until Phase 118). No secrets. 2 atomic commits (868cd1b6 RED test, fdc321f2 GREEN migration); all normal hooked (gitleaks ran, no `--no-verify`), no leaks. KB-01/02/03 marked complete. **Phase 117 now 1/1 plans — COMPLETE.** Next: `/gsd:verify-work 117`, then `/gsd:execute-phase 118` (the channel-neutral `lib/knowledge/` module — `embed`/`retrieve`/`answer` over `knowledge_entries`). See 117-01-SUMMARY.md.
 
 ### Accumulated Context (v4.7)
 
@@ -93,7 +97,7 @@ Prior: 102-01 (HARD-07 replay-safe TTL) shipped. Added a neutral `requestedAt: A
 Prior: 102-02 (HARD-06 cap half) shipped. Replaced the hard-coded `(state.refineAttempts ?? 0) < 1` literal in `checkVagueAfterAssessEdge` (`lib/estimate/graph/nodes/decide.ts`) with a single `AUTO_REFINE_MAX_ATTEMPTS` module constant — read once at module load via an IIFE (`Number.isFinite(raw) && raw >= 0 ? raw : 1`) from the optional non-secret `process.env.AUTO_REFINE_MAX_ATTEMPTS`, defaulting to 1. Operator kept exactly `<` so the default is byte-identical to today (Research Pitfall 1). `auto-refine.ts` doc comment updated to reference the configurable cap (documentation-only; increment logic untouched). Channel-neutral (no DB, no async, no channel import) → graph-neutrality stays green. `tests/unit/estimate/auto-refine-cap.test.ts` now fully GREEN (default=1 AND `AUTO_REFINE_MAX_ATTEMPTS=2` override cases); `auto-refine-isolation` + `graph-neutrality` (12/12) and `never-reply-regression` Path C (loops exactly once at default) stay green. No env VALUE committed — only the var NAME appears (CLAUDE.md secret-handling). 1 atomic commit (02a41f2). xphere untouched. HARD-06 NOT marked complete — only the configurable-cap half is done; the web recourse UI half is owned by Plan 102-04.
 Prior (102-00, Wave 0 RED/EXTEND scaffold): authored 4 failing-by-design test files (auto-refine-cap [HARD-06 cap, now GREEN via 102-02], replay-safe-ttl [HARD-07, still RED → 102-01], batch-reporting [HARD-05, still RED → 102-03], needs-details-banner [HARD-06 recourse, still RED → 102-04]); 2 commits (201afb0, 35e8537).
 Last activity: 2026-06-24
-Stopped at: Completed 116-02-PLAN.md
+Stopped at: Completed 117-01-PLAN.md
 Next Up: **Phase 108 COMPLETE (5/5 plans — 108-01 metering [RMETER-01/02/03], 108-02 vagueness gate [RFALL-02], 108-03 orchestrator `researchUnmatchedPrices` [RPRICE-01/03/04, RFALL-01], 108-04 wire into `generateEstimateForProject` [RPRICE-01/03, RFALL-01], 108-05 "Couch cleaning 8 seats" full-graph regression [RFALL-03]).** THE PAYOFF is live in the production generation path AND locked by a green deterministic full-graph regression (EVIDENCED → $180/non-vague, empty-research+context → never-$0 ladder/non-vague, all-empty → still blocks). All three price-research adapters (`openrouter-web`, gated `anthropic-web`, deterministic `fixture`) remain configured-via-`platform_integrations` (all-misses no-op when unconfigured). Suggested: `/gsd:verify-work 108`, then `/gsd:execute-phase 109` (durability + cost-control hardening — dedicated `step.run('price-research')` retry isolation, runtime OpenRouter→Anthropic fallback ordering, per-estimate item caps, refine-loop memoization). DEFERRED (operational, carried from 108-01): apply migration `20260624000002_phase108_usage_event_price_researched.sql` (+ the earlier `20260624000001` price_research_cache) to remote via CI→GHCR→Coolify.
 Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gsd:verify-work 104` to validate the phase, then address the operational deferrals. DEFERRED (operational, all of Phase 104): apply migrations `20260621000001_notification_categories_remap.sql` + `20260621000002_notification_opt_in_consent.sql` + `20260621000003_whatsapp_notification_templates.sql` to the remote DB; ensure the Twilio from-number is SMS-capable; verify the Meta token carries `whatsapp_business_management` scope + author/approve the registry templates in Meta WhatsApp Manager (the `message_template_status_update` webhook then flips them to approved). Also still queued: `/gsd:verify-work 103` + `/gsd:complete-milestone` (v4.5) carry-over UATs.
 
@@ -677,6 +681,9 @@ Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gs
 - [Phase 116]: validateMarginInvariant inverts the debit math; the illustrative DEFAULT_BILLING_CONFIG correctly FAILS the 30% margin invariant (pro 0.69, business 0.67) — defaults are NOT edited, the test asserts the FAIL
 - [Phase 116]: calibration.ts pure validator carries NO 'server-only' (importable by the Plan 02 gate + a client badge); only aggregateAiCostByOperation guards I/O via a lazy service-client import
 - [Phase 116]: CALIB-02 charge-on gate wired into saveBillingConfig: a false→true enforcementEnabled flip is rejected (ok:false, no upsert) when validateMarginInvariant fails — proven against the real validator
+- [Phase 117]: Pin embedding vector(1536) for text-embedding-3-small v1 (HNSW needs a fixed dimension; future swap = cheap ALTER TYPE + reindex on the empty table)
+- [Phase 117]: Industry SELECT = readable by ALL authenticated (neutral); the industries[] relevance filter belongs in Phase 118 retrieve() WHERE, not RLS
+- [Phase 117]: Service-role-only industry writes expressed by the ABSENCE of any scope='industry' write policy (service role bypasses RLS); table ships DORMANT (embedding nullable) until Phase 118
 
 ## Performance Metrics
 
@@ -900,13 +907,14 @@ Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gs
 | Phase 115 P02 | 6m | 4 tasks | 8 files |
 | Phase 116 P01 | 5min | 3 tasks | 2 files |
 | Phase 116 P02 | 4min | 3 tasks | 4 files |
+| Phase 117 P01 | 4 | 2 tasks | 2 files |
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-13)
 
 **Core value:** Business owner → job site audio recording → sent professional estimate in under 5 minutes
-**Current focus:** Phase 116 — Calibration & Charge-On Validation
+**Current focus:** Phase 117 — Knowledge Schema + pgvector + Dual RLS
 
 ## Notes
 

@@ -781,7 +781,7 @@ Plans:
 | 107. Provider Seam + First Source + Determinism Seam | v4.6 | 3/3 | Complete    | 2026-06-24 |
 | 108. Orchestrator + Service Integration | v4.6 | 5/5 | Complete    | 2026-06-24 |
 | 109. Durability + Cost-Control Hardening | v4.6 | 2/2 | Complete    | 2026-06-24 |
-| 117. Knowledge Schema + pgvector + Dual RLS | v4.8 | 0/0 | Not started | - |
+| 117. Knowledge Schema + pgvector + Dual RLS | v4.8 | 1/1 | Complete   | 2026-06-24 |
 | 118. Channel-Neutral lib/knowledge/ Module | v4.8 | 0/0 | Not started | - |
 | 119. Super-Admin Industry KB Curation + Bulk Import | v4.8 | 0/0 | Not started | - |
 | 120. Company KB Overlay (tenant settings) | v4.8 | 0/0 | Not started | - |
@@ -1402,7 +1402,7 @@ Plans:
 
 ## Phases — v4.8 Industry Knowledge Base
 
-- [ ] **Phase 117: Knowledge Schema + pgvector + Dual RLS** - Enable pgvector and ship the `knowledge_entries` table with both RLS postures: industry entries neutral/shared (service-role-write, read scoped by industry, mirroring `price_research_cache`) and company-overlay entries tenant-scoped (`company_members` membership). The retrieval foundation — nothing embeds or retrieves without it.
+- [x] **Phase 117: Knowledge Schema + pgvector + Dual RLS** - Enable pgvector and ship the `knowledge_entries` table with both RLS postures: industry entries neutral/shared (service-role-write, read scoped by industry, mirroring `price_research_cache`) and company-overlay entries tenant-scoped (`company_members` membership). The retrieval foundation — nothing embeds or retrieves without it. (completed 2026-06-24)
 - [ ] **Phase 118: Channel-Neutral `lib/knowledge/` Module — embed + retrieve + answer + injection-hardening + fixture** - The neutral domain module: `embed()`, `retrieve()` merging industry KB + company overlay over pgvector, `answer()` RAG with `sanitizeField` + `<knowledge>` injection-hardening, and a deterministic fixture adapter for CI. Imports no channel; never-throws.
 - [ ] **Phase 119: Super-Admin Industry KB Curation + Bulk Import** - The super-admin panel CRUD that POPULATES the industry KB scoped by industry, (re)generating embeddings on save, plus a markdown/CSV bulk import to seed an industry in one operation.
 - [ ] **Phase 120: Company KB Overlay (tenant settings)** - The company owner's OWN settings panel (distinct from super-admin — the two-panel rule) to add/edit/delete private overlay entries, embeddings generated the same way, scoped to the owning company; optional.
@@ -1421,7 +1421,7 @@ Plans:
 **Plans**: 1 plan
 
 Plans:
-- [ ] 117-01-PLAN.md — pgvector + knowledge_entries table (scope CHECK, vector(1536), HNSW cosine index) + dual RLS (industry service-role-write/read-to-all; company overlay via company_members) + static contract test
+- [x] 117-01-PLAN.md — pgvector + knowledge_entries table (scope CHECK, vector(1536), HNSW cosine index) + dual RLS (industry service-role-write/read-to-all; company overlay via company_members) + static contract test
 
 ### Phase 118: Channel-Neutral `lib/knowledge/` Module — embed + retrieve + answer + injection-hardening + fixture
 **Goal**: A channel-neutral `lib/knowledge/` domain module can embed text, retrieve the most similar passages by merging a company's industry KB(s) with its own overlay, and compose a short injection-hardened RAG answer — all without importing any channel, never throwing, and with a deterministic fixture adapter so CI/eval runs with zero live network. This is the core capability every consumer (WhatsApp now; web chat + MCP later) calls.
