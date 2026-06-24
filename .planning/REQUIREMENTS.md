@@ -34,7 +34,7 @@
 ### RFALL — Fallback & Correctness (the $0 fix)
 
 - [ ] **RFALL-01**: No fallback rung is ever $0 — research → non-zero `ai_estimate` → flagged unpriced item, never zero.
-- [ ] **RFALL-02**: The vagueness gate distinguishes a fully empty estimate (block → needs-details) from a single flagged unpriced item (allow → estimate proceeds).
+- [x] **RFALL-02**: The vagueness gate distinguishes a fully empty estimate (block → needs-details) from a single flagged unpriced item (allow → estimate proceeds).
 - [ ] **RFALL-03**: The originating "Couch cleaning 8seats" case is a regression fixture that produces a non-zero, non-vague estimate.
 - [x] **RFALL-04**: Web-search content is sanitized against prompt injection (reusing `sanitizeField` + a tagged `<search_result>` block + the `## Security` clause) before entering the LLM prompt.
 
@@ -84,7 +84,7 @@
 | RSRC-03 | Phase 107 | Complete |
 | RSRC-04 | Phase 107 | Complete |
 | RFALL-01 | Phase 108 | Pending |
-| RFALL-02 | Phase 108 | Pending |
+| RFALL-02 | Phase 108 | Complete |
 | RFALL-03 | Phase 108 | Pending |
 | RFALL-04 | Phase 107 | Complete |
 | RMETER-01 | Phase 108 | Complete |

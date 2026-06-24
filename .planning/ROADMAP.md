@@ -775,7 +775,7 @@ Plans:
 | 105. `price_source: 'researched'` Threading | v4.6 | 2/2 | Complete    | 2026-06-24 |
 | 106. Cache Table + Tenant-Scoped Cache Module | v4.6 | 2/2 | Complete    | 2026-06-24 |
 | 107. Provider Seam + First Source + Determinism Seam | v4.6 | 3/3 | Complete    | 2026-06-24 |
-| 108. Orchestrator + Service Integration | v4.6 | 1/5 | In Progress | - |
+| 108. Orchestrator + Service Integration | v4.6 | 2/5 | In Progress|  |
 | 109. Durability + Cost-Control Hardening | v4.6 | 0/TBD | Not started | - |
 
 ### Phase 75: Tour and Tooltip QA
@@ -1248,7 +1248,7 @@ Plans:
 **Plans**: 5 plans in 4 waves
 Plans:
 - [x] 108-01-PLAN.md — Metering primitives: usage_events CHECK widen migration + price_researched EventType/QUOTA mapping + maxPriceResearchPerMonth entitlement + checkQuota research gating (RMETER-01, RMETER-02, RMETER-03) [Wave 1] ✅ 2026-06-24
-- [ ] 108-02-PLAN.md — Vagueness-gate refinement: isVagueEstimate distinguishes empty/all-$0 (block) from a partially-priced estimate with a flagged unpriced line (allow) (RFALL-02) [Wave 1]
+- [x] 108-02-PLAN.md — Vagueness-gate refinement: isVagueEstimate distinguishes empty/all-$0 (block) from a partially-priced estimate with a flagged unpriced line (allow) (RFALL-02) [Wave 1] ✅ 2026-06-24
 - [ ] 108-03-PLAN.md — Orchestrator researchUnmatchedPrices: never-throws, precedence (ai_estimate-only), cache→quota-gated batched provider→evidence-gated re-tag→metering→never-$0 ladder (RPRICE-01, RPRICE-03, RPRICE-04, RFALL-01) [Wave 2]
 - [ ] 108-04-PLAN.md — Integrate into generateEstimateForProject after anchoring/before totals; researched prices flow into totals; flaggedUnpriced→awaiting_details (RPRICE-01, RPRICE-03, RFALL-01) [Wave 3]
 - [ ] 108-05-PLAN.md — Eval regression: "Couch cleaning 8seats" full-graph case non-zero/non-vague incl. empty-research variant; all-empty still blocks; zero live network (RFALL-03) [Wave 4]
