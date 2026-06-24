@@ -7,7 +7,7 @@ import type { EstimateWithSections } from '@/lib/queries/estimate'
 
 // ---- Stub EditorItem builder ----
 function makeItem(overrides: {
-  price_source?: 'price_book' | 'ai_estimate' | null
+  price_source?: 'price_book' | 'ai_estimate' | 'researched' | null
   isManuallyEdited?: boolean
   unit_price?: number
 } = {}) {
@@ -61,6 +61,31 @@ describe('price-badge: ItemRow badge rendering', () => {
     )
     expect(screen.getByText('Edited')).toBeTruthy()
     expect(screen.queryByText('Price book')).toBeNull()
+  })
+
+  it('renders Researched badge for researched items', () => {
+    render(
+      <table><tbody><ItemRow
+        item={makeItem({ price_source: 'researched' })}
+        sectionId="s1"
+        onUpdate={vi.fn()}
+        onRemove={vi.fn()}
+      /></tbody></table>
+    )
+    expect(screen.getByText('Researched')).toBeTruthy()
+  })
+
+  it('Edited badge takes precedence over a researched price_source', () => {
+    render(
+      <table><tbody><ItemRow
+        item={makeItem({ price_source: 'researched', isManuallyEdited: true })}
+        sectionId="s1"
+        onUpdate={vi.fn()}
+        onRemove={vi.fn()}
+      /></tbody></table>
+    )
+    expect(screen.getByText('Edited')).toBeTruthy()
+    expect(screen.queryByText('Researched')).toBeNull()
   })
 
   it('renders no badge for null price_source', () => {

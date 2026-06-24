@@ -1,6 +1,6 @@
 'use client'
 
-import { Trash2, CheckCircle2, Zap } from 'lucide-react'
+import { Trash2, CheckCircle2, Zap, Search } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -55,6 +55,10 @@ export function ItemCardMobile({
   ) : item.price_source === 'ai_estimate' ? (
     <Badge variant="outline" className="text-xs gap-1">
       <Zap className="h-3 w-3" />AI estimate
+    </Badge>
+  ) : item.price_source === 'researched' ? (
+    <Badge variant="outline" className="text-xs gap-1">
+      <Search className="h-3 w-3" />Researched
     </Badge>
   ) : null
 
