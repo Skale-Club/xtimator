@@ -773,7 +773,7 @@ Plans:
 | 74. Post-Onboarding App Feature Tour | v3.1.1 | 4/4 | Complete    | 2026-05-19 |
 | 104. Notification Channels & Preferences Revamp | v4.5.1 | 4/4 | Complete | 2026-06-22 |
 | 105. `price_source: 'researched'` Threading | v4.6 | 2/2 | Complete    | 2026-06-24 |
-| 106. Cache Table + Tenant-Scoped Cache Module | v4.6 | 1/2 | In Progress|  |
+| 106. Cache Table + Tenant-Scoped Cache Module | v4.6 | 2/2 | Complete    | 2026-06-24 |
 | 107. Provider Seam + First Source + Determinism Seam | v4.6 | 0/TBD | Not started | - |
 | 108. Orchestrator + Service Integration | v4.6 | 0/TBD | Not started | - |
 | 109. Durability + Cost-Control Hardening | v4.6 | 0/TBD | Not started | - |
@@ -1184,7 +1184,7 @@ Plans:
 
 - [x] **Phase 105: `price_source: 'researched'` Threading** — Plumb the new `'researched'` enum value through schema/types/DB CHECK/editor badge; ships dormant (no behavior change), unblocks everything
  (completed 2026-06-24)
-- [ ] **Phase 106: Cache Table + Tenant-Scoped Cache Module** — `price_research_cache` table (company-scoped, deny-all RLS, 30d TTL) + canonical-key cache module; parallelizable with 105
+- [x] **Phase 106: Cache Table + Tenant-Scoped Cache Module** — `price_research_cache` table (company-scoped, deny-all RLS, 30d TTL) + canonical-key cache module; parallelizable with 105
 - [ ] **Phase 107: Provider Seam + First Source + Determinism Seam** — `PriceResearchProvider` port + OpenRouter-web adapter + Anthropic quality-fallback adapter + deterministic fixture adapter for CI + prompt-injection hardening
 - [ ] **Phase 108: Orchestrator + Service Integration (the payoff)** — `researchUnmatchedPrices` wired into `generateEstimateForProject` after anchoring; precedence + evidence-gated tagging + no-$0 fallback ladder + vagueness-gate fix + "Couch cleaning 8seats" regression fixture + quota metering
 - [ ] **Phase 109: Durability + Cost-Control Hardening** — dedicated `step.run('price-research')` retry isolation + provider fallback ordering + per-estimate item caps + refine-loop memoization
@@ -1217,7 +1217,7 @@ Plans:
   4. A cache hit returns the stored price without any provider call (verified in a unit test with a stubbed provider that must NOT be invoked on a hit)
 **Plans**: 2 plans
 - [x] 106-01-PLAN.md — price_research_cache migration (RLS deny-all, zero policies) + normalize.ts (region + name key reusing normalizeNameForMatch)
-- [ ] 106-02-PLAN.md — cache.ts get/put (neutral datum, 30d TTL, expired=miss, service-role) + leakage/HIT-no-provider/TTL/normalization tests + static migration contract
+- [x] 106-02-PLAN.md — cache.ts get/put (neutral datum, 30d TTL, expired=miss, service-role) + leakage/HIT-no-provider/TTL/normalization tests + static migration contract
 
 ### Phase 107: Provider Seam + First Source + Determinism Seam
 **Goal**: The pricing-research source lives behind a swappable `PriceResearchProvider` port resolved from `platform_integrations`, with a real OpenRouter-web adapter (engine `exa`), a gated Anthropic quality-fallback adapter, AND a deterministic fixture adapter that the v4.5 eval harness injects — so the CI regression gate stays green and the source decision can flip via admin config without touching call sites. Every web snippet that reaches the LLM is injection-hardened in the same phase that introduces web content.
