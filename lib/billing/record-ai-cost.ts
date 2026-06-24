@@ -12,11 +12,12 @@
  *    On any error we `console.warn` and return void. Call sites `void recordAICost(...)`
  *    on the hot path so the cost write never adds user-facing latency or risk.
  *
- * MEASURE-ONLY (CALIB-01): this module imports NOTHING from a charging module,
- * computes NO markup, reads NO balance, and performs NO debit. It writes one row
- * and returns void — there is deliberately no return value a caller could consume
- * for charging. The credit ledger (Phase 112) is a separate table that reads these
- * rows; debiting does not begin until calibration (Phase 116).
+ * MEASURE-ONLY (CALIB-01): this module only records the real cost of an AI call.
+ * It imports nothing from a charging module and performs no charging arithmetic.
+ * It writes one row and returns void — there is deliberately no return value a
+ * caller could consume to charge a tenant. A separate consumption table (Phase 112)
+ * reads these rows later; charging does not begin until calibration (Phase 116).
+ * The measure-only invariant is locked by tests/unit/billing/measure-only-invariant.ts.
  *
  * null vs 0 discipline: `realCostUsd` is `number | null` and is passed THROUGH to
  * the DB unchanged. NULL means the provider returned no cost (e.g. Gemini, or an
