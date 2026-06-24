@@ -1432,7 +1432,12 @@ Plans:
   2. `retrieve(question, { industries, companyId, k })` returns passages ranked by pgvector similarity that MERGE the company's industry KB(s) with its own company overlay; the module imports no channel (`lib/knowledge/` has zero `lib/whatsapp/*` imports) and never throws on failure (returns empty, logs)
   3. `answer(question, ctx)` composes a RAG prompt from the retrieved passages and returns a short conversational answer; every retrieved passage is run through `sanitizeField` and wrapped in a `<knowledge>` tag enumerated in the prompt-builder Security block — a static test asserts knowledge prompts are built through this hardened boundary, not ad-hoc concatenation (KSEC-01)
   4. A deterministic fixture adapter lets the CI/eval harness exercise `retrieve`/`answer` with zero live network (mirroring the price-research fixture provider), keeping the eval suite green and reproducible
-**Plans**: TBD
+**Plans**: 3 plans (3 waves)
+
+Plans:
+- [ ] 118-01-PLAN.md — Foundations: KnowledgeProvider port + types, embed(text) (KMOD-01), match_knowledge_entries RPC migration, + all Wave-0 test stubs
+- [ ] 118-02-PLAN.md — retrieve() over the RPC merging industry KB + overlay, never-throws (KMOD-02) + deterministic fixture provider (KMOD-04) + channel-neutrality gate
+- [ ] 118-03-PLAN.md — answer() RAG via OpenRouter chat, never-throws (KMOD-03) + <knowledge> injection-hardening in the prompt-builder Security block (KSEC-01)
 
 ### Phase 119: Super-Admin Industry KB Curation + Bulk Import
 **Goal**: A super-admin can populate and maintain the industry knowledge base from the super-admin panel — create, edit, and delete entries scoped to an industry, with each save (re)generating the entry's embedding, plus a one-shot markdown/CSV bulk import to seed an entire industry's KB at once. This is what makes the industry KB a real platform asset; curate once per industry, serve every tenant in it.
