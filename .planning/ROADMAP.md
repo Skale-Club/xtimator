@@ -1289,7 +1289,7 @@ Plans:
 - [x] **Phase 113: Stripe Rail — Grants, Top-Ups + Parallel-Run Transition** — `invoice.paid` grants the tier allowance idempotently; one-time top-up checkout credits the ledger; low/zero balance offers top-up + upgrade without silent mid-job block; credits run in parallel with count-based tiers so no existing account breaks (counts degrade to secondary guard-rails). (completed 2026-06-24)
 - [x] **Phase 114: Estimate Payment Fee + Payment-UI Gating + Disclosure** — Fill the omitted `application_fee_amount` hook on both the invoice and Phase-70 checkout paths (fee % from `billing_config`, sane minimum/rounding); a single `usePaymentsEnabled` guard gates ALL payment UI to `stripe_connect_status = 'active'` (no orphan elements, both states tested); clear fee disclosure at the Stripe connection flow.
  (completed 2026-06-24)
-- [ ] **Phase 115: Credit Balance UX (owner-facing)** — Owner sees a simple credit balance (header/settings) with consumption history and rough per-action guidance (never token math); low/zero-balance states show a warning + top-up/upgrade CTA reusing the existing threshold-notification path.
+- [x] **Phase 115: Credit Balance UX (owner-facing)** — Owner sees a simple credit balance (header/settings) with consumption history and rough per-action guidance (never token math); low/zero-balance states show a warning + top-up/upgrade CTA reusing the existing threshold-notification path. (completed 2026-06-24)
 - [x] **Phase 116: Calibration & Charge-On Validation** — Derive grant/markup/price from the measured real cost collected since Phase 110 and validate the margin invariant (real cost of the full monthly grant ≤ ~30% of subscription price), documented. This LATE phase consumes CALIB-01's data + the ledger/config and gates turning real charging ON.
  (completed 2026-06-24)
 
@@ -1378,7 +1378,7 @@ Plans:
 **Plans**: 2 plans in `.planning/phases/115-credit-balance-ux-owner-facing/`
 Plans:
 - [x] 115-01-PLAN.md — owner-safe credit overview query (getCreditOverview, no real_cost_usd/markup in SELECT) + notifyLowCreditBalance hook in recordCreditDebit (CREDITUI-01, CREDITUI-02)
-- [ ] 115-02-PLAN.md — CreditBalanceCard + history list + TopUpButton + topbar credit chip on /settings/billing (CREDITUI-01, CREDITUI-02)
+- [x] 115-02-PLAN.md — CreditBalanceCard + history list + TopUpButton + topbar credit chip on /settings/billing (CREDITUI-01, CREDITUI-02)
 **UI hint**: yes
 
 ### Phase 116: Calibration & Charge-On Validation
