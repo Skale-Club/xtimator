@@ -1460,7 +1460,9 @@ Plans:
 **Success Criteria** (what must be TRUE):
   1. A company owner can add, edit, and delete private KB entries in the company's OWN settings panel — a surface distinct from the super-admin panel — and a company that creates no overlay entries still gets answers from the industry KB alone (the overlay is optional)
   2. Each overlay entry generates and persists an embedding the same way as industry curation, scoped to the owning company so it merges into that company's retrieval but never leaks to another tenant
-**Plans**: TBD
+**Plans**: 2 plans
+- [ ] 120-01-PLAN.md — Tenant overlay actions + schema + Wave-0 test (createCompanyEntry/updateCompanyEntry/deleteCompanyEntry; authed client, scope=company, embed-then-insert)
+- [ ] 120-02-PLAN.md — /settings/knowledge tenant UI sub-route (list + new + edit + delete) + settings-nav entry
 **UI hint**: yes
 
 ### Phase 121: WhatsApp KNOWLEDGE Intent
