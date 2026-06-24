@@ -14,6 +14,7 @@ import { notify } from '@/lib/notifications/dispatch'
 import { buildNotificationCopy } from '@/lib/notifications/copy'
 import { recordPipelineEvent } from '@/lib/observability/pipeline-events'
 import { recordAICost } from '@/lib/billing/record-ai-cost'
+import { recordCreditDebit } from '@/lib/billing/credit-ledger'
 import { computeWhisperCostUsd } from '@/lib/billing/whisper-cost'
 import {
   EVENT_TRANSCRIBE_AUDIO,
@@ -192,16 +193,37 @@ export const transcribeAudioJob = inngest.createFunction(
     // provider:'openai' with the computed cost. The Gemini fallback returns no
     // cost; we never guess a Gemini rate and never record 0 (null = unknown).
     const minutes = (ident.durationSeconds ?? 0) / 60
+    // Phase 112 (CREDIT-02): compute the Whisper cost ONCE and thread the SAME value
+    // into BOTH the cost-capture and the credit debit (no read-back race here — the
+    // value is already in hand, RESEARCH Pattern 2 option b). computeWhisperCostUsd
+    // returns null for an unknown rate (e.g. a hidden Gemini fallback), so the debit
+    // no-ops on null (null vs guessed 0).
+    const whisperCost = computeWhisperCostUsd(ident.durationSeconds)
     void recordAICost({
       attemptId,
       operationType: 'audio_minutes',
       provider: 'openai',
       model: 'whisper-1',
-      realCostUsd: computeWhisperCostUsd(ident.durationSeconds),
+      realCostUsd: whisperCost,
       companyId: ident.companyId,
       projectId: ident.projectId,
       units: minutes > 0 ? minutes : null,
     })
+
+    // Phase 112 (CREDIT-02): credit debit for the transcription, retry-isolated and
+    // never-throw. Anchored AFTER save-transcript + recordAICost so it only fires on
+    // transcription success. Skipped when companyId is unknown (no tenant → no debit).
+    if (ident.companyId) {
+      const debitCompanyId = ident.companyId
+      await step.run('record-credit-debit', async () => {
+        await recordCreditDebit({
+          companyId: debitCompanyId,
+          operationType: 'audio_minutes',
+          realCostUsd: whisperCost,
+          attemptId,
+        })
+      })
+    }
 
     // Phase 77 NOTIF-04: opt-in success notification.
     try {

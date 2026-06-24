@@ -43,6 +43,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { getPriceResearchProviderChain, isUsableCandidate } from './provider'
 import { get as cacheGet, put as cachePut } from './cache'
 import { checkQuota, recordUsage } from '@/lib/quota'
+import { recordCreditDebit } from '@/lib/billing/credit-ledger'
 import { normalizeServiceNameKey, normalizeRegion } from './normalize'
 
 /**
@@ -276,6 +277,46 @@ export async function researchUnmatchedPrices(
                 await recordUsage(ctx.supabase, ctx.companyId, 'price_researched', 1, buildIdemKey(ctx, result.name))
               } catch {
                 // Metering is best-effort; a ledger error must not drop the price.
+              }
+
+              // Phase 112 (CREDIT-02): inline credit debit for price_research. This
+              // call lives INSIDE the per-result loop, so it fires once per result —
+              // BUT recordCreditDebit is idempotent on `${ctx.attemptId}:debit:price_research`,
+              // so every per-result call after the first is a no-op (check-then-insert
+              // / 23505 swallow, Plan 03). Intended cardinality: exactly ONE
+              // price_research debit per attempt; the loop repetition collapses to it.
+              // Only when ctx.attemptId is set (no stable key → no debit). The real
+              // cost was captured by recordAICost at the OpenRouter-web call, keyed by
+              // attemptId — read it back (same bounded shape as the Inngest seams).
+              // Wrapped in try/catch to mirror the best-effort metering contract above.
+              if (ctx.attemptId) {
+                const attemptId = ctx.attemptId
+                try {
+                  let realCostUsd: number | null = null
+                  for (let i = 0; i < 3; i++) {
+                    const { data } = await ctx.supabase
+                      .from('ai_cost_events')
+                      .select('real_cost_usd')
+                      .eq('attempt_id', attemptId)
+                    const rows = (data ?? []) as { real_cost_usd: number | null }[]
+                    if (rows.length > 0) {
+                      const known = rows
+                        .map((r) => r.real_cost_usd)
+                        .filter((c): c is number => c != null)
+                      realCostUsd = known.length > 0 ? known.reduce((a, b) => a + b, 0) : null
+                      break
+                    }
+                    await new Promise((r) => setTimeout(r, 150))
+                  }
+                  await recordCreditDebit({
+                    companyId: ctx.companyId,
+                    operationType: 'price_research',
+                    realCostUsd,
+                    attemptId,
+                  })
+                } catch {
+                  // Metering is best-effort; a ledger error must not drop the price.
+                }
               }
 
               const usable = isUsableCandidate(result) && typeof result.unit_price === 'number'
