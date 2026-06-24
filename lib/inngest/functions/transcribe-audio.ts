@@ -13,6 +13,8 @@ import { transcribeAudioOR } from '@/lib/ai/openrouter-client'
 import { notify } from '@/lib/notifications/dispatch'
 import { buildNotificationCopy } from '@/lib/notifications/copy'
 import { recordPipelineEvent } from '@/lib/observability/pipeline-events'
+import { recordAICost } from '@/lib/billing/record-ai-cost'
+import { computeWhisperCostUsd } from '@/lib/billing/whisper-cost'
 import {
   EVENT_TRANSCRIBE_AUDIO,
   EVENT_ESTIMATE_GENERATE,
@@ -23,26 +25,34 @@ async function loadCompanyForRecording(recordingId: string): Promise<{
   companyId: string | null
   userId: string | null
   projectId: string | null
+  durationSeconds: number | null
 }> {
   try {
     const svc = requireServiceClient()
     const { data } = await svc
       .from('recordings')
-      .select('company_id, project_id, companies(user_id)')
+      .select('company_id, project_id, duration_seconds, companies(user_id)')
       .eq('id', recordingId)
       .single()
     const row = data as {
       company_id?: string | null
       project_id?: string | null
+      duration_seconds?: number | null
       companies?: { user_id?: string | null } | null
     } | null
     return {
       companyId: row?.company_id ?? null,
       userId: row?.companies?.user_id ?? null,
       projectId: row?.project_id ?? null,
+      durationSeconds: row?.duration_seconds ?? null,
     }
   } catch {
-    return { companyId: null, userId: null, projectId: null }
+    return {
+      companyId: null,
+      userId: null,
+      projectId: null,
+      durationSeconds: null,
+    }
   }
 }
 
@@ -169,6 +179,28 @@ export const transcribeAudioJob = inngest.createFunction(
       userId: ident.userId,
       provider: 'openrouter',
       durationMs: Date.now() - t0,
+    })
+
+    // Phase 110 (COST-02): record the COMPUTED Whisper/STT cost. The provider
+    // returns no cost, so cost = (recordings.duration_seconds / 60) × rate.
+    // Correlated by attemptId alone (no usage_event coupling — Phase 112 owns
+    // metering). Best-effort: void so a cost-write never breaks transcription.
+    //
+    // Provider attribution: transcribeAudioOR runs OpenAI whisper-1 primary and
+    // falls back to Gemini ONCE on failure, but the fallback is hidden INSIDE
+    // that fn — the job cannot see which ran. We record the common case as
+    // provider:'openai' with the computed cost. The Gemini fallback returns no
+    // cost; we never guess a Gemini rate and never record 0 (null = unknown).
+    const minutes = (ident.durationSeconds ?? 0) / 60
+    void recordAICost({
+      attemptId,
+      operationType: 'audio_minutes',
+      provider: 'openai',
+      model: 'whisper-1',
+      realCostUsd: computeWhisperCostUsd(ident.durationSeconds),
+      companyId: ident.companyId,
+      projectId: ident.projectId,
+      units: minutes > 0 ? minutes : null,
     })
 
     // Phase 77 NOTIF-04: opt-in success notification.
