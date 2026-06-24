@@ -20,6 +20,13 @@ vi.mock('@/lib/supabase/service', () => ({
 vi.mock('@/lib/platform-config', () => ({
   getIntegrationKey: vi.fn(),
 }))
+// DISCLOSE-01 (Plan 114-03) made the page a getBillingConfig consumer; mock it
+// so these render tests don't hit the real server-only billing_config reader
+// (which would call createServiceClient). Disclosure ASSERTIONS live in the
+// dedicated payments-disclosure.test.tsx — this is only a stub so the page renders.
+vi.mock('@/lib/billing/billing-config', () => ({
+  getBillingConfig: vi.fn().mockResolvedValue({ estimateFeePct: 0.01 }),
+}))
 vi.mock('next/navigation', () => ({
   redirect: vi.fn((url: string) => {
     throw new Error(`REDIRECT:${url}`)
