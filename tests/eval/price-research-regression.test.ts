@@ -86,6 +86,13 @@ vi.mock('@/lib/estimate/price-research/provider', async (importOriginal) => {
   return {
     ...actual, // keep the REAL isUsableCandidate evidence gate
     getPriceResearchProvider: () => priceResearchProviderMock(),
+    // Phase 109: the orchestrator now iterates the provider CHAIN. Resolve a
+    // single-element chain from the same fixture-provider mock (no Anthropic fallback
+    // in the deterministic eval — the primary fixture provider is fully sufficient).
+    getPriceResearchProviderChain: async () => {
+      const provider = await priceResearchProviderMock()
+      return provider ? [provider] : []
+    },
   }
 })
 vi.mock('@/lib/estimate/price-research/cache', () => ({
