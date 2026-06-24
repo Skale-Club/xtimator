@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getCachedBranding } from '@/lib/platform-config'
 import { getAuthClaims } from '@/lib/queries/auth'
-import { getActiveCompany, getActiveCompanyId, getMembershipCompanies } from '@/lib/queries/active-company'
+import { getActiveCompany, getMembershipCompanies } from '@/lib/queries/active-company'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { createClient } from '@/lib/supabase/server'
 import { Sidebar } from '@/components/app-shell/sidebar'
@@ -42,15 +42,16 @@ export default async function AppShellLayout({
   // helpers instead of the legacy user-keyed cache. The 1:1 backfill from Phase 79 Plan 01
   // means existing users get the same single company resolved via fallback, so this is a
   // no-op behavioral change for current users.
-  const activeCompanyId = await getActiveCompanyId()
-  if (!activeCompanyId) {
-    redirect('/onboarding')
-  }
-
+  // getActiveCompany() already resolves the active company id internally (and
+  // sets the cookie on fallback), so we derive activeCompanyId from it instead
+  // of calling getActiveCompanyId() a second time — that helper runs a
+  // company_members query, and calling it twice doubled that cost on every
+  // authed page load.
   const company = await getActiveCompany()
   if (!company) {
     redirect('/onboarding')
   }
+  const activeCompanyId = company.id
 
   // Read-only public demo: the active company is the dedicated demo company.
   const isDemo = isDemoCompany(activeCompanyId)
@@ -67,7 +68,7 @@ export default async function AppShellLayout({
     // user-keyed lookup which presumed a 1:1 user→company relationship.
     requireServiceClient()
       .from('companies')
-      .select('tier, tier_trial_ends_at')
+      .select('tier, tier_trial_ends_at, credit_balance')
       .eq('id', activeCompanyId)
       .single(),
     // Phase 81 (SWITCH-13): membership list for the company switcher dropdown.
@@ -104,7 +105,13 @@ export default async function AppShellLayout({
             isDemo={isDemo}
           />
           <div className="flex flex-1 flex-col overflow-hidden">
-            <Topbar company={company} userId={claims.sub as string} isAdmin={isAdmin} navUser={navUser} />
+            <Topbar
+              company={company}
+              userId={claims.sub as string}
+              isAdmin={isAdmin}
+              navUser={navUser}
+              creditBalance={billingRow.data?.credit_balance ?? 0}
+            />
             <MobileHeader
               branding={{ appName: branding.appName, logoUrl: branding.logoUrl }}
               navUser={navUser}

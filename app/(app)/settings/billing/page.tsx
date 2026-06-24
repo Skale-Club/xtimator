@@ -2,6 +2,8 @@ import { redirect } from 'next/navigation'
 import { CreditCard, TrendingUp } from 'lucide-react'
 import { getAuthClaims } from '@/lib/queries/auth'
 import { getBillingData } from '@/lib/queries/billing'
+import { getActiveCompany } from '@/lib/queries/active-company'
+import { getCreditOverview } from '@/lib/queries/credits'
 import {
   Card,
   CardHeader,
@@ -11,6 +13,8 @@ import {
 } from '@/components/ui/card'
 import { ManageSubscriptionButton } from '@/components/billing/manage-subscription-button'
 import { TierCardsGrid } from '@/components/billing/tier-cards-grid'
+import { CreditBalanceCard } from '@/components/billing/credit-balance-card'
+import { CreditHistoryList } from '@/components/billing/credit-history-list'
 import { T } from '@/components/i18n/t'
 
 export const metadata = { title: 'Billing' }
@@ -34,6 +38,14 @@ export default async function BillingPage() {
   if (!data) {
     redirect('/onboarding')
   }
+
+  const company = await getActiveCompany()
+
+  if (!company) {
+    redirect('/onboarding')
+  }
+
+  const credits = await getCreditOverview(company.id)
 
   const tierDisplay = TIER_DISPLAY[data.tier] ?? data.tier
 
@@ -137,6 +149,16 @@ export default async function BillingPage() {
               </div>
             </CardContent>
           </Card>
+        </div>
+
+        {/* Credits (CREDITUI-01/02) — ADDITIVE to the count-based usage card above
+            (MIG-01 parallel run). Owner sees credits + history, never cost math. */}
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <CreditBalanceCard
+            balance={credits.balance}
+            lowBalanceThresholds={credits.lowBalanceThresholds}
+          />
+          <CreditHistoryList rows={credits.history} />
         </div>
 
         {/* Tier cards grid (Free / Pro / Business with per-tier gradient escalation) */}
