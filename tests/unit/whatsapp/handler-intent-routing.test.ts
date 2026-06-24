@@ -126,6 +126,7 @@ beforeEach(() => {
     maxEstimatesPerDay: 20,
     maxPhotosPerEstimate: 10,
     maxAudioMinutesPerEstimate: 5,
+    maxPriceResearchPerMonth: null,
     pdfEnabled: true,
     priceBookEnabled: true,
     customDomainEnabled: false,
