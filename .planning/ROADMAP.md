@@ -1300,7 +1300,7 @@ Plans:
   4. Cost capture runs in measure-only mode — instrumented and recording, with zero charging or credit movement — so an operator can collect real production cost before any billing is switched on, and an operator-observable record of accumulated per-operation cost exists
 **Plans**: 3 plans (2 waves)
 - [x] 110-01-PLAN.md — ai_cost_events migration + never-throw recordAICost() helper + measure-only invariant (COST-03, CALIB-01)
-- [ ] 110-02-PLAN.md — OpenRouter usage.cost capture (estimate adapter + vision + translation) + costContext threading (COST-01)
+- [x] 110-02-PLAN.md — OpenRouter usage.cost capture (estimate adapter + vision + translation) + costContext threading (COST-01)
 - [ ] 110-03-PLAN.md — computed Whisper cost (minutes × rate) wired into the transcribe job (COST-02)
 
 ### Phase 111: `billing_config` Store + Super-Admin Billing Panel
