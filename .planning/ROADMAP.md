@@ -1447,7 +1447,10 @@ Plans:
   1. A super-admin can create, edit, and delete industry KB entries scoped to a chosen industry from the super-admin panel; the owner has no access to this surface
   2. Saving or editing an entry (re)generates and persists its embedding via the Phase-118 `embed()` so the new/edited content is immediately retrievable
   3. A super-admin can bulk-import entries from a markdown or CSV file to seed an industry's KB in a single operation, each imported entry getting its embedding generated
-**Plans**: TBD
+**Plans**: 3 plans
+- [ ] 119-01-PLAN.md — Curation actions (create/edit/delete) + embed-then-insert + embedMany helper (KCUR-01, KCUR-02) [Wave 1]
+- [ ] 119-02-PLAN.md — CSV parser + bulkImportEntries batch-embed + bulk-insert (KCUR-03) [Wave 2]
+- [ ] 119-03-PLAN.md — Super-admin /admin/knowledge UI (list, form, import card, nav) (KCUR-01, KCUR-03) [Wave 3]
 **UI hint**: yes
 
 ### Phase 120: Company KB Overlay (tenant settings)
