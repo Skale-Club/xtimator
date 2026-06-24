@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v4.7
 milestone_name: Monetização — Credit-Based Billing + Estimate Payment Fee
-status: verifying
+status: in-progress
 stopped_at: Completed 114-03-PLAN.md
-last_updated: "2026-06-24T19:18:07.553Z"
+last_updated: "2026-06-24T19:23:16.221Z"
 last_activity: 2026-06-24
 progress:
   total_phases: 67
-  completed_phases: 51
-  total_plans: 163
+  completed_phases: 52
+  total_plans: 160
   completed_plans: 173
 ---
 
@@ -29,12 +29,11 @@ progress:
 - **Dependency spine:** 110 (cost capture) → 112 (ledger) needs 110 + 111; 113 (Stripe rail) needs 112; 115 (balance UX) needs 112 + 113; 116 (calibration) needs 110 + 111 + 112. 111 (`billing_config`) is structurally independent and feeds everything. 114 (payment fee) needs only 111 + the already-shipped Connect infra (phases 70/94) — sequenceable in parallel with the credit track.
 - **Locked guardrails:** Stripe = rail only (credit ledger is OURS, NOT Stripe metered billing); everything billing reads from `billing_config` (no hard-coded numbers, no env vars, super-admin only); migrations idempotent + deploy CI→GHCR→Coolify (never build on VPS); channel-neutral domain stays neutral + never-throw enrichment preserved; CALIBRATE before charging (no real billing before CALIB-02's measured numbers exist).
 - **Previous milestone**: v4.6 Pricing Intelligence — Researched Pricing Agent — SHIPPED 2026-06-24 (phases 105-109, 17/17 requirements, full unit+eval suite green 275 files / 1932 tests).
-- **Position**: **Phase 114 COMPLETE (3/3 plans) — the LAST plan; the estimate-payment-fee track is fully shipped.** Plan 114-03 (DISCLOSE-01) wired the fee disclosure at the Connect moment: `StripeConnectCard` takes a required `feePct` prop and renders a `data-testid="fee-disclosure"` notice ("Xtimator charges a {X}% fee… separate from Stripe's processing fees") ONLY in the `not_connected` branch, formatted as `feePct×100` (0.01→"1%", 0.02→"2%") — never a hard-coded "1%". `app/(app)/settings/payments/page.tsx` reads the LIVE `estimateFeePct` server-side via `getBillingConfig()` and threads it as the prop, so the disclosed % can never diverge from the charged % (FEE-03); the 114-01-pre-added dormancy-allowlist entry kept `billing-config.test.ts` green. NEW `tests/unit/settings/payments-disclosure.test.tsx` proves config-drives-the-render (mock 0.02→"2%", 0.01→"1%") and that the disclosure is ABSENT when connected. 1 deviation (Rule 1): the 114-02-owned `payments-page.test.tsx` needed a `getBillingConfig` mock stub (NOT disclosure assertions) once the page became a config consumer — its render tests crashed on the real server-only reader. 4 atomic commits (6911aec9 card disclosure, be338989 server read, 2a383efe disclosure test, 3ebf329f mock fix); all normal hooked (gitleaks ran, no `--no-verify`), no leaks. FULL `npx vitest run` → 292 files / 2080 passed | 1 failed = the known parallel-only `mcp-route-contract.test.ts` GET-405 flake (8/8 in isolation, no Phase-114 file). DISCLOSE-01 marked complete. **Phase 114 now 3/3 plans (FEE-01..04 + PAYGATE-01/02 + DISCLOSE-01 all complete).** Next: `/gsd:verify-work 114`. See 114-03-SUMMARY.md.
-
+- **Position**: Phase 114 COMPLETE (3/3 plans, verified 12/12 — 1% application_fee on Connect invoice, single paymentsEnabled gate over forward affordances, config-driven fee disclosure at Connect). Next: `/gsd:plan-phase 115` (Credit Balance UX). NOTE: `phase complete` mis-points next at stale 999.1 — real next is **115**.
 ## Current Position
 
-Phase: 114 (Estimate Payment Fee + Payment-UI Gating + Disclosure) — COMPLETE (3/3 plans)
-Plan: 3 of 3 — DONE
+Phase: 999.1
+Plan: Not started
 Status: Phase complete — ready for verification (/gsd:verify-work 114)
 
 ---
