@@ -1262,4 +1262,7 @@ Plans:
   2. When the primary source (OpenRouter-web) fails or returns no evidence, the gated Anthropic quality-fallback source is attempted before degrading to `ai_estimate`, mirroring the existing AI provider-fallback ordering
   3. A per-estimate item cap bounds how many unmatched items are researched in one estimate (the rest degrade to non-zero `ai_estimate`), and research is memoized per `(item, region)` within a run so an auto-refine pass (Phase 96) does not re-pay for the same lookups
   4. The whole feature remains non-fatal: every hardening path preserves the never-throw contract — a slow/failed/capped research step never blocks or fails the estimate
-**Plans**: TBD
+**Plans**: 2 plans (1 wave — parallel, disjoint file sets)
+Plans:
+- [ ] 109-01-PLAN.md — Widen the document/PDF/share/query/refine `price_source` unions to include `researched` (the carried 108 build-fix; `next build` type-checks clean)
+- [ ] 109-02-PLAN.md — Orchestrator hardening: per-estimate research item CAP (env-overridable, logged drops) + gated OpenRouter-web→Anthropic-web fallback ordering + in-run memo; step.run isolation documented-as-deferred
