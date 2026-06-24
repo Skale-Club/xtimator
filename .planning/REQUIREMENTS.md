@@ -20,7 +20,7 @@ Requirements for this milestone. Each maps to exactly one roadmap phase.
 
 ### Cost Capture (foundation)
 
-- [ ] **COST-01**: System captures the real USD cost of every OpenRouter AI call (today only tokens are captured for Langfuse) — via `usage.include` in the request or the `/api/v1/generation` lookup.
+- [ ] **COST-01**: System captures the real USD cost of every OpenRouter AI call (today only tokens are captured for Langfuse) — OpenRouter now returns it automatically under `usage.cost` (USD, 1:1 credits); the `usage.include` request flag is deprecated/no-op and no `/api/v1/generation` round-trip is needed (per Phase-110 RESEARCH, verified against current OpenRouter docs).
 - [ ] **COST-02**: System computes Whisper/STT cost from audio minutes × a configurable rate (cost not returned by the provider).
 - [ ] **COST-03**: Real cost per AI operation is recorded and correlated to the existing attempt/usage instrumentation (`usage_events`/`pipeline_events`), available for calibration analysis.
 
