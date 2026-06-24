@@ -1182,7 +1182,8 @@ Plans:
 
 ### Phases
 
-- [x] **Phase 105: `price_source: 'researched'` Threading** — Plumb the new `'researched'` enum value through schema/types/DB CHECK/editor badge; ships dormant (no behavior change), unblocks everything (completed 2026-06-24)
+- [x] **Phase 105: `price_source: 'researched'` Threading** — Plumb the new `'researched'` enum value through schema/types/DB CHECK/editor badge; ships dormant (no behavior change), unblocks everything
+ (completed 2026-06-24)
 - [ ] **Phase 106: Cache Table + Tenant-Scoped Cache Module** — `price_research_cache` table (company-scoped, deny-all RLS, 30d TTL) + canonical-key cache module; parallelizable with 105
 - [ ] **Phase 107: Provider Seam + First Source + Determinism Seam** — `PriceResearchProvider` port + OpenRouter-web adapter + Anthropic quality-fallback adapter + deterministic fixture adapter for CI + prompt-injection hardening
 - [ ] **Phase 108: Orchestrator + Service Integration (the payoff)** — `researchUnmatchedPrices` wired into `generateEstimateForProject` after anchoring; precedence + evidence-gated tagging + no-$0 fallback ladder + vagueness-gate fix + "Couch cleaning 8seats" regression fixture + quota metering
@@ -1214,7 +1215,9 @@ Plans:
   2. The cache module (`cache.ts` + `normalize.ts`) exposes get/put where a put stamps `expires_at = now + 30d` and a get treats `expires_at < now` as a miss; the region normalizer canonicalizes "city|state" and the name normalizer reuses `normalizeNameForMatch` so "couch cleaning 8 seats" and "sofa cleaning, 8-seat" share an entry and quantity never leaks into the key
   3. A static leakage test asserts the cache value type carries no `company_id`/client/margin/job-text field — only `{ unit_price, currency, source, confidence?, expires_at }` (the neutral-datum discipline)
   4. A cache hit returns the stored price without any provider call (verified in a unit test with a stubbed provider that must NOT be invoked on a hit)
-**Plans**: TBD
+**Plans**: 2 plans
+- [ ] 106-01-PLAN.md — price_research_cache migration (RLS deny-all, zero policies) + normalize.ts (region + name key reusing normalizeNameForMatch)
+- [ ] 106-02-PLAN.md — cache.ts get/put (neutral datum, 30d TTL, expired=miss, service-role) + leakage/HIT-no-provider/TTL/normalization tests + static migration contract
 
 ### Phase 107: Provider Seam + First Source + Determinism Seam
 **Goal**: The pricing-research source lives behind a swappable `PriceResearchProvider` port resolved from `platform_integrations`, with a real OpenRouter-web adapter (engine `exa`), a gated Anthropic quality-fallback adapter, AND a deterministic fixture adapter that the v4.5 eval harness injects — so the CI regression gate stays green and the source decision can flip via admin config without touching call sites. Every web snippet that reaches the LLM is injection-hardened in the same phase that introduces web content.
