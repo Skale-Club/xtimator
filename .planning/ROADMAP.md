@@ -1287,7 +1287,8 @@ Plans:
  (completed 2026-06-24)
 - [x] **Phase 112: Credit Ledger + Consumption Metering** — Append-only tenant-scoped `credit_ledger` (grant/debit/topup/adjust) with fast-read cached balance; each instrumented `usage_events` op debits `real_cost × markup`; per-tier `monthlyCreditGrant`; idempotent debits; pre-op balance check with top-up path; zero-debit for non-spend ops (MCP conversation). (completed 2026-06-24)
 - [x] **Phase 113: Stripe Rail — Grants, Top-Ups + Parallel-Run Transition** — `invoice.paid` grants the tier allowance idempotently; one-time top-up checkout credits the ledger; low/zero balance offers top-up + upgrade without silent mid-job block; credits run in parallel with count-based tiers so no existing account breaks (counts degrade to secondary guard-rails). (completed 2026-06-24)
-- [x] **Phase 114: Estimate Payment Fee + Payment-UI Gating + Disclosure** — Fill the omitted `application_fee_amount` hook on both the invoice and Phase-70 checkout paths (fee % from `billing_config`, sane minimum/rounding); a single `usePaymentsEnabled` guard gates ALL payment UI to `stripe_connect_status = 'active'` (no orphan elements, both states tested); clear fee disclosure at the Stripe connection flow. (completed 2026-06-24)
+- [x] **Phase 114: Estimate Payment Fee + Payment-UI Gating + Disclosure** — Fill the omitted `application_fee_amount` hook on both the invoice and Phase-70 checkout paths (fee % from `billing_config`, sane minimum/rounding); a single `usePaymentsEnabled` guard gates ALL payment UI to `stripe_connect_status = 'active'` (no orphan elements, both states tested); clear fee disclosure at the Stripe connection flow.
+ (completed 2026-06-24)
 - [ ] **Phase 115: Credit Balance UX (owner-facing)** — Owner sees a simple credit balance (header/settings) with consumption history and rough per-action guidance (never token math); low/zero-balance states show a warning + top-up/upgrade CTA reusing the existing threshold-notification path.
 - [x] **Phase 116: Calibration & Charge-On Validation** — Derive grant/markup/price from the measured real cost collected since Phase 110 and validate the margin invariant (real cost of the full monthly grant ≤ ~30% of subscription price), documented. This LATE phase consumes CALIB-01's data + the ledger/config and gates turning real charging ON.
  (completed 2026-06-24)
@@ -1374,7 +1375,10 @@ Plans:
   1. The business owner sees a simple credit balance (in the header and/or settings) showing the current balance plus a consumption history of recent debits, with rough per-action guidance — and never any token-level math
   2. A low-balance state shows a warning, and a zero-balance state shows a warning plus a clear top-up/upgrade CTA, reusing the existing threshold-notification path (`notifyQuotaThresholds`) rather than a new one
   3. The balance shown to the owner reconciles to the ledger (matches the Phase-112 cached balance), so the number the owner sees is the number the system meters against
-**Plans**: TBD
+**Plans**: 2 plans in `.planning/phases/115-credit-balance-ux-owner-facing/`
+Plans:
+- [ ] 115-01-PLAN.md — owner-safe credit overview query (getCreditOverview, no real_cost_usd/markup in SELECT) + notifyLowCreditBalance hook in recordCreditDebit (CREDITUI-01, CREDITUI-02)
+- [ ] 115-02-PLAN.md — CreditBalanceCard + history list + TopUpButton + topbar credit chip on /settings/billing (CREDITUI-01, CREDITUI-02)
 **UI hint**: yes
 
 ### Phase 116: Calibration & Charge-On Validation
