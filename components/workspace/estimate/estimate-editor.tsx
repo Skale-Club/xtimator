@@ -113,6 +113,12 @@ interface EstimateEditorProps {
   versions: Estimate[]
   /** Phase 94 (D-19) — issued invoices for this estimate (frozen snapshot amounts). */
   issuedInvoices: InvoiceRow[]
+  /**
+   * PAYGATE-01/02 — the single forward-looking payment gate (Connect active),
+   * computed server-side via `paymentsEnabled(company)`. When false the
+   * Generate-invoice affordance must not render AT ALL (no orphan element).
+   */
+  paymentsEnabled: boolean
   projectId: string
   companyId: string
   companyBrandColor: string | null
@@ -137,6 +143,7 @@ export function EstimateEditor({
   estimate,
   versions,
   issuedInvoices,
+  paymentsEnabled,
   projectId,
   companyBrandColor,
   company,
@@ -282,10 +289,14 @@ export function EstimateEditor({
         priceBookItems={priceBookItems}
       />
 
-      {/* Phase 94 — issued-invoice display (D-19) + generate-invoice action (D-18). */}
+      {/* Phase 94 — issued-invoice display (D-19) + generate-invoice action (D-18).
+          PAYGATE-02: IssuedInvoicesPanel is a historical RECORD (it returns null
+          when there are no invoices), so it stays ungated — a never-connected
+          company simply has none. Only the forward-looking Generate-invoice
+          affordance below is gated on paymentsEnabled (no orphan when off). */}
       <IssuedInvoicesPanel invoices={issuedInvoices} />
 
-      {isCurrent && (
+      {isCurrent && paymentsEnabled && (
         <div className="flex justify-end">
           <GenerateInvoiceDialog
             estimateId={estimate.id}

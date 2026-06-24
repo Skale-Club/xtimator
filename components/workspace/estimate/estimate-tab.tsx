@@ -42,6 +42,8 @@ interface EstimateTabProps {
   currentEstimate: EstimateWithSections | null
   allVersions: Estimate[]
   issuedInvoices: InvoiceRow[]
+  /** PAYGATE-01/02 — forward-looking payment gate (Connect active), forwarded to the editor. */
+  paymentsEnabled: boolean
   recordings: Recording[]
   photos: Photo[]
   projectName: string
@@ -61,6 +63,7 @@ export function EstimateTab({
   currentEstimate,
   allVersions,
   issuedInvoices,
+  paymentsEnabled,
   recordings,
   photos,
   projectName,
@@ -200,6 +203,7 @@ export function EstimateTab({
         estimate={currentEstimate}
         versions={allVersions}
         issuedInvoices={issuedInvoices}
+        paymentsEnabled={paymentsEnabled}
         projectId={projectId}
         companyId={companyId}
         companyBrandColor={companyBrandColor}

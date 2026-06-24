@@ -33,6 +33,8 @@ interface ProjectWorkspaceProps {
   currentEstimate: EstimateWithSections | null
   allVersions: Estimate[]
   issuedInvoices: InvoiceRow[]
+  /** PAYGATE-01/02 — forward-looking payment gate (Connect active), computed server-side. */
+  paymentsEnabled: boolean
   companyName: string
   ownerName: string
   companyBrandColor: string | null
@@ -48,7 +50,7 @@ interface ProjectWorkspaceProps {
 
 export function ProjectWorkspace({
   project, activity, stats, recordings, photos,
-  currentEstimate, allVersions, issuedInvoices, companyName,
+  currentEstimate, allVersions, issuedInvoices, paymentsEnabled, companyName,
   ownerName, companyBrandColor, company, companyDefaults, estimateTemplate, smsDeliveryEnabled = false,
   whatsappSendEnabled = false,
   priceBookItems,
@@ -165,6 +167,7 @@ export function ProjectWorkspace({
             currentEstimate={currentEstimate}
             allVersions={allVersions}
             issuedInvoices={issuedInvoices}
+            paymentsEnabled={paymentsEnabled}
             recordings={recordings}
             photos={photos}
             priceBookItems={priceBookItems}

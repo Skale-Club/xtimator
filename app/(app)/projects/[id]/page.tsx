@@ -10,6 +10,7 @@ import { getPriceBookItems } from '@/lib/queries/price-book'
 import { getProjectConversationLink } from '@/lib/queries/whatsapp-inbox'
 import { createServiceClient } from '@/lib/supabase/service'
 import { getEntitlements } from '@/lib/entitlements'
+import { paymentsEnabled } from '@/lib/billing/payments-enabled'
 import { ProjectWorkspace } from '@/components/workspace/project-workspace'
 import { ProjectHeader } from '@/components/workspace/project-header'
 import { ProjectPageShell } from '@/components/workspace/project-page-shell'
@@ -89,26 +90,37 @@ async function ProjectTabs({
   allVersionsPromise,
   defaultTab,
 }: ProjectTabsProps) {
-  const [activity, stats, recordings, photos, allVersions] = await Promise.all([
+  // Fetch company name + template fields + SMS flag for the Send tab. It only
+  // needs project.company_id, so kick it off and resolve it in the SAME
+  // Promise.all as the tab data instead of after it (was serial → now parallel).
+  const supabase = await createClient()
+  const companyPromise = supabase
+    .from('companies')
+    .select('name, owner_name, brand_primary_color, estimate_template_greeting, estimate_template_opener, estimate_template_closer, estimate_template_signature, sms_delivery_enabled, tier, logo_url, phone, email, website, address, city, state, zip, default_tax_rate, default_payment_terms, default_warranty_terms, stripe_account_id, stripe_connect_status')
+    .eq('id', project.company_id)
+    .single()
+
+  const [activity, stats, recordings, photos, allVersions, { data: company }] = await Promise.all([
     activityPromise,
     statsPromise,
     recordingsPromise,
     photosPromise,
     allVersionsPromise,
+    companyPromise,
   ])
-
-  // Fetch company name + template fields + SMS flag for the Send tab
-  const supabase = await createClient()
-  const { data: company } = await supabase
-    .from('companies')
-    .select('name, owner_name, brand_primary_color, estimate_template_greeting, estimate_template_opener, estimate_template_closer, estimate_template_signature, sms_delivery_enabled, tier, logo_url, phone, email, website, address, city, state, zip, default_tax_rate, default_payment_terms, default_warranty_terms')
-    .eq('id', project.company_id)
-    .single()
 
   const companyName = (company?.name as string) ?? ''
   const ownerName = (company?.owner_name as string | null) ?? ''
   const companyBrandColor = (company?.brand_primary_color as string | null) ?? null
   const smsDeliveryEnabled = (company?.sms_delivery_enabled as boolean) ?? false
+
+  // PAYGATE-01/02 — compute the single forward-looking payment gate server-side
+  // from the company's Connect status, then thread the boolean down to the
+  // editor so the Generate-invoice affordance only renders when payments are on.
+  const canIssueInvoice = paymentsEnabled({
+    stripe_account_id: (company?.stripe_account_id as string | null) ?? null,
+    stripe_connect_status: (company?.stripe_connect_status as string | null) ?? null,
+  })
 
   // WhatsApp send is gated by plan entitlement AND a connected, active number.
   // company_whatsapp is RLS deny-all → read its status via the service client,
@@ -178,6 +190,7 @@ async function ProjectTabs({
       currentEstimate={currentEstimate}
       allVersions={allVersions}
       issuedInvoices={issuedInvoices}
+      paymentsEnabled={canIssueInvoice}
       companyName={companyName}
       ownerName={ownerName}
       companyBrandColor={companyBrandColor}
