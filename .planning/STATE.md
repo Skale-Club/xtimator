@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v4.7
-milestone_name: Monetização — Credit-Based Billing + Estimate Payment Fee
+milestone: v3.1.1
+milestone_name: MVP Launch Prep + Future-Proofing
 status: executing
-stopped_at: Completed 112-02-PLAN.md
-last_updated: "2026-06-24T16:49:33.564Z"
+stopped_at: Completed 112-03-PLAN.md
+last_updated: "2026-06-24T16:59:41.082Z"
 last_activity: 2026-06-24
 progress:
-  total_phases: 18
-  completed_phases: 18
-  total_plans: 51
-  completed_plans: 51
+  total_phases: 67
+  completed_phases: 49
+  total_plans: 154
+  completed_plans: 166
 ---
 
 # Project State
@@ -34,8 +34,14 @@ progress:
 ## Current Position
 
 Phase: 112 (Credit Ledger + Consumption Metering) — EXECUTING
-Plan: 3 of 4
-Status: Ready to execute
+Plan: 4 of 4
+Status: Ready to execute (Plan 112-04 — wire recordCreditDebit into the Inngest jobs + price-research orchestrator)
+
+---
+
+### Accumulated Context (v4.7)
+
+Status (112-03, Wave 2 — CREDIT-02/03/04/05/06/07): shipped — the credit metering CORE. NEW `lib/billing/credit-ledger.ts` (`import 'server-only'`), composed from existing primitives (Phase 56 idempotency + Phase 110 never-throw + Phase 111 config), NEVER touching `record-ai-cost.ts` (the Phase-110 measure-only CI guard fails on credit/debit/ledger/balance/markup there — git shows record-ai-cost.ts byte-identical). **`recordCreditDebit`** — `credits = Math.round((realCostUsd × cfg.markup) / cfg.creditUnitUsd)`; `realCostUsd == null` → no-op (null-vs-0, never `?? 0`); `credits<=0` → no-op; check-then-insert dedup keyed `${attemptId}:debit:${op}` (mirror recordUsage, NOT upsert-onConflict); reads `companies.credit_balance`, inserts the `-credits` ledger row (`reason:'debit'`, `operation_type`, `ref_id:attemptId`, `real_cost_usd`, `markup`, `balance_after=current-credits`, `idempotency_key`), swallows 23505, updates the cached balance; whole body try/catch → `console.warn` (never throws — a ledger failure never breaks generation). **`grantCredits`** — positive `grant`/`topup` row + balance bump, idempotent by supplied key, never throws (DORMANT — Phase 113's invoice.paid webhook calls it). **`checkCredits(supabase, companyId, estimatedCredits)`** — reads cached balance via the INJECTED client (mirror checkQuota), `shortfall=max(0,est-balance)`; `enforcementEnabled:false` → `allowed:true` ALWAYS (measure-only; debits record but nothing blocks until Phase 116); true → `allowed = shortfall===0`. **`reconcileBalance`** — TS-side SUM(delta_credits) → writes `companies.credit_balance`, returns the sum, never throws. **`debitIdemKey(attemptId,op)`** → `${attemptId}:debit:${op}`. CREDIT-07 holds BY CONSTRUCTION — no `channel === 'mcp'` branch; a null/absent cost simply records nothing (the only `lib/whatsapp`/`record-ai-cost` greps are explanatory doc-comments, no import/branch). NEW `tests/unit/billing/credit-ledger.test.ts` (17 tests, chainable service-client fake + mocked getBillingConfig, no DB/network/secrets): debit math (-9 from 0.02×4.5/0.01), balance_after + companies update, null→no-debit, rounds-to-0→no-debit, never-throw+warn, idempotency (existence-check + 23505-swallow), reconcile SUM, grant positive+dedup+never-throw, checkCredits enforcement-off-always-allows/on-gates/null-balance-0. **DEVIATION (1, Rule 3 — pre-declared):** extended the Phase-111 `BILLCFG-03` dormancy guard (`tests/unit/billing/billing-config.test.ts`) to allowlist `credit-ledger.ts` as the legitimate FIRST `getBillingConfig` consumer (the planner + 112-02 SUMMARY both predicted this RED→GREEN; intent preserved — the guard still fails on any OTHER consumer). `npx vitest run tests/unit/billing` → 16 files / 119 passed (measure-only-invariant.test.ts still green). FULL `npx vitest run` → **285 files passed | 3 skipped, 2022 passed | 2 skipped | 33 todo** (baseline 112-02 284/2005; +1 file / +17). `tsc --noEmit -p tsconfig.json` → clean on credit-ledger.ts. 2 atomic commits (59c10734 RED test, 69fc3a3e GREEN module + dormancy allowlist); all normal hooked (gitleaks ran, no `--no-verify`), no leaks found. CREDIT-02..07 marked complete. **Phase 112 now 3/4 plans.** Next: `/gsd:execute-phase 112` (Plan 112-04 — wire `recordCreditDebit` into the Inngest jobs via a new `step.run('record-credit-debit')` after `record-usage`, + the price-research orchestrator). See 112-03-SUMMARY.md.
 
 ---
 
@@ -73,7 +79,7 @@ Prior: 102-01 (HARD-07 replay-safe TTL) shipped. Added a neutral `requestedAt: A
 Prior: 102-02 (HARD-06 cap half) shipped. Replaced the hard-coded `(state.refineAttempts ?? 0) < 1` literal in `checkVagueAfterAssessEdge` (`lib/estimate/graph/nodes/decide.ts`) with a single `AUTO_REFINE_MAX_ATTEMPTS` module constant — read once at module load via an IIFE (`Number.isFinite(raw) && raw >= 0 ? raw : 1`) from the optional non-secret `process.env.AUTO_REFINE_MAX_ATTEMPTS`, defaulting to 1. Operator kept exactly `<` so the default is byte-identical to today (Research Pitfall 1). `auto-refine.ts` doc comment updated to reference the configurable cap (documentation-only; increment logic untouched). Channel-neutral (no DB, no async, no channel import) → graph-neutrality stays green. `tests/unit/estimate/auto-refine-cap.test.ts` now fully GREEN (default=1 AND `AUTO_REFINE_MAX_ATTEMPTS=2` override cases); `auto-refine-isolation` + `graph-neutrality` (12/12) and `never-reply-regression` Path C (loops exactly once at default) stay green. No env VALUE committed — only the var NAME appears (CLAUDE.md secret-handling). 1 atomic commit (02a41f2). xphere untouched. HARD-06 NOT marked complete — only the configurable-cap half is done; the web recourse UI half is owned by Plan 102-04.
 Prior (102-00, Wave 0 RED/EXTEND scaffold): authored 4 failing-by-design test files (auto-refine-cap [HARD-06 cap, now GREEN via 102-02], replay-safe-ttl [HARD-07, still RED → 102-01], batch-reporting [HARD-05, still RED → 102-03], needs-details-banner [HARD-06 recourse, still RED → 102-04]); 2 commits (201afb0, 35e8537).
 Last activity: 2026-06-24
-Stopped at: Completed 112-02-PLAN.md
+Stopped at: Completed 112-03-PLAN.md
 Next Up: **Phase 108 COMPLETE (5/5 plans — 108-01 metering [RMETER-01/02/03], 108-02 vagueness gate [RFALL-02], 108-03 orchestrator `researchUnmatchedPrices` [RPRICE-01/03/04, RFALL-01], 108-04 wire into `generateEstimateForProject` [RPRICE-01/03, RFALL-01], 108-05 "Couch cleaning 8 seats" full-graph regression [RFALL-03]).** THE PAYOFF is live in the production generation path AND locked by a green deterministic full-graph regression (EVIDENCED → $180/non-vague, empty-research+context → never-$0 ladder/non-vague, all-empty → still blocks). All three price-research adapters (`openrouter-web`, gated `anthropic-web`, deterministic `fixture`) remain configured-via-`platform_integrations` (all-misses no-op when unconfigured). Suggested: `/gsd:verify-work 108`, then `/gsd:execute-phase 109` (durability + cost-control hardening — dedicated `step.run('price-research')` retry isolation, runtime OpenRouter→Anthropic fallback ordering, per-estimate item caps, refine-loop memoization). DEFERRED (operational, carried from 108-01): apply migration `20260624000002_phase108_usage_event_price_researched.sql` (+ the earlier `20260624000001` price_research_cache) to remote via CI→GHCR→Coolify.
 Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gsd:verify-work 104` to validate the phase, then address the operational deferrals. DEFERRED (operational, all of Phase 104): apply migrations `20260621000001_notification_categories_remap.sql` + `20260621000002_notification_opt_in_consent.sql` + `20260621000003_whatsapp_notification_templates.sql` to the remote DB; ensure the Twilio from-number is SMS-capable; verify the Meta token carries `whatsapp_business_management` scope + author/approve the registry templates in Meta WhatsApp Manager (the `message_template_status_update` webhook then flips them to approved). Also still queued: `/gsd:verify-work 103` + `/gsd:complete-milestone` (v4.5) carry-over UATs.
 
@@ -642,6 +648,7 @@ Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gs
 - [Phase 112]: credit_ledger RLS is tenant-readable via company_members (mirrors phase94 invoices), not service-role-only — so the Phase 115 owner widget can read balance/history
 - [Phase 112]: enforcementEnabled defaults FALSE (measure-only): debits record but checkCredits never blocks until Phase 116 calibration
 - [Phase 112]: monthlyCreditGrant is a static null-safe fallback; authoritative runtime grant still read from billing-config at grant time (no hard-coded numbers)
+- [Phase 112]: 112-03: credit-ledger.ts debit lives OUTSIDE record-ai-cost.ts (measure-only guard) — round(real_cost x markup / creditUnitUsd), null cost -> no debit, idempotent via ${attemptId}:debit:${op}, never-throw; checkCredits allowed:true always while enforcementEnabled:false
 
 ## Performance Metrics
 
@@ -853,6 +860,7 @@ Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gs
 | Phase 111 P02 | 8min | 4 tasks | 6 files |
 | Phase 112 P01 | 2 min | 2 tasks | 2 files |
 | Phase 112 P02 | 12min | 2 tasks | 9 files |
+| Phase 112 P03 | 5min | 2 tasks | 3 files |
 
 ## Project Reference
 
