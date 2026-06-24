@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v4.7
 milestone_name: Monetização — Credit-Based Billing + Estimate Payment Fee
-status: verifying
+status: completed
 stopped_at: Completed 116-02-PLAN.md
-last_updated: "2026-06-24T20:30:00.483Z"
+last_updated: "2026-06-24T20:35:55.706Z"
 last_activity: 2026-06-24
 progress:
-  total_phases: 67
+  total_phases: 68
   completed_phases: 54
-  total_plans: 165
-  completed_plans: 178
+  total_plans: 164
+  completed_plans: 177
 ---
 
 # Project State
@@ -29,12 +29,11 @@ progress:
 - **Dependency spine:** 110 (cost capture) → 112 (ledger) needs 110 + 111; 113 (Stripe rail) needs 112; 115 (balance UX) needs 112 + 113; 116 (calibration) needs 110 + 111 + 112. 111 (`billing_config`) is structurally independent and feeds everything. 114 (payment fee) needs only 111 + the already-shipped Connect infra (phases 70/94) — sequenceable in parallel with the credit track.
 - **Locked guardrails:** Stripe = rail only (credit ledger is OURS, NOT Stripe metered billing); everything billing reads from `billing_config` (no hard-coded numbers, no env vars, super-admin only); migrations idempotent + deploy CI→GHCR→Coolify (never build on VPS); channel-neutral domain stays neutral + never-throw enrichment preserved; CALIBRATE before charging (no real billing before CALIB-02's measured numbers exist).
 - **Previous milestone**: v4.6 Pricing Intelligence — Researched Pricing Agent — SHIPPED 2026-06-24 (phases 105-109, 17/17 requirements, full unit+eval suite green 275 files / 1932 tests).
-- **Position**: Phase 115 COMPLETE (2/2 plans, verified 9/9 — owner credit balance card + history + per-action guidance + low/zero top-up CTA; owner-safe projection, additive to count-based card). Next: `/gsd:plan-phase 116` (Calibration & Charge-On Validation — the FINAL phase). NOTE: `phase complete` mis-points next at stale 999.1 — real next is **116**.
-
+- **Position**: v4.7 COMPLETE — all 7 phases (110-116) shipped + verified. Credit-based billing (cost capture → billing_config → ledger → Stripe rail → 1% fee + gating + disclosure → balance UX → calibration gate). Enforcement OFF (safe) until production cost calibration per CALIBRATION-RUNBOOK. Next: apply migrations to remote (CI→GHCR→Coolify) + collect cost data, then calibrate + flip enforcement.
 ## Current Position
 
-Phase: 116 (Calibration & Charge-On Validation) — COMPLETE (2/2 plans) — the FINAL phase of v4.7
-Plan: 2 of 2 — DONE
+Phase: 999.1
+Plan: Not started
 Status: Phase complete — ready for verification (`/gsd:verify-work 116`), then `/gsd:complete-milestone` for v4.7
 
 ---

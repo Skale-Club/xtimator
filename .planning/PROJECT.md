@@ -14,9 +14,11 @@ The platform includes:
 
 A business owner can go from job site audio recording to a sent, professional estimate in under 5 minutes without touching a keyboard.
 
-## Current Milestone: v4.7 Monetização — Credit-Based Billing + Estimate Payment Fee
+## Last Milestone: v4.7 Monetização — Credit-Based Billing + Estimate Payment Fee ✅ (shipped 2026-06-24)
 
-**Goal:** Transform billing from count-based tiers into a credit model with built-in margin (monthly subscription grants AI credits consumed as real OpenRouter/Whisper cost × markup), and add a 1% platform application fee on estimate payments — every billing parameter configurable from the super-admin panel.
+**Shipped:** all 7 phases (110-116), 28/28 requirements, 19 plans. Full unit suite green (298 files / 2110 tests). Credit-based billing end to end — cost capture (`ai_cost_events`) → `billing_config` super-admin panel → `credit_ledger` with debits wired into 4 AI seams → Stripe rail (grants on invoice.paid + top-ups) → 1% estimate application fee + total payment-UI gating + fee disclosure → owner credit balance UX → calibration validator + charge-on gate. Shipped SAFELY with **enforcement OFF** (`enforcementEnabled: false`): credits are RECORDED but never BLOCK, and the charge-on gate refuses to flip enforcement on until a documented calibration of real production cost passes the margin invariant (≤30% of subscription price). Archive: [milestones/v4.7](MILESTONES.md). Operational deferrals: apply 2 migrations to remote (CI→GHCR→Coolify), collect production cost, calibrate, then flip enforcement; live Stripe UAT.
+
+**Goal (delivered):** Transform billing from count-based tiers into a credit model with built-in margin (monthly subscription grants AI credits consumed as real OpenRouter/Whisper cost × markup), and add a 1% platform application fee on estimate payments — every billing parameter configurable from the super-admin panel.
 
 **Target features:**
 - **Real OpenRouter cost capture (foundation)** — today only tokens are captured (for Langfuse); capture the real USD cost per AI call. This is the prerequisite for the entire credit ledger.

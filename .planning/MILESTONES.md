@@ -1,5 +1,24 @@
 # Milestones
 
+## v4.7 Monetização — Credit-Based Billing + Estimate Payment Fee (Shipped: 2026-06-24)
+
+**Phases completed:** 7 (110, 111, 112, 113, 114, 115, 116) · 19 plans · full unit suite green (298 files / 2110 tests)
+
+**Goal (delivered):** Transform billing from count-based tiers into a credit model with built-in margin (subscription grants AI credits consumed as real OpenRouter/Whisper cost × markup), and add a 1% platform application fee on estimate payments — every billing parameter configurable from the super-admin panel. Shipped SAFELY with enforcement OFF: credits are RECORDED but never BLOCK, gated on a documented calibration of real production cost before charging is enabled.
+
+**What shipped, phase by phase:**
+- **Real cost capture (110)** — OpenRouter `usage.cost` (auto-returned; the deprecated `usage.include` flag avoided) + computed Whisper cost (minutes × rate) recorded to a new append-only `ai_cost_events` table, correlated by `attempt_id`, in MEASURE-ONLY mode. The foundation that gates the ledger. null-vs-0 discipline; never-throw.
+- **`billing_config` + super-admin Billing panel (111)** — all billing params (markup, credit denomination, per-tier grant, prices, top-up packs, Whisper rate, fee %, thresholds, `enforcementEnabled`) in the encrypted runtime-config store, edited at `/admin/integrations/billing` without deploy; tenant has no access. Nothing hard-coded.
+- **Credit ledger + consumption (112)** — tenant-readable append-only `credit_ledger` + cached `companies.credit_balance`; debit = `round(real_cost × markup / creditUnitUsd)` wired into 4 AI seams (estimate/photo/transcribe/research); idempotent; MCP external conversation = zero credit (by construction). The debit lives in a separate module (the Phase-110 measure-only guard forbids it in `record-ai-cost.ts`).
+- **Stripe rail (113)** — `invoice.paid` grants the tier's monthly credits idempotently (reusing `processed_stripe_events`); one-time top-up checkout (`mode:'payment'`, inline `price_data` from `topUpPacks`) credits the ledger; overage affordance (top-up + upgrade) without silent block; credits run in PARALLEL with the count-based tiers (additive, no account breaks).
+- **Estimate payment fee + gating + disclosure (114)** — 1% `application_fee_amount` on the Connect invoice Direct Charge (owner stays merchant of record; never custodies funds), computed `max(round(amount×pct), minCents)` clamped strictly below the charge, never $0 when amount>0; a single `paymentsEnabled` guard over all forward payment affordances (historical "Paid" badges remain); config-driven fee disclosure at Connect. (FEE-02 satisfied-by-FEE-01 — the Phase-70 checkout path was superseded by Phase-94 hosted invoices.)
+- **Credit balance UX (115)** — owner sees a simple balance + consumption history (owner-safe projection — `real_cost_usd`/`markup` never selected) + static per-action guidance + low/zero top-up/upgrade CTA; additive to the count-based usage card. Copy never says "blocked" (enforcement off).
+- **Calibration & charge-on gate (116)** — pure `validateMarginInvariant` (real cost of a full grant ≤ 30% of subscription price per tier; the illustrative defaults FAIL by design — locked by test, defaults untouched), an `ai_cost_events` aggregator, a charge-on gate in `saveBillingConfig` that REJECTS flipping `enforcementEnabled` true while the invariant fails, an ops analysis script, and a CALIBRATION-RUNBOOK. Enforcement stays OFF until real production cost validates the numbers.
+
+**Architecture invariants honored:** Stripe is the payment RAIL only (the credit ledger is OURS, not Stripe metered billing); everything billing reads from `billing_config` at runtime (super-admin only); never-throw on all cost/debit paths; null-vs-0 cost discipline; migrations idempotent + authored-only (deploy via CI→GHCR→Coolify); CALIBRATE before charging.
+
+**Operational deferrals (carry-forward):** apply the 2 new migrations (`ai_cost_events` 20260624000003, `credit_ledger` 20260624000004) to remote via CI→GHCR→Coolify; collect N weeks of `ai_cost_events` in production; run the calibration analysis; set real numbers in `billing_config`; confirm `validateMarginInvariant` passes; then flip `enforcementEnabled` ON. Live UAT of Stripe grant/top-up + the 1% fee against test mode.
+
 ## v4.6 Pricing Intelligence — Researched Pricing Agent (Shipped: 2026-06-24)
 
 **Phases completed:** 5 (105, 106, 107, 108, 109) · 12 plans · ~40 commits · full unit+eval suite green (275 files / 1932 tests)
