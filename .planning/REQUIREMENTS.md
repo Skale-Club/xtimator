@@ -40,9 +40,9 @@
 
 ### RMETER — Metering & Cost (reuse existing quota)
 
-- [ ] **RMETER-01**: Each price-research search is metered through the existing usage system (`usage_events` / `recordUsage`) via a new `price_researched` event type, count-based (1 unit/search), idempotent.
-- [ ] **RMETER-02**: Each tier gets a monthly price-research allowance in `entitlements`, sized from the per-search cost in cents.
-- [ ] **RMETER-03**: `checkQuota` gates research; when a company is over its research allowance, research is skipped and items fall back to a non-zero `ai_estimate` — the estimate still generates and never hard-fails.
+- [x] **RMETER-01**: Each price-research search is metered through the existing usage system (`usage_events` / `recordUsage`) via a new `price_researched` event type, count-based (1 unit/search), idempotent.
+- [x] **RMETER-02**: Each tier gets a monthly price-research allowance in `entitlements`, sized from the per-search cost in cents.
+- [x] **RMETER-03**: `checkQuota` gates research; when a company is over its research allowance, research is skipped and items fall back to a non-zero `ai_estimate` — the estimate still generates and never hard-fails.
 
 ### RCACHE — Caching
 
@@ -87,8 +87,8 @@
 | RFALL-02 | Phase 108 | Pending |
 | RFALL-03 | Phase 108 | Pending |
 | RFALL-04 | Phase 107 | Complete |
-| RMETER-01 | Phase 108 | Pending |
-| RMETER-02 | Phase 108 | Pending |
-| RMETER-03 | Phase 108 | Pending |
+| RMETER-01 | Phase 108 | Complete |
+| RMETER-02 | Phase 108 | Complete |
+| RMETER-03 | Phase 108 | Complete |
 | RCACHE-01 | Phase 106 | Complete |
 | RCACHE-02 | Phase 106 | Complete |
