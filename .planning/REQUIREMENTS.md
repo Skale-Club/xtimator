@@ -55,8 +55,8 @@ Requirements for this milestone. Each maps to exactly one roadmap phase.
 
 ### Payment UI Gating
 
-- [ ] **PAYGATE-01**: A single `usePaymentsEnabled` guard gates all payment UI; every payment page, screen, button, and element renders only when the company's Stripe Connect status is `active`.
-- [ ] **PAYGATE-02**: With Stripe disconnected, no payment-related element appears anywhere (no orphan) and the product otherwise works fully; both states are covered by tests.
+- [x] **PAYGATE-01**: A single `usePaymentsEnabled` guard gates all payment UI; every payment page, screen, button, and element renders only when the company's Stripe Connect status is `active`.
+- [x] **PAYGATE-02**: With Stripe disconnected, no payment-related element appears anywhere (no orphan) and the product otherwise works fully; both states are covered by tests.
 
 ### Fee Disclosure
 
@@ -122,8 +122,8 @@ Which phases cover which requirements. Populated during roadmap creation.
 | FEE-02 | Phase 114 | Complete |
 | FEE-03 | Phase 114 | Complete |
 | FEE-04 | Phase 114 | Complete |
-| PAYGATE-01 | Phase 114 | Pending |
-| PAYGATE-02 | Phase 114 | Pending |
+| PAYGATE-01 | Phase 114 | Complete |
+| PAYGATE-02 | Phase 114 | Complete |
 | DISCLOSE-01 | Phase 114 | Pending |
 | CREDITUI-01 | Phase 115 | Pending |
 | CREDITUI-02 | Phase 115 | Pending |
