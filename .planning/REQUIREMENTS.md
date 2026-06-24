@@ -44,7 +44,7 @@ Requirements for this milestone. Each maps to exactly one roadmap phase.
 
 - [x] **TOPUP-01**: On `invoice.paid` for a subscription, the system grants the tier's monthly credit allowance to the company's ledger, idempotently (via the existing `stripe_processed_events`).
 - [x] **TOPUP-02**: A company can buy a one-time credit top-up pack via Stripe checkout; the paid webhook credits the ledger.
-- [ ] **TOPUP-03**: When credits run low or hit zero, the company is offered top-up (and an upgrade suggestion when the usage pattern justifies it) — generation is not silently blocked mid-job.
+- [x] **TOPUP-03**: When credits run low or hit zero, the company is offered top-up (and an upgrade suggestion when the usage pattern justifies it) — generation is not silently blocked mid-job.
 
 ### Estimate Payment Platform Fee
 
@@ -117,7 +117,7 @@ Which phases cover which requirements. Populated during roadmap creation.
 | BILLCFG-03 | Phase 111 | Complete |
 | TOPUP-01 | Phase 113 | Complete |
 | TOPUP-02 | Phase 113 | Complete |
-| TOPUP-03 | Phase 113 | Pending |
+| TOPUP-03 | Phase 113 | Complete |
 | FEE-01 | Phase 114 | Pending |
 | FEE-02 | Phase 114 | Pending |
 | FEE-03 | Phase 114 | Pending |
