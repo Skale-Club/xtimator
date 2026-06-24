@@ -776,7 +776,7 @@ Plans:
 | 106. Cache Table + Tenant-Scoped Cache Module | v4.6 | 2/2 | Complete    | 2026-06-24 |
 | 107. Provider Seam + First Source + Determinism Seam | v4.6 | 3/3 | Complete    | 2026-06-24 |
 | 108. Orchestrator + Service Integration | v4.6 | 5/5 | Complete    | 2026-06-24 |
-| 109. Durability + Cost-Control Hardening | v4.6 | 0/TBD | Not started | - |
+| 109. Durability + Cost-Control Hardening | v4.6 | 1/2 | In Progress|  |
 
 ### Phase 75: Tour and Tooltip QA
 
@@ -1264,5 +1264,5 @@ Plans:
   4. The whole feature remains non-fatal: every hardening path preserves the never-throw contract — a slow/failed/capped research step never blocks or fails the estimate
 **Plans**: 2 plans (1 wave — parallel, disjoint file sets)
 Plans:
-- [ ] 109-01-PLAN.md — Widen the document/PDF/share/query/refine `price_source` unions to include `researched` (the carried 108 build-fix; `next build` type-checks clean)
+- [x] 109-01-PLAN.md — Widen the document/PDF/share/query/refine `price_source` unions to include `researched` (the carried 108 build-fix; `next build` type-checks clean)
 - [ ] 109-02-PLAN.md — Orchestrator hardening: per-estimate research item CAP (env-overridable, logged drops) + gated OpenRouter-web→Anthropic-web fallback ordering + in-run memo; step.run isolation documented-as-deferred
