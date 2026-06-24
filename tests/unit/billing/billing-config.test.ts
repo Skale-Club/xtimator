@@ -218,6 +218,11 @@ describe('BILLCFG-03: getBillingConfig consumed ONLY by the reader + credit-ledg
     // Plan 03 lands, while the guard still fails on any OTHER consumer.
     const INVOICE_ACTION_PATH = resolve(process.cwd(), 'lib/actions/invoice.ts')
     const PAYMENTS_PAGE_PATH = resolve(process.cwd(), 'app/(app)/settings/payments/page.tsx')
+    // Phase 115 (Credit Balance UX): the owner-facing credit overview query reads
+    // lowBalanceThresholds from getBillingConfig to surface low-balance guidance
+    // (CREDITUI-01) — the runtime-authoritative billing source, a legitimate
+    // consumer. The guard still fails on any OTHER reference of the symbol.
+    const CREDITS_QUERY_PATH = resolve(process.cwd(), 'lib/queries/credits.ts')
     const ALLOWLIST = new Set([
       MODULE_PATH,
       CREDIT_LEDGER_PATH,
@@ -225,6 +230,7 @@ describe('BILLCFG-03: getBillingConfig consumed ONLY by the reader + credit-ledg
       TOPUP_SESSION_PATH,
       INVOICE_ACTION_PATH,
       PAYMENTS_PAGE_PATH,
+      CREDITS_QUERY_PATH,
     ])
 
     const collected: string[] = []
