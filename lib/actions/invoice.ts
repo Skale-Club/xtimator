@@ -6,6 +6,8 @@ import { createClient } from '@/lib/supabase/server'
 import { getAuthContext } from '@/lib/auth/context'
 import { isDemoCompany } from '@/lib/demo/config'
 import { createConnectInvoice } from '@/lib/billing/invoice-service'
+import { getBillingConfig } from '@/lib/billing/billing-config'
+import { computeApplicationFee } from '@/lib/billing/estimate-fee'
 import { splitDepositBalance } from '@/lib/money/invoice-split'
 import { toMinorUnits } from '@/lib/money/currency'
 import { getInvoicesByEstimateId, type InvoiceRow } from '@/lib/queries/invoice'
@@ -111,6 +113,19 @@ export async function generateInvoice(
   }
   if (amountCents <= 0) return { error: 'Invalid amount' }
 
+  // 5b. Platform application fee (FEE-03). Read the live fee%/min from
+  //     billing_config (never hard-coded, applied without a deploy) and compute
+  //     the integer-cents fee. `amountCents` is already > 0 here, so a positive
+  //     fee strictly below the charge is guaranteed except at the 1-cent edge,
+  //     where computeApplicationFee returns 0 and createConnectInvoice omits it.
+  //
+  //     FEE-02: the Phase-70 standalone estimate checkout pay-route no longer
+  //     exists (superseded by Phase-94 hosted invoices). The invoice path is the
+  //     single customer-payment surface, so FEE-01 fully covers the estimate fee;
+  //     subscription/top-up checkouts are platform-account charges and carry NO fee.
+  const { estimateFeePct, estimateFeeMinCents } = await getBillingConfig()
+  const applicationFeeCents = computeApplicationFee(amountCents, estimateFeePct, estimateFeeMinCents)
+
   // 6. Snapshot description / project name (so the invoice renders independently).
   const projectRel = (estimate as { project?: { name?: string | null } | null }).project
   const projectName = projectRel?.name ?? null
@@ -153,6 +168,7 @@ export async function generateInvoice(
       metadata: { invoice_id: invoiceRowId, company_id: companyId },
       daysUntilDue: 7,
       idempotencyBase: `inv_${estimateId}_${kind}`,
+      applicationFeeCents,
     })
   } catch (err) {
     console.error('[generateInvoice] Stripe invoice creation failed', err)

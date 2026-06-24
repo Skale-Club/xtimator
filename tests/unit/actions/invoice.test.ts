@@ -26,6 +26,12 @@ vi.mock('@/lib/billing/invoice-service', () => ({
   createConnectInvoice: (...args: unknown[]) => createConnectInvoice(...args),
 }))
 
+// FEE-03: the action reads the live fee%/min from billing_config at runtime.
+const getBillingConfig = vi.fn()
+vi.mock('@/lib/billing/billing-config', () => ({
+  getBillingConfig: (...args: unknown[]) => getBillingConfig(...args),
+}))
+
 // Per-table Supabase mock. estimates/companies selects + invoices insert.
 const invoicesInsert = vi.fn()
 const invoicesInsertSelect = vi.fn()
@@ -90,6 +96,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   isDemoCompany.mockReturnValue(false)
   getAuthContext.mockResolvedValue({ userId: 'u_1', companyId: 'co_1' })
+  getBillingConfig.mockResolvedValue({ estimateFeePct: 0.01, estimateFeeMinCents: 1 })
   createConnectInvoice.mockResolvedValue({
     stripeInvoiceId: 'in_123',
     stripeCustomerId: 'cus_123',
@@ -142,6 +149,19 @@ describe('INVOICE-03: generateInvoice action', () => {
         hostedInvoiceUrl: expect.any(String),
         invoicePdfUrl: expect.any(String),
       })
+    )
+  })
+
+  it('passes an applicationFeeCents derived from getBillingConfig (FEE-03)', async () => {
+    // Default estimate total 1000 (usd) → 100000 cents; 1% → 1000-cent fee.
+    configureSupabase({})
+    const { generateInvoice } = await import('@/lib/actions/invoice')
+
+    await generateInvoice('est_1', { kind: 'full' })
+    expect(getBillingConfig).toHaveBeenCalledTimes(1)
+    expect(createConnectInvoice).toHaveBeenCalledTimes(1)
+    expect(createConnectInvoice.mock.calls[0][0]).toEqual(
+      expect.objectContaining({ applicationFeeCents: 1000 })
     )
   })
 })

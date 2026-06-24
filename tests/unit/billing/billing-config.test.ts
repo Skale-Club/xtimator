@@ -209,11 +209,22 @@ describe('BILLCFG-03: getBillingConfig consumed ONLY by the reader + credit-ledg
       process.cwd(),
       'app/api/billing/create-topup-session/route.ts'
     )
+    // Phase 114 (estimate payment fee): the generateInvoice action reads
+    // estimateFeePct/estimateFeeMinCents to compute the Connect-invoice
+    // application_fee_amount (FEE-03), and the Settings → Payments disclosure
+    // page reads estimateFeePct to render the "%" notice at connect time
+    // (DISCLOSE-01, Plan 03). Both are runtime-authoritative billing-config
+    // consumers — added here together so the dormancy guard stays green when
+    // Plan 03 lands, while the guard still fails on any OTHER consumer.
+    const INVOICE_ACTION_PATH = resolve(process.cwd(), 'lib/actions/invoice.ts')
+    const PAYMENTS_PAGE_PATH = resolve(process.cwd(), 'app/(app)/settings/payments/page.tsx')
     const ALLOWLIST = new Set([
       MODULE_PATH,
       CREDIT_LEDGER_PATH,
       STRIPE_WEBHOOK_PATH,
       TOPUP_SESSION_PATH,
+      INVOICE_ACTION_PATH,
+      PAYMENTS_PAGE_PATH,
     ])
 
     const collected: string[] = []
