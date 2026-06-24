@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { getAuthClaims } from '@/lib/queries/auth'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { getIntegrationKey } from '@/lib/platform-config'
+import { getBillingConfig } from '@/lib/billing/billing-config'
 import {
   StripeConnectCard,
   type ConnectState,
@@ -58,6 +59,10 @@ export default async function PaymentsSettingsPage({
     state = { kind: 'not_connected' }
   }
 
+  // DISCLOSE-01: read the LIVE platform fee % server-side so the Connect-card
+  // disclosure is driven by billing_config and never diverges from FEE-03.
+  const { estimateFeePct } = await getBillingConfig()
+
   const sp = await searchParams
   const toastError = sp.error
   const toastConnected = sp.connected === '1'
@@ -90,7 +95,7 @@ export default async function PaymentsSettingsPage({
             : <T text={`Connection failed: ${toastError}`} />}
         </Card>
       )}
-      <StripeConnectCard state={state} />
+      <StripeConnectCard state={state} feePct={estimateFeePct} />
     </div>
   )
 }
