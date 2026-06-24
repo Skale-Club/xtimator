@@ -32,6 +32,8 @@ export type Category = {
   showWhatsAppConfig?: boolean
   /** CRM/Xphere category renders the base-URL field below the cards. */
   showXphereConfig?: boolean
+  /** Price-research category renders the source/engine config card below the cards. */
+  showPriceResearchConfig?: boolean
 }
 
 export const CATEGORIES: ReadonlyArray<Category> = [
@@ -117,6 +119,15 @@ export const CATEGORIES: ReadonlyArray<Category> = [
           'API key (xph_… token, scope sync:write) for the Xphere Xtimator org. Set the base URL below.',
       },
     ],
+  },
+  {
+    slug: 'price-research',
+    title: 'Price Research',
+    navLabel: 'Price Research',
+    description:
+      'Researched regional pricing for estimate items with no price-book match. Reuses the configured OpenRouter / Anthropic key — no separate API key.',
+    showPriceResearchConfig: true,
+    providers: [],
   },
 ] as const
 

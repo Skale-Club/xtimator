@@ -11,6 +11,7 @@ import { WhatsAppConfigForm } from './whatsapp-config-form'
 import { WhatsAppSystemPromptForm } from './whatsapp-system-prompt-form'
 import { XphereConfigForm } from './xphere-config-form'
 import { XphereStatus } from './xphere-status'
+import { PriceResearchConfigForm } from './price-research-config-form'
 
 type IntegrationCategoryContentProps = {
   category: Category
@@ -71,6 +72,28 @@ export async function IntegrationCategoryContent({
     xphereBaseUrl = (data?.metadata as { base_url?: string } | null)?.base_url ?? ''
   }
 
+  let priceResearch = {
+    enabled: false,
+    source: 'openrouter_web' as 'openrouter_web' | 'anthropic_web',
+    engine: 'exa' as 'exa' | 'native',
+  }
+  if (category.showPriceResearchConfig) {
+    const svc = requireServiceClient()
+    const { data } = await svc
+      .from('platform_integrations')
+      .select('metadata')
+      .eq('provider', 'price_research')
+      .maybeSingle()
+    const meta =
+      (data?.metadata as { research_source?: string; research_engine?: string } | null) ?? {}
+    const src = meta.research_source
+    priceResearch = {
+      enabled: src === 'openrouter_web' || src === 'anthropic_web',
+      source: src === 'anthropic_web' ? 'anthropic_web' : 'openrouter_web',
+      engine: meta.research_engine === 'native' ? 'native' : 'exa',
+    }
+  }
+
   return (
     <div className="flex flex-col gap-6">
       {category.description && (
@@ -120,6 +143,10 @@ export async function IntegrationCategoryContent({
           />
           <WhatsAppSystemPromptForm currentPrompt={waSystemPrompt} />
         </>
+      )}
+
+      {category.showPriceResearchConfig && (
+        <PriceResearchConfigForm current={priceResearch} />
       )}
     </div>
   )
