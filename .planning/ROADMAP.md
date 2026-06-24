@@ -783,7 +783,7 @@ Plans:
 | 109. Durability + Cost-Control Hardening | v4.6 | 2/2 | Complete    | 2026-06-24 |
 | 117. Knowledge Schema + pgvector + Dual RLS | v4.8 | 1/1 | Complete    | 2026-06-24 |
 | 118. Channel-Neutral lib/knowledge/ Module | v4.8 | 3/3 | Complete    | 2026-06-24 |
-| 119. Super-Admin Industry KB Curation + Bulk Import | v4.8 | 2/3 | In Progress|  |
+| 119. Super-Admin Industry KB Curation + Bulk Import | v4.8 | 3/3 | Complete   | 2026-06-24 |
 | 120. Company KB Overlay (tenant settings) | v4.8 | 0/0 | Not started | - |
 | 121. WhatsApp KNOWLEDGE Intent | v4.8 | 0/0 | Not started | - |
 
@@ -1404,7 +1404,7 @@ Plans:
 
 - [x] **Phase 117: Knowledge Schema + pgvector + Dual RLS** - Enable pgvector and ship the `knowledge_entries` table with both RLS postures: industry entries neutral/shared (service-role-write, read scoped by industry, mirroring `price_research_cache`) and company-overlay entries tenant-scoped (`company_members` membership). The retrieval foundation — nothing embeds or retrieves without it. (completed 2026-06-24)
 - [x] **Phase 118: Channel-Neutral `lib/knowledge/` Module — embed + retrieve + answer + injection-hardening + fixture** - The neutral domain module: `embed()`, `retrieve()` merging industry KB + company overlay over pgvector, `answer()` RAG with `sanitizeField` + `<knowledge>` injection-hardening, and a deterministic fixture adapter for CI. Imports no channel; never-throws. (completed 2026-06-24)
-- [ ] **Phase 119: Super-Admin Industry KB Curation + Bulk Import** - The super-admin panel CRUD that POPULATES the industry KB scoped by industry, (re)generating embeddings on save, plus a markdown/CSV bulk import to seed an industry in one operation.
+- [x] **Phase 119: Super-Admin Industry KB Curation + Bulk Import** - The super-admin panel CRUD that POPULATES the industry KB scoped by industry, (re)generating embeddings on save, plus a markdown/CSV bulk import to seed an industry in one operation. (completed 2026-06-24)
 - [ ] **Phase 120: Company KB Overlay (tenant settings)** - The company owner's OWN settings panel (distinct from super-admin — the two-panel rule) to add/edit/delete private overlay entries, embeddings generated the same way, scoped to the owning company; optional.
 - [ ] **Phase 121: WhatsApp KNOWLEDGE Intent** - The 5th `classifyAndRoute` intent + QUERY-vs-KNOWLEDGE disambiguation (safe CREATE default preserved), dispatching to `lib/knowledge/answer` scoped by the company's `industries[]` + overlay and delivered via the existing chunked owner reply. The consumer that proves the module end-to-end.
 
@@ -1450,7 +1450,7 @@ Plans:
 **Plans**: 3 plans
 - [x] 119-01-PLAN.md — Curation actions (create/edit/delete) + embed-then-insert + embedMany helper (KCUR-01, KCUR-02) [Wave 1]
 - [x] 119-02-PLAN.md — CSV parser + bulkImportEntries batch-embed + bulk-insert (KCUR-03) [Wave 2]
-- [ ] 119-03-PLAN.md — Super-admin /admin/knowledge UI (list, form, import card, nav) (KCUR-01, KCUR-03) [Wave 3]
+- [x] 119-03-PLAN.md — Super-admin /admin/knowledge UI (list, form, import card, nav) (KCUR-01, KCUR-03) [Wave 3]
 **UI hint**: yes
 
 ### Phase 120: Company KB Overlay (tenant settings)
