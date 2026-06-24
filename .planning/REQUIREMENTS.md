@@ -26,9 +26,9 @@
 
 ### RSRC — Research Source / Provider
 
-- [ ] **RSRC-01**: Price research runs through OpenRouter's web search (the primary AI provider), as a separate call ahead of the unchanged forced `create_estimate` call.
+- [x] **RSRC-01**: Price research runs through OpenRouter's web search (the primary AI provider), as a separate call ahead of the unchanged forced `create_estimate` call.
 - [x] **RSRC-02**: The search engine is configurable between `exa` (OpenRouter/Exa, fixed cost) and `native` (the model's own web search), behind a swappable `PriceResearchProvider` seam mirroring `getAIProviderWithFallback`.
-- [ ] **RSRC-03**: Anthropic web search (with `user_location` city/state) is available as a pluggable quality-fallback source, gated and not the default.
+- [x] **RSRC-03**: Anthropic web search (with `user_location` city/state) is available as a pluggable quality-fallback source, gated and not the default.
 - [x] **RSRC-04**: The research source is seamed so a deterministic fixture adapter drives it in tests/CI (no live calls) — the v4.5 eval harness + CI regression gate stay green.
 
 ### RFALL — Fallback & Correctness (the $0 fix)
@@ -79,9 +79,9 @@
 | RPRICE-02 | Phase 105 | Complete |
 | RPRICE-03 | Phase 108 | Complete |
 | RPRICE-04 | Phase 108 | Pending |
-| RSRC-01 | Phase 107 | Pending |
+| RSRC-01 | Phase 107 | Complete |
 | RSRC-02 | Phase 107 | Complete |
-| RSRC-03 | Phase 107 | Pending |
+| RSRC-03 | Phase 107 | Complete |
 | RSRC-04 | Phase 107 | Complete |
 | RFALL-01 | Phase 108 | Pending |
 | RFALL-02 | Phase 108 | Pending |
