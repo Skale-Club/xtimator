@@ -1,146 +1,148 @@
 # Feature Research
 
-**Domain:** Agentic, multi-step estimate/document generation with a quality-assessment + refinement loop, surfaced across three channel modalities (async web, conversational WhatsApp, programmatic MCP)
-**Milestone:** v4.3 Unified Agentic Estimate Engine
-**Researched:** 2026-06-20
-**Confidence:** HIGH (the canonical patterns are well-documented and the existing codebase already implements a one-pass version; per-channel divergence verified against LangGraph + MCP spec sources)
+**Domain:** Researched/regional market pricing for AI estimate generation (US service businesses — construction, landscaping, plumbing, HVAC, cleaning, painting)
+**Milestone:** v4.6 Pricing Intelligence — Researched Pricing Agent
+**Feature scope:** For line items with no price-book match, research the average US market price in the client's region (city/state); tag `price_source: 'researched'`
+**Researched:** 2026-06-23
+**Confidence:** MEDIUM-HIGH (the regional-multiplier model, low/avg/high range presentation, and source-transparency norms are well established across RSMeans / Homewyse / Profit Rhino — HIGH; the *on-demand AI-web-search* variant of those patterns is less documented — MEDIUM)
 
-> NOTE: this file previously held v4.0 Multi-Tenancy feature research (now archived in the v4.0 roadmap). It has been replaced with v4.3 research per the active milestone.
+> NOTE: this file previously held v4.3 Unified Agentic Estimate Engine feature research (now archived with that milestone). It has been replaced with v4.6 research per the active milestone.
 
 ---
 
-## TL;DR for the roadmapper
+## How the Industry Actually Does This (Context the roadmapper needs)
 
-Xtimator **already has** the hard part conceptually: WhatsApp runs a one-pass quality gate (`evaluateVagueness` node → `isVagueEstimate()` → `askDetails`) that detects a $0/empty estimate and asks the owner for more detail before sending. The named industry pattern for "generate → evaluate → decide good-enough vs needs-input → iterate/ask" is the **evaluator-optimizer (reflection) loop with a hard iteration cap**. v4.3's job is NOT to invent this — it is to (a) extract the gate into the shared canonical graph, (b) give web + MCP the SAME gate, and (c) make the gate's "needs more info" outcome surface correctly in each modality. The single most important insight: **the same quality verdict must produce three different control-flow shapes** because only WhatsApp has a human waiting inline. Web must *persist a "needs_details" state and prompt later in the UI*; MCP must *return a structured `needs_details` status the calling LLM acts on*; WhatsApp keeps its inline ask-and-wait.
+Three reference models dominate US service-pricing tools. All three matter because they set the expectations Xtimator's researched price will be measured against — users were *trained* on these even if they never name them:
+
+1. **RSMeans / Gordian City Cost Index (CCI)** — a curated *national-average* unit-cost database (92,000+ line items) plus a per-location **multiplier** (national average = 100; NYC = 129.1, some metros ≈ 0.92). The estimate is built at national average, then the ZIP maps to the nearest indexed city and **separate labor and material factors** rescale it. ~970 North-American locations. Regional variance is real and large: **25–40%+**.
+2. **Homewyse** — national cost guides with an explicit **Lower-to-Higher labor range** per task (labor is the biggest variance driver), labor sourced from **US Bureau of Labor Statistics** wage data, materials from "3–4 reputable sources **listed on each calculator page**." Source transparency is on the page, per item.
+3. **Profit Rhino (Housecall Pro flat-rate book)** — prebuilt price books computed from **national averages** for material cost + typical materials per task + average labor time. The contractor then **localizes by entering their own costs/labor rate** — the tool gives a national baseline, the human owns the final number.
+
+**Load-bearing takeaway:** the established pattern is *national average × regional adjustment*, presented as a *range*, with *visible sources*, and **always human-overridable**. Xtimator's novelty is doing the lookup **on-demand per line item via AI web search** (Brave / Gemini grounding / Claude search through the OpenRouter path) instead of a licensed static database. That changes the *mechanism*, not the *expected behavior*. The behavior expectations below are what users already assume.
 
 ---
 
 ## Feature Landscape
 
-### Table Stakes (Users / callers expect these)
+### Table Stakes (Users Expect These)
 
-Features that, if missing, make the "unified agentic engine" feel broken or worse than the WhatsApp-only status quo.
+Missing any of these makes the researched price feel like "the AI guessed again" — exactly the trust problem v4.6 exists to fix.
 
-| Feature | Why Expected | Complexity | Notes / Dependency on existing code |
-|---------|--------------|------------|-------------------------------------|
-| **Quality gate (self-assessment) on EVERY channel** | Web/MCP today ship a $0/empty estimate silently single-shot; WhatsApp doesn't. Parity is the milestone's stated goal. | LOW | The gate already exists: `isVagueEstimate()` (total ≤ 0 OR zero line items) in `lib/whatsapp/ask-details.ts`. Extracting `evaluateVagueness` into the shared graph is the table-stakes move. Reuse the predicate verbatim — do NOT rewrite. |
-| **Deterministic, cheap pass/fail check first** | A free structural check (total>0, ≥1 item, sane math) catches the common failure with zero extra AI cost/latency. Industry guidance: gate on concrete, measurable criteria before LLM-as-judge. | LOW | `isVagueEstimate()` is already pure + deterministic. Math validation already runs inside `generateEstimateForProject` (subtotal/tax/total rounding). Keep the cheap gate as the default; reserve any LLM-judge for a differentiator. |
-| **"Needs more info" is an explicit, typed outcome — not an error** | A vague input is a normal, recoverable state, not a 500. WhatsApp already treats it as a first-class branch (`checkVagueEdge → askDetails`). | MEDIUM | Generation core `generateEstimateForProject` currently THROWS on no-input and returns a success result otherwise — it has no "generated-but-vague" return channel. The graph layer (not the core) owns the verdict today. Keep it that way: the shared graph adds a `quality: 'ok' \| 'needs_details'` to graph state. |
-| **A localized, specific prompt telling the user WHAT is missing** | "Add more detail" is useless; "tell me service type, area, materials, timeline" is actionable. | LOW | Exists: `buildAskDetailsMessage(language)` with EN/PT/ES copy naming the 4 missing dimensions. Reuse for WhatsApp; web/MCP need the same *content* rendered in their own surface (UI banner / structured field). |
-| **Resumable continuation against the SAME draft (no orphan re-create)** | When the user supplies the missing detail, it must complement the original project and regenerate — not spawn a second project/estimate. | MEDIUM | WhatsApp does this via `whatsapp_sessions(state='awaiting_details', draft_project_id)` + `revertVagueEstimate()` (deletes the $0 estimate, reverts project to draft) + the `awaiting_details` debounce branch in `handler.ts`. Web/MCP need an equivalent "this project is awaiting details" persisted flag (see per-channel matrix). |
-| **Hard iteration cap / loop guard** | Without a max-attempts bound, an evaluator-optimizer loop can refine forever, burning cost and latency. Every 2026 source on the pattern stresses a hard iteration limit + clear termination condition. | LOW | No loop exists yet (today's gate is one-pass: ask once, wait for human, regenerate once). The cap becomes load-bearing the moment any *automatic* refine edge is added. Store `refineAttempts` in graph state; cap at 1 auto-refine (recommended) before falling back to ask-the-human. |
-| **Always reply / never silently die** | The graph's hardest-won property: a failure must produce a visible, recoverable outcome, not a dead Inngest job. | LOW (preserve) | Already encoded: `generateEstimateNode` never re-throws (`generationFailed` flag → `sendError`), and `checkGeneratedEdge` routes failures to a reply. This invariant MUST survive the extraction — it is the most important behavior in `estimate-graph.ts`. The web/MCP terminal nodes need their own equivalent of `sendError`. |
-| **Quota/usage charged once per delivered estimate, not per refine attempt** | Users must not be billed N× for one logical estimate because the engine refined internally. | MEDIUM | `recordUsage` runs in the Inngest wrapper as a separate `step.run` keyed by `requestId` (idempotent). A refine loop that regenerates inside one graph run must NOT double-charge — decide whether a refine counts as new usage (recommend: charge per *delivered* estimate, not per internal attempt). Dependency: `lib/quota` idempotency-key strategy. |
+| Feature | Why Expected | Complexity | Notes / Dependency on existing Xtimator code |
+|---------|--------------|------------|----------------------------------------------|
+| **Regional localization to client city/state** | RSMeans / Clear Estimates / Projul all localize by ZIP/county; a US owner expects a Dallas price ≠ a San Francisco price (25–40% spread). The client address (city/state) is already on the project. | MEDIUM | Two mechanisms: (a) **direct local lookup** — pass city/state into the search query ("couch cleaning cost Austin TX"); (b) **national-avg × multiplier** — research a national number, apply a stored regional factor. (a) is simpler, fits the AI-web-search path, and is what the milestone implies. Recommend (a) for v4.6, keep (b) as a sparse-result fallback. |
+| **New `price_source: 'researched'` value, distinct from `ai_estimate` and `price_book`** | Locked milestone decision. Existing editor badge system (`price_book` / `ai_estimate` / `Edited`) must extend cleanly. Users need to know *this was researched, not guessed*. | LOW | Extends the existing `estimate_items.price_source` CHECK column + the editor badge component (`EDITPRICE-01/02`). **Dependency:** price-book anchoring (`anchorAndClampSections`, Pillar 1) must run first so only no-match items get researched. |
+| **Graceful fallback when research finds nothing** | This IS the originating bug ("Couch cleaning 8seats" → \$0 → blocked as vague). The whole milestone fails if the no-data path still produces \$0. | MEDIUM | Ordered degradation (see callout): researched → `ai_estimate` with a **non-zero floor** → clearly-flagged **"needs your price"** line that does NOT hard-trip the vagueness gate. Must never emit \$0/null silently. |
+| **Human override in the editor** | Profit Rhino, Homewyse, RSMeans all treat the number as a *starting point* — owners know their local market. Existing editor supports manual `unit_price` edit → `price_source: null` + "Edited" badge. | LOW | Already built. Just confirm a `researched` item edited by hand follows the same path (becomes `Edited`, clears `researched`) and is never re-researched afterward. |
+| **Resolve to a single number the estimate math can use** | An estimate has totals/PDF/share that consume one `unit_price`, even if a range was researched. | LOW | If research yields a range, pick a defensible point (median/avg) as the line `unit_price`; retain low/high as metadata only. Totals/PDF/share already consume a single number. |
 
-### Differentiators (Competitive advantage, align with the <5-min Core Value)
+### Differentiators (Competitive Advantage — align with the <5-min, no-keyboard Core Value)
 
-Features that make the unified engine *better* than today's single-pass behavior — not just at-parity. Be selective; these are where to spend.
+Where Xtimator beats a static-database competitor — but each adds cost/latency/scope. Prioritize ruthlessly.
 
 | Feature | Value Proposition | Complexity | Notes / Dependency |
 |---------|-------------------|------------|--------------------|
-| **One automatic self-refine before asking the human** | Many "vague" estimates are recoverable from context the model under-used on pass 1. A single evaluator-optimizer iteration (re-prompt with the critique "you returned $0 / no items; re-examine the transcript and price conservatively") can salvage the estimate with zero user friction — directly serving "estimate in under 5 min without touching a keyboard." | MEDIUM | This is the *true* upgrade from the current one-pass gate to a real evaluator-optimizer loop. New conditional edge: `evaluateQuality → (refine \| finalize \| ask)` with `refineAttempts` cap = 1. Adds one AI call only on the failure path. Must respect the cost/latency anti-features below. |
-| **LLM-as-judge quality scoring beyond the structural check** | Structural `isVagueEstimate` catches $0/empty but not "technically priced but obviously wrong/thin" (1 line item for a kitchen remodel). A lightweight judge (cheap model) scoring completeness/plausibility catches soft-vague estimates. | HIGH | Net-new. Higher cost + latency + a new failure mode (judge disagreeing with itself). Recommend deferring to a later phase behind the structural gate; gate first, judge only if structural passes but confidence is low. Flag for deeper phase research. |
-| **Per-channel "confidence/quality" surfaced to the user** | Showing web users a soft "this estimate looks thin — add audio/photos?" nudge (non-blocking) lets them choose to improve without forcing a loop. | MEDIUM | Web-only UX affordance. Reuses the same verdict; renders as a dismissible banner on the estimate editor rather than blocking. Lower-risk way to give web the *intelligence* without the *interruption*. |
-| **Unified langfuse tracing of the gate/refine decision across all 3 channels** | One trace showing ingest→generate→assess→(refine/ask)→finalize per channel makes the agentic behavior debuggable and tunable (where do estimates get judged vague? how often does auto-refine succeed?). | MEDIUM | Stated milestone goal ("unified observability"). Dependency: the v4.2 `pipeline_events` store already records steps; the graph nodes should emit equivalent spans. Trace the *verdict* and *attempt count*, not transcripts (v4.2 ADMINLOG-05 safe-metadata rule still applies — no transcript/audio/apiKey tokens). |
+| **Source transparency — "researched from N sources" / citations** | Homewyse lists sources per item; grounded-LLM best practice is inline citations to cut hallucination and build trust. For an AI-researched price this is the single biggest trust lever — it converts "the AI made it up" into "here's where this came from." | MEDIUM | Grounded search (Brave / Gemini googleSearch / Claude search) returns URLs + snippets. Capture them as line-item metadata; surface lightly in the editor (tooltip/expander "researched from 3 sources"). Don't over-build a citations UI in v4.6 — **store the data, show a minimal indicator**. Pairs with the `researched` badge. |
+| **Low / average / high range retained as metadata** | Homewyse's headline feature; labor variance makes a single number feel falsely precise. A range signals honesty and helps the owner pick. | MEDIUM | Extract low/avg/high; store all three, use avg for the line, expose low/high on hover/expand. **Anti-feature risk:** do NOT replace the single editable `unit_price` with a range in the core estimate — totals/PDF need one number. Range is *supplementary metadata*. |
+| **Caching/reuse of service+region prices** | Each researched item = an AI/web-search call (latency + token + API cost; grounding carries a "double synthesis" 2x-token hidden cost). Re-researching "drywall repair / Austin TX" on every estimate is wasteful. A shared cache keyed by (normalized service, region) cuts cost + latency sharply. | MEDIUM | Key = normalized service description + region (city/state or metro). TTL: prices move slowly — **30–90 day TTL** is reasonable (Homewyse refreshes quarterly; RSMeans quarterly/annual). Beware **cache-poisoning amplification** (a bad result persists the whole TTL) — keep TTL modest. **Multi-tenant note:** market prices aren't tenant-private, so recommend a **platform-shared, region-keyed, normalized-service cache** (cheaper, warmer) over per-company. |
+| **Admin-panel control of research behavior** | Milestone-locked. Lets the platform owner tune region params, markup applied to researched prices, fallback policy, TTL, and active search source — without redeploy (matches existing `platform_integrations` pattern). | MEDIUM | Reuses the existing super-admin config surface. Scope tightly: a few knobs (enable/disable, source selection, default markup, cache TTL, fallback mode) — **not a rules engine**. Can ship thin with sane defaults. |
+| **Confidence signal on the researched number** | Grounded search returns variable-quality results; a high/medium/low confidence hint (from source count/agreement) tells the owner when to double-check. | LOW-MEDIUM | Cheap to derive (#sources, variance across sources). Surface as a subtle indicator. Ties into the no-data fallback (low confidence → suggest verifying). |
 
 ### Anti-Features (Tempting, but harmful — explicitly DO NOT build)
 
-The question explicitly asks where NOT to add agentic loops. These are guardrails the phases must encode.
-
 | Anti-Feature | Why Requested / Tempting | Why Problematic | Better Approach |
 |--------------|--------------------------|-----------------|-----------------|
-| **Unbounded / multi-iteration auto-refine** | "Just keep refining until it's perfect." | Evaluator-optimizer loops without a hard cap burn tokens, blow latency past the <5-min promise, and can oscillate. Universally flagged anti-pattern. | Hard cap (recommend **1** auto-refine), then fall back to asking the human (web/MCP/WhatsApp surfaces). Store + assert `refineAttempts`. |
-| **Surprising the user with extra AI calls / cost** | More AI = better output. | Each refine/judge call costs money + time the owner didn't ask for, and can double-charge quota. Erodes trust + margin. | Cheap deterministic gate **first**; spend an extra AI call **only** on the failure path; charge quota per *delivered* estimate, not per internal attempt. |
-| **Blocking the fast/happy path with a quality gate that has overhead** | "Always run the judge for safety." | An LLM-judge on every estimate adds latency to the 90% of estimates that are fine, directly hurting the core value prop. | Structural gate is ~free and runs always; the expensive judge (if built) runs only when structural passes but signals are weak. The happy path stays single-shot-fast. |
-| **Forcing a synchronous human-in-the-loop interrupt on the async web channel** | LangGraph's `interrupt()` is the textbook HITL primitive; reuse it everywhere. | `interrupt()` requires a checkpointer AND a caller waiting on the same `thread_id` to `Command(resume=...)`. The web generation runs in a fire-and-forget Inngest job — there is NO human waiting mid-run. A graph `interrupt()` would hang the job, not prompt the user. | Web must **terminate** the run, **persist** a "needs_details" state, and prompt the user **later** in the UI (poll/notification). Resume = a *new* graph run triggered by the user's added input. (This is the single biggest cross-channel design trap.) |
-| **A single canned "could not generate" error for vague input** | Simplest to implement. | Conflates "broken" with "needs a bit more info"; users abandon instead of completing. WhatsApp already avoids this. | Keep "needs_details" as a distinct, actionable, typed outcome on every channel (table stakes above). |
-| **Blocking MCP `create_estimate` waiting inline for clarification** | MCP spec now has `elicitation/create` (server pauses, asks client for structured input mid-call). | Elicitation requires the *client* to support it (Claude.ai / Claude Desktop / ChatGPT vary), and the existing MCP contract is already async (`create_estimate` returns `job_id`, LLM polls `check_job_status`). Adding a synchronous elicitation pause fights that design and breaks non-supporting clients. | Return a structured terminal status (`status: 'needs_details'` + `missing: [...]` + the same `project_id`) from the job-status poll. The **calling LLM** decides to gather detail and call `create_estimate` again on the same project. Keeps the contract async + portable. |
-| **Re-creating a new project/estimate on each refine or detail-supply** | Easiest mental model: every generate = new row. | Orphan projects/estimates, broken version lineage, confusing dashboards. | Revert + regenerate against the SAME draft (`revertVagueEstimate` pattern); estimate `version` increments on the same project (already in `generateEstimateForProject`). |
-| **Putting the quality verdict inside `generateEstimateForProject`** | "One function does everything." | The core is shared and intentionally channel-agnostic; baking the gate + ask-details + session logic into it couples it to graph/conversation concerns and breaks the clean "generation core vs orchestration" split the milestone relies on. | Verdict + routing live in the **graph nodes** (`evaluateQuality`/`refine`/`ask*`); the core stays a pure generate function. (Matches today's separation — `ask-details.ts` is explicitly "WhatsApp-only, core NOT touched".) |
+| **Real-time live scraping of marketplaces/competitors per item** | "Get the exact current price from HomeAdvisor / Thumbtack / Yelp." | Brittle (anti-bot, ToS/legal risk), slow, non-deterministic, expensive per estimate; results vary run-to-run, undermining trust. Scraping is a milestone candidate to *weigh against*, not adopt blindly. | Use a **grounded web-search API** (Brave / Gemini grounding / Claude search via the OpenRouter path) returning snippets + citations, plus the cache. Treat results as *benchmarks*, not live quotes. |
+| **A single authoritative "the market price is \$X" with no range/uncertainty** | Cleaner UI, less to explain. | Falsely precise; when wrong it destroys trust harder than an honest range, and nudges the owner to send a number they didn't vet. | Single number for the math, but **always pair with a source/confidence indicator** so it reads as "researched, verify me" not "truth." |
+| **Building a proprietary nationwide priced cost database (RSMeans clone)** | "Then we don't depend on AI search; deterministic + fast." | Massive ongoing data-curation cost; RSMeans/Gordian/Homewyse have decades of head start + licensed BLS pipelines. Against the lean on-demand thesis. | On-demand AI research + cache *is* the lean alternative; the cache organically becomes a cost database over time without manual curation. |
+| **A full cost-of-living multiplier table maintained in-house** | Deterministic regional adjustment like RSMeans CCI. | Maintenance burden, staleness, 970+ location coverage gaps — overkill when the query can just include the city/state. | Pass city/state into the **search query** (direct local lookup). Consider a coarse multiplier only as a *fallback* when local results are sparse. |
+| **Auto-applying researched prices silently into the final sent estimate without review** | "Frictionless, no keyboard" matches the core value. | A wrong researched price sent to a client is worse than a blank — it looks like a binding quote. The owner must at least *see* it's researched. | Keep the existing review-in-editor step; mark researched items distinctly so the owner can scan + adjust before sending. The 5-min flow survives a glance-and-confirm. |
+| **Letting researched prices override the company price book** | "Newer/market data must be more accurate." | Violates the locked priority model — the price book is *authoritative* (Pillar 1, `anchorAndClampSections`). Owners deliberately curate it. | **Strict precedence: `price_book` > `researched` > `ai_estimate`.** Research only runs on no-match items. Never re-rank. |
+| **Researching prices for items the owner already priced/edited** | "Keep everything fresh." | Wasteful, and overwrites human intent (the strongest signal). | Research only no-match items; once `Edited`, never re-research. |
 
 ---
 
-## Per-Channel Behavior Matrix (THE core deliverable)
+## The "No Data Found" Path (explicit — ties to the originating $0 bug)
 
-Same quality verdict (`ok` \| `needs_details`), three control-flow shapes. "Human in the loop mid-run?" is the discriminator.
+This is the quality gate's crux. Originating bug: "Couch cleaning 8seats" → AI emitted **\$0** → **vagueness gate blocked the whole estimate as "too vague."** The researched-pricing agent must guarantee the \$0 path is closed. Ordered behavior:
 
-| Concern | Web (async, Inngest job) | WhatsApp (conversational) | MCP (programmatic API) |
-|---------|--------------------------|---------------------------|------------------------|
-| **Human waiting mid-run?** | **No** — fire-and-forget Inngest job; user already navigated away / sees a spinner. | **Yes** — owner is in an active chat thread, can reply inline. | **No** — calling LLM issued a tool call and is polling; no human in the tool execution itself. |
-| **On verdict = `needs_details`** | Auto-refine once (cap=1); if still vague, **end the run** and **persist** a "needs_details" state on the project/estimate. Do NOT `interrupt()`. | Auto-refine once (optional); if still vague, send `buildAskDetailsMessage()` inline and open `awaiting_details` session (existing behavior). | Auto-refine once (cap=1); if still vague, the job completes with a structured `needs_details` payload. |
-| **How the user/caller is prompted** | UI surfaces the persisted state: a non-blocking banner / state on the estimate editor ("Add a few details to finish this estimate: service type, area, materials, timeline") + optional in-app notification. | Inline WhatsApp text message (already localized EN/PT/ES). | `check_job_status` returns `{ status: 'needs_details', project_id, missing: ['service_type','area','materials','timeline'] }`; the LLM reads it and asks ITS user or supplies detail itself. |
-| **Persisted state mechanism** | **New** — needs a project/estimate-level flag (e.g. `projects.status = 'awaiting_details'` or an estimate workflow_status) since there is no chat session. Web can reuse the project row; a `whatsapp_sessions`-style table is overkill. | Existing `whatsapp_sessions(state='awaiting_details', draft_project_id, expires_at, 30-min TTL)`. | Stateless from MCP's view — the verdict rides in the job-status response; state lives on the project row (same as web). The LLM holds the conversational state on its side. |
-| **How continuation/resume happens** | User adds audio/photo/text in the web UI → triggers a **new** generation run (new Inngest event) against the same project → version increments. NOT a graph resume. | Next inbound message in `awaiting_details` → debounced → re-dispatched to the SAME draft project (`dispatchToExistingProject`) → regenerates. | LLM calls `create_estimate` again with more detail in the `prompt` (and/or same `project_id`) → new job → regenerates against same project. |
-| **Cleanup of the vague estimate** | `revertVagueEstimate`-equivalent: either delete the $0 estimate or keep it flagged-incomplete (decide in phase). Today web persists a vague estimate and shows it — undesirable. | `revertVagueEstimate()` deletes the $0 estimate + reverts project to draft (existing). | Same project-row cleanup as web; the LLM never sees a $0 estimate, only the `needs_details` status. |
-| **Existing entry point to migrate** | `lib/inngest/functions/generate-estimate.ts` (`call-ai-provider` step → must call the shared graph instead of the linear core). | `lib/whatsapp/estimate-graph.ts` + `whatsapp-process.ts` (already the graph — keep edge nodes for media download + conversational reply). | `lib/mcp/tools/write.ts` (`create_estimate` dispatches `EVENT_ESTIMATE_GENERATE`; `check_job_status` reads run output → must learn to surface `needs_details`). |
-| **LangGraph mechanism** | Graph runs to a terminal `persistNeedsDetails` node, then END. **No `interrupt()`.** | Graph runs to `askDetails` node (sends message + opens session), then END. (Today's behavior.) | Graph runs to a terminal node that sets the structured outcome in the run output, then END. **No elicitation pause.** |
+```
+For each line item with NO price-book match:
+  1. Research (regional, grounded web search).
+     ├─ Usable result (>=1 credible source, non-zero) → price_source='researched'
+     │     attach sources + (optional) low/avg/high + confidence
+     └─ No usable result ↓
+  2. Fall back to ai_estimate WITH a non-zero floor (never $0/null).
+     ├─ AI produces a plausible non-zero number → price_source='ai_estimate'
+     └─ Still $0 / refuses ↓
+  3. Emit a CLEARLY-FLAGGED "needs your price" line:
+       - non-blocking: does NOT hard-trip the vagueness gate into "too vague" reject
+       - placeholder/zero allowed ONLY when visibly flagged for the owner to fill
+       - estimate still renders; owner completes the one line in the editor
+```
 
-**The one-paragraph takeaway for phase planning:** the shared graph should END at a verdict, not pause. For WhatsApp the "end" node sends a chat message + opens a session; for web the "end" node persists a project-level `awaiting_details` flag the UI later reads; for MCP the "end" node writes a structured status into the Inngest run output that `check_job_status` relays. Three terminal "ask" nodes (or one terminal node + a `channel`-switched side-effect), NOT three different loops. The loop (auto-refine, cap=1) is identical and channel-agnostic; only the **terminal "ask" side-effect** differs.
+**Key contract:** the vagueness gate (`isVagueEstimate` / `lib/estimate/quality/vagueness.ts`) must distinguish *"the whole estimate is empty/itemless"* (legitimately vague → block) from *"one researched item couldn't be priced but is flagged"* (don't block the whole estimate). This is the single most important interaction to get right — and the direct fix for the originating bug.
 
 ---
 
 ## Feature Dependencies
 
 ```
-Shared canonical graph (ingest → generate → assess → refine/ask → finalize)
-   ├── requires ──> generateEstimateForProject  [EXISTS — keep as pure core, do not embed verdict]
-   ├── requires ──> isVagueEstimate()           [EXISTS in ask-details.ts — reuse verbatim as the cheap gate]
-   ├── requires ──> graph state: { quality, refineAttempts, channel }   [NEW]
-   │
-   ├── Quality gate (table stakes)
-   │       └── enhanced by ──> One auto-refine (differentiator)
-   │                               ├── requires ──> hard iteration cap   [loop guard — table stakes]
-   │                               └── enhanced by ──> LLM-as-judge (differentiator, DEFER)
-   │
-   ├── Per-channel terminal "ask" side-effect
-   │       ├── WhatsApp: askDetails node            [EXISTS — whatsapp_sessions + buildAskDetailsMessage]
-   │       ├── Web: persistNeedsDetails node        [NEW — project-level awaiting_details flag + UI banner]
-   │       └── MCP: needs_details status            [NEW — structured field in run output, read by check_job_status]
-   │
-   ├── Resumable continuation (table stakes)
-   │       ├── WhatsApp: dispatchToExistingProject   [EXISTS]
-   │       ├── Web: new run on same project from UI  [NEW trigger; version increment EXISTS]
-   │       └── MCP: re-call create_estimate          [EXISTS — same project_id]
-   │
-   ├── conflicts with ──> LangGraph interrupt() on web   [ANTI-FEATURE — no human mid-run]
-   └── conflicts with ──> MCP elicitation pause          [ANTI-FEATURE — async contract + client support]
+[Price-book anchoring: anchorAndClampSections]   (EXISTS — Pillar 1)
+        └──must run before──> [Researched pricing agent]
+                                   ├──writes──> [price_source: 'researched' tag/badge]
+                                   ├──feeds──> [Source/citation metadata]   (differentiator)
+                                   ├──feeds──> [Low/avg/high range metadata] (differentiator)
+                                   └──reads/writes──> [Service+region cache] (differentiator)
 
-Quota single-charge ──constrains──> auto-refine loop (charge per delivered estimate, not per attempt)
-Unified langfuse tracing ──enhances──> the whole graph (reuses v4.2 pipeline_events discipline; safe-metadata rule applies)
+[Researched pricing agent]
+        └──on no-data──> [Fallback chain: ai_estimate floor → flagged needs-price]
+                              └──must coordinate with──> [Vagueness gate]   (EXISTS — must learn the new distinction)
+
+[Canonical estimate graph: lib/estimate/graph]   (EXISTS — v4.3)
+        └──research node inserted BEFORE──> [assess node]   (channel-neutral; runs inside the Inngest job)
+
+[Estimate editor badges + manual override]   (EXISTS — EDITPRICE-01/02)
+        └──extended by──> [researched badge]  &  [Edited clears 'researched']
+
+[Super-admin config: platform_integrations pattern]   (EXISTS)
+        └──controls──> [region params, markup, fallback mode, cache TTL, search source]
 ```
 
 ### Dependency Notes
 
-- **Graph requires the core but must not absorb its responsibilities:** `generateEstimateForProject` stays the channel-agnostic generate primitive (it already takes a `channel?` option only for the WhatsApp system-prompt addendum). The quality verdict, refine decision, and ask-side-effects belong in graph nodes — mirroring today's clean split where `ask-details.ts` is "WhatsApp-only, core intentionally NOT touched."
-- **Auto-refine requires the iteration cap before it ships:** the cap is not a follow-up; an uncapped loop is the headline anti-pattern. Land them together.
-- **Web continuation is a NEW run, not a graph resume:** because there is no human mid-run, the web "resume" is the user adding input later and a fresh Inngest event firing. This is a dependency on the *absence* of `interrupt()`, not on adding it.
-- **MCP `needs_details` depends on `check_job_status` learning a new terminal status:** today `check_job_status` normalizes to `queued\|running\|complete\|failed` and extracts an `estimate_id` on complete (`normalizeStatus` / `extractEstimateId` in `write.ts`). It needs a `needs_details` branch carrying `project_id` + `missing[]`, sourced from the Inngest run output.
-- **Quota charging constrains the loop:** `recordUsage` is idempotent per `requestId` in the Inngest wrapper. If a single graph run can regenerate internally, decide the charging unit up front (recommend: per delivered estimate). Otherwise a refine silently double-bills.
-- **Checkpoint granularity is an open architectural question (from PROJECT.md):** today the WhatsApp graph runs inside a single `step.run` (no per-node checkpoint). A refine loop changes the cost calculus of re-running the whole graph on Inngest retry — phase planning must resolve graph↔Inngest checkpoint boundaries alongside the loop.
+- **Research requires price-book anchoring first:** research must only run on items with no price-book match, so anchoring/clamp resolves first. Hard ordering constraint.
+- **Research must run before `assess` in the graph:** so the vagueness assessment sees researched (non-zero) prices, not raw \$0 guesses. This is *the* placement decision in the milestone and the mechanical fix for the originating bug. Must preserve channel neutrality (no `lib/whatsapp/*` imports in the new node — same rule the v4.3/v4.5 nodes follow).
+- **Vagueness gate must learn a new distinction:** "itemless/empty estimate" (block) vs "one flagged unpriced item" (allow). Without this, the no-data path re-introduces the original bug.
+- **Editor override conflicts with re-research:** once `Edited`, an item must never be re-researched (human intent wins). One-way transition.
+- **Caching enhances cost/latency but must respect tenant boundaries:** market prices aren't tenant-private, so a platform-shared region-keyed cache is acceptable and far cheaper than per-tenant — but the key must normalize the service description well or the hit rate collapses.
+- **Source selection is an open milestone decision:** Brave Search vs Gemini googleSearch grounding vs Claude web search vs a pricing API vs scraping — must fit the OpenRouter-primary path. This is a STACK/architecture decision, flagged here because the differentiators (sources, range, confidence) depend on whichever source returns citations + snippets.
 
 ---
 
-## MVP Definition (for this milestone)
+## MVP Definition
 
-### Land in v4.3 core phases (parity + the safe upgrade)
+### Launch With (v4.6 core)
 
-- [ ] **Extract the canonical graph** with the quality gate (`evaluateQuality` reusing `isVagueEstimate()`) — the unification spine.
-- [ ] **Web consumes the graph** and, on `needs_details`, persists a project-level state instead of shipping a $0 estimate (closes the worst current single-shot gap).
-- [ ] **MCP consumes the graph** and surfaces `needs_details` via `check_job_status` (structured, async — no elicitation).
-- [ ] **WhatsApp consumes the graph**, keeping `askDetails` + sessions as its terminal node (no behavior regression; the "always reply / never throw" invariant preserved).
-- [ ] **Hard iteration cap** in graph state (even if auto-refine is cap=0 initially, the guard exists).
-- [ ] **Quota charged per delivered estimate** (no double-charge from internal attempts).
+- [ ] **Research node in the canonical graph, before `assess`, channel-neutral** — runs in the Inngest job for no-match items only. *Without this, nothing else exists.*
+- [ ] **Regional localization via client city/state in the search query** — direct local lookup (simplest mechanism that fits the OpenRouter/Brave path). *The whole point of the milestone.*
+- [ ] **`price_source: 'researched'` value + editor badge** — distinct from `ai_estimate`/`price_book`. *Locked decision; trust-critical.*
+- [ ] **No-data fallback chain (researched → ai_estimate non-zero floor → flagged needs-price) + vagueness-gate fix** — *Directly fixes the originating \$0 bug; the milestone fails without it.*
+- [ ] **Human override preserved** — confirm existing `Edited` flow covers researched items. *Near-zero cost, non-negotiable trust property.*
+- [ ] **Minimal source capture** — store source URLs / snippet count on the researched item even if UI is just "researched from N sources." *Cheap now, expensive to retrofit; underpins trust + future citations.*
 
-### Add after parity (the differentiator that serves the <5-min promise)
+### Add After Validation (v4.6.x / next)
 
-- [ ] **One automatic self-refine (cap=1)** on the failure path before asking the human — turns the one-pass gate into a true evaluator-optimizer loop.
-- [ ] **Web non-blocking "thin estimate" nudge** (soft verdict surfaced, user opts in).
-- [ ] **Unified langfuse traces** of verdict + attempt count across channels.
+- [ ] **Service+region cache with 30–90 day TTL** — *Add once research volume/cost is visible; big cost/latency win, not needed to validate correctness.*
+- [ ] **Low/avg/high range as supplementary metadata + hover/expand UI** — *Add once owners ask "how sure is this?" Range is honesty polish, not core math.*
+- [ ] **Admin-panel research config (markup, fallback mode, source selection, TTL)** — *Start with sane hardcoded defaults; expose knobs once usage reveals which matter. (Milestone lists it; can ship thin.)*
+- [ ] **Confidence indicator from source count/agreement** — *Layer on after sources are captured.*
 
-### Defer (flag for deeper phase research)
+### Future Consideration (v5+)
 
-- [ ] **LLM-as-judge soft-quality scoring** beyond the structural gate — new cost/latency/failure surface; only if structural-pass-but-weak cases prove common.
-- [ ] **Multi-iteration refine (cap>1)** — only if telemetry shows one refine is insufficient AND latency budget allows.
+- [ ] **Coarse regional multiplier fallback table** — *Only if direct local lookup proves too sparse for rural/obscure regions.*
+- [ ] **Full citations UI (clickable sources per line)** — *Defer until transparency proves a retention/trust driver.*
+- [ ] **Cross-tenant pricing analytics from the cache** ("market rate for X is trending up") — *Emergent value from the cache; needs volume + a privacy pass first.*
 
 ---
 
@@ -148,41 +150,57 @@ Unified langfuse tracing ──enhances──> the whole graph (reuses v4.2 pipe
 
 | Feature | User Value | Implementation Cost | Priority |
 |---------|------------|---------------------|----------|
-| Extract canonical graph + shared quality gate | HIGH | MEDIUM | P1 |
-| Web: persist `needs_details` (stop shipping $0 estimates) | HIGH | MEDIUM | P1 |
-| MCP: structured `needs_details` via check_job_status | HIGH | MEDIUM | P1 |
-| WhatsApp: consume graph, preserve askDetails + never-throw | HIGH (regression risk) | MEDIUM | P1 |
-| Hard iteration cap / loop guard | HIGH (cost safety) | LOW | P1 |
-| Quota charged per delivered estimate | HIGH (margin/trust) | MEDIUM | P1 |
-| One automatic self-refine (cap=1) | HIGH | MEDIUM | P2 |
-| Web non-blocking "thin estimate" nudge | MEDIUM | MEDIUM | P2 |
-| Unified langfuse tracing of verdict/attempts | MEDIUM | MEDIUM | P2 |
-| LLM-as-judge soft scoring | MEDIUM | HIGH | P3 |
-| Multi-iteration refine (cap>1) | LOW | MEDIUM | P3 |
+| Research node before `assess` (graph integration) | HIGH | MEDIUM | P1 |
+| Regional localization via city/state query | HIGH | MEDIUM | P1 |
+| `price_source: 'researched'` value + badge | HIGH | LOW | P1 |
+| No-data fallback chain + vagueness-gate fix | HIGH | MEDIUM | P1 |
+| Human override preserved for researched items | HIGH | LOW | P1 |
+| Minimal source capture (store URLs/count) | MEDIUM | LOW | P1 |
+| Service+region cache (TTL) | MEDIUM | MEDIUM | P2 |
+| Low/avg/high range metadata + UI | MEDIUM | MEDIUM | P2 |
+| Admin-panel research config | MEDIUM | MEDIUM | P2 |
+| Confidence indicator | MEDIUM | LOW-MEDIUM | P2 |
+| Regional multiplier fallback table | LOW | MEDIUM | P3 |
+| Full per-line citations UI | LOW-MEDIUM | MEDIUM | P3 |
 
-**Priority key:** P1 = required for the milestone's parity goal · P2 = the upgrade that justifies "agentic" · P3 = defer behind telemetry.
+**Priority key:** P1 = must have for v4.6 launch · P2 = should have, add when possible · P3 = future.
 
 ---
 
-## Competitor / Pattern Analysis
+## Competitor Feature Analysis
 
-| Aspect | Industry pattern (2026) | Xtimator's current state | Our approach for v4.3 |
-|--------|------------------------|--------------------------|----------------------|
-| Quality loop | Evaluator-optimizer / reflection: generate → LLM-as-judge → refine, **hard iteration cap** | One-pass structural gate (WhatsApp only); web/MCP single-shot | Extract structural gate to all channels; add cap=1 auto-refine as the differentiator; LLM-judge deferred |
-| Pause/resume | LangGraph `interrupt()` + checkpointer for HITL | WhatsApp uses sessions + new dispatch (not `interrupt()`) | Keep the END-and-persist model; **avoid `interrupt()` on async web** |
-| API clarification | MCP `elicitation/create` (synchronous, client-dependent) | MCP is async (`job_id` + poll) | Structured `needs_details` status on poll; **avoid elicitation pause** |
-| Termination | Concrete, measurable gate + max-attempts | Deterministic `isVagueEstimate` (total≤0 OR no items) | Reuse the deterministic gate as the cheap first check; cap any loop |
+| Feature | RSMeans / Gordian | Homewyse | Profit Rhino (Housecall Pro) | Xtimator v4.6 Approach |
+|---------|-------------------|----------|------------------------------|------------------------|
+| **Regional localization** | ZIP → nearest of 970 indexed cities; separate labor + material multipliers vs national=100 | BLS regional wage data; region = biggest variance | Owner enters their own local costs/labor rate | City/state injected into AI search query (direct local lookup); multiplier only as sparse-result fallback |
+| **Price source mechanism** | Licensed curated DB, quarterly/annual updates | 3–4 reputable sources + BLS, periodic refresh | National-average curated book + supplier data | On-demand grounded AI web search (Brave / Gemini grounding / Claude search via OpenRouter) |
+| **Range vs single** | Single localized unit cost | Explicit **Lower–Higher** labor range | Single flat-rate number | Single number for math; low/avg/high retained as metadata (P2) |
+| **Source transparency** | Methodology documented; not per-estimate citations | **Sources listed on each calculator page** | Methodology described, not per-item citations | Capture sources per item; surface "researched from N sources" (P1 minimal → citations P3) |
+| **Caching / refresh cadence** | Quarterly/annual book updates | Periodic (quarterly) | Periodic book updates | 30–90 day region-keyed cache (P2) |
+| **No-data behavior** | Item absent from book = estimator fills manually | Calculator simply not offered | Item not in book = manual add | Fallback chain ending in flagged needs-price; never \$0-block (P1) |
+| **Override** | Estimator edits freely | Advisory only | Owner-owned numbers | Existing editor `Edited` flow; human always wins |
+
+**Where Xtimator differs meaningfully:** every competitor relies on a *pre-built static database* refreshed on a vendor cadence; Xtimator does *per-item on-demand research* localized to the specific client's region. That's more flexible (covers obscure/long-tail services a static book lacks — exactly the "couch cleaning 8 seats" case) but inherits AI-search's variance and cost — which is precisely why **caching, source transparency, ranges, and the no-data fallback are not optional polish; they are the controls that make the on-demand approach trustworthy.**
 
 ---
 
 ## Sources
 
-- LangGraph — Human-in-the-Loop and Interrupts (checkpointer-backed `interrupt()` / `Command(resume)`; requires a caller on the same `thread_id`): https://docs.langchain.com/oss/python/langgraph/interrupts · https://www.langchain.com/blog/making-it-easier-to-build-human-in-the-loop-agents-with-interrupt
-- Evaluator-optimizer / reflection pattern with hard iteration cap (the named "generate → evaluate → refine/accept" loop): https://www.sitepoint.com/the-definitive-guide-to-agentic-design-patterns-in-2026/ · https://www.c-sharpcorner.com/article/implementing-stateful-evaluation-loops-in-langgraph/ · https://blog.gainesai.com/langgraph-strands-agentcore-and-the-patterns-that-actually-matter-in-2026
-- Quality-gate / termination-condition best practices (concrete measurable gates, avoid unbounded loops): https://arxiv.org/pdf/2501.17167 (QualityFlow) · https://futureagi.com/blog/langgraph-agent-evaluation-2026/
-- MCP elicitation vs structured-status (why async tools should return structured outcomes rather than pause): https://dev.to/kachurun/mcp-elicitation-human-in-the-loop-for-mcp-servers-m6a · https://newsletter.victordibia.com/p/mcp-for-software-engineers-part-2
-- Existing Xtimator code (primary source for current behavior + dependencies): `lib/whatsapp/estimate-graph.ts`, `lib/whatsapp/ask-details.ts`, `lib/services/generate-estimate.ts`, `lib/inngest/functions/generate-estimate.ts`, `lib/mcp/tools/write.ts`, `lib/whatsapp/handler.ts`, `lib/whatsapp/confirm.ts`
+- [Clear Estimates — locally adjusted costs, 15,000+ items / 400 US areas](https://www.clearestimates.com/)
+- [RSMeans Data Online — 970+ locations, 92,000+ line items](https://www.rsmeans.com/products/online)
+- [RSMeans City Cost Index](https://www.rsmeans.com/rsmeans-city-cost-index)
+- [Gordian — City Cost Index: Everything You Need to Know](https://www.gordian.com/resources/city-cost-index-everything-need-know/)
+- [NEDES — How to Use RSMeans for Zip Code-Based Pricing](https://nedesestimating.com/how-to-use-rsmeans-for-zip-code-based-pricing/)
+- [Projul — Live Construction Costs by County](https://projul.com/features/live-construction-costs/)
+- [Construction Estimator (Capterra) — 400 US markets, ZIP-based](https://www.capterra.com/p/10040049/Construction-Estimator/)
+- [Homewyse — Where does Homewyse get its cost data?](https://www.homewyse.com/reference/where_does_homewyse_get_cost_data.html)
+- [Homewyse — How accurate are Homewyse estimates? (Lower–Higher labor range)](https://www.homewyse.com/reference/how_accurate_are_homewyse_estimates.html)
+- [Housecall Pro × Profit Rhino flat-rate price book guide](https://help.housecallpro.com/en/articles/8754493-profit-rhino-with-housecall-pro-a-complete-guide)
+- [Housecall Pro — Price Book feature](https://www.housecallpro.com/features/price-book/)
+- [Jobber vs Housecall Pro 2026 comparison (flat-rate gap)](https://www.getjobber.com/comparison/jobber-vs-housecall-pro/)
+- [Towards Data Science — Grounding LLMs with Fresh Web Data to Reduce Hallucinations](https://towardsdatascience.com/grounding-llms-with-fresh-web-data-to-reduce-hallucinations/)
+- [Firecrawl — Reduce hallucinations in search-grounded LLM responses (caching/TTL, citations)](https://www.firecrawl.dev/glossary/web-search-apis/reduce-hallucinations-search-grounded-llm-responses)
+- [AiBrain — LLM Grounding in 2026: Options, Hidden Costs, Risks (double-synthesis token cost, cache poisoning)](https://www.askaibrain.com/en/posts/llm-grounding-guide-2026-options-hidden-costs-and-risks)
 
 ---
-*Feature research for: unified agentic estimate engine (quality-gate + refinement across web/WhatsApp/MCP)*
-*Researched: 2026-06-20 · Confidence: HIGH*
+*Feature research for: Researched/regional market pricing for AI estimate generation (Xtimator v4.6)*
+*Researched: 2026-06-23 · Confidence: MEDIUM-HIGH*

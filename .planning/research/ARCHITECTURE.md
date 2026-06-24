@@ -1,325 +1,335 @@
-# Architecture Research — Shared LangGraph Estimate Engine (v4.3)
+# Architecture Research — v4.6 Researched Pricing Agent
 
-**Domain:** Multi-channel agentic estimate pipeline (web UI + MCP + WhatsApp) on Next.js 16 + Inngest + LangGraph + Supabase
-**Researched:** 2026-06-20
-**Confidence:** HIGH (integration points read from actual source; graph↔durable-execution trade-offs verified against current ecosystem docs)
-
----
-
-## Executive Summary
-
-The milestone goal — "extract the WhatsApp StateGraph into a shared canonical domain graph consumed by web, MCP, and WhatsApp" — is achievable with **modest, well-bounded refactoring** because the hard part is already done: `generateEstimateForProject` (`lib/services/generate-estimate.ts`) is the single generation core all three channels already share. What diverges today is (1) orchestration and (2) the quality/refinement intelligence that only WhatsApp has (`evaluateVagueness → askDetails`).
-
-The central finding: **the current WhatsApp graph conflates three concerns that must be separated to make it shareable** — (a) channel-specific media *ingestion* (WhatsApp media download + Whisper/Vision via OpenRouter, done inside `processMessageNode`), (b) the *domain core* (generate → assess quality → refine decision), and (c) channel-specific *reply/session* side-effects (`sendConfirmation`, `askDetails`, `sendError`, `whatsapp_sessions` writes). Only (b) is canonical. Web already performs (a) decoupled at upload time via separate Inngest jobs (`transcribe-audio.ts`, `analyze-photos.ts`), and that decoupling is a strength to preserve — not a divergence to eliminate.
-
-Recommended shape: a **shared domain graph that enters at `generate`** with ingestion modeled as a *pluggable pre-node* (no-op/passthrough for web & MCP because transcripts/descriptions already exist on the project; WhatsApp media-download node for WhatsApp). Channel-specific reply is modeled as a *pluggable terminal handler* injected via a channel adapter, not hard-coded nodes. For graph↔Inngest, **keep the whole-graph-in-one-`step.run` pattern initially** (option a) to de-risk the extraction, then **graduate the two expensive operations (AI generate, AI assess) to their own `step.run` checkpoints via a thin "step runner" the graph calls** (a pragmatic hybrid of options a and b) — never adopt LangGraph's own checkpointer (option c), which would double-persist state Inngest already owns and add a second recovery model with no benefit here.
+**Domain:** AI estimate pipeline enrichment (regional market-price research for price-book misses)
+**Researched:** 2026-06-23
+**Confidence:** HIGH (grounded against the real graph/service/schema/UI files; the web-search *source* itself stays an open decision behind a seam)
 
 ---
 
-## Current Architecture (verified from source)
+## TL;DR Recommendation
 
-### What each channel does today
-
-```
-WHATSAPP (has the full intelligence)
-  webhook → handler.ts (processInboundWithDebounce)
-    ├─ pre-flight: read receipt, typing, session lookup, entitlement gate, draft project
-    ├─ debounce buffer (Redis, 5s) → batch
-    └─ inngest.send(EVENT_WHATSAPP_PROCESS)
-         → whatsapp-process.ts (whatsAppProcessJob, retries:1, onFailure→fallback reply)
-             step.run('refresh-typing')
-             step.run('orchestrate-estimate')   ◄── ENTIRE graph inside ONE step
-                 graph.invoke():
-                   supervisor → Send[] fan-out → processMessage (×N, PARALLEL)
-                     │  (per message: WhatsApp media download + OpenRouter
-                     │   transcribe/vision + INSERT recordings/photos)
-                   → gather → checkInputs
-                   → generateEstimate  (calls generateEstimateForProject, channel:'whatsapp')
-                   → evaluateVagueness (re-reads estimate, isVagueEstimate)
-                   → askDetails | sendConfirmation | sendError
-                       (whatsapp_sessions INSERT + sendWhatsAppMessage + logOutboundMessage)
-
-  (second graph, session-state inbound)
-  handler.ts (awaiting_confirm) → EVENT_WHATSAPP_INTENT
-    → whatsAppIntentRouterJob → intent-router.ts (classifyAndRoute)
-        normalize → ChatOpenAI classify → CONFIRM_OR_CANCEL | EDIT | CREATE | QUERY
-        CREATE → processInboundMessages (re-enters the create path above)
-
-WEB (linear, no intelligence)
-  POST /api/generate-estimate (auth + ratelimit + quota + requestId/attemptId/inputType)
-    → inngest.send(EVENT_ESTIMATE_GENERATE)
-       → generate-estimate.ts (generateEstimateJob, retries:2, onFailure→ai_job.failed)
-           step.run('call-ai-provider')  → generateEstimateForProject
-           step.run('record-usage')      → recordUsage (idempotent)
-  Ingestion DECOUPLED & earlier:
-    upload → EVENT_TRANSCRIBE_AUDIO → transcribe-audio.ts (whisper-transcribe + save)
-    upload → EVENT_ANALYZE_PHOTOS   → analyze-photos.ts (step.run per photo + record-usage)
-  ⇒ by generation time, recordings.transcript & photos.ai_description already exist.
-
-MCP (linear, no intelligence)
-  create_estimate (write.ts) → verify project tenancy
-    → inngest.send(EVENT_ESTIMATE_GENERATE, prompts:[prompt])   ◄── SAME path as web
-  check_job_status → polls Inngest REST /v1/events/{id}/runs
-```
-
-### Component responsibilities (today)
-
-| Component | Owns today | Canonical? |
-|-----------|-----------|------------|
-| `lib/services/generate-estimate.ts` `generateEstimateForProject` | Gather project/recordings/photos/company → AI provider → persist estimate+sections+items, version mgmt, client auto-link, math validation | **YES — already shared by all 3** |
-| `lib/whatsapp/estimate-graph.ts` | Orchestration + WhatsApp ingestion + quality assessment + WhatsApp reply/session | Partly — only the orchestration + quality logic is canonical |
-| `processMessageNode` (in graph) | WhatsApp media download + OpenRouter transcribe/vision + insert recordings/photos | **NO** — WhatsApp-specific ingestion |
-| `transcribe-audio.ts` / `analyze-photos.ts` | Web/upload-time ingestion (Whisper/Vision), checkpointed per item | **NO** — channel ingestion, but the RIGHT pattern |
-| `evaluateVaguenessNode` + `ask-details.ts` (`isVagueEstimate`, `buildAskDetailsMessage`, `revertVagueEstimate`) | Quality assessment + refinement decision | **YES — the intelligence to share** |
-| `sendConfirmation`/`askDetails`/`sendError` nodes | `whatsapp_sessions` writes + `sendWhatsAppMessage` + `logOutboundMessage` | **NO** — WhatsApp edge/reply |
-| Inngest functions (`whatsapp-process`, `generate-estimate`) | Durability, retries, idempotency, `onFailure`, pipeline_events, notifications, quota | **YES — keep as the durability boundary** |
+1. **WHERE:** Add a research step as an **enrichment inside `generateEstimateForProject`, immediately AFTER `anchorAndClampSections`** — NOT as a new graph node. The anchor pass is the only place that has *already* tagged which items are `price_book` matches; everything still tagged `ai_estimate` after anchoring is exactly the set "no price-book match" the milestone targets. Doing it here also means web, WhatsApp, and MCP all get it for free (the service is the shared core).
+2. **BATCHED, not per-item:** one research call for ALL unmatched items per estimate (a single `step.run`), not N calls.
+3. **CACHE:** a new `price_research_cache` table keyed by `(company_id, normalized_service_name, region)` with a TTL column; reuses the price-book RLS/service-role pattern.
+4. **PRECEDENCE:** `price_book > researched > ai_estimate`, enforced by running research only over the post-anchor `ai_estimate` set (anchored items are never touched).
+5. **SEAM:** a `PriceResearchProvider` interface resolved by `getPriceResearchProvider()` reading active source from `platform_integrations` — mirrors `getAIProviderWithFallback` / `getIntegrationKey` exactly, so Brave / OpenRouter-web / Gemini-grounding / pricing-API are swappable via admin config.
+6. **DURABILITY:** give research its own `step.run('price-research', …)` so a research-source timeout retries in isolation without re-charging the generate LLM call.
 
 ---
 
-## Recommended Architecture
+## Standard Architecture
 
-### Layered model — separate ingestion / domain core / channel edges
+### Where the new step lives in the existing pipeline
 
 ```
-┌───────────────────────────────────────────────────────────────────────┐
-│ CHANNEL ENTRY (Inngest functions — durability boundary, per channel)   │
-│  whatsapp-process.ts   generate-estimate.ts   (MCP reuses web fn)       │
-│  step.run wrappers • retries • onFailure • idempotency • pipeline_events│
-└───────────────┬───────────────────────────────────────────────────────┘
-                │ invoke(sharedGraph, initialState, { channelAdapter })
-                ▼
-┌───────────────────────────────────────────────────────────────────────┐
-│ SHARED DOMAIN GRAPH   lib/estimate/graph/                               │
-│                                                                         │
-│   START → ingest? → generate → assess → decide ──┬─► refine/askDetails  │
-│            (plug)   (CORE)    (CORE)  (CORE)      └─► finalize           │
-│                                                                         │
-│   ingest, refine/askDetails, finalize = CHANNEL-PLUGGED edge nodes      │
-│   generate, assess, decide            = CANONICAL domain nodes          │
-└───────────────┬───────────────────────────────────────────────────────┘
-                │ generate node calls ↓
-                ▼
-┌───────────────────────────────────────────────────────────────────────┐
-│ GENERATION CORE  lib/services/generate-estimate.ts  (UNCHANGED today)   │
-│  generateEstimateForProject(companyId, projectId, opts)                 │
-└───────────────────────────────────────────────────────────────────────┘
+Inngest job: generate-estimate.ts
+└─ step.run('orchestrate-estimate')          ← whole LangGraph in ONE step (DURABLE-02)
+   └─ buildEstimateGraph(adapter, { runner })
+        START → ingest → generate → assess → (autoRefine|finalize) → END
+                          │
+                          └─ makeGenerateNode(runner)
+                               └─ runner.run('ai-generate', () =>
+                                    generateEstimateForProject(companyId, projectId, opts)   ← shared core
+                                  )
+                                    1. gather project/client/company/priceBook
+                                    2. provider.generateEstimate(input)         (OpenRouter→Gemini)
+                                    3. anchorAndClampSections(...)               ← tags price_book vs ai_estimate
+                                ┌─▶ 3.5  ★ NEW: researchUnmatchedPrices(...)     ← THIS MILESTONE
+                                │        • input = sections still tagged 'ai_estimate' + client region
+                                │        • cache lookup → research provider → write unit_price + 'researched'
+                                4. server totals authority (totals.ts)
+                                5. persist estimates / estimate_sections / estimate_items
 ```
 
-### The canonical graph (channel-agnostic nodes)
+The research step is a **fourth authority pass** in the same family as anchoring (Pillar 1) and totals (GUARD-03): a pure-ish enrichment that mutates `unit_price` + `price_source` on the section tree *before* the server computes authoritative totals.
 
-| Node | Responsibility | Implementation |
-|------|----------------|----------------|
-| `ingest` (pluggable) | Ensure project has usable inputs. **Web/MCP: passthrough** (transcripts/descriptions already persisted) → routes to `generate` or to a "no inputs" terminal. **WhatsApp: download media + OpenRouter transcribe/vision + insert** (lifted from `processMessageNode`, incl. the `Send` fan-out). | Channel adapter supplies the node fn; default = passthrough that checks `hasUsableInputs(projectId)`. |
-| `generate` (CORE) | Call `generateEstimateForProject(companyId, projectId, opts)`; never re-throw — set `generationFailed` flag on error (current WhatsApp node behavior, generalized). | Shared. `opts.channel`/`opts.prompts` threaded from state. |
-| `assess` (CORE) | Re-read estimate, run `isVagueEstimate` (lifted from `ask-details.ts`, kept channel-neutral). Produces `isVague`. | Shared. This is the "intelligence parity" win for web/MCP. |
-| `decide` (CORE, conditional edge) | `generationFailed → onError`; `isVague → refine`; else `finalize`. | Shared edge function. |
-| `refine` (pluggable) | What to do when quality is low. **WhatsApp: `revertVagueEstimate` + open `awaiting_details` session + `buildAskDetailsMessage` reply.** **Web/MCP (v1): finalize-with-flag** (persist a `needs_detail`/low-confidence marker on the estimate so the UI/result can prompt; no conversational loop yet). | Channel adapter. |
-| `finalize` (pluggable) | **WhatsApp: open `awaiting_confirm` session + `sendConfirmation`.** **Web/MCP: no-op** (estimate row + revalidate is already done inside `generateEstimateForProject`; the HTTP/poll layer surfaces it). | Channel adapter. |
-| `onError` (pluggable) | **WhatsApp: `sendError` reply.** **Web/MCP: re-throw** so the Inngest `onFailure` path (ai_job.failed notification, terminal pipeline_event) fires exactly as today. | Channel adapter. |
+### Why enrichment-in-service, NOT a new graph node
 
-**Key design decision — the channel adapter.** Rather than building three separate `StateGraph` instances, build **one graph whose pluggable nodes are resolved from a `ChannelAdapter`** passed into a `buildEstimateGraph(adapter)` factory that closes over the adapter — mirroring the existing `buildEstimateGraph()` factory and the `makeQueryTools(companyId, supabase)` closure pattern already in the repo (more type-safe here than LangGraph `configurable`). The adapter interface:
+| Criterion | New node after `generate` | Enrichment after anchoring (RECOMMENDED) |
+|-----------|---------------------------|------------------------------------------|
+| Knows which items lack a price-book match | NO — anchoring runs *inside* the service, after the node returns. A node would have to re-fetch the persisted estimate and re-derive matches. | YES — sits a few lines after `anchorAndClampSections`, reads `price_source==='ai_estimate'` directly. |
+| Channel neutrality | Must stay channel-neutral; OK but redundant | Service is already channel-neutral and shared by all 3 channels. |
+| Totals correctness | Node mutates AFTER persistence → totals already wrong, needs re-persist | Runs BEFORE totals + persistence → totals authority sees researched prices natively. |
+| Vagueness gate ($0 → "too vague") | `assess` runs on the persisted estimate; if research is a later node, the originating bug ("$0 → blocked") still fires before research. | Research fills $0 → `assess` sees real numbers → bug fixed. **This is the originating requirement.** |
+| Code churn | New node + state channels + edges + re-fetch logic | One new call + one new module; graph topology untouched. |
+
+The decisive point is the **originating bug**: "Couch cleaning 8seats" generated `$0`, `assess`/`isVagueEstimate` blocked it. `assess` runs on the *already-persisted* estimate inside the graph. If research were a node placed *after* `assess`, the block already happened. Placing research *before* persistence (inside the service) means the vagueness gate sees researched prices — which is the whole point. (Placing a research node *between* `generate` and `assess` is theoretically possible but would require the node to re-load the just-persisted estimate, re-derive the unmatched set, re-run totals, and re-persist — strictly worse than doing it in-line where the section tree is still in memory and untagged-vs-tagged is already known.)
+
+### Component Responsibilities
+
+| Component | Responsibility | New / Modified |
+|-----------|----------------|----------------|
+| `lib/estimate/price-research/index.ts` `researchUnmatchedPrices(sections, ctx)` | Pure-orchestration: filter `ai_estimate` items, batch them, cache-check, call provider, write `unit_price` + `price_source:'researched'`. Never throws (mirrors anchoring's non-fatal contract). | **NEW** |
+| `lib/estimate/price-research/provider.ts` `PriceResearchProvider` + `getPriceResearchProvider()` | Source seam. Resolves active research source from `platform_integrations`; returns `{ lookup(items, region) }`. | **NEW** |
+| `lib/estimate/price-research/providers/{brave,openrouter-web,…}.ts` | Concrete source adapters. | **NEW** (≥1) |
+| `lib/estimate/price-research/cache.ts` | `(company_id, normalized_name, region)` read/write against `price_research_cache`. | **NEW** |
+| `price_research_cache` table | Multi-tenant cache with TTL. | **NEW (migration)** |
+| `lib/services/generate-estimate.ts` | Insert one call between `anchorAndClampSections` (~line 277) and totals (~line 282). Thread `client.city`/`client.state` region. | **MODIFIED** |
+| `lib/ai/schema.ts` `price_source` enum | Add `'researched'`; relax the D-15 preprocess (today coerces anything ≠ `price_book` → `ai_estimate`). | **MODIFIED** |
+| `lib/ai/types.ts` `LineItemOutput.price_source` | Add `'researched'`. | **MODIFIED** |
+| `lib/ai/price-anchoring.ts` | The `'price_book' as const` literal stays; type widening only. Anchoring still wins (precedence). | **MODIFIED (type only)** |
+| `estimate_items.price_source` CHECK | `… IN ('price_book','ai_estimate','researched')`. | **MODIFIED (migration)** |
+| `lib/actions/estimate.ts` (editor save) | `price_source` union `+ 'researched'`; the existing `isManuallyEdited → null` rule already covers edits. | **MODIFIED** |
+| `components/workspace/estimate/use-estimate-reducer.ts` | `EditorItem.price_source` union `+ 'researched'`. | **MODIFIED** |
+| `item-row.tsx` / `item-card-mobile.tsx` | New "Researched" badge branch (3rd variant alongside Price book / AI estimate). | **MODIFIED** |
+| `lib/admin/integrations-providers.ts` + admin UI | New "Price Research" category / source selector. | **MODIFIED** |
+| `lib/inngest/functions/generate-estimate.ts` | Optional: inject a real `StepRunner` so research becomes its own `step.run` (durability isolation). | **MODIFIED (optional, recommended)** |
+
+---
+
+## Recommended Project Structure
+
+```
+lib/estimate/price-research/
+├── index.ts                 # researchUnmatchedPrices(sections, ctx) — orchestrator, never throws
+├── provider.ts              # PriceResearchProvider interface + getPriceResearchProvider()
+├── cache.ts                 # cacheGet / cachePut keyed (company_id, normalized_name, region)
+├── normalize.ts             # reuse normalizeNameForMatch from price-anchoring.ts; add region normalizer
+└── providers/
+    ├── brave.ts             # Brave Search source adapter
+    ├── openrouter-web.ts    # OpenRouter web-search model source adapter
+    └── (gemini-grounding.ts / pricing-api.ts as added)
+
+supabase/migrations/
+└── 2026MMDD_price_research_cache_and_source.sql   # new table + CHECK widen + (optional) source seed
+
+components/workspace/estimate/                       # MODIFIED: add 'researched' badge
+```
+
+### Structure Rationale
+
+- **Sibling to `lib/ai/price-anchoring.ts`, but under `lib/estimate/`** — research is a *pricing-domain* concern (region, market lookup), distinct from the LLM provider layer. Keeping it under `lib/estimate/` mirrors `lib/estimate/quality/` and `lib/estimate/totals.ts` (estimate-domain authorities) and keeps it importable by the channel-neutral service without dragging in channel code.
+- **`providers/` mirrors `lib/ai/providers/`** — same mental model as the OpenRouter/Gemini/Anthropic adapter folder, so the swap pattern is familiar.
+- **`getPriceResearchProvider()` mirrors `getAIProviderWithFallback()`** — both are async factories that read active config from `platform_integrations` via `getIntegrationKey`/`getAIProvider`; engineers already know the shape.
+
+---
+
+## Architectural Patterns
+
+### Pattern 1: Post-Anchor Enrichment (the placement)
+
+**What:** Run research over `sections.flatMap(s => s.items).filter(i => i.price_source === 'ai_estimate')` immediately after `anchorAndClampSections`, before totals.
+**When:** Always, inside the shared service.
+**Trade-offs:** + single integration point, all channels free, totals/vagueness see real prices. − the service grows another responsibility (mitigated by extracting the logic into its own module and keeping the call a one-liner).
 
 ```typescript
-// lib/estimate/graph/types.ts
-export interface ChannelAdapter {
-  channel: 'web' | 'mcp' | 'whatsapp'
-  ingest(state: EstimateState): Promise<Partial<EstimateState>>   // web/mcp = passthrough
-  refine(state: EstimateState): Promise<Partial<EstimateState>>   // web/mcp = mark + finalize
-  finalize(state: EstimateState): Promise<Partial<EstimateState>> // web/mcp = no-op
-  onError(state: EstimateState): Promise<Partial<EstimateState>>  // web/mcp = throw
+// lib/services/generate-estimate.ts — after anchorAndClampSections (~line 280)
+const { sections: guardedSections } = anchorAndClampSections(aiEstimate.sections, priceBookMapped)
+
+// ★ NEW: research only the items anchoring left as 'ai_estimate'
+const researchedSections = await runner.run('price-research', () =>
+  researchUnmatchedPrices(guardedSections, {
+    companyId,                       // tenant scope — NEVER from LLM output
+    region: { city: client?.city ?? null, state: client?.state ?? null },
+    currencyCode,
+  })
+)
+// then totals + persistence read researchedSections instead of guardedSections
+```
+
+### Pattern 2: Provider Seam (the swappable source)
+
+**What:** `PriceResearchProvider` interface + `getPriceResearchProvider()` factory reading the active source from `platform_integrations`, exactly like `getAIProvider(companyId)`.
+**When:** Resolved once per `researchUnmatchedPrices` call.
+**Trade-offs:** + Brave/OpenRouter-web/Gemini/pricing-API swap with zero call-site change; admin can flip it live (the decision is still open, so the seam *is* the deliverable). − one indirection layer (negligible).
+
+```typescript
+// lib/estimate/price-research/provider.ts
+export interface ResearchedPrice {
+  normalizedName: string
+  unitPrice: number          // USD; 0 allowed only if source genuinely returns 0
+  confidence?: number        // optional, for future "low-confidence" badge
+}
+export interface PriceResearchProvider {
+  // BATCHED: all unmatched item names in one shot
+  lookup(items: { name: string }[], region: Region, currencyCode: string): Promise<ResearchedPrice[]>
+}
+export async function getPriceResearchProvider(): Promise<PriceResearchProvider | null> {
+  const source = await getActiveResearchSource()        // reads platform_integrations
+  switch (source) {
+    case 'brave':          return makeBraveProvider(await getIntegrationKey('brave_search'))
+    case 'openrouter_web': return makeOpenRouterWebProvider(await getIntegrationKey('openrouter'))
+    default:               return null                   // disabled → enrichment is a no-op
+  }
 }
 ```
 
-This keeps the canonical `generate → assess → decide` core defined exactly once and lets each channel "plug only its edge nodes," which is the literal milestone requirement.
+`null` provider (source unconfigured) → `researchUnmatchedPrices` returns input unchanged → items stay `ai_estimate`. This is the graceful-degrade pattern already used by `getXphereConfig()` / Stripe-Connect ("degrade gracefully when admin key absent").
 
----
+### Pattern 3: TTL Cache with Tenant Scope (avoid re-researching)
 
-## Decision 1 — graph ↔ Inngest checkpoint granularity
+**What:** Before calling the provider, look up each normalized `(company_id, name, region)` in `price_research_cache`; only send cache-misses to the provider; write fresh results back with `expires_at`.
+**When:** Every research call.
+**Trade-offs:** + huge cost/latency win on repeat services (same company quotes "couch cleaning per seat" in "Austin, TX" repeatedly); + bounds web-search spend. − cache staleness (mitigated by TTL); − one extra table.
 
-**Recommendation: (a) now → pragmatic hybrid of (a)+(b) later. Never (c).**
+**Why scope by `company_id`?** Two reasons: (1) RLS uniformity with the rest of the schema (every tenant table gates on `company_id` per the v4.0 RLS rewrite); (2) a researched price may be margin-adjusted per company (the milestone mentions admin-config margins). A platform-wide cache would leak one tenant's adjusted price into another. If margins are applied *after* the cache, a shared `(name, region)` cache is possible — but `company_id`-scoping is the safe default and matches every existing table.
 
-### The three options, with verified trade-offs
-
-| Option | Durability on retry | Cost of re-running AI | Complexity | Observability | Coupling |
-|--------|--------------------|--------------------|-----------|---------------|----------|
-| **(a) Whole graph in one `step.run`** *(current WhatsApp)* | Retry re-runs the WHOLE graph — re-downloads media, re-transcribes, re-generates, re-assesses. No per-node checkpoint. | **HIGH** — a transient failure in `assess` (a cheap DB read) re-charges Whisper + Vision + Claude generate. | **LOWEST** — graph stays a pure library; Inngest sees one opaque step. | One Inngest step span; node-level timing only via Langfuse. | **NONE** — graph has zero Inngest imports. |
-| **(b) Each node = its own `step.run`** | Per-node durable; a retry resumes after the last completed node. | **LOWEST** — generate never re-charges if a later node fails. | **HIGHEST** — graph nodes must call `step.run`, coupling the graph to Inngest; `Send` parallel fan-out + `step.run` interplay is fiddly; harder to unit-test the graph in isolation. | Best — every node is an Inngest step span. | **TIGHT** — graph imports Inngest `step`; no longer trivially reusable outside Inngest. |
-| **(c) LangGraph checkpointer + thin Inngest wrapper** | LangGraph persists state to its own store (Postgres/Supabase); resume from LangGraph checkpoint. | Low, but **you now run two durability systems**. | **HIGH + redundant** — Inngest already gives durable steps, idempotency, `onFailure`; adding a checkpointer means two recovery models, two state stores, two sources of truth for "did this run." | Split across Inngest + checkpointer; correlation pain. | Couples to a checkpointer backend you don't otherwise need. |
-
-### Why (a) first
-
-Verified ecosystem fact: **wrapping a whole graph (or any LangGraph segment) in a single durable step means a retry replays every node, re-executing all LLM/side-effect calls** — LangGraph nodes after a checkpoint always re-run on replay; durable-execution replay only short-circuits *completed durable steps*, and here the whole graph is a single step ([LangChain durable-execution docs](https://docs.langchain.com/oss/python/langgraph/durable-execution); [dev.to: idempotency in production LangGraph](https://dev.to/ajay_gupta_60a0393643f3e9/dont-run-it-twice-mastering-idempotency-in-production-langgraph-agents-2gmp)). The current WhatsApp code already **accepts and mitigates this**: `retries: 1` (one retry, capping re-charge blast radius), every node swallows errors and routes to a reply instead of throwing, and `generateEstimateNode` sets `generationFailed` rather than re-throwing. So option (a) is not a bug to fix during extraction — it is a known posture. Extract the graph **without** changing the durability model first, so the migration is behavior-preserving and reviewable.
-
-### The pragmatic hybrid (target end-state) — "step runner" passed into the graph
-
-Mapping *every* node to a `step.run` (full option b) over-couples the graph. The high-value subset is the **two expensive, non-idempotent-cost operations**: the AI **generate** call and (for WhatsApp) the per-message **transcribe/vision** calls. Make only those durable by passing a **step runner function into the graph via state/config**, defaulting to a passthrough:
-
-```typescript
-// initialState carries an injected runner; default just executes inline
-type StepRunner = <T>(id: string, fn: () => Promise<T>) => Promise<T>
-const passthroughRunner: StepRunner = (_id, fn) => fn()
-
-// generate node body:
-const result = await runner('ai-generate', () =>
-  generateEstimateForProject(companyId, projectId, opts))
+```sql
+CREATE TABLE public.price_research_cache (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id      UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  normalized_name TEXT NOT NULL,          -- normalizeNameForMatch(item.description)
+  region          TEXT NOT NULL,          -- normalized "city|state" or "state" or "US"
+  unit_price      NUMERIC(12,2) NOT NULL,
+  currency_code   TEXT NOT NULL DEFAULT 'USD',
+  source          TEXT,                   -- which provider produced it (audit)
+  confidence      NUMERIC,                -- optional
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  expires_at      TIMESTAMPTZ NOT NULL,   -- created_at + TTL; cron/lazy purge
+  UNIQUE (company_id, normalized_name, region, currency_code)
+);
+ALTER TABLE public.price_research_cache ENABLE ROW LEVEL SECURITY;
+-- Deny-all to clients; written/read only via requireServiceClient() from the service
+-- (mirrors pipeline_events posture). No authenticated policy needed — service-role bypasses RLS.
 ```
 
-The Inngest function injects `runner = (id, fn) => step.run(id, fn)`; unit tests inject `passthroughRunner`. This gives per-AI-call durability (generate won't re-charge if `assess` later fails) **without** importing Inngest into the graph and **without** a second checkpointer. It is the minimum coupling that buys the maximum durability. **Defer this to a dedicated late phase** so it lands after parity is proven and can be validated against re-charge metrics in `pipeline_events`.
+**TTL recommendation:** **30 days** for market prices (regional service rates move slowly; weekly would burn budget for little gain, yearly risks drift). Lazy purge: treat `expires_at < now()` as a miss; optional weekly cron `DELETE … WHERE expires_at < now()` (the project already runs pg_cron + Vercel-cron fallback patterns). Reuse `getIntegrationKey`'s 30s in-memory TTL idea only for the *active-source string*, not for prices.
 
-**Do NOT adopt (c).** Inngest already owns durability, idempotency (`event.data.batchKey` / `requestId`), and `onFailure`. A LangGraph checkpointer would duplicate state Inngest persists and introduce a second, conflicting recovery authority — verified anti-pattern for this stack ([Diagrid: checkpoints are not durable execution](https://www.diagrid.io/blog/checkpoints-are-not-durable-execution-why-langgraph-crewai-google-adk-and-others-fall-short-for-production-agent-workflows)).
+### Pattern 4: Batched Lookup (per-item vs batched)
 
----
+**What:** One provider call for all unmatched item names, not one call per item.
+**When:** Always inside a single Inngest step.
 
-## Decision 2 — keep web's decoupled ingestion; graph enters at `generate`
+| Approach | Latency (N unmatched items) | Cost | Failure blast radius |
+|----------|------------------------------|------|----------------------|
+| Per-item | N × round-trip (serial) or N concurrent (rate-limit risk) | N × search cost | one item fails → partial; retries multiply |
+| **Batched** | 1 round-trip | 1 search/LLM call | one call retries cleanly inside `step.run` |
 
-**Recommendation: KEEP decoupled ingestion. The shared graph enters at `generate`; `ingest` is a pluggable pre-node that is a passthrough for web/MCP and the media-download node for WhatsApp.**
-
-### Why keep decoupling
-
-- Web's `transcribe-audio.ts` / `analyze-photos.ts` already run at **upload time**, each with **per-item `step.run` checkpoints** (`whisper-transcribe`, `vision-${photo.id}`) and independent `retries: 2`. By the time `EVENT_ESTIMATE_GENERATE` fires, `recordings.transcript` and `photos.ai_description` are populated. This is *better* durability granularity than WhatsApp's in-graph ingestion, and it lets the capture UI show "Transcribing → Analyzing → Generating" progress (v1.2/v4.2 behavior). Folding ingestion back into the graph for web would **regress** both the per-item checkpointing and the staged UX.
-- WhatsApp's ingestion is genuinely coupled to the channel (Meta media IDs, `downloadWhatsAppMedia`, OpenRouter transcribe/vision, `whatsapp_messages.media_url` back-writes). It belongs in a WhatsApp-supplied `ingest` node, not the canonical core.
-
-### Entry-node design (parameterized per channel)
-
-The graph **always starts at `ingest`**, but `ingest` is adapter-supplied:
-
-- **Web / MCP `ingest` = passthrough guard.** It does no media work. It calls a small shared `hasUsableInputs(projectId)` check (transcripts OR photo descriptions OR `prompts` in state — the exact precondition `generateEstimateForProject` already enforces at lines 103–114) and routes: inputs present → `generate`; none → `onError`/terminal. This means web/MCP "enter mid-graph" *logically* (their first real work is `generate`) while still sharing one graph definition and one entry point.
-- **WhatsApp `ingest` = the lifted `processMessageNode` + `supervisor`/`Send` fan-out.** Parallel per-message download/transcribe/vision/insert, then converge (the existing `gather` + `checkInputs` logic) before `generate`.
-
-State carries a discriminator so nodes branch cleanly:
-
-```typescript
-const EstimateState = Annotation.Root({
-  companyId, projectId,                              // all channels
-  channel: Annotation<'web'|'mcp'|'whatsapp'>(),     // drives adapter-internal branching
-  prompts: Annotation<string[] | undefined>(),       // web/MCP free-form (already supported)
-  // WhatsApp-only (optional; undefined for web/MCP):
-  ownerPhone, messages, currentMessage, mediaResults,
-  // shared outputs:
-  estimateId, estimateLanguage, isVague, generationFailed,
-})
-```
-
-This is the current `EstimateState` plus a `channel` discriminator and `prompts` — a superset, so the WhatsApp path is unchanged and web/MCP simply leave the WhatsApp fields `undefined` (same optional-field pattern already used for `currentMessage`).
+A typical estimate has a handful of unmatched items; N serial web searches inside one Inngest step risks the step's wall-clock budget. A batched call — "return average US market unit prices for these services in {city, state}: [...]" — is one round-trip, one retry unit, one cost unit. For a pure pricing-API source that only accepts one query per item, the provider adapter can fan out *internally* (its concern), but the **seam contract is batched** (`lookup(items[], region)`), so the orchestrator and cache logic never change when the source changes.
 
 ---
 
-## Decision 3 — module layout
+## Data Flow
 
-**Recommendation: `lib/estimate/graph/` for the shared graph + canonical nodes; channel adapters live under `lib/estimate/adapters/` (WhatsApp adapter imports existing `lib/whatsapp/*` primitives).**
+### Research enrichment flow (the new path)
 
 ```
-lib/estimate/                         # NEW — the shared domain
-├── graph/
-│   ├── index.ts                      # buildEstimateGraph(adapter) factory (mirrors current factory)
-│   ├── state.ts                      # EstimateState Annotation (superset of today's)
-│   ├── types.ts                      # ChannelAdapter, StepRunner interfaces
-│   └── nodes/
-│       ├── generate.ts               # CORE — wraps generateEstimateForProject (no re-throw)
-│       ├── assess.ts                 # CORE — isVagueEstimate (lifted, channel-neutral)
-│       └── decide.ts                 # CORE — conditional edge fns
-├── adapters/
-│   ├── default.ts                    # web/MCP adapter: ingest=passthrough, refine=mark+finalize,
-│   │                                 #   finalize=no-op, onError=throw
-│   └── whatsapp.ts                   # WhatsApp adapter: ingest=media fan-out, refine=askDetails,
-│                                     #   finalize=sendConfirmation, onError=sendError
-└── quality/
-    └── vagueness.ts                  # isVagueEstimate moved here (channel-neutral core);
-                                      #   ask-details.ts keeps WhatsApp copy/session helpers
-
-lib/services/generate-estimate.ts     # UNCHANGED — still the generation core
-lib/whatsapp/estimate-graph.ts        # SHRINKS to re-export buildEstimateGraph(whatsappAdapter)
-                                      #   (or is deleted once whatsapp-process.ts imports new module)
-lib/whatsapp/ask-details.ts           # KEEPS buildAskDetailsMessage + revertVagueEstimate
-                                      #   (WhatsApp session/copy); imports core isVagueEstimate
+generateEstimateForProject
+  └─ anchorAndClampSections → guardedSections (items tagged price_book | ai_estimate)
+       └─ researchUnmatchedPrices(guardedSections, {companyId, region, currencyCode})
+            1. unmatched = items where price_source === 'ai_estimate'
+            2. region = normalize(client.city, client.state)  (fallback: state → "US")
+            3. cacheGet(company_id, normalizedName, region) for each → {hits, misses}
+            4. if misses.length:
+                 provider = await getPriceResearchProvider()
+                 if provider: results = await provider.lookup(misses, region, currencyCode)
+                              cachePut(results)            (write-through, expires_at = now+TTL)
+            5. for each unmatched item with a hit/result:
+                 item.unit_price  = researchedPrice
+                 item.price_source = 'researched'
+               (no hit & no result → item STAYS 'ai_estimate' — never downgrade price_book)
+            6. return rewritten sections
+  └─ totals.ts computes authoritative subtotal/tax/grand over researched prices
+  └─ persist estimate_items with price_source ∈ {price_book, researched, ai_estimate}
+  └─ assess (graph) now sees non-$0 numbers → vagueness gate passes
 ```
 
-- **How WhatsApp plugs edge nodes:** `lib/estimate/adapters/whatsapp.ts` imports the existing WhatsApp primitives (`downloadWhatsAppMedia`, `transcribeAudioOR`/`analyzePhotoOR`, `sendWhatsAppMessage`, `logOutboundMessage`, `whatsapp_sessions` writes, `revertVagueEstimate`, `buildAskDetailsMessage`) and supplies them as `ingest`/`refine`/`finalize`/`onError`. The WhatsApp-only `channel:'whatsapp'` flag continues to flow into `generateEstimateForProject` for the system-prompt addendum (lines 171–176) via the generate node.
-- **How web/MCP enter mid-graph:** they invoke `buildEstimateGraph(defaultAdapter)`; the default `ingest` is a passthrough guard, so the first substantive node is `generate`. No separate "linear" path — `generate-estimate.ts` swaps its `step.run('call-ai-provider')` body to `graph.invoke(...)` (initially still wrapped in that one step → preserves option (a) durability and the existing `record-usage`/notification/pipeline_event steps around it).
+### Precedence guarantee (`price_book > researched > ai_estimate`)
+
+- **price_book wins absolutely:** research only ever reads items already tagged `ai_estimate`. Anchored (`price_book`) items are out of the candidate set — they can never be overwritten by research.
+- **researched beats ai_estimate:** a successful lookup re-tags `ai_estimate → researched`.
+- **ai_estimate is the floor:** no hit / source disabled / provider error → item keeps `ai_estimate`. Research is **non-fatal and additive**, exactly like anchoring (which "must never break generation").
 
 ---
 
-## Integration Points (where the wiring lands)
+## Scaling Considerations
 
-| # | Integration point | Action |
-|---|-------------------|--------|
-| 1 | `lib/services/generate-estimate.ts` | **No change** — remains the generation core the `generate` node calls. (This is the load-bearing fact that makes the milestone cheap.) |
-| 2 | `lib/inngest/functions/whatsapp-process.ts` `step.run('orchestrate-estimate')` | Repoint import from `@/lib/whatsapp/estimate-graph` to `@/lib/estimate/graph` + `whatsappAdapter`. Initial state gains `channel:'whatsapp'`. **Durability model unchanged** (still one step). |
-| 3 | `lib/inngest/functions/generate-estimate.ts` `step.run('call-ai-provider')` | Replace the direct `generateEstimateForProject` call with `graph.invoke(defaultAdapter, {channel, prompts, language, ...})`. Keep `record-usage`, `onFailure`, `recordPipelineEvent`, notifications as-is. This is the line that gives web parity (assess/refine). |
-| 4 | `lib/mcp/tools/write.ts` `create_estimate` | **No change** — it already dispatches `EVENT_ESTIMATE_GENERATE`; it inherits the upgraded graph for free via integration point 3. (Confirms MCP needs zero new code for parity.) |
-| 5 | `app/api/generate-estimate/route.ts` | **No change** — same event, same payload. |
-| 6 | `lib/whatsapp/ask-details.ts` → new `lib/estimate/quality/vagueness.ts` | Move `isVagueEstimate` to the channel-neutral core; WhatsApp keeps copy + session helpers and imports the core checker. |
-| 7 | `lib/inngest/events.ts` `EstimateGeneratePayload` | Optionally add `channel?` (web/mcp) so the generate node can thread it; backward-compatible (already the pattern for `attemptId`/`inputType`). |
-| 8 | `pipeline_events` (`lib/observability/pipeline-events.ts`) | Extend step vocabulary to record `assess`/`refine` for web/MCP so the new intelligence is observable in the existing Super-Admin event log (v4.2). Langfuse traces wrap `graph.invoke` once per channel. |
-| 9 | `lib/whatsapp/intent-router.ts` | **Out of scope / no change.** This is a *separate* conversational-routing graph for session-state inbound; it ultimately calls `processInboundMessages` → the create path. It is not part of the create-time domain graph and should not be merged in this milestone. |
+| Scale | Adjustments |
+|-------|-------------|
+| 0–1k estimates/mo | Cache + batched call is plenty. Single research source. |
+| 1k–100k | Cache hit-rate dominates cost; consider a platform-wide `(name, region)` cache layer behind the per-company one IF margins are applied post-cache. Add provider fallback (Brave→OpenRouter-web) mirroring AI fallback. |
+| 100k+ | Pre-warm cache for the company's most-quoted services; move purge to a dedicated cron; rate-limit the research source per company tier (reuse `checkQuota`). |
 
----
+### Scaling Priorities
 
-## New vs Modified (explicit)
-
-### New components
-- `lib/estimate/graph/` — `index.ts` (factory), `state.ts`, `types.ts` (`ChannelAdapter`, `StepRunner`), `nodes/generate.ts`, `nodes/assess.ts`, `nodes/decide.ts`
-- `lib/estimate/adapters/default.ts` (web/MCP) and `lib/estimate/adapters/whatsapp.ts`
-- `lib/estimate/quality/vagueness.ts` (channel-neutral `isVagueEstimate` + a `hasUsableInputs` guard)
-- (Later phase) `StepRunner` injection wiring in the two Inngest functions
-
-### Modified components
-- `lib/inngest/functions/whatsapp-process.ts` — import swap + `channel:'whatsapp'` in initial state (durability unchanged)
-- `lib/inngest/functions/generate-estimate.ts` — `call-ai-provider` step body now invokes the shared graph with the default adapter (this is the parity change)
-- `lib/whatsapp/estimate-graph.ts` — shrinks to a thin re-export of `buildEstimateGraph(whatsappAdapter)`, then is deleted once `whatsapp-process.ts` imports the new module directly
-- `lib/whatsapp/ask-details.ts` — re-exports/imports the moved `isVagueEstimate`; keeps WhatsApp session + copy helpers
-- `lib/inngest/events.ts` — additive `channel?` on `EstimateGeneratePayload`
-- `lib/observability/pipeline-events.ts` — additive `assess`/`refine` step values
-
-### Explicitly unchanged (and why that matters)
-- `lib/services/generate-estimate.ts` (generation core), `lib/mcp/tools/write.ts` (inherits via shared event), `app/api/generate-estimate/route.ts`, `lib/inngest/functions/transcribe-audio.ts` + `analyze-photos.ts` (decoupled ingestion preserved), `lib/whatsapp/intent-router.ts` (separate graph).
+1. **First bottleneck: research-source cost/latency.** Fix order already baked in: cache → batch → TTL. A warm cache makes most generations skip the network entirely.
+2. **Second bottleneck: Inngest step wall-clock** if a source is slow. Fix: research gets its **own `step.run`** (below), so it neither blocks nor re-charges the generate LLM step on retry.
 
 ---
 
-## Suggested Build Order (dependency-aware, de-risking first)
+## Durability inside Inngest
 
-Ordering principle: **extract behind the most-tested channel first without changing its behavior, then migrate the simplest channel, then add intelligence, then optimize durability last.**
+The whole graph runs in **one** `step.run('orchestrate-estimate')` (DURABLE-02: Inngest is the sole durability layer, no LangGraph checkpointer). Two options for research:
 
-1. **Phase A — Extract the canonical core behind WhatsApp (behavior-preserving).**
-   Create `lib/estimate/graph/` + `whatsappAdapter` by *moving* the existing WhatsApp nodes into the adapter and the `generate/assess/decide` nodes into the core. Repoint `whatsapp-process.ts`. **No durability change, no new intelligence, no web/MCP change.** WhatsApp is the channel with the richest test suite and the existing graph — if the extraction is faithful, its tests stay green. This de-risks the refactor itself. *Depends on: nothing.*
+- **Recommended:** thread a real `StepRunner` into `buildEstimateGraph(adapter, { runner })` from `generate-estimate.ts` so `researchUnmatchedPrices` runs in `runner.run('price-research', …)`. Because the graph today runs inside a single outer `step.run`, true nested-step isolation requires the runner to map to `step.run`. The seam *already exists* (`StepRunner`, `passthroughRunner`) and the generate node already wraps its AI call in `runner.run('ai-generate', …)` — research follows the identical pattern. Net effect: a research-source timeout retries the research unit without re-invoking the (already-succeeded, already-paid-for) LLM generate call.
+- **Minimum viable:** call `researchUnmatchedPrices` inline (passthroughRunner). Simpler, but a research-source failure that throws would bubble to the whole `orchestrate-estimate` step and re-run generation on retry. **Mitigation that makes this acceptable:** `researchUnmatchedPrices` **never throws** (catches all provider/cache errors, returns input unchanged) — same contract as `anchorAndClampSections`. With never-throw, inline is safe; the dedicated step is purely a cost/retry-isolation optimization.
 
-2. **Phase B — Migrate web/MCP onto the shared graph with the default adapter (generate-only parity first).**
-   Swap `generate-estimate.ts` `call-ai-provider` to `graph.invoke(defaultAdapter)` where the default `ingest` = passthrough guard and `assess`/`refine`/`finalize` initially behave as *no-op finalize* (functionally identical to today's linear path). MCP comes along for free. **Goal: identical output to today, now flowing through the graph.** Proves the shared graph works for web/MCP before behavior changes. *Depends on: A.*
-
-3. **Phase C — Turn on intelligence parity for web/MCP.**
-   Implement the default adapter's real `assess` (`isVagueEstimate`) + `refine` (persist a low-confidence/`needs_detail` marker; surface in UI / MCP result). First *behavior* change for web/MCP, isolated to the default adapter. *Depends on: B.*
-
-4. **Phase D — Unified observability.**
-   Langfuse tracing around `graph.invoke` for all channels + `pipeline_events` `assess`/`refine` rows + tests/UAT across channels. *Depends on: A–C (so there is something uniform to observe).*
-
-5. **Phase E (last, optional) — Durability granularity refactor.**
-   Introduce the `StepRunner` injection so the AI `generate` call (and WhatsApp transcribe/vision) become their own `step.run` checkpoints, reducing re-charge on retry. Validate against `pipeline_events` retry/re-charge data gathered in D. Done last because it is an optimization, touches the durability contract, and benefits from the observability built in D. *Depends on: A, D.*
-
-**Why this order de-risks:** the riskiest mechanical change (graph extraction) happens behind the best test coverage (A); the riskiest *product* change (web behavior) is split into a no-op migration (B) then an opt-in behavior flip (C); the change that touches money/durability (E) is last, after metrics exist to prove it helps.
+**Decision:** ship inline + never-throw first (Phase 108), add the dedicated `step.run` as a hardening step (Phase 109) once a real source is wired and its latency is measured.
 
 ---
 
-## Anti-Patterns to Avoid
+## Anti-Patterns
 
-| Anti-pattern | Why it's wrong here | Do instead |
-|--------------|--------------------|-----------|
-| Adding a LangGraph checkpointer "for durability" | Inngest already owns durability/idempotency/onFailure; a checkpointer adds a second state store and a conflicting recovery authority | Keep Inngest as the sole durability boundary; inject a `StepRunner` only for the expensive AI nodes |
-| Mapping every node to a `step.run` in one pass | Couples the graph to Inngest, complicates `Send` fan-out, breaks isolated unit-testing | Default to whole-graph-in-one-step; graduate only AI nodes via injected runner |
-| Folding web ingestion into the graph | Regresses per-item checkpointing in `transcribe-audio`/`analyze-photos` and the staged capture UX | Keep ingestion decoupled; graph `ingest` is a passthrough guard for web/MCP |
-| Three separate `StateGraph` instances per channel | Re-duplicates the orchestration you're trying to unify | One graph + `ChannelAdapter`; channels plug only edge nodes |
-| Merging the intent-router graph into the create graph | It's a different concern (conversational routing over existing data) on a different trigger | Leave `intent-router.ts` untouched; it already re-enters the create path via `processInboundMessages` |
-| Changing durability + extracting the graph in one phase | Two big variables at once → unreviewable, hard to bisect | Extract behavior-preserving first (Phase A), optimize durability last (Phase E) |
+### Anti-Pattern 1: Research as a post-`assess` graph node
+**What people do:** add a node after `generate`/`assess` to "enrich prices."
+**Why it's wrong:** the vagueness gate (`assess`/`isVagueEstimate`) already ran on the persisted $0 estimate and blocked it — the originating bug is NOT fixed. The node must also re-load + re-total + re-persist.
+**Do this instead:** enrich in-service before totals/persistence.
+
+### Anti-Pattern 2: Trusting `region` or item names from LLM output for tenant/cache keys
+**What people do:** key the cache or scope queries off model-produced strings.
+**Why it's wrong:** breaks the project-wide invariant "`companyId` is never LLM-derived." A poisoned name could read another tenant's cache.
+**Do this instead:** `company_id` from closure/param; `region` from the persisted `client.city/state`; only the *item description text* (used for the search query and the normalized cache key) comes from the model — and it's tenant-scoped by `company_id` in the key.
+
+### Anti-Pattern 3: Per-item synchronous web searches inside the Inngest step
+**What people do:** loop `await search(item)` over items.
+**Why it's wrong:** N serial round-trips blow the step budget; N concurrent ones hit source rate limits; retries multiply cost.
+**Do this instead:** batched `lookup(items[], region)`; let a single-query-only source fan out internally.
+
+### Anti-Pattern 4: Overwriting `price_book` or persisting research as authoritative totals
+**What people do:** re-price everything, or write the source's returned total.
+**Why it's wrong:** violates `price_book > researched`; bypasses GUARD-03 server totals authority.
+**Do this instead:** research only `ai_estimate` items; only `unit_price` + `price_source` change; `totals.ts` remains the sole total authority.
+
+---
+
+## Integration Points
+
+### External Services
+
+| Service | Integration Pattern | Notes |
+|---------|---------------------|-------|
+| Brave Search (candidate) | New `brave_search` provider in `platform_integrations` (encrypted key via `getIntegrationKey`); `makeBraveProvider`. | Independent index; key already supported by the encrypted-key path. |
+| OpenRouter web-search model (candidate) | Reuse existing `openrouter` key; `makeOpenRouterWebProvider` issues a web-grounded completion. | Zero new key; stays on the project's primary AI path. |
+| Gemini grounding / pricing API (candidates) | Same seam; add adapter + (maybe) new `platform_integrations` provider id. | Decision deferred — seam absorbs whichever wins. |
+
+### Internal Boundaries
+
+| Boundary | Communication | Notes |
+|----------|---------------|-------|
+| `generate-estimate.ts` ↔ `price-research/index.ts` | direct async call, never-throws | one new line after anchoring |
+| `price-research` ↔ `platform_integrations` | `getPriceResearchProvider()` → `getIntegrationKey` | mirrors `getAIProvider` |
+| `price-research` ↔ `price_research_cache` | service-role client (`requireServiceClient`) | RLS deny-all to clients, like `pipeline_events` |
+| schema/types ↔ anchoring/totals/persistence/editor | the `'researched'` enum value | single thread through ~8 files (schema.ts, types.ts, price-anchoring type, estimate_items CHECK, actions/estimate.ts, use-estimate-reducer.ts + item-row + item-card-mobile) |
+
+---
+
+## Suggested Build Order (dependency-ordered phases)
+
+**Phase 105 — `price_source: 'researched'` threading (foundation, no behavior change).**
+Widen `lib/ai/schema.ts` enum (relax D-15 preprocess to allow `'researched'`), `lib/ai/types.ts` `LineItemOutput`, `price-anchoring.ts` types, `estimate_items.price_source` CHECK migration, `lib/actions/estimate.ts` + `use-estimate-reducer.ts` unions, and the "Researched" badge in `item-row.tsx` / `item-card-mobile.tsx`. Ships green with zero items ever tagged `researched` yet (badge dormant). *Depends on: nothing.* *Unblocks: everything.*
+
+**Phase 106 — Cache table + tenant-scoped cache module.**
+Migration for `price_research_cache` (RLS deny-all), `cache.ts` (get/put, TTL=30d, normalized region), `normalize.ts` (reuse `normalizeNameForMatch` + region normalizer). Unit-tested in isolation. *Depends on: nothing (parallelizable with 105).* *Unblocks: 108.*
+
+**Phase 107 — Provider seam + first source.**
+`PriceResearchProvider` interface, `getPriceResearchProvider()` (reads active source from `platform_integrations`, returns `null` when unconfigured), one concrete adapter (recommend **OpenRouter-web first** — no new key, stays on primary path — then Brave behind the same seam). Admin UI: new "Price Research" source selector in `integrations-providers.ts`. *Depends on: nothing for the interface; admin wiring reuses existing pattern.* *Unblocks: 108.*
+
+**Phase 108 — Orchestrator + service integration (the payoff).**
+`researchUnmatchedPrices` (filter `ai_estimate` → cache-check → batched `provider.lookup` → write-through → re-tag), wired into `generateEstimateForProject` after `anchorAndClampSections`, **never-throws**, inline (passthroughRunner). End-to-end: the "couch cleaning $0" case now gets a researched price and passes the vagueness gate. *Depends on: 105, 106, 107.* *Unblocks: the milestone goal.*
+
+**Phase 109 — Durability + hardening (optional).**
+Inject a real `StepRunner` from `generate-estimate.ts` so research runs in its own `step.run('price-research')`; add provider fallback (source A → source B) mirroring AI fallback; admin-config margins applied post-research; optional purge cron. *Depends on: 108.* *Defer until a real source's latency is measured.*
+
+> Phases 105 and 106/107 can run in parallel; 108 is the join point; 109 is post-hoc hardening. Numbering continues the global counter (v4.6 starts at Phase 105 per PROJECT.md).
 
 ---
 
 ## Sources
 
-- [LangChain — Durable execution (official docs)](https://docs.langchain.com/oss/python/langgraph/durable-execution) — HIGH: nodes after a checkpoint re-execute on replay; durability short-circuits only completed durable steps.
-- [Diagrid — Checkpoints Are Not Durable Execution](https://www.diagrid.io/blog/checkpoints-are-not-durable-execution-why-langgraph-crewai-google-adk-and-others-fall-short-for-production-agent-workflows) — MEDIUM: checkpointer ≠ durable execution; don't stack two recovery models.
-- [dev.to — Don't Run It Twice: Idempotency in Production LangGraph Agents](https://dev.to/ajay_gupta_60a0393643f3e9/dont-run-it-twice-mastering-idempotency-in-production-langgraph-agents-2gmp) — MEDIUM: side-effectful nodes must be idempotent because replay re-fires LLM/API calls.
-- [Inngest — Idempotency](https://www.inngest.com/docs/guides/handling-idempotency) and [Errors & Retries](https://www.inngest.com/docs/guides/error-handling) — MEDIUM: event-id + function idempotency keys; per-step retry/replay semantics (matches the repo's `event.data.batchKey` / `requestId` usage).
-- Primary source: the Xtimator codebase (read 2026-06-20) — `lib/whatsapp/estimate-graph.ts`, `lib/inngest/functions/{whatsapp-process,generate-estimate,transcribe-audio,analyze-photos}.ts`, `lib/services/generate-estimate.ts`, `lib/mcp/tools/write.ts`, `lib/whatsapp/{handler,intent-router,ask-details}.ts`, `lib/inngest/events.ts`, `app/api/generate-estimate/route.ts` — HIGH.
+- Codebase (HIGH — read directly): `lib/services/generate-estimate.ts`, `lib/ai/price-anchoring.ts`, `lib/estimate/totals.ts`, `lib/estimate/graph/{index,state,types}.ts`, `lib/estimate/graph/nodes/{generate,decide}.ts`, `lib/ai/{schema,types,provider-with-fallback}.ts`, `lib/inngest/functions/generate-estimate.ts`, `lib/platform-config.ts` (`getIntegrationKey`), `lib/admin/integrations-providers.ts`, `components/workspace/estimate/{item-row,item-card-mobile,use-estimate-reducer}.tsx`, `lib/actions/estimate.ts`, `supabase/migrations/20260506000001_phase19_price_book.sql`.
+- `.planning/PROJECT.md` — v4.6 milestone definition, locked constraints (OpenRouter primary, Brave candidate, Phase 105 start), originating bug.
+- `lib/estimate/graph/CHECKPOINTING.md` (DURABLE-02: Inngest sole durability) — referenced via `index.ts` header.
 
 ---
-*Architecture research for: shared multi-channel LangGraph estimate engine (Xtimator v4.3)*
-*Researched: 2026-06-20*
+*Architecture research for: v4.6 Researched Pricing Agent (regional market-price enrichment for price-book misses)*
+*Researched: 2026-06-23*
