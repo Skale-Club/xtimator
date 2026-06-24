@@ -1392,4 +1392,4 @@ Plans:
   3. The calibrated numbers are written into `billing_config` and the decision to enable real charging is explicitly gated on this validation existing — no real billing is switched on before the measured numbers and the documented invariant exist
 **Plans**: 2 plans (2 waves)
 - [x] 116-01-PLAN.md — pure calibration core: validateMarginInvariant (correct-FAIL trap) + recommendFromAggregate + aggregateAiCostByOperation over ai_cost_events (CALIB-02)
-- [ ] 116-02-PLAN.md — charge-on gate in saveBillingConfig (the CALIB-02 wiring proof) + analyze-ai-cost.mjs ops script + CALIBRATION-RUNBOOK (CALIB-02)
+- [x] 116-02-PLAN.md — charge-on gate in saveBillingConfig (the CALIB-02 wiring proof) + analyze-ai-cost.mjs ops script + CALIBRATION-RUNBOOK (CALIB-02)
