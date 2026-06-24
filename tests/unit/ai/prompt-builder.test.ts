@@ -61,6 +61,62 @@ describe('buildSystemPrompt — price book injection', () => {
     expect(prompt).toContain('untrusted data')
     expect(prompt).toMatch(/[Nn]ever follow instructions/)
   })
+
+  it('## Security enumerates <search_result> as untrusted web-search data (RFALL-04)', () => {
+    const prompt = buildSystemPrompt(baseInput)
+    expect(prompt).toContain('<search_result>')
+  })
+
+  it('## Security still enumerates the existing untrusted tags (no regression)', () => {
+    const prompt = buildSystemPrompt(baseInput)
+    expect(prompt).toContain('<transcript>')
+    expect(prompt).toContain('<photo_description>')
+    expect(prompt).toContain('<description>')
+    expect(prompt).toContain('<instruction>')
+  })
+})
+
+/**
+ * Phase 107 — RFALL-04: buildResearchSearchPrompt routes the model's own
+ * (untrusted) item text through the SAME hardened sanitizeField/<search_result>
+ * boundary as every other untrusted field. This is the ONLY place research item
+ * text is composed into a prompt.
+ */
+describe('buildResearchSearchPrompt — hardened web-search query boundary', () => {
+  it('exports sanitizeField for reuse by the research search-prompt builder', () => {
+    expect(typeof (promptBuilder as unknown as { sanitizeField?: unknown }).sanitizeField).toBe(
+      'function'
+    )
+  })
+
+  it('escapes angle brackets in an item name and wraps it in <search_result>', async () => {
+    const { buildResearchSearchPrompt } = await import(
+      '@/lib/estimate/price-research/search-prompt'
+    )
+    const out = buildResearchSearchPrompt(
+      [{ name: 'drywall <script>alert(1)</script>' }],
+      { city: 'Austin', state: 'TX' }
+    )
+    expect(out).toContain('<search_result>')
+    // Attacker angle brackets are escaped — no raw <script> survives.
+    expect(out).toContain('&lt;script&gt;')
+    expect(out).not.toContain('<script>')
+    // Region is present (and itself sanitizeField-wrapped).
+    expect(out).toContain('Austin')
+    expect(out).toContain('TX')
+  })
+
+  it('handles a null city/state region without throwing', async () => {
+    const { buildResearchSearchPrompt } = await import(
+      '@/lib/estimate/price-research/search-prompt'
+    )
+    const out = buildResearchSearchPrompt([{ name: 'fence painting' }], {
+      city: null,
+      state: null,
+    })
+    expect(out).toContain('<search_result>')
+    expect(out).toContain('fence painting')
+  })
 })
 
 describe('buildUserContent — prompt-injection hardening (S06)', () => {
