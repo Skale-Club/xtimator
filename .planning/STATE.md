@@ -1,25 +1,26 @@
 ---
 gsd_state_version: 1.0
-milestone: v3.1.1
-milestone_name: MVP Launch Prep + Future-Proofing
-status: completed
-stopped_at: Completed 104-03-PLAN.md
-last_updated: "2026-06-22T02:41:03.568Z"
-last_activity: "2026-06-22 — executed 104-03-PLAN.md (Wave 3 — NOTIF-03 / 104.3: super-admin WhatsApp-template panel + service-role templates table + status webhook + DB-backed registry seam; Phase 98 superseded)"
+milestone: v4.6
+milestone_name: Pricing Intelligence — Researched Pricing Agent
+status: planning
+stopped_at: Roadmap created (Phases 105-109)
+last_updated: "2026-06-23T00:00:00.000Z"
+last_activity: "2026-06-23 — roadmap created for v4.6 Pricing Intelligence: 5 phases (105-109), 17/17 requirements mapped, traceability filled; Phase 105 ready to plan"
 progress:
-  total_phases: 18
-  completed_phases: 18
-  total_plans: 51
-  completed_plans: 51
+  total_phases: 5
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
 ---
 
 # Project State
 
 ## Current Status
 
-- **Milestone**: v4.6 Pricing Intelligence — Researched Pricing Agent — STARTED 2026-06-23, defining requirements. Delivers Pillar 2 (researched regional pricing for items with no price-book match; new `price_source: 'researched'`) on top of the v4.3 canonical graph. Locked: OpenRouter primary provider; Brave Search a candidate web-search source. Numbering continues globally — v4.6 starts at Phase 105.
-- **Previous milestone**: v4.5 Estimate Engine Robustness & Reliability Harness — SHIPPED 2026-06-21 (phases 99-103, 18/18 requirements).
-- **Position**: Phase 105 not started — defining requirements (research → requirements → roadmap).
+- **Milestone**: v4.6 Pricing Intelligence — Researched Pricing Agent — ROADMAP CREATED 2026-06-23. 5 phases (105-109), 17/17 requirements mapped (RPRICE-01..04, RSRC-01..04, RFALL-01..04, RMETER-01..03, RCACHE-01..02), no orphans. Delivers Pillar 2 (researched regional pricing for items with no price-book match; new `price_source: 'researched'`) on top of the v4.3 canonical graph. Locked: OpenRouter primary provider (engine `exa`, Anthropic web search as gated quality fallback — Brave rejected at requirements); Inngest sole durability; channel-neutral graph; reuse existing quota; city+state region; no source-citation UI this milestone. Numbering continues globally — v4.6 starts at Phase 105.
+- **Phase plan (goal-backward):** 105 `researched` enum/badge threading (dormant) · 106 cache table + tenant-scoped module (parallel w/ 105) · 107 provider seam + OpenRouter-web/Anthropic-fallback/fixture adapters + injection hardening · 108 orchestrator integration — the payoff (no-$0 fallback ladder, evidence-gated tagging, metering, "Couch cleaning 8seats" regression fixture) · 109 durability + cost-control hardening.
+- **Previous milestone**: v4.5 Estimate Engine Robustness & Reliability Harness — SHIPPED 2026-06-21 (phases 99-103, 18/18 requirements). Notifications tranche relabeled v4.5.1 (Phase 104, shipped 2026-06-22).
+- **Position**: Phase 105 not started — roadmap done, ready to plan. Next: `/gsd:plan-phase 105`.
 - **Last updated**: 2026-06-23
 
 ## Current Position

@@ -75,4 +75,20 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| _(filled by roadmap)_ | | |
+| RPRICE-01 | Phase 108 | Pending |
+| RPRICE-02 | Phase 105 | Pending |
+| RPRICE-03 | Phase 108 | Pending |
+| RPRICE-04 | Phase 108 | Pending |
+| RSRC-01 | Phase 107 | Pending |
+| RSRC-02 | Phase 107 | Pending |
+| RSRC-03 | Phase 107 | Pending |
+| RSRC-04 | Phase 107 | Pending |
+| RFALL-01 | Phase 108 | Pending |
+| RFALL-02 | Phase 108 | Pending |
+| RFALL-03 | Phase 108 | Pending |
+| RFALL-04 | Phase 107 | Pending |
+| RMETER-01 | Phase 108 | Pending |
+| RMETER-02 | Phase 108 | Pending |
+| RMETER-03 | Phase 108 | Pending |
+| RCACHE-01 | Phase 106 | Pending |
+| RCACHE-02 | Phase 106 | Pending |

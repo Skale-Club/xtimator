@@ -24,7 +24,8 @@
 - 🚧 **v4.3 Unified Agentic Estimate Engine** — Phases 94-97 (started 2026-06-20)
 - 🗄️ **v4.4 WhatsApp Notifications** — Phase 98 (planned 2026-06-20) — **SUPERSEDED by Phase 104** (owner-facing WhatsApp notifications + in-app template builder built in 104). Do not run; revive only if a distinct customer-facing scope is ever needed.
 - ✅ **v4.5 Estimate Engine Robustness & Reliability Harness** — Phases 99-103 (shipped 2026-06-21) · [archive](milestones/v4.5-ROADMAP.md)
-- 🚧 **v4.6 Notification Channels & Preferences** — Phase 104 (started 2026-06-21)
+- ✅ **v4.5.1 Notification Channels & Preferences** — Phase 104 (shipped 2026-06-22) — _(previously labeled v4.6; relabeled to free the v4.6 name for Pricing Intelligence)_
+- 🚧 **v4.6 Pricing Intelligence — Researched Pricing Agent** — Phases 105-109 (started 2026-06-23)
 
 > **Phase numbering note:** v3.1.1 starts at **Phase 66**, not 62. Phases 62-65 are reserved as DEFERRED placeholders for the v3.2 Production Deploy milestone (Vercel→Hetzner deploy + Stripe live + monitoring + UAT in prod). Skipping past 62-65 keeps the global phase counter unambiguous and prevents number reuse confusion when v3.2 begins.
 
@@ -770,6 +771,12 @@ Plans:
 | 72. Admin Menu Performance | v3.1.1 | 3/3 | Complete    | 2026-05-18 |
 | 73. Language Onboarding + Estimate Language UI | v3.1.1 | 5/5 | Complete    | 2026-05-19 |
 | 74. Post-Onboarding App Feature Tour | v3.1.1 | 4/4 | Complete    | 2026-05-19 |
+| 104. Notification Channels & Preferences Revamp | v4.5.1 | 4/4 | Complete | 2026-06-22 |
+| 105. `price_source: 'researched'` Threading | v4.6 | 0/TBD | Not started | - |
+| 106. Cache Table + Tenant-Scoped Cache Module | v4.6 | 0/TBD | Not started | - |
+| 107. Provider Seam + First Source + Determinism Seam | v4.6 | 0/TBD | Not started | - |
+| 108. Orchestrator + Service Integration | v4.6 | 0/TBD | Not started | - |
+| 109. Durability + Cost-Control Hardening | v4.6 | 0/TBD | Not started | - |
 
 ### Phase 75: Tour and Tooltip QA
 
@@ -1140,7 +1147,8 @@ Plans:
 
 > **Numbering:** continues the GLOBAL phase counter. v4.5 ended at Phase 103; v4.4's WhatsApp Notifications is Phase 98. v4.6 = **Phase 104**.
 
-- [x] **Phase 104: Notification Channels & Preferences Revamp** — Restructure owner notification preferences to a 3-category × 4-channel matrix (Estimates · Billing · System) and add WhatsApp + SMS as real delivery channels (NOTIF-01..07) (completed 2026-06-22)
+- [x] **Phase 104: Notification Channels & Preferences Revamp** — Restructure owner notification preferences to a 3-category × 4-channel matrix (Estimates · Billing · System) and add WhatsApp + SMS as real delivery channels (NOTIF-01..07)
+ (completed 2026-06-22)
 
 #### Phase 104: Notification Channels & Preferences Revamp
 **Goal**: The owner notification preferences become a tidy 3-category model (Estimates, Billing, System) delivered over 4 working channels (In-App, Email, WhatsApp, SMS), replacing today's noisy 8-category × 2-channel matrix.
@@ -1159,3 +1167,83 @@ Plans:
 - [x] 104-03-PLAN.md — Wave 3: super-admin WhatsApp-template panel + `message_template_status_update` webhook + Phase-98 superseded note (NOTIF-03)
 
 > **Open product decisions for discuss-phase:** phone-number source & validation (profile field vs onboarding), SMS opt-in/consent flow + Twilio cost acceptance, WhatsApp template approval, and the fate of removed-category events (AI Jobs job-failure notices, inbound-WhatsApp notices) — re-route to a kept category, keep in-app-only, or drop. RESOLVED in 104-CONTEXT: reuse `owner_phone` (gate on non-null, no OTP re-add); explicit per-channel opt-in with paid-SMS consent; templates via super-admin panel; removed-category events → `_dropped` sentinel (no delivery).
+
+---
+
+## 🚧 v4.6 Pricing Intelligence — Researched Pricing Agent (Phases 105-109)
+
+**Milestone Goal:** When an estimate line item has no price-book match, a dedicated agent researches the average regional market price (client's city + state) and writes it with `price_source: 'researched'` — instead of the AI guessing a price that can come out $0 and trip the "too vague" gate. Delivers Pillar 2 (researched pricing) on top of Pillar 1 (price-book priority via `anchorAndClampSections`).
+
+> **Numbering:** continues the GLOBAL phase counter. v4.5 ended at Phase 103; the notifications tranche (relabeled v4.5.1) is Phase 104. **v4.6 Pricing Intelligence starts at Phase 105.** Do NOT reset to 1.
+>
+> **Coverage:** 17/17 v4.6 requirements mapped (RPRICE-01..04, RSRC-01..04, RFALL-01..04, RMETER-01..03, RCACHE-01..02). No orphans.
+>
+> **Locked scope guardrails (do NOT plan against):** Inngest is the sole durability layer (NO LangGraph checkpointer); the estimate graph stays channel-neutral (the `ENGINE-01` static gate); reuse the existing count-based quota (`usage_events` / `checkQuota` / `recordUsage`) — no new credit/billing subsystem; OpenRouter is the primary provider (engine `exa` default, Anthropic web search a gated quality fallback); no source-citation / range / confidence UI this milestone (deferred); region granularity = city + state; markup/margin deferred to admin config.
+
+### Phases
+
+- [ ] **Phase 105: `price_source: 'researched'` Threading** — Plumb the new `'researched'` enum value through schema/types/DB CHECK/editor badge; ships dormant (no behavior change), unblocks everything
+- [ ] **Phase 106: Cache Table + Tenant-Scoped Cache Module** — `price_research_cache` table (company-scoped, deny-all RLS, 30d TTL) + canonical-key cache module; parallelizable with 105
+- [ ] **Phase 107: Provider Seam + First Source + Determinism Seam** — `PriceResearchProvider` port + OpenRouter-web adapter + Anthropic quality-fallback adapter + deterministic fixture adapter for CI + prompt-injection hardening
+- [ ] **Phase 108: Orchestrator + Service Integration (the payoff)** — `researchUnmatchedPrices` wired into `generateEstimateForProject` after anchoring; precedence + evidence-gated tagging + no-$0 fallback ladder + vagueness-gate fix + "Couch cleaning 8seats" regression fixture + quota metering
+- [ ] **Phase 109: Durability + Cost-Control Hardening** — dedicated `step.run('price-research')` retry isolation + provider fallback ordering + per-estimate item caps + refine-loop memoization
+
+## Phase Details (v4.6)
+
+### Phase 105: `price_source: 'researched'` Threading
+**Goal**: The estimate stack understands a third price provenance — `researched` — end to end (output schema, types, DB constraint, persistence, editor badge), shipped with zero runtime behavior change because nothing tags an item `researched` yet. This is the dormant foundation that unblocks the real research wiring.
+**Depends on**: Nothing (first phase of the milestone; parallelizable with Phase 106)
+**Requirements**: RPRICE-02, RPRICE-03 (type/schema parts only — full precedence enforcement lands in 108)
+**Success Criteria** (what must be TRUE):
+  1. An `estimate_items` row can be persisted with `price_source = 'researched'` and loads/renders without error; the DB CHECK constraint accepts exactly `price_book | ai_estimate | researched` and rejects anything else
+  2. The AI output schema (`lib/ai/schema.ts`, relaxing the D-15 preprocess) and `LineItemOutput` type (`lib/ai/types.ts`) accept `'researched'`; `price-anchoring.ts` is type-widened only so a price-book match still wins (precedence preserved at the type layer)
+  3. The estimate editor (`item-row.tsx` + `item-card-mobile.tsx`) renders a distinct "Researched" badge as a third variant alongside "Price book" and "AI estimate"; editing an item still clears `price_source` to null (the existing `Edited` rule already covers it — confirmed, not re-implemented)
+  4. The full unit/eval suite stays green with no item ever tagged `researched` yet (badge dormant) — proving the threading is additive and behavior-preserving
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 106: Cache Table + Tenant-Scoped Cache Module
+**Goal**: A tenant-scoped, TTL-bounded cache for researched market prices exists and is unit-tested in isolation, so that once research is wired (Phase 108) a repeat lookup of the same service in the same region is free and never re-consumes the research allowance. The cache value is a neutral market datum — no company/client/margin data — so it can never leak across tenants.
+**Depends on**: Nothing (parallelizable with Phase 105)
+**Requirements**: RCACHE-01, RCACHE-02
+**Success Criteria** (what must be TRUE):
+  1. A `price_research_cache` table exists keyed by `(company_id, normalized_name, region, currency_code)` with an `expires_at` column and deny-all client RLS (service-role-only, mirroring the `pipeline_events` posture) — no normal Supabase client can read or write it
+  2. The cache module (`cache.ts` + `normalize.ts`) exposes get/put where a put stamps `expires_at = now + 30d` and a get treats `expires_at < now` as a miss; the region normalizer canonicalizes "city|state" and the name normalizer reuses `normalizeNameForMatch` so "couch cleaning 8 seats" and "sofa cleaning, 8-seat" share an entry and quantity never leaks into the key
+  3. A static leakage test asserts the cache value type carries no `company_id`/client/margin/job-text field — only `{ unit_price, currency, source, confidence?, expires_at }` (the neutral-datum discipline)
+  4. A cache hit returns the stored price without any provider call (verified in a unit test with a stubbed provider that must NOT be invoked on a hit)
+**Plans**: TBD
+
+### Phase 107: Provider Seam + First Source + Determinism Seam
+**Goal**: The pricing-research source lives behind a swappable `PriceResearchProvider` port resolved from `platform_integrations`, with a real OpenRouter-web adapter (engine `exa`), a gated Anthropic quality-fallback adapter, AND a deterministic fixture adapter that the v4.5 eval harness injects — so the CI regression gate stays green and the source decision can flip via admin config without touching call sites. Every web snippet that reaches the LLM is injection-hardened in the same phase that introduces web content.
+**Depends on**: Nothing for the interface; admin wiring reuses the existing `integrations-providers.ts` pattern. (Joins with 105 + 106 at Phase 108.)
+**Requirements**: RSRC-01, RSRC-02, RSRC-03, RSRC-04, RFALL-04
+**Success Criteria** (what must be TRUE):
+  1. `getPriceResearchProvider()` reads the active source from `platform_integrations` and returns a `PriceResearchProvider` with a batched `lookup(items, region, currency)` contract — or `null` when unconfigured (so enrichment becomes a safe no-op), mirroring `getAIProviderWithFallback`
+  2. The OpenRouter-web adapter runs price research as a SEPARATE OpenRouter call ahead of the unchanged forced `create_estimate` call, with the search engine configurable between `exa` (fixed cost) and `native`; the Anthropic web-search adapter (with `user_location` city/state) is wired as a pluggable, gated, non-default quality fallback
+  3. A deterministic fixture adapter + golden `(service, region) → candidates` fixtures + a fixed clock drive the source in tests/CI with zero live network calls — the v4.5 eval harness + CI regression gate run green against it
+  4. The adapter is evidence-gated by contract: it returns a price as researchable ONLY when a real `source_url` + snippet is present, so a citation-less guess can never be surfaced as `researched`
+  5. Web-search content is sanitized through `sanitizeField` and wrapped in a `<search_result>` tag enumerated in the `buildSystemPrompt` `## Security` block before entering any prompt; a static test asserts research prompts are built through the hardened boundary, not an ad-hoc path
+**Plans**: TBD
+
+### Phase 108: Orchestrator + Service Integration (the payoff)
+**Goal**: The bug is actually fixed. `researchUnmatchedPrices` is wired into `generateEstimateForProject` immediately after `anchorAndClampSections` and before totals/persistence, so the vagueness gate sees real numbers. Research runs only on no-match items, never overrides a price-book item or an owner edit, is evidence-gated, is metered through the existing quota, and degrades to a non-zero `ai_estimate` (never $0) on any failure. The originating "Couch cleaning 8seats" case now produces a non-zero, non-vague estimate.
+**Depends on**: Phase 105 (the `researched` enum/badge), Phase 106 (cache), Phase 107 (provider seam + fixtures)
+**Requirements**: RPRICE-01, RPRICE-03, RPRICE-04, RFALL-01, RFALL-02, RFALL-03, RMETER-01, RMETER-02, RMETER-03
+**Success Criteria** (what must be TRUE):
+  1. For an estimate with a line item that has no price-book match, the system performs a regional lookup using the client's city + state and writes a non-zero researched price tagged `researched`, while price-book items are untouched and any owner-edited item is never re-researched (precedence `price_book > researched > ai_estimate` enforced by running only over the post-anchor `ai_estimate` set)
+  2. An item is tagged `researched` ONLY when the lookup returned real evidence (source URL + snippet); without evidence the item falls back to a non-zero `ai_estimate` — never to a fake `researched` and never to $0
+  3. No fallback rung is ever $0 (research → non-zero `ai_estimate` → flagged unpriced item routed to the existing `awaiting_details` path); the vagueness gate now distinguishes a fully empty estimate (block → needs-details) from a single flagged unpriced item (allow → estimate proceeds)
+  4. The "Couch cleaning 8seats" regression fixture — including the empty-research-response variant — produces a non-zero, non-vague estimate, asserted in the eval harness
+  5. Each research search is metered through `usage_events` / `recordUsage` via a new count-based `price_researched` event type (1 unit/search, idempotent), each tier has a monthly research allowance in `entitlements`, and when a company is over allowance `checkQuota` skips research and items fall back to a non-zero `ai_estimate` — the estimate still generates and never hard-fails; a cache hit consumes no allowance
+**Plans**: TBD
+
+### Phase 109: Durability + Cost-Control Hardening
+**Goal**: Once a real source's latency and cost are observable, harden the research path: give it its own Inngest `step.run` so a research-source timeout retries in isolation without re-charging the already-paid generate call, add provider fallback ordering (OpenRouter-web → Anthropic quality fallback) mirroring the AI fallback, cap items researched per estimate, and memoize research across the auto-refine loop so a refine pass never re-pays for the same lookups. Kept minimal/foldable if Phase 108 already covers a given concern.
+**Depends on**: Phase 108 (research is wired and its real latency/cost can be measured)
+**Requirements**: (hardening of RMETER-01..03 + the durability/cost-control concerns surfaced in research; no net-new requirement — every RMETER requirement is satisfied in 108, this phase isolates and bounds them)
+**Success Criteria** (what must be TRUE):
+  1. Price research runs in its own `step.run('price-research')` via a real `StepRunner` threaded from `generate-estimate.ts`, so a research-source failure retries the research unit alone and never re-invokes the already-succeeded LLM generate step
+  2. When the primary source (OpenRouter-web) fails or returns no evidence, the gated Anthropic quality-fallback source is attempted before degrading to `ai_estimate`, mirroring the existing AI provider-fallback ordering
+  3. A per-estimate item cap bounds how many unmatched items are researched in one estimate (the rest degrade to non-zero `ai_estimate`), and research is memoized per `(item, region)` within a run so an auto-refine pass (Phase 96) does not re-pay for the same lookups
+  4. The whole feature remains non-fatal: every hardening path preserves the never-throw contract — a slow/failed/capped research step never blocks or fails the estimate
+**Plans**: TBD
