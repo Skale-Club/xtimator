@@ -1418,7 +1418,10 @@ Plans:
   1. The pgvector extension is enabled and a `knowledge_entries` table exists (scope `'industry'|'company'`, nullable `industry_id`, nullable `company_id`, `title`, `body`, `source`, `embedding` vector, `created_at`, `updated_at`) with a vector similarity index — applied via an idempotent, authored-only migration deployed CI→GHCR→Coolify (never built on the VPS)
   2. An industry entry can be written only by the service role and is readable by any tenant whose `companies.industries[]` includes that industry; no tenant can INSERT/UPDATE/DELETE an industry entry (verified — the neutral/shared posture mirrors `price_research_cache`)
   3. A company-overlay entry can be read and written only by members of the owning company (`company_members` membership), and is invisible to every other tenant — proving the overlay is private while the industry KB is shared
-**Plans**: TBD
+**Plans**: 1 plan
+
+Plans:
+- [ ] 117-01-PLAN.md — pgvector + knowledge_entries table (scope CHECK, vector(1536), HNSW cosine index) + dual RLS (industry service-role-write/read-to-all; company overlay via company_members) + static contract test
 
 ### Phase 118: Channel-Neutral `lib/knowledge/` Module — embed + retrieve + answer + injection-hardening + fixture
 **Goal**: A channel-neutral `lib/knowledge/` domain module can embed text, retrieve the most similar passages by merging a company's industry KB(s) with its own overlay, and compose a short injection-hardened RAG answer — all without importing any channel, never throwing, and with a deterministic fixture adapter so CI/eval runs with zero live network. This is the core capability every consumer (WhatsApp now; web chat + MCP later) calls.
