@@ -102,40 +102,40 @@ Which phases cover which requirements. Populated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| COST-01 | TBD | Pending |
-| COST-02 | TBD | Pending |
-| COST-03 | TBD | Pending |
-| CREDIT-01 | TBD | Pending |
-| CREDIT-02 | TBD | Pending |
-| CREDIT-03 | TBD | Pending |
-| CREDIT-04 | TBD | Pending |
-| CREDIT-05 | TBD | Pending |
-| CREDIT-06 | TBD | Pending |
-| CREDIT-07 | TBD | Pending |
-| BILLCFG-01 | TBD | Pending |
-| BILLCFG-02 | TBD | Pending |
-| BILLCFG-03 | TBD | Pending |
-| TOPUP-01 | TBD | Pending |
-| TOPUP-02 | TBD | Pending |
-| TOPUP-03 | TBD | Pending |
-| FEE-01 | TBD | Pending |
-| FEE-02 | TBD | Pending |
-| FEE-03 | TBD | Pending |
-| FEE-04 | TBD | Pending |
-| PAYGATE-01 | TBD | Pending |
-| PAYGATE-02 | TBD | Pending |
-| DISCLOSE-01 | TBD | Pending |
-| CREDITUI-01 | TBD | Pending |
-| CREDITUI-02 | TBD | Pending |
-| CALIB-01 | TBD | Pending |
-| CALIB-02 | TBD | Pending |
-| MIG-01 | TBD | Pending |
+| COST-01 | Phase 110 | Pending |
+| COST-02 | Phase 110 | Pending |
+| COST-03 | Phase 110 | Pending |
+| CREDIT-01 | Phase 112 | Pending |
+| CREDIT-02 | Phase 112 | Pending |
+| CREDIT-03 | Phase 112 | Pending |
+| CREDIT-04 | Phase 112 | Pending |
+| CREDIT-05 | Phase 112 | Pending |
+| CREDIT-06 | Phase 112 | Pending |
+| CREDIT-07 | Phase 112 | Pending |
+| BILLCFG-01 | Phase 111 | Pending |
+| BILLCFG-02 | Phase 111 | Pending |
+| BILLCFG-03 | Phase 111 | Pending |
+| TOPUP-01 | Phase 113 | Pending |
+| TOPUP-02 | Phase 113 | Pending |
+| TOPUP-03 | Phase 113 | Pending |
+| FEE-01 | Phase 114 | Pending |
+| FEE-02 | Phase 114 | Pending |
+| FEE-03 | Phase 114 | Pending |
+| FEE-04 | Phase 114 | Pending |
+| PAYGATE-01 | Phase 114 | Pending |
+| PAYGATE-02 | Phase 114 | Pending |
+| DISCLOSE-01 | Phase 114 | Pending |
+| CREDITUI-01 | Phase 115 | Pending |
+| CREDITUI-02 | Phase 115 | Pending |
+| CALIB-01 | Phase 110 | Pending |
+| CALIB-02 | Phase 116 | Pending |
+| MIG-01 | Phase 113 | Pending |
 
 **Coverage:**
 - v1 requirements: 28 total
-- Mapped to phases: 0 (roadmap pending)
-- Unmapped: 28 ⚠️ (resolved by roadmap)
+- Mapped to phases: 28
+- Unmapped: 0 ✓ (all v1 requirements mapped to phases 110-116)
 
 ---
 *Requirements defined: 2026-06-24*
-*Last updated: 2026-06-24 — milestone v4.7 Monetização initial definition*
+*Last updated: 2026-06-24 — milestone v4.7 Monetização roadmap created; all 28 v1 requirements mapped to phases 110-116 (coverage 28/28, 0 orphans)*

@@ -1,13 +1,13 @@
 ---
 gsd_state_version: 1.0
 milestone: v4.7
-milestone_name: Monetização — Credit-Based Billing + Estimate Payment Fee
-status: defining-requirements
-stopped_at: Milestone v4.7 started — defining requirements
-last_updated: "2026-06-24T12:00:00.000Z"
+milestone_name: "Monetização — Credit-Based Billing + Estimate Payment Fee"
+status: roadmap-created
+stopped_at: "Milestone v4.7 roadmap created — 7 phases (110-116), 28/28 requirements mapped"
+last_updated: "2026-06-24T13:00:00.000Z"
 last_activity: 2026-06-24
 progress:
-  total_phases: 0
+  total_phases: 7
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -17,17 +17,26 @@ progress:
 
 ## Current Status
 
-- **Milestone**: v4.6 Pricing Intelligence — Researched Pricing Agent — ROADMAP CREATED 2026-06-23. 5 phases (105-109), 17/17 requirements mapped (RPRICE-01..04, RSRC-01..04, RFALL-01..04, RMETER-01..03, RCACHE-01..02), no orphans. Delivers Pillar 2 (researched regional pricing for items with no price-book match; new `price_source: 'researched'`) on top of the v4.3 canonical graph. Locked: OpenRouter primary provider (engine `exa`, Anthropic web search as gated quality fallback — Brave rejected at requirements); Inngest sole durability; channel-neutral graph; reuse existing quota; city+state region; no source-citation UI this milestone. Numbering continues globally — v4.6 starts at Phase 105.
-- **Phase plan (goal-backward):** 105 `researched` enum/badge threading (dormant) · 106 cache table + tenant-scoped module (parallel w/ 105) · 107 provider seam + OpenRouter-web/Anthropic-fallback/fixture adapters + injection hardening · 108 orchestrator integration — the payoff (no-$0 fallback ladder, evidence-gated tagging, metering, "Couch cleaning 8seats" regression fixture) · 109 durability + cost-control hardening.
-- **Previous milestone**: v4.5 Estimate Engine Robustness & Reliability Harness — SHIPPED 2026-06-21 (phases 99-103, 18/18 requirements). Notifications tranche relabeled v4.5.1 (Phase 104, shipped 2026-06-22).
-- **Position**: Phase 105 not started — roadmap done, ready to plan. Next: `/gsd:plan-phase 105`.
-- **Last updated**: 2026-06-23
+- **Milestone**: v4.7 Monetização — Credit-Based Billing + Estimate Payment Fee — ROADMAP CREATED 2026-06-24. **7 phases (110-116)**, **28/28 requirements mapped** (COST-01..03, CREDIT-01..07, BILLCFG-01..03, TOPUP-01..03, FEE-01..04, PAYGATE-01..02, DISCLOSE-01, CREDITUI-01..02, CALIB-01..02, MIG-01), **no orphans**. Transforms count-based tiers into a credit model (debit = real OpenRouter/Whisper cost × markup) + a 1% estimate application fee — every parameter super-admin-configurable via a new `billing_config`. Stripe is the RAIL only; the credit ledger is OURS. Sources: SEED-035 (credit billing) + SEED-036 (1% fee).
+- **Phase plan (goal-backward + seed-locked sequencing):**
+  - **110 Real Cost Capture Foundation + Measure-Only Mode** (COST-01/02/03, CALIB-01) — capture real USD cost per OpenRouter call + computed Whisper cost, correlate to `usage_events`/`pipeline_events`, run measure-only (billing OFF) so production cost is collected before charging. THE FOUNDATION — nothing debits without it.
+  - **111 `billing_config` Store + Super-Admin Billing Panel** (BILLCFG-01/02/03) — encrypted runtime-config section + super-admin Billing panel (markup, denomination, per-tier grant, prices, top-up packs, Whisper rate, fee %, thresholds); runtime-editable, tenant has no access. Every downstream phase reads from it.
+  - **112 Credit Ledger + Consumption Metering** (CREDIT-01..07) — append-only tenant-scoped `credit_ledger`; debit = real_cost × markup on the instrumented `usage_events` points; fast-read cached balance; per-tier `monthlyCreditGrant`; idempotent debits (reuse `recordUsage`); pre-op balance check + top-up path; MCP conversation = zero credit.
+  - **113 Stripe Rail — Grants, Top-Ups + Parallel-Run Transition** (TOPUP-01/02/03, MIG-01) — `invoice.paid` grants tier allowance idempotently (`stripe_processed_events`); one-time top-up checkout credits the ledger; low/zero balance offers top-up + upgrade without silent mid-job block; credits run in parallel with count-based tiers (degrade to secondary guard-rails).
+  - **114 Estimate Payment Fee + Payment-UI Gating + Disclosure** (FEE-01..04, PAYGATE-01/02, DISCLOSE-01) — fill the omitted `application_fee_amount` hook (invoice-service.ts:17 + Phase-70 checkout), fee % from `billing_config`, sane min/rounding; single `usePaymentsEnabled` guard over ALL payment UI (no orphan, both states tested); fee disclosure at Connect. INDEPENDENT of the credit work — can run in parallel.
+  - **115 Credit Balance UX (owner-facing)** (CREDITUI-01/02) — simple balance widget (header/settings) + consumption history + per-action guidance (never token math); low/zero-balance warning + top-up/upgrade CTA reusing `notifyQuotaThresholds`.
+  - **116 Calibration & Charge-On Validation** (CALIB-02) — derive grant/markup/price from the real cost measured since 110, validate the margin invariant (real cost of the full monthly grant ≤ ~30% of subscription price), document; gates turning real charging ON. LATE phase by design.
+- **Dependency spine:** 110 (cost capture) → 112 (ledger) needs 110 + 111; 113 (Stripe rail) needs 112; 115 (balance UX) needs 112 + 113; 116 (calibration) needs 110 + 111 + 112. 111 (`billing_config`) is structurally independent and feeds everything. 114 (payment fee) needs only 111 + the already-shipped Connect infra (phases 70/94) — sequenceable in parallel with the credit track.
+- **Locked guardrails:** Stripe = rail only (credit ledger is OURS, NOT Stripe metered billing); everything billing reads from `billing_config` (no hard-coded numbers, no env vars, super-admin only); migrations idempotent + deploy CI→GHCR→Coolify (never build on VPS); channel-neutral domain stays neutral + never-throw enrichment preserved; CALIBRATE before charging (no real billing before CALIB-02's measured numbers exist).
+- **Previous milestone**: v4.6 Pricing Intelligence — Researched Pricing Agent — SHIPPED 2026-06-24 (phases 105-109, 17/17 requirements, full unit+eval suite green 275 files / 1932 tests).
+- **Position**: Phase 110 not started — roadmap done, ready to plan. Next: `/gsd:plan-phase 110`.
+- **Last updated**: 2026-06-24
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: Not started (roadmap created)
 Plan: —
-Status: Defining requirements — Milestone v4.7 Monetização started 2026-06-24. Scope = SEED-035 (credit-based billing) + SEED-036 (1% estimate payment fee). Foundation phase = capture real OpenRouter cost per AI call. Numbering continues globally — v4.7 starts at Phase 110. Next: define requirements → roadmap.
+Status: Roadmap created 2026-06-24 — Milestone v4.7 Monetização, 7 phases (110-116), 28/28 requirements mapped, no orphans. Scope = SEED-035 (credit-based billing) + SEED-036 (1% estimate payment fee). Foundation = Phase 110 real cost capture (measure-only). Numbering continues globally — v4.7 starts at Phase 110. Next: `/gsd:plan-phase 110`.
 
 ---
 

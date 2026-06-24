@@ -25,7 +25,8 @@
 - 🗄️ **v4.4 WhatsApp Notifications** — Phase 98 (planned 2026-06-20) — **SUPERSEDED by Phase 104** (owner-facing WhatsApp notifications + in-app template builder built in 104). Do not run; revive only if a distinct customer-facing scope is ever needed.
 - ✅ **v4.5 Estimate Engine Robustness & Reliability Harness** — Phases 99-103 (shipped 2026-06-21) · [archive](milestones/v4.5-ROADMAP.md)
 - ✅ **v4.5.1 Notification Channels & Preferences** — Phase 104 (shipped 2026-06-22) — _(previously labeled v4.6; relabeled to free the v4.6 name for Pricing Intelligence)_
-- 🚧 **v4.6 Pricing Intelligence — Researched Pricing Agent** — Phases 105-109 (started 2026-06-23)
+- ✅ **v4.6 Pricing Intelligence — Researched Pricing Agent** — Phases 105-109 (shipped 2026-06-24)
+- 🚧 **v4.7 Monetização — Credit-Based Billing + Estimate Payment Fee** — Phases 110-116 (started 2026-06-24)
 
 > **Phase numbering note:** v3.1.1 starts at **Phase 66**, not 62. Phases 62-65 are reserved as DEFERRED placeholders for the v3.2 Production Deploy milestone (Vercel→Hetzner deploy + Stripe live + monitoring + UAT in prod). Skipping past 62-65 keeps the global phase counter unambiguous and prevents number reuse confusion when v3.2 begins.
 
@@ -1266,3 +1267,103 @@ Plans:
 Plans:
 - [x] 109-01-PLAN.md — Widen the document/PDF/share/query/refine `price_source` unions to include `researched` (the carried 108 build-fix; `next build` type-checks clean)
 - [x] 109-02-PLAN.md — Orchestrator hardening: per-estimate research item CAP (env-overridable, logged drops) + gated OpenRouter-web→Anthropic-web fallback ordering + in-run memo; step.run isolation documented-as-deferred
+## 🚧 v4.7 Monetização — Credit-Based Billing + Estimate Payment Fee (Phases 110-116)
+
+**Milestone Goal:** Transform billing from count-based tiers into a credit model with built-in margin — a monthly subscription grants AI credits consumed as `real OpenRouter/Whisper cost × markup` — and add a 1% platform application fee on estimate payments. Every billing parameter is super-admin-configurable via a new `billing_config` (no hard-coded numbers, no env vars). Stripe is the payment RAIL only; the credit ledger is OURS. Calibrate real cost in production BEFORE charging.
+
+> **Numbering:** continues the GLOBAL phase counter. v4.6 ended at Phase 109. **v4.7 starts at Phase 110.** Do NOT reset to 1.
+>
+> **Coverage:** 28/28 v4.7 requirements mapped (COST-01..03, CREDIT-01..07, BILLCFG-01..03, TOPUP-01..03, FEE-01..04, PAYGATE-01..02, DISCLOSE-01, CREDITUI-01..02, CALIB-01..02, MIG-01). No orphans.
+>
+> **Locked scope guardrails (do NOT plan against):** Stripe is the rail only — the credit ledger is OURS, NOT Stripe metered billing (Stripe Connect infra already shipped phases 55/58/70/94). Everything billing reads from the runtime-encrypted `billing_config` (extends the `ai_config`/`platform_integrations` pattern) — no hard-coded billing numbers, no env vars, super-admin only (tenant has no access). Migrations idempotent + deploy via CI→GHCR→Coolify (never build on the VPS). Channel-neutral domain stays neutral; never-throw enrichment patterns preserved. "Calibrate before charging" — real billing must NOT be enabled before CALIB-02's measured numbers exist; cost capture runs measure-only (billing OFF) first. The estimate payment fee (FEE/PAYGATE/DISCLOSE) is independent of the credit work and can sequence in parallel.
+
+### Phases
+
+- [ ] **Phase 110: Real Cost Capture Foundation + Measure-Only Mode** — Capture real USD cost per OpenRouter call + computed Whisper cost; correlate to `usage_events`/`pipeline_events`; runs measure-only (no charging) so production cost is collected before billing exists. The foundation that gates the entire ledger.
+- [ ] **Phase 111: `billing_config` Store + Super-Admin Billing Panel** — A `billing_config` section in the encrypted runtime-config store + a super-admin "Billing" panel editing markup, denomination, per-tier grant, prices, top-up packs, Whisper rate, fee %, thresholds — applied at runtime, tenant has no access. Every downstream phase reads from it.
+- [ ] **Phase 112: Credit Ledger + Consumption Metering** — Append-only tenant-scoped `credit_ledger` (grant/debit/topup/adjust) with fast-read cached balance; each instrumented `usage_events` op debits `real_cost × markup`; per-tier `monthlyCreditGrant`; idempotent debits; pre-op balance check with top-up path; zero-debit for non-spend ops (MCP conversation).
+- [ ] **Phase 113: Stripe Rail — Grants, Top-Ups + Parallel-Run Transition** — `invoice.paid` grants the tier allowance idempotently; one-time top-up checkout credits the ledger; low/zero balance offers top-up + upgrade without silent mid-job block; credits run in parallel with count-based tiers so no existing account breaks (counts degrade to secondary guard-rails).
+- [ ] **Phase 114: Estimate Payment Fee + Payment-UI Gating + Disclosure** — Fill the omitted `application_fee_amount` hook on both the invoice and Phase-70 checkout paths (fee % from `billing_config`, sane minimum/rounding); a single `usePaymentsEnabled` guard gates ALL payment UI to `stripe_connect_status = 'active'` (no orphan elements, both states tested); clear fee disclosure at the Stripe connection flow.
+- [ ] **Phase 115: Credit Balance UX (owner-facing)** — Owner sees a simple credit balance (header/settings) with consumption history and rough per-action guidance (never token math); low/zero-balance states show a warning + top-up/upgrade CTA reusing the existing threshold-notification path.
+- [ ] **Phase 116: Calibration & Charge-On Validation** — Derive grant/markup/price from the measured real cost collected since Phase 110 and validate the margin invariant (real cost of the full monthly grant ≤ ~30% of subscription price), documented. This LATE phase consumes CALIB-01's data + the ledger/config and gates turning real charging ON.
+
+### Phase Details — v4.7 Monetização
+
+### Phase 110: Real Cost Capture Foundation + Measure-Only Mode
+**Goal**: The system records the real USD cost of every AI operation — OpenRouter calls (via `usage.include` in the request or the `/api/v1/generation` lookup) and computed Whisper/STT cost (audio minutes × a configurable rate) — correlated to the existing attempt/usage instrumentation, and it runs in measure-only mode (no charging) so weeks of real per-operation cost are collected in production before any billing logic is enabled. This is the prerequisite for the entire credit ledger: nothing can debit credits without it.
+**Depends on**: Nothing (first phase of the milestone; the foundation everything else builds on)
+**Requirements**: COST-01, COST-02, COST-03, CALIB-01
+**Success Criteria** (what must be TRUE):
+  1. Every OpenRouter AI call (estimate generation, photo analysis via OpenRouter, price research) records its real USD cost — captured via `usage.include` in the request or the `/api/v1/generation?id={id}` lookup — where today only tokens are captured for Langfuse
+  2. Whisper/STT cost is computed from audio minutes × a rate read from config (the provider does not return a cost), and is recorded alongside the OpenRouter costs through the same path
+  3. Real cost per AI operation is persisted and correlated to the existing `usage_events` / `pipeline_events` attempt instrumentation, so cost can be queried per operation type (estimate / photo_batch / audio_minutes / price_research) for calibration analysis
+  4. Cost capture runs in measure-only mode — instrumented and recording, with zero charging or credit movement — so an operator can collect real production cost before any billing is switched on, and an operator-observable record of accumulated per-operation cost exists
+**Plans**: TBD
+
+### Phase 111: `billing_config` Store + Super-Admin Billing Panel
+**Goal**: All billing parameters live in a new `billing_config` section of the encrypted runtime-config store (extending the `ai_config` / `platform_integrations` / `getIntegrationKey` pattern), and a super-admin "Billing" panel edits every knob at runtime without a deploy. Nothing billing-related is ever hard-coded or read from an env var, and the business owner (tenant) has no access to these controls. Every downstream billing phase reads its numbers from here.
+**Depends on**: Nothing structurally (reuses the existing encrypted config + `integrations-providers.ts` admin pattern); sequenced before the ledger so markup/grant/fee reads have a source
+**Requirements**: BILLCFG-01, BILLCFG-02, BILLCFG-03
+**Success Criteria** (what must be TRUE):
+  1. A `billing_config` section exists in the encrypted runtime-config store holding all billing parameters (markup multiplier, credit denomination, per-tier monthly grant, subscription prices, top-up packs, Whisper rate, fee %, low-balance thresholds) — no hard-coded values and no env vars anywhere in the billing code paths
+  2. A super-admin can open a "Billing" panel, change any of those parameters, save, and the new value takes effect at runtime on the next operation with no redeploy
+  3. The business owner (tenant) has no route to and no UI for these controls — the panel is super-admin-gated exactly like the existing `/admin/integrations` surfaces
+  4. The billing logic helpers (`recordAICost` / `checkCredits` / grant / fee computation) read every parameter from `billing_config` at call time rather than from a constant or env var, verified by a static test asserting no hard-coded billing numbers in those paths
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 112: Credit Ledger + Consumption Metering
+**Goal**: A tenant-scoped append-only `credit_ledger` records every credit movement, and each AI operation already instrumented in `usage_events` debits `real_cost × markup` credits (markup read from `billing_config`). A company's balance is derivable from the ledger via a fast-read cached path; debits are idempotent; a pre-operation balance check surfaces a top-up path rather than hard-failing mid-flow; and operations where we spend no AI budget (MCP external-assistant conversation) never debit. This is the metering core that maps onto the cost capture from Phase 110.
+**Depends on**: Phase 110 (real cost capture — the debit basis), Phase 111 (`billing_config` — markup/grant/denomination source)
+**Requirements**: CREDIT-01, CREDIT-02, CREDIT-03, CREDIT-04, CREDIT-05, CREDIT-06, CREDIT-07
+**Success Criteria** (what must be TRUE):
+  1. A tenant-scoped append-only `credit_ledger` table records every credit movement (grant / debit / topup / adjust) with the real cost, the markup applied, and the resulting balance, with RLS isolating each company's rows
+  2. Each AI operation already instrumented in `usage_events` (`estimate`, `photo_batch`, `audio_minutes`, `price_research`) debits credits computed as `real_cost × markup`, with markup and denomination read from `billing_config`
+  3. A company's current credit balance is derivable from the ledger via a fast-read cached balance that reconciles exactly to the sum of ledger deltas, and each tier grants a configurable `monthlyCreditGrant` on entitlements
+  4. Credit debits are idempotent (reusing the existing `recordUsage` idempotency key) so a retried operation never double-charges; before an AI operation the system checks balance and an insufficient balance surfaces a top-up path rather than hard-failing mid-flow where avoidable
+  5. Operations that do not spend our AI budget never debit — an MCP external-assistant conversation (which runs on the user's assistant, not our AI) and an absorbed lightweight web-chat conversation produce zero ledger movement — because metering happens at the point of real spend
+**Plans**: TBD
+
+### Phase 113: Stripe Rail — Grants, Top-Ups + Parallel-Run Transition
+**Goal**: Stripe is wired as the payment rail for the credit model: a paid subscription invoice grants the tier's monthly credit allowance to the ledger idempotently, a one-time top-up checkout credits the ledger, low/zero balance offers a top-up (and an upgrade suggestion when the usage pattern justifies it) without silently blocking a job mid-flow, and the whole credit model runs in parallel with the existing count-based tiers so no existing account breaks during the transition.
+**Depends on**: Phase 112 (the ledger must exist to grant/credit into)
+**Requirements**: TOPUP-01, TOPUP-02, TOPUP-03, MIG-01
+**Success Criteria** (what must be TRUE):
+  1. On `invoice.paid` for a subscription, the system grants the tier's configured monthly credit allowance to the company's ledger, idempotently via the existing `stripe_processed_events` (a redelivered webhook never double-grants)
+  2. A company can buy a one-time credit top-up pack via Stripe checkout, and the paid webhook credits the corresponding pack's credits to the ledger
+  3. When credits run low or hit zero, the company is offered a top-up (and an upgrade suggestion when the usage pattern justifies it) and generation is not silently blocked mid-job
+  4. Credits run in parallel with the existing count-based tiers during the transition — no existing account breaks, and the count-based limits continue to function as secondary guard-rails rather than being removed
+**Plans**: TBD
+
+### Phase 114: Estimate Payment Fee + Payment-UI Gating + Disclosure
+**Goal**: Xtimator earns a 1% platform application fee on every estimate payment via `application_fee_amount` on the Direct Charge (owner stays merchant of record; Xtimator never custodies funds), on both the Phase-94 invoice path and the Phase-70 checkout path, with the percentage read from `billing_config`. A single `usePaymentsEnabled` guard gates ALL payment UI so nothing payment-related renders unless Stripe Connect is `active`, and the connection flow clearly discloses the fee. This block is cohesive and independent of the credit work.
+**Depends on**: Phase 111 (`billing_config.estimate_fee_pct`); reuses the already-shipped Stripe Connect infra (phases 70/94)
+**Requirements**: FEE-01, FEE-02, FEE-03, FEE-04, PAYGATE-01, PAYGATE-02, DISCLOSE-01
+**Success Criteria** (what must be TRUE):
+  1. The Stripe Connect invoice path (`lib/billing/invoice-service.ts`, the deliberately omitted hook at line 17) and the Phase-70 estimate checkout path (`payment_intent_data.application_fee_amount`) both charge a platform application fee routed to the Xtimator platform account
+  2. The fee percentage is read from `billing_config` (default 1%, never hard-coded) and is computed on the amount actually charged (deposit or full total) with a sane minimum/rounding so Stripe never receives an invalid (e.g. $0) fee
+  3. A single `usePaymentsEnabled` guard gates every payment page, screen, button, and element so they render only when the company's Stripe Connect status is `active`; with Stripe disconnected, no payment-related element appears anywhere (no orphan) and the product otherwise works fully — both states covered by tests
+  4. The Stripe connection flow shows a clear disclosure that Xtimator charges the platform fee (e.g. 1%), separate from Stripe's own fees, with the live percentage read from `billing_config` so the disclosed number never diverges from the charged number
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 115: Credit Balance UX (owner-facing)
+**Goal**: The business owner sees their credit balance in a simple, owner-friendly way — a balance widget in the header/settings, a consumption history, and rough per-action guidance ("an estimate ≈ 10-15 credits") — never raw token math. Low-balance and zero-balance states surface a warning and a top-up/upgrade CTA, reusing the existing threshold-notification path.
+**Depends on**: Phase 112 (the ledger + balance read), Phase 113 (top-up path the CTA links to)
+**Requirements**: CREDITUI-01, CREDITUI-02
+**Success Criteria** (what must be TRUE):
+  1. The business owner sees a simple credit balance (in the header and/or settings) showing the current balance plus a consumption history of recent debits, with rough per-action guidance — and never any token-level math
+  2. A low-balance state shows a warning, and a zero-balance state shows a warning plus a clear top-up/upgrade CTA, reusing the existing threshold-notification path (`notifyQuotaThresholds`) rather than a new one
+  3. The balance shown to the owner reconciles to the ledger (matches the Phase-112 cached balance), so the number the owner sees is the number the system meters against
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 116: Calibration & Charge-On Validation
+**Goal**: Using the real per-operation cost collected in production since Phase 110, derive the grant, markup, and price for each tier from measured data (not guesses) and validate the margin invariant — the real OpenRouter/Whisper cost of a full monthly grant is ≤ ~30% of the subscription price — documenting the chosen numbers. This LATE phase consumes CALIB-01's measured data plus the Phase-111 config and Phase-112 ledger, and gates the decision to turn real charging ON.
+**Depends on**: Phase 110 (CALIB-01 measured cost data), Phase 111 (`billing_config` to write the calibrated numbers into), Phase 112 (the ledger the numbers govern)
+**Requirements**: CALIB-02
+**Success Criteria** (what must be TRUE):
+  1. Grant, markup, and subscription price for each tier are derived from the measured real per-operation cost collected since Phase 110 — not from the illustrative seed numbers
+  2. The margin invariant is validated and documented: the real cost of a full monthly grant is ≤ ~30% of that tier's subscription price, so a power-user at 100% grant usage still profits and a typical user is near-pure margin
+  3. The calibrated numbers are written into `billing_config` and the decision to enable real charging is explicitly gated on this validation existing — no real billing is switched on before the measured numbers and the documented invariant exist
+**Plans**: TBD
