@@ -24,7 +24,7 @@ Requirements for this milestone. Each maps to exactly one roadmap phase.
 
 ### Knowledge Domain Module (channel-neutral)
 
-- [ ] **KMOD-01**: An `embed(text)` function generates embeddings via the configured provider (model-agnostic via the existing platform-config pattern), reusing `getIntegrationKey`.
+- [x] **KMOD-01**: An `embed(text)` function generates embeddings via the configured provider (model-agnostic via the existing platform-config pattern), reusing `getIntegrationKey`.
 - [ ] **KMOD-02**: `retrieve(question, { industries, companyId, k })` returns ranked passages by pgvector similarity, MERGING the company's industry KB(s) + its own company overlay; channel-neutral (imports no channel) and never-throws.
 - [ ] **KMOD-03**: `answer(question, ctx)` composes a RAG prompt from retrieved passages and returns a short conversational answer; the prompt is injection-hardened (see KSEC-01).
 - [ ] **KMOD-04**: A deterministic fixture adapter lets the CI/eval harness exercise retrieve/answer with zero live network (mirroring the price-research fixture provider).
@@ -82,7 +82,7 @@ Which phases cover which requirements. Populated during roadmap creation.
 | KB-01 | Phase 117 | Complete |
 | KB-02 | Phase 117 | Complete |
 | KB-03 | Phase 117 | Complete |
-| KMOD-01 | Phase 118 | Pending |
+| KMOD-01 | Phase 118 | Complete |
 | KMOD-02 | Phase 118 | Pending |
 | KMOD-03 | Phase 118 | Pending |
 | KMOD-04 | Phase 118 | Pending |
