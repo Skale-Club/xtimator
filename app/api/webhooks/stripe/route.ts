@@ -4,6 +4,8 @@ import { getStripeClient } from '@/lib/billing/stripe-client'
 import { handleConnectEvent } from '@/lib/billing/connect-webhook'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { dispatchXphereSync } from '@/lib/integrations/xphere/dispatch'
+import { grantCredits } from '@/lib/billing/credit-ledger'
+import { getBillingConfig } from '@/lib/billing/billing-config'
 
 // ------------------------------------------------------------------
 // POST: Stripe webhook handler (STRIPE-02, STRIPE-04)
@@ -155,6 +157,29 @@ async function handlePlatformEvent(
 
       if (error) {
         console.error('[Stripe] invoice.paid update failed:', error)
+      }
+
+      // TOPUP-01: grant the tier's monthly credit allowance on every paid invoice
+      // (covers first-subscribe AND renewal — a single hook for both). Idempotent
+      // on event.id so a redelivered webhook never double-grants. Grant ONLY here
+      // (NOT in checkout.session.completed) — Pitfall 2 double-grant.
+      const { data: grantCompany } = await svc
+        .from('companies')
+        .select('id, tier')
+        .eq('stripe_subscription_id', subId)
+        .maybeSingle()
+
+      if (grantCompany?.id) {
+        const cfg = await getBillingConfig()
+        const tierKey = (grantCompany.tier ?? 'free') as keyof typeof cfg.tiers
+        const grant = cfg.tiers[tierKey]?.monthlyCreditGrant ?? 0
+        await grantCredits({
+          companyId: grantCompany.id,
+          credits: grant,        // grantCredits no-ops on <=0 (free tier = 0)
+          reason: 'grant',
+          refId: invoice.id,
+          idempotencyKey: event.id,  // redelivered webhook → guaranteed no double-grant
+        })
       }
       break
     }
