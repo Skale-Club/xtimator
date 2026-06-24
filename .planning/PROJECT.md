@@ -14,6 +14,19 @@ The platform includes:
 
 A business owner can go from job site audio recording to a sent, professional estimate in under 5 minutes without touching a keyboard.
 
+## Current Milestone: v4.8 Industry Knowledge Base — Channel-Neutral Conversational Assistant
+
+**Goal:** Give the business owner a conversational assistant that answers trade how-to questions ("how do I pre-treat a pet stain on carpet?") from a per-INDUSTRY knowledge base (super-admin curated, scoped by `companies.industries[]`), plus an optional per-company private KB overlay — served by a channel-neutral `lib/knowledge/` domain module and consulted via WhatsApp (the web-chat + MCP channels follow in later milestones). The FOUNDATION of the Multi-Channel Core track.
+
+**Target features:**
+- **Industry KB (platform asset)** — super-admin-curated knowledge entries scoped by industry (`lib/industries.ts` 12-industry taxonomy); one robust carpet-cleaning KB serves all carpet cleaners. RLS mirrors the `price_research_cache` service-role/neutral posture. The owner has no access to curate it.
+- **Company KB overlay (optional, tenant-scoped)** — each company adds its own private entries in its OWN settings panel (DISTINCT from the super-admin panel — the two-panel rule); optional, tenant-scoped RLS.
+- **`lib/knowledge/` channel-neutral module** — `retrieve(question, {industries, companyId})` over pgvector (merging industry KB + company overlay) + `answer(...)` (RAG), never importing a channel; a fixture adapter for CI determinism.
+- **WhatsApp 5th intent KNOWLEDGE** — extend the existing `classifyAndRoute` (today CONFIRM_OR_CANCEL/EDIT/CREATE/QUERY) with a KNOWLEDGE intent + a QUERY-vs-KNOWLEDGE disambiguation rule; the safe CREATE default preserved.
+- **pgvector + injection-hardening** — enable pgvector, a `knowledge_entries` table; retrieved content is sanitized through the existing `sanitizeField` + a new `<knowledge>` tag before entering any prompt (curated ≠ trusted as LLM context).
+
+**Key context:** NO owner-facing KB browser — consult only via chat. Retrieval is pgvector + embeddings ONLY in v1 (the Cohere reranker is a deferred, data-driven phase-2 optimization with an explicit trigger — do NOT add it day 1). The web-chat consumption (SEED-033 item 6) is OUT of scope — it is SEED-034's own milestone; this milestone ships the WhatsApp + MCP-ready neutral module only. Source: [SEED-033](seeds/SEED-033-industry-knowledge-base-conversational-assistant.md). Numbering continues the global counter — v4.7 ended at Phase 116, so v4.8 starts at **Phase 117**.
+
 ## Last Milestone: v4.7 Monetização — Credit-Based Billing + Estimate Payment Fee ✅ (shipped 2026-06-24)
 
 **Shipped:** all 7 phases (110-116), 28/28 requirements, 19 plans. Full unit suite green (298 files / 2110 tests). Credit-based billing end to end — cost capture (`ai_cost_events`) → `billing_config` super-admin panel → `credit_ledger` with debits wired into 4 AI seams → Stripe rail (grants on invoice.paid + top-ups) → 1% estimate application fee + total payment-UI gating + fee disclosure → owner credit balance UX → calibration validator + charge-on gate. Shipped SAFELY with **enforcement OFF** (`enforcementEnabled: false`): credits are RECORDED but never BLOCK, and the charge-on gate refuses to flip enforcement on until a documented calibration of real production cost passes the margin invariant (≤30% of subscription price). Archive: [milestones/v4.7](MILESTONES.md). Operational deferrals: apply 2 migrations to remote (CI→GHCR→Coolify), collect production cost, calibrate, then flip enforcement; live Stripe UAT.

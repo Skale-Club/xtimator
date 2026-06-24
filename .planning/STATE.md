@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v4.7
-milestone_name: Monetização — Credit-Based Billing + Estimate Payment Fee
-status: completed
-stopped_at: Completed 116-02-PLAN.md
+milestone: v4.8
+milestone_name: Industry Knowledge Base — Channel-Neutral Conversational Assistant
+status: defining-requirements
+stopped_at: Milestone v4.8 started — defining requirements
 last_updated: "2026-06-24T20:35:55.706Z"
 last_activity: 2026-06-24
 progress:
-  total_phases: 68
-  completed_phases: 54
-  total_plans: 164
-  completed_plans: 177
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
 ---
 
 # Project State
