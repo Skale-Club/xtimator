@@ -1,100 +1,77 @@
-# Requirements: Xtimator — Milestone v4.7 Monetização
+# Requirements: Xtimator — Milestone v4.8 Industry Knowledge Base
 
 **Defined:** 2026-06-24
 **Core Value:** A business owner can go from job site audio recording to a sent, professional estimate in under 5 minutes without touching a keyboard.
-**Milestone goal:** Transform billing from count-based tiers into a credit model with built-in margin (subscription grants AI credits consumed as real OpenRouter/Whisper cost × markup), and add a 1% platform application fee on estimate payments — every billing parameter configurable from the super-admin panel. Sources: [SEED-035](seeds/SEED-035-credit-based-subscription-billing.md), [SEED-036](seeds/SEED-036-estimate-payment-platform-fee.md).
+**Milestone goal:** A conversational assistant that answers the owner's trade how-to questions from a per-industry knowledge base (super-admin curated, scoped by `companies.industries[]`) plus an optional per-company overlay, served by a channel-neutral `lib/knowledge/` module and consulted via WhatsApp. The foundation of the Multi-Channel Core track. Source: [SEED-033](seeds/SEED-033-industry-knowledge-base-conversational-assistant.md).
 
-> **Locked decisions (from design sessions 2026-06-24):**
-> - **Stripe is the rail, the credit ledger is OURS** — Stripe Billing charges the recurring subscription + one-time top-ups; the credit metering lives in our `credit_ledger`, NOT Stripe metered billing. Founder is US-based with EIN + Stripe.
-> - **Hybrid credit model** — backend debits `real_cost × markup` (margin-safe by construction); frontend shows a simple credit balance ("≈ an estimate = 10–15 credits"), never token math. Denomination: 1 credit = $0.01 of charged AI value.
-> - **Markup target 4.5x** (~75–80% margin); grant sized so the real OpenRouter cost of the FULL monthly grant is ≤ ~30% of the subscription price (power-user at 100% still profits).
-> - **Consumption rule** — debit wherever WE spend AI (the points already in `usage_events`); MCP external-assistant conversation = zero credit; lightweight web-chat conversation absorbed.
-> - **Overage = top-up** (buy more credits) + upgrade prompt; no silent mid-job block.
-> - **1% estimate application fee** via Direct Charges (owner stays merchant of record; Xtimator never custodies funds). Total payment-UI gating on Stripe-connected; clear fee disclosure at connection.
-> - **Everything super-admin-configurable** via a new `billing_config` (the `ai_config`/`platform_integrations` pattern) — no hard-coded billing numbers, no env vars. The tenant only experiences the result.
-> - **Calibrate before charging** — measure real cost in production with billing OFF; derive grant/markup/price from data.
+> **Locked decisions (from SEED-033):**
+> - **Two panels, two scopes:** Industry KB = super-admin (platform asset, neutral/shared, service-role RLS like `price_research_cache`); Company KB overlay = the tenant's OWN settings panel (optional, tenant-scoped RLS). The owner never curates the industry KB.
+> - **No owner-facing KB browser** — the KB is a conversational retrieval surface only (consulted via chat), never a navigable document for the owner.
+> - **Channel-neutral module** — `lib/knowledge/` imports no channel; WhatsApp (this milestone) + web chat (SEED-034) + MCP (SEED-030) are consumers. This milestone wires only WhatsApp.
+> - **Retrieval = pgvector + embeddings ONLY in v1.** The Cohere reranker is a deferred, data-driven phase-2 optimization (trigger: retrieval misses in eval/prod, or a large/heterogeneous overlay corpus). Do NOT add it on day 1.
+> - **Injection-hardening** — retrieved content is sanitized through the existing `sanitizeField` + a new `<knowledge>` tag before any prompt (curated ≠ trusted as LLM context).
+> - **Scope fences:** web-chat consumption (SEED-034) and the MCP `ask_knowledge` tool (SEED-030) are OUT — separate milestones; this milestone makes the module MCP-ready but wires only WhatsApp.
 
 ## v1 Requirements
 
 Requirements for this milestone. Each maps to exactly one roadmap phase.
 
-### Cost Capture (foundation)
+### Knowledge Base Schema & Storage
 
-- [x] **COST-01**: System captures the real USD cost of every OpenRouter AI call (today only tokens are captured for Langfuse) — OpenRouter now returns it automatically under `usage.cost` (USD, 1:1 credits); the `usage.include` request flag is deprecated/no-op and no `/api/v1/generation` round-trip is needed (per Phase-110 RESEARCH, verified against current OpenRouter docs).
-- [x] **COST-02**: System computes Whisper/STT cost from audio minutes × a configurable rate (cost not returned by the provider).
-- [x] **COST-03**: Real cost per AI operation is recorded and correlated to the existing attempt/usage instrumentation (`usage_events`/`pipeline_events`), available for calibration analysis.
+- [ ] **KB-01**: pgvector is enabled and a `knowledge_entries` table exists (scope 'industry'|'company', industry_id nullable, company_id nullable, title, body, source, embedding vector, created_at, updated_at) with a vector similarity index. Idempotent migration, authored-only (deploy via CI→GHCR→Coolify).
+- [ ] **KB-02**: Industry KB entries are neutral/shared — RLS service-role-write, read scoped by industry (mirroring the `price_research_cache` posture); no tenant can write them.
+- [ ] **KB-03**: Company KB overlay entries are tenant-scoped — RLS gates read/write to the owning company (`company_members` membership, like the multi-tenant tables).
 
-### Credit Ledger & Consumption
+### Knowledge Domain Module (channel-neutral)
 
-- [x] **CREDIT-01**: A tenant-scoped append-only `credit_ledger` records every credit movement (grant, debit, topup, adjust) with real cost, markup, and resulting balance.
-- [x] **CREDIT-02**: Each AI operation already instrumented in `usage_events` (`estimate`, `photo_batch`, `audio_minutes`, `price_research`) debits credits = `real_cost × markup`.
-- [x] **CREDIT-03**: A company's current credit balance is derivable from the ledger with a fast-read path (cached balance, reconcilable to the ledger).
-- [x] **CREDIT-04**: Each subscription tier grants a configurable monthly credit allowance (`monthlyCreditGrant` on entitlements).
-- [x] **CREDIT-05**: Before an AI operation, the system checks credit balance; insufficient balance surfaces a top-up path rather than hard-failing mid-flow where avoidable.
-- [x] **CREDIT-06**: Credit debits are idempotent (reuse the existing `recordUsage` idempotency) — a retried operation never double-charges.
-- [x] **CREDIT-07**: Operations that do not spend our AI budget never debit credits (MCP external-assistant conversation = zero credit; lightweight web-chat conversation absorbed), enforced by metering at the point of real spend.
+- [ ] **KMOD-01**: An `embed(text)` function generates embeddings via the configured provider (model-agnostic via the existing platform-config pattern), reusing `getIntegrationKey`.
+- [ ] **KMOD-02**: `retrieve(question, { industries, companyId, k })` returns ranked passages by pgvector similarity, MERGING the company's industry KB(s) + its own company overlay; channel-neutral (imports no channel) and never-throws.
+- [ ] **KMOD-03**: `answer(question, ctx)` composes a RAG prompt from retrieved passages and returns a short conversational answer; the prompt is injection-hardened (see KSEC-01).
+- [ ] **KMOD-04**: A deterministic fixture adapter lets the CI/eval harness exercise retrieve/answer with zero live network (mirroring the price-research fixture provider).
 
-### Super-Admin Billing Config
+### Super-Admin Industry KB Curation
 
-- [x] **BILLCFG-01**: A `billing_config` section in the encrypted runtime-config store (`platform_integrations`/`ai_config` pattern) holds all billing parameters — no hard-coded values, no env vars.
-- [x] **BILLCFG-02**: A super-admin "Billing" panel edits markup, credit denomination, per-tier monthly grant, subscription prices, top-up packs, Whisper rate, fee %, low-balance thresholds — applied at runtime without deploy.
-- [x] **BILLCFG-03**: All billing logic (`recordAICost`/`checkCredits`/grant/fee) reads parameters from `billing_config` at runtime; the business owner (tenant) has no access to these controls.
+- [ ] **KCUR-01**: A super-admin can create/edit/delete industry KB entries scoped to an industry, in the super-admin panel.
+- [ ] **KCUR-02**: Saving or editing an entry (re)generates its embedding.
+- [ ] **KCUR-03**: A super-admin can bulk-import entries (markdown or CSV) to seed an industry's KB in one operation.
 
-### Subscription & Top-Up Rail (Stripe)
+### Company KB Overlay (optional, tenant)
 
-- [x] **TOPUP-01**: On `invoice.paid` for a subscription, the system grants the tier's monthly credit allowance to the company's ledger, idempotently (via the existing `stripe_processed_events`).
-- [x] **TOPUP-02**: A company can buy a one-time credit top-up pack via Stripe checkout; the paid webhook credits the ledger.
-- [x] **TOPUP-03**: When credits run low or hit zero, the company is offered top-up (and an upgrade suggestion when the usage pattern justifies it) — generation is not silently blocked mid-job.
+- [ ] **KOVL-01**: A company owner can add/edit/delete private KB entries in the company's OWN settings panel (distinct from the super-admin panel); the overlay is optional — a company with no overlay uses only the industry KB.
+- [ ] **KOVL-02**: Company overlay entries generate embeddings the same way, scoped to the owning company.
 
-### Estimate Payment Platform Fee
+### WhatsApp KNOWLEDGE Intent
 
-- [x] **FEE-01**: The Stripe Connect invoice path (`lib/billing/invoice-service.ts`) charges a platform `application_fee_amount` (the deliberately omitted hook at line 17), routing the fee to the Xtimator platform account.
-- [x] **FEE-02**: The Phase-70 estimate checkout path charges the same platform fee via `payment_intent_data.application_fee_amount`.
-- [x] **FEE-03**: The fee percentage is read from `billing_config` (super-admin, default 1%) — never hard-coded.
-- [x] **FEE-04**: The fee is computed on the amount actually charged (deposit or full total), with a sane minimum/rounding so Stripe never receives an invalid (e.g. $0) fee.
+- [ ] **WAKB-01**: The WhatsApp `classifyAndRoute` gains a 5th intent KNOWLEDGE with a QUERY-vs-KNOWLEDGE disambiguation rule (QUERY = the company's own records; KNOWLEDGE = trade how-to); the safe CREATE default is preserved for unrecognized input.
+- [ ] **WAKB-02**: A KNOWLEDGE message dispatches to `lib/knowledge/answer` scoped by the resolved company's `industries[]` + its overlay, and the answer is delivered via the existing chunked owner reply path.
 
-### Payment UI Gating
+### Injection Hardening
 
-- [x] **PAYGATE-01**: A single `usePaymentsEnabled` guard gates all payment UI; every payment page, screen, button, and element renders only when the company's Stripe Connect status is `active`.
-- [x] **PAYGATE-02**: With Stripe disconnected, no payment-related element appears anywhere (no orphan) and the product otherwise works fully; both states are covered by tests.
-
-### Fee Disclosure
-
-- [x] **DISCLOSE-01**: The Stripe connection flow shows a clear disclosure that Xtimator charges the platform fee (e.g. 1%), separate from Stripe's fees, with the live percentage read from `billing_config`.
-
-### Credit Balance UX (owner-facing)
-
-- [x] **CREDITUI-01**: The business owner sees a simple credit balance (header/settings) with consumption history and rough per-action guidance — never token math.
-- [x] **CREDITUI-02**: Low-balance and zero-balance states show a warning and a top-up/upgrade CTA, reusing the existing threshold-notification path.
-
-### Calibration & Transition
-
-- [x] **CALIB-01**: Cost capture can run in production in measure-only mode (instrumented, no charging) so real per-operation cost is collected before any billing is enabled.
-- [x] **CALIB-02**: Grant/markup/price are derived from measured real cost and satisfy the margin invariant (real cost of the full monthly grant ≤ ~30% of the subscription price), documented.
-- [x] **MIG-01**: Credits run in parallel with the existing count-based tiers during transition; no existing account breaks, and the count-based limits degrade to secondary guard-rails.
+- [ ] **KSEC-01**: Retrieved KB content is sanitized through the existing `sanitizeField` and wrapped in a new `<knowledge>` tag, enumerated in the prompt-builder Security block, before entering any prompt; a static test asserts knowledge prompts are built through this hardened boundary (not ad-hoc concatenation).
 
 ## v2 Requirements
 
 Deferred to a future milestone. Tracked but not in this roadmap.
 
-### Granular Billing
+### Retrieval Quality
 
-- **GRAN-01**: Per-operation-type markup (e.g. research markup ≠ generation markup).
-- **GRAN-02**: Per-tier fee differentiation (e.g. Free 2%, Business 0.5%).
-- **GRAN-03**: Credit rollover for unused balance (current decision: no rollover — expire at cycle end).
-- **GRAN-04**: Platform transactional-revenue reporting dashboard (how much 1% fee accrued per period).
-- **GRAN-05**: `refund_application_fee` policy when an owner refunds a customer.
+- **KRR-01**: Cohere (or alternative) reranker as a pluggable layer between `retrieve` and `answer` — triggered by measured retrieval misses or a large/heterogeneous overlay corpus.
+- **KRR-02**: Chunk-by-paragraph granularity (v1 uses whole-entry).
+
+### Other Channels
+
+- **KCH-01**: Web-chat consumption of `lib/knowledge/` (SEED-034's milestone).
+- **KCH-02**: MCP `ask_knowledge` tool (SEED-030's milestone).
 
 ## Out of Scope
 
 | Feature | Reason |
 |---------|--------|
-| Stripe metered/usage-based billing for credits | The credit ledger is OURS; tying it to a gateway's metered billing makes us hostage to that gateway |
-| Platform custodying funds (Destination Charges) | Owner stays merchant of record; custody brings chargeback liability + money-transmitter exposure (Option B rejected) |
-| Charging real money before calibration | Must measure real cost in production first; charging on guessed numbers risks margin |
-| Switching off Stripe entirely | Founder is US-based with EIN + Stripe; Stripe is the rail (only the credit logic is ours) |
-| Model Complexity Gate (SEED-031) | Dormant optimization; synergistic with margin but not required for this milestone |
-| Owner-editable billing parameters | Billing config is super-admin only; the tenant only experiences the result |
+| Owner-facing KB browser/document viewer | The KB is a conversational retrieval surface only (locked decision) |
+| Cohere reranker on day 1 | pgvector-only in v1; reranker is a deferred data-driven optimization |
+| Web chat + MCP tool wiring | Separate milestones (SEED-034 / SEED-030) consuming this neutral module |
+| Customer-facing knowledge | Xtimator never talks to the end customer; the KB is for the business owner |
+| Multilingual KB content | Curate in English; the app already translates answers to the owner's language |
 
 ## Traceability
 
@@ -102,40 +79,27 @@ Which phases cover which requirements. Populated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| COST-01 | Phase 110 | Complete |
-| COST-02 | Phase 110 | Complete |
-| COST-03 | Phase 110 | Complete |
-| CREDIT-01 | Phase 112 | Complete |
-| CREDIT-02 | Phase 112 | Complete |
-| CREDIT-03 | Phase 112 | Complete |
-| CREDIT-04 | Phase 112 | Complete |
-| CREDIT-05 | Phase 112 | Complete |
-| CREDIT-06 | Phase 112 | Complete |
-| CREDIT-07 | Phase 112 | Complete |
-| BILLCFG-01 | Phase 111 | Complete |
-| BILLCFG-02 | Phase 111 | Complete |
-| BILLCFG-03 | Phase 111 | Complete |
-| TOPUP-01 | Phase 113 | Complete |
-| TOPUP-02 | Phase 113 | Complete |
-| TOPUP-03 | Phase 113 | Complete |
-| FEE-01 | Phase 114 | Complete |
-| FEE-02 | Phase 114 | Complete |
-| FEE-03 | Phase 114 | Complete |
-| FEE-04 | Phase 114 | Complete |
-| PAYGATE-01 | Phase 114 | Complete |
-| PAYGATE-02 | Phase 114 | Complete |
-| DISCLOSE-01 | Phase 114 | Complete |
-| CREDITUI-01 | Phase 115 | Complete |
-| CREDITUI-02 | Phase 115 | Complete |
-| CALIB-01 | Phase 110 | Complete |
-| CALIB-02 | Phase 116 | Complete |
-| MIG-01 | Phase 113 | Complete |
+| KB-01 | TBD | Pending |
+| KB-02 | TBD | Pending |
+| KB-03 | TBD | Pending |
+| KMOD-01 | TBD | Pending |
+| KMOD-02 | TBD | Pending |
+| KMOD-03 | TBD | Pending |
+| KMOD-04 | TBD | Pending |
+| KCUR-01 | TBD | Pending |
+| KCUR-02 | TBD | Pending |
+| KCUR-03 | TBD | Pending |
+| KOVL-01 | TBD | Pending |
+| KOVL-02 | TBD | Pending |
+| WAKB-01 | TBD | Pending |
+| WAKB-02 | TBD | Pending |
+| KSEC-01 | TBD | Pending |
 
 **Coverage:**
-- v1 requirements: 28 total
-- Mapped to phases: 28
-- Unmapped: 0 ✓ (all v1 requirements mapped to phases 110-116)
+- v1 requirements: 15 total
+- Mapped to phases: 0 (roadmap pending)
+- Unmapped: 15 ⚠️ (resolved by roadmap)
 
 ---
 *Requirements defined: 2026-06-24*
-*Last updated: 2026-06-24 — milestone v4.7 Monetização roadmap created; all 28 v1 requirements mapped to phases 110-116 (coverage 28/28, 0 orphans)*
+*Last updated: 2026-06-24 — milestone v4.8 Industry Knowledge Base initial definition*
