@@ -29,8 +29,8 @@ Requirements for this milestone. Each maps to exactly one roadmap phase.
 - [x] **CREDIT-01**: A tenant-scoped append-only `credit_ledger` records every credit movement (grant, debit, topup, adjust) with real cost, markup, and resulting balance.
 - [ ] **CREDIT-02**: Each AI operation already instrumented in `usage_events` (`estimate`, `photo_batch`, `audio_minutes`, `price_research`) debits credits = `real_cost × markup`.
 - [x] **CREDIT-03**: A company's current credit balance is derivable from the ledger with a fast-read path (cached balance, reconcilable to the ledger).
-- [ ] **CREDIT-04**: Each subscription tier grants a configurable monthly credit allowance (`monthlyCreditGrant` on entitlements).
-- [ ] **CREDIT-05**: Before an AI operation, the system checks credit balance; insufficient balance surfaces a top-up path rather than hard-failing mid-flow where avoidable.
+- [x] **CREDIT-04**: Each subscription tier grants a configurable monthly credit allowance (`monthlyCreditGrant` on entitlements).
+- [x] **CREDIT-05**: Before an AI operation, the system checks credit balance; insufficient balance surfaces a top-up path rather than hard-failing mid-flow where avoidable.
 - [ ] **CREDIT-06**: Credit debits are idempotent (reuse the existing `recordUsage` idempotency) — a retried operation never double-charges.
 - [ ] **CREDIT-07**: Operations that do not spend our AI budget never debit credits (MCP external-assistant conversation = zero credit; lightweight web-chat conversation absorbed), enforced by metering at the point of real spend.
 
@@ -108,8 +108,8 @@ Which phases cover which requirements. Populated during roadmap creation.
 | CREDIT-01 | Phase 112 | Complete |
 | CREDIT-02 | Phase 112 | Pending |
 | CREDIT-03 | Phase 112 | Complete |
-| CREDIT-04 | Phase 112 | Pending |
-| CREDIT-05 | Phase 112 | Pending |
+| CREDIT-04 | Phase 112 | Complete |
+| CREDIT-05 | Phase 112 | Complete |
 | CREDIT-06 | Phase 112 | Pending |
 | CREDIT-07 | Phase 112 | Pending |
 | BILLCFG-01 | Phase 111 | Complete |

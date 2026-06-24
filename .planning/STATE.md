@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v4.7
 milestone_name: Monetização — Credit-Based Billing + Estimate Payment Fee
 status: executing
-stopped_at: Completed 112-01-PLAN.md
-last_updated: "2026-06-24T16:34:03.332Z"
+stopped_at: Completed 112-02-PLAN.md
+last_updated: "2026-06-24T16:49:33.564Z"
 last_activity: 2026-06-24
 progress:
   total_phases: 18
@@ -34,7 +34,7 @@ progress:
 ## Current Position
 
 Phase: 112 (Credit Ledger + Consumption Metering) — EXECUTING
-Plan: 2 of 4
+Plan: 3 of 4
 Status: Ready to execute
 
 ---
@@ -73,7 +73,7 @@ Prior: 102-01 (HARD-07 replay-safe TTL) shipped. Added a neutral `requestedAt: A
 Prior: 102-02 (HARD-06 cap half) shipped. Replaced the hard-coded `(state.refineAttempts ?? 0) < 1` literal in `checkVagueAfterAssessEdge` (`lib/estimate/graph/nodes/decide.ts`) with a single `AUTO_REFINE_MAX_ATTEMPTS` module constant — read once at module load via an IIFE (`Number.isFinite(raw) && raw >= 0 ? raw : 1`) from the optional non-secret `process.env.AUTO_REFINE_MAX_ATTEMPTS`, defaulting to 1. Operator kept exactly `<` so the default is byte-identical to today (Research Pitfall 1). `auto-refine.ts` doc comment updated to reference the configurable cap (documentation-only; increment logic untouched). Channel-neutral (no DB, no async, no channel import) → graph-neutrality stays green. `tests/unit/estimate/auto-refine-cap.test.ts` now fully GREEN (default=1 AND `AUTO_REFINE_MAX_ATTEMPTS=2` override cases); `auto-refine-isolation` + `graph-neutrality` (12/12) and `never-reply-regression` Path C (loops exactly once at default) stay green. No env VALUE committed — only the var NAME appears (CLAUDE.md secret-handling). 1 atomic commit (02a41f2). xphere untouched. HARD-06 NOT marked complete — only the configurable-cap half is done; the web recourse UI half is owned by Plan 102-04.
 Prior (102-00, Wave 0 RED/EXTEND scaffold): authored 4 failing-by-design test files (auto-refine-cap [HARD-06 cap, now GREEN via 102-02], replay-safe-ttl [HARD-07, still RED → 102-01], batch-reporting [HARD-05, still RED → 102-03], needs-details-banner [HARD-06 recourse, still RED → 102-04]); 2 commits (201afb0, 35e8537).
 Last activity: 2026-06-24
-Stopped at: Completed 112-01-PLAN.md
+Stopped at: Completed 112-02-PLAN.md
 Next Up: **Phase 108 COMPLETE (5/5 plans — 108-01 metering [RMETER-01/02/03], 108-02 vagueness gate [RFALL-02], 108-03 orchestrator `researchUnmatchedPrices` [RPRICE-01/03/04, RFALL-01], 108-04 wire into `generateEstimateForProject` [RPRICE-01/03, RFALL-01], 108-05 "Couch cleaning 8 seats" full-graph regression [RFALL-03]).** THE PAYOFF is live in the production generation path AND locked by a green deterministic full-graph regression (EVIDENCED → $180/non-vague, empty-research+context → never-$0 ladder/non-vague, all-empty → still blocks). All three price-research adapters (`openrouter-web`, gated `anthropic-web`, deterministic `fixture`) remain configured-via-`platform_integrations` (all-misses no-op when unconfigured). Suggested: `/gsd:verify-work 108`, then `/gsd:execute-phase 109` (durability + cost-control hardening — dedicated `step.run('price-research')` retry isolation, runtime OpenRouter→Anthropic fallback ordering, per-estimate item caps, refine-loop memoization). DEFERRED (operational, carried from 108-01): apply migration `20260624000002_phase108_usage_event_price_researched.sql` (+ the earlier `20260624000001` price_research_cache) to remote via CI→GHCR→Coolify.
 Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gsd:verify-work 104` to validate the phase, then address the operational deferrals. DEFERRED (operational, all of Phase 104): apply migrations `20260621000001_notification_categories_remap.sql` + `20260621000002_notification_opt_in_consent.sql` + `20260621000003_whatsapp_notification_templates.sql` to the remote DB; ensure the Twilio from-number is SMS-capable; verify the Meta token carries `whatsapp_business_management` scope + author/approve the registry templates in Meta WhatsApp Manager (the `message_template_status_update` webhook then flips them to approved). Also still queued: `/gsd:verify-work 103` + `/gsd:complete-milestone` (v4.5) carry-over UATs.
 
@@ -640,6 +640,8 @@ Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gs
 - [Phase 111]: Money as INTEGER CENTS + percentages as 0..1 decimals locks the FINAL billing_config row shape for Phases 112-116; DEFAULT values illustrative until CALIB-02
 - [Phase 111]: Super-admin Billing panel ships at /admin/integrations/billing via a new 'billing' category; saveBillingConfig is requireAdmin-first, zod-validated, metadata-only upsert, cache-invalidating + audited
 - [Phase 112]: credit_ledger RLS is tenant-readable via company_members (mirrors phase94 invoices), not service-role-only — so the Phase 115 owner widget can read balance/history
+- [Phase 112]: enforcementEnabled defaults FALSE (measure-only): debits record but checkCredits never blocks until Phase 116 calibration
+- [Phase 112]: monthlyCreditGrant is a static null-safe fallback; authoritative runtime grant still read from billing-config at grant time (no hard-coded numbers)
 
 ## Performance Metrics
 
@@ -850,6 +852,7 @@ Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gs
 | Phase 111 P01 | 6min | 4 tasks | 5 files |
 | Phase 111 P02 | 8min | 4 tasks | 6 files |
 | Phase 112 P01 | 2 min | 2 tasks | 2 files |
+| Phase 112 P02 | 12min | 2 tasks | 9 files |
 
 ## Project Reference
 
