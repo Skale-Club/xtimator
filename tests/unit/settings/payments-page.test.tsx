@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render } from '@testing-library/react'
+import { paymentsEnabled } from '@/lib/billing/payments-enabled'
 
 /**
  * Wave 0 tests for `/settings/payments` (Plan 70-02). The page is a server
@@ -112,5 +113,36 @@ describe('/settings/payments page', () => {
     expect(html).toContain('not yet enabled')
     expect(html).not.toContain('Connect Stripe Account')
     expect(html).not.toContain('Disconnect')
+  })
+})
+
+/**
+ * PAYGATE-02 — the forward-looking payment gate that drives the owner editor's
+ * Generate-invoice affordance. The editor renders that affordance only under
+ * `{isCurrent && paymentsEnabled && (...)}`, where `paymentsEnabled` is computed
+ * server-side from this same Connect row. Both states are asserted so a
+ * disconnected company can never orphan a payment element.
+ *
+ * LOCKED DECISION: only forward-looking AFFORDANCES are gated. Historical
+ * read-only RECORDS (the "Paid" badge, the IssuedInvoicesPanel) may persist when
+ * a company disconnects; a never-connected company simply has none of them.
+ */
+describe('PAYGATE-02: payment gate (forward-looking affordance, two-state)', () => {
+  it('is OFF for a disconnected company — no forward pay affordance (no orphan)', () => {
+    expect(
+      paymentsEnabled({ stripe_account_id: 'acct_1', stripe_connect_status: 'disconnected' })
+    ).toBe(false)
+  })
+
+  it('is OFF for a never-connected company', () => {
+    expect(
+      paymentsEnabled({ stripe_account_id: null, stripe_connect_status: null })
+    ).toBe(false)
+  })
+
+  it('is ON for an active connected company — affordance may render', () => {
+    expect(
+      paymentsEnabled({ stripe_account_id: 'acct_abc', stripe_connect_status: 'active' })
+    ).toBe(true)
   })
 })

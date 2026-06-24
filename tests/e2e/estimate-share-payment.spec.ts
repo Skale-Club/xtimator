@@ -55,6 +55,15 @@ test.describe('estimate share page — Stripe Connect both branches (CONNECT-06)
   test('share page WITHOUT Stripe Connect renders unchanged (baseline)', async ({ page }) => {
     await page.goto(`/estimate/${unconnectedToken}`)
 
+    // PAYGATE-02 — disconnected company shows NO forward pay surface (inventory
+    // surface 3, the customer "Pay $X" button). This is naturally gated: the Pay
+    // button only renders when the company is Connect-active (`paymentsEnabled`),
+    // and a disconnected company can have no open invoice to pay.
+    //
+    // LOCKED DECISION: only forward-looking AFFORDANCES are gated. Historical
+    // read-only RECORDS — a "Paid" badge on an already-paid estimate, an
+    // already-issued invoice panel — are a RECORD, not an affordance, and may
+    // remain when disconnected; a never-connected company simply has none.
     // Pay Now must be entirely absent on the unconnected branch.
     await expect(page.getByRole('button', { name: /Pay \$/i })).toHaveCount(0)
     await expect(page.getByText(/Powered by Stripe/i)).toHaveCount(0)
