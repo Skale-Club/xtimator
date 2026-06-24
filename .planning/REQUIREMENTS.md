@@ -46,7 +46,7 @@
 
 ### RCACHE — Caching
 
-- [ ] **RCACHE-01**: Researched prices are cached in a new `price_research_cache` table keyed by (`company_id`, normalized service name, city + state), with service-role/deny-all RLS (the `pipeline_events` posture).
+- [x] **RCACHE-01**: Researched prices are cached in a new `price_research_cache` table keyed by (`company_id`, normalized service name, city + state), with service-role/deny-all RLS (the `pipeline_events` posture).
 - [ ] **RCACHE-02**: Cache entries expire after a TTL (~30 days); a cache hit reuses the price without a new search and without consuming the research allowance.
 
 ---
@@ -90,5 +90,5 @@
 | RMETER-01 | Phase 108 | Pending |
 | RMETER-02 | Phase 108 | Pending |
 | RMETER-03 | Phase 108 | Pending |
-| RCACHE-01 | Phase 106 | Pending |
+| RCACHE-01 | Phase 106 | Complete |
 | RCACHE-02 | Phase 106 | Pending |

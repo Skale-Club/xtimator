@@ -773,7 +773,7 @@ Plans:
 | 74. Post-Onboarding App Feature Tour | v3.1.1 | 4/4 | Complete    | 2026-05-19 |
 | 104. Notification Channels & Preferences Revamp | v4.5.1 | 4/4 | Complete | 2026-06-22 |
 | 105. `price_source: 'researched'` Threading | v4.6 | 2/2 | Complete    | 2026-06-24 |
-| 106. Cache Table + Tenant-Scoped Cache Module | v4.6 | 0/TBD | Not started | - |
+| 106. Cache Table + Tenant-Scoped Cache Module | v4.6 | 1/2 | In Progress|  |
 | 107. Provider Seam + First Source + Determinism Seam | v4.6 | 0/TBD | Not started | - |
 | 108. Orchestrator + Service Integration | v4.6 | 0/TBD | Not started | - |
 | 109. Durability + Cost-Control Hardening | v4.6 | 0/TBD | Not started | - |
@@ -1216,7 +1216,7 @@ Plans:
   3. A static leakage test asserts the cache value type carries no `company_id`/client/margin/job-text field — only `{ unit_price, currency, source, confidence?, expires_at }` (the neutral-datum discipline)
   4. A cache hit returns the stored price without any provider call (verified in a unit test with a stubbed provider that must NOT be invoked on a hit)
 **Plans**: 2 plans
-- [ ] 106-01-PLAN.md — price_research_cache migration (RLS deny-all, zero policies) + normalize.ts (region + name key reusing normalizeNameForMatch)
+- [x] 106-01-PLAN.md — price_research_cache migration (RLS deny-all, zero policies) + normalize.ts (region + name key reusing normalizeNameForMatch)
 - [ ] 106-02-PLAN.md — cache.ts get/put (neutral datum, 30d TTL, expired=miss, service-role) + leakage/HIT-no-provider/TTL/normalization tests + static migration contract
 
 ### Phase 107: Provider Seam + First Source + Determinism Seam
