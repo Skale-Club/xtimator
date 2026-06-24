@@ -111,6 +111,15 @@ describe('GUARD-01: price_source defensive coercion (D-15 as preprocess)', () =>
     if (!result.success) return
     expect(result.data.sections[0].items[0].price_source).toBe('price_book')
   })
+
+  it("preserves an exact 'researched' price_source (Phase 105 dormant threading)", () => {
+    const raw = validRaw()
+    items(raw)[0].price_source = 'researched'
+    const result = estimateOutputSchema.safeParse(raw)
+    expect(result.success).toBe(true)
+    if (!result.success) return
+    expect(result.data.sections[0].items[0].price_source).toBe('researched')
+  })
 })
 
 describe('GUARD-01: suggested_client_name trim/null transform', () => {
