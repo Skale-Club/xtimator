@@ -1,42 +1,73 @@
-# Requirements: v4.6 Notification Channels & Preferences
+# Requirements — Milestone v4.6 Pricing Intelligence (Researched Pricing Agent)
 
-**Goal:** Restructure the owner notification preferences into a clean 3-category × 4-channel matrix, and make WhatsApp + SMS real delivery channels (not just In-App + Email).
+**Defined:** 2026-06-23
+**Status:** Approved — ready for roadmap
 
-**Started:** 2026-06-21
-**Status:** Defining requirements
+> **Goal:** When an estimate line item has no match in the company price book, a specialized step researches the average regional market price (client's city + state) and writes it with `price_source: 'researched'` — instead of the AI guessing a price that can come out $0 and trip the "too vague" gate. Delivers Pillar 2 (researched pricing) on top of the existing Pillar 1 (price-book priority via `anchorAndClampSections`).
 
-## Why this milestone (the gap)
-
-The notification preferences page (`components/settings/notifications-form.tsx`) currently exposes 8 categories (Estimates, Payments, Trial, Quota, WhatsApp, AI Jobs, Admin, System) across only 2 delivery channels (In-App, Email). Two problems: (1) the category list is noisy and conceptually muddled — "WhatsApp" is listed as a *category* when it is really a *delivery channel*, and Payments/Trial/Quota/Admin are all the same concern (billing/plan); (2) owners can only be notified in-app or by email, with no WhatsApp or SMS delivery. This milestone fixes both: a tidy 3-category model and 4 working delivery channels.
-
-**Source:** product discussion 2026-06-21 (this session).
+> **Locked decisions (from discussion 2026-06-23):**
+> - Search source: **OpenRouter web search** (primary provider), engine configurable `exa` (fixed ~$0.005/req) vs `native` (model's own search). Anthropic web search (`user_location`) as a gated quality fallback. Brave / dedicated pricing APIs / scraping rejected.
+> - Region granularity: **city + state** (already on the client address) — also the cache key.
+> - Markup/margin: **none in MVP** (deferred to admin config).
+> - Cache scope: **per-tenant** (`company_id`).
+> - Metering: **reuse the existing quota** (`usage_events` / `checkQuota` / `recordUsage`) with a new `price_researched` event type, **count-based** (1 unit/search), per-tier monthly allowance. No new credit/billing subsystem.
+> - Source citations / ranges / confidence are NOT surfaced in the UI this milestone.
 
 ---
 
-## v1 Requirements (this milestone)
+## v4.6 Requirements
 
-### NOTIF — Notification Channels & Preferences
+### RPRICE — Researched Pricing Core
 
-- [x] **NOTIF-01**: The notification preferences page presents exactly 3 event categories — **Estimates**, **Billing** (merging today's Payments + Trial + Quota + Admin), and **System**. The standalone "WhatsApp" and "AI Jobs" categories are removed.
-- [x] **NOTIF-02**: Notification delivery supports 4 channels — **In-App**, **Email**, **WhatsApp**, **SMS** — each independently toggleable per category (a category × channel matrix), gated by the existing email master switch where applicable.
-- [x] **NOTIF-03**: A WhatsApp notification sender delivers owner notifications via the existing WhatsApp client (using an approved template for proactive/out-of-24h-session messages).
-- [x] **NOTIF-04**: An SMS notification sender delivers owner notifications via Twilio (origin number + per-message send).
-- [x] **NOTIF-05**: The owner's phone number used for WhatsApp/SMS is collected and validated, with explicit per-channel opt-in/consent before any message is sent.
-- [x] **NOTIF-06**: Existing per-user preferences and the event→category mapping are migrated to the new model (payment/trial/quota/admin → billing; events in the removed whatsapp/ai_job categories are handled per a documented decision — re-routed or dropped).
-- [x] **NOTIF-07**: Notification dispatch routes each event to its (new) category and delivers ONLY via the channels the owner enabled for that category, never throwing if a channel is unconfigured (best-effort per channel).
+- [ ] **RPRICE-01**: For each estimate line item with no price-book match, the system researches an average regional market price using the client's city + state, instead of letting the AI guess.
+- [ ] **RPRICE-02**: A researched price is tagged `price_source: 'researched'` (distinct from `price_book` and `ai_estimate`), threaded through the output schema, persistence (`estimate_items.price_source` CHECK), and the estimate editor price badge.
+- [ ] **RPRICE-03**: Price precedence `price_book > researched > ai_estimate` is enforced — research runs only on no-match items, never overrides a price-book item, and never re-researches an item the owner has edited.
+- [ ] **RPRICE-04**: An item is tagged `researched` only when the lookup returns real evidence (a source URL + snippet); without evidence it falls back to a non-zero `ai_estimate`. (Internal correctness gate — source data is not shown in the UI.)
+
+### RSRC — Research Source / Provider
+
+- [ ] **RSRC-01**: Price research runs through OpenRouter's web search (the primary AI provider), as a separate call ahead of the unchanged forced `create_estimate` call.
+- [ ] **RSRC-02**: The search engine is configurable between `exa` (OpenRouter/Exa, fixed cost) and `native` (the model's own web search), behind a swappable `PriceResearchProvider` seam mirroring `getAIProviderWithFallback`.
+- [ ] **RSRC-03**: Anthropic web search (with `user_location` city/state) is available as a pluggable quality-fallback source, gated and not the default.
+- [ ] **RSRC-04**: The research source is seamed so a deterministic fixture adapter drives it in tests/CI (no live calls) — the v4.5 eval harness + CI regression gate stay green.
+
+### RFALL — Fallback & Correctness (the $0 fix)
+
+- [ ] **RFALL-01**: No fallback rung is ever $0 — research → non-zero `ai_estimate` → flagged unpriced item, never zero.
+- [ ] **RFALL-02**: The vagueness gate distinguishes a fully empty estimate (block → needs-details) from a single flagged unpriced item (allow → estimate proceeds).
+- [ ] **RFALL-03**: The originating "Couch cleaning 8seats" case is a regression fixture that produces a non-zero, non-vague estimate.
+- [ ] **RFALL-04**: Web-search content is sanitized against prompt injection (reusing `sanitizeField` + a tagged `<search_result>` block + the `## Security` clause) before entering the LLM prompt.
+
+### RMETER — Metering & Cost (reuse existing quota)
+
+- [ ] **RMETER-01**: Each price-research search is metered through the existing usage system (`usage_events` / `recordUsage`) via a new `price_researched` event type, count-based (1 unit/search), idempotent.
+- [ ] **RMETER-02**: Each tier gets a monthly price-research allowance in `entitlements`, sized from the per-search cost in cents.
+- [ ] **RMETER-03**: `checkQuota` gates research; when a company is over its research allowance, research is skipped and items fall back to a non-zero `ai_estimate` — the estimate still generates and never hard-fails.
+
+### RCACHE — Caching
+
+- [ ] **RCACHE-01**: Researched prices are cached in a new `price_research_cache` table keyed by (`company_id`, normalized service name, city + state), with service-role/deny-all RLS (the `pipeline_events` posture).
+- [ ] **RCACHE-02**: Cache entries expire after a TTL (~30 days); a cache hit reuses the price without a new search and without consuming the research allowance.
 
 ---
 
 ## Future Requirements (deferred)
 
-- **NOTIF-08** (deferred): Quiet hours / per-channel send windows.
-- **NOTIF-09** (deferred): Localized SMS/WhatsApp templates beyond the owner's app language.
+- Source citations in the estimate UI ("researched from N sources" + links).
+- Low / avg / high price range as captured metadata + display.
+- Confidence indicator on researched prices.
+- Admin-panel UI for source selection, engine choice, spend caps, and research on/off.
+- Configurable markup / margin applied to researched prices.
 
-## Out of Scope (explicit exclusions)
+---
 
-- **Customer-facing WhatsApp template notifications** (sending estimate updates to the END CLIENT) — that is the separate queued v4.4 Phase 98 work; this milestone is about the OWNER's own notification preferences.
-- **Push (web/mobile) channel** — not in this milestone (the Phase 77 push scaffold stays dormant).
-- **A full notifications redesign** — this restructures categories + adds channels; it does not redesign the notification feed/inbox.
+## Out of Scope
+
+- **Direct scraping** of HomeAdvisor / Angi / Yelp cost pages — ToS/legal exposure, brittleness, and a headless-browser dependency the project deliberately avoids.
+- **In-house RSMeans-style priced database** — maintenance trap; on-demand research is the chosen mechanism.
+- **In-house cost-of-living multiplier table** — direct city/state lookup is used instead.
+- **A new cents-based credit wallet / billing subsystem** — explicitly reuse the existing count-based quota instead.
+- **Silent auto-apply without review** — estimates remain user-editable; researched prices are a starting point.
 
 ---
 
