@@ -9,14 +9,19 @@ import { getEntitlements } from '@/lib/entitlements'
 import { notify } from '@/lib/notifications/dispatch'
 import { buildNotificationCopy } from '@/lib/notifications/copy'
 
-export type QuotaType = 'estimate' | 'photo_batch' | 'audio_minutes'
-export type EventType = 'estimate_generated' | 'photo_analyzed' | 'audio_transcribed'
+export type QuotaType = 'estimate' | 'photo_batch' | 'audio_minutes' | 'price_research'
+export type EventType =
+  | 'estimate_generated'
+  | 'photo_analyzed'
+  | 'audio_transcribed'
+  | 'price_researched'
 
 // Maps quota type to event_type string in usage_events
 const QUOTA_TO_EVENT: Record<QuotaType, EventType> = {
   estimate: 'estimate_generated',
   photo_batch: 'photo_analyzed',
   audio_minutes: 'audio_transcribed',
+  price_research: 'price_researched',
 }
 
 /**
