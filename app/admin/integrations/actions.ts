@@ -13,7 +13,7 @@ import {
   invalidatePlatformConfig,
   type IntegrationProvider,
 } from '@/lib/platform-config'
-import { integrationKeySchema } from '@/lib/schemas/admin'
+import { integrationKeySchema, billingConfigSchema } from '@/lib/schemas/admin'
 
 export type ActionResult =
   | { ok: true; message?: string }
@@ -748,4 +748,51 @@ export async function setPriceResearchSource(input: {
       ? `Price research enabled (${input.source}).`
       : 'Price research disabled.',
   }
+}
+
+/**
+ * Save the v4.7 super-admin billing_config (BILLCFG-02 / BILLCFG-03).
+ *
+ * Upserts the metadata-only `platform_integrations` row `provider='billing_config'`
+ * with the FULL {@link import('@/lib/schemas/admin').BillingConfigInput} shape so
+ * every Phase 112-116 consumer reads real values. Mirrors setPriceResearchSource
+ * exactly: requireAdmin gate FIRST (notFound for non-admins, before any DB write),
+ * zod safeParse (validate-before-trust — invalid input returns ok:false with NO
+ * upsert), service-role metadata-only upsert (all crypto columns explicitly null —
+ * the existing CHECK permits that), then invalidatePlatformConfig() (runtime apply,
+ * no deploy — flushes the billing TTL cache) + revalidatePath + audit.
+ *
+ * NEVER logs the raw config through logAdminAction beyond the targetType/targetId.
+ */
+export async function saveBillingConfig(input: unknown): Promise<ActionResult> {
+  const ctx = await requireAdmin() // BILLCFG-03 gate — notFound() for non-admins, FIRST
+  const parsed = billingConfigSchema.safeParse(input) // validate-before-trust
+  if (!parsed.success) {
+    return { ok: false, message: parsed.error.issues[0]?.message ?? 'Invalid billing config' }
+  }
+  const svc = requireServiceClient()
+  const { error } = await svc.from('platform_integrations').upsert(
+    {
+      provider: 'billing_config',
+      ciphertext: null,
+      iv: null,
+      auth_tag: null, // metadata-only row (CHECK permits all-null crypto)
+      metadata: parsed.data,
+      updated_at: new Date().toISOString(),
+      updated_by: ctx.userId,
+    },
+    { onConflict: 'provider' }
+  )
+  if (error) return { ok: false, message: error.message }
+
+  invalidatePlatformConfig() // runtime apply, no deploy (flushes the billing TTL cache)
+  revalidatePath('/admin/integrations')
+  void logAdminAction({
+    actorId: ctx.userId,
+    actorEmail: ctx.email,
+    action: 'billing_config.save',
+    targetType: 'billing_config',
+    targetId: 'billing_config',
+  })
+  return { ok: true, message: 'Billing config saved.' }
 }

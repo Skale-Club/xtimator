@@ -21,6 +21,7 @@ export type AuditAction =
   | 'legal.save'
   | 'admin.add'
   | 'admin.remove'
+  | 'price_research.set'
   | 'billing_config.save'
 
 interface LogParams {
