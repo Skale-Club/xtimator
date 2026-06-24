@@ -14,6 +14,7 @@ import {
   type IntegrationProvider,
 } from '@/lib/platform-config'
 import { integrationKeySchema, billingConfigSchema } from '@/lib/schemas/admin'
+import { validateMarginInvariant, type TierMarginResult } from '@/lib/billing/calibration'
 
 export type ActionResult =
   | { ok: true; message?: string }
@@ -769,6 +770,23 @@ export async function saveBillingConfig(input: unknown): Promise<ActionResult> {
   const parsed = billingConfigSchema.safeParse(input) // validate-before-trust
   if (!parsed.success) {
     return { ok: false, message: parsed.error.issues[0]?.message ?? 'Invalid billing config' }
+  }
+  // CALIB-02 charge-on gate: enforcementEnabled may flip to true ONLY when the
+  // incoming config satisfies the margin invariant (real cost of each priced
+  // tier's full grant ≤ 30% of its price). Saving with enforcement OFF is never
+  // gated — illustrative numbers are always saveable while charging is off.
+  if (parsed.data.enforcementEnabled) {
+    const check = validateMarginInvariant(parsed.data)
+    if (!check.pass) {
+      const failing = (Object.entries(check.tiers) as [string, TierMarginResult][])
+        .filter(([, r]) => !r.skipped && !r.pass)
+        .map(([name, r]) => `${name} (${(r.ratio * 100).toFixed(0)}% > 30%)`)
+        .join(', ')
+      return {
+        ok: false,
+        message: `Cannot enable charging: margin invariant fails for ${failing}. Lower the grant or raise the markup until the real cost of each tier's full grant is ≤ 30% of its price.`,
+      }
+    }
   }
   const svc = requireServiceClient()
   const { error } = await svc.from('platform_integrations').upsert(
