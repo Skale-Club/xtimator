@@ -19,10 +19,10 @@
 
 ### RPRICE — Researched Pricing Core
 
-- [ ] **RPRICE-01**: For each estimate line item with no price-book match, the system researches an average regional market price using the client's city + state, instead of letting the AI guess.
+- [x] **RPRICE-01**: For each estimate line item with no price-book match, the system researches an average regional market price using the client's city + state, instead of letting the AI guess.
 - [x] **RPRICE-02**: A researched price is tagged `price_source: 'researched'` (distinct from `price_book` and `ai_estimate`), threaded through the output schema, persistence (`estimate_items.price_source` CHECK), and the estimate editor price badge.
 - [x] **RPRICE-03**: Price precedence `price_book > researched > ai_estimate` is enforced — research runs only on no-match items, never overrides a price-book item, and never re-researches an item the owner has edited.
-- [ ] **RPRICE-04**: An item is tagged `researched` only when the lookup returns real evidence (a source URL + snippet); without evidence it falls back to a non-zero `ai_estimate`. (Internal correctness gate — source data is not shown in the UI.)
+- [x] **RPRICE-04**: An item is tagged `researched` only when the lookup returns real evidence (a source URL + snippet); without evidence it falls back to a non-zero `ai_estimate`. (Internal correctness gate — source data is not shown in the UI.)
 
 ### RSRC — Research Source / Provider
 
@@ -33,7 +33,7 @@
 
 ### RFALL — Fallback & Correctness (the $0 fix)
 
-- [ ] **RFALL-01**: No fallback rung is ever $0 — research → non-zero `ai_estimate` → flagged unpriced item, never zero.
+- [x] **RFALL-01**: No fallback rung is ever $0 — research → non-zero `ai_estimate` → flagged unpriced item, never zero.
 - [x] **RFALL-02**: The vagueness gate distinguishes a fully empty estimate (block → needs-details) from a single flagged unpriced item (allow → estimate proceeds).
 - [ ] **RFALL-03**: The originating "Couch cleaning 8seats" case is a regression fixture that produces a non-zero, non-vague estimate.
 - [x] **RFALL-04**: Web-search content is sanitized against prompt injection (reusing `sanitizeField` + a tagged `<search_result>` block + the `## Security` clause) before entering the LLM prompt.
@@ -75,15 +75,15 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| RPRICE-01 | Phase 108 | Pending |
+| RPRICE-01 | Phase 108 | Complete |
 | RPRICE-02 | Phase 105 | Complete |
 | RPRICE-03 | Phase 108 | Complete |
-| RPRICE-04 | Phase 108 | Pending |
+| RPRICE-04 | Phase 108 | Complete |
 | RSRC-01 | Phase 107 | Complete |
 | RSRC-02 | Phase 107 | Complete |
 | RSRC-03 | Phase 107 | Complete |
 | RSRC-04 | Phase 107 | Complete |
-| RFALL-01 | Phase 108 | Pending |
+| RFALL-01 | Phase 108 | Complete |
 | RFALL-02 | Phase 108 | Complete |
 | RFALL-03 | Phase 108 | Pending |
 | RFALL-04 | Phase 107 | Complete |
