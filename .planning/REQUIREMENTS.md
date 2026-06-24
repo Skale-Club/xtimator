@@ -60,7 +60,7 @@ Requirements for this milestone. Each maps to exactly one roadmap phase.
 
 ### Fee Disclosure
 
-- [ ] **DISCLOSE-01**: The Stripe connection flow shows a clear disclosure that Xtimator charges the platform fee (e.g. 1%), separate from Stripe's fees, with the live percentage read from `billing_config`.
+- [x] **DISCLOSE-01**: The Stripe connection flow shows a clear disclosure that Xtimator charges the platform fee (e.g. 1%), separate from Stripe's fees, with the live percentage read from `billing_config`.
 
 ### Credit Balance UX (owner-facing)
 
@@ -124,7 +124,7 @@ Which phases cover which requirements. Populated during roadmap creation.
 | FEE-04 | Phase 114 | Complete |
 | PAYGATE-01 | Phase 114 | Complete |
 | PAYGATE-02 | Phase 114 | Complete |
-| DISCLOSE-01 | Phase 114 | Pending |
+| DISCLOSE-01 | Phase 114 | Complete |
 | CREDITUI-01 | Phase 115 | Pending |
 | CREDITUI-02 | Phase 115 | Pending |
 | CALIB-01 | Phase 110 | Complete |

@@ -1287,7 +1287,7 @@ Plans:
  (completed 2026-06-24)
 - [x] **Phase 112: Credit Ledger + Consumption Metering** — Append-only tenant-scoped `credit_ledger` (grant/debit/topup/adjust) with fast-read cached balance; each instrumented `usage_events` op debits `real_cost × markup`; per-tier `monthlyCreditGrant`; idempotent debits; pre-op balance check with top-up path; zero-debit for non-spend ops (MCP conversation). (completed 2026-06-24)
 - [x] **Phase 113: Stripe Rail — Grants, Top-Ups + Parallel-Run Transition** — `invoice.paid` grants the tier allowance idempotently; one-time top-up checkout credits the ledger; low/zero balance offers top-up + upgrade without silent mid-job block; credits run in parallel with count-based tiers so no existing account breaks (counts degrade to secondary guard-rails). (completed 2026-06-24)
-- [ ] **Phase 114: Estimate Payment Fee + Payment-UI Gating + Disclosure** — Fill the omitted `application_fee_amount` hook on both the invoice and Phase-70 checkout paths (fee % from `billing_config`, sane minimum/rounding); a single `usePaymentsEnabled` guard gates ALL payment UI to `stripe_connect_status = 'active'` (no orphan elements, both states tested); clear fee disclosure at the Stripe connection flow.
+- [x] **Phase 114: Estimate Payment Fee + Payment-UI Gating + Disclosure** — Fill the omitted `application_fee_amount` hook on both the invoice and Phase-70 checkout paths (fee % from `billing_config`, sane minimum/rounding); a single `usePaymentsEnabled` guard gates ALL payment UI to `stripe_connect_status = 'active'` (no orphan elements, both states tested); clear fee disclosure at the Stripe connection flow. (completed 2026-06-24)
 - [ ] **Phase 115: Credit Balance UX (owner-facing)** — Owner sees a simple credit balance (header/settings) with consumption history and rough per-action guidance (never token math); low/zero-balance states show a warning + top-up/upgrade CTA reusing the existing threshold-notification path.
 - [x] **Phase 116: Calibration & Charge-On Validation** — Derive grant/markup/price from the measured real cost collected since Phase 110 and validate the margin invariant (real cost of the full monthly grant ≤ ~30% of subscription price), documented. This LATE phase consumes CALIB-01's data + the ledger/config and gates turning real charging ON.
  (completed 2026-06-24)
@@ -1363,7 +1363,7 @@ Plans:
 **Plans**: 3 plans (2 waves)
 - [x] 114-01-PLAN.md — application_fee_amount on the Connect invoice path + computeApplicationFee helper + fee read from billing_config (FEE-01..04)
 - [x] 114-02-PLAN.md — single paymentsEnabled(company) predicate + gate the Generate-invoice affordance, no orphan when disconnected (PAYGATE-01, PAYGATE-02)
-- [ ] 114-03-PLAN.md — config-driven fee disclosure in the not_connected Connect card (live estimateFeePct × 100) (DISCLOSE-01)
+- [x] 114-03-PLAN.md — config-driven fee disclosure in the not_connected Connect card (live estimateFeePct × 100) (DISCLOSE-01)
 **UI hint**: yes
 
 ### Phase 115: Credit Balance UX (owner-facing)
