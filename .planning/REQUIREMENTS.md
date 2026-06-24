@@ -27,16 +27,16 @@
 ### RSRC — Research Source / Provider
 
 - [ ] **RSRC-01**: Price research runs through OpenRouter's web search (the primary AI provider), as a separate call ahead of the unchanged forced `create_estimate` call.
-- [ ] **RSRC-02**: The search engine is configurable between `exa` (OpenRouter/Exa, fixed cost) and `native` (the model's own web search), behind a swappable `PriceResearchProvider` seam mirroring `getAIProviderWithFallback`.
+- [x] **RSRC-02**: The search engine is configurable between `exa` (OpenRouter/Exa, fixed cost) and `native` (the model's own web search), behind a swappable `PriceResearchProvider` seam mirroring `getAIProviderWithFallback`.
 - [ ] **RSRC-03**: Anthropic web search (with `user_location` city/state) is available as a pluggable quality-fallback source, gated and not the default.
-- [ ] **RSRC-04**: The research source is seamed so a deterministic fixture adapter drives it in tests/CI (no live calls) — the v4.5 eval harness + CI regression gate stay green.
+- [x] **RSRC-04**: The research source is seamed so a deterministic fixture adapter drives it in tests/CI (no live calls) — the v4.5 eval harness + CI regression gate stay green.
 
 ### RFALL — Fallback & Correctness (the $0 fix)
 
 - [ ] **RFALL-01**: No fallback rung is ever $0 — research → non-zero `ai_estimate` → flagged unpriced item, never zero.
 - [ ] **RFALL-02**: The vagueness gate distinguishes a fully empty estimate (block → needs-details) from a single flagged unpriced item (allow → estimate proceeds).
 - [ ] **RFALL-03**: The originating "Couch cleaning 8seats" case is a regression fixture that produces a non-zero, non-vague estimate.
-- [ ] **RFALL-04**: Web-search content is sanitized against prompt injection (reusing `sanitizeField` + a tagged `<search_result>` block + the `## Security` clause) before entering the LLM prompt.
+- [x] **RFALL-04**: Web-search content is sanitized against prompt injection (reusing `sanitizeField` + a tagged `<search_result>` block + the `## Security` clause) before entering the LLM prompt.
 
 ### RMETER — Metering & Cost (reuse existing quota)
 
@@ -80,13 +80,13 @@
 | RPRICE-03 | Phase 108 | Complete |
 | RPRICE-04 | Phase 108 | Pending |
 | RSRC-01 | Phase 107 | Pending |
-| RSRC-02 | Phase 107 | Pending |
+| RSRC-02 | Phase 107 | Complete |
 | RSRC-03 | Phase 107 | Pending |
-| RSRC-04 | Phase 107 | Pending |
+| RSRC-04 | Phase 107 | Complete |
 | RFALL-01 | Phase 108 | Pending |
 | RFALL-02 | Phase 108 | Pending |
 | RFALL-03 | Phase 108 | Pending |
-| RFALL-04 | Phase 107 | Pending |
+| RFALL-04 | Phase 107 | Complete |
 | RMETER-01 | Phase 108 | Pending |
 | RMETER-02 | Phase 108 | Pending |
 | RMETER-03 | Phase 108 | Pending |

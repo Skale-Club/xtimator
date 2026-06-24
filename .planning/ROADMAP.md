@@ -774,7 +774,7 @@ Plans:
 | 104. Notification Channels & Preferences Revamp | v4.5.1 | 4/4 | Complete | 2026-06-22 |
 | 105. `price_source: 'researched'` Threading | v4.6 | 2/2 | Complete    | 2026-06-24 |
 | 106. Cache Table + Tenant-Scoped Cache Module | v4.6 | 2/2 | Complete    | 2026-06-24 |
-| 107. Provider Seam + First Source + Determinism Seam | v4.6 | 0/TBD | Not started | - |
+| 107. Provider Seam + First Source + Determinism Seam | v4.6 | 1/3 | In Progress|  |
 | 108. Orchestrator + Service Integration | v4.6 | 0/TBD | Not started | - |
 | 109. Durability + Cost-Control Hardening | v4.6 | 0/TBD | Not started | - |
 
@@ -1231,7 +1231,7 @@ Plans:
   5. Web-search content is sanitized through `sanitizeField` and wrapped in a `<search_result>` tag enumerated in the `buildSystemPrompt` `## Security` block before entering any prompt; a static test asserts research prompts are built through the hardened boundary, not an ad-hoc path
 **Plans**: 3 plans in 2 waves
 Plans:
-- [ ] 107-01-PLAN.md — Port + zod schema + evidence-gated isUsableCandidate + injection hardening (export sanitizeField, &lt;search_result&gt; in ## Security, buildResearchSearchPrompt) [Wave 1]
+- [x] 107-01-PLAN.md — Port + zod schema + evidence-gated isUsableCandidate + injection hardening (export sanitizeField, &lt;search_result&gt; in ## Security, buildResearchSearchPrompt) [Wave 1]
 - [ ] 107-02-PLAN.md — OpenRouter-web adapter (separate openrouter:web_search call, engine exa default/native configurable) + gated Anthropic-web adapter (user_location) [Wave 2]
 - [ ] 107-03-PLAN.md — Deterministic fixture adapter + golden (service,region)->candidates fixtures + fixed clock + gated eval source test (zero live network) [Wave 2]
 
