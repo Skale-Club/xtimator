@@ -1279,7 +1279,7 @@ Plans:
 
 ### Phases
 
-- [ ] **Phase 110: Real Cost Capture Foundation + Measure-Only Mode** — Capture real USD cost per OpenRouter call + computed Whisper cost; correlate to `usage_events`/`pipeline_events`; runs measure-only (no charging) so production cost is collected before billing exists. The foundation that gates the entire ledger.
+- [x] **Phase 110: Real Cost Capture Foundation + Measure-Only Mode** — Capture real USD cost per OpenRouter call + computed Whisper cost; correlate to `usage_events`/`pipeline_events`; runs measure-only (no charging) so production cost is collected before billing exists. The foundation that gates the entire ledger. (completed 2026-06-24)
 - [ ] **Phase 111: `billing_config` Store + Super-Admin Billing Panel** — A `billing_config` section in the encrypted runtime-config store + a super-admin "Billing" panel editing markup, denomination, per-tier grant, prices, top-up packs, Whisper rate, fee %, thresholds — applied at runtime, tenant has no access. Every downstream phase reads from it.
 - [ ] **Phase 112: Credit Ledger + Consumption Metering** — Append-only tenant-scoped `credit_ledger` (grant/debit/topup/adjust) with fast-read cached balance; each instrumented `usage_events` op debits `real_cost × markup`; per-tier `monthlyCreditGrant`; idempotent debits; pre-op balance check with top-up path; zero-debit for non-spend ops (MCP conversation).
 - [ ] **Phase 113: Stripe Rail — Grants, Top-Ups + Parallel-Run Transition** — `invoice.paid` grants the tier allowance idempotently; one-time top-up checkout credits the ledger; low/zero balance offers top-up + upgrade without silent mid-job block; credits run in parallel with count-based tiers so no existing account breaks (counts degrade to secondary guard-rails).
@@ -1301,7 +1301,7 @@ Plans:
 **Plans**: 3 plans (2 waves)
 - [x] 110-01-PLAN.md — ai_cost_events migration + never-throw recordAICost() helper + measure-only invariant (COST-03, CALIB-01)
 - [x] 110-02-PLAN.md — OpenRouter usage.cost capture (estimate adapter + vision + translation) + costContext threading (COST-01)
-- [ ] 110-03-PLAN.md — computed Whisper cost (minutes × rate) wired into the transcribe job (COST-02)
+- [x] 110-03-PLAN.md — computed Whisper cost (minutes × rate) wired into the transcribe job (COST-02)
 
 ### Phase 111: `billing_config` Store + Super-Admin Billing Panel
 **Goal**: All billing parameters live in a new `billing_config` section of the encrypted runtime-config store (extending the `ai_config` / `platform_integrations` / `getIntegrationKey` pattern), and a super-admin "Billing" panel edits every knob at runtime without a deploy. Nothing billing-related is ever hard-coded or read from an env var, and the business owner (tenant) has no access to these controls. Every downstream billing phase reads its numbers from here.
