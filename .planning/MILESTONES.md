@@ -1,5 +1,27 @@
 # Milestones
 
+## v4.6 Pricing Intelligence — Researched Pricing Agent (Shipped: 2026-06-24)
+
+**Phases completed:** 5 (105, 106, 107, 108, 109) · 12 plans · ~40 commits · full unit+eval suite green (275 files / 1932 tests)
+
+**Goal (delivered):** When an estimate line item has no price-book match, a specialized agent researches the average regional market price (client's city + state) and writes it with `price_source: 'researched'` — instead of the AI guessing a price that can come out $0 and trip the "too vague" gate. Delivers Pillar 2 (researched pricing) on top of Pillar 1 (price-book priority). Fixes the originating "Couch cleaning 8seats → $0 → blocked as vague" bug.
+
+**Key accomplishments:**
+
+- **`researched` provenance threaded end to end (Phase 105)** — new `price_source: 'researched'` value through the DB CHECK constraint, AI output schema/types, persistence, and a third editor badge — shipped dormant (zero behavior change) as the foundation.
+- **Tenant-scoped price cache (Phase 106)** — a `price_research_cache` table (deny-all/service-role RLS, 30-day TTL, keyed by company + normalized service name + city|state + currency) + cache module; a neutral market datum that can't leak across tenants; a cache hit costs no research allowance.
+- **Swappable research source + determinism seam (Phase 107)** — a `PriceResearchProvider` port resolved from `platform_integrations` (null = safe no-op), a real **OpenRouter web-search** adapter (engine `exa` default / `native` configurable, a SEPARATE call ahead of `create_estimate`), a gated **Anthropic** `user_location` quality-fallback adapter, and a deterministic fixture adapter so the v4.5 eval harness/CI stays green. Web content is prompt-injection-hardened (`sanitizeField` + `<search_result>`). Evidence-gated by contract (a usable price needs a real source_url + snippet).
+- **The fix (Phase 108)** — `researchUnmatchedPrices` wired into `generateEstimateForProject` immediately after `anchorAndClampSections` and before totals/persistence, so the persisted estimate carries real regional numbers before the vagueness gate. Precedence `price_book > researched > ai_estimate`; evidence-gated tagging; a never-$0 fallback ladder (researched → non-zero ai_estimate → flagged-unpriced routed to the existing `awaiting_details`); the vagueness gate distinguishes a fully-empty estimate (block) from a partially-priced one with a flagged line (allow); metering reuses the existing quota (new `price_researched` event + per-tier `maxPriceResearchPerMonth` allowance, over-allowance degrades gracefully). The "Couch cleaning 8seats" case is a green eval regression (now $180, non-vague).
+- **Durability + cost hardening (Phase 109)** — a per-estimate research item cap (logged, no silent truncation), runtime OpenRouter-web → Anthropic fallback ordering, an in-run memo so the auto-refine loop never re-pays, and the `next build` type fix (widening the render-path `price_source` unions to include `'researched'`). Dedicated `step.run` retry isolation documented-as-deferred (the inline call is already non-fatal).
+
+**Locked decisions:** OpenRouter primary provider (engine exa/native); Brave / dedicated pricing APIs / scraping rejected; region = city + state; no markup in MVP; per-tenant cache; reuse the existing count-based quota (no new billing subsystem); no source-citation/range/confidence UI this milestone.
+
+**Operational deferrals (apply to remote DB via CI→GHCR→Coolify):** migrations `20260623000001` (price_source CHECK widen), `20260624000001` (price_research_cache), `20260624000002` (usage_events event_type widen). Configure a research source in `platform_integrations` to activate (null = dormant no-op). 1 human UAT: a live end-to-end couch-cleaning estimate with a real provider key + client address.
+
+**Full archive:** [.planning/milestones/v4.6-ROADMAP.md](milestones/v4.6-ROADMAP.md) · [v4.6-REQUIREMENTS.md](milestones/v4.6-REQUIREMENTS.md)
+
+---
+
 ## v4.5 Estimate Engine Robustness & Reliability Harness (Shipped: 2026-06-21)
 
 **Phases completed:** 5 (99, 100, 101, 102, 103) · 19 plans · 99 commits · 163 files changed · +16,618/−476 LOC · full unit suite deterministic-green (250 files / 1732 tests, verified 3×)

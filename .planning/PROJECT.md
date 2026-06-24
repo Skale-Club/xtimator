@@ -14,9 +14,11 @@ The platform includes:
 
 A business owner can go from job site audio recording to a sent, professional estimate in under 5 minutes without touching a keyboard.
 
-## Current Milestone: v4.6 Pricing Intelligence — Researched Pricing Agent
+## Last Milestone: v4.6 Pricing Intelligence — Researched Pricing Agent ✅ (shipped 2026-06-24)
 
-**Goal:** When an estimate line item has no match in the company price book, instead of the AI guessing a price (today `price_source: 'ai_estimate'`, which can come out $0 and trip the "too vague" gate), a specialized agent researches the average market price for that service/product **in the client's region** and writes it into the estimate with traceability.
+**Shipped:** all 5 phases (105-109), 17/17 requirements, 12 plans, ~40 commits. Full unit+eval suite green (275 files / 1932 tests). The originating "Couch cleaning 8seats → $0 → blocked as vague" bug is fixed (now a green eval regression: $180, non-vague). Archive: [milestones/v4.6-ROADMAP.md](milestones/v4.6-ROADMAP.md). Operational deferrals: apply 3 migrations to remote (CI→GHCR→Coolify) + configure a research source in `platform_integrations` to activate (null = dormant no-op); 1 live-e2e human UAT.
+
+**Goal (delivered):** When an estimate line item has no match in the company price book, instead of the AI guessing a price (today `price_source: 'ai_estimate'`, which can come out $0 and trip the "too vague" gate), a specialized agent researches the average market price for that service/product **in the client's region** and writes it into the estimate with traceability (`price_source: 'researched'`).
 
 **Target features:**
 - **Regional price research** — a dedicated step that, for each line item with no price-book match, looks up an average US market price using the client's city/state (already on the address).
@@ -337,4 +339,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context
 
 ---
-*Last updated: 2026-06-23 — v4.6 Pricing Intelligence (Researched Pricing Agent) STARTED; defining requirements. Delivers Pillar 2 (researched regional pricing for items with no price-book match; new `price_source: 'researched'`) on top of the v4.3 canonical graph. Locked: OpenRouter primary provider; Brave Search a candidate web-search source. Numbering continues globally — v4.6 starts at Phase 105. Predecessor v4.5 SHIPPED (phases 99-103, 18/18 requirements).*
+*Last updated: 2026-06-24 — v4.6 Pricing Intelligence (Researched Pricing Agent) SHIPPED (phases 105-109, 17/17 requirements, full suite green). Delivers Pillar 2 (researched regional pricing; `price_source: 'researched'`) on top of the v4.3 canonical graph; OpenRouter web search (engine exa/native) + Anthropic quality fallback; reuses the existing quota. The "$0 → too vague" bug is fixed. Next: apply the 3 deferred migrations + configure a research source to activate, then /gsd:new-milestone.*
