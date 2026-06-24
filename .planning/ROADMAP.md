@@ -1290,15 +1290,18 @@ Plans:
 ### Phase Details — v4.7 Monetização
 
 ### Phase 110: Real Cost Capture Foundation + Measure-Only Mode
-**Goal**: The system records the real USD cost of every AI operation — OpenRouter calls (via `usage.include` in the request or the `/api/v1/generation` lookup) and computed Whisper/STT cost (audio minutes × a configurable rate) — correlated to the existing attempt/usage instrumentation, and it runs in measure-only mode (no charging) so weeks of real per-operation cost are collected in production before any billing logic is enabled. This is the prerequisite for the entire credit ledger: nothing can debit credits without it.
+**Goal**: The system records the real USD cost of every AI operation — OpenRouter calls (read directly from the `usage.cost` field OpenRouter now returns automatically on every chat-completion response; no request flag, no second API call) and computed Whisper/STT cost (audio minutes × a module-const rate) — persisted in a new append-only `ai_cost_events` table correlated by the existing `attempt_id` lineage, and it runs in measure-only mode (no charging, no ledger, no debit) so weeks of real per-operation cost are collected in production before any billing logic is enabled. This is the prerequisite for the entire credit ledger: nothing can debit credits without it.
 **Depends on**: Nothing (first phase of the milestone; the foundation everything else builds on)
 **Requirements**: COST-01, COST-02, COST-03, CALIB-01
 **Success Criteria** (what must be TRUE):
-  1. Every OpenRouter AI call (estimate generation, photo analysis via OpenRouter, price research) records its real USD cost — captured via `usage.include` in the request or the `/api/v1/generation?id={id}` lookup — where today only tokens are captured for Langfuse
+  1. Every OpenRouter AI call (estimate generation, photo analysis via OpenRouter, translation) records its real USD cost — read directly from the response `usage.cost` field (returned automatically; absent → recorded as null, never 0) — where today only tokens are captured for Langfuse
   2. Whisper/STT cost is computed from audio minutes × a rate read from config (the provider does not return a cost), and is recorded alongside the OpenRouter costs through the same path
   3. Real cost per AI operation is persisted and correlated to the existing `usage_events` / `pipeline_events` attempt instrumentation, so cost can be queried per operation type (estimate / photo_batch / audio_minutes / price_research) for calibration analysis
   4. Cost capture runs in measure-only mode — instrumented and recording, with zero charging or credit movement — so an operator can collect real production cost before any billing is switched on, and an operator-observable record of accumulated per-operation cost exists
-**Plans**: TBD
+**Plans**: 3 plans (2 waves)
+- [ ] 110-01-PLAN.md — ai_cost_events migration + never-throw recordAICost() helper + measure-only invariant (COST-03, CALIB-01)
+- [ ] 110-02-PLAN.md — OpenRouter usage.cost capture (estimate adapter + vision + translation) + costContext threading (COST-01)
+- [ ] 110-03-PLAN.md — computed Whisper cost (minutes × rate) wired into the transcribe job (COST-02)
 
 ### Phase 111: `billing_config` Store + Super-Admin Billing Panel
 **Goal**: All billing parameters live in a new `billing_config` section of the encrypted runtime-config store (extending the `ai_config` / `platform_integrations` / `getIntegrationKey` pattern), and a super-admin "Billing" panel edits every knob at runtime without a deploy. Nothing billing-related is ever hard-coded or read from an env var, and the business owner (tenant) has no access to these controls. Every downstream billing phase reads its numbers from here.
