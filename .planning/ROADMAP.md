@@ -1331,7 +1331,7 @@ Plans:
   4. Credit debits are idempotent (reusing the existing `recordUsage` idempotency key) so a retried operation never double-charges; before an AI operation the system checks balance and an insufficient balance surfaces a top-up path rather than hard-failing mid-flow where avoidable
   5. Operations that do not spend our AI budget never debit — an MCP external-assistant conversation (which runs on the user's assistant, not our AI) and an absorbed lightweight web-chat conversation produce zero ledger movement — because metering happens at the point of real spend
 **Plans**: 4 plans (3 waves)
-- [ ] 112-01-PLAN.md — credit_ledger migration (tenant-readable RLS) + companies.credit_balance column + static contract test [Wave 1]
+- [x] 112-01-PLAN.md — credit_ledger migration (tenant-readable RLS) + companies.credit_balance column + static contract test [Wave 1]
 - [ ] 112-02-PLAN.md — billing_config enforcementEnabled flag (default false) + entitlements monthlyCreditGrant on 4 tiers [Wave 1]
 - [ ] 112-03-PLAN.md — lib/billing/credit-ledger.ts: recordCreditDebit / grantCredits / checkCredits / reconcileBalance (never-throw, idempotent, config-driven) [Wave 2]
 - [ ] 112-04-PLAN.md — wire the debit into generate-estimate / analyze-photos / transcribe-audio / price-research orchestrator [Wave 3]

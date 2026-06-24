@@ -26,9 +26,9 @@ Requirements for this milestone. Each maps to exactly one roadmap phase.
 
 ### Credit Ledger & Consumption
 
-- [ ] **CREDIT-01**: A tenant-scoped append-only `credit_ledger` records every credit movement (grant, debit, topup, adjust) with real cost, markup, and resulting balance.
+- [x] **CREDIT-01**: A tenant-scoped append-only `credit_ledger` records every credit movement (grant, debit, topup, adjust) with real cost, markup, and resulting balance.
 - [ ] **CREDIT-02**: Each AI operation already instrumented in `usage_events` (`estimate`, `photo_batch`, `audio_minutes`, `price_research`) debits credits = `real_cost × markup`.
-- [ ] **CREDIT-03**: A company's current credit balance is derivable from the ledger with a fast-read path (cached balance, reconcilable to the ledger).
+- [x] **CREDIT-03**: A company's current credit balance is derivable from the ledger with a fast-read path (cached balance, reconcilable to the ledger).
 - [ ] **CREDIT-04**: Each subscription tier grants a configurable monthly credit allowance (`monthlyCreditGrant` on entitlements).
 - [ ] **CREDIT-05**: Before an AI operation, the system checks credit balance; insufficient balance surfaces a top-up path rather than hard-failing mid-flow where avoidable.
 - [ ] **CREDIT-06**: Credit debits are idempotent (reuse the existing `recordUsage` idempotency) — a retried operation never double-charges.
@@ -105,9 +105,9 @@ Which phases cover which requirements. Populated during roadmap creation.
 | COST-01 | Phase 110 | Complete |
 | COST-02 | Phase 110 | Complete |
 | COST-03 | Phase 110 | Complete |
-| CREDIT-01 | Phase 112 | Pending |
+| CREDIT-01 | Phase 112 | Complete |
 | CREDIT-02 | Phase 112 | Pending |
-| CREDIT-03 | Phase 112 | Pending |
+| CREDIT-03 | Phase 112 | Complete |
 | CREDIT-04 | Phase 112 | Pending |
 | CREDIT-05 | Phase 112 | Pending |
 | CREDIT-06 | Phase 112 | Pending |
