@@ -7,6 +7,7 @@
 // Constructor takes the model id at runtime so a single adapter class can
 // power both the platform-default OpenRouter selection AND per-company
 // overrides (see lib/ai/index.ts).
+import { randomUUID } from 'node:crypto'
 import type { AIProvider } from '../provider.interface'
 import type { EstimateInput, EstimateOutput, RefineEstimateInput } from '../types'
 import { getIntegrationKey } from '@/lib/platform-config'
@@ -15,6 +16,7 @@ import { normalizeOutput, appendRetryHint } from '../normalize'
 import { InvalidEstimateOutputError } from '../with-fallback'
 import { toRefineEstimateInput } from './refine-input'
 import { langfuseClient } from '@/lib/observability/langfuse'
+import { recordAICost } from '@/lib/billing/record-ai-cost'
 
 const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1'
 
@@ -79,7 +81,14 @@ type OpenRouterChatResponse = {
     }
   }>
   error?: { message?: string }
-  usage?: { prompt_tokens?: number; completion_tokens?: number }
+  usage?: {
+    prompt_tokens?: number
+    completion_tokens?: number
+    // Phase 110 (COST-01): real USD cost, returned automatically on every
+    // response (OpenRouter credits are 1:1 USD). No request flag needed.
+    cost?: number
+    cost_details?: { upstream_inference_cost?: number | null }
+  }
 }
 
 export class OpenRouterAdapter implements AIProvider {
@@ -93,6 +102,7 @@ export class OpenRouterAdapter implements AIProvider {
       system: buildSystemPrompt(input),
       user,
       operationName: 'generate_estimate',
+      costContext: input.costContext,
     })
     const r = normalizeOutput(raw)
     if (!r.ok) throw new InvalidEstimateOutputError(r.error)
@@ -110,6 +120,8 @@ export class OpenRouterAdapter implements AIProvider {
       input.retryHint
     )
 
+    // RefineEstimateInput carries no costContext (generate is the COST-01 primary
+    // path); the cost is still captured, correlated with null ids via randomUUID.
     const raw = await this.callTool({ system, user, operationName: 'refine_estimate' })
     const r = normalizeOutput(raw)
     if (!r.ok) throw new InvalidEstimateOutputError(r.error)
@@ -120,6 +132,13 @@ export class OpenRouterAdapter implements AIProvider {
     system: string
     user: string
     operationName?: string
+    // Phase 110 (COST-01): non-LLM correlation context for cost capture. Absent
+    // on the refine path (and pre-110 callers) → cost still recorded with null ids.
+    costContext?: {
+      attemptId?: string | null
+      companyId?: string | null
+      projectId?: string | null
+    }
   }): Promise<Record<string, unknown>> {
     const apiKey = await getIntegrationKey('openrouter')
     if (!apiKey) throw new Error('OpenRouter API key not configured')
@@ -187,6 +206,21 @@ export class OpenRouterAdapter implements AIProvider {
 
     try {
       const parsed = JSON.parse(argsJson) as Record<string, unknown>
+      // Phase 110 (COST-01): capture the real USD cost alongside the existing
+      // Langfuse token block. `usage.cost` is returned automatically — null when
+      // absent, NEVER coerced to 0. Correlation ids come ONLY from the trusted,
+      // non-LLM costContext (never from `parsed`/json.choices). `void` so a
+      // cost-write failure can never affect the return (recordAICost never-throws).
+      const realCostUsd = json.usage?.cost ?? null
+      void recordAICost({
+        attemptId: args.costContext?.attemptId ?? randomUUID(),
+        operationType: 'estimate',
+        provider: 'openrouter',
+        model: this.model,
+        realCostUsd,
+        companyId: args.costContext?.companyId ?? null,
+        projectId: args.costContext?.projectId ?? null,
+      })
       try {
         const gen = langfuseClient.generation({
           name: operationName,
