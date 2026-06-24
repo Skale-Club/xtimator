@@ -2,12 +2,12 @@
 gsd_state_version: 1.0
 milestone: v4.8
 milestone_name: Industry Knowledge Base — Channel-Neutral Conversational Assistant
-status: defining-requirements
-stopped_at: Milestone v4.8 started — defining requirements
-last_updated: "2026-06-24T20:35:55.706Z"
+status: roadmap-created
+stopped_at: Milestone v4.8 roadmap created — 5 phases (117-121), 15/15 requirements mapped
+last_updated: "2026-06-24T21:30:00.000Z"
 last_activity: 2026-06-24
 progress:
-  total_phases: 0
+  total_phases: 5
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -17,24 +17,23 @@ progress:
 
 ## Current Status
 
-- **Milestone**: v4.7 Monetização — Credit-Based Billing + Estimate Payment Fee — ROADMAP CREATED 2026-06-24. **7 phases (110-116)**, **28/28 requirements mapped** (COST-01..03, CREDIT-01..07, BILLCFG-01..03, TOPUP-01..03, FEE-01..04, PAYGATE-01..02, DISCLOSE-01, CREDITUI-01..02, CALIB-01..02, MIG-01), **no orphans**. Transforms count-based tiers into a credit model (debit = real OpenRouter/Whisper cost × markup) + a 1% estimate application fee — every parameter super-admin-configurable via a new `billing_config`. Stripe is the RAIL only; the credit ledger is OURS. Sources: SEED-035 (credit billing) + SEED-036 (1% fee).
+- **Milestone**: v4.8 Industry Knowledge Base — Channel-Neutral Conversational Assistant — ROADMAP CREATED 2026-06-24. **5 phases (117-121)**, **15/15 requirements mapped** (KB-01..03, KMOD-01..04, KCUR-01..03, KOVL-01..02, WAKB-01..02, KSEC-01), **no orphans**. A conversational assistant that answers the owner's trade how-to questions from a per-INDUSTRY knowledge base (super-admin curated, scoped by `companies.industries[]`) plus an optional per-company overlay, served by a channel-neutral `lib/knowledge/` module and consulted via WhatsApp. The FOUNDATION of the Multi-Channel Core track. Source: SEED-033.
 - **Phase plan (goal-backward + seed-locked sequencing):**
-  - **110 Real Cost Capture Foundation + Measure-Only Mode** (COST-01/02/03, CALIB-01) — capture real USD cost per OpenRouter call + computed Whisper cost, correlate to `usage_events`/`pipeline_events`, run measure-only (billing OFF) so production cost is collected before charging. THE FOUNDATION — nothing debits without it.
-  - **111 `billing_config` Store + Super-Admin Billing Panel** (BILLCFG-01/02/03) — encrypted runtime-config section + super-admin Billing panel (markup, denomination, per-tier grant, prices, top-up packs, Whisper rate, fee %, thresholds); runtime-editable, tenant has no access. Every downstream phase reads from it.
-  - **112 Credit Ledger + Consumption Metering** (CREDIT-01..07) — append-only tenant-scoped `credit_ledger`; debit = real_cost × markup on the instrumented `usage_events` points; fast-read cached balance; per-tier `monthlyCreditGrant`; idempotent debits (reuse `recordUsage`); pre-op balance check + top-up path; MCP conversation = zero credit.
-  - **113 Stripe Rail — Grants, Top-Ups + Parallel-Run Transition** (TOPUP-01/02/03, MIG-01) — `invoice.paid` grants tier allowance idempotently (`stripe_processed_events`); one-time top-up checkout credits the ledger; low/zero balance offers top-up + upgrade without silent mid-job block; credits run in parallel with count-based tiers (degrade to secondary guard-rails).
-  - **114 Estimate Payment Fee + Payment-UI Gating + Disclosure** (FEE-01..04, PAYGATE-01/02, DISCLOSE-01) — fill the omitted `application_fee_amount` hook (invoice-service.ts:17 + Phase-70 checkout), fee % from `billing_config`, sane min/rounding; single `usePaymentsEnabled` guard over ALL payment UI (no orphan, both states tested); fee disclosure at Connect. INDEPENDENT of the credit work — can run in parallel.
-  - **115 Credit Balance UX (owner-facing)** (CREDITUI-01/02) — simple balance widget (header/settings) + consumption history + per-action guidance (never token math); low/zero-balance warning + top-up/upgrade CTA reusing `notifyQuotaThresholds`.
-  - **116 Calibration & Charge-On Validation** (CALIB-02) — derive grant/markup/price from the real cost measured since 110, validate the margin invariant (real cost of the full monthly grant ≤ ~30% of subscription price), document; gates turning real charging ON. LATE phase by design.
-- **Dependency spine:** 110 (cost capture) → 112 (ledger) needs 110 + 111; 113 (Stripe rail) needs 112; 115 (balance UX) needs 112 + 113; 116 (calibration) needs 110 + 111 + 112. 111 (`billing_config`) is structurally independent and feeds everything. 114 (payment fee) needs only 111 + the already-shipped Connect infra (phases 70/94) — sequenceable in parallel with the credit track.
-- **Locked guardrails:** Stripe = rail only (credit ledger is OURS, NOT Stripe metered billing); everything billing reads from `billing_config` (no hard-coded numbers, no env vars, super-admin only); migrations idempotent + deploy CI→GHCR→Coolify (never build on VPS); channel-neutral domain stays neutral + never-throw enrichment preserved; CALIBRATE before charging (no real billing before CALIB-02's measured numbers exist).
-- **Previous milestone**: v4.6 Pricing Intelligence — Researched Pricing Agent — SHIPPED 2026-06-24 (phases 105-109, 17/17 requirements, full unit+eval suite green 275 files / 1932 tests).
-- **Position**: v4.7 COMPLETE — all 7 phases (110-116) shipped + verified. Credit-based billing (cost capture → billing_config → ledger → Stripe rail → 1% fee + gating + disclosure → balance UX → calibration gate). Enforcement OFF (safe) until production cost calibration per CALIBRATION-RUNBOOK. Next: apply migrations to remote (CI→GHCR→Coolify) + collect cost data, then calibrate + flip enforcement.
+  - **117 Knowledge Schema + pgvector + Dual RLS** (KB-01/02/03) — enable pgvector + the `knowledge_entries` table (scope industry|company, nullable industry_id/company_id, title/body/source/embedding/timestamps, similarity index) with the TWO RLS postures: industry = service-role-write + read scoped by industry (mirror `price_research_cache` neutral/shared); company overlay = tenant-scoped by `company_members`. Idempotent, authored-only, deploy CI→GHCR→Coolify. THE FOUNDATION — nothing embeds/retrieves without it.
+  - **118 Channel-Neutral `lib/knowledge/` Module** (KMOD-01..04, KSEC-01) — `embed()` (model-agnostic via platform-config, reuse `getIntegrationKey`) + `retrieve(question, {industries, companyId, k})` merging industry KB + company overlay over pgvector (imports NO channel, never-throws) + `answer()` RAG with injection-hardening (`sanitizeField` + a new `<knowledge>` tag enumerated in the prompt-builder Security block, static-tested — KSEC-01 pairs with the answer path) + a deterministic fixture adapter for CI (mirror the price-research fixture provider). The core capability every consumer calls.
+  - **119 Super-Admin Industry KB Curation + Bulk Import** (KCUR-01/02/03) — super-admin panel CRUD scoped by industry; save/edit (re)generates the embedding; markdown/CSV bulk import seeds an industry in one operation. POPULATES the platform-asset KB. Owner has no access. Can run in parallel with 120.
+  - **120 Company KB Overlay (tenant settings)** (KOVL-01/02) — the company owner's OWN settings panel (DISTINCT from super-admin — the two-panel rule) to add/edit/delete private entries; same embedding generation; scoped to the owning company; optional (no overlay = industry KB only). Can run in parallel with 119.
+  - **121 WhatsApp KNOWLEDGE Intent** (WAKB-01/02) — extend `classifyAndRoute` with the 5th KNOWLEDGE intent + a QUERY-vs-KNOWLEDGE disambiguation rule (QUERY = the company's own records; KNOWLEDGE = trade how-to) with the safe CREATE default preserved; dispatch a KNOWLEDGE message to `lib/knowledge/answer` scoped by the resolved company's `industries[]` + overlay, delivered via the existing chunked owner reply (`sendOwnerReplyChunks`). The consumer that proves the module end-to-end.
+- **Dependency spine:** 117 (schema/pgvector/RLS) is the foundation. 118 (neutral module) needs 117. 119 (super-admin curation) + 120 (company overlay) each need 117 + 118 (`embed`) and can run in PARALLEL (distinct surfaces — the two-panel rule). 121 (WhatsApp intent) needs 118 (`answer`) + a populated KB (117 + at least curation from 119), and is the last/consumer phase.
+- **Locked guardrails (SEED-033 + PROJECT.md):** `lib/knowledge/` is channel-neutral — imports NO channel (WhatsApp/web-chat/MCP are thin consumers); retrieval = pgvector + embeddings ONLY in v1 (NO Cohere reranker — deferred, data-driven phase-2 with an explicit trigger); the two-panel rule (industry KB = super-admin platform asset; company overlay = tenant settings — distinct surfaces, distinct RLS); NO owner-facing KB browser (consult via chat only); injection-hardening via existing `sanitizeField` + a new `<knowledge>` tag (curated ≠ trusted as LLM context); migrations idempotent + authored-only + deploy CI→GHCR→Coolify (never build on the VPS); never-throw on retrieve/answer. Web chat (SEED-034) + MCP `ask_knowledge` (SEED-030) are OUT — separate milestones; this milestone makes the module MCP-ready but wires only WhatsApp.
+- **Previous milestone**: v4.7 Monetização — Credit-Based Billing + Estimate Payment Fee — SHIPPED 2026-06-24 (phases 110-116, 28/28 requirements, full unit suite green 298 files / 2110 tests; enforcement OFF/safe until production cost calibration).
+- **Position**: v4.8 roadmap created; ready to plan Phase 117. Next: `/gsd:plan-phase 117`.
+
 ## Current Position
 
-Phase: 999.1
+Phase: 117
 Plan: Not started
-Status: Phase complete — ready for verification (`/gsd:verify-work 116`), then `/gsd:complete-milestone` for v4.7
+Status: Roadmap created — ready to plan Phase 117 (`/gsd:plan-phase 117`)
 
 ---
 

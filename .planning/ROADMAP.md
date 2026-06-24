@@ -27,6 +27,7 @@
 - ✅ **v4.5.1 Notification Channels & Preferences** — Phase 104 (shipped 2026-06-22) — _(previously labeled v4.6; relabeled to free the v4.6 name for Pricing Intelligence)_
 - ✅ **v4.6 Pricing Intelligence — Researched Pricing Agent** — Phases 105-109 (shipped 2026-06-24)
 - ✅ **v4.7 Monetização — Credit-Based Billing + Estimate Payment Fee** — Phases 110-116 (shipped 2026-06-24)
+- 🚧 **v4.8 Industry Knowledge Base — Channel-Neutral Conversational Assistant** — Phases 117-121 (roadmap created 2026-06-24)
 
 > **Phase numbering note:** v3.1.1 starts at **Phase 66**, not 62. Phases 62-65 are reserved as DEFERRED placeholders for the v3.2 Production Deploy milestone (Vercel→Hetzner deploy + Stripe live + monitoring + UAT in prod). Skipping past 62-65 keeps the global phase counter unambiguous and prevents number reuse confusion when v3.2 begins.
 
@@ -780,6 +781,11 @@ Plans:
 | 107. Provider Seam + First Source + Determinism Seam | v4.6 | 3/3 | Complete    | 2026-06-24 |
 | 108. Orchestrator + Service Integration | v4.6 | 5/5 | Complete    | 2026-06-24 |
 | 109. Durability + Cost-Control Hardening | v4.6 | 2/2 | Complete    | 2026-06-24 |
+| 117. Knowledge Schema + pgvector + Dual RLS | v4.8 | 0/0 | Not started | - |
+| 118. Channel-Neutral lib/knowledge/ Module | v4.8 | 0/0 | Not started | - |
+| 119. Super-Admin Industry KB Curation + Bulk Import | v4.8 | 0/0 | Not started | - |
+| 120. Company KB Overlay (tenant settings) | v4.8 | 0/0 | Not started | - |
+| 121. WhatsApp KNOWLEDGE Intent | v4.8 | 0/0 | Not started | - |
 
 ### Phase 75: Tour and Tooltip QA
 
@@ -1393,3 +1399,64 @@ Plans:
 **Plans**: 2 plans (2 waves)
 - [x] 116-01-PLAN.md — pure calibration core: validateMarginInvariant (correct-FAIL trap) + recommendFromAggregate + aggregateAiCostByOperation over ai_cost_events (CALIB-02)
 - [x] 116-02-PLAN.md — charge-on gate in saveBillingConfig (the CALIB-02 wiring proof) + analyze-ai-cost.mjs ops script + CALIBRATION-RUNBOOK (CALIB-02)
+
+## Phases — v4.8 Industry Knowledge Base
+
+- [ ] **Phase 117: Knowledge Schema + pgvector + Dual RLS** - Enable pgvector and ship the `knowledge_entries` table with both RLS postures: industry entries neutral/shared (service-role-write, read scoped by industry, mirroring `price_research_cache`) and company-overlay entries tenant-scoped (`company_members` membership). The retrieval foundation — nothing embeds or retrieves without it.
+- [ ] **Phase 118: Channel-Neutral `lib/knowledge/` Module — embed + retrieve + answer + injection-hardening + fixture** - The neutral domain module: `embed()`, `retrieve()` merging industry KB + company overlay over pgvector, `answer()` RAG with `sanitizeField` + `<knowledge>` injection-hardening, and a deterministic fixture adapter for CI. Imports no channel; never-throws.
+- [ ] **Phase 119: Super-Admin Industry KB Curation + Bulk Import** - The super-admin panel CRUD that POPULATES the industry KB scoped by industry, (re)generating embeddings on save, plus a markdown/CSV bulk import to seed an industry in one operation.
+- [ ] **Phase 120: Company KB Overlay (tenant settings)** - The company owner's OWN settings panel (distinct from super-admin — the two-panel rule) to add/edit/delete private overlay entries, embeddings generated the same way, scoped to the owning company; optional.
+- [ ] **Phase 121: WhatsApp KNOWLEDGE Intent** - The 5th `classifyAndRoute` intent + QUERY-vs-KNOWLEDGE disambiguation (safe CREATE default preserved), dispatching to `lib/knowledge/answer` scoped by the company's `industries[]` + overlay and delivered via the existing chunked owner reply. The consumer that proves the module end-to-end.
+
+### Phase Details — v4.8 Industry Knowledge Base
+
+### Phase 117: Knowledge Schema + pgvector + Dual RLS
+**Goal**: The database can store and vector-search curated knowledge — pgvector is enabled, a `knowledge_entries` table exists with a similarity index, and the two RLS postures are live: industry entries are a neutral platform asset (service-role-write, read scoped by industry, mirroring `price_research_cache`) while company-overlay entries are tenant-scoped by `company_members` membership. This is the foundation; nothing in the module embeds or retrieves without it.
+**Depends on**: Phase 106 (the `price_research_cache` neutral/service-role RLS posture this mirrors), v4.0 multi-tenancy (`company_members` membership for the overlay RLS)
+**Requirements**: KB-01, KB-02, KB-03
+**Success Criteria** (what must be TRUE):
+  1. The pgvector extension is enabled and a `knowledge_entries` table exists (scope `'industry'|'company'`, nullable `industry_id`, nullable `company_id`, `title`, `body`, `source`, `embedding` vector, `created_at`, `updated_at`) with a vector similarity index — applied via an idempotent, authored-only migration deployed CI→GHCR→Coolify (never built on the VPS)
+  2. An industry entry can be written only by the service role and is readable by any tenant whose `companies.industries[]` includes that industry; no tenant can INSERT/UPDATE/DELETE an industry entry (verified — the neutral/shared posture mirrors `price_research_cache`)
+  3. A company-overlay entry can be read and written only by members of the owning company (`company_members` membership), and is invisible to every other tenant — proving the overlay is private while the industry KB is shared
+**Plans**: TBD
+
+### Phase 118: Channel-Neutral `lib/knowledge/` Module — embed + retrieve + answer + injection-hardening + fixture
+**Goal**: A channel-neutral `lib/knowledge/` domain module can embed text, retrieve the most similar passages by merging a company's industry KB(s) with its own overlay, and compose a short injection-hardened RAG answer — all without importing any channel, never throwing, and with a deterministic fixture adapter so CI/eval runs with zero live network. This is the core capability every consumer (WhatsApp now; web chat + MCP later) calls.
+**Depends on**: Phase 117 (the `knowledge_entries` table + pgvector + dual RLS the module reads), Phase 107 (the `sanitizeField` + `<search_result>` injection-hardening pattern this mirrors for `<knowledge>`; the fixture-provider determinism pattern)
+**Requirements**: KMOD-01, KMOD-02, KMOD-03, KMOD-04, KSEC-01
+**Success Criteria** (what must be TRUE):
+  1. `embed(text)` produces a vector via the configured provider (model-agnostic via the platform-config pattern, reusing `getIntegrationKey`) — the same function curation and overlay use to (re)generate embeddings
+  2. `retrieve(question, { industries, companyId, k })` returns passages ranked by pgvector similarity that MERGE the company's industry KB(s) with its own company overlay; the module imports no channel (`lib/knowledge/` has zero `lib/whatsapp/*` imports) and never throws on failure (returns empty, logs)
+  3. `answer(question, ctx)` composes a RAG prompt from the retrieved passages and returns a short conversational answer; every retrieved passage is run through `sanitizeField` and wrapped in a `<knowledge>` tag enumerated in the prompt-builder Security block — a static test asserts knowledge prompts are built through this hardened boundary, not ad-hoc concatenation (KSEC-01)
+  4. A deterministic fixture adapter lets the CI/eval harness exercise `retrieve`/`answer` with zero live network (mirroring the price-research fixture provider), keeping the eval suite green and reproducible
+**Plans**: TBD
+
+### Phase 119: Super-Admin Industry KB Curation + Bulk Import
+**Goal**: A super-admin can populate and maintain the industry knowledge base from the super-admin panel — create, edit, and delete entries scoped to an industry, with each save (re)generating the entry's embedding, plus a one-shot markdown/CSV bulk import to seed an entire industry's KB at once. This is what makes the industry KB a real platform asset; curate once per industry, serve every tenant in it.
+**Depends on**: Phase 117 (the `knowledge_entries` table + industry RLS), Phase 118 (`embed()` to generate embeddings on save)
+**Requirements**: KCUR-01, KCUR-02, KCUR-03
+**Success Criteria** (what must be TRUE):
+  1. A super-admin can create, edit, and delete industry KB entries scoped to a chosen industry from the super-admin panel; the owner has no access to this surface
+  2. Saving or editing an entry (re)generates and persists its embedding via the Phase-118 `embed()` so the new/edited content is immediately retrievable
+  3. A super-admin can bulk-import entries from a markdown or CSV file to seed an industry's KB in a single operation, each imported entry getting its embedding generated
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 120: Company KB Overlay (tenant settings)
+**Goal**: A company owner can add their own private knowledge entries ("our specific process") from the company's OWN settings panel — a surface DISTINCT from the super-admin industry-curation panel (the two-panel rule) — with embeddings generated the same way and scoped to the owning company. The overlay is optional: a company with none simply uses only the industry KB.
+**Depends on**: Phase 117 (the company-scoped overlay RLS), Phase 118 (`embed()` to generate embeddings), Phase 119 (the curation surface pattern the overlay panel mirrors at tenant scope)
+**Requirements**: KOVL-01, KOVL-02
+**Success Criteria** (what must be TRUE):
+  1. A company owner can add, edit, and delete private KB entries in the company's OWN settings panel — a surface distinct from the super-admin panel — and a company that creates no overlay entries still gets answers from the industry KB alone (the overlay is optional)
+  2. Each overlay entry generates and persists an embedding the same way as industry curation, scoped to the owning company so it merges into that company's retrieval but never leaks to another tenant
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 121: WhatsApp KNOWLEDGE Intent
+**Goal**: WhatsApp gains a 5th KNOWLEDGE intent — the owner can ask a trade how-to question over WhatsApp and get a conversational answer drawn from the industry KB + their overlay. `classifyAndRoute` learns to disambiguate QUERY (the company's own records) from KNOWLEDGE (generic trade how-to) while keeping the safe CREATE default for unrecognized input, and a KNOWLEDGE message dispatches to `lib/knowledge/answer` scoped by the resolved company's `industries[]` + overlay, delivered via the existing chunked owner reply path. This is the consumer that proves the neutral module end-to-end.
+**Depends on**: Phase 118 (the `lib/knowledge/answer` the dispatcher calls), Phase 117 (the populated KB to answer from), the existing WhatsApp `classifyAndRoute` + `sendOwnerReplyChunks` harness
+**Requirements**: WAKB-01, WAKB-02
+**Success Criteria** (what must be TRUE):
+  1. `classifyAndRoute` recognizes a 5th KNOWLEDGE intent with a QUERY-vs-KNOWLEDGE disambiguation rule (QUERY = the company's own estimates/clients/projects; KNOWLEDGE = trade how-to/process), and an unrecognized message still falls back to the safe CREATE default (never a privileged action)
+  2. A KNOWLEDGE message dispatches to `lib/knowledge/answer` scoped by the resolved company's `industries[]` plus its overlay, and the resulting answer is delivered to the owner through the existing chunked owner reply path (`sendOwnerReplyChunks`)
+**Plans**: TBD

@@ -79,27 +79,27 @@ Which phases cover which requirements. Populated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| KB-01 | TBD | Pending |
-| KB-02 | TBD | Pending |
-| KB-03 | TBD | Pending |
-| KMOD-01 | TBD | Pending |
-| KMOD-02 | TBD | Pending |
-| KMOD-03 | TBD | Pending |
-| KMOD-04 | TBD | Pending |
-| KCUR-01 | TBD | Pending |
-| KCUR-02 | TBD | Pending |
-| KCUR-03 | TBD | Pending |
-| KOVL-01 | TBD | Pending |
-| KOVL-02 | TBD | Pending |
-| WAKB-01 | TBD | Pending |
-| WAKB-02 | TBD | Pending |
-| KSEC-01 | TBD | Pending |
+| KB-01 | Phase 117 | Pending |
+| KB-02 | Phase 117 | Pending |
+| KB-03 | Phase 117 | Pending |
+| KMOD-01 | Phase 118 | Pending |
+| KMOD-02 | Phase 118 | Pending |
+| KMOD-03 | Phase 118 | Pending |
+| KMOD-04 | Phase 118 | Pending |
+| KCUR-01 | Phase 119 | Pending |
+| KCUR-02 | Phase 119 | Pending |
+| KCUR-03 | Phase 119 | Pending |
+| KOVL-01 | Phase 120 | Pending |
+| KOVL-02 | Phase 120 | Pending |
+| WAKB-01 | Phase 121 | Pending |
+| WAKB-02 | Phase 121 | Pending |
+| KSEC-01 | Phase 118 | Pending |
 
 **Coverage:**
 - v1 requirements: 15 total
-- Mapped to phases: 0 (roadmap pending)
-- Unmapped: 15 ⚠️ (resolved by roadmap)
+- Mapped to phases: 15 ✓ (Phases 117-121)
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-06-24*
-*Last updated: 2026-06-24 — milestone v4.8 Industry Knowledge Base initial definition*
+*Last updated: 2026-06-24 — v4.8 roadmap created: all 15 requirements mapped to Phases 117-121 (117 schema+RLS, 118 neutral module+hardening, 119 super-admin curation, 120 company overlay, 121 WhatsApp intent); coverage 15/15, zero orphans.*
