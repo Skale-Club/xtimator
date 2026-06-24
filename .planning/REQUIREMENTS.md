@@ -64,8 +64,8 @@ Requirements for this milestone. Each maps to exactly one roadmap phase.
 
 ### Credit Balance UX (owner-facing)
 
-- [ ] **CREDITUI-01**: The business owner sees a simple credit balance (header/settings) with consumption history and rough per-action guidance — never token math.
-- [ ] **CREDITUI-02**: Low-balance and zero-balance states show a warning and a top-up/upgrade CTA, reusing the existing threshold-notification path.
+- [x] **CREDITUI-01**: The business owner sees a simple credit balance (header/settings) with consumption history and rough per-action guidance — never token math.
+- [x] **CREDITUI-02**: Low-balance and zero-balance states show a warning and a top-up/upgrade CTA, reusing the existing threshold-notification path.
 
 ### Calibration & Transition
 
@@ -125,8 +125,8 @@ Which phases cover which requirements. Populated during roadmap creation.
 | PAYGATE-01 | Phase 114 | Complete |
 | PAYGATE-02 | Phase 114 | Complete |
 | DISCLOSE-01 | Phase 114 | Complete |
-| CREDITUI-01 | Phase 115 | Pending |
-| CREDITUI-02 | Phase 115 | Pending |
+| CREDITUI-01 | Phase 115 | Complete |
+| CREDITUI-02 | Phase 115 | Complete |
 | CALIB-01 | Phase 110 | Complete |
 | CALIB-02 | Phase 116 | Pending |
 | MIG-01 | Phase 113 | Complete |

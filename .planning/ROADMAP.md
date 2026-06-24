@@ -1377,7 +1377,7 @@ Plans:
   3. The balance shown to the owner reconciles to the ledger (matches the Phase-112 cached balance), so the number the owner sees is the number the system meters against
 **Plans**: 2 plans in `.planning/phases/115-credit-balance-ux-owner-facing/`
 Plans:
-- [ ] 115-01-PLAN.md — owner-safe credit overview query (getCreditOverview, no real_cost_usd/markup in SELECT) + notifyLowCreditBalance hook in recordCreditDebit (CREDITUI-01, CREDITUI-02)
+- [x] 115-01-PLAN.md — owner-safe credit overview query (getCreditOverview, no real_cost_usd/markup in SELECT) + notifyLowCreditBalance hook in recordCreditDebit (CREDITUI-01, CREDITUI-02)
 - [ ] 115-02-PLAN.md — CreditBalanceCard + history list + TopUpButton + topbar credit chip on /settings/billing (CREDITUI-01, CREDITUI-02)
 **UI hint**: yes
 

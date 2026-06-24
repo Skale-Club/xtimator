@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v4.7
 milestone_name: Monetização — Credit-Based Billing + Estimate Payment Fee
-status: in-progress
-stopped_at: Completed 114-03-PLAN.md
-last_updated: "2026-06-24T19:23:16.221Z"
+status: executing
+stopped_at: Completed 115-01-PLAN.md
+last_updated: "2026-06-24T19:45:16.875Z"
 last_activity: 2026-06-24
 progress:
   total_phases: 67
   completed_phases: 52
-  total_plans: 160
-  completed_plans: 173
+  total_plans: 162
+  completed_plans: 174
 ---
 
 # Project State
@@ -30,15 +30,18 @@ progress:
 - **Locked guardrails:** Stripe = rail only (credit ledger is OURS, NOT Stripe metered billing); everything billing reads from `billing_config` (no hard-coded numbers, no env vars, super-admin only); migrations idempotent + deploy CI→GHCR→Coolify (never build on VPS); channel-neutral domain stays neutral + never-throw enrichment preserved; CALIBRATE before charging (no real billing before CALIB-02's measured numbers exist).
 - **Previous milestone**: v4.6 Pricing Intelligence — Researched Pricing Agent — SHIPPED 2026-06-24 (phases 105-109, 17/17 requirements, full unit+eval suite green 275 files / 1932 tests).
 - **Position**: Phase 114 COMPLETE (3/3 plans, verified 12/12 — 1% application_fee on Connect invoice, single paymentsEnabled gate over forward affordances, config-driven fee disclosure at Connect). Next: `/gsd:plan-phase 115` (Credit Balance UX). NOTE: `phase complete` mis-points next at stale 999.1 — real next is **115**.
+
 ## Current Position
 
-Phase: 999.1
-Plan: Not started
-Status: Phase complete — ready for verification (/gsd:verify-work 114)
+Phase: 115 (Credit Balance UX (owner-facing)) — EXECUTING
+Plan: 2 of 2
+Status: Ready to execute
 
 ---
 
 ### Accumulated Context (v4.7)
+
+Status (115-01, Wave 1 — CREDITUI-01/02): shipped — the owner-facing credit-balance DATA layer (no UI; Plan 02 consumes it). **CREDITUI-01 (Task 2, GREEN):** NEW `lib/queries/credits.ts` (`import 'server-only'`) `getCreditOverview(companyId) → { balance, history[], lowBalanceThresholds }` — `requireServiceClient()` + `Promise.all` of: `companies.credit_balance` (`.single()`), the credit_ledger owner-safe projection, and `getBillingConfig()`. **CARDINAL RULE — owner-safe projection by construction:** the ledger SELECT is a fixed `OWNER_SAFE_LEDGER_COLUMNS = 'operation_type, delta_credits, reason, created_at'` const (`.select(OWNER_SAFE_LEDGER_COLUMNS).eq('company_id').order('created_at',{ascending:false}).limit(50)`) — `real_cost_usd`/`markup`/`balance_after`/`idempotency_key`/`ref_id`/`id`/`company_id` are NEVER selected, so the rows are safe to hand a client component (defense-in-depth, never token math). Null-safe: missing company row → balance 0, never throws. Company-scoped (companyId, not userId) so Plan-02's settings page + an optional header chip both call it. **CREDITUI-02 (Task 3, GREEN):** NEW export `notifyLowCreditBalance({companyId,userId,previousBalance,newBalance,thresholds})` in `lib/billing/credit-ledger.ts`, mirroring `notifyQuotaThresholds` — fires ONLY on a DOWNWARD crossing, deduped per company+threshold+month. Zero/exhausted (`prev>0 && new<=0`) → `quota.exhausted` (both channels), dedupe `credit-zero-{company}-{month}`; a low non-zero crossing → `quota.80pct` once for the HIGHEST threshold crossed (`[...thresholds].sort desc`, `.find(t>0 && prev>t && new<=t)`), dedupe `credit-low-{company}-{t}-{month}`; `linkUrl:'/settings/billing'`. Whole body try/catch → NEVER throws. Local private `monthKey()` (`YYYY-MM` UTC) copied into the file (NOT imported from quota.ts — avoid coupling). Reuses EXISTING events `quota.80pct`/`quota.exhausted` — **NO new EventType** (`event-types.ts` byte-unchanged). Copy INFORMATIONAL only (enforcement OFF this milestone) — grep `blocked|denied|cannot` in credit-ledger.ts → 0 (reworded my own doc-comment to avoid the literal). **Wired into recordCreditDebit:** a `void notifyLowCreditBalance({companyId, userId:null, previousBalance:current, newBalance:balanceAfter, thresholds:cfg.lowBalanceThresholds})` immediately after the existing `companies.credit_balance` update, still inside the existing try (`cfg`/`current`/`balanceAfter` already in scope). `void`-ed so a notify delay never blocks the debit return; debit math/idempotency/ledger insert/balance write byte-unchanged — purely additive at the tail. **Wave-0 TDD:** NEW `tests/unit/queries/credits-query.test.ts` (5 — balance read, history mapping, the owner-safe SELECT-STRING guard `expect(ledgerSelect).toHaveBeenCalledWith(stringContaining('operation_type'))` + `.not.toContain('real_cost_usd')`/`.not.toContain('markup')` proving the rule from the SELECT not from hiding, thresholds, missing-row→0) + NEW `tests/unit/billing/credit-low-notify.test.ts` (4 — low downward-crossing fires once with the right dedupe key, zero fires `quota.exhausted`, no-cross silent, notify-throws swallowed). **DEVIATION (1, Rule 3 — pre-declared allowlist pattern):** `lib/queries/credits.ts` is a NEW `getBillingConfig` consumer (reads `lowBalanceThresholds`), turning the Phase-111 `BILLCFG-03` dormancy guard (`tests/unit/billing/billing-config.test.ts`) red; added `CREDITS_QUERY_PATH` to the `ALLOWLIST` (same move every prior v4.7 plan applied — the guard still fails on any OTHER reference). `npx vitest run tests/unit/queries tests/unit/billing` → 27 files / 182 passed. FULL `npx vitest run` → **295 files passed | 3 skipped, 2090 passed | 2 skipped | 33 todo** — no regressions; the known parallel-only `mcp-route-contract.test.ts` flake did not surface this run. `tsc --noEmit -p tsconfig.json` → no errors in the touched/created files. No migration, no env var, no secret. 4 atomic commits (d42c45cd RED scaffolds, e4ce764b getCreditOverview, 6e379312 notify hook, cecb2d10 BILLCFG-03 allowlist); all normal hooked (gitleaks ran, no `--no-verify`), no leaks (placeholder ids only). CREDITUI-01/02 marked complete. **Phase 115 now 1/2 plans.** Next: `/gsd:execute-phase 115` (Plan 115-02 — the owner-facing balance widget + consumption history UI that consumes getCreditOverview). See 115-01-SUMMARY.md.
 
 Status (114-03, Wave 2 — DISCLOSE-01): shipped — **Phase 114 COMPLETE (3/3 plans) — the LAST plan; the estimate-payment-fee track (fee + gating + disclosure) is fully executed.** Fee disclosure at the Stripe connection moment, locked to the live `billing_config` so one number drives both the charge (FEE-03) and the disclosure. **Task 1 (card disclosure):** `components/settings/stripe-connect-card.tsx` `StripeConnectCard` gains a REQUIRED `feePct: number` prop; body derives `const feeWhole = feePct * 100; const feeLabel = \`${Number.isInteger(feeWhole) ? feeWhole : feeWhole.toFixed(2)}%\`` (0.01→"1%", 0.02→"2%", 0.005→"0.5%"). The `not_connected` `<CardContent>` branch renders a `data-testid="fee-disclosure"` amber-accented `<p>` ("Xtimator charges a {feeLabel} fee on each payment you receive through the platform | this is separate from Stripe's processing fees.") via the existing `t()` interpolation — directly below the connect copy. Scoped to `not_connected` ONLY (not_configured/connected untouched); NO hard-coded "1%" in the copy (grep `[^0-9]1%[^0-9]|charges a 1%` → 0; even reworded the doc-comment to avoid a literal). **Task 2 (server read):** `app/(app)/settings/payments/page.tsx` imports `getBillingConfig`, reads `const { estimateFeePct } = await getBillingConfig()` before the return, threads `<StripeConnectCard state={state} feePct={estimateFeePct} />`. NO hard-coded fee, NO new company column, the three-state `state` derivation (114-02) untouched. The dormancy guard stayed green via the 114-01-PRE-ADDED allowlist entry at `billing-config.test.ts:220` — verified present, NOT re-touched. **Task 3 (TDD, config-driven proof):** NEW `tests/unit/settings/payments-disclosure.test.tsx` (zero overlap with 114-01/114-02 files) mirrors `payments-page.test.tsx`'s mock+render convention + mocks `getBillingConfig`: 0.02 + NOT_CONNECTED → HTML has "2%" + "separate from Stripe" + `data-testid="fee-disclosure"`; 0.01 → "1%" (same path, different config → different render); 0.02 + CONNECTED → disclosure ABSENT. **DEVIATION (1, Rule 1 — break-fix my own change caused):** Task 2 made `payments/page.tsx` a NEW `getBillingConfig` consumer, which crashed the 114-02-owned `payments-page.test.tsx` render tests ("No createServiceClient export on the mock" — the real server-only reader calls `createServiceClient`, absent from that file's `@/lib/supabase/service` mock); added a `getBillingConfig` mock STUB (`mockResolvedValue({ estimateFeePct: 0.01 })`) to that file — NO disclosure assertions added (those stay solely in the new file, honoring the no-overlap rule); the 3 render tests pass unchanged (commit 3ebf329f). `npx vitest run` of the 3 verification suites (disclosure + billing-config + payments-page) → 3 files / 26 passed. `tsc --noEmit -p tsconfig.json` → no new errors in the 2 touched source files. FULL `npx vitest run` → **292 files passed | 1 failed (2080 passed | 2 skipped | 33 todo)** = the known PARALLEL-ONLY `mcp-route-contract.test.ts` GET-405 flake (re-confirmed 8/8 in isolation, no Phase-114 file; out-of-scope, in deferred-items.md). No migration, no env var, no secret; fee computation (114-01) + gating predicate (114-02) untouched (read-only `estimateFeePct` dependency). 4 atomic commits (6911aec9 card disclosure, be338989 server read, 2a383efe disclosure test, 3ebf329f mock fix); all normal hooked (gitleaks ran, no `--no-verify`), no leaks (placeholder `ca_test_123`/`acct_abc` ids in tests only). DISCLOSE-01 marked complete. **Phase 114 now 3/3 plans — FEE-01..04 + PAYGATE-01/02 + DISCLOSE-01 all complete.** Next: `/gsd:verify-work 114`. See 114-03-SUMMARY.md.
 
@@ -88,7 +91,7 @@ Prior: 102-01 (HARD-07 replay-safe TTL) shipped. Added a neutral `requestedAt: A
 Prior: 102-02 (HARD-06 cap half) shipped. Replaced the hard-coded `(state.refineAttempts ?? 0) < 1` literal in `checkVagueAfterAssessEdge` (`lib/estimate/graph/nodes/decide.ts`) with a single `AUTO_REFINE_MAX_ATTEMPTS` module constant — read once at module load via an IIFE (`Number.isFinite(raw) && raw >= 0 ? raw : 1`) from the optional non-secret `process.env.AUTO_REFINE_MAX_ATTEMPTS`, defaulting to 1. Operator kept exactly `<` so the default is byte-identical to today (Research Pitfall 1). `auto-refine.ts` doc comment updated to reference the configurable cap (documentation-only; increment logic untouched). Channel-neutral (no DB, no async, no channel import) → graph-neutrality stays green. `tests/unit/estimate/auto-refine-cap.test.ts` now fully GREEN (default=1 AND `AUTO_REFINE_MAX_ATTEMPTS=2` override cases); `auto-refine-isolation` + `graph-neutrality` (12/12) and `never-reply-regression` Path C (loops exactly once at default) stay green. No env VALUE committed — only the var NAME appears (CLAUDE.md secret-handling). 1 atomic commit (02a41f2). xphere untouched. HARD-06 NOT marked complete — only the configurable-cap half is done; the web recourse UI half is owned by Plan 102-04.
 Prior (102-00, Wave 0 RED/EXTEND scaffold): authored 4 failing-by-design test files (auto-refine-cap [HARD-06 cap, now GREEN via 102-02], replay-safe-ttl [HARD-07, still RED → 102-01], batch-reporting [HARD-05, still RED → 102-03], needs-details-banner [HARD-06 recourse, still RED → 102-04]); 2 commits (201afb0, 35e8537).
 Last activity: 2026-06-24
-Stopped at: Completed 114-03-PLAN.md
+Stopped at: Completed 115-01-PLAN.md
 Next Up: **Phase 108 COMPLETE (5/5 plans — 108-01 metering [RMETER-01/02/03], 108-02 vagueness gate [RFALL-02], 108-03 orchestrator `researchUnmatchedPrices` [RPRICE-01/03/04, RFALL-01], 108-04 wire into `generateEstimateForProject` [RPRICE-01/03, RFALL-01], 108-05 "Couch cleaning 8 seats" full-graph regression [RFALL-03]).** THE PAYOFF is live in the production generation path AND locked by a green deterministic full-graph regression (EVIDENCED → $180/non-vague, empty-research+context → never-$0 ladder/non-vague, all-empty → still blocks). All three price-research adapters (`openrouter-web`, gated `anthropic-web`, deterministic `fixture`) remain configured-via-`platform_integrations` (all-misses no-op when unconfigured). Suggested: `/gsd:verify-work 108`, then `/gsd:execute-phase 109` (durability + cost-control hardening — dedicated `step.run('price-research')` retry isolation, runtime OpenRouter→Anthropic fallback ordering, per-estimate item caps, refine-loop memoization). DEFERRED (operational, carried from 108-01): apply migration `20260624000002_phase108_usage_event_price_researched.sql` (+ the earlier `20260624000001` price_research_cache) to remote via CI→GHCR→Coolify.
 Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gsd:verify-work 104` to validate the phase, then address the operational deferrals. DEFERRED (operational, all of Phase 104): apply migrations `20260621000001_notification_categories_remap.sql` + `20260621000002_notification_opt_in_consent.sql` + `20260621000003_whatsapp_notification_templates.sql` to the remote DB; ensure the Twilio from-number is SMS-capable; verify the Meta token carries `whatsapp_business_management` scope + author/approve the registry templates in Meta WhatsApp Manager (the `message_template_status_update` webhook then flips them to approved). Also still queued: `/gsd:verify-work 103` + `/gsd:complete-milestone` (v4.5) carry-over UATs.
 
@@ -666,6 +669,8 @@ Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gs
 - [Phase 114]: Estimate fee clamps strictly below the charge (amount-1); 1-cent invoice omits application_fee_amount entirely (Stripe rejects $0/>=charge)
 - [Phase 114]: PAYGATE-01: single paymentsEnabled(company) predicate (pure, stripe_account_id present && status active) is the only forward-affordance gate; backs both generateInvoice and the editor — no drift
 - [Phase 114]: PAYGATE-02: gate forward-looking AFFORDANCES; historical RECORDs (Paid badge, IssuedInvoicesPanel) stay ungated and may persist when disconnected
+- [Phase 115]: Credit history projection lists ONLY operation_type/delta_credits/reason/created_at — cost/markup never selected (owner-safe by construction)
+- [Phase 115]: Low-balance notify reuses quota.80pct/quota.exhausted events (no new EventType); informational copy, dedupe per company/threshold/month
 
 ## Performance Metrics
 
@@ -885,13 +890,14 @@ Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gs
 | Phase 114 P01 | 13m | 3 tasks | 7 files |
 | Phase 114 P02 | 9m | 3 tasks | 11 files |
 | Phase 114 P03 | ~8m | 3 tasks | 4 files |
+| Phase 115 P01 | 7m | 3 tasks | 5 files |
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-13)
 
 **Core value:** Business owner → job site audio recording → sent professional estimate in under 5 minutes
-**Current focus:** Phase 114 — Estimate Payment Fee + Payment-UI Gating + Disclosure
+**Current focus:** Phase 115 — Credit Balance UX (owner-facing)
 
 ## Notes
 
