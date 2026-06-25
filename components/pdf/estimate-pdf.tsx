@@ -34,6 +34,8 @@ interface PdfLabels {
   discount: string
   tax: string
   grandTotal: string
+  deposit: string
+  balanceDue: string
   paymentTerms: string
   timeline: string
   warranty: string
@@ -61,6 +63,8 @@ const PDF_LABELS: Record<EstimateLanguage, PdfLabels> = {
     discount: 'Discount',
     tax: 'Tax',
     grandTotal: 'Total',
+    deposit: 'Deposit',
+    balanceDue: 'Balance Due',
     paymentTerms: 'Payment Terms',
     timeline: 'Timeline',
     warranty: 'Warranty',
@@ -86,6 +90,8 @@ const PDF_LABELS: Record<EstimateLanguage, PdfLabels> = {
     discount: 'Desconto',
     tax: 'Imposto',
     grandTotal: 'Total',
+    deposit: 'Entrada',
+    balanceDue: 'Saldo Devedor',
     paymentTerms: 'Condições de Pagamento',
     timeline: 'Prazo',
     warranty: 'Garantia',
@@ -111,6 +117,8 @@ const PDF_LABELS: Record<EstimateLanguage, PdfLabels> = {
     discount: 'Descuento',
     tax: 'Impuesto',
     grandTotal: 'Total',
+    deposit: 'Depósito',
+    balanceDue: 'Saldo Pendiente',
     paymentTerms: 'Términos de Pago',
     timeline: 'Plazo',
     warranty: 'Garantía',
