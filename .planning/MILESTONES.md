@@ -1,5 +1,21 @@
 # Milestones
 
+## v4.10 MCP Channel Parity (Shipped: 2026-06-25)
+
+**Phases completed:** 2 (127, 128) · 2 plans · full unit suite green (336 files / 2354 tests)
+
+**Goal (delivered):** Bring the existing MCP server (built in v4.1) to capability parity with WhatsApp + the v4.9 web chat by binding the SAME channel-neutral `lib/agent-tools/` capabilities as MCP tools — closing the **WhatsApp = chat = MCP** sibling-channels principle and the entire Multi-Channel Core track (SEED-033 → SEED-034 → SEED-030). Cheap precisely because v4.9 already did the channel-neutral extraction: this was a thin tool-binding milestone, not a new subsystem.
+
+**What shipped, phase by phase:**
+- **MCP read tools (127)** — a new `lib/mcp/tools/knowledge-query.ts` binding 6 read-only tools over the neutral core: `ask_knowledge` (wraps `lib/agent-tools/ask-knowledge` — the v4.8 industry KB + company overlay, resolving `companies.industries[]` by the trusted companyId) + 5 query tools (`find_client`/`get_latest_estimate`/`get_project_status`/`list_recent_estimates`/`list_services`, each wrapping a neutral `query-company-data` data-read). All carry `readOnlyHint: true` + `destructiveHint: false` for Claude.ai's auto-grouped permission UX; `companyId` is `auth.company_id` (OAuth token → company, trusted), NEVER a tool input field (T-lrf-01). The registry went 6 → 12 tools; `read.ts`/`write.ts`/`server.ts` stayed byte-untouched.
+- **Generation reconciliation + parity (128)** — the existing MCP `create_estimate` now delegates to the neutral `lib/agent-tools/createEstimate` (`channel:'mcp'`), deleting its duplicated `inngest.send` dispatch while preserving the `mcp:write` scope gate, project-ownership lookup, the `{job_id, status, message}` envelope, and the `check_job_status` companion. The neutral idempotency id was widened to be channel-namespaced (`estimate-${channel}-${projectId}-${requestId}`) — a principled improvement that kept the existing MCP behavior test byte-unchanged and green. A new static parity test proves all three channels converge on one generation entry (chat/MCP via `createEstimate`, WhatsApp via `generateEstimateForProject`).
+
+**Architecture invariants honored:** the MCP tools BIND the neutral `lib/agent-tools/` (no re-implementation, no re-extraction — v4.9 owned that); `companyId` trusted from the OAuth token; `readOnlyHint` annotations; the existing v4.1 OAuth/transport infra reused; the existing MCP test suite stayed green unchanged (the parity guard). Edit/send MCP tools deferred (matching the web-chat v1 scope).
+
+**Milestone significance:** this CLOSES the **Multi-Channel Core** track. WhatsApp, the web chat, and the MCP server are now provably three thin channel adapters over one shared neutral core (`lib/agent-tools/` + `lib/knowledge/` + `lib/services/generate-estimate`). A new capability added to the core reaches all three channels; a new channel binds the core without re-implementing anything.
+
+**Operational deferrals (carry-forward):** the v4.7–v4.9 migrations still pending remote apply (CI→GHCR→Coolify); configure the OpenRouter/embeddings keys; live MCP UAT (connect a client, call ask_knowledge + a query tool + create_estimate). The only remaining green seed is **SEED-032 (Advanced Pricing Model)** — an independent track.
+
 ## v4.9 Internal Web Chat Assistant — the 3rd channel (Shipped: 2026-06-25)
 
 **Phases completed:** 5 (122, 123, 124, 125, 126) · 13 plans · full unit suite green (335 files / 2335 tests)

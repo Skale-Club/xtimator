@@ -29,7 +29,7 @@
 - ✅ **v4.7 Monetização — Credit-Based Billing + Estimate Payment Fee** — Phases 110-116 (shipped 2026-06-24)
 - ✅ **v4.8 Industry Knowledge Base — Channel-Neutral Conversational Assistant** — Phases 117-121 (shipped 2026-06-24)
 - ✅ **v4.9 Internal Web Chat Assistant — the 3rd channel** — Phases 122-126 (shipped 2026-06-25)
-- 🚧 **v4.10 MCP Channel Parity** — Phases 127-128 (roadmap created 2026-06-25) — binds the v4.9 neutral `lib/agent-tools/` over the existing v4.1 MCP server, closing the WhatsApp = chat = MCP sibling-channels principle
+- ✅ **v4.10 MCP Channel Parity** — Phases 127-128 (shipped 2026-06-25) — binds the v4.9 neutral `lib/agent-tools/` over the existing v4.1 MCP server, closing the WhatsApp = chat = MCP sibling-channels principle
 
 > **Phase numbering note:** v3.1.1 starts at **Phase 66**, not 62. Phases 62-65 are reserved as DEFERRED placeholders for the v3.2 Production Deploy milestone (Vercel→Hetzner deploy + Stripe live + monitoring + UAT in prod). Skipping past 62-65 keeps the global phase counter unambiguous and prevents number reuse confusion when v3.2 begins.
 

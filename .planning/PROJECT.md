@@ -14,9 +14,11 @@ The platform includes:
 
 A business owner can go from job site audio recording to a sent, professional estimate in under 5 minutes without touching a keyboard.
 
-## Current Milestone: v4.10 MCP Channel Parity — the same neutral capabilities on the MCP server
+## Last Milestone: v4.10 MCP Channel Parity ✅ (shipped 2026-06-25)
 
-**Goal:** Bring the existing MCP server (built in v4.1) to CAPABILITY PARITY with WhatsApp + the v4.9 web chat by binding the SAME channel-neutral `lib/agent-tools/` capabilities as MCP tools — closing the WhatsApp = chat = MCP sibling-channels principle. Cheap precisely because v4.9 already did the channel-neutral extraction. Source: [SEED-030](seeds/SEED-030-mcp-server-xtimator.md) (the ⚠️ channel-parity update supersedes the old "5 tools MVP" scope).
+**Shipped:** both phases (127-128), 6/6 requirements, 2 plans. Full unit suite green (336 files / 2354 tests). Bound the v4.9 neutral `lib/agent-tools/` over the existing v4.1 MCP server: 6 read-only tools (`ask_knowledge` + 5 query, `readOnlyHint`, companyId trusted) + reconciled `create_estimate` to delegate to the neutral `createEstimate` (channel-namespaced idempotency id; the existing MCP suite stayed byte-green). This CLOSES the **Multi-Channel Core** track — WhatsApp, web chat, and MCP are now three thin adapters over one shared neutral core (`lib/agent-tools/` + `lib/knowledge/` + `lib/services/generate-estimate`). Archive: [milestones/v4.10](MILESTONES.md). The only remaining green seed is SEED-032 (Advanced Pricing Model — independent track).
+
+**Goal (delivered):** Bring the existing MCP server (built in v4.1) to CAPABILITY PARITY with WhatsApp + the v4.9 web chat by binding the SAME channel-neutral `lib/agent-tools/` capabilities as MCP tools — closing the WhatsApp = chat = MCP sibling-channels principle. Source: [SEED-030](seeds/SEED-030-mcp-server-xtimator.md).
 
 **Target features:**
 - **`ask_knowledge` MCP tool** — wraps `lib/agent-tools/ask-knowledge` (the v4.8 industry KB + company overlay, scoped by the company's `industries[]`); read-only (`readOnlyHint: true`).
