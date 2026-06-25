@@ -1515,7 +1515,7 @@ Plans:
   2. RLS is tenant-scoped: a company's members can read and write only their own company's conversations and messages; another tenant cannot see or modify them (mirrors `whatsapp_inbox`)
   3. A conversation and its messages persist across sessions — a returning owner re-opening the chat sees the saved conversation list and the full message history of a selected conversation
 **Plans**: 2 plans (2 waves)
-- [ ] 123-01-PLAN.md — Migration + static contract test: chat_conversations + chat_messages, parts jsonb, denormalized company_id, company_members RLS owner-narrowed by user_id (CHATDB-01)
+- [x] 123-01-PLAN.md — Migration + static contract test: chat_conversations + chat_messages, parts jsonb, denormalized company_id, company_members RLS owner-narrowed by user_id (CHATDB-01)
 - [ ] 123-02-PLAN.md — lib/queries/chat.ts helpers (list/get/create/append, service-client + getActiveCompanyId scoping, updated_at bump) + behavior test (CHATDB-02)
 
 ### Phase 124: AI SDK + /api/chat Tool-Calling Backend (slots + credit reuse)

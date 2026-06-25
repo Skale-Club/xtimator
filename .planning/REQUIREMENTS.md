@@ -27,7 +27,7 @@ Requirements for this milestone. Each maps to exactly one roadmap phase.
 
 ### Chat Persistence
 
-- [ ] **CHATDB-01**: `chat_conversations` + `chat_messages` tables exist with tenant-scoped RLS (mirroring `whatsapp_inbox`); idempotent migration, authored-only.
+- [x] **CHATDB-01**: `chat_conversations` + `chat_messages` tables exist with tenant-scoped RLS (mirroring `whatsapp_inbox`); idempotent migration, authored-only.
 - [ ] **CHATDB-02**: Conversations and their messages persist and reload (a returning owner sees their chat history).
 
 ### AI SDK Chat Backend
@@ -84,7 +84,7 @@ Which phases cover which requirements. Populated during roadmap creation.
 | NEUT-03 | Phase 122 | Complete |
 | NEUT-04 | Phase 122 | Complete |
 | NEUT-05 | Phase 122 | Complete |
-| CHATDB-01 | Phase 123 | Pending |
+| CHATDB-01 | Phase 123 | Complete |
 | CHATDB-02 | Phase 123 | Pending |
 | CHATBE-01 | Phase 124 | Pending |
 | CHATBE-02 | Phase 124 | Pending |
