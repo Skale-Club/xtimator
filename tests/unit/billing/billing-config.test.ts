@@ -121,6 +121,53 @@ describe('CREDIT-05: enforcementEnabled (measure-only safety)', () => {
 })
 
 // =============================================================================
+// SEAT-06 — seat config deep-merge (seatPriceCents + per-tier includedSeats)
+// =============================================================================
+describe('SEAT-06: seat config deep-merge', () => {
+  it('resolves seatPriceCents + tiers.pro.includedSeats from DEFAULT when no row exists', async () => {
+    serviceClientImpl = () => makeServiceClient(null)
+    const cfg = await getBillingConfig()
+    expect(cfg.seatPriceCents).toBe(DEFAULT_BILLING_CONFIG.seatPriceCents)
+    expect(cfg.tiers.pro.includedSeats).toBe(DEFAULT_BILLING_CONFIG.tiers.pro.includedSeats)
+  })
+
+  it('a pre-existing row WITHOUT a tiers key still resolves includedSeats from DEFAULT (Pitfall-6)', async () => {
+    serviceClientImpl = () => makeServiceClient({ metadata: { markup: 5 } })
+    const cfg = await getBillingConfig()
+    expect(cfg.tiers.pro.includedSeats).toBe(DEFAULT_BILLING_CONFIG.tiers.pro.includedSeats)
+    expect(cfg.tiers.business.includedSeats).toBe(
+      DEFAULT_BILLING_CONFIG.tiers.business.includedSeats
+    )
+    // seatPriceCents also falls through to the default for a pre-existing row
+    expect(cfg.seatPriceCents).toBe(DEFAULT_BILLING_CONFIG.seatPriceCents)
+  })
+
+  it('a stored row overriding seatPriceCents resolves it, rest default', async () => {
+    serviceClientImpl = () => makeServiceClient({ metadata: { seatPriceCents: 2500 } })
+    const cfg = await getBillingConfig()
+    expect(cfg.seatPriceCents).toBe(2500)
+    expect(cfg.tiers).toEqual(DEFAULT_BILLING_CONFIG.tiers)
+  })
+
+  it('a stored partial tiers object still resolves non-overridden tiers includedSeats from DEFAULT', async () => {
+    serviceClientImpl = () =>
+      makeServiceClient({
+        metadata: {
+          tiers: {
+            pro: { monthlyCreditGrant: 12000, subscriptionPriceCents: 3900, includedSeats: 3 },
+          },
+        },
+      })
+    const cfg = await getBillingConfig()
+    expect(cfg.tiers.pro.includedSeats).toBe(3)
+    expect(cfg.tiers.free.includedSeats).toBe(DEFAULT_BILLING_CONFIG.tiers.free.includedSeats)
+    expect(cfg.tiers.business.includedSeats).toBe(
+      DEFAULT_BILLING_CONFIG.tiers.business.includedSeats
+    )
+  })
+})
+
+// =============================================================================
 // BILLCFG-02 — schema (validated here so the writer can trust it)
 // =============================================================================
 describe('BILLCFG-02: billingConfigSchema', () => {
@@ -164,6 +211,24 @@ describe('BILLCFG-02: billingConfigSchema', () => {
     expect(
       billingConfigSchema.safeParse({ ...DEFAULT_BILLING_CONFIG, creditUnitUsd: 0 }).success
     ).toBe(false)
+  })
+
+  // SEAT-06: seatPriceCents + per-tier includedSeats validation
+  it('rejects negative seatPriceCents', () => {
+    expect(
+      billingConfigSchema.safeParse({ ...DEFAULT_BILLING_CONFIG, seatPriceCents: -1 }).success
+    ).toBe(false)
+  })
+
+  it('rejects a tier with non-integer includedSeats', () => {
+    const bad = {
+      ...DEFAULT_BILLING_CONFIG,
+      tiers: {
+        ...DEFAULT_BILLING_CONFIG.tiers,
+        pro: { ...DEFAULT_BILLING_CONFIG.tiers.pro, includedSeats: 1.5 },
+      },
+    }
+    expect(billingConfigSchema.safeParse(bad).success).toBe(false)
   })
 })
 
