@@ -1489,7 +1489,7 @@ Plans:
  (completed 2026-06-25)
 - [x] **Phase 125: Chat UI — useChat + Sidebar + Multimodal + Estimate Card** - The `useChat` streaming surface with per-tool-call progress, a conversation sidebar (new/switch + history load), multimodal input (text/audio/photo) routed through the extracted `normalize`, and an inline estimate card that opens in the existing editor.
  (completed 2026-06-25)
-- [ ] **Phase 126: Access/Entitlement Gate + Owner-Only Verification** - The chat is gated owner-only (authenticated, tenant-scoped) and by tier entitlement (Pro/Business), audited so it is never reachable by an end customer.
+- [x] **Phase 126: Access/Entitlement Gate + Owner-Only Verification** - The chat is gated owner-only (authenticated, tenant-scoped) and by tier entitlement (Pro/Business), audited so it is never reachable by an end customer. (completed 2026-06-25)
 
 ### Phase Details — v4.9 Internal Web Chat Assistant
 
@@ -1560,4 +1560,4 @@ Plans:
 **Plans**: 2 plans in `.planning/phases/126-chat-access-entitlement-gate/`
 Plans:
 - [x] 126-01-PLAN.md — chatEnabled flag (free false; trial/pro/business true) + the /api/chat 403 chat_not_on_plan security-boundary gate (CHATMETER-02)
-- [ ] 126-02-PLAN.md — chat page upgrade-prompt gate (own tier read) + the owner-only / never-customer-facing static scope test (CHATMETER-02)
+- [x] 126-02-PLAN.md — chat page upgrade-prompt gate (own tier read) + the owner-only / never-customer-facing static scope test (CHATMETER-02)
