@@ -37,11 +37,14 @@ describe('createEstimate — EVENT_ESTIMATE_GENERATE dispatch (NEUT-01)', () => 
       projectId: 'proj-1',
       prompts: ['paint the deck'],
       language: 'en',
+      channel: 'mcp',
     })
 
     expect(mockSend).toHaveBeenCalledTimes(1)
-    const arg = mockSend.mock.calls[0][0] as { name: string; data: Record<string, unknown> }
+    const arg = mockSend.mock.calls[0][0] as { name: string; id: string; data: Record<string, unknown> }
     expect(arg.name).toBe(EVENT_ESTIMATE_GENERATE)
+    // Idempotency id folds the channel in before the projectId (channel-namespaced).
+    expect(arg.id).toMatch(/^estimate-mcp-proj-1-/)
     expect(arg.data.companyId).toBe('co-1')
     expect(arg.data.projectId).toBe('proj-1')
     expect(arg.data.prompts).toEqual(['paint the deck'])
@@ -61,6 +64,21 @@ describe('createEstimate — EVENT_ESTIMATE_GENERATE dispatch (NEUT-01)', () => 
     // No tenant sourced from anywhere but the trusted param: there is no snake_case
     // company_id key, and companyId is exactly what was passed in.
     expect(arg.data).not.toHaveProperty('company_id')
+  })
+
+  it('namespaces the idempotency id by channel for the web path', async () => {
+    mockSend.mockResolvedValue({ ids: ['evt_web'] })
+    await createEstimate({ companyId: 'co-1', projectId: 'proj-1', channel: 'web' })
+    const arg = mockSend.mock.calls[0][0] as { id: string }
+    expect(arg.id).toMatch(/^estimate-web-proj-1-/)
+  })
+
+  it('omits the channel segment when no channel is passed', async () => {
+    mockSend.mockResolvedValue({ ids: ['evt_none'] })
+    await createEstimate({ companyId: 'co-1', projectId: 'proj-1' })
+    const arg = mockSend.mock.calls[0][0] as { id: string }
+    expect(arg.id).toMatch(/^estimate-proj-1-/)
+    expect(arg.id).not.toMatch(/^estimate-(web|mcp)-/)
   })
 
   it('Test 3: rejects when inngest.send returns no event id', async () => {

@@ -18,6 +18,13 @@ import 'server-only'
  * EVENT_ESTIMATE_GENERATE path that web + MCP share. The messaging channel's
  * heavier media-ingest CREATE path (processInboundMessages) is separate and
  * stays channel-specific by design — do NOT route it through here.
+ *
+ * Idempotency: the dispatched event id is channel-namespaced —
+ * `estimate-<channel>-<projectId>-<requestId>` when a channel is passed,
+ * `estimate-<projectId>-<requestId>` otherwise — so each channel (web/mcp) gets
+ * a distinct Inngest dedupe namespace. This is the single justified widening of
+ * the neutral fn for Phase 128: `channel` is already a neutral param, so folding
+ * it into the id adds no channel-specific token and preserves the neutrality gate.
  */
 import { randomUUID } from 'node:crypto'
 import { inngest } from '@/lib/inngest/client'
@@ -44,7 +51,7 @@ export async function createEstimate(args: {
   }
   const { ids } = await inngest.send({
     name: EVENT_ESTIMATE_GENERATE,
-    id: `estimate-${args.projectId}-${requestId}`,
+    id: `estimate-${args.channel ? `${args.channel}-` : ''}${args.projectId}-${requestId}`,
     data: payload,
   })
   const jobId = ids[0]
