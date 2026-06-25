@@ -25,7 +25,7 @@ Requirements for this milestone. Each maps to exactly one roadmap phase.
 
 ### Discounts
 
-- [ ] **DISC-01**: Schema — `estimate_items.discount` (line-level, amount or percent) + `estimates.discount` (global, amount or percent).
+- [x] **DISC-01**: Schema — `estimate_items.discount` (line-level, amount or percent) + `estimates.discount` (global, amount or percent).
 - [x] **DISC-02**: The server math applies line discount before the subtotal and the global discount before tax (configurable before/after per company), prorating the global discount into the taxable base.
 
 ### Deposit / Down-Payment
@@ -75,7 +75,7 @@ Which phases cover which requirements. Populated during roadmap creation.
 | TAX-01 | Phase 129 | Complete |
 | TAX-02 | Phase 130 | Complete |
 | TAX-03 | Phase 130 | Complete |
-| DISC-01 | Phase 131 | Pending |
+| DISC-01 | Phase 131 | Complete |
 | DISC-02 | Phase 131 | Complete |
 | DEP-01 | Phase 132 | Pending |
 | DEP-02 | Phase 132 | Pending |
