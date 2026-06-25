@@ -23,6 +23,8 @@ export type TopUpPack = { credits: number; priceCents: number }
 export type TierBilling = {
   monthlyCreditGrant: number
   subscriptionPriceCents: number
+  // per-tier ANNUAL subscription price in integer cents (SEED-038); CALIBRATE BEFORE CHARGING placeholder — the displayed discount % is DERIVED (1 − annual/(12×monthly)), never stored
+  subscriptionPriceAnnualCents: number
   // seats bundled in the tier before per-seat billing kicks in (e.g. the owner
   // seat is included) — CALIBRATE BEFORE CHARGING (placeholder, not final).
   includedSeats: number
@@ -36,6 +38,7 @@ export type BillingConfig = {
   estimateFeePct: number // 0.01 = 1% (SEED-036); default 0.01
   estimateFeeMinCents: number // Stripe rejects $0 fee — sane floor for Phase 114 FEE-04; default 1
   seatPriceCents: number // monthly price of one billable seat in integer cents (SEED-037); CALIBRATE BEFORE CHARGING placeholder
+  seatPriceAnnualCents: number // global ANNUAL per-seat price in integer cents (SEED-038); CALIBRATE BEFORE CHARGING placeholder
   tiers: Record<BillingTier, TierBilling>
   topUpPacks: TopUpPack[]
   lowBalanceThresholds: number[] // credit balances at which to warn; default [200, 50]
@@ -63,13 +66,18 @@ export const DEFAULT_BILLING_CONFIG: BillingConfig = {
   // CALIBRATE BEFORE CHARGING, NOT a final number — null-safe placeholder so the
   // reader resolves a seat price before any admin save (same discipline as markup/estimateFeePct).
   seatPriceCents: 1500,
+  // CALIBRATE BEFORE CHARGING, NOT a final number — placeholder ≈ 10× monthly so the (later-derived) annual discount is visible.
+  seatPriceAnnualCents: 15000,
   // includedSeats per tier is a CALIBRATION PLACEHOLDER (the owner seat is bundled,
   // so each defaults to 1) — CALIBRATE BEFORE CHARGING, do not invent generous numbers.
+  // subscriptionPriceAnnualCents per tier is also a CALIBRATION PLACEHOLDER (≈10× monthly
+  // for paid tiers so the later-derived annual discount is visible, 0 for free/trial) —
+  // CALIBRATE BEFORE CHARGING, do NOT present these as final pricing.
   tiers: {
-    free: { monthlyCreditGrant: 0, subscriptionPriceCents: 0, includedSeats: 1 },
-    trial: { monthlyCreditGrant: 2000, subscriptionPriceCents: 0, includedSeats: 1 },
-    pro: { monthlyCreditGrant: 9000, subscriptionPriceCents: 2900, includedSeats: 1 },
-    business: { monthlyCreditGrant: 30000, subscriptionPriceCents: 9900, includedSeats: 1 },
+    free: { monthlyCreditGrant: 0, subscriptionPriceCents: 0, subscriptionPriceAnnualCents: 0, includedSeats: 1 },
+    trial: { monthlyCreditGrant: 2000, subscriptionPriceCents: 0, subscriptionPriceAnnualCents: 0, includedSeats: 1 },
+    pro: { monthlyCreditGrant: 9000, subscriptionPriceCents: 2900, subscriptionPriceAnnualCents: 29000, includedSeats: 1 },
+    business: { monthlyCreditGrant: 30000, subscriptionPriceCents: 9900, subscriptionPriceAnnualCents: 99000, includedSeats: 1 },
   },
   topUpPacks: [
     { credits: 1000, priceCents: 1500 },
