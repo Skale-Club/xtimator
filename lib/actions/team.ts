@@ -6,6 +6,7 @@ import { z } from 'zod'
 import { requireCompanyManager } from '@/lib/auth/require-company-role'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { sendInviteEmail } from '@/lib/email/invite-emails'
+import { syncSeatBilling } from '@/lib/billing/seat-billing'
 import { XtimatorError } from '@/lib/errors'
 
 /**
@@ -194,9 +195,11 @@ export async function revokeInvite(
  * 'owner' row; changeMemberRole refuses to target an 'owner' row. (2) settable
  * roles are 'admin' | 'member' only — 'owner' is rejected at the zod boundary.
  *
- * Scope fence: member-management ONLY. NO seat billing/sync (Phase 139 reads the
- * clean membership change) and NO seat-cost number (Phase 140). Do NOT import or
- * call any billing/syncSeatBilling/Stripe code here.
+ * Scope fence: member-management + SEAT-07 seat-sync wiring. After a successful
+ * membership mutation (removeMember / changeMemberRole), the never-throw
+ * syncSeatBilling(companyId) is invoked as a guarded side-effect so the Stripe
+ * seat quantity stays in sync — a billing failure can NEVER fail or roll back the
+ * membership op. NO seat-cost number/UI (Phase 140) lives here.
  */
 
 /**
@@ -244,6 +247,15 @@ export async function removeMember(
   }
 
   revalidatePath(TEAM_PATH)
+
+  // 5. SEAT-07 — the member count dropped; reconcile the Stripe seat quantity.
+  //    Guarded so a seat-sync failure can never fail/roll back the removal.
+  try {
+    await syncSeatBilling(companyId)
+  } catch {
+    /* seat sync must never fail removal */
+  }
+
   return { success: true as const }
 }
 
@@ -299,5 +311,15 @@ export async function changeMemberRole(
   }
 
   revalidatePath(TEAM_PATH)
+
+  // 6. SEAT-07 — a role flip rarely changes the billable count, but a change that
+  //    flips billable status must re-sync; syncSeatBilling is idempotent so the
+  //    redundant call is a cheap no-op. Guarded so it can never fail the change.
+  try {
+    await syncSeatBilling(companyId)
+  } catch {
+    /* seat sync must never fail role change */
+  }
+
   return { success: true as const }
 }
