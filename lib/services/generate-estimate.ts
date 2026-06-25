@@ -338,6 +338,7 @@ export async function generateEstimateForProject(
     subtotal,
     taxAmount,
     grandTotal,
+    discountAmount,
   } = computeEstimateTotals(researchedSections, { taxRate, taxConfig })
 
   // GUARD-03: the server recalculation above is the SINGLE authoritative source.
@@ -346,6 +347,7 @@ export async function generateEstimateForProject(
   const safeSubtotal = assertFinitePositive(subtotal)
   const safeTaxAmount = assertFinitePositive(taxAmount)
   const safeGrandTotal = assertFinitePositive(grandTotal)
+  const safeDiscountAmount = assertFinitePositive(discountAmount)
 
   // Log-only invariant guard (never blocks persistence): grand == subtotal + tax
   // within rounding epsilon. True by construction; asserted as a regression guard.
@@ -415,9 +417,11 @@ export async function generateEstimateForProject(
       warranty_terms:
         aiEstimate.warranty_terms ?? company.default_warranty_terms ?? null,
       subtotal: safeSubtotal,
-      discount_type: null,
-      discount_value: 0,
-      discount_amount: 0,
+      // DISC-02: persist the server-computed GLOBAL discount into the EXISTING estimates.discount_*
+      // columns (no new column). At generation there is no global discount → null/0/0, byte-identical.
+      discount_type: safeDiscountAmount > 0 ? 'amount' : null,
+      discount_value: safeDiscountAmount,
+      discount_amount: safeDiscountAmount,
       tax_rate: taxRate,
       tax_amount: safeTaxAmount,
       total: safeGrandTotal,
@@ -471,6 +475,9 @@ export async function generateEstimateForProject(
         // (taxable=true, tax_category=null) keep retrocompat rows byte-identical.
         taxable: item.taxable ?? true,
         tax_category: item.tax_category ?? null,
+        // DISC-01: persist the per-item line discount (AI INPUT, amount) — survives AI → anchoring →
+        // research → compute via the ...item spreads. Default 0 keeps retrocompat rows byte-identical.
+        discount: (item.discount as number | undefined) ?? 0,
       }))
 
       const { error: itemsError } = await supabase
