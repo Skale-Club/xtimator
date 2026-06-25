@@ -294,6 +294,14 @@ describe('BILLCFG-03: getBillingConfig consumed ONLY by the reader + credit-ledg
     // seat-quantity item — the runtime-authoritative billing source, a legitimate
     // consumer. The guard still fails on any OTHER reference of the symbol.
     const SEAT_BILLING_PATH = resolve(process.cwd(), 'lib/billing/seat-billing.ts')
+    // Phase 140 (seat-cost transparency, SEAT-08): buildSeatCostSummary reads
+    // seatPriceCents + per-tier includedSeats + enforcementEnabled from
+    // getBillingConfig to disclose the projected monthly seat cost on the
+    // Settings → Team surface. The runtime-authoritative billing-config consumer
+    // (DISPLAY ONLY — no mutation); the team page invokes the builder transitively
+    // and does NOT reference the getBillingConfig symbol itself. The guard still
+    // fails on any OTHER reference of the symbol.
+    const SEAT_COST_SUMMARY_PATH = resolve(process.cwd(), 'lib/billing/seat-cost-summary.ts')
     const ALLOWLIST = new Set([
       MODULE_PATH,
       CREDIT_LEDGER_PATH,
@@ -303,6 +311,7 @@ describe('BILLCFG-03: getBillingConfig consumed ONLY by the reader + credit-ledg
       PAYMENTS_PAGE_PATH,
       CREDITS_QUERY_PATH,
       SEAT_BILLING_PATH,
+      SEAT_COST_SUMMARY_PATH,
     ])
 
     const collected: string[] = []

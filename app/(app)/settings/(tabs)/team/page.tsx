@@ -41,7 +41,7 @@ export default async function TeamTabPage() {
   }
 
   // Seat-cost summary (SEAT-08) — owner/admin only. Computed server-side from
-  // getBillingConfig + the company tier, reusing the Phase-139 pure seat math.
+  // the runtime billing config + the company tier, reusing the Phase-139 pure seat math.
   // The active seat count is the live roster member rows. A plain member gets
   // null and the cost line is not rendered (consistent with the manage gate).
   const seatCost: SeatCostSummary | null =
