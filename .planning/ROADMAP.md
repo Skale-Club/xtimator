@@ -1774,7 +1774,7 @@ Plans:
   3. Removing a member deletes their `company_members` row so they immediately lose access to the org's data (the existing RLS stops authorizing them), and the active member count drops — the basis for the seat-quantity decrement on the next Phase-139 sync
   4. The Team surface is mobile-safe — usable on iOS Safari and Android Chrome (the app runs on phones), following the existing mobile-safe Settings form idiom
 **Plans**: 2 plans
-- [ ] 138-01-PLAN.md — removeMember + changeMemberRole (gated; last-owner/owner-target/role guards) + listCompanyRoster query (members + pending invites) + unit tests
+- [x] 138-01-PLAN.md — removeMember + changeMemberRole (gated; last-owner/owner-target/role guards) + listCompanyRoster query (members + pending invites) + unit tests
 - [ ] 138-02-PLAN.md — Settings → Team page + TeamSection (roster, invite/change-role/remove/revoke for owner/admin, read-only for members) + nav entry; mobile-safe; i18n
 **UI hint**: yes
 

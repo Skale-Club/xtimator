@@ -27,7 +27,7 @@ Each requirement maps to exactly one roadmap phase.
 
 - [x] **SEAT-03**: Invite lifecycle — `inviteMember(companyId, email, role)` + `revokeInvite` server actions (owner/admin only) creating a single-use, expiring `company_invites` row and sending a Resend invite email with the accept link. A pending invite does not consume a billable seat.
 - [x] **SEAT-04**: Accept onboarding — `acceptInvite(token)`: a token that is valid/unexpired/pending adds the `company_members` row and switches the active company. If the invited email already has an auth user → join directly; if not → a signup-then-join branch that SKIPS company creation (the existing onboarding always creates a company — this path must branch to JOIN the existing one).
-- [ ] **SEAT-05**: Member management — `removeMember` + `changeMemberRole` server actions (gated) + a `Settings → Team` UI: list members (name/email/role), list pending invites, an Invite action (email + role), remove member, change role. Mobile-safe (iOS Safari / Android Chrome). Removing a member revokes access immediately and decrements the seat quantity on the next sync.
+- [x] **SEAT-05**: Member management — `removeMember` + `changeMemberRole` server actions (gated) + a `Settings → Team` UI: list members (name/email/role), list pending invites, an Invite action (email + role), remove member, change role. Mobile-safe (iOS Safari / Android Chrome). Removing a member revokes access immediately and decrements the seat quantity on the next sync.
 
 ### Configurable Seat Billing
 
@@ -63,7 +63,7 @@ Deferred to a future milestone. Tracked but not in this roadmap.
 | SEAT-02 | Phase 135 | Complete |
 | SEAT-03 | Phase 136 | Complete |
 | SEAT-04 | Phase 137 | Complete |
-| SEAT-05 | Phase 138 | Pending |
+| SEAT-05 | Phase 138 | Complete |
 | SEAT-06 | Phase 139 | Pending |
 | SEAT-07 | Phase 139 | Pending |
 | SEAT-08 | Phase 140 | Pending |
