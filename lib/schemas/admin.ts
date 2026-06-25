@@ -141,6 +141,8 @@ export const blogPostSchema = z.object({
 const tierBillingSchema = z.object({
   monthlyCreditGrant: z.number().int().min(0),
   subscriptionPriceCents: z.number().int().min(0),
+  // per-tier ANNUAL subscription price in integer cents (no upper bound that would reject a sane annual price).
+  subscriptionPriceAnnualCents: z.number().int().min(0),
   // seats bundled in the tier before per-seat billing (non-negative int count).
   includedSeats: z.number().int().min(0),
 })
@@ -153,6 +155,8 @@ export const billingConfigSchema = z.object({
   estimateFeeMinCents: z.number().int().min(0),
   // monthly price of one billable seat in integer cents (no upper bound that would reject a sane price).
   seatPriceCents: z.number().int().min(0),
+  // global ANNUAL per-seat price in integer cents (no upper bound that would reject a sane annual price).
+  seatPriceAnnualCents: z.number().int().min(0),
   tiers: z.object({
     free: tierBillingSchema,
     trial: tierBillingSchema,
