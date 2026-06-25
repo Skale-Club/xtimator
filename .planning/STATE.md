@@ -1,6 +1,6 @@
 ---
 gsd_state_version: 1.0
-milestone: v3.1.1
+milestone: v4.12
 milestone_name: MVP Launch Prep + Future-Proofing
 status: verifying
 stopped_at: Completed 135-02-PLAN.md
