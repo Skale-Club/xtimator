@@ -9,11 +9,12 @@
 //      tool calls require explicit per-call approval unless the user
 //      "Always allows" it.
 //
-//   2. Estimate generation is async. `create_estimate` triggers the existing
-//      Inngest pipeline (`EVENT_ESTIMATE_GENERATE` → `generate-estimate`
-//      function — the same path used by `/api/generate-estimate` from the web
-//      app) and returns the Inngest event id as `job_id` immediately. The LLM
-//      then polls `check_job_status(job_id)` until the run completes.
+//   2. Estimate generation is async. `create_estimate` delegates to the
+//      channel-neutral `createEstimate` (lib/agent-tools) — the same generation
+//      core the web chat binds — which triggers the existing Inngest pipeline
+//      (the same path used by `/api/generate-estimate` from the web app) and
+//      returns the Inngest event id as `job_id` immediately. The LLM then polls
+//      `check_job_status(job_id)` until the run completes.
 //
 // `check_job_status` is read-only (idempotentHint: true) and reads from
 // Inngest's REST `/v1/events/{eventId}/runs` endpoint via the same code path
@@ -22,15 +23,10 @@
 
 import 'server-only'
 import { z } from 'zod'
-import { randomUUID } from 'node:crypto'
 import type { McpAuthContext } from '@/lib/mcp/auth'
 import { requireScope } from '@/lib/mcp/scope'
 import { requireServiceClient } from '@/lib/supabase/service'
-import { inngest } from '@/lib/inngest/client'
-import {
-  EVENT_ESTIMATE_GENERATE,
-  type EstimateGeneratePayload,
-} from '@/lib/inngest/events'
+import { createEstimate } from '@/lib/agent-tools'
 import {
   insufficientScope,
   invalidInput,
@@ -170,36 +166,27 @@ async function handleCreateEstimate(
     throw notFound(`Project ${input.project_id} not found`)
   }
 
-  // Dispatch to Inngest. The web app's /api/generate-estimate uses the same
-  // event name + payload shape; we follow that contract verbatim so retries,
-  // notifications, and quota recording all flow through the existing pipeline.
+  // Dispatch via the channel-neutral createEstimate (lib/agent-tools) — the
+  // SAME core the web chat binds (lib/chat/tools.ts, channel:'web'). MCP keeps
+  // its own auth/scope + project-ownership pre-flight above; only the
+  // generation-event dispatch is delegated so all three channels
+  // (web chat / MCP / WhatsApp) converge on one generation entry point. The
+  // neutral fn mints the requestId and the channel-namespaced idempotency id.
   //
-  // 2026-05-27 (Phase 89 deferral closed): `prompt` is now forwarded to the
+  // 2026-05-27 (Phase 89 deferral closed): `prompt` is forwarded to the
   // EstimateGeneratePayload as `prompts: [prompt]`. The underlying service
   // `generateEstimateForProject` consumes this as an additional input modality
   // alongside transcripts + photos, and the prompt-builder renders it under
   // a "## Description" section in the user content sent to the AI provider.
   // Projects without transcripts/photos can now produce an estimate from the
   // prompt alone — which is the core MCP create_estimate UX.
-  const requestId = randomUUID()
-  const payload: EstimateGeneratePayload = {
+  const { jobId } = await createEstimate({
     companyId: auth.company_id,
     projectId: input.project_id,
-    requestId,
-    channel: 'mcp',
     prompts: [input.prompt],
     ...(input.language ? { language: input.language } : {}),
-  }
-  const { ids } = await inngest.send({
-    name: EVENT_ESTIMATE_GENERATE,
-    id: `estimate-mcp-${input.project_id}-${requestId}`,
-    data: payload,
+    channel: 'mcp',
   })
-
-  const jobId = ids[0]
-  if (!jobId) {
-    throw new Error('create_estimate: inngest.send returned no event id')
-  }
 
   return jsonContent({
     job_id: jobId,
