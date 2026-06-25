@@ -44,6 +44,8 @@ export interface ComputeTotalsResult {
   discountAmount: number   // DISC-02: computed global discount (disc_global) for persistence (Plan 131-03)
   taxAmount: number
   grandTotal: number
+  deposit: number          // DEP-01: deposit computed from grandTotal (absent/'none'/null → 0)
+  balanceDue: number       // DEP-01: round2(grandTotal − deposit) ('none' → grandTotal)
 }
 
 export interface ComputeTotalsOptions {
@@ -53,6 +55,11 @@ export interface ComputeTotalsOptions {
   // (byte-identical retrocompat).
   discountType?: 'amount' | 'percent' | 'none' | null
   discountValue?: number | null
+  // DEP-01: deposit configuration. Absent/'none'/null → deposit 0 → balanceDue = grandTotal
+  // (byte-identical retrocompat; the persisted estimates.deposit_* columns stay the dormant default).
+  // 'percent' → deposit = round2(grandTotal × deposit_value/100); 'amount' → deposit = round2(deposit_value).
+  depositType?: 'none' | 'percent' | 'amount' | null
+  depositValue?: number | null
 }
 
 /**
@@ -77,7 +84,7 @@ function isTaxConfig(value: unknown): value is TaxConfig {
  */
 export function computeEstimateTotals(
   sections: ComputeTotalsSection[],
-  { taxRate, taxConfig, discountType, discountValue }: ComputeTotalsOptions
+  { taxRate, taxConfig, discountType, discountValue, depositType, depositValue }: ComputeTotalsOptions
 ): ComputeTotalsResult {
   const calculatedSections = sections.map((section) => {
     const items = section.items.map((item) => {
@@ -151,5 +158,18 @@ export function computeEstimateTotals(
 
   const grandTotal = Math.round(((subtotal - discGlobal) + taxAmount) * 100) / 100
 
-  return { sections: calculatedSections, subtotal, discountAmount: discGlobal, taxAmount, grandTotal }
+  // DEP-01 (LOCKED sequence): deposit computed from grandTotal; balanceDue = grandTotal − deposit.
+  // depositType absent / 'none' / null → deposit 0 → balanceDue = grandTotal (byte-identical retrocompat).
+  // SAME Math.round(x * 100) / 100 form as the totals above (NOT a round2 import) for byte-consistency.
+  // No clamp: out-of-range guarding (a deposit exceeding the total) is a Phase-133 editor concern; the
+  // pure math stays a faithful subtraction (balanceDue may be negative — deposit-totals.test.ts case 4).
+  const deposit =
+    depositType === 'percent'
+      ? Math.round(grandTotal * ((depositValue ?? 0) / 100) * 100) / 100
+      : depositType === 'amount'
+        ? Math.round((depositValue ?? 0) * 100) / 100
+        : 0
+  const balanceDue = Math.round((grandTotal - deposit) * 100) / 100
+
+  return { sections: calculatedSections, subtotal, discountAmount: discGlobal, taxAmount, grandTotal, deposit, balanceDue }
 }
