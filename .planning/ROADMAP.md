@@ -1746,7 +1746,7 @@ Plans:
   4. Creating or revoking a pending invite causes ZERO change to billable seats or any Stripe write — a pending invite is free; the seat count is unaffected until acceptance
 **Plans**: 2 plans in `.planning/phases/136-invite-lifecycle/`
 Plans:
-- [ ] 136-01-PLAN.md — sendInviteEmail Resend template (mirrors account-emails.ts; absolute /invite/accept?token=… link; never-throws/no-key-skip) + behavioral test
+- [x] 136-01-PLAN.md — sendInviteEmail Resend template (mirrors account-emails.ts; absolute /invite/accept?token=… link; never-throws/no-key-skip) + behavioral test
 - [ ] 136-02-PLAN.md — inviteMember + revokeInvite server actions (lib/actions/team.ts) gated by requireCompanyManager; random+unique token, 7d expiry, email send, token never returned; reject paths + revoke tested
 
 ### Phase 137: Accept Onboarding
