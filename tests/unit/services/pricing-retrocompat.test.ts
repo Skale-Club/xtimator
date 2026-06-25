@@ -19,6 +19,25 @@ describe('ENG-02: retrocompat happy path (flat rate, no new fields)', () => {
     expect(r.grandTotal).toBe(936.09)
   })
 
+  it('TAX-03 regression: omitted taxConfig === explicit null === byte-identical flat golden', () => {
+    // The new per-category branch (Plan 130-02) must NEVER touch the flat path: with the
+    // option omitted AND with taxConfig: null the engine returns the IDENTICAL golden.
+    const omitted = computeEstimateTotals(sections, { taxRate })
+    const explicitNull = computeEstimateTotals(sections, { taxRate, taxConfig: null })
+
+    // Byte-identical to the standing 850.99 / 85.1 / 936.09 golden, both ways.
+    expect(omitted.subtotal).toBe(850.99)
+    expect(omitted.taxAmount).toBe(85.1)
+    expect(omitted.grandTotal).toBe(936.09)
+
+    expect(explicitNull.subtotal).toBe(omitted.subtotal)
+    expect(explicitNull.taxAmount).toBe(omitted.taxAmount)
+    expect(explicitNull.grandTotal).toBe(omitted.grandTotal)
+    expect(explicitNull.subtotal).toBe(850.99)
+    expect(explicitNull.taxAmount).toBe(85.1)
+    expect(explicitNull.grandTotal).toBe(936.09)
+  })
+
   it('item.total and section.subtotal match the flat per-item math', () => {
     const r = computeEstimateTotals(sections, { taxRate })
     expect(r.sections[0].items[0].total).toBe(500)
