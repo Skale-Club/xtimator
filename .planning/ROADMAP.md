@@ -1487,7 +1487,8 @@ Plans:
  (completed 2026-06-25)
 - [x] **Phase 124: AI SDK + /api/chat Tool-Calling Backend (slots + credit reuse)** - Add the Vercel AI SDK (`ai` + `@ai-sdk/*`); an `/api/chat` `streamText` + native tool-calling route exposing the neutral tools, resolving the model via `ai_config` slots through an OpenRouter-compatible provider; estimate generation invoked as a tool over the unchanged LangGraph engine (async Inngest job); heavy ops debit credits by reusing the neutral functions.
  (completed 2026-06-25)
-- [x] **Phase 125: Chat UI — useChat + Sidebar + Multimodal + Estimate Card** - The `useChat` streaming surface with per-tool-call progress, a conversation sidebar (new/switch + history load), multimodal input (text/audio/photo) routed through the extracted `normalize`, and an inline estimate card that opens in the existing editor. (completed 2026-06-25)
+- [x] **Phase 125: Chat UI — useChat + Sidebar + Multimodal + Estimate Card** - The `useChat` streaming surface with per-tool-call progress, a conversation sidebar (new/switch + history load), multimodal input (text/audio/photo) routed through the extracted `normalize`, and an inline estimate card that opens in the existing editor.
+ (completed 2026-06-25)
 - [ ] **Phase 126: Access/Entitlement Gate + Owner-Only Verification** - The chat is gated owner-only (authenticated, tenant-scoped) and by tier entitlement (Pro/Business), audited so it is never reachable by an end customer.
 
 ### Phase Details — v4.9 Internal Web Chat Assistant
@@ -1556,4 +1557,7 @@ Plans:
   1. The chat route and UI are reachable only by an authenticated, tenant-scoped owner (active-company resolved); an unauthenticated or cross-tenant request is rejected, and no customer-facing entry point exists
   2. The chat is gated by tier entitlement — a Pro/Business feature — so a Free/Trial company sees the feature gated (upgrade affordance) rather than a working chat, consistent with the existing entitlement pattern
   3. An audit confirms no path (route, persistence, or UI) lets an end customer reach the chat, and the owner-only + tenant-scoped invariant holds across every surface added in 122-125
-**Plans**: TBD
+**Plans**: 2 plans in `.planning/phases/126-chat-access-entitlement-gate/`
+Plans:
+- [ ] 126-01-PLAN.md — chatEnabled flag (free false; trial/pro/business true) + the /api/chat 403 chat_not_on_plan security-boundary gate (CHATMETER-02)
+- [ ] 126-02-PLAN.md — chat page upgrade-prompt gate (own tier read) + the owner-only / never-customer-facing static scope test (CHATMETER-02)
