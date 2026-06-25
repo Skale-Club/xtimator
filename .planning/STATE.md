@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v4.9
 milestone_name: Internal Web Chat Assistant — the 3rd channel
-status: verifying
+status: in-progress
 stopped_at: Completed 124-02-PLAN.md
-last_updated: "2026-06-25T03:19:19.846Z"
+last_updated: "2026-06-25T03:23:03.099Z"
 last_activity: 2026-06-25
 progress:
-  total_phases: 18
-  completed_phases: 18
-  total_plans: 51
-  completed_plans: 51
+  total_phases: 77
+  completed_phases: 62
+  total_plans: 181
+  completed_plans: 194
 ---
 
 # Project State
@@ -27,12 +27,11 @@ progress:
 - **Dependency spine:** 122 (neutral extraction + parity) is the foundation — nothing works without it. 123 (persistence) can run in PARALLEL with 124's early work but is needed before any history renders. 124 (AI SDK backend) needs 122 (tools) + 123 (persistence). 125 (chat UI) needs 124 (backend) + 123 (history) + 122 (`normalize`). 126 (access gate) needs 124 + 125 and is the last/verification phase. CHATMETER-01 (credit reuse) folds into 124 (it falls out of reusing the neutral debit path); CHATMETER-02 (owner-only + tier gate) is its own thin Phase 126.
 - **Locked guardrails (SEED-034 + PROJECT.md):** the chat reimplements NO domain logic — it reuses the neutral modules (the governing principle: WhatsApp = CHAT = MCP, three siblings over the SAME neutral core). AI SDK = the chat/streaming layer; the LangGraph estimate engine stays INTOCADO, invoked as a tool (tool-call boundary, not a streaming bridge). Substitute the template's infra: Supabase Auth/Postgres/Storage + OpenRouter (NOT Auth.js/Drizzle/Neon/Blob/AI-Gateway). Owner-only, tenant-scoped, NEVER customer-facing. Idempotent + authored-only migrations, deploy CI→GHCR→Coolify (never build on the VPS). Channel-neutral modules never import a channel (grep gate). v1 = generate + query + knowledge + multimodal; estimate-edit-in-chat + send-in-chat DEFERRED (owner opens the result in the existing editor); MCP parity (SEED-030) is a LATER milestone the extraction here makes cheap.
 - **Previous milestone**: v4.8 Industry Knowledge Base — Channel-Neutral Conversational Assistant — SHIPPED 2026-06-24 (phases 117-121, 15/15 requirements, full unit suite green 314 files / 2219 tests). The channel-neutral `lib/knowledge/` module v4.9's `askKnowledge` tool wraps. Operational deferrals carried: apply 2 migrations (knowledge_entries, match RPC) to remote + configure embeddings key + seed industry KBs.
-- **Position**: Phase 124 Plan 01 COMPLETE (1/2 plans — ai@^6 + @openrouter/ai-sdk-provider@^2 installed; `lib/chat/provider.ts` slot→OpenRouter resolver, `lib/chat/tools.ts` 8 neutral fns wrapped as AI SDK tools with trusted-closure companyId, `lib/chat/system-prompt.ts` owner-only prompt; provider 7/7 + tools 11/11 green). CHATBE-01/02/03 marked complete. Next: `/gsd:execute-phase 124` (Plan 124-02 — the `/api/chat` streamText + tool-calling route wiring resolveChatModel + buildChatTools + CHAT_SYSTEM_PROMPT + persistence). NOTE: `phase complete` mis-points next at stale 999.1 — real next is **124-02 then 125**.
-
+- **Position**: Phase 124 COMPLETE (2/2 plans, verified 8/8 — Vercel AI SDK + /api/chat streamText tool-calling backend; model via slots; createEstimate async tool; credit reuse no-double-debit). Next: `/gsd:plan-phase 125` (chat UI). NOTE: `phase complete` mis-points next at stale 999.1 — real next is **125**.
 ## Current Position
 
-Phase: 124 (AI SDK + /api/chat Tool-Calling Backend) — EXECUTING
-Plan: 2 of 2
+Phase: 999.1
+Plan: Not started
 Status: Phase complete — ready for verification
 
 ---
