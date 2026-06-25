@@ -1,4 +1,4 @@
-# Requirements: Xtimator — Milestone v4.11 Advanced Pricing Model
+# Requirements: Xtimator — Milestone v4.11 Advanced Pricing Model (SHIPPED 2026-06-25)
 
 **Defined:** 2026-06-25
 **Core Value:** A business owner can go from job site audio recording to a sent, professional estimate in under 5 minutes without touching a keyboard.
@@ -100,4 +100,4 @@ Which phases cover which requirements. Populated during roadmap creation.
 
 ---
 *Requirements defined: 2026-06-25*
-*Last updated: 2026-06-25 — milestone v4.11 Advanced Pricing Model roadmap created (6 phases 129-134, 12/12 requirements mapped, 0 orphans)*
+*Last updated: 2026-06-25 — milestone v4.11 Advanced Pricing Model SHIPPED (all 6 phases 129-134 complete, 12/12 requirements done; last green seed of the n8n-MVP-analysis backlog — backlog fully complete)*
