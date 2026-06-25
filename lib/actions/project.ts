@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { after } from 'next/server'
 import type { ProjectFormValues } from '@/lib/schemas/project'
 import { getProjectsByCompany, getProjectById } from '@/lib/queries/project'
 import type { ProjectDetail } from '@/lib/queries/project'
@@ -17,15 +18,11 @@ async function getAuthContext() {
   const activeCompanyId = await getActiveCompanyId()
   if (!activeCompanyId) return { error: 'No company found' as const }
 
-  const { data: company } = await supabase
-    .from('companies')
-    .select('id')
-    .eq('id', activeCompanyId)
-    .single()
-
-  if (!company) return { error: 'No company found' as const }
-
-  return { supabase, company }
+  // getActiveCompanyId() already validated the user's membership against
+  // company_members (FK → companies), so the company row provably exists.
+  // Skipping a redundant `companies` SELECT shaves a DB round-trip off every
+  // project action (notably the New Xtimate popup's open path).
+  return { supabase, company: { id: activeCompanyId } }
 }
 
 export async function createProjectAction(formData: ProjectFormValues) {
@@ -64,6 +61,88 @@ export async function createProjectAction(formData: ProjectFormValues) {
   revalidatePath('/dashboard')
   revalidatePath('/', 'layout')
   return { data: project }
+}
+
+// Pre-generation statuses — a project in one of these is still an untouched
+// draft and is safe to reuse for the New Xtimate popup. Once an estimate is
+// generated the status advances (e.g. 'estimate_ready' / 'awaiting_details'),
+// at which point the row is a real project and must NEVER be reused as a draft.
+const REUSABLE_DRAFT_STATUSES = ['draft', 'recording', 'photos_added'] as const
+
+/**
+ * New Xtimate popup helper: resume the user's in-progress draft project across
+ * popup opens — so the typed description AND uploaded photos survive closing
+ * the popup — or create a fresh draft when there's nothing to resume.
+ *
+ * Reuse is gated server-side to the SAME active company, non-deleted /
+ * non-archived rows whose status is still a pre-generation draft state. Any
+ * mismatch (stale id, company switch, already-generated) falls through to a
+ * fresh project. Returns the full ProjectDetail the popup needs.
+ */
+export async function resumeOrCreateDraftProjectAction(
+  savedProjectId: string | null,
+  clientId?: string,
+) {
+  const ctx = await getAuthContext()
+  if ('error' in ctx) return { error: ctx.error }
+  const { supabase, company } = ctx
+
+  if (savedProjectId) {
+    // Fetch the full ProjectDetail shape up front (single round-trip): if the
+    // row is reusable we return it directly, with no second getProjectById.
+    const { data: existing } = await supabase
+      .from('projects')
+      .select('*, client:clients(id, name, email, phone)')
+      .eq('id', savedProjectId)
+      .maybeSingle()
+    const reusable =
+      existing &&
+      existing.company_id === company.id &&
+      !existing.deleted_at &&
+      !existing.archived_at &&
+      (REUSABLE_DRAFT_STATUSES as readonly string[]).includes(existing.status)
+    if (reusable) return { data: existing as ProjectDetail }
+  }
+
+  // Nothing reusable — create a fresh draft (mirrors createProjectAction).
+  // Build ProjectDetail from the insert row itself (client is always null on a
+  // brand-new draft) instead of a follow-up getProjectById — saves a round-trip.
+  const placeholderName = `${PLACEHOLDER_PREFIX}${new Date().toLocaleDateString()}`
+  const { data: created, error: insertError } = await supabase
+    .from('projects')
+    .insert({
+      company_id: company.id,
+      client_id: clientId ?? null,
+      name: placeholderName,
+      project_type: null,
+      input_mode: null,
+      status: 'draft',
+      target_budget: null,
+      total: 0,
+    })
+    .select('*')
+    .single()
+
+  if (insertError || !created) {
+    return { error: 'Failed to create project. Please try again.' }
+  }
+
+  // revalidatePath only marks caches (no DB round-trip), so it stays on the
+  // critical path. The activity INSERT is a real round-trip and isn't needed
+  // for the response — defer it with after() so the popup gets its project id
+  // without waiting on it.
+  revalidatePath('/dashboard')
+  revalidatePath('/', 'layout')
+  after(async () => {
+    await supabase.from('estimate_activity').insert({
+      project_id: created.id,
+      company_id: company.id,
+      event_type: 'project_created',
+      metadata: { placeholder_name: placeholderName },
+    })
+  })
+
+  return { data: { ...created, client: null } as ProjectDetail }
 }
 
 /**

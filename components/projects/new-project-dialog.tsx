@@ -1,7 +1,8 @@
 'use client'
 
 import { Suspense, useState } from 'react'
-import { useSearchParams, useRouter, usePathname } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
+import { closeModalParam } from '@/lib/utils/modal-url'
 import {
   Dialog,
   DialogContent,
@@ -42,8 +43,6 @@ export function editEstimateHref(currentSearch: string | undefined, projectId: s
 
 function NewProjectDialogInner() {
   const searchParams = useSearchParams()
-  const router = useRouter()
-  const pathname = usePathname()
   const { language: appLanguage } = useLanguage()
   const [estimateLanguage, setEstimateLanguage] = useState<EstimateLanguage>(
     appLanguage === 'pt' || appLanguage === 'es' ? appLanguage : 'en'
@@ -53,11 +52,8 @@ function NewProjectDialogInner() {
   const editProjectId = searchParams.get(NEW_PROJECT_EDIT_PARAM) ?? undefined
 
   function onClose() {
-    const params = new URLSearchParams(searchParams.toString())
-    params.delete(NEW_PROJECT_MODAL_PARAM)
-    params.delete(NEW_PROJECT_EDIT_PARAM)
-    const q = params.toString()
-    router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false })
+    // History API → closes instantly without re-rendering the page behind it.
+    closeModalParam(NEW_PROJECT_EDIT_PARAM)
   }
 
   return (

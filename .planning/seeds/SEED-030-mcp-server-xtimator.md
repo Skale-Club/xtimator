@@ -11,6 +11,8 @@ revisit_outcome: User activated post v4.0 close-out (2026-05-26). New design dec
 
 # SEED-030: MCP Server for Xtimator (Model Context Protocol)
 
+> **⚠️ PARIDADE DE CANAL (atualizado 2026-06-24, ver [[SEED-034-internal-web-chat-assistant]]):** o MCP é **irmão** do WhatsApp e do chat web — os três canais consomem o MESMO núcleo channel-neutral e devem ter **paridade total de capacidade** (CREATE/EDIT/CONFIRM/SEND/QUERY/KNOWLEDGE + intake multimodal). O "Initial tool scope (MVP) — 5 tools" das Locked Decisions de 2026-05-25 abaixo fica **SUPERADO**: era um corte de primeira-entrega, não o alvo. O alvo é paridade plena com WhatsApp+chat, servida pela mesma extração de `lib/whatsapp/` para módulos de domínio neutros. As 5 tools podem ser a 1ª fase de entrega, mas o MCP não é "menos capaz" que os outros canais por design.
+
 Implementação de um servidor MCP que permite usar o Xtimator de dentro do **Claude Desktop / Claude.ai** e do **ChatGPT/GPT custom connectors**. Um usuário com workspace no Xtimator conecta o MCP server e passa a invocar tools do Xtimator (criar/listar estimates, transcrever áudio, gerar PDF, etc.) diretamente do chat com seu assistente preferido.
 
 ## Why This Matters

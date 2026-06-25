@@ -34,8 +34,14 @@ async function flushBatch(lang: 'pt' | 'es', setPendingCount: Dispatch<SetStateA
     })
 
     if (!res.ok) {
-      // Silent fallback: return source text on error
-      resolvers.forEach((cbs, src) => cbs.forEach(cb => cb(src)))
+      // Silent fallback: cache + return source text on error.
+      // Caching the fallback is critical — without it, t() re-queues the same
+      // string on every render, and the setPendingCount churn becomes an infinite
+      // render loop ("Maximum update depth exceeded").
+      resolvers.forEach((cbs, src) => {
+        memCache.set(`${lang}:${src}`, src)
+        cbs.forEach(cb => cb(src))
+      })
       return
     }
 
@@ -53,8 +59,12 @@ async function flushBatch(lang: 'pt' | 'es', setPendingCount: Dispatch<SetStateA
       cbs.forEach(cb => cb(translated))
     })
   } catch {
-    // Silent fallback on parse or network error
-    resolvers.forEach((cbs, src) => cbs.forEach(cb => cb(src)))
+    // Silent fallback on parse or network error — cache the source text so the
+    // string isn't re-queued every render (avoids the infinite render loop).
+    resolvers.forEach((cbs, src) => {
+      memCache.set(`${lang}:${src}`, src)
+      cbs.forEach(cb => cb(src))
+    })
   } finally {
     // Decrement pendingCount in finally — always fires even on error
     setPendingCount(c => c - 1)

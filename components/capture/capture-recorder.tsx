@@ -39,6 +39,22 @@ const TICK_MS = 250                            // RESEARCH Pattern 4
 // Hard cap on photos attachable to a single capture (popup New Xtimate flow).
 const MAX_PHOTOS = 16
 
+// Draft persistence — the typed description survives closing the popup (outside
+// click / X / Escape) so it can be restored on the next open. Keyed per flow
+// ('new' vs an existing project's id) so an edit-mode draft never bleeds into
+// the new-project draft. Cleared once an estimate is successfully generated.
+const DRAFT_PREFIX = 'xtimator:capture-draft:'
+const draftStorageKey = (key: string) => `${DRAFT_PREFIX}${key}`
+
+function readDraft(key: string | undefined): string {
+  if (typeof window === 'undefined' || !key) return ''
+  try {
+    return localStorage.getItem(draftStorageKey(key)) ?? ''
+  } catch {
+    return ''
+  }
+}
+
 // Pure cap math: given how many photos are already present and how many are
 // incoming, return how many to take and whether the incoming set overflowed.
 export function clampToPhotoLimit(
@@ -108,6 +124,20 @@ interface CaptureRecorderProps {
    */
   estimateLanguage?: EstimateLanguage
   setEstimateLanguage?: (lang: EstimateLanguage) => void
+  /**
+   * When set, the typed description is persisted to localStorage under this key
+   * so closing the popup (outside click / X / Escape) preserves the draft and
+   * the next open restores it. The draft is cleared on successful generation.
+   * Omit to disable draft persistence (legacy fullscreen /capture route).
+   */
+  draftKey?: string
+  /**
+   * When true, photos already attached to `project` are loaded into the strip
+   * on mount — so photos uploaded before the popup was closed reappear when it
+   * reopens (the New Xtimate draft-resume flow). Omit/false leaves the strip
+   * empty (legacy fullscreen route + edit mode).
+   */
+  restorePhotos?: boolean
 }
 
 export function CaptureRecorder({
@@ -125,6 +155,8 @@ export function CaptureRecorder({
   onCancel,
   estimateLanguage: estimateLanguageProp,
   setEstimateLanguage: setEstimateLanguageProp,
+  draftKey,
+  restorePhotos = false,
 }: CaptureRecorderProps) {
   const { t } = useTranslation()
   const { language: appLanguage } = useLanguage()
@@ -143,8 +175,9 @@ export function CaptureRecorder({
   const [transcript, setTranscript] = useState<string | undefined>(undefined)
   const [retriesUsed, setRetriesUsed] = useState(0)
 
-  // Multi-modal input state
-  const [descriptionText, setDescriptionText] = useState('')
+  // Multi-modal input state. Lazy-init from the saved draft (if any) so reopening
+  // the popup restores the text the user typed before closing it.
+  const [descriptionText, setDescriptionText] = useState(() => readDraft(draftKey))
   const [uploadedPhotos, setUploadedPhotos] = useState<Photo[]>([])
   // Per-photo items (uploading | done | error) drive the thumbnail strip.
   // `uploadedPhotos` stays the pipeline source of truth (only 'done' photos).
@@ -181,6 +214,68 @@ export function CaptureRecorder({
   // the latest items without re-subscribing / re-creating callbacks.
   const photoItemsRef = useRef<PhotoItem[]>([])
   useEffect(() => { photoItemsRef.current = photoItems }, [photoItems])
+
+  // Persist the typed description as the user types so any close path (outside
+  // click, X, Escape) keeps the draft. Empty text clears the stored draft.
+  useEffect(() => {
+    if (typeof window === 'undefined' || !draftKey) return
+    try {
+      if (descriptionText.trim()) {
+        localStorage.setItem(draftStorageKey(draftKey), descriptionText)
+      } else {
+        localStorage.removeItem(draftStorageKey(draftKey))
+      }
+    } catch {
+      /* storage unavailable (private mode / quota) — draft just isn't persisted */
+    }
+  }, [descriptionText, draftKey])
+
+  // Once an estimate is successfully generated, the draft has served its purpose
+  // — drop it so the next New Xtimate opens clean.
+  useEffect(() => {
+    if (stage !== 'done' || typeof window === 'undefined' || !draftKey) return
+    try {
+      localStorage.removeItem(draftStorageKey(draftKey))
+    } catch {
+      /* best-effort */
+    }
+  }, [stage, draftKey])
+
+  // Rehydrate photos already attached to this (resumed draft) project so they
+  // reappear in the strip after the popup was closed and reopened. Signed URLs
+  // back the thumbnails — not blob: object URLs — so the unmount revoke is a
+  // harmless no-op for them.
+  useEffect(() => {
+    if (!restorePhotos) return
+    let cancelled = false
+    void (async () => {
+      const supabase = createClient()
+      const { data } = await supabase
+        .from('photos')
+        .select('*')
+        .eq('project_id', projectId)
+        .order('sort_order', { ascending: true })
+      const photos = (data ?? []) as Photo[]
+      if (cancelled || photos.length === 0) return
+      const storage = createStorage(supabase)
+      const items = await Promise.all(
+        photos.map(async (photo): Promise<PhotoItem | null> => {
+          try {
+            const previewUrl = await storage.getSignedUrl('photos', photo.storage_path, 3600)
+            return { id: photo.id, status: 'done', previewUrl, photo }
+          } catch {
+            return null
+          }
+        })
+      )
+      if (cancelled) return
+      const valid = items.filter((i): i is PhotoItem => i !== null)
+      if (valid.length === 0) return
+      setPhotoItems(valid)
+      setUploadedPhotos(photos)
+    })()
+    return () => { cancelled = true }
+  }, [restorePhotos, projectId])
 
   // REC-03/REC-04 attempt lineage. attemptId/requestId are minted ONCE on the
   // first Generate and reused on Retry (NOT reset) so the generate-estimate

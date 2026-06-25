@@ -1,10 +1,11 @@
 .tower-loader {
   --tl-size: 1.5;
-  /* 3D shading: left face darkest, right mid, top lightest — derived from the
-     brand primary so it themes but keeps the cube-face contrast. */
-  --tl-color-left: color-mix(in srgb, hsl(var(--primary)) 72%, #000 28%);
-  --tl-color-right: hsl(var(--primary));
-  --tl-color-top: color-mix(in srgb, hsl(var(--primary)) 60%, #fff 40%);
+  /* 3D shading: left face darkest, right mid, top lightest. Uses the exact
+     reference blues (csozidev / Uiverse) so the cube faces keep crisp contrast
+     and read as a proper isometric box. */
+  --tl-color-left: #286cb5;
+  --tl-color-right: #2f85e0;
+  --tl-color-top: #5fa8f5;
 
   /* Reserve the scaled footprint and centre the scaled scene inside it, so the
      loader is correctly sized and never overflows/overlaps its siblings. */
@@ -61,22 +62,22 @@
 }
 
 .tower-loader__box--1 {
-  animation: tower-from-left 3s infinite;
+  animation: tower-from-left 4s infinite;
 }
 
 .tower-loader__box--2 {
-  animation: tower-from-right 3s infinite;
-  animation-delay: 0.75s;
+  animation: tower-from-right 4s infinite;
+  animation-delay: 1s;
 }
 
 .tower-loader__box--3 {
-  animation: tower-from-left 3s infinite;
-  animation-delay: 1.5s;
+  animation: tower-from-left 4s infinite;
+  animation-delay: 2s;
 }
 
 .tower-loader__box--4 {
-  animation: tower-from-right 3s infinite;
-  animation-delay: 2.25s;
+  animation: tower-from-right 4s infinite;
+  animation-delay: 3s;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -94,7 +95,7 @@
   0% {
     z-index: 20;
     opacity: 0;
-    translate: -20px -6px;
+    translate: 0px -6px;
   }
 
   20% {
@@ -130,7 +131,7 @@
   0% {
     z-index: 20;
     opacity: 0;
-    translate: 20px -6px;
+    translate: 0px -6px;
   }
 
   20% {

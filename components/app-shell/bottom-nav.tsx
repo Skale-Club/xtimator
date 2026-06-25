@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import { MoreHorizontal } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { openModalParam } from '@/lib/utils/modal-url'
 import { NAV_ITEMS } from './nav-items'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import {
@@ -25,17 +26,14 @@ const TOUR_TARGET: Record<string, string> = {
 export function BottomNav({ isDemo }: { isDemo?: boolean }) {
   const [mounted, setMounted] = useState(false)
   const pathname = usePathname()
-  const searchParams = useSearchParams()
-  const router = useRouter()
   const { t } = useTranslation()
 
   useEffect(() => { setMounted(true) }, [])
   if (!mounted) return null
 
   function openModal(modalValue: string) {
-    const params = new URLSearchParams(searchParams.toString())
-    params.set('modal', modalValue)
-    router.push(`${pathname}?${params.toString()}`, { scroll: false })
+    // History API → flips the dialog instantly with no RSC page re-render.
+    openModalParam(modalValue)
   }
 
   // Split visible items into the ones shown directly on the bar and the ones

@@ -182,7 +182,7 @@ After code ships, the Xtimator owner must do **once** in Stripe Dashboard:
 
 **Decisions locked (2026-05-17):**
 - Connect type: **Standard** (OAuth, business uses their existing Stripe)
-- Application fee: **0%** (provider gets 100%; Xtimator monetizes via SaaS plans only)
+- Application fee: **0%** (provider gets 100%; Xtimator monetizes via SaaS plans only) — ⚠️ **SUPERADO em 2026-06-24 por [[SEED-036-estimate-payment-platform-fee]]:** a Xtimator passa a cobrar **1% application fee** (config no super-admin). Receita agora = assinatura/créditos + 1% transacional. O gating "100% optional" abaixo permanece e é reforçado.
 - Payment scope: **MVP only — "Pay Now" full amount** (no deposits, no partial payments)
 - Post-payment: all 4 actions (mark paid, email provider, success banner, branded receipt to customer)
 

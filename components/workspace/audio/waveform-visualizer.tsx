@@ -37,32 +37,32 @@ export function WaveformVisualizer({ analyser, isRecording, height = 96 }: Wavef
     const barWidth = Math.max(0, width / barCount - 1)
     const dataArray = analyser ? new Uint8Array(analyser.frequencyBinCount) : null
 
-    // Read brand HSL triplets from CSS vars; fall back to literals for test envs
-    // where CSS variables are not loaded.
-    function readVar(name: string, fallback: string): string {
-      if (!canvas) return fallback
+    // CSS vars don't change between frames — read them ONCE per effect run
+    // instead of calling getComputedStyle 3× on every animation frame (~180
+    // style reads/sec at 60fps). Fall back to literals for test envs where CSS
+    // variables aren't loaded.
+    const readVar = (name: string, fallback: string): string => {
       const v = getComputedStyle(canvas).getPropertyValue(name).trim()
       return v.length > 0 ? v : fallback
     }
+    const primary = readVar('--primary', '224 86% 60%')
+    const secondary = readVar('--secondary', '200 95% 55%')
+    const mutedFg = readVar('--muted-foreground', '215 16% 47%')
+
+    // Brand gradient depends only on the colors + height — build it once too.
+    const grad = ctx.createLinearGradient(0, 0, 0, height)
+    grad.addColorStop(0, `hsl(${primary})`)
+    grad.addColorStop(1, `hsl(${secondary})`)
 
     function draw() {
       if (!ctx || !canvas) return
       ctx.clearRect(0, 0, width, height)
-
-      const primary = readVar('--primary', '224 86% 60%')
-      const secondary = readVar('--secondary', '200 95% 55%')
-      const mutedFg = readVar('--muted-foreground', '215 16% 47%')
 
       if (isRecording && analyser && dataArray) {
         analyser.getByteTimeDomainData(dataArray)
       }
       const step = dataArray ? Math.floor(dataArray.length / barCount) : 1
       const now = performance.now()
-
-      // Build the brand gradient (recording) once per frame
-      const grad = ctx.createLinearGradient(0, 0, 0, height)
-      grad.addColorStop(0, `hsl(${primary})`)
-      grad.addColorStop(1, `hsl(${secondary})`)
 
       if (isRecording) {
         ctx.shadowColor = `hsl(${primary} / 0.5)`

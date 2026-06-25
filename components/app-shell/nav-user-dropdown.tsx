@@ -35,7 +35,7 @@ export function NavUserDropdown({ email, avatarUrl }: NavUserDropdownProps) {
         <div className="px-2 py-1.5 text-xs text-muted-foreground truncate">{email}</div>
         <DropdownMenuSeparator />
         <DropdownMenuItem
-          className="flex cursor-pointer items-center gap-2 text-destructive focus:text-destructive"
+          className="flex cursor-pointer items-center gap-2 text-[hsl(var(--danger))] focus:text-[hsl(var(--danger))]"
           disabled={isPending}
           onClick={() => startTransition(() => signOut())}
         >

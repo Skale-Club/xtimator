@@ -19,13 +19,9 @@ async function getAuthContext() {
   const activeCompanyId = await getActiveCompanyId()
   if (!activeCompanyId) return { error: 'No company found' as const }
 
-  const { data: company } = await supabase
-    .from('companies')
-    .select('id')
-    .eq('id', activeCompanyId)
-    .single()
-
-  if (!company) return { error: 'No company found' as const }
+  // getActiveCompanyId() already validated membership (company_members FK →
+  // companies), so the company row provably exists — skip a redundant SELECT.
+  const company = { id: activeCompanyId }
 
   const denied = await assertWritable()
   if (denied) return denied

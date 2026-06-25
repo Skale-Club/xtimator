@@ -24,19 +24,22 @@ export async function getClients(
   supabase: SupabaseClient,
   companyId: string
 ): Promise<ClientWithCount[]> {
-  const { data: clients } = await supabase
-    .from('clients')
-    .select('id, name, email, phone, logo_url, created_at')
-    .eq('company_id', companyId)
-    .order('name')
+  // Both queries only filter by companyId and are independent — run them in
+  // parallel instead of clients-then-projects in series (one fewer round-trip
+  // on the clients list page).
+  const [{ data: clients }, { data: projects }] = await Promise.all([
+    supabase
+      .from('clients')
+      .select('id, name, email, phone, logo_url, created_at')
+      .eq('company_id', companyId)
+      .order('name'),
+    supabase
+      .from('projects')
+      .select('client_id')
+      .eq('company_id', companyId),
+  ])
 
   if (!clients || clients.length === 0) return []
-
-  // Get all project client_id counts in a single query
-  const { data: projects } = await supabase
-    .from('projects')
-    .select('client_id')
-    .eq('company_id', companyId)
 
   const countMap = new Map<string, number>()
   for (const p of projects ?? []) {

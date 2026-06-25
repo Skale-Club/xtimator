@@ -19,10 +19,14 @@ describe('phase 79 — app/(app)/layout.tsx active-company switch', () => {
     )
   })
 
-  it('imports getActiveCompanyId from lib/queries/active-company', () => {
-    expect(SRC).toMatch(
-      /import\s+\{[^}]*\bgetActiveCompanyId\b[^}]*\}\s+from\s+['"]@\/lib\/queries\/active-company['"]/
-    )
+  it('derives activeCompanyId from the resolved active company (no redundant getActiveCompanyId call)', () => {
+    // Perf optimization: getActiveCompany() already resolves the active company
+    // id internally (and sets the cookie on fallback), so the layout derives
+    // activeCompanyId from company.id instead of calling getActiveCompanyId() a
+    // second time — that helper re-runs a company_members query, and calling it
+    // twice doubled that cost on every authed page load. The billing query is
+    // still keyed by activeCompanyId (asserted below), so the contract holds.
+    expect(SRC).toMatch(/const\s+activeCompanyId\s*=\s*company\.id/)
   })
 
   it('no longer calls getCachedCompany(claims.sub)', () => {

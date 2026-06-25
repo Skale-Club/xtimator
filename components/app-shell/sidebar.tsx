@@ -1,10 +1,11 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import { ChevronLeft, ChevronRight, Settings, LogOut, HelpCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { openModalParam } from '@/lib/utils/modal-url'
 import { NAV_ITEMS } from './nav-items'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { ContextualTooltip, TOOLTIP_KEYS } from '@/components/tour/contextual-tooltip'
@@ -77,8 +78,6 @@ const TOUR_TARGET: Record<string, string> = {
 
 export function Sidebar({ branding, company, memberships, isDemo }: SidebarProps) {
   const pathname = usePathname()
-  const searchParams = useSearchParams()
-  const router = useRouter()
   const { t } = useTranslation()
   const { setShowWelcome, setIsReviewMode } = useTourContext()
   const { resetAllTourState, startTour } = useTour()
@@ -117,9 +116,8 @@ export function Sidebar({ branding, company, memberships, isDemo }: SidebarProps
   )
 
   function openModal(modalValue: string) {
-    const params = new URLSearchParams(searchParams.toString())
-    params.set('modal', modalValue)
-    router.push(`${pathname}?${params.toString()}`, { scroll: false })
+    // History API → flips the dialog instantly with no RSC page re-render.
+    openModalParam(modalValue)
   }
   const logoUrl = branding.logoUrl
 

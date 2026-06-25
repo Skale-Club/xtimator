@@ -23,13 +23,9 @@ async function getAuthContext(): Promise<AuthSuccess | AuthFailure> {
   const activeCompanyId = await getActiveCompanyId()
   if (!activeCompanyId) return { ok: false, errorMsg: 'No company found' }
 
-  const { data: company } = await supabase
-    .from('companies')
-    .select('id')
-    .eq('id', activeCompanyId)
-    .single()
-
-  if (!company) return { ok: false, errorMsg: 'No company found' }
+  // getActiveCompanyId() already validated membership (company_members FK →
+  // companies), so the company row provably exists — skip a redundant SELECT.
+  const company = { id: activeCompanyId }
 
   // company_whatsapp is written via the service client, which bypasses RLS, so
   // the demo read-only RLS policies do NOT protect it. This app-layer guard is
