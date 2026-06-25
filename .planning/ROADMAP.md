@@ -1608,7 +1608,7 @@ Plans:
  (completed 2026-06-25)
 - [x] **Phase 130: Per-Item Taxability** — Land the `taxable`/`tax_category` AI classification inputs in the output schema/types (the AI classifies labor/materials, computes nothing) and compute tax PER-ITEM (Sum of taxable_base_per_category x rate_category) instead of flat `subtotal x rate`, byte-identical when `tax_config` is absent (TAX-02, TAX-03) (completed 2026-06-25)
 - [x] **Phase 131: Discounts (line + global)** — Line-level + global discount (amount or percent); the server math applies line discount before the subtotal and the global discount before tax (configurable before/after per company), prorating the global discount into the taxable base (DISC-01, DISC-02) (completed 2026-06-25)
-- [ ] **Phase 132: Deposit + Markup + Deposit-Stripe Contract** — `deposit_type`/`deposit_value` -> server-computed `balance_due`; `cost` + `markup_pct` -> server-derived `unit_price` (never-trust-LLM, price book stores cost + markup); the deposit threads to the SEED-020/036 Stripe payment + 1% fee contract (the fee computes on the amount actually charged) (DEP-01, DEP-02, MARK-01)
+- [x] **Phase 132: Deposit + Markup + Deposit-Stripe Contract** — `deposit_type`/`deposit_value` -> server-computed `balance_due`; `cost` + `markup_pct` -> server-derived `unit_price` (never-trust-LLM, price book stores cost + markup); the deposit threads to the SEED-020/036 Stripe payment + 1% fee contract (the fee computes on the amount actually charged) (DEP-01, DEP-02, MARK-01) (completed 2026-06-25)
 - [ ] **Phase 133: Editor UI** — The estimate editor (`item-row.tsx` + `item-card-mobile.tsx`) gains per-line discount/taxable fields + global discount + deposit controls; server actions accept the new fields (PUI-01)
 - [ ] **Phase 134: PDF + Plain-Text Totals** — The PDF + plain-text output render the new totals structure (subtotal -> discount -> tax -> total -> deposit -> balance due) across all 3 channels, surfacing the shared-engine numbers with no channel-adapter changes (PUI-02)
 
@@ -1663,7 +1663,7 @@ Plans:
 **Plans**: 3 plans in `.planning/phases/132-deposit-markup-stripe/`
 Plans:
 - [x] 132-01-PLAN.md — DEP-01: deposit + balance_due in compute-totals (LOCKED sequence) + engine persistence + hand-computed deposit golden
-- [ ] 132-02-PLAN.md — MARK-01: cost + markup_pct AI inputs + server-derived unit_price (never-trust-LLM) + persistence + markup golden
+- [x] 132-02-PLAN.md — MARK-01: cost + markup_pct AI inputs + server-derived unit_price (never-trust-LLM) + persistence + markup golden
 - [x] 132-03-PLAN.md — DEP-02: pure resolveChargeAmount (deposit-aware charge) + 1%-on-charged-amount fee contract wired into generateInvoice
 
 ### Phase 133: Editor UI

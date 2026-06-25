@@ -35,7 +35,7 @@ Requirements for this milestone. Each maps to exactly one roadmap phase.
 
 ### Markup
 
-- [ ] **MARK-01**: `estimate_items.cost` (optional) + `markup_pct` → a SERVER-DERIVED `unit_price` (`cost × (1 + markup)`) — never-trust-LLM applied to markup; the price book stores cost + markup per item.
+- [x] **MARK-01**: `estimate_items.cost` (optional) + `markup_pct` → a SERVER-DERIVED `unit_price` (`cost × (1 + markup)`) — never-trust-LLM applied to markup; the price book stores cost + markup per item.
 
 ### Engine & Retrocompat
 
@@ -79,7 +79,7 @@ Which phases cover which requirements. Populated during roadmap creation.
 | DISC-02 | Phase 131 | Complete |
 | DEP-01 | Phase 132 | Complete |
 | DEP-02 | Phase 132 | Complete |
-| MARK-01 | Phase 132 | Pending |
+| MARK-01 | Phase 132 | Complete |
 | ENG-01 | Phase 129 | Complete |
 | ENG-02 | Phase 129 | Complete |
 | PUI-01 | Phase 133 | Pending |
