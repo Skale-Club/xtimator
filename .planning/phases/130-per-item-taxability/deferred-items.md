@@ -15,3 +15,11 @@ executor scope boundary.
 - `tests/unit/whatsapp/handler.test.ts:135,282` — TS2345 same `chatEnabled` gap.
 
 Note: the runtime vitest suite for these areas is green; these are type-level fixture/config drift in tests only.
+
+## Re-confirmed during Plan 130-02
+
+The identical pre-existing `tsc --noEmit` error set was re-observed during Plan 130-02 Task 2 and
+re-confirmed pre-existing by stashing the 130-02 changes. The plan-touched files
+(`lib/estimate/compute-totals.ts`, `lib/services/generate-estimate.ts`,
+`tests/unit/estimate/per-category-tax.test.ts`, `tests/unit/services/pricing-retrocompat.test.ts`)
+are tsc-clean. Still out of scope.

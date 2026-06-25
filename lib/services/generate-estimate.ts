@@ -7,7 +7,7 @@ import { type EstimateInput } from '@/lib/ai'
 import { getAIProviderWithFallback } from '@/lib/ai/provider-with-fallback'
 import { anchorAndClampSections } from '@/lib/ai/price-anchoring'
 import { researchUnmatchedPrices } from '@/lib/estimate/price-research/orchestrator'
-import { computeEstimateTotals } from '@/lib/estimate/compute-totals'
+import { computeEstimateTotals, type TaxConfig } from '@/lib/estimate/compute-totals'
 import {
   round2,
   assertFinitePositive,
@@ -106,7 +106,7 @@ export async function generateEstimateForProject(
     supabase
       .from('companies')
       .select(
-        'industry, currency_code, default_tax_rate, default_payment_terms, default_warranty_terms, name, default_estimate_language'
+        'industry, currency_code, default_tax_rate, default_payment_terms, default_warranty_terms, name, default_estimate_language, tax_config'
       )
       .eq('id', companyId)
       .single(),
@@ -326,15 +326,19 @@ export async function generateEstimateForProject(
     console.warn('[generate-estimate] price research failed (non-fatal)', err)
   }
 
-  // GUARD-03 default-path totals (ENG-02 scaffold). With no new fields present this is
-  // BYTE-IDENTICAL to the pre-v4.11 flat-rate computation. The per-item-tax / discount /
-  // deposit / markup activation lands in Phases 130-132.
+  // GUARD-03 totals. TAX-03: when companies.tax_config is present the engine computes tax
+  // PER-CATEGORY (Σ taxable_base_per_category × rate_category); when it is null/absent this is
+  // BYTE-IDENTICAL to the pre-v4.11 flat-rate computation (ENG-02). A malformed tax_config is
+  // coerced to null so it degrades to the flat path (GUARD-03 never-throw discipline) rather
+  // than throwing. Discount / deposit / markup activation lands in Phases 131-132.
+  const taxConfig =
+    company.tax_config != null ? (company.tax_config as TaxConfig) : null
   const {
     sections: calculatedSections,
     subtotal,
     taxAmount,
     grandTotal,
-  } = computeEstimateTotals(researchedSections, { taxRate })
+  } = computeEstimateTotals(researchedSections, { taxRate, taxConfig })
 
   // GUARD-03: the server recalculation above is the SINGLE authoritative source.
   // Defensively coerce each persisted total to a finite, >= 0 value (no-op on the
@@ -462,6 +466,11 @@ export async function generateEstimateForProject(
         total: item.total,
         sort_order: iIdx,
         price_source: item.price_source,
+        // TAX-03: persist the AI's per-item classification into the dormant Phase 129 columns.
+        // These survive AI → anchoring → research → compute via the `...item` spreads. Defaults
+        // (taxable=true, tax_category=null) keep retrocompat rows byte-identical.
+        taxable: item.taxable ?? true,
+        tax_category: item.tax_category ?? null,
       }))
 
       const { error: itemsError } = await supabase

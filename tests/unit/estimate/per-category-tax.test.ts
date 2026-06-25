@@ -16,8 +16,8 @@ describe('TAX-03: active per-category tax (companies.tax_config present)', () =>
       {
         title: 'Work',
         items: [
-          { quantity: 1, unit_price: 1000, tax_category: 'labor' },
-          { quantity: 1, unit_price: 500, tax_category: 'materials' },
+          { quantity: 1, unit_price: 1000, tax_category: 'labor' as const },
+          { quantity: 1, unit_price: 500, tax_category: 'materials' as const },
         ],
       },
     ]
@@ -36,7 +36,7 @@ describe('TAX-03: active per-category tax (companies.tax_config present)', () =>
         title: 'Work',
         items: [
           // materials item, but flagged not taxable → excluded from EVERY category base
-          { quantity: 1, unit_price: 500, tax_category: 'materials', taxable: false },
+          { quantity: 1, unit_price: 500, tax_category: 'materials' as const, taxable: false },
         ],
       },
     ]
@@ -87,14 +87,14 @@ describe('TAX-03: active per-category tax (companies.tax_config present)', () =>
       {
         title: 'A',
         items: [
-          { quantity: 2, unit_price: 100, tax_category: 'labor' },    // base 200
-          { quantity: 1, unit_price: 300, tax_category: 'materials' }, // base 300
+          { quantity: 2, unit_price: 100, tax_category: 'labor' as const },    // base 200
+          { quantity: 1, unit_price: 300, tax_category: 'materials' as const }, // base 300
         ],
       },
       {
         title: 'B',
         items: [
-          { quantity: 1, unit_price: 100, tax_category: 'labor' },    // base 100
+          { quantity: 1, unit_price: 100, tax_category: 'labor' as const },    // base 100
         ],
       },
     ]
