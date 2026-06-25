@@ -1569,7 +1569,7 @@ Plans:
 
 > Binds the v4.9 channel-neutral `lib/agent-tools/` capabilities as MCP tools over the EXISTING v4.1 MCP server (OAuth + `/api/mcp` + transport + annotations). A tool-binding milestone, NOT a new subsystem — the neutral functions already exist (`lib/agent-tools/`), the MCP infra already exists (`app/api/mcp/` + `lib/mcp/tools/`). Closes the WhatsApp = chat = MCP sibling-channels principle. Numbering continues the global counter — v4.9 ended at Phase 126, so v4.10 starts at **Phase 127**.
 
-- [ ] **Phase 127: MCP Read Tools — Knowledge + Query over the Neutral Core** — Bind `ask_knowledge` + the 5 query tools (`find_client`, `get_latest_estimate`, `get_project_status`, `list_recent_estimates`, `list_services`) as read-only MCP tools wrapping `lib/agent-tools/`, with `readOnlyHint: true` annotations and the companyId-trusted invariant (MKB-01, MQRY-01, MSEC-01, MSEC-02)
+- [x] **Phase 127: MCP Read Tools — Knowledge + Query over the Neutral Core** — Bind `ask_knowledge` + the 5 query tools (`find_client`, `get_latest_estimate`, `get_project_status`, `list_recent_estimates`, `list_services`) as read-only MCP tools wrapping `lib/agent-tools/`, with `readOnlyHint: true` annotations and the companyId-trusted invariant (MKB-01, MQRY-01, MSEC-01, MSEC-02) (completed 2026-06-25)
 - [ ] **Phase 128: MCP Generation Reconciliation + Parity Verification** — Route the existing MCP `create_estimate` through the neutral `lib/agent-tools/createEstimate`, confirm all three channels share one generation entry, and prove the bindings non-destructive (the v4.1 MCP test suite stays green) (MGEN-01, MPAR-01)
 
 ### Phase 127: MCP Read Tools — Knowledge + Query over the Neutral Core
@@ -1583,7 +1583,7 @@ Plans:
   4. Each new read tool carries `readOnlyHint: true` (and `destructiveHint: false`) so Claude.ai's permission UI auto-groups it under the read-only "Always allow" toggle; a test asserts the annotations
   5. The new tools reuse the existing v4.1 OAuth/transport infra unchanged — they are registered onto the existing `/api/mcp` server, not a parallel one
 **Plans**: 1 plan
-- [ ] 127-01-PLAN.md — Bind 6 read-only MCP tools (ask_knowledge + 5 query) over the neutral lib/agent-tools/ core; companyId-trusted, readOnlyHint:true, registry 6→12
+- [x] 127-01-PLAN.md — Bind 6 read-only MCP tools (ask_knowledge + 5 query) over the neutral lib/agent-tools/ core; companyId-trusted, readOnlyHint:true, registry 6→12
 
 ### Phase 128: MCP Generation Reconciliation + Parity Verification
 **Goal**: The existing MCP `create_estimate` runs through the SAME neutral generation entry point as WhatsApp and the web chat (the async `{jobId}` contract it pioneered), so all three sibling channels demonstrably share one core — and the whole binding is proven non-destructive by the existing v4.1 MCP test suite staying green unchanged.

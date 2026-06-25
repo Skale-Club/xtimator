@@ -17,11 +17,11 @@ Requirements for this milestone. Each maps to exactly one roadmap phase.
 
 ### MCP Knowledge Tool
 
-- [ ] **MKB-01**: An `ask_knowledge` MCP tool wraps the neutral `lib/agent-tools/ask-knowledge` (the v4.8 industry KB + company overlay, scoped by the resolved company's `industries[]`); read-only.
+- [x] **MKB-01**: An `ask_knowledge` MCP tool wraps the neutral `lib/agent-tools/ask-knowledge` (the v4.8 industry KB + company overlay, scoped by the resolved company's `industries[]`); read-only.
 
 ### MCP Query Tools
 
-- [ ] **MQRY-01**: The company-data reads are exposed as read-only MCP tools (`find_client`, `get_latest_estimate`, `get_project_status`, `list_recent_estimates`, `list_services`) wrapping the neutral `lib/agent-tools/query-company-data` data-reads — one explicit tool per read.
+- [x] **MQRY-01**: The company-data reads are exposed as read-only MCP tools (`find_client`, `get_latest_estimate`, `get_project_status`, `list_recent_estimates`, `list_services`) wrapping the neutral `lib/agent-tools/query-company-data` data-reads — one explicit tool per read.
 
 ### MCP Generation Reconciliation
 
@@ -29,8 +29,8 @@ Requirements for this milestone. Each maps to exactly one roadmap phase.
 
 ### MCP Security & Annotations
 
-- [ ] **MSEC-01**: For every new MCP tool, `companyId` is resolved from the OAuth token → company (trusted), NEVER from a tool input field; a test asserts no new tool's input schema accepts a tenant/companyId.
-- [ ] **MSEC-02**: The new read tools (`ask_knowledge` + the query tools) carry `readOnlyHint: true` annotations so Claude.ai's permission UI auto-groups them; a test asserts the annotations.
+- [x] **MSEC-01**: For every new MCP tool, `companyId` is resolved from the OAuth token → company (trusted), NEVER from a tool input field; a test asserts no new tool's input schema accepts a tenant/companyId.
+- [x] **MSEC-02**: The new read tools (`ask_knowledge` + the query tools) carry `readOnlyHint: true` annotations so Claude.ai's permission UI auto-groups them; a test asserts the annotations.
 
 ### Parity Verification
 
@@ -61,11 +61,11 @@ Which phases cover which requirements. Populated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| MKB-01 | Phase 127 | Pending |
-| MQRY-01 | Phase 127 | Pending |
+| MKB-01 | Phase 127 | Complete |
+| MQRY-01 | Phase 127 | Complete |
 | MGEN-01 | Phase 128 | Pending |
-| MSEC-01 | Phase 127 | Pending |
-| MSEC-02 | Phase 127 | Pending |
+| MSEC-01 | Phase 127 | Complete |
+| MSEC-02 | Phase 127 | Complete |
 | MPAR-01 | Phase 128 | Pending |
 
 **Coverage:**
