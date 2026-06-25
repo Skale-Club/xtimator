@@ -41,6 +41,7 @@ import { makeQueryTools } from '@/lib/whatsapp/query-tools'
 import { sendWhatsAppMessage } from '@/lib/whatsapp/client'
 import { logOutboundMessage } from '@/lib/whatsapp/conversations'
 import { splitReply } from '@/lib/whatsapp/split-reply'
+import { answer } from '@/lib/knowledge/answer'
 
 const HISTORY_LIMIT = 20
 
@@ -281,9 +282,48 @@ WHEN UNSURE
     messages: [new SystemMessage(systemPrompt), new HumanMessage(normalizedText)],
   })
 
-  const answer = extractAIText((result as { messages: BaseMessage[] }).messages)
+  const aiText = extractAIText((result as { messages: BaseMessage[] }).messages)
   const fallback = "I couldn't find an answer to that."
-  let chunks = splitReply(answer ?? fallback)
+  let chunks = splitReply(aiText ?? fallback)
+  if (chunks.length === 0) chunks = [fallback]
+  await sendOwnerReplyChunks(input, chunks)
+}
+
+// ---------------------------------------------------------------------------
+// KNOWLEDGE dispatch — channel-neutral RAG answer over the industry KB + overlay
+// ---------------------------------------------------------------------------
+
+async function dispatchKnowledge(
+  input: RouteInput,
+  normalizedText: string
+): Promise<void> {
+  // Read the resolved company's industries[] (+ language) with the trusted
+  // service client — same posture as dispatchQuery's company read. industries[]
+  // is the retrieval scope; it is CALLER-SUPPLIED to answer(), NEVER from the LLM.
+  const { data: company } = await input.supabase
+    .from('companies')
+    .select('industries, default_estimate_language')
+    .eq('id', input.companyId)
+    .maybeSingle()
+
+  const industries =
+    (company as { industries?: string[] | null } | null)?.industries ?? []
+  const lang = (company as { default_estimate_language?: string | null } | null)
+    ?.default_estimate_language
+  const language =
+    lang === 'pt' || lang === 'es' || lang === 'en' ? lang : undefined
+
+  // answer() NEVER throws — returns a safe FALLBACK string on any failure.
+  // companyId scopes the optional company overlay; industries[] scopes the
+  // shared industry KB. retrieve() merges both inside the RPC.
+  const text = await answer(normalizedText, {
+    industries,
+    companyId: input.companyId,
+    language,
+  })
+
+  const fallback = "I couldn't find an answer to that."
+  let chunks = splitReply(text)
   if (chunks.length === 0) chunks = [fallback]
   await sendOwnerReplyChunks(input, chunks)
 }
@@ -348,6 +388,10 @@ export async function classifyAndRoute(input: RouteInput): Promise<void> {
     }
     case 'QUERY': {
       await dispatchQuery(input, normalized.text)
+      return
+    }
+    case 'KNOWLEDGE': {
+      await dispatchKnowledge(input, normalized.text)
       return
     }
     case 'CREATE':
