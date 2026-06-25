@@ -1,77 +1,77 @@
-# Requirements: Xtimator — Milestone v4.8 Industry Knowledge Base
+# Requirements: Xtimator — Milestone v4.9 Internal Web Chat Assistant
 
 **Defined:** 2026-06-24
 **Core Value:** A business owner can go from job site audio recording to a sent, professional estimate in under 5 minutes without touching a keyboard.
-**Milestone goal:** A conversational assistant that answers the owner's trade how-to questions from a per-industry knowledge base (super-admin curated, scoped by `companies.industries[]`) plus an optional per-company overlay, served by a channel-neutral `lib/knowledge/` module and consulted via WhatsApp. The foundation of the Multi-Channel Core track. Source: [SEED-033](seeds/SEED-033-industry-knowledge-base-conversational-assistant.md).
+**Milestone goal:** A conversational chat inside the Xtimator web app where the owner generates estimates, queries their data, and asks trade how-to questions — built on the Vercel AI Chatbot structure over Xtimator's existing infra. The strategic value is forcing the channel-neutral extraction of `lib/whatsapp/` into shared domain tools. Source: [SEED-034](seeds/SEED-034-internal-web-chat-assistant.md).
 
-> **Locked decisions (from SEED-033):**
-> - **Two panels, two scopes:** Industry KB = super-admin (platform asset, neutral/shared, service-role RLS like `price_research_cache`); Company KB overlay = the tenant's OWN settings panel (optional, tenant-scoped RLS). The owner never curates the industry KB.
-> - **No owner-facing KB browser** — the KB is a conversational retrieval surface only (consulted via chat), never a navigable document for the owner.
-> - **Channel-neutral module** — `lib/knowledge/` imports no channel; WhatsApp (this milestone) + web chat (SEED-034) + MCP (SEED-030) are consumers. This milestone wires only WhatsApp.
-> - **Retrieval = pgvector + embeddings ONLY in v1.** The Cohere reranker is a deferred, data-driven phase-2 optimization (trigger: retrieval misses in eval/prod, or a large/heterogeneous overlay corpus). Do NOT add it on day 1.
-> - **Injection-hardening** — retrieved content is sanitized through the existing `sanitizeField` + a new `<knowledge>` tag before any prompt (curated ≠ trusted as LLM context).
-> - **Scope fences:** web-chat consumption (SEED-034) and the MCP `ask_knowledge` tool (SEED-030) are OUT — separate milestones; this milestone makes the module MCP-ready but wires only WhatsApp.
+> **Locked decisions (from SEED-034):**
+> - **WhatsApp = CHAT = MCP, three siblings** over the SAME channel-neutral core. The chat reimplements NO domain logic — it reuses the neutral modules.
+> - **AI SDK and LangGraph coexist in different LAYERS.** The Vercel AI SDK is the chat/streaming layer (`useChat` + `streamText` + native tool-calling). The LangGraph estimate engine stays INTOCADO and is invoked as ONE tool — generation is an async Inngest job returning a structured estimate, so the chat↔engine boundary is a tool call, NOT a streaming bridge (no LangChainAdapter in v1).
+> - **Web chat uses NATIVE tool-calling** (vs WhatsApp's pre-classifier); both call the SAME neutral domain functions, only the orchestration differs.
+> - **Adopt** Next.js App Router+RSC + shadcn/Tailwind (already ours) + the AI SDK streaming/useChat/tool-call patterns. **Substitute** Auth.js→Supabase Auth, Neon/Drizzle→Supabase Postgres, Vercel Blob→our storage, AI Gateway→OpenRouter.
+> - **Owner-only** — authenticated, tenant-scoped, NEVER customer-facing (Xtimator never talks to the end customer).
+> - **Model via `ai_config` slots** (not hard-coded); heavy operations consume credits per v4.7, the conversation turn is absorbed.
+> - **Scope fence:** the web-chat channel + the channel-neutral extraction it forces. MCP parity (SEED-030) is a SUBSEQUENT milestone — the extraction here makes it cheap. v1 ships generate + query + knowledge + multimodal; estimate-edit-in-chat and send-in-chat are deferred (the owner opens the result in the existing editor).
 
 ## v1 Requirements
 
 Requirements for this milestone. Each maps to exactly one roadmap phase.
 
-### Knowledge Base Schema & Storage
+### Channel-Neutral Domain Extraction (foundation)
 
-- [x] **KB-01**: pgvector is enabled and a `knowledge_entries` table exists (scope 'industry'|'company', industry_id nullable, company_id nullable, title, body, source, embedding vector, created_at, updated_at) with a vector similarity index. Idempotent migration, authored-only (deploy via CI→GHCR→Coolify).
-- [x] **KB-02**: Industry KB entries are neutral/shared — RLS service-role-write, read scoped by industry (mirroring the `price_research_cache` posture); no tenant can write them.
-- [x] **KB-03**: Company KB overlay entries are tenant-scoped — RLS gates read/write to the owning company (`company_members` membership, like the multi-tenant tables).
+- [ ] **NEUT-01**: The estimate-generation capability is a channel-neutral domain function/tool (`createEstimate`) that both the WhatsApp handler and the new chat call — no channel-specific generation logic is duplicated.
+- [ ] **NEUT-02**: The company-data query capability (today `lib/whatsapp/query-tools`) is a channel-neutral tool (`queryCompanyData`) both channels call.
+- [ ] **NEUT-03**: Multimodal ingestion (`lib/whatsapp/normalize`: audio→transcript, photo→analysis) is extracted to a channel-neutral module both channels reuse.
+- [ ] **NEUT-04**: A channel-neutral `askKnowledge` tool wraps the v4.8 `lib/knowledge/answer` (scoped by the company's `industries[]` + overlay).
+- [ ] **NEUT-05**: The extraction is NON-DESTRUCTIVE — WhatsApp behaves identically (same estimate/query/knowledge results), proven by behavioral-parity tests; no WhatsApp regression.
 
-### Knowledge Domain Module (channel-neutral)
+### Chat Persistence
 
-- [x] **KMOD-01**: An `embed(text)` function generates embeddings via the configured provider (model-agnostic via the existing platform-config pattern), reusing `getIntegrationKey`.
-- [x] **KMOD-02**: `retrieve(question, { industries, companyId, k })` returns ranked passages by pgvector similarity, MERGING the company's industry KB(s) + its own company overlay; channel-neutral (imports no channel) and never-throws.
-- [x] **KMOD-03**: `answer(question, ctx)` composes a RAG prompt from retrieved passages and returns a short conversational answer; the prompt is injection-hardened (see KSEC-01).
-- [x] **KMOD-04**: A deterministic fixture adapter lets the CI/eval harness exercise retrieve/answer with zero live network (mirroring the price-research fixture provider).
+- [ ] **CHATDB-01**: `chat_conversations` + `chat_messages` tables exist with tenant-scoped RLS (mirroring `whatsapp_inbox`); idempotent migration, authored-only.
+- [ ] **CHATDB-02**: Conversations and their messages persist and reload (a returning owner sees their chat history).
 
-### Super-Admin Industry KB Curation
+### AI SDK Chat Backend
 
-- [x] **KCUR-01**: A super-admin can create/edit/delete industry KB entries scoped to an industry, in the super-admin panel.
-- [x] **KCUR-02**: Saving or editing an entry (re)generates its embedding.
-- [x] **KCUR-03**: A super-admin can bulk-import entries (markdown or CSV) to seed an industry's KB in one operation.
+- [ ] **CHATBE-01**: The Vercel AI SDK (`ai` + `@ai-sdk/*`) is added; the chat resolves its model via the `ai_config` slots (not hard-coded) through an OpenRouter-compatible provider.
+- [ ] **CHATBE-02**: An `/api/chat` route uses `streamText` + native tool-calling, exposing the neutral domain tools (`createEstimate`, `queryCompanyData`, `askKnowledge`).
+- [ ] **CHATBE-03**: Estimate generation is invoked as a tool that runs the existing `generateEstimateForProject` engine (async Inngest job) and returns a structured estimate — the LangGraph engine is unchanged.
 
-### Company KB Overlay (optional, tenant)
+### Chat UI
 
-- [x] **KOVL-01**: A company owner can add/edit/delete private KB entries in the company's OWN settings panel (distinct from the super-admin panel); the overlay is optional — a company with no overlay uses only the industry KB.
-- [x] **KOVL-02**: Company overlay entries generate embeddings the same way, scoped to the owning company.
+- [ ] **CHATUI-01**: A `useChat`-backed streaming chat surface renders the assistant's tokens and each tool-call's progress (e.g. "generating estimate…", "looking up João's last quote…").
+- [ ] **CHATUI-02**: A conversation sidebar lists prior conversations with new/switch, and the selected conversation's history loads.
+- [ ] **CHATUI-03**: The chat input is multimodal (text + audio + photo), routed through the extracted `normalize`.
+- [ ] **CHATUI-04**: When a generation tool completes, an inline estimate card renders with an action to open it in the existing estimate editor.
 
-### WhatsApp KNOWLEDGE Intent
+### Credits, Slots & Access
 
-- [x] **WAKB-01**: The WhatsApp `classifyAndRoute` gains a 5th intent KNOWLEDGE with a QUERY-vs-KNOWLEDGE disambiguation rule (QUERY = the company's own records; KNOWLEDGE = trade how-to); the safe CREATE default is preserved for unrecognized input.
-- [x] **WAKB-02**: A KNOWLEDGE message dispatches to `lib/knowledge/answer` scoped by the resolved company's `industries[]` + its overlay, and the answer is delivered via the existing chunked owner reply path.
-
-### Injection Hardening
-
-- [x] **KSEC-01**: Retrieved KB content is sanitized through the existing `sanitizeField` and wrapped in a new `<knowledge>` tag, enumerated in the prompt-builder Security block, before entering any prompt; a static test asserts knowledge prompts are built through this hardened boundary (not ad-hoc concatenation).
+- [ ] **CHATMETER-01**: Heavy chat operations (generation, transcription, photo analysis) consume credits via the v4.7 ledger exactly as the other channels do (by reusing the neutral functions that already debit); the lightweight conversation turn is absorbed.
+- [ ] **CHATMETER-02**: The chat is owner-only (authenticated, tenant-scoped) and gated by tier entitlement (a Pro/Business feature); it is never reachable by an end customer.
 
 ## v2 Requirements
 
 Deferred to a future milestone. Tracked but not in this roadmap.
 
-### Retrieval Quality
+### Richer Chat
 
-- **KRR-01**: Cohere (or alternative) reranker as a pluggable layer between `retrieve` and `answer` — triggered by measured retrieval misses or a large/heterogeneous overlay corpus.
-- **KRR-02**: Chunk-by-paragraph granularity (v1 uses whole-entry).
+- **CHATX-01**: Estimate editing in-chat (extract the WhatsApp edit-commands capability to neutral; edit a draft conversationally).
+- **CHATX-02**: Send/deliver an estimate in-chat (extract the confirm/send capability).
+- **CHATX-03**: Live streaming of the generation's intermediate reasoning into the chat (the LangChainAdapter bridge).
 
 ### Other Channels
 
-- **KCH-01**: Web-chat consumption of `lib/knowledge/` (SEED-034's milestone).
-- **KCH-02**: MCP `ask_knowledge` tool (SEED-030's milestone).
+- **MCPX-01**: MCP parity — bring the same neutral capabilities (incl. `ask_knowledge`) to the MCP server (SEED-030's milestone).
 
 ## Out of Scope
 
 | Feature | Reason |
 |---------|--------|
-| Owner-facing KB browser/document viewer | The KB is a conversational retrieval surface only (locked decision) |
-| Cohere reranker on day 1 | pgvector-only in v1; reranker is a deferred data-driven optimization |
-| Web chat + MCP tool wiring | Separate milestones (SEED-034 / SEED-030) consuming this neutral module |
-| Customer-facing knowledge | Xtimator never talks to the end customer; the KB is for the business owner |
-| Multilingual KB content | Curate in English; the app already translates answers to the owner's language |
+| Forking the Vercel template wholesale | Port the patterns onto Supabase/OpenRouter; don't import Auth.js/Drizzle/Neon/Blob |
+| Rewriting the LangGraph estimate engine in the AI SDK | The engine stays intact, invoked as a tool (Decision #1) |
+| Customer-facing chat | Xtimator never talks to the end customer — owner-only |
+| Estimate edit/send in-chat (v1) | Deferred; v1 ships generate+query+knowledge, owner opens result in the existing editor |
+| MCP parity | A subsequent milestone (SEED-030) that consumes this extraction |
+| Pre-classifier for the web chat | The web chat uses native tool-calling (Decision #2); the pre-classifier stays WhatsApp's |
 
 ## Traceability
 
@@ -79,27 +79,28 @@ Which phases cover which requirements. Populated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| KB-01 | Phase 117 | Complete |
-| KB-02 | Phase 117 | Complete |
-| KB-03 | Phase 117 | Complete |
-| KMOD-01 | Phase 118 | Complete |
-| KMOD-02 | Phase 118 | Complete |
-| KMOD-03 | Phase 118 | Complete |
-| KMOD-04 | Phase 118 | Complete |
-| KCUR-01 | Phase 119 | Complete |
-| KCUR-02 | Phase 119 | Complete |
-| KCUR-03 | Phase 119 | Complete |
-| KOVL-01 | Phase 120 | Complete |
-| KOVL-02 | Phase 120 | Complete |
-| WAKB-01 | Phase 121 | Complete |
-| WAKB-02 | Phase 121 | Complete |
-| KSEC-01 | Phase 118 | Complete |
+| NEUT-01 | TBD | Pending |
+| NEUT-02 | TBD | Pending |
+| NEUT-03 | TBD | Pending |
+| NEUT-04 | TBD | Pending |
+| NEUT-05 | TBD | Pending |
+| CHATDB-01 | TBD | Pending |
+| CHATDB-02 | TBD | Pending |
+| CHATBE-01 | TBD | Pending |
+| CHATBE-02 | TBD | Pending |
+| CHATBE-03 | TBD | Pending |
+| CHATUI-01 | TBD | Pending |
+| CHATUI-02 | TBD | Pending |
+| CHATUI-03 | TBD | Pending |
+| CHATUI-04 | TBD | Pending |
+| CHATMETER-01 | TBD | Pending |
+| CHATMETER-02 | TBD | Pending |
 
 **Coverage:**
-- v1 requirements: 15 total
-- Mapped to phases: 15 ✓ (Phases 117-121)
-- Unmapped: 0
+- v1 requirements: 16 total
+- Mapped to phases: 0 (roadmap pending)
+- Unmapped: 16 ⚠️ (resolved by roadmap)
 
 ---
 *Requirements defined: 2026-06-24*
-*Last updated: 2026-06-24 — v4.8 roadmap created: all 15 requirements mapped to Phases 117-121 (117 schema+RLS, 118 neutral module+hardening, 119 super-admin curation, 120 company overlay, 121 WhatsApp intent); coverage 15/15, zero orphans.*
+*Last updated: 2026-06-24 — milestone v4.9 Internal Web Chat Assistant initial definition*
