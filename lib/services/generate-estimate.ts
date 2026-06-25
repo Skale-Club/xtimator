@@ -330,7 +330,9 @@ export async function generateEstimateForProject(
   // PER-CATEGORY (Σ taxable_base_per_category × rate_category); when it is null/absent this is
   // BYTE-IDENTICAL to the pre-v4.11 flat-rate computation (ENG-02). A malformed tax_config is
   // coerced to null so it degrades to the flat path (GUARD-03 never-throw discipline) rather
-  // than throwing. Discount / deposit / markup activation lands in Phases 131-132.
+  // than throwing. DEP-01: deposit + balance_due are now ACTIVE (computed by the single GUARD-03
+  // authority + persisted below). At generation there is no deposit input (the AI never supplies a
+  // deposit — ENG-01) → depositType is absent → deposit 0 → balanceDue === grandTotal (byte-identical).
   const taxConfig =
     company.tax_config != null ? (company.tax_config as TaxConfig) : null
   const {
@@ -339,6 +341,8 @@ export async function generateEstimateForProject(
     taxAmount,
     grandTotal,
     discountAmount,
+    deposit,
+    balanceDue,
   } = computeEstimateTotals(researchedSections, { taxRate, taxConfig })
 
   // GUARD-03: the server recalculation above is the SINGLE authoritative source.
@@ -348,6 +352,12 @@ export async function generateEstimateForProject(
   const safeTaxAmount = assertFinitePositive(taxAmount)
   const safeGrandTotal = assertFinitePositive(grandTotal)
   const safeDiscountAmount = assertFinitePositive(discountAmount)
+  // DEP-01: same finite, >= 0 persistence guard. assertFinitePositive floors negatives to 0 — a deposit
+  // exceeding the total persists balance_due 0 (never a negative). At generation deposit is 0 here, so
+  // balanceDue === grandTotal (byte-identical). deposit is the destructured GUARD-03 value; void it to
+  // keep the LOCKED return contract explicit while deposit_value persists null at generation (no input).
+  void deposit
+  const safeBalanceDue = assertFinitePositive(balanceDue)
 
   // Log-only invariant guard (never blocks persistence): grand == subtotal + tax
   // within rounding epsilon. True by construction; asserted as a regression guard.
@@ -425,6 +435,12 @@ export async function generateEstimateForProject(
       tax_rate: taxRate,
       tax_amount: safeTaxAmount,
       total: safeGrandTotal,
+      // DEP-01: persist the server-computed deposit + balance_due into the Phase-129 columns.
+      // At generation there is no deposit input → 'none' / null / grandTotal (byte-identical: the
+      // dormant default deposit_type='none' is written explicitly, deposit_value null, balance_due=grandTotal).
+      deposit_type: 'none',
+      deposit_value: null,
+      balance_due: safeBalanceDue,
       language,
       created_by_user_id: options.createdByUserId ?? null,
     })
