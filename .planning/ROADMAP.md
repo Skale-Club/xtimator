@@ -1544,7 +1544,7 @@ Plans:
   4. When a generation tool completes, an inline estimate card renders in the conversation with an action that opens the estimate in the existing editor
 **Plans**: 3 plans in 3 waves
 - [x] 125-00-PLAN.md — Install @ai-sdk/react@6.0.209 + history mapper + normalizeChatInput action + Nyquist Wave-0 test scaffolds (CHATUI-01/02/03/04)
-- [ ] 125-01-PLAN.md — Route + sidebar + useChat thread + message-parts/tool-progress rendering (CHATUI-01, CHATUI-02)
+- [x] 125-01-PLAN.md — Route + sidebar + useChat thread + message-parts/tool-progress rendering (CHATUI-01, CHATUI-02)
 - [ ] 125-02-PLAN.md — Multimodal composer (audio/photo → normalize) + inline estimate card with open-in-editor (CHATUI-03, CHATUI-04)
 **UI hint**: yes
 

@@ -38,8 +38,8 @@ Requirements for this milestone. Each maps to exactly one roadmap phase.
 
 ### Chat UI
 
-- [ ] **CHATUI-01**: A `useChat`-backed streaming chat surface renders the assistant's tokens and each tool-call's progress (e.g. "generating estimate…", "looking up João's last quote…").
-- [ ] **CHATUI-02**: A conversation sidebar lists prior conversations with new/switch, and the selected conversation's history loads.
+- [x] **CHATUI-01**: A `useChat`-backed streaming chat surface renders the assistant's tokens and each tool-call's progress (e.g. "generating estimate…", "looking up João's last quote…").
+- [x] **CHATUI-02**: A conversation sidebar lists prior conversations with new/switch, and the selected conversation's history loads.
 - [ ] **CHATUI-03**: The chat input is multimodal (text + audio + photo), routed through the extracted `normalize`.
 - [ ] **CHATUI-04**: When a generation tool completes, an inline estimate card renders with an action to open it in the existing estimate editor.
 
@@ -89,8 +89,8 @@ Which phases cover which requirements. Populated during roadmap creation.
 | CHATBE-01 | Phase 124 | Complete |
 | CHATBE-02 | Phase 124 | Complete |
 | CHATBE-03 | Phase 124 | Complete |
-| CHATUI-01 | Phase 125 | Pending |
-| CHATUI-02 | Phase 125 | Pending |
+| CHATUI-01 | Phase 125 | Complete |
+| CHATUI-02 | Phase 125 | Complete |
 | CHATUI-03 | Phase 125 | Pending |
 | CHATUI-04 | Phase 125 | Pending |
 | CHATMETER-01 | Phase 124 | Complete |
