@@ -23,6 +23,7 @@ import type { McpAuthContext } from '@/lib/mcp/auth'
 import { invalidInput } from '@/lib/mcp/errors'
 import { buildReadTools } from '@/lib/mcp/tools/read'
 import { buildWriteTools } from '@/lib/mcp/tools/write'
+import { buildKnowledgeQueryTools } from '@/lib/mcp/tools/knowledge-query'
 
 /**
  * Annotation flags carried on each tool definition. MCP clients (Claude.ai)
@@ -67,12 +68,16 @@ export interface ToolDefinitionEntry {
 }
 
 /**
- * Concatenate read + write tool entries for this auth context. Used by
- * `registerAllTools` and exposed for tests that need the full list without
- * spinning up an MCP Server.
+ * Concatenate read + write + knowledge/query tool entries for this auth
+ * context. Used by `registerAllTools` and exposed for tests that need the full
+ * list without spinning up an MCP Server.
  */
 export function buildAllTools(auth: McpAuthContext): ToolDefinitionEntry[] {
-  return [...buildReadTools(auth), ...buildWriteTools(auth)]
+  return [
+    ...buildReadTools(auth),
+    ...buildWriteTools(auth),
+    ...buildKnowledgeQueryTools(auth),
+  ]
 }
 
 /**
