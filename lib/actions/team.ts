@@ -34,6 +34,11 @@ const inviteSchema = z.object({
 
 const TEAM_PATH = '/settings/team'
 
+// Settable roles via member-management. z.enum(['admin','member']) is what
+// rejects 'owner' (and any other value) at the boundary — owner transfer is out
+// of scope v1 (SEED-037); the company has exactly one owner.
+const roleSchema = z.enum(['admin', 'member'])
+
 /**
  * Invite a teammate by email. Owner/admin only.
  *
@@ -173,6 +178,126 @@ export async function revokeInvite(
   }
 
   // 5. Revalidate.
+  revalidatePath(TEAM_PATH)
+  return { success: true as const }
+}
+
+/**
+ * SEAT-05 — member-management server actions.
+ *
+ * Authority: BOTH actions gate EXCLUSIVELY through requireCompanyManager
+ * (owner|admin). The role is read from company_members under the gate — never
+ * from an argument. The UI gate (Plan 02) is convenience only; THESE are the
+ * security boundary.
+ *
+ * Guards (locked): (1) last-owner protection — removeMember refuses to delete an
+ * 'owner' row; changeMemberRole refuses to target an 'owner' row. (2) settable
+ * roles are 'admin' | 'member' only — 'owner' is rejected at the zod boundary.
+ *
+ * Scope fence: member-management ONLY. NO seat billing/sync (Phase 139 reads the
+ * clean membership change) and NO seat-cost number (Phase 140). Do NOT import or
+ * call any billing/syncSeatBilling/Stripe code here.
+ */
+
+/**
+ * Remove a teammate from the company. Owner/admin only.
+ *
+ * Deletes the target's company_members row scoped by (company_id, user_id).
+ * Rejects: non-manager (gate throws), missing target, and an 'owner' target
+ * (last-owner guard) — none of which perform a delete.
+ */
+export async function removeMember(
+  companyId: string,
+  userId: string
+): Promise<{ success: true } | { error: string }> {
+  // 1. Gate — owner|admin only. requireCompanyManager throws on deny.
+  try {
+    await requireCompanyManager(companyId)
+  } catch (e) {
+    return { error: e instanceof XtimatorError ? e.userMessage : 'Not authorized' }
+  }
+
+  const service = requireServiceClient()
+
+  // 2. Look up the target's current role (scoped to this company).
+  const { data: target } = await service
+    .from('company_members')
+    .select('role')
+    .eq('company_id', companyId)
+    .eq('user_id', userId)
+    .maybeSingle()
+  if (!target) return { error: 'Member not found.' }
+
+  // 3. LAST-OWNER GUARD: the owner row can never be removed via this path.
+  if (target.role === 'owner') {
+    return { error: 'The company owner cannot be removed.' }
+  }
+
+  // 4. Delete the membership row.
+  const { error: deleteError } = await service
+    .from('company_members')
+    .delete()
+    .eq('company_id', companyId)
+    .eq('user_id', userId)
+  if (deleteError) {
+    return { error: 'Failed to remove member.' }
+  }
+
+  revalidatePath(TEAM_PATH)
+  return { success: true as const }
+}
+
+/**
+ * Change a teammate's role to 'admin' or 'member'. Owner/admin only.
+ *
+ * Updates the target's company_members.role scoped by (company_id, user_id).
+ * Rejects: non-manager (gate throws), a role outside ('admin','member') at the
+ * zod boundary (so 'owner' is never settable), missing target, and an 'owner'
+ * target (owner role cannot be changed via this path) — none perform an update.
+ */
+export async function changeMemberRole(
+  companyId: string,
+  userId: string,
+  role: 'admin' | 'member'
+): Promise<{ success: true } | { error: string }> {
+  // 1. Gate — owner|admin only.
+  try {
+    await requireCompanyManager(companyId)
+  } catch (e) {
+    return { error: e instanceof XtimatorError ? e.userMessage : 'Not authorized' }
+  }
+
+  // 2. Validate the target role — rejects 'owner' (and any non-enum value)
+  //    before any DB read/write.
+  const parsed = roleSchema.safeParse(role)
+  if (!parsed.success) return { error: 'Invalid role.' }
+
+  const service = requireServiceClient()
+
+  // 3. Look up the target's current role.
+  const { data: target } = await service
+    .from('company_members')
+    .select('role')
+    .eq('company_id', companyId)
+    .eq('user_id', userId)
+    .maybeSingle()
+  if (!target) return { error: 'Member not found.' }
+
+  // 4. OWNER-TARGET GUARD: the owner role cannot be changed via this path.
+  if (target.role === 'owner') {
+    return { error: 'The company owner role cannot be changed.' }
+  }
+
+  // 5. Update the role.
+  const { error: updateError } = await service
+    .from('company_members')
+    .update({ role: parsed.data })
+    .eq('company_id', companyId)
+    .eq('user_id', userId)
+  if (updateError) {
+    return { error: 'Failed to update role.' }
+  }
+
   revalidatePath(TEAM_PATH)
   return { success: true as const }
 }
