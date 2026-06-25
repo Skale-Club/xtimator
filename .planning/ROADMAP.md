@@ -1744,7 +1744,10 @@ Plans:
   2. A Resend invite email is sent to the invited address containing the accept link with the token (the email is sent via the existing `lib/email/` Resend setup; no secret/token value is ever logged or committed — placeholders only in any doc)
   3. `revokeInvite` (owner/admin only) transitions a still-`pending` invite to `revoked` so its token can no longer be accepted; revoking an already-accepted/expired invite is a safe no-op
   4. Creating or revoking a pending invite causes ZERO change to billable seats or any Stripe write — a pending invite is free; the seat count is unaffected until acceptance
-**Plans**: TBD
+**Plans**: 2 plans in `.planning/phases/136-invite-lifecycle/`
+Plans:
+- [ ] 136-01-PLAN.md — sendInviteEmail Resend template (mirrors account-emails.ts; absolute /invite/accept?token=… link; never-throws/no-key-skip) + behavioral test
+- [ ] 136-02-PLAN.md — inviteMember + revokeInvite server actions (lib/actions/team.ts) gated by requireCompanyManager; random+unique token, 7d expiry, email send, token never returned; reject paths + revoke tested
 
 ### Phase 137: Accept Onboarding
 **Goal**: An invited person can accept and land inside the existing company as a member — without ever creating a new company. A valid, unexpired, pending token adds their `company_members` row and switches their active company; if the email already has an auth user they join directly, and if not, a signup-then-join branch reuses onboarding but SKIPS company creation (the current onboarding always creates a company — this path must branch to JOIN).
