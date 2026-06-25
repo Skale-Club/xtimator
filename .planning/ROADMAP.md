@@ -1582,7 +1582,8 @@ Plans:
   3. For every new tool, `companyId` is resolved from the OAuth token -> company (trusted), and a test asserts no new tool's input schema accepts a tenant/companyId field (T-lrf-01)
   4. Each new read tool carries `readOnlyHint: true` (and `destructiveHint: false`) so Claude.ai's permission UI auto-groups it under the read-only "Always allow" toggle; a test asserts the annotations
   5. The new tools reuse the existing v4.1 OAuth/transport infra unchanged — they are registered onto the existing `/api/mcp` server, not a parallel one
-**Plans**: TBD
+**Plans**: 1 plan
+- [ ] 127-01-PLAN.md — Bind 6 read-only MCP tools (ask_knowledge + 5 query) over the neutral lib/agent-tools/ core; companyId-trusted, readOnlyHint:true, registry 6→12
 
 ### Phase 128: MCP Generation Reconciliation + Parity Verification
 **Goal**: The existing MCP `create_estimate` runs through the SAME neutral generation entry point as WhatsApp and the web chat (the async `{jobId}` contract it pioneered), so all three sibling channels demonstrably share one core — and the whole binding is proven non-destructive by the existing v4.1 MCP test suite staying green unchanged.
