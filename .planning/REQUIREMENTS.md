@@ -40,7 +40,7 @@ Requirements for this milestone. Each maps to exactly one roadmap phase.
 ### Engine & Retrocompat
 
 - [x] **ENG-01**: All new arithmetic EXTENDS the existing GUARD-03 server-side math block (single deterministic authority); a static test asserts the AI is given NO calculator tool and computes none of tax/discount/deposit/markup.
-- [ ] **ENG-02**: Retrocompat invariant — an estimate with no new fields (taxable defaults true, discount 0, deposit none, no tax_config) produces a BYTE-IDENTICAL subtotal/tax/total to the pre-milestone engine; a regression test locks the happy path (no number drift on already-generated estimates).
+- [x] **ENG-02**: Retrocompat invariant — an estimate with no new fields (taxable defaults true, discount 0, deposit none, no tax_config) produces a BYTE-IDENTICAL subtotal/tax/total to the pre-milestone engine; a regression test locks the happy path (no number drift on already-generated estimates).
 
 ### Editor & Output
 
@@ -81,7 +81,7 @@ Which phases cover which requirements. Populated during roadmap creation.
 | DEP-02 | Phase 132 | Pending |
 | MARK-01 | Phase 132 | Pending |
 | ENG-01 | Phase 129 | Complete |
-| ENG-02 | Phase 129 | Pending |
+| ENG-02 | Phase 129 | Complete |
 | PUI-01 | Phase 133 | Pending |
 | PUI-02 | Phase 134 | Pending |
 
