@@ -19,7 +19,7 @@ Each requirement maps to exactly one roadmap phase.
 
 ### Configurable Annual Pricing
 
-- [ ] **ANN-01**: Extend `BillingConfig` + `DEFAULT_BILLING_CONFIG` (`lib/billing/billing-config.ts`) with `tiers[tier].subscriptionPriceAnnualCents` (per-tier) + `seatPriceAnnualCents` (global) as null-safe calibration placeholders, mirror them in the admin zod schema (`lib/schemas/admin.ts`), and surface both as editable fields in the super-admin billing panel. Nothing hardcoded; deep-merge tolerant for rows written before the fields existed.
+- [x] **ANN-01**: Extend `BillingConfig` + `DEFAULT_BILLING_CONFIG` (`lib/billing/billing-config.ts`) with `tiers[tier].subscriptionPriceAnnualCents` (per-tier) + `seatPriceAnnualCents` (global) as null-safe calibration placeholders, mirror them in the admin zod schema (`lib/schemas/admin.ts`), and surface both as editable fields in the super-admin billing panel. Nothing hardcoded; deep-merge tolerant for rows written before the fields existed.
 
 ### Monthly Credit Grant Decouple (the core)
 
@@ -60,7 +60,7 @@ Deferred to a future milestone. Tracked but not in this roadmap.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ANN-01 | Phase 141 | Pending |
+| ANN-01 | Phase 141 | Complete |
 | ANN-02 | Phase 142 | Pending |
 | ANN-03 | Phase 143 | Pending |
 | ANN-04 | Phase 144 | Pending |

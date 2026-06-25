@@ -791,7 +791,7 @@ Plans:
 | 119. Super-Admin Industry KB Curation + Bulk Import | v4.8 | 3/3 | Complete    | 2026-06-24 |
 | 120. Company KB Overlay (tenant settings) | v4.8 | 2/2 | Complete    | 2026-06-25 |
 | 121. WhatsApp KNOWLEDGE Intent | v4.8 | 1/1 | Complete    | 2026-06-25 |
-| 141. Configurable Annual Pricing | v4.13 | 0/TBD | Not started | - |
+| 141. Configurable Annual Pricing | v4.13 | 1/1 | Complete   | 2026-06-25 |
 | 142. Monthly Credit Grant Decouple | v4.13 | 0/TBD | Not started | - |
 | 143. Annual Checkout | v4.13 | 0/TBD | Not started | - |
 | 144. Interval-Aware Seat Billing | v4.13 | 0/TBD | Not started | - |
@@ -1828,7 +1828,7 @@ Plans:
 
 ### Phases
 
-- [ ] **Phase 141: Configurable Annual Pricing** — Extend `BillingConfig`/`DEFAULT_BILLING_CONFIG` with `tiers[tier].subscriptionPriceAnnualCents` (per-tier) + `seatPriceAnnualCents` (global) as null-safe, deep-merge-tolerant calibration placeholders; mirror them in the admin zod schema; surface both as editable super-admin billing-panel fields. Foundation for the annual price; nothing hardcoded; independent of the cron. (ANN-01)
+- [x] **Phase 141: Configurable Annual Pricing** — Extend `BillingConfig`/`DEFAULT_BILLING_CONFIG` with `tiers[tier].subscriptionPriceAnnualCents` (per-tier) + `seatPriceAnnualCents` (global) as null-safe, deep-merge-tolerant calibration placeholders; mirror them in the admin zod schema; surface both as editable super-admin billing-panel fields. Foundation for the annual price; nothing hardcoded; independent of the cron. (ANN-01) (completed 2026-06-25)
 - [ ] **Phase 142: Monthly Credit Grant Decouple** — THE load-bearing phase. Change the `invoice.paid` grant idempotency key from `event.id` to `grant:{companyId}:{YYYY-MM}`; add an Inngest monthly cron (`lib/inngest/functions/monthly-credit-grant.ts`, mirroring the `cleanup-audio` cron pattern) that grants `monthlyCreditGrant` to active paying companies once per company-month using the SAME key, reusing the idempotent never-throw `grantCredits`. Exactly one grant per company per calendar month for ALL intervals. Retrocompat regression test (monthly subs, no double-grant across webhook + cron) is the gate. (ANN-02)
 - [ ] **Phase 143: Annual Checkout** — `create-checkout-session` accepts `billingInterval: 'month' | 'year'` (default `'month'`), selects the matching annual Stripe Price ID (new env `STRIPE_PRICE_PRO_ANNUAL` / `STRIPE_PRICE_BUSINESS_ANNUAL`, placeholders only), and stores `billing_interval` in the subscription/session metadata. The no-interval / `'month'` path stays byte-identical. (ANN-03)
 - [ ] **Phase 144: Interval-Aware Seat Billing** — Make `syncSubscriptionSeatItem` read the subscription's interval and set the seat item's `recurring.interval` to match (replacing the hardcoded `'month'`), using `seatPriceAnnualCents` (inline `price_data`) for annual subscriptions. Monthly orgs unchanged; gated by the same `enforcementEnabled` switch. Builds on the v4.12 seat billing. (ANN-04)
@@ -1846,7 +1846,7 @@ Plans:
   3. A static test asserts no annual price, discount %, or Stripe Price ID is a constant in any application-code billing path — every annual number resolves from `billing_config` at runtime
   4. No charging, checkout, cron, or seat behavior changes in this phase — the fields exist and are editable but nothing reads them to charge yet (the monthly path is byte-identical)
 **Plans**: 1 plan
-- [ ] 141-01-PLAN.md — extend BillingConfig/DEFAULT + admin zod schema + super-admin billing form with seatPriceAnnualCents (global) + tiers[tier].subscriptionPriceAnnualCents (per-tier) calibration placeholders; deep-merge + no-hardcode static tests (ANN-01)
+- [x] 141-01-PLAN.md — extend BillingConfig/DEFAULT + admin zod schema + super-admin billing form with seatPriceAnnualCents (global) + tiers[tier].subscriptionPriceAnnualCents (per-tier) calibration placeholders; deep-merge + no-hardcode static tests (ANN-01)
 
 ### Phase 142: Monthly Credit Grant Decouple
 **Goal**: The monthly AI credit grant is decoupled from the invoice cadence so annual subscribers get credits every calendar month — not once a year — without ever double-granting monthly subscribers. The `invoice.paid` handler's grant idempotency key moves from `event.id` to `grant:{companyId}:{YYYY-MM}`, and a new monthly Inngest cron grants `monthlyCreditGrant` to active paying companies using that SAME company-month key, reusing the idempotent never-throw `grantCredits`. The company-month key is the single dedup authority, so the webhook and the cron converge to exactly one grant per company per calendar month for any interval. This is the heart of the milestone — get it right and the rest is mechanical.
