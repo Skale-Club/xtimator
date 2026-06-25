@@ -28,6 +28,7 @@
 - ✅ **v4.6 Pricing Intelligence — Researched Pricing Agent** — Phases 105-109 (shipped 2026-06-24)
 - ✅ **v4.7 Monetização — Credit-Based Billing + Estimate Payment Fee** — Phases 110-116 (shipped 2026-06-24)
 - ✅ **v4.8 Industry Knowledge Base — Channel-Neutral Conversational Assistant** — Phases 117-121 (shipped 2026-06-24)
+- 🚧 **v4.9 Internal Web Chat Assistant — the 3rd channel** — Phases 122-126 (roadmap created 2026-06-25)
 
 > **Phase numbering note:** v3.1.1 starts at **Phase 66**, not 62. Phases 62-65 are reserved as DEFERRED placeholders for the v3.2 Production Deploy milestone (Vercel→Hetzner deploy + Stripe live + monitoring + UAT in prod). Skipping past 62-65 keeps the global phase counter unambiguous and prevents number reuse confusion when v3.2 begins.
 
@@ -1403,10 +1404,14 @@ Plans:
 ## Phases — v4.8 Industry Knowledge Base
 
 - [x] **Phase 117: Knowledge Schema + pgvector + Dual RLS** - Enable pgvector and ship the `knowledge_entries` table with both RLS postures: industry entries neutral/shared (service-role-write, read scoped by industry, mirroring `price_research_cache`) and company-overlay entries tenant-scoped (`company_members` membership). The retrieval foundation — nothing embeds or retrieves without it. (completed 2026-06-24)
-- [x] **Phase 118: Channel-Neutral `lib/knowledge/` Module — embed + retrieve + answer + injection-hardening + fixture** - The neutral domain module: `embed()`, `retrieve()` merging industry KB + company overlay over pgvector, `answer()` RAG with `sanitizeField` + `<knowledge>` injection-hardening, and a deterministic fixture adapter for CI. Imports no channel; never-throws. (completed 2026-06-24)
-- [x] **Phase 119: Super-Admin Industry KB Curation + Bulk Import** - The super-admin panel CRUD that POPULATES the industry KB scoped by industry, (re)generating embeddings on save, plus a markdown/CSV bulk import to seed an industry in one operation. (completed 2026-06-24)
-- [x] **Phase 120: Company KB Overlay (tenant settings)** - The company owner's OWN settings panel (distinct from super-admin — the two-panel rule) to add/edit/delete private overlay entries, embeddings generated the same way, scoped to the owning company; optional. (completed 2026-06-25)
-- [x] **Phase 121: WhatsApp KNOWLEDGE Intent** - The 5th `classifyAndRoute` intent + QUERY-vs-KNOWLEDGE disambiguation (safe CREATE default preserved), dispatching to `lib/knowledge/answer` scoped by the company's `industries[]` + overlay and delivered via the existing chunked owner reply. The consumer that proves the module end-to-end. (completed 2026-06-25)
+- [x] **Phase 118: Channel-Neutral `lib/knowledge/` Module — embed + retrieve + answer + injection-hardening + fixture** - The neutral domain module: `embed()`, `retrieve()` merging industry KB + company overlay over pgvector, `answer()` RAG with `sanitizeField` + `<knowledge>` injection-hardening, and a deterministic fixture adapter for CI. Imports no channel; never-throws.
+ (completed 2026-06-24)
+- [x] **Phase 119: Super-Admin Industry KB Curation + Bulk Import** - The super-admin panel CRUD that POPULATES the industry KB scoped by industry, (re)generating embeddings on save, plus a markdown/CSV bulk import to seed an industry in one operation.
+ (completed 2026-06-24)
+- [x] **Phase 120: Company KB Overlay (tenant settings)** - The company owner's OWN settings panel (distinct from super-admin — the two-panel rule) to add/edit/delete private overlay entries, embeddings generated the same way, scoped to the owning company; optional.
+ (completed 2026-06-25)
+- [x] **Phase 121: WhatsApp KNOWLEDGE Intent** - The 5th `classifyAndRoute` intent + QUERY-vs-KNOWLEDGE disambiguation (safe CREATE default preserved), dispatching to `lib/knowledge/answer` scoped by the company's `industries[]` + overlay and delivered via the existing chunked owner reply. The consumer that proves the module end-to-end.
+ (completed 2026-06-25)
 
 ### Phase Details — v4.8 Industry Knowledge Base
 
@@ -1474,3 +1479,68 @@ Plans:
   2. A KNOWLEDGE message dispatches to `lib/knowledge/answer` scoped by the resolved company's `industries[]` plus its overlay, and the resulting answer is delivered to the owner through the existing chunked owner reply path (`sendOwnerReplyChunks`)
 **Plans**: 1 plan
 - [x] 121-01-PLAN.md - KNOWLEDGE intent (union/parseIntent/classify prompt) + dispatchKnowledge scoped by industries[]
+
+## Phases — v4.9 Internal Web Chat Assistant
+
+- [ ] **Phase 122: Channel-Neutral Domain Extraction + WhatsApp Parity** - Pull `createEstimate` / `queryCompanyData` / `askKnowledge` / multimodal `normalize` out of `lib/whatsapp/` into neutral domain tools that WhatsApp KEEPS calling — a NON-DESTRUCTIVE refactor proven by WhatsApp behavioral-parity tests. The load-bearing foundation; nothing in the chat works until these neutral tools exist.
+- [ ] **Phase 123: Chat Persistence Schema + History** - `chat_conversations` + `chat_messages` tables (tenant-scoped RLS mirroring `whatsapp_inbox`, idempotent + authored-only migration) plus the persist/reload path so a returning owner sees their chat history.
+- [ ] **Phase 124: AI SDK + /api/chat Tool-Calling Backend (slots + credit reuse)** - Add the Vercel AI SDK (`ai` + `@ai-sdk/*`); an `/api/chat` `streamText` + native tool-calling route exposing the neutral tools, resolving the model via `ai_config` slots through an OpenRouter-compatible provider; estimate generation invoked as a tool over the unchanged LangGraph engine (async Inngest job); heavy ops debit credits by reusing the neutral functions.
+- [ ] **Phase 125: Chat UI — useChat + Sidebar + Multimodal + Estimate Card** - The `useChat` streaming surface with per-tool-call progress, a conversation sidebar (new/switch + history load), multimodal input (text/audio/photo) routed through the extracted `normalize`, and an inline estimate card that opens in the existing editor.
+- [ ] **Phase 126: Access/Entitlement Gate + Owner-Only Verification** - The chat is gated owner-only (authenticated, tenant-scoped) and by tier entitlement (Pro/Business), audited so it is never reachable by an end customer.
+
+### Phase Details — v4.9 Internal Web Chat Assistant
+
+### Phase 122: Channel-Neutral Domain Extraction + WhatsApp Parity
+**Goal**: The estimate-generation, company-data-query, knowledge, and multimodal-ingestion capabilities live as channel-neutral domain tools (`createEstimate`, `queryCompanyData`, `askKnowledge`, `normalize`) that import NO channel — and WhatsApp now calls those extracted tools with byte-identical behavior, proven by behavioral-parity tests. This is the load-bearing foundation of the whole milestone: it makes channel-neutrality real instead of aspirational, and nothing in the chat can work until these tools exist. The refactor is NON-DESTRUCTIVE — WhatsApp is rewired to the new tools, never forked.
+**Depends on**: v4.8 Phase 118 (`lib/knowledge/answer` the `askKnowledge` tool wraps), v4.3 Phase 94 (`generateEstimateForProject` shared engine + `makeQueryTools`/adapter pattern the neutral tools mirror), the existing `lib/whatsapp/{normalize,query-tools,handler}` harness being extracted
+**Requirements**: NEUT-01, NEUT-02, NEUT-03, NEUT-04, NEUT-05
+**Success Criteria** (what must be TRUE):
+  1. A neutral `createEstimate` tool exists that runs `generateEstimateForProject` with no channel-specific logic, and the WhatsApp CREATE path calls it (no duplicated generation logic remains in `lib/whatsapp/`)
+  2. A neutral `queryCompanyData` tool (extracted from `lib/whatsapp/query-tools`) returns the same tenant-scoped results the WhatsApp QUERY path returned, and WhatsApp now calls the neutral tool
+  3. A neutral multimodal `normalize` module (audio→transcript, photo→analysis) is extracted from `lib/whatsapp/normalize` and the WhatsApp inbound path consumes it with identical transcription/analysis output
+  4. A neutral `askKnowledge` tool wraps `lib/knowledge/answer` scoped by the company's `industries[]` + overlay, and WhatsApp's KNOWLEDGE intent calls it — the same KB answer as v4.8
+  5. The neutral modules import no channel (a grep gate proves zero `lib/whatsapp/*` imports in the neutral path), and WhatsApp behavioral-parity tests pass: same estimate, same query result, same knowledge answer, no regression
+**Plans**: TBD
+
+### Phase 123: Chat Persistence Schema + History
+**Goal**: The chat has durable, tenant-scoped storage — `chat_conversations` and `chat_messages` tables exist with RLS that mirrors `whatsapp_inbox` (a company's members read/write only their own conversations and messages), applied via an idempotent, authored-only migration deployed CI→GHCR→Coolify. Conversations and their messages persist and reload so a returning owner sees their history. This is the data backbone the UI persists into; it can be built in parallel with the AI SDK backend but is needed before any history renders.
+**Depends on**: v4.0 multi-tenancy (`company_members` membership for the RLS posture), the existing `whatsapp_inbox` migration as the parity model
+**Requirements**: CHATDB-01, CHATDB-02
+**Success Criteria** (what must be TRUE):
+  1. `chat_conversations` (id, company_id, user_id, title, created_at, updated_at) and `chat_messages` (id, conversation_id, role, parts jsonb, attachments jsonb, created_at) tables exist via an idempotent, authored-only migration (deployed CI→GHCR→Coolify, never built on the VPS)
+  2. RLS is tenant-scoped: a company's members can read and write only their own company's conversations and messages; another tenant cannot see or modify them (mirrors `whatsapp_inbox`)
+  3. A conversation and its messages persist across sessions — a returning owner re-opening the chat sees the saved conversation list and the full message history of a selected conversation
+**Plans**: TBD
+
+### Phase 124: AI SDK + /api/chat Tool-Calling Backend (slots + credit reuse)
+**Goal**: The chat has a working streaming backend — the Vercel AI SDK is installed, an `/api/chat` route uses `streamText` + native tool-calling and exposes the Phase-122 neutral tools, the model is resolved from `ai_config` slots through an OpenRouter-compatible provider (never hard-coded), estimate generation is invoked as a tool that runs the unchanged `generateEstimateForProject` LangGraph engine as an async Inngest job returning a structured estimate (a tool-call boundary, NOT a streaming bridge — no LangChainAdapter in v1), and heavy operations debit credits by reusing the neutral functions that already debit per v4.7 (the lightweight conversation turn is absorbed). This is where the chat becomes capable; the UI in Phase 125 consumes it.
+**Depends on**: Phase 122 (the neutral tools the route exposes), Phase 123 (the persistence the route reads/writes), v4.7 Phase 112 (the credit-debit seams the neutral functions already carry), the existing `ai_config` slot resolution + `getIntegrationKey('openrouter')`
+**Requirements**: CHATBE-01, CHATBE-02, CHATBE-03, CHATMETER-01
+**Success Criteria** (what must be TRUE):
+  1. The Vercel AI SDK (`ai` + `@ai-sdk/*`) is added and the chat resolves its model via the `ai_config` slots (not hard-coded) through an OpenRouter-compatible provider
+  2. `POST /api/chat` uses `streamText` + native tool-calling and exposes the neutral tools `createEstimate`, `queryCompanyData`, and `askKnowledge`; the model can chain them in one conversation
+  3. The `createEstimate` tool runs the existing `generateEstimateForProject` engine as an async Inngest job and returns a structured estimate — the LangGraph engine is unchanged (a tool-call boundary, not a streaming bridge)
+  4. Heavy chat operations (generation, transcription, photo analysis) debit credits via the v4.7 ledger exactly as the other channels do — by reusing the neutral functions that already debit — while the lightweight conversation turn is absorbed (zero credit)
+**Plans**: TBD
+
+### Phase 125: Chat UI — useChat + Sidebar + Multimodal + Estimate Card
+**Goal**: The owner has a rich chat surface inside the web app — a `useChat`-backed message stream that renders the assistant's tokens and each tool-call's progress ("generating estimate…", "looking up João's last quote…"), a conversation sidebar to start new and switch between prior conversations (loading the selected history from Phase 123), a multimodal input (text + audio + photo) routed through the extracted `normalize`, and an inline estimate card on generation completion with an action to open the result in the existing estimate editor. Built on the Vercel template's UX patterns (message-parts, tool-call rendering) ported onto our shadcn/Tailwind design system — not a raw template fork.
+**Depends on**: Phase 124 (the `/api/chat` backend + tools `useChat` streams from), Phase 123 (the conversation/message history the sidebar loads), Phase 122 (the `normalize` the multimodal input routes through), the existing estimate editor the card opens into
+**Requirements**: CHATUI-01, CHATUI-02, CHATUI-03, CHATUI-04
+**Success Criteria** (what must be TRUE):
+  1. A `useChat`-backed chat surface streams the assistant's tokens and renders each tool-call's live progress (e.g. "generating estimate…", "looking up João's last quote…")
+  2. A conversation sidebar lists prior conversations with new-conversation and switch actions, and selecting a conversation loads its persisted message history
+  3. The chat input accepts text, audio, and photo, all routed through the extracted neutral `normalize` (audio→transcript, photo→analysis) before generation
+  4. When a generation tool completes, an inline estimate card renders in the conversation with an action that opens the estimate in the existing editor
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 126: Access/Entitlement Gate + Owner-Only Verification
+**Goal**: The chat is provably owner-only and tier-gated — reachable only by an authenticated, tenant-scoped owner whose company tier entitles the feature (a Pro/Business capability), and never reachable by an end customer. This is a thin verification/gating phase that closes the security fence around everything built in 122-125: the route, the UI surface, and the persistence are all behind the same authenticated owner + entitlement guard, audited so no customer-facing or cross-tenant path exists.
+**Depends on**: Phase 124 (the `/api/chat` route gated here), Phase 125 (the chat UI surface gated here), v3.0/v4.7 entitlements (`lib/entitlements.ts` tier gating the feature reuses)
+**Requirements**: CHATMETER-02
+**Success Criteria** (what must be TRUE):
+  1. The chat route and UI are reachable only by an authenticated, tenant-scoped owner (active-company resolved); an unauthenticated or cross-tenant request is rejected, and no customer-facing entry point exists
+  2. The chat is gated by tier entitlement — a Pro/Business feature — so a Free/Trial company sees the feature gated (upgrade affordance) rather than a working chat, consistent with the existing entitlement pattern
+  3. An audit confirms no path (route, persistence, or UI) lets an end customer reach the chat, and the owner-only + tenant-scoped invariant holds across every surface added in 122-125
+**Plans**: TBD

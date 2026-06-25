@@ -79,28 +79,28 @@ Which phases cover which requirements. Populated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| NEUT-01 | TBD | Pending |
-| NEUT-02 | TBD | Pending |
-| NEUT-03 | TBD | Pending |
-| NEUT-04 | TBD | Pending |
-| NEUT-05 | TBD | Pending |
-| CHATDB-01 | TBD | Pending |
-| CHATDB-02 | TBD | Pending |
-| CHATBE-01 | TBD | Pending |
-| CHATBE-02 | TBD | Pending |
-| CHATBE-03 | TBD | Pending |
-| CHATUI-01 | TBD | Pending |
-| CHATUI-02 | TBD | Pending |
-| CHATUI-03 | TBD | Pending |
-| CHATUI-04 | TBD | Pending |
-| CHATMETER-01 | TBD | Pending |
-| CHATMETER-02 | TBD | Pending |
+| NEUT-01 | Phase 122 | Pending |
+| NEUT-02 | Phase 122 | Pending |
+| NEUT-03 | Phase 122 | Pending |
+| NEUT-04 | Phase 122 | Pending |
+| NEUT-05 | Phase 122 | Pending |
+| CHATDB-01 | Phase 123 | Pending |
+| CHATDB-02 | Phase 123 | Pending |
+| CHATBE-01 | Phase 124 | Pending |
+| CHATBE-02 | Phase 124 | Pending |
+| CHATBE-03 | Phase 124 | Pending |
+| CHATUI-01 | Phase 125 | Pending |
+| CHATUI-02 | Phase 125 | Pending |
+| CHATUI-03 | Phase 125 | Pending |
+| CHATUI-04 | Phase 125 | Pending |
+| CHATMETER-01 | Phase 124 | Pending |
+| CHATMETER-02 | Phase 126 | Pending |
 
 **Coverage:**
 - v1 requirements: 16 total
-- Mapped to phases: 0 (roadmap pending)
-- Unmapped: 16 ⚠️ (resolved by roadmap)
+- Mapped to phases: 16 ✓
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-06-24*
-*Last updated: 2026-06-24 — milestone v4.9 Internal Web Chat Assistant initial definition*
+*Last updated: 2026-06-25 — milestone v4.9 roadmap created. 5 phases (122-126), 16/16 requirements mapped, no orphans. 122 channel-neutral extraction + parity (NEUT-01..05) → 123 chat persistence (CHATDB-01/02) → 124 AI SDK + /api/chat tool-calling backend + slots + credit reuse (CHATBE-01..03, CHATMETER-01) → 125 chat UI (CHATUI-01..04) → 126 access/entitlement gate (CHATMETER-02).*
