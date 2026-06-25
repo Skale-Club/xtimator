@@ -1660,7 +1660,11 @@ Plans:
   1. `estimates.deposit_type` ('none'|'percent'|'amount') + `deposit_value` drive a server-computed `balance_due = grandTotal - deposit`; deposit=none leaves the total unchanged (retrocompat)
   2. `estimate_items.cost` + `markup_pct` produce a server-derived `unit_price` (`cost x (1 + markup)`) — never-trust-LLM applied to markup; the price book can store cost + markup per item
   3. When a deposit is set, it is the amount the Stripe payment link charges (not the full total), and the existing 1% application fee computes on the amount actually charged — the SEED-020/036 payment contract is honored, not re-implemented
-**Plans**: TBD
+**Plans**: 3 plans in `.planning/phases/132-deposit-markup-stripe/`
+Plans:
+- [ ] 132-01-PLAN.md — DEP-01: deposit + balance_due in compute-totals (LOCKED sequence) + engine persistence + hand-computed deposit golden
+- [ ] 132-02-PLAN.md — MARK-01: cost + markup_pct AI inputs + server-derived unit_price (never-trust-LLM) + persistence + markup golden
+- [ ] 132-03-PLAN.md — DEP-02: pure resolveChargeAmount (deposit-aware charge) + 1%-on-charged-amount fee contract wired into generateInvoice
 
 ### Phase 133: Editor UI
 **Goal**: A business owner can see and edit the new pricing fields directly in the estimate editor — per-line discount and taxable, plus global discount and deposit controls — on both desktop and mobile, with server actions accepting the new fields; the displayed totals reflect the server engine, never client-side arithmetic.
