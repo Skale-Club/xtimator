@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v4.9
 milestone_name: Internal Web Chat Assistant — the 3rd channel
-status: verifying
+status: completed
 stopped_at: Completed 126-02-PLAN.md
-last_updated: "2026-06-25T09:52:15.585Z"
+last_updated: "2026-06-25T09:56:27.126Z"
 last_activity: 2026-06-25
 progress:
   total_phases: 78
@@ -27,12 +27,11 @@ progress:
 - **Dependency spine:** 122 (neutral extraction + parity) is the foundation — nothing works without it. 123 (persistence) can run in PARALLEL with 124's early work but is needed before any history renders. 124 (AI SDK backend) needs 122 (tools) + 123 (persistence). 125 (chat UI) needs 124 (backend) + 123 (history) + 122 (`normalize`). 126 (access gate) needs 124 + 125 and is the last/verification phase. CHATMETER-01 (credit reuse) folds into 124 (it falls out of reusing the neutral debit path); CHATMETER-02 (owner-only + tier gate) is its own thin Phase 126.
 - **Locked guardrails (SEED-034 + PROJECT.md):** the chat reimplements NO domain logic — it reuses the neutral modules (the governing principle: WhatsApp = CHAT = MCP, three siblings over the SAME neutral core). AI SDK = the chat/streaming layer; the LangGraph estimate engine stays INTOCADO, invoked as a tool (tool-call boundary, not a streaming bridge). Substitute the template's infra: Supabase Auth/Postgres/Storage + OpenRouter (NOT Auth.js/Drizzle/Neon/Blob/AI-Gateway). Owner-only, tenant-scoped, NEVER customer-facing. Idempotent + authored-only migrations, deploy CI→GHCR→Coolify (never build on the VPS). Channel-neutral modules never import a channel (grep gate). v1 = generate + query + knowledge + multimodal; estimate-edit-in-chat + send-in-chat DEFERRED (owner opens the result in the existing editor); MCP parity (SEED-030) is a LATER milestone the extraction here makes cheap.
 - **Previous milestone**: v4.8 Industry Knowledge Base — Channel-Neutral Conversational Assistant — SHIPPED 2026-06-24 (phases 117-121, 15/15 requirements, full unit suite green 314 files / 2219 tests). The channel-neutral `lib/knowledge/` module v4.9's `askKnowledge` tool wraps. Operational deferrals carried: apply 2 migrations (knowledge_entries, match RPC) to remote + configure embeddings key + seed industry KBs.
-- **Position**: Phase 126 COMPLETE (2/2 plans — CHATMETER-02: route 403 `chat_not_on_plan` security boundary [126-01] + page-level `ChatUpgradePrompt` gate (own tier read) + owner-only never-customer-facing static fence [126-02]). **This is the FINAL phase of v4.9 — all 5 phases (122-126) shipped.** Next: `/gsd:verify-work 126`, then `/gsd:complete-milestone` for v4.9. NOTE: `phase complete`/state cmds revert milestone→v3.1.1 + progress→stale 18/18/51/51 — re-asserted v4.9 + 63/63 phases / 199 plans per the known GSD state-revert issue.
-
+- **Position**: v4.9 COMPLETE — all 5 phases (122-126) shipped + verified. Web chat (3rd channel): channel-neutral extraction of lib/whatsapp/ → lib/agent-tools/ → chat persistence → AI SDK /api/chat tool-calling backend → chat UI (useChat + sidebar + multimodal + estimate card) → owner-only tier gate. WhatsApp + chat now share the neutral core; MCP parity (SEED-030) consumes it next. Operational: apply the chat_persistence migration to remote + configure the OpenRouter key.
 ## Current Position
 
-Phase: 126 (Access/Entitlement Gate + Owner-Only Verification) — COMPLETE
-Plan: 2 of 2 (complete)
+Phase: 999.1
+Plan: Not started
 Status: Phase complete — ready for verification (v4.9 final phase)
 
 ---

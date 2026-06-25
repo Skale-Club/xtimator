@@ -1,5 +1,22 @@
 # Milestones
 
+## v4.9 Internal Web Chat Assistant — the 3rd channel (Shipped: 2026-06-25)
+
+**Phases completed:** 5 (122, 123, 124, 125, 126) · 13 plans · full unit suite green (335 files / 2335 tests)
+
+**Goal (delivered):** A conversational chat inside the Xtimator web app where the business owner generates estimates, queries their data, and asks trade how-to questions (via the v4.8 `lib/knowledge/`) — built on the Vercel AI Chatbot structure over Xtimator's existing infra. The strategic payoff: this milestone FORCED the channel-neutral extraction of `lib/whatsapp/` into shared domain tools, so WhatsApp + web chat now consume the same core (and MCP parity becomes cheap next).
+
+**What shipped, phase by phase:**
+- **Channel-neutral domain extraction (122)** — the load-bearing foundation. Extracted `createEstimate` / `queryCompanyData` / `normalizeInput` / `askKnowledge` from `lib/whatsapp/` into a neutral `lib/agent-tools/` module that imports no channel (ENGINE-01 gate). The KEY insight: extract the DATA-READ functions, NOT the LangChain tool wrappers — so the web chat binds the same reads as AI SDK tools without coupling to LangChain; WhatsApp keeps its LangChain binding. Non-destructive: the existing WhatsApp test suite (the parity guard) stayed green unchanged.
+- **Chat persistence (123)** — `chat_conversations` + `chat_messages` (mirroring whatsapp_inbox's shape but the credit_ledger/company_members RLS posture — tenant-readable + owner-narrowed; NOT deny-all), `parts jsonb` for the AI SDK UIMessage model, denormalized company_id; `lib/queries/chat.ts` helpers. Idempotent, authored-only.
+- **AI SDK chat backend (124)** — added the Vercel AI SDK (`ai@6` + `@openrouter/ai-sdk-provider`); a `/api/chat` route using `streamText` + native tool-calling (Decision #2) exposing the neutral tools; the model resolved via `ai_config` slots over OpenRouter; the `createEstimate` tool dispatches the async Inngest job and returns `{jobId}` WITHOUT awaiting (the LangGraph engine stays intact — Decision #1, a tool boundary not a streaming bridge); credit reuse with NO new debit code (generation debits in the Inngest job; conversation absorbed; no double-debit). companyId is a trusted closure, never a tool input field.
+- **Chat UI (125)** — `@ai-sdk/react` v6 `useChat` (own-input + `sendMessage({text})` + `DefaultChatTransport`, full-array send) message-parts rendering + per-tool progress chips; a two-pane conversation sidebar (list/new/switch + history seed); a multimodal composer (text/audio/photo → the neutral `normalizeChatInput` → text, never raw files to the model); an inline estimate card polling the job → "Open in editor" link. shadcn/Tailwind aligned to the existing design system.
+- **Access/entitlement gate (126)** — a `chatEnabled` per-tier flag (free=false; trial/pro/business=true); a `403 chat_not_on_plan` security gate in the route (before any model build) + a page-level upgrade prompt (the global UpgradeModal only catches 402); a static test proving the chat is never referenced by any public/non-`(app)` route (owner-only, never customer-facing).
+
+**Architecture invariants honored:** WhatsApp = chat = (future) MCP over the SAME neutral core; `lib/agent-tools/` imports no channel; the LangGraph estimate engine is untouched (invoked as a tool); the AI SDK is the chat/streaming layer only; owner-only + tenant-scoped + never customer-facing; credit reuse (no double-debit); idempotent + authored-only migration. The Vercel template was PORTED (patterns onto Supabase/OpenRouter), not forked.
+
+**Operational deferrals (carry-forward):** apply the `chat_persistence` migration (20260626000001) to remote via CI→GHCR→Coolify; configure the OpenRouter key; live chat UAT (stream + tool-call + estimate card). Deferred to v2: estimate edit/send in-chat, attachments-as-parts, live generation-reasoning streaming. The MCP parity milestone (SEED-030) consumes this neutral extraction next.
+
 ## v4.8 Industry Knowledge Base — Channel-Neutral Conversational Assistant (Shipped: 2026-06-24)
 
 **Phases completed:** 5 (117, 118, 119, 120, 121) · 11 plans · full unit suite green (314 files / 2219 tests)

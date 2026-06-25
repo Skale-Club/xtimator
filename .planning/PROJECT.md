@@ -14,9 +14,11 @@ The platform includes:
 
 A business owner can go from job site audio recording to a sent, professional estimate in under 5 minutes without touching a keyboard.
 
-## Current Milestone: v4.9 Internal Web Chat Assistant — the 3rd channel
+## Last Milestone: v4.9 Internal Web Chat Assistant — the 3rd channel ✅ (shipped 2026-06-25)
 
-**Goal:** A conversational chat INSIDE the Xtimator web app where the business owner does everything they do on WhatsApp (generate estimates, query their data, ask trade how-to questions via the v4.8 `lib/knowledge/`) — built on the Vercel AI Chatbot structure but assented on Xtimator's existing infra. The strategic value: this milestone FORCES the channel-neutral extraction of `lib/whatsapp/` into shared domain tools that WhatsApp + chat + (later) MCP all consume. Source: [SEED-034](seeds/SEED-034-internal-web-chat-assistant.md).
+**Shipped:** all 5 phases (122-126), 16/16 requirements, 13 plans. Full unit suite green (335 files / 2335 tests). An in-app conversational chat (generate/query/knowledge) built on the Vercel AI Chatbot patterns over Xtimator's infra. The strategic payoff landed: the channel-neutral extraction of `lib/whatsapp/` into `lib/agent-tools/` (createEstimate/queryCompanyData/normalizeInput/askKnowledge) — WhatsApp + web chat now share the SAME neutral core, proven non-destructive by the unchanged WhatsApp parity suite. The Vercel AI SDK is the chat/streaming layer (`/api/chat` streamText + native tool-calling, `useChat` UI); the LangGraph estimate engine stays intact, invoked as an async tool (Decision #1). Owner-only + tier-gated (`chatEnabled`), never customer-facing. Credit reuse, no double-debit. Archive: [milestones/v4.9](MILESTONES.md). Operational deferrals: apply the chat_persistence migration to remote, configure the OpenRouter key, live chat UAT. The MCP parity milestone (SEED-030) consumes this neutral extraction next.
+
+**Goal (delivered):** A conversational chat INSIDE the Xtimator web app where the business owner does everything they do on WhatsApp (generate estimates, query their data, ask trade how-to questions via the v4.8 `lib/knowledge/`). The strategic value: this milestone FORCED the channel-neutral extraction of `lib/whatsapp/` into shared domain tools that WhatsApp + chat + (later) MCP all consume. Source: [SEED-034](seeds/SEED-034-internal-web-chat-assistant.md).
 
 **Target features:**
 - **Channel-neutral domain extraction** — pull the capabilities out of `lib/whatsapp/` into neutral domain tools (`createEstimate`, `queryCompanyData`, `askKnowledge`, multimodal `normalize`) that WhatsApp keeps calling (a non-destructive refactor proven by WhatsApp behavioral-parity tests). This is the load-bearing foundation.
