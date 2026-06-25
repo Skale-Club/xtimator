@@ -23,7 +23,7 @@ Each requirement maps to exactly one roadmap phase.
 
 ### Monthly Credit Grant Decouple (the core)
 
-- [ ] **ANN-02**: Change the `invoice.paid` credit-grant idempotency key to `grant:{companyId}:{YYYY-MM}` and add an Inngest monthly cron (`lib/inngest/functions/monthly-credit-grant.ts`) that grants `monthlyCreditGrant` to active paying companies once per company-month using the SAME key (reusing the idempotent, never-throw `grantCredits`). Guarantees exactly one grant per company per calendar month for ALL intervals. Retrocompat: monthly subscribers still get exactly one grant/month with NO double-grant across webhook + cron — regression-tested.
+- [x] **ANN-02**: Change the `invoice.paid` credit-grant idempotency key to `grant:{companyId}:{YYYY-MM}` and add an Inngest monthly cron (`lib/inngest/functions/monthly-credit-grant.ts`) that grants `monthlyCreditGrant` to active paying companies once per company-month using the SAME key (reusing the idempotent, never-throw `grantCredits`). Guarantees exactly one grant per company per calendar month for ALL intervals. Retrocompat: monthly subscribers still get exactly one grant/month with NO double-grant across webhook + cron — regression-tested.
 
 ### Annual Checkout
 
@@ -61,7 +61,7 @@ Deferred to a future milestone. Tracked but not in this roadmap.
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | ANN-01 | Phase 141 | Complete |
-| ANN-02 | Phase 142 | Pending |
+| ANN-02 | Phase 142 | Complete |
 | ANN-03 | Phase 143 | Pending |
 | ANN-04 | Phase 144 | Pending |
 | ANN-05 | Phase 145 | Pending |

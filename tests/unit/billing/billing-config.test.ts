@@ -375,6 +375,16 @@ describe('BILLCFG-03: getBillingConfig consumed ONLY by the reader + credit-ledg
     // and does NOT reference the getBillingConfig symbol itself. The guard still
     // fails on any OTHER reference of the symbol.
     const SEAT_COST_SUMMARY_PATH = resolve(process.cwd(), 'lib/billing/seat-cost-summary.ts')
+    // Phase 142 (ANN-02): the monthly-credit-grant cron reads
+    // cfg.tiers[tier].monthlyCreditGrant from getBillingConfig (read ONCE per run)
+    // to grant active paying companies their per-tier monthly allowance —
+    // the runtime-authoritative billing source, a legitimate consumer (same role
+    // as the invoice.paid webhook grant). The guard still fails on any OTHER
+    // reference of the symbol.
+    const MONTHLY_CREDIT_GRANT_PATH = resolve(
+      process.cwd(),
+      'lib/inngest/functions/monthly-credit-grant.ts',
+    )
     const ALLOWLIST = new Set([
       MODULE_PATH,
       CREDIT_LEDGER_PATH,
@@ -385,6 +395,7 @@ describe('BILLCFG-03: getBillingConfig consumed ONLY by the reader + credit-ledg
       CREDITS_QUERY_PATH,
       SEAT_BILLING_PATH,
       SEAT_COST_SUMMARY_PATH,
+      MONTHLY_CREDIT_GRANT_PATH,
     ])
 
     const collected: string[] = []

@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
 milestone: v4.13
-milestone_name: Annual Billing
+milestone_name: MVP Launch Prep + Future-Proofing
 status: verifying
-stopped_at: Completed 141-01-PLAN.md
-last_updated: "2026-06-25T21:51:48.276Z"
+stopped_at: Completed 142-01-PLAN.md
+last_updated: "2026-06-25T23:15:00.000Z"
 last_activity: 2026-06-25
 progress:
-  total_phases: 18
-  completed_phases: 18
-  total_plans: 51
-  completed_plans: 51
+  total_phases: 96
+  completed_phases: 79
+  total_plans: 219
+  completed_plans: 231
 ---
 
 # Project State
@@ -27,13 +27,13 @@ progress:
 - **Dependency spine:** 141 (configurable annual price + seat price — the foundation) + 142 (the grant decouple — independent, parallelizable with 141) → 143 (annual checkout, depends on 141) + 144 (interval-aware seat billing, depends on 141, independent of 143) → 145 (pricing UI toggle, depends on 141 + 143). 142 is the heart of the milestone — get the company-month dedup right and the rest is mechanical.
 - **Locked guardrails (SEED-038 + REQUIREMENTS.md + PROJECT.md):** Credits stay MONTHLY for EVERY interval — annual is only a price discount (same tier, same `monthlyCreditGrant`, same seats). The company-month key `grant:{companyId}:{YYYY-MM}` is the SINGLE dedup authority shared by the webhook AND the cron → exactly one grant per company per calendar month, NO double-grant. ZERO hardcoded billing numbers — `subscriptionPriceAnnualCents` (per-tier) + `seatPriceAnnualCents` (global) live in `billing_config`, read via `getBillingConfig()`, editable without a deploy; the displayed discount % is DERIVED (`1 − annual/(12×monthly)`), never stored; no annual price / discount % / Stripe Price ID may be a constant in application code. The base annual charge uses pre-created Stripe Price IDs (env `STRIPE_PRICE_PRO_ANNUAL` / `STRIPE_PRICE_BUSINESS_ANNUAL` — PLACEHOLDERS ONLY in every doc, never a real ID or key); seat annual uses inline `price_data` straight from `seatPriceAnnualCents`. Interval is selected at checkout (`billingInterval`, default `'month'`) and threaded through metadata; the seat sync matches the subscription interval. Charging stays gated by `enforcementEnabled` / live-mode discipline (display can ship anytime). Retrocompat is load-bearing: default interval `'month'`, the existing monthly path byte-identical, a regression test locks the no-double-grant invariant. Mid-cycle proration on interval switch is deferred to v2 (`ANNX-01`). Mobile-safe UI (iOS Safari / Android Chrome); i18n en/pt/es.
 - **Previous milestone**: v4.12 Team Seats & Member Invites — SHIPPED 2026-06-25 (phases 135-140, 8/8 requirements SEAT-01..SEAT-08, full unit suite green ~2552 passing). Turned the dormant `company_members` foundation into real team seats — invite/accept/revoke/remove/role flows behind a single server-side `requireCompanyRole` gate (RLS-bound, never client-trusted), a mobile-safe `Settings → Team` UI, and CONFIGURABLE per-seat billing (`seatPriceCents` + `tiers[tier].includedSeats` in `billing_config`/super-admin, nothing hardcoded), gated by `enforcementEnabled` (record-only until calibrated); retrocompat single-owner orgs = zero charge. SEED-037 harvested. Operational deferrals carried forward: apply migration `20260628000001` to remote (CI→GHCR→Coolify), calibrate `seatPriceCents` + per-tier `includedSeats` then flip `enforcementEnabled` on, live invite→accept→sync UAT against Stripe test mode.
-- **Position**: v4.13 roadmap created — ready to plan Phase 141. Next: `/gsd:plan-phase 141`.
+- **Position**: Phase 142 complete — monthly credit grants are decoupled from invoice cadence via a shared company-month idempotency key and registered Inngest cron. Next: `/gsd:plan-phase 143`.
 
 ## Current Position
 
-Phase: 141 (Configurable Annual Pricing) — EXECUTING
+Phase: 142 (Monthly Credit Grant Decouple) — COMPLETE
 Plan: 1 of 1
-Status: Phase complete — ready for verification
+Status: Phase complete — ready for Phase 143 planning
 
 ---
 
@@ -1035,7 +1035,7 @@ Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gs
 See: .planning/PROJECT.md (updated 2026-05-13)
 
 **Core value:** Business owner → job site audio recording → sent professional estimate in under 5 minutes
-**Current focus:** Phase 141 — Configurable Annual Pricing
+**Current focus:** Phase 143 — Annual Checkout
 
 ## Notes
 
