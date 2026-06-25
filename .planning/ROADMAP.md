@@ -1485,7 +1485,8 @@ Plans:
 - [x] **Phase 122: Channel-Neutral Domain Extraction + WhatsApp Parity** - Pull `createEstimate` / `queryCompanyData` / `askKnowledge` / multimodal `normalize` out of `lib/whatsapp/` into neutral domain tools that WhatsApp KEEPS calling — a NON-DESTRUCTIVE refactor proven by WhatsApp behavioral-parity tests. The load-bearing foundation; nothing in the chat works until these neutral tools exist. (completed 2026-06-25)
 - [x] **Phase 123: Chat Persistence Schema + History** - `chat_conversations` + `chat_messages` tables (tenant-scoped RLS mirroring `whatsapp_inbox`, idempotent + authored-only migration) plus the persist/reload path so a returning owner sees their chat history.
  (completed 2026-06-25)
-- [x] **Phase 124: AI SDK + /api/chat Tool-Calling Backend (slots + credit reuse)** - Add the Vercel AI SDK (`ai` + `@ai-sdk/*`); an `/api/chat` `streamText` + native tool-calling route exposing the neutral tools, resolving the model via `ai_config` slots through an OpenRouter-compatible provider; estimate generation invoked as a tool over the unchanged LangGraph engine (async Inngest job); heavy ops debit credits by reusing the neutral functions. (completed 2026-06-25)
+- [x] **Phase 124: AI SDK + /api/chat Tool-Calling Backend (slots + credit reuse)** - Add the Vercel AI SDK (`ai` + `@ai-sdk/*`); an `/api/chat` `streamText` + native tool-calling route exposing the neutral tools, resolving the model via `ai_config` slots through an OpenRouter-compatible provider; estimate generation invoked as a tool over the unchanged LangGraph engine (async Inngest job); heavy ops debit credits by reusing the neutral functions.
+ (completed 2026-06-25)
 - [ ] **Phase 125: Chat UI — useChat + Sidebar + Multimodal + Estimate Card** - The `useChat` streaming surface with per-tool-call progress, a conversation sidebar (new/switch + history load), multimodal input (text/audio/photo) routed through the extracted `normalize`, and an inline estimate card that opens in the existing editor.
 - [ ] **Phase 126: Access/Entitlement Gate + Owner-Only Verification** - The chat is gated owner-only (authenticated, tenant-scoped) and by tier entitlement (Pro/Business), audited so it is never reachable by an end customer.
 
@@ -1541,7 +1542,10 @@ Plans:
   2. A conversation sidebar lists prior conversations with new-conversation and switch actions, and selecting a conversation loads its persisted message history
   3. The chat input accepts text, audio, and photo, all routed through the extracted neutral `normalize` (audio→transcript, photo→analysis) before generation
   4. When a generation tool completes, an inline estimate card renders in the conversation with an action that opens the estimate in the existing editor
-**Plans**: TBD
+**Plans**: 3 plans in 3 waves
+- [ ] 125-00-PLAN.md — Install @ai-sdk/react@6.0.209 + history mapper + normalizeChatInput action + Nyquist Wave-0 test scaffolds (CHATUI-01/02/03/04)
+- [ ] 125-01-PLAN.md — Route + sidebar + useChat thread + message-parts/tool-progress rendering (CHATUI-01, CHATUI-02)
+- [ ] 125-02-PLAN.md — Multimodal composer (audio/photo → normalize) + inline estimate card with open-in-editor (CHATUI-03, CHATUI-04)
 **UI hint**: yes
 
 ### Phase 126: Access/Entitlement Gate + Owner-Only Verification
