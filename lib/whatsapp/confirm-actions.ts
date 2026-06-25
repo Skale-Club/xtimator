@@ -30,6 +30,9 @@ export type EstimateContext = {
   summary: string | null
   timeline: string | null
   payment_terms: string | null
+  deposit_type: string | null
+  deposit_value: number | null
+  balance_due: number | null
   sections: Array<{ title: string; subtotal: number }> | null
 }
 
@@ -39,7 +42,7 @@ export async function actionGetEstimateContext(
 ): Promise<EstimateContext | null> {
   const { data } = await supabase
     .from('estimates')
-    .select('total, currency_code, summary, timeline, payment_terms, sections:estimate_sections(title, subtotal)')
+    .select('total, currency_code, summary, timeline, payment_terms, deposit_type, deposit_value, balance_due, sections:estimate_sections(title, subtotal)')
     .eq('id', estimateId)
     .single()
   return data as EstimateContext | null
@@ -87,7 +90,8 @@ export async function actionSend(
     supabase
       .from('estimates')
       .select(`
-        id, share_token, total, subtotal, tax_rate, tax_amount, currency_code, summary,
+        id, share_token, total, subtotal, tax_rate, tax_amount,
+        deposit_type, deposit_value, balance_due, currency_code, summary,
         payment_terms, timeline, language,
         sections:estimate_sections(
           title, subtotal,

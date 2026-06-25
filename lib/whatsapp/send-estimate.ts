@@ -46,6 +46,7 @@ export async function deliverEstimateViaWhatsApp(params: {
     .from('estimates')
     .select(`
       id, project_id, share_token, total, subtotal, tax_rate, tax_amount,
+      deposit_type, deposit_value, balance_due,
       currency_code, summary, payment_terms, timeline, language,
       sections:estimate_sections(
         title, subtotal,
