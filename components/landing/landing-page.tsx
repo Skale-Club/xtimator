@@ -23,11 +23,17 @@ export function LandingPage({ content, branding, navUser }: LandingPageProps) {
   const searchParams = useSearchParams()
   const [authOpen, setAuthOpen] = useState(false)
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('signup')
+  // SEAT-04: the invite-accept route sends logged-out visitors here with a
+  // ?next=/invite/accept?token=... param. Capture it before router.replace strips
+  // it, then thread it into the auth dialog so the token survives signup/signin.
+  const [authNext, setAuthNext] = useState<string | null>(null)
 
   useEffect(() => {
     const authParam = searchParams.get('auth')
+    const nextParam = searchParams.get('next')
     if (authParam === 'login' || authParam === 'signup') {
       setAuthMode(authParam)
+      if (nextParam) setAuthNext(nextParam)
       setAuthOpen(true)
       router.replace('/', { scroll: false })
     } else if (authParam) {
@@ -88,7 +94,7 @@ export function LandingPage({ content, branding, navUser }: LandingPageProps) {
         </div>
       </div>
 
-      <AuthDialog branding={branding} open={authOpen} onClose={() => setAuthOpen(false)} initialMode={authMode} />
+      <AuthDialog branding={branding} open={authOpen} onClose={() => setAuthOpen(false)} initialMode={authMode} next={authNext} />
     </div>
   )
 }

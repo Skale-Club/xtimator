@@ -59,6 +59,13 @@ interface AuthDialogProps {
   initialMode?: 'login' | 'signup'
   open: boolean
   onClose: () => void
+  /**
+   * SEAT-04: when the invite-accept route routes a logged-out visitor here, it
+   * carries a `next=/invite/accept?token=...` path. Threaded into the signUp/signIn
+   * formData so an invited user resumes the accept route after auth (the auth action
+   * open-redirect-guards it to /invite/accept only). null for the normal landing flow.
+   */
+  next?: string | null
 }
 
 // ---------------------------------------------------------------------------
@@ -258,12 +265,13 @@ function Step1Form({
 interface LoginStep2Props {
   email: string
   captchaToken: string | null
+  next?: string | null
   onBack: () => void
   onForgot: () => void
   onError: (message: string) => void
 }
 
-function LoginStep2({ email, captchaToken, onBack, onForgot, onError }: LoginStep2Props) {
+function LoginStep2({ email, captchaToken, next, onBack, onForgot, onError }: LoginStep2Props) {
   const [showPassword, setShowPassword] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
@@ -284,6 +292,7 @@ function LoginStep2({ email, captchaToken, onBack, onForgot, onError }: LoginSte
       formData.append('email', email)
       formData.append('password', values.password)
       formData.append('captchaToken', captchaToken)
+      if (next) formData.append('next', next)
       const result = await signIn(formData)
       if (result?.error) {
         onError(result.error)
@@ -503,11 +512,12 @@ interface SignupCompanyStepProps {
   email: string
   password: string
   captchaToken: string | null
+  next?: string | null
   onBack: () => void
   onError: (message: string) => void
 }
 
-function SignupCompanyStep({ email, password, captchaToken, onBack, onError }: SignupCompanyStepProps) {
+function SignupCompanyStep({ email, password, captchaToken, next, onBack, onError }: SignupCompanyStepProps) {
   const [isPending, startTransition] = useTransition()
 
   const form = useForm<CompanyValues>({
@@ -529,6 +539,7 @@ function SignupCompanyStep({ email, password, captchaToken, onBack, onError }: S
       formData.append('captchaToken', captchaToken)
       formData.append('companyName', values.companyName)
       formData.append('subdomain', values.subdomain ?? '')
+      if (next) formData.append('next', next)
       const result = await signUp(formData)
       if (result?.error) {
         onError(result.error)
@@ -650,7 +661,7 @@ function ResetSentPanel({ email, onBackToSignIn }: { email: string; onBackToSign
 // Main dialog
 // ---------------------------------------------------------------------------
 
-export function AuthDialog({ branding, initialMode = 'login', open, onClose }: AuthDialogProps) {
+export function AuthDialog({ branding, initialMode = 'login', open, onClose, next = null }: AuthDialogProps) {
   const [mode, setMode] = useState<Mode>(initialMode)
   const [step, setStep] = useState<Step>('email')
   const [email, setEmail] = useState('')
@@ -818,6 +829,7 @@ export function AuthDialog({ branding, initialMode = 'login', open, onClose }: A
         <LoginStep2
           email={email}
           captchaToken={captchaToken}
+          next={next}
           onBack={() => {
             setStep('email')
             setTopLevelError(null)
@@ -837,6 +849,7 @@ export function AuthDialog({ branding, initialMode = 'login', open, onClose }: A
           email={email}
           password={signupPassword}
           captchaToken={captchaToken}
+          next={next}
           onBack={() => {
             setStep('password')
             setTopLevelError(null)

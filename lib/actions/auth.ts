@@ -5,11 +5,23 @@ import { createClient } from '@/lib/supabase/server'
 import { logAuthEvent } from '@/lib/auth-logger'
 import { getCanonicalBaseUrl } from '@/lib/utils/site-url'
 
+/**
+ * SEAT-04 open-redirect guard. The invite flow threads a `next` formData field so
+ * an invited user resumes /invite/accept after auth (signup-then-join). To prevent
+ * an open redirect we ONLY honor a relative `/invite/accept...` path — anything
+ * else (absolute/external URL, any other path) is rejected and the caller falls
+ * back to its existing destination.
+ */
+function safeInviteNext(next: string | null): string | null {
+  return next && next.startsWith('/invite/accept') ? next : null
+}
+
 export async function signUp(formData: FormData) {
   const supabase = await createClient()
   const email = formData.get('email') as string
   const password = formData.get('password') as string
   const captchaToken = formData.get('captchaToken') as string | null
+  const next = formData.get('next') as string | null
 
   // Optional account-creation step two fields. Stored on the auth user's
   // metadata so they survive the redirect into onboarding, which prefills from
@@ -39,8 +51,16 @@ export async function signUp(formData: FormData) {
     return { error: 'Something went wrong. Please try again.' }
   }
 
-  // New user → onboarding (no company record yet)
   logAuthEvent({ event: 'sign_up_attempt', success: true, email })
+
+  // SEAT-04 branch: an invited new user carries `next=/invite/accept?token=...`.
+  // Honor it so they JOIN the existing company via the accept route and NEVER hit
+  // /onboarding (which CREATEs a company). Non-invited signups keep going to
+  // /onboarding unchanged (no company record yet).
+  const inviteNext = safeInviteNext(next)
+  if (inviteNext) {
+    redirect(inviteNext)
+  }
   redirect('/onboarding')
 }
 
@@ -49,6 +69,7 @@ export async function signIn(formData: FormData) {
   const email = formData.get('email') as string
   const password = formData.get('password') as string
   const captchaToken = formData.get('captchaToken') as string | null
+  const next = formData.get('next') as string | null
 
   const { error } = await supabase.auth.signInWithPassword({
     email,
@@ -65,6 +86,15 @@ export async function signIn(formData: FormData) {
       return { error: 'Please check your inbox to confirm your email before signing in.' }
     }
     return { error: 'Something went wrong. Please try again.' }
+  }
+
+  // SEAT-04 branch: an invited existing user carries `next=/invite/accept?token=...`.
+  // Resume the accept route so they JOIN the inviting company, regardless of whether
+  // they already own a company of their own.
+  const inviteNext = safeInviteNext(next)
+  if (inviteNext) {
+    logAuthEvent({ event: 'sign_in_attempt', success: true, email })
+    redirect(inviteNext)
   }
 
   // Check if company exists → redirect accordingly (AUTH-06)
