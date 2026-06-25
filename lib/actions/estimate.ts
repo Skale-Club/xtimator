@@ -8,6 +8,7 @@ import { DEFAULT_CURRENCY_CODE, normalizeCurrencyCode } from '@/lib/money/curren
 import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { shareLinkExpiryFromNow } from '@/lib/estimates/share-link'
 import { dispatchXphereSync } from '@/lib/integrations/xphere/dispatch'
+import { computeEstimateTotals } from '@/lib/estimate/compute-totals'
 
 // ---------------------------------------------------------------------------
 // Auth helper (same pattern as recording.ts)
@@ -50,6 +51,12 @@ interface SaveItemInput {
   sort_order: number
   price_source: 'price_book' | 'ai_estimate' | 'researched' | null
   isManuallyEdited?: boolean
+  // v4.11 advanced pricing — all OPTIONAL with no-op defaults (retrocompat).
+  taxable?: boolean
+  tax_category?: 'labor' | 'materials' | 'other' | null
+  discount?: number
+  cost?: number | null
+  markup_pct?: number | null
 }
 
 interface SaveSectionInput {
@@ -72,6 +79,9 @@ interface SaveEstimateInput {
   sections: SaveSectionInput[]
   estimate_date: string | null
   estimate_number: string | null
+  // v4.11 deposit — OPTIONAL with no-op defaults (retrocompat: 'none' / null).
+  deposit_type?: 'none' | 'percent' | 'amount' | null
+  deposit_value?: number | null
 }
 
 // ---------------------------------------------------------------------------
@@ -84,35 +94,58 @@ export async function saveEstimate(estimateData: SaveEstimateInput) {
   const { supabase, company } = ctx
   const companyId = company.id as string
 
-  // Recalculate all math server-side (never trust client)
-  const calculatedSections = estimateData.sections.map((section) => {
-    const items = section.items.map((item) => ({
-      ...item,
-      total: roundCents(item.quantity * item.unit_price),
-    }))
-    const sectionSubtotal = roundCents(
-      items.reduce((sum, item) => sum + item.total, 0)
-    )
-    return { ...section, items, subtotal: sectionSubtotal }
+  // GUARD-03: recompute ALL math server-side via the SHARED engine (never trust client).
+  // Map the editor/DB discount_type ('percentage'|'fixed') to the engine domain
+  // ('percent'|'amount'|'none'). Leave taxConfig undefined → flat retrocompat branch
+  // (the editor does not surface per-category tax config this phase).
+  const engineDiscountType: 'percent' | 'amount' | 'none' =
+    estimateData.discount_type === 'percentage'
+      ? 'percent'
+      : estimateData.discount_type === 'fixed'
+        ? 'amount'
+        : 'none'
+
+  const engineResult = computeEstimateTotals(
+    estimateData.sections.map((section) => ({
+      title: section.title,
+      items: section.items.map((item) => ({
+        ...item,
+        discount: item.discount ?? 0,
+        taxable: item.taxable ?? true,
+        tax_category: item.tax_category ?? null,
+        cost: item.cost ?? null,
+        markup_pct: item.markup_pct ?? null,
+      })),
+    })),
+    {
+      taxRate: estimateData.tax_rate,
+      discountType: engineDiscountType,
+      discountValue: estimateData.discount_value,
+      depositType: estimateData.deposit_type ?? 'none',
+      depositValue: estimateData.deposit_value ?? null,
+    }
+  )
+
+  const subtotal = engineResult.subtotal
+  const discountAmount = engineResult.discountAmount
+  const taxAmount = engineResult.taxAmount
+  const total = engineResult.grandTotal
+  const balanceDue = engineResult.balanceDue
+
+  // Re-attach the engine-resolved per-item totals/unit_price to the original section/item
+  // shape (preserving id/sort_order/price_source/isManuallyEdited for the persistence paths).
+  const calculatedSections = estimateData.sections.map((section, sIdx) => {
+    const engineSection = engineResult.sections[sIdx]
+    const items = section.items.map((item, iIdx) => {
+      const engineItem = engineSection.items[iIdx]
+      return {
+        ...item,
+        unit_price: engineItem.unit_price,
+        total: engineItem.total,
+      }
+    })
+    return { ...section, items, subtotal: engineSection.subtotal }
   })
-
-  const subtotal = roundCents(
-    calculatedSections.reduce((sum, s) => sum + s.subtotal, 0)
-  )
-
-  let discountAmount = 0
-  if (estimateData.discount_type === 'percentage') {
-    discountAmount = roundCents(
-      (subtotal * estimateData.discount_value) / 100
-    )
-  } else if (estimateData.discount_type === 'fixed') {
-    discountAmount = estimateData.discount_value
-  }
-
-  const taxAmount = roundCents(
-    (subtotal - discountAmount) * estimateData.tax_rate
-  )
-  const total = roundCents(subtotal - discountAmount + taxAmount)
 
   // Update estimate row
   const { error: estimateError } = await supabase
@@ -132,6 +165,11 @@ export async function saveEstimate(estimateData: SaveEstimateInput) {
       tax_amount: taxAmount,
       subtotal,
       total,
+      // v4.11 deposit (DEP-01): persist the engine-derived deposit config + balance.
+      // Retrocompat: deposit_type 'none' / deposit_value null / balance_due === total.
+      deposit_type: estimateData.deposit_type ?? 'none',
+      deposit_value: estimateData.deposit_value ?? null,
+      balance_due: balanceDue,
       updated_at: new Date().toISOString(),
     })
     .eq('id', estimateData.id)
@@ -184,6 +222,12 @@ export async function saveEstimate(estimateData: SaveEstimateInput) {
           total: item.total,
           sort_order: idx,
           price_source: item.isManuallyEdited ? null : (item.price_source ?? null),
+          // v4.11 advanced-pricing columns (no-op defaults → byte-identical retrocompat).
+          taxable: item.taxable ?? true,
+          tax_category: item.tax_category ?? null,
+          discount: item.discount ?? 0,
+          cost: item.cost ?? null,
+          markup_pct: item.markup_pct ?? null,
         }))
         const { error: itemsError } = await supabase
           .from('estimate_items')
@@ -223,6 +267,12 @@ export async function saveEstimate(estimateData: SaveEstimateInput) {
               total: item.total,
               sort_order: item.sort_order,
               price_source: item.isManuallyEdited ? null : (item.price_source ?? null),
+              // v4.11 advanced-pricing columns (no-op defaults → byte-identical retrocompat).
+              taxable: item.taxable ?? true,
+              tax_category: item.tax_category ?? null,
+              discount: item.discount ?? 0,
+              cost: item.cost ?? null,
+              markup_pct: item.markup_pct ?? null,
             })
             .select('id')
             .single()
@@ -241,6 +291,12 @@ export async function saveEstimate(estimateData: SaveEstimateInput) {
               total: item.total,
               sort_order: item.sort_order,
               price_source: item.isManuallyEdited ? null : (item.price_source ?? null),
+              // v4.11 advanced-pricing columns (no-op defaults → byte-identical retrocompat).
+              taxable: item.taxable ?? true,
+              tax_category: item.tax_category ?? null,
+              discount: item.discount ?? 0,
+              cost: item.cost ?? null,
+              markup_pct: item.markup_pct ?? null,
             })
             .eq('id', item.id)
           if (itemError) return { error: 'Failed to update item' }
