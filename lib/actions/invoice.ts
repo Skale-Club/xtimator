@@ -8,6 +8,7 @@ import { isDemoCompany } from '@/lib/demo/config'
 import { createConnectInvoice } from '@/lib/billing/invoice-service'
 import { getBillingConfig } from '@/lib/billing/billing-config'
 import { computeApplicationFee } from '@/lib/billing/estimate-fee'
+import { resolveChargeAmount } from '@/lib/billing/charge-amount'
 import { paymentsEnabled } from '@/lib/billing/payments-enabled'
 import { splitDepositBalance } from '@/lib/money/invoice-split'
 import { toMinorUnits } from '@/lib/money/currency'
@@ -78,7 +79,7 @@ export async function generateInvoice(
   //    verify ownership against the active company.
   const { data: estimate, error: estimateError } = await supabase
     .from('estimates')
-    .select('id, company_id, project_id, currency_code, total, project:projects(name)')
+    .select('id, company_id, project_id, currency_code, total, deposit_type, deposit_value, project:projects(name)')
     .eq('id', estimateId)
     .single()
 
@@ -108,9 +109,23 @@ export async function generateInvoice(
   // 5. Compute the snapshot amount in integer minor units.
   const currencyCode = (estimate.currency_code as string) ?? 'USD'
   const totalDollars = (estimate.total as number) ?? 0
+  // DEP-02: when the estimate has a server-configured deposit, the deposit is the amount the
+  // payment link charges (resolveChargeAmount). Falls back to the legacy depositPct split when
+  // no deposit is configured on the estimate (backward-compatible with the Phase-94 ad-hoc UI).
+  const hasConfiguredDeposit =
+    estimate.deposit_type === 'percent' || estimate.deposit_type === 'amount'
   let amountCents: number
   if (kind === 'full') {
     amountCents = toMinorUnits(totalDollars, currencyCode)
+  } else if (kind === 'deposit' && hasConfiguredDeposit) {
+    amountCents = resolveChargeAmount(
+      {
+        total: totalDollars,
+        deposit_type: estimate.deposit_type as 'percent' | 'amount',
+        deposit_value: estimate.deposit_value as number | null,
+      },
+      currencyCode,
+    ).chargeAmountCents
   } else {
     const split = splitDepositBalance(totalDollars, currencyCode, depositPct ?? 0)
     amountCents = kind === 'deposit' ? split.depositCents : split.balanceCents
@@ -127,6 +142,9 @@ export async function generateInvoice(
   //     exists (superseded by Phase-94 hosted invoices). The invoice path is the
   //     single customer-payment surface, so FEE-01 fully covers the estimate fee;
   //     subscription/top-up checkouts are platform-account charges and carry NO fee.
+  //     DEP-02: `amountCents` is now the deposit-aware charged amount, so this UNCHANGED
+  //     computeApplicationFee call lands the 1% fee on the deposit when one is configured
+  //     (else on the grandTotal) — the fee math stays in exactly one place.
   const { estimateFeePct, estimateFeeMinCents } = await getBillingConfig()
   const applicationFeeCents = computeApplicationFee(amountCents, estimateFeePct, estimateFeeMinCents)
 
