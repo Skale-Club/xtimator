@@ -41,6 +41,7 @@ export interface ComputeTotalsSection {
 export interface ComputeTotalsResult {
   sections: Array<{ title: string; items: Array<ComputeTotalsItem & { total: number }>; subtotal: number }>
   subtotal: number
+  discountAmount: number   // DISC-02: computed global discount (disc_global) for persistence (Plan 131-03)
   taxAmount: number
   grandTotal: number
 }
@@ -48,6 +49,10 @@ export interface ComputeTotalsResult {
 export interface ComputeTotalsOptions {
   taxRate: number
   taxConfig?: TaxConfig | null   // null = flat default_tax_rate path (retrocompat); present = per-category
+  // DISC-02: global discount (whole-number percent, e.g. 10 → 10%). Absent/'none'/null → disc_global 0
+  // (byte-identical retrocompat).
+  discountType?: 'amount' | 'percent' | 'none' | null
+  discountValue?: number | null
 }
 
 /**
@@ -72,7 +77,7 @@ function isTaxConfig(value: unknown): value is TaxConfig {
  */
 export function computeEstimateTotals(
   sections: ComputeTotalsSection[],
-  { taxRate, taxConfig }: ComputeTotalsOptions
+  { taxRate, taxConfig, discountType, discountValue }: ComputeTotalsOptions
 ): ComputeTotalsResult {
   const calculatedSections = sections.map((section) => {
     const items = section.items.map((item) => {
@@ -88,11 +93,23 @@ export function computeEstimateTotals(
   const subtotal =
     Math.round(calculatedSections.reduce((sum, s) => sum + s.subtotal, 0) * 100) / 100
 
+  // DISC-02: global discount (amount or percent) applied BEFORE tax (US-norm default).
+  // discountValue percent is a whole number (10 → 10%). When no global discount → 0
+  // (byte-identical retrocompat). FOLLOW-UP: a per-company discount-timing (before/after-tax)
+  // config is not read here — only before-tax is implemented; wire an after-tax branch when a
+  // companies.* timing flag is cheaply available (see REQUIREMENTS.md DISC-02).
+  const discGlobal =
+    discountType === 'amount'
+      ? Math.round((discountValue ?? 0) * 100) / 100
+      : discountType === 'percent'
+        ? Math.round(subtotal * ((discountValue ?? 0) / 100) * 100) / 100
+        : 0
+
   let taxAmount: number
   if (!isTaxConfig(taxConfig)) {
-    // RETROCOMPAT (taxConfig absent / null / malformed) → flat subtotal × taxRate.
-    // BYTE-IDENTICAL to the pre-v4.11 engine — do NOT alter this expression.
-    taxAmount = Math.round(subtotal * taxRate * 100) / 100
+    // RETROCOMPAT (taxConfig absent / null / malformed) → flat (subtotal − disc_global) × taxRate.
+    // When discGlobal === 0 this is BYTE-IDENTICAL to the pre-v4.11 `subtotal × taxRate` expression.
+    taxAmount = Math.round((subtotal - discGlobal) * taxRate * 100) / 100
   } else {
     // TAX-03 ACTIVE: accumulate each taxable item's lineNet into its category base, then
     // sum base × resolved rate. Non-taxable items (taxable === false) accrue ZERO base.
@@ -106,6 +123,11 @@ export function computeEstimateTotals(
       }
     }
 
+    // DISC-02 PRORATION: distribute disc_global across each category's taxable base by its share
+    // of the taxable subtotal, subtracting it BEFORE multiplying by the rate (discount-before-tax).
+    // When the taxable subtotal is 0, prorate nothing (avoid /0).
+    const taxableSubtotal = Object.values(categoryBase).reduce((sum, b) => sum + b, 0)
+
     let rawTax = 0
     for (const [category, base] of Object.entries(categoryBase)) {
       const categoryRate = (taxConfig.rates as Record<string, number | undefined>)[category]
@@ -116,13 +138,18 @@ export function computeEstimateTotals(
           : typeof taxConfig.default_rate === 'number'
             ? taxConfig.default_rate
             : taxRate
-      rawTax += base * rate
+      const proratedDisc =
+        taxableSubtotal > 0
+          ? Math.round(discGlobal * (base / taxableSubtotal) * 100) / 100
+          : 0
+      const discountedBase = base - proratedDisc
+      rawTax += discountedBase * rate
     }
     // SAME Math.round(x*100)/100 discipline as the flat path for byte-consistency.
     taxAmount = Math.round(rawTax * 100) / 100
   }
 
-  const grandTotal = Math.round((subtotal + taxAmount) * 100) / 100
+  const grandTotal = Math.round(((subtotal - discGlobal) + taxAmount) * 100) / 100
 
-  return { sections: calculatedSections, subtotal, taxAmount, grandTotal }
+  return { sections: calculatedSections, subtotal, discountAmount: discGlobal, taxAmount, grandTotal }
 }
