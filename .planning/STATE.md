@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
 milestone: v4.9
-milestone_name: Internal Web Chat Assistant
-status: verifying
+milestone_name: Internal Web Chat Assistant — the 3rd channel
+status: in-progress
 stopped_at: Completed 122-03-PLAN.md
-last_updated: "2026-06-25T01:58:10.281Z"
+last_updated: "2026-06-25T02:03:34.478Z"
 last_activity: 2026-06-25
 progress:
-  total_phases: 19
-  completed_phases: 19
-  total_plans: 54
-  completed_plans: 54
+  total_phases: 77
+  completed_phases: 60
+  total_plans: 177
+  completed_plans: 190
 ---
 
 # Project State
@@ -27,12 +27,11 @@ progress:
 - **Dependency spine:** 122 (neutral extraction + parity) is the foundation — nothing works without it. 123 (persistence) can run in PARALLEL with 124's early work but is needed before any history renders. 124 (AI SDK backend) needs 122 (tools) + 123 (persistence). 125 (chat UI) needs 124 (backend) + 123 (history) + 122 (`normalize`). 126 (access gate) needs 124 + 125 and is the last/verification phase. CHATMETER-01 (credit reuse) folds into 124 (it falls out of reusing the neutral debit path); CHATMETER-02 (owner-only + tier gate) is its own thin Phase 126.
 - **Locked guardrails (SEED-034 + PROJECT.md):** the chat reimplements NO domain logic — it reuses the neutral modules (the governing principle: WhatsApp = CHAT = MCP, three siblings over the SAME neutral core). AI SDK = the chat/streaming layer; the LangGraph estimate engine stays INTOCADO, invoked as a tool (tool-call boundary, not a streaming bridge). Substitute the template's infra: Supabase Auth/Postgres/Storage + OpenRouter (NOT Auth.js/Drizzle/Neon/Blob/AI-Gateway). Owner-only, tenant-scoped, NEVER customer-facing. Idempotent + authored-only migrations, deploy CI→GHCR→Coolify (never build on the VPS). Channel-neutral modules never import a channel (grep gate). v1 = generate + query + knowledge + multimodal; estimate-edit-in-chat + send-in-chat DEFERRED (owner opens the result in the existing editor); MCP parity (SEED-030) is a LATER milestone the extraction here makes cheap.
 - **Previous milestone**: v4.8 Industry Knowledge Base — Channel-Neutral Conversational Assistant — SHIPPED 2026-06-24 (phases 117-121, 15/15 requirements, full unit suite green 314 files / 2219 tests). The channel-neutral `lib/knowledge/` module v4.9's `askKnowledge` tool wraps. Operational deferrals carried: apply 2 migrations (knowledge_entries, match RPC) to remote + configure embeddings key + seed industry KBs.
-- **Position**: **Phase 122 COMPLETE (3/3 plans) — the load-bearing channel-neutral foundation is shipped.** `lib/agent-tools/` now exposes all four neutral capabilities (createEstimate dispatch, 6 company data-reads, normalizeInput, askKnowledge) over a single barrel, WhatsApp re-pointed as thin adapters, the full parity suite green with behavioral assertions unchanged, the neutrality gate permanent. Next: `/gsd:verify-work 122`, then `/gsd:execute-phase 123` (Chat Persistence Schema) — can parallel Phase 124's early work.
-
+- **Position**: Phase 122 COMPLETE (3/3 plans, verified 5/5 — lib/agent-tools/ neutral capabilities createEstimate/queryCompanyData/normalizeInput/askKnowledge; WhatsApp re-pointed; parity green). Next: `/gsd:plan-phase 123` (chat persistence schema + history). NOTE: `phase complete` mis-points next at stale 999.1 — real next is **123**.
 ## Current Position
 
-Phase: 122 (Channel-Neutral Domain Extraction + WhatsApp Parity) — EXECUTING
-Plan: 3 of 3
+Phase: 999.1
+Plan: Not started
 Status: Phase complete — ready for verification
 
 ---
