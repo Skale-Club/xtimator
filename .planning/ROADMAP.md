@@ -785,7 +785,7 @@ Plans:
 | 118. Channel-Neutral lib/knowledge/ Module | v4.8 | 3/3 | Complete    | 2026-06-24 |
 | 119. Super-Admin Industry KB Curation + Bulk Import | v4.8 | 3/3 | Complete    | 2026-06-24 |
 | 120. Company KB Overlay (tenant settings) | v4.8 | 2/2 | Complete    | 2026-06-25 |
-| 121. WhatsApp KNOWLEDGE Intent | v4.8 | 0/0 | Not started | - |
+| 121. WhatsApp KNOWLEDGE Intent | v4.8 | 0/1 | Planned | - |
 
 ### Phase 75: Tour and Tooltip QA
 
@@ -1472,4 +1472,5 @@ Plans:
 **Success Criteria** (what must be TRUE):
   1. `classifyAndRoute` recognizes a 5th KNOWLEDGE intent with a QUERY-vs-KNOWLEDGE disambiguation rule (QUERY = the company's own estimates/clients/projects; KNOWLEDGE = trade how-to/process), and an unrecognized message still falls back to the safe CREATE default (never a privileged action)
   2. A KNOWLEDGE message dispatches to `lib/knowledge/answer` scoped by the resolved company's `industries[]` plus its overlay, and the resulting answer is delivered to the owner through the existing chunked owner reply path (`sendOwnerReplyChunks`)
-**Plans**: TBD
+**Plans**: 1 plan
+- [ ] 121-01-PLAN.md - KNOWLEDGE intent (union/parseIntent/classify prompt) + dispatchKnowledge scoped by industries[]
