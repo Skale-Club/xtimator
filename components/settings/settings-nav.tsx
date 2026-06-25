@@ -2,7 +2,7 @@
 
 import { usePathname } from 'next/navigation'
 import {
-  Bell, Building2, CreditCard, FileText, Globe,
+  Bell, BookOpen, Building2, CreditCard, FileText, Globe,
   PenLine, Plug, ShieldCheck, Send, Wallet, User, Users,
 } from 'lucide-react'
 import { SubNav, type SubNavItem } from '@/components/ui/sub-nav'
@@ -17,6 +17,7 @@ const ITEMS: SubNavItem[] = [
   { value: 'payments',           label: 'Payments',      Icon: Wallet,      href: '/settings/payments'           },
   { value: 'templates',          label: 'Templates',     Icon: PenLine,     href: '/settings/estimate-templates' },
   { value: 'domain',             label: 'Domain',        Icon: Globe,       href: '/settings/custom-domain'      },
+  { value: 'knowledge',          label: 'Knowledge',     Icon: BookOpen,    href: '/settings/knowledge'          },
   { value: 'integrations',       label: 'Integrations',  Icon: Plug,        href: '/settings/integrations'       },
   { value: 'staff',              label: 'Staff',         Icon: Users,       href: '/settings/staff'              },
   { value: 'account',            label: 'Account',       Icon: ShieldCheck, href: '/settings/account'            },
