@@ -32,6 +32,7 @@
 - ✅ **v4.10 MCP Channel Parity** — Phases 127-128 (shipped 2026-06-25) — binds the v4.9 neutral `lib/agent-tools/` over the existing v4.1 MCP server, closing the WhatsApp = chat = MCP sibling-channels principle
 - ✅ **v4.11 Advanced Pricing Model — Per-Item Tax, Discounts, Deposit & Markup** — Phases 129-134 (shipped 2026-06-25) — enriched the pricing MODEL so the existing GUARD-03 server-side deterministic engine computes per-item tax, discounts, deposit & markup; NO AI calculator; byte-identical retrocompat; SEED-032
 - 🚧 **v4.12 Team Seats & Member Invites** — Phases 135-140 (roadmap created 2026-06-25) — turn the dormant `company_members` foundation (Phase 79) into team seats: invite teammates into the SAME company, owner/admin/member roles (server-side `requireCompanyRole` + RLS, never client-trusted), and per-seat billing fully configurable in `billing_config`/super-admin (nothing hardcoded), gated by `enforcementEnabled`; retrocompat single-owner orgs = zero charge; reuse existing RLS, do NOT rebuild multi-tenancy; SEED-037
+- 🚧 **v4.13 Annual Billing** — Phases 141-145 (roadmap created 2026-06-25) — add a discounted ANNUAL subscription option while keeping AI credit distribution MONTHLY for every interval. The load-bearing change: decouple the credit grant from the invoice cadence via an Inngest monthly cron + a `grant:{companyId}:{YYYY-MM}` company-month idempotency key shared with the `invoice.paid` webhook (exactly one grant per company per calendar month, any interval). Annual price + seat price live in `billing_config`/super-admin (nothing hardcoded; discount % derived); base charge via pre-created annual Stripe Price IDs (env placeholders); seat annual via inline `price_data`; checkout `billingInterval` default `'month'` keeps the monthly path byte-identical; gated by `enforcementEnabled`; SEED-038
 
 > **Phase numbering note:** v3.1.1 starts at **Phase 66**, not 62. Phases 62-65 are reserved as DEFERRED placeholders for the v3.2 Production Deploy milestone (Vercel→Hetzner deploy + Stripe live + monitoring + UAT in prod). Skipping past 62-65 keeps the global phase counter unambiguous and prevents number reuse confusion when v3.2 begins.
 
@@ -790,6 +791,11 @@ Plans:
 | 119. Super-Admin Industry KB Curation + Bulk Import | v4.8 | 3/3 | Complete    | 2026-06-24 |
 | 120. Company KB Overlay (tenant settings) | v4.8 | 2/2 | Complete    | 2026-06-25 |
 | 121. WhatsApp KNOWLEDGE Intent | v4.8 | 1/1 | Complete    | 2026-06-25 |
+| 141. Configurable Annual Pricing | v4.13 | 0/TBD | Not started | - |
+| 142. Monthly Credit Grant Decouple | v4.13 | 0/TBD | Not started | - |
+| 143. Annual Checkout | v4.13 | 0/TBD | Not started | - |
+| 144. Interval-Aware Seat Billing | v4.13 | 0/TBD | Not started | - |
+| 145. Pricing UI Toggle | v4.13 | 0/TBD | Not started | - |
 
 ### Phase 75: Tour and Tooltip QA
 
@@ -1808,4 +1814,80 @@ Plans:
 **Plans**: 1 plan in `.planning/phases/140-seat-cost-ui/`
 Plans:
 - [x] 140-01-PLAN.md — Pure seat-cost summary builder (reuses computeBillableSeats/computeSeatChargeCents + getBillingConfig) + team page server-compute wiring + TeamSection owner/admin-only cost line (i18n, mobile, truthful when enforcement off)
+**UI hint**: yes
+
+## 🚧 v4.13 Annual Billing (Phases 141-145)
+
+**Milestone Goal:** Add a discounted ANNUAL subscription option while keeping AI credit distribution MONTHLY for every interval. Annual changes price + billing cadence only — never the rate at which credits flow. The load-bearing change is NOT the price field: it is decoupling the monthly credit grant from the invoice cadence. Today the grant is a side-effect of `invoice.paid`, which fires monthly for monthly subs but only once a year for annual subs. A monthly Inngest cron grants `monthlyCreditGrant` to active paying companies, idempotent on a company+month key `grant:{companyId}:{YYYY-MM}`; `invoice.paid` adopts the SAME key so the two converge to exactly one grant per company per calendar month for any interval. Annual price + seat price are fully configurable in `billing_config`/super-admin (nothing hardcoded; discount % derived); the base charge rides pre-created annual Stripe Price IDs (env placeholders only); seats use inline `price_data`. Default interval `'month'` keeps every existing monthly subscriber byte-identical. Source: SEED-038.
+
+> **Numbering:** continues the GLOBAL phase counter. v4.12 ended at Phase 140. **v4.13 starts at Phase 141.** Do NOT reset to 1.
+>
+> **Coverage:** 5/5 v4.13 requirements mapped (ANN-01..ANN-05). No orphans. Mapping: ANN-01 → 141, ANN-02 → 142, ANN-03 → 143, ANN-04 → 144, ANN-05 → 145.
+>
+> **Locked scope guardrails (do NOT plan against):** Credits stay MONTHLY for EVERY interval — annual is only a price discount (same tier, same `monthlyCreditGrant`, same seats). The company-month key `grant:{companyId}:{YYYY-MM}` is the SINGLE dedup authority shared by the webhook AND the cron → exactly one grant per company per calendar month, NO double-grant. ZERO hardcoded billing numbers — `tiers[tier].subscriptionPriceAnnualCents` + `seatPriceAnnualCents` live in `billing_config`, read via `getBillingConfig()`, editable without a deploy; the discount % is DERIVED (`1 − annual/(12×monthly)`), never stored; no annual price / discount % / Stripe Price ID may be a constant. The base annual charge uses pre-created Stripe Price IDs (env `STRIPE_PRICE_PRO_ANNUAL` / `STRIPE_PRICE_BUSINESS_ANNUAL` — PLACEHOLDERS ONLY in every doc, never a real ID or key); seat annual uses inline `price_data` driven straight from `seatPriceAnnualCents` (no pre-created Price ID). Interval is selected at checkout (`billingInterval: 'month' | 'year'`, default `'month'`) and threaded through metadata; the seat sync reads the subscription interval and matches it (the hardcoded `recurring: { interval: 'month' }` becomes dynamic). Charging stays gated by the existing `enforcementEnabled` / live-mode discipline (display can ship anytime). Retrocompat is the load-bearing invariant: default interval `'month'`, the existing monthly path byte-identical, a regression test locks "monthly subs still get exactly one grant/month with no double-grant across webhook + cron." Mid-cycle proration on interval switch is v2. Mobile-safe UI (iOS Safari / Android Chrome); i18n en/pt/es.
+
+### Phases
+
+- [ ] **Phase 141: Configurable Annual Pricing** — Extend `BillingConfig`/`DEFAULT_BILLING_CONFIG` with `tiers[tier].subscriptionPriceAnnualCents` (per-tier) + `seatPriceAnnualCents` (global) as null-safe, deep-merge-tolerant calibration placeholders; mirror them in the admin zod schema; surface both as editable super-admin billing-panel fields. Foundation for the annual price; nothing hardcoded; independent of the cron. (ANN-01)
+- [ ] **Phase 142: Monthly Credit Grant Decouple** — THE load-bearing phase. Change the `invoice.paid` grant idempotency key from `event.id` to `grant:{companyId}:{YYYY-MM}`; add an Inngest monthly cron (`lib/inngest/functions/monthly-credit-grant.ts`, mirroring the `cleanup-audio` cron pattern) that grants `monthlyCreditGrant` to active paying companies once per company-month using the SAME key, reusing the idempotent never-throw `grantCredits`. Exactly one grant per company per calendar month for ALL intervals. Retrocompat regression test (monthly subs, no double-grant across webhook + cron) is the gate. (ANN-02)
+- [ ] **Phase 143: Annual Checkout** — `create-checkout-session` accepts `billingInterval: 'month' | 'year'` (default `'month'`), selects the matching annual Stripe Price ID (new env `STRIPE_PRICE_PRO_ANNUAL` / `STRIPE_PRICE_BUSINESS_ANNUAL`, placeholders only), and stores `billing_interval` in the subscription/session metadata. The no-interval / `'month'` path stays byte-identical. (ANN-03)
+- [ ] **Phase 144: Interval-Aware Seat Billing** — Make `syncSubscriptionSeatItem` read the subscription's interval and set the seat item's `recurring.interval` to match (replacing the hardcoded `'month'`), using `seatPriceAnnualCents` (inline `price_data`) for annual subscriptions. Monthly orgs unchanged; gated by the same `enforcementEnabled` switch. Builds on the v4.12 seat billing. (ANN-04)
+- [ ] **Phase 145: Pricing UI Toggle** — The pricing cards (`tier-cards-grid.tsx` + `tier-card.tsx`) gain a Monthly/Annual toggle showing the annual price, the DERIVED "save X%" badge, and the per-month equivalent; the selected interval threads into the upgrade/checkout action. Mobile-safe; i18n en/pt/es via runtime `t()`. (ANN-05)
+
+### Phase Details — v4.13 Annual Billing
+
+### Phase 141: Configurable Annual Pricing
+**Goal**: The annual price and annual seat price exist as super-admin-editable knobs with nothing hardcoded. `BillingConfig` + `DEFAULT_BILLING_CONFIG` gain `tiers[tier].subscriptionPriceAnnualCents` (per-tier) and `seatPriceAnnualCents` (global) as null-safe calibration placeholders; the admin zod schema accepts them; the super-admin billing panel surfaces both as editable fields. This is the foundation the annual Stripe Price (143), the interval-aware seat charge (144), and the UI discount badge (145) all read from. Ships as configurable data with no charging behavior yet.
+**Depends on**: Nothing (first phase of the milestone). Reuses the existing `billing_config` / `getBillingConfig` mechanism + the v4.12 `seatPriceCents` / `includedSeats` placeholder discipline; does NOT touch the cron or checkout.
+**Requirements**: ANN-01
+**Success Criteria** (what must be TRUE):
+  1. `BillingConfig` + `DEFAULT_BILLING_CONFIG` gain `tiers[tier].subscriptionPriceAnnualCents` (per-tier) and `seatPriceAnnualCents` (global) as null-safe calibration placeholders (NOT final numbers — mirroring the existing `subscriptionPriceCents` / `seatPriceCents` placeholder discipline), and the `getBillingConfig` deep-merge reader resolves them for a `billing_config` row written before the fields existed (the Pitfall-6 tolerance)
+  2. A super-admin can edit each tier's `subscriptionPriceAnnualCents` and the global `seatPriceAnnualCents` in the billing panel, save, and the new values take effect at runtime with no redeploy (the 30s TTL flush); the admin zod schema validates the new fields and the tenant (business owner) has no route to these controls
+  3. A static test asserts no annual price, discount %, or Stripe Price ID is a constant in any application-code billing path — every annual number resolves from `billing_config` at runtime
+  4. No charging, checkout, cron, or seat behavior changes in this phase — the fields exist and are editable but nothing reads them to charge yet (the monthly path is byte-identical)
+**Plans**: TBD
+
+### Phase 142: Monthly Credit Grant Decouple
+**Goal**: The monthly AI credit grant is decoupled from the invoice cadence so annual subscribers get credits every calendar month — not once a year — without ever double-granting monthly subscribers. The `invoice.paid` handler's grant idempotency key moves from `event.id` to `grant:{companyId}:{YYYY-MM}`, and a new monthly Inngest cron grants `monthlyCreditGrant` to active paying companies using that SAME company-month key, reusing the idempotent never-throw `grantCredits`. The company-month key is the single dedup authority, so the webhook and the cron converge to exactly one grant per company per calendar month for any interval. This is the heart of the milestone — get it right and the rest is mechanical.
+**Depends on**: Nothing in this milestone (independent of the price field — can run in parallel with 141). Reuses the idempotent never-throw `grantCredits` (`lib/billing/credit-ledger.ts`), the `invoice.paid` grant in `app/api/webhooks/stripe/route.ts` (~line 194), and the Inngest `cron:` trigger pattern from `lib/inngest/functions/cleanup-audio.ts` (registered in `lib/inngest/functions/index.ts`).
+**Requirements**: ANN-02
+**Success Criteria** (what must be TRUE):
+  1. The `invoice.paid` credit grant uses idempotency key `grant:{companyId}:{YYYY-MM}` (derived from the company id + the current calendar month) instead of `event.id`; a redelivered webbook in the same month is still a no-op, and the grant still fires immediately on first-subscribe and on renewal (the instant-UX path is preserved)
+  2. A new Inngest monthly cron `lib/inngest/functions/monthly-credit-grant.ts` (mirroring the `cleanup-audio` `triggers: [{ cron: ... }]` pattern, registered in `lib/inngest/functions/index.ts`) grants `monthlyCreditGrant` to every active paying company (tier ≠ free / not trial-expired, subscription active) once per calendar month, using the SAME `grant:{companyId}:{YYYY-MM}` key and the idempotent never-throw `grantCredits`
+  3. The company-month key is the SINGLE dedup authority across BOTH paths: a monthly subscriber's `invoice.paid` grants the month and the cron no-ops that month (key present); an annual subscriber's `invoice.paid` grants month 1 and the cron grants months 2-12 — NO company is ever granted twice in one calendar month, proven by a regression test that runs the webhook and the cron in the same month and asserts a single ledger grant
+  4. Retrocompat: a regression test locks that every existing monthly subscriber still receives exactly one grant per calendar month with the new key, with no double-grant during the `event.id` → company-month transition; the grant remains never-throw so a grant failure never blocks the webhook ack or the cron run
+**Plans**: TBD
+
+### Phase 143: Annual Checkout
+**Goal**: A business owner can start an ANNUAL checkout. `create-checkout-session` accepts `billingInterval: 'month' | 'year'` (default `'month'`), routes to the matching annual Stripe Price ID (new env, placeholders only), and records `billing_interval` in the session + subscription metadata so downstream sync (144) and reporting know the interval. The no-interval / `'month'` request stays byte-identical to today.
+**Depends on**: Phase 141 (the annual price/Stripe linkage — the `subscriptionPriceAnnualCents` super-admin figure must be kept consistent with the pre-created annual Stripe Price the checkout charges). Reuses the existing checkout in `app/api/billing/create-checkout-session/route.ts` and its `STRIPE_PRICE_PRO` / `STRIPE_PRICE_BUSINESS` env pattern.
+**Requirements**: ANN-03
+**Success Criteria** (what must be TRUE):
+  1. `create-checkout-session` accepts a `billingInterval: 'month' | 'year'` field defaulting to `'month'`; for `'year'` it selects the annual Stripe Price ID from a new env (`STRIPE_PRICE_PRO_ANNUAL` / `STRIPE_PRICE_BUSINESS_ANNUAL`) and returns a clear error if the relevant annual env is unset (mirroring the existing monthly missing-env guard)
+  2. The created Checkout Session (and its `subscription_data.metadata`) carries `billing_interval` alongside the existing `companyId` + `plan`, so the seat-billing sync (144) and any reporting can read the interval from the subscription without a line-items expand call
+  3. A request with no `billingInterval` (or `'month'`) produces a Checkout Session byte-identical to today — same monthly Price ID, same metadata shape plus `billing_interval: 'month'` — so existing monthly checkout is unchanged
+  4. New annual env vars are documented in `.env.local.example` / `.env.production.example` with PLACEHOLDERS ONLY (e.g. `price_<your-annual-pro-price-id>`) — never a real Stripe Price ID or key in any doc
+**Plans**: TBD
+
+### Phase 144: Interval-Aware Seat Billing
+**Goal**: Seat billing follows the subscription's interval. `syncSubscriptionSeatItem` reads the subscription's interval (instead of the hardcoded `recurring: { interval: 'month' }`) and matches the seat item to it, using `seatPriceAnnualCents` (inline `price_data`, config-driven — never a pre-created Price ID) for annual subscriptions. A monthly org's seat billing is unchanged, and the whole behavior stays gated by `enforcementEnabled`.
+**Depends on**: Phase 141 (the `seatPriceAnnualCents` config it reads). Builds on the v4.12 seat-billing machinery (`syncSubscriptionSeatItem` / `syncSeatBilling`, `lib/billing/stripe-client.ts` ~line 79). Independent of checkout (143) — it reads the live subscription's interval, not the checkout request.
+**Requirements**: ANN-04
+**Success Criteria** (what must be TRUE):
+  1. `syncSubscriptionSeatItem` reads the subscription's recurring interval from the retrieved Stripe subscription and sets the seat item's `recurring.interval` to match — the hardcoded `recurring: { interval: 'month' }` is gone; a monthly subscription still produces a monthly seat item and an annual subscription produces an annual seat item
+  2. For an annual subscription the seat item's `unit_amount` comes from `billing_config.seatPriceAnnualCents` via inline `price_data` (config-driven, never a pre-created Price ID), and for a monthly subscription it comes from `seatPriceCents` exactly as today — both resolved at runtime from `getBillingConfig()`, nothing hardcoded
+  3. Retrocompat: a monthly org's seat-billing sync is byte-identical to v4.12 (same interval, same price source, same quantity math), and a single-owner org within `includedSeats` still makes no Stripe seat write in either interval
+  4. The interval-aware seat sync stays gated by `billing_config.enforcementEnabled` (records with enforcement off, charges only when on) and remains never-throw / non-fatal so a seat-sync failure never blocks the underlying membership or checkout operation
+**Plans**: TBD
+
+### Phase 145: Pricing UI Toggle
+**Goal**: A business owner sees a Monthly/Annual toggle on the pricing cards and can choose annual to start a discounted annual checkout. The annual view shows the annual price, a DERIVED "save X%" badge (`1 − annual/(12×monthly)`, never a stored number), and the per-month equivalent; the selected interval threads into the upgrade/checkout action so picking Annual starts an annual checkout (143). Mobile-safe and localized en/pt/es.
+**Depends on**: Phase 141 (the annual price the cards display) and Phase 143 (the checkout interval the toggle threads into). Reuses the existing pricing cards `components/billing/tier-cards-grid.tsx` + `tier-card.tsx` and their `T`/`t()` i18n idiom.
+**Requirements**: ANN-05
+**Success Criteria** (what must be TRUE):
+  1. The pricing cards render a Monthly/Annual toggle; selecting Annual switches each card to show the annual price, the per-month-equivalent (annual ÷ 12), and a "save X%" badge whose percentage is DERIVED at render time from `1 − annual/(12×monthly)` using the `billing_config` annual + monthly figures — no discount % or annual price is hardcoded in the component (a static test asserts this)
+  2. Choosing Annual and clicking the upgrade/CTA threads `billingInterval: 'year'` into the checkout action so the annual Checkout Session (Phase 143) is created; choosing Monthly threads `'month'` (default) and the checkout is byte-identical to today
+  3. The toggle + annual card layout is mobile-safe (usable on iOS Safari and Android Chrome) and every new string (toggle labels, "save X%", per-month equivalent, period) routes through runtime `t()` with en/pt/es coverage — no hardcoded copy
+  4. A tier with no configured annual price (placeholder unset) degrades gracefully — the Annual toggle either hides that tier's annual option or shows a clear unavailable state rather than rendering a broken/zero price
+**Plans**: TBD
 **UI hint**: yes

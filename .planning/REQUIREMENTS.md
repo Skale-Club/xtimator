@@ -1,79 +1,75 @@
-# Requirements: Xtimator — Milestone v4.12 Team Seats & Member Invites (SHIPPED 2026-06-25)
+# Requirements: Xtimator — Milestone v4.13 Annual Billing
 
 **Defined:** 2026-06-25
 **Core Value:** A business owner can go from job site audio recording to a sent, professional estimate in under 5 minutes without touching a keyboard.
-**Milestone goal:** Turn the dormant multi-user foundation (`company_members`, Phase 79) into a real team-seats feature — invite teammates into the SAME organization (`company`), assign roles, and bill per seat at a price that is fully configurable in the super-admin panel. Source: [SEED-037](seeds/SEED-037-team-seats-member-invites.md).
+**Milestone goal:** Add a discounted ANNUAL subscription option while keeping AI credit distribution MONTHLY for every interval. Annual changes price + billing cadence only — never the rate at which credits flow. Source: [SEED-038](seeds/SEED-038-annual-billing-discount.md).
 
 > **Locked decisions (non-negotiable):**
-> - **The org unit is `company`; a seat = one `company_members` row.** No new "organization" entity. All org-owned data (clients, price book, estimates, credits, Connect payout) is already company-scoped and shared by every member via the EXISTING RLS that authorizes through `company_members` — reuse it, do NOT rebuild multi-tenancy.
-> - **Roles widen to a small explicit matrix: `owner` / `admin` / `member`** (`viewer` deferred to v2). Exactly one `owner` per company (billing-responsible). Role checks are SERVER-SIDE authority (RLS + a single `requireCompanyRole` helper) — never trusted from the client.
-> - **ZERO hardcoded billing numbers.** The per-seat price (`seatPriceCents`) and the per-tier included-seat counts (`tiers[tier].includedSeats`) live in the super-admin `billing_config` store (`lib/billing/billing-config.ts`), read at runtime via `getBillingConfig()`, editable in the panel, applied without a deploy (30s TTL flush) — exactly like `estimateFeePct` / `markup` / `monthlyCreditGrant`. No seat price, included-seat count, or Stripe Price ID may be a constant in application code.
-> - **The super-admin panel controls every billing knob and is ONLY for Xtimator operators.** Tenants never see it (reuses the [[SEED-035]] discipline).
-> - **Billable seats = `max(0, activeMembers − tiers[tier].includedSeats)`**; monthly seat charge = `billableSeats × seatPriceCents`. Seats are billed on the EXISTING platform subscription (`companies.stripe_subscription_id`) as a quantity-based subscription item whose `unit_amount` comes from `billing_config` and whose `quantity` re-syncs on membership change.
-> - **Calibrate before charging.** Seat billing is gated by the master `billing_config.enforcementEnabled` switch (default false): seat changes RECORD the quantity but do not charge until calibration flips it on.
-> - **Retrocompat is mandatory.** Existing single-owner orgs sit inside `includedSeats` → zero seat charge, zero behavior change. The invite/role/billing additions must not alter any single-user flow.
-> - **A pending invite does NOT consume a billable seat** — the seat is counted on ACCEPTANCE.
+> - **Credits stay MONTHLY for everyone; annual is only a price discount.** The annual plan is the same tier (same entitlements, same `monthlyCreditGrant`, same seats) at a lower effective monthly price. The discount is the only incentive.
+> - **Decouple the credit grant from the invoice cadence.** Today the monthly grant is a side-effect of `invoice.paid`, which fires monthly for monthly subs but only **once a year** for annual subs. The grant becomes calendar-month-driven: a monthly Inngest cron grants `monthlyCreditGrant` to active paying companies, idempotent on a **company+month** key `grant:{companyId}:{YYYY-MM}`. `invoice.paid` uses the SAME key so the two converge → **exactly one grant per company per calendar month**, for any interval. Monthly sub → webhook grants (cron no-ops); annual sub → webhook grants month 1, cron grants months 2-12.
+> - **ZERO hardcoded billing numbers.** The annual price (`tiers[tier].subscriptionPriceAnnualCents`) and the annual seat price (`seatPriceAnnualCents`) live in the super-admin `billing_config`, read at runtime via `getBillingConfig()`, editable without a deploy. The displayed discount % is DERIVED (`1 − annual/(12×monthly)`), never a stored magic number. No annual price, discount %, or Stripe Price ID may be a constant in application code.
+> - **The actual base-subscription charge uses pre-created annual Stripe Price IDs** (env `STRIPE_PRICE_PRO_ANNUAL` / `STRIPE_PRICE_BUSINESS_ANNUAL`, placeholders only). `billing_config.subscriptionPriceAnnualCents` is the display/super-admin figure kept consistent with the Stripe Price (same split as the existing monthly path). Seat billing uses inline `price_data` driven straight from `seatPriceAnnualCents` (no pre-created Price ID).
+> - **Interval is selected at checkout** (`billingInterval: 'month' | 'year'`, default `'month'`) and threaded through metadata; the seat-billing sync reads the subscription interval and matches it (the hardcoded `recurring: { interval: 'month' }` becomes dynamic).
+> - **Retrocompat is mandatory.** Default interval is `'month'`; every existing monthly subscriber is untouched. The grant idempotency-key change must keep granting monthly subs exactly once per month with NO double-grant across the webhook + cron (the company-month key is the single dedup authority) — a regression test locks this.
+> - **Charging stays behind the existing enforcement / live-mode discipline** (consistent with credit + seat billing). Display can ship anytime.
 
 ## v1 Requirements
 
 Each requirement maps to exactly one roadmap phase.
 
-### Schema & Authorization
+### Configurable Annual Pricing
 
-- [x] **SEAT-01**: Idempotent authored-only migration — widen `company_members.role` CHECK from `('owner')` to `('owner','admin','member')` (DROP/ADD named CHECK); create `company_invites` table (`id`, `company_id`, `email`, `role`, `token`, `status`, `invited_by`, `expires_at`, `created_at`) + RLS (owner/admin manage their company's invites; token-based accept via service role). Retrocompat: existing `owner` rows untouched; no change to `companies` billing columns.
-- [x] **SEAT-02**: A single server-side `requireCompanyRole(companyId, roles)` authorization helper enforcing the locked role matrix (owner/admin manage members; owner-only for billing/seat/ownership). Every team + billing server action gates through it; the role gate lives in ONE place and is never client-trusted.
+- [ ] **ANN-01**: Extend `BillingConfig` + `DEFAULT_BILLING_CONFIG` (`lib/billing/billing-config.ts`) with `tiers[tier].subscriptionPriceAnnualCents` (per-tier) + `seatPriceAnnualCents` (global) as null-safe calibration placeholders, mirror them in the admin zod schema (`lib/schemas/admin.ts`), and surface both as editable fields in the super-admin billing panel. Nothing hardcoded; deep-merge tolerant for rows written before the fields existed.
 
-### Invites & Membership
+### Monthly Credit Grant Decouple (the core)
 
-- [x] **SEAT-03**: Invite lifecycle — `inviteMember(companyId, email, role)` + `revokeInvite` server actions (owner/admin only) creating a single-use, expiring `company_invites` row and sending a Resend invite email with the accept link. A pending invite does not consume a billable seat.
-- [x] **SEAT-04**: Accept onboarding — `acceptInvite(token)`: a token that is valid/unexpired/pending adds the `company_members` row and switches the active company. If the invited email already has an auth user → join directly; if not → a signup-then-join branch that SKIPS company creation (the existing onboarding always creates a company — this path must branch to JOIN the existing one).
-- [x] **SEAT-05**: Member management — `removeMember` + `changeMemberRole` server actions (gated) + a `Settings → Team` UI: list members (name/email/role), list pending invites, an Invite action (email + role), remove member, change role. Mobile-safe (iOS Safari / Android Chrome). Removing a member revokes access immediately and decrements the seat quantity on the next sync.
+- [ ] **ANN-02**: Change the `invoice.paid` credit-grant idempotency key to `grant:{companyId}:{YYYY-MM}` and add an Inngest monthly cron (`lib/inngest/functions/monthly-credit-grant.ts`) that grants `monthlyCreditGrant` to active paying companies once per company-month using the SAME key (reusing the idempotent, never-throw `grantCredits`). Guarantees exactly one grant per company per calendar month for ALL intervals. Retrocompat: monthly subscribers still get exactly one grant/month with NO double-grant across webhook + cron — regression-tested.
 
-### Configurable Seat Billing
+### Annual Checkout
 
-- [x] **SEAT-06**: Extend `BillingConfig` + `DEFAULT_BILLING_CONFIG` (`lib/billing/billing-config.ts`) with `seatPriceCents` (global) and `tiers[tier].includedSeats` (per-tier) as null-safe calibration placeholders, and surface both as editable fields in the super-admin billing panel. Nothing hardcoded; the deep-merge reader tolerates rows written before the fields existed.
-- [x] **SEAT-07**: Seat-billing math + sync — pure, unit-tested `computeBillableSeats(activeMembers, includedSeats)` + `computeSeatChargeCents(billableSeats, seatPriceCents)` (no I/O, arithmetic in one place) + a server `syncSeatBilling(companyId)` that reads the live member count + `billing_config` and updates the Stripe subscription seat-quantity item, gated by `billing_config.enforcementEnabled`. Retrocompat: single-owner orgs within `includedSeats` produce zero billable seats and no Stripe write.
-- [x] **SEAT-08**: Seat-cost transparency UI — the `Settings → Team` surface shows the org's current active seat count, the configured per-seat price, and the projected monthly seat cost, all read from `billing_config` at runtime (never hardcoded) — same billing-transparency principle as the 1%-fee disclosure.
+- [ ] **ANN-03**: `create-checkout-session` accepts `billingInterval: 'month' | 'year'` (default `'month'`), selects the matching Stripe Price ID (annual via new env `STRIPE_PRICE_PRO_ANNUAL` / `STRIPE_PRICE_BUSINESS_ANNUAL`), and stores `billing_interval` in the subscription/session metadata. Env examples documented with placeholders only. Retrocompat: the no-interval / `'month'` path is byte-identical to today.
+
+### Interval-Aware Seat Billing
+
+- [ ] **ANN-04**: Make `syncSubscriptionSeatItem` interval-aware — read the subscription's interval and set the seat item's `recurring.interval` to match (replacing the hardcoded `'month'`), using `seatPriceAnnualCents` for annual subscriptions. Retrocompat: monthly orgs' seat billing is unchanged; gated by the same `enforcementEnabled` switch.
+
+### Pricing UI
+
+- [ ] **ANN-05**: The pricing cards (`components/billing/tier-cards-grid.tsx` + `tier-card.tsx`) gain a Monthly/Annual toggle showing the annual price, the DERIVED "save X%" badge, and the per-month-equivalent; the selected interval threads into the upgrade/checkout action. Mobile-safe; i18n en/pt/es via runtime t().
 
 ## v2 Requirements
 
 Deferred to a future milestone. Tracked but not in this roadmap.
 
-- **SEATX-01**: `viewer` (read-only) role + granular per-resource permissions.
-- **SEATX-02**: SSO / SCIM provisioning for larger teams.
-- **SEATX-03**: Per-action audit trail beyond the existing admin audit log; seat-usage analytics.
-- **SEATX-04**: Ownership-transfer with full audit + multi-owner support.
+- **ANNX-01**: Mid-cycle interval switch (monthly↔annual) with Stripe proration.
+- **ANNX-02**: Multi-currency annual pricing.
+- **ANNX-03**: Per-tenant custom discounts / promo codes; annual-only tiers.
+- **ANNX-04**: Dunning / retry-logic changes for annual invoices.
 
 ## Out of Scope
 
 | Feature | Reason |
 |---------|--------|
-| Rebuilding multi-tenancy / RLS | The `company_members`-based RLS already authorizes all data; reuse it |
-| Hardcoded seat price or included-seat counts | Every billing knob is super-admin-configurable via `billing_config` |
-| Charging seats before calibration | Gated by `enforcementEnabled`; record-only until calibrated |
-| `viewer` / granular permissions / SSO | Deferred to v2 — keep the role matrix to owner/admin/member |
-| A second invoice / separate seat checkout | Seats ride the existing platform subscription as a quantity item |
-| Changing any single-owner-org behavior | Retrocompat — existing orgs sit within included seats, zero change |
+| Granting credits 12× upfront on annual | Locked decision — credits stay MONTHLY for all intervals |
+| Hardcoded annual price / discount % / Price ID | Every billing knob is super-admin-configurable via `billing_config`; the discount % is derived |
+| Changing monthly-subscriber behavior | Retrocompat — default interval `'month'`, byte-identical monthly path |
+| Mid-cycle proration on interval switch | Deferred to v2 — v1 selects interval at checkout/upgrade only |
+| Charging before calibration / live-mode | Gated by the existing `enforcementEnabled` / live-mode discipline |
 
 ## Traceability
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SEAT-01 | Phase 135 | Complete |
-| SEAT-02 | Phase 135 | Complete |
-| SEAT-03 | Phase 136 | Complete |
-| SEAT-04 | Phase 137 | Complete |
-| SEAT-05 | Phase 138 | Complete |
-| SEAT-06 | Phase 139 | Complete |
-| SEAT-07 | Phase 139 | Complete |
-| SEAT-08 | Phase 140 | Complete |
+| ANN-01 | Phase 141 | Pending |
+| ANN-02 | Phase 142 | Pending |
+| ANN-03 | Phase 143 | Pending |
+| ANN-04 | Phase 144 | Pending |
+| ANN-05 | Phase 145 | Pending |
 
 **Coverage:**
-- v1 requirements: 8 total
-- Mapped to phases: 8/8 (Phases 135-140) — **0 orphans**
-- Unmapped: 0
+- v1 requirements: 5 total
+- Mapped to phases: 5 (ANN-01 → 141, ANN-02 → 142, ANN-03 → 143, ANN-04 → 144, ANN-05 → 145)
+- Unmapped: 0 — **zero orphans confirmed**
 
 ---
-*Requirements defined: 2026-06-25 — milestone v4.12 Team Seats & Member Invites (source SEED-037; phase numbering continues the global counter — v4.11 ended at Phase 134, so this milestone starts at Phase 135).*
-
-*Status: **SHIPPED 2026-06-25** — all 6 phases (135-140) complete; 8/8 requirements (SEAT-01..SEAT-08) done. SEED-037 harvested. See [MILESTONES.md](MILESTONES.md) for the full archive entry.*
+*Requirements defined: 2026-06-25 — milestone v4.13 Annual Billing (source SEED-038; phase numbering continues the global counter — v4.12 ended at Phase 140, so this milestone starts at Phase 141).*
