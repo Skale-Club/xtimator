@@ -1792,8 +1792,8 @@ Plans:
   5. `syncSeatBilling` is invoked on every membership change (invite accepted, member removed, role change that flips billable status) so the seat quantity stays in sync, and is never-throw / non-fatal so a seat-sync failure never blocks the underlying membership operation
 **Plans**: 3 plans
 Plans:
-- [ ] 139-01-PLAN.md — SEAT-06: extend BillingConfig/DEFAULT with seatPriceCents (global) + tiers[tier].includedSeats (per-tier) calibration placeholders + admin zod schema + editable super-admin form fields + a static no-hardcode test (deep-merge tolerance for pre-existing rows)
-- [ ] 139-02-PLAN.md — SEAT-07 math+sync: pure computeBillableSeats/computeSeatChargeCents (TDD goldens) + server syncSeatBilling(companyId) reading member count + tier + billing_config, gated by enforcementEnabled, idempotent, never-throw, Stripe SDK isolated behind a thin mockable seat-item method; retrocompat single-owner = zero write
+- [x] 139-01-PLAN.md — SEAT-06: extend BillingConfig/DEFAULT with seatPriceCents (global) + tiers[tier].includedSeats (per-tier) calibration placeholders + admin zod schema + editable super-admin form fields + a static no-hardcode test (deep-merge tolerance for pre-existing rows)
+- [x] 139-02-PLAN.md — SEAT-07 math+sync: pure computeBillableSeats/computeSeatChargeCents (TDD goldens) + server syncSeatBilling(companyId) reading member count + tier + billing_config, gated by enforcementEnabled, idempotent, never-throw, Stripe SDK isolated behind a thin mockable seat-item method; retrocompat single-owner = zero write
 - [ ] 139-03-PLAN.md — SEAT-07 wiring: invoke never-throw syncSeatBilling on the success path of acceptInvite (137) + removeMember/changeMemberRole (138); a billing failure never rolls back the membership change (wiring test)
 **UI hint**: yes
 
