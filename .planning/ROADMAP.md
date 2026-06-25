@@ -1529,7 +1529,7 @@ Plans:
   3. The `createEstimate` tool runs the existing `generateEstimateForProject` engine as an async Inngest job and returns a structured estimate — the LangGraph engine is unchanged (a tool-call boundary, not a streaming bridge)
   4. Heavy chat operations (generation, transcription, photo analysis) debit credits via the v4.7 ledger exactly as the other channels do — by reusing the neutral functions that already debit — while the lightweight conversation turn is absorbed (zero credit)
 **Plans**: 2 plans in 2 waves
-- [ ] 124-01-PLAN.md — Install AI SDK + OpenRouter provider; lib/chat/ provider + neutral-tool wrappers + system prompt (CHATBE-01/02/03)
+- [x] 124-01-PLAN.md — Install AI SDK + OpenRouter provider; lib/chat/ provider + neutral-tool wrappers + system prompt (CHATBE-01/02/03)
 - [ ] 124-02-PLAN.md — POST /api/chat route (owner-auth → streamText(tools) → persist in onFinish) + static credit-reuse assertion (CHATBE-02, CHATMETER-01)
 
 ### Phase 125: Chat UI — useChat + Sidebar + Multimodal + Estimate Card

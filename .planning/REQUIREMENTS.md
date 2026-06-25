@@ -32,9 +32,9 @@ Requirements for this milestone. Each maps to exactly one roadmap phase.
 
 ### AI SDK Chat Backend
 
-- [ ] **CHATBE-01**: The Vercel AI SDK (`ai` + `@ai-sdk/*`) is added; the chat resolves its model via the `ai_config` slots (not hard-coded) through an OpenRouter-compatible provider.
-- [ ] **CHATBE-02**: An `/api/chat` route uses `streamText` + native tool-calling, exposing the neutral domain tools (`createEstimate`, `queryCompanyData`, `askKnowledge`).
-- [ ] **CHATBE-03**: Estimate generation is invoked as a tool that runs the existing `generateEstimateForProject` engine (async Inngest job) and returns a structured estimate — the LangGraph engine is unchanged.
+- [x] **CHATBE-01**: The Vercel AI SDK (`ai` + `@ai-sdk/*`) is added; the chat resolves its model via the `ai_config` slots (not hard-coded) through an OpenRouter-compatible provider.
+- [x] **CHATBE-02**: An `/api/chat` route uses `streamText` + native tool-calling, exposing the neutral domain tools (`createEstimate`, `queryCompanyData`, `askKnowledge`).
+- [x] **CHATBE-03**: Estimate generation is invoked as a tool that runs the existing `generateEstimateForProject` engine (async Inngest job) and returns a structured estimate — the LangGraph engine is unchanged.
 
 ### Chat UI
 
@@ -86,9 +86,9 @@ Which phases cover which requirements. Populated during roadmap creation.
 | NEUT-05 | Phase 122 | Complete |
 | CHATDB-01 | Phase 123 | Complete |
 | CHATDB-02 | Phase 123 | Complete |
-| CHATBE-01 | Phase 124 | Pending |
-| CHATBE-02 | Phase 124 | Pending |
-| CHATBE-03 | Phase 124 | Pending |
+| CHATBE-01 | Phase 124 | Complete |
+| CHATBE-02 | Phase 124 | Complete |
+| CHATBE-03 | Phase 124 | Complete |
 | CHATUI-01 | Phase 125 | Pending |
 | CHATUI-02 | Phase 125 | Pending |
 | CHATUI-03 | Phase 125 | Pending |
