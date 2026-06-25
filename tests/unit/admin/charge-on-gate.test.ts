@@ -87,8 +87,8 @@ const PASSING_ON = {
   enforcementEnabled: true,
   tiers: {
     ...DEFAULT_BILLING_CONFIG.tiers,
-    pro: { monthlyCreditGrant: 1000, subscriptionPriceCents: 2900 },
-    business: { monthlyCreditGrant: 3000, subscriptionPriceCents: 9900 },
+    pro: { monthlyCreditGrant: 1000, subscriptionPriceCents: 2900, includedSeats: 1 },
+    business: { monthlyCreditGrant: 3000, subscriptionPriceCents: 9900, includedSeats: 1 },
   },
 }
 
