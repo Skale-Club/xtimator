@@ -1482,7 +1482,7 @@ Plans:
 
 ## Phases — v4.9 Internal Web Chat Assistant
 
-- [ ] **Phase 122: Channel-Neutral Domain Extraction + WhatsApp Parity** - Pull `createEstimate` / `queryCompanyData` / `askKnowledge` / multimodal `normalize` out of `lib/whatsapp/` into neutral domain tools that WhatsApp KEEPS calling — a NON-DESTRUCTIVE refactor proven by WhatsApp behavioral-parity tests. The load-bearing foundation; nothing in the chat works until these neutral tools exist.
+- [x] **Phase 122: Channel-Neutral Domain Extraction + WhatsApp Parity** - Pull `createEstimate` / `queryCompanyData` / `askKnowledge` / multimodal `normalize` out of `lib/whatsapp/` into neutral domain tools that WhatsApp KEEPS calling — a NON-DESTRUCTIVE refactor proven by WhatsApp behavioral-parity tests. The load-bearing foundation; nothing in the chat works until these neutral tools exist. (completed 2026-06-25)
 - [ ] **Phase 123: Chat Persistence Schema + History** - `chat_conversations` + `chat_messages` tables (tenant-scoped RLS mirroring `whatsapp_inbox`, idempotent + authored-only migration) plus the persist/reload path so a returning owner sees their chat history.
 - [ ] **Phase 124: AI SDK + /api/chat Tool-Calling Backend (slots + credit reuse)** - Add the Vercel AI SDK (`ai` + `@ai-sdk/*`); an `/api/chat` `streamText` + native tool-calling route exposing the neutral tools, resolving the model via `ai_config` slots through an OpenRouter-compatible provider; estimate generation invoked as a tool over the unchanged LangGraph engine (async Inngest job); heavy ops debit credits by reusing the neutral functions.
 - [ ] **Phase 125: Chat UI — useChat + Sidebar + Multimodal + Estimate Card** - The `useChat` streaming surface with per-tool-call progress, a conversation sidebar (new/switch + history load), multimodal input (text/audio/photo) routed through the extracted `normalize`, and an inline estimate card that opens in the existing editor.
@@ -1504,7 +1504,7 @@ Plans:
 Plans:
 - [x] 122-01-PLAN.md — Wave 0 RED test scaffolds: neutrality gate (lib/agent-tools/) + 4 capability RED tests (createEstimate/queryCompanyData/normalizeInput/askKnowledge) (NEUT-01..05)
 - [x] 122-02-PLAN.md — Extract neutral query-company-data data-reads + normalizeInput (wraps ingestMultimodal); re-point WhatsApp query-tools/normalize/intent-router (NEUT-02, NEUT-03, NEUT-05)
-- [ ] 122-03-PLAN.md — Neutral createEstimate (EVENT_ESTIMATE_GENERATE dispatch) + askKnowledge (wraps lib/knowledge/answer); re-point dispatchKnowledge; full WhatsApp parity gate (NEUT-01, NEUT-04, NEUT-05)
+- [x] 122-03-PLAN.md — Neutral createEstimate (EVENT_ESTIMATE_GENERATE dispatch) + askKnowledge (wraps lib/knowledge/answer); re-point dispatchKnowledge; full WhatsApp parity gate (NEUT-01, NEUT-04, NEUT-05)
 
 ### Phase 123: Chat Persistence Schema + History
 **Goal**: The chat has durable, tenant-scoped storage — `chat_conversations` and `chat_messages` tables exist with RLS that mirrors `whatsapp_inbox` (a company's members read/write only their own conversations and messages), applied via an idempotent, authored-only migration deployed CI→GHCR→Coolify. Conversations and their messages persist and reload so a returning owner sees their history. This is the data backbone the UI persists into; it can be built in parallel with the AI SDK backend but is needed before any history renders.
