@@ -1606,7 +1606,7 @@ Plans:
 
 - [x] **Phase 129: Schema Foundation + GUARD-03 Engine Extension Scaffold + Retrocompat Lock** — Idempotent, authored-only migration (`estimate_items.taxable`/`tax_category`/`discount`/`cost`/`markup_pct`, `estimates.discount`/`deposit_type`/`deposit_value`, `companies.tax_config`) with retrocompat defaults; EXTEND the GUARD-03 math block so with NO new fields the result is byte-identical; a static test asserts the AI gets NO calculator tool and computes none of the new math; a regression test locks the byte-identical happy path (TAX-01, ENG-01, ENG-02)
  (completed 2026-06-25)
-- [ ] **Phase 130: Per-Item Taxability** — Land the `taxable`/`tax_category` AI classification inputs in the output schema/types (the AI classifies labor/materials, computes nothing) and compute tax PER-ITEM (Sum of taxable_base_per_category x rate_category) instead of flat `subtotal x rate`, byte-identical when `tax_config` is absent (TAX-02, TAX-03)
+- [x] **Phase 130: Per-Item Taxability** — Land the `taxable`/`tax_category` AI classification inputs in the output schema/types (the AI classifies labor/materials, computes nothing) and compute tax PER-ITEM (Sum of taxable_base_per_category x rate_category) instead of flat `subtotal x rate`, byte-identical when `tax_config` is absent (TAX-02, TAX-03) (completed 2026-06-25)
 - [ ] **Phase 131: Discounts (line + global)** — Line-level + global discount (amount or percent); the server math applies line discount before the subtotal and the global discount before tax (configurable before/after per company), prorating the global discount into the taxable base (DISC-01, DISC-02)
 - [ ] **Phase 132: Deposit + Markup + Deposit-Stripe Contract** — `deposit_type`/`deposit_value` -> server-computed `balance_due`; `cost` + `markup_pct` -> server-derived `unit_price` (never-trust-LLM, price book stores cost + markup); the deposit threads to the SEED-020/036 Stripe payment + 1% fee contract (the fee computes on the amount actually charged) (DEP-01, DEP-02, MARK-01)
 - [ ] **Phase 133: Editor UI** — The estimate editor (`item-row.tsx` + `item-card-mobile.tsx`) gains per-line discount/taxable fields + global discount + deposit controls; server actions accept the new fields (PUI-01)
@@ -1636,7 +1636,7 @@ Plans:
 **Plans**: 2 plans in `.planning/phases/130-per-item-taxability/`
 Plans:
 - [x] 130-01-PLAN.md — Wave 1: widen estimateOutputSchema + LineItemOutput with optional taxable/tax_category, advisory provider tool-schema fields, classification-only prompt instruction (AI classifies labor/materials, computes nothing) + schema acceptance/omission test (TAX-02)
-- [ ] 130-02-PLAN.md — Wave 2: activate the per-category tax branch in compute-totals.ts (flat fallthrough byte-identical), read companies.tax_config + persist per-item taxable/tax_category in the engine, hand-computed labor-exempt golden + ENG-02 retrocompat guard (TAX-03)
+- [x] 130-02-PLAN.md — Wave 2: activate the per-category tax branch in compute-totals.ts (flat fallthrough byte-identical), read companies.tax_config + persist per-item taxable/tax_category in the engine, hand-computed labor-exempt golden + ENG-02 retrocompat guard (TAX-03)
 
 ### Phase 131: Discounts (line + global)
 **Goal**: A business owner can apply a per-line discount and a global discount (amount or percent), and the server engine reduces the subtotal and the taxable base correctly — discount before tax (US norm, configurable per company), with the global discount prorated into the taxable base.
