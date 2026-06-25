@@ -46,6 +46,11 @@ const invitesUpdate = vi.fn()
 const membersUpsert = vi.fn()
 const fromImpl = vi.fn()
 
+// captured call payloads (typed, so tsc stays happy)
+let updatePayload: Record<string, unknown> | undefined
+let upsertPayload: Record<string, unknown> | undefined
+let upsertOptions: Record<string, unknown> | undefined
+
 vi.mock('@/lib/supabase/service', () => ({
   requireServiceClient: () => ({ from: (t: string) => fromImpl(t) }),
 }))
@@ -53,7 +58,7 @@ vi.mock('@/lib/supabase/service', () => ({
 function configureSupabase() {
   invitesUpdate.mockImplementation((...args: unknown[]) => {
     // capture the update payload then return the chainable guarded flip
-    invitesUpdate.payload = args[0]
+    updatePayload = args[0] as Record<string, unknown>
     return {
       eq: vi.fn().mockReturnValue({
         eq: vi.fn().mockReturnValue({
@@ -63,8 +68,8 @@ function configureSupabase() {
     }
   })
   membersUpsert.mockImplementation((...args: unknown[]) => {
-    membersUpsert.payload = args[0]
-    membersUpsert.options = args[1]
+    upsertPayload = args[0] as Record<string, unknown>
+    upsertOptions = args[1] as Record<string, unknown>
     return Promise.resolve(memberUpsertResult)
   })
 
@@ -114,6 +119,9 @@ beforeEach(() => {
   flipResult.data = [{ id: 'inv_1' }] // 1 row affected = won the race
   flipResult.error = null
   memberUpsertResult.error = null
+  updatePayload = undefined
+  upsertPayload = undefined
+  upsertOptions = undefined
   configureSupabase()
 })
 
@@ -125,14 +133,14 @@ describe('SEAT-04: acceptInvite', () => {
 
     // member inserted with role + company from the INVITE
     expect(membersUpsert).toHaveBeenCalledTimes(1)
-    const member = membersUpsert.payload as Record<string, unknown>
+    const member = upsertPayload as Record<string, unknown>
     expect(member.user_id).toBe('u1')
     expect(member.company_id).toBe('c1')
     expect(member.role).toBe('member') // sourced from invite.role
 
     // invite flipped to accepted (guarded WHERE status='pending')
     expect(invitesUpdate).toHaveBeenCalledTimes(1)
-    expect((invitesUpdate.payload as Record<string, unknown>).status).toBe('accepted')
+    expect((updatePayload as Record<string, unknown>).status).toBe('accepted')
 
     // active company switched to the invite's company
     expect(switchActiveCompany).toHaveBeenCalledWith('c1')
@@ -146,7 +154,7 @@ describe('SEAT-04: acceptInvite', () => {
 
     await acceptInvite('tok_valid')
 
-    expect((membersUpsert.payload as Record<string, unknown>).role).toBe('admin')
+    expect((upsertPayload as Record<string, unknown>).role).toBe('admin')
   })
 
   it('rejects an expired invite: no member insert, no flip, no switch', async () => {
@@ -249,7 +257,7 @@ describe('SEAT-04: acceptInvite', () => {
     const result = await acceptInvite('tok_valid')
 
     expect(membersUpsert).toHaveBeenCalledTimes(1)
-    const opts = membersUpsert.options as Record<string, unknown>
+    const opts = upsertOptions as Record<string, unknown>
     expect(opts.onConflict).toBe('user_id,company_id')
     expect(invitesUpdate).toHaveBeenCalledTimes(1)
     expect(switchActiveCompany).toHaveBeenCalledWith('c1')
