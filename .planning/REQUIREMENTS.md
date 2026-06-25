@@ -19,11 +19,11 @@ Requirements for this milestone. Each maps to exactly one roadmap phase.
 
 ### Channel-Neutral Domain Extraction (foundation)
 
-- [ ] **NEUT-01**: The estimate-generation capability is a channel-neutral domain function/tool (`createEstimate`) that both the WhatsApp handler and the new chat call — no channel-specific generation logic is duplicated.
-- [ ] **NEUT-02**: The company-data query capability (today `lib/whatsapp/query-tools`) is a channel-neutral tool (`queryCompanyData`) both channels call.
-- [ ] **NEUT-03**: Multimodal ingestion (`lib/whatsapp/normalize`: audio→transcript, photo→analysis) is extracted to a channel-neutral module both channels reuse.
-- [ ] **NEUT-04**: A channel-neutral `askKnowledge` tool wraps the v4.8 `lib/knowledge/answer` (scoped by the company's `industries[]` + overlay).
-- [ ] **NEUT-05**: The extraction is NON-DESTRUCTIVE — WhatsApp behaves identically (same estimate/query/knowledge results), proven by behavioral-parity tests; no WhatsApp regression.
+- [x] **NEUT-01**: The estimate-generation capability is a channel-neutral domain function/tool (`createEstimate`) that both the WhatsApp handler and the new chat call — no channel-specific generation logic is duplicated.
+- [x] **NEUT-02**: The company-data query capability (today `lib/whatsapp/query-tools`) is a channel-neutral tool (`queryCompanyData`) both channels call.
+- [x] **NEUT-03**: Multimodal ingestion (`lib/whatsapp/normalize`: audio→transcript, photo→analysis) is extracted to a channel-neutral module both channels reuse.
+- [x] **NEUT-04**: A channel-neutral `askKnowledge` tool wraps the v4.8 `lib/knowledge/answer` (scoped by the company's `industries[]` + overlay).
+- [x] **NEUT-05**: The extraction is NON-DESTRUCTIVE — WhatsApp behaves identically (same estimate/query/knowledge results), proven by behavioral-parity tests; no WhatsApp regression.
 
 ### Chat Persistence
 
@@ -79,11 +79,11 @@ Which phases cover which requirements. Populated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| NEUT-01 | Phase 122 | Pending |
-| NEUT-02 | Phase 122 | Pending |
-| NEUT-03 | Phase 122 | Pending |
-| NEUT-04 | Phase 122 | Pending |
-| NEUT-05 | Phase 122 | Pending |
+| NEUT-01 | Phase 122 | Complete |
+| NEUT-02 | Phase 122 | Complete |
+| NEUT-03 | Phase 122 | Complete |
+| NEUT-04 | Phase 122 | Complete |
+| NEUT-05 | Phase 122 | Complete |
 | CHATDB-01 | Phase 123 | Pending |
 | CHATDB-02 | Phase 123 | Pending |
 | CHATBE-01 | Phase 124 | Pending |

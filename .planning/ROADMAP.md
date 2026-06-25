@@ -1502,7 +1502,7 @@ Plans:
   5. The neutral modules import no channel (a grep gate proves zero `lib/whatsapp/*` imports in the neutral path), and WhatsApp behavioral-parity tests pass: same estimate, same query result, same knowledge answer, no regression
 **Plans**: 3 plans in `.planning/phases/122-channel-neutral-domain-extraction/`
 Plans:
-- [ ] 122-01-PLAN.md — Wave 0 RED test scaffolds: neutrality gate (lib/agent-tools/) + 4 capability RED tests (createEstimate/queryCompanyData/normalizeInput/askKnowledge) (NEUT-01..05)
+- [x] 122-01-PLAN.md — Wave 0 RED test scaffolds: neutrality gate (lib/agent-tools/) + 4 capability RED tests (createEstimate/queryCompanyData/normalizeInput/askKnowledge) (NEUT-01..05)
 - [ ] 122-02-PLAN.md — Extract neutral query-company-data data-reads + normalizeInput (wraps ingestMultimodal); re-point WhatsApp query-tools/normalize/intent-router (NEUT-02, NEUT-03, NEUT-05)
 - [ ] 122-03-PLAN.md — Neutral createEstimate (EVENT_ESTIMATE_GENERATE dispatch) + askKnowledge (wraps lib/knowledge/answer); re-point dispatchKnowledge; full WhatsApp parity gate (NEUT-01, NEUT-04, NEUT-05)
 

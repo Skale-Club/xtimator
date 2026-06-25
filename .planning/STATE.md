@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v4.9
 milestone_name: Internal Web Chat Assistant — the 3rd channel
-status: roadmap-created
-stopped_at: Milestone v4.9 roadmap created — 5 phases (122-126), 16/16 requirements mapped, ready to plan Phase 122
-last_updated: "2026-06-25T01:30:00.000Z"
+status: executing
+stopped_at: Completed 122-01-PLAN.md
+last_updated: "2026-06-25T01:39:14.122Z"
 last_activity: 2026-06-25
 progress:
-  total_phases: 5
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_phases: 77
+  completed_phases: 59
+  total_plans: 177
+  completed_plans: 188
 ---
 
 # Project State
@@ -31,11 +31,15 @@ progress:
 
 ## Current Position
 
-Phase: 122
-Plan: Not started
-Status: Roadmap created — ready to plan Phase 122
+Phase: 122 (Channel-Neutral Domain Extraction + WhatsApp Parity) — EXECUTING
+Plan: 2 of 3
+Status: 122-01 COMPLETE (Wave-0 RED scaffolds + neutrality gate). Next: `/gsd:execute-phase 122` (Plan 122-02 — implement the neutral lib/agent-tools/ modules to GREEN these tests).
 
 ---
+
+### Accumulated Context (v4.9)
+
+Status (122-01, Wave 0 — NEUT-01..05): shipped — **the Wave-0 TDD RED scaffolds + the `lib/agent-tools/` neutrality gate** that lock the contract for the channel-neutral extraction BEFORE any implementation exists. **5 new test files under a new `tests/unit/agent-tools/` dir, all RED for the RIGHT reason.** **Neutrality gate** `neutrality.test.ts` (ENGINE-01/NEUT-05 forward guard) is a VERBATIM port of `tests/unit/knowledge/knowledge-neutrality.test.ts` — only the scanned dir constant (`lib/knowledge` → `lib/agent-tools`) + the describe label changed; SAME 6 forbidden tokens (`lib/whatsapp`, `ownerPhone`, `WhatsAppMessage`, `sendWhatsAppMessage`, `whatsapp_`, `downloadWhatsAppMedia`), SAME `collectTsFiles` walker (skips `.test.ts`), SAME two `it()` cases. RED-by-missing-dir on "has at least one source file to scan" (`expected 0 to be greater than 0`); flips GREEN the moment 122-02/03 add the first `lib/agent-tools/*.ts`. Grep-verified: `lib/agent-tools`≥1 (5), `lib/knowledge`=0, all 6 tokens present. **4 capability RED tests** (RED by `Failed to resolve import "@/lib/agent-tools/*"` — missing-module, NOT syntax/assertion): **NEUT-01** `create-estimate.test.ts` (mocks `@/lib/inngest/client`; `createEstimate({companyId,projectId,prompts?,language?})` dispatches EVENT_ESTIMATE_GENERATE once with `{companyId,projectId,requestId,prompts?,language?}`, returns `{jobId:ids[0]}`, rejects on empty `ids` — mirrors write.ts `'inngest.send returned no event id'` guard; T-lrf-01: `data.companyId`===passed value, no `company_id` key); **NEUT-02** `query-company-data.test.ts` (ported chainable supabase mock recording every `.eq('company_id',...)`; T-lrf-01 reframed for PLAIN functions — companyId is the FIRST positional param, every tenant query `.eq('company_id','company-SECRET')`; parity outputs: not-found strings, `1,234`+`2026-06-01`, Drywall `3.50`); **NEUT-03** `normalize-input.test.ts` (mocks `@/lib/ai/openrouter-client` so the REAL `ingestMultimodal` wiring runs — ext passed already-derived since the codec derivation moves to the WhatsApp adapter in 122-02; text passthrough no-transcribe, audio→transcribe(ext), photo→analyze+caption, empty-primitive→`ok:false`-no-throw); **NEUT-04** `ask-knowledge.test.ts` (mocks `@/lib/knowledge/answer`; forwards question + `{industries,companyId,language}` verbatim, rejecting answer resolves to a string — inherits answer()'s never-throw, scope never derived from question text). **0 deviations** — plan executed exactly as written; no source files in `lib/agent-tools/` created (the RED-by-missing contract is intentional, documented as a Known-Stubs non-issue). **Regression guard GREEN:** the existing WhatsApp parity suite `npx vitest run tests/unit/whatsapp` is byte-for-byte unchanged at the pre-plan baseline (**28 files passed | 3 skipped, 213 passed | 28 todo**) — this plan only ADDED test files. `npx vitest run tests/unit/agent-tools` → 5 files all RED for the right reasons (neutrality 1 failed/1 passed = missing-dir; 4 capability = no-tests/import-resolve fail). No migration, no new dep, no secret. 3 atomic commits (32e19420 neutrality gate, 154faa0a NEUT-02+03 scaffolds, cbd07df9 NEUT-01+04 scaffolds); all normal hooked IN-PLACE (gitleaks ran each, no `--no-verify`), no leaks (placeholder ids only). NEUT-01..05 marked complete (Nyquist: each NEUT now has a failing test ready for GREEN in 122-02/03). **Phase 122 now 1/3 plans.** Next: `/gsd:execute-phase 122` (Plan 122-02 — implement the neutral `lib/agent-tools/` modules to flip these RED tests GREEN + the neutrality gate). See 122-01-SUMMARY.md. (NOTE: state cmds reverted milestone→v3.1.1 + progress→stale 18/51; re-asserted v4.9 + 77/59/177/188 per the known GSD state-revert issue.)
 
 ### Accumulated Context (v4.8)
 
@@ -103,7 +107,7 @@ Prior: 102-01 (HARD-07 replay-safe TTL) shipped. Added a neutral `requestedAt: A
 Prior: 102-02 (HARD-06 cap half) shipped. Replaced the hard-coded `(state.refineAttempts ?? 0) < 1` literal in `checkVagueAfterAssessEdge` (`lib/estimate/graph/nodes/decide.ts`) with a single `AUTO_REFINE_MAX_ATTEMPTS` module constant — read once at module load via an IIFE (`Number.isFinite(raw) && raw >= 0 ? raw : 1`) from the optional non-secret `process.env.AUTO_REFINE_MAX_ATTEMPTS`, defaulting to 1. Operator kept exactly `<` so the default is byte-identical to today (Research Pitfall 1). `auto-refine.ts` doc comment updated to reference the configurable cap (documentation-only; increment logic untouched). Channel-neutral (no DB, no async, no channel import) → graph-neutrality stays green. `tests/unit/estimate/auto-refine-cap.test.ts` now fully GREEN (default=1 AND `AUTO_REFINE_MAX_ATTEMPTS=2` override cases); `auto-refine-isolation` + `graph-neutrality` (12/12) and `never-reply-regression` Path C (loops exactly once at default) stay green. No env VALUE committed — only the var NAME appears (CLAUDE.md secret-handling). 1 atomic commit (02a41f2). xphere untouched. HARD-06 NOT marked complete — only the configurable-cap half is done; the web recourse UI half is owned by Plan 102-04.
 Prior (102-00, Wave 0 RED/EXTEND scaffold): authored 4 failing-by-design test files (auto-refine-cap [HARD-06 cap, now GREEN via 102-02], replay-safe-ttl [HARD-07, still RED → 102-01], batch-reporting [HARD-05, still RED → 102-03], needs-details-banner [HARD-06 recourse, still RED → 102-04]); 2 commits (201afb0, 35e8537).
 Last activity: 2026-06-25
-Stopped at: Completed 121-01-PLAN.md
+Stopped at: Completed 122-01-PLAN.md
 Next Up: **Phase 108 COMPLETE (5/5 plans — 108-01 metering [RMETER-01/02/03], 108-02 vagueness gate [RFALL-02], 108-03 orchestrator `researchUnmatchedPrices` [RPRICE-01/03/04, RFALL-01], 108-04 wire into `generateEstimateForProject` [RPRICE-01/03, RFALL-01], 108-05 "Couch cleaning 8 seats" full-graph regression [RFALL-03]).** THE PAYOFF is live in the production generation path AND locked by a green deterministic full-graph regression (EVIDENCED → $180/non-vague, empty-research+context → never-$0 ladder/non-vague, all-empty → still blocks). All three price-research adapters (`openrouter-web`, gated `anthropic-web`, deterministic `fixture`) remain configured-via-`platform_integrations` (all-misses no-op when unconfigured). Suggested: `/gsd:verify-work 108`, then `/gsd:execute-phase 109` (durability + cost-control hardening — dedicated `step.run('price-research')` retry isolation, runtime OpenRouter→Anthropic fallback ordering, per-estimate item caps, refine-loop memoization). DEFERRED (operational, carried from 108-01): apply migration `20260624000002_phase108_usage_event_price_researched.sql` (+ the earlier `20260624000001` price_research_cache) to remote via CI→GHCR→Coolify.
 Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gsd:verify-work 104` to validate the phase, then address the operational deferrals. DEFERRED (operational, all of Phase 104): apply migrations `20260621000001_notification_categories_remap.sql` + `20260621000002_notification_opt_in_consent.sql` + `20260621000003_whatsapp_notification_templates.sql` to the remote DB; ensure the Twilio from-number is SMS-capable; verify the Meta token carries `whatsapp_business_management` scope + author/approve the registry templates in Meta WhatsApp Manager (the `message_template_status_update` webhook then flips them to approved). Also still queued: `/gsd:verify-work 103` + `/gsd:complete-milestone` (v4.5) carry-over UATs.
 
@@ -701,6 +705,8 @@ Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gs
 - [Phase 119]: Super-admin Knowledge UI mirrors app/admin/blog verbatim; requireAdmin() FIRST + service-client read/write of scope='industry' rows; INDUSTRIES-driven Select; canConfirmImport pure gate unit-proven
 - [Phase 120]: Company KB overlay writes use the RLS-bound AUTHED client (not service client); tenant active-company auth (not requireAdmin); scope='company'/company_id/industry_id:null
 - [Phase 120]: 120-02: tenant overlay UI mirrors admin/knowledge with tenant auth + authed RLS client + no industry select (two-panel rule)
+- [Phase 122]: 122-01: neutrality gate ported verbatim from knowledge-neutrality.test.ts (repoint scanned dir only); RED-by-missing-dir until first lib/agent-tools source file ships
+- [Phase 122]: 122-01: T-lrf-01 reframed for plain neutral functions — companyId is the first positional param (never an LLM field); normalize-input mocks openrouter-client so real ingestMultimodal wiring is exercised
 
 ## Performance Metrics
 
@@ -934,13 +940,14 @@ Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gs
 | Phase 120 P01 | 5m | 2 tasks | 3 files |
 | Phase 120 P02 | ~10m | 2 tasks | 9 files |
 | Phase 121 P01 | 5min | 3 tasks | 2 files |
+| Phase 122 P01 | 4 | 3 tasks | 5 files |
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-13)
 
 **Core value:** Business owner → job site audio recording → sent professional estimate in under 5 minutes
-**Current focus:** Phase 121 — WhatsApp KNOWLEDGE Intent
+**Current focus:** Phase 122 — Channel-Neutral Domain Extraction + WhatsApp Parity
 
 ## Notes
 
