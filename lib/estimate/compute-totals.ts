@@ -28,6 +28,8 @@ export interface ComputeTotalsItem {
   quantity: number
   unit_price: number
   discount?: number | null   // line discount (dormant — defaults to 0)
+  cost?: number | null       // MARK-01 — per-unit cost basis (AI INPUT); server derives unit_price
+  markup_pct?: number | null // MARK-01 — markup percent applied to cost (AI INPUT)
   taxable?: boolean | null   // ACTIVE (TAX-03) — defaults to true
   tax_category?: 'labor' | 'materials' | 'other' | null  // ACTIVE (TAX-03) per-category key
   [key: string]: unknown
@@ -88,10 +90,24 @@ export function computeEstimateTotals(
 ): ComputeTotalsResult {
   const calculatedSections = sections.map((section) => {
     const items = section.items.map((item) => {
-      const lineGross = Math.round(item.quantity * item.unit_price * 100) / 100
+      // MARK-01: server-derive unit_price from cost × (1 + markup_pct/100) when the AI supplied
+      // cost + markup and gave NO explicit positive unit_price. Explicit unit_price WINS. Never
+      // trusts the LLM to compute the marked-up price (ENG-01 / GUARD-03). SAME Math.round(x*100)/100
+      // byte discipline. cost/markup absent → effectiveUnitPrice === item.unit_price → byte-identical.
+      // Price-book anchoring/clamp (GUARD-02) runs in the engine BEFORE compute-totals and still
+      // overrides — markup only resolves the price the AI gave, it does not fight anchoring.
+      const hasMarkup = item.cost != null && item.markup_pct != null
+      const hasExplicitPrice = typeof item.unit_price === 'number' && item.unit_price > 0
+      const effectiveUnitPrice =
+        hasMarkup && !hasExplicitPrice
+          ? Math.round((item.cost as number) * (1 + (item.markup_pct as number) / 100) * 100) / 100
+          : item.unit_price
+      const lineGross = Math.round(item.quantity * effectiveUnitPrice * 100) / 100
       const lineDiscount = item.discount ?? 0   // DORMANT: default 0 → lineNet == lineGross (Phase 131)
       const lineNet = lineGross - lineDiscount
-      return { ...item, total: lineNet }
+      // Return the resolved unit_price so persistence + downstream read it. No-op when no markup
+      // (effectiveUnitPrice === item.unit_price) → byte-identical retrocompat.
+      return { ...item, unit_price: effectiveUnitPrice, total: lineNet }
     })
     const sectionSubtotal = items.reduce((sum, item) => sum + item.total, 0)
     return { title: section.title, items, subtotal: Math.round(sectionSubtotal * 100) / 100 }
