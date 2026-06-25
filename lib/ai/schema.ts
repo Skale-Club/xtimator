@@ -23,6 +23,13 @@ const lineItemSchema = z.object({
     (v) => (v === 'price_book' || v === 'researched' ? v : 'ai_estimate'),
     z.enum(['price_book', 'ai_estimate', 'researched'])
   ),
+  // TAX-02 — per-item AI CLASSIFICATION INPUT (labor vs materials). Both OPTIONAL
+  // and additive: omitting them keeps existing AI output validating byte-identically.
+  // NO `.default(true)` here — the schema must leave omitted fields as `undefined`
+  // so the retrocompat path holds; the taxable=true default is applied SERVER-SIDE
+  // in Plan 130-02. The AI never computes tax — it only labels the item.
+  taxable: z.boolean().optional(),
+  tax_category: z.enum(['labor', 'materials', 'other']).optional().nullable(),
 })
 
 const sectionSchema = z.object({
