@@ -62,6 +62,13 @@ function stateToDocumentData(state: EstimateEditorState): EstimateDocumentData {
         sort_order: i.sort_order,
         price_source: i.price_source,
         isManuallyEdited: i.isManuallyEdited,
+        // v4.11 advanced pricing — carry through so the document surface can
+        // render the per-line discount/taxable controls.
+        discount: i.discount ?? 0,
+        taxable: i.taxable ?? true,
+        tax_category: i.tax_category ?? null,
+        cost: i.cost ?? null,
+        markup_pct: i.markup_pct ?? null,
       })),
     })),
   }
@@ -97,6 +104,13 @@ function stateToSavePayload(state: EstimateEditorState) {
         sort_order: i.sort_order,
         price_source: i.price_source ?? null,
         isManuallyEdited: i.isManuallyEdited,
+        // v4.11 advanced pricing — feed the Wave-1 saveEstimate contract
+        // (no-op defaults keep an unedited item byte-identical).
+        discount: i.discount ?? 0,
+        taxable: i.taxable ?? true,
+        tax_category: i.tax_category ?? null,
+        cost: i.cost ?? null,
+        markup_pct: i.markup_pct ?? null,
       })),
     })),
   }

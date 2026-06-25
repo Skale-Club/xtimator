@@ -18,6 +18,12 @@ export interface EditorItem {
   sort_order: number
   price_source: 'price_book' | 'ai_estimate' | 'researched' | null
   isManuallyEdited?: boolean
+  // v4.11 advanced pricing — all OPTIONAL with no-op defaults (retrocompat).
+  taxable?: boolean // default true
+  tax_category?: 'labor' | 'materials' | 'other' | null
+  discount?: number // line discount amount, default 0
+  cost?: number | null
+  markup_pct?: number | null
 }
 
 export interface EditorSection {
@@ -61,7 +67,7 @@ export type EstimateAction =
   | { type: 'INIT'; estimate: EstimateWithSections }
   | { type: 'UPDATE_FIELD'; field: 'summary' | 'notes' | 'timeline' | 'payment_terms' | 'warranty_terms' | 'estimate_date' | 'estimate_number'; value: string | null }
   | { type: 'UPDATE_SECTION_TITLE'; sectionId: string; title: string }
-  | { type: 'UPDATE_ITEM'; sectionId: string; itemId: string; field: 'description' | 'quantity' | 'unit' | 'unit_price'; value: string | number | null }
+  | { type: 'UPDATE_ITEM'; sectionId: string; itemId: string; field: 'description' | 'quantity' | 'unit' | 'unit_price' | 'discount' | 'taxable'; value: string | number | boolean | null }
   | { type: 'APPLY_PRICE_BOOK_ITEM'; sectionId: string; itemId: string; item: { name: string; unit: string | null; unit_price: number } }
   | { type: 'ADD_ITEM'; sectionId: string }
   | { type: 'REMOVE_ITEM'; sectionId: string; itemId: string }
@@ -104,7 +110,10 @@ function recalculate(state: EstimateEditorState): EstimateEditorState {
   const sections = state.sections.map((s) => {
     const items = s.items.map((i) => ({
       ...i,
-      total: Math.round(i.quantity * i.unit_price * 100) / 100,
+      // Client preview only — server (saveEstimate → computeEstimateTotals) is
+      // authoritative; non-taxable lines are corrected server-side on save/reload.
+      // Line net mirrors the engine's lineNet: round2(qty × unit_price) − discount.
+      total: Math.round(i.quantity * i.unit_price * 100) / 100 - (i.discount ?? 0),
     }))
     return {
       ...s,
@@ -195,6 +204,13 @@ function initState(estimate: EstimateWithSections | null): EstimateEditorState {
           sort_order: i.sort_order,
           price_source: i.price_source ?? null,
           isManuallyEdited: false,
+          // v4.11 advanced pricing — read off the server row with no-op defaults
+          // (the query type may not yet surface these; cast like estimate_date).
+          taxable: (i as { taxable?: boolean }).taxable ?? true,
+          tax_category: (i as { tax_category?: 'labor' | 'materials' | 'other' | null }).tax_category ?? null,
+          discount: (i as { discount?: number }).discount ?? 0,
+          cost: (i as { cost?: number | null }).cost ?? null,
+          markup_pct: (i as { markup_pct?: number | null }).markup_pct ?? null,
         })),
       }))
       .sort((a, b) => a.sort_order - b.sort_order),
@@ -232,7 +248,15 @@ function estimateReducer(state: EstimateEditorState, action: EstimateAction): Es
             ...s,
             items: s.items.map((i) => {
               if (i.id !== action.itemId) return i
-              const updated = { ...i, [action.field]: action.value }
+              // Coerce per-field: discount → number (default 0), taxable → boolean.
+              let value = action.value
+              if (action.field === 'discount') {
+                value = typeof value === 'number' ? value : Number(value) || 0
+              } else if (action.field === 'taxable') {
+                value = Boolean(value)
+              }
+              const updated = { ...i, [action.field]: value }
+              // Only unit_price is a price-source override; discount/taxable are not.
               if (action.field === 'unit_price') {
                 updated.isManuallyEdited = true
               }
@@ -264,6 +288,8 @@ function estimateReducer(state: EstimateEditorState, action: EstimateAction): Es
                 sort_order: s.items.length,
                 price_source: null,
                 isManuallyEdited: false,
+                taxable: true,
+                discount: 0,
               },
             ],
           }
@@ -310,6 +336,8 @@ function estimateReducer(state: EstimateEditorState, action: EstimateAction): Es
                 sort_order: 0,
                 price_source: null,
                 isManuallyEdited: false,
+                taxable: true,
+                discount: 0,
               },
             ],
           },
@@ -398,6 +426,8 @@ function estimateReducer(state: EstimateEditorState, action: EstimateAction): Es
           sort_order: iIdx,
           price_source: i.price_source,
           isManuallyEdited: false,
+          taxable: true,
+          discount: 0,
         })),
       }))
       const updated: EstimateEditorState = {
