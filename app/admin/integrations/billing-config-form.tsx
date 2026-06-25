@@ -37,6 +37,10 @@ export function BillingConfigForm({ current }: Props) {
 
   // Global per-seat price (integer cents)
   const [seatPriceCents, setSeatPriceCents] = useState(String(current.seatPriceCents))
+  // Global ANNUAL per-seat price (integer cents)
+  const [seatPriceAnnualCents, setSeatPriceAnnualCents] = useState(
+    String(current.seatPriceAnnualCents)
+  )
 
   // Per-tier grants + prices + included seats
   const [tiers, setTiers] = useState(() =>
@@ -45,13 +49,19 @@ export function BillingConfigForm({ current }: Props) {
         acc[tier] = {
           monthlyCreditGrant: String(current.tiers[tier].monthlyCreditGrant),
           subscriptionPriceCents: String(current.tiers[tier].subscriptionPriceCents),
+          subscriptionPriceAnnualCents: String(current.tiers[tier].subscriptionPriceAnnualCents),
           includedSeats: String(current.tiers[tier].includedSeats),
         }
         return acc
       },
       {} as Record<
         BillingTier,
-        { monthlyCreditGrant: string; subscriptionPriceCents: string; includedSeats: string }
+        {
+          monthlyCreditGrant: string
+          subscriptionPriceCents: string
+          subscriptionPriceAnnualCents: string
+          includedSeats: string
+        }
       >
     )
   )
@@ -75,7 +85,11 @@ export function BillingConfigForm({ current }: Props) {
 
   function updateTier(
     tier: BillingTier,
-    field: 'monthlyCreditGrant' | 'subscriptionPriceCents' | 'includedSeats',
+    field:
+      | 'monthlyCreditGrant'
+      | 'subscriptionPriceCents'
+      | 'subscriptionPriceAnnualCents'
+      | 'includedSeats',
     value: string
   ) {
     setTiers((prev) => ({ ...prev, [tier]: { ...prev[tier], [field]: value } }))
@@ -105,11 +119,13 @@ export function BillingConfigForm({ current }: Props) {
       estimateFeePct: Number(estimateFeePct),
       estimateFeeMinCents: Number(estimateFeeMinCents),
       seatPriceCents: Number(seatPriceCents),
+      seatPriceAnnualCents: Number(seatPriceAnnualCents),
       tiers: TIERS.reduce(
         (acc, tier) => {
           acc[tier] = {
             monthlyCreditGrant: Number(tiers[tier].monthlyCreditGrant),
             subscriptionPriceCents: Number(tiers[tier].subscriptionPriceCents),
+            subscriptionPriceAnnualCents: Number(tiers[tier].subscriptionPriceAnnualCents),
             includedSeats: Number(tiers[tier].includedSeats),
           }
           return acc
@@ -224,17 +240,30 @@ export function BillingConfigForm({ current }: Props) {
       {/* Seat billing */}
       <fieldset className={fieldsetClass}>
         <legend className={legendClass}>{t('Seat billing')}</legend>
-        <label className="flex flex-col gap-1 max-w-sm">
-          <span className="text-sm font-medium">{t('Per-seat price (cents)')}</span>
-          <input
-            type="number"
-            step="1"
-            value={seatPriceCents}
-            onChange={(e) => setSeatPriceCents(e.target.value)}
-            disabled={isPending}
-            className={inputClass}
-          />
-        </label>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="flex flex-col gap-1">
+            <span className="text-sm font-medium">{t('Per-seat price (cents)')}</span>
+            <input
+              type="number"
+              step="1"
+              value={seatPriceCents}
+              onChange={(e) => setSeatPriceCents(e.target.value)}
+              disabled={isPending}
+              className={inputClass}
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-sm font-medium">{t('Per-seat price annual (cents)')}</span>
+            <input
+              type="number"
+              step="1"
+              value={seatPriceAnnualCents}
+              onChange={(e) => setSeatPriceAnnualCents(e.target.value)}
+              disabled={isPending}
+              className={inputClass}
+            />
+          </label>
+        </div>
       </fieldset>
 
       {/* Per-tier grants & prices */}
@@ -242,7 +271,7 @@ export function BillingConfigForm({ current }: Props) {
         <legend className={legendClass}>{t('Per-tier grants & prices')}</legend>
         <div className="space-y-4">
           {TIERS.map((tier) => (
-            <div key={tier} className="grid gap-4 sm:grid-cols-4 sm:items-end">
+            <div key={tier} className="grid gap-4 sm:grid-cols-5 sm:items-end">
               <span className="text-sm font-medium capitalize">{tier}</span>
               <label className="flex flex-col gap-1">
                 <span className="text-xs text-muted-foreground">
@@ -267,6 +296,21 @@ export function BillingConfigForm({ current }: Props) {
                   value={tiers[tier].subscriptionPriceCents}
                   onChange={(e) =>
                     updateTier(tier, 'subscriptionPriceCents', e.target.value)
+                  }
+                  disabled={isPending}
+                  className={inputClass}
+                />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-xs text-muted-foreground">
+                  {t('Subscription price annual (cents)')}
+                </span>
+                <input
+                  type="number"
+                  step="1"
+                  value={tiers[tier].subscriptionPriceAnnualCents}
+                  onChange={(e) =>
+                    updateTier(tier, 'subscriptionPriceAnnualCents', e.target.value)
                   }
                   disabled={isPending}
                   className={inputClass}
