@@ -1805,5 +1805,7 @@ Plans:
   1. The `Settings → Team` surface shows the org's current active seat count, the configured per-seat price, and the projected monthly seat cost, with the per-seat price and the included-seat count read from `billing_config` at runtime — never hardcoded copy (a static test asserts no hardcoded seat price/number in the component)
   2. The projected monthly cost is computed with the SAME `computeBillableSeats`/`computeSeatChargeCents` functions the billing sync uses, so the number the owner sees reconciles to what the seat-quantity sync would charge — one math source, no divergence
   3. A single-owner org sitting within `includedSeats` shows a $0 projected seat cost and no alarming charge — retrocompat: the transparency surface confirms zero charge rather than implying one
-**Plans**: TBD
+**Plans**: 1 plan in `.planning/phases/140-seat-cost-ui/`
+Plans:
+- [ ] 140-01-PLAN.md — Pure seat-cost summary builder (reuses computeBillableSeats/computeSeatChargeCents + getBillingConfig) + team page server-compute wiring + TeamSection owner/admin-only cost line (i18n, mobile, truthful when enforcement off)
 **UI hint**: yes
