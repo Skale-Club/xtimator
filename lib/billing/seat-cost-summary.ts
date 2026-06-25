@@ -15,7 +15,7 @@ import { computeBillableSeats, computeSeatChargeCents } from '@/lib/billing/seat
  * comes from `cfg`.
  *
  * `import 'server-only'`: this reads getBillingConfig + the service client, so it
- * is server-only exactly like seat-billing's `syncSeatBilling` half.
+ * is server-only exactly like seat-billing's server-side half.
  *
  * Scope fence: DISPLAY ONLY. No Stripe write, no billing mutation, no config
  * write — Phase 139 owns the seat-quantity sync. This builder just discloses.
@@ -36,8 +36,8 @@ export type SeatCostSummary = {
  * resolved config — never inline arithmetic, never a hardcoded seat number.
  *
  * The included-seat count comes from the company's tier; an unknown/null tier
- * falls back to the free tier's includedSeats (mirrors syncSeatBilling L97-98 —
- * never throw on a bad tier). enforcementEnabled passes straight through so the
+ * falls back to the free tier's includedSeats (same null-safe posture as the
+ * Phase-139 sync — never throw on a bad tier). enforcementEnabled passes through so the
  * UI can show a truthful "not yet billed" note while enforcement is off.
  */
 export async function buildSeatCostSummary(
