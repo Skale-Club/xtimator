@@ -7,6 +7,7 @@ import { type EstimateInput } from '@/lib/ai'
 import { getAIProviderWithFallback } from '@/lib/ai/provider-with-fallback'
 import { anchorAndClampSections } from '@/lib/ai/price-anchoring'
 import { researchUnmatchedPrices } from '@/lib/estimate/price-research/orchestrator'
+import { computeEstimateTotals } from '@/lib/estimate/compute-totals'
 import {
   round2,
   assertFinitePositive,
@@ -325,25 +326,15 @@ export async function generateEstimateForProject(
     console.warn('[generate-estimate] price research failed (non-fatal)', err)
   }
 
-  const calculatedSections = researchedSections.map((section) => {
-    const items = section.items.map((item) => ({
-      ...item,
-      total: Math.round(item.quantity * item.unit_price * 100) / 100,
-    }))
-    const sectionSubtotal = items.reduce((sum, item) => sum + item.total, 0)
-    return {
-      title: section.title,
-      items,
-      subtotal: Math.round(sectionSubtotal * 100) / 100,
-    }
-  })
-
-  const subtotal =
-    Math.round(
-      calculatedSections.reduce((sum, s) => sum + s.subtotal, 0) * 100
-    ) / 100
-  const taxAmount = Math.round(subtotal * taxRate * 100) / 100
-  const grandTotal = Math.round((subtotal + taxAmount) * 100) / 100
+  // GUARD-03 default-path totals (ENG-02 scaffold). With no new fields present this is
+  // BYTE-IDENTICAL to the pre-v4.11 flat-rate computation. The per-item-tax / discount /
+  // deposit / markup activation lands in Phases 130-132.
+  const {
+    sections: calculatedSections,
+    subtotal,
+    taxAmount,
+    grandTotal,
+  } = computeEstimateTotals(researchedSections, { taxRate })
 
   // GUARD-03: the server recalculation above is the SINGLE authoritative source.
   // Defensively coerce each persisted total to a finite, >= 0 value (no-op on the
