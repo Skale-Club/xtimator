@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v4.10
 milestone_name: MCP Channel Parity
-status: in-progress
-stopped_at: Completed 127-01-PLAN.md
-last_updated: "2026-06-25T10:26:29.233Z"
+status: verifying
+stopped_at: Completed 128-01-PLAN.md
+last_updated: "2026-06-25T10:46:26.310Z"
 last_activity: 2026-06-25
 progress:
-  total_phases: 79
-  completed_phases: 65
-  total_plans: 187
-  completed_plans: 200
+  total_phases: 80
+  completed_phases: 66
+  total_plans: 189
+  completed_plans: 201
 ---
 
 # Project State
@@ -25,13 +25,18 @@ progress:
 - **Locked guardrails (SEED-030 + REQUIREMENTS.md + PROJECT.md):** the MCP tools BIND the neutral `lib/agent-tools/` — do NOT re-implement or re-extract (v4.9 did it). `companyId` is TRUSTED (OAuth token → company), NEVER a tool input field (T-lrf-01, same invariant as the chat). `readOnlyHint: true` on the new read tools (auto-grouped permission UX, the SEED-030 locked decision). REUSE the v4.1 OAuth/`/api/mcp` transport infra — do NOT rebuild it. Non-destructive: the existing MCP test suite stays green. DEFER edit/send MCP tools (match the web-chat v1 scope: generate + query + knowledge). SCOPE FENCE: the MCP tool layer ONLY — do NOT touch the web chat or WhatsApp beyond parity. MCP is owner-scoped via the OAuth token → NEVER customer-facing.
 - **Previous milestone**: v4.9 Internal Web Chat Assistant — the 3rd channel — SHIPPED 2026-06-25 (phases 122-126, 16/16 requirements, 13 plans, full unit suite green 335 files / 2335 tests). The channel-neutral extraction of `lib/whatsapp/` → `lib/agent-tools/` (createEstimate / queryCompanyData / normalizeInput / askKnowledge) — the SAME neutral core v4.10 binds as MCP tools. Operational deferrals carried: apply the chat_persistence migration to remote + configure the OpenRouter key + live chat UAT.
 - **Position**: Phase 127 COMPLETE (1/1 plan, verified 4/4 — 6 read-only MCP tools ask_knowledge+query bound to lib/agent-tools/, readOnlyHint, companyId trusted; registry 12 tools). Next: `/gsd:plan-phase 128` (create_estimate reconciliation + parity verification — FINAL phase of v4.10). NOTE: `phase complete` mis-points next at stale 999.1 — real next is **128**.
+
 ## Current Position
 
-Phase: 999.1
-Plan: Not started
-Status: Phase complete — ready for verification
+Phase: 128 (MCP Generation Reconciliation + Parity Verification) — COMPLETE (1/1 plan)
+Plan: 1 of 1 — COMPLETE
+Status: Phase complete — ready for verification (v4.10 FINAL phase shipped — Multi-Channel Core track closed)
 
 ---
+
+### Accumulated Context (v4.10)
+
+Status (128-01, Wave 1 — MGEN-01/MPAR-01): shipped — **Phase 128 COMPLETE (1/1 plan) — the FINAL plan of v4.10; the thin, non-destructive reconciliation that routes the EXISTING MCP `create_estimate` through the v4.9 channel-neutral `createEstimate` so WhatsApp = web chat = MCP all dispatch generation through ONE core (MGEN-01), proven by a static binding test (MPAR-01).** **Task 1 (Option A — the single justified widening of the neutral fn):** `lib/agent-tools/create-estimate.ts` now mints a CHANNEL-NAMESPACED Inngest idempotency id — `estimate-${args.channel ? `${args.channel}-` : ''}${args.projectId}-${requestId}` → `estimate-<channel>-<projectId>-<requestId>` when a channel is passed, `estimate-<projectId>-<requestId>` otherwise. `channel` is already a NEUTRAL param so folding it into the id adds NO forbidden token — the neutrality gate (`tests/unit/agent-tools/neutrality.test.ts`) stays green. The neutral test asserts all three id forms (mcp→`/^estimate-mcp-proj-1-/`, web→`/^estimate-web-proj-1-/`, none→`/^estimate-proj-1-/` not `(web|mcp)`). **Task 2 (MGEN-01):** `lib/mcp/tools/write.ts` `handleCreateEstimate` REPLACED its inline `inngest.send(EVENT_ESTIMATE_GENERATE)` block with `const { jobId } = await createEstimate({ companyId: auth.company_id, projectId: input.project_id, prompts:[input.prompt], ...(language?), channel:'mcp' })` — mirroring `lib/chat/tools.ts`'s `channel:'web'` binding. KEPT verbatim: the `mcp:write` scope gate, the project-ownership lookup (service client → `.from('projects').eq('id').maybeSingle()` → notFound on missing/cross-company), and the `{ job_id: jobId, status:'queued', message:'…check_job_status…' }` envelope. DROPPED the now-dead imports (`randomUUID`, `inngest`, `EVENT_ESTIMATE_GENERATE`, `EstimateGeneratePayload`); `check_job_status` is untouched (it uses `fetch` + `INNGEST_SIGNING_KEY`, not those). The channel:'mcp' delegation + Task-1's namespaced id keep the behavior guard `tests/unit/mcp-create-estimate.test.ts` GREEN BYTE-UNCHANGED (the real neutral fn runs against the same leaf-mocked `@/lib/inngest/client` — NO `vi.mock('@/lib/agent-tools')`, Pitfall 5). **Task 3 (MPAR-01):** NEW `tests/unit/mcp/mcp-generation-parity.test.ts` (static `readFileSync`+grep, modeled on neutrality.test.ts — no DB/mocks/secrets): (1) write.ts imports `from '@/lib/agent-tools'` + contains `createEstimate(`; (2) write.ts does NOT contain `EVENT_ESTIMATE_GENERATE`; (3) three-channel convergence — chat/`createEstimate(`, mcp/`createEstimate(`, whatsapp `lib/whatsapp/confirm-actions.ts`/`generateEstimateForProject(`. 3/3 green. **2 DEVIATIONS (both blocking/robustness, in the task commits):** (1) Rule 3 — write.ts had TWO doc-comment mentions of `EVENT_ESTIMATE_GENERATE` after the code was deleted; reworded both so `grep -c EVENT_ESTIMATE_GENERATE` → 0 and the MPAR-01 negative assertion passes (1241e84a); (2) Rule 2 — added an explicit `toContain("from '@/lib/agent-tools'")` alongside the regex in the parity test so the acceptance grep is grep-discoverable (88bbd166). No source behavior changed. **VERIFICATION:** MGEN-01 suites (mcp-create-estimate + check-job-status + tool-registry + agent-tools/create-estimate) all green; MPAR-01 + neutrality green; FULL `npx vitest run` → **336 files passed | 2354 passed**, the ONLY fail is the KNOWN parallel-only `mcp-route-contract.test.ts` GET-405 flake (re-confirmed 8/8 GREEN in isolation, touches no Phase-128 file). `tsc --noEmit` clean on both Phase-128 source files (no dead imports). No migration, no new dep, no secret. 3 atomic commits (be2b6d1f feat namespaced-id, 1241e84a feat MCP delegation, 88bbd166 test parity); all normal hooked IN-PLACE (gitleaks ran each, no `--no-verify`), no leaks. MGEN-01 + MPAR-01 marked complete. **Phase 128 now 1/1 — COMPLETE; v4.10 (Phases 127-128, 6/6 requirements) — ALL phases shipped, Multi-Channel Core track CLOSED.** Next: `/gsd:verify-work 128`, then `/gsd:complete-milestone` for v4.10. See 128-01-SUMMARY.md. (NOTE: state cmds reverted milestone→v3.1.1 + progress→stale 18/18/51/51; re-asserted v4.10 + 66/66 phases / 201 plans per the known GSD state-revert issue.)
 
 ### Accumulated Context (v4.9)
 
@@ -113,7 +118,7 @@ Prior: 102-01 (HARD-07 replay-safe TTL) shipped. Added a neutral `requestedAt: A
 Prior: 102-02 (HARD-06 cap half) shipped. Replaced the hard-coded `(state.refineAttempts ?? 0) < 1` literal in `checkVagueAfterAssessEdge` (`lib/estimate/graph/nodes/decide.ts`) with a single `AUTO_REFINE_MAX_ATTEMPTS` module constant — read once at module load via an IIFE (`Number.isFinite(raw) && raw >= 0 ? raw : 1`) from the optional non-secret `process.env.AUTO_REFINE_MAX_ATTEMPTS`, defaulting to 1. Operator kept exactly `<` so the default is byte-identical to today (Research Pitfall 1). `auto-refine.ts` doc comment updated to reference the configurable cap (documentation-only; increment logic untouched). Channel-neutral (no DB, no async, no channel import) → graph-neutrality stays green. `tests/unit/estimate/auto-refine-cap.test.ts` now fully GREEN (default=1 AND `AUTO_REFINE_MAX_ATTEMPTS=2` override cases); `auto-refine-isolation` + `graph-neutrality` (12/12) and `never-reply-regression` Path C (loops exactly once at default) stay green. No env VALUE committed — only the var NAME appears (CLAUDE.md secret-handling). 1 atomic commit (02a41f2). xphere untouched. HARD-06 NOT marked complete — only the configurable-cap half is done; the web recourse UI half is owned by Plan 102-04.
 Prior (102-00, Wave 0 RED/EXTEND scaffold): authored 4 failing-by-design test files (auto-refine-cap [HARD-06 cap, now GREEN via 102-02], replay-safe-ttl [HARD-07, still RED → 102-01], batch-reporting [HARD-05, still RED → 102-03], needs-details-banner [HARD-06 recourse, still RED → 102-04]); 2 commits (201afb0, 35e8537).
 Last activity: 2026-06-25
-Stopped at: Completed 127-01-PLAN.md
+Stopped at: Completed 128-01-PLAN.md
 Next Up: **Phase 108 COMPLETE (5/5 plans — 108-01 metering [RMETER-01/02/03], 108-02 vagueness gate [RFALL-02], 108-03 orchestrator `researchUnmatchedPrices` [RPRICE-01/03/04, RFALL-01], 108-04 wire into `generateEstimateForProject` [RPRICE-01/03, RFALL-01], 108-05 "Couch cleaning 8 seats" full-graph regression [RFALL-03]).** THE PAYOFF is live in the production generation path AND locked by a green deterministic full-graph regression (EVIDENCED → $180/non-vague, empty-research+context → never-$0 ladder/non-vague, all-empty → still blocks). All three price-research adapters (`openrouter-web`, gated `anthropic-web`, deterministic `fixture`) remain configured-via-`platform_integrations` (all-misses no-op when unconfigured). Suggested: `/gsd:verify-work 108`, then `/gsd:execute-phase 109` (durability + cost-control hardening — dedicated `step.run('price-research')` retry isolation, runtime OpenRouter→Anthropic fallback ordering, per-estimate item caps, refine-loop memoization). DEFERRED (operational, carried from 108-01): apply migration `20260624000002_phase108_usage_event_price_researched.sql` (+ the earlier `20260624000001` price_research_cache) to remote via CI→GHCR→Coolify.
 Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gsd:verify-work 104` to validate the phase, then address the operational deferrals. DEFERRED (operational, all of Phase 104): apply migrations `20260621000001_notification_categories_remap.sql` + `20260621000002_notification_opt_in_consent.sql` + `20260621000003_whatsapp_notification_templates.sql` to the remote DB; ensure the Twilio from-number is SMS-capable; verify the Meta token carries `whatsapp_business_management` scope + author/approve the registry templates in Meta WhatsApp Manager (the `message_template_status_update` webhook then flips them to approved). Also still queued: `/gsd:verify-work 103` + `/gsd:complete-milestone` (v4.5) carry-over UATs.
 
@@ -725,6 +730,8 @@ Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gs
 - [Phase 126]: Chat page does its OWN companies.tier read (getActiveCompany omits tier — would silently block paying users); page-level ChatUpgradePrompt is the primary 403 affordance since the global UpgradeModal only catches 402
 - [Phase 127]: MCP read tools follow MQRY-01 literally (5 query + ask_knowledge = 6); find_service omitted by scope discipline
 - [Phase 127]: Re-created parseInput + READ_ONLY_ANNOTATIONS locally to keep read.ts/write.ts/server.ts byte-stable (MPAR-01 precursor)
+- [Phase 128]: MCP create_estimate delegates generation to the neutral createEstimate (channel:'mcp'); only the dispatch is delegated — scope gate, ownership lookup, and {job_id,status,message} envelope preserved
+- [Phase 128]: Channel-namespaced the neutral Inngest idempotency id (estimate-<channel>-<projectId>-<requestId>) — single justified widening; neutrality gate stays green, MCP estimate-mcp-p1- assertion stays green unchanged
 
 ## Performance Metrics
 
@@ -971,13 +978,14 @@ Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gs
 | Phase 126 P01 | 5 min | 2 tasks | 4 files |
 | Phase 126 P02 | 4 min | 2 tasks | 4 files |
 | Phase 127 P01 | 25m | 3 tasks | 4 files |
+| Phase 128 P01 | 7 | 3 tasks | 4 files |
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-13)
 
 **Core value:** Business owner → job site audio recording → sent professional estimate in under 5 minutes
-**Current focus:** Phase 127 — MCP Read Tools — Knowledge + Query over the Neutral Core
+**Current focus:** Phase 128 — MCP Generation Reconciliation + Parity Verification
 
 ## Notes
 

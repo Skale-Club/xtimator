@@ -1571,7 +1571,7 @@ Plans:
 
 - [x] **Phase 127: MCP Read Tools — Knowledge + Query over the Neutral Core** — Bind `ask_knowledge` + the 5 query tools (`find_client`, `get_latest_estimate`, `get_project_status`, `list_recent_estimates`, `list_services`) as read-only MCP tools wrapping `lib/agent-tools/`, with `readOnlyHint: true` annotations and the companyId-trusted invariant (MKB-01, MQRY-01, MSEC-01, MSEC-02)
  (completed 2026-06-25)
-- [ ] **Phase 128: MCP Generation Reconciliation + Parity Verification** — Route the existing MCP `create_estimate` through the neutral `lib/agent-tools/createEstimate`, confirm all three channels share one generation entry, and prove the bindings non-destructive (the v4.1 MCP test suite stays green) (MGEN-01, MPAR-01)
+- [x] **Phase 128: MCP Generation Reconciliation + Parity Verification** — Route the existing MCP `create_estimate` through the neutral `lib/agent-tools/createEstimate`, confirm all three channels share one generation entry, and prove the bindings non-destructive (the v4.1 MCP test suite stays green) (MGEN-01, MPAR-01) (completed 2026-06-25)
 
 ### Phase 127: MCP Read Tools — Knowledge + Query over the Neutral Core
 **Goal**: A connected MCP client (Claude.ai / Claude Desktop / ChatGPT) can ask the owner's industry/company knowledge questions and read the owner's company data through the SAME neutral capabilities WhatsApp and the web chat already use — exposed as read-only MCP tools that the Claude.ai permission UI auto-groups, with the company always resolved from the OAuth token (never a tool input).
@@ -1596,4 +1596,4 @@ Plans:
   3. The MCP tools BIND the neutral `lib/agent-tools/` capabilities (a thin tool layer); nothing in `lib/agent-tools/` is re-extracted or modified to satisfy MCP
   4. The existing v4.1 MCP test suite stays green unchanged (non-destructive) — the parity guard confirming WhatsApp = chat = MCP over one core
 **Plans**: 1 plan
-- [ ] 128-01-PLAN.md — Reconcile MCP create_estimate to delegate to the neutral createEstimate (channel-namespaced idempotency id keeps the MCP suite green) + add the MPAR-01 static binding/three-channel-convergence parity test (MGEN-01, MPAR-01)
+- [x] 128-01-PLAN.md — Reconcile MCP create_estimate to delegate to the neutral createEstimate (channel-namespaced idempotency id keeps the MCP suite green) + add the MPAR-01 static binding/three-channel-convergence parity test (MGEN-01, MPAR-01)

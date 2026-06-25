@@ -25,7 +25,7 @@ Requirements for this milestone. Each maps to exactly one roadmap phase.
 
 ### MCP Generation Reconciliation
 
-- [ ] **MGEN-01**: The existing MCP `create_estimate` routes through the neutral `lib/agent-tools/createEstimate` (the async `{jobId}` contract it was the precedent for), so all three channels share one generation entry point — behavior preserved.
+- [x] **MGEN-01**: The existing MCP `create_estimate` routes through the neutral `lib/agent-tools/createEstimate` (the async `{jobId}` contract it was the precedent for), so all three channels share one generation entry point — behavior preserved.
 
 ### MCP Security & Annotations
 
@@ -34,7 +34,7 @@ Requirements for this milestone. Each maps to exactly one roadmap phase.
 
 ### Parity Verification
 
-- [ ] **MPAR-01**: The MCP tools BIND the neutral `lib/agent-tools/` capabilities (not a re-implementation), and the existing v4.1 MCP test suite stays green unchanged (non-destructive) — confirming WhatsApp = chat = MCP over one core.
+- [x] **MPAR-01**: The MCP tools BIND the neutral `lib/agent-tools/` capabilities (not a re-implementation), and the existing v4.1 MCP test suite stays green unchanged (non-destructive) — confirming WhatsApp = chat = MCP over one core.
 
 ## v2 Requirements
 
@@ -63,10 +63,10 @@ Which phases cover which requirements. Populated during roadmap creation.
 |-------------|-------|--------|
 | MKB-01 | Phase 127 | Complete |
 | MQRY-01 | Phase 127 | Complete |
-| MGEN-01 | Phase 128 | Pending |
+| MGEN-01 | Phase 128 | Complete |
 | MSEC-01 | Phase 127 | Complete |
 | MSEC-02 | Phase 127 | Complete |
-| MPAR-01 | Phase 128 | Pending |
+| MPAR-01 | Phase 128 | Complete |
 
 **Coverage:**
 - v1 requirements: 6 total
