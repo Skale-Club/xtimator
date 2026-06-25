@@ -1730,7 +1730,10 @@ Plans:
   2. The same migration creates `company_invites` (`id`, `company_id`, `email`, `role`, `token`, `status` ∈ `pending|accepted|revoked|expired`, `invited_by`, `expires_at`, `created_at`) with RLS mirroring the Phase-79 posture — owner/admin of the company can read/manage its invites (gated by a `company_members` subquery), and the token-based accept path is service-role only (no broad client write policy); the migration touches NO `companies` billing column
   3. A single `requireCompanyRole(companyId, roles)` server helper resolves the caller's membership row server-side (RLS-bound client, never a client-supplied role) and authorizes against the locked matrix — owner/admin for member management, owner-only for billing/seat/ownership — returning a typed allow/deny that callers narrow on; a unit test proves each role × capability cell and that an absent membership denies
   4. The role gate lives in EXACTLY ONE place: a static test asserts team/billing server actions resolve authority through `requireCompanyRole` and never re-derive a role inline or trust a role from the request body
-**Plans**: TBD
+**Plans**: 2 plans (Wave 1, both autonomous + parallel)
+Plans:
+- [ ] 135-01-PLAN.md — Idempotent authored-only schema migration: widen company_members.role CHECK to owner/admin/member (named DROP/ADD) + create company_invites + RLS (Phase-79 mirror) + static SQL-contract test (SEAT-01)
+- [ ] 135-02-PLAN.md — requireCompanyRole(companyId, roles) single server-side authorization gate + requireCompanyManager/requireCompanyOwner wrappers + behavioral role-matrix test (SEAT-02)
 
 ### Phase 136: Invite Lifecycle + Email
 **Goal**: An owner or admin can invite a teammate by email + role: the system creates a single-use, expiring `company_invites` row and sends a Resend email carrying the accept link, and can revoke a still-pending invite. A pending invite never consumes a billable seat — the seat is only counted on acceptance (Phase 137).
