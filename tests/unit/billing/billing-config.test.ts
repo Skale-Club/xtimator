@@ -168,6 +168,61 @@ describe('SEAT-06: seat config deep-merge', () => {
 })
 
 // =============================================================================
+// ANN-01 — annual price deep-merge (seatPriceAnnualCents + per-tier
+//          subscriptionPriceAnnualCents)
+// =============================================================================
+describe('ANN-01: annual price deep-merge', () => {
+  it('resolves seatPriceAnnualCents + tiers.pro.subscriptionPriceAnnualCents from DEFAULT when no row exists', async () => {
+    serviceClientImpl = () => makeServiceClient(null)
+    const cfg = await getBillingConfig()
+    expect(cfg.seatPriceAnnualCents).toBe(DEFAULT_BILLING_CONFIG.seatPriceAnnualCents)
+    expect(cfg.tiers.pro.subscriptionPriceAnnualCents).toBe(
+      DEFAULT_BILLING_CONFIG.tiers.pro.subscriptionPriceAnnualCents
+    )
+  })
+
+  it('a pre-existing row WITHOUT a tiers key still resolves the annual fields from DEFAULT (Pitfall-6)', async () => {
+    serviceClientImpl = () => makeServiceClient({ metadata: { markup: 5 } })
+    const cfg = await getBillingConfig()
+    expect(cfg.tiers.pro.subscriptionPriceAnnualCents).toBe(
+      DEFAULT_BILLING_CONFIG.tiers.pro.subscriptionPriceAnnualCents
+    )
+    expect(cfg.seatPriceAnnualCents).toBe(DEFAULT_BILLING_CONFIG.seatPriceAnnualCents)
+  })
+
+  it('a stored row overriding seatPriceAnnualCents resolves it, tiers default', async () => {
+    serviceClientImpl = () => makeServiceClient({ metadata: { seatPriceAnnualCents: 12000 } })
+    const cfg = await getBillingConfig()
+    expect(cfg.seatPriceAnnualCents).toBe(12000)
+    expect(cfg.tiers).toEqual(DEFAULT_BILLING_CONFIG.tiers)
+  })
+
+  it('a stored partial tiers object resolves its subscriptionPriceAnnualCents, others from DEFAULT', async () => {
+    serviceClientImpl = () =>
+      makeServiceClient({
+        metadata: {
+          tiers: {
+            pro: {
+              monthlyCreditGrant: 9000,
+              subscriptionPriceCents: 2900,
+              subscriptionPriceAnnualCents: 25000,
+              includedSeats: 1,
+            },
+          },
+        },
+      })
+    const cfg = await getBillingConfig()
+    expect(cfg.tiers.pro.subscriptionPriceAnnualCents).toBe(25000)
+    expect(cfg.tiers.free.subscriptionPriceAnnualCents).toBe(
+      DEFAULT_BILLING_CONFIG.tiers.free.subscriptionPriceAnnualCents
+    )
+    expect(cfg.tiers.business.subscriptionPriceAnnualCents).toBe(
+      DEFAULT_BILLING_CONFIG.tiers.business.subscriptionPriceAnnualCents
+    )
+  })
+})
+
+// =============================================================================
 // BILLCFG-02 — schema (validated here so the writer can trust it)
 // =============================================================================
 describe('BILLCFG-02: billingConfigSchema', () => {
@@ -226,6 +281,24 @@ describe('BILLCFG-02: billingConfigSchema', () => {
       tiers: {
         ...DEFAULT_BILLING_CONFIG.tiers,
         pro: { ...DEFAULT_BILLING_CONFIG.tiers.pro, includedSeats: 1.5 },
+      },
+    }
+    expect(billingConfigSchema.safeParse(bad).success).toBe(false)
+  })
+
+  // ANN-01: annual-price validation
+  it('rejects negative seatPriceAnnualCents', () => {
+    expect(
+      billingConfigSchema.safeParse({ ...DEFAULT_BILLING_CONFIG, seatPriceAnnualCents: -1 }).success
+    ).toBe(false)
+  })
+
+  it('rejects a tier with non-integer subscriptionPriceAnnualCents', () => {
+    const bad = {
+      ...DEFAULT_BILLING_CONFIG,
+      tiers: {
+        ...DEFAULT_BILLING_CONFIG.tiers,
+        pro: { ...DEFAULT_BILLING_CONFIG.tiers.pro, subscriptionPriceAnnualCents: 1.5 },
       },
     }
     expect(billingConfigSchema.safeParse(bad).success).toBe(false)
