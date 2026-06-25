@@ -21,6 +21,7 @@
 import { normalizeInput } from '@/lib/agent-tools'
 import { createClient } from '@/lib/supabase/server'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
+import { createConversation } from '@/lib/queries/chat'
 
 type ChatNormalizeArg =
   | { kind: 'audio'; base64: string; ext: string }
@@ -56,4 +57,22 @@ export async function normalizeChatInput(
     caption: arg.caption,
   })
   return { ok: r.ok, text: r.text, reason: r.reason }
+}
+
+/**
+ * createChatConversation — CHATUI-02 new-conversation pre-create (Pitfall 5).
+ *
+ * The chat UI pre-creates the conversation BEFORE the first turn so the id can
+ * ride in the transport body. Otherwise the route's onFinish would create a
+ * second conversation, splitting the first turn across two threads. Owner-scoped:
+ * auth mirrors normalizeChatInput / app/api/chat/route.ts. Returns the id or null.
+ */
+export async function createChatConversation(): Promise<{ id: string } | null> {
+  const supabase = await createClient()
+  const { data: claimsData } = await supabase.auth.getClaims()
+  const userId = claimsData?.claims?.sub as string | undefined
+  if (!userId) return null
+
+  const conv = await createConversation(userId)
+  return conv ? { id: conv.id } : null
 }
