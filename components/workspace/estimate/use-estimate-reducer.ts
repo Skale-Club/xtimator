@@ -53,6 +53,12 @@ export interface EstimateEditorState {
   tax_amount: number
   subtotal: number
   total: number
+  // v4.11 deposit — preview only; server (saveEstimate → computeEstimateTotals)
+  // is authoritative. deposit_type domain: 'none' | 'percent' | 'amount'.
+  deposit_type: string
+  deposit_value: number | null
+  deposit: number
+  balance_due: number
   sections: EditorSection[]
   estimate_date: string | null
   estimate_number: string | null
@@ -76,6 +82,7 @@ export type EstimateAction =
   | { type: 'REORDER_ITEMS'; sectionId: string; itemIds: string[] }
   | { type: 'REORDER_SECTIONS'; sectionIds: string[] }
   | { type: 'UPDATE_DISCOUNT'; discount_type: string | null; discount_value: number }
+  | { type: 'UPDATE_DEPOSIT'; deposit_type: string; deposit_value: number | null }
   | { type: 'UPDATE_TAX_RATE'; tax_rate: number }
   | { type: 'MARK_SAVED' }
   | { type: 'APPLY_REFINEMENT'; refined: RefinementPayload }
@@ -134,7 +141,17 @@ function recalculate(state: EstimateEditorState): EstimateEditorState {
   const tax_amount = Math.round((subtotal - discount_amount) * state.tax_rate * 100) / 100
   const total = Math.round((subtotal - discount_amount + tax_amount) * 100) / 100
 
-  return { ...state, sections, subtotal, discount_amount, tax_amount, total }
+  // v4.11 deposit preview — mirror compute-totals.ts L177-190 EXACTLY (same
+  // Math.round(x*100)/100 form). Server recompute is authoritative (GUARD-03).
+  const deposit =
+    state.deposit_type === 'percent'
+      ? Math.round(total * ((state.deposit_value ?? 0) / 100) * 100) / 100
+      : state.deposit_type === 'amount'
+        ? Math.round((state.deposit_value ?? 0) * 100) / 100
+        : 0
+  const balance_due = Math.round((total - deposit) * 100) / 100
+
+  return { ...state, sections, subtotal, discount_amount, tax_amount, total, deposit, balance_due }
 }
 
 // ---------------------------------------------------------------------------
@@ -161,6 +178,10 @@ function initState(estimate: EstimateWithSections | null): EstimateEditorState {
       tax_amount: 0,
       subtotal: 0,
       total: 0,
+      deposit_type: 'none',
+      deposit_value: null,
+      deposit: 0,
+      balance_due: 0,
       sections: [],
       estimate_date: null,
       estimate_number: null,
@@ -186,6 +207,13 @@ function initState(estimate: EstimateWithSections | null): EstimateEditorState {
     tax_amount: estimate.tax_amount,
     subtotal: estimate.subtotal,
     total: estimate.total,
+    // v4.11 deposit — read off the server row with no-op defaults (cast like
+    // estimate_date; the query type may not yet surface these). deposit preview
+    // recomputes on the first recalculate; balance_due falls back to total.
+    deposit_type: (estimate as { deposit_type?: string }).deposit_type ?? 'none',
+    deposit_value: (estimate as { deposit_value?: number | null }).deposit_value ?? null,
+    deposit: 0,
+    balance_due: (estimate as { balance_due?: number | null }).balance_due ?? estimate.total,
     estimate_date: (estimate as { estimate_date?: string | null }).estimate_date ?? null,
     estimate_number: (estimate as { estimate_number?: string | null }).estimate_number ?? null,
     sections: estimate.sections
@@ -389,6 +417,16 @@ function estimateReducer(state: EstimateEditorState, action: EstimateAction): Es
         ...state,
         discount_type: action.discount_type,
         discount_value: action.discount_value,
+        isDirty: true,
+      }
+      return recalculate(updated)
+    }
+
+    case 'UPDATE_DEPOSIT': {
+      const updated = {
+        ...state,
+        deposit_type: action.deposit_type,
+        deposit_value: action.deposit_value,
         isDirty: true,
       }
       return recalculate(updated)
