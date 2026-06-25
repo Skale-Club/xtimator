@@ -1487,7 +1487,7 @@ Plans:
  (completed 2026-06-25)
 - [x] **Phase 124: AI SDK + /api/chat Tool-Calling Backend (slots + credit reuse)** - Add the Vercel AI SDK (`ai` + `@ai-sdk/*`); an `/api/chat` `streamText` + native tool-calling route exposing the neutral tools, resolving the model via `ai_config` slots through an OpenRouter-compatible provider; estimate generation invoked as a tool over the unchanged LangGraph engine (async Inngest job); heavy ops debit credits by reusing the neutral functions.
  (completed 2026-06-25)
-- [ ] **Phase 125: Chat UI — useChat + Sidebar + Multimodal + Estimate Card** - The `useChat` streaming surface with per-tool-call progress, a conversation sidebar (new/switch + history load), multimodal input (text/audio/photo) routed through the extracted `normalize`, and an inline estimate card that opens in the existing editor.
+- [x] **Phase 125: Chat UI — useChat + Sidebar + Multimodal + Estimate Card** - The `useChat` streaming surface with per-tool-call progress, a conversation sidebar (new/switch + history load), multimodal input (text/audio/photo) routed through the extracted `normalize`, and an inline estimate card that opens in the existing editor. (completed 2026-06-25)
 - [ ] **Phase 126: Access/Entitlement Gate + Owner-Only Verification** - The chat is gated owner-only (authenticated, tenant-scoped) and by tier entitlement (Pro/Business), audited so it is never reachable by an end customer.
 
 ### Phase Details — v4.9 Internal Web Chat Assistant
@@ -1545,7 +1545,7 @@ Plans:
 **Plans**: 3 plans in 3 waves
 - [x] 125-00-PLAN.md — Install @ai-sdk/react@6.0.209 + history mapper + normalizeChatInput action + Nyquist Wave-0 test scaffolds (CHATUI-01/02/03/04)
 - [x] 125-01-PLAN.md — Route + sidebar + useChat thread + message-parts/tool-progress rendering (CHATUI-01, CHATUI-02)
-- [ ] 125-02-PLAN.md — Multimodal composer (audio/photo → normalize) + inline estimate card with open-in-editor (CHATUI-03, CHATUI-04)
+- [x] 125-02-PLAN.md — Multimodal composer (audio/photo → normalize) + inline estimate card with open-in-editor (CHATUI-03, CHATUI-04)
 **UI hint**: yes
 
 ### Phase 126: Access/Entitlement Gate + Owner-Only Verification
