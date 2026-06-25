@@ -10,6 +10,7 @@
  * only translates the structural labels (Subtotal, Total, Timeline, etc.).
  */
 import { formatMoney } from '@/lib/money/currency'
+import { deriveDepositDisplay } from '@/lib/estimate/deposit-display'
 
 export type FormatterItem = {
   description: string
@@ -34,6 +35,10 @@ export type FormatterEstimate = {
   discount_amount?: number
   tax_rate: number
   tax_amount: number
+  /** Phase 134 (v4.11): persisted deposit fields — read, never recomputed (GUARD-03) */
+  deposit_type?: string | null
+  deposit_value?: number | null
+  balance_due?: number | null
   payment_terms: string | null
   timeline: string | null
   sections: FormatterSection[]
@@ -51,6 +56,8 @@ interface FormatterLabels {
   discount: (type: string | null | undefined, value: number) => string
   tax: (pct: string) => string
   total: string
+  deposit: string
+  balanceDue: string
   closing: string
   regards: string
 }
@@ -66,6 +73,8 @@ const LABELS: Record<'en' | 'pt' | 'es', FormatterLabels> = {
       type === 'percentage' ? `Discount (${value}%)` : 'Discount',
     tax: (pct) => `Tax (${pct}%)`,
     total: 'Total Estimate',
+    deposit: 'Deposit',
+    balanceDue: 'Balance Due',
     closing:
       "Let me know if you have any questions or would like to schedule. I'd be happy to assist you!",
     regards: 'Best regards,',
@@ -80,6 +89,8 @@ const LABELS: Record<'en' | 'pt' | 'es', FormatterLabels> = {
       type === 'percentage' ? `Desconto (${value}%)` : 'Desconto',
     tax: (pct) => `Imposto (${pct}%)`,
     total: 'Total do Orçamento',
+    deposit: 'Entrada',
+    balanceDue: 'Saldo Devedor',
     closing: 'Fique à vontade para entrar em contato com dúvidas ou para agendar. Terei prazer em ajudar!',
     regards: 'Atenciosamente,',
   },
@@ -93,6 +104,8 @@ const LABELS: Record<'en' | 'pt' | 'es', FormatterLabels> = {
       type === 'percentage' ? `Descuento (${value}%)` : 'Descuento',
     tax: (pct) => `Impuesto (${pct}%)`,
     total: 'Total del Presupuesto',
+    deposit: 'Depósito',
+    balanceDue: 'Saldo Pendiente',
     closing:
       '¿Preguntas? Con gusto le ayudamos a programar. ¡Estamos a su disposición!',
     regards: 'Saludos,',
@@ -160,6 +173,21 @@ export function formatEstimateForWhatsApp(
   lines.push('')
   lines.push(`${L.total}: ${money(estimate.total)}`)
   lines.push('')
+
+  // ── Deposit + Balance Due (Phase 134 / v4.11, PUI-02) ─────────────────────
+  // Read PERSISTED server fields — no recompute (GUARD-03). Lines emit only when
+  // a deposit is actually set; legacy rows stay byte-identical.
+  const dep = deriveDepositDisplay({
+    total: estimate.total,
+    deposit_type: estimate.deposit_type ?? 'none',
+    deposit_value: estimate.deposit_value ?? null,
+    balance_due: estimate.balance_due ?? null,
+  })
+  if (dep.showDeposit) {
+    lines.push(`${L.deposit}: -${money(dep.depositAmount)}`)
+    lines.push(`${L.balanceDue}: ${money(dep.balanceDue)}`)
+    lines.push('')
+  }
 
   // ── Closing + sign-off ────────────────────────────────────────────────────
   lines.push(L.closing)

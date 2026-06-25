@@ -120,4 +120,85 @@ describe('formatEstimateForWhatsApp', () => {
     const regardsIdx = lines.findIndex((l) => l === 'Best regards,')
     expect(lines[regardsIdx + 1]).toBeUndefined()
   })
+
+  // ── PUI-02 (v4.11): Deposit + Balance Due lines ───────────────────────────
+  it('emits NO Deposit/Balance Due line for a legacy estimate (no deposit)', () => {
+    const result = formatEstimateForWhatsApp(BASE_ESTIMATE, null, null)
+    expect(result).not.toMatch(/Deposit/)
+    expect(result).not.toMatch(/Balance Due/)
+  })
+
+  it('emits Deposit (-) and Balance Due lines after Total when a percent deposit is set', () => {
+    const withDeposit: FormatterEstimate = {
+      ...BASE_ESTIMATE,
+      total: 2750,
+      deposit_type: 'percent',
+      deposit_value: 30,
+      balance_due: 1925,
+    }
+    const result = formatEstimateForWhatsApp(withDeposit, null, null)
+    // 2750 − 1925 = 825
+    expect(result).toMatch(/Deposit: -\$825\.00/)
+    expect(result).toMatch(/Balance Due: \$1,925\.00/)
+    // order: Total before Deposit before Balance Due
+    const totalIdx = result.indexOf('Total Estimate:')
+    const depositIdx = result.indexOf('Deposit:')
+    const balanceIdx = result.indexOf('Balance Due:')
+    expect(totalIdx).toBeLessThan(depositIdx)
+    expect(depositIdx).toBeLessThan(balanceIdx)
+  })
+
+  it('reads persisted balance_due (no recompute) for an amount deposit', () => {
+    const withDeposit: FormatterEstimate = {
+      ...BASE_ESTIMATE,
+      total: 2750,
+      deposit_type: 'amount',
+      deposit_value: 500, // intentionally != total − balance_due
+      balance_due: 2000,
+    }
+    const result = formatEstimateForWhatsApp(withDeposit, null, null)
+    // 2750 − 2000 = 750 (derived from persisted balance_due, NOT deposit_value)
+    expect(result).toMatch(/Deposit: -\$750\.00/)
+    expect(result).toMatch(/Balance Due: \$2,000\.00/)
+  })
+
+  it('renders Deposit/Balance Due labels in pt', () => {
+    const withDeposit: FormatterEstimate = {
+      ...BASE_ESTIMATE,
+      language: 'pt',
+      total: 2750,
+      deposit_type: 'percent',
+      deposit_value: 30,
+      balance_due: 1925,
+    }
+    const result = formatEstimateForWhatsApp(withDeposit, null, null)
+    expect(result).toMatch(/Entrada: -\$825\.00/)
+    expect(result).toMatch(/Saldo Devedor: \$1,925\.00/)
+  })
+
+  it('renders Deposit/Balance Due labels in es', () => {
+    const withDeposit: FormatterEstimate = {
+      ...BASE_ESTIMATE,
+      language: 'es',
+      total: 2750,
+      deposit_type: 'percent',
+      deposit_value: 30,
+      balance_due: 1925,
+    }
+    const result = formatEstimateForWhatsApp(withDeposit, null, null)
+    expect(result).toMatch(/Depósito: -\$825\.00/)
+    expect(result).toMatch(/Saldo Pendiente: \$1,925\.00/)
+  })
+
+  it("emits no Deposit/Balance Due line when deposit_type is 'none'", () => {
+    const noDeposit: FormatterEstimate = {
+      ...BASE_ESTIMATE,
+      deposit_type: 'none',
+      deposit_value: null,
+      balance_due: null,
+    }
+    const result = formatEstimateForWhatsApp(noDeposit, null, null)
+    expect(result).not.toMatch(/Deposit/)
+    expect(result).not.toMatch(/Balance Due/)
+  })
 })
