@@ -46,7 +46,7 @@ Requirements for this milestone. Each maps to exactly one roadmap phase.
 ### Credits, Slots & Access
 
 - [x] **CHATMETER-01**: Heavy chat operations (generation, transcription, photo analysis) consume credits via the v4.7 ledger exactly as the other channels do (by reusing the neutral functions that already debit); the lightweight conversation turn is absorbed.
-- [ ] **CHATMETER-02**: The chat is owner-only (authenticated, tenant-scoped) and gated by tier entitlement (a Pro/Business feature); it is never reachable by an end customer.
+- [x] **CHATMETER-02**: The chat is owner-only (authenticated, tenant-scoped) and gated by tier entitlement (a Pro/Business feature); it is never reachable by an end customer.
 
 ## v2 Requirements
 
@@ -94,7 +94,7 @@ Which phases cover which requirements. Populated during roadmap creation.
 | CHATUI-03 | Phase 125 | Complete |
 | CHATUI-04 | Phase 125 | Complete |
 | CHATMETER-01 | Phase 124 | Complete |
-| CHATMETER-02 | Phase 126 | Pending |
+| CHATMETER-02 | Phase 126 | Complete |
 
 **Coverage:**
 - v1 requirements: 16 total

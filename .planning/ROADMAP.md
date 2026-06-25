@@ -1559,5 +1559,5 @@ Plans:
   3. An audit confirms no path (route, persistence, or UI) lets an end customer reach the chat, and the owner-only + tenant-scoped invariant holds across every surface added in 122-125
 **Plans**: 2 plans in `.planning/phases/126-chat-access-entitlement-gate/`
 Plans:
-- [ ] 126-01-PLAN.md — chatEnabled flag (free false; trial/pro/business true) + the /api/chat 403 chat_not_on_plan security-boundary gate (CHATMETER-02)
+- [x] 126-01-PLAN.md — chatEnabled flag (free false; trial/pro/business true) + the /api/chat 403 chat_not_on_plan security-boundary gate (CHATMETER-02)
 - [ ] 126-02-PLAN.md — chat page upgrade-prompt gate (own tier read) + the owner-only / never-customer-facing static scope test (CHATMETER-02)
