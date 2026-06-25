@@ -1482,7 +1482,7 @@ Plans:
 
 ## Phases — v4.9 Internal Web Chat Assistant
 
-- [x] **Phase 122: Channel-Neutral Domain Extraction + WhatsApp Parity** - Pull `createEstimate` / `queryCompanyData` / `askKnowledge` / multimodal `normalize` out of `lib/whatsapp/` into neutral domain tools that WhatsApp KEEPS calling — a NON-DESTRUCTIVE refactor proven by WhatsApp behavioral-parity tests. The load-bearing foundation; nothing in the chat works until these neutral tools exist. (completed 2026-06-25)
+- [x] **Phase 122: Channel-Neutral Domain Extraction + WhatsApp Parity** - Pull `createEstimate` / `queryCompanyData` / `askKnowledge` / multimodal `normalize` out of `lib/whatsapp/` into neutral domain tools that WhatsApp KEEPS calling — a NON-DESTRUCTIVE refactor proven by WhatsApp behavioral-parity tests. The load-bearing foundation; nothing in the chat works until these neutral tools exist. (completed 2026-06-25)
 - [ ] **Phase 123: Chat Persistence Schema + History** - `chat_conversations` + `chat_messages` tables (tenant-scoped RLS mirroring `whatsapp_inbox`, idempotent + authored-only migration) plus the persist/reload path so a returning owner sees their chat history.
 - [ ] **Phase 124: AI SDK + /api/chat Tool-Calling Backend (slots + credit reuse)** - Add the Vercel AI SDK (`ai` + `@ai-sdk/*`); an `/api/chat` `streamText` + native tool-calling route exposing the neutral tools, resolving the model via `ai_config` slots through an OpenRouter-compatible provider; estimate generation invoked as a tool over the unchanged LangGraph engine (async Inngest job); heavy ops debit credits by reusing the neutral functions.
 - [ ] **Phase 125: Chat UI — useChat + Sidebar + Multimodal + Estimate Card** - The `useChat` streaming surface with per-tool-call progress, a conversation sidebar (new/switch + history load), multimodal input (text/audio/photo) routed through the extracted `normalize`, and an inline estimate card that opens in the existing editor.
@@ -1514,7 +1514,9 @@ Plans:
   1. `chat_conversations` (id, company_id, user_id, title, created_at, updated_at) and `chat_messages` (id, conversation_id, role, parts jsonb, attachments jsonb, created_at) tables exist via an idempotent, authored-only migration (deployed CI→GHCR→Coolify, never built on the VPS)
   2. RLS is tenant-scoped: a company's members can read and write only their own company's conversations and messages; another tenant cannot see or modify them (mirrors `whatsapp_inbox`)
   3. A conversation and its messages persist across sessions — a returning owner re-opening the chat sees the saved conversation list and the full message history of a selected conversation
-**Plans**: TBD
+**Plans**: 2 plans (2 waves)
+- [ ] 123-01-PLAN.md — Migration + static contract test: chat_conversations + chat_messages, parts jsonb, denormalized company_id, company_members RLS owner-narrowed by user_id (CHATDB-01)
+- [ ] 123-02-PLAN.md — lib/queries/chat.ts helpers (list/get/create/append, service-client + getActiveCompanyId scoping, updated_at bump) + behavior test (CHATDB-02)
 
 ### Phase 124: AI SDK + /api/chat Tool-Calling Backend (slots + credit reuse)
 **Goal**: The chat has a working streaming backend — the Vercel AI SDK is installed, an `/api/chat` route uses `streamText` + native tool-calling and exposes the Phase-122 neutral tools, the model is resolved from `ai_config` slots through an OpenRouter-compatible provider (never hard-coded), estimate generation is invoked as a tool that runs the unchanged `generateEstimateForProject` LangGraph engine as an async Inngest job returning a structured estimate (a tool-call boundary, NOT a streaming bridge — no LangChainAdapter in v1), and heavy operations debit credits by reusing the neutral functions that already debit per v4.7 (the lightweight conversation turn is absorbed). This is where the chat becomes capable; the UI in Phase 125 consumes it.
