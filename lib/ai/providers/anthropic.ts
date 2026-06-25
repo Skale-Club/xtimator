@@ -78,6 +78,15 @@ export class AnthropicAdapter implements AIProvider {
                             enum: ['price_book', 'ai_estimate'],
                             description: "'price_book' if this price came from the company's price book entry. 'ai_estimate' if you estimated it from market rates.",
                           },
+                          taxable: {
+                            type: 'boolean',
+                            description: 'true if this line item is taxable (default true if omitted).',
+                          },
+                          tax_category: {
+                            type: 'string',
+                            enum: ['labor', 'materials', 'other'],
+                            description: 'Classify the work: "labor" for labor/service lines, "materials" for physical goods, "other" otherwise. Classification only — do NOT compute any tax.',
+                          },
                         },
                       },
                     },
@@ -179,6 +188,15 @@ export class AnthropicAdapter implements AIProvider {
                             type: 'string',
                             enum: ['price_book', 'ai_estimate'],
                             description: "'price_book' if this price came from the company's price book entry. 'ai_estimate' if you estimated it from market rates.",
+                          },
+                          taxable: {
+                            type: 'boolean',
+                            description: 'true if this line item is taxable (default true if omitted).',
+                          },
+                          tax_category: {
+                            type: 'string',
+                            enum: ['labor', 'materials', 'other'],
+                            description: 'Classify the work: "labor" for labor/service lines, "materials" for physical goods, "other" otherwise. Classification only — do NOT compute any tax.',
                           },
                         },
                       },

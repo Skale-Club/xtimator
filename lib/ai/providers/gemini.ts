@@ -128,6 +128,15 @@ export class GeminiAdapter implements AIProvider {
                         // Note: Gemini has no Type.ENUM — use STRING + description (D-15 fallback handles enforcement)
                         description: "Must be 'price_book' if price came from company price book, or 'ai_estimate' if estimated from market rates.",
                       },
+                      taxable: {
+                        type: Type.BOOLEAN,
+                        description: 'true if this line item is taxable (default true if omitted).',
+                      },
+                      tax_category: {
+                        type: Type.STRING,
+                        // Gemini has no Type.ENUM — use STRING + description (zod schema enforces labor|materials|other)
+                        description: 'Classify the work: "labor" for labor/service lines, "materials" for physical goods, "other" otherwise. Classification only — do NOT compute any tax.',
+                      },
                     },
                   },
                 },
@@ -211,6 +220,15 @@ export class GeminiAdapter implements AIProvider {
                       price_source: {
                         type: Type.STRING,
                         description: "Must be 'price_book' if price came from company price book, or 'ai_estimate' if estimated from market rates.",
+                      },
+                      taxable: {
+                        type: Type.BOOLEAN,
+                        description: 'true if this line item is taxable (default true if omitted).',
+                      },
+                      tax_category: {
+                        type: Type.STRING,
+                        // Gemini has no Type.ENUM — use STRING + description (zod schema enforces labor|materials|other)
+                        description: 'Classify the work: "labor" for labor/service lines, "materials" for physical goods, "other" otherwise. Classification only — do NOT compute any tax.',
                       },
                     },
                   },

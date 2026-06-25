@@ -80,6 +80,12 @@ Also generate a short, professional project name in 2-5 words derived from the w
     prompt += `\n\nFor each line item, set price_source to "ai_estimate" (no company price book configured).`
   }
 
+  // TAX-02 — per-item labor/materials classification instruction. CLASSIFICATION
+  // ONLY: the model labels each line; the server computes all tax deterministically
+  // (ENG-01 fence — the AI has no calculator). Inserted before Security so the
+  // Security block remains the LAST appended section.
+  prompt += `\n\n## Tax Classification\nFor each line item, set tax_category to "labor" for labor/service work, "materials" for physical goods or supplies, or "other" otherwise. This is a CLASSIFICATION ONLY — never compute, add, or estimate any tax amount; the system computes all tax deterministically.`
+
   // Admin-configured WhatsApp-only addendum (trusted text — no XML escaping).
   // Inserted before Security so the Security block remains the LAST section.
   if (input.extraInstructions?.trim()) {
