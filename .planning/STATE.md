@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v4.8
 milestone_name: Industry Knowledge Base — Channel-Neutral Conversational Assistant
-status: verifying
+status: completed
 stopped_at: Completed 121-01-PLAN.md
-last_updated: "2026-06-25T00:37:28.692Z"
+last_updated: "2026-06-25T00:41:13.731Z"
 last_activity: 2026-06-25
 progress:
-  total_phases: 18
-  completed_phases: 18
-  total_plans: 51
-  completed_plans: 51
+  total_phases: 73
+  completed_phases: 59
+  total_plans: 174
+  completed_plans: 187
 ---
 
 # Project State
@@ -27,12 +27,11 @@ progress:
 - **Dependency spine:** 117 (schema/pgvector/RLS) is the foundation. 118 (neutral module) needs 117. 119 (super-admin curation) + 120 (company overlay) each need 117 + 118 (`embed`) and can run in PARALLEL (distinct surfaces — the two-panel rule). 121 (WhatsApp intent) needs 118 (`answer`) + a populated KB (117 + at least curation from 119), and is the last/consumer phase.
 - **Locked guardrails (SEED-033 + PROJECT.md):** `lib/knowledge/` is channel-neutral — imports NO channel (WhatsApp/web-chat/MCP are thin consumers); retrieval = pgvector + embeddings ONLY in v1 (NO Cohere reranker — deferred, data-driven phase-2 with an explicit trigger); the two-panel rule (industry KB = super-admin platform asset; company overlay = tenant settings — distinct surfaces, distinct RLS); NO owner-facing KB browser (consult via chat only); injection-hardening via existing `sanitizeField` + a new `<knowledge>` tag (curated ≠ trusted as LLM context); migrations idempotent + authored-only + deploy CI→GHCR→Coolify (never build on the VPS); never-throw on retrieve/answer. Web chat (SEED-034) + MCP `ask_knowledge` (SEED-030) are OUT — separate milestones; this milestone makes the module MCP-ready but wires only WhatsApp.
 - **Previous milestone**: v4.7 Monetização — Credit-Based Billing + Estimate Payment Fee — SHIPPED 2026-06-24 (phases 110-116, 28/28 requirements, full unit suite green 298 files / 2110 tests; enforcement OFF/safe until production cost calibration).
-- **Position**: Phase 120 COMPLETE (2/2 plans, verified 9/9 — tenant /settings/knowledge company KB overlay; RLS-authed client, scope='company'). Next: `/gsd:plan-phase 121` (WhatsApp KNOWLEDGE intent — the FINAL phase of v4.8). NOTE: `phase complete` mis-points next at stale 999.1 — real next is **121**.
-
+- **Position**: v4.8 COMPLETE — all 5 phases (117-121) shipped + verified. Industry Knowledge Base: pgvector schema + dual RLS → channel-neutral lib/knowledge/ (embed/retrieve/answer/hardening) → super-admin industry curation + bulk import → company overlay (tenant) → WhatsApp KNOWLEDGE 5th intent. Operational: apply 2 migrations (knowledge_entries, match RPC) to remote + seed industry KBs + configure embeddings key. Next track: SEED-034 (web chat) / SEED-030 (MCP parity) consume this neutral core.
 ## Current Position
 
-Phase: 121 (WhatsApp KNOWLEDGE Intent) — EXECUTING
-Plan: 1 of 1
+Phase: 999.1
+Plan: Not started
 Status: Phase complete — ready for verification
 
 ---

@@ -27,7 +27,7 @@
 - ✅ **v4.5.1 Notification Channels & Preferences** — Phase 104 (shipped 2026-06-22) — _(previously labeled v4.6; relabeled to free the v4.6 name for Pricing Intelligence)_
 - ✅ **v4.6 Pricing Intelligence — Researched Pricing Agent** — Phases 105-109 (shipped 2026-06-24)
 - ✅ **v4.7 Monetização — Credit-Based Billing + Estimate Payment Fee** — Phases 110-116 (shipped 2026-06-24)
-- 🚧 **v4.8 Industry Knowledge Base — Channel-Neutral Conversational Assistant** — Phases 117-121 (roadmap created 2026-06-24)
+- ✅ **v4.8 Industry Knowledge Base — Channel-Neutral Conversational Assistant** — Phases 117-121 (shipped 2026-06-24)
 
 > **Phase numbering note:** v3.1.1 starts at **Phase 66**, not 62. Phases 62-65 are reserved as DEFERRED placeholders for the v3.2 Production Deploy milestone (Vercel→Hetzner deploy + Stripe live + monitoring + UAT in prod). Skipping past 62-65 keeps the global phase counter unambiguous and prevents number reuse confusion when v3.2 begins.
 
@@ -785,7 +785,7 @@ Plans:
 | 118. Channel-Neutral lib/knowledge/ Module | v4.8 | 3/3 | Complete    | 2026-06-24 |
 | 119. Super-Admin Industry KB Curation + Bulk Import | v4.8 | 3/3 | Complete    | 2026-06-24 |
 | 120. Company KB Overlay (tenant settings) | v4.8 | 2/2 | Complete    | 2026-06-25 |
-| 121. WhatsApp KNOWLEDGE Intent | v4.8 | 1/1 | Complete   | 2026-06-25 |
+| 121. WhatsApp KNOWLEDGE Intent | v4.8 | 1/1 | Complete    | 2026-06-25 |
 
 ### Phase 75: Tour and Tooltip QA
 

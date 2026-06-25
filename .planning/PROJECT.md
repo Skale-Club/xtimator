@@ -14,9 +14,11 @@ The platform includes:
 
 A business owner can go from job site audio recording to a sent, professional estimate in under 5 minutes without touching a keyboard.
 
-## Current Milestone: v4.8 Industry Knowledge Base — Channel-Neutral Conversational Assistant
+## Last Milestone: v4.8 Industry Knowledge Base — Channel-Neutral Conversational Assistant ✅ (shipped 2026-06-24)
 
-**Goal:** Give the business owner a conversational assistant that answers trade how-to questions ("how do I pre-treat a pet stain on carpet?") from a per-INDUSTRY knowledge base (super-admin curated, scoped by `companies.industries[]`), plus an optional per-company private KB overlay — served by a channel-neutral `lib/knowledge/` domain module and consulted via WhatsApp (the web-chat + MCP channels follow in later milestones). The FOUNDATION of the Multi-Channel Core track.
+**Shipped:** all 5 phases (117-121), 15/15 requirements, 11 plans. Full unit suite green (314 files / 2219 tests). Per-industry knowledge base (pgvector `knowledge_entries` + dual RLS) → channel-neutral `lib/knowledge/` (embed/retrieve/answer over the `match_knowledge_entries` RPC + `<knowledge>` injection-hardening + CI fixture) → super-admin industry curation + CSV bulk import → optional company overlay (tenant `/settings/knowledge`, RLS-authed) → WhatsApp KNOWLEDGE 5th intent (the first consumer, proving the module end-to-end). Two-panel rule honored; pgvector-only (reranker deferred); no owner-facing KB browser. Archive: [milestones/v4.8](MILESTONES.md). Operational deferrals: apply 2 migrations to remote (CI→GHCR→Coolify), configure embeddings key, seed industry KBs. The web-chat (SEED-034) + MCP (SEED-030) channels consume this neutral core next.
+
+**Goal (delivered):** Give the business owner a conversational assistant that answers trade how-to questions ("how do I pre-treat a pet stain on carpet?") from a per-INDUSTRY knowledge base (super-admin curated, scoped by `companies.industries[]`), plus an optional per-company private KB overlay — served by a channel-neutral `lib/knowledge/` domain module and consulted via WhatsApp. The FOUNDATION of the Multi-Channel Core track.
 
 **Target features:**
 - **Industry KB (platform asset)** — super-admin-curated knowledge entries scoped by industry (`lib/industries.ts` 12-industry taxonomy); one robust carpet-cleaning KB serves all carpet cleaners. RLS mirrors the `price_research_cache` service-role/neutral posture. The owner has no access to curate it.

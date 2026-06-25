@@ -1,5 +1,22 @@
 # Milestones
 
+## v4.8 Industry Knowledge Base — Channel-Neutral Conversational Assistant (Shipped: 2026-06-24)
+
+**Phases completed:** 5 (117, 118, 119, 120, 121) · 11 plans · full unit suite green (314 files / 2219 tests)
+
+**Goal (delivered):** A conversational assistant that answers the business owner's trade how-to questions from a per-industry knowledge base (super-admin curated, scoped by `companies.industries[]`) plus an optional per-company overlay, served by a channel-neutral `lib/knowledge/` module and consulted via WhatsApp. The foundation of the Multi-Channel Core track (SEED-033). NOT customer-facing — for the business owner only.
+
+**What shipped, phase by phase:**
+- **Schema + pgvector + dual RLS (117)** — `create extension vector` + a `knowledge_entries` table (`scope industry|company`, `vector(1536)` embedding, HNSW cosine index, scope-discriminant CHECK). DUAL RLS on one table: industry rows neutral/readable-to-all + service-role-write (mirrors `price_research_cache`); company-overlay rows tenant-scoped via `company_members` (mirrors phase-82/credit_ledger). Idempotent, authored-only. Ships dormant.
+- **Channel-neutral `lib/knowledge/` module (118)** — `embed()` via OpenRouter `/embeddings` (`openai/text-embedding-3-small`, 1536) + `retrieve(question,{industries,companyId,k})` over the `match_knowledge_entries` pgvector RPC (merging industry KB + overlay; never-throws, returns `[]` on failure) + `answer()` RAG (never-throws) + a deterministic fixture for CI + KSEC-01 injection-hardening (retrieved passages through `sanitizeField` + a new `<knowledge>` tag enumerated in the prompt-builder Security block, mirroring `<search_result>`). Imports no channel (ENGINE-01).
+- **Super-admin industry curation + bulk import (119)** — `/admin/knowledge` CRUD scoped by industry (requireAdmin FIRST, service-role write `scope='industry'`), embed-then-insert (blocks the save on embed failure — no null-embedding dead content), and CSV bulk import via `embedMany()` (batched ≤96, abort-on-fail).
+- **Company KB overlay (120)** — a distinct tenant surface `/settings/knowledge` (the two-panel rule) where the owner curates private overlay entries via the RLS-bound AUTHED client (NOT the service client — a security distinction from the industry path), `scope='company'`, optional.
+- **WhatsApp KNOWLEDGE intent (121)** — the 5th intent in `classifyAndRoute` with a QUERY-vs-KNOWLEDGE disambiguation rule (QUERY = the company's own records; KNOWLEDGE = trade how-to), the safe CREATE default preserved; `dispatchKnowledge` reads the resolved company's `industries[]` and calls `lib/knowledge/answer`, delivered via the existing chunked owner reply. The first real consumer that proves the neutral module end-to-end.
+
+**Architecture invariants honored:** `lib/knowledge/` is channel-neutral (grep gate); pgvector + embeddings only (NO reranker — deferred, data-driven trigger documented); two-panel rule (industry KB = super-admin; company overlay = tenant settings, RLS-authed not service); no owner-facing KB browser (consult via chat only); injection-hardening of all retrieved content; idempotent + authored-only migrations (deploy CI→GHCR→Coolify).
+
+**Operational deferrals (carry-forward):** apply the 2 new migrations (`knowledge_entries` 20260625000001, `match_knowledge_entries` RPC 20260625000002) to remote via CI→GHCR→Coolify; configure the OpenRouter embeddings key; seed the industry KBs (super-admin + bulk CSV); live WhatsApp UAT of a trade how-to question end-to-end. The web-chat (SEED-034) and MCP (SEED-030) channels consume this neutral core in subsequent milestones.
+
 ## v4.7 Monetização — Credit-Based Billing + Estimate Payment Fee (Shipped: 2026-06-24)
 
 **Phases completed:** 7 (110, 111, 112, 113, 114, 115, 116) · 19 plans · full unit suite green (298 files / 2110 tests)
