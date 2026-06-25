@@ -64,7 +64,7 @@ Deferred to a future milestone. Tracked but not in this roadmap.
 | SEAT-03 | Phase 136 | Complete |
 | SEAT-04 | Phase 137 | Complete |
 | SEAT-05 | Phase 138 | Complete |
-| SEAT-06 | Phase 139 | Pending |
+| SEAT-06 | Phase 139 | Complete |
 | SEAT-07 | Phase 139 | Complete |
 | SEAT-08 | Phase 140 | Complete |
 
