@@ -1621,7 +1621,7 @@ Plans:
   3. A static test asserts the AI is given NO calculator tool and computes none of tax/discount/deposit/markup — the AI surface only gains input fields, never arithmetic (ENG-01)
   4. A regression test locks the byte-identical happy path on already-generated estimates (no number drift); it is structured to remain the standing retrocompat guard for phases 130-134 (ENG-02)
 **Plans**: 2 plans
-- [ ] 129-01-PLAN.md — Idempotent authored-only advanced-pricing migration (all dormant columns, reusing estimates.discount_*) + ENG-01 no-AI-calculator static test (TAX-01, ENG-01)
+- [x] 129-01-PLAN.md — Idempotent authored-only advanced-pricing migration (all dormant columns, reusing estimates.discount_*) + ENG-01 no-AI-calculator static test (TAX-01, ENG-01)
 - [ ] 129-02-PLAN.md — Extract the GUARD-03 default-path math into a pure helper + default-coalescing scaffold + ENG-02 byte-identical golden regression (the standing retrocompat guard) (ENG-02)
 
 ### Phase 130: Per-Item Taxability

@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v4.11
-milestone_name: Advanced Pricing Model — Per-Item Tax, Discounts, Deposit & Markup
-status: roadmap-created
-stopped_at: Milestone v4.11 roadmap created — 6 phases (129-134), 12/12 requirements mapped, ready to plan Phase 129
-last_updated: "2026-06-25T12:00:00.000Z"
+milestone: v3.1.1
+milestone_name: MVP Launch Prep + Future-Proofing
+status: executing
+stopped_at: Completed 129-01-PLAN.md
+last_updated: "2026-06-25T11:17:06.074Z"
 last_activity: 2026-06-25
 progress:
-  total_phases: 6
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_phases: 18
+  completed_phases: 18
+  total_plans: 51
+  completed_plans: 51
 ---
 
 # Project State
@@ -29,11 +29,12 @@ progress:
 - **Locked guardrails (SEED-032 + REQUIREMENTS.md + PROJECT.md):** ALL new arithmetic is SERVER-SIDE + DETERMINISTIC; the AI provides INPUTS only, NEVER computes tax/discount/deposit/markup. NO AI calculator tool (ENG-01). EXTEND the existing GUARD-03 math block (`lib/services/generate-estimate.ts` ~L255-373) — do NOT create a parallel one. Retrocompat: byte-identical happy path when the new fields are absent (ENG-02), testable at EVERY phase. Discount before tax (configurable per company). Idempotent, authored-only migrations; deploy CI→GHCR→Coolify (never build on the VPS). The math engine is the shared core — the richer totals appear in all 3 channels (web/WhatsApp/MCP) with NO channel-adapter changes. SCOPE FENCE: pricing-model enrichment ONLY (schema + server math + price-book cost/markup + editor UI + PDF/plain-text); no AI calculator; no channel-adapter changes; no tiered/difficulty pricing (deferred to v2).
 - **Previous milestone**: v4.10 MCP Channel Parity — SHIPPED 2026-06-25 (phases 127-128, 6/6 requirements, 2 plans, full unit suite green 336 files / 2354 tests). Bound the v4.9 neutral `lib/agent-tools/` over the existing v4.1 MCP server, closing the WhatsApp = chat = MCP sibling-channels principle and the Multi-Channel Core track. Operational deferrals carried forward: apply the v4.7–v4.9 migrations to remote (CI→GHCR→Coolify); configure OpenRouter/embeddings keys; live MCP UAT.
 - **Position**: v4.11 roadmap created — ready to plan Phase 129. Next: `/gsd:plan-phase 129`.
+
 ## Current Position
 
-Phase: 129
-Plan: Not started
-Status: Roadmap created — 6 phases (129-134), 12/12 requirements mapped, no orphans; ready to plan Phase 129
+Phase: 129 (Schema Foundation + GUARD-03 Engine Extension Scaffold + Retrocompat Lock) — EXECUTING
+Plan: 2 of 2
+Status: Ready to execute
 
 ---
 
@@ -121,7 +122,7 @@ Prior: 102-01 (HARD-07 replay-safe TTL) shipped. Added a neutral `requestedAt: A
 Prior: 102-02 (HARD-06 cap half) shipped. Replaced the hard-coded `(state.refineAttempts ?? 0) < 1` literal in `checkVagueAfterAssessEdge` (`lib/estimate/graph/nodes/decide.ts`) with a single `AUTO_REFINE_MAX_ATTEMPTS` module constant — read once at module load via an IIFE (`Number.isFinite(raw) && raw >= 0 ? raw : 1`) from the optional non-secret `process.env.AUTO_REFINE_MAX_ATTEMPTS`, defaulting to 1. Operator kept exactly `<` so the default is byte-identical to today (Research Pitfall 1). `auto-refine.ts` doc comment updated to reference the configurable cap (documentation-only; increment logic untouched). Channel-neutral (no DB, no async, no channel import) → graph-neutrality stays green. `tests/unit/estimate/auto-refine-cap.test.ts` now fully GREEN (default=1 AND `AUTO_REFINE_MAX_ATTEMPTS=2` override cases); `auto-refine-isolation` + `graph-neutrality` (12/12) and `never-reply-regression` Path C (loops exactly once at default) stay green. No env VALUE committed — only the var NAME appears (CLAUDE.md secret-handling). 1 atomic commit (02a41f2). xphere untouched. HARD-06 NOT marked complete — only the configurable-cap half is done; the web recourse UI half is owned by Plan 102-04.
 Prior (102-00, Wave 0 RED/EXTEND scaffold): authored 4 failing-by-design test files (auto-refine-cap [HARD-06 cap, now GREEN via 102-02], replay-safe-ttl [HARD-07, still RED → 102-01], batch-reporting [HARD-05, still RED → 102-03], needs-details-banner [HARD-06 recourse, still RED → 102-04]); 2 commits (201afb0, 35e8537).
 Last activity: 2026-06-25
-Stopped at: Completed 128-01-PLAN.md
+Stopped at: Completed 129-01-PLAN.md
 Next Up: **Phase 108 COMPLETE (5/5 plans — 108-01 metering [RMETER-01/02/03], 108-02 vagueness gate [RFALL-02], 108-03 orchestrator `researchUnmatchedPrices` [RPRICE-01/03/04, RFALL-01], 108-04 wire into `generateEstimateForProject` [RPRICE-01/03, RFALL-01], 108-05 "Couch cleaning 8 seats" full-graph regression [RFALL-03]).** THE PAYOFF is live in the production generation path AND locked by a green deterministic full-graph regression (EVIDENCED → $180/non-vague, empty-research+context → never-$0 ladder/non-vague, all-empty → still blocks). All three price-research adapters (`openrouter-web`, gated `anthropic-web`, deterministic `fixture`) remain configured-via-`platform_integrations` (all-misses no-op when unconfigured). Suggested: `/gsd:verify-work 108`, then `/gsd:execute-phase 109` (durability + cost-control hardening — dedicated `step.run('price-research')` retry isolation, runtime OpenRouter→Anthropic fallback ordering, per-estimate item caps, refine-loop memoization). DEFERRED (operational, carried from 108-01): apply migration `20260624000002_phase108_usage_event_price_researched.sql` (+ the earlier `20260624000001` price_research_cache) to remote via CI→GHCR→Coolify.
 Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gsd:verify-work 104` to validate the phase, then address the operational deferrals. DEFERRED (operational, all of Phase 104): apply migrations `20260621000001_notification_categories_remap.sql` + `20260621000002_notification_opt_in_consent.sql` + `20260621000003_whatsapp_notification_templates.sql` to the remote DB; ensure the Twilio from-number is SMS-capable; verify the Meta token carries `whatsapp_business_management` scope + author/approve the registry templates in Meta WhatsApp Manager (the `message_template_status_update` webhook then flips them to approved). Also still queued: `/gsd:verify-work 103` + `/gsd:complete-milestone` (v4.5) carry-over UATs.
 
@@ -735,6 +736,7 @@ Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gs
 - [Phase 127]: Re-created parseInput + READ_ONLY_ANNOTATIONS locally to keep read.ts/write.ts/server.ts byte-stable (MPAR-01 precursor)
 - [Phase 128]: MCP create_estimate delegates generation to the neutral createEstimate (channel:'mcp'); only the dispatch is delegated — scope gate, ownership lookup, and {job_id,status,message} envelope preserved
 - [Phase 128]: Channel-namespaced the neutral Inngest idempotency id (estimate-<channel>-<projectId>-<requestId>) — single justified widening; neutrality gate stays green, MCP estimate-mcp-p1- assertion stays green unchanged
+- [Phase 129]: Global discount reuses existing estimates.discount_* columns; no new estimates.discount column (Research Open Q1)
 
 ## Performance Metrics
 
@@ -982,13 +984,14 @@ Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gs
 | Phase 126 P02 | 4 min | 2 tasks | 4 files |
 | Phase 127 P01 | 25m | 3 tasks | 4 files |
 | Phase 128 P01 | 7 | 3 tasks | 4 files |
+| Phase 129 P01 | 9m | 2 tasks | 3 files |
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-13)
 
 **Core value:** Business owner → job site audio recording → sent professional estimate in under 5 minutes
-**Current focus:** Phase 128 — MCP Generation Reconciliation + Parity Verification
+**Current focus:** Phase 129 — Schema Foundation + GUARD-03 Engine Extension Scaffold + Retrocompat Lock
 
 ## Notes
 

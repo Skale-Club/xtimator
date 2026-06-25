@@ -19,7 +19,7 @@ Requirements for this milestone. Each maps to exactly one roadmap phase.
 
 ### Per-Item Taxability
 
-- [ ] **TAX-01**: Schema — `estimate_items.taxable` (boolean, default true) + optional `tax_category` ('labor'|'materials'|'other'); `companies.tax_config` (per-category rate OR a "labor exempt" rule). Idempotent migration; retrocompat defaults.
+- [x] **TAX-01**: Schema — `estimate_items.taxable` (boolean, default true) + optional `tax_category` ('labor'|'materials'|'other'); `companies.tax_config` (per-category rate OR a "labor exempt" rule). Idempotent migration; retrocompat defaults.
 - [ ] **TAX-02**: The AI output schema/types carry `taxable`/`tax_category` per item — the AI CLASSIFIES (labor/materials) but NEVER computes tax. Types widened; AI never gains arithmetic.
 - [ ] **TAX-03**: The server math computes tax PER-ITEM (Σ taxable_base_per_category × rate_category) instead of a flat `subtotal × rate`; when `tax_config` is absent the result is BYTE-IDENTICAL to today's flat-rate computation (retrocompat).
 
@@ -39,7 +39,7 @@ Requirements for this milestone. Each maps to exactly one roadmap phase.
 
 ### Engine & Retrocompat
 
-- [ ] **ENG-01**: All new arithmetic EXTENDS the existing GUARD-03 server-side math block (single deterministic authority); a static test asserts the AI is given NO calculator tool and computes none of tax/discount/deposit/markup.
+- [x] **ENG-01**: All new arithmetic EXTENDS the existing GUARD-03 server-side math block (single deterministic authority); a static test asserts the AI is given NO calculator tool and computes none of tax/discount/deposit/markup.
 - [ ] **ENG-02**: Retrocompat invariant — an estimate with no new fields (taxable defaults true, discount 0, deposit none, no tax_config) produces a BYTE-IDENTICAL subtotal/tax/total to the pre-milestone engine; a regression test locks the happy path (no number drift on already-generated estimates).
 
 ### Editor & Output
@@ -72,7 +72,7 @@ Which phases cover which requirements. Populated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| TAX-01 | Phase 129 | Pending |
+| TAX-01 | Phase 129 | Complete |
 | TAX-02 | Phase 130 | Pending |
 | TAX-03 | Phase 130 | Pending |
 | DISC-01 | Phase 131 | Pending |
@@ -80,7 +80,7 @@ Which phases cover which requirements. Populated during roadmap creation.
 | DEP-01 | Phase 132 | Pending |
 | DEP-02 | Phase 132 | Pending |
 | MARK-01 | Phase 132 | Pending |
-| ENG-01 | Phase 129 | Pending |
+| ENG-01 | Phase 129 | Complete |
 | ENG-02 | Phase 129 | Pending |
 | PUI-01 | Phase 133 | Pending |
 | PUI-02 | Phase 134 | Pending |
