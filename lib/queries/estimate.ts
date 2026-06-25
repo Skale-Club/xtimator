@@ -29,6 +29,11 @@ export interface Estimate {
   tax_rate: number
   tax_amount: number
   total: number
+  /** Phase 129 deposit columns (migration 20260627000001). Persisted by the server;
+   *  renderers READ these via deriveDepositDisplay() — never recompute (GUARD-03). */
+  deposit_type: 'none' | 'percent' | 'amount' // NOT NULL DEFAULT 'none'
+  deposit_value: number | null // raw % or $ entered (nullable)
+  balance_due: number | null // total − deposit; null on legacy rows
   sent_at: string | null
   viewed_at: string | null
   responded_at: string | null
