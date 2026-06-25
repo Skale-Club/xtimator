@@ -1612,7 +1612,7 @@ Plans:
 - [x] **Phase 132: Deposit + Markup + Deposit-Stripe Contract** — `deposit_type`/`deposit_value` -> server-computed `balance_due`; `cost` + `markup_pct` -> server-derived `unit_price` (never-trust-LLM, price book stores cost + markup); the deposit threads to the SEED-020/036 Stripe payment + 1% fee contract (the fee computes on the amount actually charged) (DEP-01, DEP-02, MARK-01)
  (completed 2026-06-25)
 - [x] **Phase 133: Editor UI** — The estimate editor (`item-row.tsx` + `item-card-mobile.tsx`) gains per-line discount/taxable fields + global discount + deposit controls; server actions accept the new fields (PUI-01) (completed 2026-06-25)
-- [ ] **Phase 134: PDF + Plain-Text Totals** — The PDF + plain-text output render the new totals structure (subtotal -> discount -> tax -> total -> deposit -> balance due) across all 3 channels, surfacing the shared-engine numbers with no channel-adapter changes (PUI-02)
+- [x] **Phase 134: PDF + Plain-Text Totals** — The PDF + plain-text output render the new totals structure (subtotal -> discount -> tax -> total -> deposit -> balance due) across all 3 channels, surfacing the shared-engine numbers with no channel-adapter changes (PUI-02) (completed 2026-06-25)
 
 ### Phase 129: Schema Foundation + GUARD-03 Engine Extension Scaffold + Retrocompat Lock
 **Goal**: The data model and the deterministic math authority are ready to carry the new pricing dimensions WITHOUT changing a single already-generated number — the migration adds every new field with retrocompat defaults, the GUARD-03 block is extended in a byte-identical-when-empty way, and the two load-bearing invariants (no AI calculator, byte-identical happy path) are locked by tests that stay green at every subsequent phase.
@@ -1694,7 +1694,7 @@ Plans:
 **Plans**: 4 plans in `.planning/phases/134-pdf-text-totals/`
 Plans:
 - [x] 134-01-PLAN.md — Shared read seam: deposit columns on Estimate type + deriveDepositDisplay() pure helper (reads persisted balance_due, never recomputes) + unit test (PUI-02)
-- [ ] 134-02-PLAN.md — PDF totals: Deposit + Balance Due rows in the ordered block via deriveDepositDisplay + en/pt/es labels + structural test; legacy byte-identical (PUI-02)
-- [ ] 134-03-PLAN.md — Public share view: view-mode Deposit row + persisted-read Balance Due in DocumentTotals (edit mode untouched) + view-mode test (PUI-02)
-- [ ] 134-04-PLAN.md — Plain-text/WhatsApp/MCP formatter: Deposit + Balance Due lines + en/pt/es labels + deposit columns added to feeding selects; existing tests stay green (PUI-02)
+- [x] 134-02-PLAN.md — PDF totals: Deposit + Balance Due rows in the ordered block via deriveDepositDisplay + en/pt/es labels + structural test; legacy byte-identical (PUI-02)
+- [x] 134-03-PLAN.md — Public share view: view-mode Deposit row + persisted-read Balance Due in DocumentTotals (edit mode untouched) + view-mode test (PUI-02)
+- [x] 134-04-PLAN.md — Plain-text/WhatsApp/MCP formatter: Deposit + Balance Due lines + en/pt/es labels + deposit columns added to feeding selects; existing tests stay green (PUI-02)
 **UI hint**: yes
