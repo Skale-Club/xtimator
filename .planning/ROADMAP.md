@@ -1662,7 +1662,7 @@ Plans:
   3. When a deposit is set, it is the amount the Stripe payment link charges (not the full total), and the existing 1% application fee computes on the amount actually charged — the SEED-020/036 payment contract is honored, not re-implemented
 **Plans**: 3 plans in `.planning/phases/132-deposit-markup-stripe/`
 Plans:
-- [ ] 132-01-PLAN.md — DEP-01: deposit + balance_due in compute-totals (LOCKED sequence) + engine persistence + hand-computed deposit golden
+- [x] 132-01-PLAN.md — DEP-01: deposit + balance_due in compute-totals (LOCKED sequence) + engine persistence + hand-computed deposit golden
 - [ ] 132-02-PLAN.md — MARK-01: cost + markup_pct AI inputs + server-derived unit_price (never-trust-LLM) + persistence + markup golden
 - [x] 132-03-PLAN.md — DEP-02: pure resolveChargeAmount (deposit-aware charge) + 1%-on-charged-amount fee contract wired into generateInvoice
 

@@ -30,7 +30,7 @@ Requirements for this milestone. Each maps to exactly one roadmap phase.
 
 ### Deposit / Down-Payment
 
-- [ ] **DEP-01**: Schema + server math — `estimates.deposit_type` ('none'|'percent'|'amount') + `deposit_value` → a server-computed `balance_due` (grandTotal − deposit).
+- [x] **DEP-01**: Schema + server math — `estimates.deposit_type` ('none'|'percent'|'amount') + `deposit_value` → a server-computed `balance_due` (grandTotal − deposit).
 - [x] **DEP-02**: The deposit is the value the Stripe payment link charges — the deposit threads to the SEED-020/SEED-036 payment + 1% fee contract (the fee computes on the amount actually charged).
 
 ### Markup
@@ -77,7 +77,7 @@ Which phases cover which requirements. Populated during roadmap creation.
 | TAX-03 | Phase 130 | Complete |
 | DISC-01 | Phase 131 | Complete |
 | DISC-02 | Phase 131 | Complete |
-| DEP-01 | Phase 132 | Pending |
+| DEP-01 | Phase 132 | Complete |
 | DEP-02 | Phase 132 | Complete |
 | MARK-01 | Phase 132 | Pending |
 | ENG-01 | Phase 129 | Complete |
