@@ -45,6 +45,12 @@ function stateToDocumentData(state: EstimateEditorState): EstimateDocumentData {
     tax_amount: state.tax_amount,
     subtotal: state.subtotal,
     total: state.total,
+    // v4.11 deposit — carry preview into the document surface so the totals
+    // panel can render the deposit control + Balance Due line.
+    deposit_type: state.deposit_type,
+    deposit_value: state.deposit_value,
+    deposit: state.deposit,
+    balance_due: state.balance_due,
     estimate_date: state.estimate_date,
     estimate_number: state.estimate_number,
     currency_code: state.currency_code,
@@ -88,6 +94,11 @@ function stateToSavePayload(state: EstimateEditorState) {
     warranty_terms: state.warranty_terms,
     discount_type: state.discount_type,
     discount_value: state.discount_value,
+    // v4.11 deposit — send type+value only; saveEstimate (Plan 01) recomputes
+    // balance_due server-side via computeEstimateTotals (server is authoritative).
+    // Cast the reducer's wide `string` to the engine/DB-CHECK domain at the boundary.
+    deposit_type: state.deposit_type as 'none' | 'percent' | 'amount',
+    deposit_value: state.deposit_value,
     tax_rate: state.tax_rate,
     estimate_date: state.estimate_date,
     estimate_number: state.estimate_number,
