@@ -1609,7 +1609,7 @@ Plans:
 - [x] **Phase 130: Per-Item Taxability** — Land the `taxable`/`tax_category` AI classification inputs in the output schema/types (the AI classifies labor/materials, computes nothing) and compute tax PER-ITEM (Sum of taxable_base_per_category x rate_category) instead of flat `subtotal x rate`, byte-identical when `tax_config` is absent (TAX-02, TAX-03) (completed 2026-06-25)
 - [x] **Phase 131: Discounts (line + global)** — Line-level + global discount (amount or percent); the server math applies line discount before the subtotal and the global discount before tax (configurable before/after per company), prorating the global discount into the taxable base (DISC-01, DISC-02) (completed 2026-06-25)
 - [x] **Phase 132: Deposit + Markup + Deposit-Stripe Contract** — `deposit_type`/`deposit_value` -> server-computed `balance_due`; `cost` + `markup_pct` -> server-derived `unit_price` (never-trust-LLM, price book stores cost + markup); the deposit threads to the SEED-020/036 Stripe payment + 1% fee contract (the fee computes on the amount actually charged) (DEP-01, DEP-02, MARK-01) (completed 2026-06-25)
-- [ ] **Phase 133: Editor UI** — The estimate editor (`item-row.tsx` + `item-card-mobile.tsx`) gains per-line discount/taxable fields + global discount + deposit controls; server actions accept the new fields (PUI-01)
+- [x] **Phase 133: Editor UI** — The estimate editor (`item-row.tsx` + `item-card-mobile.tsx`) gains per-line discount/taxable fields + global discount + deposit controls; server actions accept the new fields (PUI-01) (completed 2026-06-25)
 - [ ] **Phase 134: PDF + Plain-Text Totals** — The PDF + plain-text output render the new totals structure (subtotal -> discount -> tax -> total -> deposit -> balance due) across all 3 channels, surfacing the shared-engine numbers with no channel-adapter changes (PUI-02)
 
 ### Phase 129: Schema Foundation + GUARD-03 Engine Extension Scaffold + Retrocompat Lock
@@ -1678,7 +1678,7 @@ Plans:
 Plans:
 - [x] 133-01-PLAN.md — Server-action contract: widen saveEstimate to accept per-item taxable/tax_category/discount/cost/markup_pct + estimate deposit_type/deposit_value; recompute totals server-side via computeEstimateTotals (GUARD-03); persist new columns; tested (PUI-01)
 - [x] 133-02-PLAN.md — Per-line editor controls: discount input + taxable toggle on desktop (SortableDocumentItemRow) + mobile (ItemCardMobile); reducer/converter wiring; mobile-safe (PUI-01)
-- [ ] 133-03-PLAN.md — Summary panel: deposit controls (none/percent/amount) + Balance Due line + global-discount passthrough + i18n labels (en/pt/es) (PUI-01)
+- [x] 133-03-PLAN.md — Summary panel: deposit controls (none/percent/amount) + Balance Due line + global-discount passthrough + i18n labels (en/pt/es) (PUI-01)
 **UI hint**: yes
 
 ### Phase 134: PDF + Plain-Text Totals
