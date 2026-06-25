@@ -785,7 +785,7 @@ Plans:
 | 118. Channel-Neutral lib/knowledge/ Module | v4.8 | 3/3 | Complete    | 2026-06-24 |
 | 119. Super-Admin Industry KB Curation + Bulk Import | v4.8 | 3/3 | Complete    | 2026-06-24 |
 | 120. Company KB Overlay (tenant settings) | v4.8 | 2/2 | Complete    | 2026-06-25 |
-| 121. WhatsApp KNOWLEDGE Intent | v4.8 | 0/1 | Planned | - |
+| 121. WhatsApp KNOWLEDGE Intent | v4.8 | 1/1 | Complete   | 2026-06-25 |
 
 ### Phase 75: Tour and Tooltip QA
 
@@ -1406,7 +1406,7 @@ Plans:
 - [x] **Phase 118: Channel-Neutral `lib/knowledge/` Module — embed + retrieve + answer + injection-hardening + fixture** - The neutral domain module: `embed()`, `retrieve()` merging industry KB + company overlay over pgvector, `answer()` RAG with `sanitizeField` + `<knowledge>` injection-hardening, and a deterministic fixture adapter for CI. Imports no channel; never-throws. (completed 2026-06-24)
 - [x] **Phase 119: Super-Admin Industry KB Curation + Bulk Import** - The super-admin panel CRUD that POPULATES the industry KB scoped by industry, (re)generating embeddings on save, plus a markdown/CSV bulk import to seed an industry in one operation. (completed 2026-06-24)
 - [x] **Phase 120: Company KB Overlay (tenant settings)** - The company owner's OWN settings panel (distinct from super-admin — the two-panel rule) to add/edit/delete private overlay entries, embeddings generated the same way, scoped to the owning company; optional. (completed 2026-06-25)
-- [ ] **Phase 121: WhatsApp KNOWLEDGE Intent** - The 5th `classifyAndRoute` intent + QUERY-vs-KNOWLEDGE disambiguation (safe CREATE default preserved), dispatching to `lib/knowledge/answer` scoped by the company's `industries[]` + overlay and delivered via the existing chunked owner reply. The consumer that proves the module end-to-end.
+- [x] **Phase 121: WhatsApp KNOWLEDGE Intent** - The 5th `classifyAndRoute` intent + QUERY-vs-KNOWLEDGE disambiguation (safe CREATE default preserved), dispatching to `lib/knowledge/answer` scoped by the company's `industries[]` + overlay and delivered via the existing chunked owner reply. The consumer that proves the module end-to-end. (completed 2026-06-25)
 
 ### Phase Details — v4.8 Industry Knowledge Base
 
@@ -1473,4 +1473,4 @@ Plans:
   1. `classifyAndRoute` recognizes a 5th KNOWLEDGE intent with a QUERY-vs-KNOWLEDGE disambiguation rule (QUERY = the company's own estimates/clients/projects; KNOWLEDGE = trade how-to/process), and an unrecognized message still falls back to the safe CREATE default (never a privileged action)
   2. A KNOWLEDGE message dispatches to `lib/knowledge/answer` scoped by the resolved company's `industries[]` plus its overlay, and the resulting answer is delivered to the owner through the existing chunked owner reply path (`sendOwnerReplyChunks`)
 **Plans**: 1 plan
-- [ ] 121-01-PLAN.md - KNOWLEDGE intent (union/parseIntent/classify prompt) + dispatchKnowledge scoped by industries[]
+- [x] 121-01-PLAN.md - KNOWLEDGE intent (union/parseIntent/classify prompt) + dispatchKnowledge scoped by industries[]

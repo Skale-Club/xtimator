@@ -42,8 +42,8 @@ Requirements for this milestone. Each maps to exactly one roadmap phase.
 
 ### WhatsApp KNOWLEDGE Intent
 
-- [ ] **WAKB-01**: The WhatsApp `classifyAndRoute` gains a 5th intent KNOWLEDGE with a QUERY-vs-KNOWLEDGE disambiguation rule (QUERY = the company's own records; KNOWLEDGE = trade how-to); the safe CREATE default is preserved for unrecognized input.
-- [ ] **WAKB-02**: A KNOWLEDGE message dispatches to `lib/knowledge/answer` scoped by the resolved company's `industries[]` + its overlay, and the answer is delivered via the existing chunked owner reply path.
+- [x] **WAKB-01**: The WhatsApp `classifyAndRoute` gains a 5th intent KNOWLEDGE with a QUERY-vs-KNOWLEDGE disambiguation rule (QUERY = the company's own records; KNOWLEDGE = trade how-to); the safe CREATE default is preserved for unrecognized input.
+- [x] **WAKB-02**: A KNOWLEDGE message dispatches to `lib/knowledge/answer` scoped by the resolved company's `industries[]` + its overlay, and the answer is delivered via the existing chunked owner reply path.
 
 ### Injection Hardening
 
@@ -91,8 +91,8 @@ Which phases cover which requirements. Populated during roadmap creation.
 | KCUR-03 | Phase 119 | Complete |
 | KOVL-01 | Phase 120 | Complete |
 | KOVL-02 | Phase 120 | Complete |
-| WAKB-01 | Phase 121 | Pending |
-| WAKB-02 | Phase 121 | Pending |
+| WAKB-01 | Phase 121 | Complete |
+| WAKB-02 | Phase 121 | Complete |
 | KSEC-01 | Phase 118 | Complete |
 
 **Coverage:**
