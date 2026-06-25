@@ -1720,7 +1720,7 @@ Plans:
 - [x] **Phase 138: Member Management UI** — `removeMember` + `changeMemberRole` server actions (gated) + a mobile-safe `Settings → Team` surface: list members (name/email/role), list pending invites, an Invite action (email + role), remove member, change role; removal revokes access immediately + decrements the seat quantity on the next sync. (SEAT-05)
  (completed 2026-06-25)
 - [x] **Phase 139: Configurable Seat Billing** — Extend `BillingConfig`/`DEFAULT_BILLING_CONFIG` with `seatPriceCents` + `tiers[tier].includedSeats` (null-safe placeholders, deep-merge-tolerant) + super-admin panel fields; pure unit-tested `computeBillableSeats` / `computeSeatChargeCents` + a server `syncSeatBilling(companyId)` that syncs the Stripe subscription seat-quantity item, gated by `enforcementEnabled` (single-owner orgs → zero billable seats, no Stripe write). (SEAT-06, SEAT-07) (completed 2026-06-25)
-- [ ] **Phase 140: Seat-Cost Transparency UI** — The `Settings → Team` surface shows the org's current active seat count + the configured per-seat price + the projected monthly seat cost, all read from `billing_config` at runtime (never hardcoded) — same transparency principle as the 1%-fee disclosure. (SEAT-08)
+- [x] **Phase 140: Seat-Cost Transparency UI** — The `Settings → Team` surface shows the org's current active seat count + the configured per-seat price + the projected monthly seat cost, all read from `billing_config` at runtime (never hardcoded) — same transparency principle as the 1%-fee disclosure. (SEAT-08) (completed 2026-06-25)
 
 ### Phase Details — v4.12 Team Seats & Member Invites
 
@@ -1807,5 +1807,5 @@ Plans:
   3. A single-owner org sitting within `includedSeats` shows a $0 projected seat cost and no alarming charge — retrocompat: the transparency surface confirms zero charge rather than implying one
 **Plans**: 1 plan in `.planning/phases/140-seat-cost-ui/`
 Plans:
-- [ ] 140-01-PLAN.md — Pure seat-cost summary builder (reuses computeBillableSeats/computeSeatChargeCents + getBillingConfig) + team page server-compute wiring + TeamSection owner/admin-only cost line (i18n, mobile, truthful when enforcement off)
+- [x] 140-01-PLAN.md — Pure seat-cost summary builder (reuses computeBillableSeats/computeSeatChargeCents + getBillingConfig) + team page server-compute wiring + TeamSection owner/admin-only cost line (i18n, mobile, truthful when enforcement off)
 **UI hint**: yes

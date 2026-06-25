@@ -33,7 +33,7 @@ Each requirement maps to exactly one roadmap phase.
 
 - [ ] **SEAT-06**: Extend `BillingConfig` + `DEFAULT_BILLING_CONFIG` (`lib/billing/billing-config.ts`) with `seatPriceCents` (global) and `tiers[tier].includedSeats` (per-tier) as null-safe calibration placeholders, and surface both as editable fields in the super-admin billing panel. Nothing hardcoded; the deep-merge reader tolerates rows written before the fields existed.
 - [x] **SEAT-07**: Seat-billing math + sync — pure, unit-tested `computeBillableSeats(activeMembers, includedSeats)` + `computeSeatChargeCents(billableSeats, seatPriceCents)` (no I/O, arithmetic in one place) + a server `syncSeatBilling(companyId)` that reads the live member count + `billing_config` and updates the Stripe subscription seat-quantity item, gated by `billing_config.enforcementEnabled`. Retrocompat: single-owner orgs within `includedSeats` produce zero billable seats and no Stripe write.
-- [ ] **SEAT-08**: Seat-cost transparency UI — the `Settings → Team` surface shows the org's current active seat count, the configured per-seat price, and the projected monthly seat cost, all read from `billing_config` at runtime (never hardcoded) — same billing-transparency principle as the 1%-fee disclosure.
+- [x] **SEAT-08**: Seat-cost transparency UI — the `Settings → Team` surface shows the org's current active seat count, the configured per-seat price, and the projected monthly seat cost, all read from `billing_config` at runtime (never hardcoded) — same billing-transparency principle as the 1%-fee disclosure.
 
 ## v2 Requirements
 
@@ -66,7 +66,7 @@ Deferred to a future milestone. Tracked but not in this roadmap.
 | SEAT-05 | Phase 138 | Complete |
 | SEAT-06 | Phase 139 | Pending |
 | SEAT-07 | Phase 139 | Complete |
-| SEAT-08 | Phase 140 | Pending |
+| SEAT-08 | Phase 140 | Complete |
 
 **Coverage:**
 - v1 requirements: 8 total
