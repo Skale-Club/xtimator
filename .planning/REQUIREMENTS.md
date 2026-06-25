@@ -45,7 +45,7 @@ Requirements for this milestone. Each maps to exactly one roadmap phase.
 ### Editor & Output
 
 - [x] **PUI-01**: The estimate editor (`item-row.tsx` + `item-card-mobile.tsx`) gains per-line discount/taxable fields + global discount + deposit controls; server actions accept the new fields.
-- [ ] **PUI-02**: The PDF + plain-text output render the new totals structure (subtotal → discount → tax → total → deposit → balance due) across all 3 channels.
+- [x] **PUI-02**: The PDF + plain-text output render the new totals structure (subtotal → discount → tax → total → deposit → balance due) across all 3 channels.
 
 ## v2 Requirements
 
@@ -83,7 +83,7 @@ Which phases cover which requirements. Populated during roadmap creation.
 | ENG-01 | Phase 129 | Complete |
 | ENG-02 | Phase 129 | Complete |
 | PUI-01 | Phase 133 | Complete |
-| PUI-02 | Phase 134 | Pending |
+| PUI-02 | Phase 134 | Complete |
 
 **Coverage:**
 - v1 requirements: 12 total

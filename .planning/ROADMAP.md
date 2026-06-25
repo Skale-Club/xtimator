@@ -1693,7 +1693,7 @@ Plans:
   3. The richer totals appear across all 3 channels because they read the shared math engine — no channel-adapter code changes are required; an estimate with no new fields renders the classic subtotal->tax->total block unchanged (retrocompat)
 **Plans**: 4 plans in `.planning/phases/134-pdf-text-totals/`
 Plans:
-- [ ] 134-01-PLAN.md — Shared read seam: deposit columns on Estimate type + deriveDepositDisplay() pure helper (reads persisted balance_due, never recomputes) + unit test (PUI-02)
+- [x] 134-01-PLAN.md — Shared read seam: deposit columns on Estimate type + deriveDepositDisplay() pure helper (reads persisted balance_due, never recomputes) + unit test (PUI-02)
 - [ ] 134-02-PLAN.md — PDF totals: Deposit + Balance Due rows in the ordered block via deriveDepositDisplay + en/pt/es labels + structural test; legacy byte-identical (PUI-02)
 - [ ] 134-03-PLAN.md — Public share view: view-mode Deposit row + persisted-read Balance Due in DocumentTotals (edit mode untouched) + view-mode test (PUI-02)
 - [ ] 134-04-PLAN.md — Plain-text/WhatsApp/MCP formatter: Deposit + Balance Due lines + en/pt/es labels + deposit columns added to feeding selects; existing tests stay green (PUI-02)
