@@ -1500,7 +1500,11 @@ Plans:
   3. A neutral multimodal `normalize` module (audio→transcript, photo→analysis) is extracted from `lib/whatsapp/normalize` and the WhatsApp inbound path consumes it with identical transcription/analysis output
   4. A neutral `askKnowledge` tool wraps `lib/knowledge/answer` scoped by the company's `industries[]` + overlay, and WhatsApp's KNOWLEDGE intent calls it — the same KB answer as v4.8
   5. The neutral modules import no channel (a grep gate proves zero `lib/whatsapp/*` imports in the neutral path), and WhatsApp behavioral-parity tests pass: same estimate, same query result, same knowledge answer, no regression
-**Plans**: TBD
+**Plans**: 3 plans in `.planning/phases/122-channel-neutral-domain-extraction/`
+Plans:
+- [ ] 122-01-PLAN.md — Wave 0 RED test scaffolds: neutrality gate (lib/agent-tools/) + 4 capability RED tests (createEstimate/queryCompanyData/normalizeInput/askKnowledge) (NEUT-01..05)
+- [ ] 122-02-PLAN.md — Extract neutral query-company-data data-reads + normalizeInput (wraps ingestMultimodal); re-point WhatsApp query-tools/normalize/intent-router (NEUT-02, NEUT-03, NEUT-05)
+- [ ] 122-03-PLAN.md — Neutral createEstimate (EVENT_ESTIMATE_GENERATE dispatch) + askKnowledge (wraps lib/knowledge/answer); re-point dispatchKnowledge; full WhatsApp parity gate (NEUT-01, NEUT-04, NEUT-05)
 
 ### Phase 123: Chat Persistence Schema + History
 **Goal**: The chat has durable, tenant-scoped storage — `chat_conversations` and `chat_messages` tables exist with RLS that mirrors `whatsapp_inbox` (a company's members read/write only their own conversations and messages), applied via an idempotent, authored-only migration deployed CI→GHCR→Coolify. Conversations and their messages persist and reload so a returning owner sees their history. This is the data backbone the UI persists into; it can be built in parallel with the AI SDK backend but is needed before any history renders.
