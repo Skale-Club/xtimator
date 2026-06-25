@@ -288,6 +288,12 @@ describe('BILLCFG-03: getBillingConfig consumed ONLY by the reader + credit-ledg
     // (CREDITUI-01) — the runtime-authoritative billing source, a legitimate
     // consumer. The guard still fails on any OTHER reference of the symbol.
     const CREDITS_QUERY_PATH = resolve(process.cwd(), 'lib/queries/credits.ts')
+    // Phase 139 (seat billing): lib/billing/seat-billing.ts syncSeatBilling reads
+    // seatPriceCents + per-tier includedSeats + enforcementEnabled from
+    // getBillingConfig at call time (SEAT-07) to reconcile the Stripe subscription
+    // seat-quantity item — the runtime-authoritative billing source, a legitimate
+    // consumer. The guard still fails on any OTHER reference of the symbol.
+    const SEAT_BILLING_PATH = resolve(process.cwd(), 'lib/billing/seat-billing.ts')
     const ALLOWLIST = new Set([
       MODULE_PATH,
       CREDIT_LEDGER_PATH,
@@ -296,6 +302,7 @@ describe('BILLCFG-03: getBillingConfig consumed ONLY by the reader + credit-ledg
       INVOICE_ACTION_PATH,
       PAYMENTS_PAGE_PATH,
       CREDITS_QUERY_PATH,
+      SEAT_BILLING_PATH,
     ])
 
     const collected: string[] = []
