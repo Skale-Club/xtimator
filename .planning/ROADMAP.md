@@ -1716,7 +1716,7 @@ Plans:
 - [x] **Phase 136: Invite Lifecycle + Email** — `inviteMember(companyId, email, role)` + `revokeInvite` server actions (owner/admin only, gated by `requireCompanyRole`) creating a single-use, expiring `company_invites` row + a Resend invite email with the accept link; a pending invite does NOT consume a billable seat. (SEAT-03)
  (completed 2026-06-25)
 - [x] **Phase 137: Accept Onboarding** — `acceptInvite(token)`: a valid/unexpired/pending token adds the `company_members` row + switches the active company. Existing-user → join directly; new-user → a signup-then-join branch that SKIPS company creation (the existing onboarding always creates a company — this path branches to JOIN the existing one). (SEAT-04) (completed 2026-06-25)
-- [ ] **Phase 138: Member Management UI** — `removeMember` + `changeMemberRole` server actions (gated) + a mobile-safe `Settings → Team` surface: list members (name/email/role), list pending invites, an Invite action (email + role), remove member, change role; removal revokes access immediately + decrements the seat quantity on the next sync. (SEAT-05)
+- [x] **Phase 138: Member Management UI** — `removeMember` + `changeMemberRole` server actions (gated) + a mobile-safe `Settings → Team` surface: list members (name/email/role), list pending invites, an Invite action (email + role), remove member, change role; removal revokes access immediately + decrements the seat quantity on the next sync. (SEAT-05) (completed 2026-06-25)
 - [ ] **Phase 139: Configurable Seat Billing** — Extend `BillingConfig`/`DEFAULT_BILLING_CONFIG` with `seatPriceCents` + `tiers[tier].includedSeats` (null-safe placeholders, deep-merge-tolerant) + super-admin panel fields; pure unit-tested `computeBillableSeats` / `computeSeatChargeCents` + a server `syncSeatBilling(companyId)` that syncs the Stripe subscription seat-quantity item, gated by `enforcementEnabled` (single-owner orgs → zero billable seats, no Stripe write). (SEAT-06, SEAT-07)
 - [ ] **Phase 140: Seat-Cost Transparency UI** — The `Settings → Team` surface shows the org's current active seat count + the configured per-seat price + the projected monthly seat cost, all read from `billing_config` at runtime (never hardcoded) — same transparency principle as the 1%-fee disclosure. (SEAT-08)
 
@@ -1775,7 +1775,7 @@ Plans:
   4. The Team surface is mobile-safe — usable on iOS Safari and Android Chrome (the app runs on phones), following the existing mobile-safe Settings form idiom
 **Plans**: 2 plans
 - [x] 138-01-PLAN.md — removeMember + changeMemberRole (gated; last-owner/owner-target/role guards) + listCompanyRoster query (members + pending invites) + unit tests
-- [ ] 138-02-PLAN.md — Settings → Team page + TeamSection (roster, invite/change-role/remove/revoke for owner/admin, read-only for members) + nav entry; mobile-safe; i18n
+- [x] 138-02-PLAN.md — Settings → Team page + TeamSection (roster, invite/change-role/remove/revoke for owner/admin, read-only for members) + nav entry; mobile-safe; i18n
 **UI hint**: yes
 
 ### Phase 139: Configurable Seat Billing
