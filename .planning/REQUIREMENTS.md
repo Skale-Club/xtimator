@@ -1,59 +1,70 @@
-# Requirements: Xtimator — Milestone v4.10 MCP Channel Parity
+# Requirements: Xtimator — Milestone v4.11 Advanced Pricing Model
 
 **Defined:** 2026-06-25
 **Core Value:** A business owner can go from job site audio recording to a sent, professional estimate in under 5 minutes without touching a keyboard.
-**Milestone goal:** Bring the existing MCP server (v4.1) to capability parity with WhatsApp + the v4.9 web chat by binding the SAME channel-neutral `lib/agent-tools/` capabilities as MCP tools — closing the WhatsApp = chat = MCP sibling-channels principle. Source: [SEED-030](seeds/SEED-030-mcp-server-xtimator.md).
+**Milestone goal:** Enrich the estimate's pricing MODEL (per-item tax, discounts, deposit, markup) so the existing server-side deterministic math engine computes them — without giving the AI a calculator. Source: [SEED-032](seeds/SEED-032-advanced-pricing-model-tax-discount-deposit.md).
 
-> **Locked decisions:**
-> - **Three siblings, one core** — WhatsApp (LangChain tools), web chat (AI SDK tools), MCP (MCP tools) all bind the SAME neutral `lib/agent-tools/` functions. This milestone is the MCP binding layer; v4.9 already did the extraction.
-> - **The MCP server already exists** (OAuth 2.0 + `/api/mcp` Streamable HTTP + 5 tools, v4.1 phases 86-90) — REUSE the auth/transport infra; do NOT rebuild it.
-> - **`companyId` is trusted** — resolved from the OAuth token → company, NEVER a tool input field (T-lrf-01, same invariant as the chat).
-> - **Read tools carry `readOnlyHint: true`** so Claude.ai's permission UI auto-groups them (the SEED-030 locked decision).
-> - **Scope fence:** the MCP tool layer ONLY. Do NOT re-extract anything (v4.9 did it); do NOT touch the web chat or WhatsApp beyond what parity requires. Defer edit/send MCP tools (match the web-chat v1 scope: generate + query + knowledge).
+> **Locked decisions (non-negotiable):**
+> - **The arithmetic integrity already exists** (GUARD-03, server-side deterministic recalculation, never-trust-LLM). This milestone adds the DATA MODEL + math, NOT a better calculator.
+> - **All new arithmetic stays SERVER-SIDE and DETERMINISTIC** — the AI NEVER computes tax/discount/deposit/markup; it only provides inputs (qty, unit_price or cost, labor/materials classification). EXTEND the existing GUARD-03 math block (`lib/services/generate-estimate.ts` ~L255-373); do NOT create a parallel one.
+> - **NO AI calculator tool** — explicitly excluded; it would reintroduce the n8n calculator's 3 LLM-failure points (a regression).
+> - **Retrocompat is mandatory** — existing estimates (taxable=true, discount=0, deposit=none, no tax_config) must be BYTE-IDENTICAL on the happy path; a regression test locks this.
+> - **Calculation sequence (locked):** `line_net = round2(qty×unit_price) − line_discount`; `subtotal = Σ line_net`; `disc_global = amount | subtotal×pct`; `taxable_base = Σ(line_net where taxable) − (disc_global prorated)`; `taxAmount = Σ(taxable_base_per_category × rate_category)`; `grandTotal = (subtotal − disc_global) + taxAmount`; `deposit = grandTotal×deposit_pct | deposit_amount`; `balanceDue = grandTotal − deposit`.
+> - **Discount before tax** (US norm — discount reduces the taxable base; configurable per company).
+> - **Mirrored across all 3 channels** (web/WhatsApp/MCP) because the math engine is the shared core — the richer totals appear everywhere with no channel-adapter changes.
 
 ## v1 Requirements
 
 Requirements for this milestone. Each maps to exactly one roadmap phase.
 
-### MCP Knowledge Tool
+### Per-Item Taxability
 
-- [x] **MKB-01**: An `ask_knowledge` MCP tool wraps the neutral `lib/agent-tools/ask-knowledge` (the v4.8 industry KB + company overlay, scoped by the resolved company's `industries[]`); read-only.
+- [ ] **TAX-01**: Schema — `estimate_items.taxable` (boolean, default true) + optional `tax_category` ('labor'|'materials'|'other'); `companies.tax_config` (per-category rate OR a "labor exempt" rule). Idempotent migration; retrocompat defaults.
+- [ ] **TAX-02**: The AI output schema/types carry `taxable`/`tax_category` per item — the AI CLASSIFIES (labor/materials) but NEVER computes tax. Types widened; AI never gains arithmetic.
+- [ ] **TAX-03**: The server math computes tax PER-ITEM (Σ taxable_base_per_category × rate_category) instead of a flat `subtotal × rate`; when `tax_config` is absent the result is BYTE-IDENTICAL to today's flat-rate computation (retrocompat).
 
-### MCP Query Tools
+### Discounts
 
-- [x] **MQRY-01**: The company-data reads are exposed as read-only MCP tools (`find_client`, `get_latest_estimate`, `get_project_status`, `list_recent_estimates`, `list_services`) wrapping the neutral `lib/agent-tools/query-company-data` data-reads — one explicit tool per read.
+- [ ] **DISC-01**: Schema — `estimate_items.discount` (line-level, amount or percent) + `estimates.discount` (global, amount or percent).
+- [ ] **DISC-02**: The server math applies line discount before the subtotal and the global discount before tax (configurable before/after per company), prorating the global discount into the taxable base.
 
-### MCP Generation Reconciliation
+### Deposit / Down-Payment
 
-- [x] **MGEN-01**: The existing MCP `create_estimate` routes through the neutral `lib/agent-tools/createEstimate` (the async `{jobId}` contract it was the precedent for), so all three channels share one generation entry point — behavior preserved.
+- [ ] **DEP-01**: Schema + server math — `estimates.deposit_type` ('none'|'percent'|'amount') + `deposit_value` → a server-computed `balance_due` (grandTotal − deposit).
+- [ ] **DEP-02**: The deposit is the value the Stripe payment link charges — the deposit threads to the SEED-020/SEED-036 payment + 1% fee contract (the fee computes on the amount actually charged).
 
-### MCP Security & Annotations
+### Markup
 
-- [x] **MSEC-01**: For every new MCP tool, `companyId` is resolved from the OAuth token → company (trusted), NEVER from a tool input field; a test asserts no new tool's input schema accepts a tenant/companyId.
-- [x] **MSEC-02**: The new read tools (`ask_knowledge` + the query tools) carry `readOnlyHint: true` annotations so Claude.ai's permission UI auto-groups them; a test asserts the annotations.
+- [ ] **MARK-01**: `estimate_items.cost` (optional) + `markup_pct` → a SERVER-DERIVED `unit_price` (`cost × (1 + markup)`) — never-trust-LLM applied to markup; the price book stores cost + markup per item.
 
-### Parity Verification
+### Engine & Retrocompat
 
-- [x] **MPAR-01**: The MCP tools BIND the neutral `lib/agent-tools/` capabilities (not a re-implementation), and the existing v4.1 MCP test suite stays green unchanged (non-destructive) — confirming WhatsApp = chat = MCP over one core.
+- [ ] **ENG-01**: All new arithmetic EXTENDS the existing GUARD-03 server-side math block (single deterministic authority); a static test asserts the AI is given NO calculator tool and computes none of tax/discount/deposit/markup.
+- [ ] **ENG-02**: Retrocompat invariant — an estimate with no new fields (taxable defaults true, discount 0, deposit none, no tax_config) produces a BYTE-IDENTICAL subtotal/tax/total to the pre-milestone engine; a regression test locks the happy path (no number drift on already-generated estimates).
+
+### Editor & Output
+
+- [ ] **PUI-01**: The estimate editor (`item-row.tsx` + `item-card-mobile.tsx`) gains per-line discount/taxable fields + global discount + deposit controls; server actions accept the new fields.
+- [ ] **PUI-02**: The PDF + plain-text output render the new totals structure (subtotal → discount → tax → total → deposit → balance due) across all 3 channels.
 
 ## v2 Requirements
 
 Deferred to a future milestone. Tracked but not in this roadmap.
 
-### Richer MCP
+### Richer Pricing
 
-- **MMCP-01**: Edit/send estimate MCP tools (extract the WhatsApp edit/confirm/send capability to neutral first — parallels the web-chat v2 deferral).
-- **MMCP-02**: MCP resources (read-only `xtimator://estimate/{id}` etc.) per the original SEED-030 wishlist.
+- **PRICEX-01**: Tiered pricing (first N units at rate X, rest at Y) + per-line difficulty multipliers.
+- **PRICEX-02**: Admin UI for source/allowance config + margin (the SEED-035 billing admin already exists; pricing-specific config could extend it).
 
 ## Out of Scope
 
 | Feature | Reason |
 |---------|--------|
-| Re-extracting capabilities | v4.9 already extracted them to `lib/agent-tools/`; this milestone only binds |
-| Rebuilding OAuth / transport | The v4.1 MCP server already provides them |
-| Edit/send MCP tools (v1) | Deferred to match the web-chat v1 scope (generate + query + knowledge) |
-| Touching the web chat / WhatsApp | Beyond parity; their bindings already exist |
-| Customer-facing MCP | The MCP is owner-scoped via the OAuth token — never an end customer |
+| An AI calculator tool | Reintroduces the n8n calculator's 3 LLM-failure points — a regression; all math stays server-side |
+| Rebuilding the math engine | EXTEND GUARD-03, do not parallel it |
+| Channel-adapter changes | The math engine is the shared core; the richer totals appear in all 3 channels for free |
+| Changing already-generated estimate numbers | Retrocompat is mandatory — byte-identical happy path when the new fields are absent |
+| Tiered/difficulty pricing | Deferred to v2 |
 
 ## Traceability
 
@@ -61,18 +72,24 @@ Which phases cover which requirements. Populated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| MKB-01 | Phase 127 | Complete |
-| MQRY-01 | Phase 127 | Complete |
-| MGEN-01 | Phase 128 | Complete |
-| MSEC-01 | Phase 127 | Complete |
-| MSEC-02 | Phase 127 | Complete |
-| MPAR-01 | Phase 128 | Complete |
+| TAX-01 | TBD | Pending |
+| TAX-02 | TBD | Pending |
+| TAX-03 | TBD | Pending |
+| DISC-01 | TBD | Pending |
+| DISC-02 | TBD | Pending |
+| DEP-01 | TBD | Pending |
+| DEP-02 | TBD | Pending |
+| MARK-01 | TBD | Pending |
+| ENG-01 | TBD | Pending |
+| ENG-02 | TBD | Pending |
+| PUI-01 | TBD | Pending |
+| PUI-02 | TBD | Pending |
 
 **Coverage:**
-- v1 requirements: 6 total
-- Mapped to phases: 6 (Phase 127: MKB-01, MQRY-01, MSEC-01, MSEC-02 · Phase 128: MGEN-01, MPAR-01)
-- Unmapped: 0 ✅ (100% coverage, no orphans)
+- v1 requirements: 12 total
+- Mapped to phases: 0 (roadmap pending)
+- Unmapped: 12 ⚠️ (resolved by roadmap)
 
 ---
 *Requirements defined: 2026-06-25*
-*Last updated: 2026-06-25 — milestone v4.10 MCP Channel Parity roadmap created (Phases 127-128); all 6 requirements mapped, 0 unmapped*
+*Last updated: 2026-06-25 — milestone v4.11 Advanced Pricing Model initial definition*
