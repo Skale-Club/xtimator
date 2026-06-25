@@ -107,6 +107,33 @@ describe('entitlements', () => {
   it('getEntitlements falls back to free grant (0) for an unknown tier', () => {
     expect(getEntitlements('garbage').monthlyCreditGrant).toBe(0)
   })
+
+  // Phase 126 (CHATMETER-02): chatEnabled gates the in-app chat as a Pro/Business
+  // feature. free=false (the gate's whole point); trial/pro/business=true.
+  it('free tier has chatEnabled false (in-app chat is a Pro/Business feature)', () => {
+    expect(tiers.free.chatEnabled).toBe(false)
+  })
+
+  it('trial tier has chatEnabled true', () => {
+    expect(tiers.trial.chatEnabled).toBe(true)
+  })
+
+  it('pro tier has chatEnabled true', () => {
+    expect(tiers.pro.chatEnabled).toBe(true)
+  })
+
+  it('business tier has chatEnabled true', () => {
+    expect(tiers.business.chatEnabled).toBe(true)
+  })
+
+  it('getEntitlements resolves chatEnabled (free false, pro true)', () => {
+    expect(getEntitlements('free').chatEnabled).toBe(false)
+    expect(getEntitlements('pro').chatEnabled).toBe(true)
+  })
+
+  it('getEntitlements falls back to free chatEnabled (false) for an unknown tier', () => {
+    expect(getEntitlements('garbage').chatEnabled).toBe(false)
+  })
 })
 
 // ---------------------------------------------------------------------------

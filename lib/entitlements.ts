@@ -32,6 +32,7 @@ export type Entitlements = {
   pdfEnabled: boolean
   priceBookEnabled: boolean
   customDomainEnabled: boolean
+  chatEnabled: boolean // CHATMETER-02 — in-app chat is a Pro/Business feature
 }
 
 export const tiers: Record<TierName, Entitlements> = {
@@ -46,6 +47,7 @@ export const tiers: Record<TierName, Entitlements> = {
     pdfEnabled: true,
     priceBookEnabled: false,
     customDomainEnabled: false,
+    chatEnabled: false,
   },
   trial: {
     maxEstimatesPerMonth: null, // unlimited during trial
@@ -58,6 +60,7 @@ export const tiers: Record<TierName, Entitlements> = {
     pdfEnabled: true,
     priceBookEnabled: true,
     customDomainEnabled: false,
+    chatEnabled: true,
   },
   pro: {
     maxEstimatesPerMonth: 200,
@@ -70,6 +73,7 @@ export const tiers: Record<TierName, Entitlements> = {
     pdfEnabled: true,
     priceBookEnabled: true,
     customDomainEnabled: false,
+    chatEnabled: true,
   },
   business: {
     maxEstimatesPerMonth: null, // unlimited
@@ -82,6 +86,7 @@ export const tiers: Record<TierName, Entitlements> = {
     pdfEnabled: true,
     priceBookEnabled: true,
     customDomainEnabled: true,
+    chatEnabled: true,
   },
 } as const satisfies Record<TierName, Entitlements>
 
