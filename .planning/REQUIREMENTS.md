@@ -1,103 +1,77 @@
-# Requirements: Xtimator — Milestone v4.11 Advanced Pricing Model (SHIPPED 2026-06-25)
+# Requirements: Xtimator — Milestone v4.12 Team Seats & Member Invites
 
 **Defined:** 2026-06-25
 **Core Value:** A business owner can go from job site audio recording to a sent, professional estimate in under 5 minutes without touching a keyboard.
-**Milestone goal:** Enrich the estimate's pricing MODEL (per-item tax, discounts, deposit, markup) so the existing server-side deterministic math engine computes them — without giving the AI a calculator. Source: [SEED-032](seeds/SEED-032-advanced-pricing-model-tax-discount-deposit.md).
+**Milestone goal:** Turn the dormant multi-user foundation (`company_members`, Phase 79) into a real team-seats feature — invite teammates into the SAME organization (`company`), assign roles, and bill per seat at a price that is fully configurable in the super-admin panel. Source: [SEED-037](seeds/SEED-037-team-seats-member-invites.md).
 
 > **Locked decisions (non-negotiable):**
-> - **The arithmetic integrity already exists** (GUARD-03, server-side deterministic recalculation, never-trust-LLM). This milestone adds the DATA MODEL + math, NOT a better calculator.
-> - **All new arithmetic stays SERVER-SIDE and DETERMINISTIC** — the AI NEVER computes tax/discount/deposit/markup; it only provides inputs (qty, unit_price or cost, labor/materials classification). EXTEND the existing GUARD-03 math block (`lib/services/generate-estimate.ts` ~L255-373); do NOT create a parallel one.
-> - **NO AI calculator tool** — explicitly excluded; it would reintroduce the n8n calculator's 3 LLM-failure points (a regression).
-> - **Retrocompat is mandatory** — existing estimates (taxable=true, discount=0, deposit=none, no tax_config) must be BYTE-IDENTICAL on the happy path; a regression test locks this.
-> - **Calculation sequence (locked):** `line_net = round2(qty×unit_price) − line_discount`; `subtotal = Σ line_net`; `disc_global = amount | subtotal×pct`; `taxable_base = Σ(line_net where taxable) − (disc_global prorated)`; `taxAmount = Σ(taxable_base_per_category × rate_category)`; `grandTotal = (subtotal − disc_global) + taxAmount`; `deposit = grandTotal×deposit_pct | deposit_amount`; `balanceDue = grandTotal − deposit`.
-> - **Discount before tax** (US norm — discount reduces the taxable base; configurable per company).
-> - **Mirrored across all 3 channels** (web/WhatsApp/MCP) because the math engine is the shared core — the richer totals appear everywhere with no channel-adapter changes.
+> - **The org unit is `company`; a seat = one `company_members` row.** No new "organization" entity. All org-owned data (clients, price book, estimates, credits, Connect payout) is already company-scoped and shared by every member via the EXISTING RLS that authorizes through `company_members` — reuse it, do NOT rebuild multi-tenancy.
+> - **Roles widen to a small explicit matrix: `owner` / `admin` / `member`** (`viewer` deferred to v2). Exactly one `owner` per company (billing-responsible). Role checks are SERVER-SIDE authority (RLS + a single `requireCompanyRole` helper) — never trusted from the client.
+> - **ZERO hardcoded billing numbers.** The per-seat price (`seatPriceCents`) and the per-tier included-seat counts (`tiers[tier].includedSeats`) live in the super-admin `billing_config` store (`lib/billing/billing-config.ts`), read at runtime via `getBillingConfig()`, editable in the panel, applied without a deploy (30s TTL flush) — exactly like `estimateFeePct` / `markup` / `monthlyCreditGrant`. No seat price, included-seat count, or Stripe Price ID may be a constant in application code.
+> - **The super-admin panel controls every billing knob and is ONLY for Xtimator operators.** Tenants never see it (reuses the [[SEED-035]] discipline).
+> - **Billable seats = `max(0, activeMembers − tiers[tier].includedSeats)`**; monthly seat charge = `billableSeats × seatPriceCents`. Seats are billed on the EXISTING platform subscription (`companies.stripe_subscription_id`) as a quantity-based subscription item whose `unit_amount` comes from `billing_config` and whose `quantity` re-syncs on membership change.
+> - **Calibrate before charging.** Seat billing is gated by the master `billing_config.enforcementEnabled` switch (default false): seat changes RECORD the quantity but do not charge until calibration flips it on.
+> - **Retrocompat is mandatory.** Existing single-owner orgs sit inside `includedSeats` → zero seat charge, zero behavior change. The invite/role/billing additions must not alter any single-user flow.
+> - **A pending invite does NOT consume a billable seat** — the seat is counted on ACCEPTANCE.
 
 ## v1 Requirements
 
-Requirements for this milestone. Each maps to exactly one roadmap phase.
+Each requirement maps to exactly one roadmap phase.
 
-### Per-Item Taxability
+### Schema & Authorization
 
-- [x] **TAX-01**: Schema — `estimate_items.taxable` (boolean, default true) + optional `tax_category` ('labor'|'materials'|'other'); `companies.tax_config` (per-category rate OR a "labor exempt" rule). Idempotent migration; retrocompat defaults.
-- [x] **TAX-02**: The AI output schema/types carry `taxable`/`tax_category` per item — the AI CLASSIFIES (labor/materials) but NEVER computes tax. Types widened; AI never gains arithmetic.
-- [x] **TAX-03**: The server math computes tax PER-ITEM (Σ taxable_base_per_category × rate_category) instead of a flat `subtotal × rate`; when `tax_config` is absent the result is BYTE-IDENTICAL to today's flat-rate computation (retrocompat).
+- [ ] **SEAT-01**: Idempotent authored-only migration — widen `company_members.role` CHECK from `('owner')` to `('owner','admin','member')` (DROP/ADD named CHECK); create `company_invites` table (`id`, `company_id`, `email`, `role`, `token`, `status`, `invited_by`, `expires_at`, `created_at`) + RLS (owner/admin manage their company's invites; token-based accept via service role). Retrocompat: existing `owner` rows untouched; no change to `companies` billing columns.
+- [ ] **SEAT-02**: A single server-side `requireCompanyRole(companyId, roles)` authorization helper enforcing the locked role matrix (owner/admin manage members; owner-only for billing/seat/ownership). Every team + billing server action gates through it; the role gate lives in ONE place and is never client-trusted.
 
-### Discounts
+### Invites & Membership
 
-- [x] **DISC-01**: Schema — `estimate_items.discount` (line-level, amount or percent) + `estimates.discount` (global, amount or percent).
-- [x] **DISC-02**: The server math applies line discount before the subtotal and the global discount before tax (configurable before/after per company), prorating the global discount into the taxable base.
+- [ ] **SEAT-03**: Invite lifecycle — `inviteMember(companyId, email, role)` + `revokeInvite` server actions (owner/admin only) creating a single-use, expiring `company_invites` row and sending a Resend invite email with the accept link. A pending invite does not consume a billable seat.
+- [ ] **SEAT-04**: Accept onboarding — `acceptInvite(token)`: a token that is valid/unexpired/pending adds the `company_members` row and switches the active company. If the invited email already has an auth user → join directly; if not → a signup-then-join branch that SKIPS company creation (the existing onboarding always creates a company — this path must branch to JOIN the existing one).
+- [ ] **SEAT-05**: Member management — `removeMember` + `changeMemberRole` server actions (gated) + a `Settings → Team` UI: list members (name/email/role), list pending invites, an Invite action (email + role), remove member, change role. Mobile-safe (iOS Safari / Android Chrome). Removing a member revokes access immediately and decrements the seat quantity on the next sync.
 
-### Deposit / Down-Payment
+### Configurable Seat Billing
 
-- [x] **DEP-01**: Schema + server math — `estimates.deposit_type` ('none'|'percent'|'amount') + `deposit_value` → a server-computed `balance_due` (grandTotal − deposit).
-- [x] **DEP-02**: The deposit is the value the Stripe payment link charges — the deposit threads to the SEED-020/SEED-036 payment + 1% fee contract (the fee computes on the amount actually charged).
-
-### Markup
-
-- [x] **MARK-01**: `estimate_items.cost` (optional) + `markup_pct` → a SERVER-DERIVED `unit_price` (`cost × (1 + markup)`) — never-trust-LLM applied to markup; the price book stores cost + markup per item.
-
-### Engine & Retrocompat
-
-- [x] **ENG-01**: All new arithmetic EXTENDS the existing GUARD-03 server-side math block (single deterministic authority); a static test asserts the AI is given NO calculator tool and computes none of tax/discount/deposit/markup.
-- [x] **ENG-02**: Retrocompat invariant — an estimate with no new fields (taxable defaults true, discount 0, deposit none, no tax_config) produces a BYTE-IDENTICAL subtotal/tax/total to the pre-milestone engine; a regression test locks the happy path (no number drift on already-generated estimates).
-
-### Editor & Output
-
-- [x] **PUI-01**: The estimate editor (`item-row.tsx` + `item-card-mobile.tsx`) gains per-line discount/taxable fields + global discount + deposit controls; server actions accept the new fields.
-- [x] **PUI-02**: The PDF + plain-text output render the new totals structure (subtotal → discount → tax → total → deposit → balance due) across all 3 channels.
+- [ ] **SEAT-06**: Extend `BillingConfig` + `DEFAULT_BILLING_CONFIG` (`lib/billing/billing-config.ts`) with `seatPriceCents` (global) and `tiers[tier].includedSeats` (per-tier) as null-safe calibration placeholders, and surface both as editable fields in the super-admin billing panel. Nothing hardcoded; the deep-merge reader tolerates rows written before the fields existed.
+- [ ] **SEAT-07**: Seat-billing math + sync — pure, unit-tested `computeBillableSeats(activeMembers, includedSeats)` + `computeSeatChargeCents(billableSeats, seatPriceCents)` (no I/O, arithmetic in one place) + a server `syncSeatBilling(companyId)` that reads the live member count + `billing_config` and updates the Stripe subscription seat-quantity item, gated by `billing_config.enforcementEnabled`. Retrocompat: single-owner orgs within `includedSeats` produce zero billable seats and no Stripe write.
+- [ ] **SEAT-08**: Seat-cost transparency UI — the `Settings → Team` surface shows the org's current active seat count, the configured per-seat price, and the projected monthly seat cost, all read from `billing_config` at runtime (never hardcoded) — same billing-transparency principle as the 1%-fee disclosure.
 
 ## v2 Requirements
 
 Deferred to a future milestone. Tracked but not in this roadmap.
 
-### Richer Pricing
-
-- **PRICEX-01**: Tiered pricing (first N units at rate X, rest at Y) + per-line difficulty multipliers.
-- **PRICEX-02**: Admin UI for source/allowance config + margin (the SEED-035 billing admin already exists; pricing-specific config could extend it).
+- **SEATX-01**: `viewer` (read-only) role + granular per-resource permissions.
+- **SEATX-02**: SSO / SCIM provisioning for larger teams.
+- **SEATX-03**: Per-action audit trail beyond the existing admin audit log; seat-usage analytics.
+- **SEATX-04**: Ownership-transfer with full audit + multi-owner support.
 
 ## Out of Scope
 
 | Feature | Reason |
 |---------|--------|
-| An AI calculator tool | Reintroduces the n8n calculator's 3 LLM-failure points — a regression; all math stays server-side |
-| Rebuilding the math engine | EXTEND GUARD-03, do not parallel it |
-| Channel-adapter changes | The math engine is the shared core; the richer totals appear in all 3 channels for free |
-| Changing already-generated estimate numbers | Retrocompat is mandatory — byte-identical happy path when the new fields are absent |
-| Tiered/difficulty pricing | Deferred to v2 |
+| Rebuilding multi-tenancy / RLS | The `company_members`-based RLS already authorizes all data; reuse it |
+| Hardcoded seat price or included-seat counts | Every billing knob is super-admin-configurable via `billing_config` |
+| Charging seats before calibration | Gated by `enforcementEnabled`; record-only until calibrated |
+| `viewer` / granular permissions / SSO | Deferred to v2 — keep the role matrix to owner/admin/member |
+| A second invoice / separate seat checkout | Seats ride the existing platform subscription as a quantity item |
+| Changing any single-owner-org behavior | Retrocompat — existing orgs sit within included seats, zero change |
 
 ## Traceability
 
-Which phases cover which requirements. Populated during roadmap creation.
-
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| TAX-01 | Phase 129 | Complete |
-| TAX-02 | Phase 130 | Complete |
-| TAX-03 | Phase 130 | Complete |
-| DISC-01 | Phase 131 | Complete |
-| DISC-02 | Phase 131 | Complete |
-| DEP-01 | Phase 132 | Complete |
-| DEP-02 | Phase 132 | Complete |
-| MARK-01 | Phase 132 | Complete |
-| ENG-01 | Phase 129 | Complete |
-| ENG-02 | Phase 129 | Complete |
-| PUI-01 | Phase 133 | Complete |
-| PUI-02 | Phase 134 | Complete |
+| SEAT-01 | Phase 135 | Pending |
+| SEAT-02 | Phase 135 | Pending |
+| SEAT-03 | Phase 136 | Pending |
+| SEAT-04 | Phase 137 | Pending |
+| SEAT-05 | Phase 138 | Pending |
+| SEAT-06 | Phase 139 | Pending |
+| SEAT-07 | Phase 139 | Pending |
+| SEAT-08 | Phase 140 | Pending |
 
 **Coverage:**
-- v1 requirements: 12 total
-- Mapped to phases: 12 ✓
-- Unmapped: 0 ✓
-
-**Phase rollup:**
-- Phase 129 (Schema + Engine Scaffold + Retrocompat Lock): TAX-01, ENG-01, ENG-02
-- Phase 130 (Per-Item Taxability): TAX-02, TAX-03
-- Phase 131 (Discounts): DISC-01, DISC-02
-- Phase 132 (Deposit + Markup + Stripe Contract): DEP-01, DEP-02, MARK-01
-- Phase 133 (Editor UI): PUI-01
-- Phase 134 (PDF + Plain-Text Totals): PUI-02
+- v1 requirements: 8 total
+- Mapped to phases: 8/8 (Phases 135-140) — **0 orphans**
+- Unmapped: 0
 
 ---
-*Requirements defined: 2026-06-25*
-*Last updated: 2026-06-25 — milestone v4.11 Advanced Pricing Model SHIPPED (all 6 phases 129-134 complete, 12/12 requirements done; last green seed of the n8n-MVP-analysis backlog — backlog fully complete)*
+*Requirements defined: 2026-06-25 — milestone v4.12 Team Seats & Member Invites (source SEED-037; phase numbering continues the global counter — v4.11 ended at Phase 134, so this milestone starts at Phase 135).*

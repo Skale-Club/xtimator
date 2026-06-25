@@ -30,7 +30,8 @@
 - ✅ **v4.8 Industry Knowledge Base — Channel-Neutral Conversational Assistant** — Phases 117-121 (shipped 2026-06-24)
 - ✅ **v4.9 Internal Web Chat Assistant — the 3rd channel** — Phases 122-126 (shipped 2026-06-25)
 - ✅ **v4.10 MCP Channel Parity** — Phases 127-128 (shipped 2026-06-25) — binds the v4.9 neutral `lib/agent-tools/` over the existing v4.1 MCP server, closing the WhatsApp = chat = MCP sibling-channels principle
-- 🚧 **v4.11 Advanced Pricing Model — Per-Item Tax, Discounts, Deposit & Markup** — Phases 129-134 (roadmap created 2026-06-25) — enrich the pricing MODEL so the existing GUARD-03 server-side deterministic engine computes per-item tax, discounts, deposit & markup; NO AI calculator; byte-identical retrocompat invariant; SEED-032
+- ✅ **v4.11 Advanced Pricing Model — Per-Item Tax, Discounts, Deposit & Markup** — Phases 129-134 (shipped 2026-06-25) — enriched the pricing MODEL so the existing GUARD-03 server-side deterministic engine computes per-item tax, discounts, deposit & markup; NO AI calculator; byte-identical retrocompat; SEED-032
+- 🚧 **v4.12 Team Seats & Member Invites** — Phases 135-140 (roadmap created 2026-06-25) — turn the dormant `company_members` foundation (Phase 79) into team seats: invite teammates into the SAME company, owner/admin/member roles (server-side `requireCompanyRole` + RLS, never client-trusted), and per-seat billing fully configurable in `billing_config`/super-admin (nothing hardcoded), gated by `enforcementEnabled`; retrocompat single-owner orgs = zero charge; reuse existing RLS, do NOT rebuild multi-tenancy; SEED-037
 
 > **Phase numbering note:** v3.1.1 starts at **Phase 66**, not 62. Phases 62-65 are reserved as DEFERRED placeholders for the v3.2 Production Deploy milestone (Vercel→Hetzner deploy + Stripe live + monitoring + UAT in prod). Skipping past 62-65 keeps the global phase counter unambiguous and prevents number reuse confusion when v3.2 begins.
 
@@ -1612,7 +1613,8 @@ Plans:
 - [x] **Phase 132: Deposit + Markup + Deposit-Stripe Contract** — `deposit_type`/`deposit_value` -> server-computed `balance_due`; `cost` + `markup_pct` -> server-derived `unit_price` (never-trust-LLM, price book stores cost + markup); the deposit threads to the SEED-020/036 Stripe payment + 1% fee contract (the fee computes on the amount actually charged) (DEP-01, DEP-02, MARK-01)
  (completed 2026-06-25)
 - [x] **Phase 133: Editor UI** — The estimate editor (`item-row.tsx` + `item-card-mobile.tsx`) gains per-line discount/taxable fields + global discount + deposit controls; server actions accept the new fields (PUI-01) (completed 2026-06-25)
-- [x] **Phase 134: PDF + Plain-Text Totals** — The PDF + plain-text output render the new totals structure (subtotal -> discount -> tax -> total -> deposit -> balance due) across all 3 channels, surfacing the shared-engine numbers with no channel-adapter changes (PUI-02) (completed 2026-06-25)
+- [x] **Phase 134: PDF + Plain-Text Totals** — The PDF + plain-text output render the new totals structure (subtotal -> discount -> tax -> total -> deposit -> balance due) across all 3 channels, surfacing the shared-engine numbers with no channel-adapter changes (PUI-02)
+ (completed 2026-06-25)
 
 ### Phase 129: Schema Foundation + GUARD-03 Engine Extension Scaffold + Retrocompat Lock
 **Goal**: The data model and the deterministic math authority are ready to carry the new pricing dimensions WITHOUT changing a single already-generated number — the migration adds every new field with retrocompat defaults, the GUARD-03 block is extended in a byte-identical-when-empty way, and the two load-bearing invariants (no AI calculator, byte-identical happy path) are locked by tests that stay green at every subsequent phase.
@@ -1697,4 +1699,93 @@ Plans:
 - [x] 134-02-PLAN.md — PDF totals: Deposit + Balance Due rows in the ordered block via deriveDepositDisplay + en/pt/es labels + structural test; legacy byte-identical (PUI-02)
 - [x] 134-03-PLAN.md — Public share view: view-mode Deposit row + persisted-read Balance Due in DocumentTotals (edit mode untouched) + view-mode test (PUI-02)
 - [x] 134-04-PLAN.md — Plain-text/WhatsApp/MCP formatter: Deposit + Balance Due lines + en/pt/es labels + deposit columns added to feeding selects; existing tests stay green (PUI-02)
+**UI hint**: yes
+## 🚧 v4.12 Team Seats & Member Invites (Phases 135-140)
+
+**Milestone Goal:** Turn the dormant multi-user foundation (`company_members`, Phase 79) into a real team-seats feature — invite teammates into the SAME organization (`company`), assign `owner`/`admin`/`member` roles with server-side authority, and bill per seat at a price that is FULLY configurable in the super-admin `billing_config` panel (nothing hardcoded), gated by `enforcementEnabled` so existing single-owner orgs see zero charge and zero behavior change. Reuse the existing `company_members`-based RLS — do NOT rebuild multi-tenancy.
+
+> **Numbering:** continues the GLOBAL phase counter. v4.11 ended at Phase 134. **v4.12 starts at Phase 135.** Do NOT reset to 1.
+>
+> **Coverage:** 8/8 v4.12 requirements mapped (SEAT-01..SEAT-08). No orphans. Mapping: SEAT-01/02 → 135, SEAT-03 → 136, SEAT-04 → 137, SEAT-05 → 138, SEAT-06/07 → 139, SEAT-08 → 140.
+>
+> **Locked scope guardrails (do NOT plan against):** The org unit is `company`; a seat = one `company_members` row — NO new "organization" entity, and the existing `company_members`-based RLS already authorizes all org-owned data (clients, price book, estimates, credits, Connect payout) so a second member reads it for free (do NOT rebuild multi-tenancy). Roles are exactly `owner`/`admin`/`member` (`viewer` deferred to v2); exactly one `owner` per company; role authority is SERVER-SIDE only (a single `requireCompanyRole` helper + RLS), NEVER client-trusted. ZERO hardcoded billing numbers — `seatPriceCents` (global) + `tiers[tier].includedSeats` (per-tier) live in `billing_config` (`lib/billing/billing-config.ts`), read via `getBillingConfig()`, editable in the super-admin panel, applied without a deploy (30s TTL); no seat price / included-seat count / Stripe Price ID may be a constant. Billable seats = `max(0, activeMembers − includedSeats)`; the charge rides the EXISTING platform subscription (`companies.stripe_subscription_id`) as a quantity item (`unit_amount` from config), re-synced on membership change, **gated by `billing_config.enforcementEnabled` (calibrate before charging)**. A pending invite does NOT consume a billable seat (counted on ACCEPTANCE). Retrocompat is the load-bearing invariant: single-owner orgs sit within `includedSeats` → zero charge, zero behavior change, no single-user flow altered. Migrations are idempotent + authored-only — deploy via CI→GHCR→Coolify, NEVER applied to remote here / built on the VPS. Mobile-safe UI (iOS Safari / Android Chrome).
+
+### Phases
+
+- [ ] **Phase 135: Schema + Roles + Authorization** — Idempotent authored-only migration widening the `company_members.role` CHECK from `('owner')` to `('owner','admin','member')` + creating `company_invites` (`id`/`company_id`/`email`/`role`/`token`/`status`/`invited_by`/`expires_at`/`created_at`) with RLS mirroring the Phase-79 posture (owner/admin manage their company's invites; token-accept via service role); the single server-side `requireCompanyRole(companyId, roles)` authorization helper. THE FOUNDATION — every other phase depends on it. (SEAT-01, SEAT-02)
+- [ ] **Phase 136: Invite Lifecycle + Email** — `inviteMember(companyId, email, role)` + `revokeInvite` server actions (owner/admin only, gated by `requireCompanyRole`) creating a single-use, expiring `company_invites` row + a Resend invite email with the accept link; a pending invite does NOT consume a billable seat. (SEAT-03)
+- [ ] **Phase 137: Accept Onboarding** — `acceptInvite(token)`: a valid/unexpired/pending token adds the `company_members` row + switches the active company. Existing-user → join directly; new-user → a signup-then-join branch that SKIPS company creation (the existing onboarding always creates a company — this path branches to JOIN the existing one). (SEAT-04)
+- [ ] **Phase 138: Member Management UI** — `removeMember` + `changeMemberRole` server actions (gated) + a mobile-safe `Settings → Team` surface: list members (name/email/role), list pending invites, an Invite action (email + role), remove member, change role; removal revokes access immediately + decrements the seat quantity on the next sync. (SEAT-05)
+- [ ] **Phase 139: Configurable Seat Billing** — Extend `BillingConfig`/`DEFAULT_BILLING_CONFIG` with `seatPriceCents` + `tiers[tier].includedSeats` (null-safe placeholders, deep-merge-tolerant) + super-admin panel fields; pure unit-tested `computeBillableSeats` / `computeSeatChargeCents` + a server `syncSeatBilling(companyId)` that syncs the Stripe subscription seat-quantity item, gated by `enforcementEnabled` (single-owner orgs → zero billable seats, no Stripe write). (SEAT-06, SEAT-07)
+- [ ] **Phase 140: Seat-Cost Transparency UI** — The `Settings → Team` surface shows the org's current active seat count + the configured per-seat price + the projected monthly seat cost, all read from `billing_config` at runtime (never hardcoded) — same transparency principle as the 1%-fee disclosure. (SEAT-08)
+
+### Phase Details — v4.12 Team Seats & Member Invites
+
+### Phase 135: Schema + Roles + Authorization
+**Goal**: The data model and the single server-side authorization gate for team seats exist end to end: the `company_members.role` CHECK accepts `owner`/`admin`/`member`, a `company_invites` table with RLS mirroring the Phase-79 `company_members` posture is live, and one `requireCompanyRole(companyId, roles)` helper is the only place role authority is decided. Ships as the dormant foundation — no invite/UI/billing behavior yet, but everything downstream gates through this.
+**Depends on**: Nothing (first phase of the milestone; the foundation everything else builds on). Reuses the Phase-79 `company_members` table + RLS pattern; does NOT rebuild multi-tenancy.
+**Requirements**: SEAT-01, SEAT-02
+**Success Criteria** (what must be TRUE):
+  1. An idempotent, authored-only migration (NOT applied to remote — CI→GHCR→Coolify owns deploy) widens the named `company_members.role` CHECK from `('owner')` to `('owner','admin','member')` via DROP/ADD; existing `owner` rows are untouched and a static migration-contract test asserts the new matrix + idempotency (`DROP ... IF EXISTS` before `ADD`)
+  2. The same migration creates `company_invites` (`id`, `company_id`, `email`, `role`, `token`, `status` ∈ `pending|accepted|revoked|expired`, `invited_by`, `expires_at`, `created_at`) with RLS mirroring the Phase-79 posture — owner/admin of the company can read/manage its invites (gated by a `company_members` subquery), and the token-based accept path is service-role only (no broad client write policy); the migration touches NO `companies` billing column
+  3. A single `requireCompanyRole(companyId, roles)` server helper resolves the caller's membership row server-side (RLS-bound client, never a client-supplied role) and authorizes against the locked matrix — owner/admin for member management, owner-only for billing/seat/ownership — returning a typed allow/deny that callers narrow on; a unit test proves each role × capability cell and that an absent membership denies
+  4. The role gate lives in EXACTLY ONE place: a static test asserts team/billing server actions resolve authority through `requireCompanyRole` and never re-derive a role inline or trust a role from the request body
+**Plans**: TBD
+
+### Phase 136: Invite Lifecycle + Email
+**Goal**: An owner or admin can invite a teammate by email + role: the system creates a single-use, expiring `company_invites` row and sends a Resend email carrying the accept link, and can revoke a still-pending invite. A pending invite never consumes a billable seat — the seat is only counted on acceptance (Phase 137).
+**Depends on**: Phase 135 (the `company_invites` table + RLS + `requireCompanyRole`)
+**Requirements**: SEAT-03
+**Success Criteria** (what must be TRUE):
+  1. `inviteMember(companyId, email, role)` is gated by `requireCompanyRole(companyId, ['owner','admin'])`, creates a `company_invites` row with `status='pending'`, a cryptographically-random single-use `token`, and an `expires_at` in the future, and a `member` (or unauthenticated) caller is denied with no row written
+  2. A Resend invite email is sent to the invited address containing the accept link with the token (the email is sent via the existing `lib/email/` Resend setup; no secret/token value is ever logged or committed — placeholders only in any doc)
+  3. `revokeInvite` (owner/admin only) transitions a still-`pending` invite to `revoked` so its token can no longer be accepted; revoking an already-accepted/expired invite is a safe no-op
+  4. Creating or revoking a pending invite causes ZERO change to billable seats or any Stripe write — a pending invite is free; the seat count is unaffected until acceptance
+**Plans**: TBD
+
+### Phase 137: Accept Onboarding
+**Goal**: An invited person can accept and land inside the existing company as a member — without ever creating a new company. A valid, unexpired, pending token adds their `company_members` row and switches their active company; if the email already has an auth user they join directly, and if not, a signup-then-join branch reuses onboarding but SKIPS company creation (the current onboarding always creates a company — this path must branch to JOIN).
+**Depends on**: Phase 135 (schema + `requireCompanyRole`), Phase 136 (the invite + token the accept consumes). Branches off the `lib/actions/active-company.ts` membership check + the `lib/actions/company.ts` onboarding that today always creates a company.
+**Requirements**: SEAT-04
+**Success Criteria** (what must be TRUE):
+  1. `acceptInvite(token)` accepts ONLY a token that is `pending`, unexpired, and matches the invited email; it inserts the `company_members` row (via service role, with `role` from the invite, mirroring the Phase-79/80 membership-insert posture) and marks the invite `accepted` atomically — an expired/revoked/already-accepted/forged token is rejected and writes no membership
+  2. An invited email that ALREADY has an auth user joins directly: after accept, their session's active company is switched to the invited company (reusing the `switchActiveCompany` membership-verified cookie write) and they immediately read the org's shared data via the existing `company_members` RLS — no new company is created
+  3. An invited email with NO existing auth user goes through a signup-then-join branch that creates the user and then JOINS the existing company — it explicitly does NOT run the company-creation path of onboarding (the `mode:'first'`/`'add'` create-company branch is skipped); a test proves no second `companies` row is created for an invited signup
+  4. On acceptance the active member count for the company increases by one (the basis Phase 139's seat billing reads on the next sync); a single-owner org that never accepts an invite is unchanged
+**Plans**: TBD
+
+### Phase 138: Member Management UI
+**Goal**: An owner/admin can manage the team from a mobile-safe `Settings → Team` surface — see members and pending invites, invite by email + role, change a member's role, and remove a member — backed by gated server actions. Removing a member revokes their access immediately (the membership row is deleted) and decrements the billable seat quantity on the next sync.
+**Depends on**: Phase 135 (schema + `requireCompanyRole`), Phase 136 (invite action surfaced in the UI), Phase 137 (accept produces the members the list shows)
+**Requirements**: SEAT-05
+**Success Criteria** (what must be TRUE):
+  1. `removeMember` and `changeMemberRole` are gated by `requireCompanyRole` (owner/admin; owner-only where the locked matrix requires it — e.g. you cannot remove or demote the sole `owner`), reject a `member` caller, and never trust a role from the request body
+  2. A `Settings → Team` page lists current members (name/email/role) and pending invites, and exposes Invite (email + role), Change role, and Remove actions wired to the gated actions; the page is server-authorized so a `member` cannot reach the management controls
+  3. Removing a member deletes their `company_members` row so they immediately lose access to the org's data (the existing RLS stops authorizing them), and the active member count drops — the basis for the seat-quantity decrement on the next Phase-139 sync
+  4. The Team surface is mobile-safe — usable on iOS Safari and Android Chrome (the app runs on phones), following the existing mobile-safe Settings form idiom
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 139: Configurable Seat Billing
+**Goal**: Per-seat billing is fully super-admin-configurable and mechanically correct, with nothing hardcoded. `BillingConfig` gains `seatPriceCents` (global) + `tiers[tier].includedSeats` (per-tier) as null-safe placeholders surfaced in the super-admin panel; pure, unit-tested math computes billable seats and the seat charge; and `syncSeatBilling(companyId)` updates the Stripe subscription seat-quantity item from the live member count + config — but only RECORDS until `enforcementEnabled` is flipped on. Existing single-owner orgs within their included seats produce zero billable seats and no Stripe write.
+**Depends on**: Phase 135 (the role/member schema that defines the active member count). Otherwise independent of the UI phases (136-138) — it reads the member count, not the management UI. Reuses the `billing_config` / `getBillingConfig` mechanism and the existing `companies.stripe_subscription_id`.
+**Requirements**: SEAT-06, SEAT-07
+**Success Criteria** (what must be TRUE):
+  1. `BillingConfig` + `DEFAULT_BILLING_CONFIG` gain `seatPriceCents` (global) and `tiers[tier].includedSeats` (per-tier) as null-safe calibration placeholders (NOT final numbers, mirroring the existing `markup`/`estimateFeePct` placeholder discipline); the `getBillingConfig` deep-merge reader resolves them for a `billing_config` row written before the fields existed (the Pitfall-6 tolerance), and a static test asserts no seat price / included-seat count / Stripe Price ID is hardcoded in any seat-billing path
+  2. A super-admin can edit `seatPriceCents` and each tier's `includedSeats` in the billing panel, save, and the new values take effect at runtime on the next sync with no redeploy (the 30s TTL flush); the tenant (business owner) has no route to these controls
+  3. Pure functions `computeBillableSeats(activeMembers, includedSeats)` = `max(0, activeMembers − includedSeats)` and `computeSeatChargeCents(billableSeats, seatPriceCents)` keep all seat arithmetic in one I/O-free place and are unit-tested across boundary cases (members ≤ included → 0 billable; members > included → the difference; zero/placeholder price)
+  4. `syncSeatBilling(companyId)` reads the live `company_members` count + `billing_config` and updates the Stripe subscription seat-quantity item (`unit_amount` from `billing_config.seatPriceCents`, `quantity` = billable seats, Stripe default proration) — but is gated by `billing_config.enforcementEnabled`: with enforcement OFF it RECORDS the computed quantity and performs no charge; a single-owner org within `includedSeats` computes zero billable seats and makes NO Stripe write in either mode (retrocompat)
+  5. `syncSeatBilling` is invoked on every membership change (invite accepted, member removed, role change that flips billable status) so the seat quantity stays in sync, and is never-throw / non-fatal so a seat-sync failure never blocks the underlying membership operation
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 140: Seat-Cost Transparency UI
+**Goal**: The owner can see exactly what seats cost. The `Settings → Team` surface shows the org's current active seat count, the configured per-seat price, and the projected monthly seat cost — all read from `billing_config` at runtime so the disclosed number never diverges from the configured/charged number, the same transparency principle as the 1%-fee disclosure.
+**Depends on**: Phase 138 (the `Settings → Team` surface the summary lives on), Phase 139 (`seatPriceCents` / `includedSeats` config + the `computeBillableSeats`/`computeSeatChargeCents` math the projection reuses)
+**Requirements**: SEAT-08
+**Success Criteria** (what must be TRUE):
+  1. The `Settings → Team` surface shows the org's current active seat count, the configured per-seat price, and the projected monthly seat cost, with the per-seat price and the included-seat count read from `billing_config` at runtime — never hardcoded copy (a static test asserts no hardcoded seat price/number in the component)
+  2. The projected monthly cost is computed with the SAME `computeBillableSeats`/`computeSeatChargeCents` functions the billing sync uses, so the number the owner sees reconciles to what the seat-quantity sync would charge — one math source, no divergence
+  3. A single-owner org sitting within `includedSeats` shows a $0 projected seat cost and no alarming charge — retrocompat: the transparency surface confirms zero charge rather than implying one
+**Plans**: TBD
 **UI hint**: yes
