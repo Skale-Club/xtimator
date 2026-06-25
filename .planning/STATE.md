@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v4.8
-milestone_name: Industry Knowledge Base — Channel-Neutral Conversational Assistant
-status: completed
-stopped_at: Completed 121-01-PLAN.md
+milestone: v4.9
+milestone_name: Internal Web Chat Assistant — the 3rd channel
+status: defining-requirements
+stopped_at: Milestone v4.9 started — defining requirements
 last_updated: "2026-06-25T00:41:13.731Z"
 last_activity: 2026-06-25
 progress:
-  total_phases: 73
-  completed_phases: 59
-  total_plans: 174
-  completed_plans: 187
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
 ---
 
 # Project State

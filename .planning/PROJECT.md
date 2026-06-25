@@ -14,6 +14,19 @@ The platform includes:
 
 A business owner can go from job site audio recording to a sent, professional estimate in under 5 minutes without touching a keyboard.
 
+## Current Milestone: v4.9 Internal Web Chat Assistant — the 3rd channel
+
+**Goal:** A conversational chat INSIDE the Xtimator web app where the business owner does everything they do on WhatsApp (generate estimates, query their data, ask trade how-to questions via the v4.8 `lib/knowledge/`) — built on the Vercel AI Chatbot structure but assented on Xtimator's existing infra. The strategic value: this milestone FORCES the channel-neutral extraction of `lib/whatsapp/` into shared domain tools that WhatsApp + chat + (later) MCP all consume. Source: [SEED-034](seeds/SEED-034-internal-web-chat-assistant.md).
+
+**Target features:**
+- **Channel-neutral domain extraction** — pull the capabilities out of `lib/whatsapp/` into neutral domain tools (`createEstimate`, `queryCompanyData`, `askKnowledge`, multimodal `normalize`) that WhatsApp keeps calling (a non-destructive refactor proven by WhatsApp behavioral-parity tests). This is the load-bearing foundation.
+- **AI SDK chat layer** — add the Vercel AI SDK (`ai` + `@ai-sdk/*`); a `streamText` + native tool-calling chat route + `useChat` UI. The LangGraph estimate engine stays INTOCADO, invoked as ONE tool (a tool-call boundary, not a streaming bridge — generation is an async Inngest job).
+- **Chat persistence** — `chat_conversations` + `chat_messages` tables (RLS tenant-scoped, mirroring `whatsapp_inbox`); conversation list + history.
+- **Chat UI** — `useChat` message stream + tool-call rendering + multimodal input (text/audio/photo) reusing the extracted `normalize`; shadcn/Tailwind aligned to the current design system.
+- **Model slots + credits** — the chat resolves its model via `ai_config` slots (not hard-coded) and consumes credits on heavy operations (generation/transcription/photo) per v4.7; the lightweight conversation turn is absorbed.
+
+**Key context:** Governing principle (non-negotiable) — WhatsApp = CHAT = MCP, three siblings over the SAME neutral core; the chat reimplements NO domain logic. Adopt from the template: Next.js App Router+RSC, shadcn/Tailwind, the AI SDK streaming/useChat/tool-call patterns. Substitute: Auth.js→Supabase Auth, Neon/Drizzle→Supabase Postgres, Vercel Blob→our storage, AI Gateway→OpenRouter. Web chat is OWNER-only (authenticated, tenant-scoped) — NEVER customer-facing. SCOPE FENCE: the web-chat channel + the extraction it forces; MCP parity (SEED-030) is a SUBSEQUENT milestone (the extraction here makes it cheap). Open scoping decision: extract exactly what the chat v1 needs (generate + query + knowledge + multimodal); defer estimate-edit-in-chat if v1 ships generate+query+knowledge first. Numbering continues the global counter — v4.8 ended at Phase 121, so v4.9 starts at **Phase 122**.
+
 ## Last Milestone: v4.8 Industry Knowledge Base — Channel-Neutral Conversational Assistant ✅ (shipped 2026-06-24)
 
 **Shipped:** all 5 phases (117-121), 15/15 requirements, 11 plans. Full unit suite green (314 files / 2219 tests). Per-industry knowledge base (pgvector `knowledge_entries` + dual RLS) → channel-neutral `lib/knowledge/` (embed/retrieve/answer over the `match_knowledge_entries` RPC + `<knowledge>` injection-hardening + CI fixture) → super-admin industry curation + CSV bulk import → optional company overlay (tenant `/settings/knowledge`, RLS-authed) → WhatsApp KNOWLEDGE 5th intent (the first consumer, proving the module end-to-end). Two-panel rule honored; pgvector-only (reranker deferred); no owner-facing KB browser. Archive: [milestones/v4.8](MILESTONES.md). Operational deferrals: apply 2 migrations to remote (CI→GHCR→Coolify), configure embeddings key, seed industry KBs. The web-chat (SEED-034) + MCP (SEED-030) channels consume this neutral core next.
