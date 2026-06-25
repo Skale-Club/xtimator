@@ -33,8 +33,10 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useTranslation } from '@/lib/i18n/use-translation'
+import { formatUSD } from '@/lib/utils/format'
 import { inviteMember, removeMember, changeMemberRole, revokeInvite } from '@/lib/actions/team'
 import type { RosterMember, RosterInvite } from '@/lib/queries/team'
+import type { SeatCostSummary } from '@/lib/billing/seat-cost-summary'
 
 type ManageableRole = 'admin' | 'member'
 
@@ -43,9 +45,10 @@ interface Props {
   members: RosterMember[]
   invites: RosterInvite[]
   canManage: boolean
+  seatCost: SeatCostSummary | null
 }
 
-export function TeamSection({ companyId, members: initialMembers, invites: initialInvites, canManage }: Props) {
+export function TeamSection({ companyId, members: initialMembers, invites: initialInvites, canManage, seatCost }: Props) {
   const { t } = useTranslation()
   const [members, setMembers] = useState(initialMembers)
   const [invites, setInvites] = useState(initialInvites)
@@ -188,6 +191,36 @@ export function TeamSection({ companyId, members: initialMembers, invites: initi
           </Dialog>
         )}
       </div>
+
+      {/* Seat-cost summary (SEAT-08) — owner/admin only; null means do not show.
+          Every figure comes from the seatCost prop via formatUSD — no hardcoded
+          dollar amount or seat number in the copy. */}
+      {seatCost && (
+        <div className="rounded-lg border p-4 space-y-2">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div className="min-w-0">
+              <p className="text-sm font-medium">
+                {seatCost.activeSeats} {t('seats')} · {seatCost.includedSeats} {t('included')} ·{' '}
+                {seatCost.billableSeats} {t('billable')}
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                {t('Per seat')}: {formatUSD(seatCost.perSeatCents)}
+              </p>
+            </div>
+            <div className="sm:text-right">
+              <p className="text-xs text-muted-foreground">
+                {t('Estimated monthly seat cost')}
+              </p>
+              <p className="text-base font-semibold">{formatUSD(seatCost.monthlyCents)}</p>
+            </div>
+          </div>
+          {!seatCost.enforcementEnabled && (
+            <p className="text-xs text-muted-foreground">
+              {t('Seat billing is not yet active — this is an estimate.')}
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Members */}
       {members.length === 0 ? (
