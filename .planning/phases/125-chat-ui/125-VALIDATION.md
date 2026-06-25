@@ -2,8 +2,8 @@
 phase: 125
 slug: chat-ui
 status: draft
-nyquist_compliant: false
-wave_0_complete: false
+nyquist_compliant: true
+wave_0_complete: true
 created: 2026-06-25
 ---
 
@@ -51,10 +51,12 @@ created: 2026-06-25
 
 ## Wave 0 Requirements
 
-- [ ] `tests/unit/chat/message-parts.test.tsx` — stub for CHATUI-01 (renders text parts as bubbles + tool-<name> parts as progress/result; full-message-array send)
-- [ ] `tests/unit/chat/conversation-sidebar.test.tsx` — stub for CHATUI-02 (lists conversations, new/switch, history seeds useChat with user/assistant rows)
-- [ ] `tests/unit/chat/multimodal-input.test.tsx` — stub for CHATUI-03 (audio/photo routed through normalizeInput → message text)
-- [ ] `tests/unit/chat/estimate-card.test.tsx` — stub for CHATUI-04 (tool-createEstimate output → poll job → card with open-in-editor link to /projects/[id]?tab=estimate&estimate=<id>)
+- [x] CHATUI-01 — `tests/unit/chat/chat-message.test.tsx` + `chat-composer.test.tsx` + `chat-thread.test.tsx` (parts render, send wiring, transport static-source) — scaffolds on disk, RED/todo until 125-01
+- [x] CHATUI-02 — `tests/unit/chat/history-mapper.test.ts` (GREEN) + `chat-sidebar.test.tsx` (scaffold) — history seed mapper tested; sidebar todo until 125-02
+- [x] CHATUI-03 — `tests/unit/chat/normalize-action.test.ts` (GREEN) — normalizeChatInput audio/photo → text, auth + active-company gate
+- [x] CHATUI-04 — `tests/unit/chat/estimate-card.test.tsx` (scaffold) — open-in-editor link to /projects/[id]?tab=estimate&estimate=<id>, todo until 125-02
+
+*Plus `tests/unit/chat/chat-ui-scope.test.ts` (GREEN) — backend scope fence. Dep `@ai-sdk/react@3.0.211` installed (its bundled `ai` is `6.0.209`, lockstep with the installed `ai@6.0.209`).*
 
 *Adds `@ai-sdk/react@6.0.209` (the useChat hook), lockstep with the installed ai@6.0.209.*
 
@@ -75,6 +77,6 @@ created: 2026-06-25
 - [ ] Wave 0 covers all MISSING references
 - [ ] No watch-mode flags
 - [ ] Feedback latency < 120s
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending
+**Approval:** Wave 0 complete (125-00) — all CHATUI requirements have a test file on disk; mapper + normalize action GREEN, component scaffolds RED/todo until 125-01/02.
