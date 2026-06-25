@@ -20,7 +20,7 @@ Requirements for this milestone. Each maps to exactly one roadmap phase.
 ### Per-Item Taxability
 
 - [x] **TAX-01**: Schema — `estimate_items.taxable` (boolean, default true) + optional `tax_category` ('labor'|'materials'|'other'); `companies.tax_config` (per-category rate OR a "labor exempt" rule). Idempotent migration; retrocompat defaults.
-- [ ] **TAX-02**: The AI output schema/types carry `taxable`/`tax_category` per item — the AI CLASSIFIES (labor/materials) but NEVER computes tax. Types widened; AI never gains arithmetic.
+- [x] **TAX-02**: The AI output schema/types carry `taxable`/`tax_category` per item — the AI CLASSIFIES (labor/materials) but NEVER computes tax. Types widened; AI never gains arithmetic.
 - [ ] **TAX-03**: The server math computes tax PER-ITEM (Σ taxable_base_per_category × rate_category) instead of a flat `subtotal × rate`; when `tax_config` is absent the result is BYTE-IDENTICAL to today's flat-rate computation (retrocompat).
 
 ### Discounts
@@ -73,7 +73,7 @@ Which phases cover which requirements. Populated during roadmap creation.
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | TAX-01 | Phase 129 | Complete |
-| TAX-02 | Phase 130 | Pending |
+| TAX-02 | Phase 130 | Complete |
 | TAX-03 | Phase 130 | Pending |
 | DISC-01 | Phase 131 | Pending |
 | DISC-02 | Phase 131 | Pending |

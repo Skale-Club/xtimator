@@ -1635,7 +1635,7 @@ Plans:
   3. When `tax_config` is absent the per-item computation produces a result byte-identical to today's flat-rate computation — the Phase-129 retrocompat regression stays green
 **Plans**: 2 plans in `.planning/phases/130-per-item-taxability/`
 Plans:
-- [ ] 130-01-PLAN.md — Wave 1: widen estimateOutputSchema + LineItemOutput with optional taxable/tax_category, advisory provider tool-schema fields, classification-only prompt instruction (AI classifies labor/materials, computes nothing) + schema acceptance/omission test (TAX-02)
+- [x] 130-01-PLAN.md — Wave 1: widen estimateOutputSchema + LineItemOutput with optional taxable/tax_category, advisory provider tool-schema fields, classification-only prompt instruction (AI classifies labor/materials, computes nothing) + schema acceptance/omission test (TAX-02)
 - [ ] 130-02-PLAN.md — Wave 2: activate the per-category tax branch in compute-totals.ts (flat fallthrough byte-identical), read companies.tax_config + persist per-item taxable/tax_category in the engine, hand-computed labor-exempt golden + ENG-02 retrocompat guard (TAX-03)
 
 ### Phase 131: Discounts (line + global)
