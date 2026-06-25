@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v4.10
 milestone_name: MCP Channel Parity
-status: verifying
+status: in-progress
 stopped_at: Completed 127-01-PLAN.md
-last_updated: "2026-06-25T10:23:07.701Z"
+last_updated: "2026-06-25T10:26:29.233Z"
 last_activity: 2026-06-25
 progress:
-  total_phases: 18
-  completed_phases: 18
-  total_plans: 51
-  completed_plans: 51
+  total_phases: 79
+  completed_phases: 65
+  total_plans: 187
+  completed_plans: 200
 ---
 
 # Project State
@@ -24,12 +24,11 @@ progress:
 - **Dependency spine:** 127 establishes the read-tool bindings + the companyId-trusted/readOnlyHint pattern over the existing MCP server; 128 depends on 127 (reuses that pattern) and reconciles generation + verifies parity last. Both phases BIND the v4.9 neutral `lib/agent-tools/` and reuse the v4.1 OAuth/transport infra — no re-extraction, no new subsystem.
 - **Locked guardrails (SEED-030 + REQUIREMENTS.md + PROJECT.md):** the MCP tools BIND the neutral `lib/agent-tools/` — do NOT re-implement or re-extract (v4.9 did it). `companyId` is TRUSTED (OAuth token → company), NEVER a tool input field (T-lrf-01, same invariant as the chat). `readOnlyHint: true` on the new read tools (auto-grouped permission UX, the SEED-030 locked decision). REUSE the v4.1 OAuth/`/api/mcp` transport infra — do NOT rebuild it. Non-destructive: the existing MCP test suite stays green. DEFER edit/send MCP tools (match the web-chat v1 scope: generate + query + knowledge). SCOPE FENCE: the MCP tool layer ONLY — do NOT touch the web chat or WhatsApp beyond parity. MCP is owner-scoped via the OAuth token → NEVER customer-facing.
 - **Previous milestone**: v4.9 Internal Web Chat Assistant — the 3rd channel — SHIPPED 2026-06-25 (phases 122-126, 16/16 requirements, 13 plans, full unit suite green 335 files / 2335 tests). The channel-neutral extraction of `lib/whatsapp/` → `lib/agent-tools/` (createEstimate / queryCompanyData / normalizeInput / askKnowledge) — the SAME neutral core v4.10 binds as MCP tools. Operational deferrals carried: apply the chat_persistence migration to remote + configure the OpenRouter key + live chat UAT.
-- **Position**: v4.10 ROADMAP CREATED — ready to plan Phase 127. Two phases bind the v4.9 neutral core over the v4.1 MCP server: 127 (read tools: ask_knowledge + 5 query tools, readOnlyHint + companyId-trusted) → 128 (generation reconciliation through neutral createEstimate + parity verification, existing MCP suite stays green). Closes the Multi-Channel Core track.
-
+- **Position**: Phase 127 COMPLETE (1/1 plan, verified 4/4 — 6 read-only MCP tools ask_knowledge+query bound to lib/agent-tools/, readOnlyHint, companyId trusted; registry 12 tools). Next: `/gsd:plan-phase 128` (create_estimate reconciliation + parity verification — FINAL phase of v4.10). NOTE: `phase complete` mis-points next at stale 999.1 — real next is **128**.
 ## Current Position
 
-Phase: 127 (MCP Read Tools — Knowledge + Query over the Neutral Core) — EXECUTING
-Plan: 1 of 1
+Phase: 999.1
+Plan: Not started
 Status: Phase complete — ready for verification
 
 ---
