@@ -784,7 +784,7 @@ Plans:
 | 117. Knowledge Schema + pgvector + Dual RLS | v4.8 | 1/1 | Complete    | 2026-06-24 |
 | 118. Channel-Neutral lib/knowledge/ Module | v4.8 | 3/3 | Complete    | 2026-06-24 |
 | 119. Super-Admin Industry KB Curation + Bulk Import | v4.8 | 3/3 | Complete    | 2026-06-24 |
-| 120. Company KB Overlay (tenant settings) | v4.8 | 2/2 | Complete   | 2026-06-25 |
+| 120. Company KB Overlay (tenant settings) | v4.8 | 2/2 | Complete    | 2026-06-25 |
 | 121. WhatsApp KNOWLEDGE Intent | v4.8 | 0/0 | Not started | - |
 
 ### Phase 75: Tour and Tooltip QA
