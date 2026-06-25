@@ -35,17 +35,24 @@ export function BillingConfigForm({ current }: Props) {
     String(current.estimateFeeMinCents)
   )
 
-  // Per-tier grants + prices
+  // Global per-seat price (integer cents)
+  const [seatPriceCents, setSeatPriceCents] = useState(String(current.seatPriceCents))
+
+  // Per-tier grants + prices + included seats
   const [tiers, setTiers] = useState(() =>
     TIERS.reduce(
       (acc, tier) => {
         acc[tier] = {
           monthlyCreditGrant: String(current.tiers[tier].monthlyCreditGrant),
           subscriptionPriceCents: String(current.tiers[tier].subscriptionPriceCents),
+          includedSeats: String(current.tiers[tier].includedSeats),
         }
         return acc
       },
-      {} as Record<BillingTier, { monthlyCreditGrant: string; subscriptionPriceCents: string }>
+      {} as Record<
+        BillingTier,
+        { monthlyCreditGrant: string; subscriptionPriceCents: string; includedSeats: string }
+      >
     )
   )
 
@@ -68,7 +75,7 @@ export function BillingConfigForm({ current }: Props) {
 
   function updateTier(
     tier: BillingTier,
-    field: 'monthlyCreditGrant' | 'subscriptionPriceCents',
+    field: 'monthlyCreditGrant' | 'subscriptionPriceCents' | 'includedSeats',
     value: string
   ) {
     setTiers((prev) => ({ ...prev, [tier]: { ...prev[tier], [field]: value } }))
@@ -97,11 +104,13 @@ export function BillingConfigForm({ current }: Props) {
       whisperUsdPerMinute: Number(whisperUsdPerMinute),
       estimateFeePct: Number(estimateFeePct),
       estimateFeeMinCents: Number(estimateFeeMinCents),
+      seatPriceCents: Number(seatPriceCents),
       tiers: TIERS.reduce(
         (acc, tier) => {
           acc[tier] = {
             monthlyCreditGrant: Number(tiers[tier].monthlyCreditGrant),
             subscriptionPriceCents: Number(tiers[tier].subscriptionPriceCents),
+            includedSeats: Number(tiers[tier].includedSeats),
           }
           return acc
         },
@@ -212,12 +221,28 @@ export function BillingConfigForm({ current }: Props) {
         </div>
       </fieldset>
 
+      {/* Seat billing */}
+      <fieldset className={fieldsetClass}>
+        <legend className={legendClass}>{t('Seat billing')}</legend>
+        <label className="flex flex-col gap-1 max-w-sm">
+          <span className="text-sm font-medium">{t('Per-seat price (cents)')}</span>
+          <input
+            type="number"
+            step="1"
+            value={seatPriceCents}
+            onChange={(e) => setSeatPriceCents(e.target.value)}
+            disabled={isPending}
+            className={inputClass}
+          />
+        </label>
+      </fieldset>
+
       {/* Per-tier grants & prices */}
       <fieldset className={fieldsetClass}>
         <legend className={legendClass}>{t('Per-tier grants & prices')}</legend>
         <div className="space-y-4">
           {TIERS.map((tier) => (
-            <div key={tier} className="grid gap-4 sm:grid-cols-3 sm:items-end">
+            <div key={tier} className="grid gap-4 sm:grid-cols-4 sm:items-end">
               <span className="text-sm font-medium capitalize">{tier}</span>
               <label className="flex flex-col gap-1">
                 <span className="text-xs text-muted-foreground">
@@ -243,6 +268,19 @@ export function BillingConfigForm({ current }: Props) {
                   onChange={(e) =>
                     updateTier(tier, 'subscriptionPriceCents', e.target.value)
                   }
+                  disabled={isPending}
+                  className={inputClass}
+                />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-xs text-muted-foreground">
+                  {t('Included seats')}
+                </span>
+                <input
+                  type="number"
+                  step="1"
+                  value={tiers[tier].includedSeats}
+                  onChange={(e) => updateTier(tier, 'includedSeats', e.target.value)}
                   disabled={isPending}
                   className={inputClass}
                 />
