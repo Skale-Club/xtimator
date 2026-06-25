@@ -12,6 +12,7 @@ import { SYSTEM_COLORS } from '@/lib/system-colors'
 import { formatMoney } from '@/lib/money/currency'
 import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
 import { formatPhoneForDisplay } from '@/lib/phone/format'
+import { deriveDepositDisplay } from '@/lib/estimate/deposit-display'
 
 // ---------------------------------------------------------------------------
 // Phase 73-02: Static label maps for PDF i18n.
@@ -454,6 +455,9 @@ export default function EstimatePDF({
   const L = PDF_LABELS[language] ?? PDF_LABELS.en
   const dateLocale = DATE_LOCALE[language] ?? 'en-US'
   const fmt = (v: number) => formatMoney(v, estimate.currency_code)
+  // PUI-02 (v4.11): READ the persisted deposit/balance-due from the server row (GUARD-03 —
+  // never recompute). showDeposit is false for legacy / deposit_type 'none' rows.
+  const dep = deriveDepositDisplay(estimate)
   const fmtDate = (s: string) => formatDate(s, dateLocale)
   const langLabel = LANG_INDICATOR[language] ?? 'EN'
 
@@ -723,6 +727,22 @@ export default function EstimatePDF({
                 {fmt(estimate.total)}
               </Text>
             </View>
+
+            {/* PUI-02 (v4.11): deposit + balance due — only when a deposit is set.
+                Locked order: Subtotal → Discount → Tax → Total → Deposit → Balance Due. */}
+            {dep.showDeposit && (
+              <View style={styles.totalsRow}>
+                <Text style={styles.totalsLabel}>{L.deposit}</Text>
+                <Text style={styles.totalsValue}>-{fmt(dep.depositAmount)}</Text>
+              </View>
+            )}
+
+            {dep.showDeposit && (
+              <View style={styles.totalsRow}>
+                <Text style={styles.totalsLabel}>{L.balanceDue}</Text>
+                <Text style={styles.totalsValue}>{fmt(dep.balanceDue)}</Text>
+              </View>
+            )}
           </View>
         </View>
 
