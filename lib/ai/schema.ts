@@ -36,6 +36,11 @@ const lineItemSchema = z.object({
   // stays byte-identical (the ENG-02 retrocompat posture); non-negative because a discount
   // is a positive reduction amount.
   discount: z.number().finite().nonnegative().optional(),
+  // MARK-01 — optional cost + markup_pct AI INPUTS. The AI provides cost + markup; the SERVER
+  // derives unit_price = round2(cost × (1 + markup_pct/100)). NO `.default` so omission stays
+  // byte-identical (ENG-02). Non-negative. The AI NEVER computes the marked-up price.
+  cost: z.number().finite().nonnegative().optional(),
+  markup_pct: z.number().finite().nonnegative().optional(),
 })
 
 const sectionSchema = z.object({

@@ -21,6 +21,10 @@ export type LineItemOutput = {
   tax_category?: 'labor' | 'materials' | 'other' | null
   // DISC-01 — optional per-item line discount INPUT (amount), mirroring lineItemSchema.
   discount?: number
+  // MARK-01 — optional per-item cost + markup_pct INPUTS mirroring lineItemSchema. The AI
+  // supplies cost + markup; the SERVER derives unit_price = round2(cost × (1 + markup_pct/100)).
+  cost?: number
+  markup_pct?: number
 }
 
 export type EstimateSectionOutput = {

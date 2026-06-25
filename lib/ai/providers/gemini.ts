@@ -137,6 +137,8 @@ export class GeminiAdapter implements AIProvider {
                         // Gemini has no Type.ENUM — use STRING + description (zod schema enforces labor|materials|other)
                         description: 'Classify the work: "labor" for labor/service lines, "materials" for physical goods, "other" otherwise. Classification only — do NOT compute any tax.',
                       },
+                      cost: { type: Type.NUMBER, description: 'Optional per-unit COST (your cost basis). Provide cost + markup_pct INSTEAD of unit_price and the server computes the price. Do NOT compute the marked-up price yourself.' },
+                      markup_pct: { type: Type.NUMBER, description: 'Optional markup percent applied to cost (e.g. 20 = 20%). The server computes unit_price = cost × (1 + markup_pct/100).' },
                     },
                   },
                 },
@@ -230,6 +232,8 @@ export class GeminiAdapter implements AIProvider {
                         // Gemini has no Type.ENUM — use STRING + description (zod schema enforces labor|materials|other)
                         description: 'Classify the work: "labor" for labor/service lines, "materials" for physical goods, "other" otherwise. Classification only — do NOT compute any tax.',
                       },
+                      cost: { type: Type.NUMBER, description: 'Optional per-unit COST (your cost basis). Provide cost + markup_pct INSTEAD of unit_price and the server computes the price. Do NOT compute the marked-up price yourself.' },
+                      markup_pct: { type: Type.NUMBER, description: 'Optional markup percent applied to cost (e.g. 20 = 20%). The server computes unit_price = cost × (1 + markup_pct/100).' },
                     },
                   },
                 },
