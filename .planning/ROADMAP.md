@@ -1676,7 +1676,7 @@ Plans:
   3. An estimate with no new fields set renders and edits exactly as before — no regression to the existing editor flow
 **Plans**: 3 plans in `.planning/phases/133-editor-ui/`
 Plans:
-- [ ] 133-01-PLAN.md — Server-action contract: widen saveEstimate to accept per-item taxable/tax_category/discount/cost/markup_pct + estimate deposit_type/deposit_value; recompute totals server-side via computeEstimateTotals (GUARD-03); persist new columns; tested (PUI-01)
+- [x] 133-01-PLAN.md — Server-action contract: widen saveEstimate to accept per-item taxable/tax_category/discount/cost/markup_pct + estimate deposit_type/deposit_value; recompute totals server-side via computeEstimateTotals (GUARD-03); persist new columns; tested (PUI-01)
 - [ ] 133-02-PLAN.md — Per-line editor controls: discount input + taxable toggle on desktop (SortableDocumentItemRow) + mobile (ItemCardMobile); reducer/converter wiring; mobile-safe (PUI-01)
 - [ ] 133-03-PLAN.md — Summary panel: deposit controls (none/percent/amount) + Balance Due line + global-discount passthrough + i18n labels (en/pt/es) (PUI-01)
 **UI hint**: yes
