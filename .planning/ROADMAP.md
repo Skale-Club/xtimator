@@ -1712,7 +1712,7 @@ Plans:
 
 ### Phases
 
-- [ ] **Phase 135: Schema + Roles + Authorization** — Idempotent authored-only migration widening the `company_members.role` CHECK from `('owner')` to `('owner','admin','member')` + creating `company_invites` (`id`/`company_id`/`email`/`role`/`token`/`status`/`invited_by`/`expires_at`/`created_at`) with RLS mirroring the Phase-79 posture (owner/admin manage their company's invites; token-accept via service role); the single server-side `requireCompanyRole(companyId, roles)` authorization helper. THE FOUNDATION — every other phase depends on it. (SEAT-01, SEAT-02)
+- [x] **Phase 135: Schema + Roles + Authorization** — Idempotent authored-only migration widening the `company_members.role` CHECK from `('owner')` to `('owner','admin','member')` + creating `company_invites` (`id`/`company_id`/`email`/`role`/`token`/`status`/`invited_by`/`expires_at`/`created_at`) with RLS mirroring the Phase-79 posture (owner/admin manage their company's invites; token-accept via service role); the single server-side `requireCompanyRole(companyId, roles)` authorization helper. THE FOUNDATION — every other phase depends on it. (SEAT-01, SEAT-02) (completed 2026-06-25)
 - [ ] **Phase 136: Invite Lifecycle + Email** — `inviteMember(companyId, email, role)` + `revokeInvite` server actions (owner/admin only, gated by `requireCompanyRole`) creating a single-use, expiring `company_invites` row + a Resend invite email with the accept link; a pending invite does NOT consume a billable seat. (SEAT-03)
 - [ ] **Phase 137: Accept Onboarding** — `acceptInvite(token)`: a valid/unexpired/pending token adds the `company_members` row + switches the active company. Existing-user → join directly; new-user → a signup-then-join branch that SKIPS company creation (the existing onboarding always creates a company — this path branches to JOIN the existing one). (SEAT-04)
 - [ ] **Phase 138: Member Management UI** — `removeMember` + `changeMemberRole` server actions (gated) + a mobile-safe `Settings → Team` surface: list members (name/email/role), list pending invites, an Invite action (email + role), remove member, change role; removal revokes access immediately + decrements the seat quantity on the next sync. (SEAT-05)
@@ -1733,7 +1733,7 @@ Plans:
 **Plans**: 2 plans (Wave 1, both autonomous + parallel)
 Plans:
 - [x] 135-01-PLAN.md — Idempotent authored-only schema migration: widen company_members.role CHECK to owner/admin/member (named DROP/ADD) + create company_invites + RLS (Phase-79 mirror) + static SQL-contract test (SEAT-01)
-- [ ] 135-02-PLAN.md — requireCompanyRole(companyId, roles) single server-side authorization gate + requireCompanyManager/requireCompanyOwner wrappers + behavioral role-matrix test (SEAT-02)
+- [x] 135-02-PLAN.md — requireCompanyRole(companyId, roles) single server-side authorization gate + requireCompanyManager/requireCompanyOwner wrappers + behavioral role-matrix test (SEAT-02)
 
 ### Phase 136: Invite Lifecycle + Email
 **Goal**: An owner or admin can invite a teammate by email + role: the system creates a single-use, expiring `company_invites` row and sends a Resend email carrying the accept link, and can revoke a still-pending invite. A pending invite never consumes a billable seat — the seat is only counted on acceptance (Phase 137).
