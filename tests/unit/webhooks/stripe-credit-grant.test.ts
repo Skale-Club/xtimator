@@ -61,7 +61,13 @@ vi.mock('@/lib/supabase/service', () => ({
 // ------------------------------------------------------------------
 // NEW mocks the existing webhook test does not have — the Phase-113 contract.
 // ------------------------------------------------------------------
-vi.mock('@/lib/billing/credit-ledger', () => ({ grantCredits: vi.fn() }))
+// grantCredits is mocked (the contract); monthGrantKey is kept REAL so the
+// invoice.paid grant produces a genuine `grant:{companyId}:{YYYY-MM}` key.
+vi.mock('@/lib/billing/credit-ledger', () => ({
+  grantCredits: vi.fn(),
+  monthGrantKey: (companyId: string, date: Date = new Date()) =>
+    `grant:${companyId}:${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`,
+}))
 vi.mock('@/lib/billing/billing-config', () => ({ getBillingConfig: vi.fn() }))
 
 // Xphere CRM sync is fire-and-forget — stub so the grant path never hits it.
@@ -117,7 +123,7 @@ beforeEach(() => {
 // TOPUP-01 — invoice.paid grants the per-tier monthly credit grant
 // ==================================================================
 describe('TOPUP-01 — invoice.paid monthly credit grant', () => {
-  it('grants tiers[tier].monthlyCreditGrant via grantCredits keyed on event.id', async () => {
+  it('grants tiers[tier].monthlyCreditGrant via grantCredits keyed on the company-month key (Phase 142 ANN-02)', async () => {
     mockConstructEvent.mockReturnValue({
       id: 'evt_1',
       type: 'invoice.paid',
@@ -128,12 +134,14 @@ describe('TOPUP-01 — invoice.paid monthly credit grant', () => {
 
     expect(res.status).toBe(200)
     expect(grantCredits).toHaveBeenCalledTimes(1)
+    // The grant now dedups per company-month (`grant:{companyId}:{YYYY-MM}`),
+    // NOT per-event ('evt_1'). The cron shares this exact key.
     expect(grantCredits).toHaveBeenCalledWith(
       expect.objectContaining({
         companyId: 'co_1',
         credits: 9000,
         reason: 'grant',
-        idempotencyKey: 'evt_1',
+        idempotencyKey: expect.stringMatching(/^grant:co_1:\d{4}-\d{2}$/),
       })
     )
   })

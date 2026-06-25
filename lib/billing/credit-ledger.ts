@@ -136,6 +136,18 @@ function monthKey(now = new Date()): string {
 }
 
 /**
+ * Phase 142 (ANN-02) — the SINGLE company-month idempotency key shared by
+ * the invoice.paid webhook grant AND the monthly-credit-grant cron, so a
+ * company is granted its monthlyCreditGrant AT MOST ONCE per calendar month
+ * for any billing interval. UTC so it never drifts across timezones.
+ * Format: `grant:{companyId}:{YYYY-MM}`.
+ */
+export function monthGrantKey(companyId: string, date: Date = new Date()): string {
+  const ym = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`
+  return `grant:${companyId}:${ym}`
+}
+
+/**
  * Phase 115 (CREDITUI-02) — best-effort low-balance notification, mirroring
  * `notifyQuotaThresholds` (lib/quota.ts). Fires only on a DOWNWARD crossing of a
  * configured threshold, deduped per company + threshold + month so the owner is

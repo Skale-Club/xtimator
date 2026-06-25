@@ -4,7 +4,7 @@ import { getStripeClient } from '@/lib/billing/stripe-client'
 import { handleConnectEvent } from '@/lib/billing/connect-webhook'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { dispatchXphereSync } from '@/lib/integrations/xphere/dispatch'
-import { grantCredits } from '@/lib/billing/credit-ledger'
+import { grantCredits, monthGrantKey } from '@/lib/billing/credit-ledger'
 import { getBillingConfig } from '@/lib/billing/billing-config'
 
 // ------------------------------------------------------------------
@@ -178,10 +178,13 @@ async function handlePlatformEvent(
         console.error('[Stripe] invoice.paid update failed:', error)
       }
 
-      // TOPUP-01: grant the tier's monthly credit allowance on every paid invoice
-      // (covers first-subscribe AND renewal — a single hook for both). Idempotent
-      // on event.id so a redelivered webhook never double-grants. Grant ONLY here
-      // (NOT in checkout.session.completed) — Pitfall 2 double-grant.
+      // TOPUP-01 / Phase 142 (ANN-02): grant the tier's monthly credit allowance.
+      // Keyed on the COMPANY-MONTH key (`grant:{companyId}:{YYYY-MM}`) — the SINGLE
+      // dedup authority shared with the monthly-credit-grant cron. Consequences:
+      //   - A redelivered webhook in the same month → still ONE grant (same key).
+      //   - The cron no-ops a month the webhook already granted (monthly subs).
+      //   - Annual subs: this fires month 1 (immediate UX), the cron covers 2-12.
+      // Grant ONLY here (NOT in checkout.session.completed) — Pitfall 2 double-grant.
       const { data: grantCompany } = await svc
         .from('companies')
         .select('id, tier')
@@ -197,7 +200,7 @@ async function handlePlatformEvent(
           credits: grant,        // grantCredits no-ops on <=0 (free tier = 0)
           reason: 'grant',
           refId: invoice.id,
-          idempotencyKey: event.id,  // redelivered webhook → guaranteed no double-grant
+          idempotencyKey: monthGrantKey(grantCompany.id, new Date()), // company-month dedup (shared with cron)
         })
       }
       break
