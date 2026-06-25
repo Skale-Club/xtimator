@@ -5,30 +5,30 @@
  * intent classifier runs, so audio/photo arriving mid-confirmation is read (not
  * rejected with a canned reply).
  *
- * It reuses the EXACT same provider path the estimate flow uses today:
- *   - audio → downloadWhatsAppMedia + transcribeAudioOR (OpenAI whisper-1 direct)
- *   - photo → downloadWhatsAppMedia + analyzePhotoOR (OpenRouter vision)
- *   - text  → passthrough
- * The mime/ext derivation (strip codec param, remap mp4 → m4a) is copied verbatim
- * from estimate-graph.ts processMessageNode — the m4a remap is load-bearing for
- * Whisper container detection.
+ * This is now a THIN CHANNEL ADAPTER over the channel-neutral normalizeInput
+ * (lib/agent-tools/normalize-input.ts, which wraps the ingestMultimodal
+ * primitive). The WhatsApp-specific parts kept here:
+ *   - downloadWhatsAppMedia (media fetch by id)
+ *   - the mime/ext derivation: strip the codec param + remap mp4 → m4a (the m4a
+ *     remap is load-bearing for OpenAI Whisper container detection)
+ *   - the WhatsAppMessage type-switch
+ * The actual transcribe/analyze is delegated to normalizeInput.
  *
  * NEVER throws — failures return { ok: false, reason } so the router can fall
  * back to a graceful "couldn't read your message, please describe in text" reply.
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { transcribeAudioOR, analyzePhotoOR } from '@/lib/ai/openrouter-client'
 import { downloadWhatsAppMedia } from '@/lib/whatsapp/client'
 import type { WhatsAppMessage } from '@/lib/whatsapp/types'
+import {
+  normalizeInput,
+  type NormalizeKind,
+  type NormalizeResult,
+} from '@/lib/agent-tools/normalize-input'
 
-export type NormalizeKind = 'text' | 'audio' | 'photo' | 'unknown'
-
-export interface NormalizeResult {
-  text: string
-  kind: NormalizeKind
-  ok: boolean
-  reason?: string
-}
+// Re-exported so existing importers (intent-router) keep their type imports
+// stable while the implementation home moves to lib/agent-tools/.
+export type { NormalizeKind, NormalizeResult }
 
 export async function normalizeMessage(
   msg: WhatsAppMessage,
@@ -39,7 +39,7 @@ export async function normalizeMessage(
 ): Promise<NormalizeResult> {
   // --- text ---------------------------------------------------------------
   if (msg.type === 'text' && msg.text?.body) {
-    return { text: msg.text.body, kind: 'text', ok: true }
+    return normalizeInput({ kind: 'text', body: msg.text.body })
   }
 
   // --- audio --------------------------------------------------------------
@@ -58,17 +58,11 @@ export async function normalizeMessage(
       return { text: '', kind: 'audio', ok: false, reason: 'download_failed' }
     }
 
-    try {
-      const text = await transcribeAudioOR(
-        new Blob([new Uint8Array(buf)], { type: mimeType }),
-        ext
-      )
-      if (!text) return { text: '', kind: 'audio', ok: false, reason: 'empty_transcript' }
-      return { text, kind: 'audio', ok: true }
-    } catch (err) {
-      console.error('[normalize] audio transcription failed:', err)
-      return { text: '', kind: 'audio', ok: false, reason: 'transcription_failed' }
-    }
+    return normalizeInput({
+      kind: 'audio',
+      blob: new Blob([new Uint8Array(buf)], { type: mimeType }),
+      ext,
+    })
   }
 
   // --- image --------------------------------------------------------------
@@ -83,16 +77,12 @@ export async function normalizeMessage(
       return { text: '', kind: 'photo', ok: false, reason: 'download_failed' }
     }
 
-    try {
-      const description = await analyzePhotoOR(buf.toString('base64'), mimeType)
-      const caption = msg.image.caption?.trim()
-      const text = caption ? `${caption}\n\n${description}` : description
-      if (!text) return { text: '', kind: 'photo', ok: false, reason: 'empty_analysis' }
-      return { text, kind: 'photo', ok: true }
-    } catch (err) {
-      console.error('[normalize] image analysis failed:', err)
-      return { text: '', kind: 'photo', ok: false, reason: 'analysis_failed' }
-    }
+    return normalizeInput({
+      kind: 'photo',
+      base64: buf.toString('base64'),
+      mimeType,
+      caption: msg.image.caption?.trim(),
+    })
   }
 
   // --- anything else (document/video/sticker/reaction/unknown) ------------

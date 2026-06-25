@@ -14,3 +14,10 @@ export {
   listServices,
   findServiceByName,
 } from './query-company-data'
+
+export {
+  normalizeInput,
+  type NormalizeKind,
+  type NormalizeResult,
+  type NormalizeInput,
+} from './normalize-input'
