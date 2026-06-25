@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
 import { MoneyInput } from '@/components/ui/money-input'
+import { Switch } from '@/components/ui/switch'
 import {
   Select,
   SelectContent,
@@ -18,7 +19,7 @@ import type { EditorItem } from './use-estimate-reducer'
 
 interface ItemCardMobileProps {
   item: EditorItem
-  onUpdate: (field: 'description' | 'quantity' | 'unit' | 'unit_price', value: string | number | null) => void
+  onUpdate: (field: 'description' | 'quantity' | 'unit' | 'unit_price' | 'discount' | 'taxable', value: string | number | boolean | null) => void
   onRemove: () => void
   isReadOnly?: boolean
   currencyCode?: string
@@ -111,6 +112,33 @@ export function ItemCardMobile({
             className="h-9"
             disabled={isReadOnly}
           />
+        </div>
+      </div>
+
+      {/* v4.11 advanced pricing — per-line discount + taxable toggle.
+          Mobile-safe: numeric keypad via MoneyInput, 44px tap target on the
+          toggle row, grid gap idiom so nothing overflows at 360px. */}
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="text-[10px] uppercase tracking-wider text-muted-foreground select-none">Discount</label>
+          <MoneyInput
+            value={item.discount ?? 0}
+            currencyCode={currencyCode}
+            onValueChange={(value) => onUpdate('discount', value)}
+            className="h-9"
+            disabled={isReadOnly}
+          />
+        </div>
+        <div>
+          <label className="text-[10px] uppercase tracking-wider text-muted-foreground select-none">Taxable</label>
+          <div className="flex items-center min-h-[44px]">
+            <Switch
+              checked={item.taxable ?? true}
+              onCheckedChange={(checked) => onUpdate('taxable', checked)}
+              disabled={isReadOnly}
+              aria-label="Taxable"
+            />
+          </div>
         </div>
       </div>
 
