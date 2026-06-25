@@ -14,3 +14,83 @@ export async function getStripeClient(): Promise<Stripe> {
   }
   return new Stripe(key, { apiVersion: '2026-04-22.dahlia' })
 }
+
+/** Stable metadata tag that identifies the per-seat subscription item AND its
+ * backing product, so the seat sync is repeatable across calls (we find OUR
+ * item/product rather than guessing by index). */
+export const SEAT_ITEM_METADATA_KIND = 'seat'
+
+/**
+ * Find-or-create the metadata-tagged seat Product (auto-provisioned, reused
+ * across syncs). Subscription-item `price_data` requires a `product` ID (unlike
+ * Checkout's inline `product_data`), so we provision ONE tagged product the
+ * first time and reuse it forever — there is still NO hardcoded pre-created
+ * Price ID, and the unit_amount stays config-driven on every sync.
+ */
+async function ensureSeatProduct(stripe: Stripe): Promise<string> {
+  const existing = await stripe.products.search({
+    query: `active:'true' AND metadata['kind']:'${SEAT_ITEM_METADATA_KIND}'`,
+    limit: 1,
+  })
+  const found = existing.data[0]
+  if (found) return found.id
+  const created = await stripe.products.create({
+    name: 'Xtimator additional seat',
+    metadata: { kind: SEAT_ITEM_METADATA_KIND },
+  })
+  return created.id
+}
+
+/**
+ * Phase 139 (SEAT-07) — the THIN, mockable Stripe SDK boundary for the
+ * subscription seat item. Side-effect only: it does NOT decide the quantity
+ * (syncSeatBilling owns that pure decision) — it just reconciles the live
+ * subscription's seat item to the desired { quantity, unitAmount }.
+ *
+ * The seat item's price is DRIVEN FROM billing_config.seatPriceCents via INLINE
+ * `price_data.unit_amount` (NO pre-created hardcoded Price ID — the product is a
+ * metadata-tagged, auto-provisioned-and-reused product). The seat item is
+ * identified by a stable metadata tag (metadata.kind === 'seat') so the sync is
+ * repeatable:
+ *   - found  → update its quantity + price (new inline price_data) in place
+ *   - absent → create it on the subscription with the inline price + metadata tag
+ *
+ * Unit tests mock this function entirely; it is the only place that touches the
+ * Stripe SDK for seats.
+ */
+export async function syncSubscriptionSeatItem(
+  stripe: Stripe,
+  subscriptionId: string,
+  desired: { quantity: number; unitAmount: number }
+): Promise<void> {
+  const subscription = await stripe.subscriptions.retrieve(subscriptionId)
+  const items = subscription.items?.data ?? []
+  const seatItem = items.find((it) => it.metadata?.kind === SEAT_ITEM_METADATA_KIND)
+
+  const productId = await ensureSeatProduct(stripe)
+
+  // Inline price_data so the unit_amount is config-driven — never a hardcoded
+  // pre-created Price ID. currency matches the subscription's existing currency
+  // to avoid a multi-currency Stripe error.
+  const priceData: Stripe.SubscriptionItemCreateParams.PriceData = {
+    currency: subscription.currency ?? 'usd',
+    product: productId,
+    unit_amount: desired.unitAmount,
+    recurring: { interval: 'month' },
+  }
+
+  if (seatItem) {
+    await stripe.subscriptionItems.update(seatItem.id, {
+      quantity: desired.quantity,
+      price_data: priceData,
+    })
+    return
+  }
+
+  await stripe.subscriptionItems.create({
+    subscription: subscriptionId,
+    quantity: desired.quantity,
+    price_data: priceData,
+    metadata: { kind: SEAT_ITEM_METADATA_KIND },
+  })
+}
