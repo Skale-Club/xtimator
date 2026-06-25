@@ -20,7 +20,7 @@ Each requirement maps to exactly one roadmap phase.
 
 ### Schema & Authorization
 
-- [ ] **SEAT-01**: Idempotent authored-only migration — widen `company_members.role` CHECK from `('owner')` to `('owner','admin','member')` (DROP/ADD named CHECK); create `company_invites` table (`id`, `company_id`, `email`, `role`, `token`, `status`, `invited_by`, `expires_at`, `created_at`) + RLS (owner/admin manage their company's invites; token-based accept via service role). Retrocompat: existing `owner` rows untouched; no change to `companies` billing columns.
+- [x] **SEAT-01**: Idempotent authored-only migration — widen `company_members.role` CHECK from `('owner')` to `('owner','admin','member')` (DROP/ADD named CHECK); create `company_invites` table (`id`, `company_id`, `email`, `role`, `token`, `status`, `invited_by`, `expires_at`, `created_at`) + RLS (owner/admin manage their company's invites; token-based accept via service role). Retrocompat: existing `owner` rows untouched; no change to `companies` billing columns.
 - [ ] **SEAT-02**: A single server-side `requireCompanyRole(companyId, roles)` authorization helper enforcing the locked role matrix (owner/admin manage members; owner-only for billing/seat/ownership). Every team + billing server action gates through it; the role gate lives in ONE place and is never client-trusted.
 
 ### Invites & Membership
@@ -59,7 +59,7 @@ Deferred to a future milestone. Tracked but not in this roadmap.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SEAT-01 | Phase 135 | Pending |
+| SEAT-01 | Phase 135 | Complete |
 | SEAT-02 | Phase 135 | Pending |
 | SEAT-03 | Phase 136 | Pending |
 | SEAT-04 | Phase 137 | Pending |

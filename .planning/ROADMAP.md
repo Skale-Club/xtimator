@@ -1732,7 +1732,7 @@ Plans:
   4. The role gate lives in EXACTLY ONE place: a static test asserts team/billing server actions resolve authority through `requireCompanyRole` and never re-derive a role inline or trust a role from the request body
 **Plans**: 2 plans (Wave 1, both autonomous + parallel)
 Plans:
-- [ ] 135-01-PLAN.md — Idempotent authored-only schema migration: widen company_members.role CHECK to owner/admin/member (named DROP/ADD) + create company_invites + RLS (Phase-79 mirror) + static SQL-contract test (SEAT-01)
+- [x] 135-01-PLAN.md — Idempotent authored-only schema migration: widen company_members.role CHECK to owner/admin/member (named DROP/ADD) + create company_invites + RLS (Phase-79 mirror) + static SQL-contract test (SEAT-01)
 - [ ] 135-02-PLAN.md — requireCompanyRole(companyId, roles) single server-side authorization gate + requireCompanyManager/requireCompanyOwner wrappers + behavioral role-matrix test (SEAT-02)
 
 ### Phase 136: Invite Lifecycle + Email
