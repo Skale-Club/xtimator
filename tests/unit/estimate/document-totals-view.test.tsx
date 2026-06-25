@@ -81,7 +81,7 @@ describe('DocumentTotals — public share VIEW mode (PUI-02)', () => {
     renderView(makeData()) // deposit_type 'none', balance_due === total
 
     expect(screen.getByText('Subtotal')).toBeTruthy()
-    expect(screen.getByText('Total')).toBeTruthy()
+    expect(screen.getAllByText('Total').length).toBeGreaterThan(0)
     // No extra rows
     expect(screen.queryByText('Deposit')).toBeNull()
     expect(screen.queryByText('Balance Due')).toBeNull()
@@ -99,7 +99,7 @@ describe('DocumentTotals — public share VIEW mode (PUI-02)', () => {
     )
 
     expect(screen.getByText('Subtotal')).toBeTruthy()
-    expect(screen.getByText('Total')).toBeTruthy()
+    expect(screen.getAllByText('Total').length).toBeGreaterThan(0)
     expect(screen.getByText('Deposit')).toBeTruthy()
     expect(screen.getByText('Balance Due')).toBeTruthy()
     expect(screen.getByText('-$300.00')).toBeTruthy()

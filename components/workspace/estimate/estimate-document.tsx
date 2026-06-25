@@ -45,6 +45,7 @@ import {
 } from '@/components/ui/command'
 import { Calendar } from '@/components/ui/calendar'
 import { formatMoney } from '@/lib/money/currency'
+import { deriveDepositDisplay } from '@/lib/estimate/deposit-display'
 import { formatPhoneForDisplay } from '@/lib/phone/format'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
 import { linkProjectToClient } from '@/lib/actions/project'
@@ -953,6 +954,14 @@ function DocumentTotals({
     Math.round(data.tax_rate * 10000) !== Math.round((defaultTaxRate ?? 0) * 10000)
   const discountTypeVal = data.discount_type ?? 'none'
   const depositTypeVal = data.deposit_type ?? 'none'
+  // PUI-02 (GUARD-03): view-mode deposit/balance-due READ the persisted server row
+  // (total, balance_due, deposit_type) through the shared seam — never recompute.
+  const dep = deriveDepositDisplay({
+    total: data.total,
+    deposit_type: data.deposit_type ?? 'none',
+    deposit_value: data.deposit_value,
+    balance_due: data.balance_due,
+  })
 
   return (
     <div className="flex justify-end px-6 sm:px-10 py-5 border-t border-border/50">
@@ -1165,13 +1174,21 @@ function DocumentTotals({
               </span>
             )}
           </div>
+        ) : dep.showDeposit ? (
+          /* VIEW-MODE deposit row (PUI-02) — persisted-read, never recompute. */
+          <div className="flex justify-between text-base pt-2">
+            <span className="text-muted-foreground select-none">{L.deposit}</span>
+            <span className="tabular-nums text-muted-foreground font-medium">-{fmt(dep.depositAmount)}</span>
+          </div>
         ) : null}
 
-        {/* Balance Due — only when a deposit is set (edit: type !== none; view: balance differs from total). */}
-        {(isEditable && dispatch ? depositTypeVal !== 'none' : data.balance_due !== data.total) && (
+        {/* Balance Due — only when a deposit is set (edit: type !== none; view: persisted deposit via deriveDepositDisplay). */}
+        {(isEditable && dispatch ? depositTypeVal !== 'none' : dep.showDeposit) && (
           <div className="flex justify-between items-baseline">
             <span className="text-base font-semibold text-muted-foreground select-none">{L.balanceDue}</span>
-            <span className="text-base font-semibold tabular-nums">{fmt(data.balance_due)}</span>
+            <span className="text-base font-semibold tabular-nums">
+              {fmt(isEditable && dispatch ? data.balance_due : dep.balanceDue)}
+            </span>
           </div>
         )}
       </div>
