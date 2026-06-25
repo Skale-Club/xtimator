@@ -1719,7 +1719,7 @@ Plans:
  (completed 2026-06-25)
 - [x] **Phase 138: Member Management UI** — `removeMember` + `changeMemberRole` server actions (gated) + a mobile-safe `Settings → Team` surface: list members (name/email/role), list pending invites, an Invite action (email + role), remove member, change role; removal revokes access immediately + decrements the seat quantity on the next sync. (SEAT-05)
  (completed 2026-06-25)
-- [ ] **Phase 139: Configurable Seat Billing** — Extend `BillingConfig`/`DEFAULT_BILLING_CONFIG` with `seatPriceCents` + `tiers[tier].includedSeats` (null-safe placeholders, deep-merge-tolerant) + super-admin panel fields; pure unit-tested `computeBillableSeats` / `computeSeatChargeCents` + a server `syncSeatBilling(companyId)` that syncs the Stripe subscription seat-quantity item, gated by `enforcementEnabled` (single-owner orgs → zero billable seats, no Stripe write). (SEAT-06, SEAT-07)
+- [x] **Phase 139: Configurable Seat Billing** — Extend `BillingConfig`/`DEFAULT_BILLING_CONFIG` with `seatPriceCents` + `tiers[tier].includedSeats` (null-safe placeholders, deep-merge-tolerant) + super-admin panel fields; pure unit-tested `computeBillableSeats` / `computeSeatChargeCents` + a server `syncSeatBilling(companyId)` that syncs the Stripe subscription seat-quantity item, gated by `enforcementEnabled` (single-owner orgs → zero billable seats, no Stripe write). (SEAT-06, SEAT-07) (completed 2026-06-25)
 - [ ] **Phase 140: Seat-Cost Transparency UI** — The `Settings → Team` surface shows the org's current active seat count + the configured per-seat price + the projected monthly seat cost, all read from `billing_config` at runtime (never hardcoded) — same transparency principle as the 1%-fee disclosure. (SEAT-08)
 
 ### Phase Details — v4.12 Team Seats & Member Invites
@@ -1794,7 +1794,7 @@ Plans:
 Plans:
 - [x] 139-01-PLAN.md — SEAT-06: extend BillingConfig/DEFAULT with seatPriceCents (global) + tiers[tier].includedSeats (per-tier) calibration placeholders + admin zod schema + editable super-admin form fields + a static no-hardcode test (deep-merge tolerance for pre-existing rows)
 - [x] 139-02-PLAN.md — SEAT-07 math+sync: pure computeBillableSeats/computeSeatChargeCents (TDD goldens) + server syncSeatBilling(companyId) reading member count + tier + billing_config, gated by enforcementEnabled, idempotent, never-throw, Stripe SDK isolated behind a thin mockable seat-item method; retrocompat single-owner = zero write
-- [ ] 139-03-PLAN.md — SEAT-07 wiring: invoke never-throw syncSeatBilling on the success path of acceptInvite (137) + removeMember/changeMemberRole (138); a billing failure never rolls back the membership change (wiring test)
+- [x] 139-03-PLAN.md — SEAT-07 wiring: invoke never-throw syncSeatBilling on the success path of acceptInvite (137) + removeMember/changeMemberRole (138); a billing failure never rolls back the membership change (wiring test)
 **UI hint**: yes
 
 ### Phase 140: Seat-Cost Transparency UI
