@@ -6,6 +6,7 @@ planted_during: v3.1.1 post-Phase-69
 harvested_in: Phase 70
 trigger_when: User requested feature — execute immediately, before v3.2 deploy
 scope: Medium-Large
+superseded_partial: "The original 'Application fee: 0%' decision was REVERSED by [[SEED-036-estimate-payment-platform-fee]] (shipped) — Xtimator now charges a 1% application fee, configurable in the super-admin billing_config. The 'Pay Now' flow and the '100% optional' gating below remain accurate."
 ---
 
 # SEED-020: Stripe Connect — Optional Customer Payments on Estimates
@@ -16,7 +17,7 @@ Today, when a service business sends an estimate via Xtimator, the customer read
 
 With Stripe Connect Standard, any service business that has (or creates) a Stripe account can **connect it once** to Xtimator and instantly get a **"Pay Now"** button on every shared estimate. The customer clicks → goes to Stripe Checkout (hosted by Stripe, branded with the business name) → pays the estimate total → the estimate is automatically marked `paid` in Xtimator.
 
-**Money flows directly from the customer's card to the business's Stripe account.** Xtimator never touches the money, takes zero application fee, and has zero PCI scope. The business sees the payout in their bank in 2 business days via Stripe's normal payout schedule.
+**Money flows directly from the customer's card to the business's Stripe account.** The business stays the merchant of record (it owns the sale, the customer, and the chargeback risk), and Xtimator never custodies the funds — so there is zero PCI scope and no money-transmitter exposure. Xtimator takes a **1% platform application fee** on each payment, routed automatically via Stripe's `application_fee_amount` (the fee percentage is configurable in the super-admin `billing_config`, not hardcoded — see [[SEED-036-estimate-payment-platform-fee]]). The business sees the payout in their bank in 2 business days via Stripe's normal payout schedule.
 
 This unlocks a real "estimate → payment in under 10 minutes" loop, which is a wedge differentiator vs every other estimate tool that just emails PDFs.
 
@@ -182,7 +183,7 @@ After code ships, the Xtimator owner must do **once** in Stripe Dashboard:
 
 **Decisions locked (2026-05-17):**
 - Connect type: **Standard** (OAuth, business uses their existing Stripe)
-- Application fee: **0%** (provider gets 100%; Xtimator monetizes via SaaS plans only) — ⚠️ **SUPERADO em 2026-06-24 por [[SEED-036-estimate-payment-platform-fee]]:** a Xtimator passa a cobrar **1% application fee** (config no super-admin). Receita agora = assinatura/créditos + 1% transacional. O gating "100% optional" abaixo permanece e é reforçado.
+- Application fee: **1%** (configurable in the super-admin `billing_config`, never hardcoded). ⚠️ The ORIGINAL Phase-70 decision was **0%** ("provider gets 100%; Xtimator monetizes via SaaS plans only"); that was **reversed on 2026-06-24 by [[SEED-036-estimate-payment-platform-fee]]** (shipped). The platform revenue model is now subscription/credits + 1% transactional. The "100% optional" gating below remains in force and is reinforced (no payment UI appears unless Stripe Connect is active).
 - Payment scope: **MVP only — "Pay Now" full amount** (no deposits, no partial payments)
 - Post-payment: all 4 actions (mark paid, email provider, success banner, branded receipt to customer)
 
