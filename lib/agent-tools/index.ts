@@ -23,3 +23,5 @@ export {
 } from './normalize-input'
 
 export { createEstimate } from './create-estimate'
+
+export { askKnowledge } from './ask-knowledge'

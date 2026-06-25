@@ -41,7 +41,7 @@ import { makeQueryTools } from '@/lib/whatsapp/query-tools'
 import { sendWhatsAppMessage } from '@/lib/whatsapp/client'
 import { logOutboundMessage } from '@/lib/whatsapp/conversations'
 import { splitReply } from '@/lib/whatsapp/split-reply'
-import { answer } from '@/lib/knowledge/answer'
+import { askKnowledge } from '@/lib/agent-tools/ask-knowledge'
 
 const HISTORY_LIMIT = 20
 
@@ -313,10 +313,11 @@ async function dispatchKnowledge(
   const language =
     lang === 'pt' || lang === 'es' || lang === 'en' ? lang : undefined
 
-  // answer() NEVER throws — returns a safe FALLBACK string on any failure.
-  // companyId scopes the optional company overlay; industries[] scopes the
-  // shared industry KB. retrieve() merges both inside the RPC.
-  const text = await answer(normalizedText, {
+  // askKnowledge() (over answer()) NEVER throws — returns a safe FALLBACK
+  // string on any failure. companyId scopes the optional company overlay;
+  // industries[] scopes the shared industry KB. retrieve() merges both inside
+  // the RPC.
+  const text = await askKnowledge(normalizedText, {
     industries,
     companyId: input.companyId,
     language,

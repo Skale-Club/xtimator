@@ -238,8 +238,11 @@ describe('classifyAndRoute — KNOWLEDGE intent', () => {
     expect(src).toMatch(/KNOWLEDGE:/)
     expect(src).toMatch(/DISAMBIGUATION/)
     expect(src).toMatch(/CONFIRM_OR_CANCEL, EDIT, CREATE, QUERY, KNOWLEDGE/)
-    // The consumer imports FROM the channel-neutral knowledge module.
-    expect(src).toMatch(/from '@\/lib\/knowledge\/answer'/)
+    // The consumer imports the knowledge capability FROM the channel-neutral
+    // surface. Phase 122 (NEUT-04) re-pointed dispatchKnowledge from the raw
+    // lib/knowledge/answer to the neutral lib/agent-tools/ask-knowledge wrapper
+    // (which itself delegates to answer) — same behavior, neutral binding.
+    expect(src).toMatch(/from '@\/lib\/agent-tools\/ask-knowledge'/)
     // Negative: parseIntent's unconditional safe-default is still CREATE.
     expect(src).toMatch(/return 'CREATE'/)
   })
