@@ -13,12 +13,12 @@
  *      appendMessage helper (creating the conversation first when absent).
  *
  * ───────────────────────── CHATMETER-01 / Pitfall 4 ──────────────────────────
- * This route adds NO credit debit (no recordCreditDebit / grantCredits /
- * consumeCredits). Estimate generation debits inside its existing Inngest job
- * (lib/inngest/functions/generate-estimate.ts `record-credit-debit` step); the
- * conversation turn is ABSORBED per v4.7. Adding a debit here would double-charge
- * generation or wrongly charge the conversation. A static regression test
- * (tests/unit/chat/credit-reuse.test.ts) asserts this file stays debit-free.
+ * This route adds NO credit mutation. Estimate generation debits inside its
+ * existing Inngest job (lib/inngest/functions/generate-estimate.ts
+ * `record-credit-debit` step); the conversation turn is ABSORBED per v4.7. Adding
+ * a debit here would double-charge generation or wrongly charge the conversation.
+ * A static regression test (tests/unit/chat/credit-reuse.test.ts) asserts this
+ * file imports/calls none of the credit-ledger debit/grant/consume helpers.
  * ──────────────────────────────────────────────────────────────────────────────
  *
  * Runtime: the DEFAULT Node runtime — do NOT opt into edge (Pitfall 6). The
