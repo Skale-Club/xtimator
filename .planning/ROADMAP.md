@@ -1664,7 +1664,7 @@ Plans:
 Plans:
 - [ ] 132-01-PLAN.md — DEP-01: deposit + balance_due in compute-totals (LOCKED sequence) + engine persistence + hand-computed deposit golden
 - [ ] 132-02-PLAN.md — MARK-01: cost + markup_pct AI inputs + server-derived unit_price (never-trust-LLM) + persistence + markup golden
-- [ ] 132-03-PLAN.md — DEP-02: pure resolveChargeAmount (deposit-aware charge) + 1%-on-charged-amount fee contract wired into generateInvoice
+- [x] 132-03-PLAN.md — DEP-02: pure resolveChargeAmount (deposit-aware charge) + 1%-on-charged-amount fee contract wired into generateInvoice
 
 ### Phase 133: Editor UI
 **Goal**: A business owner can see and edit the new pricing fields directly in the estimate editor — per-line discount and taxable, plus global discount and deposit controls — on both desktop and mobile, with server actions accepting the new fields; the displayed totals reflect the server engine, never client-side arithmetic.
