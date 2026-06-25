@@ -29,6 +29,7 @@
 - ✅ **v4.7 Monetização — Credit-Based Billing + Estimate Payment Fee** — Phases 110-116 (shipped 2026-06-24)
 - ✅ **v4.8 Industry Knowledge Base — Channel-Neutral Conversational Assistant** — Phases 117-121 (shipped 2026-06-24)
 - ✅ **v4.9 Internal Web Chat Assistant — the 3rd channel** — Phases 122-126 (shipped 2026-06-25)
+- 🚧 **v4.10 MCP Channel Parity** — Phases 127-128 (roadmap created 2026-06-25) — binds the v4.9 neutral `lib/agent-tools/` over the existing v4.1 MCP server, closing the WhatsApp = chat = MCP sibling-channels principle
 
 > **Phase numbering note:** v3.1.1 starts at **Phase 66**, not 62. Phases 62-65 are reserved as DEFERRED placeholders for the v3.2 Production Deploy milestone (Vercel→Hetzner deploy + Stripe live + monitoring + UAT in prod). Skipping past 62-65 keeps the global phase counter unambiguous and prevents number reuse confusion when v3.2 begins.
 
@@ -1489,7 +1490,8 @@ Plans:
  (completed 2026-06-25)
 - [x] **Phase 125: Chat UI — useChat + Sidebar + Multimodal + Estimate Card** - The `useChat` streaming surface with per-tool-call progress, a conversation sidebar (new/switch + history load), multimodal input (text/audio/photo) routed through the extracted `normalize`, and an inline estimate card that opens in the existing editor.
  (completed 2026-06-25)
-- [x] **Phase 126: Access/Entitlement Gate + Owner-Only Verification** - The chat is gated owner-only (authenticated, tenant-scoped) and by tier entitlement (Pro/Business), audited so it is never reachable by an end customer. (completed 2026-06-25)
+- [x] **Phase 126: Access/Entitlement Gate + Owner-Only Verification** - The chat is gated owner-only (authenticated, tenant-scoped) and by tier entitlement (Pro/Business), audited so it is never reachable by an end customer.
+ (completed 2026-06-25)
 
 ### Phase Details — v4.9 Internal Web Chat Assistant
 
@@ -1561,3 +1563,34 @@ Plans:
 Plans:
 - [x] 126-01-PLAN.md — chatEnabled flag (free false; trial/pro/business true) + the /api/chat 403 chat_not_on_plan security-boundary gate (CHATMETER-02)
 - [x] 126-02-PLAN.md — chat page upgrade-prompt gate (own tier read) + the owner-only / never-customer-facing static scope test (CHATMETER-02)
+
+
+## v4.10 MCP Channel Parity (Phases 127-128)
+
+> Binds the v4.9 channel-neutral `lib/agent-tools/` capabilities as MCP tools over the EXISTING v4.1 MCP server (OAuth + `/api/mcp` + transport + annotations). A tool-binding milestone, NOT a new subsystem — the neutral functions already exist (`lib/agent-tools/`), the MCP infra already exists (`app/api/mcp/` + `lib/mcp/tools/`). Closes the WhatsApp = chat = MCP sibling-channels principle. Numbering continues the global counter — v4.9 ended at Phase 126, so v4.10 starts at **Phase 127**.
+
+- [ ] **Phase 127: MCP Read Tools — Knowledge + Query over the Neutral Core** — Bind `ask_knowledge` + the 5 query tools (`find_client`, `get_latest_estimate`, `get_project_status`, `list_recent_estimates`, `list_services`) as read-only MCP tools wrapping `lib/agent-tools/`, with `readOnlyHint: true` annotations and the companyId-trusted invariant (MKB-01, MQRY-01, MSEC-01, MSEC-02)
+- [ ] **Phase 128: MCP Generation Reconciliation + Parity Verification** — Route the existing MCP `create_estimate` through the neutral `lib/agent-tools/createEstimate`, confirm all three channels share one generation entry, and prove the bindings non-destructive (the v4.1 MCP test suite stays green) (MGEN-01, MPAR-01)
+
+### Phase 127: MCP Read Tools — Knowledge + Query over the Neutral Core
+**Goal**: A connected MCP client (Claude.ai / Claude Desktop / ChatGPT) can ask the owner's industry/company knowledge questions and read the owner's company data through the SAME neutral capabilities WhatsApp and the web chat already use — exposed as read-only MCP tools that the Claude.ai permission UI auto-groups, with the company always resolved from the OAuth token (never a tool input).
+**Depends on**: v4.1 MCP server (OAuth + `/api/mcp` transport + tool-annotation infra, phases 86-90), v4.9 neutral extraction (`lib/agent-tools/ask-knowledge` + `lib/agent-tools/query-company-data`, phase 122), v4.8 `lib/knowledge/` (the KB `ask_knowledge` ultimately reads)
+**Requirements**: MKB-01, MQRY-01, MSEC-01, MSEC-02
+**Success Criteria** (what must be TRUE):
+  1. An `ask_knowledge` MCP tool answers a trade how-to question by wrapping the neutral `lib/agent-tools/ask-knowledge`, scoped by the resolved company's `industries[]` (industry KB + company overlay) — no knowledge logic re-implemented in the MCP layer
+  2. Five read-only query tools (`find_client`, `get_latest_estimate`, `get_project_status`, `list_recent_estimates`, `list_services`) each wrap the corresponding neutral `lib/agent-tools/query-company-data` data-read — one explicit MCP tool per read — and return the owner's company data
+  3. For every new tool, `companyId` is resolved from the OAuth token -> company (trusted), and a test asserts no new tool's input schema accepts a tenant/companyId field (T-lrf-01)
+  4. Each new read tool carries `readOnlyHint: true` (and `destructiveHint: false`) so Claude.ai's permission UI auto-groups it under the read-only "Always allow" toggle; a test asserts the annotations
+  5. The new tools reuse the existing v4.1 OAuth/transport infra unchanged — they are registered onto the existing `/api/mcp` server, not a parallel one
+**Plans**: TBD
+
+### Phase 128: MCP Generation Reconciliation + Parity Verification
+**Goal**: The existing MCP `create_estimate` runs through the SAME neutral generation entry point as WhatsApp and the web chat (the async `{jobId}` contract it pioneered), so all three sibling channels demonstrably share one core — and the whole binding is proven non-destructive by the existing v4.1 MCP test suite staying green unchanged.
+**Depends on**: Phase 127 (the read-tool bindings + the companyId-trusted invariant pattern established), v4.9 neutral `lib/agent-tools/createEstimate` (phase 122), v4.1 MCP `create_estimate` async `{job_id}` + `check_job_status` (phase 89)
+**Requirements**: MGEN-01, MPAR-01
+**Success Criteria** (what must be TRUE):
+  1. The MCP `create_estimate` tool routes through the neutral `lib/agent-tools/createEstimate` and returns the existing async `{jobId}` contract unchanged — behavior preserved, no estimate-generation logic re-implemented in the MCP layer
+  2. All three channels (WhatsApp, web chat, MCP) converge on the same neutral generation entry point — verified by an explicit binding/grep test, not a re-implementation
+  3. The MCP tools BIND the neutral `lib/agent-tools/` capabilities (a thin tool layer); nothing in `lib/agent-tools/` is re-extracted or modified to satisfy MCP
+  4. The existing v4.1 MCP test suite stays green unchanged (non-destructive) — the parity guard confirming WhatsApp = chat = MCP over one core
+**Plans**: TBD

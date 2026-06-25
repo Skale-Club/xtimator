@@ -61,18 +61,18 @@ Which phases cover which requirements. Populated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| MKB-01 | TBD | Pending |
-| MQRY-01 | TBD | Pending |
-| MGEN-01 | TBD | Pending |
-| MSEC-01 | TBD | Pending |
-| MSEC-02 | TBD | Pending |
-| MPAR-01 | TBD | Pending |
+| MKB-01 | Phase 127 | Pending |
+| MQRY-01 | Phase 127 | Pending |
+| MGEN-01 | Phase 128 | Pending |
+| MSEC-01 | Phase 127 | Pending |
+| MSEC-02 | Phase 127 | Pending |
+| MPAR-01 | Phase 128 | Pending |
 
 **Coverage:**
 - v1 requirements: 6 total
-- Mapped to phases: 0 (roadmap pending)
-- Unmapped: 6 ⚠️ (resolved by roadmap)
+- Mapped to phases: 6 (Phase 127: MKB-01, MQRY-01, MSEC-01, MSEC-02 · Phase 128: MGEN-01, MPAR-01)
+- Unmapped: 0 ✅ (100% coverage, no orphans)
 
 ---
 *Requirements defined: 2026-06-25*
-*Last updated: 2026-06-25 — milestone v4.10 MCP Channel Parity initial definition*
+*Last updated: 2026-06-25 — milestone v4.10 MCP Channel Parity roadmap created (Phases 127-128); all 6 requirements mapped, 0 unmapped*
