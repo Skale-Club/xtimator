@@ -1,6 +1,7 @@
 ---
 id: SEED-037
-status: activating
+status: harvested
+harvested_in: v4.12 (phases 135-140)
 planted: 2026-06-25
 planted_during: v4.11 close-out (post advanced-pricing; org/billing/seats review session)
 trigger_when: User activated 2026-06-25 — multi-user inside one organization with configurable per-seat pricing.

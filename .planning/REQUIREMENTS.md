@@ -1,4 +1,4 @@
-# Requirements: Xtimator — Milestone v4.12 Team Seats & Member Invites
+# Requirements: Xtimator — Milestone v4.12 Team Seats & Member Invites (SHIPPED 2026-06-25)
 
 **Defined:** 2026-06-25
 **Core Value:** A business owner can go from job site audio recording to a sent, professional estimate in under 5 minutes without touching a keyboard.
@@ -31,7 +31,7 @@ Each requirement maps to exactly one roadmap phase.
 
 ### Configurable Seat Billing
 
-- [ ] **SEAT-06**: Extend `BillingConfig` + `DEFAULT_BILLING_CONFIG` (`lib/billing/billing-config.ts`) with `seatPriceCents` (global) and `tiers[tier].includedSeats` (per-tier) as null-safe calibration placeholders, and surface both as editable fields in the super-admin billing panel. Nothing hardcoded; the deep-merge reader tolerates rows written before the fields existed.
+- [x] **SEAT-06**: Extend `BillingConfig` + `DEFAULT_BILLING_CONFIG` (`lib/billing/billing-config.ts`) with `seatPriceCents` (global) and `tiers[tier].includedSeats` (per-tier) as null-safe calibration placeholders, and surface both as editable fields in the super-admin billing panel. Nothing hardcoded; the deep-merge reader tolerates rows written before the fields existed.
 - [x] **SEAT-07**: Seat-billing math + sync — pure, unit-tested `computeBillableSeats(activeMembers, includedSeats)` + `computeSeatChargeCents(billableSeats, seatPriceCents)` (no I/O, arithmetic in one place) + a server `syncSeatBilling(companyId)` that reads the live member count + `billing_config` and updates the Stripe subscription seat-quantity item, gated by `billing_config.enforcementEnabled`. Retrocompat: single-owner orgs within `includedSeats` produce zero billable seats and no Stripe write.
 - [x] **SEAT-08**: Seat-cost transparency UI — the `Settings → Team` surface shows the org's current active seat count, the configured per-seat price, and the projected monthly seat cost, all read from `billing_config` at runtime (never hardcoded) — same billing-transparency principle as the 1%-fee disclosure.
 
@@ -75,3 +75,5 @@ Deferred to a future milestone. Tracked but not in this roadmap.
 
 ---
 *Requirements defined: 2026-06-25 — milestone v4.12 Team Seats & Member Invites (source SEED-037; phase numbering continues the global counter — v4.11 ended at Phase 134, so this milestone starts at Phase 135).*
+
+*Status: **SHIPPED 2026-06-25** — all 6 phases (135-140) complete; 8/8 requirements (SEAT-01..SEAT-08) done. SEED-037 harvested. See [MILESTONES.md](MILESTONES.md) for the full archive entry.*
