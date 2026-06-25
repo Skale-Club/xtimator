@@ -30,6 +30,12 @@ const lineItemSchema = z.object({
   // in Plan 130-02. The AI never computes tax — it only labels the item.
   taxable: z.boolean().optional(),
   tax_category: z.enum(['labor', 'materials', 'other']).optional().nullable(),
+  // DISC-01 — per-item line discount as an OPTIONAL AI INPUT (an AMOUNT, not a percent).
+  // The AI may SUGGEST a line discount; it NEVER computes the subtotal/total — the server
+  // engine subtracts it (compute-totals.ts `item.discount ?? 0`). NO `.default` so omission
+  // stays byte-identical (the ENG-02 retrocompat posture); non-negative because a discount
+  // is a positive reduction amount.
+  discount: z.number().finite().nonnegative().optional(),
 })
 
 const sectionSchema = z.object({

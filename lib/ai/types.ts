@@ -19,6 +19,8 @@ export type LineItemOutput = {
   // labels labor vs materials; omission is valid (server defaults taxable=true in Plan 130-02).
   taxable?: boolean
   tax_category?: 'labor' | 'materials' | 'other' | null
+  // DISC-01 — optional per-item line discount INPUT (amount), mirroring lineItemSchema.
+  discount?: number
 }
 
 export type EstimateSectionOutput = {
