@@ -22,6 +22,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { Check, GripVertical, Plus, RotateCcw, Trash2, UserPlus } from 'lucide-react'
 import { toast } from 'sonner'
 import { MoneyInput } from '@/components/ui/money-input'
+import { Switch } from '@/components/ui/switch'
 import {
   Select,
   SelectContent,
@@ -67,6 +68,8 @@ const DOC_LABELS = {
     qty: 'Qty',
     unit: 'Unit',
     unitPrice: 'Unit Price',
+    lineDiscount: 'Disc.',
+    taxable: 'Tax',
     total: 'Total',
     sectionSubtotal: 'Section Subtotal',
     subtotal: 'Subtotal',
@@ -103,6 +106,8 @@ const DOC_LABELS = {
     qty: 'Qtd',
     unit: 'Unidade',
     unitPrice: 'Preço Unitário',
+    lineDiscount: 'Desc.',
+    taxable: 'Imposto',
     total: 'Total',
     sectionSubtotal: 'Subtotal da Seção',
     subtotal: 'Subtotal',
@@ -139,6 +144,8 @@ const DOC_LABELS = {
     qty: 'Cant',
     unit: 'Unidad',
     unitPrice: 'Precio Unitario',
+    lineDiscount: 'Desc.',
+    taxable: 'Impuesto',
     total: 'Total',
     sectionSubtotal: 'Subtotal de Sección',
     subtotal: 'Subtotal',
@@ -177,6 +184,8 @@ interface DocLabels {
   qty: string
   unit: string
   unitPrice: string
+  lineDiscount: string
+  taxable: string
   total: string
   sectionSubtotal: string
   subtotal: string
@@ -273,6 +282,12 @@ export interface DocumentItem {
   sort_order?: number
   price_source?: 'price_book' | 'ai_estimate' | 'researched' | null
   isManuallyEdited?: boolean
+  // v4.11 advanced pricing — optional, no-op defaults (taxable on, discount 0).
+  taxable?: boolean
+  tax_category?: 'labor' | 'materials' | 'other' | null
+  discount?: number
+  cost?: number | null
+  markup_pct?: number | null
 }
 
 export interface DocumentSection {
@@ -548,6 +563,39 @@ function SortableDocumentItemRow({
           className="h-8 bg-transparent border-0 shadow-none text-right text-base tabular-nums p-1 focus:ring-1 focus:ring-primary/30 hover:bg-muted/20 hover:rounded-sm"
         />
       </td>
+      {/* line discount */}
+      <td className="py-1 px-1 w-20 align-middle">
+        <MoneyInput
+          value={item.discount ?? 0}
+          currencyCode={currencyCode}
+          onValueChange={(value) =>
+            dispatch({
+              type: 'UPDATE_ITEM',
+              sectionId,
+              itemId: item.id,
+              field: 'discount',
+              value,
+            })
+          }
+          className="h-8 bg-transparent border-0 shadow-none text-right text-base tabular-nums p-1 focus:ring-1 focus:ring-primary/30 hover:bg-muted/20 hover:rounded-sm"
+        />
+      </td>
+      {/* taxable */}
+      <td className="py-1 px-1 w-12 text-center align-middle">
+        <Switch
+          checked={item.taxable ?? true}
+          onCheckedChange={(checked) =>
+            dispatch({
+              type: 'UPDATE_ITEM',
+              sectionId,
+              itemId: item.id,
+              field: 'taxable',
+              value: checked,
+            })
+          }
+          aria-label={L.taxable}
+        />
+      </td>
       {/* total */}
       <td className="py-1 pr-3 pl-1 w-28 text-right text-base tabular-nums font-medium align-middle">
         {formatMoney(item.total, currencyCode)}
@@ -722,6 +770,8 @@ function DocumentSectionBlock({
                     <th className="py-1.5 px-2 w-16 text-center font-medium">{L.qty}</th>
                     <th className="py-1.5 px-2 w-16 text-center font-medium">{L.unit}</th>
                     <th className="py-1.5 px-2 w-28 text-right font-medium">{L.unitPrice}</th>
+                    <th className="py-1.5 px-2 w-20 text-right font-medium">{L.lineDiscount}</th>
+                    <th className="py-1.5 px-2 w-12 text-center font-medium">{L.taxable}</th>
                     <th className="py-1.5 px-2 w-28 text-right font-medium">{L.total}</th>
                     <th className="py-1.5 px-2 w-8" />
                   </tr>
