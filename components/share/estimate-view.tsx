@@ -111,6 +111,14 @@ export function EstimateView({
     tax_amount: estimate.tax_amount,
     subtotal: estimate.subtotal,
     total: estimate.total,
+    // v4.11 deposit — read the server row with retrocompat no-op defaults. The
+    // full share-doc deposit rendering is Phase 134; here we just feed the type
+    // so the document surface doesn't crash. balance_due defaults to total so
+    // the view-mode Balance Due line stays hidden (byte-identical) until set.
+    deposit_type: (estimate as { deposit_type?: string }).deposit_type ?? 'none',
+    deposit_value: (estimate as { deposit_value?: number | null }).deposit_value ?? null,
+    deposit: (estimate as { deposit?: number | null }).deposit ?? 0,
+    balance_due: (estimate as { balance_due?: number | null }).balance_due ?? estimate.total,
     currency_code: estimate.currency_code ?? 'USD',
     estimate_date: (estimate as { estimate_date?: string | null }).estimate_date ?? null,
     estimate_number: (estimate as { estimate_number?: string | null }).estimate_number ?? null,

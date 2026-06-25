@@ -77,6 +77,11 @@ const DOC_LABELS = {
     discountNone: 'None',
     discountPct: '% off',
     discountFixed: 'Fixed',
+    deposit: 'Deposit',
+    depositNone: 'None',
+    depositPct: '%',
+    depositAmount: 'Amount',
+    balanceDue: 'Balance Due',
     tax: 'Tax',
     grandTotal: 'Total',
     paymentTerms: 'Payment Terms',
@@ -115,6 +120,11 @@ const DOC_LABELS = {
     discountNone: 'Nenhum',
     discountPct: '% off',
     discountFixed: 'Fixo',
+    deposit: 'Entrada',
+    depositNone: 'Nenhum',
+    depositPct: '%',
+    depositAmount: 'Valor',
+    balanceDue: 'Saldo Devedor',
     tax: 'Imposto',
     grandTotal: 'Total',
     paymentTerms: 'Condições de Pagamento',
@@ -153,6 +163,11 @@ const DOC_LABELS = {
     discountNone: 'Ninguno',
     discountPct: '% off',
     discountFixed: 'Fijo',
+    deposit: 'Depósito',
+    depositNone: 'Ninguno',
+    depositPct: '%',
+    depositAmount: 'Monto',
+    balanceDue: 'Saldo Pendiente',
     tax: 'Impuesto',
     grandTotal: 'Total',
     paymentTerms: 'Términos de Pago',
@@ -193,6 +208,11 @@ interface DocLabels {
   discountNone: string
   discountPct: string
   discountFixed: string
+  deposit: string
+  depositNone: string
+  depositPct: string
+  depositAmount: string
+  balanceDue: string
   tax: string
   grandTotal: string
   paymentTerms: string
@@ -310,6 +330,13 @@ export interface EstimateDocumentData {
   tax_amount: number
   subtotal: number
   total: number
+  // v4.11 deposit — preview values (server recompute is authoritative). With
+  // deposit_type 'none' the deposit is 0 and balance_due === total → panel
+  // renders byte-identical to today (no deposit row, no Balance Due line).
+  deposit_type: string
+  deposit_value: number | null
+  deposit: number
+  balance_due: number
   currency_code: string
   sections: DocumentSection[]
   estimate_date: string | null
@@ -925,6 +952,7 @@ function DocumentTotals({
   const isTaxOverridden =
     Math.round(data.tax_rate * 10000) !== Math.round((defaultTaxRate ?? 0) * 10000)
   const discountTypeVal = data.discount_type ?? 'none'
+  const depositTypeVal = data.deposit_type ?? 'none'
 
   return (
     <div className="flex justify-end px-6 sm:px-10 py-5 border-t border-border/50">
@@ -1068,6 +1096,84 @@ function DocumentTotals({
             {fmt(data.total)}
           </span>
         </div>
+
+        {/* Deposit — none/percent/amount. Preview only; server recomputes on save (GUARD-03). */}
+        {isEditable && dispatch ? (
+          <div className="flex items-center justify-between gap-2 text-base pt-2">
+            <div className="flex items-center gap-1.5 flex-1 min-w-0">
+              <span className="text-muted-foreground whitespace-nowrap shrink-0 select-none">{L.deposit}</span>
+              <Select
+                value={depositTypeVal}
+                onValueChange={(val) =>
+                  dispatch({
+                    type: 'UPDATE_DEPOSIT',
+                    deposit_type: val,
+                    deposit_value: val === 'none' ? null : (data.deposit_value ?? 0),
+                  })
+                }
+              >
+                <SelectTrigger className="h-9 text-xs w-[90px] shrink-0 border-zinc-300 focus:ring-zinc-300">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">{L.depositNone}</SelectItem>
+                  <SelectItem value="percent">{L.depositPct}</SelectItem>
+                  <SelectItem value="amount">{L.depositAmount}</SelectItem>
+                </SelectContent>
+              </Select>
+              {depositTypeVal !== 'none' && (
+                depositTypeVal === 'amount' ? (
+                  <MoneyInput
+                    value={data.deposit_value ?? 0}
+                    currencyCode={data.currency_code}
+                    onValueChange={(value) =>
+                      dispatch({
+                        type: 'UPDATE_DEPOSIT',
+                        deposit_type: 'amount',
+                        deposit_value: value,
+                      })
+                    }
+                    className="h-9 w-20 text-xs"
+                  />
+                ) : (
+                  <div className="relative">
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      step="0.01"
+                      min="0"
+                      value={data.deposit_value ?? 0}
+                      onChange={(e) =>
+                        dispatch({
+                          type: 'UPDATE_DEPOSIT',
+                          deposit_type: 'percent',
+                          deposit_value: parseFloat(e.target.value) || 0,
+                        })
+                      }
+                      className="h-9 w-16 text-right text-xs bg-muted/30 rounded px-1 pr-4 focus:outline-none focus:ring-1 focus:ring-primary/30"
+                    />
+                    <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                      %
+                    </span>
+                  </div>
+                )
+              )}
+            </div>
+            {data.deposit > 0 && (
+              <span className="tabular-nums text-muted-foreground font-medium shrink-0">
+                -{fmt(data.deposit)}
+              </span>
+            )}
+          </div>
+        ) : null}
+
+        {/* Balance Due — only when a deposit is set (edit: type !== none; view: balance differs from total). */}
+        {(isEditable && dispatch ? depositTypeVal !== 'none' : data.balance_due !== data.total) && (
+          <div className="flex justify-between items-baseline">
+            <span className="text-base font-semibold text-muted-foreground select-none">{L.balanceDue}</span>
+            <span className="text-base font-semibold tabular-nums">{fmt(data.balance_due)}</span>
+          </div>
+        )}
       </div>
     </div>
   )
