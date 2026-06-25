@@ -1483,7 +1483,8 @@ Plans:
 ## Phases — v4.9 Internal Web Chat Assistant
 
 - [x] **Phase 122: Channel-Neutral Domain Extraction + WhatsApp Parity** - Pull `createEstimate` / `queryCompanyData` / `askKnowledge` / multimodal `normalize` out of `lib/whatsapp/` into neutral domain tools that WhatsApp KEEPS calling — a NON-DESTRUCTIVE refactor proven by WhatsApp behavioral-parity tests. The load-bearing foundation; nothing in the chat works until these neutral tools exist. (completed 2026-06-25)
-- [x] **Phase 123: Chat Persistence Schema + History** - `chat_conversations` + `chat_messages` tables (tenant-scoped RLS mirroring `whatsapp_inbox`, idempotent + authored-only migration) plus the persist/reload path so a returning owner sees their chat history. (completed 2026-06-25)
+- [x] **Phase 123: Chat Persistence Schema + History** - `chat_conversations` + `chat_messages` tables (tenant-scoped RLS mirroring `whatsapp_inbox`, idempotent + authored-only migration) plus the persist/reload path so a returning owner sees their chat history.
+ (completed 2026-06-25)
 - [ ] **Phase 124: AI SDK + /api/chat Tool-Calling Backend (slots + credit reuse)** - Add the Vercel AI SDK (`ai` + `@ai-sdk/*`); an `/api/chat` `streamText` + native tool-calling route exposing the neutral tools, resolving the model via `ai_config` slots through an OpenRouter-compatible provider; estimate generation invoked as a tool over the unchanged LangGraph engine (async Inngest job); heavy ops debit credits by reusing the neutral functions.
 - [ ] **Phase 125: Chat UI — useChat + Sidebar + Multimodal + Estimate Card** - The `useChat` streaming surface with per-tool-call progress, a conversation sidebar (new/switch + history load), multimodal input (text/audio/photo) routed through the extracted `normalize`, and an inline estimate card that opens in the existing editor.
 - [ ] **Phase 126: Access/Entitlement Gate + Owner-Only Verification** - The chat is gated owner-only (authenticated, tenant-scoped) and by tier entitlement (Pro/Business), audited so it is never reachable by an end customer.
@@ -1527,7 +1528,9 @@ Plans:
   2. `POST /api/chat` uses `streamText` + native tool-calling and exposes the neutral tools `createEstimate`, `queryCompanyData`, and `askKnowledge`; the model can chain them in one conversation
   3. The `createEstimate` tool runs the existing `generateEstimateForProject` engine as an async Inngest job and returns a structured estimate — the LangGraph engine is unchanged (a tool-call boundary, not a streaming bridge)
   4. Heavy chat operations (generation, transcription, photo analysis) debit credits via the v4.7 ledger exactly as the other channels do — by reusing the neutral functions that already debit — while the lightweight conversation turn is absorbed (zero credit)
-**Plans**: TBD
+**Plans**: 2 plans in 2 waves
+- [ ] 124-01-PLAN.md — Install AI SDK + OpenRouter provider; lib/chat/ provider + neutral-tool wrappers + system prompt (CHATBE-01/02/03)
+- [ ] 124-02-PLAN.md — POST /api/chat route (owner-auth → streamText(tools) → persist in onFinish) + static credit-reuse assertion (CHATBE-02, CHATMETER-01)
 
 ### Phase 125: Chat UI — useChat + Sidebar + Multimodal + Estimate Card
 **Goal**: The owner has a rich chat surface inside the web app — a `useChat`-backed message stream that renders the assistant's tokens and each tool-call's progress ("generating estimate…", "looking up João's last quote…"), a conversation sidebar to start new and switch between prior conversations (loading the selected history from Phase 123), a multimodal input (text + audio + photo) routed through the extracted `normalize`, and an inline estimate card on generation completion with an action to open the result in the existing estimate editor. Built on the Vercel template's UX patterns (message-parts, tool-call rendering) ported onto our shadcn/Tailwind design system — not a raw template fork.
