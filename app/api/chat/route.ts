@@ -42,6 +42,7 @@ import {
   appendMessage,
   type ChatRole,
 } from '@/lib/queries/chat'
+import { getEntitlements } from '@/lib/entitlements'
 
 export async function POST(req: Request) {
   // 1. Authenticate the owner.
@@ -65,7 +66,7 @@ export async function POST(req: Request) {
   const svc = requireServiceClient()
   const { data: company } = await svc
     .from('companies')
-    .select('industries, default_estimate_language')
+    .select('industries, default_estimate_language, tier')
     .eq('id', companyId)
     .maybeSingle()
   const industries =
@@ -74,6 +75,19 @@ export async function POST(req: Request) {
     ?.default_estimate_language
   const language =
     lang === 'en' || lang === 'pt' || lang === 'es' ? lang : undefined
+
+  // 3b. Entitlement gate (CHATMETER-02, SECURITY boundary): the in-app chat is a
+  //     Pro/Business feature. This 403 MUST run BEFORE resolveChatModel /
+  //     buildChatTools / streamText so an unentitled tenant triggers no model
+  //     build (mirrors the send-whatsapp channel gate; bare Response to match
+  //     this file's 401/400 style). The page gate (Plan 02) is additive UX only.
+  const tier = (company as { tier?: string | null } | null)?.tier ?? 'free'
+  if (!getEntitlements(tier).chatEnabled) {
+    return new Response(
+      JSON.stringify({ error: 'chat_not_on_plan', upgradeUrl: '/settings/billing' }),
+      { status: 403, headers: { 'content-type': 'application/json' } },
+    )
+  }
 
   // 4. Parse the turn. companyId/conversationId are server-trusted; the LLM never
   //    chooses the tenant — only `messages` is user/model content.

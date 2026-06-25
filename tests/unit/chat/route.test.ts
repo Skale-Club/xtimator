@@ -122,7 +122,7 @@ beforeEach(() => {
   getClaimsMock.mockResolvedValue({ data: { claims: { sub: 'user-1' } } })
   getActiveCompanyIdMock.mockResolvedValue('company-SECRET')
   requireServiceClientMock.mockReturnValue(
-    makeServiceClientMock({ industries: ['plumbing'], default_estimate_language: 'en' }) as never,
+    makeServiceClientMock({ industries: ['plumbing'], default_estimate_language: 'en', tier: 'pro' }) as never,
   )
   resolveChatModelMock.mockResolvedValue(makeMockModel() as never)
   createConversationMock.mockResolvedValue({ id: 'conv-1' } as never)
@@ -148,6 +148,35 @@ describe('POST /api/chat', () => {
     expect(res.status).toBeGreaterThanOrEqual(400)
     expect(res.status).toBeLessThan(500)
     expect(resolveChatModelMock).not.toHaveBeenCalled()
+  })
+
+  it('returns 403 chat_not_on_plan and never builds tools or streams for a free-tier company', async () => {
+    requireServiceClientMock.mockReturnValue(
+      makeServiceClientMock({ industries: [], default_estimate_language: 'en', tier: 'free' }) as never,
+    )
+
+    const res = await POST(chatRequest({ messages: [userMessage] }))
+
+    expect(res.status).toBe(403)
+    const body = (await res.json()) as { error?: string; upgradeUrl?: string }
+    expect(body.error).toBe('chat_not_on_plan')
+    expect(body.upgradeUrl).toBe('/settings/billing')
+    // No model build for an unentitled tenant (gate fires before resolution).
+    expect(buildChatToolsMock).not.toHaveBeenCalled()
+    expect(resolveChatModelMock).not.toHaveBeenCalled()
+  })
+
+  it('allows a pro-tier company to stream (200)', async () => {
+    requireServiceClientMock.mockReturnValue(
+      makeServiceClientMock({ industries: ['plumbing'], default_estimate_language: 'en', tier: 'pro' }) as never,
+    )
+
+    const res = await POST(chatRequest({ messages: [userMessage] }))
+
+    expect(res.status).toBe(200)
+    expect(res.body).toBeTruthy()
+    expect(resolveChatModelMock).toHaveBeenCalledWith('company-SECRET')
+    await new Response(res.body).text() // drain so onFinish settles within the test
   })
 
   it('builds tools with the trusted companyId + owner industries/language', async () => {
