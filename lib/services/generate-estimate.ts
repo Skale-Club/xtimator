@@ -494,6 +494,12 @@ export async function generateEstimateForProject(
         // DISC-01: persist the per-item line discount (AI INPUT, amount) — survives AI → anchoring →
         // research → compute via the ...item spreads. Default 0 keeps retrocompat rows byte-identical.
         discount: (item.discount as number | undefined) ?? 0,
+        // MARK-01: persist the AI's cost + markup_pct (inputs) so the price book / editor can show how
+        // the unit_price was derived. Survive AI → anchoring → research → compute via the ...item spreads.
+        // null when absent (byte-identical retrocompat — the Phase-129 columns are nullable). The
+        // persisted unit_price above already carries the server-resolved price from compute-totals (Task 2).
+        cost: (item.cost as number | undefined) ?? null,
+        markup_pct: (item.markup_pct as number | undefined) ?? null,
       }))
 
       const { error: itemsError } = await supabase
