@@ -14,6 +14,18 @@ The platform includes:
 
 A business owner can go from job site audio recording to a sent, professional estimate in under 5 minutes without touching a keyboard.
 
+## Current Milestone: v4.10 MCP Channel Parity — the same neutral capabilities on the MCP server
+
+**Goal:** Bring the existing MCP server (built in v4.1) to CAPABILITY PARITY with WhatsApp + the v4.9 web chat by binding the SAME channel-neutral `lib/agent-tools/` capabilities as MCP tools — closing the WhatsApp = chat = MCP sibling-channels principle. Cheap precisely because v4.9 already did the channel-neutral extraction. Source: [SEED-030](seeds/SEED-030-mcp-server-xtimator.md) (the ⚠️ channel-parity update supersedes the old "5 tools MVP" scope).
+
+**Target features:**
+- **`ask_knowledge` MCP tool** — wraps `lib/agent-tools/ask-knowledge` (the v4.8 industry KB + company overlay, scoped by the company's `industries[]`); read-only (`readOnlyHint: true`).
+- **Query MCP tools** — `find_client` / `get_latest_estimate` / `get_project_status` / `list_recent_estimates` / `list_services` wrapping the neutral `lib/agent-tools/query-company-data` data-reads; read-only.
+- **create_estimate via the neutral path** — reconcile the existing MCP `create_estimate` to route through `lib/agent-tools/createEstimate` (the async `{jobId}` contract it was the precedent for), so all three channels share one generation entry.
+- **Auto-grouped permission UX** — the new read tools carry `readOnlyHint: true` so Claude.ai's permission UI auto-groups them (the SEED-030 locked decision).
+
+**Key context:** The MCP server (OAuth 2.0 + `/api/mcp` Streamable HTTP + the existing 5 tools) ALREADY EXISTS — reuse the auth/transport infra. The MCP tools are owner-scoped via the OAuth token → company resolution; the neutral functions take `companyId` as a trusted param, NEVER from the tool input (T-lrf-01, same as the chat). SCOPE FENCE: bind the neutral capabilities to the existing MCP server (the tool layer) ONLY — do NOT re-extract anything (v4.9 did it), do NOT touch the web chat or WhatsApp beyond parity. Open scoping: defer edit/send MCP tools (match the web-chat v1 scope: generate + query + knowledge); one query tool per data-read (MCP clients benefit from explicit tools). This closes the Multi-Channel Core track. Numbering continues the global counter — v4.9 ended at Phase 126, so v4.10 starts at **Phase 127**.
+
 ## Last Milestone: v4.9 Internal Web Chat Assistant — the 3rd channel ✅ (shipped 2026-06-25)
 
 **Shipped:** all 5 phases (122-126), 16/16 requirements, 13 plans. Full unit suite green (335 files / 2335 tests). An in-app conversational chat (generate/query/knowledge) built on the Vercel AI Chatbot patterns over Xtimator's infra. The strategic payoff landed: the channel-neutral extraction of `lib/whatsapp/` into `lib/agent-tools/` (createEstimate/queryCompanyData/normalizeInput/askKnowledge) — WhatsApp + web chat now share the SAME neutral core, proven non-destructive by the unchanged WhatsApp parity suite. The Vercel AI SDK is the chat/streaming layer (`/api/chat` streamText + native tool-calling, `useChat` UI); the LangGraph estimate engine stays intact, invoked as an async tool (Decision #1). Owner-only + tier-gated (`chatEnabled`), never customer-facing. Credit reuse, no double-debit. Archive: [milestones/v4.9](MILESTONES.md). Operational deferrals: apply the chat_persistence migration to remote, configure the OpenRouter key, live chat UAT. The MCP parity milestone (SEED-030) consumes this neutral extraction next.

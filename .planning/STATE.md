@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v4.9
-milestone_name: Internal Web Chat Assistant — the 3rd channel
-status: completed
-stopped_at: Completed 126-02-PLAN.md
+milestone: v4.10
+milestone_name: MCP Channel Parity
+status: defining-requirements
+stopped_at: Milestone v4.10 started — defining requirements
 last_updated: "2026-06-25T09:56:27.126Z"
 last_activity: 2026-06-25
 progress:
-  total_phases: 78
-  completed_phases: 64
-  total_plans: 186
-  completed_plans: 199
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
 ---
 
 # Project State
