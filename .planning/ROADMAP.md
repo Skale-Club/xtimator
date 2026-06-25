@@ -1648,8 +1648,8 @@ Plans:
   3. An estimate with discount=0 and no global discount produces numbers byte-identical to the pre-discount engine — the retrocompat invariant holds
 **Plans**: 3 plans in `.planning/phases/131-discounts/`
 Plans:
-- [ ] 131-01-PLAN.md — Widen the AI estimate schema/types with an OPTIONAL per-item line `discount` (amount) INPUT + acceptance/omission test (DISC-01, AI-input half)
-- [ ] 131-02-PLAN.md — Activate global discount (amount/percent) + discount-before-tax proration into the per-category taxable base in compute-totals.ts; return discountAmount; hand-computed goldens (1440/1890/1296) + retrocompat/active-tax goldens stay byte-identical (DISC-02)
+- [x] 131-01-PLAN.md — Widen the AI estimate schema/types with an OPTIONAL per-item line `discount` (amount) INPUT + acceptance/omission test (DISC-01, AI-input half)
+- [x] 131-02-PLAN.md — Activate global discount (amount/percent) + discount-before-tax proration into the per-category taxable base in compute-totals.ts; return discountAmount; hand-computed goldens (1440/1890/1296) + retrocompat/active-tax goldens stay byte-identical (DISC-02)
 - [ ] 131-03-PLAN.md — Engine wiring: thread discountAmount + persist estimate_items.discount and estimates.discount_* (reusing existing columns, replacing hardcoded null/0/0) + static persistence test (DISC-01 persist, DISC-02 wire)
 
 ### Phase 132: Deposit + Markup + Deposit-Stripe Contract
