@@ -1845,7 +1845,8 @@ Plans:
   2. A super-admin can edit each tier's `subscriptionPriceAnnualCents` and the global `seatPriceAnnualCents` in the billing panel, save, and the new values take effect at runtime with no redeploy (the 30s TTL flush); the admin zod schema validates the new fields and the tenant (business owner) has no route to these controls
   3. A static test asserts no annual price, discount %, or Stripe Price ID is a constant in any application-code billing path — every annual number resolves from `billing_config` at runtime
   4. No charging, checkout, cron, or seat behavior changes in this phase — the fields exist and are editable but nothing reads them to charge yet (the monthly path is byte-identical)
-**Plans**: TBD
+**Plans**: 1 plan
+- [ ] 141-01-PLAN.md — extend BillingConfig/DEFAULT + admin zod schema + super-admin billing form with seatPriceAnnualCents (global) + tiers[tier].subscriptionPriceAnnualCents (per-tier) calibration placeholders; deep-merge + no-hardcode static tests (ANN-01)
 
 ### Phase 142: Monthly Credit Grant Decouple
 **Goal**: The monthly AI credit grant is decoupled from the invoice cadence so annual subscribers get credits every calendar month — not once a year — without ever double-granting monthly subscribers. The `invoice.paid` handler's grant idempotency key moves from `event.id` to `grant:{companyId}:{YYYY-MM}`, and a new monthly Inngest cron grants `monthlyCreditGrant` to active paying companies using that SAME company-month key, reusing the idempotent never-throw `grantCredits`. The company-month key is the single dedup authority, so the webhook and the cron converge to exactly one grant per company per calendar month for any interval. This is the heart of the milestone — get it right and the rest is mechanical.
