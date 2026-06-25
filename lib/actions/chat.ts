@@ -22,6 +22,9 @@ import { normalizeInput } from '@/lib/agent-tools'
 import { createClient } from '@/lib/supabase/server'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { createConversation } from '@/lib/queries/chat'
+import { getCurrentEstimate } from '@/lib/queries/estimate'
+import { requireServiceClient } from '@/lib/supabase/service'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 type ChatNormalizeArg =
   | { kind: 'audio'; base64: string; ext: string }
@@ -75,4 +78,33 @@ export async function createChatConversation(): Promise<{ id: string } | null> {
 
   const conv = await createConversation(userId)
   return conv ? { id: conv.id } : null
+}
+
+/**
+ * resolveCurrentEstimateId — CHATUI-04 editor-link resolver.
+ *
+ * The createEstimate tool returns a {jobId} but NOT the produced estimate id (the
+ * estimate is written asynchronously by the Inngest generation job). Once the job
+ * completes the inline EstimateCard calls this to resolve the now-current estimate
+ * for the project so it can link to /projects/<id>?tab=estimate&estimate=<estId>.
+ *
+ * Owner-scoped: authenticate (same posture as normalizeChatInput), resolve the
+ * ACTIVE company (the trusted tenant), and verify the estimate belongs to it
+ * before returning its id (Rule 2 — authorization; never leak across tenants).
+ * NEVER throws — returns null on any auth/tenant/lookup miss.
+ */
+export async function resolveCurrentEstimateId(projectId: string): Promise<string | null> {
+  const supabase = await createClient()
+  const { data: claimsData } = await supabase.auth.getClaims()
+  if (!claimsData?.claims?.sub) return null
+
+  const companyId = await getActiveCompanyId()
+  if (!companyId) return null
+
+  const svc = requireServiceClient() as unknown as SupabaseClient
+  const est = await getCurrentEstimate(svc, projectId)
+  if (!est) return null
+  // Tenant guard: only surface an estimate owned by the active company.
+  if (est.company_id !== companyId) return null
+  return est.id
 }

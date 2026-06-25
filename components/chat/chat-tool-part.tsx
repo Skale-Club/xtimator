@@ -16,6 +16,7 @@
  */
 import { Loader2 } from 'lucide-react'
 import { useTranslation } from '@/lib/i18n/use-translation'
+import { EstimateCard } from '@/components/chat/estimate-card'
 
 /** Owner-facing in-flight labels per tool type (research Pattern 5). */
 const TOOL_LABEL: Record<string, string> = {
@@ -63,7 +64,13 @@ export function ChatToolPart({ part }: { part: ChatToolPartShape }) {
   // Completed → result.
   if (part.state === 'output-available') {
     if (part.type === 'tool-createEstimate') {
-      // ESTIMATE_CARD_SEAM — Plan 02 renders EstimateCard from part.output here.
+      // ESTIMATE_CARD_SEAM — the inline card polls the job + links to the editor.
+      const jobId = (part.output as { jobId?: string } | undefined)?.jobId
+      const projectId = (part.input as { projectId?: string } | undefined)?.projectId
+      if (jobId && projectId) {
+        return <EstimateCard jobId={jobId} projectId={projectId} />
+      }
+      // Fallback when the tool output/input shape is unexpected.
       return (
         <div className="rounded-lg border border-border bg-card px-3 py-2 text-sm text-muted-foreground">
           {t('Estimate ready.')}
