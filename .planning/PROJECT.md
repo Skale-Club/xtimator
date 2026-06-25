@@ -14,6 +14,19 @@ The platform includes:
 
 A business owner can go from job site audio recording to a sent, professional estimate in under 5 minutes without touching a keyboard.
 
+## Current Milestone: v4.11 Advanced Pricing Model — Per-Item Tax, Discounts, Deposit & Markup
+
+**Goal:** Enrich the estimate's pricing MODEL (not the calculator) so the server-side deterministic math engine computes the elements every US service business uses: per-item taxability (labor vs materials), discounts (line + global), deposit/down-payment (balance due), and markup (cost → price). The arithmetic integrity is already excellent (GUARD-03, never-trust-LLM); this adds the data model + math the engine computes. Source: [SEED-032](seeds/SEED-032-advanced-pricing-model-tax-discount-deposit.md).
+
+**Target features:**
+- **Per-item taxability** — `estimate_items.taxable` (+ optional `tax_category` labor/materials); `companies.tax_config` (per-category rate or a "labor exempt" rule); tax computed per-item, not on a flat subtotal.
+- **Discounts** — line-level + global discount (amount or percent); applied before tax (US norm; configurable).
+- **Deposit / down-payment** — `estimates.deposit_type`/`deposit_value` → `balance_due`; the natural value for the Stripe payment link (SEED-020/036).
+- **Markup** — `estimate_items.cost` + `markup_pct` → server-derived `unit_price` (never-trust-LLM applied to markup); price book stores cost + markup per item.
+- **Editor + PDF + plain-text** — per-line discount/taxable fields; the new totals structure (subtotal → discount → tax → total → deposit → balance due) across all 3 channels (the math engine is the shared core).
+
+**Key context:** DESIGN PRINCIPLE (non-negotiable) — ALL new arithmetic stays SERVER-SIDE and DETERMINISTIC; the AI NEVER computes tax/discount/deposit/markup (it only provides inputs: qty, unit_price or cost, labor/materials classification). EXTEND the existing GUARD-03 math block (`lib/services/generate-estimate.ts` ~L255-373), do NOT create a parallel one, and explicitly do NOT give the AI a calculator tool (that would reintroduce the n8n calculator's 3 LLM-failure points — a regression). Retrocompat is mandatory: existing estimates (taxable=true, discount=0, deposit=none) must be byte-identical on the happy path when `tax_config` is absent. Decisions to lock in scoping: discount-before-or-after-tax (configurable), boolean-taxable vs labor/materials categories (start simple, evolve), markup in price-book vs ad-hoc vs both, deposit↔Stripe contract. SCOPE FENCE: the pricing-model enrichment ONLY (schema + server math + price-book cost/markup + editor UI + PDF/plain-text totals); no AI calculator tool; no channel-adapter changes beyond the shared engine. This is the LAST green seed from the n8n MVP analysis. Numbering continues the global counter — v4.10 ended at Phase 128, so v4.11 starts at **Phase 129**.
+
 ## Last Milestone: v4.10 MCP Channel Parity ✅ (shipped 2026-06-25)
 
 **Shipped:** both phases (127-128), 6/6 requirements, 2 plans. Full unit suite green (336 files / 2354 tests). Bound the v4.9 neutral `lib/agent-tools/` over the existing v4.1 MCP server: 6 read-only tools (`ask_knowledge` + 5 query, `readOnlyHint`, companyId trusted) + reconciled `create_estimate` to delegate to the neutral `createEstimate` (channel-namespaced idempotency id; the existing MCP suite stayed byte-green). This CLOSES the **Multi-Channel Core** track — WhatsApp, web chat, and MCP are now three thin adapters over one shared neutral core (`lib/agent-tools/` + `lib/knowledge/` + `lib/services/generate-estimate`). Archive: [milestones/v4.10](MILESTONES.md). The only remaining green seed is SEED-032 (Advanced Pricing Model — independent track).

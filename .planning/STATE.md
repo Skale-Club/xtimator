@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v4.10
-milestone_name: MCP Channel Parity
-status: completed
-stopped_at: Completed 128-01-PLAN.md
+milestone: v4.11
+milestone_name: Advanced Pricing Model — Per-Item Tax, Discounts, Deposit & Markup
+status: defining-requirements
+stopped_at: Milestone v4.11 started — defining requirements
 last_updated: "2026-06-25T10:50:57.254Z"
 last_activity: 2026-06-25
 progress:
-  total_phases: 80
-  completed_phases: 66
-  total_plans: 188
-  completed_plans: 201
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
 ---
 
 # Project State
