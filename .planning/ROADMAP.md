@@ -30,6 +30,7 @@
 - ✅ **v4.8 Industry Knowledge Base — Channel-Neutral Conversational Assistant** — Phases 117-121 (shipped 2026-06-24)
 - ✅ **v4.9 Internal Web Chat Assistant — the 3rd channel** — Phases 122-126 (shipped 2026-06-25)
 - ✅ **v4.10 MCP Channel Parity** — Phases 127-128 (shipped 2026-06-25) — binds the v4.9 neutral `lib/agent-tools/` over the existing v4.1 MCP server, closing the WhatsApp = chat = MCP sibling-channels principle
+- 🚧 **v4.11 Advanced Pricing Model — Per-Item Tax, Discounts, Deposit & Markup** — Phases 129-134 (roadmap created 2026-06-25) — enrich the pricing MODEL so the existing GUARD-03 server-side deterministic engine computes per-item tax, discounts, deposit & markup; NO AI calculator; byte-identical retrocompat invariant; SEED-032
 
 > **Phase numbering note:** v3.1.1 starts at **Phase 66**, not 62. Phases 62-65 are reserved as DEFERRED placeholders for the v3.2 Production Deploy milestone (Vercel→Hetzner deploy + Stripe live + monitoring + UAT in prod). Skipping past 62-65 keeps the global phase counter unambiguous and prevents number reuse confusion when v3.2 begins.
 
@@ -1571,7 +1572,8 @@ Plans:
 
 - [x] **Phase 127: MCP Read Tools — Knowledge + Query over the Neutral Core** — Bind `ask_knowledge` + the 5 query tools (`find_client`, `get_latest_estimate`, `get_project_status`, `list_recent_estimates`, `list_services`) as read-only MCP tools wrapping `lib/agent-tools/`, with `readOnlyHint: true` annotations and the companyId-trusted invariant (MKB-01, MQRY-01, MSEC-01, MSEC-02)
  (completed 2026-06-25)
-- [x] **Phase 128: MCP Generation Reconciliation + Parity Verification** — Route the existing MCP `create_estimate` through the neutral `lib/agent-tools/createEstimate`, confirm all three channels share one generation entry, and prove the bindings non-destructive (the v4.1 MCP test suite stays green) (MGEN-01, MPAR-01) (completed 2026-06-25)
+- [x] **Phase 128: MCP Generation Reconciliation + Parity Verification** — Route the existing MCP `create_estimate` through the neutral `lib/agent-tools/createEstimate`, confirm all three channels share one generation entry, and prove the bindings non-destructive (the v4.1 MCP test suite stays green) (MGEN-01, MPAR-01)
+ (completed 2026-06-25)
 
 ### Phase 127: MCP Read Tools — Knowledge + Query over the Neutral Core
 **Goal**: A connected MCP client (Claude.ai / Claude Desktop / ChatGPT) can ask the owner's industry/company knowledge questions and read the owner's company data through the SAME neutral capabilities WhatsApp and the web chat already use — exposed as read-only MCP tools that the Claude.ai permission UI auto-groups, with the company always resolved from the OAuth token (never a tool input).
@@ -1597,3 +1599,77 @@ Plans:
   4. The existing v4.1 MCP test suite stays green unchanged (non-destructive) — the parity guard confirming WhatsApp = chat = MCP over one core
 **Plans**: 1 plan
 - [x] 128-01-PLAN.md — Reconcile MCP create_estimate to delegate to the neutral createEstimate (channel-namespaced idempotency id keeps the MCP suite green) + add the MPAR-01 static binding/three-channel-convergence parity test (MGEN-01, MPAR-01)
+
+## v4.11 Advanced Pricing Model — Per-Item Tax, Discounts, Deposit & Markup (Phases 129-134)
+
+> Enrich the estimate's pricing MODEL (not the calculator) so the EXISTING server-side deterministic math engine (GUARD-03, `lib/services/generate-estimate.ts` ~L255-373) computes per-item tax, discounts, deposit and markup. ALL new arithmetic stays SERVER-SIDE + DETERMINISTIC — the AI provides inputs only (qty, unit_price or cost, labor/materials classification), NEVER computes; NO AI calculator tool (ENG-01, a regression fence). EXTEND the existing GUARD-03 block — do NOT create a parallel one. Retrocompat is the load-bearing invariant: with NO new fields present the result is BYTE-IDENTICAL to today's flat-rate engine (ENG-02), and it stays testable at EVERY phase. The math engine is the shared core, so the richer totals appear in all 3 channels (web/WhatsApp/MCP) with NO channel-adapter changes. Source: [SEED-032](seeds/SEED-032-advanced-pricing-model-tax-discount-deposit.md). Numbering continues the global counter — v4.10 ended at Phase 128, so v4.11 starts at **Phase 129**.
+
+- [ ] **Phase 129: Schema Foundation + GUARD-03 Engine Extension Scaffold + Retrocompat Lock** — Idempotent, authored-only migration (`estimate_items.taxable`/`tax_category`/`discount`/`cost`/`markup_pct`, `estimates.discount`/`deposit_type`/`deposit_value`, `companies.tax_config`) with retrocompat defaults; EXTEND the GUARD-03 math block so with NO new fields the result is byte-identical; a static test asserts the AI gets NO calculator tool and computes none of the new math; a regression test locks the byte-identical happy path (TAX-01, ENG-01, ENG-02)
+- [ ] **Phase 130: Per-Item Taxability** — Land the `taxable`/`tax_category` AI classification inputs in the output schema/types (the AI classifies labor/materials, computes nothing) and compute tax PER-ITEM (Sum of taxable_base_per_category x rate_category) instead of flat `subtotal x rate`, byte-identical when `tax_config` is absent (TAX-02, TAX-03)
+- [ ] **Phase 131: Discounts (line + global)** — Line-level + global discount (amount or percent); the server math applies line discount before the subtotal and the global discount before tax (configurable before/after per company), prorating the global discount into the taxable base (DISC-01, DISC-02)
+- [ ] **Phase 132: Deposit + Markup + Deposit-Stripe Contract** — `deposit_type`/`deposit_value` -> server-computed `balance_due`; `cost` + `markup_pct` -> server-derived `unit_price` (never-trust-LLM, price book stores cost + markup); the deposit threads to the SEED-020/036 Stripe payment + 1% fee contract (the fee computes on the amount actually charged) (DEP-01, DEP-02, MARK-01)
+- [ ] **Phase 133: Editor UI** — The estimate editor (`item-row.tsx` + `item-card-mobile.tsx`) gains per-line discount/taxable fields + global discount + deposit controls; server actions accept the new fields (PUI-01)
+- [ ] **Phase 134: PDF + Plain-Text Totals** — The PDF + plain-text output render the new totals structure (subtotal -> discount -> tax -> total -> deposit -> balance due) across all 3 channels, surfacing the shared-engine numbers with no channel-adapter changes (PUI-02)
+
+### Phase 129: Schema Foundation + GUARD-03 Engine Extension Scaffold + Retrocompat Lock
+**Goal**: The data model and the deterministic math authority are ready to carry the new pricing dimensions WITHOUT changing a single already-generated number — the migration adds every new field with retrocompat defaults, the GUARD-03 block is extended in a byte-identical-when-empty way, and the two load-bearing invariants (no AI calculator, byte-identical happy path) are locked by tests that stay green at every subsequent phase.
+**Depends on**: v4.5 GUARD-03 server-side math block (`lib/services/generate-estimate.ts` ~L255-373), v4.5 `estimateOutputSchema` (`lib/ai/schema.ts`), the existing `estimate_items`/`estimates`/`companies` schema
+**Requirements**: TAX-01, ENG-01, ENG-02
+**Success Criteria** (what must be TRUE):
+  1. An idempotent, authored-only migration adds `estimate_items.taxable` (boolean, default true), `tax_category` ('labor'|'materials'|'other', nullable), `discount`, `cost`, `markup_pct`; `estimates.discount`, `deposit_type` ('none'|'percent'|'amount', default 'none'), `deposit_value`; and `companies.tax_config` — re-running the migration is a no-op and existing rows take retrocompat defaults
+  2. The GUARD-03 math block is EXTENDED in place (not duplicated) so that an estimate with no new fields set (taxable=true, discount=0, deposit=none, no tax_config) produces a subtotal/tax/total BYTE-IDENTICAL to the pre-milestone flat-rate engine
+  3. A static test asserts the AI is given NO calculator tool and computes none of tax/discount/deposit/markup — the AI surface only gains input fields, never arithmetic (ENG-01)
+  4. A regression test locks the byte-identical happy path on already-generated estimates (no number drift); it is structured to remain the standing retrocompat guard for phases 130-134 (ENG-02)
+**Plans**: TBD
+
+### Phase 130: Per-Item Taxability
+**Goal**: Tax is computed correctly per item (labor vs materials) by the server engine instead of a single flat rate on the whole subtotal, so the estimate is fiscally correct — while the AI only classifies each line and the happy path stays byte-identical whenever a company has no `tax_config`.
+**Depends on**: Phase 129 (schema fields + extended GUARD-03 block + retrocompat lock)
+**Requirements**: TAX-02, TAX-03
+**Success Criteria** (what must be TRUE):
+  1. The AI output schema/types carry `taxable` and `tax_category` per item; the AI classifies labor/materials but is given no way to compute tax — the arithmetic stays in the server engine
+  2. The server math computes tax as the sum of (taxable_base_per_category x rate_category) per item, honoring `companies.tax_config` (per-category rate or a "labor exempt" rule), replacing the flat `subtotal x rate`
+  3. When `tax_config` is absent the per-item computation produces a result byte-identical to today's flat-rate computation — the Phase-129 retrocompat regression stays green
+**Plans**: TBD
+
+### Phase 131: Discounts (line + global)
+**Goal**: A business owner can apply a per-line discount and a global discount (amount or percent), and the server engine reduces the subtotal and the taxable base correctly — discount before tax (US norm, configurable per company), with the global discount prorated into the taxable base.
+**Depends on**: Phase 129 (schema + engine scaffold), Phase 130 (per-item taxable base the global discount prorates into)
+**Requirements**: DISC-01, DISC-02
+**Success Criteria** (what must be TRUE):
+  1. An estimate item carries a line-level `discount` (amount or percent) and an estimate carries a global `discount` (amount or percent); both persist and round-trip
+  2. The server math applies the line discount to compute `line_net` before the subtotal, and applies the global discount before tax (configurable before/after per company), prorating the global discount across the taxable base per the locked calculation sequence
+  3. An estimate with discount=0 and no global discount produces numbers byte-identical to the pre-discount engine — the retrocompat invariant holds
+**Plans**: TBD
+
+### Phase 132: Deposit + Markup + Deposit-Stripe Contract
+**Goal**: An estimate can express a deposit/down-payment (so the owner shows balance due) and price items from cost + markup (so the server, never the AI, derives the price); the deposit becomes the natural value the Stripe payment link charges, threading into the existing SEED-020/036 payment + 1% fee contract.
+**Depends on**: Phase 129 (deposit/cost/markup schema + engine scaffold), Phase 131 (the `grandTotal` the deposit and balance due derive from), v4.7 estimate-payment fee + Stripe Connect Direct Charge contract (SEED-036), SEED-020 customer payments
+**Requirements**: DEP-01, DEP-02, MARK-01
+**Success Criteria** (what must be TRUE):
+  1. `estimates.deposit_type` ('none'|'percent'|'amount') + `deposit_value` drive a server-computed `balance_due = grandTotal - deposit`; deposit=none leaves the total unchanged (retrocompat)
+  2. `estimate_items.cost` + `markup_pct` produce a server-derived `unit_price` (`cost x (1 + markup)`) — never-trust-LLM applied to markup; the price book can store cost + markup per item
+  3. When a deposit is set, it is the amount the Stripe payment link charges (not the full total), and the existing 1% application fee computes on the amount actually charged — the SEED-020/036 payment contract is honored, not re-implemented
+**Plans**: TBD
+
+### Phase 133: Editor UI
+**Goal**: A business owner can see and edit the new pricing fields directly in the estimate editor — per-line discount and taxable, plus global discount and deposit controls — on both desktop and mobile, with server actions accepting the new fields; the displayed totals reflect the server engine, never client-side arithmetic.
+**Depends on**: Phase 132 (all server math dimensions exist for the editor to surface), Phase 131 (discount fields), Phase 130 (taxable fields)
+**Requirements**: PUI-01
+**Success Criteria** (what must be TRUE):
+  1. The estimate editor (`item-row.tsx` + `item-card-mobile.tsx`) renders per-line `discount` and `taxable` controls and a global discount + deposit control, on both desktop and mobile
+  2. Editing those fields persists through the estimate server actions, which accept and validate the new fields, and the recomputed totals come from the server engine (not a parallel client calculation)
+  3. An estimate with no new fields set renders and edits exactly as before — no regression to the existing editor flow
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 134: PDF + Plain-Text Totals
+**Goal**: The richer totals structure (subtotal -> discount -> tax -> total -> deposit -> balance due) appears in the PDF and the plain-text output, surfacing the shared-engine numbers consistently across all three channels (web/WhatsApp/MCP) with no channel-adapter changes.
+**Depends on**: Phase 132 (the full totals structure exists), Phase 133 (editor produces estimates with the new fields)
+**Requirements**: PUI-02
+**Success Criteria** (what must be TRUE):
+  1. The branded PDF renders the new totals block (subtotal -> discount -> tax -> total -> deposit -> balance due) with each line shown only when relevant (e.g. no discount line when discount is 0)
+  2. The plain-text estimate output renders the same totals structure, consistent with the PDF and the editor
+  3. The richer totals appear across all 3 channels because they read the shared math engine — no channel-adapter code changes are required; an estimate with no new fields renders the classic subtotal->tax->total block unchanged (retrocompat)
+**Plans**: TBD
+**UI hint**: yes

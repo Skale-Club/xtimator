@@ -72,24 +72,32 @@ Which phases cover which requirements. Populated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| TAX-01 | TBD | Pending |
-| TAX-02 | TBD | Pending |
-| TAX-03 | TBD | Pending |
-| DISC-01 | TBD | Pending |
-| DISC-02 | TBD | Pending |
-| DEP-01 | TBD | Pending |
-| DEP-02 | TBD | Pending |
-| MARK-01 | TBD | Pending |
-| ENG-01 | TBD | Pending |
-| ENG-02 | TBD | Pending |
-| PUI-01 | TBD | Pending |
-| PUI-02 | TBD | Pending |
+| TAX-01 | Phase 129 | Pending |
+| TAX-02 | Phase 130 | Pending |
+| TAX-03 | Phase 130 | Pending |
+| DISC-01 | Phase 131 | Pending |
+| DISC-02 | Phase 131 | Pending |
+| DEP-01 | Phase 132 | Pending |
+| DEP-02 | Phase 132 | Pending |
+| MARK-01 | Phase 132 | Pending |
+| ENG-01 | Phase 129 | Pending |
+| ENG-02 | Phase 129 | Pending |
+| PUI-01 | Phase 133 | Pending |
+| PUI-02 | Phase 134 | Pending |
 
 **Coverage:**
 - v1 requirements: 12 total
-- Mapped to phases: 0 (roadmap pending)
-- Unmapped: 12 ⚠️ (resolved by roadmap)
+- Mapped to phases: 12 ✓
+- Unmapped: 0 ✓
+
+**Phase rollup:**
+- Phase 129 (Schema + Engine Scaffold + Retrocompat Lock): TAX-01, ENG-01, ENG-02
+- Phase 130 (Per-Item Taxability): TAX-02, TAX-03
+- Phase 131 (Discounts): DISC-01, DISC-02
+- Phase 132 (Deposit + Markup + Stripe Contract): DEP-01, DEP-02, MARK-01
+- Phase 133 (Editor UI): PUI-01
+- Phase 134 (PDF + Plain-Text Totals): PUI-02
 
 ---
 *Requirements defined: 2026-06-25*
-*Last updated: 2026-06-25 — milestone v4.11 Advanced Pricing Model initial definition*
+*Last updated: 2026-06-25 — milestone v4.11 Advanced Pricing Model roadmap created (6 phases 129-134, 12/12 requirements mapped, 0 orphans)*
