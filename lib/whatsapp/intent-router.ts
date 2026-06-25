@@ -44,7 +44,7 @@ import { splitReply } from '@/lib/whatsapp/split-reply'
 
 const HISTORY_LIMIT = 20
 
-export type Intent = 'CONFIRM_OR_CANCEL' | 'EDIT' | 'CREATE' | 'QUERY'
+export type Intent = 'CONFIRM_OR_CANCEL' | 'EDIT' | 'CREATE' | 'QUERY' | 'KNOWLEDGE'
 
 export interface RouteInput {
   companyId: string
@@ -99,6 +99,7 @@ function parseIntent(raw: string): Intent {
   if (t.includes('CONFIRM_OR_CANCEL')) return 'CONFIRM_OR_CANCEL'
   if (t.includes('EDIT')) return 'EDIT'
   if (t.includes('QUERY')) return 'QUERY'
+  if (t.includes('KNOWLEDGE')) return 'KNOWLEDGE'
   // CREATE is the safe default for anything else (new media / unrecognized).
   return 'CREATE'
 }
@@ -165,8 +166,14 @@ Classify the owner's latest message into EXACTLY ONE of these labels. Reply with
 - EDIT: the owner wants to CHANGE a field of the pending draft (total, timeline, client, summary, payment terms). Only valid when the session is awaiting_confirm.
 - CREATE: a NEW job description (text, or a new audio/photo describing work). This is the DEFAULT for new media when intent is not clearly edit/confirm, and the default when there is NO active session.
 - QUERY: a QUESTION about EXISTING data ("qual o ultimo estimate do cliente X", "status do projeto Y", "quanto ficou o orcamento do Joao", "what's the latest quote for Maria").
+- KNOWLEDGE: a trade HOW-TO / process / best-practice question that does NOT depend on this company's own data ("how do I pre-treat a pet stain?", "what's the correct order for pressure-washing a deck?", "como faço a remoção de odor de pet em carpete?").
 
-Use the recent conversation history for context. Reply with ONLY one of: CONFIRM_OR_CANCEL, EDIT, CREATE, QUERY.`
+DISAMBIGUATION — QUERY vs KNOWLEDGE (decide carefully):
+- QUERY = a question about THIS company's OWN records: its estimates, clients, projects, or its own price book ("what did I quote Maria?", "what's my price for window cleaning?").
+- KNOWLEDGE = generic trade know-how / process that any contractor in this trade would ask, independent of this company's data.
+- Ambiguous "how should I price X?": prefer QUERY if it references THIS company's price book / past jobs; prefer KNOWLEDGE if it's a generic best-practice question.
+
+Use the recent conversation history for context. Reply with ONLY one of: CONFIRM_OR_CANCEL, EDIT, CREATE, QUERY, KNOWLEDGE.`
 
   const model = new ChatOpenAI({
     apiKey: (await getIntegrationKey('openai')) ?? undefined,
