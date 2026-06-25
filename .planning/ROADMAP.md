@@ -1616,11 +1616,13 @@ Plans:
 **Depends on**: v4.5 GUARD-03 server-side math block (`lib/services/generate-estimate.ts` ~L255-373), v4.5 `estimateOutputSchema` (`lib/ai/schema.ts`), the existing `estimate_items`/`estimates`/`companies` schema
 **Requirements**: TAX-01, ENG-01, ENG-02
 **Success Criteria** (what must be TRUE):
-  1. An idempotent, authored-only migration adds `estimate_items.taxable` (boolean, default true), `tax_category` ('labor'|'materials'|'other', nullable), `discount`, `cost`, `markup_pct`; `estimates.discount`, `deposit_type` ('none'|'percent'|'amount', default 'none'), `deposit_value`; and `companies.tax_config` — re-running the migration is a no-op and existing rows take retrocompat defaults
+  1. An idempotent, authored-only migration adds `estimate_items.taxable` (boolean, default true), `tax_category` ('labor'|'materials'|'other', nullable), `discount`, `cost`, `markup_pct`; `estimates.deposit_type` ('none'|'percent'|'amount', default 'none'), `deposit_value`; and `companies.tax_config` — re-running the migration is a no-op and existing rows take retrocompat defaults; the GLOBAL discount REUSES the existing `estimates.discount_type`/`discount_value`/`discount_amount` columns (no new `estimates.discount` column)
   2. The GUARD-03 math block is EXTENDED in place (not duplicated) so that an estimate with no new fields set (taxable=true, discount=0, deposit=none, no tax_config) produces a subtotal/tax/total BYTE-IDENTICAL to the pre-milestone flat-rate engine
   3. A static test asserts the AI is given NO calculator tool and computes none of tax/discount/deposit/markup — the AI surface only gains input fields, never arithmetic (ENG-01)
   4. A regression test locks the byte-identical happy path on already-generated estimates (no number drift); it is structured to remain the standing retrocompat guard for phases 130-134 (ENG-02)
-**Plans**: TBD
+**Plans**: 2 plans
+- [ ] 129-01-PLAN.md — Idempotent authored-only advanced-pricing migration (all dormant columns, reusing estimates.discount_*) + ENG-01 no-AI-calculator static test (TAX-01, ENG-01)
+- [ ] 129-02-PLAN.md — Extract the GUARD-03 default-path math into a pure helper + default-coalescing scaffold + ENG-02 byte-identical golden regression (the standing retrocompat guard) (ENG-02)
 
 ### Phase 130: Per-Item Taxability
 **Goal**: Tax is computed correctly per item (labor vs materials) by the server engine instead of a single flat rate on the whole subtotal, so the estimate is fiscally correct — while the AI only classifies each line and the happy path stays byte-identical whenever a company has no `tax_config`.
