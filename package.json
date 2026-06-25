@@ -18,6 +18,7 @@
     "db:seed:demo:reset": "node --env-file=.env.local scripts/seed-demo-workspace.mjs --reset"
   },
   "dependencies": {
+    "@ai-sdk/react": "3.0.211",
     "@anthropic-ai/sdk": "^0.39.0",
     "@aws-sdk/client-s3": "^3.1048.0",
     "@aws-sdk/s3-request-presigner": "^3.1048.0",
