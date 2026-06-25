@@ -16,19 +16,17 @@
  * a conversation via createChatConversation(), router.replace's to /chat/<id>, and
  * sends with that id — so the first turn never splits into a duplicate thread.
  *
- * The inline text composer below the CHAT_COMPOSER_SEAM is a minimal text-only
- * placeholder; Plan 02 swaps in the multimodal ChatComposer at that seam.
+ * The multimodal ChatComposer (text + audio + photo via normalizeChatInput) is
+ * mounted at the CHAT_COMPOSER_SEAM (Plan 02 / CHATUI-03).
  */
 import { useChat } from '@ai-sdk/react'
 import { DefaultChatTransport, type UIMessage } from 'ai'
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Loader2, Send } from 'lucide-react'
 import { useTranslation } from '@/lib/i18n/use-translation'
-import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
 import { createChatConversation } from '@/lib/actions/chat'
 import { ChatMessage } from '@/components/chat/chat-message'
+import { ChatComposer } from '@/components/chat/chat-composer'
 
 export function ChatThread({
   conversationId,
@@ -40,7 +38,6 @@ export function ChatThread({
   const router = useRouter()
   const { t } = useTranslation()
   const [activeId, setActiveId] = useState<string | null>(conversationId)
-  const [text, setText] = useState('')
 
   const { messages, sendMessage, status } = useChat({
     id: activeId ?? undefined,
@@ -58,8 +55,8 @@ export function ChatThread({
 
   const busy = status !== 'ready'
 
-  async function submit() {
-    const value = text.trim()
+  async function submit(raw: string) {
+    const value = raw.trim()
     if (!value || busy) return
 
     // Pre-create the conversation on the first turn of a new chat so the id rides
@@ -72,7 +69,6 @@ export function ChatThread({
       }
     }
 
-    setText('')
     // Full-array default send — do NOT override the request to send only the last.
     sendMessage({ text: value })
   }
@@ -91,33 +87,8 @@ export function ChatThread({
         <div ref={endRef} />
       </div>
 
-      {/* CHAT_COMPOSER_SEAM — Plan 02 swaps the multimodal ChatComposer here. */}
-      <div className="border-t border-border p-3">
-        <div className="flex items-end gap-2">
-          <Textarea
-            rows={1}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault()
-                void submit()
-              }
-            }}
-            placeholder={t('Type a message…')}
-            disabled={busy}
-            className="max-h-32 min-h-[40px] flex-1 resize-none"
-          />
-          <Button
-            onClick={() => void submit()}
-            disabled={busy || text.trim().length === 0}
-            size="icon"
-            aria-label={t('Send')}
-          >
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-          </Button>
-        </div>
-      </div>
+      {/* CHAT_COMPOSER_SEAM — the multimodal composer (text + audio + photo). */}
+      <ChatComposer onSend={(value) => void submit(value)} busy={busy} />
     </div>
   )
 }

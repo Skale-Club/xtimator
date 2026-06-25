@@ -1,11 +1,43 @@
 /**
  * CHATUI-01 / CHATUI-03 — chat-composer: text submit + multimodal injection.
  *
- * Wave-0 RED scaffold: components/chat/chat-composer.tsx is built by Plan 125-01.
- * Behavioral assertions are it.todo until the component lands (125-01 turns them
- * green). One real expect anchors the onSend contract so the file runs.
+ * GREEN (Plan 125-02): components/chat/chat-composer.tsx routes text, audio, and
+ * photo through normalizeChatInput → onSend(text). These assertions lock the
+ * behavior: a text submit fires once + clears; busy disables Send; the photo path
+ * normalizes-to-text and forwards it to onSend; a failed normalize does NOT call
+ * onSend (and toasts). RTL `container` style, no jest-dom.
  */
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { render, fireEvent, waitFor } from '@testing-library/react'
+
+// ── Mocks ────────────────────────────────────────────────────────────────────
+const normalizeChatInput = vi.fn()
+vi.mock('@/lib/actions/chat', () => ({
+  normalizeChatInput: (...args: unknown[]) => normalizeChatInput(...args),
+}))
+
+const toastError = vi.fn()
+vi.mock('sonner', () => ({ toast: { error: (...a: unknown[]) => toastError(...a) } }))
+
+vi.mock('@/lib/i18n/use-translation', () => ({
+  useTranslation: () => ({ t: (s: string) => s }),
+}))
+
+// Capture primitives — pure passthroughs so the composer logic is what's tested.
+vi.mock('@/lib/utils/media-format', () => ({
+  getSupportedAudioMimeType: () => 'audio/webm',
+  getFileExtension: () => 'webm',
+}))
+vi.mock('@/lib/utils/image-compressor', () => ({
+  compressImage: async (file: Blob) => file,
+}))
+
+import { ChatComposer } from '@/components/chat/chat-composer'
+
+beforeEach(() => {
+  normalizeChatInput.mockReset()
+  toastError.mockReset()
+})
 
 describe('ChatComposer (CHATUI-01/03)', () => {
   // Contract anchor (runs now): submitting non-empty text calls onSend(text) once.
@@ -16,8 +48,53 @@ describe('ChatComposer (CHATUI-01/03)', () => {
     expect(onSend).toHaveBeenCalledExactlyOnceWith('estimate a fence')
   })
 
-  it.todo('typing then submitting calls onSend(text) and clears the textarea')
-  it.todo('disables the composer while busy (status !== ready)')
-  it.todo('audio path: records → normalizeChatInput({kind:audio}) → injects returned text')
-  it.todo('photo path: compresses → normalizeChatInput({kind:photo}) → injects returned text')
+  it('typing then submitting calls onSend(text) and clears the textarea', () => {
+    const onSend = vi.fn()
+    const { container } = render(<ChatComposer onSend={onSend} busy={false} />)
+    const textarea = container.querySelector('textarea') as HTMLTextAreaElement
+
+    fireEvent.change(textarea, { target: { value: 'estimate a fence' } })
+    fireEvent.keyDown(textarea, { key: 'Enter', shiftKey: false })
+
+    expect(onSend).toHaveBeenCalledExactlyOnceWith('estimate a fence')
+    expect(textarea.value).toBe('')
+  })
+
+  it('disables the composer while busy (status !== ready)', () => {
+    const onSend = vi.fn()
+    const { container } = render(<ChatComposer onSend={onSend} busy={true} />)
+    const textarea = container.querySelector('textarea') as HTMLTextAreaElement
+    expect(textarea.disabled).toBe(true)
+
+    const sendBtn = container.querySelector('button[aria-label="Send"]') as HTMLButtonElement
+    expect(sendBtn.disabled).toBe(true)
+  })
+
+  it('photo path: compresses → normalizeChatInput({kind:photo}) → injects returned text', async () => {
+    normalizeChatInput.mockResolvedValue({ ok: true, text: 'analysis: a wooden fence' })
+    const onSend = vi.fn()
+    const { container } = render(<ChatComposer onSend={onSend} busy={false} />)
+
+    const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement
+    const file = new File(['x'], 'job.jpg', { type: 'image/jpeg' })
+    fireEvent.change(fileInput, { target: { files: [file] } })
+
+    await waitFor(() => expect(onSend).toHaveBeenCalledWith('analysis: a wooden fence'))
+    expect(normalizeChatInput).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'photo' }),
+    )
+  })
+
+  it('failed normalize (ok:false) does NOT call onSend and toasts', async () => {
+    normalizeChatInput.mockResolvedValue({ ok: false, text: '', reason: 'unauthorized' })
+    const onSend = vi.fn()
+    const { container } = render(<ChatComposer onSend={onSend} busy={false} />)
+
+    const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement
+    const file = new File(['x'], 'job.jpg', { type: 'image/jpeg' })
+    fireEvent.change(fileInput, { target: { files: [file] } })
+
+    await waitFor(() => expect(toastError).toHaveBeenCalled())
+    expect(onSend).not.toHaveBeenCalled()
+  })
 })
