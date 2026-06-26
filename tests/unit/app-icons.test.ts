@@ -58,6 +58,8 @@ describe('App Router icon contract (Phase 13)', () => {
     // theme_color now comes from SYSTEM_COLORS.primary (avoids duplication of the hex literal)
     expect(manifestSource).toMatch(/theme_color:\s*SYSTEM_COLORS\.primary/)
     // Phase 15-03: manifest icons are DB-backed branding URLs with static /icons/* fallbacks.
+    // Manifest generation must never 502 just because platform branding lookup fails.
+    expect(manifestSource).toMatch(/branding lookup failed; using static manifest fallback/)
     expect(manifestSource).toMatch(/src:\s*['"]\/icons\/icon-192\.png['"]/)
     expect(manifestSource).toMatch(/src:\s*['"]\/icons\/icon-512\.png['"]/)
     expect(manifestSource).toMatch(/purpose:\s*['"]maskable['"]/)

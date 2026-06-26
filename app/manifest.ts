@@ -3,7 +3,31 @@ import { SYSTEM_COLORS } from '@/lib/system-colors'
 import { getBranding } from '@/lib/platform-config'
 
 export default async function manifest(): Promise<MetadataRoute.Manifest> {
-  const b = await getBranding()
+  let b: Awaited<ReturnType<typeof getBranding>>
+  try {
+    b = await getBranding()
+  } catch (err) {
+    console.warn('[manifest] branding lookup failed; using static manifest fallback:', err)
+    b = {
+      appName: 'Xtimator',
+      logoUrl: null,
+      primaryColor: null,
+      emailFromName: null,
+      siteTitle: null,
+      metaDescription: null,
+      ogImageUrl: null,
+      canonicalBaseUrl: null,
+      faviconUrl: null,
+      landingContent: {
+        heroHeadline: '',
+        heroSubheadline: '',
+        ctaLabel: '',
+        heroImageUrl: null,
+        howItWorksSteps: [],
+        features: [],
+      },
+    }
+  }
 
   // Favicon is the preferred browser-tab icon.
   // Logo is the fallback when no dedicated favicon is set.

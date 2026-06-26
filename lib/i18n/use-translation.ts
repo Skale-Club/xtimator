@@ -1,7 +1,7 @@
 'use client'
 
 import type { Dispatch, SetStateAction } from 'react'
-import { useLanguage, type Language } from './language-context'
+import { useLanguage } from './language-context'
 import { staticDict } from './translations'
 
 // Module-level in-memory cache — persists for browser session
@@ -12,6 +12,7 @@ const memCache = new Map<string, string>()
 // Map<lang, Map<source, Array<resolver>>>
 const pendingBatch = new Map<string, Map<string, Array<(s: string) => void>>>()
 const batchTimers = new Map<string, ReturnType<typeof setTimeout>>()
+const pendingKeys = new Set<string>()
 
 async function flushBatch(lang: 'pt' | 'es', setPendingCount: Dispatch<SetStateAction<number>>) {
   const langBatch = pendingBatch.get(lang)
@@ -39,7 +40,9 @@ async function flushBatch(lang: 'pt' | 'es', setPendingCount: Dispatch<SetStateA
       // string on every render, and the setPendingCount churn becomes an infinite
       // render loop ("Maximum update depth exceeded").
       resolvers.forEach((cbs, src) => {
-        memCache.set(`${lang}:${src}`, src)
+        const cacheKey = `${lang}:${src}`
+        memCache.set(cacheKey, src)
+        pendingKeys.delete(cacheKey)
         cbs.forEach(cb => cb(src))
       })
       return
@@ -56,17 +59,21 @@ async function flushBatch(lang: 'pt' | 'es', setPendingCount: Dispatch<SetStateA
       const translated = translations[src] ?? src
       const cacheKey = `${lang}:${src}`
       memCache.set(cacheKey, translated)
+      pendingKeys.delete(cacheKey)
       cbs.forEach(cb => cb(translated))
     })
   } catch {
     // Silent fallback on parse or network error — cache the source text so the
     // string isn't re-queued every render (avoids the infinite render loop).
     resolvers.forEach((cbs, src) => {
-      memCache.set(`${lang}:${src}`, src)
+      const cacheKey = `${lang}:${src}`
+      memCache.set(cacheKey, src)
+      pendingKeys.delete(cacheKey)
       cbs.forEach(cb => cb(src))
     })
   } finally {
     // Decrement pendingCount in finally — always fires even on error
+    sources.forEach((src) => pendingKeys.delete(`${lang}:${src}`))
     setPendingCount(c => c - 1)
   }
 }
@@ -76,6 +83,8 @@ function resolveAsync(
   lang: 'pt' | 'es',
   setPendingCount: Dispatch<SetStateAction<number>>,
 ): Promise<string> {
+  pendingKeys.add(`${lang}:${text}`)
+
   return new Promise((resolve) => {
     // Get or create per-language batch map
     if (!pendingBatch.has(lang)) {
@@ -121,6 +130,8 @@ export function useTranslation() {
 
     // 3. Async API fallback: queue string, return source text now
     // The component will re-render when the cached value is available via context state update
+    if (pendingKeys.has(cacheKey)) return text
+
     resolveAsync(text, language as 'pt' | 'es', setPendingCount).then(() => {
       // memCache is set inside flushBatch — no action needed here
     })

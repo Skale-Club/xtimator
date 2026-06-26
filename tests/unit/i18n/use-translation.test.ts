@@ -168,6 +168,33 @@ describe('useTranslation — async fallback for unknown strings', () => {
     expect(typeof lastCall).toBe('function')
     expect(lastCall(1)).toBe(0) // c => c - 1
   })
+
+  it('does not requeue the same unknown string while its translation request is already in flight', async () => {
+    currentLanguage = 'pt'
+
+    let resolveResponse!: (value: unknown) => void
+    const responsePromise = new Promise(resolve => { resolveResponse = resolve })
+    fetchMock.mockReturnValue(responsePromise)
+
+    const { t } = useTranslation()
+    const source = 'UnknownString__in_flight_no_requeue'
+
+    expect(t(source)).toBe(source)
+    await new Promise(r => setTimeout(r, 80))
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+
+    // Simulate the pendingCount-triggered re-render while the first request is
+    // still unresolved. This must not schedule a second identical batch.
+    expect(t(source)).toBe(source)
+    await new Promise(r => setTimeout(r, 80))
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+
+    resolveResponse({
+      ok: true,
+      text: async () => JSON.stringify({ translations: { [source]: 'Desconhecido' } }),
+    })
+    await new Promise(r => setTimeout(r, 20))
+  })
 })
 
 describe('useTranslation — language property', () => {
