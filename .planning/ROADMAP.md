@@ -932,7 +932,7 @@ Plans:
 | 120. Company KB Overlay (tenant settings) | v4.8 | 2/2 | Complete    | 2026-06-25 |
 | 121. WhatsApp KNOWLEDGE Intent | v4.8 | 1/1 | Complete    | 2026-06-25 |
 | 141. Configurable Annual Pricing | v4.13 | 1/1 | Complete   | 2026-06-25 |
-| 142. Monthly Credit Grant Decouple | v4.13 | 1/1 | Complete    | 2026-06-25 |
+| 142. Monthly Credit Grant Decouple | v4.13 | 1/1 | Complete   | 2026-06-27 |
 | 143. Annual Checkout | v4.13 | 0/TBD | Not started | - |
 | 144. Interval-Aware Seat Billing | v4.13 | 0/TBD | Not started | - |
 | 145. Pricing UI Toggle | v4.13 | 0/TBD | Not started | - |
@@ -2251,7 +2251,7 @@ Plans:
   4. An authored, backward-compatible expand–migrate–contract migration preserves valid current routing data, flags ambiguous multi-number companies for admin review, and makes active admin-provisioned senders the sole owner-routing authority; onboarding/profile/company phone changes no longer alter WhatsApp routing.
   5. Provisioned tenants can still send estimates through an opaque WhatsApp action without seeing configuration/history; proactive WhatsApp notifications are disabled while historical consent data is preserved; account, admin, migration, routing, and cross-tenant isolation tests pass.
 
-**Plans:** 1/6 plans executed
+**Plans:** 1/1 plans complete
 Plans:
 **Wave 1**
 
