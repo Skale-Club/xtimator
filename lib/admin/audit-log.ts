@@ -25,6 +25,10 @@ export type AuditAction =
   | 'admin.remove'
   | 'price_research.set'
   | 'billing_config.save'
+  | 'whatsapp.account.save'
+  | 'whatsapp.sender.save'
+  | 'whatsapp.sender.status'
+  | 'whatsapp.sender.remove'
 
 interface LogParams {
   actorId: string
