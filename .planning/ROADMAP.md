@@ -2251,7 +2251,7 @@ Plans:
   4. An authored, backward-compatible expand–migrate–contract migration preserves valid current routing data, flags ambiguous multi-number companies for admin review, and makes active admin-provisioned senders the sole owner-routing authority; onboarding/profile/company phone changes no longer alter WhatsApp routing.
   5. Provisioned tenants can still send estimates through an opaque WhatsApp action without seeing configuration/history; proactive WhatsApp notifications are disabled while historical consent data is preserved; account, admin, migration, routing, and cross-tenant isolation tests pass.
 
-**Plans:** 1/1 plans complete
+**Plans:** 4/6 plans executed
 Plans:
 **Wave 1**
 
@@ -2260,8 +2260,8 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 142.1-03-PLAN.md — Wave 2: remove tenant inbox/history/previews/integration controls and disable proactive WhatsApp notification configuration while preserving outbound estimate sending (WAADM-01, WAADM-05)
-- [ ] 142.1-04-PLAN.md — Wave 2: server-side admin account/sender/status/unread/date/search filters, pagination, and scoped read-only thread inspection (WAADM-02)
+- [x] 142.1-03-PLAN.md — Wave 2: remove tenant inbox/history/previews/integration controls and disable proactive WhatsApp notification configuration while preserving outbound estimate sending (WAADM-01, WAADM-05)
+- [x] 142.1-04-PLAN.md — Wave 2: server-side admin account/sender/status/unread/date/search filters, pagination, and scoped read-only thread inspection (WAADM-02)
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
