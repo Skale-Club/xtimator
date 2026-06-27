@@ -59,25 +59,39 @@ describe('resolveBaseUrl — sanitization + 4-tier fallback precedence', () => {
     expect(resolveBaseUrl(req)).toBe('https://xtimator.com')
   })
 
-  it('7. last resort: env unset, no X-Forwarded-* headers → request origin', () => {
+  it('7. last resort: env unset, no X-Forwarded-* headers → canonical production domain (never internal bind)', () => {
     const req = new Request('https://0.0.0.0:3000/callback')
-    expect(resolveBaseUrl(req)).toBe('https://0.0.0.0:3000')
+    expect(resolveBaseUrl(req)).toBe('https://xtimator.com')
   })
 
-  it('8. APP_ORIGIN (runtime, non-inlined) wins over NEXT_PUBLIC_SITE_URL', () => {
+  it('8. internal host via Host header is rejected, falls back to canonical domain', () => {
+    const req = new Request('https://0.0.0.0:3000/callback', {
+      headers: { host: '0.0.0.0:3000' },
+    })
+    expect(resolveBaseUrl(req)).toBe('https://xtimator.com')
+  })
+
+  it('9. internal host via X-Forwarded-Host is rejected, falls back to canonical domain', () => {
+    const req = new Request('https://0.0.0.0:3000/callback', {
+      headers: { 'x-forwarded-proto': 'https', 'x-forwarded-host': '0.0.0.0:3000' },
+    })
+    expect(resolveBaseUrl(req)).toBe('https://xtimator.com')
+  })
+
+  it('10. APP_ORIGIN (runtime, non-inlined) wins over NEXT_PUBLIC_SITE_URL', () => {
     process.env.APP_ORIGIN = 'https://xtimator.com'
     process.env.NEXT_PUBLIC_SITE_URL = 'https://stale-build-inlined.example.com'
     const req = new Request('https://0.0.0.0:3000/callback')
     expect(resolveBaseUrl(req)).toBe('https://xtimator.com')
   })
 
-  it('9. APP_ORIGIN with trailing newline (Coolify env) is normalized', () => {
+  it('11. APP_ORIGIN with trailing newline (Coolify env) is normalized', () => {
     process.env.APP_ORIGIN = 'https://xtimator.com\n'
     const req = new Request('https://0.0.0.0:3000/callback')
     expect(resolveBaseUrl(req)).toBe('https://xtimator.com')
   })
 
-  it('10. APP_ORIGIN unset, NEXT_PUBLIC_SITE_URL set → tier-2 fallback still works', () => {
+  it('12. APP_ORIGIN unset, NEXT_PUBLIC_SITE_URL set → tier-2 fallback still works', () => {
     process.env.NEXT_PUBLIC_SITE_URL = 'https://xtimator.com'
     const req = new Request('https://0.0.0.0:3000/callback')
     expect(resolveBaseUrl(req)).toBe('https://xtimator.com')

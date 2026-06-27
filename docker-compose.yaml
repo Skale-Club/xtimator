@@ -24,6 +24,7 @@ services:
       - NODE_ENV=production
       - PORT=3000
       - HOSTNAME=0.0.0.0
+      - APP_ORIGIN=https://xtimator.com
     ports:
       - "3000"
     healthcheck:

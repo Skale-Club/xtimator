@@ -33,7 +33,7 @@ vi.mock('@/lib/utils/site-url', () => ({ getCanonicalBaseUrl: () => 'https://app
 
 // ─── supabase server client ──────────────────────────────────────────────────
 const signUpResult = { error: null as { message: string } | null }
-const signInResult = { error: null as { message: string } | null }
+const signInResult = { error: null as { message: string } | null, data: { user: { id: 'u1' } } as { user: { id: string } } | null }
 const claimsResult = { data: { claims: { sub: 'u1' } } as { claims: Record<string, unknown> | null } }
 const companyResult = { data: null as { id: string } | null }
 
@@ -69,6 +69,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   signUpResult.error = null
   signInResult.error = null
+  signInResult.data = { user: { id: 'u1' } }
   claimsResult.data = { claims: { sub: 'u1' } }
   companyResult.data = null
   authSignUp.mockImplementation(async () => signUpResult)

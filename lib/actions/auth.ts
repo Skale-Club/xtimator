@@ -71,7 +71,7 @@ export async function signIn(formData: FormData) {
   const captchaToken = formData.get('captchaToken') as string | null
   const next = formData.get('next') as string | null
 
-  const { error } = await supabase.auth.signInWithPassword({
+  const { data, error } = await supabase.auth.signInWithPassword({
     email,
     password,
     options: captchaToken ? { captchaToken } : undefined,
@@ -97,20 +97,21 @@ export async function signIn(formData: FormData) {
     redirect(inviteNext)
   }
 
-  // Check if company exists → redirect accordingly (AUTH-06)
-  const { data } = await supabase.auth.getClaims()
-  const claims = data?.claims ?? null
-  if (claims) {
+  // Use the user returned directly from signInWithPassword() — it has the claims
+  // we need (sub, email, etc.) without a race condition against getClaims().
+  // getClaims() may not see the freshly-written session cookie on the first request.
+  const user = data?.user ?? null
+  if (user) {
     const { data: company } = await supabase
       .from('companies')
       .select('id')
-      .eq('user_id', claims.sub)
+      .eq('user_id', user.id)
       .single()
-    logAuthEvent({ event: 'sign_in_attempt', success: true, email, userId: claims.sub })
+    logAuthEvent({ event: 'sign_in_attempt', success: true, email, userId: user.id })
     redirect(company ? '/dashboard' : '/onboarding')
   }
 
-  logAuthEvent({ event: 'sign_in_attempt', success: false, email, error: 'claims_unavailable_after_sign_in' })
+  logAuthEvent({ event: 'sign_in_attempt', success: false, email, error: 'user_unavailable_after_sign_in' })
   redirect('/?auth=login')
 }
 

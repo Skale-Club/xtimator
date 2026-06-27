@@ -144,7 +144,7 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
               <img
                 src={content.heroImageUrl!}
                 alt=""
-                className="absolute inset-0 h-full w-full object-contain object-bottom"
+                className="absolute inset-0 h-full w-full origin-bottom object-contain object-bottom min-[1280px]:scale-110"
                 loading="eager"
               />
             </motion.div>

@@ -14,7 +14,12 @@ export async function GET(request: NextRequest) {
 
   if (code) {
     const supabase = await createClient()
-    await supabase.auth.exchangeCodeForSession(code)
+    const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
+
+    if (exchangeError) {
+      logAuthEvent({ event: 'oauth_callback', success: false, provider: 'google', error: `exchange_error: ${exchangeError.message}` })
+      return NextResponse.redirect(new URL('/?auth=login', baseUrl))
+    }
 
     // For password recovery, redirect to authenticated update-password page
     if (type === 'recovery') {
@@ -22,17 +27,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(new URL('/update-password', baseUrl))
     }
 
-    // Check company record to determine redirect destination (AUTH-06)
-    const { data, error: claimsError } = await supabase.auth.getClaims()
-    if (claimsError) {
-      logAuthEvent({ event: 'oauth_callback', success: false, provider: 'google', error: `claims_error: ${claimsError.message}` })
-    }
-    const claims = data?.claims ?? null
-    if (claims) {
-      const { data: company } = await supabase
+    // Use the user from exchangeCodeForSession() — it has the claims we need
+    // (sub, email, etc.) without a race condition against getClaims().
+    // getClaims() may not see the freshly-written session cookie on the first request.
+    const user = data?.user ?? null
+    if (user) {
+      const { data: company, error: companyError } = await supabase
         .from('companies')
         .select('id, theme_preference')
-        .eq('user_id', claims.sub)
+        .eq('user_id', user.id)
         .single()
 
       // Sync theme cookie from DB so SSR serves correct theme on first load.
@@ -42,12 +45,16 @@ export async function GET(request: NextRequest) {
       }
 
       const redirectTo = company ? '/dashboard' : '/onboarding'
-      logAuthEvent({ event: 'oauth_callback', success: true, provider: 'google', userId: claims.sub, redirectTo })
+      logAuthEvent({ event: 'oauth_callback', success: true, provider: 'google', userId: user.id, redirectTo })
       return NextResponse.redirect(new URL(redirectTo, baseUrl))
+    }
+
+    if (companyError) {
+      logAuthEvent({ event: 'oauth_callback', success: false, provider: 'google', error: `company_error: ${companyError.message}` })
     }
   }
 
-  // Fallback: redirect to landing with modal auto-open if no code or claims
-  logAuthEvent({ event: 'oauth_callback', success: false, provider: 'google', error: 'no_code_or_claims' })
+  // Fallback: redirect to landing with modal auto-open if no code or user
+  logAuthEvent({ event: 'oauth_callback', success: false, provider: 'google', error: 'no_code_or_user' })
   return NextResponse.redirect(new URL('/?auth=login', baseUrl))
 }
