@@ -180,4 +180,158 @@ test.describe('Admin WhatsApp: static contract (source-level)', () => {
     // Must call loadAdminConversationThread with both id and company_id
     expect(src).toContain('loadAdminConversationThread(row.id, row.company_id)')
   })
+
+  // ── Plan 05 Task 2: Account provisioning contracts ──
+
+  test('page.tsx has Conversations and Accounts tabs', async () => {
+    const { readFileSync } = await import('node:fs')
+    const { resolve } = await import('node:path')
+    const src = readFileSync(
+      resolve(process.cwd(), 'app/admin/whatsapp/page.tsx'),
+      'utf8'
+    )
+    expect(src).toContain("tab === 'accounts'")
+    expect(src).toContain("tab === 'conversations'")
+    expect(src).toContain("tabUrl('accounts')")
+    expect(src).toContain("tabUrl('conversations')")
+  })
+
+  test('page.tsx imports and renders AdminWhatsAppAccounts', async () => {
+    const { readFileSync } = await import('node:fs')
+    const { resolve } = await import('node:path')
+    const src = readFileSync(
+      resolve(process.cwd(), 'app/admin/whatsapp/page.tsx'),
+      'utf8'
+    )
+    expect(src).toContain('AdminWhatsAppAccounts')
+    expect(src).toContain("from './admin-whatsapp-accounts'")
+  })
+
+  test('page.tsx reads whatsapp_company_configs and whatsapp_authorized_senders', async () => {
+    const { readFileSync } = await import('node:fs')
+    const { resolve } = await import('node:path')
+    const src = readFileSync(
+      resolve(process.cwd(), 'app/admin/whatsapp/page.tsx'),
+      'utf8'
+    )
+    expect(src).toContain('whatsapp_company_configs')
+    expect(src).toContain('whatsapp_authorized_senders')
+  })
+
+  test('admin-whatsapp-accounts.tsx imports admin provisioning actions', async () => {
+    const { readFileSync } = await import('node:fs')
+    const { resolve } = await import('node:path')
+    const src = readFileSync(
+      resolve(process.cwd(), 'app/admin/whatsapp/admin-whatsapp-accounts.tsx'),
+      'utf8'
+    )
+    expect(src).toContain('saveWhatsAppSender')
+    expect(src).toContain('setWhatsAppSenderStatus')
+    expect(src).toContain('removeWhatsAppSender')
+    expect(src).toContain("from '@/lib/actions/admin-whatsapp-accounts'")
+  })
+
+  test('admin-whatsapp-accounts.tsx masks phone numbers in list', async () => {
+    const { readFileSync } = await import('node:fs')
+    const { resolve } = await import('node:path')
+    const src = readFileSync(
+      resolve(process.cwd(), 'app/admin/whatsapp/admin-whatsapp-accounts.tsx'),
+      'utf8'
+    )
+    expect(src).toContain('maskPhone')
+    // Must not render raw e164 in table cells
+    expect(src).not.toMatch(/<td[^>]*>.*phone_e164/)
+  })
+
+  test('admin-whatsapp-accounts.tsx has no reply/message-send controls', async () => {
+    const { readFileSync } = await import('node:fs')
+    const { resolve } = await import('node:path')
+    const src = readFileSync(
+      resolve(process.cwd(), 'app/admin/whatsapp/admin-whatsapp-accounts.tsx'),
+      'utf8'
+    )
+    expect(src).not.toMatch(/sendMessage|reply|send_message|handleSend/i)
+  })
+
+  test('admin-whatsapp-accounts.tsx does not render Meta tokens or WABA secrets', async () => {
+    const { readFileSync } = await import('node:fs')
+    const { resolve } = await import('node:path')
+    const src = readFileSync(
+      resolve(process.cwd(), 'app/admin/whatsapp/admin-whatsapp-accounts.tsx'),
+      'utf8'
+    )
+    expect(src).not.toMatch(/access_token|waba_id|meta_token|bearer/i)
+  })
+
+  test('admin actions file exports all required mutations', async () => {
+    const { readFileSync } = await import('node:fs')
+    const { resolve } = await import('node:path')
+    const src = readFileSync(
+      resolve(process.cwd(), 'lib/actions/admin-whatsapp-accounts.ts'),
+      'utf8'
+    )
+    expect(src).toContain('saveWhatsAppAccount')
+    expect(src).toContain('saveWhatsAppSender')
+    expect(src).toContain('setWhatsAppSenderStatus')
+    expect(src).toContain('removeWhatsAppSender')
+  })
+
+  test('admin actions file calls requireAdmin on every export', async () => {
+    const { readFileSync } = await import('node:fs')
+    const { resolve } = await import('node:path')
+    const src = readFileSync(
+      resolve(process.cwd(), 'lib/actions/admin-whatsapp-accounts.ts'),
+      'utf8'
+    )
+    // Count requireAdmin calls — should be at least 4 (one per export)
+    const matches = src.match(/requireAdmin\(\)/g)
+    expect(matches).not.toBeNull()
+    expect(matches!.length).toBeGreaterThanOrEqual(4)
+  })
+
+  test('admin actions file calls logAdminAction on every mutation', async () => {
+    const { readFileSync } = await import('node:fs')
+    const { resolve } = await import('node:path')
+    const src = readFileSync(
+      resolve(process.cwd(), 'lib/actions/admin-whatsapp-accounts.ts'),
+      'utf8'
+    )
+    const matches = src.match(/logAdminAction\(/g)
+    expect(matches).not.toBeNull()
+    expect(matches!.length).toBeGreaterThanOrEqual(4)
+  })
+
+  test('admin actions file normalizes phone to E.164', async () => {
+    const { readFileSync } = await import('node:fs')
+    const { resolve } = await import('node:path')
+    const src = readFileSync(
+      resolve(process.cwd(), 'lib/actions/admin-whatsapp-accounts.ts'),
+      'utf8'
+    )
+    expect(src).toContain('normalizeWhatsAppPhone')
+  })
+
+  test('admin actions file validates delivery format with Zod', async () => {
+    const { readFileSync } = await import('node:fs')
+    const { resolve } = await import('node:path')
+    const src = readFileSync(
+      resolve(process.cwd(), 'lib/actions/admin-whatsapp-accounts.ts'),
+      'utf8'
+    )
+    expect(src).toContain('DeliveryFormatEnum')
+    expect(src).toContain("z.enum(['text', 'interactive', 'template'])")
+  })
+
+  test('audit log has WhatsApp action types', async () => {
+    const { readFileSync } = await import('node:fs')
+    const { resolve } = await import('node:path')
+    const src = readFileSync(
+      resolve(process.cwd(), 'lib/admin/audit-log.ts'),
+      'utf8'
+    )
+    expect(src).toContain('whatsapp.account.save')
+    expect(src).toContain('whatsapp.sender.save')
+    expect(src).toContain('whatsapp.sender.status')
+    expect(src).toContain('whatsapp.sender.remove')
+  })
 })
