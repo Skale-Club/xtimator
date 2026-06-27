@@ -13,7 +13,6 @@ import {
   getActiveCompanyId,
 } from '@/lib/queries/active-company'
 import { sendWelcomeEmail } from '@/lib/email/account-emails'
-import { syncOwnerPhone } from '@/lib/whatsapp/sync-owner-phone'
 import { dispatchXphereSync } from '@/lib/integrations/xphere/dispatch'
 import { seedIndustryPriceBook } from '@/lib/price-book-seed'
 import { getDefaultTaxRate } from '@/lib/tax-rates'
@@ -183,16 +182,6 @@ export async function createOrUpdateCompany(
       }
     }
 
-    // Auto-fill the creating user's personal WhatsApp number from the company phone.
-    // At creation there is exactly one user (the owner) so the company phone becomes
-    // their default WhatsApp routing number. Tied to claims.sub so it surfaces in their
-    // Profile settings; additional users later get a blank field until they set their own.
-    // NOTE (Phase 98): the onboarding phone is the company's client-facing contact
-    // (companies.phone, shown on estimates). The owner's WhatsApp line is normally their
-    // PROFILE phone, synced to company_whatsapp.owner_phone in updateProfile; this is just
-    // a one-time creation-time seed and updateProfile overwrites it thereafter.
-    syncOwnerPhone(service, newCompanyId, data.phone, claims.sub as string).catch(() => undefined)
-
     // Seed industry-specific price book defaults — ONLY when the user opted in
     // (fire-and-forget). Unchecked → the price book starts empty.
     if (data.prefillPriceBook) {
@@ -248,11 +237,6 @@ export async function createOrUpdateCompany(
           'Could not save your company details. Please check your connection and try again.',
       }
     }
-    // Sync owner phone for existing company update (tie to the editing user's row).
-    // (Phase 98) Company phone is the client-facing estimate contact; the owner's
-    // WhatsApp line is primarily synced from their profile phone in updateProfile.
-    const svcUpdate = requireServiceClient()
-    syncOwnerPhone(svcUpdate, existing.id, data.phone, claims.sub as string).catch(() => undefined)
 
     // Mirror the company update into Xphere CRM (fire-and-forget).
     dispatchXphereSync(existing.id, 'company.updated')
@@ -284,12 +268,6 @@ export async function createOrUpdateCompany(
       company_id: newCompany.id,
       role: 'owner',
     })
-
-    // Auto-fill the creating user's personal WhatsApp number from the company phone
-    // (single user at creation → company phone becomes their default routing number).
-    // (Phase 98) This is only a creation-time seed; owner_phone is primarily synced
-    // from the owner's profile phone in updateProfile thereafter.
-    syncOwnerPhone(service, newCompany.id, data.phone, claims.sub as string).catch(() => undefined)
 
     // Seed industry-specific price book defaults — ONLY when the user opted in
     // (fire-and-forget). Unchecked → the price book starts empty.
