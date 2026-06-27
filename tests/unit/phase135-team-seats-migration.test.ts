@@ -28,6 +28,15 @@ describe('phase 135 — team seats schema migration shape', () => {
     )
   })
 
+  it('migrates legacy staff memberships before narrowing the role check', () => {
+    const migrateAt = SQL.indexOf(
+      "UPDATE public.company_members SET role = 'member' WHERE role = 'staff'",
+    )
+    const constraintAt = SQL.indexOf('ADD CONSTRAINT company_members_role_check')
+    expect(migrateAt).toBeGreaterThan(-1)
+    expect(migrateAt).toBeLessThan(constraintAt)
+  })
+
   it('idempotent: CREATE TABLE IF NOT EXISTS public.company_invites', () => {
     expect(SQL).toMatch(/CREATE TABLE IF NOT EXISTS public\.company_invites/i)
   })

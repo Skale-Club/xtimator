@@ -16,6 +16,12 @@
 -- the PK, and all existing rows are untouched.
 
 ALTER TABLE public.company_members DROP CONSTRAINT IF EXISTS company_members_role_check;
+
+-- The superseded Staff surface used role='staff'. Preserve those memberships
+-- by folding them into the modern least-privileged role before narrowing the
+-- CHECK constraint.
+UPDATE public.company_members SET role = 'member' WHERE role = 'staff';
+
 ALTER TABLE public.company_members
   ADD CONSTRAINT company_members_role_check
   CHECK (role IN ('owner', 'admin', 'member'));

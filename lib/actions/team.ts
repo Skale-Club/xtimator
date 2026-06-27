@@ -29,6 +29,7 @@ const INVITE_TTL_DAYS = 7
 // z.enum(['admin','member']) is what rejects role 'owner'; the company_invites
 // role CHECK is the DB-level backstop.
 const inviteSchema = z.object({
+  displayName: z.string().trim().min(1).max(120),
   email: z.string().email(),
   role: z.enum(['admin', 'member']),
 })
@@ -50,6 +51,7 @@ const roleSchema = z.enum(['admin', 'member'])
  */
 export async function inviteMember(
   companyId: string,
+  displayName: string,
   email: string,
   role: 'admin' | 'member'
 ): Promise<{ success: true } | { error: string }> {
@@ -61,9 +63,9 @@ export async function inviteMember(
     return { error: e instanceof XtimatorError ? e.userMessage : 'Not authorized' }
   }
 
-  // 2. Validate (rejects bad email AND role 'owner') before any DB write.
-  const parsed = inviteSchema.safeParse({ email, role })
-  if (!parsed.success) return { error: 'Invalid email or role' }
+  // 2. Validate name + email and reject role 'owner' before any DB write.
+  const parsed = inviteSchema.safeParse({ displayName, email, role })
+  if (!parsed.success) return { error: 'Name, email, or role is invalid' }
   const normEmail = parsed.data.email.trim().toLowerCase()
 
   const service = requireServiceClient()
@@ -102,6 +104,7 @@ export async function inviteMember(
   // 8. Insert the pending invite.
   const { error: insertError } = await service.from('company_invites').insert({
     company_id: companyId,
+    display_name: parsed.data.displayName,
     email: normEmail,
     role: parsed.data.role,
     token,

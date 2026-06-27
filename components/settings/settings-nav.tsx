@@ -20,7 +20,6 @@ const ITEMS: SubNavItem[] = [
   { value: 'knowledge',          label: 'Knowledge',     Icon: BookOpen,    href: '/settings/knowledge'          },
   { value: 'integrations',       label: 'Integrations',  Icon: Plug,        href: '/settings/integrations'       },
   { value: 'team',               label: 'Team',          Icon: Users,       href: '/settings/team'               },
-  { value: 'staff',              label: 'Staff',         Icon: Users,       href: '/settings/staff'              },
   { value: 'account',            label: 'Account',       Icon: ShieldCheck, href: '/settings/account'            },
 ]
 

@@ -54,6 +54,7 @@ export function TeamSection({ companyId, members: initialMembers, invites: initi
   const [invites, setInvites] = useState(initialInvites)
 
   const [inviteOpen, setInviteOpen] = useState(false)
+  const [inviteName, setInviteName] = useState('')
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteRole, setInviteRole] = useState<ManageableRole>('member')
   const [formError, setFormError] = useState('')
@@ -66,24 +67,31 @@ export function TeamSection({ companyId, members: initialMembers, invites: initi
   }
 
   function handleInvite() {
-    if (!inviteEmail.trim()) {
-      setFormError(t('Email is required.'))
+    if (!inviteName.trim() || !inviteEmail.trim()) {
+      setFormError(t('Name and email are required.'))
       return
     }
     setFormError('')
 
     startTransition(async () => {
+      const displayName = inviteName.trim()
       const email = inviteEmail.trim()
       const role = inviteRole
-      const result = await inviteMember(companyId, email, role)
+      const result = await inviteMember(companyId, displayName, email, role)
       if ('error' in result) {
         setFormError(result.error ?? t('An unexpected error occurred.'))
         return
       }
       setInvites((prev) => [
         ...prev,
-        { id: crypto.randomUUID(), email: email.toLowerCase(), role },
+        {
+          id: crypto.randomUUID(),
+          display_name: displayName,
+          email: email.toLowerCase(),
+          role,
+        },
       ])
+      setInviteName('')
       setInviteEmail('')
       setInviteRole('member')
       setInviteOpen(false)
@@ -125,7 +133,7 @@ export function TeamSection({ companyId, members: initialMembers, invites: initi
         <div>
           <h2 className="text-lg font-semibold">{t('Team')}</h2>
           <p className="text-sm text-muted-foreground mt-1">
-            {t('People in your company and their roles.')}
+            {t('People who can create clients and estimates. Their name appears as “Prepared by” on estimates they generate.')}
           </p>
         </div>
         {canManage && (
@@ -144,6 +152,17 @@ export function TeamSection({ companyId, members: initialMembers, invites: initi
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-2">
+                <div className="space-y-2">
+                  <Label htmlFor="invite-name">{t('Full Name')}</Label>
+                  <Input
+                    id="invite-name"
+                    autoComplete="name"
+                    placeholder="Jane Smith"
+                    value={inviteName}
+                    onChange={(e) => setInviteName(e.target.value)}
+                    className="min-h-[44px]"
+                  />
+                </div>
                 <div className="space-y-2">
                   <Label htmlFor="invite-email">{t('Email')}</Label>
                   <Input
@@ -320,7 +339,10 @@ export function TeamSection({ companyId, members: initialMembers, invites: initi
                 className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 py-3"
               >
                 <div className="min-w-0">
-                  <p className="text-sm font-medium truncate">{invite.email}</p>
+                  <p className="text-sm font-medium truncate">
+                    {invite.display_name ?? invite.email}
+                  </p>
+                  <p className="text-xs text-muted-foreground truncate">{invite.email}</p>
                   <p className="text-xs text-muted-foreground">
                     {roleLabel(invite.role)} · {t('Pending')}
                   </p>
