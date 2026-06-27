@@ -2244,16 +2244,32 @@ Plans:
 **Requirements**: ACCT-01, WAADM-01, WAADM-02, WAADM-03, WAADM-04, WAADM-05
 **Depends on:** Phase 79 (multi-company membership), Phase 93 (super-admin event log), Phase 104 (notification channels)
 **Success Criteria** (what must be TRUE):
+
   1. Settings has no separate General entry; `/settings/account` contains profile photo, account name, personal phone, email, and password controls, and `/settings/general` redirects without losing saved profile behavior.
   2. No tenant route or project surface exposes WhatsApp configuration, linked numbers, status, inboxes, conversation previews, or history; direct legacy URL access returns no protected content, and no tenant-callable action writes WhatsApp provisioning through the service role.
   3. `/admin/whatsapp` provides server-side, paginated filters by tenant company/account, sender/member, phone/contact search, status, unread state, and date range, with read-only thread inspection and admin-only provisioning actions recorded in `admin_audit_log`.
   4. An authored, backward-compatible expand–migrate–contract migration preserves valid current routing data, flags ambiguous multi-number companies for admin review, and makes active admin-provisioned senders the sole owner-routing authority; onboarding/profile/company phone changes no longer alter WhatsApp routing.
   5. Provisioned tenants can still send estimates through an opaque WhatsApp action without seeing configuration/history; proactive WhatsApp notifications are disabled while historical consent data is preserved; account, admin, migration, routing, and cross-tenant isolation tests pass.
-**Plans:** 0 plans
 
+**Plans:** 6 plans in `.planning/phases/142.1-settings-account-consolidation-and-admin-only-whatsapp-contr/`
 Plans:
+**Wave 1**
 
-- [ ] TBD (run /gsd-plan-phase 142.1 to break down)
+- [ ] 142.1-01-PLAN.md — Wave 1: normalized company config + authorized sender registry, non-destructive backfill, conflict classification, and server-only account registry (WAADM-03, WAADM-04)
+- [ ] 142.1-02-PLAN.md — Wave 1: consolidate General into Account, remove tenant WhatsApp profile writer, redirect legacy route, and align skeleton/tests (ACCT-01)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 142.1-03-PLAN.md — Wave 2: remove tenant inbox/history/previews/integration controls and disable proactive WhatsApp notification configuration while preserving outbound estimate sending (WAADM-01, WAADM-05)
+- [ ] 142.1-04-PLAN.md — Wave 2: server-side admin account/sender/status/unread/date/search filters, pagination, and scoped read-only thread inspection (WAADM-02)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 142.1-05-PLAN.md — Wave 3: audited super-admin provisioning actions and account management UI with E.164/uniqueness/status guards (WAADM-02, WAADM-03)
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 142.1-06-PLAN.md — Wave 4: registry-only inbound routing, remove tenant/companies-phone authority, opaque outbound gate, notification shutdown, and legacy schema contraction (WAADM-01, WAADM-03, WAADM-04, WAADM-05)
 
 ### Phase 143: Annual Checkout
 

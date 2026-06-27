@@ -82,8 +82,8 @@ Deferred to a future milestone. Tracked but not in this roadmap.
 | ANN-05 | Phase 145 | Pending |
 
 **Coverage:**
-- v1 requirements: 5 total
-- Mapped to phases: 5 (ANN-01 → 141, ANN-02 → 142, ANN-03 → 143, ANN-04 → 144, ANN-05 → 145)
+- v1 requirements: 11 total
+- Mapped to phases: 11 (ANN-01 → 141, ANN-02 → 142, ACCT-01 + WAADM-01..05 → 142.1, ANN-03 → 143, ANN-04 → 144, ANN-05 → 145)
 - Unmapped: 0 — **zero orphans confirmed**
 
 ---
