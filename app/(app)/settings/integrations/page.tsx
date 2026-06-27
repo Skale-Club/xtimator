@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Plug, ChevronRight, Sparkles, Mic, MessageCircle } from 'lucide-react'
+import { Plug, ChevronRight, Sparkles, Mic } from 'lucide-react'
 
 import { T } from '@/components/i18n/t'
 import {
@@ -9,7 +9,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { getSelectedAIProvider } from '@/lib/platform-config'
 
 export const metadata = { title: 'Integrations | Settings' }
@@ -87,32 +86,6 @@ export default async function SettingsIntegrationsPage() {
               </div>
             </dl>
           </CardContent>
-        </Card>
-      </section>
-
-      {/* Messaging channels — platform-managed; no per-company setup required. */}
-      <section className="space-y-3">
-        <SectionHeading>
-          <T>Messaging channels</T>
-        </SectionHeading>
-        <Card className="bg-muted/30">
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <MessageCircle className="h-5 w-5 text-primary" aria-hidden />
-              <CardTitle className="text-base">
-                <T>WhatsApp</T>
-              </CardTitle>
-              <Badge variant="secondary">
-                <T>Platform-managed</T>
-              </Badge>
-            </div>
-            <CardDescription>
-              <T>
-                WhatsApp delivery is managed by Xtimator. Send estimates directly
-                to clients via WhatsApp from the project Send tab. No setup required.
-              </T>
-            </CardDescription>
-          </CardHeader>
         </Card>
       </section>
 
