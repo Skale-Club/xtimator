@@ -2022,6 +2022,108 @@ export type Database = {
           },
         ]
       }
+      whatsapp_company_configs: {
+        Row: {
+          company_id: string
+          created_at: string
+          delivery_format: string
+          id: string
+          review_reason: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          delivery_format?: string
+          id?: string
+          review_reason?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          delivery_format?: string
+          id?: string
+          review_reason?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_company_configs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_authorized_senders: {
+        Row: {
+          company_id: string
+          config_id: string
+          created_at: string
+          created_by_admin: boolean | null
+          id: string
+          phone_e164: string
+          source_row_id: string | null
+          status: string
+          updated_at: string
+          user_id: string | null
+          verified_at: string | null
+        }
+        Insert: {
+          company_id: string
+          config_id: string
+          created_at?: string
+          created_by_admin?: boolean | null
+          id?: string
+          phone_e164: string
+          source_row_id?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+          verified_at?: string | null
+        }
+        Update: {
+          company_id?: string
+          config_id?: string
+          created_at?: string
+          created_by_admin?: boolean | null
+          id?: string
+          phone_e164?: string
+          source_row_id?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+          verified_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_authorized_senders_config_id_fkey"
+            columns: ["config_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_company_configs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_authorized_senders_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_authorized_senders_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       pipeline_attempts: {
