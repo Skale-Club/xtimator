@@ -31,7 +31,7 @@ Each requirement maps to exactly one roadmap phase.
 - [x] **WAADM-01**: Tenant users cannot view or configure WhatsApp provisioning data, inboxes, conversation history, linked numbers, status, delivery format, or message previews from any route or project surface; direct access to legacy tenant WhatsApp URLs returns no protected content.
 - [x] **WAADM-02**: The super-admin WhatsApp surface supports server-side filtering and pagination by tenant company/account, authorized sender/member, phone/contact search, status, unread state, and date range; opening a result shows the read-only conversation thread within the selected account context.
 - [x] **WAADM-03**: WhatsApp provisioning is writable only through `requireAdmin()`-gated server actions with E.164 validation, active-number uniqueness, explicit status transitions, and `admin_audit_log` coverage; no tenant action can write the provisioning tables through the service role.
-- [ ] **WAADM-04**: Inbound owner routing trusts only active admin-provisioned senders; onboarding, profile, and Company Settings cannot seed or change routing, and the `companies.phone` fallback is removed. Existing per-user rows are migrated with an expand–migrate–contract rollout and ambiguous companies are surfaced for admin review instead of silently resolved.
+- [x] **WAADM-04**: Inbound owner routing trusts only active admin-provisioned senders; onboarding, profile, and Company Settings cannot seed or change routing, and the `companies.phone` fallback is removed. Existing per-user rows are migrated with an expand–migrate–contract rollout and ambiguous companies are surfaced for admin review instead of silently resolved.
 - [x] **WAADM-05**: Tenant outbound estimate sending via WhatsApp remains available only as an opaque action when the account is admin-provisioned and active, without exposing configuration or history. Proactive tenant WhatsApp notifications are disabled while their historical consent data is preserved until a compliant consent flow exists.
 
 ### Annual Checkout
@@ -75,7 +75,7 @@ Deferred to a future milestone. Tracked but not in this roadmap.
 | WAADM-01 | Phase 142.1 | Complete |
 | WAADM-02 | Phase 142.1 | Complete |
 | WAADM-03 | Phase 142.1 | Complete |
-| WAADM-04 | Phase 142.1 | Pending |
+| WAADM-04 | Phase 142.1 | Complete |
 | WAADM-05 | Phase 142.1 | Complete |
 | ANN-03 | Phase 143 | Pending |
 | ANN-04 | Phase 144 | Pending |
