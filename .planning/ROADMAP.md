@@ -2251,12 +2251,12 @@ Plans:
   4. An authored, backward-compatible expand–migrate–contract migration preserves valid current routing data, flags ambiguous multi-number companies for admin review, and makes active admin-provisioned senders the sole owner-routing authority; onboarding/profile/company phone changes no longer alter WhatsApp routing.
   5. Provisioned tenants can still send estimates through an opaque WhatsApp action without seeing configuration/history; proactive WhatsApp notifications are disabled while historical consent data is preserved; account, admin, migration, routing, and cross-tenant isolation tests pass.
 
-**Plans:** 6 plans in `.planning/phases/142.1-settings-account-consolidation-and-admin-only-whatsapp-contr/`
+**Plans:** 1/6 plans executed
 Plans:
 **Wave 1**
 
 - [ ] 142.1-01-PLAN.md — Wave 1: normalized company config + authorized sender registry, non-destructive backfill, conflict classification, and server-only account registry (WAADM-03, WAADM-04)
-- [ ] 142.1-02-PLAN.md — Wave 1: consolidate General into Account, remove tenant WhatsApp profile writer, redirect legacy route, and align skeleton/tests (ACCT-01)
+- [x] 142.1-02-PLAN.md — Wave 1: consolidate General into Account, remove tenant WhatsApp profile writer, redirect legacy route, and align skeleton/tests (ACCT-01)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
