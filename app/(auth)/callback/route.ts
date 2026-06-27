@@ -38,6 +38,11 @@ export async function GET(request: NextRequest) {
         .eq('user_id', user.id)
         .single()
 
+      if (companyError) {
+        logAuthEvent({ event: 'oauth_callback', success: false, provider: 'google', error: `company_error: ${companyError.message}` })
+        return NextResponse.redirect(new URL('/?auth=login', baseUrl))
+      }
+
       // Sync theme cookie from DB so SSR serves correct theme on first load.
       // Route Handlers are allowed to write cookies (layouts are not).
       if (company && isValidTheme(company.theme_preference)) {
@@ -47,10 +52,6 @@ export async function GET(request: NextRequest) {
       const redirectTo = company ? '/dashboard' : '/onboarding'
       logAuthEvent({ event: 'oauth_callback', success: true, provider: 'google', userId: user.id, redirectTo })
       return NextResponse.redirect(new URL(redirectTo, baseUrl))
-    }
-
-    if (companyError) {
-      logAuthEvent({ event: 'oauth_callback', success: false, provider: 'google', error: `company_error: ${companyError.message}` })
     }
   }
 
