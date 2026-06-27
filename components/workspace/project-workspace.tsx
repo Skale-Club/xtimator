@@ -9,9 +9,7 @@ import { SendTab } from './send/send-tab'
 import { PhotosTab } from './photos/photos-tab'
 import { ClientTab } from './client-tab'
 import { ActivityTab } from './activity-tab'
-import { ProjectWhatsAppCard } from './project-whatsapp-card'
 import type { ProjectDetail, ActivityEvent, ProjectQuickStats } from '@/lib/queries/project'
-import type { ProjectConversationLink } from '@/lib/queries/whatsapp-inbox'
 import type { Recording } from '@/lib/queries/recording'
 import type { Photo } from '@/lib/queries/photo'
 import type { EstimateWithSections, Estimate } from '@/lib/queries/estimate'
@@ -44,7 +42,6 @@ interface ProjectWorkspaceProps {
   smsDeliveryEnabled?: boolean
   whatsappSendEnabled?: boolean
   priceBookItems: PriceBookItem[]
-  conversationLink: ProjectConversationLink
   defaultTab?: WorkspaceTab
 }
 
@@ -54,7 +51,6 @@ export function ProjectWorkspace({
   ownerName, companyBrandColor, company, companyDefaults, estimateTemplate, smsDeliveryEnabled = false,
   whatsappSendEnabled = false,
   priceBookItems,
-  conversationLink,
   defaultTab = 'overview',
 }: ProjectWorkspaceProps) {
   const { t } = useTranslation()
@@ -194,12 +190,6 @@ export function ProjectWorkspace({
         {activeTab === 'client' && (
           <div className="space-y-4">
             <ClientTab project={project} />
-            <div className="max-w-md">
-              <ProjectWhatsAppCard
-                conversationLink={conversationLink}
-                onStartFlow={() => handleSelect('send')}
-              />
-            </div>
           </div>
         )}
         {activeTab === 'activity' && (
