@@ -38,7 +38,7 @@ export function AdminWhatsAppClient({ conversations }: { conversations: Row[] })
     setOpenRow(row)
     setThread(null)
     setLoading(true)
-    const res = await loadAdminConversationThread(row.id)
+    const res = await loadAdminConversationThread(row.id, row.company_id)
     if (res.ok) {
       setThread(res.thread)
     } else {
@@ -55,12 +55,12 @@ export function AdminWhatsAppClient({ conversations }: { conversations: Row[] })
           <table className="w-full text-sm">
             <thead className="bg-muted/30 text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
-                <th className="text-left px-4 py-3 font-medium">Phone</th>
-                <th className="text-left px-4 py-3 font-medium">Name</th>
-                <th className="text-left px-4 py-3 font-medium">Company</th>
-                <th className="text-left px-4 py-3 font-medium">Unread</th>
-                <th className="text-left px-4 py-3 font-medium">Last message</th>
-                <th className="text-left px-4 py-3 font-medium">Last activity</th>
+                <th className="text-left px-4 py-3 font-medium"><T>Phone</T></th>
+                <th className="text-left px-4 py-3 font-medium"><T>Name</T></th>
+                <th className="text-left px-4 py-3 font-medium"><T>Company</T></th>
+                <th className="text-left px-4 py-3 font-medium"><T>Unread</T></th>
+                <th className="text-left px-4 py-3 font-medium"><T>Last message</T></th>
+                <th className="text-left px-4 py-3 font-medium"><T>Last activity</T></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">

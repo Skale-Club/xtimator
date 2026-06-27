@@ -14,9 +14,15 @@ import type { WaConversationRow, WaMessageRow } from '@/lib/whatsapp/conversatio
  * role key stays server-side behind the 'use server' boundary + requireAdmin
  * guard (CLAUDE.md SEC requirement). This action performs no writes: no
  * markConversationRead, no revalidatePath, no mutations.
+ *
+ * SECURITY: When expectedCompanyId is provided, the conversation's company_id
+ * is verified against it before returning messages. This prevents stale or
+ * mismatched rows from leaking cross-tenant data when the admin applies a
+ * company filter and opens a thread that may have been reassigned.
  */
 export async function loadAdminConversationThread(
   conversationId: string,
+  expectedCompanyId?: string,
 ): Promise<{ ok: true; thread: ConversationThread } | { ok: false; error: string }> {
   await requireAdmin()
   const svc = requireServiceClient()
@@ -28,6 +34,11 @@ export async function loadAdminConversationThread(
     .maybeSingle()
   const conversation = (convData as WaConversationRow | null) ?? null
   if (!conversation) return { ok: false, error: 'Conversation not found' }
+
+  // Verify company ownership when expectedCompanyId is provided
+  if (expectedCompanyId && conversation.company_id !== expectedCompanyId) {
+    return { ok: false, error: 'Conversation does not belong to the expected company' }
+  }
 
   const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
 
