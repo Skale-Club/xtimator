@@ -16,8 +16,10 @@ import { describe, it, expect } from 'vitest'
 
 import {
   EVENT_CATEGORIES,
+  DROPPED_EVENT_TYPES,
   DEFAULT_PREFERENCES,
   getCategoryForEvent,
+  isVisibleNotificationEventType,
 } from '@/lib/notifications/event-types'
 
 const ALLOWED_CATEGORIES = ['estimate', 'billing', 'system', '_dropped']
@@ -48,6 +50,13 @@ describe('lib/notifications/event-types — reduced catalog (NOTIF-01 RED)', () 
     expect(getCategoryForEvent('whatsapp.inbound')).toBe('_dropped')
     expect(getCategoryForEvent('ai_job.failed')).toBe('_dropped')
     expect(getCategoryForEvent('ai_job.completed')).toBe('_dropped')
+    expect(DROPPED_EVENT_TYPES).toEqual([
+      'whatsapp.inbound',
+      'ai_job.failed',
+      'ai_job.completed',
+    ])
+    expect(isVisibleNotificationEventType('whatsapp.inbound')).toBe(false)
+    expect(isVisibleNotificationEventType('estimate.viewed')).toBe(true)
   })
 
   it('estimate + system events keep their category', () => {

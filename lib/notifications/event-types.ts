@@ -67,6 +67,16 @@ export const EVENT_CATEGORIES: Record<EventType, EventCategory> = {
   'ai_job.completed': '_dropped',
 }
 
+export const DROPPED_EVENT_TYPES = (
+  Object.keys(EVENT_CATEGORIES) as EventType[]
+).filter((eventType) => EVENT_CATEGORIES[eventType] === '_dropped')
+
+const DROPPED_EVENT_TYPE_SET = new Set<string>(DROPPED_EVENT_TYPES)
+
+export function isVisibleNotificationEventType(eventType: string): boolean {
+  return !DROPPED_EVENT_TYPE_SET.has(eventType)
+}
+
 /**
  * Per-category channel preference shape — 4 channels (Phase 104, NOTIF-02).
  *

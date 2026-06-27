@@ -3,6 +3,7 @@ import { requireServiceClient } from '@/lib/supabase/service'
 import {
   type EventCategory,
   type EventType,
+  DROPPED_EVENT_TYPES,
   EVENT_CATEGORIES,
 } from './event-types'
 
@@ -62,6 +63,10 @@ export async function listNotificationsPage(
     .order('pinned', { ascending: false })
     .order('created_at', { ascending: false })
     .limit(limit + 1)
+
+  for (const eventType of DROPPED_EVENT_TYPES) {
+    q = q.neq('event_type', eventType)
+  }
 
   if (args.cursor) q = q.lt('created_at', args.cursor)
   if (args.unreadOnly) q = q.is('read_at', null)

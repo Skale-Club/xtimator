@@ -6,6 +6,7 @@ import {
   type EventCategory,
   EVENT_CATEGORIES,
   type EventType,
+  isVisibleNotificationEventType,
 } from '@/lib/notifications/event-types'
 
 /**
@@ -107,7 +108,11 @@ export function useNotifications({
         return
       }
       const data = (await res.json()) as { items: RawNotificationRow[] }
-      setItems((data.items ?? []).map(rowToItem))
+      setItems(
+        (data.items ?? [])
+          .filter((row) => isVisibleNotificationEventType(row.event_type))
+          .map(rowToItem),
+      )
     } catch {
       // best-effort; keep last-known state
     } finally {
@@ -137,6 +142,7 @@ export function useNotifications({
           // Server channel filter is company-wide; client-side narrow:
           // visible if (user_id is null OR user_id === me).
           if (row.user_id && row.user_id !== userId) return
+          if (!isVisibleNotificationEventType(row.event_type)) return
           pendingRef.current.push(rowToItem(row))
           if (debounceRef.current) clearTimeout(debounceRef.current)
           debounceRef.current = setTimeout(flush, 300)

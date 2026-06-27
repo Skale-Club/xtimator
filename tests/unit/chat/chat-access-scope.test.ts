@@ -1,24 +1,14 @@
 /**
- * CHATMETER-02 owner-only / NEVER-customer-facing structural fence (static-source).
+ * Dormant in-app Chat structural fence.
  *
- * The in-app chat is OWNER-only (authenticated, tenant-scoped) — per PROJECT.md
- * and SEED-034 it must NEVER be customer-facing. This is the structural half of
- * that guarantee (the route 403 from Plan 126-01 is the runtime boundary):
- *
- *   1. The chat lives ONLY under app/(app)/chat — the page references ChatWorkspace.
- *   2. NO public / non-(app) route group (auth, capture, admin, blog, demo,
- *      estimate, oauth, offline, onboarding, privacy-policy, terms-of-service)
- *      references ChatWorkspace, @/components/chat, or /api/chat — so no
- *      customer-facing, marketing, admin, or auth surface can mount the chat.
- *   3. app/api/chat/route.ts is owner-auth (getClaims) AND tier-gated
- *      (chat_not_on_plan) — proving the route itself is owner-only + entitled.
- *
- * Pure file read — runs in CI with no DB and no secrets (mirrors the Phase-125
- * chat-ui-scope.test.ts static-source model).
+ * The UI is intentionally hidden while the underlying backend remains dormant:
+ * the owner route redirects to Dashboard, tenant navigation has no Chat entry,
+ * and no public route may mount chat UI. The existing API retains its owner
+ * authentication and entitlement gates as defense in depth.
  */
-import { describe, it, expect } from 'vitest'
-import { readFileSync, readdirSync, existsSync, statSync } from 'node:fs'
-import { resolve, join } from 'node:path'
+import { describe, expect, it } from 'vitest'
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
+import { join, resolve } from 'node:path'
 
 function read(rel: string): string {
   return readFileSync(resolve(process.cwd(), rel), 'utf8')
@@ -26,8 +16,8 @@ function read(rel: string): string {
 
 const CHAT_PAGE_PATH = 'app/(app)/chat/[[...id]]/page.tsx'
 const ROUTE_PATH = 'app/api/chat/route.ts'
+const NAV_ITEMS_PATH = 'components/app-shell/nav-items.ts'
 
-/** The public / non-(app) route groups that must NEVER mount the chat. */
 const PUBLIC_ROUTE_GROUPS = [
   'app/(auth)',
   'app/(capture)',
@@ -42,7 +32,6 @@ const PUBLIC_ROUTE_GROUPS = [
   'app/terms-of-service',
 ]
 
-/** Collect every .ts/.tsx file under a dir (recursive). */
 function collectSourceFiles(dirRel: string): string[] {
   const out: string[] = []
   const abs = resolve(process.cwd(), dirRel)
@@ -60,13 +49,20 @@ function collectSourceFiles(dirRel: string): string[] {
 
 const FORBIDDEN_CHAT_TOKENS = ['ChatWorkspace', '@/components/chat', '/api/chat']
 
-describe('CHATMETER-02 scope fence: chat is owner-only / never customer-facing', () => {
-  it('the chat page exists under app/(app)/chat and references ChatWorkspace', () => {
+describe('dormant chat scope fence', () => {
+  it('redirects the owner chat page without loading chat UI', () => {
     const src = read(CHAT_PAGE_PATH)
-    expect(src).toContain('ChatWorkspace')
+    expect(src).toContain("redirect('/dashboard')")
+    expect(src).not.toContain('ChatWorkspace')
+    expect(src).not.toContain('listConversations')
   })
 
-  it('NO public / non-(app) route group references the chat', () => {
+  it('does not expose /chat in tenant navigation', () => {
+    const src = read(NAV_ITEMS_PATH)
+    expect(src).not.toContain("href: '/chat'")
+  })
+
+  it('does not mount chat from a public route group', () => {
     const offenders: string[] = []
     for (const group of PUBLIC_ROUTE_GROUPS) {
       for (const file of collectSourceFiles(group)) {
@@ -81,7 +77,7 @@ describe('CHATMETER-02 scope fence: chat is owner-only / never customer-facing',
     expect(offenders).toEqual([])
   })
 
-  it('the /api/chat route is owner-auth (getClaims) AND tier-gated (chat_not_on_plan)', () => {
+  it('keeps the dormant API owner-authenticated and entitlement-gated', () => {
     const src = read(ROUTE_PATH)
     expect(src).toContain('getClaims')
     expect(src).toContain('chat_not_on_plan')

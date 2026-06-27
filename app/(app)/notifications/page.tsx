@@ -15,7 +15,9 @@ const PAGE_SIZE = 50
 function parseCategory(raw: string | undefined): EventCategory | null {
   if (!raw) return null
   // Derive category set from EVENT_CATEGORIES to avoid drift.
-  const known = new Set(Object.values(EVENT_CATEGORIES))
+  const known: ReadonlySet<EventCategory> = new Set(
+    Object.values(EVENT_CATEGORIES).filter((category) => category !== '_dropped'),
+  )
   return known.has(raw as EventCategory) ? (raw as EventCategory) : null
 }
 

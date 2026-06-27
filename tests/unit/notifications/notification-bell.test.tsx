@@ -18,7 +18,7 @@ const subscribeSpy = vi.fn().mockReturnValue(undefined)
 
 vi.mock('@/lib/supabase/client', () => ({
   createClient: () => ({
-    channel: (_name: string) => {
+    channel: () => {
       const chain = {
         on: (
           _event: string,
@@ -35,7 +35,7 @@ vi.mock('@/lib/supabase/client', () => ({
       }
       return chain
     },
-    removeChannel: (_c: unknown) => removeChannelSpy(),
+    removeChannel: () => removeChannelSpy(),
   }),
 }))
 
@@ -150,6 +150,29 @@ describe('NotificationBell — initial render & badge', () => {
     })
     expect(screen.queryByTestId('notification-bell-badge')).toBeNull()
   })
+
+  it('excludes dropped WhatsApp rows from the list and unread badge', async () => {
+    mockListResponse([
+      rowFixture({
+        id: 'whatsapp',
+        event_type: 'whatsapp.inbound',
+        title: 'New WhatsApp message',
+      }),
+      rowFixture({ id: 'estimate', title: 'Estimate viewed' }),
+    ])
+    await act(async () => {
+      render(<NotificationBell companyId="co_1" userId="u_1" />)
+    })
+    await waitFor(() => {
+      expect(screen.getByTestId('notification-bell-badge').textContent).toBe('1')
+    })
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('notification-bell'))
+    })
+    expect(await screen.findByText('Estimate viewed')).toBeTruthy()
+    expect(screen.queryByText('New WhatsApp message')).toBeNull()
+  })
 })
 
 describe('NotificationBell — Supabase Realtime subscription', () => {
@@ -205,6 +228,34 @@ describe('NotificationBell — Supabase Realtime subscription', () => {
     act(() => {
       lastChannelHandler!({
         new: { ...rowFixture({ id: 'other', read_at: null }), user_id: 'u_other' },
+      })
+    })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(350)
+    })
+    expect(screen.getByTestId('notification-bell').getAttribute('data-unread-count')).toBe('0')
+    vi.useRealTimers()
+  })
+
+  it('ignores realtime INSERTs for dropped WhatsApp events', async () => {
+    vi.useFakeTimers()
+    mockListResponse([])
+    await act(async () => {
+      render(<NotificationBell companyId="co_1" userId="u_1" />)
+    })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    act(() => {
+      lastChannelHandler!({
+        new: {
+          ...rowFixture({
+            id: 'whatsapp-live',
+            event_type: 'whatsapp.inbound',
+            title: 'New WhatsApp message',
+          }),
+          user_id: null,
+        },
       })
     })
     await act(async () => {
