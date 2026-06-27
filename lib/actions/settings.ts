@@ -381,48 +381,7 @@ export async function updateProfile(formData: FormData) {
   // two writers target different rows risked duplicate owner_phone rows, which breaks
   // the inbound .maybeSingle() lookup in app/api/webhooks/whatsapp/route.ts.
 
-  revalidatePath('/settings/general')
-  return { ok: true }
-}
-
-export async function saveWhatsAppNumber(phone: string | null) {
-  const supabase = await createClient()
-  const { data: claimsData } = await supabase.auth.getClaims()
-  const claims = claimsData?.claims ?? null
-  if (!claims) return { error: 'Not authenticated' }
-
-  const denied = await assertWritable()
-  if (denied) return denied
-
-  const activeCompanyId = await getActiveCompanyId()
-  if (!activeCompanyId) return { error: 'No company found' }
-
-  const svc = requireServiceClient()
-  // Per-user WhatsApp number (tied to this user's row). This is the single writer
-  // for company_whatsapp.owner_phone. When the number is new/changed, fire the
-  // proactive welcome TEMPLATE off the request path via Inngest so the user can
-  // start building estimates by chat. Best-effort: never block the save.
-  const { phoneChanged, ownerPhone } = await syncOwnerPhone(
-    svc,
-    activeCompanyId,
-    phone,
-    claims.sub as string,
-  )
-  if (phoneChanged && ownerPhone) {
-    try {
-      await inngest.send({
-        name: EVENT_WHATSAPP_WELCOME,
-        data: { companyId: activeCompanyId, toPhone: ownerPhone },
-      })
-    } catch (e) {
-      console.warn(
-        '[settings.saveWhatsAppNumber] WhatsApp welcome dispatch failed:',
-        e instanceof Error ? e.message : String(e),
-      )
-    }
-  }
-
-  revalidatePath('/settings/general')
+  revalidatePath('/settings/account')
   return { ok: true }
 }
 

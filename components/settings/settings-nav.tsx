@@ -3,12 +3,11 @@
 import { usePathname } from 'next/navigation'
 import {
   Bell, BookOpen, Building2, CreditCard, FileText, Globe,
-  PenLine, Plug, ShieldCheck, Send, Wallet, User, Users,
+  PenLine, Plug, ShieldCheck, Send, Wallet, Users,
 } from 'lucide-react'
 import { SubNav, type SubNavItem } from '@/components/ui/sub-nav'
 
 const ITEMS: SubNavItem[] = [
-  { value: 'general',            label: 'General',       Icon: User,        href: '/settings/general'            },
   { value: 'company',            label: 'Company',       Icon: Building2,   href: '/settings/company'            },
   { value: 'defaults',           label: 'Defaults',      Icon: FileText,    href: '/settings/defaults'           },
   { value: 'notifications',      label: 'Notifications', Icon: Bell,        href: '/settings/notifications'      },
