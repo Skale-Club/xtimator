@@ -2255,7 +2255,7 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 142.1-01-PLAN.md — Wave 1: normalized company config + authorized sender registry, non-destructive backfill, conflict classification, and server-only account registry (WAADM-03, WAADM-04)
+- [x] 142.1-01-PLAN.md — Wave 1: normalized company config + authorized sender registry, non-destructive backfill, conflict classification, and server-only account registry (WAADM-03, WAADM-04)
 - [x] 142.1-02-PLAN.md — Wave 1: consolidate General into Account, remove tenant WhatsApp profile writer, redirect legacy route, and align skeleton/tests (ACCT-01)
 
 **Wave 2** *(blocked on Wave 1 completion)*
