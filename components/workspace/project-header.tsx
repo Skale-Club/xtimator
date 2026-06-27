@@ -1,5 +1,6 @@
 'use client'
 
+import { useMemo } from 'react'
 import { cn } from '@/lib/utils'
 import { ProjectTitle } from '@/components/workspace/project-title'
 import type { ProjectDetail } from '@/lib/queries/project'
@@ -20,13 +21,17 @@ const STATUS_DOT: Record<string, string> = {
 
 export function ProjectHeader({ project }: ProjectHeaderProps) {
   const { slot } = useEstimateVersionSlot()
+  const breadcrumbItems = useMemo(
+    () => [
+      { label: 'Projects', href: '/projects' },
+      { label: project.name },
+    ],
+    [project.name],
+  )
 
   // Feed the global breadcrumb so the top bar (desktop) and mobile header show
   // the project name instead of falling back to the raw project-id URL segment.
-  useBreadcrumb([
-    { label: 'Projects', href: '/projects' },
-    { label: project.name },
-  ])
+  useBreadcrumb(breadcrumbItems)
 
   const statusLabel = STATUS_LABEL[project.status] ?? 'In progress'
   const statusDot = STATUS_DOT[project.status] ?? 'bg-blue-400'

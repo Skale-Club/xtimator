@@ -1,5 +1,6 @@
 'use client'
 
+import { useMemo } from 'react'
 import { useBreadcrumb } from '@/components/app-shell/breadcrumb-context'
 
 interface ClientBreadcrumbProps {
@@ -7,10 +8,15 @@ interface ClientBreadcrumbProps {
 }
 
 export function ClientBreadcrumb({ clientName }: ClientBreadcrumbProps) {
-  useBreadcrumb([
-    { label: 'Clients', href: '/clients' },
-    { label: clientName },
-  ])
+  const breadcrumbItems = useMemo(
+    () => [
+      { label: 'Clients', href: '/clients' },
+      { label: clientName },
+    ],
+    [clientName],
+  )
+
+  useBreadcrumb(breadcrumbItems)
 
   return null
 }
