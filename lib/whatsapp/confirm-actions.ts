@@ -12,6 +12,7 @@ import { formatEstimateForWhatsApp, type FormatterEstimate } from '@/lib/whatsap
 import { getCanonicalBaseUrl } from '@/lib/utils/site-url'
 import { logOutboundMessage } from '@/lib/whatsapp/conversations'
 import { formatMoney } from '@/lib/money/currency'
+import { getWhatsAppAccountStatus } from '@/lib/whatsapp/account-registry'
 
 export type Session = {
   id: string
@@ -86,7 +87,7 @@ export async function actionSend(
     throw new Error('No estimate to send.')
   }
 
-  const [estimateResult, projectResult, waConfigResult, companyResult] = await Promise.all([
+  const [estimateResult, projectResult, accountStatus, companyResult] = await Promise.all([
     supabase
       .from('estimates')
       .select(`
@@ -101,13 +102,13 @@ export async function actionSend(
       .eq('id', draft_estimate_id)
       .single(),
     supabase.from('projects').select('id, client_id').eq('id', draft_project_id).single(),
-    supabase.from('company_whatsapp').select('delivery_format').eq('company_id', companyId).single(),
+    getWhatsAppAccountStatus(companyId),
     supabase.from('companies').select('name').eq('id', companyId).single(),
   ])
 
   const estimate = estimateResult.data
   const project = projectResult.data
-  const deliveryFormat = (waConfigResult.data?.delivery_format as string | null) ?? 'share_link'
+  const deliveryFormat = (accountStatus.deliveryFormat ?? 'share_link') as 'share_link' | 'formatted_text' | 'pdf_attachment'
   const companyName = (companyResult.data?.name as string | null) ?? null
 
   if (!estimate || !project) throw new Error('Could not load estimate or project.')

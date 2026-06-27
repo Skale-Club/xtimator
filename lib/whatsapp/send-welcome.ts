@@ -5,7 +5,7 @@
  * they messaged us. The message is always in English; the bot mirrors the user's
  * language (e.g. Portuguese) on subsequent replies.
  *
- * company_whatsapp is RLS deny-all — always call with a service-role client.
+ * whatsapp_company_configs is RLS deny-all — always call with a service-role client.
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { sendWhatsAppMessage } from '@/lib/whatsapp/client'
@@ -33,7 +33,7 @@ export async function claimWhatsAppWelcome(
   companyId: string
 ): Promise<boolean> {
   const { data, error } = await serviceClient
-    .from('company_whatsapp')
+    .from('whatsapp_company_configs')
     .update({ welcome_sent_at: new Date().toISOString() })
     .eq('company_id', companyId)
     .is('welcome_sent_at', null)

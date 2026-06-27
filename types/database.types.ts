@@ -2031,6 +2031,7 @@ export type Database = {
           review_reason: string | null
           status: string
           updated_at: string
+          welcome_sent_at: string | null
         }
         Insert: {
           company_id: string
@@ -2040,6 +2041,7 @@ export type Database = {
           review_reason?: string | null
           status?: string
           updated_at?: string
+          welcome_sent_at?: string | null
         }
         Update: {
           company_id?: string
@@ -2049,6 +2051,7 @@ export type Database = {
           review_reason?: string | null
           status?: string
           updated_at?: string
+          welcome_sent_at?: string | null
         }
         Relationships: [
           {

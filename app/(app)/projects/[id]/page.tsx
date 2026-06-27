@@ -7,9 +7,9 @@ import { getProjectPhotos } from '@/lib/queries/photo'
 import { getCurrentEstimate, getProjectEstimates } from '@/lib/queries/estimate'
 import { getInvoicesByEstimateId } from '@/lib/queries/invoice'
 import { getPriceBookItems } from '@/lib/queries/price-book'
-import { createServiceClient } from '@/lib/supabase/service'
 import { getEntitlements } from '@/lib/entitlements'
 import { paymentsEnabled } from '@/lib/billing/payments-enabled'
+import { getWhatsAppAccountStatus } from '@/lib/whatsapp/account-registry'
 import { ProjectWorkspace } from '@/components/workspace/project-workspace'
 import { ProjectHeader } from '@/components/workspace/project-header'
 import { ProjectPageShell } from '@/components/workspace/project-page-shell'
@@ -121,20 +121,12 @@ async function ProjectTabs({
     stripe_connect_status: (company?.stripe_connect_status as string | null) ?? null,
   })
 
-  // WhatsApp send is gated by plan entitlement AND a connected, active number.
-  // company_whatsapp is RLS deny-all → read its status via the service client,
-  // scoped to this (RLS-validated) project's company.
+  // WhatsApp send is gated by plan entitlement AND an active admin-provisioned account.
+  // Read status via the server-only account-registry (no direct company_whatsapp access).
   let whatsappSendEnabled = false
   if (getEntitlements((company?.tier as string) ?? 'free').whatsappEnabled) {
-    const svc = createServiceClient()
-    if (svc) {
-      const { data: wa } = await svc
-        .from('company_whatsapp')
-        .select('status')
-        .eq('company_id', project.company_id)
-        .maybeSingle()
-      whatsappSendEnabled = wa?.status === 'active'
-    }
+    const accountStatus = await getWhatsAppAccountStatus(project.company_id)
+    whatsappSendEnabled = accountStatus.active
   }
   const estimateTemplate = {
     greeting: (company?.estimate_template_greeting as string | null) ?? null,

@@ -15,6 +15,15 @@ vi.mock('@/lib/whatsapp/pdf-delivery', () => ({
   generateAndUploadEstimatePDF: vi.fn(),
 }))
 
+vi.mock('@/lib/whatsapp/account-registry', () => ({
+  getWhatsAppAccountStatus: vi.fn(async (_companyId: string) => ({
+    configured: true,
+    active: true,
+    status: 'active',
+    deliveryFormat: 'share_link',
+  })),
+}))
+
 // The real agent calls the OpenAI API — replace with the deterministic
 // confirm-actions layer so existing unit tests keep their coverage.
 vi.mock('@/lib/whatsapp/agent', () => ({
@@ -95,6 +104,7 @@ vi.mock('@/lib/whatsapp/agent', () => ({
 import { processConfirmationReply } from '@/lib/whatsapp/confirm'
 import { sendWhatsAppMessage } from '@/lib/whatsapp/client'
 import { generateAndUploadEstimatePDF } from '@/lib/whatsapp/pdf-delivery'
+import { getWhatsAppAccountStatus } from '@/lib/whatsapp/account-registry'
 
 const mockSend = vi.mocked(sendWhatsAppMessage)
 const mockGeneratePdf = vi.mocked(generateAndUploadEstimatePDF)
@@ -177,18 +187,6 @@ function makeSupabase({
           eq: vi.fn().mockReturnValue({
             single: vi.fn().mockResolvedValue({
               data: { phone: clientPhone, name: clientName },
-              error: null,
-            }),
-          }),
-        }),
-      }
-    }
-    if (table === 'company_whatsapp') {
-      return {
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({
-              data: { delivery_format: deliveryFormat },
               error: null,
             }),
           }),
@@ -293,10 +291,12 @@ describe('processConfirmationReply', () => {
 
   describe('"send" — formatted_text delivery format', () => {
     it('sends full formatted estimate to client instead of share link', async () => {
+      vi.mocked(getWhatsAppAccountStatus).mockResolvedValueOnce({
+        configured: true, active: true, status: 'active', deliveryFormat: 'formatted_text',
+      })
       const { client } = makeSupabase({
         clientPhone: '+15559876543',
         clientName: 'Johnson',
-        deliveryFormat: 'formatted_text',
       })
 
       await processConfirmationReply('send', BASE_SESSION, COMPANY_ID, OWNER_PHONE, client)
@@ -334,7 +334,10 @@ describe('processConfirmationReply', () => {
 
   describe('"send" — pdf_attachment format (WAPDF-03 + WAPDF-04)', () => {
     it('sends document message to client when pdf_attachment format succeeds (WAPDF-03)', async () => {
-      const { client } = makeSupabase({ clientPhone: '+15559876543', clientName: 'Johnson', deliveryFormat: 'pdf_attachment' })
+      vi.mocked(getWhatsAppAccountStatus).mockResolvedValueOnce({
+        configured: true, active: true, status: 'active', deliveryFormat: 'pdf_attachment',
+      })
+      const { client } = makeSupabase({ clientPhone: '+15559876543', clientName: 'Johnson' })
 
       await processConfirmationReply('send', BASE_SESSION, COMPANY_ID, OWNER_PHONE, client)
 
@@ -349,8 +352,11 @@ describe('processConfirmationReply', () => {
     })
 
     it('falls back to share_link when PDF generation throws (WAPDF-04)', async () => {
+      vi.mocked(getWhatsAppAccountStatus).mockResolvedValueOnce({
+        configured: true, active: true, status: 'active', deliveryFormat: 'pdf_attachment',
+      })
       mockGeneratePdf.mockRejectedValue(new Error('Bucket full'))
-      const { client } = makeSupabase({ clientPhone: '+15559876543', deliveryFormat: 'pdf_attachment' })
+      const { client } = makeSupabase({ clientPhone: '+15559876543' })
 
       await processConfirmationReply('send', BASE_SESSION, COMPANY_ID, OWNER_PHONE, client)
 

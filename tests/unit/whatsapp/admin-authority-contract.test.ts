@@ -74,16 +74,15 @@ describe('admin-authority-contract — static source guards', () => {
       const lines = content.split('\n')
       for (let i = 0; i < lines.length; i++) {
         if (lines[i].includes('.from(') && lines[i].includes('company_whatsapp')) {
-          // Allow in lib/whatsapp/ engine internals (welcome, confirm, send-estimate)
-          // and in lib/actions/admin-whatsapp-accounts.ts (admin provisioning)
-          if (rel.startsWith('lib/whatsapp/') || rel.startsWith('lib/actions/admin-whatsapp')) continue
+          // Allow in lib/actions/admin-whatsapp-accounts.ts (admin provisioning)
+          if (rel.startsWith('lib/actions/admin-whatsapp')) continue
           violations.push(`${rel}:${i + 1}: ${lines[i].trim()}`)
         }
       }
     }
     expect(
       violations,
-      `Runtime company_whatsapp reads in tenant surfaces:\n${violations.join('\n')}`
+      `Runtime company_whatsapp reads in tenant/engine surfaces:\n${violations.join('\n')}`
     ).toHaveLength(0)
   })
 
