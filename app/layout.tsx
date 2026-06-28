@@ -58,8 +58,17 @@ export default async function RootLayout({
 }>) {
   const saved = await readThemeCookie()
   return (
-    <html lang="en" className={`${inter.variable} h-full antialiased`} suppressHydrationWarning>
+    <html
+      lang="en"
+      translate="no"
+      className={`${inter.variable} h-full antialiased`}
+      suppressHydrationWarning
+    >
       <head>
+        {/* Xtimator owns translation through LanguageProvider. Browser
+            translation mutates React-owned text nodes and can make React's
+            navigation cleanup throw removeChild NotFoundError (XTIMATOR-6). */}
+        <meta name="google" content="notranslate" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />

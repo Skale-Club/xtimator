@@ -25,6 +25,7 @@ import {
   SentrySampler,
   SentryPropagator,
 } from '@sentry/opentelemetry'
+import { isUnreportableServerActionMismatch } from '@/lib/observability/sentry-filters'
 
 /**
  * Exported so Inngest functions can call `await langfuseProcessor?.forceFlush()`
@@ -46,9 +47,10 @@ export async function register() {
       enableLogs: true,
       skipOpenTelemetrySetup: true, // CRITICAL — prevents global-provider collision
       beforeSend(event) {
-        // Drop framework noise from bots/scanners POSTing garbage to non-existent
-        // Server Action / RSC endpoints. (Sentry XTIMATOR-2, XTIMATOR-3)
-        if (event.transaction === 'POST /_not-found/page') return null
+        // Invalid/stale Server Action IDs are untrusted request input, not an
+        // application exception. deploymentId handles legitimate build skew;
+        // this keeps scanner probes from reopening XTIMATOR-3.
+        if (isUnreportableServerActionMismatch(event)) return null
         return event
       },
     })

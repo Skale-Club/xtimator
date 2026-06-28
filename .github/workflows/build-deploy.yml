@@ -87,6 +87,7 @@ jobs:
             NEXT_PUBLIC_SENTRY_DSN=${{ vars.NEXT_PUBLIC_SENTRY_DSN }}
             SENTRY_ORG=${{ vars.SENTRY_ORG }}
             SENTRY_PROJECT=${{ vars.SENTRY_PROJECT }}
+            DEPLOYMENT_VERSION=${{ github.sha }}
           # SENTRY_AUTH_TOKEN is passed as a Docker build secret — never baked
           # into any image layer. Absent token silently skips source map upload.
           secrets: |
