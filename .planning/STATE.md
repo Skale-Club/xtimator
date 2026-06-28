@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v4.13
-milestone_name: Annual Billing
-status: Phase 145 Plan 01 complete — Pricing UI Toggle shipped (ANN-05); v4.13 Annual Billing COMPLETE
-stopped_at: Completed 145-01-PLAN.md
-last_updated: "2026-06-28T12:45:00Z"
+milestone: v4.14
+milestone_name: Admin Sales Mode
+status: v4.13 Annual Billing COMPLETE — starting v4.14 Admin Sales Mode (Phases 146-149)
+stopped_at: Phase 146 not yet started
+last_updated: "2026-06-28T14:00:00Z"
 last_activity: 2026-06-28
 progress:
-  total_phases: 5
-  completed_phases: 5
-  total_plans: 5
-  completed_plans: 5
+  total_phases: 4
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
 ---
 
 # Project State

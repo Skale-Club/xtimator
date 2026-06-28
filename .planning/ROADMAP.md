@@ -33,6 +33,7 @@
 - ✅ **v4.11 Advanced Pricing Model — Per-Item Tax, Discounts, Deposit & Markup** — Phases 129-134 (shipped 2026-06-25) — enriched the pricing MODEL so the existing GUARD-03 server-side deterministic engine computes per-item tax, discounts, deposit & markup; NO AI calculator; byte-identical retrocompat; SEED-032
 - 🚧 **v4.12 Team Seats & Member Invites** — Phases 135-140 (roadmap created 2026-06-25) — turn the dormant `company_members` foundation (Phase 79) into team seats: invite teammates into the SAME company, owner/admin/member roles (server-side `requireCompanyRole` + RLS, never client-trusted), and per-seat billing fully configurable in `billing_config`/super-admin (nothing hardcoded), gated by `enforcementEnabled`; retrocompat single-owner orgs = zero charge; reuse existing RLS, do NOT rebuild multi-tenancy; SEED-037
 - 🚧 **v4.13 Annual Billing** — Phases 141-145 (roadmap created 2026-06-25) — add a discounted ANNUAL subscription option while keeping AI credit distribution MONTHLY for every interval. The load-bearing change: decouple the credit grant from the invoice cadence via an Inngest monthly cron + a `grant:{companyId}:{YYYY-MM}` company-month idempotency key shared with the `invoice.paid` webhook (exactly one grant per company per calendar month, any interval). Annual price + seat price live in `billing_config`/super-admin (nothing hardcoded; discount % derived); base charge via pre-created annual Stripe Price IDs (env placeholders); seat annual via inline `price_data`; checkout `billingInterval` default `'month'` keeps the monthly path byte-identical; gated by `enforcementEnabled`; SEED-038
+- 🚧 **v4.14 Admin Sales Mode** — Phases 146-149 (roadmap created 2026-06-28) — enable the super-admin (skale.club@gmail.com role, never hardcoded) to create demo company accounts on the fly during in-person sales demos: role system in Supabase (`is_super_admin` flag in `profiles`), "Add new company" button visible only to super-admins, quick company-creation modal (no separate page), 3-estimate quota per newly created company, and account handoff via the existing v4.12 invite flow so the client can take ownership after the demo.
 
 > **Phase numbering note:** v3.1.1 starts at **Phase 66**, not 62. Phases 62-65 are reserved as DEFERRED placeholders for the v3.2 Production Deploy milestone (Vercel→Hetzner deploy + Stripe live + monitoring + UAT in prod). Skipping past 62-65 keeps the global phase counter unambiguous and prevents number reuse confusion when v3.2 begins.
 
@@ -2310,6 +2311,81 @@ Plans:
   2. Choosing Annual and clicking the upgrade/CTA threads `billingInterval: 'year'` into the checkout action so the annual Checkout Session (Phase 143) is created; choosing Monthly threads `'month'` (default) and the checkout is byte-identical to today
   3. The toggle + annual card layout is mobile-safe (usable on iOS Safari and Android Chrome) and every new string (toggle labels, "save X%", per-month equivalent, period) routes through runtime `t()` with en/pt/es coverage — no hardcoded copy
   4. A tier with no configured annual price (placeholder unset) degrades gracefully — the Annual toggle either hides that tier's annual option or shows a clear unavailable state rather than rendering a broken/zero price
+
+**Plans**: TBD
+**UI hint**: yes
+
+## 🚧 v4.14 Admin Sales Mode (Phases 146-149)
+
+**Milestone Goal:** Give the super-admin user the ability to create demo company accounts on-the-fly during in-person sales demos — picking up a prospect's info, configuring a branded workspace in under 2 minutes, generating a live estimate with their logo and industry defaults, then handing the account off via email invite. The role system must live in Supabase (`is_super_admin` flag on `profiles`); no email or user ID may be hardcoded anywhere in the codebase. New companies created by the admin start with a 3-estimate quota; after that a paywall appears unless the admin grants more credits. Handoff reuses the v4.12 invite flow.
+
+> **Numbering:** continues the GLOBAL phase counter. v4.13 ended at Phase 145. **v4.14 starts at Phase 146.** Do NOT reset to 1.
+>
+> **Locked scope guardrails:** Role authority is SERVER-SIDE only (`requireSuperAdmin()` helper + `is_super_admin` column on `profiles`); never client-trusted. Nothing hardcoded — the super-admin email/user list is managed in Supabase, editable without a deploy. The 3-estimate quota rides the existing credit/billing infrastructure (nothing new billed — it's a demo quota). Handoff uses the existing `company_invites` flow from Phase 136 — do NOT build a separate transfer mechanism. Mobile-safe (iOS Safari / Android Chrome).
+
+### Phases
+
+- [ ] **Phase 146: Super-Admin Role System** — Add `is_super_admin boolean DEFAULT false` to `profiles` via idempotent authored-only migration + RLS policy; single `requireSuperAdmin()` server helper that reads the column (never a client-supplied flag); remove ALL hardcoded email checks from the codebase. (ADMIN-01)
+- [ ] **Phase 147: Admin Company Creation Modal** — Show "Add new company" button in `CompanySelector` only when `is_super_admin` is true; clicking opens a quick-creation modal (not a new page) with minimal fields (company name, industry, phone, email, optional logo); creates the company + switches to it; the new company starts with a 3-estimate quota. (ADMIN-02, ADMIN-03)
+- [ ] **Phase 148: Demo Estimate Quota** — New companies created via the admin modal start with `estimate_quota = 3`; a server-side guard tracks usage and blocks generation when exhausted showing a paywall; super-admin panel exposes a manual quota-grant control per company. (ADMIN-04)
+- [ ] **Phase 149: Account Handoff** — Admin can share the demo company with the prospect by entering their email in a Handoff modal; reuses the Phase 136 `inviteMember` flow with role `'owner'`; the client receives the Resend invite email and joins via the existing Phase 137 `acceptInvite` path. (ADMIN-05)
+
+### Phase Details — v4.14 Admin Sales Mode
+
+### Phase 146: Super-Admin Role System
+
+**Goal**: The `is_super_admin` flag lives in Supabase on the `profiles` table (idempotent authored-only migration), a single `requireSuperAdmin()` server helper enforces it, and every hardcoded email/user-ID check in the codebase is replaced with a DB-driven lookup. No deploy needed to add/remove super-admins — a Supabase update to the `profiles` row is enough.
+**Depends on**: Nothing (first phase of milestone). Builds on the `profiles` table from Phase 1 and the `requireCompanyRole` pattern from Phase 135.
+**Requirements**: ADMIN-01
+**Success Criteria** (what must be TRUE):
+
+  1. An idempotent authored-only migration adds `is_super_admin boolean NOT NULL DEFAULT false` to `profiles` with an RLS policy ensuring only a service-role caller or the super-admin themselves can set it to true — no client can self-promote
+  2. A single `requireSuperAdmin()` server helper reads `is_super_admin` from the caller's `profiles` row (RLS-bound, never from a client-supplied parameter) and throws a typed `ForbiddenError` when false; a unit test proves the allow/deny matrix
+  3. A static test (grep/AST) asserts that ZERO files in the codebase contain a hardcoded email address or user ID used for authorization decisions — all such checks route through `requireSuperAdmin()` or `requireCompanyRole()`
+  4. The first super-admin is activated by a one-time SQL update in Supabase (documented in `docs/setup/super-admin.md` with placeholder `<user_id>` — no real IDs in the doc)
+
+**Plans**: TBD
+
+### Phase 147: Admin Company Creation Modal
+
+**Goal**: The super-admin sees "Add new company" in the company selector and clicking it opens a compact modal (not a full-page route) to enter company name, industry, phone, email, and optional logo. On submit the company is created, assigned 3 estimate credits, and the app switches to it — ready to generate an estimate.
+**Depends on**: Phase 146 (requireSuperAdmin gate). Reuses the existing company-creation server action and the v4.12 `company_members` setup. Reuses the existing modal/sheet pattern in the UI.
+**Requirements**: ADMIN-02, ADMIN-03
+**Success Criteria** (what must be TRUE):
+
+  1. The "Add new company" item in `CompanySelector` is rendered only when the current user's `is_super_admin` is `true`; non-admin users see the button removed from the DOM entirely (not just hidden via CSS)
+  2. Clicking the button opens a modal dialog with fields: company name (required), industry (required, dropdown matching existing industry options), phone (optional), email (optional), logo upload (optional); the form is usable on iOS Safari and Android Chrome in under 2 minutes
+  3. On successful submit: company is created in Supabase, the current user is added as `owner` in `company_members`, the active company is switched, and the modal closes — no full-page navigation
+  4. The newly created company starts with exactly 3 estimate credits (the quota set in Phase 148 infrastructure); this is verifiable in the super-admin panel
+
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 148: Demo Estimate Quota
+
+**Goal**: Every company created via the admin modal starts with a 3-estimate quota. A server-side guard checks remaining quota before each generation and, when exhausted, returns a paywall response instead of generating. The super-admin panel exposes a manual grant control to add more estimates to any company.
+**Depends on**: Phase 147 (the modal that creates companies with the quota). Builds on the existing credit/billing infrastructure.
+**Requirements**: ADMIN-04
+**Success Criteria** (what must be TRUE):
+
+  1. New companies created by an admin start with `estimate_credits = 3` (or equivalent in the existing credits schema); existing companies are unaffected (zero migration-time data change)
+  2. A server-side guard runs before every estimate generation: if `remaining_credits <= 0`, the action returns a structured paywall error (not an exception); the UI surfaces a clear "You've used your free estimates — upgrade to continue" message
+  3. A super-admin panel control allows adding N credits to any company by company ID; the change takes effect immediately without a deploy
+  4. A company on a paid subscription bypasses the quota guard entirely (existing billing entitlement logic remains authoritative)
+
+**Plans**: TBD
+
+### Phase 149: Account Handoff
+
+**Goal**: After a successful live demo, the admin can hand off the demo company to the prospect by entering their email in a Handoff modal. The system sends a Resend invite email using the existing Phase 136 `inviteMember` flow with role `'owner'`; the client accepts via the Phase 137 `acceptInvite` path and takes ownership of the company.
+**Depends on**: Phase 136 (inviteMember) and Phase 137 (acceptInvite) from v4.12. Phase 146 (requireSuperAdmin gate on the handoff action).
+**Requirements**: ADMIN-05
+**Success Criteria** (what must be TRUE):
+
+  1. A "Hand off account" action is available in the super-admin UI for any company they created; entering a prospect email triggers `inviteMember(companyId, email, 'owner')` gated by `requireSuperAdmin()` — a non-admin caller is rejected
+  2. The prospect receives the standard Resend invite email from Phase 136 and can accept via the Phase 137 flow; on acceptance they become `owner` of the company and the admin's membership is optionally retained as `admin` (configurable)
+  3. No new invite or email infrastructure is added — the handoff exclusively reuses Phase 136/137 mechanisms; a static test asserts no duplicate invite-send code exists
+  4. The handoff is mobile-safe and completes in under 3 taps on the admin's phone
 
 **Plans**: TBD
 **UI hint**: yes
