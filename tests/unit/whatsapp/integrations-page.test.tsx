@@ -47,10 +47,9 @@ describe('Settings → Integrations page', () => {
     expect(screen.queryByText(/OpenRouter integration coming soon/i)).toBeNull()
   })
 
-  it('renders the three grouped section headings (AI, Messaging channels, Assistants)', async () => {
+  it('renders the two grouped section headings (AI, Assistants)', async () => {
     render(await SettingsIntegrationsPage())
     expect(screen.getByText('AI')).toBeTruthy()
-    expect(screen.getByText('Messaging channels')).toBeTruthy()
     expect(screen.getByText('Assistants')).toBeTruthy()
   })
 
@@ -66,18 +65,6 @@ describe('Settings → Integrations page', () => {
     getSelectedAIProvider.mockResolvedValue('gemini')
     render(await SettingsIntegrationsPage())
     expect(screen.getByText('Gemini (Google)')).toBeTruthy()
-  })
-
-  it('Messaging channels section shows read-only Platform-managed WhatsApp card', async () => {
-    render(await SettingsIntegrationsPage())
-    expect(screen.getByText('WhatsApp')).toBeTruthy()
-    expect(screen.getByText('Platform-managed')).toBeTruthy()
-  })
-
-  it('Messaging channels card explains no setup is required', async () => {
-    render(await SettingsIntegrationsPage())
-    const matches = screen.getAllByText(/no setup required/i)
-    expect(matches.length).toBeGreaterThanOrEqual(1)
   })
 
   it('does not render any connect form or WhatsApp credential inputs', async () => {
