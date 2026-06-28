@@ -47,6 +47,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -591,6 +592,9 @@ export function PriceBookList({
         <DialogContent className="sm:max-w-xs">
           <DialogHeader>
             <DialogTitle>{t('New Category')}</DialogTitle>
+            <DialogDescription>
+              {t('Enter a name for the new price book category.')}
+            </DialogDescription>
           </DialogHeader>
           <Input
             placeholder={t('Category name...')}
