@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v4.13
 milestone_name: Annual Billing
-status: Phase 144 Plan 01 complete — interval-aware seat billing shipped (ANN-04)
-stopped_at: Completed 144-01-PLAN.md
-last_updated: "2026-06-28T12:40:00Z"
+status: Phase 145 Plan 01 complete — Pricing UI Toggle shipped (ANN-05); v4.13 Annual Billing COMPLETE
+stopped_at: Completed 145-01-PLAN.md
+last_updated: "2026-06-28T12:45:00Z"
 last_activity: 2026-06-28
 progress:
   total_phases: 5
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 5
-  completed_plans: 4
+  completed_plans: 5
 ---
 
 # Project State
@@ -31,11 +31,15 @@ progress:
 
 ## Current Position
 
-Phase: 144
+Phase: 145
 Plan: 01 complete
-Status: Phase 144 complete (1/1 plan). Ready for Phase 145 — Pricing UI Toggle (ANN-05).
+Status: Phase 145 complete (1/1 plan). v4.13 Annual Billing — ALL 5 phases COMPLETE (ANN-01..ANN-05).
 
 ---
+
+### Accumulated Context (v4.13)
+
+Status (145-01, ANN-05): shipped — **Phase 145 COMPLETE (1/1 plan) — the final plan of v4.13 Annual Billing; the Monthly/Annual toggle on pricing cards.** `components/billing/tier-cards-grid.tsx` gained `billingInterval` state (default `'month'`), two toggle buttons (Monthly/Annual), new props `annualPrices` + `monthlyPricesCents` threading from the server component, `getAnnualDisplay()` helper deriving `savePct` via `Math.round(1 − annual/(12×monthly))` from props (no hardcoded %), and `billingInterval` wired into the `create-checkout-session` POST body. `components/billing/tier-card.tsx` gained four optional props (`showAnnual`, `annualPrice`, `annualPerMonth`, `savePct`); the price section shows annual total + per-month equivalent + save badge when annual data is available, falls back to monthly display when not (graceful degradation). `app/(app)/settings/billing/page.tsx` calls `getBillingConfig()` and passes `annualPrices` + `monthlyPricesCents` as props. 1 auto-fix deviation (Rule 1): renamed `t` map iterator to `tierItem` to avoid shadowing the `t()` i18n function. Static no-hardcode test: 5/5 assertions green. `tsc --noEmit` clean. Commit 671f26f7. ANN-05 marked complete. **v4.13 Annual Billing: ALL 5 phases (141-145) COMPLETE.** See 145-01-SUMMARY.md.
 
 ### Accumulated Context (v4.10)
 
