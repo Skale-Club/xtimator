@@ -46,7 +46,6 @@ export async function saveCustomDomain(
 
   if (error) return { error: 'Failed to save domain. Please try again.' }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   updateTag('company')
   revalidatePath('/settings/custom-domain')
   return { success: true }

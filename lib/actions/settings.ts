@@ -176,7 +176,6 @@ export async function updateCompanySettings(formData: FormData) {
     }
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   updateTag('company')
   revalidatePath('/settings')
   revalidatePath('/dashboard')

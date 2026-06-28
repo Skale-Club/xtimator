@@ -48,7 +48,6 @@ export async function saveEstimateTemplate(data: {
 
   if (error) return { error: 'Failed to save template. Please try again.' }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   updateTag('company')
   revalidatePath('/settings/estimate-templates')
 
