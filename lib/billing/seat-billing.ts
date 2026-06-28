@@ -123,6 +123,7 @@ export async function syncSeatBilling(companyId: string): Promise<void> {
     await syncSubscriptionSeatItem(stripe, subscriptionId, {
       quantity: billableSeats,
       unitAmount: cfg.seatPriceCents,
+      annualUnitAmount: cfg.seatPriceAnnualCents ?? undefined,
     })
   } catch (err) {
     // Best-effort: a seat-sync failure must NEVER break a membership operation.
