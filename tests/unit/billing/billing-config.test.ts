@@ -385,6 +385,16 @@ describe('BILLCFG-03: getBillingConfig consumed ONLY by the reader + credit-ledg
       process.cwd(),
       'lib/inngest/functions/monthly-credit-grant.ts',
     )
+    // Phase 145 (ANN-05): the Settings → Billing server page reads
+    // subscriptionPriceAnnualCents + subscriptionPriceCents per tier from
+    // getBillingConfig to derive the annual/monthly price props passed to
+    // TierCardsGrid — the runtime-authoritative billing source, a legitimate
+    // display consumer (DISPLAY ONLY — no mutation). The guard still fails on
+    // any OTHER reference of the symbol.
+    const BILLING_PAGE_PATH = resolve(
+      process.cwd(),
+      'app/(app)/settings/billing/page.tsx',
+    )
     const ALLOWLIST = new Set([
       MODULE_PATH,
       CREDIT_LEDGER_PATH,
@@ -396,6 +406,7 @@ describe('BILLCFG-03: getBillingConfig consumed ONLY by the reader + credit-ledg
       SEAT_BILLING_PATH,
       SEAT_COST_SUMMARY_PATH,
       MONTHLY_CREDIT_GRANT_PATH,
+      BILLING_PAGE_PATH,
     ])
 
     const collected: string[] = []
