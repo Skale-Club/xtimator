@@ -9,6 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
 import { getSelectedAIProvider } from '@/lib/platform-config'
 
 export const metadata = { title: 'Integrations | Settings' }
