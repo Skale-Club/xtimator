@@ -62,6 +62,7 @@ describe('warning-free CI contracts', () => {
     const files = [
       ...walk('app'),
       ...walk('components'),
+      ...walk('tests'),
     ].filter((file) => file.endsWith('.tsx') && file !== 'components/ui/dialog.tsx')
 
     const missing = files.flatMap((file) => {
