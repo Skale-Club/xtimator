@@ -30,7 +30,7 @@ export function isProtectedRoute(pathname: string): boolean {
   return PROTECTED_ROUTE_PREFIXES.some((prefix) => pathname.startsWith(prefix))
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
 
   const supabase = createServerClient(

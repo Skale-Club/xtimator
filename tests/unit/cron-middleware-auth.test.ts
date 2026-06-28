@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isProtectedRoute, isPublicRoute } from '@/middleware'
+import { isProtectedRoute, isPublicRoute } from '@/proxy'
 
 describe('cron middleware authentication boundary', () => {
   it.each([

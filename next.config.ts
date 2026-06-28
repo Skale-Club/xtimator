@@ -92,7 +92,11 @@ export default withSentryConfig(nextConfig, {
   sourcemaps: {
     deleteSourcemapsAfterUpload: true,
   },
+  webpack: {
+    treeshake: {
+      removeDebugLogging: true,
+    },
+  },
   // Proxy errors through /monitoring to bypass ad-blockers
   tunnelRoute: "/monitoring",
-  disableLogger: true,
 });
