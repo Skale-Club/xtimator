@@ -48,12 +48,22 @@ export default async function TeamTabPage() {
     canManage ? await buildSeatCostSummary(companyId, roster.members.length) : null
 
   return (
-    <TeamSection
-      companyId={companyId}
-      members={roster.members}
-      invites={roster.invites}
-      canManage={canManage}
-      seatCost={seatCost}
-    />
+    <div className="space-y-6">
+      <header className="flex flex-col gap-1">
+        <h1 className="text-[clamp(28px,3.5vw,40px)] font-semibold tracking-tight">
+          <T>Team</T>
+        </h1>
+        <p className="text-sm text-muted-foreground">
+          <T>People who can create clients and estimates. Their name appears as &ldquo;Prepared by&rdquo; on estimates they generate.</T>
+        </p>
+      </header>
+      <TeamSection
+        companyId={companyId}
+        members={roster.members}
+        invites={roster.invites}
+        canManage={canManage}
+        seatCost={seatCost}
+      />
+    </div>
   )
 }

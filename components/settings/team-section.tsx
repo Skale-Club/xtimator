@@ -129,14 +129,8 @@ export function TeamSection({ companyId, members: initialMembers, invites: initi
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold">{t('Team')}</h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            {t('People who can create clients and estimates. Their name appears as “Prepared by” on estimates they generate.')}
-          </p>
-        </div>
-        {canManage && (
+      {canManage && (
+        <div className="flex justify-end">
           <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
             <DialogTrigger asChild>
               <Button size="sm" className="min-h-[44px]">
@@ -208,8 +202,8 @@ export function TeamSection({ companyId, members: initialMembers, invites: initi
               </DialogFooter>
             </DialogContent>
           </Dialog>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Seat-cost summary (SEAT-08) — owner/admin only; null means do not show.
           Every figure comes from the seatCost prop via formatUSD — no hardcoded
