@@ -32,7 +32,10 @@ vi.mock('@/lib/actions/active-company', () => ({
 }))
 
 // ─── next/cache ─────────────────────────────────────────────────────────────
-vi.mock('next/cache', () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }))
+vi.mock('next/cache', () => ({
+  revalidatePath: vi.fn(),
+  updateTag: vi.fn(),
+}))
 
 // ─── service-role Supabase per-table mock ───────────────────────────────────
 // invite lookup: .select(...).eq('token', ...).maybeSingle()

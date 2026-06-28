@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { createStorage } from '@/lib/storage'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
-import { revalidatePath, revalidateTag } from 'next/cache'
+import { revalidatePath, updateTag } from 'next/cache'
 import { normalizeCurrencyCode } from '@/lib/money/currency'
 import { resolveIndustries } from '@/lib/industries'
 import { appendIndustryPriceBook } from '@/lib/price-book-seed'
@@ -177,7 +177,7 @@ export async function updateCompanySettings(formData: FormData) {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  ;(revalidateTag as any)('company')
+  updateTag('company')
   revalidatePath('/settings')
   revalidatePath('/dashboard')
   return { success: true }

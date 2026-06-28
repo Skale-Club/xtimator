@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { revalidatePath, revalidateTag } from 'next/cache'
+import { revalidatePath, updateTag } from 'next/cache'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { assertWritable } from '@/lib/demo/guard'
 
@@ -49,7 +49,7 @@ export async function saveEstimateTemplate(data: {
   if (error) return { error: 'Failed to save template. Please try again.' }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  ;(revalidateTag as any)('company')
+  updateTag('company')
   revalidatePath('/settings/estimate-templates')
 
   return { success: true }

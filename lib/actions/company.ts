@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
 import { redirect } from 'next/navigation'
-import { revalidatePath, revalidateTag } from 'next/cache'
+import { revalidatePath, updateTag } from 'next/cache'
 import { cookies } from 'next/headers'
 import { DEFAULT_CURRENCY_CODE, normalizeCurrencyCode } from '@/lib/money/currency'
 import {
@@ -211,7 +211,7 @@ export async function createOrUpdateCompany(
       sameSite: 'lax',
     })
 
-    ;(revalidateTag as any)('company')
+    updateTag('company')
     revalidatePath('/', 'layout')
     redirect('/dashboard')
   }
@@ -299,7 +299,7 @@ export async function createOrUpdateCompany(
     sameSite: 'lax',
   })
 
-  ;(revalidateTag as any)('company')
+  updateTag('company')
   revalidatePath('/', 'layout')
   redirect('/dashboard')
 }

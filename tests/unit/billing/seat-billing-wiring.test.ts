@@ -47,7 +47,10 @@ vi.mock('@/lib/auth/require-company-role', () => ({
 }))
 
 // ─── next/cache ─────────────────────────────────────────────────────────────
-vi.mock('next/cache', () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }))
+vi.mock('next/cache', () => ({
+  revalidatePath: vi.fn(),
+  updateTag: vi.fn(),
+}))
 
 // ─── service-role Supabase per-table mock ───────────────────────────────────
 // acceptInvite path: invite lookup (maybeSingle), guarded flip (update→eq→eq→select),

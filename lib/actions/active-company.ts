@@ -1,7 +1,7 @@
 'use server'
 
 import { cookies } from 'next/headers'
-import { revalidatePath, revalidateTag } from 'next/cache'
+import { revalidatePath, updateTag } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import {
   ACTIVE_COMPANY_COOKIE,
@@ -17,8 +17,8 @@ import {
  *   3. Verify membership against `company_members` using the RLS-bound client.
  *      No row → return { error: 'forbidden' } (never reveals whether the company exists).
  *   4. Write the `active_company_id` cookie via Phase 79's shared constants.
- *   5. revalidateTag('company') — invalidates the unstable_cache wrapper around
- *      loadCompanyById in lib/queries/active-company.ts (D-11).
+ *   5. updateTag('company') — immediately invalidates the company cache so the
+ *      user reads the company they just selected.
  *   6. revalidatePath('/', 'layout') — forces layout-level RSC re-render across all routes
  *      so headers / sidebars pick up the new company immediately (established pattern from
  *      lib/actions/project.ts).
@@ -47,9 +47,7 @@ export async function switchActiveCompany(
   const cookieStore = await cookies()
   cookieStore.set(ACTIVE_COMPANY_COOKIE, companyId, ACTIVE_COMPANY_COOKIE_OPTIONS)
 
-  // Cast matches the project-wide workaround for the Next.js canary type signature
-  // (see lib/actions/settings.ts, estimate-template.ts, custom-domain.ts).
-  ;(revalidateTag as any)('company')
+  updateTag('company')
   revalidatePath('/', 'layout')
 
   return { ok: true }

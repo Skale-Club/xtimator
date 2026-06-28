@@ -100,7 +100,7 @@ export async function getActiveCompanyId(): Promise<string | null> {
 
 /**
  * Loads the full AppCompany row for the active company id, cached by activeCompanyId
- * with tag 'company' (D-11 — tag wiring is in place; Phase 80 will call revalidateTag
+ * with tag 'company' (D-11 — tag wiring is in place; mutations call updateTag
  * on switch).
  *
  * Returns null when getActiveCompanyId() returns null (user has zero memberships).
