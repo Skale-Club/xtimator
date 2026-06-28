@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v3.1.1
-milestone_name: MVP Launch Prep + Future-Proofing
-status: Phase 142.1 fully executed; ready for next milestone phase
-stopped_at: Completed 143-01-PLAN.md
-last_updated: "2026-06-28T16:31:41.025Z"
-last_activity: 2026-06-27
+milestone: v4.13
+milestone_name: Annual Billing
+status: Phase 144 Plan 01 complete — interval-aware seat billing shipped (ANN-04)
+stopped_at: Completed 144-01-PLAN.md
+last_updated: "2026-06-28T12:40:00Z"
+last_activity: 2026-06-28
 progress:
-  total_phases: 18
-  completed_phases: 18
-  total_plans: 51
-  completed_plans: 51
+  total_phases: 5
+  completed_phases: 4
+  total_plans: 5
+  completed_plans: 4
 ---
 
 # Project State
@@ -27,13 +27,13 @@ progress:
 - **Dependency spine:** 141 (configurable annual price + seat price — the foundation) + 142 (the grant decouple — independent, parallelizable with 141) → 143 (annual checkout, depends on 141) + 144 (interval-aware seat billing, depends on 141, independent of 143) → 145 (pricing UI toggle, depends on 141 + 143). 142 is the heart of the milestone — get the company-month dedup right and the rest is mechanical.
 - **Locked guardrails (SEED-038 + REQUIREMENTS.md + PROJECT.md):** Credits stay MONTHLY for EVERY interval — annual is only a price discount (same tier, same `monthlyCreditGrant`, same seats). The company-month key `grant:{companyId}:{YYYY-MM}` is the SINGLE dedup authority shared by the webhook AND the cron → exactly one grant per company per calendar month, NO double-grant. ZERO hardcoded billing numbers — `subscriptionPriceAnnualCents` (per-tier) + `seatPriceAnnualCents` (global) live in `billing_config`, read via `getBillingConfig()`, editable without a deploy; the displayed discount % is DERIVED (`1 − annual/(12×monthly)`), never stored; no annual price / discount % / Stripe Price ID may be a constant in application code. The base annual charge uses pre-created Stripe Price IDs (env `STRIPE_PRICE_PRO_ANNUAL` / `STRIPE_PRICE_BUSINESS_ANNUAL` — PLACEHOLDERS ONLY in every doc, never a real ID or key); seat annual uses inline `price_data` straight from `seatPriceAnnualCents`. Interval is selected at checkout (`billingInterval`, default `'month'`) and threaded through metadata; the seat sync matches the subscription interval. Charging stays gated by `enforcementEnabled` / live-mode discipline (display can ship anytime). Retrocompat is load-bearing: default interval `'month'`, the existing monthly path byte-identical, a regression test locks the no-double-grant invariant. Mid-cycle proration on interval switch is deferred to v2 (`ANNX-01`). Mobile-safe UI (iOS Safari / Android Chrome); i18n en/pt/es.
 - **Previous milestone**: v4.12 Team Seats & Member Invites — SHIPPED 2026-06-25 (phases 135-140, 8/8 requirements SEAT-01..SEAT-08, full unit suite green ~2552 passing). Turned the dormant `company_members` foundation into real team seats — invite/accept/revoke/remove/role flows behind a single server-side `requireCompanyRole` gate (RLS-bound, never client-trusted), a mobile-safe `Settings → Team` UI, and CONFIGURABLE per-seat billing (`seatPriceCents` + `tiers[tier].includedSeats` in `billing_config`/super-admin, nothing hardcoded), gated by `enforcementEnabled` (record-only until calibrated); retrocompat single-owner orgs = zero charge. SEED-037 harvested. Operational deferrals carried forward: apply migration `20260628000001` to remote (CI→GHCR→Coolify), calibrate `seatPriceCents` + per-tier `includedSeats` then flip `enforcementEnabled` on, live invite→accept→sync UAT against Stripe test mode.
-- **Position**: Phase 142.1 Plan 06 complete — admin registry is sole WhatsApp routing/provisioning authority; legacy schema contracted. Phase 142.1 COMPLETE (6/6 plans).
+- **Position**: Phase 144 Plan 01 complete — `syncSubscriptionSeatItem` is now interval-aware; annual subscriptions use `seatPriceAnnualCents`; 8 new unit tests green. ANN-04 complete. Next: Phase 145 (Pricing UI Toggle, ANN-05).
 
 ## Current Position
 
-Phase: 142.1
-Plan: Not started
-Status: Phase 142.1 fully executed; ready for next milestone phase
+Phase: 144
+Plan: 01 complete
+Status: Phase 144 complete (1/1 plan). Ready for Phase 145 — Pricing UI Toggle (ANN-05).
 
 ---
 
