@@ -40,11 +40,11 @@ Each requirement maps to exactly one roadmap phase.
 
 ### Interval-Aware Seat Billing
 
-- [ ] **ANN-04**: Make `syncSubscriptionSeatItem` interval-aware — read the subscription's interval and set the seat item's `recurring.interval` to match (replacing the hardcoded `'month'`), using `seatPriceAnnualCents` for annual subscriptions. Retrocompat: monthly orgs' seat billing is unchanged; gated by the same `enforcementEnabled` switch.
+- [x] **ANN-04**: Make `syncSubscriptionSeatItem` interval-aware — read the subscription's interval and set the seat item's `recurring.interval` to match (replacing the hardcoded `'month'`), using `seatPriceAnnualCents` for annual subscriptions. Retrocompat: monthly orgs' seat billing is unchanged; gated by the same `enforcementEnabled` switch.
 
 ### Pricing UI
 
-- [ ] **ANN-05**: The pricing cards (`components/billing/tier-cards-grid.tsx` + `tier-card.tsx`) gain a Monthly/Annual toggle showing the annual price, the DERIVED "save X%" badge, and the per-month-equivalent; the selected interval threads into the upgrade/checkout action. Mobile-safe; i18n en/pt/es via runtime t().
+- [x] **ANN-05**: The pricing cards (`components/billing/tier-cards-grid.tsx` + `tier-card.tsx`) gain a Monthly/Annual toggle showing the annual price, the DERIVED "save X%" badge, and the per-month-equivalent; the selected interval threads into the upgrade/checkout action. Mobile-safe; i18n en/pt/es via runtime t().
 
 ## v2 Requirements
 
@@ -78,8 +78,8 @@ Deferred to a future milestone. Tracked but not in this roadmap.
 | WAADM-04 | Phase 142.1 | Complete |
 | WAADM-05 | Phase 142.1 | Complete |
 | ANN-03 | Phase 143 | Complete |
-| ANN-04 | Phase 144 | Pending |
-| ANN-05 | Phase 145 | Pending |
+| ANN-04 | Phase 144 | Complete |
+| ANN-05 | Phase 145 | Complete |
 
 **Coverage:**
 - v1 requirements: 11 total

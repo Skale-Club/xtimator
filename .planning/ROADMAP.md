@@ -934,8 +934,8 @@ Plans:
 | 141. Configurable Annual Pricing | v4.13 | 1/1 | Complete   | 2026-06-25 |
 | 142. Monthly Credit Grant Decouple | v4.13 | 1/1 | Complete   | 2026-06-27 |
 | 143. Annual Checkout | v4.13 | 1/1 | Complete   | 2026-06-28 |
-| 144. Interval-Aware Seat Billing | v4.13 | 0/TBD | Not started | - |
-| 145. Pricing UI Toggle | v4.13 | 0/TBD | Not started | - |
+| 144. Interval-Aware Seat Billing | v4.13 | 1/1 | Complete   | 2026-06-28 |
+| 145. Pricing UI Toggle | v4.13 | 1/1 | Complete   | 2026-06-28 |
 
 ### Phase 75: Tour and Tooltip QA
 
@@ -2201,8 +2201,8 @@ Plans:
 
 - [x] **Phase 142: Monthly Credit Grant Decouple** — THE load-bearing phase. Change the `invoice.paid` grant idempotency key from `event.id` to `grant:{companyId}:{YYYY-MM}`; add an Inngest monthly cron (`lib/inngest/functions/monthly-credit-grant.ts`, mirroring the `cleanup-audio` cron pattern) that grants `monthlyCreditGrant` to active paying companies once per company-month using the SAME key, reusing the idempotent never-throw `grantCredits`. Exactly one grant per company per calendar month for ALL intervals. Retrocompat regression test (monthly subs, no double-grant across webhook + cron) is the gate. (ANN-02) (completed 2026-06-25)
 - [x] **Phase 143: Annual Checkout** — `create-checkout-session` accepts `billingInterval: 'month' | 'year'` (default `'month'`), selects the matching annual Stripe Price ID (new env `STRIPE_PRICE_PRO_ANNUAL` / `STRIPE_PRICE_BUSINESS_ANNUAL`, placeholders only), and stores `billing_interval` in the subscription/session metadata. The no-interval / `'month'` path stays byte-identical. (ANN-03) (completed 2026-06-28)
-- [ ] **Phase 144: Interval-Aware Seat Billing** — Make `syncSubscriptionSeatItem` read the subscription's interval and set the seat item's `recurring.interval` to match (replacing the hardcoded `'month'`), using `seatPriceAnnualCents` (inline `price_data`) for annual subscriptions. Monthly orgs unchanged; gated by the same `enforcementEnabled` switch. Builds on the v4.12 seat billing. (ANN-04)
-- [ ] **Phase 145: Pricing UI Toggle** — The pricing cards (`tier-cards-grid.tsx` + `tier-card.tsx`) gain a Monthly/Annual toggle showing the annual price, the DERIVED "save X%" badge, and the per-month equivalent; the selected interval threads into the upgrade/checkout action. Mobile-safe; i18n en/pt/es via runtime `t()`. (ANN-05)
+- [x] **Phase 144: Interval-Aware Seat Billing** — Make `syncSubscriptionSeatItem` read the subscription's interval and set the seat item's `recurring.interval` to match (replacing the hardcoded `'month'`), using `seatPriceAnnualCents` (inline `price_data`) for annual subscriptions. Monthly orgs unchanged; gated by the same `enforcementEnabled` switch. Builds on the v4.12 seat billing. (ANN-04) (completed 2026-06-28)
+- [x] **Phase 145: Pricing UI Toggle** — The pricing cards (`tier-cards-grid.tsx` + `tier-card.tsx`) gain a Monthly/Annual toggle showing the annual price, the DERIVED "save X%" badge, and the per-month equivalent; the selected interval threads into the upgrade/checkout action. Mobile-safe; i18n en/pt/es via runtime `t()`. (ANN-05) (completed 2026-06-28)
 
 ### Phase Details — v4.13 Annual Billing
 
