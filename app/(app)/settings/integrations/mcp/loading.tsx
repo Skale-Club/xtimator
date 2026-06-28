@@ -16,7 +16,7 @@ import {
 export default function McpSettingsLoading() {
   return (
     <SettingsShellSkeleton>
-      <SettingsPageSkeleton title="MCP Server">
+      <SettingsPageSkeleton>
         <header className="flex flex-col gap-2">
           <div className="flex items-center gap-3">
             <Skeleton className="h-9 w-44" />

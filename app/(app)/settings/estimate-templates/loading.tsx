@@ -15,7 +15,7 @@ export default function EstimateTemplatesLoading() {
     <SettingsShellSkeleton>
       <SettingsPageSkeleton
         title="Estimate Templates"
-        description="Customize the greeting, opener, closing, and signature for your plain-text estimates."
+        description="Customize the greeting, opener, closing, and signature for your plain-text estimates. Changes apply to all future estimates — existing generated text is not affected."
       >
         <SettingsCard className="p-8">
           <div className="space-y-8">

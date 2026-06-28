@@ -8,7 +8,6 @@ import {
 /**
  * /settings/integrations — mirrors the SettingsIntegrationsPage layout:
  * - AI transparency card
- * - Messaging channels (WhatsApp) card
  * - Assistants (MCP Server) link-card
  */
 export default function SettingsIntegrationsLoading() {
@@ -37,18 +36,6 @@ export default function SettingsIntegrationsLoading() {
                 </div>
               ))}
             </div>
-          </SettingsCard>
-        </section>
-
-        <section className="space-y-3">
-          <Skeleton className="h-3 w-32" />
-          <SettingsCard>
-            <div className="flex items-center gap-2">
-              <Skeleton className="h-5 w-5 rounded" />
-              <Skeleton className="h-5 w-20" />
-              <Skeleton className="h-5 w-28 rounded-full" />
-            </div>
-            <Skeleton className="mt-2 h-3 w-full max-w-md" />
           </SettingsCard>
         </section>
 
