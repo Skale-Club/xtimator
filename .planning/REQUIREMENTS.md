@@ -36,7 +36,7 @@ Each requirement maps to exactly one roadmap phase.
 
 ### Annual Checkout
 
-- [ ] **ANN-03**: `create-checkout-session` accepts `billingInterval: 'month' | 'year'` (default `'month'`), selects the matching Stripe Price ID (annual via new env `STRIPE_PRICE_PRO_ANNUAL` / `STRIPE_PRICE_BUSINESS_ANNUAL`), and stores `billing_interval` in the subscription/session metadata. Env examples documented with placeholders only. Retrocompat: the no-interval / `'month'` path is byte-identical to today.
+- [x] **ANN-03**: `create-checkout-session` accepts `billingInterval: 'month' | 'year'` (default `'month'`), selects the matching Stripe Price ID (annual via new env `STRIPE_PRICE_PRO_ANNUAL` / `STRIPE_PRICE_BUSINESS_ANNUAL`), and stores `billing_interval` in the subscription/session metadata. Env examples documented with placeholders only. Retrocompat: the no-interval / `'month'` path is byte-identical to today.
 
 ### Interval-Aware Seat Billing
 
@@ -77,7 +77,7 @@ Deferred to a future milestone. Tracked but not in this roadmap.
 | WAADM-03 | Phase 142.1 | Complete |
 | WAADM-04 | Phase 142.1 | Complete |
 | WAADM-05 | Phase 142.1 | Complete |
-| ANN-03 | Phase 143 | Pending |
+| ANN-03 | Phase 143 | Complete |
 | ANN-04 | Phase 144 | Pending |
 | ANN-05 | Phase 145 | Pending |
 
