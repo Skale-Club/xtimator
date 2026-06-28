@@ -4,6 +4,7 @@ import { getAuthClaims } from '@/lib/queries/auth'
 import { getBillingData } from '@/lib/queries/billing'
 import { getActiveCompany } from '@/lib/queries/active-company'
 import { getCreditOverview } from '@/lib/queries/credits'
+import { getBillingConfig } from '@/lib/billing/billing-config'
 import {
   Card,
   CardHeader,
@@ -17,7 +18,7 @@ import { CreditBalanceCard } from '@/components/billing/credit-balance-card'
 import { CreditHistoryList } from '@/components/billing/credit-history-list'
 import { T } from '@/components/i18n/t'
 
-export const metadata = { title: 'Billing' }
+export const metadata = { title: 'Plans' }
 
 const TIER_DISPLAY: Record<string, string> = {
   free: 'Free',
@@ -47,6 +48,16 @@ export default async function BillingPage() {
 
   const credits = await getCreditOverview(company.id)
 
+  const cfg = await getBillingConfig()
+  const annualPrices = {
+    pro: cfg.tiers.pro.subscriptionPriceAnnualCents,
+    business: cfg.tiers.business.subscriptionPriceAnnualCents,
+  }
+  const monthlyPricesCents = {
+    pro: cfg.tiers.pro.subscriptionPriceCents,
+    business: cfg.tiers.business.subscriptionPriceCents,
+  }
+
   const tierDisplay = TIER_DISPLAY[data.tier] ?? data.tier
 
   const formatDate = (iso: string) =>
@@ -58,7 +69,7 @@ export default async function BillingPage() {
     <div className="space-y-6 p-6">
       <header className="flex flex-col gap-1">
         <h1 className="text-[clamp(28px,3.5vw,40px)] font-semibold tracking-tight">
-          <T>Billing</T>
+          <T>Plans</T>
         </h1>
         <p className="text-sm text-muted-foreground">
           <T>You&rsquo;re on the</T>{' '}
@@ -164,7 +175,11 @@ export default async function BillingPage() {
         {/* Tier cards grid (Free / Pro / Business with per-tier gradient escalation) */}
         <div className="space-y-4">
           <h2 className="text-2xl font-semibold tracking-tight"><T>Choose your plan</T></h2>
-          <TierCardsGrid currentTier={data.tier as 'free' | 'trial' | 'pro' | 'business'} />
+          <TierCardsGrid
+            currentTier={data.tier as 'free' | 'trial' | 'pro' | 'business'}
+            annualPrices={annualPrices}
+            monthlyPricesCents={monthlyPricesCents}
+          />
         </div>
 
         {/* Manage subscription (Stripe Customer Portal — Phase 70 CONNECT-04) */}
