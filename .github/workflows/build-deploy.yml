@@ -79,12 +79,12 @@ jobs:
           # NEXT_PUBLIC_* are PUBLIC build args (inlined into the client bundle),
           # NOT secrets — they come from vars.* except SITE_URL (hardcoded above).
           build-args: |
-            NEXT_PUBLIC_SUPABASE_URL=${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
-            NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-            NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${{ vars.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
-            NEXT_PUBLIC_SITE_URL=${{ env.SITE_URL }}
-            NEXT_PUBLIC_TURNSTILE_SITE_KEY=${{ vars.NEXT_PUBLIC_TURNSTILE_SITE_KEY }}
-            NEXT_PUBLIC_SENTRY_DSN=${{ vars.NEXT_PUBLIC_SENTRY_DSN }}
+            PUBLIC_SUPABASE_URL=${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+            PUBLIC_SUPABASE_ANON_VALUE=${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+            PUBLIC_SUPABASE_PUBLISHABLE_VALUE=${{ vars.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+            PUBLIC_SITE_URL=${{ env.SITE_URL }}
+            PUBLIC_TURNSTILE_SITE_VALUE=${{ vars.NEXT_PUBLIC_TURNSTILE_SITE_KEY }}
+            PUBLIC_SENTRY_DSN=${{ vars.NEXT_PUBLIC_SENTRY_DSN }}
             SENTRY_ORG=${{ vars.SENTRY_ORG }}
             SENTRY_PROJECT=${{ vars.SENTRY_PROJECT }}
             DEPLOYMENT_VERSION=${{ github.sha }}
