@@ -8,8 +8,8 @@ export default function DefaultsSettingsLoading() {
   return (
     <SettingsPageSkeleton
       noPadding
-      title="Estimate Defaults"
-      description="Set the reusable terms and calculation defaults applied when new estimates are created."
+      title="Estimates"
+      description="Set estimate defaults and delivery options."
     >
       <SettingsCard>
         <div className="space-y-8">

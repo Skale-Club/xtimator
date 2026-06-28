@@ -5,7 +5,7 @@ import { getCompanySettings } from '@/lib/queries/company'
 import { DefaultsForm } from '@/components/settings/defaults-form'
 import { T } from '@/components/i18n/t'
 
-export const metadata = { title: 'Defaults | Settings' }
+export const metadata = { title: 'Estimates | Settings' }
 
 export default async function DefaultsTabPage() {
   const claims = await getAuthClaims()
@@ -19,10 +19,10 @@ export default async function DefaultsTabPage() {
     <div className="space-y-6">
       <header className="flex flex-col gap-1">
         <h1 className="text-[clamp(28px,3.5vw,40px)] font-semibold tracking-tight">
-          <T>Estimate Defaults</T>
+          <T>Estimates</T>
         </h1>
         <p className="text-sm text-muted-foreground">
-          <T>Set the reusable terms and calculation defaults applied when new estimates are created.</T>
+          <T>Set estimate defaults and delivery options.</T>
         </p>
       </header>
       <DefaultsForm company={company} />

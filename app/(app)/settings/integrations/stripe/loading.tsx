@@ -1,10 +1,10 @@
 import { Skeleton } from '@/components/ui/skeleton'
 
-export default function PaymentsSettingsLoading() {
+export default function StripeIntegrationLoading() {
   return (
     <div className="space-y-6 p-6">
       <header className="flex flex-col gap-1">
-        <Skeleton className="h-9 w-36" />
+        <Skeleton className="h-9 w-28" />
         <Skeleton className="h-4 w-72" />
       </header>
 

@@ -36,7 +36,7 @@ vi.mock('next/navigation', () => ({
 const { getAuthClaims } = await import('@/lib/queries/auth')
 const { requireServiceClient } = await import('@/lib/supabase/service')
 const { getIntegrationKey } = await import('@/lib/platform-config')
-const PaymentsPageMod = await import('@/app/(app)/settings/payments/page')
+const PaymentsPageMod = await import('@/app/(app)/settings/integrations/stripe/page')
 const PaymentsSettingsPage = PaymentsPageMod.default
 
 function mockSupabase(company: Record<string, unknown> | null) {

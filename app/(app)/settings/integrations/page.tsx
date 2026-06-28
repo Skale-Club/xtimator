@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Plug, ChevronRight, Sparkles, Mic } from 'lucide-react'
+import { CreditCard, Plug, ChevronRight, Sparkles, Mic } from 'lucide-react'
 
 import { T } from '@/components/i18n/t'
 import {
@@ -11,6 +11,8 @@ import {
 } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { getSelectedAIProvider } from '@/lib/platform-config'
+import { getAuthClaims } from '@/lib/queries/auth'
+import { requireServiceClient } from '@/lib/supabase/service'
 
 export const metadata = { title: 'Integrations | Settings' }
 
@@ -32,10 +34,24 @@ function SectionHeading({ children }: { children: React.ReactNode }) {
 }
 
 export default async function SettingsIntegrationsPage() {
-  // Active LLM provider is a non-secret display value.
-  const aiProvider = await getSelectedAIProvider()
+  const [aiProvider, claims] = await Promise.all([
+    getSelectedAIProvider(),
+    getAuthClaims(),
+  ])
 
   const estimateModelLabel = AI_PROVIDER_LABELS[aiProvider] ?? AI_PROVIDER_LABELS.anthropic
+
+  let stripeConnected = false
+  if (claims) {
+    const svc = requireServiceClient()
+    const { data: company } = await svc
+      .from('companies')
+      .select('stripe_account_id, stripe_connect_status')
+      .eq('user_id', claims.sub as string)
+      .single()
+    stripeConnected =
+      !!company?.stripe_account_id && company.stripe_connect_status === 'active'
+  }
 
   return (
     <div className="space-y-8 p-6">
@@ -88,6 +104,38 @@ export default async function SettingsIntegrationsPage() {
             </dl>
           </CardContent>
         </Card>
+      </section>
+
+      {/* Payments — Stripe Connect setup. */}
+      <section className="space-y-3">
+        <SectionHeading>
+          <T>Payments</T>
+        </SectionHeading>
+        <Link
+          href="/settings/integrations/stripe"
+          className="group block focus:outline-none"
+        >
+          <Card className="transition hover:border-primary/40 hover:shadow-sm group-focus-visible:ring-2 group-focus-visible:ring-ring">
+            <CardHeader>
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <CreditCard className="h-5 w-5 text-primary" aria-hidden />
+                  <CardTitle className="text-base">Stripe</CardTitle>
+                  <Badge variant={stripeConnected ? 'default' : 'secondary'}>
+                    {stripeConnected ? 'Connected' : 'Not connected'}
+                  </Badge>
+                </div>
+                <ChevronRight
+                  className="h-4 w-4 text-muted-foreground transition group-hover:translate-x-0.5"
+                  aria-hidden
+                />
+              </div>
+              <CardDescription>
+                <T>Let customers pay estimates online via Stripe Connect.</T>
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        </Link>
       </section>
 
       {/* Assistants — use Xtimator from inside AI clients via MCP. */}

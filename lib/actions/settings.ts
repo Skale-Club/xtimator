@@ -185,6 +185,8 @@ export async function updateDefaults(data: {
   defaultPaymentTerms: string
   defaultWarrantyTerms: string
   defaultValidityDays: number
+  digitalSignatureEnabled?: boolean
+  emailDeliveryEnabled?: boolean
 }) {
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error }
@@ -205,6 +207,12 @@ export async function updateDefaults(data: {
       default_payment_terms: data.defaultPaymentTerms || null,
       default_warranty_terms: data.defaultWarrantyTerms || null,
       default_validity_days: data.defaultValidityDays,
+      ...(data.digitalSignatureEnabled !== undefined && {
+        digital_signature_enabled: data.digitalSignatureEnabled,
+      }),
+      ...(data.emailDeliveryEnabled !== undefined && {
+        email_delivery_enabled: data.emailDeliveryEnabled,
+      }),
     })
     .eq('id', company.id)
 

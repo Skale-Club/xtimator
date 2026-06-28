@@ -355,7 +355,7 @@ describe('BILLCFG-03: getBillingConfig consumed ONLY by the reader + credit-ledg
     // consumers — added here together so the dormancy guard stays green when
     // Plan 03 lands, while the guard still fails on any OTHER consumer.
     const INVOICE_ACTION_PATH = resolve(process.cwd(), 'lib/actions/invoice.ts')
-    const PAYMENTS_PAGE_PATH = resolve(process.cwd(), 'app/(app)/settings/payments/page.tsx')
+    const PAYMENTS_PAGE_PATH = resolve(process.cwd(), 'app/(app)/settings/integrations/stripe/page.tsx')
     // Phase 115 (Credit Balance UX): the owner-facing credit overview query reads
     // lowBalanceThresholds from getBillingConfig to surface low-balance guidance
     // (CREDITUI-01) — the runtime-authoritative billing source, a legitimate
