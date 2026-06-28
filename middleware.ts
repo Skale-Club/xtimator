@@ -16,14 +16,17 @@ const PUBLIC_EXACT_ROUTES = ['/', '/callback'] as const
 
 const PUBLIC_PREFIXES = ['/estimate/public', '/icon', '/apple-icon', '/manifest.webmanifest'] as const
 
-function isPublicRoute(pathname: string): boolean {
+export function isPublicRoute(pathname: string): boolean {
   if (PUBLIC_EXACT_ROUTES.includes(pathname as (typeof PUBLIC_EXACT_ROUTES)[number])) {
+    return true
+  }
+  if (pathname === '/api/cron' || pathname.startsWith('/api/cron/')) {
     return true
   }
   return PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix))
 }
 
-function isProtectedRoute(pathname: string): boolean {
+export function isProtectedRoute(pathname: string): boolean {
   return PROTECTED_ROUTE_PREFIXES.some((prefix) => pathname.startsWith(prefix))
 }
 
@@ -74,7 +77,9 @@ export async function middleware(request: NextRequest) {
   }
 
   // Protect private routes
-  if (!claims && isProtectedRoute(pathname)) {
+  // Cron routes authenticate with their own CRON_SECRET Bearer token. They
+  // must reach the route handler even when there is no Supabase user session.
+  if (!claims && isProtectedRoute(pathname) && !isPublicRoute(pathname)) {
     const url = request.nextUrl.clone()
     url.pathname = '/'
     url.search = ''
