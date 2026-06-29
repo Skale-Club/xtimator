@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v3.1.1
-milestone_name: MVP Launch Prep + Future-Proofing
+milestone: v4.14
+milestone_name: Admin Sales Mode
 status: completed
-stopped_at: Phase 146-149 (v4.14) context gathered — Admin Sales Mode discuss-phase complete
-last_updated: "2026-06-28T23:31:10.931Z"
-last_activity: 2026-06-27
+stopped_at: Phase 149 complete — v4.14 Admin Sales Mode ALL 4 phases (146-149) COMPLETE
+last_updated: "2026-06-28T21:00:00.000Z"
+last_activity: 2026-06-28
 progress:
-  total_phases: 102
-  completed_phases: 84
-  total_plans: 228
-  completed_plans: 241
+  total_phases: 106
+  completed_phases: 88
+  total_plans: 232
+  completed_plans: 245
 ---
 
 # Project State
@@ -31,11 +31,21 @@ progress:
 
 ## Current Position
 
-Phase: 145
+Phase: 149
 Plan: 01 complete
-Status: Phase 145 complete (1/1 plan). v4.13 Annual Billing — ALL 5 phases COMPLETE (ANN-01..ANN-05).
+Status: Phase 149 complete (1/1 plan). v4.14 Admin Sales Mode — ALL 4 phases COMPLETE (146-149).
 
 ---
+
+### Accumulated Context (v4.14)
+
+Status (149-01, DEMO-07/08): shipped — **Phase 149 COMPLETE (1/1 plan) — the LAST plan of v4.14 Admin Sales Mode; demo account handoff from super-admin to prospect.** `lib/email/invite-emails.ts` InviteEmailContext.role extended to accept `'owner'`. `lib/admin/audit-log.ts` AuditAction extended with `'company.handoff'`. NEW `lib/actions/admin-handoff.ts`: `handoffDemoCompany(companyId, email)` server action gated by `requireAdmin()` — validates email, guards against existing members and duplicate pending invites, inserts `company_invites` with `role: 'owner'` and 7-day TTL, calls `sendInviteEmail`, logs audit action, revalidates `/admin/companies`. NEW `app/admin/companies/handoff-button.tsx`: client `<button>` + Dialog with single email input, calls `handoffDemoCompany`, shows success toast. `app/admin/companies/page.tsx`: adds `demo_estimate_quota` to SELECT, filters `demoCompanies`, shows a "Demo Accounts" section above the full table with quota and `HandoffButton` per demo row. Commit 645f8ba2. **v4.14 Admin Sales Mode: ALL 4 phases (146-149) COMPLETE.** Operational next steps: apply migration 20260628000003 to remote (demo_estimate_quota column), calibrate demo quota defaults, UAT street-sales flow end-to-end.
+
+Status (148-01, DEMO-03/04/05/06): shipped — **Phase 148 COMPLETE (1/1 plan) — quota guard + admin override; the estimate cap that enforces the 3-estimate demo limit.** DB migration `20260628000003_phase148_demo_estimate_quota.sql` applied to Supabase f2b95485: `companies.demo_estimate_quota INTEGER DEFAULT NULL` (NULL=unlimited, 3=demo). `app/api/generate-estimate/route.ts` GUARD-DEMO block: reads `demo_estimate_quota` + `tier` via service role, counts existing estimates, returns 402 `plan_limit_reached` when cap hit for non-paid tiers. `app/admin/companies/actions.ts`: `setDemoEstimateQuota(companyId, quota)` server action (admin-gated, logs `company.set_demo_quota`). `app/admin/companies/[id]/page.tsx`: estimate count query + CompanyQuotaForm card. NEW `app/admin/companies/[id]/company-quota-form.tsx`: number input + save/remove limit buttons. `lib/admin/audit-log.ts`: added `'company.set_demo_quota'`. Commit (bundled with Phase 148 DB migration). Phase 148 complete.
+
+Status (147-01, DEMO-01/02): shipped — **Phase 147 COMPLETE (1/1 plan) — admin company creation modal; the street-sales "spin up a demo account on-the-fly" flow.** NEW `lib/actions/admin-company.ts`: `createAdminCompany(formData)` server action — requireAdmin gate, inserts company with `demo_estimate_quota: 3`, inserts company_member, optional logo upload, switches active company cookie, returns `{ success: true, companyId }` (no redirect). NEW `components/app-shell/admin-create-company-modal.tsx`: Dialog with 4 fields (name, industry, logo, brandColor), calls `createAdminCompany`, on success toast + `router.push('/dashboard')`. `components/app-shell/company-selector.tsx`: AdminCreateCompanyModal wired behind "Add new company" item (admin-only, clickable). TS fix: `useState<string>(SYSTEM_COLORS.primary)` explicit generic. Commit 0dbb7609 (attributed to Phase 148 label but contains 147 + 148 DB files). Phase 147 complete.
+
+Status (146-01, ADMIN-01): shipped — **Phase 146 COMPLETE (1/1 plan) — super-admin role system; isAdmin threading from layout → Sidebar → CompanySelector.** `app/(app)/layout.tsx`: passes `isAdmin` prop to Sidebar. `components/app-shell/sidebar.tsx`: isAdmin prop forwarded to both CompanySelector instances. `components/app-shell/company-selector.tsx`: isAdmin prop gates the "Add new company" item. All DB-driven via `platform_admins` table + `requireAdmin()`. Nothing hardcoded. Commit 0dbb7609. Phase 146 complete.
 
 ### Accumulated Context (v4.13)
 
