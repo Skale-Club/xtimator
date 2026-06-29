@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 
 import { resumeOrCreateDraftProjectAction, getProjectMinimalAction } from '@/lib/actions/project'
+import { createBlankEstimate } from '@/lib/actions/estimate'
 import { LoadingDots } from '@/components/ui/loading-dots'
 import { CaptureRecorder } from '@/components/capture/capture-recorder'
 import type { ProjectDetail } from '@/lib/queries/project'
@@ -114,6 +115,18 @@ export function NewProjectWizard({
     // with router.push and drops the navigation in Next.js App Router.
   }
 
+  async function handleStartBlank() {
+    if (!project) return
+    const result = await createBlankEstimate(project.id)
+    clearDraftProjectId()
+    if ('error' in result || !result.data) {
+      toast.error((result as { error?: string }).error ?? 'Failed to create estimate')
+      return
+    }
+    router.push(`/projects/${project.id}?tab=estimate&estimate=${result.data.estimateId}`)
+    router.refresh()
+  }
+
   if (isCreating || !project) {
     return (
       <div className="flex items-center justify-center py-16">
@@ -138,6 +151,8 @@ export function NewProjectWizard({
       // New mode resumes a draft project — rehydrate its photos into the strip.
       // Edit mode keeps its existing behavior (no photo strip prefill).
       restorePhotos={!editProjectId}
+      // Only offered in new-project mode — doesn't make sense when editing.
+      onStartBlank={!editProjectId ? handleStartBlank : undefined}
     />
   )
 }

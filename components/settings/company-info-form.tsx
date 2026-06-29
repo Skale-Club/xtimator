@@ -1,10 +1,10 @@
 'use client'
 
-import { useMemo, useState, useTransition } from 'react'
+import { useMemo, useRef, useState, useTransition } from 'react'
 import { useForm, useWatch, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Pipette, Upload } from 'lucide-react'
 import { toast } from 'sonner'
 
 import type { CompanySettings } from '@/lib/queries/company'
@@ -20,9 +20,12 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { IndustrySelector } from '@/components/onboarding/industry-selector'
-import { LogoUploader } from '@/components/onboarding/logo-uploader'
 import { useTranslation } from '@/lib/i18n/use-translation'
+
 import { DEFAULT_CURRENCY_CODE, SUPPORTED_CURRENCIES } from '@/lib/money/currency'
+
+const MAX_LOGO_SIZE = 2 * 1024 * 1024
+const ACCEPTED_LOGO_TYPES = ['image/png', 'image/jpeg', 'image/jpg']
 
 const companyInfoSchema = z.object({
   name: z.string().min(1, 'Company name is required'),
@@ -53,9 +56,26 @@ interface CompanyInfoFormProps {
 
 export function CompanyInfoForm({ company, readOnly = false }: CompanyInfoFormProps) {
   const { t } = useTranslation()
+  const logoInputRef = useRef<HTMLInputElement>(null)
   const [logoFile, setLogoFile] = useState<File | null>(null)
   const [logoPreview, setLogoPreview] = useState<string | null>(company.logo_url)
   const [isPending, startTransition] = useTransition()
+
+  function handleLogoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+    if (!ACCEPTED_LOGO_TYPES.includes(file.type)) {
+      toast.error('Unsupported format. Please upload a PNG or JPG.')
+      return
+    }
+    if (file.size > MAX_LOGO_SIZE) {
+      toast.error('Logo must be under 2MB.')
+      return
+    }
+    setLogoFile(file)
+    setLogoPreview(URL.createObjectURL(file))
+  }
 
   // Split the persisted industries array back into multi-select state.
   // Falls back to the singular `industry` for rows not yet backfilled.
@@ -150,22 +170,110 @@ export function CompanyInfoForm({ company, readOnly = false }: CompanyInfoFormPr
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
             <fieldset disabled={readOnly} className="m-0 min-w-0 space-y-8 border-0 p-0">
-            <div className="grid gap-8 xl:grid-cols-[280px_minmax(0,1fr)]">
-              <div className="flex items-center justify-center rounded-[var(--radius-md)] border border-dashed border-border bg-muted/30 p-6">
-                <LogoUploader
-                  preview={logoPreview}
-                  companyInitial={companyName?.[0] || 'C'}
-                  onFileSelect={(file, preview) => {
-                    setLogoFile(file)
-                    setLogoPreview(preview)
-                  }}
-                  onRemove={() => {
-                    setLogoFile(null)
-                    setLogoPreview(null)
-                  }}
+
+              {/* Logo + Brand Color — top two-column row */}
+              <div className="grid gap-4 sm:grid-cols-2">
+
+                {/* Logo card */}
+                <div className="relative flex flex-col overflow-hidden rounded-[var(--radius-md)] border border-dashed border-border">
+                  <button
+                    type="button"
+                    aria-label="Upload company logo"
+                    onClick={() => logoInputRef.current?.click()}
+                    className="group relative flex min-h-[180px] flex-1 flex-col items-center justify-center gap-3 p-6 transition-colors hover:bg-muted/20"
+                  >
+                    {logoPreview ? (
+                      <>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={logoPreview}
+                          alt="Company logo"
+                          className="h-24 w-auto max-w-[200px] rounded-md object-contain"
+                        />
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
+                          <span className="text-sm font-medium text-white">{t('Change logo')}</span>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="rounded-full bg-muted p-4">
+                          <Upload className="h-6 w-6 text-muted-foreground" />
+                        </div>
+                        <div className="text-center">
+                          <p className="text-sm font-medium text-foreground">{t('Company Logo')}</p>
+                          <p className="mt-0.5 text-xs text-muted-foreground">PNG or JPG · max 2MB</p>
+                        </div>
+                      </>
+                    )}
+                  </button>
+
+                  {logoPreview && (
+                    <div className="flex items-center justify-center gap-4 border-t border-border bg-muted/10 py-2.5">
+                      <button
+                        type="button"
+                        onClick={() => logoInputRef.current?.click()}
+                        className="text-xs text-muted-foreground transition-colors hover:text-foreground"
+                      >
+                        {t('Change')}
+                      </button>
+                      <span className="text-xs text-muted-foreground/40">·</span>
+                      <button
+                        type="button"
+                        onClick={() => { setLogoFile(null); setLogoPreview(null) }}
+                        className="text-xs text-muted-foreground transition-colors hover:text-destructive"
+                      >
+                        {t('Remove')}
+                      </button>
+                    </div>
+                  )}
+
+                  <input
+                    ref={logoInputRef}
+                    type="file"
+                    accept=".png,.jpg,.jpeg"
+                    className="hidden"
+                    onChange={handleLogoChange}
+                  />
+                </div>
+
+                {/* Brand Color card */}
+                <FormField
+                  control={form.control}
+                  name="brandPrimaryColor"
+                  render={({ field }) => (
+                    <FormItem className="m-0">
+                      <label className="group relative flex min-h-[180px] cursor-pointer flex-col overflow-hidden rounded-[var(--radius-md)] border border-border">
+                        <div
+                          className="relative flex-1"
+                          style={{ backgroundColor: field.value || SYSTEM_COLORS.primary }}
+                        >
+                          <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/30 opacity-0 transition-opacity group-hover:opacity-100">
+                            <Pipette className="h-4 w-4 text-white" />
+                            <span className="text-sm font-medium text-white">{t('Change color')}</span>
+                          </div>
+                          <FormControl>
+                            <input
+                              type="color"
+                              className="sr-only"
+                              value={field.value || SYSTEM_COLORS.primary}
+                              onChange={field.onChange}
+                            />
+                          </FormControl>
+                        </div>
+                        <div className="border-t border-border bg-card/50 px-4 py-3">
+                          <p className="text-xs text-muted-foreground">{t('Brand Color')}</p>
+                          <p className="mt-0.5 font-mono text-sm font-semibold tracking-wide">
+                            {(field.value || SYSTEM_COLORS.primary).toUpperCase()}
+                          </p>
+                        </div>
+                      </label>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
               </div>
 
+              {/* Main fields */}
               <div className="grid gap-5 lg:grid-cols-2">
                 {/* Company Name */}
                 <FormField
@@ -200,52 +308,52 @@ export function CompanyInfoForm({ company, readOnly = false }: CompanyInfoFormPr
                   )}
                 />
 
-                {/* Phone & Email */}
-                <FormField
-                  control={form.control}
-                  name="phone"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t('Phone')}</FormLabel>
-                      <FormControl>
-                        <PhoneInput
-                          value={field.value ?? ''}
-                          onChange={field.onChange}
-                          placeholder="(555) 123-4567"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t('Email')}</FormLabel>
-                      <FormControl>
-                        <Input placeholder="info@company.com" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                {/* Website */}
-                <FormField
-                  control={form.control}
-                  name="website"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t('Website')}</FormLabel>
-                      <FormControl>
-                        <Input placeholder="https://company.com" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                {/* Phone, Email & Website — same row on desktop */}
+                <div className="lg:col-span-2 grid gap-5 lg:grid-cols-3">
+                  <FormField
+                    control={form.control}
+                    name="phone"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Phone')}</FormLabel>
+                        <FormControl>
+                          <PhoneInput
+                            value={field.value ?? ''}
+                            onChange={field.onChange}
+                            placeholder="(555) 123-4567"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Email')}</FormLabel>
+                        <FormControl>
+                          <Input placeholder="info@company.com" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="website"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Website')}</FormLabel>
+                        <FormControl>
+                          <Input placeholder="https://company.com" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
 
                 {/* Services (multi-select) */}
                 <FormItem className="lg:col-span-2">
@@ -338,7 +446,6 @@ export function CompanyInfoForm({ company, readOnly = false }: CompanyInfoFormPr
                   )}
                 />
               </div>
-            </div>
 
             {/* Address */}
             <FormField
@@ -427,31 +534,6 @@ export function CompanyInfoForm({ company, readOnly = false }: CompanyInfoFormPr
                 )}
               />
             </div>
-
-            {/* Brand Color */}
-            <FormField
-              control={form.control}
-              name="brandPrimaryColor"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('Brand Color')}</FormLabel>
-                  <div className="flex items-center gap-3">
-                    <FormControl>
-                      <input
-                        type="color"
-                        className="h-10 w-10 cursor-pointer rounded border"
-                        value={field.value || SYSTEM_COLORS.primary}
-                        onChange={field.onChange}
-                      />
-                    </FormControl>
-                    <span className="text-sm text-muted-foreground font-mono">
-                      {field.value || SYSTEM_COLORS.primary}
-                    </span>
-                  </div>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
 
             </fieldset>
 

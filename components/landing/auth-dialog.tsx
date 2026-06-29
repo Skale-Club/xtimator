@@ -33,19 +33,14 @@ const loginPasswordSchema = z.object({
   password: z.string().min(1, 'Password is required.'),
 })
 
-const signupPasswordSchema = z
-  .object({
-    password: z.string().min(8, 'Password must be at least 8 characters.'),
-    confirmPassword: z.string(),
-  })
-  .refine((data) => data.password === data.confirmPassword, {
-    message: 'Passwords do not match.',
-    path: ['confirmPassword'],
-  })
+const signupStep1Schema = z.object({
+  email: z.string().email('Please enter a valid email address.'),
+  password: z.string().min(8, 'Password must be at least 8 characters.'),
+})
 
 type EmailValues = z.infer<typeof emailSchema>
 type LoginPasswordValues = z.infer<typeof loginPasswordSchema>
-type SignupPasswordValues = z.infer<typeof signupPasswordSchema>
+type SignupStep1Values = z.infer<typeof signupStep1Schema>
 
 // ---------------------------------------------------------------------------
 // Types
@@ -380,37 +375,78 @@ function LoginStep2({ email, captchaToken, next, onBack, onForgot, onError }: Lo
 }
 
 // ---------------------------------------------------------------------------
-// Step 2 — Signup (password + confirm)
+// Step 1 — Signup (email + password + confirm, all-in-one)
 // ---------------------------------------------------------------------------
 
-interface SignupStep2Props {
-  email: string
+interface SignupStep1Props {
+  initialEmail: string
   initialPassword: string
-  onBack: () => void
-  onContinue: (password: string) => void
+  topLevelError: string | null
+  captchaToken: string | null
+  setCaptchaToken: (token: string | null) => void
+  turnstileRef: React.RefObject<TurnstileWidgetRef | null>
+  onContinue: (email: string, password: string) => void
 }
 
-function SignupStep2({ email, initialPassword, onBack, onContinue }: SignupStep2Props) {
+function SignupStep1Form({
+  initialEmail,
+  initialPassword,
+  topLevelError,
+  captchaToken,
+  setCaptchaToken,
+  turnstileRef,
+  onContinue,
+}: SignupStep1Props) {
   const [showPassword, setShowPassword] = useState(false)
-  const [showConfirm, setShowConfirm] = useState(false)
+  const [captchaError, setCaptchaError] = useState<string | null>(null)
 
-  const form = useForm<SignupPasswordValues>({
-    resolver: zodResolver(signupPasswordSchema),
-    defaultValues: { password: initialPassword, confirmPassword: initialPassword },
+  const form = useForm<SignupStep1Values>({
+    resolver: zodResolver(signupStep1Schema),
+    defaultValues: { email: initialEmail, password: initialPassword },
   })
 
-  function onSubmit(values: SignupPasswordValues) {
-    onContinue(values.password)
+  function handleSubmit(values: SignupStep1Values) {
+    if (!captchaToken) {
+      setCaptchaError('Please complete the CAPTCHA before continuing.')
+      return
+    }
+    setCaptchaError(null)
+    onContinue(values.email, values.password)
   }
 
   return (
     <div className="space-y-5">
-      <p className="text-center text-[0.8125rem] text-[#71717A]">
-        Creating account for <span className="text-[#FAFAFA]">{email}</span>
-      </p>
+      <XphereGoogleButton />
+      <OrDivider />
+
+      {(topLevelError || captchaError) && (
+        <p className="rounded-lg border border-red-500/20 bg-red-500/[0.08] p-3 text-sm text-red-400">
+          {topLevelError ?? captchaError}
+        </p>
+      )}
 
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+          <FormField
+            control={form.control}
+            name="email"
+            render={({ field }) => (
+              <FormItem className="space-y-1.5">
+                <FormLabel className={labelCls}>Email</FormLabel>
+                <FormControl>
+                  <Input
+                    type="email"
+                    placeholder="you@example.com"
+                    autoComplete="email"
+                    className={inputCls}
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage className="text-xs text-red-400" />
+              </FormItem>
+            )}
+          />
+
           <FormField
             control={form.control}
             name="password"
@@ -423,7 +459,6 @@ function SignupStep2({ email, initialPassword, onBack, onContinue }: SignupStep2
                       type={showPassword ? 'text' : 'password'}
                       placeholder="••••••••"
                       autoComplete="new-password"
-                      autoFocus
                       className={`${inputCls} pr-10`}
                       {...field}
                     />
@@ -443,35 +478,13 @@ function SignupStep2({ email, initialPassword, onBack, onContinue }: SignupStep2
             )}
           />
 
-          <FormField
-            control={form.control}
-            name="confirmPassword"
-            render={({ field }) => (
-              <FormItem className="space-y-1.5">
-                <FormLabel className={labelCls}>Confirm password</FormLabel>
-                <div className="relative">
-                  <FormControl>
-                    <Input
-                      type={showConfirm ? 'text' : 'password'}
-                      placeholder="••••••••"
-                      autoComplete="new-password"
-                      className={`${inputCls} pr-10`}
-                      {...field}
-                    />
-                  </FormControl>
-                  <button
-                    type="button"
-                    tabIndex={-1}
-                    aria-label={showConfirm ? 'Hide password' : 'Show password'}
-                    onClick={() => setShowConfirm((v) => !v)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#52525B] transition-colors hover:text-[#A1A1AA]"
-                  >
-                    {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                </div>
-                <FormMessage className="text-xs text-red-400" />
-              </FormItem>
-            )}
+          <TurnstileWidget
+            ref={turnstileRef}
+            onToken={(token) => {
+              setCaptchaToken(token)
+              setCaptchaError(null)
+            }}
+            onExpire={() => setCaptchaToken(null)}
           />
 
           <button
@@ -479,15 +492,6 @@ function SignupStep2({ email, initialPassword, onBack, onContinue }: SignupStep2
             className="flex h-10 w-full items-center justify-center gap-2 rounded-md bg-primary text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
             Continue
-          </button>
-
-          <button
-            type="button"
-            onClick={onBack}
-            className="flex w-full items-center justify-center gap-1.5 text-[0.8125rem] text-[#71717A] transition-colors hover:text-[#A1A1AA]"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" />
-            Back
           </button>
         </form>
       </Form>
@@ -808,6 +812,25 @@ export function AuthDialog({ branding, initialMode = 'login', open, onClose, nex
     }
 
     if (step === 'email') {
+      if (mode === 'signup') {
+        return (
+          <SignupStep1Form
+            key="signup-step1"
+            initialEmail={email}
+            initialPassword={signupPassword}
+            topLevelError={topLevelError}
+            captchaToken={captchaToken}
+            setCaptchaToken={setCaptchaToken}
+            turnstileRef={turnstileRef}
+            onContinue={(emailValue, password) => {
+              setEmail(emailValue)
+              setSignupPassword(password)
+              setStep('company')
+              setTopLevelError(null)
+            }}
+          />
+        )
+      }
       return (
         <Step1Form
           key={`${mode}-step1-${resetSent ? 'sent' : 'form'}`}
@@ -823,7 +846,7 @@ export function AuthDialog({ branding, initialMode = 'login', open, onClose, nex
       )
     }
 
-    // step === 'password'
+    // step === 'password' — login only
     if (mode === 'login') {
       return (
         <LoginStep2
@@ -843,6 +866,8 @@ export function AuthDialog({ branding, initialMode = 'login', open, onClose, nex
         />
       )
     }
+
+    // step === 'company'
     if (step === 'company' && mode === 'signup') {
       return (
         <SignupCompanyStep
@@ -851,27 +876,10 @@ export function AuthDialog({ branding, initialMode = 'login', open, onClose, nex
           captchaToken={captchaToken}
           next={next}
           onBack={() => {
-            setStep('password')
-            setTopLevelError(null)
-          }}
-          onError={handleStep2Error}
-        />
-      )
-    }
-    if (mode === 'signup') {
-      return (
-        <SignupStep2
-          email={email}
-          initialPassword={signupPassword}
-          onBack={() => {
             setStep('email')
             setTopLevelError(null)
           }}
-          onContinue={(password) => {
-            setSignupPassword(password)
-            setStep('company')
-            setTopLevelError(null)
-          }}
+          onError={handleStep2Error}
         />
       )
     }

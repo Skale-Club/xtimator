@@ -2,10 +2,11 @@
 
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { useEffect, useState, useTransition } from 'react'
-import { ClipboardList, Camera, Send, UserRound, Clock, ChevronLeft, ChevronRight } from 'lucide-react'
+import { ClipboardList, Camera, UserRound, ChevronLeft, ChevronRight } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { SubNav, type SubNavItem } from '@/components/ui/sub-nav'
+import { ProjectHeader } from './project-header'
 import { OverviewTab } from './overview-tab'
-import { SendTab } from './send/send-tab'
 import { PhotosTab } from './photos/photos-tab'
 import { ClientTab } from './client-tab'
 import { ActivityTab } from './activity-tab'
@@ -19,7 +20,7 @@ import type { PriceBookItem } from '@/lib/queries/price-book'
 import type { DocumentCompany, CompanyDefaults } from './estimate/estimate-document'
 import { useTranslation } from '@/lib/i18n/use-translation'
 
-const ALLOWED_TABS = ['overview', 'photos', 'send', 'client', 'activity'] as const
+const ALLOWED_TABS = ['overview', 'photos', 'client'] as const
 type WorkspaceTab = (typeof ALLOWED_TABS)[number]
 
 interface ProjectWorkspaceProps {
@@ -94,26 +95,40 @@ export function ProjectWorkspace({
   }
 
   const NAV_ITEMS: SubNavItem[] = [
-    { value: 'overview',  label: t('Overview'),  Icon: ClipboardList },
-    { value: 'client',    label: t('Client'),    Icon: UserRound     },
-    { value: 'photos',    label: t('Photos'),    Icon: Camera        },
-    { value: 'activity',  label: t('Activity'),  Icon: Clock         },
-    { value: 'send',      label: t('Send'),      Icon: Send          },
+    { value: 'overview', label: t('Overview'), Icon: ClipboardList },
+    { value: 'client',   label: t('Client'),   Icon: UserRound     },
+    { value: 'photos',   label: t('Photos'),   Icon: Camera        },
   ]
 
   return (
     /*
-     * Layout mirrors settings:
-     *   Mobile  (< md): sticky horizontal nav bar on top, full-width content below
-     *   Desktop (md+):  sticky vertical sidebar on the left (stays in view while
-     *     the page content scrolls), content on the right
+     * Two-column workspace at ALL breakpoints:
+     *   - An in-flow STICKY rail on the left. sticky top-0 pins it to the scroll
+     *     container's top (which already sits below the header/topbar) so it never
+     *     scrolls away and never tucks under the header. It ends just above the
+     *     mobile bottom-nav so the collapse footer stays visible.
+     *   - A flex-1 content column on the right holding the sticky project header
+     *     + the active tab. The header sits to the RIGHT of the rail, so the rail
+     *     never covers the project title.
      */
-    <div className="flex min-h-full flex-row gap-0 items-start">
+    <div className="relative flex min-h-full flex-row gap-0 items-start">
 
-      {/* Nav — vertical collapsible sub-sidebar at ALL breakpoints. In-flow sticky
-          on mobile; fixed (aligned after the primary sidebar) on desktop. */}
+      {/* Nav — in-flow STICKY rail at ALL breakpoints. sticky top-0 pins it to the
+          top of the scroll container (<main>), which already sits below the
+          header/topbar — so the rail never tucks under the header regardless of
+          the header's exact height (no magic top offset, no overlap). Being
+          in-flow, it also sits naturally after the primary sidebar (no md:left)
+          and the content column is a plain flex-1 sibling (no margin offset).
+          Height stops just above the mobile bottom-nav so the collapse footer
+          stays visible. */}
       <div
-        className={`relative sticky top-0 z-20 shrink-0 self-start h-[calc(100dvh-56px)] overflow-y-auto md:fixed md:left-[var(--app-sidebar-width)] md:top-[120px] md:z-30 md:h-[calc(100vh-120px)] transition-all duration-200 ${sidebarCollapsed ? 'w-14 md:w-14' : 'w-40 md:w-48'}`}
+        className={cn(
+          'sticky top-0 z-20 self-start shrink-0',
+          'h-[calc(100dvh-60px-5rem-env(safe-area-inset-bottom,_0px))]',
+          'md:z-30 md:h-[calc(100vh-4rem)]',
+          'transition-[width] duration-200 ease-in-out',
+          sidebarCollapsed ? 'w-14 md:w-14' : 'w-28 md:w-32',
+        )}
       >
         <aside
           className={[
@@ -151,8 +166,13 @@ export function ProjectWorkspace({
         </aside>
       </div>
 
-      {/* Content — offset on desktop so it doesn't sit underneath the fixed sidebar */}
-      <div className={`min-w-0 flex-1 px-4 py-6 md:px-6 ${sidebarCollapsed ? 'md:ml-14' : 'md:ml-48'}`}>
+      {/* Content — plain flex-1 sibling of the in-flow rail (no margin offset).
+          The project header lives here (to the right of the rail) and sticks to
+          the top of the scroll area as content scrolls. */}
+      <div className="min-w-0 flex-1">
+        <ProjectHeader project={project} />
+
+        <div className="px-5 py-6 md:px-6">
         {activeTab === 'overview' && (
           <OverviewTab
             project={project}
@@ -167,34 +187,22 @@ export function ProjectWorkspace({
             recordings={recordings}
             photos={photos}
             priceBookItems={priceBookItems}
-          />
-        )}
-        {activeTab === 'photos' && (
-          <PhotosTab projectId={project.id} companyId={project.company_id} initialPhotos={photos} />
-        )}
-        {activeTab === 'send' && (
-          <SendTab
-            estimate={currentEstimate}
-            projectName={project.name}
             companyName={companyName}
-            clientEmail={project.client?.email ?? null}
-            clientPhone={project.client?.phone ?? null}
-            clientName={project.client?.name ?? ''}
             ownerName={ownerName}
-            companyWebsite={company.website}
             estimateTemplate={estimateTemplate}
             smsDeliveryEnabled={smsDeliveryEnabled}
             whatsappSendEnabled={whatsappSendEnabled}
           />
+        )}
+        {activeTab === 'photos' && (
+          <PhotosTab projectId={project.id} companyId={project.company_id} initialPhotos={photos} />
         )}
         {activeTab === 'client' && (
           <div className="space-y-4">
             <ClientTab project={project} />
           </div>
         )}
-        {activeTab === 'activity' && (
-          <ActivityTab events={activity} />
-        )}
+        </div>
       </div>
     </div>
   )

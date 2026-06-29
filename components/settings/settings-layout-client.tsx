@@ -26,12 +26,12 @@ export function SettingsLayoutClient({ children }: { children: ReactNode }) {
 
   return (
     <div className="relative flex flex-1 flex-row min-h-0 gap-0 items-start">
-      {/* Sub-sidebar — vertical collapsible rail at ALL breakpoints. In-flow
-          sticky on mobile; fixed (after the primary sidebar) on desktop. */}
+      {/* Sub-sidebar — fixed rail at ALL breakpoints. On mobile sits at left-0
+          below the mobile header; on desktop offset by the primary sidebar. */}
       <div
         className={cn(
-          'relative sticky top-0 z-20 shrink-0 self-start h-[calc(100dvh-56px)] overflow-y-auto',
-          'md:fixed md:left-[var(--app-sidebar-width)] md:top-16 md:z-30 md:h-[calc(100vh-4rem)]',
+          'fixed left-0 top-[56px] z-20 h-[calc(100dvh-56px-5rem-env(safe-area-inset-bottom,_0px))]',
+          'md:left-[var(--app-sidebar-width)] md:top-16 md:z-30 md:h-[calc(100vh-4rem)]',
           'transition-[width] duration-200 ease-in-out',
           collapsed ? 'w-14 md:w-14' : 'w-40 md:w-52',
         )}
@@ -81,7 +81,7 @@ export function SettingsLayoutClient({ children }: { children: ReactNode }) {
         className={cn(
           'min-w-0 flex-1',
           'transition-[margin] duration-200 ease-in-out',
-          collapsed ? 'md:ml-14' : 'md:ml-52',
+          collapsed ? 'ml-14 md:ml-14' : 'ml-40 md:ml-52',
         )}
       >
         {children}

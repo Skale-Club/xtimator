@@ -54,6 +54,7 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   devIndicators: false,
   output: 'standalone',
+  transpilePackages: ['nucleo-flags'],
   // Self-hosted skew protection: navigation from a browser running an older
   // build hard-reloads instead of sending stale RSC / Server Action references
   // to the newly deployed container.

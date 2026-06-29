@@ -162,6 +162,8 @@ interface EstimateEditorProps {
   linkClientSlot?: React.ReactNode
   /** Quick-260525-qbc: server-fetched price book for description autocomplete. */
   priceBookItems: PriceBookItem[]
+  /** Opens the send dialog. Auto-saves first if there are unsaved changes. */
+  onSend?: () => void
 }
 
 export function EstimateEditor({
@@ -180,6 +182,7 @@ export function EstimateEditor({
   onRecord,
   linkClientSlot,
   priceBookItems,
+  onSend,
 }: EstimateEditorProps) {
   const router = useRouter()
   const [state, dispatch] = useEstimateReducer(estimate)
@@ -216,6 +219,11 @@ export function EstimateEditor({
     const ok = await runSave()
     if (ok) toast.success('Draft saved')
   }, [runSave])
+
+  const handleSend = useCallback(async () => {
+    if (!isReadOnly && state.isDirty) await runSave()
+    onSend?.()
+  }, [isReadOnly, state.isDirty, runSave, onSend])
 
   const handleDiscard = useCallback(async () => {
     const result = await getEstimateByIdAction(stateRef.current.id)
@@ -336,7 +344,7 @@ export function EstimateEditor({
         isCurrent={isCurrent}
         isDirty={state.isDirty}
         status={saveStatus === 'dirty' ? 'idle' : (saveStatus as 'idle' | 'saving' | 'saved' | 'error')}
-        onSaveDraft={handleSaveDraft}
+        onSend={handleSend}
         onDiscard={handleDiscard}
         onRecord={onRecord}
         linkClientSlot={linkClientSlot}

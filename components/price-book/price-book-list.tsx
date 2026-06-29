@@ -134,8 +134,13 @@ export function PriceBookList({
       items: PriceBookItem[]
       isVirtual: boolean
     }> = []
-    // Named folders in sort_order
+    // Deduplicate by name (case-insensitive) — protects against duplicate DB rows
+    // that can occur when the seed ran more than once due to a partial failure.
+    const seenNames = new Set<string>()
     for (const folder of folders) {
+      const key = folder.name.toLowerCase()
+      if (seenNames.has(key)) continue
+      seenNames.add(key)
       const folderItems = groupedByFolder.get(folder.id) ?? []
       sections.push({ id: folder.id, name: folder.name, items: folderItems, isVirtual: false })
     }
@@ -271,33 +276,29 @@ export function PriceBookList({
 
   return (
     <>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-2xl font-bold">Price Book</h1>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" onClick={() => setNewFolderDialogOpen(true)}>
-            <FolderPlus className="h-4 w-4 mr-2" />
-            {t('New Category')}
-          </Button>
-          <Button variant="outline" onClick={() => setImportDialogOpen(true)}>
-            <Upload className="h-4 w-4 mr-2" />
-            Import CSV
-          </Button>
-          <Button onClick={handleAddItem}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Service
-          </Button>
+      <div className="flex flex-wrap items-center gap-2">
+        <h2 className="text-2xl font-semibold tracking-[-0.015em] shrink-0">Price Book</h2>
+        <div className="relative ml-auto w-[220px] min-w-[160px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search items..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9 h-9"
+          />
         </div>
-      </div>
-
-      {/* Search */}
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Search items..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="pl-9"
-        />
+        <Button variant="outline" size="sm" onClick={() => setNewFolderDialogOpen(true)}>
+          <FolderPlus className="h-4 w-4 mr-2" />
+          {t('New Category')}
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => setImportDialogOpen(true)}>
+          <Upload className="h-4 w-4 mr-2" />
+          Import CSV
+        </Button>
+        <Button size="sm" onClick={handleAddItem}>
+          <Plus className="h-4 w-4 mr-2" />
+          Add Service
+        </Button>
       </div>
 
       {/* No results from search */}

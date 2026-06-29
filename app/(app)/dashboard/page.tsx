@@ -53,9 +53,6 @@ export default async function DashboardPage() {
       </Suspense>
 
       <section className="px-6 mt-12">
-        <h2 className="text-2xl font-semibold tracking-[-0.015em] mb-4">
-          <T>Recent projects</T>
-        </h2>
         <Suspense fallback={<ProjectListSkeleton />}>
           <DashboardProjects companyId={company.id} />
         </Suspense>

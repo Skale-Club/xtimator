@@ -393,6 +393,23 @@ export async function generateEstimateForProject(
     console.warn('[generate-estimate] discrepancy metric emission failed', err)
   }
 
+  // REPLACE-BLANK: an untouched blank estimate must not leave an empty version
+  // behind. When the project's current estimate is a pristine blank — draft,
+  // never AI-written (summary IS NULL), and zero total — delete it before
+  // versioning so the AI result takes its place (typically version 1) instead of
+  // versioning on top of an empty shell. AI estimates always carry a summary and
+  // consolidated estimates aren't draft, so neither is matched; an edited blank
+  // (total>0) is preserved as a real version. The delete cascades to the blank's
+  // section/item rows.
+  await supabase
+    .from('estimates')
+    .delete()
+    .eq('project_id', projectId)
+    .eq('is_current', true)
+    .eq('workflow_status', 'draft')
+    .is('summary', null)
+    .eq('total', 0)
+
   // Version management
   await supabase
     .from('estimates')

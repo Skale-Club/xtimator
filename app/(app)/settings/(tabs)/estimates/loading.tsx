@@ -4,7 +4,7 @@ import {
   SettingsCard,
 } from '@/components/skeletons/settings-page-skeleton'
 
-export default function DefaultsSettingsLoading() {
+export default function EstimatesSettingsLoading() {
   return (
     <SettingsPageSkeleton
       noPadding

@@ -25,7 +25,6 @@ const defaultsSchema = z.object({
   defaultWarrantyTerms: z.string().optional().or(z.literal('')),
   defaultValidityDays: z.coerce.number().int().min(1, 'Must be at least 1 day'),
   digitalSignatureEnabled: z.boolean(),
-  emailDeliveryEnabled: z.boolean(),
 })
 
 type DefaultsValues = z.infer<typeof defaultsSchema>
@@ -47,7 +46,6 @@ export function DefaultsForm({ company }: DefaultsFormProps) {
       defaultWarrantyTerms: company.default_warranty_terms || '',
       defaultValidityDays: company.default_validity_days || 30,
       digitalSignatureEnabled: company.digital_signature_enabled,
-      emailDeliveryEnabled: company.email_delivery_enabled,
     },
   })
 
@@ -59,7 +57,6 @@ export function DefaultsForm({ company }: DefaultsFormProps) {
         defaultWarrantyTerms: values.defaultWarrantyTerms || '',
         defaultValidityDays: values.defaultValidityDays,
         digitalSignatureEnabled: values.digitalSignatureEnabled,
-        emailDeliveryEnabled: values.emailDeliveryEnabled,
       })
       if (result.error) {
         toast.error(result.error)
@@ -170,35 +167,19 @@ export function DefaultsForm({ company }: DefaultsFormProps) {
               />
             </div>
 
-            {/* Delivery toggles */}
-            <div className="space-y-3">
-              <div className="flex min-h-24 items-center justify-between gap-4 rounded-[var(--radius-md)] border border-border bg-background p-4">
-                <Label htmlFor="digital-sig-enabled" className="grid flex-1 gap-1">
-                  <span>{t('Require digital signature')}</span>
-                  <span className="text-sm font-normal text-muted-foreground">
-                    {t('Clients draw a signature before accepting the estimate.')}
-                  </span>
-                </Label>
-                <Switch
-                  id="digital-sig-enabled"
-                  checked={!!values.digitalSignatureEnabled}
-                  onCheckedChange={(checked) => form.setValue('digitalSignatureEnabled', checked)}
-                />
-              </div>
-
-              <div className="flex min-h-24 items-center justify-between gap-4 rounded-[var(--radius-md)] border border-border bg-background p-4">
-                <Label htmlFor="email-delivery-enabled" className="grid flex-1 gap-1">
-                  <span>{t('Email estimates to clients')}</span>
-                  <span className="text-sm font-normal text-muted-foreground">
-                    {t('Automatically email the estimate link when you send it.')}
-                  </span>
-                </Label>
-                <Switch
-                  id="email-delivery-enabled"
-                  checked={!!values.emailDeliveryEnabled}
-                  onCheckedChange={(checked) => form.setValue('emailDeliveryEnabled', checked)}
-                />
-              </div>
+            {/* Signature toggle */}
+            <div className="flex min-h-24 items-center justify-between gap-4 rounded-[var(--radius-md)] border border-border bg-background p-4">
+              <Label htmlFor="digital-sig-enabled" className="grid flex-1 gap-1">
+                <span>{t('Require digital signature')}</span>
+                <span className="text-sm font-normal text-muted-foreground">
+                  {t('Clients draw a signature before accepting the estimate.')}
+                </span>
+              </Label>
+              <Switch
+                id="digital-sig-enabled"
+                checked={!!values.digitalSignatureEnabled}
+                onCheckedChange={(checked) => form.setValue('digitalSignatureEnabled', checked)}
+              />
             </div>
 
             <Button type="submit" disabled={isPending} className="min-w-40">

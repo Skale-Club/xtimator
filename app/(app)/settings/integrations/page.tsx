@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { CreditCard, Plug, ChevronRight, Sparkles, Mic } from 'lucide-react'
+import { CreditCard, Plug, ChevronRight } from 'lucide-react'
 
 import { T } from '@/components/i18n/t'
 import {
@@ -10,20 +10,10 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { getSelectedAIProvider } from '@/lib/platform-config'
 import { getAuthClaims } from '@/lib/queries/auth'
 import { requireServiceClient } from '@/lib/supabase/service'
 
 export const metadata = { title: 'Integrations | Settings' }
-
-// Display labels for the platform-selected LLM provider. These are brand names
-// (not secrets) — the read-only AI card surfaces *what powers estimates* for
-// transparency, never the API keys, which stay platform-managed in admin.
-const AI_PROVIDER_LABELS: Record<string, string> = {
-  anthropic: 'Claude (Anthropic)',
-  gemini: 'Gemini (Google)',
-  openrouter: 'OpenRouter',
-}
 
 function SectionHeading({ children }: { children: React.ReactNode }) {
   return (
@@ -34,12 +24,7 @@ function SectionHeading({ children }: { children: React.ReactNode }) {
 }
 
 export default async function SettingsIntegrationsPage() {
-  const [aiProvider, claims] = await Promise.all([
-    getSelectedAIProvider(),
-    getAuthClaims(),
-  ])
-
-  const estimateModelLabel = AI_PROVIDER_LABELS[aiProvider] ?? AI_PROVIDER_LABELS.anthropic
+  const claims = await getAuthClaims()
 
   let stripeConnected = false
   if (claims) {
@@ -60,56 +45,14 @@ export default async function SettingsIntegrationsPage() {
           <T>Integrations</T>
         </h1>
         <p className="text-sm text-muted-foreground">
-          <T>Connect outbound channels and AI assistants.</T>
+          <T>Connect the tools your business runs on.</T>
         </p>
       </header>
 
-      {/* AI — read-only transparency card. No setup, no secrets; just shows what
-          powers estimates. AI keys are platform-managed in admin. */}
+      {/* Collect payments — Stripe Connect setup. */}
       <section className="space-y-3">
         <SectionHeading>
-          <T>AI</T>
-        </SectionHeading>
-        <Card className="bg-muted/30">
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-primary" aria-hidden />
-              <CardTitle className="text-base">
-                <T>Powering your estimates</T>
-              </CardTitle>
-            </div>
-            <CardDescription>
-              <T>
-                Managed by Xtimator. No setup required. These models turn your
-                audio and photos into a finished estimate.
-              </T>
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <dl className="space-y-3 text-sm">
-              <div className="flex items-start justify-between gap-4">
-                <dt className="flex items-center gap-2 text-muted-foreground">
-                  <Sparkles className="h-4 w-4" aria-hidden />
-                  <T>Estimate generation &amp; photo analysis</T>
-                </dt>
-                <dd className="font-medium">{estimateModelLabel}</dd>
-              </div>
-              <div className="flex items-start justify-between gap-4">
-                <dt className="flex items-center gap-2 text-muted-foreground">
-                  <Mic className="h-4 w-4" aria-hidden />
-                  <T>Audio transcription</T>
-                </dt>
-                <dd className="font-medium">Whisper (OpenAI)</dd>
-              </div>
-            </dl>
-          </CardContent>
-        </Card>
-      </section>
-
-      {/* Payments — Stripe Connect setup. */}
-      <section className="space-y-3">
-        <SectionHeading>
-          <T>Payments</T>
+          <T>Collect payments</T>
         </SectionHeading>
         <Link
           href="/settings/integrations/stripe"
@@ -138,10 +81,10 @@ export default async function SettingsIntegrationsPage() {
         </Link>
       </section>
 
-      {/* Assistants — use Xtimator from inside AI clients via MCP. */}
+      {/* Developer tools — use Xtimator from inside AI clients via MCP. */}
       <section className="space-y-3">
         <SectionHeading>
-          <T>Assistants</T>
+          <T>Developer tools</T>
         </SectionHeading>
         <Link
           href="/settings/integrations/mcp"

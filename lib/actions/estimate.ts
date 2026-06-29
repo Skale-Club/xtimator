@@ -366,6 +366,20 @@ export async function createBlankEstimate(projectId: string) {
   const { supabase, company, claims } = ctx
   const companyId = company.id as string
 
+  // Idempotency guard — the lazy auto-create path (EstimateTab) may fire more
+  // than once (React strict-mode double-invoke, double navigation). If a current
+  // estimate already exists for this project, return it instead of creating a
+  // duplicate blank that would shove the existing one into version history.
+  const { data: current } = await supabase
+    .from('estimates')
+    .select('id')
+    .eq('project_id', projectId)
+    .eq('is_current', true)
+    .maybeSingle()
+  if (current?.id) {
+    return { data: { estimateId: current.id as string } }
+  }
+
   // Mark existing estimates as not current
   await supabase
     .from('estimates')

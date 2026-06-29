@@ -14,6 +14,7 @@ import type { EstimateWithSections, Estimate } from '@/lib/queries/estimate'
 import type { InvoiceRow } from '@/lib/queries/invoice'
 import type { PriceBookItem } from '@/lib/queries/price-book'
 import type { DocumentCompany, CompanyDefaults } from './estimate/estimate-document'
+import type { EstimateTemplate } from '@/lib/utils/estimate-template'
 
 interface OverviewTabProps {
   project: ProjectDetail
@@ -29,6 +30,11 @@ interface OverviewTabProps {
   recordings: Recording[]
   photos: Photo[]
   priceBookItems: PriceBookItem[]
+  companyName: string
+  ownerName: string
+  estimateTemplate: EstimateTemplate
+  smsDeliveryEnabled?: boolean
+  whatsappSendEnabled?: boolean
 }
 
 /**
@@ -54,6 +60,11 @@ export function OverviewTab({
   recordings,
   photos,
   priceBookItems,
+  companyName,
+  ownerName,
+  estimateTemplate,
+  smsDeliveryEnabled,
+  whatsappSendEnabled,
 }: OverviewTabProps) {
   const router = useRouter()
   const pathname = usePathname()
@@ -115,6 +126,11 @@ export function OverviewTab({
         } : null}
         linkClientSlot={linkClientSlot}
         priceBookItems={priceBookItems}
+        companyName={companyName}
+        ownerName={ownerName}
+        estimateTemplate={estimateTemplate}
+        smsDeliveryEnabled={smsDeliveryEnabled}
+        whatsappSendEnabled={whatsappSendEnabled}
       />
 
     </div>

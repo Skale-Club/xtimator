@@ -1,7 +1,6 @@
 'use client'
 
 import { useMemo } from 'react'
-import { cn } from '@/lib/utils'
 import { ProjectTitle } from '@/components/workspace/project-title'
 import type { ProjectDetail } from '@/lib/queries/project'
 import { useEstimateVersionSlot } from './estimate-version-context'
@@ -10,13 +9,6 @@ import { useBreadcrumb } from '@/components/app-shell/breadcrumb-context'
 
 interface ProjectHeaderProps {
   project: ProjectDetail
-}
-
-const STATUS_LABEL: Record<string, string> = {
-  estimate_ready: 'Estimate ready',
-}
-const STATUS_DOT: Record<string, string> = {
-  estimate_ready: 'bg-green-400',
 }
 
 export function ProjectHeader({ project }: ProjectHeaderProps) {
@@ -33,11 +25,8 @@ export function ProjectHeader({ project }: ProjectHeaderProps) {
   // the project name instead of falling back to the raw project-id URL segment.
   useBreadcrumb(breadcrumbItems)
 
-  const statusLabel = STATUS_LABEL[project.status] ?? 'In progress'
-  const statusDot = STATUS_DOT[project.status] ?? 'bg-blue-400'
-
   return (
-    <header className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm [-webkit-backdrop-filter:blur(4px)] px-4 pb-3 pt-4 md:px-6">
+    <header className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm [-webkit-backdrop-filter:blur(4px)] px-5 pb-3 pt-4 md:px-6">
       <div className="flex items-center gap-3 flex-wrap justify-between">
         {/* Left: title */}
         <div className="min-w-0">
@@ -48,19 +37,9 @@ export function ProjectHeader({ project }: ProjectHeaderProps) {
           />
         </div>
 
-        {/* Right: Edit-with-AI + status pill — one items-center row so the pill
-            is vertically aligned with the button. */}
+        {/* Right: Edit-with-AI button */}
         <div className="flex items-center gap-2 shrink-0">
           <EditEstimateHeaderButton projectId={project.id} />
-          {slot && (
-            <div className="flex items-stretch shrink-0 rounded-md border border-border/60 overflow-hidden text-xs bg-muted/10">
-              {/* Status */}
-              <div className="flex items-center gap-1.5 px-3 py-1.5 text-muted-foreground font-medium">
-                <span className={cn('h-1.5 w-1.5 rounded-full shrink-0', statusDot)} />
-                {statusLabel}
-              </div>
-            </div>
-          )}
         </div>
       </div>
 
