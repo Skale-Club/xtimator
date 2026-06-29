@@ -103,13 +103,14 @@ export default async function AppShellLayout({
             company={company}
             memberships={memberships}
             isDemo={isDemo}
+            isAdmin={isAdmin}
+            user={{ email: navUser.email, name: company.owner_name ?? null }}
           />
           <div className="flex flex-1 flex-col overflow-hidden">
             <Topbar
               company={company}
               userId={claims.sub as string}
               isAdmin={isAdmin}
-              navUser={navUser}
               creditBalance={billingRow.data?.credit_balance ?? 0}
             />
             <MobileHeader

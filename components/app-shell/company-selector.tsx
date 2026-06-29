@@ -38,6 +38,8 @@ interface CompanySelectorProps {
   companies: CompanyOption[]
   activeCompanyId: string
   collapsed?: boolean
+  /** Platform admin — renders the "Add new company" item. Hidden for regular users. */
+  isAdmin?: boolean
   /**
    * Optional slot rendered at the bottom of the dropdown, after the
    * "Add new company" item and a separator. Used by Sidebar to merge the
@@ -55,6 +57,7 @@ export function CompanySelector({
   companies,
   activeCompanyId,
   collapsed = false,
+  isAdmin = false,
   accountMenuSlot,
 }: CompanySelectorProps) {
   const router = useRouter()
@@ -160,18 +163,15 @@ export function CompanySelector({
           )
         })}
 
-        <DropdownMenuSeparator />
-
-        <DropdownMenuItem asChild>
-          <Link
-            href="/onboarding?mode=add"
-            prefetch
-            className="flex items-center gap-2 text-muted-foreground"
-          >
-            <Building2 className="h-4 w-4" />
-            <span>Add new company</span>
-          </Link>
-        </DropdownMenuItem>
+        {isAdmin && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem disabled className="flex items-center gap-2 text-muted-foreground/40">
+              <Building2 className="h-4 w-4" />
+              <span>Add new company</span>
+            </DropdownMenuItem>
+          </>
+        )}
 
         {accountMenuSlot && (
           <>
