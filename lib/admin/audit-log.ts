@@ -10,6 +10,7 @@ export type AuditAction =
   | 'ai_provider.set_model'
   | 'company.set_model_override'
   | 'company.set_demo_quota'
+  | 'company.handoff'
   | 'tier.force'
   | 'bonus_credits.grant'
   | 'branding.save'

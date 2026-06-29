@@ -95,7 +95,7 @@ export interface InviteEmailContext {
   /** Pre-generated single-use token (by the action in Plan 02) — NOT generated here. */
   token: string
   /** The role the person was invited as. */
-  role: 'admin' | 'member'
+  role: 'admin' | 'member' | 'owner'
   /** The inviting company's name. */
   companyName: string
   /** Optional inviter display name, for the greeting. */
