@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Check, ChevronsUpDown, Building2, Loader2 } from 'lucide-react'
@@ -15,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { switchActiveCompany } from '@/lib/actions/active-company'
+import { AdminCreateCompanyModal } from '@/components/app-shell/admin-create-company-modal'
 
 /**
  * Phase 81 — Company switcher dropdown.
@@ -63,6 +63,7 @@ export function CompanySelector({
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [pendingId, setPendingId] = useState<string | null>(null)
+  const [showCreateModal, setShowCreateModal] = useState(false)
 
   const active =
     companies.find((c) => c.id === activeCompanyId) ?? companies[0] ?? null
@@ -83,6 +84,7 @@ export function CompanySelector({
   }
 
   return (
+    <>
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         {collapsed ? (
@@ -166,7 +168,13 @@ export function CompanySelector({
         {isAdmin && (
           <>
             <DropdownMenuSeparator />
-            <DropdownMenuItem disabled className="flex items-center gap-2 text-muted-foreground/40">
+            <DropdownMenuItem
+              className="flex items-center gap-2 cursor-pointer"
+              onSelect={(e) => {
+                e.preventDefault()
+                setShowCreateModal(true)
+              }}
+            >
               <Building2 className="h-4 w-4" />
               <span>Add new company</span>
             </DropdownMenuItem>
@@ -181,5 +189,13 @@ export function CompanySelector({
         )}
       </DropdownMenuContent>
     </DropdownMenu>
+
+    {isAdmin && (
+      <AdminCreateCompanyModal
+        open={showCreateModal}
+        onOpenChange={setShowCreateModal}
+      />
+    )}
+  </>
   )
 }
