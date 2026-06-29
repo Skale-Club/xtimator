@@ -68,6 +68,24 @@ vi.mock('@/lib/quota', () => ({
   checkQuota: async () => ({ allowed: true }),
 }))
 
+// The route calls requireServiceClient() for the GUARD-DEMO quota check.
+// Without this mock, the real function throws on CI (no Supabase env vars)
+// and the route returns 500 instead of 202.
+vi.mock('@/lib/supabase/service', () => ({
+  requireServiceClient: vi.fn(() => ({
+    from: () => ({
+      select: () => ({
+        eq: () => ({
+          single: async () => ({ data: null, error: null }),
+        }),
+      }),
+    }),
+  })),
+  // createServiceClient returns null so getBillingConfig() uses DEFAULT_BILLING_CONFIG
+  // (enforcementEnabled: false) instead of making a real Supabase network call.
+  createServiceClient: vi.fn().mockReturnValue(null),
+}))
+
 describe('REC-03/REC-04: attempt lineage + stable generate event id on Retry', () => {
   beforeEach(() => {
     sendMock.mockClear()

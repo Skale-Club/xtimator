@@ -34,11 +34,22 @@ vi.mock('@/lib/queries/active-company', () => ({
   getActiveCompanyId: vi.fn(),
 }))
 
+// The route calls requireServiceClient() for the GUARD-DEMO quota check.
+// Without this mock, the real function throws on CI (no Supabase env vars)
+// and the route returns 500 instead of the expected status.
+vi.mock('@/lib/supabase/service', () => ({
+  requireServiceClient: vi.fn(),
+  // createServiceClient returns null so getBillingConfig() uses DEFAULT_BILLING_CONFIG
+  // (enforcementEnabled: false) instead of making a real Supabase network call.
+  createServiceClient: vi.fn().mockReturnValue(null),
+}))
+
 import { POST } from '@/app/api/generate-estimate/route'
 import { createClient } from '@/lib/supabase/server'
 import { generateEstimateForProject } from '@/lib/services/generate-estimate'
 import { inngest } from '@/lib/inngest/client'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
+import { requireServiceClient } from '@/lib/supabase/service'
 
 const mockSend = vi.mocked(inngest.send)
 
@@ -79,6 +90,16 @@ describe('generate-estimate route (HTTP layer)', () => {
     mockSend.mockResolvedValue({ ids: ['evt_abc'] } as never)
     // Default: a resolvable active company; the "no company" case overrides to null.
     vi.mocked(getActiveCompanyId).mockResolvedValue('company-1')
+    // Return null company row so the GUARD-DEMO quota check is a no-op.
+    vi.mocked(requireServiceClient).mockReturnValue({
+      from: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({ data: null, error: null }),
+          }),
+        }),
+      }),
+    } as never)
   })
 
   it('returns 401 when not authenticated', async () => {
