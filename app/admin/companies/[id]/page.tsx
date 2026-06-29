@@ -7,6 +7,7 @@ import { getSelectedAIProvider, getOpenRouterDefaultModel } from '@/lib/platform
 import { Card } from '@/components/ui/card'
 import { T } from '@/components/i18n/t'
 import { CompanyModelOverrideForm } from './company-model-override-form'
+import { CompanyQuotaForm } from './company-quota-form'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,7 +22,7 @@ export default async function AdminCompanyDetailPage({
   const svc = requireServiceClient()
   const { data } = await svc
     .from('companies')
-    .select('id, name, tier, ai_model_override')
+    .select('id, name, tier, ai_model_override, demo_estimate_quota')
     .eq('id', id)
     .maybeSingle()
 
@@ -31,7 +32,14 @@ export default async function AdminCompanyDetailPage({
     name: string
     tier: string
     ai_model_override: string | null
+    demo_estimate_quota: number | null
   }
+
+  // Count current estimates for usage display
+  const { count: estimateCount } = await svc
+    .from('estimates')
+    .select('id', { count: 'exact', head: true })
+    .eq('company_id', id)
 
   const [activeProvider, globalModel] = await Promise.all([
     getSelectedAIProvider(),
@@ -85,6 +93,38 @@ export default async function AdminCompanyDetailPage({
         <CompanyModelOverrideForm
           companyId={company.id}
           initialModel={company.ai_model_override}
+        />
+      </Card>
+
+      <Card variant="glass" className="p-6 md:p-8 space-y-4">
+        <div>
+          <h2 className="text-lg font-medium"><T>Demo Estimate Quota</T></h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            <T>
+              Cap the number of estimates this company can generate. Blank = unlimited.
+              Paid tier companies (pro/business) bypass this check automatically.
+            </T>
+          </p>
+        </div>
+
+        <div className="rounded-md border bg-muted/20 px-4 py-3 text-xs space-y-1">
+          <div>
+            <span className="text-muted-foreground"><T>Current quota:</T></span>{' '}
+            <span className="font-mono">
+              {company.demo_estimate_quota !== null
+                ? String(company.demo_estimate_quota)
+                : 'unlimited'}
+            </span>
+          </div>
+          <div>
+            <span className="text-muted-foreground"><T>Estimates generated:</T></span>{' '}
+            <span className="font-mono">{estimateCount ?? 0}</span>
+          </div>
+        </div>
+
+        <CompanyQuotaForm
+          companyId={company.id}
+          initialQuota={company.demo_estimate_quota}
         />
       </Card>
     </div>

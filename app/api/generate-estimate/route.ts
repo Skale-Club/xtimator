@@ -13,6 +13,7 @@ import { buildOverageAffordance } from '@/lib/billing/overage-affordance'
 import { isSupportedLanguage } from '@/lib/i18n/resolve-estimate-language'
 import { demoGuardResponse } from '@/lib/demo/guard'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
+import { requireServiceClient } from '@/lib/supabase/service'
 
 /**
  * Phase 91 (REC-03/REC-04): pure, exported helper deriving the Inngest event id
@@ -76,6 +77,34 @@ export async function POST(request: Request) {
     const companyId = await getActiveCompanyId()
     if (!companyId) {
       throw new XtimatorError('not_found', 'company', 'No company found')
+    }
+
+    // GUARD-DEMO: demo estimate quota — blocks free demo companies after 3 estimates.
+    // Paid tiers (pro/business) bypass this check entirely.
+    const svc = requireServiceClient()
+    const { data: companyRow } = await svc
+      .from('companies')
+      .select('demo_estimate_quota, tier')
+      .eq('id', companyId)
+      .single()
+
+    if (
+      companyRow &&
+      companyRow.demo_estimate_quota !== null &&
+      companyRow.tier !== 'pro' &&
+      companyRow.tier !== 'business'
+    ) {
+      const { count } = await svc
+        .from('estimates')
+        .select('id', { count: 'exact', head: true })
+        .eq('company_id', companyId)
+
+      if ((count ?? 0) >= companyRow.demo_estimate_quota) {
+        return NextResponse.json(
+          { error: 'plan_limit_reached', upgradeUrl: '/settings/billing' },
+          { status: 402 }
+        )
+      }
     }
 
     // QUOTA-03: gate dispatch — recordUsage now lives inside the Inngest function

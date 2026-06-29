@@ -72,3 +72,53 @@ export async function setCompanyModelOverride(
       : 'Override cleared — company will use the platform default.',
   }
 }
+
+/**
+ * Set or clear the per-company demo estimate quota.
+ *
+ * - Pass a positive integer to cap estimate generation for this company.
+ * - Pass `null` to remove the cap (unlimited).
+ *
+ * Works for ANY company, not just admin-created demo accounts.
+ */
+export async function setDemoEstimateQuota(
+  companyId: string,
+  quota: number | null
+): Promise<ActionResult> {
+  const ctx = await requireAdmin()
+  if (!companyId) return { ok: false, message: 'companyId is required' }
+
+  if (quota !== null && (!Number.isInteger(quota) || quota < 0)) {
+    return { ok: false, message: 'Quota must be a non-negative integer or null' }
+  }
+
+  const svc = requireServiceClient()
+  const { error } = await svc
+    .from('companies')
+    .update({ demo_estimate_quota: quota })
+    .eq('id', companyId)
+
+  if (error) {
+    console.error('[admin] setDemoEstimateQuota DB error:', error)
+    return { ok: false, message: error.message }
+  }
+
+  revalidatePath('/admin/companies')
+  revalidatePath(`/admin/companies/${companyId}`)
+
+  void logAdminAction({
+    actorId: ctx.userId,
+    actorEmail: ctx.email,
+    action: 'company.set_demo_quota',
+    targetType: 'company',
+    targetId: companyId,
+    metadata: { quota },
+  })
+
+  return {
+    ok: true,
+    message: quota !== null
+      ? `Demo quota set to ${quota} estimate${quota === 1 ? '' : 's'}.`
+      : 'Demo quota removed — company has unlimited estimates.',
+  }
+}
