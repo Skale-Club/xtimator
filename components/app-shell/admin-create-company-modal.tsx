@@ -10,6 +10,7 @@ import { createAdminCompany } from '@/lib/actions/admin-company'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -111,6 +112,9 @@ export function AdminCreateCompanyModal({
             <Building2 className="h-5 w-5 text-primary" />
             New demo company
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            Create a new demo company account with branding and industry settings.
+          </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">

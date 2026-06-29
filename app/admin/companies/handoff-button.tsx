@@ -7,6 +7,7 @@ import { handoffDemoCompany } from '@/lib/actions/admin-handoff'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -66,6 +67,9 @@ export function HandoffButton({ companyId, companyName }: HandoffButtonProps) {
               <Send className="h-4 w-4 text-primary" />
               Hand off account
             </DialogTitle>
+            <DialogDescription className="sr-only">
+              Send an owner invite to transfer this demo account to a prospect.
+            </DialogDescription>
           </DialogHeader>
 
           <p className="text-sm text-muted-foreground -mt-2">

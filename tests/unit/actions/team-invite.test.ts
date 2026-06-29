@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
+// lib/actions/team loads next/headers and server-action internals; the lazy
+// import inside each test can exceed 5s under fork-pool contention.
+vi.setConfig({ testTimeout: 15_000, hookTimeout: 15_000 })
+
 /**
  * SEAT-03 — inviteMember + revokeInvite server actions (lib/actions/team.ts).
  *

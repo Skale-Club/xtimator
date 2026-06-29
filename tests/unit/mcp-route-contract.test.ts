@@ -9,6 +9,10 @@ import { describe, it, expect, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
+// The MCP route loads the SDK transport tree; under vitest fork-pool contention
+// the first lazy import can exceed the default 5s. Raise to match eval harness.
+vi.setConfig({ testTimeout: 15_000, hookTimeout: 15_000 })
+
 // Stub the issuer resolver so the WWW-Authenticate header is deterministic and
 // so we never reach next/headers (not available in a vitest jsdom env).
 vi.mock('@/lib/oauth/issuer', () => ({
