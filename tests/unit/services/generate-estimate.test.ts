@@ -152,6 +152,10 @@ function makeSupabaseMock({
 
     if (table === 'estimates') {
       return {
+        delete: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnThis(),
+          is: vi.fn().mockReturnThis(),
+        }),
         update: vi.fn().mockReturnValue({
           eq: vi.fn().mockResolvedValue({ error: null }),
         }),
