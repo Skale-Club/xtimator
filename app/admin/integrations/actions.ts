@@ -145,7 +145,7 @@ async function runTestIntegrationKey(
     if (input.provider === 'resend') {
       const resend = new Resend(key)
       const { error } = await resend.emails.send({
-        from: 'onboarding@resend.dev',
+        from: 'notifications@xtimator.com',
         to: ctx.email,
         subject: 'Xtimator admin key test',
         text: 'Key verified',

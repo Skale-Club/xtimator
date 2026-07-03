@@ -12,7 +12,7 @@ import { buildWaMeLink } from '@/lib/whatsapp/wa-link'
  *   - If toEmail is empty → skip silently.
  */
 
-const FROM_ADDRESS = 'notifications@estimatebuilder.pro'
+const FROM_ADDRESS = 'notifications@xtimator.com'
 
 function escHtml(s: string): string {
   return s

@@ -169,7 +169,7 @@ export async function sendNotificationDigestEmail(
     const { Resend } = await import('resend')
     const resend = new Resend(key)
     await resend.emails.send({
-      from: `${ctx.branding.businessName} <notifications@estimatebuilder.pro>`,
+      from: `${ctx.branding.businessName} <notifications@xtimator.com>`,
       to: ctx.toEmail,
       subject,
       html: renderHtml(ctx),

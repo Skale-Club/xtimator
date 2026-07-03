@@ -94,7 +94,7 @@ export async function logEstimateView(token: string): Promise<void> {
         const branding = await getBranding()
         const appName = branding.appName
         await resend.emails.send({
-          from: `${appName} <notifications@estimatebuilder.pro>`,
+          from: `${appName} <notifications@xtimator.com>`,
           to: company.email,
           subject: `Your estimate was viewed - ${project?.name ?? 'Unknown Project'}`,
           text: `Hi ${company.name},\n\nYour estimate for "${project?.name ?? 'Unknown Project'}" was just viewed by the client.\n\nLog in to ${appName} to see more details.`,
@@ -209,7 +209,7 @@ export async function respondToEstimate(
         const branding = await getBranding()
         const appName = branding.appName
         await resend.emails.send({
-          from: `${appName} <notifications@estimatebuilder.pro>`,
+          from: `${appName} <notifications@xtimator.com>`,
           to: company.email,
           subject: `Estimate ${response} - ${project?.name ?? 'Unknown Project'}`,
           text: `Hi ${company.name},\n\nYour estimate for "${project?.name ?? 'Unknown Project'}" has been ${response} by the client.\n\nLog in to ${appName} to see more details.`,

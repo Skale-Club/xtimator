@@ -146,7 +146,7 @@ export async function POST(
       html: string
       attachments?: { filename: string; content: Buffer }[]
     } = {
-      from: `${fromName} <onboarding@resend.dev>`,
+      from: `${fromName} <notifications@xtimator.com>`,
       to,
       subject,
       html,

@@ -56,7 +56,7 @@ export async function sendPaymentReceivedEmail(
     const resend = new Resend(key)
     const amount = formatMinorUnits(ctx.amountCents, ctx.currencyCode)
     await resend.emails.send({
-      from: `${branding.appName} <notifications@estimatebuilder.pro>`,
+      from: `${branding.appName} <notifications@xtimator.com>`,
       to: ctx.businessEmail,
       subject: `You received ${amount} — ${ctx.projectName}`,
       text: [
@@ -102,7 +102,7 @@ export async function sendPaymentReceiptEmail(
     const resend = new Resend(key)
     const amount = formatMinorUnits(ctx.amountCents, ctx.currencyCode)
     await resend.emails.send({
-      from: `${ctx.businessName} <notifications@estimatebuilder.pro>`,
+      from: `${ctx.businessName} <notifications@xtimator.com>`,
       to: ctx.customerEmail,
       subject: `Payment confirmation — ${amount} to ${ctx.businessName}`,
       text: [

@@ -100,7 +100,7 @@ export async function GET(request: Request) {
     const proPrice = formatMinorUnits(cfg.tiers.pro.subscriptionPriceCents, 'USD')
     const businessPrice = formatMinorUnits(cfg.tiers.business.subscriptionPriceCents, 'USD')
     const appName = branding.appName
-    const fromAddress = `${appName} <notifications@estimatebuilder.pro>`
+    const fromAddress = `${appName} <notifications@xtimator.com>`
     const upgradeLine = `Upgrade to Pro (${proPrice}/mo) or Business (${businessPrice}/mo) to keep unlimited access.`
 
     let sent = 0

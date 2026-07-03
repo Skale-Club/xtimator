@@ -20,7 +20,7 @@ import { getCanonicalBaseUrl } from '@/lib/utils/site-url'
  * Plan 02's inviteMember action passes a pre-generated token + context.
  */
 
-const FROM_ADDRESS = 'notifications@estimatebuilder.pro'
+const FROM_ADDRESS = 'notifications@xtimator.com'
 
 function escHtml(s: string): string {
   return s
