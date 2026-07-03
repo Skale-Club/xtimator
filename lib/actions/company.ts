@@ -17,6 +17,7 @@ import { dispatchXphereSync } from '@/lib/integrations/xphere/dispatch'
 import { seedIndustryPriceBook } from '@/lib/price-book-seed'
 import { getDefaultTaxRate } from '@/lib/tax-rates'
 import { resolveIndustries } from '@/lib/industries'
+import { captureBackgroundError } from '@/lib/observability/capture'
 
 interface CompanyFormData {
   companyName?: string
@@ -185,7 +186,9 @@ export async function createOrUpdateCompany(
     // Seed industry-specific price book defaults — ONLY when the user opted in
     // (fire-and-forget). Unchecked → the price book starts empty.
     if (data.prefillPriceBook) {
-      seedIndustryPriceBook(service, newCompanyId, resolvedIndustries, row.currency_code).catch(() => undefined)
+      seedIndustryPriceBook(service, newCompanyId, resolvedIndustries, row.currency_code).catch(
+        captureBackgroundError('company.seedPriceBook'),
+      )
     }
 
     // Send welcome email to new account owner (fire-and-forget)
@@ -194,7 +197,7 @@ export async function createOrUpdateCompany(
       toEmail: userEmail ?? data.email ?? '',
       ownerName: data.ownerName,
       companyName: data.companyName ?? 'My Company',
-    }).catch(() => undefined)
+    }).catch(captureBackgroundError('company.welcomeEmail'))
 
     // Mirror the new company into Xphere CRM (fire-and-forget).
     dispatchXphereSync(newCompanyId, 'company.created')
@@ -272,7 +275,9 @@ export async function createOrUpdateCompany(
     // Seed industry-specific price book defaults — ONLY when the user opted in
     // (fire-and-forget). Unchecked → the price book starts empty.
     if (data.prefillPriceBook) {
-      seedIndustryPriceBook(service, newCompany.id, resolvedIndustries, row.currency_code).catch(() => undefined)
+      seedIndustryPriceBook(service, newCompany.id, resolvedIndustries, row.currency_code).catch(
+        captureBackgroundError('company.seedPriceBook'),
+      )
     }
 
     // Send welcome email (fire-and-forget)
@@ -281,7 +286,7 @@ export async function createOrUpdateCompany(
       toEmail: userEmail2 ?? data.email ?? '',
       ownerName: data.ownerName,
       companyName: data.companyName ?? 'My Company',
-    }).catch(() => undefined)
+    }).catch(captureBackgroundError('company.welcomeEmail'))
 
     // Mirror the new company into Xphere CRM (fire-and-forget).
     dispatchXphereSync(newCompany.id, 'company.created')
