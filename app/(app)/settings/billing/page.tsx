@@ -58,7 +58,7 @@ export default async function BillingPage() {
     business: cfg.tiers.business.subscriptionPriceCents,
   }
 
-  const tierDisplay = TIER_DISPLAY[data.tier] ?? data.tier
+  const tierDisplay = TIER_DISPLAY[data.effectiveTier] ?? data.effectiveTier
 
   const formatDate = (iso: string) =>
     new Date(iso).toLocaleDateString('en-US', { dateStyle: 'medium' })
@@ -92,7 +92,7 @@ export default async function BillingPage() {
               </div>
             </CardHeader>
             <CardContent className="space-y-2 px-0 pt-4 text-sm">
-              {data.tier === 'trial' && data.tierTrialEndsAt && (
+              {data.effectiveTier === 'trial' && data.tierTrialEndsAt && (
                 <p className="text-muted-foreground">
                   <span className="font-medium text-foreground"><T>Trial ends:</T></span>{' '}
                   {formatDate(data.tierTrialEndsAt)}

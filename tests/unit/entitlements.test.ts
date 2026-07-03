@@ -1,7 +1,13 @@
 // tests/unit/entitlements.test.ts
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { getEntitlements, tiers, type TierName } from '@/lib/entitlements'
+import {
+  getEntitlements,
+  getEntitlementsForCompany,
+  effectiveTier,
+  tiers,
+  type TierName,
+} from '@/lib/entitlements'
 
 describe('entitlements', () => {
   it('free tier has correct monthly limit', () => {
@@ -133,6 +139,58 @@ describe('entitlements', () => {
 
   it('getEntitlements falls back to free chatEnabled (false) for an unknown tier', () => {
     expect(getEntitlements('garbage').chatEnabled).toBe(false)
+  })
+
+  // -------------------------------------------------------------------------
+  // effectiveTier — a trial is modeled as tier='free' + a future
+  // tier_trial_ends_at; the DB tier column is never literally 'trial' at
+  // signup. effectiveTier bridges that so trialing owners get trial
+  // entitlements, and any expired/stray trial collapses back to 'free'.
+  // -------------------------------------------------------------------------
+  const FUTURE = '2999-01-01T00:00:00.000Z'
+  const PAST = '2000-01-01T00:00:00.000Z'
+
+  it("effectiveTier promotes free + live trial clock to 'trial'", () => {
+    expect(effectiveTier({ tier: 'free', tier_trial_ends_at: FUTURE })).toBe('trial')
+  })
+
+  it("effectiveTier leaves free with no clock as 'free'", () => {
+    expect(effectiveTier({ tier: 'free', tier_trial_ends_at: null })).toBe('free')
+  })
+
+  it("effectiveTier demotes free + expired clock to 'free'", () => {
+    expect(effectiveTier({ tier: 'free', tier_trial_ends_at: PAST })).toBe('free')
+  })
+
+  it("effectiveTier collapses a literal 'trial' with an expired clock to 'free'", () => {
+    expect(effectiveTier({ tier: 'trial', tier_trial_ends_at: PAST })).toBe('free')
+    expect(effectiveTier({ tier: 'trial', tier_trial_ends_at: null })).toBe('free')
+  })
+
+  it("effectiveTier keeps a literal 'trial' with a live clock as 'trial'", () => {
+    expect(effectiveTier({ tier: 'trial', tier_trial_ends_at: FUTURE })).toBe('trial')
+  })
+
+  it('effectiveTier passes paid tiers straight through (clock ignored)', () => {
+    expect(effectiveTier({ tier: 'pro', tier_trial_ends_at: FUTURE })).toBe('pro')
+    expect(effectiveTier({ tier: 'business', tier_trial_ends_at: null })).toBe('business')
+  })
+
+  it("effectiveTier falls back to 'free' for an unknown tier string", () => {
+    expect(effectiveTier({ tier: 'garbage', tier_trial_ends_at: null })).toBe('free')
+  })
+
+  it('getEntitlementsForCompany gives a trialing free company the generous trial entitlements', () => {
+    const ent = getEntitlementsForCompany({ tier: 'free', tier_trial_ends_at: FUTURE })
+    expect(ent.chatEnabled).toBe(true)
+    expect(ent.priceBookEnabled).toBe(true)
+    expect(ent.maxEstimatesPerMonth).toBeNull()
+  })
+
+  it('getEntitlementsForCompany caps an expired-trial company at free entitlements', () => {
+    const ent = getEntitlementsForCompany({ tier: 'trial', tier_trial_ends_at: PAST })
+    expect(ent.chatEnabled).toBe(false)
+    expect(ent.maxEstimatesPerMonth).toBe(10)
   })
 })
 

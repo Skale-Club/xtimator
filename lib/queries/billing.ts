@@ -3,16 +3,17 @@
 // Uses requireServiceClient because usage_events has deny-all RLS.
 
 import { requireServiceClient } from '@/lib/supabase/service'
-import { getEntitlements, type Entitlements } from '@/lib/entitlements'
+import { getEntitlements, effectiveTier, type Entitlements, type TierName } from '@/lib/entitlements'
 
 export interface BillingData {
-  tier: string                          // 'free' | 'trial' | 'pro' | 'business'
+  tier: string                          // raw DB value: 'free' | 'trial' | 'pro' | 'business'
+  effectiveTier: TierName               // tier honoring the live trial clock (free+clock → 'trial')
   tierTrialEndsAt: string | null        // ISO string from DB
   tierRenewsAt: string | null           // ISO string from DB
   stripeSubscriptionId: string | null
   estimatesThisMonth: number            // COUNT of 'estimate_generated' events this UTC month
   photosThisMonth: number               // COUNT of 'photo_analyzed' events this UTC month
-  entitlements: Entitlements            // from getEntitlements(tier)
+  entitlements: Entitlements            // resolved from effectiveTier, not the raw column
 }
 
 /**
@@ -61,13 +62,16 @@ export async function getBillingData(userId: string): Promise<BillingData | null
     (r: { event_type: string }) => r.event_type === 'photo_analyzed'
   ).length
 
+  const effTier = effectiveTier({ tier, tier_trial_ends_at: tierTrialEndsAt })
+
   return {
     tier,
+    effectiveTier: effTier,
     tierTrialEndsAt,
     tierRenewsAt,
     stripeSubscriptionId,
     estimatesThisMonth,
     photosThisMonth,
-    entitlements: getEntitlements(tier),
+    entitlements: getEntitlements(effTier),
   }
 }

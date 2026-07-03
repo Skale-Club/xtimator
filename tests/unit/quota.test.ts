@@ -8,6 +8,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 // Mock entitlements module
 vi.mock('@/lib/entitlements', () => ({
   getEntitlements: vi.fn(),
+  getEntitlementsForCompany: vi.fn(),
 }))
 
 // Mock company query module (not used directly in quota.ts but imported)
@@ -16,7 +17,7 @@ vi.mock('@/lib/queries/company', () => ({
 }))
 
 import { checkQuota, recordUsage } from '@/lib/quota'
-import { getEntitlements } from '@/lib/entitlements'
+import { getEntitlements, getEntitlementsForCompany } from '@/lib/entitlements'
 
 // ---------------------------------------------------------------------------
 // Mock Supabase factory
@@ -108,7 +109,11 @@ function mockEntitlements(overrides: Partial<{
   maxEstimatesPerDay: number | null
 }> = {}) {
   const defaults = { maxEstimatesPerMonth: 10, maxEstimatesPerDay: 3 }
-  ;(getEntitlements as ReturnType<typeof vi.fn>).mockReturnValue({ ...defaults, ...overrides })
+  const resolved = { ...defaults, ...overrides }
+  // quota.ts resolves entitlements via getEntitlementsForCompany (trial-aware);
+  // keep getEntitlements stubbed too for any legacy call path.
+  ;(getEntitlements as ReturnType<typeof vi.fn>).mockReturnValue(resolved)
+  ;(getEntitlementsForCompany as ReturnType<typeof vi.fn>).mockReturnValue(resolved)
 }
 
 // ---------------------------------------------------------------------------

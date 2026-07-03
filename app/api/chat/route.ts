@@ -42,7 +42,7 @@ import {
   appendMessage,
   type ChatRole,
 } from '@/lib/queries/chat'
-import { getEntitlements } from '@/lib/entitlements'
+import { getEntitlementsForCompany } from '@/lib/entitlements'
 
 export async function POST(req: Request) {
   // 1. Authenticate the owner.
@@ -66,7 +66,7 @@ export async function POST(req: Request) {
   const svc = requireServiceClient()
   const { data: company } = await svc
     .from('companies')
-    .select('industries, default_estimate_language, tier')
+    .select('industries, default_estimate_language, tier, tier_trial_ends_at')
     .eq('id', companyId)
     .maybeSingle()
   const industries =
@@ -81,8 +81,11 @@ export async function POST(req: Request) {
   //     buildChatTools / streamText so an unentitled tenant triggers no model
   //     build (mirrors the send-whatsapp channel gate; bare Response to match
   //     this file's 401/400 style). The page gate (Plan 02) is additive UX only.
-  const tier = (company as { tier?: string | null } | null)?.tier ?? 'free'
-  if (!getEntitlements(tier).chatEnabled) {
+  if (
+    !getEntitlementsForCompany(
+      (company as { tier?: string | null; tier_trial_ends_at?: string | null } | null) ?? {},
+    ).chatEnabled
+  ) {
     return new Response(
       JSON.stringify({ error: 'chat_not_on_plan', upgradeUrl: '/settings/billing' }),
       { status: 403, headers: { 'content-type': 'application/json' } },

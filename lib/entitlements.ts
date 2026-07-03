@@ -98,3 +98,47 @@ export const tiers: Record<TierName, Entitlements> = {
 export function getEntitlements(tier: string): Entitlements {
   return tiers[tier as TierName] ?? tiers.free
 }
+
+/**
+ * Resolve the EFFECTIVE tier for a company, honoring the trial clock.
+ *
+ * The rest of the codebase models a trial as `tier = 'free'` + a future
+ * `tier_trial_ends_at` (see lib/actions/company.ts and the expire-trials cron):
+ * the `tier` column is never set to the literal string `'trial'` at signup.
+ * As a result, `getEntitlements(company.tier)` alone gives a trialing owner the
+ * capped FREE entitlements (no chat, 10 estimates/mo) instead of the generous
+ * `trial` entitlements defined above — silently defeating the trial. This helper
+ * closes that gap by promoting `free` + a live trial clock to `'trial'`.
+ *
+ * It is also defensive against legacy/stray rows that carry the literal
+ * `tier = 'trial'`: those collapse to `'free'` once the clock has expired, so an
+ * expired trial can never keep paid entitlements forever (the expire-trials cron
+ * only ever demotes rows whose tier is already `'free'`).
+ *
+ * Paid tiers (`pro`/`business`) and unrecognized strings pass straight through.
+ */
+export function effectiveTier(company: {
+  tier?: string | null
+  tier_trial_ends_at?: string | null
+}): TierName {
+  const raw = company.tier ?? 'free'
+  const endsAt = company.tier_trial_ends_at
+  const trialActive = endsAt != null && new Date(endsAt).getTime() > Date.now()
+
+  if (raw === 'free' || raw === 'trial') {
+    return trialActive ? 'trial' : 'free'
+  }
+  return (tiers[raw as TierName] ? raw : 'free') as TierName
+}
+
+/**
+ * Convenience wrapper: resolve entitlements from a company row, honoring the
+ * trial clock via {@link effectiveTier}. Prefer this over `getEntitlements(tier)`
+ * wherever a full company row (with `tier_trial_ends_at`) is available.
+ */
+export function getEntitlementsForCompany(company: {
+  tier?: string | null
+  tier_trial_ends_at?: string | null
+}): Entitlements {
+  return getEntitlements(effectiveTier(company))
+}
