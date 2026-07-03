@@ -36,6 +36,7 @@ import { requireServiceClient } from '@/lib/supabase/service'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { resolveChatModel } from '@/lib/chat/provider'
 import { buildChatTools } from '@/lib/chat/tools'
+import { isDemoSession } from '@/lib/demo/guard'
 import { CHAT_SYSTEM_PROMPT } from '@/lib/chat/system-prompt'
 import {
   createConversation,
@@ -100,7 +101,10 @@ export async function POST(req: Request) {
   // 5. Resolve the model (Plan-01 slot resolver) + build the neutral tools with
   //    the trusted companyId + service client + owner scope.
   const model = await resolveChatModel(companyId)
-  const tools = buildChatTools({ companyId, supabase: svc as never, industries, language })
+  // Demo user uses the service client (bypasses demo-blocking RLS), so the write
+  // tools need this flag to refuse mutations explicitly.
+  const isDemo = await isDemoSession()
+  const tools = buildChatTools({ companyId, supabase: svc as never, industries, language, isDemo })
 
   const modelMessages = await convertToModelMessages(messages)
   const result = streamText({
