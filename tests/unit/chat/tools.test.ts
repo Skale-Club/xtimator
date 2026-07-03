@@ -81,6 +81,7 @@ describe('buildChatTools — surface', () => {
         'addService',
         'askKnowledge',
         'createEstimate',
+        'createProject',
         'findClientByName',
         'findServiceByName',
         'getLatestEstimateForClient',

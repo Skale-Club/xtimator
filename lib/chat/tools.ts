@@ -36,6 +36,7 @@ import {
   listServices,
   createPriceBookService,
   addCompanyKnowledge,
+  createProject,
 } from '@/lib/agent-tools'
 import { DEMO_READONLY_MESSAGE } from '@/lib/demo/guard'
 
@@ -146,7 +147,25 @@ export function buildChatTools(ctx: ChatToolContext) {
 
     // ── Write tools ────────────────────────────────────────────────────────
     // companyId/supabase stay trusted closures; only the genuine service fields
-    // are LLM inputs. Both refuse writes for the read-only demo user.
+    // are LLM inputs. All refuse writes for the read-only demo user.
+
+    createProject: tool({
+      description:
+        'Create a new project (a job) to attach an estimate to. Call this before createEstimate when starting a job from scratch. Optionally attach a client by id (find one with findClientByName first).',
+      inputSchema: z.object({
+        name: z.string().min(1).max(200).describe('A short name for the project/job'),
+        clientId: z.string().optional().describe('Optional client id to attach'),
+      }),
+      execute: async ({ name, clientId }) => {
+        if (ctx.isDemo) return { ok: false as const, message: DEMO_READONLY_MESSAGE }
+        return createProject(
+          ctx.supabase,
+          ctx.companyId,
+          { name, ...(clientId ? { clientId } : {}) },
+          'web',
+        )
+      },
+    }),
 
     addService: tool({
       description:

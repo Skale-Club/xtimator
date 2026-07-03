@@ -28,6 +28,7 @@ import { requireScope } from '@/lib/mcp/scope'
 import { requireServiceClient } from '@/lib/supabase/service'
 import {
   createEstimate,
+  createProject,
   createPriceBookService,
   addCompanyKnowledge,
 } from '@/lib/agent-tools'
@@ -83,6 +84,29 @@ const CREATE_ESTIMATE_DEFINITION = {
     required: ['project_id', 'prompt'],
   },
   annotations: { ...WRITE_ANNOTATIONS, title: 'Create estimate' },
+} as const
+
+const CREATE_PROJECT_DEFINITION = {
+  name: 'create_project',
+  description:
+    "Create a new project (a job) for the active company. A project is the container an estimate attaches to — call this first when starting a job from scratch, then pass the returned id to create_estimate. Optionally link a client by their id (look one up with find_client first).",
+  inputSchema: {
+    type: 'object',
+    properties: {
+      name: {
+        type: 'string',
+        description: 'A short name for the project/job, e.g. "Kitchen deep clean — Ester".',
+        minLength: 1,
+        maxLength: 200,
+      },
+      client_id: {
+        type: 'string',
+        description: 'Optional client uuid to attach (resolve via find_client).',
+      },
+    },
+    required: ['name'],
+  },
+  annotations: { ...WRITE_ANNOTATIONS, title: 'Create project' },
 } as const
 
 const ADD_SERVICE_DEFINITION = {
@@ -169,6 +193,11 @@ const createEstimateInput = z.object({
   project_id: z.string().min(1),
   prompt: z.string().min(1).max(5000),
   language: z.enum(['en', 'pt', 'es']).optional(),
+})
+
+const createProjectInput = z.object({
+  name: z.string().min(1).max(200),
+  client_id: z.string().uuid().optional(),
 })
 
 const addServiceInput = z.object({
@@ -271,6 +300,31 @@ async function handleCreateEstimate(
     status: 'queued',
     message:
       'Estimate generation queued. Poll check_job_status to track progress.',
+  })
+}
+
+// ── create_project ────────────────────────────────────────────────────────────
+
+async function handleCreateProject(
+  auth: McpAuthContext,
+  args: unknown,
+): Promise<ToolResult> {
+  ensureScope(auth, 'mcp:write')
+  const input = parseInput(createProjectInput, args)
+
+  const supabase = requireServiceClient()
+  const result = await createProject(
+    supabase,
+    auth.company_id,
+    { name: input.name, ...(input.client_id ? { clientId: input.client_id } : {}) },
+    'mcp',
+  )
+
+  if (!result.ok) throw invalidInput(result.message)
+  return jsonContent({
+    id: result.id,
+    name: result.name,
+    message: `Created project "${result.name}". Use create_estimate with project_id "${result.id}".`,
   })
 }
 
@@ -435,6 +489,7 @@ async function handleCheckJobStatus(
 
 const TOOL_DEFINITIONS = [
   CREATE_ESTIMATE_DEFINITION,
+  CREATE_PROJECT_DEFINITION,
   ADD_SERVICE_DEFINITION,
   ADD_KNOWLEDGE_DEFINITION,
   CHECK_JOB_STATUS_DEFINITION,
@@ -450,6 +505,10 @@ export function buildWriteTools(auth: McpAuthContext): ToolDefinitionEntry[] {
     {
       definition: CREATE_ESTIMATE_DEFINITION,
       handler: (args) => handleCreateEstimate(auth, args),
+    },
+    {
+      definition: CREATE_PROJECT_DEFINITION,
+      handler: (args) => handleCreateProject(auth, args),
     },
     {
       definition: ADD_SERVICE_DEFINITION,
@@ -471,14 +530,17 @@ export function buildWriteTools(auth: McpAuthContext): ToolDefinitionEntry[] {
 export const __testing = {
   TOOL_DEFINITIONS,
   CREATE_ESTIMATE_DEFINITION,
+  CREATE_PROJECT_DEFINITION,
   ADD_SERVICE_DEFINITION,
   ADD_KNOWLEDGE_DEFINITION,
   CHECK_JOB_STATUS_DEFINITION,
   handleCreateEstimate,
+  handleCreateProject,
   handleAddService,
   handleAddKnowledge,
   handleCheckJobStatus,
   createEstimateInput,
+  createProjectInput,
   addServiceInput,
   addKnowledgeInput,
   checkJobStatusInput,

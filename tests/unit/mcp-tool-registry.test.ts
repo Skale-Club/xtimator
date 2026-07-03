@@ -39,9 +39,9 @@ const AUTH: McpAuthContext = {
 }
 
 describe('buildAllTools', () => {
-  it('returns 14 tools (4 read + 4 write + 6 knowledge/query)', () => {
+  it('returns 15 tools (4 read + 5 write + 6 knowledge/query)', () => {
     const entries = buildAllTools(AUTH)
-    expect(entries).toHaveLength(14)
+    expect(entries).toHaveLength(15)
   })
 
   it('tool names are unique', () => {
@@ -59,6 +59,7 @@ describe('buildAllTools', () => {
       'ask_knowledge',
       'check_job_status',
       'create_estimate',
+      'create_project',
       'find_client',
       'get_estimate',
       'get_latest_estimate',
@@ -127,7 +128,7 @@ describe('registerAllTools', () => {
     expect(methods).toEqual(['tools/call', 'tools/list'])
   })
 
-  it('the registered tools/list handler advertises 14 tools', async () => {
+  it('the registered tools/list handler advertises 15 tools', async () => {
     let listHandler: (() => Promise<{ tools: Array<{ name: string }> }>) | null = null
     const fakeServer = {
       setRequestHandler(
@@ -144,7 +145,7 @@ describe('registerAllTools', () => {
     expect(listHandler).not.toBeNull()
 
     const res = await listHandler!()
-    expect(res.tools).toHaveLength(14)
+    expect(res.tools).toHaveLength(15)
   })
 
   it('the registered tools/call handler throws invalid_input for unknown tool names', async () => {

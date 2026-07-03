@@ -37,3 +37,9 @@ export {
   type AddKnowledgeInput,
   type AddKnowledgeResult,
 } from './add-knowledge'
+
+export {
+  createProject,
+  type CreateProjectInput,
+  type CreateProjectResult,
+} from './create-project'
