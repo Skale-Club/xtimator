@@ -283,7 +283,11 @@ export async function grantCredits(input: {
 export async function checkCredits(
   supabase: SupabaseClient,
   companyId: string,
-  estimatedCredits = 0
+  // Required (no default): with a silent `0` the shortfall is always 0, so an
+  // enforcement-ON gate would pass regardless of balance. A gate caller must
+  // pass the op's real estimated cost; an affordance-only read passes 0 on
+  // purpose (see app/api/generate-estimate/route.ts).
+  estimatedCredits: number
 ): Promise<{ allowed: boolean; balance: number; shortfall: number }> {
   const { data } = await supabase
     .from('companies')

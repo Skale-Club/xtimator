@@ -9,7 +9,7 @@ import { toast } from 'sonner'
 
 import type { CompanySettings } from '@/lib/queries/company'
 import { updateCompanySettings } from '@/lib/actions/settings'
-import { resolveIndustries, splitIndustries } from '@/lib/industries'
+import { resolveIndustries, splitIndustries, isKnownIndustry } from '@/lib/industries'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
 
 import { Card, CardContent } from '@/components/ui/card'
@@ -372,6 +372,21 @@ export function CompanyInfoForm({ company, readOnly = false }: CompanyInfoFormPr
                         form.setValue('customIndustries', customs, { shouldDirty: true })
                       }
                     />
+                    {(() => {
+                      // Soft warning for custom / unrecognized industries (uses the
+                      // isKnownIndustry helper). Custom entries are allowed but don't
+                      // map to a built-in template/knowledge scope; flag them so a
+                      // mismatch (e.g. "Technology" for a cleaner) is caught.
+                      const unknown = [...watchedIndustries, ...watchedCustoms].filter(
+                        (v) => v.trim() !== '' && !isKnownIndustry(v),
+                      )
+                      return unknown.length > 0 ? (
+                        <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">
+                          {t('Custom service')}: {unknown.join(', ')} —{' '}
+                          {t("won't match a built-in template. Pick a standard trade if one fits, for better AI estimates.")}
+                        </p>
+                      ) : null
+                    })()}
                   </div>
                   {showPrefill && (
                     <label

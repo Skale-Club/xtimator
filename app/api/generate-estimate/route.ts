@@ -114,7 +114,9 @@ export async function POST(request: Request) {
       // is unchanged; credit enforcement is OFF this milestone (checkCredits
       // keeps allowed:true), so this never introduces a new block — it only
       // surfaces a top-up path on the SAME 402 the count path already returns.
-      const credit = await checkCredits(supabase, companyId)
+      // estimatedCredits: 0 on purpose — this is an affordance READ (we only
+      // need balance/shortfall for the top-up link), never a gate.
+      const credit = await checkCredits(supabase, companyId, 0)
       const affordance = buildOverageAffordance(credit)
       return NextResponse.json(
         {

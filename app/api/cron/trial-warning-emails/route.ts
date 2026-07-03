@@ -1,11 +1,13 @@
 import { NextResponse } from 'next/server'
 import { Resend } from 'resend'
 import { requireServiceClient } from '@/lib/supabase/service'
-import { getIntegrationKey } from '@/lib/platform-config'
+import { getIntegrationKey, getBranding } from '@/lib/platform-config'
 import { notify } from '@/lib/notifications/dispatch'
 import { buildNotificationCopy } from '@/lib/notifications/copy'
 import { isAuthorizedCron } from '@/lib/auth/cron-auth'
 import { getCanonicalBaseUrl } from '@/lib/utils/site-url'
+import { getBillingConfig } from '@/lib/billing/billing-config'
+import { formatMinorUnits } from '@/lib/money/currency'
 
 export async function GET(request: Request) {
   if (!process.env.CRON_SECRET) {
@@ -91,6 +93,16 @@ export async function GET(request: Request) {
 
     const appUrl = getCanonicalBaseUrl()
 
+    // Pricing is the billing-config source of truth (no hardcoded numbers — the
+    // same rule the credit ledger enforces), and the sender + brand name come
+    // from platform branding instead of Resend's shared sandbox domain.
+    const [cfg, branding] = await Promise.all([getBillingConfig(), getBranding()])
+    const proPrice = formatMinorUnits(cfg.tiers.pro.subscriptionPriceCents, 'USD')
+    const businessPrice = formatMinorUnits(cfg.tiers.business.subscriptionPriceCents, 'USD')
+    const appName = branding.appName
+    const fromAddress = `${appName} <notifications@estimatebuilder.pro>`
+    const upgradeLine = `Upgrade to Pro (${proPrice}/mo) or Business (${businessPrice}/mo) to keep unlimited access.`
+
     let sent = 0
     await Promise.allSettled(
       allCompanies.map(async (company) => {
@@ -99,14 +111,15 @@ export async function GET(request: Request) {
 
         const isT0 = company.type === 't0'
         const subject = isT0
-          ? 'Your Xtimator trial ends today'
-          : 'Your Xtimator trial expires in 3 days'
-        const body = isT0
-          ? `Hi,\n\nYour 14-day Xtimator trial ends today. Upgrade to Pro ($29/mo) or Business ($99/mo) to keep unlimited access.\n\nUpgrade now: ${appUrl}/settings/billing\n\nThank you,\nThe Xtimator Team`
-          : `Hi,\n\nYour 14-day Xtimator trial expires in 3 days. Upgrade to Pro ($29/mo) or Business ($99/mo) to keep unlimited access.\n\nUpgrade now: ${appUrl}/settings/billing\n\nThank you,\nThe Xtimator Team`
+          ? `Your ${appName} trial ends today`
+          : `Your ${appName} trial expires in 3 days`
+        const lead = isT0
+          ? `Your 14-day ${appName} trial ends today.`
+          : `Your 14-day ${appName} trial expires in 3 days.`
+        const body = `Hi,\n\n${lead} ${upgradeLine}\n\nUpgrade now: ${appUrl}/settings/billing\n\nThank you,\nThe ${appName} Team`
 
         const { error } = await resend.emails.send({
-          from: 'Xtimator <onboarding@resend.dev>',
+          from: fromAddress,
           to: email,
           subject,
           text: body,
