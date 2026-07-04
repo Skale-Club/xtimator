@@ -11,6 +11,7 @@ import {
   getIntegrationKey,
   getXphereConfig,
   invalidatePlatformConfig,
+  TRANSCRIPTION_MODELS,
   type IntegrationProvider,
 } from '@/lib/platform-config'
 import { integrationKeySchema, billingConfigSchema } from '@/lib/schemas/admin'
@@ -658,6 +659,64 @@ export async function setGlobalOpenRouterModel(
   })
 
   return { ok: true, message: `Default OpenRouter model set to ${trimmed}.` }
+}
+
+/**
+ * Persist the platform-wide speech-to-text model id. Transcription does NOT
+ * route through OpenRouter (it calls OpenAI Whisper directly), so the choice is
+ * restricted to the known OpenAI transcription models. Stored alongside
+ * `selected_ai_provider` / `openrouter_default_model` in the `ai_config` metadata.
+ */
+export async function setGlobalTranscriptionModel(
+  model: string
+): Promise<ActionResult> {
+  const ctx = await requireAdmin()
+  const trimmed = model.trim()
+  if (!TRANSCRIPTION_MODELS.includes(trimmed as (typeof TRANSCRIPTION_MODELS)[number])) {
+    return { ok: false, message: 'Unknown transcription model' }
+  }
+
+  const svc = requireServiceClient()
+  let prevMeta: Record<string, unknown> = {}
+  try {
+    const { data: prev } = await svc
+      .from('platform_integrations')
+      .select('metadata')
+      .eq('provider', 'ai_config')
+      .maybeSingle()
+    prevMeta = (prev?.metadata ?? {}) as Record<string, unknown>
+  } catch {
+    // non-fatal — overwrite with just the new model
+  }
+
+  const { error } = await svc.from('platform_integrations').upsert(
+    {
+      provider: 'ai_config',
+      ciphertext: null,
+      iv: null,
+      auth_tag: null,
+      metadata: { ...prevMeta, transcription_model: trimmed },
+      updated_at: new Date().toISOString(),
+      updated_by: ctx.userId,
+    },
+    { onConflict: 'provider' }
+  )
+  if (error) {
+    return { ok: false, message: error.message }
+  }
+  invalidatePlatformConfig()
+  revalidatePath('/admin/integrations')
+
+  void logAdminAction({
+    actorId: ctx.userId,
+    actorEmail: ctx.email,
+    action: 'ai_provider.set_transcription_model',
+    targetType: 'ai_config',
+    targetId: 'transcription',
+    metadata: { model: trimmed, previous: prevMeta.transcription_model ?? null },
+  })
+
+  return { ok: true, message: `Speech-to-text model set to ${trimmed}.` }
 }
 
 /**

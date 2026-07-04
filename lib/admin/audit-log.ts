@@ -8,6 +8,7 @@ export type AuditAction =
   | 'integration.test'
   | 'ai_provider.set'
   | 'ai_provider.set_model'
+  | 'ai_provider.set_transcription_model'
   | 'company.set_model_override'
   | 'company.set_demo_quota'
   | 'company.byok_enabled'

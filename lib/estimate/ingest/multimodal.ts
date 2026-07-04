@@ -21,6 +21,7 @@
  */
 
 import { transcribeAudioOR, analyzePhotoOR } from '@/lib/ai/openrouter-client'
+import { getTranscriptionModel } from '@/lib/platform-config'
 
 export interface MultimodalRawInput {
   /** Audio items as Blobs + their container ext (refine: from FormData; whatsapp: built from buffer). */
@@ -47,9 +48,10 @@ export async function ingestMultimodal(
   input: MultimodalRawInput
 ): Promise<MultimodalIngestResult> {
   const transcripts: string[] = []
+  const sttModel = (input.audio?.length ?? 0) > 0 ? await getTranscriptionModel() : undefined
   for (const a of input.audio ?? []) {
     try {
-      const t = await transcribeAudioOR(a.blob, a.ext)
+      const t = await transcribeAudioOR(a.blob, a.ext, sttModel)
       if (t) transcripts.push(t)
     } catch (e) {
       console.error('[ingest] transcription failed:', e)

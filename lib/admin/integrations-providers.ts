@@ -44,8 +44,11 @@ export const CATEGORIES: ReadonlyArray<Category> = [
     title: 'AI Providers',
     navLabel: 'AI',
     description:
-      'Models for estimate generation, photo analysis, and audio transcription. Switch active provider for LLM tasks below.',
-    showAISelector: false,
+      'One screen for every AI setting: the API key, the active LLM provider and model, the speech-to-text model, and price research. All apply at runtime — no redeploy.',
+    // The AI screen owns the global provider/model selector AND the price-research
+    // config (consolidated here so operators tune all AI behavior in one place).
+    showAISelector: true,
+    showPriceResearchConfig: true,
     providers: [
       {
         id: 'openrouter' as IntegrationProvider,
@@ -121,15 +124,6 @@ export const CATEGORIES: ReadonlyArray<Category> = [
           'API key (xph_… token, scope sync:write) for the Xphere Xtimator org. Set the base URL below.',
       },
     ],
-  },
-  {
-    slug: 'price-research',
-    title: 'Price Research',
-    navLabel: 'Price Research',
-    description:
-      'Researched regional pricing for estimate items with no price-book match. Reuses the configured OpenRouter / Anthropic key — no separate API key.',
-    showPriceResearchConfig: true,
-    providers: [],
   },
   {
     slug: 'billing',

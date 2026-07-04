@@ -10,6 +10,7 @@ import { randomUUID } from 'node:crypto'
 import { inngest } from '@/lib/inngest/client'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { transcribeAudioOR } from '@/lib/ai/openrouter-client'
+import { getTranscriptionModel } from '@/lib/platform-config'
 import { notify } from '@/lib/notifications/dispatch'
 import { buildNotificationCopy } from '@/lib/notifications/copy'
 import { recordPipelineEvent } from '@/lib/observability/pipeline-events'
@@ -120,6 +121,12 @@ export const transcribeAudioJob = inngest.createFunction(
       userId: ident.userId,
     })
 
+    // Platform-wide speech-to-text model (super-admin selectable, DB-driven, no
+    // redeploy). Falls back to whisper-1 when unset. Resolved once and threaded
+    // into BOTH the transcription call and the cost attribution so the recorded
+    // model always matches what actually ran.
+    const sttModel = await getTranscriptionModel()
+
     // Step 1: Download audio + Whisper API call — checkpointed.
     // A failure inside save-transcript (step 2) will not re-run Whisper.
     const transcript = await step.run('whisper-transcribe', async () => {
@@ -134,7 +141,7 @@ export const transcribeAudioJob = inngest.createFunction(
       }
 
       const ext = storagePath.split('.').pop() ?? 'webm'
-      return await transcribeAudioOR(fileData, ext)
+      return await transcribeAudioOR(fileData, ext, sttModel)
     })
 
     // Step 2: Save transcript — separate step so a DB error doesn't re-call Whisper.
@@ -203,7 +210,7 @@ export const transcribeAudioJob = inngest.createFunction(
       attemptId,
       operationType: 'audio_minutes',
       provider: 'openai',
-      model: 'whisper-1',
+      model: sttModel,
       realCostUsd: whisperCost,
       companyId: ident.companyId,
       projectId: ident.projectId,

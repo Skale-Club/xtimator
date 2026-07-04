@@ -383,6 +383,37 @@ export async function getOpenRouterDefaultModel(): Promise<string | null> {
   return model && model.trim() ? model : null
 }
 
+/** OpenAI's classic Whisper model — the default speech-to-text model. */
+export const DEFAULT_TRANSCRIPTION_MODEL = 'whisper-1'
+
+/** Known OpenAI speech-to-text models selectable from the AI admin screen. */
+export const TRANSCRIPTION_MODELS = [
+  'whisper-1',
+  'gpt-4o-mini-transcribe',
+  'gpt-4o-transcribe',
+] as const
+
+export type TranscriptionModel = (typeof TRANSCRIPTION_MODELS)[number]
+
+/**
+ * Read the platform-wide speech-to-text model id stored alongside the selected
+ * provider in `platform_integrations.ai_config.metadata.transcription_model`.
+ * Falls back to whisper-1 when unset. Consumed by the transcription job so the
+ * super-admin can switch STT models with no redeploy.
+ */
+export async function getTranscriptionModel(): Promise<string> {
+  const svc = createServiceClient()
+  if (!svc) return DEFAULT_TRANSCRIPTION_MODEL
+  const { data } = await svc
+    .from('platform_integrations')
+    .select('metadata')
+    .eq('provider', 'ai_config')
+    .maybeSingle()
+  const model = (data?.metadata as { transcription_model?: string } | null)
+    ?.transcription_model
+  return model && model.trim() ? model : DEFAULT_TRANSCRIPTION_MODEL
+}
+
 /**
  * Load the WhatsApp platform config (access token + phone number ID + WABA ID)
  * from the database with a 30s TTL cache. Falls back to env vars for local dev
