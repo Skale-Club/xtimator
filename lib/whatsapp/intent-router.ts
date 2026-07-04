@@ -38,6 +38,7 @@ import { runConfirmationAgent } from '@/lib/whatsapp/agent'
 import { actionCancel, type Session } from '@/lib/whatsapp/confirm-actions'
 import { processInboundMessages } from '@/lib/whatsapp/handler'
 import { makeQueryTools } from '@/lib/whatsapp/query-tools'
+import { makeManageTools } from '@/lib/whatsapp/manage-tools'
 import { sendWhatsAppMessage } from '@/lib/whatsapp/client'
 import { logOutboundMessage } from '@/lib/whatsapp/conversations'
 import { splitReply } from '@/lib/whatsapp/split-reply'
@@ -45,7 +46,13 @@ import { askKnowledge } from '@/lib/agent-tools/ask-knowledge'
 
 const HISTORY_LIMIT = 20
 
-export type Intent = 'CONFIRM_OR_CANCEL' | 'EDIT' | 'CREATE' | 'QUERY' | 'KNOWLEDGE'
+export type Intent =
+  | 'CONFIRM_OR_CANCEL'
+  | 'EDIT'
+  | 'CREATE'
+  | 'QUERY'
+  | 'KNOWLEDGE'
+  | 'MANAGE'
 
 export interface RouteInput {
   companyId: string
@@ -101,6 +108,7 @@ function parseIntent(raw: string): Intent {
   if (t.includes('EDIT')) return 'EDIT'
   if (t.includes('QUERY')) return 'QUERY'
   if (t.includes('KNOWLEDGE')) return 'KNOWLEDGE'
+  if (t.includes('MANAGE')) return 'MANAGE'
   // CREATE is the safe default for anything else (new media / unrecognized).
   return 'CREATE'
 }
@@ -168,13 +176,14 @@ Classify the owner's latest message into EXACTLY ONE of these labels. Reply with
 - CREATE: a NEW job description (text, or a new audio/photo describing work). This is the DEFAULT for new media when intent is not clearly edit/confirm, and the default when there is NO active session.
 - QUERY: a QUESTION about EXISTING data ("qual o ultimo estimate do cliente X", "status do projeto Y", "quanto ficou o orcamento do Joao", "what's the latest quote for Maria").
 - KNOWLEDGE: a trade HOW-TO / process / best-practice question that does NOT depend on this company's own data ("how do I pre-treat a pet stain?", "what's the correct order for pressure-washing a deck?", "como faço a remoção de odor de pet em carpete?").
+- MANAGE: the owner wants to SAVE something to their account — ADD a service/price to their price book ("add sofa cleaning for $180", "cadastra limpeza de sofá 180"), or REMEMBER a rule/preference for future estimates ("we always charge a $50 minimum", "lembra que não fazemos janela externa"). This WRITES data; only route here for explicit add/save/remember requests, NOT questions.
 
 DISAMBIGUATION — QUERY vs KNOWLEDGE (decide carefully):
 - QUERY = a question about THIS company's OWN records: its estimates, clients, projects, or its own price book ("what did I quote Maria?", "what's my price for window cleaning?").
 - KNOWLEDGE = generic trade know-how / process that any contractor in this trade would ask, independent of this company's data.
 - Ambiguous "how should I price X?": prefer QUERY if it references THIS company's price book / past jobs; prefer KNOWLEDGE if it's a generic best-practice question.
 
-Use the recent conversation history for context. Reply with ONLY one of: CONFIRM_OR_CANCEL, EDIT, CREATE, QUERY, KNOWLEDGE.`
+Use the recent conversation history for context. Reply with ONLY one of: CONFIRM_OR_CANCEL, EDIT, CREATE, QUERY, KNOWLEDGE, MANAGE.`
 
   const model = new ChatOpenAI({
     apiKey: (await getIntegrationKey('openai')) ?? undefined,
@@ -330,6 +339,47 @@ async function dispatchKnowledge(
 }
 
 // ---------------------------------------------------------------------------
+// MANAGE dispatch — ReAct agent over company-scoped WRITE tools (add service /
+// remember knowledge). Immediate-write, mirroring the field-edit tools.
+// ---------------------------------------------------------------------------
+
+async function dispatchManage(
+  input: RouteInput,
+  normalizedText: string
+): Promise<void> {
+  // companyId is the trusted closure inside makeManageTools — no tool schema
+  // accepts a tenant, so untrusted message text can never switch companies.
+  const tools = makeManageTools(input.companyId, input.supabase)
+  const llm = new ChatOpenAI({
+    apiKey: (await getIntegrationKey('openai')) ?? undefined,
+    model: 'gpt-4o',
+    temperature: 0,
+  })
+
+  const systemPrompt = `You are the Xtimator assistant helping a service-business owner over WhatsApp manage their own account.
+
+The owner wants to either ADD a service to their price book or SAVE a rule/preference for future estimates. Use the tools to do exactly what they asked:
+- add_service: register a fixed-price service (needs a name and a price).
+- add_knowledge: remember a company rule, price, or preference.
+
+RULES
+- Only act on what the owner clearly stated. If a required detail is missing (e.g. a price for a service), ask ONE short question instead of guessing — do NOT invent values.
+- After saving, confirm back in ONE short sentence what you saved (name + price, or the rule), so they can catch a mistake.
+- Reply in the SAME language the owner writes in. Keep it to 1-2 short sentences.`
+
+  const agent = createReactAgent({ llm, tools })
+  const result = await agent.invoke({
+    messages: [new SystemMessage(systemPrompt), new HumanMessage(normalizedText)],
+  })
+
+  const aiText = extractAIText((result as { messages: BaseMessage[] }).messages)
+  const fallback = "I couldn't do that just now. Please try again."
+  let chunks = splitReply(aiText ?? fallback)
+  if (chunks.length === 0) chunks = [fallback]
+  await sendOwnerReplyChunks(input, chunks)
+}
+
+// ---------------------------------------------------------------------------
 // Main entry point
 // ---------------------------------------------------------------------------
 
@@ -393,6 +443,10 @@ export async function classifyAndRoute(input: RouteInput): Promise<void> {
     }
     case 'KNOWLEDGE': {
       await dispatchKnowledge(input, normalized.text)
+      return
+    }
+    case 'MANAGE': {
+      await dispatchManage(input, normalized.text)
       return
     }
     case 'CREATE':
