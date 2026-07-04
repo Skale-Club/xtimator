@@ -6,6 +6,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { CheckCircle, XCircle, Loader2, PenLine, Receipt, ExternalLink } from 'lucide-react'
 import { respondToEstimate } from '@/app/estimate/[token]/actions'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
+import { ensureReadableOnWhite, readableTextColor } from '@/lib/color/contrast'
 import type { ShareEstimateData } from '@/lib/queries/share'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { formatMinorUnits } from '@/lib/money/currency'
@@ -67,6 +68,9 @@ export function EstimateView({
   const requiresSignature = estimate.company.digital_signature_enabled && !alreadyResponded
   const { company, project } = estimate
   const brandColor = company.brand_primary_color ?? SYSTEM_COLORS.primary
+  // Render-time WCAG adaptation (stored brand color never mutated):
+  const brandText = ensureReadableOnWhite(brandColor) // brand color as text on white
+  const brandOnFill = readableTextColor(brandColor) // fixed foreground over a brand fill
 
   // ---------------------------------------------------------------------------
   // Convert to EstimateDocument types
@@ -232,7 +236,7 @@ export function EstimateView({
           <CardContent className="p-4 sm:p-6">
             <h3
               className="text-sm font-semibold uppercase tracking-wider mb-3"
-              style={{ color: brandColor }}
+              style={{ color: brandText }}
             >
               {t('Estimate Terms')}
             </h3>
@@ -249,7 +253,7 @@ export function EstimateView({
         <Card variant="glass">
           <CardContent className="p-6 sm:p-8 space-y-4">
             <div className="flex items-center gap-2">
-              <Receipt className="h-5 w-5" style={{ color: brandColor }} />
+              <Receipt className="h-5 w-5" style={{ color: brandText }} />
               <h3 className="text-base font-semibold">{t('Invoices')}</h3>
             </div>
             <div className="space-y-3">
@@ -282,8 +286,8 @@ export function EstimateView({
                       key={inv.id}
                       asChild
                       size="lg"
-                      className="w-full sm:w-auto text-white"
-                      style={{ backgroundColor: brandColor }}
+                      className="w-full sm:w-auto"
+                      style={{ backgroundColor: brandColor, color: brandOnFill }}
                     >
                       <a href={inv.hosted_invoice_url} target="_blank" rel="noopener noreferrer">
                         <ExternalLink className="mr-2 h-4 w-4" />
@@ -305,7 +309,7 @@ export function EstimateView({
         <Card>
           <CardContent className="p-6 sm:p-8 space-y-6">
             <div className="flex items-center gap-2">
-              <PenLine className="h-5 w-5" style={{ color: brandColor }} />
+              <PenLine className="h-5 w-5" style={{ color: brandText }} />
               <h3 className="text-base font-semibold">Sign to accept this estimate</h3>
             </div>
             <SignaturePad

@@ -51,6 +51,7 @@ import { formatMoney } from '@/lib/money/currency'
 import { deriveDepositDisplay } from '@/lib/estimate/deposit-display'
 import { formatPhoneForDisplay } from '@/lib/phone/format'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
+import { ensureReadableOnWhite, readableTextColor } from '@/lib/color/contrast'
 import { linkProjectToClient } from '@/lib/actions/project'
 import { ItemCardMobile } from './item-card-mobile'
 import { PriceBookCombobox } from './price-book-combobox'
@@ -676,6 +677,7 @@ function DocumentSectionBlock({
   dispatch,
   isEditable,
   brandColor,
+  brandOnFill,
   currencyCode,
   L,
   lang,
@@ -686,6 +688,7 @@ function DocumentSectionBlock({
   dispatch?: React.Dispatch<EstimateAction>
   isEditable: boolean
   brandColor: string
+  brandOnFill: string
   currencyCode: string
   L: DocLabels
   lang: EstimateLanguage
@@ -740,10 +743,11 @@ function DocumentSectionBlock({
                 title: e.target.value,
               })
             }
-            className="flex-1 bg-transparent text-white font-semibold text-base focus:outline-none placeholder:text-white/50 focus:bg-white/10 rounded px-1 min-w-0"
+            style={{ color: brandOnFill }}
+            className="flex-1 bg-transparent font-semibold text-base focus:outline-none placeholder:text-white/50 focus:bg-white/10 rounded px-1 min-w-0"
           />
         ) : (
-          <span className="flex-1 text-white font-semibold text-base select-none">{section.title}</span>
+          <span className="flex-1 font-semibold text-base select-none" style={{ color: brandOnFill }}>{section.title}</span>
         )}
 
         {isEditable && dispatch && (
@@ -911,6 +915,7 @@ function SortableDocumentSection({
   dispatch,
   isEditable,
   brandColor,
+  brandOnFill,
   currencyCode,
   L,
   lang,
@@ -920,6 +925,7 @@ function SortableDocumentSection({
   dispatch: React.Dispatch<EstimateAction>
   isEditable: boolean
   brandColor: string
+  brandOnFill: string
   currencyCode: string
   L: DocLabels
   lang: EstimateLanguage
@@ -940,6 +946,7 @@ function SortableDocumentSection({
         dispatch={dispatch}
         isEditable={isEditable}
         brandColor={brandColor}
+        brandOnFill={brandOnFill}
         currencyCode={currencyCode}
         L={L}
         lang={lang}
@@ -958,14 +965,14 @@ function DocumentTotals({
   data,
   dispatch,
   isEditable,
-  brandColor,
+  brandText,
   L,
   defaultTaxRate,
 }: {
   data: EstimateDocumentData
   dispatch?: React.Dispatch<EstimateAction>
   isEditable: boolean
-  brandColor: string
+  brandText: string
   L: DocLabels
   /** R4 — company default tax rate (fraction); undefined when no default applies. */
   defaultTaxRate?: number
@@ -1125,7 +1132,7 @@ function DocumentTotals({
         {/* Grand total */}
         <div className="flex justify-between items-baseline pt-3 border-t-2 border-foreground">
           <span className="text-2xl font-bold select-none">{L.grandTotal}</span>
-          <span className="text-2xl font-bold tabular-nums" style={{ color: brandColor }}>
+          <span className="text-2xl font-bold tabular-nums" style={{ color: brandText }}>
             {fmt(data.total)}
           </span>
         </div>
@@ -1598,6 +1605,9 @@ export function EstimateDocument({
   const lang = (language ?? 'en') as EstimateLanguage
   const L = DOC_LABELS[lang] ?? DOC_LABELS.en
   const brandColor = brandColorProp ?? company?.brand_primary_color ?? SYSTEM_COLORS.primary
+  // Render-time WCAG adaptation (stored brand color never mutated):
+  const brandText = ensureReadableOnWhite(brandColor) // brand color as text on white
+  const brandOnFill = readableTextColor(brandColor) // fixed foreground over a brand fill
   const isEditable = mode === 'edit' && !isReadOnly
 
   type OptionalField = 'summary' | 'payment_terms' | 'timeline' | 'warranty_terms' | 'notes'
@@ -1687,7 +1697,7 @@ export function EstimateDocument({
         >
           {/* LEFT — company info (Quick-260526-jo4) */}
           <div className="min-w-0">
-            <p className="font-bold text-lg leading-tight" style={{ color: brandColor }}>
+            <p className="font-bold text-lg leading-tight" style={{ color: brandText }}>
               {company.name}
             </p>
             {company.owner_name && (
@@ -1729,7 +1739,10 @@ export function EstimateDocument({
         className="py-6 px-6 sm:px-10 text-center"
         style={{ backgroundColor: brandColor }}
       >
-        <h1 className="text-3xl sm:text-4xl font-bold tracking-wide text-white select-none">
+        <h1
+          className="text-3xl sm:text-4xl font-bold tracking-wide select-none"
+          style={{ color: brandOnFill }}
+        >
           {L.estimate}
         </h1>
       </div>
@@ -1857,6 +1870,7 @@ export function EstimateDocument({
                   dispatch={dispatch}
                   isEditable={isEditable}
                   brandColor={brandColor}
+                  brandOnFill={brandOnFill}
                   currencyCode={data.currency_code}
                   L={L}
                   lang={lang}
@@ -1872,6 +1886,7 @@ export function EstimateDocument({
               section={section}
               isEditable={false}
               brandColor={brandColor}
+              brandOnFill={brandOnFill}
               currencyCode={data.currency_code}
               L={L}
               lang={lang}
@@ -1887,7 +1902,7 @@ export function EstimateDocument({
             onClick={() => dispatch({ type: 'ADD_SECTION' })}
             className="text-sm font-medium flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-colors select-none"
             style={{
-              color: brandColor,
+              color: brandText,
               backgroundColor: `${brandColor}1A`,
             }}
             onMouseEnter={(e) => {
@@ -1913,7 +1928,7 @@ export function EstimateDocument({
         data={data}
         dispatch={dispatch}
         isEditable={isEditable}
-        brandColor={brandColor}
+        brandText={brandText}
         L={L}
         defaultTaxRate={companyDefaults?.tax_rate}
       />
