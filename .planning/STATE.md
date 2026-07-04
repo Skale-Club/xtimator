@@ -1193,6 +1193,7 @@ v3.1: Phases 61-65 (started 2026-05-15). Production Go-Live — 27 requirements 
 | 260704-owm | Fix sub-sidebar width shrinking on admin workspace (restore w-40 md:w-48) | 2026-07-04 | a33deab0 | [260704-owm-fix-sub-sidebar-width-shrinking-on-admin](.planning/quick/260704-owm-fix-sub-sidebar-width-shrinking-on-admin/) |
 | 260704-oym | Custom PrimaryColorPicker (react-colorful Popover) replacing native input[type=color] in admin Branding editor | 2026-07-04 | c3590ba5 | [260704-oym-melhorar-o-editor-de-cor-primary-color-n](.planning/quick/260704-oym-melhorar-o-editor-de-cor-primary-color-n/) |
 | 260704-pcv | Fix end-of-scroll layout shift in sub-sidebar rail and floating estimate action bar | 2026-07-04 | 93549842 | [260704-pcv-fix-scroll-bottom-layout-shift-sub-sideb](.planning/quick/260704-pcv-fix-scroll-bottom-layout-shift-sub-sideb/) |
+| 260704-pt2 | Optional per-photo photo attachments to estimates (estimate_photos join table, Photos-tab attach/detach toggle, editor/PDF/share rendering, version carry-forward) | 2026-07-04 | bb741d5f | [260704-pt2-add-optional-photo-attachments-to-estima](.planning/quick/260704-pt2-add-optional-photo-attachments-to-estima/) |
 | 2026-05-18 | fast | Center auth card logo+wordmark | done |
 | 2026-05-19 | fast | Make audio capture screen scrollable on smaller viewports | done |
 | 2026-05-18 | fast | Restyle sidebar New Project as filled gradient, remove dashboard CTA | done |
