@@ -20,6 +20,7 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { IndustrySelector } from '@/components/onboarding/industry-selector'
+import { ColorPickerPopover } from '@/components/ui/color-picker-popover'
 import { useTranslation } from '@/lib/i18n/use-translation'
 
 import { DEFAULT_CURRENCY_CODE, SUPPORTED_CURRENCIES } from '@/lib/money/currency'
@@ -242,31 +243,33 @@ export function CompanyInfoForm({ company, readOnly = false }: CompanyInfoFormPr
                   name="brandPrimaryColor"
                   render={({ field }) => (
                     <FormItem className="m-0">
-                      <label className="group relative flex min-h-[180px] cursor-pointer flex-col overflow-hidden rounded-[var(--radius-md)] border border-border">
-                        <div
-                          className="relative flex-1"
-                          style={{ backgroundColor: field.value || SYSTEM_COLORS.primary }}
+                      <ColorPickerPopover
+                        value={field.value || SYSTEM_COLORS.primary}
+                        onChange={field.onChange}
+                        hexInput
+                      >
+                        <button
+                          type="button"
+                          aria-label={t('Change color')}
+                          className="group relative flex min-h-[180px] w-full cursor-pointer flex-col overflow-hidden rounded-[var(--radius-md)] border border-border text-left"
                         >
-                          <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/30 opacity-0 transition-opacity group-hover:opacity-100">
-                            <Pipette className="h-4 w-4 text-white" />
-                            <span className="text-sm font-medium text-white">{t('Change color')}</span>
+                          <div
+                            className="relative flex-1"
+                            style={{ backgroundColor: field.value || SYSTEM_COLORS.primary }}
+                          >
+                            <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/30 opacity-0 transition-opacity group-hover:opacity-100">
+                              <Pipette className="h-4 w-4 text-white" />
+                              <span className="text-sm font-medium text-white">{t('Change color')}</span>
+                            </div>
                           </div>
-                          <FormControl>
-                            <input
-                              type="color"
-                              className="sr-only"
-                              value={field.value || SYSTEM_COLORS.primary}
-                              onChange={field.onChange}
-                            />
-                          </FormControl>
-                        </div>
-                        <div className="border-t border-border bg-card/50 px-4 py-3">
-                          <p className="text-xs text-muted-foreground">{t('Brand Color')}</p>
-                          <p className="mt-0.5 font-mono text-sm font-semibold tracking-wide">
-                            {(field.value || SYSTEM_COLORS.primary).toUpperCase()}
-                          </p>
-                        </div>
-                      </label>
+                          <div className="w-full border-t border-border bg-card/50 px-4 py-3">
+                            <p className="text-xs text-muted-foreground">{t('Brand Color')}</p>
+                            <p className="mt-0.5 font-mono text-sm font-semibold tracking-wide">
+                              {(field.value || SYSTEM_COLORS.primary).toUpperCase()}
+                            </p>
+                          </div>
+                        </button>
+                      </ColorPickerPopover>
                       <FormMessage />
                     </FormItem>
                   )}

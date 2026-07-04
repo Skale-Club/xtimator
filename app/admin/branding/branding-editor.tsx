@@ -21,7 +21,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { LogoUploader } from '@/components/onboarding/logo-uploader'
-import { PrimaryColorPicker } from '@/components/admin/primary-color-picker'
+import { ColorPickerPopover } from '@/components/ui/color-picker-popover'
 
 import { saveBranding } from './actions'
 import { BrandingPreviewCard, type PreviewBranding } from './branding-preview-card'
@@ -185,7 +185,7 @@ export function BrandingEditor({ initial }: BrandingEditorProps) {
                 <FormLabel>{t('Primary color')}</FormLabel>
                 <div className="flex items-center gap-3">
                   <FormControl>
-                    <PrimaryColorPicker
+                    <ColorPickerPopover
                       value={field.value || DEFAULT_COLOR}
                       onChange={field.onChange}
                     />
