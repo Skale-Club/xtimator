@@ -16,9 +16,11 @@ interface MaskedKeyInputProps
  * that flips between masked and visible. Mirrors the show/hide pattern from
  * app/(auth)/login/page.tsx:103-111.
  *
- * When `initialLast4` is provided AND the user has not yet focused/typed,
- * the placeholder shows ••••••••••••{last4} so the admin sees that *something*
- * is configured without ever exposing the plaintext to the client.
+ * When `initialLast4` is provided AND the user has not yet focused/typed, the
+ * field shows ••••••••••••{last4} rendered in FOREGROUND color (not the muted
+ * placeholder tint) so a saved key reads as "filled" — instantly identifiable —
+ * rather than looking empty. The plaintext is never sent to the client. On
+ * focus the preview clears so a new key can be typed.
  */
 export const MaskedKeyInput = forwardRef<HTMLInputElement, MaskedKeyInputProps>(
   function MaskedKeyInput(
@@ -44,7 +46,13 @@ export const MaskedKeyInput = forwardRef<HTMLInputElement, MaskedKeyInputProps>(
             setTouched(true)
             onFocus?.(e)
           }}
-          className={['min-h-[44px] pr-10 font-mono', className]
+          className={[
+            'min-h-[44px] pr-10 font-mono',
+            // A saved key: render the masked dots as solid foreground text, not
+            // the muted placeholder tint, so it clearly reads as "configured".
+            showPreview ? 'placeholder:text-foreground placeholder:opacity-100' : '',
+            className,
+          ]
             .filter(Boolean)
             .join(' ')}
           {...props}
