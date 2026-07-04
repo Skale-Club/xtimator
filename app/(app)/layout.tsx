@@ -121,7 +121,7 @@ export default async function AppShellLayout({
             {trialDaysRemaining !== null && trialDaysRemaining < 3 && (
               <TrialBanner daysRemaining={trialDaysRemaining} />
             )}
-            <main className="flex-1 overflow-y-auto">
+            <main className="flex-1 overflow-y-auto pb-[calc(5rem_+_env(safe-area-inset-bottom,_0px))] md:pb-6">
               {children}
             </main>
           </div>

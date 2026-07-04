@@ -111,7 +111,7 @@ export function ProjectWorkspace({
      *     + the active tab. The header sits to the RIGHT of the rail, so the rail
      *     never covers the project title.
      */
-    <div className="relative flex min-h-full flex-row gap-0 items-start">
+    <div className="relative flex min-h-full flex-row gap-0 items-start -mb-[calc(5rem_+_env(safe-area-inset-bottom,_0px))] md:-mb-6">
 
       {/* Nav — in-flow STICKY rail at ALL breakpoints. sticky top-0 pins it to the
           top of the scroll container (<main>), which already sits below the
@@ -204,12 +204,18 @@ export function ProjectWorkspace({
         )}
         </div>
 
-        {/* Bottom clearance spacer — lives INSIDE the content column's containing
-            block (same one the sticky rail and sticky floating action bar use),
-            so this space is included in the scrollable box those stickies detach
-            from. Relocated from <main>'s padding-bottom in app/(app)/layout.tsx
-            to eliminate the end-of-scroll shift where both stickies would let go
-            before the ancestor's extra padding finished scrolling past. */}
+        {/* Bottom clearance spacer — lives INSIDE the flex-row's containing block
+            (same one the sticky rail and sticky floating action bar use), paired
+            with the negative margin-bottom on the outer flex-row div above. main
+            (app/(app)/layout.tsx) still carries this same amount as padding-bottom
+            for every other route in the (app) group — but for this route, the
+            negative margin cancels that ancestor padding out of the scroll-height
+            total (so other routes aren't double-spaced) while this spacer ensures
+            the sticky elements' own containing block genuinely includes the
+            clearance region. Without this pairing, main's padding sits OUTSIDE
+            the sticky rail/floating-bar's containing block, so the page can be
+            scrolled past where that containing block ends — both stickies detach
+            in that last sliver, reading as a jump right at the end of scroll. */}
         <div
           aria-hidden
           className="h-[calc(5rem_+_env(safe-area-inset-bottom,_0px))] md:h-6"
