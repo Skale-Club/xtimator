@@ -28,6 +28,16 @@ export function isPublicRoute(pathname: string): boolean {
   if (pathname.startsWith('/api/webhooks/')) {
     return true
   }
+  // Inngest invokes background functions (transcribe, generate-estimate,
+  // analyze-photos, notify, crons, xphere sync) via SIGNED requests — the serve
+  // handler verifies X-Inngest-Signature against INNGEST_SIGNING_KEY, so there is
+  // no Supabase session to redirect on. Without this bypass, Inngest's sync +
+  // invoke requests get 307'd to /?auth=login and NO background job ever runs
+  // (this silently broke the whole pipeline for ~11 days after '/api' entered the
+  // protected prefixes). Same rationale as the webhook/cron exemptions above.
+  if (pathname === '/api/inngest' || pathname.startsWith('/api/inngest/')) {
+    return true
+  }
   return PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix))
 }
 
