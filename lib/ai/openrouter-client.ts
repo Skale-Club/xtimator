@@ -178,6 +178,8 @@ export async function analyzePhotoOR(
           ],
         },
       ],
+      // COST-01: request the real upstream USD cost in the response usage block.
+      usage: { include: true },
     }
 
     const res = await fetch(`${OPENROUTER_BASE}/chat/completions`, {
@@ -206,8 +208,10 @@ export async function analyzePhotoOR(
     const result = json.choices?.[0]?.message?.content ?? ''
     // Phase 110 (COST-01): capture the vision call's real USD cost. null when
     // absent (NEVER 0). Correlation ids come ONLY from the non-LLM costContext.
-    // void so a cost-write failure can never affect the return (never-throws).
-    void recordAICost({
+    // AWAIT (not void): a floating promise is dropped when an Inngest step
+    // suspends, leaving ai_cost_events empty. recordAICost never-throws, so
+    // awaiting it can never affect the return.
+    await recordAICost({
       attemptId: costContext?.attemptId ?? randomUUID(),
       operationType: 'vision',
       provider: 'openrouter',
@@ -272,6 +276,8 @@ export async function translateTextsOR(
         content: `Translate these UI strings from English to ${langLabel}. Return ONLY a raw JSON object (no markdown, no code blocks) mapping each source string exactly to its translation. Keep proper nouns and brand names unchanged. Preserve casing style. Source strings:\n${JSON.stringify(texts)}`,
       },
     ],
+    // COST-01: request the real upstream USD cost in the response usage block.
+    usage: { include: true },
   }
 
   const res = await fetch(`${OPENROUTER_BASE}/chat/completions`, {
@@ -302,7 +308,9 @@ export async function translateTextsOR(
   const result = JSON.parse(clean) as Record<string, string>
   // Phase 110 (COST-01): capture the translation call's real USD cost. null when
   // absent (NEVER 0). Correlation ids come ONLY from the non-LLM costContext.
-  void recordAICost({
+  // AWAIT (not void): a floating promise is dropped when an Inngest step
+  // suspends, leaving ai_cost_events empty. recordAICost never-throws.
+  await recordAICost({
     attemptId: costContext?.attemptId ?? randomUUID(),
     operationType: 'translation',
     provider: 'openrouter',
