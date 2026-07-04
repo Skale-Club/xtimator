@@ -71,11 +71,13 @@ export const DEFAULT_BILLING_CONFIG: BillingConfig = {
   whisperUsdPerMinute: 0.006,
   estimateFeePct: 0.01,
   estimateFeeMinCents: 1,
-  // CALIBRATE BEFORE CHARGING, NOT a final number — null-safe placeholder so the
-  // reader resolves a seat price before any admin save (same discipline as markup/estimateFeePct).
-  seatPriceCents: 1500,
-  // CALIBRATE BEFORE CHARGING, NOT a final number — placeholder ≈ 10× monthly so the (later-derived) annual discount is visible.
-  seatPriceAnnualCents: 15000,
+  // Billing v2 (v1 launch decision): seats are FREE — teammates share the
+  // company's credit pool, so usage is already metered by credits and per-seat
+  // billing would be double-dipping. Price 0 makes computeSeatChargeCents a
+  // no-op, so inviting a teammate never adds a Stripe seat item. Set a price
+  // here (admin panel, no deploy) to enable seat billing later.
+  seatPriceCents: 0,
+  seatPriceAnnualCents: 0,
   // includedSeats per tier is a CALIBRATION PLACEHOLDER (the owner seat is bundled,
   // so each defaults to 1) — CALIBRATE BEFORE CHARGING, do not invent generous numbers.
   // subscriptionPriceAnnualCents per tier is also a CALIBRATION PLACEHOLDER (≈10× monthly
