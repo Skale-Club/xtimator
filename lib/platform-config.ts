@@ -349,26 +349,10 @@ export async function getXphereConfig(): Promise<XphereConfig> {
   return { apiKey, baseUrl: baseUrl.replace(/\/+$/, '') } // strip trailing slash
 }
 
-export type SelectedAIProvider = 'anthropic' | 'gemini' | 'openrouter'
-
-export async function getSelectedAIProvider(): Promise<SelectedAIProvider> {
-  const svc = createServiceClient()
-  if (!svc) return 'anthropic'
-  const { data } = await svc
-    .from('platform_integrations')
-    .select('metadata')
-    .eq('provider', 'ai_config')
-    .maybeSingle()
-  const selected = (data?.metadata as { selected_ai_provider?: string } | null)?.selected_ai_provider
-  if (selected === 'gemini') return 'gemini'
-  if (selected === 'openrouter') return 'openrouter'
-  return 'anthropic'
-}
-
 /**
- * Read the platform-wide default OpenRouter model id stored alongside the
- * selected provider in `platform_integrations.ai_config.metadata`. Used when
- * the active provider is OpenRouter and the company has no override set.
+ * Read the platform-wide default OpenRouter model id stored in
+ * `platform_integrations.ai_config.metadata`. OpenRouter is the single AI
+ * engine, so this is the default model for any company with no override set.
  */
 export async function getOpenRouterDefaultModel(): Promise<string | null> {
   const svc = createServiceClient()

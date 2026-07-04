@@ -3,7 +3,8 @@ import { notFound } from 'next/navigation'
 import { ChevronLeft } from 'lucide-react'
 import { requireAdmin } from '@/lib/auth/admin-context'
 import { requireServiceClient } from '@/lib/supabase/service'
-import { getSelectedAIProvider, getOpenRouterDefaultModel } from '@/lib/platform-config'
+import { getOpenRouterDefaultModel } from '@/lib/platform-config'
+import { OR_DEFAULTS } from '@/lib/ai/openrouter-client'
 import { Card } from '@/components/ui/card'
 import { T } from '@/components/i18n/t'
 import { CompanyModelOverrideForm } from './company-model-override-form'
@@ -44,16 +45,13 @@ export default async function AdminCompanyDetailPage({
     .select('id', { count: 'exact', head: true })
     .eq('company_id', id)
 
-  const [activeProvider, globalModel] = await Promise.all([
-    getSelectedAIProvider(),
-    getOpenRouterDefaultModel(),
-  ])
+  const globalModel = await getOpenRouterDefaultModel()
 
+  // OpenRouter is the single AI engine: effective model is the per-company
+  // override when set, else the platform-wide OpenRouter default.
   const effectiveModel = company.ai_model_override
     ? `${company.ai_model_override} (override)`
-    : activeProvider === 'openrouter'
-      ? `${globalModel ?? 'anthropic/claude-3.5-sonnet'} (platform default)`
-      : `${activeProvider} adapter (no model override)`
+    : `${globalModel ?? OR_DEFAULTS.chat} (platform default)`
 
   return (
     <div className="space-y-8">

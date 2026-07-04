@@ -6,7 +6,7 @@ import { createServiceClient } from '@/lib/supabase/service'
  *
  * A typed, null-safe, SERVER-ONLY reader over the metadata-only
  * `platform_integrations` `billing_config` row. Mirrors
- * `getSelectedAIProvider()` (lib/platform-config.ts): reads `metadata` via
+ * `getOpenRouterDefaultModel()` (lib/platform-config.ts): reads `metadata` via
  * `createServiceClient()` (RLS-bypassing service role — never the browser
  * client) and merges the stored values over {@link DEFAULT_BILLING_CONFIG}.
  *

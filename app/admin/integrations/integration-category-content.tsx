@@ -1,6 +1,5 @@
 import {
   getOpenRouterDefaultModel,
-  getSelectedAIProvider,
   getTranscriptionModel,
 } from '@/lib/platform-config'
 import type { Category } from '@/lib/admin/integrations-providers'
@@ -8,7 +7,7 @@ import { loadCategoryInitials } from '@/lib/admin/integrations-providers'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { T } from '@/components/i18n/t'
 
-import { AIProviderSelector } from './ai-provider-selector'
+import { OpenRouterModelForm } from './openrouter-model-form'
 import { TranscriptionModelSelector } from './transcription-model-selector'
 import { IntegrationCard } from './integration-card'
 import { TwilioFromPhoneForm } from './twilio-from-phone-form'
@@ -29,10 +28,9 @@ type IntegrationCategoryContentProps = {
 export async function IntegrationCategoryContent({
   category,
 }: IntegrationCategoryContentProps) {
-  const [initials, activeProvider, openRouterModel, transcriptionModel] =
+  const [initials, openRouterModel, transcriptionModel] =
     await Promise.all([
       loadCategoryInitials(category),
-      category.showAISelector ? getSelectedAIProvider() : Promise.resolve(null),
       category.showAISelector ? getOpenRouterDefaultModel() : Promise.resolve(null),
       category.showAISelector ? getTranscriptionModel() : Promise.resolve(null),
     ])
@@ -147,12 +145,9 @@ export async function IntegrationCategoryContent({
         ))}
       </div>
 
-      {category.showAISelector && activeProvider && (
+      {category.showAISelector && (
         <div className="rounded-lg border border-border bg-card/40 p-4 md:p-6 space-y-4">
-          <AIProviderSelector
-            current={activeProvider}
-            currentOpenRouterModel={openRouterModel}
-          />
+          <OpenRouterModelForm currentModel={openRouterModel} />
           <TranscriptionModelSelector current={transcriptionModel ?? 'whisper-1'} />
         </div>
       )}

@@ -20,8 +20,6 @@ import { OR_DEFAULTS } from './openrouter-client'
 
 type AIConfigMetadata = {
   openrouter_default_model?: string
-  /** Legacy field — kept for back-compat reads; value is now always openrouter. */
-  selected_ai_provider?: string
 }
 
 /**

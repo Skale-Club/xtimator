@@ -534,71 +534,11 @@ export async function saveWhatsAppSystemPrompt(
 }
 
 /**
- * Upsert the ai_config row in platform_integrations to switch the active AI
- * provider platform-wide. No redeploy required — factory reads from DB on every
- * request (D-04, D-19).
- */
-export async function setActiveAIProvider(
-  provider: 'anthropic' | 'gemini' | 'openrouter'
-): Promise<ActionResult> {
-  const ctx = await requireAdmin()
-  const svc = requireServiceClient()
-
-  // Best-effort read of previous metadata so we keep `openrouter_default_model`
-  // intact when switching providers (we only want to flip selected_ai_provider).
-  let previous: string | null = null
-  let prevMeta: { selected_ai_provider?: string; openrouter_default_model?: string } = {}
-  try {
-    const { data: prev } = await svc
-      .from('platform_integrations')
-      .select('metadata')
-      .eq('provider', 'ai_config')
-      .maybeSingle()
-    prevMeta =
-      (prev?.metadata ?? {}) as {
-        selected_ai_provider?: string
-        openrouter_default_model?: string
-      }
-    previous = prevMeta.selected_ai_provider ?? null
-  } catch {
-    // non-fatal — audit row will just record { new } without previous
-  }
-
-  const { error } = await svc.from('platform_integrations').upsert(
-    {
-      provider: 'ai_config',
-      ciphertext: null,
-      iv: null,
-      auth_tag: null,
-      metadata: { ...prevMeta, selected_ai_provider: provider },
-      updated_at: new Date().toISOString(),
-      updated_by: ctx.userId,
-    },
-    { onConflict: 'provider' }
-  )
-  if (error) {
-    return { ok: false, message: error.message }
-  }
-  invalidatePlatformConfig()
-  revalidatePath('/admin/integrations')
-
-  void logAdminAction({
-    actorId: ctx.userId,
-    actorEmail: ctx.email,
-    action: 'ai_provider.set',
-    targetType: 'ai_config',
-    targetId: provider,
-    metadata: { new: provider, previous },
-  })
-
-  return { ok: true, message: `Active AI provider set to ${provider}.` }
-}
-
-/**
- * Persist the platform-wide default OpenRouter model id. Used when the
- * active provider is OpenRouter and a company has no `ai_model_override`.
+ * Persist the platform-wide default OpenRouter model id. OpenRouter is the
+ * single AI engine (see lib/ai/index.ts), so this is THE model used for any
+ * company without an `ai_model_override`.
  *
- * Stored alongside `selected_ai_provider` in the `ai_config` metadata.
+ * Stored as `openrouter_default_model` in the `ai_config` metadata.
  */
 export async function setGlobalOpenRouterModel(
   model: string
@@ -615,18 +555,16 @@ export async function setGlobalOpenRouterModel(
   }
 
   const svc = requireServiceClient()
-  let prevMeta: { selected_ai_provider?: string; openrouter_default_model?: string } = {}
+  // Best-effort read so we preserve any unrelated ai_config keys (e.g. the
+  // transcription_model) when writing the default model.
+  let prevMeta: Record<string, unknown> = {}
   try {
     const { data: prev } = await svc
       .from('platform_integrations')
       .select('metadata')
       .eq('provider', 'ai_config')
       .maybeSingle()
-    prevMeta =
-      (prev?.metadata ?? {}) as {
-        selected_ai_provider?: string
-        openrouter_default_model?: string
-      }
+    prevMeta = (prev?.metadata ?? {}) as Record<string, unknown>
   } catch {
     // non-fatal — overwrite with just the new model
   }
@@ -665,7 +603,7 @@ export async function setGlobalOpenRouterModel(
  * Persist the platform-wide speech-to-text model id. Transcription does NOT
  * route through OpenRouter (it calls OpenAI Whisper directly), so the choice is
  * restricted to the known OpenAI transcription models. Stored alongside
- * `selected_ai_provider` / `openrouter_default_model` in the `ai_config` metadata.
+ * `openrouter_default_model` in the `ai_config` metadata.
  */
 export async function setGlobalTranscriptionModel(
   model: string
@@ -732,7 +670,7 @@ export async function setGlobalTranscriptionModel(
  *
  * DISABLE therefore persists research_source: null (a non-matching value) so the
  * readers go dormant while research_engine is preserved (re-enabling restores it).
- * Mirrors setActiveAIProvider: requireAdmin gate FIRST, service-role upsert,
+ * Mirrors setGlobalOpenRouterModel: requireAdmin gate FIRST, service-role upsert,
  * invalidate cache + revalidate path + audit. No API key involved — price_research
  * reuses the existing OpenRouter / Anthropic credentials.
  */

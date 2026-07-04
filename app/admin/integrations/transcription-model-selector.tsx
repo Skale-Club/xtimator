@@ -12,7 +12,7 @@ type Props = {
 
 // Known OpenAI transcription models, in display order. Kept local (not imported
 // from the server-only platform-config module) because this is a client
-// component — mirrors how AIProviderSelector holds its own label list. The
+// component that holds its own label list. The
 // server action re-validates the id against the platform allowlist (the source
 // of truth), so a stale entry here can never persist an invalid model.
 const MODELS = [

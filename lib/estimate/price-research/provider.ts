@@ -79,7 +79,7 @@ export function isUsableCandidate(r: PriceResearchResult): boolean {
 
 /**
  * Reads the active research source from platform_integrations — mirrors
- * `getSelectedAIProvider()` (lib/platform-config.ts). Returns null when the
+ * `getOpenRouterDefaultModel()` (lib/platform-config.ts). Returns null when the
  * service client is unavailable, no row exists, or the value is unrecognized.
  * (The admin UI that SETS this is a deferred Future Requirement; reading it here
  * is the seam.)
