@@ -9,6 +9,7 @@ import {
 } from '@react-pdf/renderer'
 import type { EstimateWithSections } from '@/lib/queries/estimate'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
+import { ensureReadableOnWhite, readableTextColor } from '@/lib/color/contrast'
 import { formatMoney } from '@/lib/money/currency'
 import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
 import { formatPhoneForDisplay } from '@/lib/phone/format'
@@ -457,6 +458,11 @@ export default function EstimatePDF({
   attachedPhotos,
 }: EstimatePDFProps) {
   const brandColor = company.brand_primary_color ?? SYSTEM_COLORS.primary
+  // Render-time WCAG adaptation of the brand color (stored value never mutated):
+  //   brandText   → brand color darkened to reach 4.5:1 as text on white
+  //   brandOnFill → black/white foreground with max contrast over a brand fill
+  const brandText = ensureReadableOnWhite(brandColor)
+  const brandOnFill = readableTextColor(brandColor)
   const companyAddress = formatAddress(company)
   const clientAddress = client ? formatAddress(client) : null
   const L = PDF_LABELS[language] ?? PDF_LABELS.en
@@ -479,10 +485,10 @@ export default function EstimatePDF({
           <View style={styles.headerLeft}>
             <View>
               <Text
-                style={[styles.companyName, { color: brandColor }]}
+                style={[styles.companyName, { color: brandText }]}
               >
                 {company.website ? (
-                  <Link src={company.website} style={[styles.nameLink, { color: brandColor }]}>
+                  <Link src={company.website} style={[styles.nameLink, { color: brandText }]}>
                     {company.name}
                   </Link>
                 ) : (
@@ -542,7 +548,7 @@ export default function EstimatePDF({
         </View>
 
         {/* Title */}
-        <Text style={[styles.estimateTitle, { color: brandColor }]}>
+        <Text style={[styles.estimateTitle, { color: brandText }]}>
           {L.estimate}
         </Text>
 
@@ -626,7 +632,7 @@ export default function EstimatePDF({
                 { backgroundColor: brandColor },
               ]}
             >
-              <Text style={styles.sectionTitle}>{section.title}</Text>
+              <Text style={[styles.sectionTitle, { color: brandOnFill }]}>{section.title}</Text>
             </View>
 
             {/* Table Header */}
@@ -724,12 +730,12 @@ export default function EstimatePDF({
 
             <View style={styles.grandTotalRow}>
               <Text
-                style={[styles.grandTotalLabel, { color: brandColor }]}
+                style={[styles.grandTotalLabel, { color: brandText }]}
               >
                 {L.grandTotal}
               </Text>
               <Text
-                style={[styles.grandTotalValue, { color: brandColor }]}
+                style={[styles.grandTotalValue, { color: brandText }]}
               >
                 {fmt(estimate.total)}
               </Text>
@@ -762,7 +768,7 @@ export default function EstimatePDF({
           <View style={styles.termsSection}>
             {company.estimate_terms_enabled && company.estimate_terms_text && (
               <>
-                <Text style={[styles.termsTitle, { color: brandColor }]}>
+                <Text style={[styles.termsTitle, { color: brandText }]}>
                   Estimate Terms
                 </Text>
                 <Text style={styles.termsText}>
