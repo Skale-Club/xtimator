@@ -1,6 +1,7 @@
 import 'server-only'
 import { getIntegrationKey, getBranding } from '@/lib/platform-config'
 import { getCanonicalBaseUrl } from '@/lib/utils/site-url'
+import { EMAIL_FROM_ADDRESS } from '@/lib/email/sender'
 
 /**
  * Team-invite transactional email.
@@ -20,7 +21,7 @@ import { getCanonicalBaseUrl } from '@/lib/utils/site-url'
  * Plan 02's inviteMember action passes a pre-generated token + context.
  */
 
-const FROM_ADDRESS = 'notifications@xtimator.com'
+const FROM_ADDRESS = EMAIL_FROM_ADDRESS
 
 function escHtml(s: string): string {
   return s

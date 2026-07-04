@@ -15,6 +15,7 @@ import {
 } from '@/lib/platform-config'
 import { integrationKeySchema, billingConfigSchema } from '@/lib/schemas/admin'
 import { validateMarginInvariant, type TierMarginResult } from '@/lib/billing/calibration'
+import { EMAIL_FROM_ADDRESS } from '@/lib/email/sender'
 
 export type ActionResult =
   | { ok: true; message?: string }
@@ -145,7 +146,7 @@ async function runTestIntegrationKey(
     if (input.provider === 'resend') {
       const resend = new Resend(key)
       const { error } = await resend.emails.send({
-        from: 'notifications@xtimator.com',
+        from: EMAIL_FROM_ADDRESS,
         to: ctx.email,
         subject: 'Xtimator admin key test',
         text: 'Key verified',

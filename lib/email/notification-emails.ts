@@ -1,5 +1,6 @@
 import 'server-only'
 import { getIntegrationKey, getBranding } from '@/lib/platform-config'
+import { emailFrom } from '@/lib/email/sender'
 
 /**
  * Phase 77 (NOTIF-07) — Branded notifications digest email.
@@ -169,7 +170,7 @@ export async function sendNotificationDigestEmail(
     const { Resend } = await import('resend')
     const resend = new Resend(key)
     await resend.emails.send({
-      from: `${ctx.branding.businessName} <notifications@xtimator.com>`,
+      from: emailFrom(ctx.branding.businessName),
       to: ctx.toEmail,
       subject,
       html: renderHtml(ctx),

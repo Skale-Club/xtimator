@@ -8,6 +8,7 @@ import { isAuthorizedCron } from '@/lib/auth/cron-auth'
 import { getCanonicalBaseUrl } from '@/lib/utils/site-url'
 import { getBillingConfig } from '@/lib/billing/billing-config'
 import { formatMinorUnits } from '@/lib/money/currency'
+import { emailFrom } from '@/lib/email/sender'
 
 export async function GET(request: Request) {
   if (!process.env.CRON_SECRET) {
@@ -100,7 +101,7 @@ export async function GET(request: Request) {
     const proPrice = formatMinorUnits(cfg.tiers.pro.subscriptionPriceCents, 'USD')
     const businessPrice = formatMinorUnits(cfg.tiers.business.subscriptionPriceCents, 'USD')
     const appName = branding.appName
-    const fromAddress = `${appName} <notifications@xtimator.com>`
+    const fromAddress = emailFrom(appName)
     const upgradeLine = `Upgrade to Pro (${proPrice}/mo) or Business (${businessPrice}/mo) to keep unlimited access.`
 
     let sent = 0
