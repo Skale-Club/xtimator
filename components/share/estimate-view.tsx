@@ -122,6 +122,20 @@ export function EstimateView({
     currency_code: estimate.currency_code ?? 'USD',
     estimate_date: (estimate as { estimate_date?: string | null }).estimate_date ?? null,
     estimate_number: (estimate as { estimate_number?: string | null }).estimate_number ?? null,
+    // Signed URLs are already resolved server-side in lib/queries/share.ts
+    // (getEstimateByShareToken) — anon visitors have no session to call
+    // getSignedUrl with, so no client-side resolution happens here.
+    attachedPhotos:
+      (
+        estimate as unknown as {
+          attachedPhotos?: {
+            id: string
+            storage_path: string
+            caption: string | null
+            url: string
+          }[]
+        }
+      ).attachedPhotos ?? [],
     sections: estimate.sections.map((s) => ({
       id: s.id,
       title: s.title,

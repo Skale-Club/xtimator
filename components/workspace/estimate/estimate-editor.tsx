@@ -7,6 +7,7 @@ import {
   saveEstimate,
   getEstimateByIdAction,
 } from '@/lib/actions/estimate'
+import { removePhotoFromEstimate } from '@/lib/actions/estimate-photo'
 import { renameProjectAction } from '@/lib/actions/project'
 import type { EstimateWithSections, Estimate } from '@/lib/queries/estimate'
 import type { InvoiceRow } from '@/lib/queries/invoice'
@@ -54,6 +55,11 @@ function stateToDocumentData(state: EstimateEditorState): EstimateDocumentData {
     estimate_date: state.estimate_date,
     estimate_number: state.estimate_number,
     currency_code: state.currency_code,
+    attachedPhotos: state.attachedPhotos.map((p) => ({
+      id: p.id,
+      storage_path: p.storage_path,
+      caption: p.caption,
+    })),
     sections: state.sections.map((s) => ({
       id: s.id,
       title: s.title,
@@ -240,6 +246,14 @@ export function EstimateEditor({
     router.refresh()
   }, [projectId, router])
 
+  const handleDetachPhoto = useCallback(async (photoId: string) => {
+    dispatch({ type: 'DETACH_PHOTO', photoId })
+    const result = await removePhotoFromEstimate(stateRef.current.id, photoId)
+    if ('error' in result) {
+      toast.error('Failed to remove photo')
+    }
+  }, [dispatch])
+
   // cmd/ctrl + S
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -320,6 +334,7 @@ export function EstimateEditor({
         projectId={projectId}
         onRenameProject={isReadOnly ? undefined : handleRenameProject}
         priceBookItems={priceBookItems}
+        onDetachPhoto={isReadOnly ? undefined : handleDetachPhoto}
       />
 
       {/* Phase 94 — issued-invoice display (D-19) + generate-invoice action (D-18).

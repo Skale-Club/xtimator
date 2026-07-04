@@ -1,13 +1,19 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { toast } from 'sonner'
 import { PhotoDropZone } from './photo-drop-zone'
 import { PhotoGrid } from './photo-grid'
 import { PhotoLightbox } from './photo-lightbox'
 import { reorderPhotos } from '@/lib/actions/photo'
+import {
+  addPhotoToEstimate,
+  removePhotoFromEstimate,
+  getAttachedPhotoIdsAction,
+} from '@/lib/actions/estimate-photo'
 import type { Photo } from '@/lib/queries/photo'
 import { useTranslation } from '@/lib/i18n/use-translation'
+import { useEstimateVersionSlot } from '@/components/workspace/estimate-version-context'
 
 interface PhotosTabProps {
   projectId: string
@@ -21,9 +27,11 @@ export function PhotosTab({
   initialPhotos,
 }: PhotosTabProps) {
   const { t } = useTranslation()
+  const { slot } = useEstimateVersionSlot()
   const [photos, setPhotos] = useState<Photo[]>(initialPhotos)
   const [lightboxOpen, setLightboxOpen] = useState(false)
   const [lightboxIndex, setLightboxIndex] = useState(0)
+  const [attachedIds, setAttachedIds] = useState<Set<string>>(new Set())
 
   const handlePhotosUploaded = useCallback((newPhotos: Photo[]) => {
     setPhotos((prev) => [...prev, ...newPhotos])
@@ -53,6 +61,52 @@ export function PhotosTab({
     setLightboxOpen(true)
   }, [])
 
+  useEffect(() => {
+    const estimateId = slot?.currentVersionId
+    if (!estimateId) {
+      setAttachedIds(new Set())
+      return
+    }
+    let cancelled = false
+    getAttachedPhotoIdsAction(estimateId).then((result) => {
+      if (cancelled) return
+      if ('data' in result) {
+        setAttachedIds(new Set(result.data))
+      }
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [slot?.currentVersionId])
+
+  const handleToggleAttach = useCallback(
+    async (photoId: string) => {
+      const estimateId = slot?.currentVersionId
+      if (!estimateId) return
+      const wasAttached = attachedIds.has(photoId)
+      // Optimistic update
+      setAttachedIds((prev) => {
+        const next = new Set(prev)
+        wasAttached ? next.delete(photoId) : next.add(photoId)
+        return next
+      })
+      const result = wasAttached
+        ? await removePhotoFromEstimate(estimateId, photoId)
+        : await addPhotoToEstimate(estimateId, photoId)
+      if ('error' in result) {
+        toast.error(
+          t(wasAttached ? 'Failed to remove photo' : 'Failed to attach photo')
+        )
+        setAttachedIds((prev) => {
+          const next = new Set(prev)
+          wasAttached ? next.add(photoId) : next.delete(photoId)
+          return next
+        })
+      }
+    },
+    [slot?.currentVersionId, attachedIds, t]
+  )
+
   return (
     <div className="space-y-6 py-4">
       <PhotoDropZone
@@ -68,6 +122,8 @@ export function PhotosTab({
           onReorder={handleReorder}
           onDelete={handleDelete}
           onPhotoClick={handlePhotoClick}
+          isAttached={(id) => attachedIds.has(id)}
+          onToggleAttach={handleToggleAttach}
         />
       )}
 

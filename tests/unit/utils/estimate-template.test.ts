@@ -106,6 +106,7 @@ describe('buildItemsBreakdown', () => {
     client_response: null,
     created_at: '2026-01-01',
     updated_at: '2026-01-01',
+    attachedPhotos: [],
     sections: [
       {
         id: 'sec-1',

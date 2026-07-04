@@ -19,8 +19,11 @@ import {
   arrayMove,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { Check, GripVertical, Plus, RotateCcw, Trash2, UserPlus } from 'lucide-react'
+import { Check, GripVertical, Plus, RotateCcw, Trash2, UserPlus, X } from 'lucide-react'
 import { toast } from 'sonner'
+import { Skeleton } from '@/components/ui/skeleton'
+import { createClient } from '@/lib/supabase/client'
+import { createStorage } from '@/lib/storage'
 import { MoneyInput } from '@/components/ui/money-input'
 import { Switch } from '@/components/ui/switch'
 import {
@@ -102,6 +105,7 @@ const DOC_LABELS = {
     customized: 'Customized',
     usingDefault: 'Default',
     resetToDefault: 'Reset to default',
+    photos: 'Photos',
   },
   pt: {
     estimate: 'ORÇAMENTO',
@@ -145,6 +149,7 @@ const DOC_LABELS = {
     customized: 'Personalizado',
     usingDefault: 'Padrão',
     resetToDefault: 'Restaurar padrão',
+    photos: 'Fotos',
   },
   es: {
     estimate: 'PRESUPUESTO',
@@ -188,6 +193,7 @@ const DOC_LABELS = {
     customized: 'Personalizado',
     usingDefault: 'Predeterminado',
     resetToDefault: 'Restablecer',
+    photos: 'Fotos',
   },
 }
 
@@ -233,6 +239,7 @@ interface DocLabels {
   customized: string
   usingDefault: string
   resetToDefault: string
+  photos: string
 }
 
 const DATE_LOCALE: Record<EstimateLanguage, string> = {
@@ -318,6 +325,20 @@ export interface DocumentSection {
   items: DocumentItem[]
 }
 
+/**
+ * Deliberately NOT the full lib/queries/photo.ts Photo type — the document
+ * surface only needs these fields and shouldn't couple to the photos query
+ * module. `url`, when present, is a pre-resolved signed URL (view/share mode,
+ * resolved server-side); when absent (edit mode), AttachedPhotoThumb resolves
+ * one client-side the same way PhotoCard does.
+ */
+export interface DocumentPhoto {
+  id: string
+  storage_path: string
+  caption: string | null
+  url?: string
+}
+
 export interface EstimateDocumentData {
   summary: string | null
   notes: string | null
@@ -342,6 +363,7 @@ export interface EstimateDocumentData {
   sections: DocumentSection[]
   estimate_date: string | null
   estimate_number: string | null
+  attachedPhotos?: DocumentPhoto[]
 }
 
 interface EstimateDocumentProps {
@@ -370,6 +392,8 @@ interface EstimateDocumentProps {
   onRenameProject?: (name: string) => Promise<void>
   /** Quick-260525-qbc: price book for description autocomplete (defaults to []) */
   priceBookItems?: PriceBookItem[]
+  /** Edit mode only — renders a remove "x" on each attached-photo thumbnail. Never passed in view/share mode. */
+  onDetachPhoto?: (photoId: string) => void
 }
 
 // ---------------------------------------------------------------------------
@@ -1491,6 +1515,63 @@ function AddDetailsPopover({
 }
 
 // ---------------------------------------------------------------------------
+// AttachedPhotoThumb — static (non-drag-sort) thumbnail for the attached-
+// photos strip. Uses photo.url directly if pre-resolved (view/share mode);
+// otherwise resolves a signed URL client-side (edit mode), mirroring the
+// exact call PhotoCard already makes today.
+// ---------------------------------------------------------------------------
+
+function AttachedPhotoThumb({
+  photo,
+  onRemove,
+}: {
+  photo: DocumentPhoto
+  onRemove?: () => void
+}) {
+  const [imageUrl, setImageUrl] = useState<string | null>(photo.url ?? null)
+
+  useEffect(() => {
+    if (photo.url) {
+      setImageUrl(photo.url)
+      return
+    }
+    const supabase = createClient()
+    createStorage(supabase)
+      .getSignedUrl('photos', photo.storage_path, 3600)
+      .then((signedUrl) => {
+        setImageUrl(signedUrl)
+      })
+      .catch(() => {
+        // signed URL failed — leave skeleton in place
+      })
+  }, [photo.url, photo.storage_path])
+
+  return (
+    <div className="aspect-square overflow-hidden rounded-lg relative group">
+      {imageUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={imageUrl}
+          alt={photo.caption ?? ''}
+          className="object-cover w-full h-full"
+        />
+      ) : (
+        <Skeleton className="w-full h-full" />
+      )}
+      {onRemove && (
+        <button
+          onClick={onRemove}
+          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-destructive text-destructive-foreground rounded-full p-1 hover:bg-destructive/90"
+          aria-label="Remove photo"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // EstimateDocument — main export
 // ---------------------------------------------------------------------------
 
@@ -1512,6 +1593,7 @@ export function EstimateDocument({
   projectId,
   onRenameProject,
   priceBookItems = [],
+  onDetachPhoto,
 }: EstimateDocumentProps) {
   const lang = (language ?? 'en') as EstimateLanguage
   const L = DOC_LABELS[lang] ?? DOC_LABELS.en
@@ -1885,6 +1967,28 @@ export function EstimateDocument({
               L={L}
             />
           )}
+        </div>
+      )}
+
+      {/* Attached photos — only when at least one photo is attached (zero-attached = no section anywhere) */}
+      {data.attachedPhotos && data.attachedPhotos.length > 0 && (
+        <div className="px-6 sm:px-10 pb-6 pt-4 border-t border-border/50">
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3 select-none">
+            {L.photos}
+          </p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+            {data.attachedPhotos.map((photo) => (
+              <AttachedPhotoThumb
+                key={photo.id}
+                photo={photo}
+                onRemove={
+                  isEditable && onDetachPhoto
+                    ? () => onDetachPhoto(photo.id)
+                    : undefined
+                }
+              />
+            ))}
+          </div>
         </div>
       )}
     </div>
