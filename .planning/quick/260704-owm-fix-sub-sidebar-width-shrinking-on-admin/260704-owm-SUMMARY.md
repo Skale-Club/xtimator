@@ -70,6 +70,14 @@ None.
 
 None - no external service configuration required.
 
+## Follow-up: width refinement after live user review
+
+The exact pre-regression value (`w-40 md:w-48`, 160/192px) restored full-fidelity parity with the pre-`5c8dc806` state, but the user reviewed it live and found it too wide. Asked via AskUserQuestion; user picked a middle ground.
+
+- **Commit:** `ee39b053` (fix)
+- **Change:** `w-40 md:w-48` → `w-36 md:w-40` (144/160px) on the same className, collapsed state (`w-14 md:w-14`) untouched.
+- **Why not the exact old value:** the pre-v4.15 sidebar carried 5 nav items and different positioning (`fixed` + margin-offset content); the post-overhaul sidebar is a 3-item sticky in-flow rail, so the old width no longer felt proportionate even though it matched byte-for-byte.
+
 ## Next Phase Readiness
 Fix is complete and self-contained. No follow-up work required; this was a standalone regression fix.
 
