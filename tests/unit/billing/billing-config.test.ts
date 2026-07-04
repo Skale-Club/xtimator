@@ -84,7 +84,7 @@ describe('BILLCFG-01: getBillingConfig merge', () => {
     expect(cfg.tiers).toEqual(DEFAULT_BILLING_CONFIG.tiers)
   })
 
-  it('deep-merges tiers (tiers.pro updated, free/trial/business still default)', async () => {
+  it('deep-merges tiers (tiers.pro updated, free/business still default)', async () => {
     serviceClientImpl = () =>
       makeServiceClient({
         metadata: {
@@ -94,29 +94,34 @@ describe('BILLCFG-01: getBillingConfig merge', () => {
     const cfg = await getBillingConfig()
     expect(cfg.tiers.pro).toEqual({ monthlyCreditGrant: 12000, subscriptionPriceCents: 3900 })
     expect(cfg.tiers.free).toEqual(DEFAULT_BILLING_CONFIG.tiers.free)
-    expect(cfg.tiers.trial).toEqual(DEFAULT_BILLING_CONFIG.tiers.trial)
     expect(cfg.tiers.business).toEqual(DEFAULT_BILLING_CONFIG.tiers.business)
   })
 })
 
 // =============================================================================
-// CREDIT-05 — enforcementEnabled master charging switch (default false)
+// CREDIT-05 — enforcementEnabled master charging switch
+// Billing v2: default TRUE (the free-tier credit wall depends on it); a stored
+// admin row with false reverts the platform to record-only.
 // =============================================================================
-describe('CREDIT-05: enforcementEnabled (measure-only safety)', () => {
-  it('DEFAULT_BILLING_CONFIG.enforcementEnabled is false (calibrate before charging)', () => {
-    expect(DEFAULT_BILLING_CONFIG.enforcementEnabled).toBe(false)
+describe('CREDIT-05: enforcementEnabled (Billing v2 default ON)', () => {
+  it('DEFAULT_BILLING_CONFIG.enforcementEnabled is true (the free wall requires it)', () => {
+    expect(DEFAULT_BILLING_CONFIG.enforcementEnabled).toBe(true)
   })
 
-  it('a stored row WITHOUT enforcementEnabled still resolves to false (deep-merge tolerates absence)', async () => {
+  it('a stored row WITHOUT enforcementEnabled resolves to the default (true)', async () => {
     serviceClientImpl = () => makeServiceClient({ metadata: { markup: 5 } })
+    const cfg = await getBillingConfig()
+    expect(cfg.enforcementEnabled).toBe(true)
+  })
+
+  it('a stored row WITH enforcementEnabled: false overrides to record-only', async () => {
+    serviceClientImpl = () => makeServiceClient({ metadata: { enforcementEnabled: false } })
     const cfg = await getBillingConfig()
     expect(cfg.enforcementEnabled).toBe(false)
   })
 
-  it('a stored row WITH enforcementEnabled: true overrides the default to true', async () => {
-    serviceClientImpl = () => makeServiceClient({ metadata: { enforcementEnabled: true } })
-    const cfg = await getBillingConfig()
-    expect(cfg.enforcementEnabled).toBe(true)
+  it('DEFAULT_BILLING_CONFIG.signupCreditGrant is a positive one-time free allowance', () => {
+    expect(DEFAULT_BILLING_CONFIG.signupCreditGrant).toBeGreaterThan(0)
   })
 })
 
@@ -395,14 +400,6 @@ describe('BILLCFG-03: getBillingConfig consumed ONLY by the reader + credit-ledg
       process.cwd(),
       'app/(app)/settings/billing/page.tsx',
     )
-    // The trial-warning email cron reads subscriptionPriceCents per tier from
-    // getBillingConfig to render the Pro/Business upgrade copy — the
-    // runtime-authoritative source, so the price is NEVER hardcoded in the email.
-    // A legitimate display consumer (DISPLAY ONLY — no mutation).
-    const TRIAL_WARNING_EMAIL_PATH = resolve(
-      process.cwd(),
-      'app/api/cron/trial-warning-emails/route.ts',
-    )
     const ALLOWLIST = new Set([
       MODULE_PATH,
       CREDIT_LEDGER_PATH,
@@ -415,7 +412,6 @@ describe('BILLCFG-03: getBillingConfig consumed ONLY by the reader + credit-ledg
       SEAT_COST_SUMMARY_PATH,
       MONTHLY_CREDIT_GRANT_PATH,
       BILLING_PAGE_PATH,
-      TRIAL_WARNING_EMAIL_PATH,
     ])
 
     const collected: string[] = []

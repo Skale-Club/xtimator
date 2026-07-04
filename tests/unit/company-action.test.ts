@@ -1,13 +1,22 @@
 // tests/unit/company-action.test.ts
-// TIER-04: verifies createOrUpdateCompany INSERT branch sets tier_trial_ends_at = now() + 14 days
-// and the UPDATE branch does NOT reset tier_trial_ends_at.
+// Billing v2: verifies the createOrUpdateCompany INSERT branch writes NO trial
+// clock (the 14-day trial is retired — the free tier IS the trial via the
+// one-time signup credit grant) and fires grantSignupCredits exactly for the
+// FIRST company. The UPDATE branch never touches tier_trial_ends_at.
 //
-// Phase 79 Plan 03: adds coverage for `mode: 'add'` (D-12 / D-13 / D-14 / D-15).
+// Phase 79 Plan 03: coverage for `mode: 'add'` (D-12 / D-13 / D-14) — an added
+// company inherits the TIER only; no fresh signup grant (anti credit-farming);
+// an inherited PAID tier receives this month's grant immediately.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(),
+}))
+
+vi.mock('@/lib/billing/credit-ledger', () => ({
+  grantSignupCredits: vi.fn().mockResolvedValue(undefined),
+  grantMonthlyCredits: vi.fn().mockResolvedValue(undefined),
 }))
 
 vi.mock('next/navigation', () => ({
@@ -38,6 +47,7 @@ import { redirect } from 'next/navigation'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { cookies as nextCookies } from 'next/headers'
+import { grantSignupCredits, grantMonthlyCredits } from '@/lib/billing/credit-ledger'
 
 // Capture what was passed to insert() or update()
 let capturedInsertRow: Record<string, unknown> | null = null
@@ -49,7 +59,15 @@ function makeSupabaseMock({ isNewCompany }: { isNewCompany: boolean }) {
 
   const insertMock = vi.fn().mockImplementation((row: Record<string, unknown>) => {
     capturedInsertRow = row
-    return Promise.resolve({ error: null })
+    // Support both the bare await shape and the .select('id').single() chain
+    // the first-company INSERT uses (Billing v2 needs the new id for the grant).
+    const result = Promise.resolve({ error: null }) as Promise<{ error: null }> & {
+      select: (cols: string) => { single: () => Promise<{ data: { id: string }; error: null }> }
+    }
+    result.select = () => ({
+      single: () => Promise.resolve({ data: { id: 'company-new' }, error: null }),
+    })
+    return result
   })
 
   const updateMock = vi.fn().mockImplementation((row: Record<string, unknown>) => {
@@ -90,30 +108,30 @@ function makeSupabaseMock({ isNewCompany }: { isNewCompany: boolean }) {
   }
 }
 
-describe('createOrUpdateCompany — TIER-04 (mode: first regression)', () => {
+describe('createOrUpdateCompany — Billing v2 (mode: first regression)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.mocked(redirect).mockImplementation(() => { throw new Error('redirect') })
+    // Permissive service client so the first-company flow reaches the signup grant.
+    vi.mocked(requireServiceClient).mockReturnValue({
+      from: vi.fn().mockReturnValue({
+        insert: vi.fn().mockResolvedValue({ error: null }),
+      }),
+    } as never)
   })
 
-  it('INSERT branch: new company gets tier_trial_ends_at ~14 days from now', async () => {
+  it('INSERT branch: writes NO trial clock and fires the one-time signup credit grant', async () => {
     vi.mocked(createClient).mockResolvedValue(makeSupabaseMock({ isNewCompany: true }) as never)
 
     const { createOrUpdateCompany } = await import('@/lib/actions/company')
-    const before = Date.now()
 
     await createOrUpdateCompany({ companyName: 'New Co' }).catch(() => {/* redirect throws */})
 
     expect(capturedInsertRow).not.toBeNull()
-    const trialEndsAt = capturedInsertRow!['tier_trial_ends_at'] as string
-    expect(trialEndsAt).toBeDefined()
-    expect(typeof trialEndsAt).toBe('string')
-
-    const trialDate = new Date(trialEndsAt).getTime()
-    const expectedMin = before + 13 * 24 * 60 * 60 * 1000 // ~13 days
-    const expectedMax = before + 15 * 24 * 60 * 60 * 1000 // ~15 days
-    expect(trialDate).toBeGreaterThan(expectedMin)
-    expect(trialDate).toBeLessThan(expectedMax)
+    // Billing v2: the 14-day trial is retired — the insert row must not carry a clock.
+    expect('tier_trial_ends_at' in capturedInsertRow!).toBe(false)
+    // The free allowance arrives as the one-time signup credit grant instead.
+    expect(grantSignupCredits).toHaveBeenCalledWith('company-new')
   })
 
   it('UPDATE branch: existing company does NOT get tier_trial_ends_at reset', async () => {
@@ -254,7 +272,7 @@ describe('createOrUpdateCompany — mode: add (Phase 79 D-12/D-13/D-14/D-15)', (
     )
   })
 
-  it('T6 (D-14): source tier=pro, trial=null → new company inherits tier=pro, trial=null', async () => {
+  it('T6 (D-14): source tier=pro → new company inherits tier=pro, no trial clock, month grant fired', async () => {
     makeAddModeSupabaseMock({
       sourceTier: 'pro',
       sourceTrialEndsAt: null,
@@ -263,33 +281,36 @@ describe('createOrUpdateCompany — mode: add (Phase 79 D-12/D-13/D-14/D-15)', (
     const { createOrUpdateCompany } = await import('@/lib/actions/company')
     await createOrUpdateCompany({ companyName: 'Co' }, { mode: 'add' }).catch(() => {})
     expect(capturedAddInsertRow!.tier).toBe('pro')
-    expect(capturedAddInsertRow!.tier_trial_ends_at).toBeNull()
+    expect('tier_trial_ends_at' in capturedAddInsertRow!).toBe(false)
+    // Inherited PAID tier gets this month's grant immediately (shared month key —
+    // the monthly cron later no-ops).
+    expect(grantMonthlyCredits).toHaveBeenCalledWith('new-company-id', 'pro', 'company-added')
   })
 
-  it('T7 (D-15): source tier=free, trial already past → new company born expired (same past date)', async () => {
-    const pastDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+  it('T7: source tier=free → inherits free; NO signup grant, NO month grant (anti credit-farming)', async () => {
     makeAddModeSupabaseMock({
       sourceTier: 'free',
-      sourceTrialEndsAt: pastDate,
+      sourceTrialEndsAt: null,
       sourceCompanyId: 'existing-co',
     })
     const { createOrUpdateCompany } = await import('@/lib/actions/company')
     await createOrUpdateCompany({ companyName: 'Co' }, { mode: 'add' }).catch(() => {})
     expect(capturedAddInsertRow!.tier).toBe('free')
-    expect(capturedAddInsertRow!.tier_trial_ends_at).toBe(pastDate)
+    expect('tier_trial_ends_at' in capturedAddInsertRow!).toBe(false)
+    expect(grantSignupCredits).not.toHaveBeenCalled()
+    expect(grantMonthlyCredits).not.toHaveBeenCalled()
   })
 
-  it('T8 (D-14): source tier=trial, trial future → new company inherits SAME future date (not fresh)', async () => {
-    const futureDate = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString()
+  it('T8: source tier=business → inherits business + month grant fired', async () => {
     makeAddModeSupabaseMock({
-      sourceTier: 'trial',
-      sourceTrialEndsAt: futureDate,
+      sourceTier: 'business',
+      sourceTrialEndsAt: null,
       sourceCompanyId: 'existing-co',
     })
     const { createOrUpdateCompany } = await import('@/lib/actions/company')
     await createOrUpdateCompany({ companyName: 'Co' }, { mode: 'add' }).catch(() => {})
-    expect(capturedAddInsertRow!.tier).toBe('trial')
-    expect(capturedAddInsertRow!.tier_trial_ends_at).toBe(futureDate)
+    expect(capturedAddInsertRow!.tier).toBe('business')
+    expect(grantMonthlyCredits).toHaveBeenCalledWith('new-company-id', 'business', 'company-added')
   })
 
   it('T9 (T-79-03-01): user_id in INSERT comes from claims.sub, never from a parameter', async () => {
@@ -303,18 +324,16 @@ describe('createOrUpdateCompany — mode: add (Phase 79 D-12/D-13/D-14/D-15)', (
     expect(capturedAddInsertRow!.user_id).toBe('user-abc')
   })
 
-  it('T10: degenerate path — user has no source company, falls back to fresh 14-day trial (safe-default)', async () => {
-    const before = Date.now()
+  it('T10: degenerate path — no source company → DB default free, no clock, no grants', async () => {
     makeAddModeSupabaseMock({
       sourceCompanyId: null,
     })
     const { createOrUpdateCompany } = await import('@/lib/actions/company')
     await createOrUpdateCompany({ companyName: 'Co' }, { mode: 'add' }).catch(() => {})
     expect(capturedAddInsertRow!.tier).toBeUndefined()
-    const trialEndsAt = capturedAddInsertRow!.tier_trial_ends_at as string
-    const trialMs = new Date(trialEndsAt).getTime()
-    expect(trialMs).toBeGreaterThan(before + 13 * 24 * 60 * 60 * 1000)
-    expect(trialMs).toBeLessThan(before + 15 * 24 * 60 * 60 * 1000)
+    expect('tier_trial_ends_at' in capturedAddInsertRow!).toBe(false)
+    expect(grantSignupCredits).not.toHaveBeenCalled()
+    expect(grantMonthlyCredits).not.toHaveBeenCalled()
   })
 })
 

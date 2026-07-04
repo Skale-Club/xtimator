@@ -107,16 +107,31 @@ export async function POST(request: Request) {
       }
     }
 
-    // QUOTA-03: gate dispatch — recordUsage now lives inside the Inngest function
+    // Billing v2 — THE credit gate (the free-tier wall). Credits are the
+    // customer-facing meter: a spent balance blocks generation with an upgrade
+    // affordance. estimatedCredits: 1 = "block an empty balance" (per-op cost
+    // estimation is a calibration refinement, not needed for the wall). BYOK
+    // companies bypass inside checkCredits; enforcementEnabled=false (admin
+    // panel) reverts this to record-only.
+    const credit = await checkCredits(svc, companyId, 1)
+    if (!credit.allowed) {
+      const affordance = buildOverageAffordance(credit)
+      return NextResponse.json(
+        {
+          error: 'plan_limit_reached',
+          reason: 'credits',
+          upgradeUrl: '/settings/billing',
+          ...(affordance ? { topUpUrl: affordance.topUpUrl } : {}),
+        },
+        { status: 402 }
+      )
+    }
+
+    // QUOTA-03: count-based ceilings (anti-abuse on paid tiers; free is
+    // credit-gated above with null count limits). recordUsage lives inside the
+    // Inngest function.
     const { allowed } = await checkQuota(supabase, companyId, 'estimate')
     if (!allowed) {
-      // TOPUP-03 / MIG-01: ADDITIVE enrichment only. The count-based gate above
-      // is unchanged; credit enforcement is OFF this milestone (checkCredits
-      // keeps allowed:true), so this never introduces a new block — it only
-      // surfaces a top-up path on the SAME 402 the count path already returns.
-      // estimatedCredits: 0 on purpose — this is an affordance READ (we only
-      // need balance/shortfall for the top-up link), never a gate.
-      const credit = await checkCredits(supabase, companyId, 0)
       const affordance = buildOverageAffordance(credit)
       return NextResponse.json(
         {

@@ -5,7 +5,7 @@
 // Phase 57 wires these two functions into routes.
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { getEntitlementsForCompany } from '@/lib/entitlements'
+import { getEntitlements } from '@/lib/entitlements'
 import { notify } from '@/lib/notifications/dispatch'
 import { buildNotificationCopy } from '@/lib/notifications/copy'
 
@@ -50,13 +50,12 @@ export async function checkQuota(
   if (quotaType === 'price_research') {
     const { data: company } = await supabase
       .from('companies')
-      .select('tier, tier_trial_ends_at')
+      .select('tier')
       .eq('id', companyId)
       .single()
 
-    const { maxPriceResearchPerMonth: limit } = getEntitlementsForCompany(
-      (company as { tier?: string | null; tier_trial_ends_at?: string | null } | null) ?? {}
-    )
+    const tier = (company as { tier: string } | null)?.tier ?? 'free'
+    const { maxPriceResearchPerMonth: limit } = getEntitlements(tier)
 
     // Unlimited research tier.
     if (limit === null) {
@@ -87,13 +86,12 @@ export async function checkQuota(
   // Query companies table directly by id (NOT getCompanyTier — that takes userId).
   const { data: company } = await supabase
     .from('companies')
-    .select('tier, tier_trial_ends_at')
+    .select('tier')
     .eq('id', companyId)
     .single()
 
-  const entitlements = getEntitlementsForCompany(
-    (company as { tier?: string | null; tier_trial_ends_at?: string | null } | null) ?? {}
-  )
+  const tier = (company as { tier: string } | null)?.tier ?? 'free'
+  const entitlements = getEntitlements(tier)
   const { maxEstimatesPerMonth, maxEstimatesPerDay } = entitlements
 
   // Unlimited tier — both limits null.

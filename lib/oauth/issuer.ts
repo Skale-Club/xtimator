@@ -19,8 +19,8 @@
 
 import { headers } from 'next/headers'
 
-/** Canonical production URL — matches the convention in lib/billing/connect-webhook.ts,
- *  lib/whatsapp/confirm.ts, and app/api/cron/trial-warning-emails/route.ts. */
+/** Canonical production URL — matches the convention in lib/billing/connect-webhook.ts
+ *  and lib/whatsapp/confirm.ts. */
 const CANONICAL_PRODUCTION_URL = 'https://xtimator.com'
 
 export async function resolveIssuer(): Promise<string> {

@@ -52,6 +52,28 @@ export function debitIdemKey(attemptId: string, op: string): string {
  * companies.credit_balance, writes the ledger row, and updates the cache in
  * the same service-role write.
  */
+/**
+ * Billing v2 (BYOK): true when the company runs on its OWN OpenRouter key.
+ * BYOK companies pay their own AI bill, so platform credits neither debit nor
+ * gate them. Central helper so every billing touchpoint shares one definition.
+ * Never throws — a read failure resolves to false (bill normally).
+ */
+async function isByokCompany(
+  supabase: SupabaseClient,
+  companyId: string
+): Promise<boolean> {
+  try {
+    const { data } = await supabase
+      .from('companies')
+      .select('byok_enabled')
+      .eq('id', companyId)
+      .maybeSingle()
+    return Boolean((data as { byok_enabled?: boolean | null } | null)?.byok_enabled)
+  } catch {
+    return false
+  }
+}
+
 export async function recordCreditDebit(input: {
   companyId: string
   operationType: DebitOperationType
@@ -62,11 +84,15 @@ export async function recordCreditDebit(input: {
     // null cost → no debit (NEVER guess; null-vs-0 discipline from Phase 110).
     if (input.realCostUsd == null) return
 
+    const svc = requireServiceClient()
+
+    // Billing v2 (BYOK): the op ran on the company's OWN key — nothing to debit.
+    if (await isByokCompany(svc, input.companyId)) return
+
     const cfg = await getBillingConfig()
     const credits = Math.round((input.realCostUsd * cfg.markup) / cfg.creditUnitUsd)
     if (credits <= 0) return
 
-    const svc = requireServiceClient()
     const key = debitIdemKey(input.attemptId, input.operationType)
 
     // Dedup: a retried debit with the same key is a no-op (mirror recordUsage;
@@ -175,6 +201,9 @@ export async function notifyLowCreditBalance(params: {
 
   try {
     // Zero / exhausted state takes precedence over any low-threshold crossing.
+    // Dedupe key shares the quota namespace (`quota-exhausted-…`) so the credit
+    // meter and the count meter can never DOUBLE-ping the owner in the same
+    // month — whichever fires first wins (they mean the same thing to the user).
     if (previousBalance > 0 && newBalance <= 0) {
       const copy = buildNotificationCopy('quota.exhausted', {})
       void notify({
@@ -185,7 +214,7 @@ export async function notifyLowCreditBalance(params: {
         body: copy.body,
         linkUrl: '/settings/billing',
         channels: { inApp: true, email: true },
-        metadata: { dedupe_key: `credit-zero-${companyId}-${month}` },
+        metadata: { dedupe_key: `quota-exhausted-${companyId}-${month}` },
       })
       return
     }
@@ -198,6 +227,9 @@ export async function notifyLowCreditBalance(params: {
     )
     if (crossed === undefined) return
 
+    // Same unified namespace as notifyQuotaThresholds' 80% ping (`quota-80-…`):
+    // "you're running low" reaches the owner at most once per month regardless
+    // of which meter (count or credit) crossed first.
     const copy = buildNotificationCopy('quota.80pct', { quotaPercent: 0 })
     void notify({
       companyId,
@@ -206,7 +238,7 @@ export async function notifyLowCreditBalance(params: {
       title: copy.title,
       body: copy.body,
       linkUrl: '/settings/billing',
-      metadata: { dedupe_key: `credit-low-${companyId}-${crossed}-${month}` },
+      metadata: { dedupe_key: `quota-80-${companyId}-${month}` },
     })
   } catch {
     /* best-effort — never throws (a notify failure must not break the debit). */
@@ -274,35 +306,94 @@ export async function grantCredits(input: {
 }
 
 /**
- * Pre-op balance gate (CREDIT-05). Reads the cached companies.credit_balance via
- * the INJECTED client (mirror checkQuota in lib/quota.ts) and reports
- * {allowed, balance, shortfall}. When enforcementEnabled is FALSE (the entire
- * pre-calibration period), allowed is ALWAYS true — debits record but nothing
- * blocks. Phase 116 flips the flag after deriving real numbers.
+ * Pre-op balance gate (CREDIT-05 / Billing v2). Reads the cached
+ * companies.credit_balance via the INJECTED client (mirror checkQuota in
+ * lib/quota.ts) and reports {allowed, balance, shortfall}.
+ *
+ * Billing v2 semantics:
+ *   - Credits are THE customer-facing meter; this gate is the free-tier wall
+ *     (signup grant spent → blocked with an upgrade affordance).
+ *   - BYOK companies (own OpenRouter key, super-admin flag) are ALWAYS allowed —
+ *     they pay their own AI bill, so the platform balance is irrelevant.
+ *   - enforcementEnabled=false (admin panel) reverts to record-only: never
+ *     block, still report shortfall for UI.
  */
 export async function checkCredits(
   supabase: SupabaseClient,
   companyId: string,
   // Required (no default): with a silent `0` the shortfall is always 0, so an
-  // enforcement-ON gate would pass regardless of balance. A gate caller must
-  // pass the op's real estimated cost; an affordance-only read passes 0 on
-  // purpose (see app/api/generate-estimate/route.ts).
+  // enforcement-ON gate would pass regardless of balance. A gate caller passes
+  // the op's estimated cost (>= 1 blocks an empty balance); an affordance-only
+  // read passes 0 on purpose (see app/api/generate-estimate/route.ts).
   estimatedCredits: number
 ): Promise<{ allowed: boolean; balance: number; shortfall: number }> {
   const { data } = await supabase
     .from('companies')
-    .select('credit_balance')
+    .select('credit_balance, byok_enabled')
     .eq('id', companyId)
     .single()
-  const balance = (data as { credit_balance?: number } | null)?.credit_balance ?? 0
+  const row = data as { credit_balance?: number; byok_enabled?: boolean | null } | null
+  const balance = row?.credit_balance ?? 0
   const shortfall = Math.max(0, estimatedCredits - balance)
+
+  // Billing v2 (BYOK): own key → never gated by platform credits.
+  if (row?.byok_enabled) {
+    return { allowed: true, balance, shortfall: 0 }
+  }
 
   const cfg = await getBillingConfig()
   if (!cfg.enforcementEnabled) {
-    // Measure-only: never block (still report shortfall for UI).
+    // Record-only mode: never block (still report shortfall for UI).
     return { allowed: true, balance, shortfall }
   }
   return { allowed: shortfall === 0, balance, shortfall }
+}
+
+/**
+ * Billing v2: the free tier's entire allowance — a ONE-TIME signup credit grant
+ * for a company's FIRST-company signup ("the free tier IS the trial": no clock,
+ * just this balance). Idempotent via the ledger key `signup:{companyId}` so a
+ * retried signup action can never double-grant. Grant size lives in
+ * billing_config.signupCreditGrant (runtime-tunable, no deploy).
+ *
+ * Never throws (grantCredits is itself never-throw) — a grant failure must not
+ * break onboarding; the backstop is support re-running the grant.
+ */
+export async function grantSignupCredits(companyId: string): Promise<void> {
+  const cfg = await getBillingConfig()
+  await grantCredits({
+    companyId,
+    credits: cfg.signupCreditGrant,
+    reason: 'grant',
+    refId: 'signup',
+    idempotencyKey: `signup:${companyId}`,
+  })
+}
+
+/**
+ * Billing v2: grant a company its tier's CURRENT-MONTH credit allowance, keyed
+ * on the SHARED company-month key (monthGrantKey) — the same dedup authority the
+ * monthly cron and the invoice.paid webhook use, so whoever grants first wins
+ * and the month is never double-granted. Reads the authoritative grant size from
+ * billing_config at grant time (BILLCFG-03: no hard-coded numbers at call sites).
+ * Used when an added company inherits a paid tier and must not sit at zero
+ * balance until the next cron run. Never throws.
+ */
+export async function grantMonthlyCredits(
+  companyId: string,
+  tier: string,
+  refId = 'month-grant'
+): Promise<void> {
+  const cfg = await getBillingConfig()
+  const grant =
+    cfg.tiers[tier as keyof typeof cfg.tiers]?.monthlyCreditGrant ?? 0
+  await grantCredits({
+    companyId,
+    credits: grant, // grantCredits no-ops on <= 0 (free tier = 0)
+    reason: 'grant',
+    refId,
+    idempotencyKey: monthGrantKey(companyId),
+  })
 }
 
 /**

@@ -80,31 +80,32 @@ describe('CALIB-02: MARGIN_INVARIANT_MAX', () => {
 })
 
 // =============================================================================
-// CALIB-02 — CORRECT-FAIL: the illustrative defaults FAIL the invariant
+// CALIB-02 — Billing v2: the shipped defaults SATISFY the invariant.
+// Enforcement now defaults ON, so the default grants are sized margin-safe
+// (grant real cost ≤ 30% of price) — otherwise the admin could never save the
+// defaults with charging enabled. Still calibration placeholders.
 // =============================================================================
-describe('CALIB-02: validateMarginInvariant(DEFAULT_BILLING_CONFIG) — CORRECT-FAIL', () => {
-  it('overall pass is FALSE (the illustrative defaults are placeholders, not calibrated)', () => {
+describe('CALIB-02: validateMarginInvariant(DEFAULT_BILLING_CONFIG) — margin-safe defaults', () => {
+  it('overall pass is TRUE (defaults are internally consistent with enforcement ON)', () => {
     const res = validateMarginInvariant(DEFAULT_BILLING_CONFIG)
-    expect(res.pass).toBe(false)
+    expect(res.pass).toBe(true)
   })
 
-  it('pro FAILS: realCost $20.00, ratio 20/29 = 0.6897 > 0.30', () => {
+  it('pro passes: realCost $7.7778, ratio 7.7778/29 ≈ 0.268 ≤ 0.30', () => {
     const res = validateMarginInvariant(DEFAULT_BILLING_CONFIG)
-    // 9000 × 0.01 / 4.5 = 20.00
-    expect(res.tiers.pro.realCostOfGrantUsd).toBeCloseTo(20, 4)
-    // 20 / 29 = 0.6897
-    expect(res.tiers.pro.ratio).toBeCloseTo(0.6897, 3)
-    expect(res.tiers.pro.pass).toBe(false)
+    // 3500 × 0.01 / 4.5 = 7.7778
+    expect(res.tiers.pro.realCostOfGrantUsd).toBeCloseTo(7.7778, 3)
+    expect(res.tiers.pro.ratio).toBeCloseTo(0.2682, 3)
+    expect(res.tiers.pro.pass).toBe(true)
     expect(res.tiers.pro.skipped).toBe(false)
   })
 
-  it('business FAILS: realCost $66.6667, ratio 66.6667/99 = 0.6734 > 0.30', () => {
+  it('business passes: realCost $26.6667, ratio 26.6667/99 ≈ 0.269 ≤ 0.30', () => {
     const res = validateMarginInvariant(DEFAULT_BILLING_CONFIG)
-    // 30000 × 0.01 / 4.5 = 66.6667
-    expect(res.tiers.business.realCostOfGrantUsd).toBeCloseTo(66.6667, 3)
-    // 66.6667 / 99 = 0.6734
-    expect(res.tiers.business.ratio).toBeCloseTo(0.6734, 3)
-    expect(res.tiers.business.pass).toBe(false)
+    // 12000 × 0.01 / 4.5 = 26.6667
+    expect(res.tiers.business.realCostOfGrantUsd).toBeCloseTo(26.6667, 3)
+    expect(res.tiers.business.ratio).toBeCloseTo(0.2694, 3)
+    expect(res.tiers.business.pass).toBe(true)
     expect(res.tiers.business.skipped).toBe(false)
   })
 })
@@ -113,22 +114,19 @@ describe('CALIB-02: validateMarginInvariant(DEFAULT_BILLING_CONFIG) — CORRECT-
 // CALIB-02 — zero-price tiers are SKIPPED, never FAIL
 // =============================================================================
 describe('CALIB-02: zero-price tiers skipped', () => {
-  it('free + trial are skipped:true (price 0 → no margin promise to gate)', () => {
+  it('free is skipped:true (price 0 → no margin promise to gate)', () => {
     const res = validateMarginInvariant(DEFAULT_BILLING_CONFIG)
     expect(res.tiers.free.skipped).toBe(true)
-    expect(res.tiers.trial.skipped).toBe(true)
     // skipped tiers report a pass:true (excluded from the gate, not failed)
     expect(res.tiers.free.pass).toBe(true)
-    expect(res.tiers.trial.pass).toBe(true)
   })
 
   it('a config whose ONLY non-passing tier is zero-price still passes overall', () => {
     const cfg = {
       ...DEFAULT_BILLING_CONFIG,
       tiers: {
-        // free/trial carry large grants at price 0 — they MUST NOT drag overall pass
+        // free carries a large grant at price 0 — it MUST NOT drag overall pass
         free: { monthlyCreditGrant: 5000, subscriptionPriceCents: 0 },
-        trial: { monthlyCreditGrant: 5000, subscriptionPriceCents: 0 },
         // priced tiers calibrated to PASS
         pro: { monthlyCreditGrant: 1000, subscriptionPriceCents: 2900 },
         business: { monthlyCreditGrant: 3000, subscriptionPriceCents: 9900 },
@@ -137,7 +135,6 @@ describe('CALIB-02: zero-price tiers skipped', () => {
     const res = validateMarginInvariant(cfg)
     expect(res.pass).toBe(true)
     expect(res.tiers.free.skipped).toBe(true)
-    expect(res.tiers.trial.skipped).toBe(true)
   })
 })
 

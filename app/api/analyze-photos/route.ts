@@ -7,6 +7,7 @@ import {
 } from '@/lib/inngest/events'
 import { rateLimit } from '@/lib/ratelimit'
 import { checkQuota } from '@/lib/quota'
+import { checkCredits } from '@/lib/billing/credit-ledger'
 import { demoGuardResponse } from '@/lib/demo/guard'
 
 /**
@@ -79,6 +80,16 @@ export async function POST(request: Request) {
     if (!allowed) {
       return NextResponse.json(
         { error: 'plan_limit_reached', upgradeUrl: '/settings/billing' },
+        { status: 402 }
+      )
+    }
+
+    // Billing v2 credit gate — "everything on our AI spends credits": a spent
+    // balance blocks photo analysis too. BYOK bypass lives inside checkCredits.
+    const credit = await checkCredits(supabase, companyId, 1)
+    if (!credit.allowed) {
+      return NextResponse.json(
+        { error: 'plan_limit_reached', reason: 'credits', upgradeUrl: '/settings/billing' },
         { status: 402 }
       )
     }

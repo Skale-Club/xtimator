@@ -22,7 +22,6 @@ export const metadata = { title: 'Plans' }
 
 const TIER_DISPLAY: Record<string, string> = {
   free: 'Free',
-  trial: 'Trial',
   pro: 'Pro',
   business: 'Business',
 }
@@ -58,7 +57,7 @@ export default async function BillingPage() {
     business: cfg.tiers.business.subscriptionPriceCents,
   }
 
-  const tierDisplay = TIER_DISPLAY[data.effectiveTier] ?? data.effectiveTier
+  const tierDisplay = TIER_DISPLAY[data.tier] ?? data.tier
 
   const formatDate = (iso: string) =>
     new Date(iso).toLocaleDateString('en-US', { dateStyle: 'medium' })
@@ -92,20 +91,16 @@ export default async function BillingPage() {
               </div>
             </CardHeader>
             <CardContent className="space-y-2 px-0 pt-4 text-sm">
-              {data.effectiveTier === 'trial' && data.tierTrialEndsAt && (
-                <p className="text-muted-foreground">
-                  <span className="font-medium text-foreground"><T>Trial ends:</T></span>{' '}
-                  {formatDate(data.tierTrialEndsAt)}
-                </p>
-              )}
               {isPaid && data.tierRenewsAt && (
                 <p className="text-muted-foreground">
                   <span className="font-medium text-foreground"><T>Renews:</T></span>{' '}
                   {formatDate(data.tierRenewsAt)}
                 </p>
               )}
-              {data.tier === 'free' && !data.tierTrialEndsAt && (
-                <p className="text-muted-foreground"><T>No active trial</T></p>
+              {data.tier === 'free' && (
+                <p className="text-muted-foreground">
+                  <T>Free plan — your credit balance below is your remaining allowance.</T>
+                </p>
               )}
             </CardContent>
           </Card>

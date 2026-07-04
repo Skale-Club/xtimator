@@ -18,6 +18,7 @@ import { seedIndustryPriceBook } from '@/lib/price-book-seed'
 import { getDefaultTaxRate } from '@/lib/tax-rates'
 import { resolveIndustries } from '@/lib/industries'
 import { captureBackgroundError } from '@/lib/observability/capture'
+import { grantSignupCredits, grantMonthlyCredits } from '@/lib/billing/credit-ledger'
 
 interface CompanyFormData {
   companyName?: string
@@ -114,39 +115,33 @@ export async function createOrUpdateCompany(
 
   if (mode === 'add') {
     // D-13: 'add' mode is unconditional INSERT. We do NOT SELECT first.
-    // D-14 / D-15: resolve the "source" company for tier/trial inheritance.
+    // D-14: resolve the "source" company for TIER inheritance — an added company
+    // by the same user inherits the tier and gets NO fresh signup credit grant
+    // (Billing v2 anti credit-farming: fresh free allowances come only from a
+    // genuinely new account's first company).
     const sourceCompanyId = await getActiveCompanyId()
     let inheritedTier: string | undefined
-    let inheritedTrialEndsAt: string | null | undefined
 
     if (sourceCompanyId) {
       const { data: source } = await supabase
         .from('companies')
-        .select('tier, tier_trial_ends_at')
+        .select('tier')
         .eq('id', sourceCompanyId)
         .single()
 
       if (source) {
         inheritedTier = source.tier as string
-        // D-15: copy literal value — past, future, or null. Never fresh.
-        inheritedTrialEndsAt = (source.tier_trial_ends_at as string | null) ?? null
       }
     }
 
-    // Build INSERT row. If we resolved a source, spread inheritance.
-    // Otherwise fall back to TIER-04 default (fresh 14-day trial) — degenerate path,
-    // realistically only tests trigger this; Phase 80 UI requires a source company.
+    // Build INSERT row. If we resolved a source, inherit its tier; otherwise the
+    // DB DEFAULT 'free' applies (degenerate path — Phase 80 UI requires a source).
     //
     // Phase 85: companies.user_id stays NOT NULL until v5+ drops the column.
     // INSERT WITH CHECK still requires (user_id = auth.uid()). Set it explicitly to claims.sub.
     const insertRow: Record<string, unknown> = { ...row, user_id: claims.sub }
     if (inheritedTier !== undefined) {
       insertRow.tier = inheritedTier
-      insertRow.tier_trial_ends_at = inheritedTrialEndsAt
-    } else {
-      const trialEndsAt = new Date()
-      trialEndsAt.setDate(trialEndsAt.getDate() + 14)
-      insertRow.tier_trial_ends_at = trialEndsAt.toISOString()
     }
 
     const { data: inserted, error: insertErr } = await supabase
@@ -181,6 +176,16 @@ export async function createOrUpdateCompany(
         error:
           'Could not finalize company membership. Please try again.',
       }
+    }
+
+    // Billing v2: an added company on an inherited PAID tier gets this month's
+    // credit grant immediately (keyed on the SAME company-month key the monthly
+    // cron uses, so the cron later no-ops — never a double grant). Inherited
+    // free tier gets NOTHING (anti credit-farming). Fire-and-forget.
+    if (inheritedTier === 'pro' || inheritedTier === 'business') {
+      grantMonthlyCredits(newCompanyId, inheritedTier, 'company-added').catch(
+        captureBackgroundError('company.addedCompanyGrant'),
+      )
     }
 
     // Seed industry-specific price book defaults — ONLY when the user opted in
@@ -244,16 +249,13 @@ export async function createOrUpdateCompany(
     // Mirror the company update into Xphere CRM (fire-and-forget).
     dispatchXphereSync(existing.id, 'company.updated')
   } else {
-    // Insert new company
-    // TIER-04: new companies start with a 14-day trial clock.
-    // tier itself uses the DB DEFAULT 'free' — no need to pass it explicitly.
-    // tier_trial_ends_at is set ONLY in INSERT, never in UPDATE, to avoid resetting on settings saves.
-    const trialEndsAt = new Date()
-    trialEndsAt.setDate(trialEndsAt.getDate() + 14)
-
+    // Insert new company.
+    // Billing v2: the free tier IS the trial — no 14-day clock. tier uses the DB
+    // DEFAULT 'free'; the one-time signup credit grant (below) is the entire
+    // free allowance, and the credit gate is the wall once it's spent.
     const { data: newCompany, error } = await supabase
       .from('companies')
-      .insert({ ...row, tier_trial_ends_at: trialEndsAt.toISOString() })
+      .insert(row)
       .select('id')
       .single()
 
@@ -271,6 +273,13 @@ export async function createOrUpdateCompany(
       company_id: newCompany.id,
       role: 'owner',
     })
+
+    // Billing v2: one-time signup credit grant — the free tier's allowance.
+    // Idempotent (ledger key `signup:{companyId}`); fire-and-forget so a grant
+    // hiccup never breaks onboarding, but observable via Sentry.
+    grantSignupCredits(newCompany.id).catch(
+      captureBackgroundError('company.signupCreditGrant'),
+    )
 
     // Seed industry-specific price book defaults — ONLY when the user opted in
     // (fire-and-forget). Unchecked → the price book starts empty.

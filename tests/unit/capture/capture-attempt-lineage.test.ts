@@ -1,5 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
+// Billing v2: the credit gate now runs before dispatch — stub it permissive so
+// these tests stay focused on their own contract (the gate has its own tests).
+vi.mock('@/lib/billing/credit-ledger', () => ({
+  // plain async fn (not vi.fn) so global mock resets can never strip the value
+  checkCredits: async () => ({ allowed: true, balance: 1000, shortfall: 0 }),
+}))
+
 // Imports the real /api/generate-estimate route + its Inngest events tree at
 // runtime; under vitest's reused forked worker the import can exceed the 5s
 // default (import latency under contention, not a mock leak). Per-file timeout.

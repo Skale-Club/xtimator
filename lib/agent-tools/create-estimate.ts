@@ -32,6 +32,12 @@ import {
   EVENT_ESTIMATE_GENERATE,
   type EstimateGeneratePayload,
 } from '@/lib/inngest/events'
+import { requireServiceClient } from '@/lib/supabase/service'
+import { checkCredits } from '@/lib/billing/credit-ledger'
+
+/** Thrown by createEstimate when the company's credit balance is spent. */
+export const INSUFFICIENT_CREDITS_MESSAGE =
+  'Out of AI credits — upgrade or top up at /settings/billing to keep generating estimates.'
 
 export async function createEstimate(args: {
   companyId: string
@@ -40,6 +46,14 @@ export async function createEstimate(args: {
   language?: 'en' | 'pt' | 'es'
   channel?: 'web' | 'mcp'
 }): Promise<{ jobId: string }> {
+  // Billing v2 credit gate — the SAME wall the web route enforces, applied here
+  // so every channel that dispatches through this neutral fn (chat, MCP) is
+  // covered. BYOK bypass + the enforcement flag live inside checkCredits.
+  const { allowed } = await checkCredits(requireServiceClient(), args.companyId, 1)
+  if (!allowed) {
+    throw new Error(INSUFFICIENT_CREDITS_MESSAGE)
+  }
+
   const requestId = randomUUID()
   const payload: EstimateGeneratePayload = {
     companyId: args.companyId,

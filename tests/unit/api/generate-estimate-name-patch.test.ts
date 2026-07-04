@@ -1,5 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
+// Billing v2: the credit gate now runs on every request — stub it permissive so
+// these tests stay focused on their own contract (the gate has its own tests).
+vi.mock('@/lib/billing/credit-ledger', () => ({
+  // plain async fn (not vi.fn) so global mock resets can never strip the value
+  checkCredits: async () => ({ allowed: true, balance: 1000, shortfall: 0 }),
+}))
+
 /**
  * Phase 67: After Inngest refactor, the route is a dispatcher. Tests here cover
  * the HTTP layer contract (auth, 401, 400, dispatch shape). The estimate

@@ -33,8 +33,10 @@ describe('notifyLowCreditBalance', () => {
     expect(notify).toHaveBeenCalledTimes(1)
     const arg = (notify as ReturnType<typeof vi.fn>).mock.calls[0][0]
     expect(arg.linkUrl).toBe('/settings/billing')
+    // Billing v2: dedupe shares the quota namespace (`quota-80-{c}-{month}`) so
+    // the credit + count meters can never double-ping in the same month.
     expect(arg.metadata.dedupe_key).toContain(COMPANY_ID)
-    expect(arg.metadata.dedupe_key).toContain('200')
+    expect(arg.metadata.dedupe_key).toMatch(/^quota-80-/)
   })
 
   it('fires the exhausted event when the balance reaches zero', async () => {

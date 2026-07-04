@@ -12,7 +12,7 @@ type Props = {
   current: BillingConfig
 }
 
-const TIERS: BillingTier[] = ['free', 'trial', 'pro', 'business']
+const TIERS: BillingTier[] = ['free', 'pro', 'business']
 
 const inputClass =
   'h-10 w-full rounded-md border border-input bg-background px-3 text-sm'
@@ -79,8 +79,13 @@ export function BillingConfigForm({ current }: Props) {
     current.lowBalanceThresholds.join(', ')
   )
 
-  // Master charging switch (CREDIT-05). Default false = measure-only safety:
-  // debits RECORD but checkCredits never blocks until calibration flips it on.
+  // Billing v2: one-time signup credit grant — the free tier's entire allowance.
+  const [signupCreditGrant, setSignupCreditGrant] = useState(
+    String(current.signupCreditGrant)
+  )
+
+  // Master charging switch (CREDIT-05). Billing v2 defaults this ON — the
+  // free-tier wall depends on it; unchecking reverts to record-only.
   const [enforcementEnabled, setEnforcementEnabled] = useState(current.enforcementEnabled)
 
   function updateTier(
@@ -141,6 +146,7 @@ export function BillingConfigForm({ current }: Props) {
         .map((s) => s.trim())
         .filter((s) => s.length > 0)
         .map((s) => Number(s)),
+      signupCreditGrant: Number(signupCreditGrant),
       enforcementEnabled,
       // Carried through unchanged this phase so the saved row keeps the final shape.
       meteredOperations: current.meteredOperations,
@@ -174,6 +180,17 @@ export function BillingConfigForm({ current }: Props) {
               step="0.1"
               value={markup}
               onChange={(e) => setMarkup(e.target.value)}
+              disabled={isPending}
+              className={inputClass}
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-sm font-medium">{t('Signup credit grant (free tier, one-time)')}</span>
+            <input
+              type="number"
+              step="1"
+              value={signupCreditGrant}
+              onChange={(e) => setSignupCreditGrant(e.target.value)}
               disabled={isPending}
               className={inputClass}
             />

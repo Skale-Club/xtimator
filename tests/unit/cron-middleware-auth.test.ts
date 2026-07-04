@@ -3,10 +3,8 @@ import { isProtectedRoute, isPublicRoute } from '@/proxy'
 
 describe('cron middleware authentication boundary', () => {
   it.each([
-    '/api/cron/expire-trials',
     '/api/cron/cleanup-orphan-projects',
     '/api/cron/cleanup-whatsapp-sessions',
-    '/api/cron/trial-warning-emails',
   ])('allows %s to reach route-level CRON_SECRET authentication', (pathname) => {
     expect(isProtectedRoute(pathname)).toBe(true)
     expect(isPublicRoute(pathname)).toBe(true)

@@ -75,14 +75,20 @@ export function buildChatTools(ctx: ChatToolContext) {
           .describe('Free-form scope notes to guide the estimate'),
       }),
       execute: async ({ projectId, prompts }) => {
-        const { jobId } = await createEstimate({
-          companyId: ctx.companyId,
-          projectId,
-          prompts,
-          language: ctx.language,
-          channel: 'web',
-        })
-        return { jobId, status: 'queued' as const }
+        try {
+          const { jobId } = await createEstimate({
+            companyId: ctx.companyId,
+            projectId,
+            prompts,
+            language: ctx.language,
+            channel: 'web',
+          })
+          return { jobId, status: 'queued' as const }
+        } catch (err) {
+          // Billing v2: surface the credit wall as a readable tool result (the
+          // model relays it) instead of an opaque tool error.
+          return { ok: false as const, message: (err as Error).message }
+        }
       },
     }),
 

@@ -1,26 +1,18 @@
 // tests/unit/entitlements.test.ts
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import {
-  getEntitlements,
-  getEntitlementsForCompany,
-  effectiveTier,
-  tiers,
-  type TierName,
-} from '@/lib/entitlements'
+import { getEntitlements, tiers, type TierName } from '@/lib/entitlements'
 
 describe('entitlements', () => {
-  it('free tier has correct monthly limit', () => {
-    expect(tiers.free.maxEstimatesPerMonth).toBe(10)
+  // Billing v2: the free tier is CREDIT-gated (one-time signup grant → wall).
+  // Count caps are null so the credit balance is the single binding limit.
+  it('free tier has null count caps (credit balance is the binding limit)', () => {
+    expect(tiers.free.maxEstimatesPerMonth).toBeNull()
+    expect(tiers.free.maxEstimatesPerDay).toBeNull()
   })
 
   it('free tier has whatsappEnabled true (WhatsApp available on all plans)', () => {
     expect(tiers.free.whatsappEnabled).toBe(true)
-  })
-
-  it('trial tier has unlimited monthly estimates (null, not Infinity)', () => {
-    expect(tiers.trial.maxEstimatesPerMonth).toBeNull()
-    expect(tiers.trial.maxEstimatesPerMonth).not.toBe(Infinity)
   })
 
   it('business tier has unlimited monthly estimates (null, not Infinity)', () => {
@@ -29,7 +21,7 @@ describe('entitlements', () => {
   })
 
   it('no tier uses Infinity — must be null for JSON safety', () => {
-    const tierNames: TierName[] = ['free', 'trial', 'pro', 'business']
+    const tierNames: TierName[] = ['free', 'pro', 'business']
     for (const name of tierNames) {
       const t = tiers[name]
       expect(t.maxEstimatesPerMonth).not.toBe(Infinity)
@@ -41,10 +33,9 @@ describe('entitlements', () => {
     expect(() => JSON.stringify(tiers)).not.toThrow()
     const serialized = JSON.parse(JSON.stringify(tiers))
     // null survives round-trip as null
-    expect(serialized.trial.maxEstimatesPerMonth).toBeNull()
+    expect(serialized.free.maxEstimatesPerMonth).toBeNull()
     expect(serialized.business.maxEstimatesPerMonth).toBeNull()
     // numeric values survive
-    expect(serialized.free.maxEstimatesPerMonth).toBe(10)
     expect(serialized.pro.maxEstimatesPerMonth).toBe(200)
   })
 
@@ -72,7 +63,7 @@ describe('entitlements', () => {
 
   // Phase 108 (RMETER-02): maxPriceResearchPerMonth on every tier.
   it('every tier has a numeric or null maxPriceResearchPerMonth', () => {
-    const tierNames: TierName[] = ['free', 'trial', 'pro', 'business']
+    const tierNames: TierName[] = ['free', 'pro', 'business']
     for (const name of tierNames) {
       const v = tiers[name].maxPriceResearchPerMonth
       expect(v === null || typeof v === 'number').toBe(true)
@@ -80,9 +71,8 @@ describe('entitlements', () => {
     }
   })
 
-  it('documents the per-tier research allowance: free 50 / trial 200 / pro 1000 / business null', () => {
+  it('documents the per-tier research allowance: free 50 / pro 1000 / business null', () => {
     expect(tiers.free.maxPriceResearchPerMonth).toBe(50)
-    expect(tiers.trial.maxPriceResearchPerMonth).toBe(200)
     expect(tiers.pro.maxPriceResearchPerMonth).toBe(1000)
     expect(tiers.business.maxPriceResearchPerMonth).toBeNull()
   })
@@ -93,16 +83,17 @@ describe('entitlements', () => {
   })
 
   // Phase 112 (CREDIT-04): monthlyCreditGrant on every tier, mirroring
-  // billing_config.tiers defaults (free 0 / trial 2000 / pro 9000 / business 30000).
-  it('documents the per-tier monthly credit grant: free 0 / trial 2000 / pro 9000 / business 30000', () => {
+  // billing_config.tiers defaults (free 0 / pro 3500 / business 12000 —
+  // margin-safe placeholders sized for the CALIB-02 invariant at default markup).
+  // Billing v2: free's allowance is the ONE-TIME signupCreditGrant, not monthly.
+  it('documents the per-tier monthly credit grant: free 0 / pro 3500 / business 12000', () => {
     expect(tiers.free.monthlyCreditGrant).toBe(0)
-    expect(tiers.trial.monthlyCreditGrant).toBe(2000)
-    expect(tiers.pro.monthlyCreditGrant).toBe(9000)
-    expect(tiers.business.monthlyCreditGrant).toBe(30000)
+    expect(tiers.pro.monthlyCreditGrant).toBe(3500)
+    expect(tiers.business.monthlyCreditGrant).toBe(12000)
   })
 
   it('every tier has a numeric monthlyCreditGrant (never Infinity)', () => {
-    const tierNames: TierName[] = ['free', 'trial', 'pro', 'business']
+    const tierNames: TierName[] = ['free', 'pro', 'business']
     for (const name of tierNames) {
       const v = tiers[name].monthlyCreditGrant
       expect(typeof v).toBe('number')
@@ -115,13 +106,9 @@ describe('entitlements', () => {
   })
 
   // Phase 126 (CHATMETER-02): chatEnabled gates the in-app chat as a Pro/Business
-  // feature. free=false (the gate's whole point); trial/pro/business=true.
+  // feature. free=false (the gate's whole point); pro/business=true.
   it('free tier has chatEnabled false (in-app chat is a Pro/Business feature)', () => {
     expect(tiers.free.chatEnabled).toBe(false)
-  })
-
-  it('trial tier has chatEnabled true', () => {
-    expect(tiers.trial.chatEnabled).toBe(true)
   })
 
   it('pro tier has chatEnabled true', () => {
@@ -141,56 +128,11 @@ describe('entitlements', () => {
     expect(getEntitlements('garbage').chatEnabled).toBe(false)
   })
 
-  // -------------------------------------------------------------------------
-  // effectiveTier — a trial is modeled as tier='free' + a future
-  // tier_trial_ends_at; the DB tier column is never literally 'trial' at
-  // signup. effectiveTier bridges that so trialing owners get trial
-  // entitlements, and any expired/stray trial collapses back to 'free'.
-  // -------------------------------------------------------------------------
-  const FUTURE = '2999-01-01T00:00:00.000Z'
-  const PAST = '2000-01-01T00:00:00.000Z'
-
-  it("effectiveTier promotes free + live trial clock to 'trial'", () => {
-    expect(effectiveTier({ tier: 'free', tier_trial_ends_at: FUTURE })).toBe('trial')
-  })
-
-  it("effectiveTier leaves free with no clock as 'free'", () => {
-    expect(effectiveTier({ tier: 'free', tier_trial_ends_at: null })).toBe('free')
-  })
-
-  it("effectiveTier demotes free + expired clock to 'free'", () => {
-    expect(effectiveTier({ tier: 'free', tier_trial_ends_at: PAST })).toBe('free')
-  })
-
-  it("effectiveTier collapses a literal 'trial' with an expired clock to 'free'", () => {
-    expect(effectiveTier({ tier: 'trial', tier_trial_ends_at: PAST })).toBe('free')
-    expect(effectiveTier({ tier: 'trial', tier_trial_ends_at: null })).toBe('free')
-  })
-
-  it("effectiveTier keeps a literal 'trial' with a live clock as 'trial'", () => {
-    expect(effectiveTier({ tier: 'trial', tier_trial_ends_at: FUTURE })).toBe('trial')
-  })
-
-  it('effectiveTier passes paid tiers straight through (clock ignored)', () => {
-    expect(effectiveTier({ tier: 'pro', tier_trial_ends_at: FUTURE })).toBe('pro')
-    expect(effectiveTier({ tier: 'business', tier_trial_ends_at: null })).toBe('business')
-  })
-
-  it("effectiveTier falls back to 'free' for an unknown tier string", () => {
-    expect(effectiveTier({ tier: 'garbage', tier_trial_ends_at: null })).toBe('free')
-  })
-
-  it('getEntitlementsForCompany gives a trialing free company the generous trial entitlements', () => {
-    const ent = getEntitlementsForCompany({ tier: 'free', tier_trial_ends_at: FUTURE })
-    expect(ent.chatEnabled).toBe(true)
-    expect(ent.priceBookEnabled).toBe(true)
-    expect(ent.maxEstimatesPerMonth).toBeNull()
-  })
-
-  it('getEntitlementsForCompany caps an expired-trial company at free entitlements', () => {
-    const ent = getEntitlementsForCompany({ tier: 'trial', tier_trial_ends_at: PAST })
-    expect(ent.chatEnabled).toBe(false)
-    expect(ent.maxEstimatesPerMonth).toBe(10)
+  // Billing v2: the 14-day trial tier is RETIRED — the free tier IS the trial
+  // via the one-time signup credit grant. A legacy/stray 'trial' string in the
+  // DB must resolve to free entitlements through the unknown-tier fallback.
+  it("resolves a legacy 'trial' string to free entitlements (fallback)", () => {
+    expect(getEntitlements('trial')).toEqual(tiers.free)
   })
 })
 

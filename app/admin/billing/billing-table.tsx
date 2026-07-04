@@ -31,13 +31,12 @@ type Company = {
   tier_renews_at: string | null
 }
 
-const TIER_OPTIONS: TierName[] = ['free', 'trial', 'pro', 'business']
+const TIER_OPTIONS: TierName[] = ['free', 'pro', 'business']
 
 function TierBadge({ tier }: { tier: string }) {
   const { t } = useTranslation()
   const colors: Record<string, string> = {
     free: 'bg-muted text-muted-foreground',
-    trial: 'bg-blue-500/15 text-blue-400',
     pro: 'bg-emerald-500/15 text-emerald-400',
     business: 'bg-purple-500/15 text-purple-400',
   }

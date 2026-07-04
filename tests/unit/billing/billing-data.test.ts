@@ -114,16 +114,15 @@ describe('getBillingData', () => {
     expect(result!.photosThisMonth).toBe(3)
   })
 
-  it('passes through tierTrialEndsAt and tierRenewsAt', async () => {
-    const trialCompany = {
+  it('passes through tierRenewsAt and stripeSubscriptionId', async () => {
+    const paidCompany = {
       ...MOCK_COMPANY_ROW,
-      tier: 'trial',
-      tier_trial_ends_at: '2026-06-01T00:00:00Z',
-      tier_renews_at: null,
-      stripe_subscription_id: null,
+      tier: 'pro',
+      tier_renews_at: '2026-08-01T00:00:00Z',
+      stripe_subscription_id: 'sub_123',
     }
     const mockClient = buildClient(
-      { data: trialCompany, error: null },
+      { data: paidCompany, error: null },
       { data: [], error: null }
     )
     ;(requireServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(mockClient)
@@ -131,8 +130,7 @@ describe('getBillingData', () => {
     const result = await getBillingData(MOCK_USER_ID)
 
     expect(result).not.toBeNull()
-    expect(result!.tierTrialEndsAt).toBe('2026-06-01T00:00:00Z')
-    expect(result!.tierRenewsAt).toBeNull()
-    expect(result!.stripeSubscriptionId).toBeNull()
+    expect(result!.tierRenewsAt).toBe('2026-08-01T00:00:00Z')
+    expect(result!.stripeSubscriptionId).toBe('sub_123')
   })
 })

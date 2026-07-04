@@ -29,7 +29,7 @@ export type TierBilling = {
   // seat is included) — CALIBRATE BEFORE CHARGING (placeholder, not final).
   includedSeats: number
 }
-export type BillingTier = 'free' | 'trial' | 'pro' | 'business' // mirrors the TierName union
+export type BillingTier = 'free' | 'pro' | 'business' // mirrors the TierName union (Billing v2: 'trial' retired — free IS the trial via signupCreditGrant)
 
 export type BillingConfig = {
   markup: number // global multiplier; default 4.5 (per-op map = v2 GRAN-01 extension point)
@@ -45,9 +45,17 @@ export type BillingConfig = {
   meteredOperations: Record<string, boolean> // which ops debit vs absorbed (schema slot for Phase 112; minimal UI now)
   absorbedChatRateLimitPerMin: number // anti-abuse for absorbed chat; default 20
   /**
-   * Master charging switch (CREDIT-05). Default FALSE — debits RECORD but
-   * checkCredits NEVER blocks until Phase 116 calibration flips it on
-   * (calibrate before charging).
+   * Billing v2: one-time credit grant at FIRST-company signup — the free tier's
+   * entire allowance ("the free tier IS the trial": no clock, just this balance).
+   * Idempotent per company (ledger key `signup:{companyId}`); added companies by
+   * the same user do NOT re-grant (anti credit-farming, D-14 spirit).
+   */
+  signupCreditGrant: number
+  /**
+   * Master charging switch (CREDIT-05). Billing v2 flips the default to TRUE:
+   * the free-tier wall REQUIRES enforcement (zero balance → block + upgrade
+   * wall). Grant sizes/markup remain calibration knobs in this config; flipping
+   * this off via the admin panel instantly reverts to record-only.
    */
   enforcementEnabled: boolean
 }
@@ -73,11 +81,14 @@ export const DEFAULT_BILLING_CONFIG: BillingConfig = {
   // subscriptionPriceAnnualCents per tier is also a CALIBRATION PLACEHOLDER (≈10× monthly
   // for paid tiers so the later-derived annual discount is visible, 0 for free/trial) —
   // CALIBRATE BEFORE CHARGING, do NOT present these as final pricing.
+  // Billing v2: paid grants sized to SATISFY the CALIB-02 margin invariant at
+  // the default markup (grant real cost ≤ 30% of price) since enforcement now
+  // defaults ON — pro 3500 ≈ 27% of $29, business 12000 ≈ 27% of $99. Still
+  // CALIBRATION PLACEHOLDERS: tune price/grant/markup together in the panel.
   tiers: {
     free: { monthlyCreditGrant: 0, subscriptionPriceCents: 0, subscriptionPriceAnnualCents: 0, includedSeats: 1 },
-    trial: { monthlyCreditGrant: 2000, subscriptionPriceCents: 0, subscriptionPriceAnnualCents: 0, includedSeats: 1 },
-    pro: { monthlyCreditGrant: 9000, subscriptionPriceCents: 2900, subscriptionPriceAnnualCents: 29000, includedSeats: 1 },
-    business: { monthlyCreditGrant: 30000, subscriptionPriceCents: 9900, subscriptionPriceAnnualCents: 99000, includedSeats: 1 },
+    pro: { monthlyCreditGrant: 3500, subscriptionPriceCents: 2900, subscriptionPriceAnnualCents: 29000, includedSeats: 1 },
+    business: { monthlyCreditGrant: 12000, subscriptionPriceCents: 9900, subscriptionPriceAnnualCents: 99000, includedSeats: 1 },
   },
   topUpPacks: [
     { credits: 1000, priceCents: 1500 },
@@ -86,7 +97,11 @@ export const DEFAULT_BILLING_CONFIG: BillingConfig = {
   lowBalanceThresholds: [200, 50],
   meteredOperations: { estimate: true, photo_batch: true, audio_minutes: true, price_research: true },
   absorbedChatRateLimitPerMin: 20,
-  enforcementEnabled: false,
+  // Billing v2: free-tier one-time allowance. CALIBRATE (sized ≈ a handful of
+  // estimates at the default markup); adjustable at runtime via the admin panel.
+  signupCreditGrant: 2000,
+  // Billing v2: enforcement ON — the free wall depends on it (see type docs).
+  enforcementEnabled: true,
 }
 
 // 30s TTL cache mirroring brandingCache (lib/platform-config.ts). The

@@ -26,7 +26,7 @@ export async function forceTier(
 
   if (!companyId || !tier) return { ok: false, message: 'companyId and tier are required' }
 
-  const VALID_TIERS: TierName[] = ['free', 'trial', 'pro', 'business']
+  const VALID_TIERS: TierName[] = ['free', 'pro', 'business']
   if (!VALID_TIERS.includes(tier)) return { ok: false, message: 'Invalid tier' }
 
   const svc = requireServiceClient()
@@ -43,7 +43,8 @@ export async function forceTier(
   if (expiresAt) {
     update.tier_renews_at = expiresAt
   }
-  // If forcing back to free, clear trial column so they are regular free (not trial-expired-pending)
+  // Billing v2: the 14-day trial is retired; keep the legacy column clear when
+  // forcing back to free so old rows never look trial-pending.
   if (tier === 'free') {
     update.tier_trial_ends_at = null
   }
