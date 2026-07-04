@@ -1,3 +1,8 @@
+// Barrel for the color module. Preserves the `@/lib/color` import path (4 existing
+// consumers import `hexToHslTriplet` from here) while also re-exporting the new
+// WCAG contrast utilities so `@/lib/color/contrast` names are reachable via `@/lib/color`.
+export * from './contrast'
+
 // Converts '#RRGGBB' or '#RGB' to HSL triplet string 'H S% L%' (space-separated,
 // matches shadcn CSS-var convention). Returns null for malformed input.
 export function hexToHslTriplet(hex: string): string | null {
