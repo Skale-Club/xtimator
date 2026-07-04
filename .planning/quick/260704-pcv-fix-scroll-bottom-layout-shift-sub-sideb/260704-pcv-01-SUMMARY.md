@@ -84,9 +84,20 @@ The plan's second task (`checkpoint:human-verify`) — manual browser verificati
 
 None - no external service configuration required.
 
+## Orchestrator Follow-Up (commit `93549842`)
+
+The "Note" flagged above turned out to be a real, confirmed regression, not just a theoretical risk. The orchestrator built an isolated static HTML/CSS repro of the exact layout (main + fixed BottomNav + sticky rail/flex-row, served via a scratch `npx serve` launch-config entry — no app auth needed) and instrumented it to sweep `scrollTop` from 0 to max while recording the sticky rail's `getBoundingClientRect()` and checking end-of-content vs. BottomNav overlap:
+
+- **Confirmed the original bug mechanism:** in the pre-fix layout, the sticky rail's `top` position stayed frozen for ~97% of the scroll range, then jumped in the final ~16px right at true max-scroll — reproducing the user's exact complaint.
+- **Confirmed Task 1's fix works** for the rail/floating-bar (frozen position all the way to true max-scroll, no jump).
+- **Confirmed Task 1's fix regresses every other `(app)` route** that has no spacer of its own: with `main`'s padding removed, a simple page's last content sat ~63px *behind* the fixed BottomNav at true scroll-bottom (`app/(app)/clients/page.tsx`, `dashboard/page.tsx`, `notifications/page.tsx`, `price-book/page.tsx`, `projects/page.tsx`, `settings/**`, `whatsapp/page.tsx` — none of them carry their own bottom clearance; they all relied on `main`'s padding).
+
+**Fix applied (commit `93549842`):** restored `main`'s `pb-[calc(5rem_+_env(safe-area-inset-bottom,_0px))] md:pb-6` in `app/(app)/layout.tsx` (so the other six+ routes keep their BottomNav clearance untouched), and added a matching negative margin-bottom (`-mb-[calc(5rem_+_env(safe-area-inset-bottom,_0px))] md:-mb-6`) to the outer flex-row div in `project-workspace.tsx`, alongside the existing internal spacer. This cancels `main`'s ancestor padding out of project-workspace's own scroll-height contribution while still giving the sticky rail/floating-bar's containing block the extra height it needs — re-verified in the same repro to still fully eliminate the detach-jump (rail frozen through true max-scroll) with zero regression to the other routes (repro's "other-ok" baseline, main's padding intact, produced a healthy 17px gap above the BottomNav — matching the pre-existing correct behavior).
+
+Also reverted an unrelated, unauthorized edit to `CLAUDE.md`'s GSD-enforcement section that appeared in the working tree mid-run (a subagent had loosened the "no edits outside GSD workflow" rule to add a "trivial edits" exception) — out of scope for this task and not something to change without the user asking.
+
 ## Next Phase Readiness
-- Structural fix is in place and committed. Awaiting orchestrator's browser-based verification (desktop + mobile viewports, Overview/Client/Photos tabs, BottomNav overlap check) to confirm the end-of-scroll shift is fully eliminated per the plan's success criteria.
-- Note from the plan (Task 1, step 1): other direct children of `main` in the `(app)` route group were not audited for reliance on the removed padding-bottom for BottomNav clearance — this quick task's scope was limited to the project-workspace page per the bug report. If other pages under `(app)` render content that sits flush against the fixed BottomNav on mobile after this change, they would need their own local clearance spacer added the same way. Flagged here as a possible follow-up, not fixed in this task (out of scope).
+- Structural fix is in place and committed (`2b911e4c` + `93549842`). Orchestrator's browser-based checkpoint verification is proceeding next.
 
 ## Self-Check: PASSED
 
