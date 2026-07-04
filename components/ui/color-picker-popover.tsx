@@ -1,13 +1,16 @@
 'use client'
 
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { HexColorPicker, HexColorInput } from 'react-colorful'
 
+import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface ColorPickerPopoverProps {
   value: string
@@ -27,7 +30,23 @@ interface ColorPickerPopoverProps {
    * input already lives next to the trigger.
    */
   hexInput?: boolean
+  /** Preset swatches shown below the gradient. Pass [] to hide them. */
+  presets?: string[]
 }
+
+// Curated brand-friendly palette. First entry mirrors the system primary.
+const DEFAULT_PRESETS = [
+  '#406EF1', // System blue
+  '#0D9488', // Teal
+  '#4F46E5', // Indigo
+  '#7C3AED', // Purple
+  '#E11D48', // Rose
+  '#EA580C', // Orange
+  '#D97706', // Amber
+  '#059669', // Emerald
+  '#475569', // Slate
+  '#3F3F46', // Zinc
+]
 
 // react-colorful injects its own un-layered CSS on import; Tailwind v4 utilities
 // live in @layer utilities and lose the cascade to it regardless of specificity,
@@ -47,39 +66,74 @@ export function ColorPickerPopover({
   children,
   align = 'start',
   hexInput = false,
+  presets = DEFAULT_PRESETS,
 }: ColorPickerPopoverProps) {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         {children ?? (
           <button
             type="button"
-            aria-label="Pick color"
+            aria-label={t('Pick color')}
             className="h-10 w-10 cursor-pointer rounded border border-border"
             style={{ backgroundColor: value }}
           />
         )}
       </PopoverTrigger>
-      <PopoverContent className="w-auto p-3" align={align}>
+      <PopoverContent className="w-56 p-3" align={align}>
         <div className={PICKER_OVERRIDES}>
           <HexColorPicker color={value} onChange={onChange} />
         </div>
-        <div className="mt-3 flex items-center gap-2">
-          <div
-            className="h-6 w-6 shrink-0 rounded border border-border"
-            style={{ backgroundColor: value }}
-          />
-          {hexInput ? (
-            <HexColorInput
-              prefixed
-              color={value}
-              onChange={onChange}
-              aria-label="Hex color value"
-              className="w-24 rounded border border-border bg-transparent px-2 py-1 font-mono text-xs uppercase text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+
+        {presets.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {presets.map((hex) => (
+              <button
+                key={hex}
+                type="button"
+                aria-label={hex}
+                title={hex}
+                onClick={() => onChange(hex)}
+                className={cn(
+                  'h-5 w-5 rounded-full border border-border/50 transition-transform hover:scale-110',
+                  value.toLowerCase() === hex.toLowerCase() &&
+                    'ring-2 ring-ring ring-offset-1 ring-offset-popover'
+                )}
+                style={{ backgroundColor: hex }}
+              />
+            ))}
+          </div>
+        )}
+
+        <div className="mt-3 space-y-2">
+          <div className="flex items-center gap-2">
+            <div
+              className="h-6 w-6 shrink-0 rounded border border-border"
+              style={{ backgroundColor: value }}
             />
-          ) : (
-            <span className="font-mono text-xs text-muted-foreground">{value}</span>
-          )}
+            {hexInput ? (
+              <HexColorInput
+                prefixed
+                color={value}
+                onChange={onChange}
+                aria-label={t('Hex color value')}
+                className="w-24 rounded border border-border bg-transparent px-2 py-1 font-mono text-xs uppercase text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
+            ) : (
+              <span className="font-mono text-xs text-muted-foreground">{value}</span>
+            )}
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            className="w-full"
+            onClick={() => setOpen(false)}
+          >
+            {t('Save color')}
+          </Button>
         </div>
       </PopoverContent>
     </Popover>
