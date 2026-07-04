@@ -46,6 +46,7 @@ interface PdfLabels {
   date: string
   estimateNum: string
   preparedBy: string
+  photos: string
 }
 
 const PDF_LABELS: Record<EstimateLanguage, PdfLabels> = {
@@ -75,6 +76,7 @@ const PDF_LABELS: Record<EstimateLanguage, PdfLabels> = {
     date: 'Date',
     estimateNum: 'Estimate #',
     preparedBy: 'Prepared by',
+    photos: 'Photos',
   },
   pt: {
     estimate: 'ORÇAMENTO',
@@ -102,6 +104,7 @@ const PDF_LABELS: Record<EstimateLanguage, PdfLabels> = {
     date: 'Data',
     estimateNum: 'Orçamento Nº',
     preparedBy: 'Preparado por',
+    photos: 'Fotos',
   },
   es: {
     estimate: 'PRESUPUESTO',
@@ -129,6 +132,7 @@ const PDF_LABELS: Record<EstimateLanguage, PdfLabels> = {
     date: 'Fecha',
     estimateNum: 'Presupuesto Nº',
     preparedBy: 'Preparado por',
+    photos: 'Fotos',
   },
 }
 
@@ -182,6 +186,8 @@ export interface EstimatePDFProps {
   language?: EstimateLanguage
   /** Name of the staff member or owner who generated this estimate. Shown as "Prepared by" in the PDF. */
   preparedBy?: string | null
+  /** Attached photos with signed URLs pre-resolved server-side (route handler resolves them before rendering). Rendered only when non-empty. */
+  attachedPhotos?: { url: string; caption: string | null }[]
 }
 
 function formatAddress(obj: {
@@ -448,6 +454,7 @@ export default function EstimatePDF({
   projectType,
   language = 'en',
   preparedBy,
+  attachedPhotos,
 }: EstimatePDFProps) {
   const brandColor = company.brand_primary_color ?? SYSTEM_COLORS.primary
   const companyAddress = formatAddress(company)
@@ -791,6 +798,23 @@ export default function EstimatePDF({
                 <Text style={styles.termsText}>{estimate.notes}</Text>
               </>
             )}
+          </View>
+        )}
+
+        {/* Attached photos — only when at least one photo is attached */}
+        {attachedPhotos && attachedPhotos.length > 0 && (
+          <View style={{ marginTop: 16 }} wrap={false}>
+            <Text style={styles.termsTitle}>{L.photos}</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 6 }}>
+              {attachedPhotos.map((photo, i) => (
+                // eslint-disable-next-line jsx-a11y/alt-text
+                <Image
+                  key={i}
+                  src={photo.url}
+                  style={{ width: 150, height: 150, objectFit: 'cover' as const }}
+                />
+              ))}
+            </View>
           </View>
         )}
 

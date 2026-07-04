@@ -4,6 +4,7 @@ import { createElement } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { getEstimateWithContext } from '@/lib/queries/estimate'
+import { createStorage } from '@/lib/storage'
 import EstimatePDF from '@/components/pdf/estimate-pdf'
 import { isSupportedLanguage } from '@/lib/i18n/resolve-estimate-language'
 
@@ -60,6 +61,16 @@ export async function GET(
       }
     }
 
+    // Resolve signed URLs for attached photos server-side before rendering —
+    // estimate.attachedPhotos carries raw storage_path rows, not signed URLs.
+    const storage = createStorage(supabase)
+    const attachedPhotos = await Promise.all(
+      (estimate.attachedPhotos ?? []).map(async (photo) => ({
+        url: await storage.getSignedUrl('photos', photo.storage_path, 3600),
+        caption: photo.caption,
+      }))
+    )
+
     // Render PDF to buffer — pass estimate language for localized labels
     const estimateLanguage = isSupportedLanguage(estimate.language) ? estimate.language : 'en'
     const element = createElement(EstimatePDF, {
@@ -70,6 +81,7 @@ export async function GET(
       projectType,
       language: estimateLanguage,
       preparedBy,
+      attachedPhotos,
     })
     const pdfBuffer = await renderToBuffer(element as any)
 

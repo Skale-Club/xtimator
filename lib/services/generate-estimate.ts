@@ -21,6 +21,7 @@ import {
 } from '@/lib/i18n/resolve-estimate-language'
 import { normalizeCurrencyCode } from '@/lib/money/currency'
 import { getWhatsAppSystemPrompt } from '@/lib/platform-config'
+import { copyEstimatePhotos } from '@/lib/queries/estimate-photo'
 
 export type ClientSuggestion = {
   detectedName: string
@@ -410,6 +411,17 @@ export async function generateEstimateForProject(
     .is('summary', null)
     .eq('total', 0)
 
+  // Version carry-forward (Quick-260704-pt2) — capture the currently-current
+  // estimate's id AFTER the REPLACE-BLANK delete above: querying is_current=true
+  // post-delete means a deleted pristine-blank naturally returns no row (nothing
+  // to copy), while a real prior version (not deleted) is correctly captured.
+  const { data: previousCurrent } = await supabase
+    .from('estimates')
+    .select('id')
+    .eq('project_id', projectId)
+    .eq('is_current', true)
+    .maybeSingle()
+
   // Version management
   await supabase
     .from('estimates')
@@ -527,6 +539,12 @@ export async function generateEstimateForProject(
         throw new Error('Failed to save estimate items')
       }
     }
+  }
+
+  // Version carry-forward — copy the previous current version's attached
+  // photos onto the new version (independent rows, own remove lifecycle).
+  if (previousCurrent?.id) {
+    await copyEstimatePhotos(supabase, previousCurrent.id, estimateId, companyId)
   }
 
   // Update project status. RFALL-01: when research flagged an unpriced item AND the
