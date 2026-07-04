@@ -8,6 +8,7 @@ import { Card } from '@/components/ui/card'
 import { T } from '@/components/i18n/t'
 import { CompanyModelOverrideForm } from './company-model-override-form'
 import { CompanyQuotaForm } from './company-quota-form'
+import { CompanyByokForm } from './company-byok-form'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,7 +23,7 @@ export default async function AdminCompanyDetailPage({
   const svc = requireServiceClient()
   const { data } = await svc
     .from('companies')
-    .select('id, name, tier, ai_model_override, demo_estimate_quota')
+    .select('id, name, tier, ai_model_override, demo_estimate_quota, byok_enabled, byok_key_last4')
     .eq('id', id)
     .maybeSingle()
 
@@ -33,6 +34,8 @@ export default async function AdminCompanyDetailPage({
     tier: string
     ai_model_override: string | null
     demo_estimate_quota: number | null
+    byok_enabled: boolean | null
+    byok_key_last4: string | null
   }
 
   // Count current estimates for usage display
@@ -125,6 +128,25 @@ export default async function AdminCompanyDetailPage({
         <CompanyQuotaForm
           companyId={company.id}
           initialQuota={company.demo_estimate_quota}
+        />
+      </Card>
+
+      <Card variant="glass" className="p-6 md:p-8 space-y-4">
+        <div>
+          <h2 className="text-lg font-medium"><T>BYOK — Bring Your Own Key</T></h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            <T>
+              Hidden plan, enabled only here: the company runs its AI on its OWN
+              OpenRouter key and never spends platform credits. The key is stored
+              encrypted and shown only as a last-4 hint.
+            </T>
+          </p>
+        </div>
+
+        <CompanyByokForm
+          companyId={company.id}
+          byokEnabled={Boolean(company.byok_enabled)}
+          keyLast4={(company.byok_key_last4 as string | null) ?? null}
         />
       </Card>
     </div>

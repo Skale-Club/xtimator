@@ -92,7 +92,16 @@ type OpenRouterChatResponse = {
 }
 
 export class OpenRouterAdapter implements AIProvider {
-  constructor(private readonly model: string) {
+  /**
+   * @param apiKeyOverride Billing v2 BYOK: the company's OWN OpenRouter key
+   *   (decrypted upstream in getAIProvider). When present it replaces the
+   *   platform key for every call this adapter makes — the company pays its own
+   *   AI bill, and the credit ledger skips debits for it. NEVER logged.
+   */
+  constructor(
+    private readonly model: string,
+    private readonly apiKeyOverride?: string
+  ) {
     if (!model) throw new Error('OpenRouter model is required')
   }
 
@@ -140,7 +149,8 @@ export class OpenRouterAdapter implements AIProvider {
       projectId?: string | null
     }
   }): Promise<Record<string, unknown>> {
-    const apiKey = await getIntegrationKey('openrouter')
+    // BYOK: the per-company key override wins; otherwise the platform key.
+    const apiKey = this.apiKeyOverride ?? (await getIntegrationKey('openrouter'))
     if (!apiKey) throw new Error('OpenRouter API key not configured')
 
     const startTime = new Date()

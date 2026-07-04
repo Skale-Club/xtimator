@@ -122,3 +122,90 @@ export async function setDemoEstimateQuota(
       : 'Demo quota removed — company has unlimited estimates.',
   }
 }
+
+/**
+ * Billing v2 BYOK — set, rotate, or disable a company's own OpenRouter key.
+ * SUPER-ADMIN ONLY (the hidden "street-sale" plan — never publicly sold).
+ *
+ * - Pass a plaintext OpenRouter key: stored AES-encrypted (never plaintext,
+ *   never logged; only the last 4 chars kept as a UI hint) + byok_enabled=true.
+ *   From then on the company's AI calls run on ITS key and never debit credits.
+ * - Pass `null`: BYOK disabled, key erased — the company bills normally again.
+ */
+export async function setByokConfig(
+  companyId: string,
+  apiKey: string | null
+): Promise<ActionResult> {
+  const ctx = await requireAdmin()
+  if (!companyId) return { ok: false, message: 'companyId is required' }
+
+  const svc = requireServiceClient()
+
+  if (apiKey === null || apiKey.trim() === '') {
+    const { error } = await svc
+      .from('companies')
+      .update({ byok_enabled: false, byok_openrouter_key: null, byok_key_last4: null })
+      .eq('id', companyId)
+    if (error) {
+      console.error('[admin] setByokConfig disable DB error:', error)
+      return { ok: false, message: error.message }
+    }
+    revalidatePath('/admin/companies')
+    revalidatePath(`/admin/companies/${companyId}`)
+    void logAdminAction({
+      actorId: ctx.userId,
+      actorEmail: ctx.email,
+      action: 'company.byok_disabled',
+      targetType: 'company',
+      targetId: companyId,
+      metadata: {},
+    })
+    return { ok: true, message: 'BYOK disabled — company bills platform credits again.' }
+  }
+
+  const trimmed = apiKey.trim()
+  // Lenient shape check: OpenRouter keys are `sk-or-...`; accept any plausible
+  // secret so a future format change doesn't lock the admin out.
+  if (trimmed.length < 20) {
+    return { ok: false, message: 'That does not look like a valid OpenRouter API key.' }
+  }
+
+  const { encryptByokKey } = await import('@/lib/billing/byok')
+  let encrypted: string
+  try {
+    encrypted = encryptByokKey(trimmed)
+  } catch (err) {
+    console.error('[admin] setByokConfig encrypt error:', err)
+    return { ok: false, message: 'Encryption failed — is APP_ENCRYPTION_KEY configured?' }
+  }
+
+  const { error } = await svc
+    .from('companies')
+    .update({
+      byok_enabled: true,
+      byok_openrouter_key: encrypted,
+      byok_key_last4: trimmed.slice(-4),
+    })
+    .eq('id', companyId)
+  if (error) {
+    console.error('[admin] setByokConfig DB error:', error)
+    return { ok: false, message: error.message }
+  }
+
+  revalidatePath('/admin/companies')
+  revalidatePath(`/admin/companies/${companyId}`)
+  void logAdminAction({
+    actorId: ctx.userId,
+    actorEmail: ctx.email,
+    action: 'company.byok_enabled',
+    targetType: 'company',
+    targetId: companyId,
+    // NEVER the key — only the display hint.
+    metadata: { key_last4: trimmed.slice(-4) },
+  })
+
+  return {
+    ok: true,
+    message: `BYOK enabled — this company now runs on its own key (…${trimmed.slice(-4)}) and spends no platform credits.`,
+  }
+}
