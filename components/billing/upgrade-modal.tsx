@@ -25,17 +25,26 @@ export function UpgradeModal() {
           const clone = response.clone()
           clone
             .json()
-            .then((body: { error?: string; upgradeUrl?: string }) => {
+            .then((body: { error?: string; reason?: string; upgradeUrl?: string }) => {
               if (body.error === 'plan_limit_reached') {
-                toast.error('Plan limit reached', {
-                  description:
-                    "You've used all your quota for this period. Upgrade to continue.",
-                  duration: 8000,
-                  action: {
-                    label: 'Upgrade Plan',
-                    onClick: () => router.push('/settings/billing'),
-                  },
-                })
+                // Billing v2: only the AI shortcut is blocked — the owner can
+                // still build the estimate BY HAND (no credits needed). Say so,
+                // so a zero-credit user discovers the manual path instead of
+                // thinking everything is locked.
+                const isCredits = body.reason === 'credits'
+                toast.error(
+                  isCredits ? "You're out of AI credits" : 'Plan limit reached',
+                  {
+                    description: isCredits
+                      ? 'You can still build this estimate manually — just add sections and items by hand. To keep using AI, upgrade or top up your credits.'
+                      : "You've hit your plan limit. You can still build estimates manually, or upgrade to keep using AI.",
+                    duration: 9000,
+                    action: {
+                      label: 'Upgrade or top up',
+                      onClick: () => router.push('/settings/billing'),
+                    },
+                  }
+                )
               }
             })
             .catch(() => {

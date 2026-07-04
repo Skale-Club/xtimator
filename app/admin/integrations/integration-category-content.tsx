@@ -13,7 +13,9 @@ import { XphereConfigForm } from './xphere-config-form'
 import { XphereStatus } from './xphere-status'
 import { PriceResearchConfigForm } from './price-research-config-form'
 import { DEFAULT_BILLING_CONFIG } from '@/lib/billing/billing-config'
+import { aggregateAiCostByOperation, type OpCostStat } from '@/lib/billing/calibration'
 import { BillingConfigForm } from './billing-config-form'
+import { MeasuredCostCard } from './measured-cost-card'
 
 type IntegrationCategoryContentProps = {
   category: Category
@@ -97,6 +99,7 @@ export async function IntegrationCategoryContent({
   }
 
   let billingConfig = DEFAULT_BILLING_CONFIG
+  let costStats: OpCostStat[] = []
   if (category.showBillingConfig) {
     const svc = requireServiceClient()
     const { data } = await svc
@@ -112,6 +115,9 @@ export async function IntegrationCategoryContent({
           tiers: { ...DEFAULT_BILLING_CONFIG.tiers, ...(stored.tiers ?? {}) },
         }
       : DEFAULT_BILLING_CONFIG
+    // Measured real cost → shown next to the config so numbers are set against
+    // data, not guesses (empty until real generations exist).
+    costStats = await aggregateAiCostByOperation()
   }
 
   return (
@@ -169,7 +175,16 @@ export async function IntegrationCategoryContent({
         <PriceResearchConfigForm current={priceResearch} />
       )}
 
-      {category.showBillingConfig && <BillingConfigForm current={billingConfig} />}
+      {category.showBillingConfig && (
+        <>
+          <MeasuredCostCard
+            stats={costStats}
+            markup={billingConfig.markup}
+            creditUnitUsd={billingConfig.creditUnitUsd}
+          />
+          <BillingConfigForm current={billingConfig} />
+        </>
+      )}
     </div>
   )
 }
