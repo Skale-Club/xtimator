@@ -21,6 +21,7 @@ import 'server-only'
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { priceBookItemSchema, type PriceBookItemFormValues } from '@/lib/schemas/price-book'
+import { DEFAULT_CURRENCY_CODE } from '@/lib/money/currency'
 
 export type CreateServiceInput = {
   name: string
@@ -66,7 +67,7 @@ export async function createPriceBookService(
     .eq('id', companyId)
     .single()
   const currencyCode =
-    (company as { currency_code?: string | null } | null)?.currency_code ?? 'USD'
+    (company as { currency_code?: string | null } | null)?.currency_code ?? DEFAULT_CURRENCY_CODE
 
   const { data, error } = await supabase
     .from('company_price_book')

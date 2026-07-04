@@ -395,6 +395,14 @@ describe('BILLCFG-03: getBillingConfig consumed ONLY by the reader + credit-ledg
       process.cwd(),
       'app/(app)/settings/billing/page.tsx',
     )
+    // The trial-warning email cron reads subscriptionPriceCents per tier from
+    // getBillingConfig to render the Pro/Business upgrade copy — the
+    // runtime-authoritative source, so the price is NEVER hardcoded in the email.
+    // A legitimate display consumer (DISPLAY ONLY — no mutation).
+    const TRIAL_WARNING_EMAIL_PATH = resolve(
+      process.cwd(),
+      'app/api/cron/trial-warning-emails/route.ts',
+    )
     const ALLOWLIST = new Set([
       MODULE_PATH,
       CREDIT_LEDGER_PATH,
@@ -407,6 +415,7 @@ describe('BILLCFG-03: getBillingConfig consumed ONLY by the reader + credit-ledg
       SEAT_COST_SUMMARY_PATH,
       MONTHLY_CREDIT_GRANT_PATH,
       BILLING_PAGE_PATH,
+      TRIAL_WARNING_EMAIL_PATH,
     ])
 
     const collected: string[] = []
