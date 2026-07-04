@@ -26,7 +26,7 @@ export function PrimaryColorPicker({ value, onChange }: PrimaryColorPickerProps)
       </PopoverTrigger>
       <PopoverContent className="w-auto p-3" align="start">
         <div
-          className="[&_.react-colorful]:w-full [&_.react-colorful__saturation]:rounded-md [&_.react-colorful__hue]:rounded-md [&_.react-colorful__hue]:mt-2 [&_.react-colorful__pointer]:h-4 [&_.react-colorful__pointer]:w-4"
+          className="[&_.react-colorful\_\_saturation]:rounded-md! [&_.react-colorful\_\_hue]:rounded-md! [&_.react-colorful\_\_hue]:mt-2! [&_.react-colorful\_\_pointer]:h-4! [&_.react-colorful\_\_pointer]:w-4!"
         >
           <HexColorPicker color={value} onChange={onChange} />
         </div>
