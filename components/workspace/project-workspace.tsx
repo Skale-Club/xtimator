@@ -203,6 +203,17 @@ export function ProjectWorkspace({
           </div>
         )}
         </div>
+
+        {/* Bottom clearance spacer — lives INSIDE the content column's containing
+            block (same one the sticky rail and sticky floating action bar use),
+            so this space is included in the scrollable box those stickies detach
+            from. Relocated from <main>'s padding-bottom in app/(app)/layout.tsx
+            to eliminate the end-of-scroll shift where both stickies would let go
+            before the ancestor's extra padding finished scrolling past. */}
+        <div
+          aria-hidden
+          className="h-[calc(5rem_+_env(safe-area-inset-bottom,_0px))] md:h-6"
+        />
       </div>
     </div>
   )
