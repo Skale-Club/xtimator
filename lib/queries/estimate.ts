@@ -1,4 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { Photo } from './photo'
+import { getEstimatePhotos } from './estimate-photo'
 
 export interface Estimate {
   id: string
@@ -71,6 +73,7 @@ export interface EstimateItem {
 
 export interface EstimateWithSections extends Estimate {
   sections: (EstimateSection & { items: EstimateItem[] })[]
+  attachedPhotos: Photo[]
 }
 
 export async function getProjectEstimates(
@@ -150,12 +153,15 @@ async function fetchEstimateWithSections(
   // Single query: fetch every section with its items embedded via the
   // estimate_items.section_id FK, replacing the prior N+1 (one items query per
   // section). Both levels are ordered by sort_order.
-  const { data: sectionsData } = await supabase
-    .from('estimate_sections')
-    .select('*, items:estimate_items(*)')
-    .eq('estimate_id', estimate.id)
-    .order('sort_order', { ascending: true })
-    .order('sort_order', { foreignTable: 'estimate_items', ascending: true })
+  const [{ data: sectionsData }, attachedPhotos] = await Promise.all([
+    supabase
+      .from('estimate_sections')
+      .select('*, items:estimate_items(*)')
+      .eq('estimate_id', estimate.id)
+      .order('sort_order', { ascending: true })
+      .order('sort_order', { foreignTable: 'estimate_items', ascending: true }),
+    getEstimatePhotos(supabase, estimate.id),
+  ])
 
   const sections = (sectionsData ?? []) as unknown as (EstimateSection & {
     items: EstimateItem[] | null
@@ -167,5 +173,6 @@ async function fetchEstimateWithSections(
       ...section,
       items: (section.items ?? []) as EstimateItem[],
     })),
+    attachedPhotos,
   }
 }
