@@ -127,7 +127,7 @@ export function ProjectWorkspace({
           'h-[calc(100dvh-60px-5rem-env(safe-area-inset-bottom,_0px))]',
           'md:z-30 md:h-[calc(100vh-4rem)]',
           'transition-[width] duration-200 ease-in-out',
-          sidebarCollapsed ? 'w-14 md:w-14' : 'w-28 md:w-32',
+          sidebarCollapsed ? 'w-14 md:w-14' : 'w-40 md:w-48',
         )}
       >
         <aside
