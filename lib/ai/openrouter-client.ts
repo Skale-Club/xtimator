@@ -1,14 +1,15 @@
 /**
  * lib/ai/openrouter-client.ts
  *
- * Centralised AI helpers for the app. Estimates, vision, and translation route
- * through OpenRouter (openrouter.ai). Audio transcription is the one exception:
- * it calls OpenAI's Whisper endpoint (api.openai.com) directly — see
- * transcribeAudioOR for why.
+ * Centralised AI helpers for the app. Every AI task routes through OpenRouter
+ * (openrouter.ai) on a single key: estimates, vision, translation, AND audio
+ * transcription. Transcription keeps OpenAI's own endpoint as a FALLBACK only
+ * (the proven pre-migration path) — see transcribeAudioOR.
  *
  * Endpoint coverage:
  *   openrouter.ai  /chat/completions     — estimates, refinement, vision, translation
- *   api.openai.com /audio/transcriptions — Whisper speech-to-text
+ *   openrouter.ai  /audio/transcriptions — speech-to-text (primary)
+ *   api.openai.com /audio/transcriptions — speech-to-text (fallback only)
  */
 
 import { randomUUID } from 'node:crypto'
@@ -27,9 +28,10 @@ type CostContext = {
 }
 
 export const OPENROUTER_BASE = 'https://openrouter.ai/api/v1'
+/** OpenAI's own transcription base — used ONLY by the fallback path now. */
 export const OPENAI_TRANSCRIPTION_BASE = 'https://api.openai.com/v1'
-/** OpenAI's standard, universally available Whisper model — the transcription primary. */
-export const OPENAI_TRANSCRIPTION_MODEL = 'whisper-1'
+/** Default transcription model — an OpenRouter slug routed to OpenAI Whisper. */
+export const DEFAULT_TRANSCRIBE_MODEL = 'openai/whisper-1'
 
 /** Default model IDs — overridable via platform config or per-call argument. */
 export const OR_DEFAULTS = {
@@ -56,44 +58,80 @@ export async function getORKey(): Promise<string> {
 // ---------------------------------------------------------------------------
 
 /**
- * Transcribe audio to plain text via OpenAI's Whisper endpoint
- * (POST api.openai.com/v1/audio/transcriptions, model whisper-1).
+ * Transcribe audio to plain text.
  *
- * NAMING: the `OR` suffix is retained only so the three call sites
- * (transcribe-audio job, whatsapp-process, estimate refine) stay untouched.
- * Transcription does NOT route through OpenRouter — OpenRouter's audio endpoint
- * was unreliable for our usage, so transcription calls OpenAI directly. Vision
- * and translation in this module still use OpenRouter.
+ * PRIMARY — OpenRouter's dedicated transcription endpoint
+ *   POST openrouter.ai/api/v1/audio/transcriptions
+ * with a base64 JSON body ({ model, input_audio: { data, format } }). One key
+ * for every AI task: the OpenRouter key powers speech-to-text too. Model ids are
+ * OpenRouter slugs (openai/whisper-1, openai/gpt-4o-transcribe, …); a bare legacy
+ * id (whisper-1) is prefixed with `openai/` so values saved before the migration
+ * keep working with no DB change.
  *
- * Prefers an OpenAI key, read via getIntegrationKey('openai') which falls back
- * to the OPENAI_API_KEY env var (see lib/platform-config.ts). When NO OpenAI key
- * is configured, transcription falls back to Gemini (transcribeAudioGemini) using
- * the platform's existing Gemini key. Throws on any non-2xx or network failure so
- * Inngest's onFailure (ai_job.failed) surfaces it.
+ * FALLBACK — OpenAI's own /v1/audio/transcriptions (multipart), keyed by
+ * getIntegrationKey('openai'). This is the previously-shipped path; keeping it as
+ * the fallback means this migration can NEVER regress below prior behavior — an
+ * earlier OpenRouter-STT migration was reverted for 500s (it used the wrong
+ * multipart shape against the OR endpoint + had no key), and the fallback removes
+ * that risk entirely.
+ *
+ * On BOTH failing, callWithFallback throws ProvidersUnavailableError so Inngest's
+ * onFailure (ai_job.failed) surfaces it. The `OR` suffix now reflects reality:
+ * transcription routes through OpenRouter.
  */
 export async function transcribeAudioOR(
   audioBlob: Blob,
   ext: string,
-  model = OPENAI_TRANSCRIPTION_MODEL
+  model = DEFAULT_TRANSCRIBE_MODEL
 ): Promise<string> {
-  const apiKey = await getIntegrationKey('openai')
-  if (!apiKey) {
-    // No OpenAI Whisper key configured — short-circuit straight to Gemini
-    // multimodal transcription, which the platform already has set up. This
-    // key-absent path is PRESERVED ahead of the failure-based fallback below.
-    // Dynamic import keeps the Gemini SDK out of bundles that only use the
-    // OpenRouter helpers.
-    const { transcribeAudioGemini } = await import('@/lib/ai/providers/gemini')
-    return transcribeAudioGemini(audioBlob, ext)
+  // OpenRouter needs a vendor-prefixed slug; OpenAI's own API needs the bare id.
+  const orModel = model.includes('/') ? model : `openai/${model}`
+  const openaiModel = orModel.replace(/^openai\//, '')
+
+  // PRIMARY — OpenRouter transcription (base64 JSON body, NOT multipart).
+  async function openrouterPrimary(): Promise<string> {
+    const apiKey = await getORKey()
+    const startTime = new Date()
+    const base64 = Buffer.from(await audioBlob.arrayBuffer()).toString('base64')
+
+    const res = await fetch(`${OPENROUTER_BASE}/audio/transcriptions`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        ...SITE_HEADERS,
+      },
+      body: JSON.stringify({
+        model: orModel,
+        input_audio: { data: base64, format: ext },
+      }),
+    })
+
+    if (!res.ok) {
+      const err = await res.text().catch(() => 'unknown')
+      throw new Error(`OpenRouter transcription failed (${res.status}): ${err.slice(0, 400)}`)
+    }
+
+    const json = (await res.json()) as {
+      text?: string
+      error?: { message?: string }
+    }
+    if (json.error?.message) {
+      throw new Error(`OpenRouter transcription error: ${json.error.message}`)
+    }
+    const transcript = (json.text ?? '').trim()
+    await traceTranscription(orModel, ext, transcript, startTime)
+    return transcript
   }
 
-  // Key-present primary: OpenAI Whisper. On failure, fall back to Gemini exactly
-  // once via the shared provider-fallback policy (HARD-03).
-  async function whisperPrimary(): Promise<string> {
+  // FALLBACK — OpenAI direct (multipart), the proven pre-migration path.
+  async function openaiFallback(): Promise<string> {
+    const apiKey = await getIntegrationKey('openai')
+    if (!apiKey) throw new Error('OpenAI transcription key not configured')
     const startTime = new Date()
     const form = new FormData()
     form.append('file', audioBlob, `recording.${ext}`)
-    form.append('model', model)
+    form.append('model', openaiModel)
     form.append('response_format', 'text')
 
     const res = await fetch(`${OPENAI_TRANSCRIPTION_BASE}/audio/transcriptions`, {
@@ -106,33 +144,39 @@ export async function transcribeAudioOR(
       const err = await res.text().catch(() => 'unknown')
       throw new Error(`OpenAI transcription failed (${res.status}): ${err.slice(0, 400)}`)
     }
-
     const transcript = (await res.text()).trim()
-    try {
-      const gen = langfuseClient.generation({
-        name: 'transcribe_audio',
-        model,
-        input: { ext, model },
-        startTime,
-      })
-      gen.end({ output: { chars: transcript.length }, endTime: new Date() })
-      await langfuseClient.flushAsync()
-    } catch (err) {
-      console.warn('[langfuse] transcribe_audio trace failed:', err)
-    }
+    await traceTranscription(openaiModel, ext, transcript, startTime)
     return transcript
   }
 
   const { callWithFallback } = await import('@/lib/ai/with-fallback')
   const { result } = await callWithFallback({
     op: 'transcribe',
-    primary: whisperPrimary,
-    fallback: async () => {
-      const { transcribeAudioGemini } = await import('@/lib/ai/providers/gemini')
-      return transcribeAudioGemini(audioBlob, ext)
-    },
+    primary: openrouterPrimary,
+    fallback: openaiFallback,
   })
   return result
+}
+
+/** Best-effort Langfuse trace for a transcription call (never throws). */
+async function traceTranscription(
+  model: string,
+  ext: string,
+  transcript: string,
+  startTime: Date
+): Promise<void> {
+  try {
+    const gen = langfuseClient.generation({
+      name: 'transcribe_audio',
+      model,
+      input: { ext, model },
+      startTime,
+    })
+    gen.end({ output: { chars: transcript.length }, endTime: new Date() })
+    await langfuseClient.flushAsync()
+  } catch (err) {
+    console.warn('[langfuse] transcribe_audio trace failed:', err)
+  }
 }
 
 // ---------------------------------------------------------------------------

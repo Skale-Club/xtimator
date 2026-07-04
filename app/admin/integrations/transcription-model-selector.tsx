@@ -10,24 +10,24 @@ type Props = {
   current: string
 }
 
-// Known OpenAI transcription models, in display order. Kept local (not imported
+// OpenRouter transcription model slugs, in display order. Kept local (not imported
 // from the server-only platform-config module) because this is a client
-// component that holds its own label list. The
-// server action re-validates the id against the platform allowlist (the source
-// of truth), so a stale entry here can never persist an invalid model.
+// component that holds its own label list. The server action re-validates the id
+// against the platform allowlist (the source of truth), so a stale entry here can
+// never persist an invalid model.
 const MODELS = [
   {
-    id: 'whisper-1',
+    id: 'openai/whisper-1',
     label: 'Whisper v1',
     hint: 'Classic, lowest cost, universally available.',
   },
   {
-    id: 'gpt-4o-mini-transcribe',
+    id: 'openai/gpt-4o-mini-transcribe',
     label: 'GPT-4o mini transcribe',
     hint: 'Higher accuracy than Whisper at a modest cost bump.',
   },
   {
-    id: 'gpt-4o-transcribe',
+    id: 'openai/gpt-4o-transcribe',
     label: 'GPT-4o transcribe',
     hint: 'Best accuracy for noisy audio and accents; highest cost.',
   },
@@ -36,13 +36,17 @@ const MODELS = [
 /**
  * Super-admin selector for the platform-wide speech-to-text model.
  *
- * Transcription does NOT route through OpenRouter — it calls OpenAI Whisper
- * directly (see transcribeAudioOR) — so the choice is a fixed list of known
- * OpenAI transcription models rather than the 340-model OpenRouter search.
- * Changing the per-minute cost for a pricier model is done in the Billing tab.
+ * Transcription routes through OpenRouter's dedicated /audio/transcriptions
+ * endpoint (see transcribeAudioOR), with OpenAI's own API kept as a fallback.
+ * The choice is a fixed short list of known transcription slugs rather than the
+ * full OpenRouter model search. Changing the per-minute cost for a pricier model
+ * is done in the Billing tab.
  */
 export function TranscriptionModelSelector({ current }: Props) {
-  const [model, setModel] = useState<string>(current)
+  // Normalise a bare legacy id ('whisper-1') to an OpenRouter slug so the saved
+  // value matches a radio option and reads as "Active".
+  const initial = current.includes('/') ? current : `openai/${current}`
+  const [model, setModel] = useState<string>(initial)
   const [isPending, startTransition] = useTransition()
   const { t } = useTranslation()
 

@@ -148,7 +148,7 @@ export async function IntegrationCategoryContent({
       {category.showAISelector && (
         <div className="rounded-lg border border-border bg-card/40 p-4 md:p-6 space-y-4">
           <OpenRouterModelForm currentModel={openRouterModel} />
-          <TranscriptionModelSelector current={transcriptionModel ?? 'whisper-1'} />
+          <TranscriptionModelSelector current={transcriptionModel ?? 'openai/whisper-1'} />
         </div>
       )}
 

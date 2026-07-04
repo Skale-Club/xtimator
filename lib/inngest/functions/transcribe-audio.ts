@@ -194,11 +194,11 @@ export const transcribeAudioJob = inngest.createFunction(
     // Correlated by attemptId alone (no usage_event coupling — Phase 112 owns
     // metering). Best-effort: void so a cost-write never breaks transcription.
     //
-    // Provider attribution: transcribeAudioOR runs OpenAI whisper-1 primary and
-    // falls back to Gemini ONCE on failure, but the fallback is hidden INSIDE
-    // that fn — the job cannot see which ran. We record the common case as
-    // provider:'openai' with the computed cost. The Gemini fallback returns no
-    // cost; we never guess a Gemini rate and never record 0 (null = unknown).
+    // Provider attribution: transcribeAudioOR runs OpenRouter STT as primary and
+    // falls back to OpenAI direct ONCE on failure, but the fallback is hidden
+    // INSIDE that fn — the job cannot see which ran. We record the common case as
+    // provider:'openrouter' with the computed cost. The rate lookup returns no
+    // cost for an unknown model; we never guess and never record 0 (null = unknown).
     const minutes = (ident.durationSeconds ?? 0) / 60
     // Phase 112 (CREDIT-02): compute the Whisper cost ONCE and thread the SAME value
     // into BOTH the cost-capture and the credit debit (no read-back race here — the
@@ -209,7 +209,7 @@ export const transcribeAudioJob = inngest.createFunction(
     void recordAICost({
       attemptId,
       operationType: 'audio_minutes',
-      provider: 'openai',
+      provider: 'openrouter',
       model: sttModel,
       realCostUsd: whisperCost,
       companyId: ident.companyId,

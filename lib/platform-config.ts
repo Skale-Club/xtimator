@@ -367,14 +367,14 @@ export async function getOpenRouterDefaultModel(): Promise<string | null> {
   return model && model.trim() ? model : null
 }
 
-/** OpenAI's classic Whisper model — the default speech-to-text model. */
-export const DEFAULT_TRANSCRIPTION_MODEL = 'whisper-1'
+/** Default speech-to-text model — an OpenRouter slug routed to OpenAI Whisper. */
+export const DEFAULT_TRANSCRIPTION_MODEL = 'openai/whisper-1'
 
-/** Known OpenAI speech-to-text models selectable from the AI admin screen. */
+/** OpenRouter transcription model slugs selectable from the AI admin screen. */
 export const TRANSCRIPTION_MODELS = [
-  'whisper-1',
-  'gpt-4o-mini-transcribe',
-  'gpt-4o-transcribe',
+  'openai/whisper-1',
+  'openai/gpt-4o-mini-transcribe',
+  'openai/gpt-4o-transcribe',
 ] as const
 
 export type TranscriptionModel = (typeof TRANSCRIPTION_MODELS)[number]
@@ -395,7 +395,11 @@ export async function getTranscriptionModel(): Promise<string> {
     .maybeSingle()
   const model = (data?.metadata as { transcription_model?: string } | null)
     ?.transcription_model
-  return model && model.trim() ? model : DEFAULT_TRANSCRIPTION_MODEL
+  const raw = model && model.trim() ? model.trim() : DEFAULT_TRANSCRIPTION_MODEL
+  // Legacy values were stored bare ('whisper-1'); normalise to an OpenRouter slug
+  // so consumers (transcribeAudioOR, the admin selector) always see a valid id
+  // without a data migration.
+  return raw.includes('/') ? raw : `openai/${raw}`
 }
 
 /**
