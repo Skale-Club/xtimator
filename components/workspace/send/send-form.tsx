@@ -20,7 +20,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
-import { Send, CheckCircle2, Loader2, MessageSquare, MessageCircle, Mail } from 'lucide-react'
+import { Send, CheckCircle2, Loader2, MessageSquare, MessageCircle, Mail, Copy, Check } from 'lucide-react'
 import { toast } from 'sonner'
 import { markAsSentAction } from '@/lib/actions/estimate'
 import { buildShareLink } from '@/lib/utils/share-link'
@@ -84,6 +84,7 @@ export function SendForm({
   const { t } = useTranslation()
   const [sending, setSending] = useState(false)
   const [marking, setMarking] = useState(false)
+  const [whatsappMessageCopied, setWhatsappMessageCopied] = useState(false)
 
   const shareLink = buildShareLink(shareToken)
 
@@ -183,6 +184,18 @@ export function SendForm({
       toast.error('Failed to send via WhatsApp. Please try again.')
     } finally {
       setSending(false)
+    }
+  }
+
+  async function handleCopyWhatsAppMessage() {
+    const message = whatsappForm.getValues('message') ?? ''
+    try {
+      await navigator.clipboard.writeText(message)
+      setWhatsappMessageCopied(true)
+      toast.success('Copied to clipboard!')
+      setTimeout(() => setWhatsappMessageCopied(false), 2000)
+    } catch {
+      toast.error('Failed to copy')
     }
   }
 
@@ -380,11 +393,28 @@ export function SendForm({
                       <FormItem>
                         <FormLabel>Message</FormLabel>
                         <FormControl>
-                          <Textarea
-                            rows={12}
-                            placeholder={`${companyName} sent you an estimate. Review and approve it here: ${shareLink}`}
-                            {...field}
-                          />
+                          <div className="relative">
+                            <Textarea
+                              rows={12}
+                              placeholder={`${companyName} sent you an estimate. Review and approve it here: ${shareLink}`}
+                              className="pr-11"
+                              {...field}
+                            />
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-xs"
+                              className="absolute top-2 right-2 bg-background/80"
+                              onClick={handleCopyWhatsAppMessage}
+                              aria-label="Copy message"
+                            >
+                              {whatsappMessageCopied ? (
+                                <Check className="h-3.5 w-3.5" />
+                              ) : (
+                                <Copy className="h-3.5 w-3.5" />
+                              )}
+                            </Button>
+                          </div>
                         </FormControl>
                         <FormMessage />
                       </FormItem>
