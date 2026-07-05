@@ -18,7 +18,7 @@ Each requirement maps to exactly one roadmap phase.
 
 ### Inbox Route Consolidation & Settings
 
-- [ ] **INBOX-01**: The super-admin left-nav shows a single **Inbox** item (`/admin/inbox`) in place of the two separate "WhatsApp" and "WA Templates" items. The old routes `/admin/whatsapp` and `/admin/whatsapp-templates` redirect to `/admin/inbox` and `/admin/inbox/settings` respectively (no broken bookmarks). Every hardcoded `/admin/whatsapp` / `/admin/whatsapp-templates` reference (nav, pagination URLs, filter `router.replace`, `revalidatePath`) is retargeted.
+- [x] **INBOX-01**: The super-admin left-nav shows a single **Inbox** item (`/admin/inbox`) in place of the two separate "WhatsApp" and "WA Templates" items. The old routes `/admin/whatsapp` and `/admin/whatsapp-templates` redirect to `/admin/inbox` and `/admin/inbox/settings` respectively (no broken bookmarks). Every hardcoded `/admin/whatsapp` / `/admin/whatsapp-templates` reference (nav, pagination URLs, filter `router.replace`, `revalidatePath`) is retargeted.
 - [ ] **INBOX-03**: A gear/"Settings" affordance in the Inbox header opens `/admin/inbox/settings`, a tabbed page with **Accounts** (the existing company-config + authorized-sender provisioning UI) and **Templates** (the existing Meta-template builder), reusing the current components unchanged. A back affordance returns to the Inbox. `revalidatePath` for account mutations targets the new settings route.
 - [ ] **INBOX-04**: Integrations > WhatsApp (credentials) is unchanged; the data layer file names and DB tables stay `whatsapp_*`; and all affected test files (unit path/existence assertions + the e2e admin-whatsapp spec) are updated to the new `/admin/inbox` routes and pass green.
 
@@ -46,7 +46,18 @@ Deferred to a future milestone. Tracked but not in this roadmap.
 
 ## Traceability
 
-_Filled by the roadmapper when phases are created._
+Every v1 requirement maps to exactly one phase. Coverage: 4/4 mapped, 0 orphans, 0 duplicates. Phase numbering continues the global counter (v4.15 ended at Phase 153 → this milestone starts at Phase 154).
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| INBOX-01 | Phase 154 — Inbox Route Consolidation & Settings | Complete |
+| INBOX-03 | Phase 154 — Inbox Route Consolidation & Settings | Pending |
+| INBOX-04 | Phase 154 — Inbox Route Consolidation & Settings | Pending |
+| INBOX-02 | Phase 155 — Inbox Master-Detail Viewer | Pending |
+
+**Phase → requirement rollup:**
+- **Phase 154 — Inbox Route Consolidation & Settings**: INBOX-01, INBOX-03, INBOX-04
+- **Phase 155 — Inbox Master-Detail Viewer**: INBOX-02 (depends on Phase 154)
 
 ---
 *Requirements defined: 2026-07-05 — milestone v4.16 Admin Inbox Consolidation. Phase numbering continues the global counter — v4.15 ended at Phase 153, so this milestone starts at Phase 154.*

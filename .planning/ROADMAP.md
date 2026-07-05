@@ -2476,10 +2476,10 @@ Full phase details archived: [milestones/v4.15-ROADMAP.md](milestones/v4.15-ROAD
   4. Integrations > WhatsApp (the raw credentials: API token / Phone Number ID / WABA ID / Display Number / AI system prompt) is byte-unchanged; the data-layer file names (`lib/queries/admin-whatsapp.ts`, `lib/actions/admin-whatsapp*.ts`) and DB tables (`whatsapp_*`) keep their WhatsApp names
   5. All affected test files are updated to the new `/admin/inbox` routes and pass green — the tenant-whatsapp-surface existence assertion (`app/admin/whatsapp/page.tsx` → `app/admin/inbox/page.tsx`), the whatsapp-filters path assertions, the whatsapp-account-actions `revalidatePath` assertion, the e2e admin-whatsapp spec's navigation, and any other path/existence assertions in the admin-whatsapp / authority-contract tests
 
-**Plans**: 3 plans
+**Plans**: 1/3 plans executed
 
 Plans:
-- [ ] 154-01-PLAN.md — Inbox route: nav collapse, redirect stub, conversations-only page assembly (INBOX-01)
+- [x] 154-01-PLAN.md — Inbox route: nav collapse, redirect stub, conversations-only page assembly (INBOX-01)
 - [ ] 154-02-PLAN.md — Inbox Settings page: Accounts + Templates tabs, revalidatePath retarget (INBOX-03, INBOX-04)
 - [ ] 154-03-PLAN.md — Test suite updates for the new /admin/inbox routes (INBOX-04)
 
