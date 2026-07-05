@@ -11,6 +11,7 @@ import { appendIndustryPriceBook } from '@/lib/price-book-seed'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { assertWritable } from '@/lib/demo/guard'
 import { sendProfileUpdatedEmail, diffProfileFields } from '@/lib/email/account-emails'
+import { isEstimateTemplateId, DEFAULT_ESTIMATE_TEMPLATE_ID } from '@/lib/estimate/templates/registry'
 
 async function getAuthContext() {
   const supabase = await createClient()
@@ -62,6 +63,10 @@ export async function updateCompanySettings(formData: FormData) {
   const existingLogoUrl = formData.get('existingLogoUrl') as string | null
   const defaultEstimateLanguage = formData.get('defaultEstimateLanguage') as string | null
   const currencyCode = normalizeCurrencyCode(formData.get('currencyCode'))
+  const estimateTemplateStyleRaw = formData.get('estimateTemplateStyle') as string | null
+  const estimateTemplateStyle = isEstimateTemplateId(estimateTemplateStyleRaw)
+    ? estimateTemplateStyleRaw
+    : DEFAULT_ESTIMATE_TEMPLATE_ID
 
   // Handle logo upload
   let logoUrl = existingLogoUrl
@@ -107,6 +112,7 @@ export async function updateCompanySettings(formData: FormData) {
       industries: resolvedIndustries,
       brand_primary_color: brandPrimaryColor || SYSTEM_COLORS.primary,
       logo_url: logoUrl || null,
+      estimate_template_style: estimateTemplateStyle,
       currency_code: currencyCode,
       default_estimate_language:
         defaultEstimateLanguage && defaultEstimateLanguage !== ''
