@@ -178,6 +178,7 @@ export type Database = {
           estimate_template_greeting: string | null
           estimate_template_opener: string | null
           estimate_template_signature: string | null
+          estimate_template_style: string
           estimate_terms_enabled: boolean
           estimate_terms_text: string | null
           id: string
@@ -236,6 +237,7 @@ export type Database = {
           estimate_template_greeting?: string | null
           estimate_template_opener?: string | null
           estimate_template_signature?: string | null
+          estimate_template_style?: string
           estimate_terms_enabled?: boolean
           estimate_terms_text?: string | null
           id?: string
@@ -294,6 +296,7 @@ export type Database = {
           estimate_template_greeting?: string | null
           estimate_template_opener?: string | null
           estimate_template_signature?: string | null
+          estimate_template_style?: string
           estimate_terms_enabled?: boolean
           estimate_terms_text?: string | null
           id?: string
