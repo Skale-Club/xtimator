@@ -27,7 +27,7 @@ export default async function BlogListPage() {
               <Card variant="glass" className="overflow-hidden p-0">
                 {post.cover_image_url && (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={post.cover_image_url} alt="" className="w-full h-48 object-cover" />
+                  <img src={post.cover_image_url} alt={`Cover for ${post.title}`} className="w-full h-48 object-cover" />
                 )}
                 <div className="flex flex-col gap-2 p-6">
                   <h2 className="text-2xl font-semibold tracking-tight">
@@ -35,7 +35,7 @@ export default async function BlogListPage() {
                   </h2>
                   {post.excerpt && <p className="text-muted-foreground leading-[1.55]">{post.excerpt}</p>}
                   {post.published_at && (
-                    <time className="text-xs text-muted-foreground">
+                    <time dateTime={post.published_at} className="text-xs text-muted-foreground">
                       {new Date(post.published_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
                     </time>
                   )}

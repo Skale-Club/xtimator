@@ -50,7 +50,7 @@ export function FeaturesSection({ features }: { features: Feature[] }) {
   const ticker = [...features, ...features]
 
   return (
-    <section className="relative flex flex-1 flex-col lg:justify-center border-b border-white/5 bg-transparent py-16">
+    <section id="features" className="relative flex flex-1 flex-col lg:justify-center border-b border-white/5 bg-transparent py-16">
       <div className="mx-auto max-w-6xl px-6 sm:px-8 lg:px-10">
         <motion.div
           initial={reduce ? false : { opacity: 0, y: 20 }}

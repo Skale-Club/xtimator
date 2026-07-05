@@ -65,14 +65,14 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
               {post.title}
             </h1>
             {post.published_at && (
-              <time className="text-sm text-muted-foreground">
+              <time dateTime={post.published_at} className="text-sm text-muted-foreground">
                 {new Date(post.published_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
               </time>
             )}
           </header>
           {post.cover_image_url && (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={post.cover_image_url} alt="" className="rounded-2xl w-full mb-10 object-cover max-h-80 border border-[var(--glass-border)] shadow-glass" />
+            <img src={post.cover_image_url} alt={`Cover for ${post.title}`} className="rounded-2xl w-full mb-10 object-cover max-h-80 border border-[var(--glass-border)] shadow-glass" />
           )}
           <Card variant="glass" className="p-8 sm:p-10">
             <BlogContent markdown={post.content} />
