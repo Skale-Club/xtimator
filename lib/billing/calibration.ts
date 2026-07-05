@@ -114,15 +114,26 @@ export function recommendFromAggregate(
  * to 0 — including it would bias the mean toward zero (Phase-110 null-vs-0
  * discipline). Best-effort: any read failure returns [] (never throws), mirroring
  * reconcileBalance in credit-ledger.ts.
+ *
+ * Phase 152 (CREDITUI-05): accepts an OPTIONAL `companyId` to scope the
+ * aggregation to a single company (`.eq('company_id', companyId)` applied
+ * before the null filter). Omitting it preserves the original platform-wide
+ * behavior byte-for-byte — zero regression to existing callers.
  */
-export async function aggregateAiCostByOperation(): Promise<OpCostStat[]> {
+export async function aggregateAiCostByOperation(companyId?: string): Promise<OpCostStat[]> {
   try {
     const { requireServiceClient } = await import('@/lib/supabase/service')
     const svc = requireServiceClient()
-    const { data, error } = await svc
-      .from('ai_cost_events')
-      .select('operation_type, real_cost_usd')
-      .not('real_cost_usd', 'is', null)
+    const { data, error } = await (companyId
+      ? svc
+          .from('ai_cost_events')
+          .select('operation_type, real_cost_usd')
+          .eq('company_id', companyId)
+          .not('real_cost_usd', 'is', null)
+      : svc
+          .from('ai_cost_events')
+          .select('operation_type, real_cost_usd')
+          .not('real_cost_usd', 'is', null))
     if (error) return []
     const rows = (data as Array<{ operation_type: string; real_cost_usd: number }> | null) ?? []
 

@@ -32,8 +32,16 @@ vi.mock('@/lib/supabase/service', () => ({
 /**
  * Chainable supabase fake. The .not('real_cost_usd','is',null) filter is applied
  * IN the query, so this fake returns the ALREADY-FILTERED rows the caller passes.
+ *
+ * Phase 152 (CREDITUI-05): also supports an optional `.eq('company_id', id)`
+ * link BEFORE `.not(...)`, matching the real Supabase chain shape
+ * `.select().eq().not()` used when aggregateAiCostByOperation is called with a
+ * companyId. `onEq` lets a test assert the exact companyId the chain received.
  */
-function makeServiceClient(rows: Array<{ operation_type: string; real_cost_usd: number }>) {
+function makeServiceClient(
+  rows: Array<{ operation_type: string; real_cost_usd: number }>,
+  onEq?: (col: string, val: unknown) => void
+) {
   return {
     from(_table: string) {
       return {
@@ -41,6 +49,14 @@ function makeServiceClient(rows: Array<{ operation_type: string; real_cost_usd: 
           return {
             not(_col: string, _op: string, _val: unknown) {
               return Promise.resolve({ data: rows, error: null })
+            },
+            eq(_col: string, _val: unknown) {
+              onEq?.(_col, _val)
+              return {
+                not(_col2: string, _op: string, _val2: unknown) {
+                  return Promise.resolve({ data: rows, error: null })
+                },
+              }
             },
           }
         },
@@ -204,6 +220,64 @@ describe('CALIB-02: aggregateAiCostByOperation', () => {
   it('NEVER throws on a service-read failure — returns []', async () => {
     serviceClientImpl = () => makeThrowingClient()
     const res = await aggregateAiCostByOperation()
+    expect(res).toEqual([])
+  })
+})
+
+// =============================================================================
+// CREDITUI-05: aggregateAiCostByOperation company scope
+// =============================================================================
+describe('CREDITUI-05: aggregateAiCostByOperation company scope', () => {
+  it('Test 1 (regression): called with NO argument, behaves platform-wide — no .eq() filter applied', async () => {
+    let eqCalled = false
+    serviceClientImpl = () =>
+      makeServiceClient(
+        [
+          { operation_type: 'estimate', real_cost_usd: 0.02 },
+          { operation_type: 'estimate', real_cost_usd: 0.04 },
+        ],
+        () => {
+          eqCalled = true
+        }
+      )
+    const res = await aggregateAiCostByOperation()
+    expect(eqCalled).toBe(false)
+    const estimate = res.find((r) => r.operationType === 'estimate')
+    expect(estimate).toBeDefined()
+    expect(estimate!.n).toBe(2)
+  })
+
+  it('Test 2: called with a companyId, applies .eq("company_id", companyId) BEFORE .not(...)', async () => {
+    let receivedCol: string | undefined
+    let receivedVal: unknown
+    serviceClientImpl = () =>
+      makeServiceClient(
+        [{ operation_type: 'estimate', real_cost_usd: 0.05 }],
+        (col, val) => {
+          receivedCol = col
+          receivedVal = val
+        }
+      )
+    const res = await aggregateAiCostByOperation('company-a-id')
+    expect(receivedCol).toBe('company_id')
+    expect(receivedVal).toBe('company-a-id')
+    expect(res.find((r) => r.operationType === 'estimate')?.n).toBe(1)
+  })
+
+  it('Test 3 (isolation): the mock .eq() receives the EXACT companyId argument passed in, proving scoping not global aggregation', async () => {
+    const receivedIds: unknown[] = []
+    serviceClientImpl = () =>
+      makeServiceClient([{ operation_type: 'estimate', real_cost_usd: 0.01 }], (_col, val) => {
+        receivedIds.push(val)
+      })
+    await aggregateAiCostByOperation('company-a-id')
+    await aggregateAiCostByOperation('company-b-id')
+    expect(receivedIds).toEqual(['company-a-id', 'company-b-id'])
+  })
+
+  it('Test 4 (regression): never-throw guard still holds when scoped — a throwing client with a companyId still returns []', async () => {
+    serviceClientImpl = () => makeThrowingClient()
+    const res = await aggregateAiCostByOperation('company-a-id')
     expect(res).toEqual([])
   })
 })
