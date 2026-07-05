@@ -88,6 +88,11 @@ export function computeEstimateTotals(
   sections: ComputeTotalsSection[],
   { taxRate, taxConfig, discountType, discountValue, depositType, depositValue }: ComputeTotalsOptions
 ): ComputeTotalsResult {
+  // WI-2 (HARDEN-GUARD-01): defensively coerce a negative / non-finite tax rate to 0 so the
+  // engine never emits negative tax. A valid rate (finite, >=0) passes through unchanged ⇒
+  // strict NO-OP for every existing test (their rates are all finite >=0).
+  const safeTaxRate = Number.isFinite(taxRate) && taxRate >= 0 ? taxRate : 0
+
   const calculatedSections = sections.map((section) => {
     const items = section.items.map((item) => {
       // MARK-01: server-derive unit_price from cost × (1 + markup_pct/100) when the AI supplied
@@ -132,7 +137,8 @@ export function computeEstimateTotals(
   if (!isTaxConfig(taxConfig)) {
     // RETROCOMPAT (taxConfig absent / null / malformed) → flat (subtotal − disc_global) × taxRate.
     // When discGlobal === 0 this is BYTE-IDENTICAL to the pre-v4.11 `subtotal × taxRate` expression.
-    taxAmount = Math.round((subtotal - discGlobal) * taxRate * 100) / 100
+    // WI-2: safeTaxRate coerces a negative/non-finite rate to 0 (no-op on a valid rate).
+    taxAmount = Math.round((subtotal - discGlobal) * safeTaxRate * 100) / 100
   } else {
     // TAX-03 ACTIVE: accumulate each taxable item's lineNet into its category base, then
     // sum base × resolved rate. Non-taxable items (taxable === false) accrue ZERO base.
@@ -160,13 +166,16 @@ export function computeEstimateTotals(
           ? categoryRate
           : typeof taxConfig.default_rate === 'number'
             ? taxConfig.default_rate
-            : taxRate
+            : safeTaxRate
+      // WI-2: coerce the RESOLVED rate (a malformed negative category rate or default_rate) to
+      // 0 so a category never contributes negative tax. Valid rates (>=0 finite) pass unchanged.
+      const safeRate = Number.isFinite(rate) && rate >= 0 ? rate : 0
       const proratedDisc =
         taxableSubtotal > 0
           ? Math.round(discGlobal * (base / taxableSubtotal) * 100) / 100
           : 0
       const discountedBase = base - proratedDisc
-      rawTax += discountedBase * rate
+      rawTax += discountedBase * safeRate
     }
     // SAME Math.round(x*100)/100 discipline as the flat path for byte-consistency.
     taxAmount = Math.round(rawTax * 100) / 100
@@ -177,15 +186,17 @@ export function computeEstimateTotals(
   // DEP-01 (LOCKED sequence): deposit computed from grandTotal; balanceDue = grandTotal − deposit.
   // depositType absent / 'none' / null → deposit 0 → balanceDue = grandTotal (byte-identical retrocompat).
   // SAME Math.round(x * 100) / 100 form as the totals above (NOT a round2 import) for byte-consistency.
-  // No clamp: out-of-range guarding (a deposit exceeding the total) is a Phase-133 editor concern; the
-  // pure math stays a faithful subtraction (balanceDue may be negative — deposit-totals.test.ts case 4).
+  // WI-2 (HARDEN-GUARD-01): floor balanceDue at 0 so a deposit exceeding the total yields
+  // balanceDue 0 in the ENGINE (not just the UI), never a negative. Math.max(0, …) is a strict
+  // no-op for every valid deposit (<= grandTotal ⇒ balanceDue already >=0); at generation
+  // deposit is 0 ⇒ balanceDue === grandTotal ⇒ byte-identical for the eval/persistence path.
   const deposit =
     depositType === 'percent'
       ? Math.round(grandTotal * ((depositValue ?? 0) / 100) * 100) / 100
       : depositType === 'amount'
         ? Math.round((depositValue ?? 0) * 100) / 100
         : 0
-  const balanceDue = Math.round((grandTotal - deposit) * 100) / 100
+  const balanceDue = Math.max(0, Math.round((grandTotal - deposit) * 100) / 100)
 
   return { sections: calculatedSections, subtotal, discountAmount: discGlobal, taxAmount, grandTotal, deposit, balanceDue }
 }

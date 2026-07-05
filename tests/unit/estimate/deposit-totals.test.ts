@@ -49,7 +49,7 @@ describe('DEP-01: deposit + balance_due (LOCKED sequence after grandTotal)', () 
     expect(r.grandTotal).toBe(1100)
   })
 
-  it('Test 4 — AMOUNT > grandTotal: balanceDue may be negative (pure subtraction, no clamp)', () => {
+  it('Test 4 — AMOUNT > grandTotal: balanceDue floored at 0 (deposit exceeding total → balanceDue 0)', () => {
     const r = computeEstimateTotals(sections, {
       taxRate: 0.1,
       depositType: 'amount',
@@ -58,6 +58,6 @@ describe('DEP-01: deposit + balance_due (LOCKED sequence after grandTotal)', () 
 
     expect(r.grandTotal).toBe(1100)
     expect(r.deposit).toBe(1500)
-    expect(r.balanceDue).toBe(-400) // round2(1100 − 1500) — documented, no clamp at this layer
+    expect(r.balanceDue).toBe(0) // floored at 0 (deposit exceeding total → balanceDue 0)
   })
 })
