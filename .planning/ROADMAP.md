@@ -1397,7 +1397,7 @@ Plans:
   5. The anonymous homepage no longer becomes `private, no-store` solely to render auth-aware navigation; production Lighthouse SEO is at least 95 and mobile performance/accessibility remain at least 85 on the homepage and one representative content page.
   6. A documented launch checklist covers Search Console ownership, sitemap submission, URL inspection, Meta Sharing Debugger, Bing Webmaster Tools, baseline queries, and a 30/60/90-day measurement loop; automated tests fail when crawlability, metadata, schema, or route-indexing policy regresses.
 
-**Plans:** 3/4 plans executed
+**Plans:** 4/4 plans complete
 
 Plans:
 
@@ -1412,7 +1412,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 1001-04-PLAN.md — restore cacheability for anonymous acquisition pages and add Lighthouse, production smoke, Search Console, and social-debugger verification gates (SEO-05, SEO-06)
+- [x] 1001-04-PLAN.md — restore cacheability for anonymous acquisition pages and add Lighthouse, production smoke, Search Console, and social-debugger verification gates (SEO-05, SEO-06)
 
 ---
 
