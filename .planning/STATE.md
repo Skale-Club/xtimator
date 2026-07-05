@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v4.16
 milestone_name: Admin Inbox Consolidation
-status: defining
-stopped_at: Defining requirements — v4.16 Admin Inbox Consolidation started (autonomous run)
-last_updated: "2026-07-05T21:04:15.759Z"
-last_activity: 2026-07-05
+status: executing
+stopped_at: Phase 154 execution started (wave 1: plans 01+02 in parallel)
+last_updated: "2026-07-05T23:08:50.375Z"
+last_activity: 2026-07-05 -- Phase 154 execution started
 progress:
-  total_phases: 107
-  completed_phases: 89
-  total_plans: 244
-  completed_plans: 255
+  total_phases: 105
+  completed_phases: 85
+  total_plans: 239
+  completed_plans: 245
 ---
 
 # Project State
@@ -46,10 +46,12 @@ progress:
 
 ## Current Position
 
-Phase: 999.1
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-07-05
+Phase: 154 (inbox-route-consolidation-settings) — EXECUTING
+Plan: 1 of 3
+Status: Executing Phase 154
+Last activity: 2026-07-05 -- Phase 154 execution started
+
+Milestone: v4.16 Admin Inbox Consolidation — ROADMAP CREATED 2026-07-05. 2 phases (154-155), 4/4 requirements mapped (INBOX-01/03/04 → 154, INBOX-02 → 155), 0 orphans. Both phases are frontend/UI (UI hint = yes → UI-SPEC expected). Dependency spine: 154 (route consolidation + settings + all test updates — structural, preserves the existing table+Sheet UI so this phase is low-risk) → 155 (master-detail viewer refactor in place). Read-only Inbox (no reply/send — deferred to INBOXX-01); credentials stay in Integrations; data layer (lib/queries/admin-whatsapp.ts, lib/actions/admin-whatsapp*.ts) + DB tables keep their whatsapp_* names (user-facing rename only). Reuse listAdminWhatsAppConversations / loadAdminConversationThread / MessageBubble / AdminWhatsAppAccounts / WhatsAppTemplatesPanel — do NOT rebuild. Tests (unit path/existence + e2e admin-whatsapp spec) ship in the same change. Numbering continues the global counter — v4.15 ended at Phase 153, so v4.16 starts at Phase 154 (NOT a phase-number reset; the gsd-tools init current_milestone field is known-stale — trust the ROADMAP counter). Design reference: the Xphere inbox at C:\Users\Vanildo\Dev\xphere (same stack).
 
 ### Previous Position (v4.14 / Phase 1001, for continuity)
 
@@ -1125,7 +1127,7 @@ Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gs
 See: .planning/PROJECT.md (updated 2026-05-13)
 
 **Core value:** Business owner → job site audio recording → sent professional estimate in under 5 minutes
-**Current focus:** Phase 153 — dollar-pack-top-up-auto-top-up
+**Current focus:** Phase 154 — inbox-route-consolidation-settings
 
 ## Notes
 
