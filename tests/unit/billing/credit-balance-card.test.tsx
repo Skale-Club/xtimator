@@ -8,9 +8,11 @@ import { render } from '@testing-library/react'
  * `lowBalanceThresholds` props are GONE (server computes percentUsed via
  * lib/billing/usage-percent.ts before this component ever sees a number).
  *
- * We mock <T> to a passthrough so copy assertions run on plain English text,
- * and stub the top-up button (a separate client component) so the card
- * renders deterministically without its fetch logic.
+ * We mock <T> to a passthrough so copy assertions run on plain English text.
+ *
+ * Phase 153-01 (CREDITUI-06): the low-balance CTA is a plain "Top up now" link
+ * to the always-visible TopUpPacksGrid section (`#topup-packs`), not a
+ * duplicated inline TopUpButton — the card no longer imports TopUpButton.
  *
  * Cardinal rule under test (CREDITUI-04): the owner NEVER sees a raw credit
  * count or a dollar figure — no "$", no standalone multi-digit "N credits".
@@ -21,9 +23,6 @@ vi.mock('@/components/i18n/t', () => ({
 }))
 vi.mock('@/lib/i18n/use-translation', () => ({
   useTranslation: () => ({ t: (s: string) => s }),
-}))
-vi.mock('@/components/billing/top-up-button', () => ({
-  TopUpButton: () => <button type="button">Top up credits</button>,
 }))
 
 const { CreditBalanceCard } = await import('@/components/billing/credit-balance-card')
@@ -51,7 +50,8 @@ describe('CreditBalanceCard (CREDITUI-03 / CREDITUI-04)', () => {
     expect(getByTestId('credit-low-warning')).toBeTruthy()
     const html = container.innerHTML
     expect(html).toContain('You’re approaching your usage limit for this cycle.')
-    expect(html).toContain('/settings/billing?topup=1')
+    expect(html).toContain('/settings/billing?topup=1#topup-packs')
+    expect(html).toContain('Top up now')
     expect(html).toContain('Upgrade plan')
   })
 
@@ -62,7 +62,8 @@ describe('CreditBalanceCard (CREDITUI-03 / CREDITUI-04)', () => {
     expect(html).toContain(
       'You’ve nearly used up your usage for this cycle. Top up or upgrade to keep generating.'
     )
-    expect(html).toContain('/settings/billing?topup=1')
+    expect(html).toContain('/settings/billing?topup=1#topup-packs')
+    expect(html).toContain('Top up now')
     expect(html).toContain('Upgrade plan')
   })
 

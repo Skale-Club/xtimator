@@ -8,13 +8,16 @@ import {
   CardContent,
 } from '@/components/ui/card'
 import { T } from '@/components/i18n/t'
-import { TopUpButton } from '@/components/billing/top-up-button'
 import { UsageProgressBar } from '@/components/billing/usage-progress-bar'
 
 /**
  * Phase 115 (CREDITUI-01 / CREDITUI-02) — owner-facing usage card.
  * Phase 152 (CREDITUI-03 / CREDITUI-04) — rewritten to show a color-escalating
  * usage bar instead of a raw credit count.
+ * Phase 153-01 (CREDITUI-06) — the low-balance CTA no longer duplicates an
+ * inline purchase button; it's a simple "Top up now" link to the always-visible
+ * TopUpPacksGrid section on this same page (the full 3-card grid is too wide
+ * for this inline warning banner).
  *
  * Purely presentational (server-renderable, no DB). Shows a usage percentage
  * bar for this billing cycle, a tier-aware reset caption, and — when usage is
@@ -79,8 +82,11 @@ export function CreditBalanceCard({
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
-              <Link href="/settings/billing?topup=1">
-                <TopUpButton packIndex={0} />
+              <Link
+                href="/settings/billing?topup=1#topup-packs"
+                className="text-sm font-medium underline underline-offset-2 hover:no-underline"
+              >
+                <T>Top up now</T>
               </Link>
               <Link
                 href="/settings/billing"

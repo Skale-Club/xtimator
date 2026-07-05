@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/card'
 import { ManageSubscriptionButton } from '@/components/billing/manage-subscription-button'
 import { TierCardsGrid } from '@/components/billing/tier-cards-grid'
+import { TopUpPacksGrid } from '@/components/billing/topup-packs-grid'
 import { CreditBalanceCard } from '@/components/billing/credit-balance-card'
 import { CreditHistoryList } from '@/components/billing/credit-history-list'
 import { T } from '@/components/i18n/t'
@@ -168,6 +169,13 @@ export default async function BillingPage() {
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <CreditBalanceCard percentUsed={percentUsed} tier={data.tier} />
           <CreditHistoryList rows={credits.history} />
+        </div>
+
+        {/* Top-up packs (CREDITUI-06) — dollar-denominated pack picker, always
+            visible (not gated behind the low-balance warning). */}
+        <div id="topup-packs" className="space-y-4">
+          <h2 className="text-2xl font-semibold tracking-tight"><T>Add credits</T></h2>
+          <TopUpPacksGrid packs={cfg.topUpPacks} />
         </div>
 
         {/* Tier cards grid (Free / Pro / Business with per-tier gradient escalation) */}
