@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v4.15
 milestone_name: Credit UX Polish & Admin Support Tooling
-status: executing
-stopped_at: Phase 150 execution started (autonomous run)
-last_updated: "2026-07-05T18:00:05.450Z"
-last_activity: 2026-07-05 -- Phase 150 execution started
+status: verifying
+stopped_at: Completed 150-01-PLAN.md
+last_updated: "2026-07-05T18:14:30.010Z"
+last_activity: 2026-07-05
 progress:
-  total_phases: 107
-  completed_phases: 85
-  total_plans: 235
-  completed_plans: 245
+  total_phases: 18
+  completed_phases: 18
+  total_plans: 51
+  completed_plans: 51
 ---
 
 # Project State
@@ -26,7 +26,7 @@ progress:
 - **Dependency spine:** 150 (Companies list — the foundation Support Mode needs) → 151 (Support Mode, depends on 150's stable list UI). 152 (progress bar + admin cost visibility — independent display change, can run in parallel with 150/151) → 153 (dollar top-up + auto-top-up, depends on 152's display surface; the riskiest phase, sequenced last).
 - **Locked guardrails (SEED-039 + SEED-040 + REQUIREMENTS.md + PROJECT.md):** No new credit ledger — `credit_ledger`, markup math, and low-balance logic from SEED-035/CREDITUI-01/02 (Phase 115) stay exactly as they are; this milestone is UI + purchase-flow only. Tenants NEVER see a raw credit count or $ figure anywhere (Plans page, topbar chip, notifications) — only a % bar and qualitative low/critical states. $ cost visibility is super-admin-only, extending `measured-cost-card.tsx`, never exposed to a tenant even indirectly via a network payload a tenant page fetches. Top-up pack sizes and auto-top-up thresholds live in `billing_config`, never hardcoded. Support Mode is NOT a real identity switch — a signed, time-boxed "acting-as-company" session claim, RLS-safe, revocable, never persisted beyond the browser session, distinct from a Supabase auth sign-in as the tenant. Support Mode ≠ `HandoffButton` (Phase 149, a sales/demo-to-prospect owner-invite flow) — must not be conflated or merged. Every Support Mode session is audit-logged via the existing `lib/admin/audit-log.ts`. Numbering continues the global counter — v4.14 ended at Phase 149, so v4.15 starts at **Phase 150** (Phase 1001 SEO is out-of-band, not part of the counter).
 - **Previous milestone**: v4.14 Admin Sales Mode + Phase 1001 SEO Readiness — SHIPPED 2026-07-05 (phases 146-149, 5/5 requirements ADMIN-01..05; plus out-of-band Phase 1001 SEO-01..06). DB-driven `is_super_admin` + `requireSuperAdmin()` replacing hardcoded email checks, admin "Add new company" modal with 3-estimate demo quota, server-side quota guard + manual grant control, and `HandoffButton` account handoff via the existing Phase 136/137 invite mechanism. Neither v4.14 nor Phase 1001 had a formal `/gsd:complete-milestone` archival pass — MILESTONES.md archival remains a pending housekeeping item.
-- **Position**: Roadmap created 2026-07-05. Next: `/gsd:plan-phase 150`.
+- **Position**: Phase 150 (Companies Admin Screen Overhaul) shipped 2026-07-05 — 1/1 plan complete, 4/4 requirements (ADMINCO-01..04). Next: `/gsd:plan-phase 151` (Super-Admin Support Mode).
 
 - **Milestone**: v4.13 Annual Billing — ROADMAP CREATED 2026-06-25. **5 phases (141-145)**, **5/5 requirements mapped** (ANN-01..ANN-05), **no orphans**. Add a discounted ANNUAL subscription option while keeping AI credit distribution MONTHLY for every interval — annual changes price + billing cadence only, never the rate at which credits flow. The load-bearing change is decoupling the monthly credit grant from the invoice cadence: a monthly Inngest cron + a `grant:{companyId}:{YYYY-MM}` company-month idempotency key SHARED with the `invoice.paid` webhook → exactly one grant per company per calendar month for any interval. Source: SEED-038. Numbering continues the global counter — v4.12 ended at Phase 140, so v4.13 starts at **Phase 141**.
 - **Phase plan (goal-backward, 5 phases — configurable price foundation, then the load-bearing grant decouple, then checkout + seat interval, then the UI toggle):**
@@ -44,8 +44,8 @@ progress:
 
 Phase: 150 (companies-admin-screen-overhaul) — EXECUTING
 Plan: 1 of 1
-Status: Executing Phase 150
-Last activity: 2026-07-05 -- Phase 150 execution started
+Status: Phase complete — ready for verification
+Last activity: 2026-07-05
 
 ### Previous Position (v4.14 / Phase 1001, for continuity)
 
@@ -159,7 +159,7 @@ Prior: 102-01 (HARD-07 replay-safe TTL) shipped. Added a neutral `requestedAt: A
 Prior: 102-02 (HARD-06 cap half) shipped. Replaced the hard-coded `(state.refineAttempts ?? 0) < 1` literal in `checkVagueAfterAssessEdge` (`lib/estimate/graph/nodes/decide.ts`) with a single `AUTO_REFINE_MAX_ATTEMPTS` module constant — read once at module load via an IIFE (`Number.isFinite(raw) && raw >= 0 ? raw : 1`) from the optional non-secret `process.env.AUTO_REFINE_MAX_ATTEMPTS`, defaulting to 1. Operator kept exactly `<` so the default is byte-identical to today (Research Pitfall 1). `auto-refine.ts` doc comment updated to reference the configurable cap (documentation-only; increment logic untouched). Channel-neutral (no DB, no async, no channel import) → graph-neutrality stays green. `tests/unit/estimate/auto-refine-cap.test.ts` now fully GREEN (default=1 AND `AUTO_REFINE_MAX_ATTEMPTS=2` override cases); `auto-refine-isolation` + `graph-neutrality` (12/12) and `never-reply-regression` Path C (loops exactly once at default) stay green. No env VALUE committed — only the var NAME appears (CLAUDE.md secret-handling). 1 atomic commit (02a41f2). xphere untouched. HARD-06 NOT marked complete — only the configurable-cap half is done; the web recourse UI half is owned by Plan 102-04.
 Prior (102-00, Wave 0 RED/EXTEND scaffold): authored 4 failing-by-design test files (auto-refine-cap [HARD-06 cap, now GREEN via 102-02], replay-safe-ttl [HARD-07, still RED → 102-01], batch-reporting [HARD-05, still RED → 102-03], needs-details-banner [HARD-06 recourse, still RED → 102-04]); 2 commits (201afb0, 35e8537).
 Last activity: 2026-07-05
-Stopped at: Phase 1001 planned and verified
+Stopped at: Completed 150-01-PLAN.md
 Next Up: **Phase 108 COMPLETE (5/5 plans — 108-01 metering [RMETER-01/02/03], 108-02 vagueness gate [RFALL-02], 108-03 orchestrator `researchUnmatchedPrices` [RPRICE-01/03/04, RFALL-01], 108-04 wire into `generateEstimateForProject` [RPRICE-01/03, RFALL-01], 108-05 "Couch cleaning 8 seats" full-graph regression [RFALL-03]).** THE PAYOFF is live in the production generation path AND locked by a green deterministic full-graph regression (EVIDENCED → $180/non-vague, empty-research+context → never-$0 ladder/non-vague, all-empty → still blocks). All three price-research adapters (`openrouter-web`, gated `anthropic-web`, deterministic `fixture`) remain configured-via-`platform_integrations` (all-misses no-op when unconfigured). Suggested: `/gsd:verify-work 108`, then `/gsd:execute-phase 109` (durability + cost-control hardening — dedicated `step.run('price-research')` retry isolation, runtime OpenRouter→Anthropic fallback ordering, per-estimate item caps, refine-loop memoization). DEFERRED (operational, carried from 108-01): apply migration `20260624000002_phase108_usage_event_price_researched.sql` (+ the earlier `20260624000001` price_research_cache) to remote via CI→GHCR→Coolify.
 Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gsd:verify-work 104` to validate the phase, then address the operational deferrals. DEFERRED (operational, all of Phase 104): apply migrations `20260621000001_notification_categories_remap.sql` + `20260621000002_notification_opt_in_consent.sql` + `20260621000003_whatsapp_notification_templates.sql` to the remote DB; ensure the Twilio from-number is SMS-capable; verify the Meta token carries `whatsapp_business_management` scope + author/approve the registry templates in Meta WhatsApp Manager (the `message_template_status_update` webhook then flips them to approved). Also still queued: `/gsd:verify-work 103` + `/gsd:complete-milestone` (v4.5) carry-over UATs.
 
@@ -808,6 +808,7 @@ Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gs
 - [Phase 143]: Annual price IDs are optional env vars — routes 500 clearly when missing rather than falling back to monthly
 - [Phase quick-260704-pt2]: estimate_photos migration committed but not applied remotely (TLS trust + migration-history drift blocked all available apply paths) — manual apply required before feature works at runtime
 - [Phase 260705-8u0-02]: Modern PDF template mirrors Classic's data/helpers exactly; only StyleSheet/JSX differs (Times-Roman serif, thin rules, hero total)
+- [Phase 150]: Companies admin total-count header simplified to single UI-SPEC string sourced from filtered paginated count, replacing the old override-subcount phrasing
 
 ## Performance Metrics
 
@@ -1085,6 +1086,7 @@ Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gs
 | Phase 142.1 P03 | 15min | 2 tasks | 13 files |
 | Phase 142.1 P05 | 12min | 2 tasks | 6 files |
 | Phase 143 P01 | 5m | 3 tasks | 4 files |
+| Phase 150 P01 | 12min | 3 tasks | 7 files |
 
 ## Project Reference
 

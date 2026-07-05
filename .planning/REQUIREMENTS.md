@@ -41,10 +41,10 @@ Each requirement maps to exactly one roadmap phase.
 
 ### Companies Admin Screen Overhaul
 
-- [ ] **ADMINCO-01**: Super admin can search the Companies admin list by name or associated email and see live-filtered results.
-- [ ] **ADMINCO-02**: Super admin can filter the Companies list by tier, whether an AI model override is set, and demo vs. real account.
-- [ ] **ADMINCO-03**: The Companies list is server-side paginated (does not load every tenant row at once), with page navigation and a visible total count.
-- [ ] **ADMINCO-04**: The existing "Demo Accounts" grouping, `HandoffButton`, and "Configure →" per-row actions continue to work unchanged within the new paginated/filterable list.
+- [x] **ADMINCO-01**: Super admin can search the Companies admin list by name or associated email and see live-filtered results.
+- [x] **ADMINCO-02**: Super admin can filter the Companies list by tier, whether an AI model override is set, and demo vs. real account.
+- [x] **ADMINCO-03**: The Companies list is server-side paginated (does not load every tenant row at once), with page navigation and a visible total count.
+- [x] **ADMINCO-04**: The existing "Demo Accounts" grouping, `HandoffButton`, and "Configure →" per-row actions continue to work unchanged within the new paginated/filterable list.
 
 ## v2 Requirements
 
@@ -68,7 +68,23 @@ Deferred to a future milestone. Tracked but not in this roadmap.
 
 ## Traceability
 
-_Filled by the roadmapper when phases are created._
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| ADMINCO-01 | Phase 150 | Complete |
+| ADMINCO-02 | Phase 150 | Complete |
+| ADMINCO-03 | Phase 150 | Complete |
+| ADMINCO-04 | Phase 150 | Complete |
+| SUPPORT-01 | Phase 151 | Pending |
+| SUPPORT-02 | Phase 151 | Pending |
+| SUPPORT-03 | Phase 151 | Pending |
+| SUPPORT-04 | Phase 151 | Pending |
+| CREDITUI-03 | Phase 152 | Pending |
+| CREDITUI-04 | Phase 152 | Pending |
+| CREDITUI-05 | Phase 152 | Pending |
+| CREDITUI-06 | Phase 153 | Pending |
+| CREDITUI-07 | Phase 153 | Pending |
+
+Coverage: 13/13 v1 requirements mapped. 0 orphans.
 
 ---
 *Requirements defined: 2026-07-05 — milestone v4.15 Credit UX Polish & Admin Support Tooling (sources: SEED-039, SEED-040; phase numbering continues the global counter — v4.14 ended at Phase 149 in ROADMAP.md, so this milestone starts at Phase 150).*
