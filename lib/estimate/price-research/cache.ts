@@ -79,7 +79,7 @@ export async function get(
 export async function put(input: PutInput): Promise<void> {
   const svc = requireServiceClient()
   const expiresAt = new Date(Date.now() + PRICE_RESEARCH_TTL_MS).toISOString()
-  await svc.from('price_research_cache').upsert(
+  const { error } = await svc.from('price_research_cache').upsert(
     {
       company_id: input.companyId,
       normalized_name: normalizeServiceNameKey(input.name),
@@ -92,4 +92,8 @@ export async function put(input: PutInput): Promise<void> {
     },
     { onConflict: 'company_id,normalized_name,region,currency_code' }
   )
+  // D9 (quick-260705-2gp): a failed cache write previously vanished — every
+  // lookup silently became a fresh provider call (cost + latency). Warn, never
+  // throw: put() keeps resolving void (write-through is best-effort).
+  if (error) console.warn('[price-research] cache write failed', error.message)
 }

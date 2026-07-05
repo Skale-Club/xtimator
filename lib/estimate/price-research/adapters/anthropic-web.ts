@@ -138,6 +138,16 @@ export function makeAnthropicWebProvider(): PriceResearchProvider {
         const parsed = priceResearchPayloadSchema.safeParse(parsedUnknown)
         if (!parsed.success) return items.map((i) => missFor(i, currency))
 
+        // D4 telemetry (quick-260705-2gp): mirror of the openrouter-web warn —
+        // parseable results with ZERO indexed citations means every result below
+        // will be nulled and rejected by the evidence gate, previously silently.
+        if (parsed.data.results.length > 0 && citationByUrl.size === 0) {
+          console.warn(
+            `[price-research] anthropic-web: ${parsed.data.results.length} results but 0 citations indexed — citation blocks missing; all results will fail the evidence gate`,
+            { resultCount: parsed.data.results.length }
+          )
+        }
+
         // Re-associate one result per item, enforcing the evidence gate: a
         // self-asserted source_url is only trusted when it matches a real citation.
         const byName = new Map<string, PriceResearchResult>()
