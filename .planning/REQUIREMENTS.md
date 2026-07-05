@@ -20,8 +20,8 @@ Each requirement maps to exactly one roadmap phase.
 
 ### Usage Progress Bar
 
-- [ ] **CREDITUI-03**: Tenant sees a single usage progress bar (percentage consumed this cycle, color-escalating as it depletes) on Settings > Plans and in the app-shell topbar credit chip, replacing today's raw numeric "N credits" display.
-- [ ] **CREDITUI-04**: No tenant-facing surface (Plans page, topbar chip, low-balance notification copy) displays a raw credit count or a dollar cost figure — only the percentage bar and qualitative low/critical states.
+- [x] **CREDITUI-03**: Tenant sees a single usage progress bar (percentage consumed this cycle, color-escalating as it depletes) on Settings > Plans and in the app-shell topbar credit chip, replacing today's raw numeric "N credits" display.
+- [x] **CREDITUI-04**: No tenant-facing surface (Plans page, topbar chip, low-balance notification copy) displays a raw credit count or a dollar cost figure — only the percentage bar and qualitative low/critical states.
 
 ### Super-Admin-Only Cost Visibility
 
@@ -78,8 +78,8 @@ Deferred to a future milestone. Tracked but not in this roadmap.
 | SUPPORT-02 | Phase 151 | Pending |
 | SUPPORT-03 | Phase 151 | Complete |
 | SUPPORT-04 | Phase 151 | Complete |
-| CREDITUI-03 | Phase 152 | Pending |
-| CREDITUI-04 | Phase 152 | Pending |
+| CREDITUI-03 | Phase 152 | Complete |
+| CREDITUI-04 | Phase 152 | Complete |
 | CREDITUI-05 | Phase 152 | Complete |
 | CREDITUI-06 | Phase 153 | Pending |
 | CREDITUI-07 | Phase 153 | Pending |
