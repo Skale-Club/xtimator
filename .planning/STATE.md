@@ -1,9 +1,9 @@
 ---
 gsd_state_version: 1.0
-milestone: v4.14
-milestone_name: Admin Sales Mode
-status: executing
-stopped_at: Phase 1001 complete — external Search Console and Meta setup pending
+milestone: v4.15
+milestone_name: Credit UX Polish & Admin Support Tooling
+status: defining
+stopped_at: Defining requirements — v4.14 (146-149) + Phase 1001 SEO (out-of-band) both complete
 last_updated: "2026-07-05T14:35:09.145Z"
 last_activity: 2026-07-05
 progress:
@@ -31,6 +31,13 @@ progress:
 - **Position**: Phase 144 Plan 01 complete — `syncSubscriptionSeatItem` is now interval-aware; annual subscriptions use `seatPriceAnnualCents`; 8 new unit tests green. ANN-04 complete. Next: Phase 145 (Pricing UI Toggle, ANN-05).
 
 ## Current Position
+
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements — milestone v4.15 Credit UX Polish & Admin Support Tooling started (autonomous run, seeds SEED-039 + SEED-040)
+Last activity: 2026-07-05 — Milestone v4.15 started
+
+### Previous Position (v4.14 / Phase 1001, for continuity)
 
 Phase: 1001 (SEO Foundation and Organic Acquisition Readiness) — COMPLETE
 Plan: 4 of 4
