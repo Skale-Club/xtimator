@@ -2470,7 +2470,11 @@ Plans:
   3. Every Support Mode session — entry, company, acting admin identity, duration, and exit (manual or expiry) — is recorded in the existing admin audit log; a super admin can look up who viewed which company's data and when
   4. Support Mode access is granted via a signed, time-boxed "acting-as-company" session claim layered on the admin's own session (never a full Supabase-auth identity switch); it respects the existing RLS posture (no bypass), is automatically revoked when the session ends or the time-box expires, and never persists beyond the browser session (e.g. a closed tab or expired claim leaves no residual tenant access)
 
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+- [ ] 151-01-PLAN.md — Signed session-claim module (startSupportSession/getSupportModeSession/endSupportSession) + audit-log extension
+- [ ] 151-02-PLAN.md — SupportModeBanner + app/(app)/layout.tsx integration (switcher suppression, banner exclusivity)
+- [ ] 151-03-PLAN.md — Companies-list "Support Mode →" entry point + e2e coverage
 **UI hint**: yes
 
 ### Phase 152: Usage Progress Bar + Super-Admin Cost Visibility
