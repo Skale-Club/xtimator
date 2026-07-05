@@ -31,3 +31,23 @@ Also present in the working tree (uncommitted, not created by this plan):
 `tests/unit/admin/company-cost-card.test.tsx`,
 `tests/unit/billing/tenant-cost-neutrality.test.ts` — all pre-dating this
 session's work (last touched 2026-07-04 per git history), left untouched.
+
+## 151-02: Pre-existing full-suite failures (unrelated to this plan's files)
+
+`npm test` full run shows 7 failing tests across 6 files, none referencing
+`app/(app)/layout.tsx`, `lib/auth/support-mode.ts`, or
+`components/admin/support-mode-banner.tsx`. Confirmed via `git log --stat` on
+the last 2-3 commits that none of these files were touched by Plan 02's
+changes:
+
+- `tests/integration/blog-rls.test.ts` (2 tests) — anon-client RLS visibility checks, requires a live DB connection; likely a pre-existing integration-test env gap on this machine
+- `tests/unit/cleanup-route-auth.test.ts` — `CRON_SECRET` 503 gate test
+- `tests/unit/company-action.test.ts` — Billing v2 signup credit grant regression
+- `tests/unit/ai/empty-output-guards.test.ts` — photo analysis empty-output guard
+- `tests/unit/ai/transcribe-fallback.test.ts` — OpenRouter primary transcription success path
+- `tests/unit/components/landing-page.test.tsx` — AuthDialog auto-open on `?auth=login` (matches STATE.md's documented Windows parallel-import flake history)
+
+Not fixed, per scope-boundary rule — none are caused by this plan's changes.
+`npx tsc --noEmit` also confirmed clean for `app/(app)/layout.tsx` and
+`components/admin/support-mode-banner.tsx` (zero new errors in either file;
+all remaining tsc output matches the 151-01 list above).

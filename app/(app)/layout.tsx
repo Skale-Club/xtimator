@@ -6,6 +6,8 @@ import { requireServiceClient } from '@/lib/supabase/service'
 import { createClient } from '@/lib/supabase/server'
 import { getBillingConfig } from '@/lib/billing/billing-config'
 import { computeUsagePercent } from '@/lib/billing/usage-percent'
+import { getSupportModeSession } from '@/lib/auth/support-mode'
+import { SupportModeBanner } from '@/components/admin/support-mode-banner'
 import { Sidebar } from '@/components/app-shell/sidebar'
 import { Topbar } from '@/components/app-shell/topbar'
 import { BottomNav } from '@/components/app-shell/bottom-nav'
@@ -43,6 +45,79 @@ export default async function AppShellLayout({
 
   // Start branding immediately — no dependency on company (D-06, D-09)
   const brandingPromise = getCachedBranding()
+
+  // Phase 151 (SUPPORT-02/04): a super admin with a valid, signed Support Mode
+  // session bypasses the tenant's own active-company/RLS resolution entirely —
+  // resolved via requireServiceClient() directly, never via the tenant's own
+  // active-company resolver.
+  // Checked BEFORE the normal flow so an admin impersonating company X never
+  // also resolves/renders their own membership's company.
+  const supportSession = await getSupportModeSession()
+  if (supportSession) {
+    const svc = requireServiceClient()
+    const { data: supportCompany } = await svc
+      .from('companies')
+      .select('id, name, logo_url, owner_name, theme_preference, industry, currency_code')
+      .eq('id', supportSession.companyId)
+      .single()
+
+    if (supportCompany) {
+      // adminRow existence is already re-verified inside getSupportModeSession()
+      // itself (never trust the cookie's claim alone) — this read is only to
+      // obtain the admin's display email for the banner, not a security check.
+      const { data: adminAuthUser } = await svc.auth.admin.getUserById(supportSession.adminUserId)
+      const adminEmail = adminAuthUser.user?.email ?? ''
+
+      const branding = await brandingPromise
+      const navUser = { email: adminEmail, avatarUrl: null }
+
+      return (
+        <TourProvider>
+          <BreadcrumbProvider>
+            <div className="flex h-[100dvh] overflow-hidden">
+              <Sidebar
+                branding={{ appName: branding.appName, logoUrl: branding.logoUrl }}
+                company={supportCompany}
+                memberships={[]}
+                isDemo={false}
+                isAdmin={true}
+                user={{ email: adminEmail, name: supportCompany.owner_name ?? null }}
+              />
+              <div className="flex flex-1 flex-col overflow-hidden">
+                <Topbar
+                  company={supportCompany}
+                  userId={supportSession.adminUserId}
+                  isAdmin={true}
+                  percentUsed={0}
+                />
+                <MobileHeader
+                  branding={{ appName: branding.appName, logoUrl: branding.logoUrl }}
+                  navUser={navUser}
+                />
+                <SupportModeBanner companyName={supportCompany.name} adminEmail={adminEmail} />
+                <main className="flex-1 overflow-y-auto pb-[calc(5rem_+_env(safe-area-inset-bottom,_0px))] md:pb-6">
+                  {children}
+                </main>
+              </div>
+              <BottomNav isDemo={false} />
+              <NewProjectDialog />
+              <EstimateCreationPopup />
+              <TranslationLoadingOverlay />
+              <UpgradeModal />
+              <WelcomeModal />
+              <TourSpotlight />
+              <OfflineIndicator />
+              <InstallPrompt />
+              <SWRegister />
+            </div>
+          </BreadcrumbProvider>
+        </TourProvider>
+      )
+    }
+    // supportCompany resolution failed (e.g. company deleted mid-session) —
+    // fall through to normal flow below, matching CONTEXT.md's "if company
+    // resolution fails, fall through to normal flow" guidance.
+  }
 
   // Phase 79 (D-10, D-11): primary company read now flows through the active-company
   // helpers instead of the legacy user-keyed cache. The 1:1 backfill from Phase 79 Plan 01
