@@ -2474,7 +2474,7 @@ Plans:
 
 **Plans**: 3 plans
 Plans:
-- [ ] 151-01-PLAN.md — Signed session-claim module (startSupportSession/getSupportModeSession/endSupportSession) + audit-log extension
+- [x] 151-01-PLAN.md — Signed session-claim module (startSupportSession/getSupportModeSession/endSupportSession) + audit-log extension
 - [ ] 151-02-PLAN.md — SupportModeBanner + app/(app)/layout.tsx integration (switcher suppression, banner exclusivity)
 - [ ] 151-03-PLAN.md — Companies-list "Support Mode →" entry point + e2e coverage
 **UI hint**: yes
@@ -2495,7 +2495,7 @@ Plans:
 
 Plans:
 - [ ] 152-01-PLAN.md — Tenant usage progress bar (CreditBalanceCard + CreditChip + Topbar wiring, static neutrality test)
-- [ ] 152-02-PLAN.md — Super-admin per-company cost visibility (company-cost-card.tsx + admin-company-cost query)
+- [x] 152-02-PLAN.md — Super-admin per-company cost visibility (company-cost-card.tsx + admin-company-cost query)
 
 **UI hint**: yes
 

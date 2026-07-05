@@ -25,7 +25,7 @@ Each requirement maps to exactly one roadmap phase.
 
 ### Super-Admin-Only Cost Visibility
 
-- [ ] **CREDITUI-05**: Super admin can view, per company, the exact credit balance, real USD cost incurred, and applied markup — surfaced in the admin panel (extending the existing `measured-cost-card.tsx` pattern); this data is never sent to or renderable by a tenant session.
+- [x] **CREDITUI-05**: Super admin can view, per company, the exact credit balance, real USD cost incurred, and applied markup — surfaced in the admin panel (extending the existing `measured-cost-card.tsx` pattern); this data is never sent to or renderable by a tenant session.
 
 ### Dollar-Denominated Top-Up
 
@@ -34,10 +34,10 @@ Each requirement maps to exactly one roadmap phase.
 
 ### Super-Admin Tenant Impersonation (Support Mode)
 
-- [ ] **SUPPORT-01**: Super admin can enter a normal tenant-scoped app view ("Support Mode") for any company directly from the admin Companies screen, without needing the tenant's credentials.
+- [x] **SUPPORT-01**: Super admin can enter a normal tenant-scoped app view ("Support Mode") for any company directly from the admin Companies screen, without needing the tenant's credentials.
 - [ ] **SUPPORT-02**: While in Support Mode, every page displays a persistent banner identifying the acting super admin and the company being viewed, matching the existing "Super Admin Mode" banner already shown across `/admin`.
-- [ ] **SUPPORT-03**: Every Support Mode session (entry, company, admin identity, duration, exit) is recorded in the existing admin audit log.
-- [ ] **SUPPORT-04**: Support Mode access is scoped by a signed, time-boxed session claim (not a full identity switch), respects existing RLS, is automatically revoked when the session ends or expires, and never persists beyond the browser session.
+- [x] **SUPPORT-03**: Every Support Mode session (entry, company, admin identity, duration, exit) is recorded in the existing admin audit log.
+- [x] **SUPPORT-04**: Support Mode access is scoped by a signed, time-boxed session claim (not a full identity switch), respects existing RLS, is automatically revoked when the session ends or expires, and never persists beyond the browser session.
 
 ### Companies Admin Screen Overhaul
 
@@ -74,13 +74,13 @@ Deferred to a future milestone. Tracked but not in this roadmap.
 | ADMINCO-02 | Phase 150 | Complete |
 | ADMINCO-03 | Phase 150 | Complete |
 | ADMINCO-04 | Phase 150 | Complete |
-| SUPPORT-01 | Phase 151 | Pending |
+| SUPPORT-01 | Phase 151 | Complete |
 | SUPPORT-02 | Phase 151 | Pending |
-| SUPPORT-03 | Phase 151 | Pending |
-| SUPPORT-04 | Phase 151 | Pending |
+| SUPPORT-03 | Phase 151 | Complete |
+| SUPPORT-04 | Phase 151 | Complete |
 | CREDITUI-03 | Phase 152 | Pending |
 | CREDITUI-04 | Phase 152 | Pending |
-| CREDITUI-05 | Phase 152 | Pending |
+| CREDITUI-05 | Phase 152 | Complete |
 | CREDITUI-06 | Phase 153 | Pending |
 | CREDITUI-07 | Phase 153 | Pending |
 

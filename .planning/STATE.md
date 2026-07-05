@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.15
 milestone_name: Credit UX Polish & Admin Support Tooling
 status: executing
-stopped_at: Phase 151 execution started (wave 1 of 3)
-last_updated: "2026-07-05T18:33:31.617Z"
-last_activity: 2026-07-05 -- Phase 151 execution started
+stopped_at: Completed 151-01-PLAN.md
+last_updated: "2026-07-05T18:47:05.671Z"
+last_activity: 2026-07-05 -- Phase 151 Plan 01 complete
 progress:
-  total_phases: 107
-  completed_phases: 86
-  total_plans: 243
-  completed_plans: 246
+  total_phases: 4
+  completed_phases: 1
+  total_plans: 3
+  completed_plans: 1
 ---
 
 # Project State
@@ -43,15 +43,22 @@ progress:
 ## Current Position
 
 Phase: 151 (super-admin-support-mode-tenant-impersonation) — EXECUTING
-Plan: 1 of 3
+Plan: 1 of 3 complete (151-01 shipped: signed support-mode session-claim module). Next: 151-02 (banner + layout wiring).
 Status: Executing Phase 151
-Last activity: 2026-07-05 -- Phase 151 execution started
+Last activity: 2026-07-05 -- Phase 151 Plan 01 complete
 
 ### Previous Position (v4.14 / Phase 1001, for continuity)
 
 Phase: 1001 (SEO Foundation and Organic Acquisition Readiness) — COMPLETE
 Plan: 4 of 4
 Status: Phase 1001 complete; owner setup documented
+
+### Parallel Track: Phase 152 (usage-progress-bar-super-admin-cost-visibility)
+
+Phase 152 runs in parallel with Phase 151 (disjoint files, both independent of 150/151 per the dependency spine).
+
+- 152-02 (Super-Admin Per-Company Cost Visibility, CREDITUI-05) — COMPLETE 2026-07-05. `aggregateAiCostByOperation(companyId?)` extended with zero regression to the platform-wide no-arg call; new admin-only `getCompanyCostOverview` (`lib/queries/admin-company-cost.ts`); new `CompanyCostCard` as the 4th card on `/admin/companies/[id]`, gated by the page's existing `requireAdmin()`, statically proven unreachable from any tenant-facing route. 25 new/extended unit tests green. See [152-02-SUMMARY.md](phases/152-usage-progress-bar-super-admin-cost-visibility/152-02-SUMMARY.md).
+- 152-01 (Tenant Usage Progress Bar, CREDITUI-03/04) — see its own SUMMARY for status (executed independently by a parallel agent).
 
 ---
 
@@ -159,7 +166,7 @@ Prior: 102-01 (HARD-07 replay-safe TTL) shipped. Added a neutral `requestedAt: A
 Prior: 102-02 (HARD-06 cap half) shipped. Replaced the hard-coded `(state.refineAttempts ?? 0) < 1` literal in `checkVagueAfterAssessEdge` (`lib/estimate/graph/nodes/decide.ts`) with a single `AUTO_REFINE_MAX_ATTEMPTS` module constant — read once at module load via an IIFE (`Number.isFinite(raw) && raw >= 0 ? raw : 1`) from the optional non-secret `process.env.AUTO_REFINE_MAX_ATTEMPTS`, defaulting to 1. Operator kept exactly `<` so the default is byte-identical to today (Research Pitfall 1). `auto-refine.ts` doc comment updated to reference the configurable cap (documentation-only; increment logic untouched). Channel-neutral (no DB, no async, no channel import) → graph-neutrality stays green. `tests/unit/estimate/auto-refine-cap.test.ts` now fully GREEN (default=1 AND `AUTO_REFINE_MAX_ATTEMPTS=2` override cases); `auto-refine-isolation` + `graph-neutrality` (12/12) and `never-reply-regression` Path C (loops exactly once at default) stay green. No env VALUE committed — only the var NAME appears (CLAUDE.md secret-handling). 1 atomic commit (02a41f2). xphere untouched. HARD-06 NOT marked complete — only the configurable-cap half is done; the web recourse UI half is owned by Plan 102-04.
 Prior (102-00, Wave 0 RED/EXTEND scaffold): authored 4 failing-by-design test files (auto-refine-cap [HARD-06 cap, now GREEN via 102-02], replay-safe-ttl [HARD-07, still RED → 102-01], batch-reporting [HARD-05, still RED → 102-03], needs-details-banner [HARD-06 recourse, still RED → 102-04]); 2 commits (201afb0, 35e8537).
 Last activity: 2026-07-05
-Stopped at: Completed 150-01-PLAN.md
+Stopped at: Completed 151-01-PLAN.md
 Next Up: **Phase 108 COMPLETE (5/5 plans — 108-01 metering [RMETER-01/02/03], 108-02 vagueness gate [RFALL-02], 108-03 orchestrator `researchUnmatchedPrices` [RPRICE-01/03/04, RFALL-01], 108-04 wire into `generateEstimateForProject` [RPRICE-01/03, RFALL-01], 108-05 "Couch cleaning 8 seats" full-graph regression [RFALL-03]).** THE PAYOFF is live in the production generation path AND locked by a green deterministic full-graph regression (EVIDENCED → $180/non-vague, empty-research+context → never-$0 ladder/non-vague, all-empty → still blocks). All three price-research adapters (`openrouter-web`, gated `anthropic-web`, deterministic `fixture`) remain configured-via-`platform_integrations` (all-misses no-op when unconfigured). Suggested: `/gsd:verify-work 108`, then `/gsd:execute-phase 109` (durability + cost-control hardening — dedicated `step.run('price-research')` retry isolation, runtime OpenRouter→Anthropic fallback ordering, per-estimate item caps, refine-loop memoization). DEFERRED (operational, carried from 108-01): apply migration `20260624000002_phase108_usage_event_price_researched.sql` (+ the earlier `20260624000001` price_research_cache) to remote via CI→GHCR→Coolify.
 Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gsd:verify-work 104` to validate the phase, then address the operational deferrals. DEFERRED (operational, all of Phase 104): apply migrations `20260621000001_notification_categories_remap.sql` + `20260621000002_notification_opt_in_consent.sql` + `20260621000003_whatsapp_notification_templates.sql` to the remote DB; ensure the Twilio from-number is SMS-capable; verify the Meta token carries `whatsapp_business_management` scope + author/approve the registry templates in Meta WhatsApp Manager (the `message_template_status_update` webhook then flips them to approved). Also still queued: `/gsd:verify-work 103` + `/gsd:complete-milestone` (v4.5) carry-over UATs.
 
@@ -325,6 +332,9 @@ Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gs
 
 ## Decisions
 
+- [Phase 152 152-02]: aggregateAiCostByOperation(companyId?) implemented as a single conditional query-chain branch (not two duplicated functions) — companyId present adds `.eq('company_id', companyId)` before the existing `.not('real_cost_usd','is',null)` filter; no-arg call stays byte-identical
+- [Phase 152 152-02]: getCompanyCostOverview's totalRealCostUsd is reconstructed as `meanUsd * n` per operation (mean = sum/n) instead of a second raw-sum query against ai_cost_events — avoids an extra DB round trip
+- [Phase 152 152-02]: lib/queries/admin-company-cost.ts kept structurally separate from lib/queries/credits.ts (owner-safe projection) so the tenant-cost-neutrality static test can assert column-level safety on the tenant file without colliding with this file's legitimate use of real_cost_usd/credit_balance
 - [Phase 102 102-01]: HARD-07 replay-safe TTL — derive `expires_at` from a durable, server-trusted graph-entry timestamp (`state.requestedAt`, epoch ms) carried in the channel-neutral core state, never re-mint `Date.now()` inside a finalize node; `base = state.requestedAt ?? Date.now()` keeps direct invokers valid; the entry timestamp is captured OUTSIDE `step.run` so an Inngest retry of the step reuses it (replay stability in advance of HARD-08 per-node decomposition); `SESSION_TTL_MINUTES` (30) unchanged
 - [Phase 100 100-02]: `round2` itself coerces NaN/negative → 0 (totals-authority.test.ts asserts `round2(NaN)===0`, `round2(-5)===0`); `assertFinitePositive` kept as the documented sibling guard for already-rounded persisted totals
 - [Phase 100 100-02]: `computeTotalsDiscrepancy` preserves a SIGNED delta/delta_pct (compute on abs then reapply sign) so a server-below-AI divergence is not zeroed by round2 — the discrepancy signal stays meaningful in both directions
@@ -809,6 +819,7 @@ Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gs
 - [Phase quick-260704-pt2]: estimate_photos migration committed but not applied remotely (TLS trust + migration-history drift blocked all available apply paths) — manual apply required before feature works at runtime
 - [Phase 260705-8u0-02]: Modern PDF template mirrors Classic's data/helpers exactly; only StyleSheet/JSX differs (Times-Roman serif, thin rules, hero total)
 - [Phase 150]: Companies admin total-count header simplified to single UI-SPEC string sourced from filtered paginated count, replacing the old override-subcount phrasing
+- [Phase 151]: Support Mode session cookie uses HMAC-SHA256 (payloadB64.signature), reusing APP_ENCRYPTION_KEY, 2-hour TTL; getSupportModeSession() re-verifies platform_admins on every read rather than trusting the cookie's claim of adminhood.
 
 ## Performance Metrics
 
@@ -1087,6 +1098,7 @@ Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gs
 | Phase 142.1 P05 | 12min | 2 tasks | 6 files |
 | Phase 143 P01 | 5m | 3 tasks | 4 files |
 | Phase 150 P01 | 12min | 3 tasks | 7 files |
+| Phase 151 P01 | 12min | 2 tasks | 3 files |
 
 ## Project Reference
 
