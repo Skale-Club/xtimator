@@ -57,7 +57,7 @@ export default async function AppShellLayout({
     const svc = requireServiceClient()
     const { data: supportCompany } = await svc
       .from('companies')
-      .select('id, name, logo_url, owner_name, theme_preference, industry, currency_code')
+      .select('id, name, logo_url, owner_name, theme_preference, industry, currency_code, tier, credit_balance')
       .eq('id', supportSession.companyId)
       .single()
 
@@ -65,11 +65,28 @@ export default async function AppShellLayout({
       // adminRow existence is already re-verified inside getSupportModeSession()
       // itself (never trust the cookie's claim alone) — this read is only to
       // obtain the admin's display email for the banner, not a security check.
-      const { data: adminAuthUser } = await svc.auth.admin.getUserById(supportSession.adminUserId)
+      const [{ data: adminAuthUser }, branding, cfg] = await Promise.all([
+        svc.auth.admin.getUserById(supportSession.adminUserId),
+        brandingPromise,
+        getBillingConfig(),
+      ])
       const adminEmail = adminAuthUser.user?.email ?? ''
-
-      const branding = await brandingPromise
       const navUser = { email: adminEmail, avatarUrl: null }
+
+      // Phase 152 (CREDITUI-03) integration fix: compute the IMPERSONATED
+      // tenant's real usage, mirroring the normal-flow calculation below —
+      // a hardcoded 0 here would show every tenant as "0% used" while an
+      // admin is in Support Mode, which is misleading (not a security issue,
+      // but an accuracy gap the milestone's integration check flagged).
+      const supportTier = supportCompany.tier ?? 'free'
+      const supportCycleGrant =
+        supportTier === 'free'
+          ? cfg.signupCreditGrant
+          : cfg.tiers[supportTier as 'pro' | 'business']?.monthlyCreditGrant ?? 0
+      const supportPercentUsed = computeUsagePercent({
+        balance: supportCompany.credit_balance ?? 0,
+        cycleGrant: supportCycleGrant,
+      })
 
       return (
         <TourProvider>
@@ -88,7 +105,7 @@ export default async function AppShellLayout({
                   company={supportCompany}
                   userId={supportSession.adminUserId}
                   isAdmin={true}
-                  percentUsed={0}
+                  percentUsed={supportPercentUsed}
                 />
                 <MobileHeader
                   branding={{ appName: branding.appName, logoUrl: branding.logoUrl }}
