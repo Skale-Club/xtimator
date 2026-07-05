@@ -155,6 +155,15 @@ export async function transcribeAudioOR(
     primary: openrouterPrimary,
     fallback: openaiFallback,
   })
+  // D1 guard (quick-260705-2gp): an empty-but-HTTP-ok response is a wrapper
+  // "success" (the fallback is not consulted for it) — genuinely silent audio
+  // returns '' from both providers anyway. Throw AFTER the wrapper so the
+  // failure propagates out of step.run('whisper-transcribe') and the Inngest
+  // onFailure (ai_job.failed) surfaces a CLEAR message instead of a silent
+  // empty save + credit charge.
+  if (result.trim().length === 0) {
+    throw new Error('Transcription produced no text — no speech detected in the audio')
+  }
   return result
 }
 
@@ -288,6 +297,13 @@ export async function analyzePhotoOR(
       return analyzePhotoGemini(base64, mimeType)
     },
   })
+  // D2 guard (quick-260705-2gp): same rationale as the transcription guard —
+  // an empty-but-HTTP-ok analysis is a wrapper "success", so throw after the
+  // wrapper to fail loudly instead of silently feeding the estimate zero
+  // photo context.
+  if (result.trim().length === 0) {
+    throw new Error('Photo analysis produced no description')
+  }
   return result
 }
 

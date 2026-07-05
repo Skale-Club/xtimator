@@ -30,6 +30,9 @@ export interface FallbackOutcome<T> {
  * The `providerUnavailable` flag is the deterministic signal the failure model
  * (99-02) keys off of to map this to the typed reason `'provider_unavailable'`.
  * `.cause` carries the original PRIMARY error (not the fallback error).
+ * `fallbackCause` (additive, D8) carries the FALLBACK's own error so an
+ * operator can see WHY the fallback also failed (e.g. 'Gemini API key not
+ * configured') — previously that error was silently discarded.
  *
  * Constructor is flexible to support both call shapes in the test contract:
  *   - `new ProvidersUnavailableError(primaryErr)` — wrapper internal use; the
@@ -38,6 +41,8 @@ export interface FallbackOutcome<T> {
  */
 export class ProvidersUnavailableError extends Error {
   readonly providerUnavailable = true as const
+  /** The FALLBACK provider's error (additive — `.cause` stays the PRIMARY error). */
+  fallbackCause?: unknown
 
   constructor(causeOrMessage?: unknown, maybeCause?: unknown) {
     const hasExplicitMessage = arguments.length >= 2
@@ -71,7 +76,8 @@ export class InvalidEstimateOutputError extends Error {
  * Run `primary()`; on any throw run `fallback()` exactly once.
  *   - primary succeeds → { result, servedBy: 'primary', fallbackFired: false } (fallback NOT called).
  *   - primary throws, fallback succeeds → { result, servedBy: 'fallback', fallbackFired: true }.
- *   - both throw → throws a marked `ProvidersUnavailableError` carrying the PRIMARY error as `.cause`.
+ *   - both throw → throws a marked `ProvidersUnavailableError` carrying the PRIMARY error as
+ *     `.cause` and the fallback's error as `fallbackCause` (D8, observability only).
  *
  * `op` is retained for future logging/observability (GUARD-04, Phase 100) — no
  * behavior depends on it here. Tenant scope lives inside the `primary`/`fallback`
@@ -99,10 +105,14 @@ export async function callWithFallback<T>(args: {
     try {
       const result = await args.fallback()
       return { result, servedBy: 'fallback', fallbackFired: true }
-    } catch {
+    } catch (fallbackErr) {
       // Both failed — re-throw the MARKED error carrying the PRIMARY error as
       // cause (NOT the fallback error). The wrapper never swallows the failure.
-      throw new ProvidersUnavailableError(primaryErr)
+      // D8: the fallback's error rides along as `fallbackCause` so operators can
+      // see why the fallback ALSO failed (previously discarded).
+      const err = new ProvidersUnavailableError(primaryErr)
+      err.fallbackCause = fallbackErr
+      throw err
     }
   }
 }
