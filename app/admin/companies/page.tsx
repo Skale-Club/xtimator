@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { T } from '@/components/i18n/t'
 import { HandoffButton } from './handoff-button'
+import { SupportModeButton } from './support-mode-button'
 import { CompaniesControls } from './companies-controls'
 import { EmptyState } from '@/components/dashboard/empty-state'
 import { tiers } from '@/lib/entitlements'
@@ -159,6 +160,7 @@ export default async function AdminCompaniesPage({
                       </td>
                       <td className="px-4 py-3 text-right flex items-center justify-end gap-3">
                         <HandoffButton companyId={c.id} companyName={c.name} />
+                        <SupportModeButton companyId={c.id} />
                         <Link
                           href={`/admin/companies/${c.id}`}
                           className="text-[hsl(var(--primary))] hover:underline text-xs font-medium"
@@ -236,7 +238,8 @@ export default async function AdminCompaniesPage({
                           <span className="text-muted-foreground">platform default</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-right">
+                      <td className="px-4 py-3 text-right flex items-center justify-end gap-3">
+                        <SupportModeButton companyId={c.id} />
                         <Link
                           href={`/admin/companies/${c.id}`}
                           className="text-[hsl(var(--primary))] hover:underline text-xs font-medium"
