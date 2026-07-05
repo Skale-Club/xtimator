@@ -2458,7 +2458,7 @@ Full phase details archived: [milestones/v4.15-ROADMAP.md](milestones/v4.15-ROAD
 
 ### Phases
 
-- [ ] **Phase 154: Inbox Route Consolidation & Settings** — Collapse the two super-admin nav items ("WhatsApp" + "WA Templates") into a single **Inbox** item; rename the route `/admin/whatsapp` → `/admin/inbox` while PRESERVING the existing table + right-side `Sheet` UI initially (low-risk structural move, NOT a UI rewrite); add thin redirect stubs for the two old routes; build a new `/admin/inbox/settings` tabbed page (Accounts + Templates) reusing the existing components unchanged; retarget every hardcoded `/admin/whatsapp` / `/admin/whatsapp-templates` path reference (nav, pagination URLs, filter `router.replace`, `revalidatePath`); leave Integrations credentials and internal `whatsapp_*` naming untouched; update ALL affected test files (unit path/existence + the e2e admin-whatsapp spec) to the new routes. (INBOX-01, INBOX-03, INBOX-04)
+- [x] **Phase 154: Inbox Route Consolidation & Settings** — Collapse the two super-admin nav items ("WhatsApp" + "WA Templates") into a single **Inbox** item; rename the route `/admin/whatsapp` → `/admin/inbox` while PRESERVING the existing table + right-side `Sheet` UI initially (low-risk structural move, NOT a UI rewrite); add thin redirect stubs for the two old routes; build a new `/admin/inbox/settings` tabbed page (Accounts + Templates) reusing the existing components unchanged; retarget every hardcoded `/admin/whatsapp` / `/admin/whatsapp-templates` path reference (nav, pagination URLs, filter `router.replace`, `revalidatePath`); leave Integrations credentials and internal `whatsapp_*` naming untouched; update ALL affected test files (unit path/existence + the e2e admin-whatsapp spec) to the new routes. (INBOX-01, INBOX-03, INBOX-04) (completed 2026-07-05)
 - [ ] **Phase 155: Inbox Master-Detail Viewer** — Within the now-established `/admin/inbox`, replace the table + right-side `Sheet` overlay with a two-pane master-detail layout: a scrollable Xphere-style conversation list on the left (contact name, last-message preview, timestamp, unread dot, hover + selected states, company as a secondary label, with the existing search/filters + server-side pagination) and the conversation thread on the right pane on the same page (reusing `loadAdminConversationThread` + `MessageBubble`, read-only, 30-day note); selecting a conversation updates `?conversation=<id>` (shallow) and loads its thread without a modal; a direct link / refresh SSR-selects that thread; an empty-state prompts to pick a conversation; mobile collapses to a single column (list ↔ thread with a back affordance). Updates the e2e spec's selectors for the new two-pane. (INBOX-02)
 
 ### Phase Details — v4.16 Admin Inbox Consolidation
@@ -2481,7 +2481,7 @@ Full phase details archived: [milestones/v4.15-ROADMAP.md](milestones/v4.15-ROAD
 Plans:
 - [x] 154-01-PLAN.md — Inbox route: nav collapse, redirect stub, conversations-only page assembly (INBOX-01)
 - [x] 154-02-PLAN.md — Inbox Settings page: Accounts + Templates tabs, revalidatePath retarget (INBOX-03, INBOX-04)
-- [ ] 154-03-PLAN.md — Test suite updates for the new /admin/inbox routes (INBOX-04)
+- [x] 154-03-PLAN.md — Test suite updates for the new /admin/inbox routes (INBOX-04)
 
 **UI hint**: yes
 
@@ -2498,7 +2498,7 @@ Plans:
   4. On mobile the layout collapses to a single column — the list by default, the thread when a conversation is selected, with a back affordance to return to the list
   5. The e2e admin-whatsapp spec's selectors are updated from the old `Sheet`-based thread to the new two-pane thread pane and pass green; the read-only posture is preserved (no reply/send affordance anywhere in the viewer)
 
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 Plans:
 - [ ] 155-01-PLAN.md — Two-pane master-detail refactor of admin-whatsapp-client.tsx + page.tsx wiring (URL-driven selection, SSR deep-link, empty state, mobile collapse)
 - [ ] 155-02-PLAN.md — Close the 6 Wave-0 test gaps (stale static-contract fix, row-click/direct-link/empty-state/mobile-collapse/no-reply-send tests)
