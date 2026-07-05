@@ -58,6 +58,14 @@ export type BillingConfig = {
    * this off via the admin panel instantly reverts to record-only.
    */
   enforcementEnabled: boolean
+  /**
+   * Platform-wide auto-top-up kill switch (CREDITUI-07). Mirrors
+   * enforcementEnabled's exact pattern: default FALSE. The tenant-facing
+   * "Enable auto-top-up" toggle only renders/functions when this is true —
+   * gives the owner a single instant-disable switch independent of each
+   * tenant's own opt-in (company.auto_topup_enabled).
+   */
+  autoTopupEnabled: boolean
 }
 
 /**
@@ -108,6 +116,10 @@ export const DEFAULT_BILLING_CONFIG: BillingConfig = {
   signupCreditGrant: 2000,
   // Billing v2: enforcement ON — the free wall depends on it (see type docs).
   enforcementEnabled: true,
+  // Phase 153 (CREDITUI-07): auto-top-up kill switch defaults OFF, mirroring
+  // enforcementEnabled's exact pattern — flip on only after the tenant-facing
+  // settings UI (Plan 03) and the trigger core (this plan) are both verified.
+  autoTopupEnabled: false,
 }
 
 // 30s TTL cache mirroring brandingCache (lib/platform-config.ts). The

@@ -126,6 +126,27 @@ describe('CREDIT-05: enforcementEnabled (Billing v2 default ON)', () => {
 })
 
 // =============================================================================
+// CREDITUI-07: autoTopupEnabled kill switch
+// =============================================================================
+describe('CREDITUI-07: autoTopupEnabled kill switch', () => {
+  it('DEFAULT_BILLING_CONFIG.autoTopupEnabled is false (mirrors enforcementEnabled default posture)', () => {
+    expect(DEFAULT_BILLING_CONFIG.autoTopupEnabled).toBe(false)
+  })
+
+  it('a stored row WITHOUT autoTopupEnabled resolves to the default (false)', async () => {
+    serviceClientImpl = () => makeServiceClient({ metadata: { markup: 5 } })
+    const cfg = await getBillingConfig()
+    expect(cfg.autoTopupEnabled).toBe(false)
+  })
+
+  it('a stored row WITH autoTopupEnabled: true overrides to true', async () => {
+    serviceClientImpl = () => makeServiceClient({ metadata: { autoTopupEnabled: true } })
+    const cfg = await getBillingConfig()
+    expect(cfg.autoTopupEnabled).toBe(true)
+  })
+})
+
+// =============================================================================
 // SEAT-06 — seat config deep-merge (seatPriceCents + per-tier includedSeats)
 // =============================================================================
 describe('SEAT-06: seat config deep-merge', () => {
