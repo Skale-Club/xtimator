@@ -17,6 +17,7 @@ import {
 import { integrationKeySchema, billingConfigSchema } from '@/lib/schemas/admin'
 import { validateMarginInvariant, type TierMarginResult } from '@/lib/billing/calibration'
 import { EMAIL_FROM_ADDRESS } from '@/lib/email/sender'
+import { sendTelegramMessage } from '@/lib/telegram/client'
 
 export type ActionResult =
   | { ok: true; message?: string }
@@ -413,6 +414,102 @@ export async function saveXphereBaseUrl(
   })
 
   return { ok: true }
+}
+
+/**
+ * Save the Telegram ops-alert destination chat_id into
+ * platform_integrations.telegram metadata. Stored as { chat_id: "..." }
+ * alongside the existing encrypted bot token (preserved), mirroring
+ * saveTwilioFromPhone.
+ *
+ * Telegram chat_ids are numeric and may be negative (groups/channels use a
+ * negative id). Empty is allowed so the operator can clear the destination
+ * (the system then goes dormant via getTelegramConfig()).
+ */
+export async function saveTelegramChatId(chatId: string): Promise<ActionResult> {
+  const ctx = await requireAdmin()
+  const trimmed = chatId.trim()
+  if (trimmed && !/^-?\d+$/.test(trimmed)) {
+    return {
+      ok: false,
+      message:
+        'Chat ID must be a numeric Telegram chat id (e.g. 123456789 or -1001234567890).',
+    }
+  }
+
+  const svc = requireServiceClient()
+  const { data: existing } = await svc
+    .from('platform_integrations')
+    .select('ciphertext, iv, auth_tag, metadata')
+    .eq('provider', 'telegram')
+    .maybeSingle()
+
+  const { error } = await svc.from('platform_integrations').upsert(
+    {
+      provider: 'telegram',
+      ciphertext: existing?.ciphertext ?? null,
+      iv: existing?.iv ?? null,
+      auth_tag: existing?.auth_tag ?? null,
+      metadata: { ...((existing?.metadata as object) ?? {}), chat_id: trimmed },
+      updated_at: new Date().toISOString(),
+      updated_by: ctx.userId,
+    },
+    { onConflict: 'provider' }
+  )
+
+  if (error) return { ok: false, message: error.message }
+
+  invalidatePlatformConfig()
+  revalidatePath('/admin/integrations')
+
+  void logAdminAction({
+    actorId: ctx.userId,
+    actorEmail: ctx.email,
+    action: 'integration.save',
+    targetType: 'integration',
+    targetId: 'telegram_chat_id',
+    metadata: { chat_id: trimmed },
+  })
+
+  return { ok: true }
+}
+
+/**
+ * Send a real test alert to the configured Telegram chat so the operator can
+ * verify their bot token + chat_id end to end from the admin panel.
+ *
+ * This is the ONE place a Telegram transport error is surfaced to the user —
+ * every event-driven alert path (later plans) swallows/logs failures instead.
+ * A missing/invalid credential surfaces here as { ok:false, message }.
+ */
+export async function sendTelegramTestAlert(): Promise<ActionResult> {
+  const ctx = await requireAdmin()
+  try {
+    await sendTelegramMessage(
+      "✅ Xtimator ops alerts connected — you'll receive system-health alerts here."
+    )
+  } catch (e) {
+    const message = e instanceof Error ? e.message : 'Unknown error'
+    void logAdminAction({
+      actorId: ctx.userId,
+      actorEmail: ctx.email,
+      action: 'integration.test',
+      targetType: 'integration',
+      targetId: 'telegram',
+      metadata: { ok: false },
+    })
+    return { ok: false, message }
+  }
+
+  void logAdminAction({
+    actorId: ctx.userId,
+    actorEmail: ctx.email,
+    action: 'integration.test',
+    targetType: 'integration',
+    targetId: 'telegram',
+    metadata: { ok: true },
+  })
+  return { ok: true, message: 'Test alert sent — check your Telegram.' }
 }
 
 /**
