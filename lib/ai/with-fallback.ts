@@ -15,6 +15,8 @@
  * failure state (ENGINE-04 preserved).
  */
 
+import * as Sentry from '@sentry/nextjs'
+
 /** Result of a fallback-wrapped AI call. */
 export interface FallbackOutcome<T> {
   result: T
@@ -83,6 +85,42 @@ export class InvalidEstimateOutputError extends Error {
  * behavior depends on it here. Tenant scope lives inside the `primary`/`fallback`
  * closures; this wrapper never accepts a `companyId` field (multi-tenant invariant).
  */
+/**
+ * Never-throw observability for the silent successful-fallback path. Emits a
+ * Sentry warning that the primary failed and the fallback served. Escalates to
+ * 'error' when the primary error string indicates an ACCOUNT-level failure
+ * (402 / insufficient credits / 401 / bad-or-missing key) — that means the
+ * primary is down for a billing/auth reason (not a transient blip) and an
+ * operator must act. Detection is deliberately simple string matching — the
+ * wrapper only has the thrown error, so do not over-engineer HTTP parsing.
+ * Reporting must NEVER break the AI call: the whole body is try/catch-swallowed.
+ *
+ * Company-agnostic (multi-tenant invariant): the signal carries op + primary
+ * error only, NEVER a companyId.
+ */
+function reportSilentFallback(op: string, primaryErr: unknown): void {
+  try {
+    const primaryError =
+      primaryErr instanceof Error ? primaryErr.message : String(primaryErr)
+    const billingOrAuth =
+      /402|insufficient credits|401|user not found|not configured/i.test(primaryError)
+    Sentry.captureMessage(
+      `[ai-fallback] primary failed for op '${op}', served by fallback`,
+      {
+        level: billingOrAuth ? 'error' : 'warning',
+        tags: {
+          op,
+          ai_fallback: 'served_by_fallback',
+          ...(billingOrAuth ? { ai_primary_down: 'billing_or_auth' } : {}),
+        },
+        extra: { primaryError },
+      }
+    )
+  } catch {
+    // Reporting itself must never crash the fallback path.
+  }
+}
+
 export async function callWithFallback<T>(args: {
   op: string
   primary: () => Promise<T>
@@ -104,6 +142,10 @@ export async function callWithFallback<T>(args: {
     }
     try {
       const result = await args.fallback()
+      // Never-throw observability side-effect: surface the silent degradation
+      // (primary down, fallback served) so it is visible within minutes instead
+      // of running unnoticed for hours. Does not touch control flow or return shape.
+      reportSilentFallback(args.op, primaryErr)
       return { result, servedBy: 'fallback', fallbackFired: true }
     } catch (fallbackErr) {
       // Both failed — re-throw the MARKED error carrying the PRIMARY error as
