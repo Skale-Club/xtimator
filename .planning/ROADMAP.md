@@ -2515,7 +2515,7 @@ Plans:
 
 Plans:
 - [x] 153-01-PLAN.md — Dollar-pack top-up config + pack-picker UI (CREDITUI-06, near-zero risk)
-- [ ] 153-02-PLAN.md — Auto-top-up schema + concurrency-safe trigger core (CREDITUI-07, safety-critical foundation)
+- [x] 153-02-PLAN.md — Auto-top-up schema + concurrency-safe trigger core (CREDITUI-07, safety-critical foundation)
 - [ ] 153-03-PLAN.md — Payment-method capture + settings UI wired into Settings > Plans (CREDITUI-07, depends on 153-02)
 
 **UI hint**: yes
