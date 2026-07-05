@@ -1,100 +1,74 @@
-# Requirements: Xtimator — Milestone v4.13 Annual Billing
+# Requirements: Xtimator — Milestone v4.15 Credit UX Polish & Admin Support Tooling
 
-**Defined:** 2026-06-25
+**Defined:** 2026-07-05
 **Core Value:** A business owner can go from job site audio recording to a sent, professional estimate in under 5 minutes without touching a keyboard.
-**Milestone goal:** Add a discounted ANNUAL subscription option while keeping AI credit distribution MONTHLY for every interval. Annual changes price + billing cadence only — never the rate at which credits flow. Source: [SEED-038](seeds/SEED-038-annual-billing-discount.md).
+**Milestone goal:** Replace the raw numeric credit counter with a Claude-Console-style usage progress bar (tenants see only a % consumed, never $/credit math), move exact $ cost visibility to a super-admin-only surface, rework the top-up purchase flow to dollar packs with auto-top-up, and give the super admin an audited way to enter a tenant's live app view for support plus a properly paginated/searchable/filterable Companies admin screen. Source: [SEED-039](seeds/SEED-039-usage-progress-bar-dollar-topup.md) + [SEED-040](seeds/SEED-040-super-admin-tenant-impersonation-companies-overhaul.md).
 
 > **Locked decisions (non-negotiable):**
-> - **Credits stay MONTHLY for everyone; annual is only a price discount.** The annual plan is the same tier (same entitlements, same `monthlyCreditGrant`, same seats) at a lower effective monthly price. The discount is the only incentive.
-> - **Decouple the credit grant from the invoice cadence.** Today the monthly grant is a side-effect of `invoice.paid`, which fires monthly for monthly subs but only **once a year** for annual subs. The grant becomes calendar-month-driven: a monthly Inngest cron grants `monthlyCreditGrant` to active paying companies, idempotent on a **company+month** key `grant:{companyId}:{YYYY-MM}`. `invoice.paid` uses the SAME key so the two converge → **exactly one grant per company per calendar month**, for any interval. Monthly sub → webhook grants (cron no-ops); annual sub → webhook grants month 1, cron grants months 2-12.
-> - **ZERO hardcoded billing numbers.** The annual price (`tiers[tier].subscriptionPriceAnnualCents`) and the annual seat price (`seatPriceAnnualCents`) live in the super-admin `billing_config`, read at runtime via `getBillingConfig()`, editable without a deploy. The displayed discount % is DERIVED (`1 − annual/(12×monthly)`), never a stored magic number. No annual price, discount %, or Stripe Price ID may be a constant in application code.
-> - **The actual base-subscription charge uses pre-created annual Stripe Price IDs** (env `STRIPE_PRICE_PRO_ANNUAL` / `STRIPE_PRICE_BUSINESS_ANNUAL`, placeholders only). `billing_config.subscriptionPriceAnnualCents` is the display/super-admin figure kept consistent with the Stripe Price (same split as the existing monthly path). Seat billing uses inline `price_data` driven straight from `seatPriceAnnualCents` (no pre-created Price ID).
-> - **Interval is selected at checkout** (`billingInterval: 'month' | 'year'`, default `'month'`) and threaded through metadata; the seat-billing sync reads the subscription interval and matches it (the hardcoded `recurring: { interval: 'month' }` becomes dynamic).
-> - **Retrocompat is mandatory.** Default interval is `'month'`; every existing monthly subscriber is untouched. The grant idempotency-key change must keep granting monthly subs exactly once per month with NO double-grant across the webhook + cron (the company-month key is the single dedup authority) — a regression test locks this.
-> - **Charging stays behind the existing enforcement / live-mode discipline** (consistent with credit + seat billing). Display can ship anytime.
+> - **No new credit ledger.** The credit_ledger, markup math, and low-balance-threshold logic shipped by SEED-035/CREDITUI-01/02 (Phase 115) stay exactly as they are. This milestone is the UI + purchase-flow layer on top — it must not duplicate or re-derive ledger logic.
+> - **Tenants never see raw numbers.** No credit count and no $ figure may render on any tenant-facing surface (Plans page, topbar chip, notifications) — only a % bar and qualitative low/critical states.
+> - **$ cost visibility is super-admin-only**, extending the existing `measured-cost-card.tsx` admin pattern — never exposed to a tenant, even indirectly (e.g. via network payload a tenant page fetches).
+> - **Top-up packs and thresholds are configurable in `billing_config`**, never hardcoded — consistent with the SEED-035 "everything configurable" principle already established for markup/grants/prices.
+> - **Support Mode is NOT a real identity switch.** Impersonation uses a signed, time-boxed "acting-as-company" session claim layered on the admin's own session — RLS-safe, revocable, never persisted beyond the browser session, and distinct from a Supabase auth sign-in as the tenant.
+> - **Support Mode ≠ HandoffButton.** The existing `HandoffButton` (Phase 149, `app/admin/companies/handoff-button.tsx`) sends a real owner-invite email to transfer a DEMO account to a prospect — a sales flow. Support Mode is a live, audited, admin-eyes-only viewing capability. The two must not be conflated or merged.
+> - **Every Support Mode session is audit-logged** via the existing `lib/admin/audit-log.ts` — who, which company, when, how long.
+> - **Phase numbering** continues the global ROADMAP.md counter from Phase 149 (v4.14 Admin Sales Mode) — Phase 1001 (SEO) shipped out-of-band via quick-tasks and is not part of the roadmap phase counter. v4.15 starts at **Phase 150**.
 
 ## v1 Requirements
 
 Each requirement maps to exactly one roadmap phase.
 
-### Configurable Annual Pricing
+### Usage Progress Bar
 
-- [x] **ANN-01**: Extend `BillingConfig` + `DEFAULT_BILLING_CONFIG` (`lib/billing/billing-config.ts`) with `tiers[tier].subscriptionPriceAnnualCents` (per-tier) + `seatPriceAnnualCents` (global) as null-safe calibration placeholders, mirror them in the admin zod schema (`lib/schemas/admin.ts`), and surface both as editable fields in the super-admin billing panel. Nothing hardcoded; deep-merge tolerant for rows written before the fields existed.
+- [ ] **CREDITUI-03**: Tenant sees a single usage progress bar (percentage consumed this cycle, color-escalating as it depletes) on Settings > Plans and in the app-shell topbar credit chip, replacing today's raw numeric "N credits" display.
+- [ ] **CREDITUI-04**: No tenant-facing surface (Plans page, topbar chip, low-balance notification copy) displays a raw credit count or a dollar cost figure — only the percentage bar and qualitative low/critical states.
 
-### Monthly Credit Grant Decouple (the core)
+### Super-Admin-Only Cost Visibility
 
-- [x] **ANN-02**: Change the `invoice.paid` credit-grant idempotency key to `grant:{companyId}:{YYYY-MM}` and add an Inngest monthly cron (`lib/inngest/functions/monthly-credit-grant.ts`) that grants `monthlyCreditGrant` to active paying companies once per company-month using the SAME key (reusing the idempotent, never-throw `grantCredits`). Guarantees exactly one grant per company per calendar month for ALL intervals. Retrocompat: monthly subscribers still get exactly one grant/month with NO double-grant across webhook + cron — regression-tested.
+- [ ] **CREDITUI-05**: Super admin can view, per company, the exact credit balance, real USD cost incurred, and applied markup — surfaced in the admin panel (extending the existing `measured-cost-card.tsx` pattern); this data is never sent to or renderable by a tenant session.
 
-### Settings Account Consolidation and Admin-Only WhatsApp Control
+### Dollar-Denominated Top-Up
 
-- [x] **ACCT-01**: Consolidate the tenant's personal profile and credential controls into `Settings → Account`; remove the separate General navigation entry, preserve `/settings/general` as a compatibility redirect to `/settings/account`, and keep profile photo, account name, personal phone, email, and password management functional.
-- [x] **WAADM-01**: Tenant users cannot view or configure WhatsApp provisioning data, inboxes, conversation history, linked numbers, status, delivery format, or message previews from any route or project surface; direct access to legacy tenant WhatsApp URLs returns no protected content.
-- [x] **WAADM-02**: The super-admin WhatsApp surface supports server-side filtering and pagination by tenant company/account, authorized sender/member, phone/contact search, status, unread state, and date range; opening a result shows the read-only conversation thread within the selected account context.
-- [x] **WAADM-03**: WhatsApp provisioning is writable only through `requireAdmin()`-gated server actions with E.164 validation, active-number uniqueness, explicit status transitions, and `admin_audit_log` coverage; no tenant action can write the provisioning tables through the service role.
-- [x] **WAADM-04**: Inbound owner routing trusts only active admin-provisioned senders; onboarding, profile, and Company Settings cannot seed or change routing, and the `companies.phone` fallback is removed. Existing per-user rows are migrated with an expand–migrate–contract rollout and ambiguous companies are surfaced for admin review instead of silently resolved.
-- [x] **WAADM-05**: Tenant outbound estimate sending via WhatsApp remains available only as an opaque action when the account is admin-provisioned and active, without exposing configuration or history. Proactive tenant WhatsApp notifications are disabled while their historical consent data is preserved until a compliant consent flow exists.
+- [ ] **CREDITUI-06**: Tenant purchases additional credits by choosing a dollar amount ($20 / $50 / $100, sizes configurable in `billing_config`) rather than a credit quantity; the chosen amount is charged via a Stripe one-time checkout and converted to credits using the existing markup/denomination.
+- [ ] **CREDITUI-07**: Tenant can enable auto-top-up — when the balance drops below a configurable dollar threshold, the configured dollar pack is purchased automatically against their saved default payment method, mirroring Anthropic Console's Auto Top-Up settings (threshold, purchase amount, primary payment method).
 
-### Annual Checkout
+### Super-Admin Tenant Impersonation (Support Mode)
 
-- [x] **ANN-03**: `create-checkout-session` accepts `billingInterval: 'month' | 'year'` (default `'month'`), selects the matching Stripe Price ID (annual via new env `STRIPE_PRICE_PRO_ANNUAL` / `STRIPE_PRICE_BUSINESS_ANNUAL`), and stores `billing_interval` in the subscription/session metadata. Env examples documented with placeholders only. Retrocompat: the no-interval / `'month'` path is byte-identical to today.
+- [ ] **SUPPORT-01**: Super admin can enter a normal tenant-scoped app view ("Support Mode") for any company directly from the admin Companies screen, without needing the tenant's credentials.
+- [ ] **SUPPORT-02**: While in Support Mode, every page displays a persistent banner identifying the acting super admin and the company being viewed, matching the existing "Super Admin Mode" banner already shown across `/admin`.
+- [ ] **SUPPORT-03**: Every Support Mode session (entry, company, admin identity, duration, exit) is recorded in the existing admin audit log.
+- [ ] **SUPPORT-04**: Support Mode access is scoped by a signed, time-boxed session claim (not a full identity switch), respects existing RLS, is automatically revoked when the session ends or expires, and never persists beyond the browser session.
 
-### Interval-Aware Seat Billing
+### Companies Admin Screen Overhaul
 
-- [x] **ANN-04**: Make `syncSubscriptionSeatItem` interval-aware — read the subscription's interval and set the seat item's `recurring.interval` to match (replacing the hardcoded `'month'`), using `seatPriceAnnualCents` for annual subscriptions. Retrocompat: monthly orgs' seat billing is unchanged; gated by the same `enforcementEnabled` switch.
-
-### Pricing UI
-
-- [x] **ANN-05**: The pricing cards (`components/billing/tier-cards-grid.tsx` + `tier-card.tsx`) gain a Monthly/Annual toggle showing the annual price, the DERIVED "save X%" badge, and the per-month-equivalent; the selected interval threads into the upgrade/checkout action. Mobile-safe; i18n en/pt/es via runtime t().
+- [ ] **ADMINCO-01**: Super admin can search the Companies admin list by name or associated email and see live-filtered results.
+- [ ] **ADMINCO-02**: Super admin can filter the Companies list by tier, whether an AI model override is set, and demo vs. real account.
+- [ ] **ADMINCO-03**: The Companies list is server-side paginated (does not load every tenant row at once), with page navigation and a visible total count.
+- [ ] **ADMINCO-04**: The existing "Demo Accounts" grouping, `HandoffButton`, and "Configure →" per-row actions continue to work unchanged within the new paginated/filterable list.
 
 ## v2 Requirements
 
 Deferred to a future milestone. Tracked but not in this roadmap.
 
-- **ANNX-01**: Mid-cycle interval switch (monthly↔annual) with Stripe proration.
-- **ANNX-02**: Multi-currency annual pricing.
-- **ANNX-03**: Per-tenant custom discounts / promo codes; annual-only tiers.
-- **ANNX-04**: Dunning / retry-logic changes for annual invoices.
-
-## Cross-milestone Requirements — Phase 1001 SEO
-
-- [x] **SEO-01**: Serve valid robots and sitemap metadata routes, define a single canonical production origin, include only intended public URLs, and enforce explicit noindex boundaries for private/auth/admin/demo/share surfaces.
-- [x] **SEO-02**: Give every indexable route unique search and social metadata: title, concise description, self-canonical, `og:url`, `og:type`, Twitter card, and accessible 1200×630 social image metadata. Emit `fb:app_id` only when a real configured ID exists.
-- [x] **SEO-03**: Emit validated JSON-LD for Organization, WebSite, and SoftwareApplication on the acquisition surface and Article plus BreadcrumbList on blog posts, with values derived from canonical application data rather than duplicated constants.
-- [x] **SEO-04**: Ship a curated content architecture with unique blog index/post metadata and an initial set of substantial industry landing pages that answer trade-specific estimating needs and link naturally to product/demo conversion paths; reject thin or duplicate pages.
-- [x] **SEO-05**: Keep anonymous acquisition pages cacheable and mobile-fast while preserving auth-aware navigation after hydration; Lighthouse gates require SEO ≥95 and performance/accessibility ≥85 on representative public routes.
-- [x] **SEO-06**: Add automated metadata/schema/index-policy regressions plus a production launch and measurement runbook covering Search Console, sitemap submission, URL inspection, Meta Sharing Debugger, Bing Webmaster Tools, and 30/60/90-day reporting.
+- **CREDITUIX-01**: Multiple/custom top-up amounts beyond the three configured packs (a free-entry $ field).
+- **CREDITUIX-02**: Per-tier usage-bar reset cadence customization (today all tiers reset on the UTC calendar month, per existing behavior).
+- **SUPPORTX-01**: Support Mode write actions (today scoped to read/navigate only — whether the super admin can perform mutating actions while impersonating is an open question deferred past v1).
+- **ADMINCOX-01**: Bulk actions on the Companies list (bulk tier change, bulk export).
 
 ## Out of Scope
 
 | Feature | Reason |
 |---------|--------|
-| Granting credits 12× upfront on annual | Locked decision — credits stay MONTHLY for all intervals |
-| Hardcoded annual price / discount % / Price ID | Every billing knob is super-admin-configurable via `billing_config`; the discount % is derived |
-| Changing monthly-subscriber behavior | Retrocompat — default interval `'month'`, byte-identical monthly path |
-| Mid-cycle proration on interval switch | Deferred to v2 — v1 selects interval at checkout/upgrade only |
-| Charging before calibration / live-mode | Gated by the existing `enforcementEnabled` / live-mode discipline |
+| Rebuilding the credit ledger / markup engine | SEED-035/CREDITUI-01/02 already shipped this; this milestone is UI + purchase-flow only |
+| Tenant-visible $ cost anywhere | Locked decision — $ visibility is super-admin-only |
+| Real Supabase-auth identity switch for impersonation | Locked decision — Support Mode uses a signed session claim, not a real sign-in-as |
+| Merging Support Mode with `HandoffButton` | Different features (audited internal support view vs. demo-to-prospect owner invite) |
+| Free-entry custom top-up amount | v1 ships exactly 3 configurable packs; deferred to CREDITUIX-01 |
+| Bulk actions on Companies list | Deferred to ADMINCOX-01 |
 
 ## Traceability
 
-| Requirement | Phase | Status |
-|-------------|-------|--------|
-| ANN-01 | Phase 141 | Complete |
-| ANN-02 | Phase 142 | Complete |
-| ACCT-01 | Phase 142.1 | Complete |
-| WAADM-01 | Phase 142.1 | Complete |
-| WAADM-02 | Phase 142.1 | Complete |
-| WAADM-03 | Phase 142.1 | Complete |
-| WAADM-04 | Phase 142.1 | Complete |
-| WAADM-05 | Phase 142.1 | Complete |
-| ANN-03 | Phase 143 | Complete |
-| ANN-04 | Phase 144 | Complete |
-| ANN-05 | Phase 145 | Complete |
-
-**Coverage:**
-
-- v1 requirements: 11 total
-- Mapped to phases: 11 (ANN-01 → 141, ANN-02 → 142, ACCT-01 + WAADM-01..05 → 142.1, ANN-03 → 143, ANN-04 → 144, ANN-05 → 145)
-- Unmapped: 0 — **zero orphans confirmed**
+_Filled by the roadmapper when phases are created._
 
 ---
-*Requirements defined: 2026-06-25 — milestone v4.13 Annual Billing (source SEED-038; phase numbering continues the global counter — v4.12 ended at Phase 140, so this milestone starts at Phase 141).*
+*Requirements defined: 2026-07-05 — milestone v4.15 Credit UX Polish & Admin Support Tooling (sources: SEED-039, SEED-040; phase numbering continues the global counter — v4.14 ended at Phase 149 in ROADMAP.md, so this milestone starts at Phase 150).*
