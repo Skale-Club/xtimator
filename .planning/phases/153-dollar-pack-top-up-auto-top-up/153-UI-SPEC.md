@@ -1,10 +1,11 @@
 ---
 phase: 153
 slug: dollar-pack-top-up-auto-top-up
-status: draft
+status: approved
 shadcn_initialized: true
 preset: new-york (neutral base, cssVariables, lucide icons, radix-ui primitives)
 created: 2026-07-05
+reviewed_at: 2026-07-05
 ---
 
 # Phase 153 — UI Design Contract

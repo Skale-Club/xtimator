@@ -1,10 +1,11 @@
 ---
 phase: 152
 slug: usage-progress-bar-super-admin-cost-visibility
-status: draft
+status: approved
 shadcn_initialized: true
 preset: "style=new-york, base=radix, iconLibrary=lucide, baseColor=neutral, cssVariables=true, tailwind=v4"
 created: 2026-07-05
+reviewed_at: 2026-07-05
 ---
 
 # Phase 152 — UI Design Contract
