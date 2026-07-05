@@ -40,13 +40,13 @@ Declared values (must be multiples of 4) — these are Xtimator's existing scale
 | Token | Value | Usage |
 |-------|-------|-------|
 | xs | 4px | Icon-to-text gaps (e.g. row unread dot, badge internals) |
-| sm | 8px | Compact gaps (`gap-2`, row internal spacing) |
+| sm | 8px | Compact gaps (`gap-2`, row internal spacing), list row vertical padding |
 | md | 16px | Row/cell horizontal padding (`px-4`), pane header/footer padding |
 | lg | 24px | Not used inside the two-pane container (reserved for outer page sections) |
 | xl | 32px | Not used inside the two-pane container |
 
-Row vertical rhythm (from CONTEXT.md lock, matches existing table row height class `py-3`/`py-2.5`):
-- List row: `px-3 py-2.5` (12px horizontal / 10px vertical) — matches Xphere's `ConversationCardBase` weight, reusing Xtimator's own `--radius-md` for the row corner instead of Xphere's `rounded-[8px]` literal.
+Row vertical rhythm:
+- List row: `px-3 py-2` (12px horizontal / 8px vertical). 8px vertical padding is a valid scale value (`sm`), and is intentionally denser than the existing table's `py-3` cells (12px) — a deliberate choice for a compact conversation-list aesthetic, not a reuse claim against any existing `py-2.5` class (no such class exists in the codebase; the existing table/Sheet padding is `px-4 py-3` throughout, confirmed via `admin-whatsapp-client.tsx`).
 - Pane header/footer: `px-4 py-3` (matches existing `SheetHeader`/table thead padding, `border-b`/`border-t`).
 
 Exceptions:
@@ -68,6 +68,8 @@ Reusing exact classes already present in `admin-whatsapp-client.tsx` / `admin-wh
 
 Only 2 weights used across this phase: 400 (regular, body/caption/micro) and 500 (medium, names/titles — matches existing `font-medium` usage, NOT 600/semibold, since the current table/Sheet implementation uses `font-medium` throughout, not `font-semibold`). This is a pre-existing project convention, reused rather than invented.
 
+**Exemption note:** The no-conversation-selected empty state reuses the existing `EmptyState` component (`components/dashboard/empty-state.tsx`) verbatim. That shared component's own internal typography (`text-lg font-semibold` — 18px/600) is inherited from that shared, unmodified component — not a new type choice authored by this phase — and is exempt from this phase's own 4-size/2-weight budget above, mirroring how phase 154 exempted the shared `tabs.tsx` primitive's font-weight. No phase-authored markup introduces 18px or weight 600; only the pre-existing `EmptyState` internals do.
+
 ---
 
 ## Layout Contract (phase-specific — supplements the template)
@@ -81,17 +83,21 @@ Only 2 weights used across this phase: 400 (regular, body/caption/micro) and 500
 </div>
 ```
 
-- **Height source**: `app/admin/layout.tsx`'s `<main>` is `flex-1 overflow-y-auto px-8 py-8` — the `<main>` itself is the scroll container for the whole admin page today. For this phase's two-pane viewer to scroll each pane independently (list scrolls, thread scrolls, outer page does NOT scroll as a whole — per CONTEXT.md lock), the Inbox page content must opt OUT of `<main>`'s scroll and instead fill it: the page root wrapper uses `h-full min-h-0 flex flex-col` so the two-pane container can compute its own bounded height from the `<main>` viewport, and each pane gets its own `overflow-y-auto` + `min-h-0`. **Autonomous decision**: do not modify `app/admin/layout.tsx` (out of blast radius for this phase); instead the Inbox page's own root div takes `h-[calc(100vh-var(--admin-chrome-height))]`-equivalent via `h-full` (relying on `<main>` being a flex child that already constrains height) — concretely, wrap the two-pane row in a container with `flex-1 min-h-0` inside the page, so it fills whatever height `<main>` gives it, and give that wrapper its own `overflow-hidden` so only the two inner panes scroll, not `<main>`.
+- **Height source**: `app/admin/layout.tsx`'s `<main>` is `flex-1 overflow-y-auto px-8 py-8` — the `<main>` itself is the scroll container for the whole admin page today. For this phase's two-pane viewer to scroll each pane independently (list scrolls, thread scrolls, outer page does NOT scroll as a whole — per CONTEXT.md lock), the Inbox page content must opt OUT of `<main>`'s scroll and instead fill it: the page root wrapper uses `h-full min-h-0 flex flex-col` so the two-pane container can compute its own bounded height from the `<main>` viewport, and each pane gets its own `overflow-y-auto` + `min-h-0`. **Autonomous decision**: do not modify `app/admin/layout.tsx` (out of blast radius for this phase); instead the Inbox page's own root div takes `h-full` (relying on `<main>` being a flex child that already constrains height) — concretely, wrap the two-pane row in a container with `flex-1 min-h-0` inside the page, so it fills whatever height `<main>` gives it, and give that wrapper its own `overflow-hidden` so only the two inner panes scroll, not `<main>`.
 - **Left pane width**: fixed `w-[320px] shrink-0` (Autonomous decision, per CONTEXT.md's explicit menu of `w-[320px]` or `w-[360px]` — 320px chosen to match Xphere's stated default width and because the row content (name + timestamp + preview) fits comfortably at 320px given Xtimator's shorter row content — no company-branding avatar column like Xphere). Resizing is explicitly skipped (CONTEXT.md discretion — adds risk/time without being a locked requirement).
 - **Right pane**: `flex-1 min-h-0 flex flex-col overflow-hidden` — header (fixed), message list (`flex-1 overflow-y-auto`), footer note (fixed).
 - **Divider**: `border-r border-border` between panes (existing `--border` token, no new divider style).
+
+### Primary visual anchors
+
+The selected conversation row's accent-colored left border and the thread pane's message list are the primary visual anchors of this screen; the list pane's search/filter header is secondary. Everything else (dividers, captions, footer note) is deliberately low-contrast so the eye lands on "which conversation is active" and "what was said" first.
 
 ### Conversation list (left pane) row anatomy
 
 Reusing exact fallback copy and formatting already in `admin-whatsapp-client.tsx`:
 
 ```
-<div role="button" tabIndex={0} className="flex items-center gap-3 px-3 py-2.5 rounded-[var(--radius-md)] cursor-pointer hover:bg-muted/20 [selected: bg-muted/60 border-l-2 border-[hsl(var(--primary))]]">
+<div role="button" tabIndex={0} className="flex items-center gap-3 px-3 py-2 rounded-[var(--radius-md)] cursor-pointer hover:bg-muted/20 [selected: bg-muted/60 border-l-2 border-[hsl(var(--primary))]]">
   <div className="flex min-w-0 flex-1 flex-col gap-0.5">
     <div className="flex items-center justify-between gap-2">
       <span className="text-sm font-medium truncate">{contact_name || "(unknown)"}</span>
@@ -118,7 +124,7 @@ Reusing exact fallback copy and formatting already in `admin-whatsapp-client.tsx
 - Loading state: centered `Loader2` spinner (`h-6 w-6 animate-spin text-muted-foreground`) — unchanged from current Sheet.
 - Footer: `border-t px-4 py-2 text-xs text-muted-foreground` — "Read-only. Shows up to the last 30 days of messages." — unchanged copy.
 - Empty-message state (thread loaded, zero messages in 30 days): "No messages in the last 30 days." — unchanged copy.
-- No-conversation-selected state (new): reuse the existing `EmptyState` component (`components/dashboard/empty-state.tsx`) rather than a bespoke placeholder — see Copywriting Contract below.
+- No-conversation-selected state (new): reuse the existing `EmptyState` component (`components/dashboard/empty-state.tsx`) rather than a bespoke placeholder — see Copywriting Contract below and the Typography exemption note above for how its internal 18px/600 title is treated.
 
 ### Mobile behavior (below `md:`, i.e. < 768px)
 
