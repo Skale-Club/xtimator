@@ -1,8 +1,10 @@
 ---
 id: SEED-040
-status: dormant
+status: harvested
 planted: 2026-07-05
 planted_during: v4.14 SEO Readiness (Phase 1001 wrap-up)
+harvested: 2026-07-05
+harvested_in: v4.15 Credit UX Polish & Admin Support Tooling (Phases 150-151)
 trigger_when: Now — next milestone. Live tenants (18+ companies) already need support, and the current Companies list doesn't scale.
 scope: Large
 ---

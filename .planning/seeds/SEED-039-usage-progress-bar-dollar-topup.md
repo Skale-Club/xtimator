@@ -1,8 +1,10 @@
 ---
 id: SEED-039
-status: dormant
+status: harvested
 planted: 2026-07-05
 planted_during: v4.14 SEO Readiness (Phase 1001 wrap-up)
+harvested: 2026-07-05
+harvested_in: v4.15 Credit UX Polish & Admin Support Tooling (Phases 152-153)
 trigger_when: Now — next milestone after the current SEO wrap-up. Live tenants are already looking at the raw "2,000 credits" counter today.
 scope: Medium
 ---
