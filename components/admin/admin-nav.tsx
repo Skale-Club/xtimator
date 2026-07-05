@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { AppIcon } from '@/components/ui/app-icon'
-import { Settings2, Palette, Users, LayoutDashboard, Globe, Layout, FileText, CreditCard, Building2, Scale, ScrollText, MessageCircle, BookOpen } from 'lucide-react'
+import { Settings2, Palette, Users, LayoutDashboard, Globe, Layout, FileText, CreditCard, Building2, Scale, ScrollText, Inbox, BookOpen } from 'lucide-react'
 import { useTranslation } from '@/lib/i18n/use-translation'
 
 const NAV_ITEMS = [
@@ -22,8 +22,7 @@ const NAV_ITEMS = [
   },
   { href: '/admin/billing',      label: 'Billing',      Icon: CreditCard },
   { href: '/admin/companies',    label: 'Companies',    Icon: Building2 },
-  { href: '/admin/whatsapp',     label: 'WhatsApp',     Icon: MessageCircle },
-  { href: '/admin/whatsapp-templates', label: 'WA Templates', Icon: MessageCircle },
+  { href: '/admin/inbox',        label: 'Inbox',        Icon: Inbox },
   { href: '/admin/admins',       label: 'Admins',       Icon: Users },
   { href: '/admin/events',       label: 'Event Log',    Icon: ScrollText },
 ] as const
