@@ -103,17 +103,17 @@ export function ProjectTitle({ projectId, initialName, onRenameSuccess }: Projec
   }
 
   return (
-    <div className="flex items-center gap-2 group">
+    <div className="flex items-center gap-2 group min-w-0">
       <h1
         onClick={enterEdit}
-        className="text-[clamp(28px,3.5vw,40px)] font-semibold tracking-[-0.02em] leading-[1.1] cursor-pointer"
+        className="min-w-0 truncate text-[clamp(28px,3.5vw,40px)] font-semibold tracking-[-0.02em] leading-[1.1] cursor-pointer"
       >
         {name}
       </h1>
       <button
         type="button"
         onClick={enterEdit}
-        className="inline-flex items-center justify-center rounded-md p-1.5 text-muted-foreground/40 hover:text-foreground hover:bg-muted transition-colors opacity-0 group-hover:opacity-100"
+        className="inline-flex items-center justify-center rounded-md p-1.5 text-muted-foreground/40 hover:text-foreground hover:bg-muted transition-colors opacity-0 group-hover:opacity-100 shrink-0"
         aria-label={t('Rename project')}
       >
         <Pencil className="h-4 w-4" />

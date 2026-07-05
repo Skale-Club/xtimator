@@ -27,7 +27,7 @@ export function ProjectHeader({ project }: ProjectHeaderProps) {
 
   return (
     <header className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm [-webkit-backdrop-filter:blur(4px)] px-5 pb-3 pt-4 md:px-6">
-      <div className="flex items-center gap-3 flex-wrap justify-between">
+      <div className="flex items-center gap-3 justify-between">
         {/* Left: title */}
         <div className="min-w-0">
           <ProjectTitle
