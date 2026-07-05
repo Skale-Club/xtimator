@@ -32,6 +32,7 @@ export default async function AdminInboxPage({
 
   const sp = await searchParams
   const filters = parseAdminWhatsAppFilters(sp)
+  const initialConversationId = typeof sp.conversation === 'string' ? sp.conversation : null
 
   const convResult = await listAdminWhatsAppConversations(filters)
 
@@ -58,7 +59,7 @@ export default async function AdminInboxPage({
     filters.companyId || filters.senderId || filters.q || filters.status || filters.unreadOnly || filters.dateFrom || filters.dateTo
 
   return (
-    <div className="space-y-8">
+    <div className="flex h-full min-h-0 flex-col space-y-8">
       {/* Page header */}
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-2">
@@ -79,53 +80,55 @@ export default async function AdminInboxPage({
         </Link>
       </div>
 
-      {/* Conversations view */}
-      <div className="space-y-6">
-        {/* Filters */}
-        <AdminWhatsAppFilters
-          companyId={filters.companyId}
-          senderId={filters.senderId}
-          q={filters.q}
-          status={filters.status}
-          unreadOnly={filters.unreadOnly}
-          dateFrom={filters.dateFrom?.toISOString().slice(0, 10)}
-          dateTo={filters.dateTo?.toISOString().slice(0, 10)}
-        />
-
-        {/* Conversations count */}
-        <p className="text-xs text-muted-foreground">
-          {convResult.total === 0 && !hasActiveFilters ? (
-            <T>No WhatsApp conversations yet.</T>
-          ) : (
-            <T text={`${convResult.total} conversations · Page ${convResult.page} of ${convResult.pageCount}`} />
-          )}
-        </p>
-
-        {/* Conversations table */}
-        <AdminWhatsAppClient conversations={rows} />
-
-        {/* Pagination */}
-        {convResult.pageCount > 1 && (
-          <div className="flex items-center gap-2 text-sm">
-            {convResult.page > 1 ? (
-              <Link href={pageUrl(convResult.page - 1)} className="text-[hsl(var(--primary))] hover:underline">
-                <T>Previous</T>
-              </Link>
-            ) : (
-              <span className="text-muted-foreground"><T>Previous</T></span>
-            )}
-            <span className="text-muted-foreground">
-              <T text={`Page ${convResult.page} of ${convResult.pageCount}`} />
-            </span>
-            {convResult.page < convResult.pageCount ? (
-              <Link href={pageUrl(convResult.page + 1)} className="text-[hsl(var(--primary))] hover:underline">
-                <T>Next</T>
-              </Link>
-            ) : (
-              <span className="text-muted-foreground"><T>Next</T></span>
-            )}
-          </div>
+      {/* Conversations count */}
+      <p className="text-xs text-muted-foreground">
+        {convResult.total === 0 && !hasActiveFilters ? (
+          <T>No WhatsApp conversations yet.</T>
+        ) : (
+          <T text={`${convResult.total} conversations · Page ${convResult.page} of ${convResult.pageCount}`} />
         )}
+      </p>
+
+      {/* Two-pane master-detail viewer */}
+      <div className="flex-1 min-h-0 overflow-hidden">
+        <AdminWhatsAppClient
+          conversations={rows}
+          initialConversationId={initialConversationId}
+          filtersSlot={
+            <AdminWhatsAppFilters
+              companyId={filters.companyId}
+              senderId={filters.senderId}
+              q={filters.q}
+              status={filters.status}
+              unreadOnly={filters.unreadOnly}
+              dateFrom={filters.dateFrom?.toISOString().slice(0, 10)}
+              dateTo={filters.dateTo?.toISOString().slice(0, 10)}
+            />
+          }
+          paginationSlot={
+            convResult.pageCount > 1 ? (
+              <div className="flex items-center gap-2 text-sm">
+                {convResult.page > 1 ? (
+                  <Link href={pageUrl(convResult.page - 1)} className="text-[hsl(var(--primary))] hover:underline">
+                    <T>Previous</T>
+                  </Link>
+                ) : (
+                  <span className="text-muted-foreground"><T>Previous</T></span>
+                )}
+                <span className="text-muted-foreground">
+                  <T text={`Page ${convResult.page} of ${convResult.pageCount}`} />
+                </span>
+                {convResult.page < convResult.pageCount ? (
+                  <Link href={pageUrl(convResult.page + 1)} className="text-[hsl(var(--primary))] hover:underline">
+                    <T>Next</T>
+                  </Link>
+                ) : (
+                  <span className="text-muted-foreground"><T>Next</T></span>
+                )}
+              </div>
+            ) : null
+          }
+        />
       </div>
     </div>
   )
