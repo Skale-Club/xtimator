@@ -15,6 +15,7 @@ import { WhatsAppConfigForm } from './whatsapp-config-form'
 import { WhatsAppSystemPromptForm } from './whatsapp-system-prompt-form'
 import { XphereConfigForm } from './xphere-config-form'
 import { XphereStatus } from './xphere-status'
+import { TelegramChatIdForm } from './telegram-chat-id-form'
 import { PriceResearchConfigForm } from './price-research-config-form'
 import { DEFAULT_BILLING_CONFIG } from '@/lib/billing/billing-config'
 import { aggregateAiCostByOperation, type OpCostStat } from '@/lib/billing/calibration'
@@ -79,6 +80,17 @@ export async function IntegrationCategoryContent({
       .eq('provider', 'xphere')
       .maybeSingle()
     xphereBaseUrl = (data?.metadata as { base_url?: string } | null)?.base_url ?? ''
+  }
+
+  let telegramChatId = ''
+  if (category.showTelegramConfig) {
+    const svc = requireServiceClient()
+    const { data } = await svc
+      .from('platform_integrations')
+      .select('metadata')
+      .eq('provider', 'telegram')
+      .maybeSingle()
+    telegramChatId = (data?.metadata as { chat_id?: string } | null)?.chat_id ?? ''
   }
 
   let priceResearch = {
@@ -161,6 +173,10 @@ export async function IntegrationCategoryContent({
           <XphereConfigForm current={xphereBaseUrl} />
           <XphereStatus />
         </>
+      )}
+
+      {category.showTelegramConfig && (
+        <TelegramChatIdForm current={telegramChatId} />
       )}
 
       {category.showWhatsAppConfig && (

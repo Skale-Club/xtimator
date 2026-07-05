@@ -36,6 +36,8 @@ export type Category = {
   showPriceResearchConfig?: boolean
   /** Billing category renders the billing-parameters config form below. */
   showBillingConfig?: boolean
+  /** Platform Alerts category renders the Telegram chat_id form + test-alert button below. */
+  showTelegramConfig?: boolean
 }
 
 export const CATEGORIES: ReadonlyArray<Category> = [
@@ -150,6 +152,22 @@ export const CATEGORIES: ReadonlyArray<Category> = [
       'Platform billing parameters — markup, credit denomination, per-tier grants and prices, top-up packs, Whisper rate, estimate fee %, low-balance thresholds. Applied at runtime, no redeploy. Tenants never see these controls. Defaults are illustrative — calibrate before charging (CALIB-02).',
     showBillingConfig: true,
     providers: [],
+  },
+  {
+    slug: 'ops-alerts',
+    title: 'Platform Alerts',
+    navLabel: 'Alerts',
+    description:
+      'System-health alerts (AI down, generation/transcription/vision failures, cron failures) delivered to the platform owner via Telegram. Enter a bot token and chat_id, then send a test alert.',
+    showTelegramConfig: true,
+    providers: [
+      {
+        id: 'telegram' as IntegrationProvider,
+        title: 'Telegram',
+        description:
+          'Bot token from @BotFather. Set the chat_id below (message the bot, then read it from https://api.telegram.org/bot<token>/getUpdates). Alerts stay off until both are set.',
+      },
+    ],
   },
 ] as const
 
