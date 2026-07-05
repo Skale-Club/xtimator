@@ -35,7 +35,7 @@ Each requirement maps to exactly one roadmap phase.
 ### Super-Admin Tenant Impersonation (Support Mode)
 
 - [x] **SUPPORT-01**: Super admin can enter a normal tenant-scoped app view ("Support Mode") for any company directly from the admin Companies screen, without needing the tenant's credentials.
-- [ ] **SUPPORT-02**: While in Support Mode, every page displays a persistent banner identifying the acting super admin and the company being viewed, matching the existing "Super Admin Mode" banner already shown across `/admin`.
+- [x] **SUPPORT-02**: While in Support Mode, every page displays a persistent banner identifying the acting super admin and the company being viewed, matching the existing "Super Admin Mode" banner already shown across `/admin`.
 - [x] **SUPPORT-03**: Every Support Mode session (entry, company, admin identity, duration, exit) is recorded in the existing admin audit log.
 - [x] **SUPPORT-04**: Support Mode access is scoped by a signed, time-boxed session claim (not a full identity switch), respects existing RLS, is automatically revoked when the session ends or expires, and never persists beyond the browser session.
 
@@ -75,7 +75,7 @@ Deferred to a future milestone. Tracked but not in this roadmap.
 | ADMINCO-03 | Phase 150 | Complete |
 | ADMINCO-04 | Phase 150 | Complete |
 | SUPPORT-01 | Phase 151 | Complete |
-| SUPPORT-02 | Phase 151 | Pending |
+| SUPPORT-02 | Phase 151 | Complete |
 | SUPPORT-03 | Phase 151 | Complete |
 | SUPPORT-04 | Phase 151 | Complete |
 | CREDITUI-03 | Phase 152 | Complete |
