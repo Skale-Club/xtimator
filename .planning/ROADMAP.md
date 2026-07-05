@@ -34,6 +34,7 @@
 - 🚧 **v4.12 Team Seats & Member Invites** — Phases 135-140 (roadmap created 2026-06-25) — turn the dormant `company_members` foundation (Phase 79) into team seats: invite teammates into the SAME company, owner/admin/member roles (server-side `requireCompanyRole` + RLS, never client-trusted), and per-seat billing fully configurable in `billing_config`/super-admin (nothing hardcoded), gated by `enforcementEnabled`; retrocompat single-owner orgs = zero charge; reuse existing RLS, do NOT rebuild multi-tenancy; SEED-037
 - 🚧 **v4.13 Annual Billing** — Phases 141-145 (roadmap created 2026-06-25) — add a discounted ANNUAL subscription option while keeping AI credit distribution MONTHLY for every interval. The load-bearing change: decouple the credit grant from the invoice cadence via an Inngest monthly cron + a `grant:{companyId}:{YYYY-MM}` company-month idempotency key shared with the `invoice.paid` webhook (exactly one grant per company per calendar month, any interval). Annual price + seat price live in `billing_config`/super-admin (nothing hardcoded; discount % derived); base charge via pre-created annual Stripe Price IDs (env placeholders); seat annual via inline `price_data`; checkout `billingInterval` default `'month'` keeps the monthly path byte-identical; gated by `enforcementEnabled`; SEED-038
 - 🚧 **v4.14 Admin Sales Mode** — Phases 146-149 (roadmap created 2026-06-28) — enable the super-admin (skale.club@gmail.com role, never hardcoded) to create demo company accounts on the fly during in-person sales demos: role system in Supabase (`is_super_admin` flag in `profiles`), "Add new company" button visible only to super-admins, quick company-creation modal (no separate page), 3-estimate quota per newly created company, and account handoff via the existing v4.12 invite flow so the client can take ownership after the demo.
+- 🚧 **v4.15 Credit UX Polish & Admin Support Tooling** — Phases 150-153 (roadmap created 2026-07-05) — replace the raw numeric credit counter with a Claude-Console-style usage progress bar (tenants see only a % consumed, never $/credit math), move exact $ cost visibility to a super-admin-only surface extending `measured-cost-card.tsx`, rework the top-up purchase flow to configurable dollar packs ($20/$50/$100) with optional auto-top-up, and give the super admin an audited, signed-session-claim "Support Mode" to view any tenant plus a paginated/searchable/filterable Companies admin screen; no new credit ledger, no real identity switch, Support Mode ≠ HandoffButton; SEED-039 + SEED-040
 
 > **Phase numbering note:** v3.1.1 starts at **Phase 66**, not 62. Phases 62-65 are reserved as DEFERRED placeholders for the v3.2 Production Deploy milestone (Vercel→Hetzner deploy + Stripe live + monitoring + UAT in prod). Skipping past 62-65 keeps the global phase counter unambiguous and prevents number reuse confusion when v3.2 begins.
 
@@ -2417,6 +2418,87 @@ Plans:
   2. The prospect receives the standard Resend invite email from Phase 136 and can accept via the Phase 137 flow; on acceptance they become `owner` of the company and the admin's membership is optionally retained as `admin` (configurable)
   3. No new invite or email infrastructure is added — the handoff exclusively reuses Phase 136/137 mechanisms; a static test asserts no duplicate invite-send code exists
   4. The handoff is mobile-safe and completes in under 3 taps on the admin's phone
+
+**Plans**: TBD
+**UI hint**: yes
+
+## 🚧 v4.15 Credit UX Polish & Admin Support Tooling (Phases 150-153)
+
+**Milestone Goal:** Replace the raw numeric credit counter with a Claude-Console-style usage progress bar (tenants see only a % consumed, never $/credit math), move exact $ cost visibility to a super-admin-only surface, rework the top-up purchase flow to dollar packs with auto-top-up, and give the super admin an audited way to enter a tenant's live app view for support plus a properly paginated/searchable/filterable Companies admin screen. Source: [SEED-039](seeds/SEED-039-usage-progress-bar-dollar-topup.md) + [SEED-040](seeds/SEED-040-super-admin-tenant-impersonation-companies-overhaul.md).
+
+> **Numbering:** continues the GLOBAL phase counter. v4.14 ended at Phase 149. **v4.15 starts at Phase 150.** Do NOT reset to 1. Phase 1001 (SEO, shipped out-of-band via quick-tasks) is NOT part of this counter.
+>
+> **Coverage:** 13/13 v4.15 requirements mapped (CREDITUI-03..07, SUPPORT-01..04, ADMINCO-01..04). No orphans. Mapping: ADMINCO-01/02/03/04 → 150, SUPPORT-01/02/03/04 → 151, CREDITUI-03/04/05 → 152, CREDITUI-06/07 → 153.
+>
+> **Locked scope guardrails (do NOT plan against):** No new credit ledger — the `credit_ledger`, markup math, and low-balance logic from SEED-035/CREDITUI-01/02 (Phase 115) stay exactly as they are; this milestone is the UI + purchase-flow layer on top. Tenants NEVER see a raw credit count or a $ figure anywhere (Plans page, topbar chip, notifications) — only a % bar and qualitative low/critical states. Exact $ cost visibility is super-admin-only, extending the existing `measured-cost-card.tsx` pattern — never exposed to a tenant, even indirectly via a network payload a tenant page fetches. Top-up pack sizes and auto-top-up thresholds are configurable in `billing_config`, never hardcoded (the SEED-035 "everything configurable" principle). Support Mode is NOT a real identity switch — it is a signed, time-boxed "acting-as-company" session claim layered on the admin's own session, RLS-safe, revocable, never persisted beyond the browser session. Support Mode ≠ `HandoffButton` (Phase 149) — the two must not be conflated or merged; Support Mode is a live, audited, admin-eyes-only viewing capability, while `HandoffButton` sends a real owner-invite email to transfer a demo account to a prospect. Every Support Mode session is audit-logged via the existing `lib/admin/audit-log.ts` (who, which company, when, how long).
+
+### Phases
+
+- [ ] **Phase 150: Companies Admin Screen Overhaul** — Add search (name/email), filters (tier, AI model override set, demo vs. real account), and server-side pagination with a visible total count to `app/admin/companies/page.tsx`, while the existing "Demo Accounts" grouping, `HandoffButton`, and "Configure →" per-row actions continue to work unchanged. No dependency on the credit/billing track — this phase also becomes the stable list UI that Support Mode (Phase 151) launches from. (ADMINCO-01, ADMINCO-02, ADMINCO-03, ADMINCO-04)
+- [ ] **Phase 151: Super-Admin Support Mode (Tenant Impersonation)** — From the Phase 150 Companies screen, the super admin enters a tenant-scoped app view ("Support Mode") for any company without needing the tenant's credentials, via a signed, time-boxed "acting-as-company" session claim (not a real identity switch); every page shows a persistent banner identifying the acting admin and the viewed company; every session (entry, company, admin identity, duration, exit) is recorded in the existing admin audit log; access respects existing RLS and is automatically revoked on session end/expiry. (SUPPORT-01, SUPPORT-02, SUPPORT-03, SUPPORT-04)
+- [ ] **Phase 152: Usage Progress Bar + Super-Admin Cost Visibility** — Replace the tenant-facing raw numeric "N credits" display (Settings > Plans + the topbar credit chip) with a single color-escalating % bar; no tenant surface (page, chip, low-balance copy) shows a raw credit count or $ figure anywhere; the super admin gains a per-company view of exact credit balance, real USD cost, and applied markup, extending the existing `measured-cost-card.tsx` pattern and never renderable by a tenant session. Independent of the admin-support track — a pure display change on top of the existing SEED-035 ledger. (CREDITUI-03, CREDITUI-04, CREDITUI-05)
+- [ ] **Phase 153: Dollar-Pack Top-Up + Auto-Top-Up** — Rework the top-up purchase flow so the tenant buys credits by choosing a dollar amount ($20/$50/$100, sizes configurable in `billing_config`) charged via a Stripe one-time checkout and converted to credits using the existing markup/denomination; add optional auto-top-up (configurable dollar threshold + purchase amount + saved default payment method), mirroring Anthropic Console's Auto Top-Up UX. Builds on Phase 152's progress-bar surface (the top-up entry point lives next to the usage bar) and is the riskiest phase (Stripe checkout rework) — sequenced last. (CREDITUI-06, CREDITUI-07)
+
+### Phase Details — v4.15 Credit UX Polish & Admin Support Tooling
+
+### Phase 150: Companies Admin Screen Overhaul
+
+**Goal**: The super admin can find and manage any company quickly, even as the tenant base grows past what fits on one page — search by name/email, filter by tier/AI-override/demo-vs-real, and page through server-side-paginated results with a visible total count — while every existing action on that screen (Demo Accounts grouping, HandoffButton, Configure →) keeps working exactly as before.
+**Depends on**: Nothing (first phase of the milestone). Extends the existing `app/admin/companies/page.tsx` (Phase 149's Demo Accounts grouping + `HandoffButton` + Configure action) — does not rebuild it.
+**Requirements**: ADMINCO-01, ADMINCO-02, ADMINCO-03, ADMINCO-04
+**Success Criteria** (what must be TRUE):
+
+  1. Super admin can type into a search box and see the Companies list live-filter to rows whose name or associated email matches (server-side query, not a client-side filter over an already-loaded full list)
+  2. Super admin can apply filters for tier, whether an AI model override is set, and demo vs. real account (individually or combined), and the list reflects only matching rows
+  3. The Companies list loads via server-side pagination — it does not fetch every tenant row at once — and shows page navigation controls plus a visible total count that reflects the current search/filter combination
+  4. The existing "Demo Accounts" grouping, the `HandoffButton` per demo row, and the "Configure →" per-row action all continue to work unchanged inside the new paginated/filterable list — a regression test proves no existing admin action was broken by the overhaul
+
+**Plans**: 1 plan
+
+Plans:
+- [ ] 150-01-PLAN.md — Server-side search/filter/pagination for All Companies (page.tsx + companies-controls.tsx), Demo Accounts kept independent
+
+### Phase 151: Super-Admin Support Mode (Tenant Impersonation)
+
+**Goal**: The super admin can get into a tenant's shoes to help them — entering a normal, tenant-scoped app view for any company directly from the Companies screen, without ever touching the tenant's credentials — while the system stays provably safe: a persistent banner never lets anyone forget Support Mode is active, every session is audit-logged end to end, and the access itself is a revocable, time-boxed claim that respects RLS rather than a real sign-in.
+**Depends on**: Phase 150 (the Companies screen Support Mode launches from) and the existing `lib/admin/audit-log.ts` (Phase 93) + RLS posture (Phase 82/85). Explicitly distinct from `HandoffButton` (Phase 149) — do not reuse or merge that code path.
+**Requirements**: SUPPORT-01, SUPPORT-02, SUPPORT-03, SUPPORT-04
+**Success Criteria** (what must be TRUE):
+
+  1. From the admin Companies screen, the super admin can click into any company and land in a normal tenant-scoped app view ("Support Mode") without entering or knowing the tenant's credentials
+  2. While in Support Mode, every page renders a persistent banner identifying the acting super admin and the company being viewed, visually consistent with the existing "Super Admin Mode" banner already shown across `/admin`
+  3. Every Support Mode session — entry, company, acting admin identity, duration, and exit (manual or expiry) — is recorded in the existing admin audit log; a super admin can look up who viewed which company's data and when
+  4. Support Mode access is granted via a signed, time-boxed "acting-as-company" session claim layered on the admin's own session (never a full Supabase-auth identity switch); it respects the existing RLS posture (no bypass), is automatically revoked when the session ends or the time-box expires, and never persists beyond the browser session (e.g. a closed tab or expired claim leaves no residual tenant access)
+
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 152: Usage Progress Bar + Super-Admin Cost Visibility
+
+**Goal**: Every tenant-facing credit surface stops showing numbers and starts showing a single, honest progress bar — a % of this cycle's usage that escalates in color as it depletes — while the exact dollars-and-cents story (real cost, credit balance, markup) becomes a super-admin-only view for operating the business, never leaking to a tenant session by any path.
+**Depends on**: Nothing new architecturally — reads the existing SEED-035 `credit_ledger`/`companies.credit_balance` (Phase 112) and extends the existing `measured-cost-card.tsx` admin pattern. Independent of Phases 150-151 (a pure display-layer change); can run in parallel with the admin-support track.
+**Requirements**: CREDITUI-03, CREDITUI-04, CREDITUI-05
+**Success Criteria** (what must be TRUE):
+
+  1. Settings > Plans and the app-shell topbar credit chip both show a single usage progress bar (percentage consumed this cycle, color-escalating as it depletes toward zero) in place of today's raw numeric "N credits" display
+  2. No tenant-facing surface — the Plans page, the topbar chip, or low-balance notification copy — displays a raw credit count or a dollar cost figure anywhere; only the percentage bar and qualitative low/critical states appear (verified by a static test scanning tenant-facing components/copy for numeric credit/$ patterns)
+  3. Super admin can view, per company, the exact credit balance, the real USD cost incurred, and the applied markup, surfaced in the admin panel by extending the existing `measured-cost-card.tsx` pattern
+  4. This exact-cost data is never sent to or renderable by a tenant session — a test proves no tenant-reachable API route or page payload includes the raw cost/balance/markup fields (only the derived percentage is available to tenant code paths)
+
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 153: Dollar-Pack Top-Up + Auto-Top-Up
+
+**Goal**: Buying more credits stops being a "how many credits do I want" math problem and becomes a "how many dollars do I want to spend" choice — the tenant picks a configured dollar pack ($20/$50/$100) charged via Stripe and converted to credits using the existing markup, and can optionally set up auto-top-up so they're never surprised by a mid-job low-balance interruption, mirroring the Anthropic Console Auto Top-Up UX.
+**Depends on**: Phase 152 (the progress-bar surface the top-up entry point sits next to) and the existing SEED-035 Stripe rail (Phase 113 one-time checkout) + `billing_config` (Phase 111). The riskiest phase in the milestone (Stripe checkout rework) — sequenced last so it lands on a stable display layer.
+**Requirements**: CREDITUI-06, CREDITUI-07
+**Success Criteria** (what must be TRUE):
+
+  1. Tenant purchasing a top-up chooses a dollar amount from configured packs ($20/$50/$100, sizes read from `billing_config` at runtime, never hardcoded) instead of a credit quantity
+  2. The chosen dollar amount is charged via a Stripe one-time checkout and the resulting credits are computed using the existing markup/denomination logic (no new conversion math is introduced — it reuses the SEED-035 rules)
+  3. Tenant can enable auto-top-up: configuring a dollar balance threshold and a purchase amount (from the same configured packs), saved against their default payment method
+  4. When the tenant's balance drops below the configured threshold, the configured dollar pack is purchased automatically against the saved default payment method with no manual action required, and the tenant can view/disable auto-top-up at any time from the same settings surface
 
 **Plans**: TBD
 **UI hint**: yes
