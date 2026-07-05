@@ -5,6 +5,7 @@ import { getBillingData } from '@/lib/queries/billing'
 import { getActiveCompany } from '@/lib/queries/active-company'
 import { getCreditOverview } from '@/lib/queries/credits'
 import { getBillingConfig } from '@/lib/billing/billing-config'
+import { computeUsagePercent } from '@/lib/billing/usage-percent'
 import {
   Card,
   CardHeader,
@@ -48,6 +49,11 @@ export default async function BillingPage() {
   const credits = await getCreditOverview(company.id)
 
   const cfg = await getBillingConfig()
+  const cycleGrant =
+    data.tier === 'free'
+      ? cfg.signupCreditGrant
+      : cfg.tiers[data.tier as 'pro' | 'business']?.monthlyCreditGrant ?? 0
+  const percentUsed = computeUsagePercent({ balance: credits.balance, cycleGrant })
   const annualPrices = {
     pro: cfg.tiers.pro.subscriptionPriceAnnualCents,
     business: cfg.tiers.business.subscriptionPriceAnnualCents,
@@ -160,10 +166,7 @@ export default async function BillingPage() {
         {/* Credits (CREDITUI-01/02) — ADDITIVE to the count-based usage card above
             (MIG-01 parallel run). Owner sees credits + history, never cost math. */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <CreditBalanceCard
-            balance={credits.balance}
-            lowBalanceThresholds={credits.lowBalanceThresholds}
-          />
+          <CreditBalanceCard percentUsed={percentUsed} tier={data.tier} />
           <CreditHistoryList rows={credits.history} />
         </div>
 

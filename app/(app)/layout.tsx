@@ -4,6 +4,8 @@ import { getAuthClaims } from '@/lib/queries/auth'
 import { getActiveCompany, getMembershipCompanies } from '@/lib/queries/active-company'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { createClient } from '@/lib/supabase/server'
+import { getBillingConfig } from '@/lib/billing/billing-config'
+import { computeUsagePercent } from '@/lib/billing/usage-percent'
 import { Sidebar } from '@/components/app-shell/sidebar'
 import { Topbar } from '@/components/app-shell/topbar'
 import { BottomNav } from '@/components/app-shell/bottom-nav'
@@ -61,7 +63,7 @@ export default async function AppShellLayout({
   const isDemo = isDemoCompany(activeCompanyId)
 
   const supabase = await createClient()
-  const [branding, adminRow, billingRow, memberships, { data: userData }] = await Promise.all([
+  const [branding, adminRow, billingRow, memberships, { data: userData }, cfg] = await Promise.all([
     brandingPromise, // already in flight
     requireServiceClient()
       .from('platform_admins')
@@ -79,8 +81,16 @@ export default async function AppShellLayout({
     // Parallel fetch — no dependency on the prior awaits beyond auth (claims).
     getMembershipCompanies(),
     supabase.auth.getUser(),
+    // Phase 152 (CREDITUI-03): cycle grant lookup for the topbar usage chip's
+    // percentUsed computation below.
+    getBillingConfig(),
   ])
   const isAdmin = !!adminRow.data
+
+  const tier = billingRow.data?.tier ?? 'free'
+  const cycleGrant =
+    tier === 'free' ? cfg.signupCreditGrant : cfg.tiers[tier as 'pro' | 'business']?.monthlyCreditGrant ?? 0
+  const percentUsed = computeUsagePercent({ balance: billingRow.data?.credit_balance ?? 0, cycleGrant })
 
   const trialDaysRemaining =
     billingRow.data?.tier === 'free' && billingRow.data?.tier_trial_ends_at
@@ -115,7 +125,7 @@ export default async function AppShellLayout({
               company={company}
               userId={claims.sub as string}
               isAdmin={isAdmin}
-              creditBalance={billingRow.data?.credit_balance ?? 0}
+              percentUsed={percentUsed}
             />
             <MobileHeader
               branding={{ appName: branding.appName, logoUrl: branding.logoUrl }}

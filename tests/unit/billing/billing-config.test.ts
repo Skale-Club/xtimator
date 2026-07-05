@@ -400,6 +400,22 @@ describe('BILLCFG-03: getBillingConfig consumed ONLY by the reader + credit-ledg
       process.cwd(),
       'app/(app)/settings/billing/page.tsx',
     )
+    // Phase 152 Plan 01 (CREDITUI-03): the app shell layout reads
+    // signupCreditGrant / tiers[tier].monthlyCreditGrant from getBillingConfig
+    // to compute the topbar usage chip's percentUsed via computeUsagePercent —
+    // the runtime-authoritative billing source, a legitimate display consumer
+    // (DISPLAY ONLY — no mutation). The guard still fails on any OTHER
+    // reference of the symbol.
+    const APP_LAYOUT_PATH = resolve(process.cwd(), 'app/(app)/layout.tsx')
+    // Phase 152 Plan 02 (CREDITUI-05): the per-company admin detail page reads
+    // getBillingConfig to compute the effective markup shown on the new
+    // super-admin-only Cost & Billing card — a legitimate admin-only consumer
+    // (DISPLAY ONLY — no mutation, never tenant-facing). The guard still fails
+    // on any OTHER reference of the symbol.
+    const ADMIN_COMPANY_PAGE_PATH = resolve(
+      process.cwd(),
+      'app/admin/companies/[id]/page.tsx',
+    )
     const ALLOWLIST = new Set([
       MODULE_PATH,
       CREDIT_LEDGER_PATH,
@@ -412,6 +428,8 @@ describe('BILLCFG-03: getBillingConfig consumed ONLY by the reader + credit-ledg
       SEAT_COST_SUMMARY_PATH,
       MONTHLY_CREDIT_GRANT_PATH,
       BILLING_PAGE_PATH,
+      APP_LAYOUT_PATH,
+      ADMIN_COMPANY_PAGE_PATH,
     ])
 
     const collected: string[] = []

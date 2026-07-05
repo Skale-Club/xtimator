@@ -18,7 +18,7 @@ interface TopbarProps {
   }
   userId: string
   isAdmin?: boolean
-  creditBalance?: number
+  percentUsed?: number
 }
 
 const TITLE_MAP: Record<string, string> = {
@@ -41,7 +41,7 @@ function usePageTitle(pathname: string): string {
   return ''
 }
 
-export function Topbar({ company, userId, isAdmin, creditBalance }: TopbarProps) {
+export function Topbar({ company, userId, isAdmin, percentUsed }: TopbarProps) {
   const pathname = usePathname()
   const { t } = useTranslation()
   const router = useRouter()
@@ -122,7 +122,7 @@ export function Topbar({ company, userId, isAdmin, creditBalance }: TopbarProps)
             <LanguageToggle />
           </span>
         </ContextualTooltip>
-        {typeof creditBalance === 'number' && <CreditChip balance={creditBalance} />}
+        {typeof percentUsed === 'number' && <CreditChip percentUsed={percentUsed} />}
         <NotificationBell companyId={company.id} userId={userId} />
         <ThemeToggle />
       </div>
