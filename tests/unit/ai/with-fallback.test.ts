@@ -78,4 +78,25 @@ describe('callWithFallback', () => {
     expect((caught as { cause?: unknown }).cause).toBeInstanceOf(Error)
     expect(((caught as { cause?: Error }).cause as Error).message).toBe('PRIMARY_ERR')
   })
+
+  it('both fail — exposes the fallback error as fallbackCause while .cause stays the primary error (D8)', async () => {
+    const primary = vi.fn().mockRejectedValue(new Error('PRIMARY_ERR'))
+    const fallback = vi.fn().mockRejectedValue(new Error('FALLBACK_ERR'))
+
+    let caught: unknown
+    try {
+      await callWithFallback({ op: 'generate', primary, fallback })
+    } catch (err) {
+      caught = err
+    }
+
+    expect(caught).toBeInstanceOf(ProvidersUnavailableError)
+    expect((caught as { providerUnavailable?: boolean }).providerUnavailable).toBe(true)
+    // .cause contract UNCHANGED: still the PRIMARY error.
+    expect(((caught as { cause?: Error }).cause as Error).message).toBe('PRIMARY_ERR')
+    // Additive: the fallback's own failure is now visible to operators.
+    const fallbackCause = (caught as { fallbackCause?: unknown }).fallbackCause
+    expect(fallbackCause).toBeInstanceOf(Error)
+    expect((fallbackCause as Error).message).toBe('FALLBACK_ERR')
+  })
 })

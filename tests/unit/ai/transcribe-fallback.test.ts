@@ -75,4 +75,19 @@ describe('transcribeAudioOR — OpenRouter primary, OpenAI fallback', () => {
 
     await expect(transcribeAudioOR(makeAudio(), 'webm')).rejects.toBeTruthy()
   })
+
+  it('empty transcript — OpenRouter ok with { text: "" } → throws instead of saving empty (D1)', async () => {
+    // An empty-but-HTTP-ok primary response is a wrapper "success": the OpenAI
+    // fallback is NOT consulted. The post-wrapper guard must throw loudly so the
+    // Inngest onFailure path surfaces a clear message instead of a silent empty
+    // save + credit charge.
+    ;(global.fetch as ReturnType<typeof vi.fn>).mockImplementation(async (url: string) => {
+      expect(String(url)).toContain('openrouter.ai')
+      return { ok: true, status: 200, json: async () => ({ text: '' }) }
+    })
+
+    await expect(transcribeAudioOR(makeAudio(), 'webm')).rejects.toThrow(
+      /Transcription produced no text/
+    )
+  })
 })
