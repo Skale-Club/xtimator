@@ -5,11 +5,14 @@ import { requireAdmin } from '@/lib/auth/admin-context'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { getOpenRouterDefaultModel } from '@/lib/platform-config'
 import { OR_DEFAULTS } from '@/lib/ai/openrouter-client'
+import { getBillingConfig } from '@/lib/billing/billing-config'
+import { getCompanyCostOverview } from '@/lib/queries/admin-company-cost'
 import { Card } from '@/components/ui/card'
 import { T } from '@/components/i18n/t'
 import { CompanyModelOverrideForm } from './company-model-override-form'
 import { CompanyQuotaForm } from './company-quota-form'
 import { CompanyByokForm } from './company-byok-form'
+import { CompanyCostCard } from './company-cost-card'
 
 export const dynamic = 'force-dynamic'
 
@@ -46,6 +49,9 @@ export default async function AdminCompanyDetailPage({
     .eq('company_id', id)
 
   const globalModel = await getOpenRouterDefaultModel()
+
+  const cfg = await getBillingConfig()
+  const costOverview = await getCompanyCostOverview(company.id, cfg.markup)
 
   // OpenRouter is the single AI engine: effective model is the per-company
   // override when set, else the platform-wide OpenRouter default.
@@ -146,6 +152,10 @@ export default async function AdminCompanyDetailPage({
           byokEnabled={Boolean(company.byok_enabled)}
           keyLast4={(company.byok_key_last4 as string | null) ?? null}
         />
+      </Card>
+
+      <Card variant="glass" className="p-6 md:p-8 space-y-4">
+        <CompanyCostCard overview={costOverview} />
       </Card>
     </div>
   )
