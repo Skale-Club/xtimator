@@ -4,6 +4,7 @@ import { requireServiceClient } from '@/lib/supabase/service'
 import { getBillingConfig } from '@/lib/billing/billing-config'
 import { notify } from '@/lib/notifications/dispatch'
 import { buildNotificationCopy } from '@/lib/notifications/copy'
+import { triggerAutoTopupIfNeeded } from '@/lib/billing/auto-topup'
 
 /**
  * Phase 112 — Credit Ledger metering CORE (CREDIT-02/03/04/05/06/07).
@@ -148,6 +149,14 @@ export async function recordCreditDebit(input: {
       previousBalance: current,
       newBalance: balanceAfter,
       thresholds: cfg.lowBalanceThresholds,
+    })
+
+    // Phase 153 (CREDITUI-07): best-effort auto-top-up trigger. `void` so a
+    // Stripe/DB delay never blocks the debit return; the helper is itself
+    // never-throw (fails closed on any lock/charge/DB error).
+    void triggerAutoTopupIfNeeded({
+      companyId: input.companyId,
+      newBalance: balanceAfter,
     })
   } catch (err) {
     // Best-effort: a ledger-write failure must NEVER break generation.

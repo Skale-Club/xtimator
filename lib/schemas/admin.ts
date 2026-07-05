@@ -176,6 +176,11 @@ export const billingConfigSchema = z.object({
    * free-tier wall depends on it; false reverts to record-only.
    */
   enforcementEnabled: z.boolean(),
+  /**
+   * Platform-wide auto-top-up kill switch (CREDITUI-07). Mirrors
+   * enforcementEnabled's exact pattern: default FALSE.
+   */
+  autoTopupEnabled: z.boolean(),
 })
 export type BillingConfigInput = z.infer<typeof billingConfigSchema>
 

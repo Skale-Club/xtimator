@@ -151,6 +151,9 @@ export function BillingConfigForm({ current }: Props) {
       // Carried through unchanged this phase so the saved row keeps the final shape.
       meteredOperations: current.meteredOperations,
       absorbedChatRateLimitPerMin: current.absorbedChatRateLimitPerMin,
+      // Phase 153 (CREDITUI-07): auto-top-up kill switch — carried through
+      // unchanged here; Plan 03 adds the editable toggle to this panel.
+      autoTopupEnabled: current.autoTopupEnabled,
     }
 
     startTransition(async () => {
