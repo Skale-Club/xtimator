@@ -5,6 +5,8 @@ import { getBillingData } from '@/lib/queries/billing'
 import { getActiveCompany } from '@/lib/queries/active-company'
 import { getCreditOverview } from '@/lib/queries/credits'
 import { getBillingConfig } from '@/lib/billing/billing-config'
+import { getStripeClient } from '@/lib/billing/stripe-client'
+import { requireServiceClient } from '@/lib/supabase/service'
 import { computeUsagePercent } from '@/lib/billing/usage-percent'
 import {
   Card,
@@ -18,6 +20,7 @@ import { TierCardsGrid } from '@/components/billing/tier-cards-grid'
 import { TopUpPacksGrid } from '@/components/billing/topup-packs-grid'
 import { CreditBalanceCard } from '@/components/billing/credit-balance-card'
 import { CreditHistoryList } from '@/components/billing/credit-history-list'
+import { AutoTopupCard } from '@/components/billing/auto-topup-card'
 import { T } from '@/components/i18n/t'
 
 export const metadata = { title: 'Plans' }
@@ -63,6 +66,62 @@ export default async function BillingPage() {
     pro: cfg.tiers.pro.subscriptionPriceCents,
     business: cfg.tiers.business.subscriptionPriceCents,
   }
+
+  // Auto-top-up (CREDITUI-07) — read-only display data for the AutoTopupCard,
+  // gated behind cfg.autoTopupEnabled below. The Stripe read is wrapped in a
+  // try/catch defaulting to null: this page must never 500 on a Stripe hiccup
+  // for a read-only display.
+  let autoTopupCompany: {
+    auto_topup_enabled?: boolean | null
+    auto_topup_threshold_credits?: number | null
+    auto_topup_pack_index?: number | null
+    auto_topup_last_failed_at?: string | null
+    stripe_customer_id?: string | null
+  } | null = null
+  let autoTopupPaymentMethodLabel: string | null = null
+
+  if (cfg.autoTopupEnabled) {
+    const svc = requireServiceClient()
+    const { data: autoTopupRow } = await svc
+      .from('companies')
+      .select(
+        'auto_topup_enabled, auto_topup_threshold_credits, auto_topup_pack_index, auto_topup_last_failed_at, stripe_customer_id'
+      )
+      .eq('id', company.id)
+      .maybeSingle()
+    autoTopupCompany = autoTopupRow
+
+    if (autoTopupCompany?.stripe_customer_id) {
+      try {
+        const stripe = await getStripeClient()
+        const customer = (await stripe.customers.retrieve(autoTopupCompany.stripe_customer_id, {
+          expand: ['invoice_settings.default_payment_method'],
+        })) as unknown as {
+          invoice_settings?: {
+            default_payment_method?: { card?: { brand?: string; last4?: string } } | string | null
+          }
+        }
+        const pm = customer.invoice_settings?.default_payment_method
+        if (pm && typeof pm !== 'string' && pm.card?.brand && pm.card?.last4) {
+          const brand = pm.card.brand.charAt(0).toUpperCase() + pm.card.brand.slice(1)
+          autoTopupPaymentMethodLabel = `${brand} •••• ${pm.card.last4}`
+        }
+      } catch (err) {
+        console.warn('[settings/billing] auto-top-up payment method read failed:', err)
+        autoTopupPaymentMethodLabel = null
+      }
+    }
+  }
+
+  const autoTopupPack =
+    autoTopupCompany?.auto_topup_pack_index != null
+      ? cfg.topUpPacks[autoTopupCompany.auto_topup_pack_index]
+      : null
+  const autoTopupPackAmount = autoTopupPack ? `$${autoTopupPack.priceCents / 100}` : null
+  const autoTopupThresholdAmount =
+    autoTopupCompany?.auto_topup_threshold_credits != null
+      ? `$${(autoTopupCompany.auto_topup_threshold_credits / 100).toFixed(2).replace(/\.00$/, '')}`
+      : null
 
   const tierDisplay = TIER_DISPLAY[data.tier] ?? data.tier
 
@@ -177,6 +236,24 @@ export default async function BillingPage() {
           <h2 className="text-2xl font-semibold tracking-tight"><T>Add credits</T></h2>
           <TopUpPacksGrid packs={cfg.topUpPacks} />
         </div>
+
+        {/* Auto top-up (CREDITUI-07) — gated behind the platform kill switch
+            (billing_config.autoTopupEnabled); omitted from the tree entirely,
+            not rendered-disabled, when the switch is off. */}
+        {cfg.autoTopupEnabled && (
+          <div className="space-y-4">
+            <AutoTopupCard
+              enabled={!!autoTopupCompany?.auto_topup_enabled}
+              packAmount={autoTopupPackAmount}
+              thresholdAmount={autoTopupThresholdAmount}
+              paymentMethodLabel={autoTopupPaymentMethodLabel}
+              lastFailed={!!autoTopupCompany?.auto_topup_last_failed_at}
+              packs={cfg.topUpPacks}
+              currentThresholdCredits={autoTopupCompany?.auto_topup_threshold_credits ?? null}
+              currentPackIndex={autoTopupCompany?.auto_topup_pack_index ?? null}
+            />
+          </div>
+        )}
 
         {/* Tier cards grid (Free / Pro / Business with per-tier gradient escalation) */}
         <div className="space-y-4">

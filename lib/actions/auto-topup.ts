@@ -18,7 +18,9 @@ import { revalidatePath } from 'next/cache'
  * enabled-but-unchargeable (client bypass, or a payment method later
  * detached in the Stripe Dashboard).
  */
-async function getAuthContext() {
+async function getAuthContext(): Promise<
+  { error: string } | { companyId: string }
+> {
   const supabase = await createClient()
   const { data: claimsData } = await supabase.auth.getClaims()
   const claims = claimsData?.claims ?? null
@@ -30,7 +32,7 @@ async function getAuthContext() {
   const denied = await assertWritable()
   if (denied) return denied
 
-  return { supabase, companyId: activeCompanyId }
+  return { companyId: activeCompanyId }
 }
 
 export async function saveAutoTopupSettings(input: {

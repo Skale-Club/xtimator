@@ -466,6 +466,12 @@ describe('BILLCFG-03: getBillingConfig consumed ONLY by the reader + credit-ledg
     // credit-ledger debit call site it is invoked from). The guard still
     // fails on any OTHER reference of the symbol.
     const AUTO_TOPUP_PATH = resolve(process.cwd(), 'lib/billing/auto-topup.ts')
+    // Phase 153 Plan 03 (CREDITUI-07): saveAutoTopupSettings reads
+    // autoTopupEnabled (platform kill switch) + topUpPacks (to range-validate
+    // the tenant-selected packIndex server-side) from getBillingConfig — the
+    // runtime-authoritative billing source, a legitimate tenant-action
+    // consumer. The guard still fails on any OTHER reference of the symbol.
+    const AUTO_TOPUP_ACTION_PATH = resolve(process.cwd(), 'lib/actions/auto-topup.ts')
     const ALLOWLIST = new Set([
       MODULE_PATH,
       CREDIT_LEDGER_PATH,
@@ -481,6 +487,7 @@ describe('BILLCFG-03: getBillingConfig consumed ONLY by the reader + credit-ledg
       APP_LAYOUT_PATH,
       ADMIN_COMPANY_PAGE_PATH,
       AUTO_TOPUP_PATH,
+      AUTO_TOPUP_ACTION_PATH,
     ])
 
     const collected: string[] = []
