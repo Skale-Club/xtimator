@@ -789,6 +789,7 @@ Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gs
 - [Phase 142.1]: Admin provisioning actions require requireAdmin() gate, E.164 normalization, transition guards, and audit logging with last-4 phone safety
 - [Phase 143]: Annual price IDs are optional env vars — routes 500 clearly when missing rather than falling back to monthly
 - [Phase quick-260704-pt2]: estimate_photos migration committed but not applied remotely (TLS trust + migration-history drift blocked all available apply paths) — manual apply required before feature works at runtime
+- [Phase 260705-8u0-02]: Modern PDF template mirrors Classic's data/helpers exactly; only StyleSheet/JSX differs (Times-Roman serif, thin rules, hero total)
 
 ## Performance Metrics
 
