@@ -8,6 +8,12 @@ import { randomBytes } from 'node:crypto'
 // A real 32-byte key so lib/crypto/aes works for real in the round-trip tests.
 process.env.APP_ENCRYPTION_KEY = randomBytes(32).toString('base64')
 
+// byok.ts imports Sentry for D6 (decrypt-failure capture) — mock it per-file so
+// the test can assert captureException tags (precedent: quality-signal.test.ts).
+vi.mock('@sentry/nextjs', () => ({
+  captureException: vi.fn(),
+}))
+
 const serviceRows: Record<string, unknown>[] = []
 vi.mock('@/lib/supabase/service', () => ({
   requireServiceClient: () => ({
@@ -29,6 +35,7 @@ vi.mock('@/lib/supabase/service', () => ({
   }),
 }))
 
+import * as Sentry from '@sentry/nextjs'
 import {
   serializeEncryptedKey,
   deserializeEncryptedKey,
@@ -91,5 +98,18 @@ describe('getByokOpenRouterKey', () => {
 
   it('returns null for a missing company row', async () => {
     await expect(getByokOpenRouterKey('co-missing')).resolves.toBeNull()
+  })
+
+  it('captures a decrypt failure in Sentry (byok.keyResolution tag) while STILL failing open (D6)', async () => {
+    vi.mocked(Sentry.captureException).mockClear()
+    serviceRows.push({ byok_enabled: true, byok_openrouter_key: 'not-valid-json' })
+
+    // Fail-open contract unchanged: still resolves null (platform key).
+    await expect(getByokOpenRouterKey('co-sentry')).resolves.toBeNull()
+
+    expect(Sentry.captureException).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(Sentry.captureException).mock.calls[0][1]).toMatchObject({
+      tags: { background: 'byok.keyResolution', company_id: 'co-sentry' },
+    })
   })
 })

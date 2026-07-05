@@ -300,6 +300,22 @@ describe('generateEstimateForProject', () => {
     expect(result.estimateId).toBe('estimate-1')
   })
 
+  it('rejects photos-only input when NO photo has an ai_description (D3)', async () => {
+    // The prompt builder only consumes photos WITH ai_description — a project
+    // whose only inputs are unanalyzed photos would generate a context-free
+    // estimate. The precondition must match what the prompt actually gets.
+    const { fromMock } = makeSupabaseMock()
+    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock } as never)
+    vi.mocked(getProjectRecordings).mockResolvedValue([])
+    vi.mocked(getProjectPhotos).mockResolvedValue([
+      { id: 'photo-1', ai_description: null } as never,
+    ])
+
+    await expect(
+      generateEstimateForProject('company-1', 'project-1')
+    ).rejects.toThrow('At least one audio transcript, photo, or prompt is required')
+  })
+
   it('patches placeholder project name from AI suggestion', async () => {
     const { fromMock, updateSpy } = makeSupabaseMock({
       projectName: 'Untitled project — 5/5/2026',
