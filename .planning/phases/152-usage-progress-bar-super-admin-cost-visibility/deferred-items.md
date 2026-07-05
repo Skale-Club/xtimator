@@ -25,3 +25,13 @@ observed the SAME two failing files/three assertions listed above, with no
 additional failures. Isolated re-run of `tests/unit/components/landing-page.test.tsx`
 alone still fails the same assertion, confirming it is not a cross-suite ordering
 artifact. Both remain pre-existing and out of scope for 152-01.
+
+## Confirmed again by 152-03 (gap closure, `lib/notifications/copy.ts` only)
+
+Third independent confirmation. 152-03's full `npm test` run observed the exact
+same 2 files / 3 assertions failing (`blog-rls.test.ts` x2, `landing-page.test.tsx`
+x1) — no new failures introduced by the `admin.bonus_credits_granted` copy change.
+Verified via `git stash` (reverting the copy.ts edit) that both files fail
+identically on the pre-change tree, proving zero causal link to this plan's
+single-string edit. Confirmed out of scope; not fixed here (fix-attempt-limit /
+scope-boundary rule).
