@@ -15,12 +15,18 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
  * fail to resolve the module — real RED, not stubbed.
  */
 
+// Sentry mock retained (harmless) so the module graph parses even though
+// with-fallback.ts no longer imports Sentry directly — notifyOps now owns it.
 vi.mock('@sentry/nextjs', () => ({ captureMessage: vi.fn() }))
 
-import * as Sentry from '@sentry/nextjs'
+// The observability signal now routes through notifyOps (the never-throw
+// Sentry + Telegram fan-out); the observability block asserts on THIS mock.
+vi.mock('@/lib/observability/ops-alert', () => ({ notifyOps: vi.fn() }))
+
+import { notifyOps } from '@/lib/observability/ops-alert'
 import { callWithFallback, ProvidersUnavailableError } from '@/lib/ai/with-fallback'
 
-const mockCaptureMessage = Sentry.captureMessage as ReturnType<typeof vi.fn>
+const mockNotifyOps = notifyOps as ReturnType<typeof vi.fn>
 
 describe('callWithFallback', () => {
   beforeEach(() => {
@@ -107,22 +113,22 @@ describe('callWithFallback', () => {
 })
 
 /**
- * quick-260705-bml (FIX-2) — silent-fallback observability.
+ * quick-260705-bml (FIX-2) → quick-260705-c1y-02 — silent-fallback observability.
  *
  * A successful primary→fallback (OpenRouter down, Gemini served) previously
  * returned fallbackFired:true but emitted NO alert, so a silent degradation ran
- * for hours undetected. callWithFallback now emits a never-throw Sentry signal on
- * the successful-fallback branch, escalating to 'error' on a billing/auth primary
- * failure. The signal is a pure side-effect: it never changes control flow, the
- * return shape, or the both-fail path, and a throwing Sentry mock never breaks the
- * fallback result.
+ * for hours undetected. callWithFallback now routes a never-throw signal through
+ * `notifyOps` (the Sentry + Telegram ops fan-out) on the successful-fallback
+ * branch, escalating to 'error' on a billing/auth primary failure. The signal is
+ * a pure side-effect: it never changes control flow, the return shape, or the
+ * both-fail path, and a throwing notifyOps never breaks the fallback result.
  */
-describe('callWithFallback observability (quick-260705-bml FIX-2)', () => {
+describe('callWithFallback observability (quick-260705-c1y-02)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  it('successful fallback — emits exactly one warning captureMessage tagged served_by_fallback', async () => {
+  it('successful fallback — routes exactly one warning notifyOps for the served-by-fallback signal', async () => {
     const primary = vi.fn().mockRejectedValue(new Error('primary down'))
     const fallback = vi.fn().mockResolvedValue('B')
 
@@ -130,18 +136,19 @@ describe('callWithFallback observability (quick-260705-bml FIX-2)', () => {
 
     expect(outcome.result).toBe('B')
     expect(outcome.servedBy).toBe('fallback')
-    expect(mockCaptureMessage).toHaveBeenCalledTimes(1)
-    const [, opts] = mockCaptureMessage.mock.calls[0]
-    expect(opts.level).toBe('warning')
-    expect(opts.tags.op).toBe('generate')
-    expect(opts.tags.ai_fallback).toBe('served_by_fallback')
-    // Non-billing primary error → no escalation tag.
-    expect(opts.tags.ai_primary_down).toBeUndefined()
-    // The primary error string rides along for the operator.
-    expect(String(opts.extra.primaryError)).toContain('primary down')
+    expect(mockNotifyOps).toHaveBeenCalledTimes(1)
+    const [alert] = mockNotifyOps.mock.calls[0]
+    expect(alert.kind).toBe('ai_fallback')
+    expect(alert.severity).toBe('warning')
+    // The op rides along in the title; the primary error rides along in the message.
+    expect(alert.title).toContain('generate')
+    expect(alert.title).toContain('primary down')
+    expect(String(alert.message)).toContain('primary down')
+    // Non-billing primary error → no ':billing' dedupe suffix.
+    expect(alert.dedupeKey).toBe('ai_fallback:generate')
   })
 
-  it('billing/credits primary error (402 / Insufficient credits) — escalates to error + ai_primary_down billing_or_auth', async () => {
+  it('billing/credits primary error (402 / Insufficient credits) — escalates to error + :billing dedupeKey', async () => {
     const primary = vi
       .fn()
       .mockRejectedValue(new Error('OpenRouter request failed (402): Insufficient credits'))
@@ -149,30 +156,30 @@ describe('callWithFallback observability (quick-260705-bml FIX-2)', () => {
 
     await callWithFallback({ op: 'generate', primary, fallback })
 
-    expect(mockCaptureMessage).toHaveBeenCalledTimes(1)
-    const [, opts] = mockCaptureMessage.mock.calls[0]
-    expect(opts.level).toBe('error')
-    expect(opts.tags.ai_primary_down).toBe('billing_or_auth')
+    expect(mockNotifyOps).toHaveBeenCalledTimes(1)
+    const [alert] = mockNotifyOps.mock.calls[0]
+    expect(alert.severity).toBe('error')
+    expect(alert.dedupeKey).toBe('ai_fallback:generate:billing')
   })
 
-  it('auth primary error (401 / not configured) — escalates to error + ai_primary_down billing_or_auth', async () => {
+  it('auth primary error (401 / not configured) — escalates to error', async () => {
     const primary = vi.fn().mockRejectedValue(new Error('Gemini API key not configured'))
     const fallback = vi.fn().mockResolvedValue('B')
 
     await callWithFallback({ op: 'transcribe', primary, fallback })
 
-    const [, opts] = mockCaptureMessage.mock.calls[0]
-    expect(opts.level).toBe('error')
-    expect(opts.tags.ai_primary_down).toBe('billing_or_auth')
+    const [alert] = mockNotifyOps.mock.calls[0]
+    expect(alert.severity).toBe('error')
+    expect(alert.dedupeKey).toBe('ai_fallback:transcribe:billing')
   })
 
-  it('happy path (primary resolves) — emits NO captureMessage', async () => {
+  it('happy path (primary resolves) — does NOT call notifyOps', async () => {
     const primary = vi.fn().mockResolvedValue('A')
     const fallback = vi.fn().mockResolvedValue('B')
 
     await callWithFallback({ op: 'generate', primary, fallback })
 
-    expect(mockCaptureMessage).toHaveBeenCalledTimes(0)
+    expect(mockNotifyOps).toHaveBeenCalledTimes(0)
   })
 
   it('both fail — the successful-fallback signal is NOT emitted from the both-fail branch', async () => {
@@ -183,14 +190,14 @@ describe('callWithFallback observability (quick-260705-bml FIX-2)', () => {
       callWithFallback({ op: 'generate', primary, fallback })
     ).rejects.toBeInstanceOf(ProvidersUnavailableError)
 
-    // The 'served by fallback' warning belongs to the SUCCESSFUL-fallback branch;
+    // The 'served by fallback' signal belongs to the SUCCESSFUL-fallback branch;
     // a both-fail run must not emit it.
-    expect(mockCaptureMessage).not.toHaveBeenCalled()
+    expect(mockNotifyOps).not.toHaveBeenCalled()
   })
 
-  it('never-throw — a throwing captureMessage does not break the fallback result', async () => {
-    vi.mocked(mockCaptureMessage).mockImplementationOnce(() => {
-      throw new Error('sentry down')
+  it('never-throw — a throwing notifyOps does not break the fallback result', async () => {
+    vi.mocked(mockNotifyOps).mockImplementationOnce(() => {
+      throw new Error('ops down')
     })
     const primary = vi.fn().mockRejectedValue(new Error('primary down'))
     const fallback = vi.fn().mockResolvedValue('B')
