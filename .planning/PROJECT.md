@@ -14,9 +14,17 @@ The platform includes:
 
 A business owner can go from job site audio recording to a sent, professional estimate in under 5 minutes without touching a keyboard.
 
-## Next Milestone
+## Current Milestone: v4.16 Admin Inbox Consolidation 🚧 (started 2026-07-05)
 
-Run `/gsd:new-milestone` to define the next cycle.
+**Goal:** Consolidate the three scattered super-admin WhatsApp surfaces (`/admin/whatsapp` conversations+accounts, `/admin/whatsapp-templates`, and the `/admin/integrations/whatsapp` credentials) into a single coherent **Inbox** — one nav item, a two-pane master-detail conversation viewer (list + thread on the same page, Xphere-style, replacing the drawer overlay), and an Inbox "Settings" area folding in Accounts + Templates. Read-only (visualize conversations, no reply). Credentials stay in Integrations.
+
+**Target features:**
+- **Single "Inbox" nav item** — the two nav entries ("WhatsApp" + "WA Templates") collapse into one `/admin/inbox` item (slug + label renamed; old routes redirect).
+- **Two-pane master-detail inbox** — conversation list (left) + thread (right) on the same page, read-only, replacing the current table + right-side `Sheet` overlay; deep-linked via `?conversation=`; Xphere-style list rows (name, preview, timestamp, unread dot, selected state).
+- **Inbox Settings** — a gear/"Settings" affordance in the Inbox header → `/admin/inbox/settings` with Accounts (provisioning) + Templates tabs (reusing the existing components).
+- **Contained blast radius** — Integrations > WhatsApp credentials (token/IDs/system-prompt) unchanged; internal data layer + DB tables stay `whatsapp_*` (channel-specific; "Inbox" is the forward-looking multi-channel container); all path references + tests updated.
+
+**Key context (locked):** Read-only inbox (no reply/send — keeps the deliberate WAADM read-only posture). Inbox = operations (conversations + Accounts + Templates); Integrations = credentials (unchanged). Layout = two-pane master-detail, NOT a modal drawer. User-facing renames to "Inbox"; internal `whatsapp_*`/`admin-whatsapp*` names stay to keep blast radius small. Design reference: the Xphere inbox at `C:\Users\Vanildo\Dev\xphere` (same stack — Next + shadcn + Tailwind + Supabase). Numbering continues the global counter — v4.15 ended at Phase 153, so v4.16 starts at **Phase 154**.
 
 ## Last Milestone: v4.15 Credit UX Polish & Admin Support Tooling ✅ (shipped 2026-07-05)
 

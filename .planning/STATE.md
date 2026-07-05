@@ -1,9 +1,9 @@
 ---
 gsd_state_version: 1.0
-milestone: v4.15
-milestone_name: Credit UX Polish & Admin Support Tooling
-status: shipped
-stopped_at: v4.15 complete and archived — all 4 phases (150-153), 13/13 requirements, milestone audit passed, PROJECT.md/ROADMAP.md/MILESTONES.md/RETROSPECTIVE.md updated. Ready for /gsd:new-milestone.
+milestone: v4.16
+milestone_name: Admin Inbox Consolidation
+status: defining
+stopped_at: Defining requirements — v4.16 Admin Inbox Consolidation started (autonomous run)
 last_updated: "2026-07-05T21:04:15.759Z"
 last_activity: 2026-07-05
 progress:
@@ -17,7 +17,11 @@ progress:
 
 ## Current Status
 
-- **Milestone**: v4.15 Credit UX Polish & Admin Support Tooling — ROADMAP CREATED 2026-07-05. **4 phases (150-153)**, **13/13 requirements mapped** (CREDITUI-03..07, SUPPORT-01..04, ADMINCO-01..04), **no orphans**. Replace the raw numeric credit counter with a Claude-Console-style usage progress bar (tenants see only a % consumed, never $/credit math), move exact $ cost visibility to a super-admin-only surface extending `measured-cost-card.tsx`, rework the top-up flow to configurable dollar packs ($20/$50/$100) with optional auto-top-up, and give the super admin an audited, signed-session-claim "Support Mode" plus a paginated/searchable/filterable Companies admin screen. Source: SEED-039 + SEED-040. Numbering continues the global counter — v4.14 ended at Phase 149 (Phase 1001 SEO shipped out-of-band, NOT part of the counter), so v4.15 starts at **Phase 150**.
+- **Milestone**: v4.16 Admin Inbox Consolidation — DEFINING 2026-07-05. Consolidate the three scattered super-admin WhatsApp surfaces into a single **Inbox**: one nav item, a two-pane master-detail conversation viewer (list + thread same page, Xphere-style, replacing the drawer), and an Inbox Settings area (Accounts + Templates). Read-only; credentials stay in Integrations. Numbering continues the global counter — v4.15 ended at Phase 153, so v4.16 starts at **Phase 154**. Design reference: Xphere inbox (`C:\Users\Vanildo\Dev\xphere`). Autonomous run.
+
+### Prior Milestone (shipped)
+
+- **Milestone**: v4.15 Credit UX Polish & Admin Support Tooling — SHIPPED 2026-07-05. 4 phases (150-153), 13/13 requirements (CREDITUI-03..07, SUPPORT-01..04, ADMINCO-01..04). Usage progress bar + super-admin cost visibility, dollar-pack top-up + auto-top-up, Support Mode, Companies admin overhaul. Archived to milestones/v4.15-*.
 - **Phase plan (goal-backward, 4 phases — the Companies list first since Support Mode needs a stable place to launch from, then the security-sensitive impersonation, then the independent display-layer change, then the riskiest Stripe rework last):**
   - **150 Companies Admin Screen Overhaul** (ADMINCO-01..04) — search (name/email), filters (tier, AI-override, demo vs. real), server-side pagination with visible total count on `app/admin/companies/page.tsx`; the existing Demo Accounts grouping, `HandoffButton`, and Configure → action keep working unchanged. No dependency on the credit/billing track — sequenced first because Support Mode (151) needs this stable list UI to launch from.
   - **151 Super-Admin Support Mode (Tenant Impersonation)** (SUPPORT-01..04) — from the Phase 150 Companies screen, enter a tenant-scoped app view via a signed, time-boxed "acting-as-company" session claim (never a real identity switch); persistent banner (admin identity + viewed company) on every page; every session audit-logged (entry/company/admin/duration/exit) via the existing `lib/admin/audit-log.ts`; respects RLS, auto-revoked on end/expiry, never persists beyond the browser session. Security-sensitive — its own tightly-scoped phase, explicitly distinct from `HandoffButton` (Phase 149).
