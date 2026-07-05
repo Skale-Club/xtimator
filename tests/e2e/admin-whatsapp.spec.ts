@@ -33,27 +33,27 @@ test.describe('Admin WhatsApp page (WAADM-02)', () => {
     await page.waitForURL(/\/(dashboard|onboarding)/, { timeout: 15000 })
   })
 
-  test('admin can access /admin/whatsapp and sees the page heading', async ({ page }) => {
-    const response = await page.goto('/admin/whatsapp')
+  test('admin can access /admin/inbox and sees the page heading', async ({ page }) => {
+    const response = await page.goto('/admin/inbox')
     expect(response?.status()).toBe(200)
-    await expect(page.locator('h1')).toContainText('WhatsApp')
+    await expect(page.locator('h1')).toContainText('Inbox')
   })
 
   test('filter values are represented in URL search parameters', async ({ page }) => {
-    await page.goto('/admin/whatsapp')
+    await page.goto('/admin/inbox')
 
     // Navigate with search params directly
-    await page.goto('/admin/whatsapp?status=active')
+    await page.goto('/admin/inbox?status=active')
     await page.waitForLoadState('networkidle')
     expect(page.url()).toContain('status=active')
 
     // Verify the page still loads correctly
-    await expect(page.locator('h1')).toContainText('WhatsApp')
+    await expect(page.locator('h1')).toContainText('Inbox')
   })
 
   test('pagination preserves all active filters in URL', async ({ page }) => {
     // Navigate with filters + page
-    await page.goto('/admin/whatsapp?status=active&q=test&page=2')
+    await page.goto('/admin/inbox?status=active&q=test&page=2')
     await page.waitForLoadState('networkidle')
 
     // URL should contain the filters
@@ -63,7 +63,7 @@ test.describe('Admin WhatsApp page (WAADM-02)', () => {
   })
 
   test('page does not expose platform secrets in conversation rows', async ({ page }) => {
-    const response = await page.goto('/admin/whatsapp')
+    const response = await page.goto('/admin/inbox')
     expect(response?.status()).toBe(200)
 
     // Verify no secret tokens or API keys visible
@@ -74,7 +74,7 @@ test.describe('Admin WhatsApp page (WAADM-02)', () => {
   })
 
   test('page has a read-only notice', async ({ page }) => {
-    await page.goto('/admin/whatsapp')
+    await page.goto('/admin/inbox')
     await page.waitForLoadState('networkidle')
     const bodyText = await page.locator('body').innerText()
     expect(bodyText).toMatch(/Read-only/i)
@@ -86,7 +86,7 @@ test.describe('Admin WhatsApp: static contract (source-level)', () => {
     const { readFileSync } = await import('node:fs')
     const { resolve } = await import('node:path')
     const src = readFileSync(
-      resolve(process.cwd(), 'app/admin/whatsapp/page.tsx'),
+      resolve(process.cwd(), 'app/admin/inbox/page.tsx'),
       'utf8'
     )
     // Must accept searchParams as Promise (Next 14+ pattern)
@@ -97,7 +97,7 @@ test.describe('Admin WhatsApp: static contract (source-level)', () => {
     const { readFileSync } = await import('node:fs')
     const { resolve } = await import('node:path')
     const src = readFileSync(
-      resolve(process.cwd(), 'app/admin/whatsapp/page.tsx'),
+      resolve(process.cwd(), 'app/admin/inbox/page.tsx'),
       'utf8'
     )
     expect(src).toContain('parseAdminWhatsAppFilters')
@@ -107,7 +107,7 @@ test.describe('Admin WhatsApp: static contract (source-level)', () => {
     const { readFileSync } = await import('node:fs')
     const { resolve } = await import('node:path')
     const src = readFileSync(
-      resolve(process.cwd(), 'app/admin/whatsapp/page.tsx'),
+      resolve(process.cwd(), 'app/admin/inbox/page.tsx'),
       'utf8'
     )
     expect(src).toContain('listAdminWhatsAppConversations')
@@ -117,7 +117,7 @@ test.describe('Admin WhatsApp: static contract (source-level)', () => {
     const { readFileSync } = await import('node:fs')
     const { resolve } = await import('node:path')
     const src = readFileSync(
-      resolve(process.cwd(), 'app/admin/whatsapp/admin-whatsapp-filters.tsx'),
+      resolve(process.cwd(), 'app/admin/inbox/admin-whatsapp-filters.tsx'),
       'utf8'
     )
     // Must delete page param on filter change
@@ -128,7 +128,7 @@ test.describe('Admin WhatsApp: static contract (source-level)', () => {
     const { readFileSync } = await import('node:fs')
     const { resolve } = await import('node:path')
     const src = readFileSync(
-      resolve(process.cwd(), 'app/admin/whatsapp/page.tsx'),
+      resolve(process.cwd(), 'app/admin/inbox/page.tsx'),
       'utf8'
     )
     expect(src).toContain('Previous')
@@ -139,7 +139,7 @@ test.describe('Admin WhatsApp: static contract (source-level)', () => {
     const { readFileSync } = await import('node:fs')
     const { resolve } = await import('node:path')
     const src = readFileSync(
-      resolve(process.cwd(), 'app/admin/whatsapp/page.tsx'),
+      resolve(process.cwd(), 'app/admin/inbox/page.tsx'),
       'utf8'
     )
     expect(src).not.toMatch(/\.limit\(\s*500\s*\)/)
@@ -174,7 +174,7 @@ test.describe('Admin WhatsApp: static contract (source-level)', () => {
     const { readFileSync } = await import('node:fs')
     const { resolve } = await import('node:path')
     const src = readFileSync(
-      resolve(process.cwd(), 'app/admin/whatsapp/admin-whatsapp-client.tsx'),
+      resolve(process.cwd(), 'app/admin/inbox/admin-whatsapp-client.tsx'),
       'utf8'
     )
     // Must call loadAdminConversationThread with both id and company_id
@@ -183,46 +183,11 @@ test.describe('Admin WhatsApp: static contract (source-level)', () => {
 
   // ── Plan 05 Task 2: Account provisioning contracts ──
 
-  test('page.tsx has Conversations and Accounts tabs', async () => {
-    const { readFileSync } = await import('node:fs')
-    const { resolve } = await import('node:path')
-    const src = readFileSync(
-      resolve(process.cwd(), 'app/admin/whatsapp/page.tsx'),
-      'utf8'
-    )
-    expect(src).toContain("tab === 'accounts'")
-    expect(src).toContain("tab === 'conversations'")
-    expect(src).toContain("tabUrl('accounts')")
-    expect(src).toContain("tabUrl('conversations')")
-  })
-
-  test('page.tsx imports and renders AdminWhatsAppAccounts', async () => {
-    const { readFileSync } = await import('node:fs')
-    const { resolve } = await import('node:path')
-    const src = readFileSync(
-      resolve(process.cwd(), 'app/admin/whatsapp/page.tsx'),
-      'utf8'
-    )
-    expect(src).toContain('AdminWhatsAppAccounts')
-    expect(src).toContain("from './admin-whatsapp-accounts'")
-  })
-
-  test('page.tsx reads whatsapp_company_configs and whatsapp_authorized_senders', async () => {
-    const { readFileSync } = await import('node:fs')
-    const { resolve } = await import('node:path')
-    const src = readFileSync(
-      resolve(process.cwd(), 'app/admin/whatsapp/page.tsx'),
-      'utf8'
-    )
-    expect(src).toContain('whatsapp_company_configs')
-    expect(src).toContain('whatsapp_authorized_senders')
-  })
-
   test('admin-whatsapp-accounts.tsx imports admin provisioning actions', async () => {
     const { readFileSync } = await import('node:fs')
     const { resolve } = await import('node:path')
     const src = readFileSync(
-      resolve(process.cwd(), 'app/admin/whatsapp/admin-whatsapp-accounts.tsx'),
+      resolve(process.cwd(), 'app/admin/inbox/settings/admin-whatsapp-accounts.tsx'),
       'utf8'
     )
     expect(src).toContain('saveWhatsAppSender')
@@ -235,7 +200,7 @@ test.describe('Admin WhatsApp: static contract (source-level)', () => {
     const { readFileSync } = await import('node:fs')
     const { resolve } = await import('node:path')
     const src = readFileSync(
-      resolve(process.cwd(), 'app/admin/whatsapp/admin-whatsapp-accounts.tsx'),
+      resolve(process.cwd(), 'app/admin/inbox/settings/admin-whatsapp-accounts.tsx'),
       'utf8'
     )
     expect(src).toContain('maskPhone')
@@ -247,7 +212,7 @@ test.describe('Admin WhatsApp: static contract (source-level)', () => {
     const { readFileSync } = await import('node:fs')
     const { resolve } = await import('node:path')
     const src = readFileSync(
-      resolve(process.cwd(), 'app/admin/whatsapp/admin-whatsapp-accounts.tsx'),
+      resolve(process.cwd(), 'app/admin/inbox/settings/admin-whatsapp-accounts.tsx'),
       'utf8'
     )
     expect(src).not.toMatch(/sendMessage|reply|send_message|handleSend/i)
@@ -257,7 +222,7 @@ test.describe('Admin WhatsApp: static contract (source-level)', () => {
     const { readFileSync } = await import('node:fs')
     const { resolve } = await import('node:path')
     const src = readFileSync(
-      resolve(process.cwd(), 'app/admin/whatsapp/admin-whatsapp-accounts.tsx'),
+      resolve(process.cwd(), 'app/admin/inbox/settings/admin-whatsapp-accounts.tsx'),
       'utf8'
     )
     expect(src).not.toMatch(/access_token|waba_id|meta_token|bearer/i)
