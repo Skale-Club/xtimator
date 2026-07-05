@@ -2,21 +2,31 @@
 gsd_state_version: 1.0
 milestone: v4.15
 milestone_name: Credit UX Polish & Admin Support Tooling
-status: defining
-stopped_at: Defining requirements — v4.14 (146-149) + Phase 1001 SEO (out-of-band) both complete
-last_updated: "2026-07-05T14:35:09.145Z"
-last_activity: 2026-07-05
+status: executing
+stopped_at: Phase 150 execution started (autonomous run)
+last_updated: "2026-07-05T18:00:05.450Z"
+last_activity: 2026-07-05 -- Phase 150 execution started
 progress:
-  total_phases: 102
-  completed_phases: 84
-  total_plans: 230
-  completed_plans: 241
-  percent: 82
+  total_phases: 107
+  completed_phases: 85
+  total_plans: 235
+  completed_plans: 245
 ---
 
 # Project State
 
 ## Current Status
+
+- **Milestone**: v4.15 Credit UX Polish & Admin Support Tooling — ROADMAP CREATED 2026-07-05. **4 phases (150-153)**, **13/13 requirements mapped** (CREDITUI-03..07, SUPPORT-01..04, ADMINCO-01..04), **no orphans**. Replace the raw numeric credit counter with a Claude-Console-style usage progress bar (tenants see only a % consumed, never $/credit math), move exact $ cost visibility to a super-admin-only surface extending `measured-cost-card.tsx`, rework the top-up flow to configurable dollar packs ($20/$50/$100) with optional auto-top-up, and give the super admin an audited, signed-session-claim "Support Mode" plus a paginated/searchable/filterable Companies admin screen. Source: SEED-039 + SEED-040. Numbering continues the global counter — v4.14 ended at Phase 149 (Phase 1001 SEO shipped out-of-band, NOT part of the counter), so v4.15 starts at **Phase 150**.
+- **Phase plan (goal-backward, 4 phases — the Companies list first since Support Mode needs a stable place to launch from, then the security-sensitive impersonation, then the independent display-layer change, then the riskiest Stripe rework last):**
+  - **150 Companies Admin Screen Overhaul** (ADMINCO-01..04) — search (name/email), filters (tier, AI-override, demo vs. real), server-side pagination with visible total count on `app/admin/companies/page.tsx`; the existing Demo Accounts grouping, `HandoffButton`, and Configure → action keep working unchanged. No dependency on the credit/billing track — sequenced first because Support Mode (151) needs this stable list UI to launch from.
+  - **151 Super-Admin Support Mode (Tenant Impersonation)** (SUPPORT-01..04) — from the Phase 150 Companies screen, enter a tenant-scoped app view via a signed, time-boxed "acting-as-company" session claim (never a real identity switch); persistent banner (admin identity + viewed company) on every page; every session audit-logged (entry/company/admin/duration/exit) via the existing `lib/admin/audit-log.ts`; respects RLS, auto-revoked on end/expiry, never persists beyond the browser session. Security-sensitive — its own tightly-scoped phase, explicitly distinct from `HandoffButton` (Phase 149).
+  - **152 Usage Progress Bar + Super-Admin Cost Visibility** (CREDITUI-03/04/05) — Settings > Plans + the topbar credit chip show a single color-escalating % bar instead of raw "N credits"; no tenant surface (page/chip/notification copy) ever shows a raw credit count or $ figure; the super admin gets exact credit balance + real USD cost + markup per company, extending `measured-cost-card.tsx`, never renderable by a tenant session. A pure display-layer change on top of the existing SEED-035 ledger (Phase 112/115) — no new ledger logic. Independent of 150/151; can run in parallel.
+  - **153 Dollar-Pack Top-Up + Auto-Top-Up** (CREDITUI-06/07) — tenant buys credits by picking a $ amount ($20/$50/$100, sizes configurable in `billing_config`) via Stripe one-time checkout, converted to credits via the existing markup/denomination; optional auto-top-up ($ threshold + $ purchase amount + saved default payment method), mirroring Anthropic Console's Auto Top-Up UX. Depends on 152 (the progress-bar surface the top-up entry point sits next to); the riskiest phase (Stripe checkout rework) — sequenced last.
+- **Dependency spine:** 150 (Companies list — the foundation Support Mode needs) → 151 (Support Mode, depends on 150's stable list UI). 152 (progress bar + admin cost visibility — independent display change, can run in parallel with 150/151) → 153 (dollar top-up + auto-top-up, depends on 152's display surface; the riskiest phase, sequenced last).
+- **Locked guardrails (SEED-039 + SEED-040 + REQUIREMENTS.md + PROJECT.md):** No new credit ledger — `credit_ledger`, markup math, and low-balance logic from SEED-035/CREDITUI-01/02 (Phase 115) stay exactly as they are; this milestone is UI + purchase-flow only. Tenants NEVER see a raw credit count or $ figure anywhere (Plans page, topbar chip, notifications) — only a % bar and qualitative low/critical states. $ cost visibility is super-admin-only, extending `measured-cost-card.tsx`, never exposed to a tenant even indirectly via a network payload a tenant page fetches. Top-up pack sizes and auto-top-up thresholds live in `billing_config`, never hardcoded. Support Mode is NOT a real identity switch — a signed, time-boxed "acting-as-company" session claim, RLS-safe, revocable, never persisted beyond the browser session, distinct from a Supabase auth sign-in as the tenant. Support Mode ≠ `HandoffButton` (Phase 149, a sales/demo-to-prospect owner-invite flow) — must not be conflated or merged. Every Support Mode session is audit-logged via the existing `lib/admin/audit-log.ts`. Numbering continues the global counter — v4.14 ended at Phase 149, so v4.15 starts at **Phase 150** (Phase 1001 SEO is out-of-band, not part of the counter).
+- **Previous milestone**: v4.14 Admin Sales Mode + Phase 1001 SEO Readiness — SHIPPED 2026-07-05 (phases 146-149, 5/5 requirements ADMIN-01..05; plus out-of-band Phase 1001 SEO-01..06). DB-driven `is_super_admin` + `requireSuperAdmin()` replacing hardcoded email checks, admin "Add new company" modal with 3-estimate demo quota, server-side quota guard + manual grant control, and `HandoffButton` account handoff via the existing Phase 136/137 invite mechanism. Neither v4.14 nor Phase 1001 had a formal `/gsd:complete-milestone` archival pass — MILESTONES.md archival remains a pending housekeeping item.
+- **Position**: Roadmap created 2026-07-05. Next: `/gsd:plan-phase 150`.
 
 - **Milestone**: v4.13 Annual Billing — ROADMAP CREATED 2026-06-25. **5 phases (141-145)**, **5/5 requirements mapped** (ANN-01..ANN-05), **no orphans**. Add a discounted ANNUAL subscription option while keeping AI credit distribution MONTHLY for every interval — annual changes price + billing cadence only, never the rate at which credits flow. The load-bearing change is decoupling the monthly credit grant from the invoice cadence: a monthly Inngest cron + a `grant:{companyId}:{YYYY-MM}` company-month idempotency key SHARED with the `invoice.paid` webhook → exactly one grant per company per calendar month for any interval. Source: SEED-038. Numbering continues the global counter — v4.12 ended at Phase 140, so v4.13 starts at **Phase 141**.
 - **Phase plan (goal-backward, 5 phases — configurable price foundation, then the load-bearing grant decouple, then checkout + seat interval, then the UI toggle):**
@@ -32,10 +42,10 @@ progress:
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements — milestone v4.15 Credit UX Polish & Admin Support Tooling started (autonomous run, seeds SEED-039 + SEED-040)
-Last activity: 2026-07-05 — Milestone v4.15 started
+Phase: 150 (companies-admin-screen-overhaul) — EXECUTING
+Plan: 1 of 1
+Status: Executing Phase 150
+Last activity: 2026-07-05 -- Phase 150 execution started
 
 ### Previous Position (v4.14 / Phase 1001, for continuity)
 
@@ -1081,7 +1091,7 @@ Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gs
 See: .planning/PROJECT.md (updated 2026-05-13)
 
 **Core value:** Business owner → job site audio recording → sent professional estimate in under 5 minutes
-**Current focus:** Phase 1001 complete — deploy SEO changes, then complete Search Console and Meta setup
+**Current focus:** Phase 150 — companies-admin-screen-overhaul
 
 ## Notes
 
