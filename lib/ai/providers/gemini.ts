@@ -1,4 +1,5 @@
 // lib/ai/providers/gemini.ts
+import { randomUUID } from 'node:crypto'
 import { GoogleGenAI, Type, FunctionCallingConfigMode } from '@google/genai'
 import type { AIProvider } from '../provider.interface'
 import type { EstimateInput, EstimateOutput, RefineEstimateInput } from '../types'
@@ -7,6 +8,7 @@ import { buildSystemPrompt, buildUserContent, buildRefineUserContent } from '../
 import { normalizeOutput, appendRetryHint } from '../normalize'
 import { InvalidEstimateOutputError } from '../with-fallback'
 import { toRefineEstimateInput } from './refine-input'
+import { recordAICost } from '@/lib/billing/record-ai-cost'
 import { PHOTO_PROMPT } from '@/lib/ai/openrouter-client'
 
 /** File-extension → MIME type for inline audio sent to Gemini. */
@@ -39,6 +41,9 @@ const TRANSCRIBE_PROMPT =
  * inline audio and returns the spoken text directly.
  */
 export async function transcribeAudioGemini(audioBlob: Blob, ext: string): Promise<string> {
+  // NOTE: vision/transcription cost recording deferred — no costContext param;
+  // would be an uncorrelated null-id row (threading costContext through here + all
+  // call sites is out of scope for this focused observability fix).
   const apiKey = await getIntegrationKey('gemini')
   if (!apiKey) throw new Error('Gemini API key not configured')
 
@@ -67,6 +72,9 @@ export async function transcribeAudioGemini(audioBlob: Blob, ext: string): Promi
  * `base64` is the raw base64 string; `mimeType` is e.g. "image/jpeg".
  */
 export async function analyzePhotoGemini(base64: string, mimeType: string): Promise<string> {
+  // NOTE: vision/transcription cost recording deferred — no costContext param;
+  // would be an uncorrelated null-id row (threading costContext through here + all
+  // call sites is out of scope for this focused observability fix).
   const apiKey = await getIntegrationKey('gemini')
   if (!apiKey) throw new Error('Gemini API key not configured')
 
@@ -169,6 +177,24 @@ export class GeminiAdapter implements AIProvider {
     const args = fc.args as Record<string, unknown>
     const r = normalizeOutput(args)
     if (!r.ok) throw new InvalidEstimateOutputError(r.error)
+    // Cost-recording observability: this adapter is the SILENT fallback. Record a
+    // gemini/null-cost row so a Gemini-served estimate is not invisible in
+    // ai_cost_events. Gemini's SDK returns no USD cost — record NULL, NEVER 0
+    // (null-vs-0 discipline): a null-cost row still COUNTS the event ("served by
+    // gemini, cost unknown") vs "no row at all". AWAIT (not void): mirrors
+    // openrouter.ts — inside an Inngest step a floating promise can be dropped
+    // when the invocation freezes. recordAICost is internally never-throw, so
+    // awaiting is safe and can never affect the estimate return. Correlation ids
+    // come ONLY from the trusted, non-LLM costContext (never from `args`).
+    await recordAICost({
+      attemptId: input.costContext?.attemptId ?? randomUUID(),
+      operationType: 'estimate',
+      provider: 'gemini',
+      model: 'gemini-2.5-flash',
+      realCostUsd: null,
+      companyId: input.costContext?.companyId ?? null,
+      projectId: input.costContext?.projectId ?? null,
+    })
     return r.value
   }
 
@@ -264,6 +290,17 @@ export class GeminiAdapter implements AIProvider {
     const args = fc.args as Record<string, unknown>
     const r = normalizeOutput(args)
     if (!r.ok) throw new InvalidEstimateOutputError(r.error)
+    // RefineEstimateInput carries no costContext (generate is the correlated path);
+    // still record so the Gemini-served refine is counted, with null ids via randomUUID.
+    await recordAICost({
+      attemptId: randomUUID(),
+      operationType: 'estimate',
+      provider: 'gemini',
+      model: 'gemini-2.5-flash',
+      realCostUsd: null,
+      companyId: null,
+      projectId: null,
+    })
     return r.value
   }
 }
