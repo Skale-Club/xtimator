@@ -226,6 +226,88 @@ describe('makeOpenRouterWebProvider — evidence gate', () => {
     expect(isUsableCandidate(out[0])).toBe(true)
   })
 
+  it('indexes a FLAT-shape url_citation annotation (no nested url_citation object) — D4', async () => {
+    // Live-observed shape drift: some models return the citation fields FLAT on
+    // the annotation instead of nested under url_citation. The indexer must
+    // tolerate both — a real citation should never be dropped over its shape.
+    const content = JSON.stringify({
+      results: [
+        {
+          name: 'Drywall repair',
+          unit_price: 150,
+          currency: 'USD',
+          source_url: 'https://example.com/drywall-prices',
+          snippet: 'self-asserted snippet (ignored)',
+        },
+      ],
+    })
+    const annotations = [
+      {
+        type: 'url_citation',
+        url: 'https://example.com/drywall-prices',
+        content: 'Average drywall repair runs about $150 in Austin, TX.',
+      },
+    ]
+    const fetchMock = vi.fn(async () =>
+      orResponse(content, annotations) as unknown as Response
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const out = await makeOpenRouterWebProvider().lookup(
+      [{ name: 'Drywall repair' }],
+      region,
+      'USD'
+    )
+
+    expect(out).toHaveLength(1)
+    expect(out[0].source_url).toBe('https://example.com/drywall-prices')
+    expect(out[0].snippet).toContain('$150')
+    expect(isUsableCandidate(out[0])).toBe(true)
+  })
+
+  it('warns loudly when results parse but ZERO citations are indexed — evidence gate untouched (D4)', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      const content = JSON.stringify({
+        results: [
+          {
+            name: 'Drywall repair',
+            unit_price: 150,
+            currency: 'USD',
+            source_url: 'https://example.com/drywall-prices',
+            snippet: 'self-asserted',
+          },
+        ],
+      })
+      const fetchMock = vi.fn(async () =>
+        orResponse(content, []) as unknown as Response
+      )
+      vi.stubGlobal('fetch', fetchMock)
+
+      const out = await makeOpenRouterWebProvider().lookup(
+        [{ name: 'Drywall repair' }],
+        region,
+        'USD'
+      )
+
+      const msg = String(
+        warnSpy.mock.calls
+          .map((c) => c[0])
+          .find((m) => String(m).includes('[price-research]'))
+      )
+      expect(msg).toContain('[price-research]')
+      expect(msg).toContain('0 citations indexed')
+
+      // The evidence gate itself is UNTOUCHED — the result stays gated.
+      expect(out).toHaveLength(1)
+      expect(out[0].source_url).toBeNull()
+      expect(out[0].snippet).toBeNull()
+      expect(isUsableCandidate(out[0])).toBe(false)
+    } finally {
+      warnSpy.mockRestore()
+    }
+  })
+
   it('nulls out source_url/snippet when the model cites a url NOT in the annotations', async () => {
     const content = JSON.stringify({
       results: [

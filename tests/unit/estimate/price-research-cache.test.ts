@@ -198,4 +198,34 @@ describe('RCACHE — price-research cache module', () => {
   it('PRICE_RESEARCH_TTL_MS is exactly 30 days', () => {
     expect(PRICE_RESEARCH_TTL_MS).toBe(30 * 24 * 60 * 60 * 1000)
   })
+
+  it('put() RESOLVES and warns "cache write failed" when the upsert errors (D9)', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      const from = vi.fn(() => ({
+        upsert: vi.fn(async () => ({ data: null, error: { message: 'boom' } })),
+      }))
+      vi.mocked(requireServiceClient).mockReturnValue({ from } as never)
+
+      // Never throws — put() keeps resolving void even on a failed write.
+      await expect(
+        put({
+          companyId: 'company-1',
+          name: 'Couch cleaning 8 seats',
+          region: { city: 'Austin', state: 'TX' },
+          currency: 'USD',
+          datum: { unit_price: 120, source: 'exa', confidence: 0.7 },
+        })
+      ).resolves.toBeUndefined()
+
+      const msg = String(
+        warnSpy.mock.calls
+          .map((c) => c[0])
+          .find((m) => String(m).includes('cache write failed'))
+      )
+      expect(msg).toContain('cache write failed')
+    } finally {
+      warnSpy.mockRestore()
+    }
+  })
 })
