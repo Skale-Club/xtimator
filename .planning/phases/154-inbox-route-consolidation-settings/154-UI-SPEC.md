@@ -1,10 +1,11 @@
 ---
 phase: 154
 slug: inbox-route-consolidation-settings
-status: draft
+status: approved
 shadcn_initialized: true
 preset: new-york / neutral base / lucide icons
 created: 2026-07-05
+reviewed_at: 2026-07-05
 ---
 
 # Phase 154 — UI Design Contract
