@@ -127,7 +127,7 @@ export function buildNotificationCopy(
     case 'admin.bonus_credits_granted':
       return {
         title: 'Bonus credits granted',
-        body: `An admin granted you ${ctx.credits ?? 0} bonus credits.`,
+        body: 'An admin added bonus credits to your account.',
       }
     case 'system.maintenance':
       return {
