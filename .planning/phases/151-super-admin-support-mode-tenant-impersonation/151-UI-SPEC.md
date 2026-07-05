@@ -1,10 +1,11 @@
 ---
 phase: 151
 slug: super-admin-support-mode-tenant-impersonation
-status: draft
+status: approved
 shadcn_initialized: true
 preset: new-york / neutral base / cssVariables / lucide icons
 created: 2026-07-05
+reviewed_at: 2026-07-05
 ---
 
 # Phase 151 — UI Design Contract
