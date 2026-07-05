@@ -56,6 +56,23 @@ export const CATEGORIES: ReadonlyArray<Category> = [
         description:
           'Single API key, hundreds of models. Routes all AI tasks (estimate generation, photo analysis, audio transcription) through OpenRouter.',
       },
+      // D5 (quick-260705-2gp): fallback-key rows restored so the operator can
+      // see/rotate them — the code paths (Gemini generation/vision fallback,
+      // OpenAI Whisper-direct transcription fallback) were already wired but the
+      // keys were invisible/unmanageable in the panel, leaving the OpenAI
+      // transcription fallback DEAD in production (key row missing).
+      {
+        id: 'gemini' as IntegrationProvider,
+        title: 'Google Gemini',
+        description:
+          'Fallback engine for estimate generation and photo analysis when OpenRouter fails. OpenRouter remains the primary engine for all AI tasks.',
+      },
+      {
+        id: 'openai' as IntegrationProvider,
+        title: 'OpenAI',
+        description:
+          'Whisper speech-to-text fallback — used only when OpenRouter transcription fails. OpenRouter remains the primary transcription engine.',
+      },
     ],
   },
   {

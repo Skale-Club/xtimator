@@ -11,6 +11,7 @@ import 'server-only'
  * companies.byok_openrouter_key as compact JSON of base64 parts. NEVER stored or
  * logged in plaintext; only the last 4 chars are kept for the admin UI hint.
  */
+import * as Sentry from '@sentry/nextjs'
 import { encrypt, decrypt, type EncryptedBlob } from '@/lib/crypto/aes'
 import { requireServiceClient } from '@/lib/supabase/service'
 
@@ -68,6 +69,17 @@ export async function getByokOpenRouterKey(companyId: string): Promise<string | 
     return decrypt(deserializeEncryptedKey(row.byok_openrouter_key))
   } catch (err) {
     console.warn('[byok] key resolution failed — falling back to platform key:', err)
+    // D6 (quick-260705-2gp): OBSERVABILITY ONLY — a broken BYOK blob silently
+    // degrades to billed platform-key behavior, so surface it in Sentry too.
+    // Never-throw discipline (mirror lib/observability/capture.ts): a Sentry
+    // failure must not break the fail-open return.
+    try {
+      Sentry.captureException(err, {
+        tags: { background: 'byok.keyResolution', company_id: companyId },
+      })
+    } catch {
+      /* never throw from observability */
+    }
     return null
   }
 }

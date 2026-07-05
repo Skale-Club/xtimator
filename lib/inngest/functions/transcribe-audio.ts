@@ -192,7 +192,8 @@ export const transcribeAudioJob = inngest.createFunction(
     // Phase 110 (COST-02): record the COMPUTED Whisper/STT cost. The provider
     // returns no cost, so cost = (recordings.duration_seconds / 60) × rate.
     // Correlated by attemptId alone (no usage_event coupling — Phase 112 owns
-    // metering). Best-effort: void so a cost-write never breaks transcription.
+    // metering). recordAICost is never-throw, so awaiting it inside a step is
+    // still safe for the transcription outcome.
     //
     // Provider attribution: transcribeAudioOR runs OpenRouter STT as primary and
     // falls back to OpenAI direct ONCE on failure, but the fallback is hidden
@@ -206,15 +207,20 @@ export const transcribeAudioJob = inngest.createFunction(
     // returns null for an unknown rate (e.g. a hidden Gemini fallback), so the debit
     // no-ops on null (null vs guessed 0).
     const whisperCost = computeWhisperCostUsd(ident.durationSeconds)
-    void recordAICost({
-      attemptId,
-      operationType: 'audio_minutes',
-      provider: 'openrouter',
-      model: sttModel,
-      realCostUsd: whisperCost,
-      companyId: ident.companyId,
-      projectId: ident.projectId,
-      units: minutes > 0 ? minutes : null,
+    // D7 (quick-260705-2gp): the cost insert is memoized as its own Inngest step
+    // so a retry of a LATER step can never double-insert an ai_cost_events row
+    // (the previous bare `void recordAICost(...)` re-ran on every retry replay).
+    await step.run('record-ai-cost', async () => {
+      await recordAICost({
+        attemptId,
+        operationType: 'audio_minutes',
+        provider: 'openrouter',
+        model: sttModel,
+        realCostUsd: whisperCost,
+        companyId: ident.companyId,
+        projectId: ident.projectId,
+        units: minutes > 0 ? minutes : null,
+      })
     })
 
     // Phase 112 (CREDIT-02): credit debit for the transcription, retry-isolated and

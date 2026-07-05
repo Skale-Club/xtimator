@@ -132,7 +132,10 @@ export async function generateEstimateForProject(
   const hasTranscripts = recordings.some(
     (r) => r.transcript && r.transcript.trim().length > 0
   )
-  const hasPhotos = photos.length > 0
+  // D3 (quick-260705-2gp): count only ANALYZED photos — the prompt builder
+  // below filters to ai_description, so an unanalyzed photo contributes zero
+  // context and must not satisfy the precondition on its own.
+  const hasPhotos = photos.some((p) => p.ai_description && p.ai_description.trim().length > 0)
   const hasPrompts =
     Array.isArray(options.prompts) &&
     options.prompts.some((p) => typeof p === 'string' && p.trim().length > 0)
