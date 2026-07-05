@@ -53,7 +53,7 @@ Identical to Event Log reference (admin panel house style — do not introduce n
 
 | Role | Size | Weight | Line Height |
 |------|------|--------|-------------|
-| Page title (h1) | `clamp(28px, 3.5vw, 40px)` | 600 (semibold, `font-semibold`) | 1.2 (`tracking-tight`, default heading LH) |
+| Page title (h1) | `clamp(28px, 3.5vw, 40px)` | 500 (medium, `font-medium`) | 1.2 (`tracking-tight`, default heading LH) |
 | Section heading (h2) | 18px (`text-lg`) | 500 (medium, `font-medium`) | 1.2 |
 | Body / description | 16px (`text-sm` maps to 14px in this codebase's Tailwind scale — see note) | 400 (regular) | 1.5 |
 | Table cell / label | 14px (`text-sm`) | 400 regular; 500 medium for primary column (e.g. company name) | 1.5 |
@@ -61,7 +61,7 @@ Identical to Event Log reference (admin panel house style — do not introduce n
 
 Note: this codebase's `text-sm` = 14px and `text-xs` = 12px (Tailwind defaults, unmodified). No custom font-size scale exists in `tailwind.config` — sizes are Tailwind's stock `text-xs`/`text-sm`/`text-lg` utilities plus the one `clamp()` display size for page titles. Declaring exactly 4 roles above (page title / section heading / body-table / micro) satisfies the "3-4 sizes" contract using values already in production use — no new sizes introduced.
 
-Weights: exactly 2 in active use — 400 (regular, body/table default) and 500/600 (medium for emphasis, semibold reserved for h1 only). Treat 500 and 600 as a single "emphasis" weight tier for the checker's "2 weights max" rule — 600 appears only on the h1, 500 everywhere else emphasis is needed (section headings, primary link text, badges).
+Weights: exactly 2 in active use — 400 (regular, body/table default) and 500 (medium, used for h1 AND all other emphasis — table headers, links, badges, section headings). No 600/semibold weight appears anywhere in this phase's UI.
 
 ---
 
