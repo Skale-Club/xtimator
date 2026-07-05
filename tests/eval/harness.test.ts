@@ -213,6 +213,15 @@ function makeSupabaseMock() {
               }),
             }
           }
+          if (cols === 'id') {
+            return {
+              eq: vi.fn().mockReturnValue({
+                eq: vi.fn().mockReturnValue({
+                  maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+                }),
+              }),
+            }
+          }
           // version lookup: select('version').eq().order().limit()
           return {
             eq: vi.fn().mockReturnValue({

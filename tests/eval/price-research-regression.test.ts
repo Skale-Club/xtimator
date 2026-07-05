@@ -322,6 +322,15 @@ function makeSupabaseMock() {
               }),
             }
           }
+          if (cols === 'id') {
+            return {
+              eq: vi.fn().mockReturnValue({
+                eq: vi.fn().mockReturnValue({
+                  maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+                }),
+              }),
+            }
+          }
           return {
             eq: vi.fn().mockReturnValue({
               order: vi.fn().mockReturnValue({
