@@ -1383,6 +1383,36 @@ Plans:
 
 > **Open product decisions for discuss-phase:** phone-number source & validation (profile field vs onboarding), SMS opt-in/consent flow + Twilio cost acceptance, WhatsApp template approval, and the fate of removed-category events (AI Jobs job-failure notices, inbound-WhatsApp notices) — re-route to a kept category, keep in-app-only, or drop. RESOLVED in 104-CONTEXT: reuse `owner_phone` (gate on non-null, no OTP re-add); explicit per-channel opt-in with paid-SMS consent; templates via super-admin panel; removed-category events → `_dropped` sentinel (no delivery).
 
+### Phase 1001: SEO Foundation and Organic Acquisition Readiness
+
+**Goal:** Raise Xtimator's production SEO readiness from the audited 4.5/10 baseline to at least 8.5/10 by making every intended public page crawlable, canonical, semantically described, fast, measurable, and supported by useful industry-specific content—without exposing private application, estimate, auth, admin, or demo surfaces to search engines.
+**Requirements**: SEO-01, SEO-02, SEO-03, SEO-04, SEO-05, SEO-06
+**Depends on:** Phase 1000
+**Success Criteria** (what must be TRUE):
+
+  1. Production serves valid `/robots.txt` and `/sitemap.xml`; the sitemap contains only canonical public URLs and all private/auth/admin/demo/share routes emit `noindex, nofollow` or are excluded by an explicit route policy.
+  2. Every indexable page has a unique title, description, self-referencing canonical, `og:url`, `og:type`, Twitter card metadata, and a valid social image with dimensions and alt text; `fb:app_id` is emitted only when a real Facebook App ID is configured.
+  3. The homepage and public content expose valid JSON-LD for `Organization`, `WebSite`, and `SoftwareApplication`; blog posts expose `Article` and breadcrumbs, with automated schema validation tests.
+  4. Xtimator ships a high-quality, internally linked content architecture: a metadata-complete blog index/post system plus a curated first set of substantial industry landing pages, avoiding templated thin-content multiplication.
+  5. The anonymous homepage no longer becomes `private, no-store` solely to render auth-aware navigation; production Lighthouse SEO is at least 95 and mobile performance/accessibility remain at least 85 on the homepage and one representative content page.
+  6. A documented launch checklist covers Search Console ownership, sitemap submission, URL inspection, Meta Sharing Debugger, Bing Webmaster Tools, baseline queries, and a 30/60/90-day measurement loop; automated tests fail when crawlability, metadata, schema, or route-indexing policy regresses.
+**Plans:** 4 plans
+
+Plans:
+
+**Wave 1**
+
+- [ ] 1001-01-PLAN.md — establish canonical URL helpers, robots/sitemap routes, explicit index/noindex boundaries, and crawlability regression tests (SEO-01, SEO-02)
+- [ ] 1001-02-PLAN.md — complete Open Graph/Twitter metadata and add validated Organization/WebSite/SoftwareApplication/Article/Breadcrumb JSON-LD (SEO-02, SEO-03)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 1001-03-PLAN.md — build the curated industry landing-page architecture, unique blog metadata, internal linking, and content quality gates (SEO-04)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 1001-04-PLAN.md — restore cacheability for anonymous acquisition pages and add Lighthouse, production smoke, Search Console, and social-debugger verification gates (SEO-05, SEO-06)
+
 ---
 
 ## 🚧 v4.6 Pricing Intelligence — Researched Pricing Agent (Phases 105-109)

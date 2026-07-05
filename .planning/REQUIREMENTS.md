@@ -55,6 +55,15 @@ Deferred to a future milestone. Tracked but not in this roadmap.
 - **ANNX-03**: Per-tenant custom discounts / promo codes; annual-only tiers.
 - **ANNX-04**: Dunning / retry-logic changes for annual invoices.
 
+## Cross-milestone Requirements — Phase 1001 SEO
+
+- [ ] **SEO-01**: Serve valid robots and sitemap metadata routes, define a single canonical production origin, include only intended public URLs, and enforce explicit noindex boundaries for private/auth/admin/demo/share surfaces.
+- [ ] **SEO-02**: Give every indexable route unique search and social metadata: title, concise description, self-canonical, `og:url`, `og:type`, Twitter card, and accessible 1200×630 social image metadata. Emit `fb:app_id` only when a real configured ID exists.
+- [ ] **SEO-03**: Emit validated JSON-LD for Organization, WebSite, and SoftwareApplication on the acquisition surface and Article plus BreadcrumbList on blog posts, with values derived from canonical application data rather than duplicated constants.
+- [ ] **SEO-04**: Ship a curated content architecture with unique blog index/post metadata and an initial set of substantial industry landing pages that answer trade-specific estimating needs and link naturally to product/demo conversion paths; reject thin or duplicate pages.
+- [ ] **SEO-05**: Keep anonymous acquisition pages cacheable and mobile-fast while preserving auth-aware navigation after hydration; Lighthouse gates require SEO ≥95 and performance/accessibility ≥85 on representative public routes.
+- [ ] **SEO-06**: Add automated metadata/schema/index-policy regressions plus a production launch and measurement runbook covering Search Console, sitemap submission, URL inspection, Meta Sharing Debugger, Bing Webmaster Tools, and 30/60/90-day reporting.
+
 ## Out of Scope
 
 | Feature | Reason |
