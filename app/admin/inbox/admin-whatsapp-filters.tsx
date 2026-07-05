@@ -45,7 +45,7 @@ export function AdminWhatsAppFilters({
     }
     // Reset to page 1 on filter change
     params.delete('page')
-    router.replace(`/admin/whatsapp?${params.toString()}`)
+    router.replace(`/admin/inbox?${params.toString()}`)
   }
 
   function handleRefresh() {
@@ -114,7 +114,7 @@ export function AdminWhatsAppFilters({
             params.delete('dateFrom')
           }
           params.delete('page')
-          router.replace(`/admin/whatsapp?${params.toString()}`)
+          router.replace(`/admin/inbox?${params.toString()}`)
         }}
       />
 
@@ -131,7 +131,7 @@ export function AdminWhatsAppFilters({
             params.delete('dateTo')
           }
           params.delete('page')
-          router.replace(`/admin/whatsapp?${params.toString()}`)
+          router.replace(`/admin/inbox?${params.toString()}`)
         }}
       />
 
@@ -141,7 +141,7 @@ export function AdminWhatsAppFilters({
           variant="ghost"
           size="sm"
           className="h-8 text-xs"
-          onClick={() => router.replace('/admin/whatsapp')}
+          onClick={() => router.replace('/admin/inbox')}
         >
           {t('Clear filters')}
         </Button>
