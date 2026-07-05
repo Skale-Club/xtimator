@@ -16,6 +16,7 @@ import { recordCreditDebit } from '@/lib/billing/credit-ledger'
 import { notify } from '@/lib/notifications/dispatch'
 import { buildNotificationCopy } from '@/lib/notifications/copy'
 import { recordPipelineEvent } from '@/lib/observability/pipeline-events'
+import { notifyOps } from '@/lib/observability/ops-alert'
 import {
   EVENT_ANALYZE_PHOTOS,
   type AnalyzePhotosPayload,
@@ -90,6 +91,18 @@ export const analyzePhotosJob = inngest.createFunction(
         resourceType: 'project',
         resourceId: payload.projectId,
         metadata: { dedupe_key: `ai-fail-photos-${payload.requestId}` },
+      })
+
+      // quick-260705-c1y-03: additive ops alert (never-throw fire-and-forget)
+      // alongside the tenant notify above — routes terminal vision failures to the
+      // operator's Telegram once configured. Does not gate or alter notify().
+      void notifyOps({
+        kind: 'vision_failed',
+        title: 'Photo analysis failed after retries',
+        message: `company=${payload.companyId} project=${payload.projectId} request=${payload.requestId} err=${error instanceof Error ? error.message : String(error)}`,
+        severity: 'error',
+        dedupeKey: `vision_fail:${payload.companyId}`,
+        suppressWindowSec: 600,
       })
     },
   },

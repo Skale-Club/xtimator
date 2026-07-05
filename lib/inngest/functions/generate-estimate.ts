@@ -17,6 +17,7 @@ import { recordCreditDebit } from '@/lib/billing/credit-ledger'
 import { notify } from '@/lib/notifications/dispatch'
 import { buildNotificationCopy } from '@/lib/notifications/copy'
 import { recordPipelineEvent } from '@/lib/observability/pipeline-events'
+import { notifyOps } from '@/lib/observability/ops-alert'
 import {
   EVENT_ESTIMATE_GENERATE,
   type EstimateGeneratePayload,
@@ -77,6 +78,18 @@ export const generateEstimateJob = inngest.createFunction(
         resourceType: 'project',
         resourceId: payload.projectId,
         metadata: { dedupe_key: `ai-fail-estimate-${payload.requestId}` },
+      })
+
+      // quick-260705-c1y-03: additive ops alert (never-throw fire-and-forget)
+      // alongside the tenant notify above — routes terminal generation failures
+      // to the operator's Telegram once configured. Does not gate or alter notify().
+      void notifyOps({
+        kind: 'estimate_generation_failed',
+        title: 'Estimate generation failed after retries',
+        message: `company=${payload.companyId} project=${payload.projectId} err=${error instanceof Error ? error.message : String(error)}`,
+        severity: 'error',
+        dedupeKey: `gen_fail:${payload.companyId}`,
+        suppressWindowSec: 600,
       })
     },
   },

@@ -14,6 +14,7 @@ import { getTranscriptionModel } from '@/lib/platform-config'
 import { notify } from '@/lib/notifications/dispatch'
 import { buildNotificationCopy } from '@/lib/notifications/copy'
 import { recordPipelineEvent } from '@/lib/observability/pipeline-events'
+import { notifyOps } from '@/lib/observability/ops-alert'
 import { recordAICost } from '@/lib/billing/record-ai-cost'
 import { recordCreditDebit } from '@/lib/billing/credit-ledger'
 import { computeWhisperCostUsd } from '@/lib/billing/whisper-cost'
@@ -82,6 +83,18 @@ export const transcribeAudioJob = inngest.createFunction(
         userId,
         provider: 'openrouter',
         errorMessage: String(error),
+      })
+
+      // quick-260705-c1y-03: additive ops alert BEFORE the !companyId early return
+      // so a company-less transcription failure is still surfaced to ops. Never-throw
+      // fire-and-forget; does not gate or alter the tenant notify() below.
+      void notifyOps({
+        kind: 'transcription_failed',
+        title: 'Audio transcription failed after retries',
+        message: `recording=${payload.recordingId} company=${companyId ?? 'unknown'} err=${error instanceof Error ? error.message : String(error)}`,
+        severity: 'error',
+        dedupeKey: `transcribe_fail:${payload.recordingId}`,
+        suppressWindowSec: 600,
       })
 
       if (!companyId) return
