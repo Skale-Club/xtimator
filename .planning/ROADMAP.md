@@ -1396,13 +1396,14 @@ Plans:
   4. Xtimator ships a high-quality, internally linked content architecture: a metadata-complete blog index/post system plus a curated first set of substantial industry landing pages, avoiding templated thin-content multiplication.
   5. The anonymous homepage no longer becomes `private, no-store` solely to render auth-aware navigation; production Lighthouse SEO is at least 95 and mobile performance/accessibility remain at least 85 on the homepage and one representative content page.
   6. A documented launch checklist covers Search Console ownership, sitemap submission, URL inspection, Meta Sharing Debugger, Bing Webmaster Tools, baseline queries, and a 30/60/90-day measurement loop; automated tests fail when crawlability, metadata, schema, or route-indexing policy regresses.
-**Plans:** 4 plans
+
+**Plans:** 1/4 plans executed
 
 Plans:
 
 **Wave 1**
 
-- [ ] 1001-01-PLAN.md — establish canonical URL helpers, robots/sitemap routes, explicit index/noindex boundaries, and crawlability regression tests (SEO-01, SEO-02)
+- [x] 1001-01-PLAN.md — establish canonical URL helpers, robots/sitemap routes, explicit index/noindex boundaries, and crawlability regression tests (SEO-01, SEO-02)
 - [ ] 1001-02-PLAN.md — complete Open Graph/Twitter metadata and add validated Organization/WebSite/SoftwareApplication/Article/Breadcrumb JSON-LD (SEO-02, SEO-03)
 
 **Wave 2** *(blocked on Wave 1 completion)*
