@@ -2476,7 +2476,7 @@ Plans:
 Plans:
 - [x] 151-01-PLAN.md — Signed session-claim module (startSupportSession/getSupportModeSession/endSupportSession) + audit-log extension
 - [x] 151-02-PLAN.md — SupportModeBanner + app/(app)/layout.tsx integration (switcher suppression, banner exclusivity)
-- [ ] 151-03-PLAN.md — Companies-list "Support Mode →" entry point + e2e coverage
+- [x] 151-03-PLAN.md — Companies-list "Support Mode →" entry point + e2e coverage
 **UI hint**: yes
 
 ### Phase 152: Usage Progress Bar + Super-Admin Cost Visibility

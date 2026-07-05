@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.15
 milestone_name: Credit UX Polish & Admin Support Tooling
 status: executing
-stopped_at: Phase 153 execution started (wave 1) — parallel with Phase 151 wave 3
-last_updated: "2026-07-05T19:26:11.104Z"
-last_activity: 2026-07-05 -- Phase 153 execution started
+stopped_at: Completed 151-03-PLAN.md — Phase 151 (Super-Admin Support Mode) now fully complete, 3/3 plans, 4/4 requirements (SUPPORT-01..04) — parallel with Phase 153 wave 1
+last_updated: "2026-07-05T19:35:00.000Z"
+last_activity: 2026-07-05 -- Phase 151 completed (151-03)
 progress:
-  total_phases: 107
-  completed_phases: 87
-  total_plans: 244
-  completed_plans: 251
+  total_phases: 108
+  completed_phases: 88
+  total_plans: 245
+  completed_plans: 252
 ---
 
 # Project State
@@ -26,7 +26,7 @@ progress:
 - **Dependency spine:** 150 (Companies list — the foundation Support Mode needs) → 151 (Support Mode, depends on 150's stable list UI). 152 (progress bar + admin cost visibility — independent display change, can run in parallel with 150/151) → 153 (dollar top-up + auto-top-up, depends on 152's display surface; the riskiest phase, sequenced last).
 - **Locked guardrails (SEED-039 + SEED-040 + REQUIREMENTS.md + PROJECT.md):** No new credit ledger — `credit_ledger`, markup math, and low-balance logic from SEED-035/CREDITUI-01/02 (Phase 115) stay exactly as they are; this milestone is UI + purchase-flow only. Tenants NEVER see a raw credit count or $ figure anywhere (Plans page, topbar chip, notifications) — only a % bar and qualitative low/critical states. $ cost visibility is super-admin-only, extending `measured-cost-card.tsx`, never exposed to a tenant even indirectly via a network payload a tenant page fetches. Top-up pack sizes and auto-top-up thresholds live in `billing_config`, never hardcoded. Support Mode is NOT a real identity switch — a signed, time-boxed "acting-as-company" session claim, RLS-safe, revocable, never persisted beyond the browser session, distinct from a Supabase auth sign-in as the tenant. Support Mode ≠ `HandoffButton` (Phase 149, a sales/demo-to-prospect owner-invite flow) — must not be conflated or merged. Every Support Mode session is audit-logged via the existing `lib/admin/audit-log.ts`. Numbering continues the global counter — v4.14 ended at Phase 149, so v4.15 starts at **Phase 150** (Phase 1001 SEO is out-of-band, not part of the counter).
 - **Previous milestone**: v4.14 Admin Sales Mode + Phase 1001 SEO Readiness — SHIPPED 2026-07-05 (phases 146-149, 5/5 requirements ADMIN-01..05; plus out-of-band Phase 1001 SEO-01..06). DB-driven `is_super_admin` + `requireSuperAdmin()` replacing hardcoded email checks, admin "Add new company" modal with 3-estimate demo quota, server-side quota guard + manual grant control, and `HandoffButton` account handoff via the existing Phase 136/137 invite mechanism. Neither v4.14 nor Phase 1001 had a formal `/gsd:complete-milestone` archival pass — MILESTONES.md archival remains a pending housekeeping item.
-- **Position**: Phase 150 (Companies Admin Screen Overhaul) shipped 2026-07-05 — 1/1 plan complete, 4/4 requirements (ADMINCO-01..04). Phase 151 (Super-Admin Support Mode) in progress — Plan 01 (session-claim module, SUPPORT-01/03/04) and Plan 02 (banner + `app/(app)/layout.tsx` wiring, SUPPORT-02/04) shipped 2026-07-05; Plan 03 (Companies-list entry point) remaining. Next: execute 151-03.
+- **Position**: Phase 150 (Companies Admin Screen Overhaul) shipped 2026-07-05 — 1/1 plan complete, 4/4 requirements (ADMINCO-01..04). Phase 151 (Super-Admin Support Mode) COMPLETE 2026-07-05 — all 3/3 plans shipped, 4/4 requirements (SUPPORT-01..04): Plan 01 (session-claim module), Plan 02 (banner + `app/(app)/layout.tsx` wiring), Plan 03 (Companies-list "Support Mode →" row action, wired to `startSupportSession` via a thin server-action wrapper, `toast.error`-on-failure client component). Next: Phase 152/153 continue in parallel (see Parallel Track sections below); Phase 151 has no remaining work.
 
 - **Milestone**: v4.13 Annual Billing — ROADMAP CREATED 2026-06-25. **5 phases (141-145)**, **5/5 requirements mapped** (ANN-01..ANN-05), **no orphans**. Add a discounted ANNUAL subscription option while keeping AI credit distribution MONTHLY for every interval — annual changes price + billing cadence only, never the rate at which credits flow. The load-bearing change is decoupling the monthly credit grant from the invoice cadence: a monthly Inngest cron + a `grant:{companyId}:{YYYY-MM}` company-month idempotency key SHARED with the `invoice.paid` webhook → exactly one grant per company per calendar month for any interval. Source: SEED-038. Numbering continues the global counter — v4.12 ended at Phase 140, so v4.13 starts at **Phase 141**.
 - **Phase plan (goal-backward, 5 phases — configurable price foundation, then the load-bearing grant decouple, then checkout + seat interval, then the UI toggle):**
@@ -332,6 +332,9 @@ Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gs
 
 ## Decisions
 
+- [Phase 151 151-03]: Split the client/server boundary into two files (support-mode-button.tsx 'use client' + support-mode-actions.ts 'use server') since a single file cannot carry both directives — the button imports the thin server-action wrapper, never startSupportSession directly
+- [Phase 151 151-03]: router.push('/dashboard') on success (client-side nav after a successful useTransition await) instead of a server redirect() — SupportModeBanner (Plan 02) is itself the happy-path confirmation, no success toast needed
+- [Phase 151 151-03]: All Companies row-actions <td> extended with the same flex/gap wrapper Demo Accounts already used, since it now renders two inline actions (SupportModeButton + Configure) instead of one
 - [Phase 152 152-02]: aggregateAiCostByOperation(companyId?) implemented as a single conditional query-chain branch (not two duplicated functions) — companyId present adds `.eq('company_id', companyId)` before the existing `.not('real_cost_usd','is',null)` filter; no-arg call stays byte-identical
 - [Phase 152 152-02]: getCompanyCostOverview's totalRealCostUsd is reconstructed as `meanUsd * n` per operation (mean = sum/n) instead of a second raw-sum query against ai_cost_events — avoids an extra DB round trip
 - [Phase 152 152-02]: lib/queries/admin-company-cost.ts kept structurally separate from lib/queries/credits.ts (owner-safe projection) so the tenant-cost-neutrality static test can assert column-level safety on the tenant file without colliding with this file's legitimate use of real_cost_usd/credit_balance
