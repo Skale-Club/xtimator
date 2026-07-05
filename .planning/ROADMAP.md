@@ -2498,5 +2498,8 @@ Plans:
   4. On mobile the layout collapses to a single column — the list by default, the thread when a conversation is selected, with a back affordance to return to the list
   5. The e2e admin-whatsapp spec's selectors are updated from the old `Sheet`-based thread to the new two-pane thread pane and pass green; the read-only posture is preserved (no reply/send affordance anywhere in the viewer)
 
-**Plans**: TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 155-01-PLAN.md — Two-pane master-detail refactor of admin-whatsapp-client.tsx + page.tsx wiring (URL-driven selection, SSR deep-link, empty state, mobile collapse)
+- [ ] 155-02-PLAN.md — Close the 6 Wave-0 test gaps (stale static-contract fix, row-click/direct-link/empty-state/mobile-collapse/no-reply-send tests)
 **UI hint**: yes
