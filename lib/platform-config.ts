@@ -57,6 +57,11 @@ export type IntegrationProvider =
   // platform_integrations path; non-secret base URL stored in metadata.base_url.
   // Disabled-by-default: getXphereConfig() returns null unless both are present.
   | 'xphere'
+  // Telegram — platform-owner ops-alert channel. Bot token stored encrypted via
+  // the same platform_integrations path; chat_id (numeric, may be negative for
+  // groups) stored in metadata.chat_id. Dormant until BOTH are present:
+  // getTelegramConfig() returns null unless the token and chat_id both resolve.
+  | 'telegram'
 
 const TTL_MS = 30_000
 
@@ -347,6 +352,37 @@ export async function getXphereConfig(): Promise<XphereConfig> {
   if (!baseUrl) return null
 
   return { apiKey, baseUrl: baseUrl.replace(/\/+$/, '') } // strip trailing slash
+}
+
+export type TelegramConfig = { botToken: string; chatId: string } | null
+
+/**
+ * Read the platform-owner Telegram ops-alert credentials: the encrypted bot
+ * token (via getIntegrationKey, which falls back to TELEGRAM_API_KEY for dev)
+ * plus the numeric chat_id stored in platform_integrations.telegram
+ * metadata.chat_id.
+ *
+ * Dormant-by-default: returns null unless BOTH the token and chat_id resolve, so
+ * the entire ops-alerting system stays off until an operator configures it in
+ * /admin/integrations → Platform Alerts. The token is never logged or returned
+ * except inside this config object consumed by the server-only client.
+ */
+export async function getTelegramConfig(): Promise<TelegramConfig> {
+  const botToken = await getIntegrationKey('telegram') // env fallback → TELEGRAM_API_KEY (dev only)
+  if (!botToken) return null
+
+  const svc = createServiceClient()
+  if (!svc) return null
+  const { data } = await svc
+    .from('platform_integrations')
+    .select('metadata')
+    .eq('provider', 'telegram')
+    .maybeSingle()
+
+  const chatId = (data?.metadata as { chat_id?: string } | null)?.chat_id ?? ''
+  if (!chatId) return null
+
+  return { botToken, chatId }
 }
 
 /**
