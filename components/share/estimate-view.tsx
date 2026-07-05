@@ -20,6 +20,12 @@ import {
   type DocumentCompany,
   type DocumentClient,
 } from '@/components/workspace/estimate/estimate-document'
+import { EstimateDocumentModern } from '@/components/share/estimate-document-modern'
+import {
+  type EstimateTemplateId,
+  isEstimateTemplateId,
+  DEFAULT_ESTIMATE_TEMPLATE_ID,
+} from '@/lib/estimate/templates/registry'
 
 const FLAG_MAP_LANG: Record<string, ComponentType<{ className?: string }>> = {
   en: FlagUS,
@@ -156,6 +162,14 @@ export function EstimateView({
     })),
   }
 
+  // Registry-resolved templateId — guarded via isEstimateTemplateId, never a raw
+  // string comparison. Legacy/unrecognized values fall back to the default (classic).
+  const templateId: EstimateTemplateId = isEstimateTemplateId(
+    estimate.company.estimate_template_style
+  )
+    ? estimate.company.estimate_template_style
+    : DEFAULT_ESTIMATE_TEMPLATE_ID
+
   // ---------------------------------------------------------------------------
   // Respond handlers
   // ---------------------------------------------------------------------------
@@ -216,19 +230,33 @@ export function EstimateView({
         </div>
       )}
 
-      {/* Document body */}
-      <EstimateDocument
-        mode="view"
-        data={documentData}
-        company={documentCompany}
-        client={documentClient}
-        projectName={project.name}
-        projectType={project.project_type}
-        language={(estimate.language ?? 'en') as EstimateLanguage}
-        estimateVersion={estimate.version}
-        estimateSeq={estimate.estimate_seq}
-        estimateCreatedAt={estimate.created_at}
-      />
+      {/* Document body — registry-resolved templateId selects Classic vs Modern */}
+      {templateId === 'modern' ? (
+        <EstimateDocumentModern
+          data={documentData}
+          company={documentCompany}
+          client={documentClient}
+          projectName={project.name}
+          projectType={project.project_type}
+          language={(estimate.language ?? 'en') as EstimateLanguage}
+          estimateVersion={estimate.version}
+          estimateSeq={estimate.estimate_seq}
+          estimateCreatedAt={estimate.created_at}
+        />
+      ) : (
+        <EstimateDocument
+          mode="view"
+          data={documentData}
+          company={documentCompany}
+          client={documentClient}
+          projectName={project.name}
+          projectType={project.project_type}
+          language={(estimate.language ?? 'en') as EstimateLanguage}
+          estimateVersion={estimate.version}
+          estimateSeq={estimate.estimate_seq}
+          estimateCreatedAt={estimate.created_at}
+        />
+      )}
 
       {/* Estimate Terms (company-level) */}
       {estimate.company.estimate_terms_enabled && estimate.company.estimate_terms_text && (
