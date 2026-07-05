@@ -51,15 +51,18 @@ Exceptions: none. The banner and row action are single-line, low-chrome elements
 
 ## Typography
 
-Reused from the existing global type scale (`app/globals.css`) — no new sizes or weights introduced:
+This phase's own typography budget covers **one new component only — `SupportModeBanner`** — and stays within **2 weights**, reused from the existing global type scale (`app/globals.css`); no new sizes or weights are introduced:
 
 | Role | Size | Weight | Line Height |
 |------|------|--------|-------------|
 | Banner body text | 14px (`text-sm`) | 400 (normal) | 20px (`--line-height-sm`, 1.43) |
 | Banner exit CTA | 14px (`text-sm`) | 600 (semibold) + underline | 20px |
-| Row action label | 12px (`text-xs`) | 500 (medium) | 16px (`--line-height-xs`) |
 
-Rationale: `DemoBanner` uses `text-sm` (14px/400) for body copy and `font-semibold underline` for its inline CTA — mirrored exactly for `SupportModeBanner`. The admin-side "Super Admin Mode" banner in `app/admin/layout.tsx` instead uses `text-xs font-medium` — that pattern is NOT copied for the tenant-side banner (151-CONTEXT.md specifies mirroring `DemoBanner`'s shape, not the admin banner's type scale; the admin banner's icon/color-family is what carries over, not its smaller type size). The Companies-list row action reuses the existing `text-xs font-medium` established by "Configure →" and "Hand off" for consistency within that table row.
+**Weights in active use for this phase's design contract: 2 — 400 (body) and 600 (exit CTA).**
+
+Rationale: `DemoBanner` uses `text-sm` (14px/400) for body copy and `font-semibold underline` for its inline CTA. `SupportModeBanner` mirrors this exactly — the exit CTA's `font-semibold` (600) is a hard-locked requirement from 151-CONTEXT.md (it must match `DemoBanner`'s `exitDemoToSignup` button verbatim), so it is not weakened to a lighter weight for the sake of a lower weight count. The admin-side "Super Admin Mode" banner in `app/admin/layout.tsx` instead uses `text-xs font-medium` — that pattern is NOT copied for the tenant-side banner (151-CONTEXT.md specifies mirroring `DemoBanner`'s shape, not the admin banner's type scale; the admin banner's icon/color-family is what carries over, not its smaller type size).
+
+**Footnote — Companies-list row action label (not part of this phase's typography budget):** The row action reuses `text-xs font-medium` (500), the pre-existing convention already shipped by Phase 150 for the "Configure →" and "Hand off" row links on the same table. This is an *inherited* sibling pattern this phase's row action sits next to and matches for consistency — it is not a new typographic choice introduced by Phase 151, and Phase 150 already owns that convention. Because it is inherited rather than authored here, it is excluded from this phase's declared weight count; the two weights this phase actually introduces/locks are 400 and 600, both scoped to `SupportModeBanner`.
 
 ---
 
@@ -112,6 +115,7 @@ Accent reserved for: `ShieldCheck` icon in `SupportModeBanner`, the banner's "Ex
 - Sits in the same right-aligned actions cell as `HandoffButton` and "Configure →", in this left-to-right order: `HandoffButton` (demo rows only) → **Support Mode →** (new) → `Configure →`.
 - Markup pattern (mirrors "Configure →"'s existing `<Link>` styling, adapted to a form-submit action since starting Support Mode is a server action, not a navigation):
   `<form action={startSupportSessionAction}><input type="hidden" name="companyId" value={c.id} /><button type="submit" className="inline-flex items-center gap-1 text-xs text-[hsl(var(--primary))] hover:underline font-medium"><Eye className="h-3 w-3" />Support Mode →</button></form>`
+  Note on `font-medium`: this class is carried over verbatim from Phase 150's existing "Configure →" row action for visual consistency within the same table row — see the Typography footnote above.
 - On success, the server action redirects to `/dashboard` (per 151-CONTEXT.md) — no client-side toast needed on the happy path since the redirect itself (into the tenant view with the banner visible) is the confirmation.
 - On failure, catch and surface via `toast.error(...)` exactly as `HandoffButton` does — this requires the row action to be a small client component wrapper (`'use client'`) if `useTransition`/toast feedback is desired, mirroring `HandoffButton`'s structure; otherwise a plain server-action form with `redirect()`-or-throw is acceptable given the low complexity. Executor's discretion on client-vs-server-component split, but the visual result (icon + "Support Mode →" text, `text-xs font-medium`, primary color) is locked.
 
