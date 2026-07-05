@@ -23,6 +23,10 @@ import { OfflineIndicator } from '@/components/pwa/offline-indicator'
 import { NewProjectDialog } from '@/components/projects/new-project-dialog'
 import { EstimateCreationPopup } from '@/components/projects/estimate-creation-popup'
 import { BreadcrumbProvider } from '@/components/app-shell/breadcrumb-context'
+import type { Metadata } from 'next'
+import { PRIVATE_ROBOTS } from '@/lib/seo/route-policy'
+
+export const metadata: Metadata = { robots: PRIVATE_ROBOTS }
 
 export default async function AppShellLayout({
   children,

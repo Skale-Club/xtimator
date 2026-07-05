@@ -1,3 +1,8 @@
+import type { Metadata } from 'next'
+import { PRIVATE_ROBOTS } from '@/lib/seo/route-policy'
+
+export const metadata: Metadata = { robots: PRIVATE_ROBOTS }
+
 // Phase 86: inline error page used when the authorize server action discovers an
 // invalid client or redirect_uri AFTER form submission (cannot safely redirect to
 // an unverified redirect_uri at that point).

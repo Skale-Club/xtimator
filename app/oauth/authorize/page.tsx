@@ -18,8 +18,11 @@ import { getActiveCompany } from '@/lib/queries/active-company'
 import { findClientByClientId, isRegisteredRedirectUri } from '@/lib/oauth/clients'
 import { parseScope, type Scope } from '@/lib/oauth/types'
 import { handleAuthorize } from './actions'
+import type { Metadata } from 'next'
+import { PRIVATE_ROBOTS } from '@/lib/seo/route-policy'
 
 export const dynamic = 'force-dynamic'
+export const metadata: Metadata = { robots: PRIVATE_ROBOTS }
 
 interface AuthorizePageProps {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>

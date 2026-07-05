@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react'
+import type { Metadata } from 'next'
 import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
 import { ShieldCheck } from 'lucide-react'
@@ -8,6 +9,9 @@ import { hexToHslTriplet } from '@/lib/color'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
 import { AdminNav } from '@/components/admin/admin-nav'
 import { AdminTopbar } from '@/components/admin/admin-topbar'
+import { PRIVATE_ROBOTS } from '@/lib/seo/route-policy'
+
+export const metadata: Metadata = { robots: PRIVATE_ROBOTS }
 
 export default async function AdminLayout({
   children,
