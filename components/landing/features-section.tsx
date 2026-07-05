@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import { BrainCircuit, FileBadge2, Link2, Smartphone, type LucideIcon } from 'lucide-react'
 import { motion, useReducedMotion } from 'framer-motion'
 import { Card } from '@/components/ui/card'
@@ -18,13 +19,13 @@ function FeatureCard({ feature }: { feature: Feature }) {
     >
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
       {/* Full-bleed 3:1 landscape header — always reserved; shows image when set, subtle placeholder otherwise */}
-      <div className="aspect-[3/1] -mx-5 -mt-5 mb-4 w-[calc(100%+2.5rem)] overflow-hidden rounded-t-2xl bg-gradient-to-br from-primary/10 via-primary/5 to-transparent">
+      <div className="relative aspect-[3/1] -mx-5 -mt-5 mb-4 w-[calc(100%+2.5rem)] overflow-hidden rounded-t-2xl bg-gradient-to-br from-primary/10 via-primary/5 to-transparent">
         {feature.imageUrl && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+          <Image
             src={feature.imageUrl}
             alt=""
-            aria-hidden
+            fill
+            sizes="(max-width: 719px) 80vw, (max-width: 1023px) 45vw, 360px"
             className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
           />
         )}

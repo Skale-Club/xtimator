@@ -1,9 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import dynamic from 'next/dynamic'
 import { useRouter, useSearchParams } from 'next/navigation'
 import type { LandingContent } from '@/lib/platform-config'
-import { AuthDialog } from '@/components/landing/auth-dialog'
 import { FinalCtaSection } from '@/components/landing/final-cta-section'
 import { FeaturesSection } from '@/components/landing/features-section'
 import { HeroSection } from '@/components/landing/hero-section'
@@ -11,6 +11,10 @@ import { HowItWorksSection } from '@/components/landing/how-it-works-section'
 import { TrustBar } from '@/components/landing/trust-bar'
 import { LandingFooter } from '@/components/landing/landing-footer'
 import { TopNav } from '@/components/landing/top-nav'
+
+const AuthDialog = dynamic(() =>
+  import('@/components/landing/auth-dialog').then((module) => module.AuthDialog),
+)
 
 interface LandingPageProps {
   content: LandingContent
@@ -94,7 +98,15 @@ export function LandingPage({ content, branding, navUser }: LandingPageProps) {
         </div>
       </div>
 
-      <AuthDialog branding={branding} open={authOpen} onClose={() => setAuthOpen(false)} initialMode={authMode} next={authNext} />
+      {authOpen && (
+        <AuthDialog
+          branding={branding}
+          open
+          onClose={() => setAuthOpen(false)}
+          initialMode={authMode}
+          next={authNext}
+        />
+      )}
     </div>
   )
 }

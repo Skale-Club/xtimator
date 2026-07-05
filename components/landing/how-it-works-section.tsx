@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import { motion, useReducedMotion } from 'framer-motion'
 import { Card } from '@/components/ui/card'
 import { Ticker } from '@/components/landing/ticker'
@@ -182,11 +183,12 @@ function StepCard({
         {showPhotos && <CameraBackground />}
         {showCursor && <SpeechBubbleBackground />}
         {imageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+          <Image
             src={imageUrl}
             alt={title}
             draggable={false}
+            fill
+            sizes="(max-width: 719px) 80vw, 280px"
             className="relative z-10 h-full w-full object-contain object-top"
             style={hasTransform ? {
               transform: `translateY(${imageOffsetY}%) scale(${imageScale})`,

@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
+import dynamic from 'next/dynamic'
 import { LogOut, Loader2, LayoutDashboard } from 'lucide-react'
 import Link from 'next/link'
-import { AuthDialog } from '@/components/landing/auth-dialog'
 import { signOut } from '@/lib/actions/auth'
 import {
   DropdownMenu,
@@ -13,6 +13,11 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { createClient } from '@/lib/supabase/client'
+
+const AuthDialog = dynamic(() =>
+  import('@/components/landing/auth-dialog').then((module) => module.AuthDialog),
+)
 
 interface TopNavAuthProps {
   branding: { appName: string; logoUrl: string | null }
@@ -24,21 +29,57 @@ export function TopNavAuth({ branding, onOpenAuth, navUser }: TopNavAuthProps) {
   const [open, setOpen] = useState(false)
   const [mode, setMode] = useState<'login' | 'signup'>('login')
   const [isPending, startTransition] = useTransition()
+  const [resolvedUser, setResolvedUser] = useState(navUser)
 
-  if (navUser) {
-    const initial = navUser.email.charAt(0).toUpperCase()
+  useEffect(() => {
+    const supabase = createClient()
+    let active = true
+
+    void supabase.auth.getUser().then(({ data }) => {
+      if (!active) return
+      const user = data.user
+      setResolvedUser(
+        user
+          ? {
+              email: user.email ?? '',
+              avatarUrl: (user.user_metadata?.avatar_url as string | undefined) ?? null,
+            }
+          : null,
+      )
+    })
+
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+      const user = session?.user
+      setResolvedUser(
+        user
+          ? {
+              email: user.email ?? '',
+              avatarUrl: (user.user_metadata?.avatar_url as string | undefined) ?? null,
+            }
+          : null,
+      )
+    })
+
+    return () => {
+      active = false
+      data.subscription.unsubscribe()
+    }
+  }, [])
+
+  if (resolvedUser) {
+    const initial = resolvedUser.email.charAt(0).toUpperCase()
     return (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button className="flex items-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring">
             <Avatar className="h-8 w-8">
-              {navUser.avatarUrl && <AvatarImage src={navUser.avatarUrl} alt={navUser.email} />}
+              {resolvedUser.avatarUrl && <AvatarImage src={resolvedUser.avatarUrl} alt={resolvedUser.email} />}
               <AvatarFallback className="text-sm bg-primary text-white font-semibold">{initial}</AvatarFallback>
             </Avatar>
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-48">
-          <div className="px-2 py-1.5 text-xs text-muted-foreground truncate">{navUser.email}</div>
+          <div className="px-2 py-1.5 text-xs text-muted-foreground truncate">{resolvedUser.email}</div>
           <DropdownMenuSeparator />
           <DropdownMenuItem asChild className="cursor-pointer">
             <Link href="/dashboard" className="flex items-center gap-2">
@@ -74,12 +115,14 @@ export function TopNavAuth({ branding, onOpenAuth, navUser }: TopNavAuthProps) {
       >
         Login
       </button>
-      <AuthDialog
-        branding={branding}
-        open={open}
-        onClose={() => setOpen(false)}
-        initialMode={mode}
-      />
+      {open && (
+        <AuthDialog
+          branding={branding}
+          open
+          onClose={() => setOpen(false)}
+          initialMode={mode}
+        />
+      )}
     </>
   )
 }

@@ -3,7 +3,6 @@ import { Inter } from "next/font/google"
 import { ThemeProvider } from "next-themes"
 import { Toaster } from "@/components/ui/sonner"
 import { getBranding } from "@/lib/platform-config"
-import { readThemeCookie } from "@/lib/theme/cookie"
 import { LanguageProvider } from "@/lib/i18n/language-context"
 import { SuppressWarnings } from "@/components/app-shell/suppress-warnings"
 import { canonicalUrl, createPublicMetadata } from "@/lib/seo/metadata"
@@ -60,12 +59,11 @@ export async function generateMetadata(): Promise<Metadata> {
   }
 }
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  const saved = await readThemeCookie()
   return (
     <html
       lang="en"
@@ -86,7 +84,7 @@ export default async function RootLayout({
         <SuppressWarnings />
         <ThemeProvider
           attribute="class"
-          defaultTheme={saved ?? 'dark'}
+          defaultTheme="dark"
           disableTransitionOnChange
         >
           <LanguageProvider>
