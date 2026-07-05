@@ -130,6 +130,20 @@ async function handlePlatformEvent(
         break
       }
 
+      // CREDITUI-07: mode:'setup' session completed — attach the resulting
+      // payment method as the customer's default. Must run BEFORE the
+      // subscription-mode fall-through below, or this arm is unreachable
+      // (Research Pitfall 1).
+      if (session.metadata?.type === 'autotopup_setup' && session.setup_intent) {
+        const setupIntent = await stripe.setupIntents.retrieve(session.setup_intent as string)
+        if (setupIntent.payment_method) {
+          await stripe.customers.update(session.customer as string, {
+            invoice_settings: { default_payment_method: setupIntent.payment_method as string },
+          })
+        }
+        break
+      }
+
       const companyId = session.metadata?.companyId
       if (!companyId || session.mode !== 'subscription') break
 
