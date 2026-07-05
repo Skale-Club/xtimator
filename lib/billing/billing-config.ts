@@ -92,9 +92,13 @@ export const DEFAULT_BILLING_CONFIG: BillingConfig = {
     pro: { monthlyCreditGrant: 3500, subscriptionPriceCents: 2900, subscriptionPriceAnnualCents: 29000, includedSeats: 1 },
     business: { monthlyCreditGrant: 12000, subscriptionPriceCents: 9900, subscriptionPriceAnnualCents: 99000, includedSeats: 1 },
   },
+  // Billing v2 (CREDITUI-06): 3 dollar-denominated packs at $20/$50/$100.
+  // Credits-per-pack are CALIBRATE-BEFORE-CHARGING placeholders (mild volume
+  // discount curve consistent with the prior 2-pack ratio) — NOT final pricing.
   topUpPacks: [
-    { credits: 1000, priceCents: 1500 },
-    { credits: 5000, priceCents: 6000 },
+    { credits: 1300, priceCents: 2000 },
+    { credits: 3500, priceCents: 5000 },
+    { credits: 7500, priceCents: 10000 },
   ],
   lowBalanceThresholds: [200, 50],
   meteredOperations: { estimate: true, photo_batch: true, audio_minutes: true, price_research: true },

@@ -173,6 +173,28 @@ describe('SEAT-06: seat config deep-merge', () => {
 })
 
 // =============================================================================
+// CREDITUI-06 — topUpPacks (3 dollar packs)
+// =============================================================================
+describe('CREDITUI-06: topUpPacks (3 dollar packs)', () => {
+  it('DEFAULT_BILLING_CONFIG.topUpPacks has exactly 3 entries', () => {
+    expect(DEFAULT_BILLING_CONFIG.topUpPacks).toHaveLength(3)
+  })
+
+  it('topUpPacks priceCents are $20/$50/$100 in order', () => {
+    expect(DEFAULT_BILLING_CONFIG.topUpPacks[0].priceCents).toBe(2000)
+    expect(DEFAULT_BILLING_CONFIG.topUpPacks[1].priceCents).toBe(5000)
+    expect(DEFAULT_BILLING_CONFIG.topUpPacks[2].priceCents).toBe(10000)
+  })
+
+  it('every pack credits value is a positive integer', () => {
+    for (const pack of DEFAULT_BILLING_CONFIG.topUpPacks) {
+      expect(Number.isInteger(pack.credits)).toBe(true)
+      expect(pack.credits).toBeGreaterThan(0)
+    }
+  })
+})
+
+// =============================================================================
 // ANN-01 — annual price deep-merge (seatPriceAnnualCents + per-tier
 //          subscriptionPriceAnnualCents)
 // =============================================================================
