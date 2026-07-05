@@ -1,10 +1,11 @@
 ---
 phase: 150
 slug: companies-admin-screen-overhaul
-status: draft
+status: approved
 shadcn_initialized: true
 preset: new-york / neutral / lucide (existing project init, not phase-specific)
 created: 2026-07-05
+reviewed_at: 2026-07-05
 ---
 
 # Phase 150 — UI Design Contract
