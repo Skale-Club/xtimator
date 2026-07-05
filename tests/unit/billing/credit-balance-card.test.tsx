@@ -50,7 +50,7 @@ describe('CreditBalanceCard (CREDITUI-03 / CREDITUI-04)', () => {
     const { container, getByTestId } = render(<CreditBalanceCard percentUsed={75} tier="pro" />)
     expect(getByTestId('credit-low-warning')).toBeTruthy()
     const html = container.innerHTML
-    expect(html).toContain("You're approaching your usage limit for this cycle.")
+    expect(html).toContain('You’re approaching your usage limit for this cycle.')
     expect(html).toContain('/settings/billing?topup=1')
     expect(html).toContain('Upgrade plan')
   })
@@ -60,7 +60,7 @@ describe('CreditBalanceCard (CREDITUI-03 / CREDITUI-04)', () => {
     expect(getByTestId('credit-low-warning')).toBeTruthy()
     const html = container.innerHTML
     expect(html).toContain(
-      "You've nearly used up your usage for this cycle. Top up or upgrade to keep generating."
+      'You’ve nearly used up your usage for this cycle. Top up or upgrade to keep generating.'
     )
     expect(html).toContain('/settings/billing?topup=1')
     expect(html).toContain('Upgrade plan')

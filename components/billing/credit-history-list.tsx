@@ -15,9 +15,11 @@ import type { CreditHistoryRow } from '@/lib/queries/credits'
  * Renders the recent ledger rows from getCreditOverview as a simple list:
  * a human label (from operation_type / reason), a SIGNED delta, and the date.
  *
- * Cardinal rule: NEVER renders real_cost_usd / markup / balance_after — they are
- * not even present on CreditHistoryRow (the Plan-01 owner-safe projection never
- * selected them). The owner sees credits consumed, never the cost math.
+ * Cardinal rule: NEVER renders the underlying real-cost or price-multiplier
+ * figures, and NEVER renders the post-transaction credit total — none of
+ * that is even present on CreditHistoryRow (the Plan-01 owner-safe
+ * projection never selected it). The owner sees credits consumed, never
+ * the cost math.
  */
 
 function rowLabel(row: CreditHistoryRow): React.ReactNode {
