@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v4.14
 milestone_name: Admin Sales Mode
 status: completed
-stopped_at: Completed quick-260704-r2q (brand-color WCAG contrast correction)
-last_updated: "2026-07-04T23:50:21.074Z"
-last_activity: "2026-07-04 - Completed quick task 260704-r2q: Render-time WCAG 4.5:1 contrast correction for the brand color across the PDF, editor, and share estimate renderers. Added a pure lib/color/contrast.ts (hexToRgb, relativeLuminance, contrastRatio, readableTextColor, ensureReadableOnWhite) and converted lib/color.ts into a folder module (index.ts re-exports hexToHslTriplet + contrast utils) to satisfy the Windows file/dir coexistence limit while preserving the @/lib/color path for its 4 importers. Light brand colors darken (hue preserved) as text on white and flip to black on brand fills; the stored brand_primary_color is never mutated. 22 unit tests green; touched files clean under tsc (baseline 17 unrelated pre-existing errors unchanged)."
+stopped_at: Completed quick-260704-slv (fix CI test failures — sync Supabase mocks)
+last_updated: "2026-07-05T00:43:37.000Z"
+last_activity: "2026-07-05 - Completed quick task 260704-slv: Fixed 27 failing CI tests (run 28724325069, Typecheck + unit/eval suite job on branch dev) by syncing 5 stale Supabase test mocks with two production queries shipped in 260704-pt2 without matching mock updates — (1) estimates.select() now branches on cols==='id' to support the version-carry-forward select('id').eq().eq().maybeSingle() query in generate-estimate.ts (added to generate-estimate.test.ts, generate-estimate-research.test.ts, harness.test.ts, price-research-regression.test.ts); (2) share-query.test.ts's installMock gained an estimate_photos table branch (select().eq().order()) matching getEstimatePhotos now called from share.ts. All 27 tests + full tsc --noEmit -p tsconfig.ci.json pass clean. Only the 5 named test files touched; no production/lib code changed. Full-suite run showed 5 unrelated pre-existing timeout failures in 4 other files (billing/company/team-invite/mcp-route tests) that pass 40/40 in isolation — flagged as out-of-scope flakiness, not a regression from this change."
 progress:
   total_phases: 106
   completed_phases: 88
@@ -1194,6 +1194,7 @@ v3.1: Phases 61-65 (started 2026-05-15). Production Go-Live — 27 requirements 
 | 260704-oym | Custom PrimaryColorPicker (react-colorful Popover) replacing native input[type=color] in admin Branding editor | 2026-07-04 | c3590ba5 | [260704-oym-melhorar-o-editor-de-cor-primary-color-n](.planning/quick/260704-oym-melhorar-o-editor-de-cor-primary-color-n/) |
 | 260704-pcv | Fix end-of-scroll layout shift in sub-sidebar rail and floating estimate action bar | 2026-07-04 | 93549842 | [260704-pcv-fix-scroll-bottom-layout-shift-sub-sideb](.planning/quick/260704-pcv-fix-scroll-bottom-layout-shift-sub-sideb/) |
 | 260704-pt2 | Optional per-photo photo attachments to estimates (estimate_photos join table, Photos-tab attach/detach toggle, editor/PDF/share rendering, version carry-forward) | 2026-07-04 | bb741d5f | [260704-pt2-add-optional-photo-attachments-to-estima](.planning/quick/260704-pt2-add-optional-photo-attachments-to-estima/) |
+| 260704-slv | Fix CI: sync 5 stale Supabase test mocks (estimates cols='id' version-carry-forward branch + estimate_photos table branch) with the new production queries shipped in 260704-pt2; 27 previously-failing tests now green, typecheck clean | 2026-07-05 | b1fe67b3 | [260704-slv-fix-ci-test-failures-sync-supabase-mocks](.planning/quick/260704-slv-fix-ci-test-failures-sync-supabase-mocks/) |
 | 2026-05-18 | fast | Center auth card logo+wordmark | done |
 | 2026-05-19 | fast | Make audio capture screen scrollable on smaller viewports | done |
 | 2026-05-18 | fast | Restyle sidebar New Project as filled gradient, remove dashboard CTA | done |
