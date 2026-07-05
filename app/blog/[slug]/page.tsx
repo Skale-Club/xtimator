@@ -3,6 +3,9 @@ import type { Metadata } from 'next'
 import { getBlogPost } from '@/lib/queries/blog'
 import { BlogContent } from '@/components/blog/blog-content'
 import { Card } from '@/components/ui/card'
+import { createPublicMetadata } from '@/lib/seo/metadata'
+import { JsonLd } from '@/components/seo/json-ld'
+import { articleSchema, breadcrumbSchema } from '@/lib/seo/structured-data'
 
 export const dynamic = 'force-dynamic'
 
@@ -10,13 +13,21 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const { slug } = await params
   const post = await getBlogPost(slug)
   if (!post) return { title: 'Post Not Found' }
-  return {
+  const metadata = createPublicMetadata({
     title: post.meta_title ?? post.title,
-    description: post.meta_description ?? post.excerpt ?? undefined,
+    description: post.meta_description ?? post.excerpt ?? `Read ${post.title} on the Xtimator blog.`,
+    pathname: `/blog/${post.slug}`,
+    type: 'article',
+    imageUrl: post.cover_image_url,
+    imageAlt: post.title,
+  })
+  return {
+    ...metadata,
     openGraph: {
+      ...metadata.openGraph,
       type: 'article',
       publishedTime: post.published_at ?? undefined,
-      images: post.cover_image_url ? [post.cover_image_url] : [],
+      modifiedTime: post.updated_at,
     },
   }
 }
@@ -25,8 +36,27 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
   const { slug } = await params
   const post = await getBlogPost(slug)
   if (!post) notFound()
+  const description =
+    post.meta_description ?? post.excerpt ?? `Read ${post.title} on the Xtimator blog.`
   return (
     <div className="relative isolate min-h-screen">
+      <JsonLd
+        data={[
+          articleSchema({
+            title: post.title,
+            description,
+            slug: post.slug,
+            publishedAt: post.published_at,
+            updatedAt: post.updated_at,
+            imageUrl: post.cover_image_url,
+          }),
+          breadcrumbSchema([
+            { name: 'Home', pathname: '/' },
+            { name: 'Blog', pathname: '/blog' },
+            { name: post.title, pathname: `/blog/${post.slug}` },
+          ]),
+        ]}
+      />
       <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[520px] gradient-hero" />
       <main className="mx-auto max-w-3xl px-6 py-[clamp(48px,10vw,96px)]">
         <article>

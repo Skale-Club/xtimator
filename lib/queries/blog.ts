@@ -39,6 +39,7 @@ export async function getBlogPost(slug: string): Promise<BlogPost | null> {
     .from('blog_posts')
     .select('*')
     .eq('slug', slug)
+    .eq('status', 'published')
     .maybeSingle()
   return (data as BlogPost | null) ?? null
 }

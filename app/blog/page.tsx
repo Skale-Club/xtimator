@@ -1,8 +1,15 @@
 import { getBlogPosts } from '@/lib/queries/blog'
 import Link from 'next/link'
 import { Card } from '@/components/ui/card'
+import type { Metadata } from 'next'
+import { createPublicMetadata } from '@/lib/seo/metadata'
 
 export const dynamic = 'force-dynamic'
+export const metadata: Metadata = createPublicMetadata({
+  title: 'Estimating Guides for Service Businesses',
+  description: 'Practical estimating, pricing, and proposal guidance for contractors and field service businesses.',
+  pathname: '/blog',
+})
 
 export default async function BlogListPage() {
   const posts = await getBlogPosts(0)

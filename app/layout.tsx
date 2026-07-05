@@ -6,6 +6,7 @@ import { getBranding } from "@/lib/platform-config"
 import { readThemeCookie } from "@/lib/theme/cookie"
 import { LanguageProvider } from "@/lib/i18n/language-context"
 import { SuppressWarnings } from "@/components/app-shell/suppress-warnings"
+import { canonicalUrl, createPublicMetadata } from "@/lib/seo/metadata"
 import "./globals.css"
 
 const inter = Inter({
@@ -26,19 +27,27 @@ export const viewport: Viewport = {
 
 export async function generateMetadata(): Promise<Metadata> {
   const b = await getBranding()
-  const base = b.canonicalBaseUrl ? new URL(b.canonicalBaseUrl) : undefined
+  const title = b.siteTitle ?? b.appName
+  const description =
+    b.metaDescription ??
+    'Create professional AI-powered estimates for service businesses in minutes.'
+  const publicMetadata = createPublicMetadata({
+    title,
+    description,
+    pathname: '/',
+    siteName: b.appName,
+    imageUrl: b.ogImageUrl,
+    imageAlt: `${b.appName} — professional AI estimates in minutes`,
+  })
+  const facebookAppId = process.env.NEXT_PUBLIC_FACEBOOK_APP_ID?.trim()
   return {
-    metadataBase: base,
+    ...publicMetadata,
+    metadataBase: new URL(canonicalUrl('/')),
     title: {
-      default: b.siteTitle ?? b.appName,
-      template: `%s | ${b.siteTitle ?? b.appName}`,
+      default: title,
+      template: `%s | ${title}`,
     },
-    description:
-      b.metaDescription ??
-      `Professional AI-powered estimates for service businesses | powered by ${b.appName}`,
-    openGraph: b.ogImageUrl
-      ? { images: [b.ogImageUrl], siteName: b.siteTitle ?? b.appName }
-      : undefined,
+    ...(facebookAppId ? { other: { 'fb:app_id': facebookAppId } } : {}),
     // When custom branding exists: use org's favicon/logo.
     // Otherwise: omit icons so Next.js auto-serves app/icon.svg (branded, color-scheme aware)
     // and app/apple-icon.png — no need to override with a PNG fallback.
