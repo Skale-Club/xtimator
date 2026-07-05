@@ -8,6 +8,10 @@ const navAuth = readFileSync(
   resolve(process.cwd(), 'components/landing/top-nav-auth.tsx'),
   'utf8',
 )
+const landingPage = readFileSync(
+  resolve(process.cwd(), 'components/landing/landing-page.tsx'),
+  'utf8',
+)
 
 describe('anonymous homepage cacheability', () => {
   it('does not read request-bound Supabase auth in the homepage server component', () => {
@@ -25,5 +29,10 @@ describe('anonymous homepage cacheability', () => {
     expect(navAuth).toContain('@/lib/supabase/client')
     expect(navAuth).toContain('auth.getUser')
     expect(navAuth).toContain('onAuthStateChange')
+  })
+
+  it('keeps query-string auth handling out of the static-render bailout path', () => {
+    expect(landingPage).not.toContain('useSearchParams')
+    expect(landingPage).toContain('new URLSearchParams(window.location.search)')
   })
 })

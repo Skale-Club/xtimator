@@ -37,6 +37,7 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
                 ? 'hero-left relative z-10 flex min-w-0 flex-col justify-center space-y-4 sm:w-[55%] sm:shrink-0 md:w-[58%] lg:w-[55%]'
                 : 'max-w-3xl space-y-4'
             }
+            style={{ fontFamily: 'ui-sans-serif, system-ui, sans-serif' }}
           >
             <div className={hasImage ? 'flex justify-start' : 'flex justify-center'}>
               <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-medium text-secondary backdrop-blur-sm">
@@ -110,8 +111,6 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
                 src={content.heroImageUrl!}
                 alt=""
                 fill
-                priority
-                fetchPriority="high"
                 sizes="(max-width: 639px) 75vw, (max-width: 1279px) 52vw, 640px"
                 className="origin-bottom object-contain object-bottom min-[1280px]:scale-110"
               />

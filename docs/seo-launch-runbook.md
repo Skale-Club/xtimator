@@ -18,7 +18,7 @@ Pass criteria:
 - Lighthouse desktop lab gate: SEO ≥95, performance ≥85, accessibility ≥85.
 
 Track mobile field data separately in Search Console/Core Web Vitals. The first
-local mobile homepage baseline was 78 and should trend upward without weakening
+local mobile homepage baseline was 80 and should trend upward without weakening
 the desktop release gate.
 
 If metadata disagrees on the origin, stop and correct `APP_ORIGIN` or `NEXT_PUBLIC_SITE_URL` before requesting indexing. If performance falls below the gate, compare the current report with the previous deploy and roll back when the regression is release-caused.

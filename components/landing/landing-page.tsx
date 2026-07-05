@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import dynamic from 'next/dynamic'
-import { useRouter, useSearchParams } from 'next/navigation'
 import type { LandingContent } from '@/lib/platform-config'
 import { FinalCtaSection } from '@/components/landing/final-cta-section'
 import { FeaturesSection } from '@/components/landing/features-section'
@@ -23,8 +22,6 @@ interface LandingPageProps {
 }
 
 export function LandingPage({ content, branding, navUser }: LandingPageProps) {
-  const router = useRouter()
-  const searchParams = useSearchParams()
   const [authOpen, setAuthOpen] = useState(false)
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('signup')
   // SEAT-04: the invite-accept route sends logged-out visitors here with a
@@ -33,17 +30,17 @@ export function LandingPage({ content, branding, navUser }: LandingPageProps) {
   const [authNext, setAuthNext] = useState<string | null>(null)
 
   useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search)
     const authParam = searchParams.get('auth')
     const nextParam = searchParams.get('next')
     if (authParam === 'login' || authParam === 'signup') {
       setAuthMode(authParam)
       if (nextParam) setAuthNext(nextParam)
       setAuthOpen(true)
-      router.replace('/', { scroll: false })
+      window.history.replaceState(window.history.state, '', '/')
     } else if (authParam) {
-      router.replace('/', { scroll: false })
+      window.history.replaceState(window.history.state, '', '/')
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   function openAuth(mode: 'login' | 'signup') {
