@@ -180,6 +180,6 @@ describe('D-04/D-05/D-07/D-15: tenant WhatsApp surface guard', () => {
     // Admin WhatsApp actions must exist
     expect(existsSync(resolve(ROOT, 'lib/actions/admin-whatsapp.ts'))).toBe(true)
     // Admin WhatsApp page must exist
-    expect(existsSync(resolve(ROOT, 'app/admin/whatsapp/page.tsx'))).toBe(true)
+    expect(existsSync(resolve(ROOT, 'app/admin/inbox/page.tsx'))).toBe(true)
   })
 })
