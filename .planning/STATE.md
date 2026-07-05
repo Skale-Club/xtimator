@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.15
 milestone_name: Credit UX Polish & Admin Support Tooling
 status: executing
-stopped_at: "Completed 153-02-PLAN.md — auto-top-up safety core (migration + atomic lock + kill switch + never-throw trigger), user-authorized. Next: 153-03 (setup-session route + webhook arm + settings UI). See 153-02-SUMMARY.md and the updated HOLD-NOTE.md."
-last_updated: "2026-07-05T20:27:01.989Z"
+stopped_at: "Completed 153-03-PLAN.md — auto-top-up tenant UI (setup-session route + webhook arm + settings actions + AutoTopupCard/AutoTopupDialog), user-authorized. Phase 153 (all 3 plans) COMPLETE. See 153-03-SUMMARY.md."
+last_updated: "2026-07-05T20:44:57.000Z"
 last_activity: 2026-07-05
 progress:
-  total_phases: 18
-  completed_phases: 18
-  total_plans: 51
-  completed_plans: 51
+  total_phases: 19
+  completed_phases: 19
+  total_plans: 54
+  completed_plans: 54
 ---
 
 # Project State
@@ -26,7 +26,7 @@ progress:
 - **Dependency spine:** 150 (Companies list — the foundation Support Mode needs) → 151 (Support Mode, depends on 150's stable list UI). 152 (progress bar + admin cost visibility — independent display change, can run in parallel with 150/151) → 153 (dollar top-up + auto-top-up, depends on 152's display surface; the riskiest phase, sequenced last).
 - **Locked guardrails (SEED-039 + SEED-040 + REQUIREMENTS.md + PROJECT.md):** No new credit ledger — `credit_ledger`, markup math, and low-balance logic from SEED-035/CREDITUI-01/02 (Phase 115) stay exactly as they are; this milestone is UI + purchase-flow only. Tenants NEVER see a raw credit count or $ figure anywhere (Plans page, topbar chip, notifications) — only a % bar and qualitative low/critical states. $ cost visibility is super-admin-only, extending `measured-cost-card.tsx`, never exposed to a tenant even indirectly via a network payload a tenant page fetches. Top-up pack sizes and auto-top-up thresholds live in `billing_config`, never hardcoded. Support Mode is NOT a real identity switch — a signed, time-boxed "acting-as-company" session claim, RLS-safe, revocable, never persisted beyond the browser session, distinct from a Supabase auth sign-in as the tenant. Support Mode ≠ `HandoffButton` (Phase 149, a sales/demo-to-prospect owner-invite flow) — must not be conflated or merged. Every Support Mode session is audit-logged via the existing `lib/admin/audit-log.ts`. Numbering continues the global counter — v4.14 ended at Phase 149, so v4.15 starts at **Phase 150** (Phase 1001 SEO is out-of-band, not part of the counter).
 - **Previous milestone**: v4.14 Admin Sales Mode + Phase 1001 SEO Readiness — SHIPPED 2026-07-05 (phases 146-149, 5/5 requirements ADMIN-01..05; plus out-of-band Phase 1001 SEO-01..06). DB-driven `is_super_admin` + `requireSuperAdmin()` replacing hardcoded email checks, admin "Add new company" modal with 3-estimate demo quota, server-side quota guard + manual grant control, and `HandoffButton` account handoff via the existing Phase 136/137 invite mechanism. Neither v4.14 nor Phase 1001 had a formal `/gsd:complete-milestone` archival pass — MILESTONES.md archival remains a pending housekeeping item.
-- **Position**: Phase 150 (Companies Admin Screen Overhaul) shipped 2026-07-05 — 1/1 plan complete, 4/4 requirements (ADMINCO-01..04). Phase 151 (Super-Admin Support Mode) COMPLETE 2026-07-05 — all 3/3 plans shipped, 4/4 requirements (SUPPORT-01..04): Plan 01 (session-claim module), Plan 02 (banner + `app/(app)/layout.tsx` wiring), Plan 03 (Companies-list "Support Mode →" row action, wired to `startSupportSession` via a thin server-action wrapper, `toast.error`-on-failure client component). Next: Phase 152/153 continue in parallel (see Parallel Track sections below); Phase 151 has no remaining work.
+- **Position**: Phase 150 (Companies Admin Screen Overhaul) shipped 2026-07-05 — 1/1 plan complete, 4/4 requirements (ADMINCO-01..04). Phase 151 (Super-Admin Support Mode) COMPLETE 2026-07-05 — all 3/3 plans shipped, 4/4 requirements (SUPPORT-01..04): Plan 01 (session-claim module), Plan 02 (banner + `app/(app)/layout.tsx` wiring), Plan 03 (Companies-list "Support Mode →" row action, wired to `startSupportSession` via a thin server-action wrapper, `toast.error`-on-failure client component). Phase 153 (Dollar-Pack Top-Up + Auto-Top-Up) COMPLETE 2026-07-05 — all 3/3 plans shipped, CREDITUI-06/07 both complete: Plan 01 (3 dollar top-up packs + pack-picker UI), Plan 02 (auto-top-up safety core — atomic lock + kill switch + never-throw trigger), Plan 03 (setup-session route + webhook arm + settings actions + AutoTopupCard/AutoTopupDialog UI, gated behind `billing_config.autoTopupEnabled` which still defaults false pending calibration/UAT). Next: Phase 152 remaining work (see Parallel Track sections below) is the only open item in v4.15.
 
 - **Milestone**: v4.13 Annual Billing — ROADMAP CREATED 2026-06-25. **5 phases (141-145)**, **5/5 requirements mapped** (ANN-01..ANN-05), **no orphans**. Add a discounted ANNUAL subscription option while keeping AI credit distribution MONTHLY for every interval — annual changes price + billing cadence only, never the rate at which credits flow. The load-bearing change is decoupling the monthly credit grant from the invoice cadence: a monthly Inngest cron + a `grant:{companyId}:{YYYY-MM}` company-month idempotency key SHARED with the `invoice.paid` webhook → exactly one grant per company per calendar month for any interval. Source: SEED-038. Numbering continues the global counter — v4.12 ended at Phase 140, so v4.13 starts at **Phase 141**.
 - **Phase plan (goal-backward, 5 phases — configurable price foundation, then the load-bearing grant decouple, then checkout + seat interval, then the UI toggle):**
@@ -829,6 +829,7 @@ Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gs
 - [Phase 152]: [Phase 152 152-03]: admin.bonus_credits_granted notification body reworded to a static qualitative sentence, dropping ctx.credits interpolation entirely -- closes the last of the 3 CREDITUI-04 tenant-facing surfaces (Plans page, topbar chip, and now bonus-credit notification copy)
 - [Phase 153]: Top-up packs changed to 3 dollar-denominated tiers ($20/$50/$100), TopUpButton parameterized with label+variant, low-balance CTA simplified to a link (CREDITUI-06)
 - [Phase 153]: [Phase 153 153-02]: Auto-top-up safety core shipped -- atomic Postgres RPC in-flight lock (not supabase-js .or()/.eq() chaining), autoTopupEnabled platform kill switch (default false), never-throw triggerAutoTopupIfNeeded wired into recordCreditDebit, proven by a dedicated concurrency test (CREDITUI-07)
+- [Phase 153]: [Phase 153 153-03]: Auto-top-up tenant UI shipped -- mode:'setup' Checkout Session route (no line_items, no Stripe Elements) + webhook arm attaching the payment method as customer default_payment_method (positioned before the subscription fall-through, Pitfall 1); saveAutoTopupSettings independently re-verifies payment-method existence server-side via stripe.customers.retrieve before ever persisting auto_topup_enabled:true (Pitfall 2); AutoTopupCard/AutoTopupDialog gated behind billing_config.autoTopupEnabled. CREDITUI-07 complete; Phase 153 (all 3 plans) COMPLETE.
 
 ## Performance Metrics
 
@@ -1113,6 +1114,7 @@ Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gs
 | Phase 152 P03 | 12min | 1 tasks | 2 files |
 | Phase 153 P01 | 20min | 3 tasks | 10 files |
 | Phase 153 P02 | 20min | 3 tasks | 10 files |
+| Phase 153 P03 | 22min | 3 tasks | 10 files |
 
 ## Project Reference
 

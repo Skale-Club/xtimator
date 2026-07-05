@@ -30,7 +30,7 @@ Each requirement maps to exactly one roadmap phase.
 ### Dollar-Denominated Top-Up
 
 - [x] **CREDITUI-06**: Tenant purchases additional credits by choosing a dollar amount ($20 / $50 / $100, sizes configurable in `billing_config`) rather than a credit quantity; the chosen amount is charged via a Stripe one-time checkout and converted to credits using the existing markup/denomination.
-- [ ] **CREDITUI-07**: Tenant can enable auto-top-up — when the balance drops below a configurable dollar threshold, the configured dollar pack is purchased automatically against their saved default payment method, mirroring Anthropic Console's Auto Top-Up settings (threshold, purchase amount, primary payment method).
+- [x] **CREDITUI-07**: Tenant can enable auto-top-up — when the balance drops below a configurable dollar threshold, the configured dollar pack is purchased automatically against their saved default payment method, mirroring Anthropic Console's Auto Top-Up settings (threshold, purchase amount, primary payment method).
 
 ### Super-Admin Tenant Impersonation (Support Mode)
 
@@ -82,7 +82,7 @@ Deferred to a future milestone. Tracked but not in this roadmap.
 | CREDITUI-04 | Phase 152 | Complete |
 | CREDITUI-05 | Phase 152 | Complete |
 | CREDITUI-06 | Phase 153 | Complete |
-| CREDITUI-07 | Phase 153 | Pending |
+| CREDITUI-07 | Phase 153 | Complete |
 
 Coverage: 13/13 v1 requirements mapped. 0 orphans.
 

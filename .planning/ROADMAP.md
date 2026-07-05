@@ -2439,7 +2439,7 @@ Plans:
 - [x] **Phase 151: Super-Admin Support Mode (Tenant Impersonation)** — From the Phase 150 Companies screen, the super admin enters a tenant-scoped app view ("Support Mode") for any company without needing the tenant's credentials, via a signed, time-boxed "acting-as-company" session claim (not a real identity switch); every page shows a persistent banner identifying the acting admin and the viewed company; every session (entry, company, admin identity, duration, exit) is recorded in the existing admin audit log; access respects existing RLS and is automatically revoked on session end/expiry. (SUPPORT-01, SUPPORT-02, SUPPORT-03, SUPPORT-04)
  (completed 2026-07-05)
 - [x] **Phase 152: Usage Progress Bar + Super-Admin Cost Visibility** — Replace the tenant-facing raw numeric "N credits" display (Settings > Plans + the topbar credit chip) with a single color-escalating % bar; no tenant surface (page, chip, low-balance copy) shows a raw credit count or $ figure anywhere; the super admin gains a per-company view of exact credit balance, real USD cost, and applied markup, extending the existing `measured-cost-card.tsx` pattern and never renderable by a tenant session. Independent of the admin-support track — a pure display change on top of the existing SEED-035 ledger. (CREDITUI-03, CREDITUI-04, CREDITUI-05) (completed 2026-07-05)
-- [ ] **Phase 153: Dollar-Pack Top-Up + Auto-Top-Up** — Rework the top-up purchase flow so the tenant buys credits by choosing a dollar amount ($20/$50/$100, sizes configurable in `billing_config`) charged via a Stripe one-time checkout and converted to credits using the existing markup/denomination; add optional auto-top-up (configurable dollar threshold + purchase amount + saved default payment method), mirroring Anthropic Console's Auto Top-Up UX. Builds on Phase 152's progress-bar surface (the top-up entry point lives next to the usage bar) and is the riskiest phase (Stripe checkout rework) — sequenced last. (CREDITUI-06, CREDITUI-07)
+- [x] **Phase 153: Dollar-Pack Top-Up + Auto-Top-Up** — Rework the top-up purchase flow so the tenant buys credits by choosing a dollar amount ($20/$50/$100, sizes configurable in `billing_config`) charged via a Stripe one-time checkout and converted to credits using the existing markup/denomination; add optional auto-top-up (configurable dollar threshold + purchase amount + saved default payment method), mirroring Anthropic Console's Auto Top-Up UX. Builds on Phase 152's progress-bar surface (the top-up entry point lives next to the usage bar) and is the riskiest phase (Stripe checkout rework) — sequenced last. (CREDITUI-06, CREDITUI-07) (completed 2026-07-05)
 
 ### Phase Details — v4.15 Credit UX Polish & Admin Support Tooling
 
@@ -2516,6 +2516,6 @@ Plans:
 Plans:
 - [x] 153-01-PLAN.md — Dollar-pack top-up config + pack-picker UI (CREDITUI-06, near-zero risk)
 - [x] 153-02-PLAN.md — Auto-top-up schema + concurrency-safe trigger core (CREDITUI-07, safety-critical foundation)
-- [ ] 153-03-PLAN.md — Payment-method capture + settings UI wired into Settings > Plans (CREDITUI-07, depends on 153-02)
+- [x] 153-03-PLAN.md — Payment-method capture + settings UI wired into Settings > Plans (CREDITUI-07, depends on 153-02)
 
 **UI hint**: yes
