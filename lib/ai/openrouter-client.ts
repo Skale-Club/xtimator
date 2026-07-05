@@ -36,7 +36,7 @@ export const DEFAULT_TRANSCRIBE_MODEL = 'openai/whisper-1'
 /** Default model IDs — overridable via platform config or per-call argument. */
 export const OR_DEFAULTS = {
   /** Best general-purpose model for estimates and vision. */
-  chat: 'anthropic/claude-sonnet-4-5',
+  chat: 'anthropic/claude-sonnet-5',
   /** Lightweight model for bulk translation — keeps costs low. */
   translation: 'anthropic/claude-haiku-4-5',
 } as const

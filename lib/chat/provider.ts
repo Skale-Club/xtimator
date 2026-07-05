@@ -29,7 +29,7 @@ const SITE_HEADERS = {
  * slot order EXACTLY:
  *   1. companies.ai_model_override (per-company) — read via the service client.
  *   2. platform ai_config.openrouter_default_model (getOpenRouterDefaultModel).
- *   3. OR_DEFAULTS.chat ('anthropic/claude-sonnet-4-5').
+ *   3. OR_DEFAULTS.chat ('anthropic/claude-sonnet-5').
  */
 export async function resolveChatModelId(companyId?: string): Promise<string> {
   if (companyId) {

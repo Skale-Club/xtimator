@@ -11,7 +11,7 @@ Xtimator is a SaaS web application for US-based service businesses (construction
 
 - **Tech Stack**: Next.js 14+ (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, Zustand or React Context, react-hook-form + zod
 - **Database**: Supabase PostgreSQL with RLS on all tables; schema defined in spec (8 tables)
-- **AI**: Anthropic Claude claude-sonnet-4-20250514 for estimate generation and photo analysis
+- **AI**: Anthropic Claude (OpenRouter slug `anthropic/claude-sonnet-5`, set in `OR_DEFAULTS.chat`) for estimate generation and photo analysis
 - **Audio transcription**: OpenAI Whisper API (server-side)
 - **PDF**: @react-pdf/renderer or puppeteer (server-side generation)
 - **Mobile**: Audio recording and camera capture must work on iOS Safari and Android Chrome
