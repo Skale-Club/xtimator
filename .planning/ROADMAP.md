@@ -2489,7 +2489,12 @@ Plans:
   3. Super admin can view, per company, the exact credit balance, the real USD cost incurred, and the applied markup, surfaced in the admin panel by extending the existing `measured-cost-card.tsx` pattern
   4. This exact-cost data is never sent to or renderable by a tenant session — a test proves no tenant-reachable API route or page payload includes the raw cost/balance/markup fields (only the derived percentage is available to tenant code paths)
 
-**Plans**: TBD
+**Plans**: 2 plans
+
+Plans:
+- [ ] 152-01-PLAN.md — Tenant usage progress bar (CreditBalanceCard + CreditChip + Topbar wiring, static neutrality test)
+- [ ] 152-02-PLAN.md — Super-admin per-company cost visibility (company-cost-card.tsx + admin-company-cost query)
+
 **UI hint**: yes
 
 ### Phase 153: Dollar-Pack Top-Up + Auto-Top-Up
