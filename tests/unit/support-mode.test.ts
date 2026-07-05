@@ -219,12 +219,14 @@ describe('endSupportSession', () => {
         metadata: expect.objectContaining({ durationSeconds: expect.any(Number) }),
       })
     )
-    const call = vi.mocked(logAdminAction).mock.calls[0][0]
+    const endCallIndex = vi.mocked(logAdminAction).mock.calls.length - 1
+    const call = vi.mocked(logAdminAction).mock.calls[endCallIndex][0]
+    expect(call.action).toBe('company.support_mode_end')
     expect(call.metadata?.durationSeconds).toBeGreaterThanOrEqual(3659)
     expect(call.metadata?.durationSeconds).toBeLessThanOrEqual(3663)
 
-    // Ordering: logAdminAction must be called BEFORE the cookie-clearing call.
-    const logCallOrder = vi.mocked(logAdminAction).mock.invocationCallOrder[0]
+    // Ordering: logAdminAction (end-session call) must be called BEFORE the cookie-clearing call.
+    const logCallOrder = vi.mocked(logAdminAction).mock.invocationCallOrder[endCallIndex]
     const clearCallOrder = readStore.setSpy.mock.invocationCallOrder[0]
     expect(logCallOrder).toBeLessThan(clearCallOrder)
 

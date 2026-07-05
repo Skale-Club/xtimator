@@ -14,6 +14,8 @@ export type AuditAction =
   | 'company.byok_enabled'
   | 'company.byok_disabled'
   | 'company.handoff'
+  | 'company.support_mode_start'
+  | 'company.support_mode_end'
   | 'tier.force'
   | 'bonus_credits.grant'
   | 'branding.save'
