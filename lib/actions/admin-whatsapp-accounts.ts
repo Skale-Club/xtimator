@@ -154,7 +154,7 @@ export async function saveWhatsAppAccount(
       return { ok: false, message: insertErr.message }
     }
 
-    revalidatePath('/admin/whatsapp')
+    revalidatePath('/admin/inbox/settings')
     void logAdminAction({
       actorId: ctx.userId,
       actorEmail: ctx.email,
@@ -208,7 +208,7 @@ export async function saveWhatsAppAccount(
     return { ok: false, message: updateErr.message }
   }
 
-  revalidatePath('/admin/whatsapp')
+  revalidatePath('/admin/inbox/settings')
   void logAdminAction({
     actorId: ctx.userId,
     actorEmail: ctx.email,
@@ -326,7 +326,7 @@ export async function saveWhatsAppSender(
       return { ok: false, message: updateErr.message }
     }
 
-    revalidatePath('/admin/whatsapp')
+    revalidatePath('/admin/inbox/settings')
     void logAdminAction({
       actorId: ctx.userId,
       actorEmail: ctx.email,
@@ -362,7 +362,7 @@ export async function saveWhatsAppSender(
     return { ok: false, message: insertErr.message }
   }
 
-  revalidatePath('/admin/whatsapp')
+  revalidatePath('/admin/inbox/settings')
   void logAdminAction({
     actorId: ctx.userId,
     actorEmail: ctx.email,
@@ -444,7 +444,7 @@ export async function setWhatsAppSenderStatus(
     return { ok: false, message: updateErr.message }
   }
 
-  revalidatePath('/admin/whatsapp')
+  revalidatePath('/admin/inbox/settings')
   void logAdminAction({
     actorId: ctx.userId,
     actorEmail: ctx.email,
@@ -510,7 +510,7 @@ export async function removeWhatsAppSender(
     return { ok: false, message: updateErr.message }
   }
 
-  revalidatePath('/admin/whatsapp')
+  revalidatePath('/admin/inbox/settings')
   void logAdminAction({
     actorId: ctx.userId,
     actorEmail: ctx.email,
