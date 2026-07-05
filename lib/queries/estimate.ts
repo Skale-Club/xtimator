@@ -138,7 +138,7 @@ export async function getEstimateWithContext(
   const { data: company } = await supabase
     .from('companies')
     .select(
-      'name, owner_name, phone, email, website, address, city, state, zip, logo_url, brand_primary_color, estimate_terms_enabled, estimate_terms_text'
+      'name, owner_name, phone, email, website, address, city, state, zip, logo_url, brand_primary_color, estimate_terms_enabled, estimate_terms_text, estimate_template_style'
     )
     .eq('id', estimate.company_id)
     .single()
