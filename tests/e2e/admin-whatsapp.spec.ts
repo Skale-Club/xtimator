@@ -79,6 +79,56 @@ test.describe('Admin WhatsApp page (WAADM-02)', () => {
     const bodyText = await page.locator('body').innerText()
     expect(bodyText).toMatch(/Read-only/i)
   })
+
+  test('clicking a conversation row updates the URL and shows the thread inline', async ({ page }) => {
+    await page.goto('/admin/inbox')
+    await page.waitForLoadState('networkidle')
+    const rowCount = await page.locator('[role="button"][tabindex="0"]').count()
+    test.skip(rowCount === 0, 'No conversations available to select in this environment')
+    await page.locator('[role="button"][tabindex="0"]').first().click()
+    await page.waitForURL(/conversation=/, { timeout: 5000 })
+    expect(page.url()).toContain('conversation=')
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+    await expect(page.locator('text=Read-only. Shows up to the last 30 days of messages.')).toBeVisible()
+  })
+
+  test('direct link with ?conversation= renders the thread without a prior click', async ({ page }) => {
+    await page.goto('/admin/inbox')
+    await page.waitForLoadState('networkidle')
+    const rowCount = await page.locator('[role="button"][tabindex="0"]').count()
+    test.skip(rowCount === 0, 'No conversations available to deep-link to in this environment')
+    await page.locator('[role="button"][tabindex="0"]').first().click()
+    await page.waitForURL(/conversation=/, { timeout: 5000 })
+    const deepLinkUrl = page.url()
+    await page.goto(deepLinkUrl)
+    await page.waitForLoadState('networkidle')
+    await expect(page.locator('text=Read-only. Shows up to the last 30 days of messages.')).toBeVisible()
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+  })
+
+  test('shows the empty state when no conversation is selected', async ({ page }) => {
+    await page.goto('/admin/inbox')
+    await page.waitForLoadState('networkidle')
+    await expect(page.locator('text=Select a conversation')).toBeVisible()
+  })
+
+  test('mobile viewport collapses to a single column with a working Back affordance', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto('/admin/inbox')
+    await page.waitForLoadState('networkidle')
+    // List pane visible, thread pane not mounted when nothing selected
+    await expect(page.locator('text=Select a conversation')).toHaveCount(0)
+    const rowCount = await page.locator('[role="button"][tabindex="0"]').count()
+    test.skip(rowCount === 0, 'No conversations available in this environment')
+    await page.locator('[role="button"][tabindex="0"]').first().click()
+    await page.waitForURL(/conversation=/, { timeout: 5000 })
+    // Thread pane now full-width; Back affordance visible
+    const backButton = page.getByRole('button', { name: /back/i })
+    await expect(backButton).toBeVisible()
+    await backButton.click()
+    await page.waitForURL((url) => !url.toString().includes('conversation='), { timeout: 5000 })
+    expect(page.url()).not.toContain('conversation=')
+  })
 })
 
 test.describe('Admin WhatsApp: static contract (source-level)', () => {
