@@ -41,9 +41,9 @@ Each requirement maps to exactly one roadmap phase.
 
 ### Inbox Visual Redesign ("Premium Xtimator")
 
-- [ ] **INBOX-05**: Conversation list rows display a deterministic-color initials avatar per contact (same contact/name always renders the same color).
-- [ ] **INBOX-06**: List rows and the thread pane use the existing Phase-71 glass design system (`--glass-*` tokens / `Card variant="glass"`) instead of the current flat `bg-muted`/plain-border treatment.
-- [ ] **INBOX-07**: The unread state is visually rich — a colored accent bar and/or dot — replacing the current plain outline-`Badge` count as the only unread signal.
+- [x] **INBOX-05**: Conversation list rows display a deterministic-color initials avatar per contact (same contact/name always renders the same color).
+- [x] **INBOX-06**: List rows and the thread pane use the existing Phase-71 glass design system (`--glass-*` tokens / `Card variant="glass"`) instead of the current flat `bg-muted`/plain-border treatment.
+- [x] **INBOX-07**: The unread state is visually rich — a colored accent bar and/or dot — replacing the current plain outline-`Badge` count as the only unread signal.
 - [ ] **INBOX-08**: The Inbox Settings sub-page (`/admin/inbox/settings`, Accounts + Templates tables) receives the same glass-surface visual treatment for consistency with the redesigned main Inbox.
 
 ## v2 Requirements
@@ -80,9 +80,9 @@ Every v1 requirement maps to exactly one phase. Coverage: 15/15 mapped, 0 orphan
 | BILLADMIN-01 | Phase 158 — Admin Billing Page Credit-Model Overhaul | Complete |
 | BILLADMIN-02 | Phase 158 — Admin Billing Page Credit-Model Overhaul | Complete |
 | BILLADMIN-03 | Phase 158 — Admin Billing Page Credit-Model Overhaul | Complete |
-| INBOX-05 | Phase 159 — Inbox Visual Redesign | Pending |
-| INBOX-06 | Phase 159 — Inbox Visual Redesign | Pending |
-| INBOX-07 | Phase 159 — Inbox Visual Redesign | Pending |
+| INBOX-05 | Phase 159 — Inbox Visual Redesign | Complete |
+| INBOX-06 | Phase 159 — Inbox Visual Redesign | Complete |
+| INBOX-07 | Phase 159 — Inbox Visual Redesign | Complete |
 | INBOX-08 | Phase 159 — Inbox Visual Redesign | Pending |
 
 **Phase → requirement rollup:**
