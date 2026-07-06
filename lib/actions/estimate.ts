@@ -83,6 +83,17 @@ interface SaveEstimateInput {
   // v4.11 deposit — OPTIONAL with no-op defaults (retrocompat: 'none' / null).
   deposit_type?: 'none' | 'percent' | 'amount' | null
   deposit_value?: number | null
+  /**
+   * Pre-launch audit fix (B7): the estimates.updated_at value the caller's
+   * local state was loaded/last-saved from. OPTIONAL for back-compat with any
+   * caller that doesn't send it (skips the check, preserving old behavior) —
+   * but the editor always sends it. When present, the update is scoped to
+   * `.eq('updated_at', expectedUpdatedAt)`; a zero-row result means someone
+   * else already saved since this client last loaded, and the whole save is
+   * rejected BEFORE any section/item mutation runs (so a stale save never
+   * deletes items/sections the other writer just added).
+   */
+  expectedUpdatedAt?: string
 }
 
 // ---------------------------------------------------------------------------
@@ -148,8 +159,18 @@ export async function saveEstimate(estimateData: SaveEstimateInput) {
     return { ...section, items, subtotal: engineSection.subtotal }
   })
 
-  // Update estimate row
-  const { error: estimateError } = await supabase
+  // Update estimate row.
+  //
+  // Pre-launch audit fix (B7): last-write-wins concurrency. When the caller
+  // supplies expectedUpdatedAt (the editor always does), scope the UPDATE to
+  // it — `.eq('updated_at', expectedUpdatedAt)` — so a STALE save (another
+  // tab/session already saved this estimate since this client last loaded
+  // it) matches ZERO rows instead of silently overwriting the newer version.
+  // This check runs BEFORE any section/item insert/update/delete below, so a
+  // stale save never reaches the destructive "delete orphaned items/sections
+  // not in this payload" step and can't wipe out content the other writer
+  // just added.
+  let updateQuery = supabase
     .from('estimates')
     .update({
       summary: estimateData.summary,
@@ -175,7 +196,24 @@ export async function saveEstimate(estimateData: SaveEstimateInput) {
     })
     .eq('id', estimateData.id)
 
+  if (estimateData.expectedUpdatedAt) {
+    updateQuery = updateQuery.eq('updated_at', estimateData.expectedUpdatedAt)
+  }
+
+  const { data: updatedRows, error: estimateError } = await updateQuery.select('id, updated_at')
+
   if (estimateError) return { error: 'Failed to save estimate' }
+
+  if (estimateData.expectedUpdatedAt && (!updatedRows || updatedRows.length === 0)) {
+    return {
+      error:
+        'This estimate was changed elsewhere since you last loaded it. Your unsaved changes were NOT applied — reload to see the latest version before continuing.',
+      conflict: true as const,
+    }
+  }
+
+  const savedUpdatedAt =
+    (updatedRows?.[0] as { updated_at?: string } | undefined)?.updated_at ?? new Date().toISOString()
 
   // Get the project_id for this estimate (for project total update + revalidation)
   const { data: estimateRow } = await supabase
@@ -354,7 +392,7 @@ export async function saveEstimate(estimateData: SaveEstimateInput) {
     revalidatePath(`/projects/${projectId}`)
   }
 
-  return { data: { total } }
+  return { data: { total, updated_at: savedUpdatedAt } }
 }
 
 // ---------------------------------------------------------------------------

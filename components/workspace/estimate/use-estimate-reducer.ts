@@ -65,6 +65,11 @@ export interface EstimateEditorState {
   estimate_number: string | null
   attachedPhotos: Photo[]
   isDirty: boolean
+  /** Pre-launch audit fix (B7): optimistic-concurrency baseline — the
+   * estimates.updated_at this state was loaded from. saveEstimate compares it
+   * server-side so a stale save (another tab/session already saved) is
+   * rejected instead of silently overwriting or deleting their changes. */
+  updated_at: string
 }
 
 // ---------------------------------------------------------------------------
@@ -86,7 +91,7 @@ export type EstimateAction =
   | { type: 'UPDATE_DISCOUNT'; discount_type: string | null; discount_value: number }
   | { type: 'UPDATE_DEPOSIT'; deposit_type: string; deposit_value: number | null }
   | { type: 'UPDATE_TAX_RATE'; tax_rate: number }
-  | { type: 'MARK_SAVED' }
+  | { type: 'MARK_SAVED'; updated_at: string }
   | { type: 'APPLY_REFINEMENT'; refined: RefinementPayload }
   | { type: 'ATTACH_PHOTO'; photo: Photo }
   | { type: 'DETACH_PHOTO'; photoId: string }
@@ -191,6 +196,7 @@ function initState(estimate: EstimateWithSections | null): EstimateEditorState {
       estimate_number: null,
       attachedPhotos: [],
       isDirty: false,
+      updated_at: new Date(0).toISOString(),
     }
   }
 
@@ -249,6 +255,7 @@ function initState(estimate: EstimateWithSections | null): EstimateEditorState {
       }))
       .sort((a, b) => a.sort_order - b.sort_order),
     isDirty: false,
+    updated_at: estimate.updated_at,
   }
 }
 
@@ -448,7 +455,7 @@ function estimateReducer(state: EstimateEditorState, action: EstimateAction): Es
     }
 
     case 'MARK_SAVED':
-      return { ...state, isDirty: false }
+      return { ...state, isDirty: false, updated_at: action.updated_at }
 
     case 'ATTACH_PHOTO': {
       if (state.attachedPhotos.some((p) => p.id === action.photo.id)) {
