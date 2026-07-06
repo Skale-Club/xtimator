@@ -38,6 +38,22 @@ export function isPublicRoute(pathname: string): boolean {
   if (pathname === '/api/inngest' || pathname.startsWith('/api/inngest/')) {
     return true
   }
+  // Pre-launch audit fix: /api/health exposes only booleans + a commit sha
+  // (no PII/secrets — see app/api/health/route.ts) and is meant to be probed
+  // anonymously by the Docker HEALTHCHECK and external uptime monitors. Without
+  // this exemption it 307-redirects to /?auth=login for any unauthenticated
+  // caller, so no external monitor (or the compose healthcheck) can ever reach it.
+  if (pathname === '/api/health') {
+    return true
+  }
+  // /api/mcp authenticates every request itself via RFC 6750 Bearer tokens
+  // (lib/mcp/auth.ts) — it has no Supabase session concept. Without this
+  // exemption, an MCP client's unauthenticated discovery request gets a 307 to
+  // the login page instead of the RFC-9728-compliant 401 + WWW-Authenticate
+  // challenge the MCP spec expects, breaking the OAuth discovery flow entirely.
+  if (pathname === '/api/mcp' || pathname.startsWith('/api/mcp/')) {
+    return true
+  }
   return PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix))
 }
 

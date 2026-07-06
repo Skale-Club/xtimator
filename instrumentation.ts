@@ -26,6 +26,7 @@ import {
   SentryPropagator,
 } from '@sentry/opentelemetry'
 import { isUnreportableServerActionMismatch } from '@/lib/observability/sentry-filters'
+import { validateProductionEnv } from '@/lib/observability/env-check'
 
 /**
  * Exported so Inngest functions can call `await langfuseProcessor?.forceFlush()`
@@ -36,6 +37,12 @@ export let langfuseProcessor: LangfuseSpanProcessor | null = null
 
 export async function register() {
   if (process.env.NEXT_RUNTIME === 'nodejs') {
+    // 0. Pre-launch audit fix: fail fast (or at least fail LOUD) on missing
+    //    production env vars at boot, instead of the first affected request
+    //    silently misbehaving. See lib/observability/env-check.ts for the
+    //    critical-vs-important tier split.
+    validateProductionEnv()
+
     // 1. Init Sentry WITHOUT auto-OTel setup so Sentry does not grab the global
     //    OTel provider. We wire Sentry manually onto the shared provider below.
     const sentryClient = Sentry.init({

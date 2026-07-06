@@ -98,6 +98,14 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 
+# Pre-launch audit fix: /api/health reads process.env.GIT_SHA to report which
+# commit is live (app/api/health/route.ts), but nothing ever set it — every
+# deploy reported commit: "unknown", making the "which version is live" check
+# in the deploy runbook useless. DEPLOYMENT_VERSION (used by next.config.ts's
+# skew-protection deploymentId) already carries the build SHA — reuse it.
+ARG DEPLOYMENT_VERSION
+ENV GIT_SHA=$DEPLOYMENT_VERSION
+
 # Create unprivileged user — runs as uid/gid 1001:1001 (HETZNER-01 non-root).
 RUN addgroup --system --gid 1001 nodejs \
  && adduser --system --uid 1001 nextjs
