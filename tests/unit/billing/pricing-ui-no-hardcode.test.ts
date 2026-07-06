@@ -37,4 +37,17 @@ describe('pricing-ui-no-hardcode', () => {
     // annual price is computed from cents
     expect(src).toMatch(/annualCents/)
   })
+
+  it('does not hardcode monthly prices as string literals for pro/business tiers', () => {
+    // Phase 156 (CREDITFIX-03): monthly prices must come from monthlyPricesCents,
+    // mirroring the existing annual-price guard above — closes the exact same
+    // drift risk for the monthly view.
+    expect(src).not.toMatch(/price:\s*['"`]\$29['"`]/)
+    expect(src).not.toMatch(/price:\s*['"`]\$99['"`]/)
+  })
+
+  it('derives the monthly price display from monthlyPricesCents, not a static TIERS literal', () => {
+    expect(src).toMatch(/monthlyPricesCents/)
+    expect(src).toMatch(/getMonthlyPriceDisplay|monthlyPricesCents\?\.\[/)
+  })
 })
