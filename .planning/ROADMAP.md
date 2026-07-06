@@ -2520,7 +2520,9 @@ Full phase details archived: [milestones/v4.16-ROADMAP.md](milestones/v4.16-ROAD
   2. Force-tier and grant-credits controls are still present and functional on the page, just visually secondary (e.g. below the fold, in a collapsed panel, or a smaller action area) — not removed
   3. The platform-wide summary card no longer computes `proCount*29 + bizCount*99`; it instead renders a real aggregated credit/cost summary from the no-arg `aggregateAiCostByOperation()` call, verifiable by reading the component's data source
   4. No new database columns, `billing_config` fields, or credit-ledger logic were introduced — the page is a pure read/reuse of existing v4.7/v4.15 functions
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 158-01-PLAN.md — Credit-model overhaul: platform summary card data-source swap + per-company table restructure (credit balance/real cost/auto-top-up primary, force-tier/grant-credits collapsed into Manage disclosure)
 **UI hint**: yes
 
 ### Phase 159: Inbox Visual Redesign — "Premium Xtimator"
