@@ -2493,7 +2493,11 @@ Full phase details archived: [milestones/v4.16-ROADMAP.md](milestones/v4.16-ROAD
   2. The topbar `CreditChip` renders a visible `<progress>`-style bar element (using `components/ui/progress.tsx`) with the same color-escalation logic (green/amber/red) as `UsageProgressBar`, verifiable by inspecting the rendered DOM/component tree
   3. Every tier feature/price string in `TierCardsGrid`'s `TIERS` array is either sourced live from `billing_config` (for fields the config holds, e.g. price) or has been manually verified against current `billing_config`/product reality and is documented as intentionally-static in code comments (for fields the config doesn't hold, e.g. feature bullets)
   4. The existing v4.15 static neutrality test (no raw credit numbers in tenant-facing billing components) still passes and is extended to cover the 3 newly-fixed files
-**Plans**: TBD
+**Plans**: 2 plans (156-01, 156-02)
+
+Plans:
+- [ ] 156-01-PLAN.md — Fix 3 raw-credit-number leaks (TopUpPackCard, AutoTopupDialog, CreditHistoryList) + real progress bar in CreditChip
+- [ ] 156-02-PLAN.md — Reconcile TierCardsGrid pricing/feature bullets against billing_config and lib/entitlements.ts
 **UI hint**: yes
 
 ### Phase 157: Admin Nav Reorg & Naming Fixes
