@@ -13,6 +13,16 @@
  * pollJob resolves a typed JobResult discriminant; useJobStatus exposes a
  * discriminated state object.
  *
+ * Pre-launch audit fix (B8): a single transient network error (e.g. a ~1-2s
+ * cell handoff on a job site) used to throw straight out of the poll loop —
+ * `fetch()` rejects, nothing caught it, and the whole capture pipeline showed
+ * a hard failure even though the job was still running server-side. Both
+ * pollJob and useJobStatus now retry a failed poll attempt (network error OR
+ * an unparseable response) with capped exponential backoff instead of
+ * throwing immediately, and both give up after MAX_POLL_DURATION_MS total —
+ * a stuck/never-starting job now surfaces a clear failed state instead of
+ * polling forever.
+ *
  * NOTE (Plan 91-02): pollJob's other production consumers (text-describe,
  * photos-input, use-ai-input-submit) and the capture-recorder path are rewired
  * to read this new discriminant in Plan 02 Tasks 3 + 4. Within this plan we only
@@ -55,6 +65,23 @@ type ContractBody =
   | { state: 'not_found' }
 
 const POLL_MS = 1500
+/** Give up after this long even if the job never leaves `processing` —
+ * prevents an infinite spinner when a job silently never starts (e.g. an
+ * Inngest sync outage). */
+const MAX_POLL_DURATION_MS = 5 * 60 * 1000
+/** Consecutive fetch/parse failures tolerated before giving up entirely. */
+const MAX_CONSECUTIVE_POLL_ERRORS = 6
+const NETWORK_RETRY_BASE_MS = 1000
+const NETWORK_RETRY_MAX_MS = 10_000
+
+const TIMEOUT_RESULT: Extract<JobResult, { state: 'failed' }> = {
+  state: 'failed',
+  reason: 'This is taking longer than expected. It may still finish — check back on the project page shortly.',
+}
+const NETWORK_ERROR_RESULT: Extract<JobResult, { state: 'failed' }> = {
+  state: 'failed',
+  reason: 'Network error while checking status. Please check your connection and try again.',
+}
 
 function toJobResult(body: ContractBody): JobResult {
   switch (body.state) {
@@ -77,12 +104,34 @@ function toJobResult(body: ContractBody): JobResult {
  * already drives its own state). Resolves a typed JobResult for every terminal
  * state and NEVER throws on a non-200. While the contract reports `processing`
  * it keeps polling. Only throws on a genuinely-aborted signal (preserved so
- * callers' AbortError checks still work) or a truly-unparseable response.
+ * callers' AbortError checks still work).
+ *
+ * A transient fetch/parse failure (flaky mobile network) is retried with
+ * capped exponential backoff — up to MAX_CONSECUTIVE_POLL_ERRORS in a row —
+ * before resolving a failed JobResult; it is NEVER thrown straight out of
+ * this loop. The whole poll also gives up after MAX_POLL_DURATION_MS.
  */
 export async function pollJob(jobId: string, signal: AbortSignal): Promise<JobResult> {
+  const startedAt = Date.now()
+  let consecutiveErrors = 0
+
   while (!signal.aborted) {
-    const res = await fetch(`/api/jobs/${jobId}`, { signal })
-    const body = (await res.json()) as ContractBody
+    if (Date.now() - startedAt > MAX_POLL_DURATION_MS) return TIMEOUT_RESULT
+
+    let body: ContractBody
+    try {
+      const res = await fetch(`/api/jobs/${jobId}`, { signal })
+      body = (await res.json()) as ContractBody
+    } catch (err) {
+      if ((err as Error).name === 'AbortError') throw new Error('Aborted')
+      consecutiveErrors += 1
+      if (consecutiveErrors > MAX_CONSECUTIVE_POLL_ERRORS) return NETWORK_ERROR_RESULT
+      const backoff = Math.min(NETWORK_RETRY_BASE_MS * 2 ** (consecutiveErrors - 1), NETWORK_RETRY_MAX_MS)
+      await new Promise((resolve) => setTimeout(resolve, backoff))
+      continue
+    }
+
+    consecutiveErrors = 0
     if (body.state === 'processing') {
       await new Promise((resolve) => setTimeout(resolve, POLL_MS))
       continue
@@ -111,13 +160,22 @@ export function useJobStatus(jobId: string | null): UseJobStatusState {
 
     const controller = new AbortController()
     let cancelled = false
+    const startedAt = Date.now()
+    let consecutiveErrors = 0
 
     const loop = async () => {
       while (!controller.signal.aborted) {
+        if (Date.now() - startedAt > MAX_POLL_DURATION_MS) {
+          if (!cancelled) {
+            setState({ state: 'failed', output: null, reason: TIMEOUT_RESULT.reason })
+          }
+          return
+        }
         try {
           const res = await fetch(`/api/jobs/${jobId}`, { signal: controller.signal })
           const body = (await res.json()) as ContractBody
           if (cancelled) return
+          consecutiveErrors = 0
 
           if (body.state === 'processing') {
             setState({ state: 'processing', output: null, reason: null })
@@ -137,10 +195,21 @@ export function useJobStatus(jobId: string | null): UseJobStatusState {
           return // terminal state — stop the loop
         } catch (err) {
           if ((err as Error).name === 'AbortError') return
-          // Truly-unexpected (e.g. unparseable response). Surface as a failed
-          // state with a safe reason — NOT a synthetic `Status <code>` error.
+          // Pre-launch audit fix (B8): a transient network error (flaky mobile
+          // connection) used to surface as an immediate failed state. Retry
+          // with capped backoff instead — only give up after
+          // MAX_CONSECUTIVE_POLL_ERRORS in a row.
+          consecutiveErrors += 1
+          if (consecutiveErrors <= MAX_CONSECUTIVE_POLL_ERRORS) {
+            const backoff = Math.min(
+              NETWORK_RETRY_BASE_MS * 2 ** (consecutiveErrors - 1),
+              NETWORK_RETRY_MAX_MS
+            )
+            await new Promise((r) => setTimeout(r, backoff))
+            continue
+          }
           if (!cancelled) {
-            setState({ state: 'failed', output: null, reason: 'Estimate generation failed' })
+            setState({ state: 'failed', output: null, reason: NETWORK_ERROR_RESULT.reason })
           }
           return
         }
