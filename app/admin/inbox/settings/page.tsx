@@ -61,7 +61,7 @@ export default async function AdminInboxSettingsPage({
       </div>
 
       <Tabs defaultValue={initialTab} className="w-full gap-5">
-        <div className="border-b border-border">
+        <div className="border-b border-[var(--glass-border)] bg-[var(--glass-bg-light)]">
           <TabsList variant="line" className="w-auto h-auto bg-transparent p-0 gap-0 rounded-none justify-start">
             <TabsTrigger value="accounts" className={TAB_TRIGGER_CLASSES}>
               <T>Accounts</T>
