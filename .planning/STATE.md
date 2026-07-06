@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.17
 milestone_name: Admin Polish & Credit UX Compliance
 status: executing
-stopped_at: Completed 157-03-PLAN.md
-last_updated: "2026-07-06T04:46:10.694Z"
+stopped_at: Completed 158-01-PLAN.md
+last_updated: "2026-07-06T04:53:00.000Z"
 last_activity: 2026-07-06
 progress:
   total_phases: 4
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 7
-  completed_plans: 6
+  completed_plans: 7
 ---
 
 # Project State
@@ -48,12 +48,12 @@ progress:
 
 ## Current Position
 
-Phase: 157 of 159 (admin nav reorg naming fixes) — COMPLETE
-Plan: 3 of 3 complete (157-01: nav reorg + Content group + Legal Pages→Pages move; 157-02: Message Template + View as Company renames; 157-03: test retargeting for the View as Company rename)
-Status: Executing — Phase 157 complete, Phase 158 next
+Phase: 158 of 159 (admin billing page credit model overhaul) — COMPLETE
+Plan: 1 of 1 complete (158-01: platform-wide real-cost/credit summary card + per-company Credit balance/Real cost/Auto-top-up primary columns, Force tier/Grant credits collapsed into a per-row Manage disclosure — BILLADMIN-01..03)
+Status: Executing — Phase 158 complete, Phase 159 next
 Last activity: 2026-07-06
 
-Progress: [████░░░░░░] ~40% (2/4 v4.17 phases fully complete — 156 and 157 done; 158/159 remaining)
+Progress: [██████░░░░] ~60% (3/4 v4.17 phases fully complete — 156, 157, 158 done; 159 remaining)
 
 Note: `gsd-tools phase complete "155"` reported `next_phase: 999.1` (a pre-existing PARKING LOT placeholder — "Migrate Inngest to Self-Hosted Hetzner", disk_status empty, no plans) — this is NOT an active phase; the roadmap counter for v4.17 continues from Phase 156 (v4.16 ended at 155), not from 999.1. v4.16 (Phases 154-155) is fully shipped and archived to `milestones/v4.16-*`.
 
@@ -865,6 +865,9 @@ Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gs
 - [Phase 155]: Mobile-collapse empty-state assertion (toHaveCount(0)) confirmed against actual component: thread pane is hidden md:flex when nothing selected, so EmptyState text is not visible on mobile with no selection
 - [Phase 157]: Support Mode renamed to View as Company kept JSDoc comments consistent with new copy while preserving all internal identifiers (Rule 2 doc-consistency fix)
 - [Phase 157]: Kept internal page heading <T>Legal Pages</T> unchanged in app/admin/pages/page.tsx; only the nav label and route slug were the confirmed 157-01 rename target
+- [Phase 158]: Batched per-company real cost via a single `.in('company_id', ids)` query over `ai_cost_events` instead of 200 sequential `getCompanyCostOverview` calls — resolves the N+1 risk CONTEXT.md left as Claude's Discretion
+- [Phase 158]: Dropped Trial ends/Stripe sub as standalone table columns, preserved inside the per-row expandable Manage disclosure rather than deleted (CONTEXT.md Claude's Discretion)
+- [Phase 158]: Summary card heading "Platform AI Cost" (not "Monthly Recurring Revenue" or "Real Usage Cost") — avoids implying subscription revenue, per CONTEXT.md naming guidance
 
 ## Performance Metrics
 
@@ -1158,6 +1161,7 @@ Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gs
 | Phase 157 P02 | 6 | 2 tasks | 5 files |
 | Phase 157 P01 | 12min | 2 tasks | 6 files |
 | Phase 157 P03 | 3min | 2 tasks | 3 files |
+| Phase 158 P01 | 12min | 2 tasks | 2 files |
 
 ## Project Reference
 

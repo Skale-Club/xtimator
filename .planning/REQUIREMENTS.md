@@ -35,9 +35,9 @@ Each requirement maps to exactly one roadmap phase.
 
 ### Admin Billing Page Overhaul
 
-- [ ] **BILLADMIN-01**: The admin `/admin/billing` page's primary view is credit-model-centric per company — credit balance, real AI cost, and effective markup (reusing `getCompanyCostOverview`/`aggregateAiCostByOperation`) — replacing the current tier/MRR-first presentation.
-- [ ] **BILLADMIN-02**: Force-tier and grant-credits remain available as secondary admin actions on the same page (not removed, just no longer the visual focus).
-- [ ] **BILLADMIN-03**: The platform-wide summary card reflects real aggregated credit/cost data (via the no-arg `aggregateAiCostByOperation()` mode) instead of the current hardcoded `proCount*29 + bizCount*99` MRR calculation.
+- [x] **BILLADMIN-01**: The admin `/admin/billing` page's primary view is credit-model-centric per company — credit balance, real AI cost, and effective markup (reusing `getCompanyCostOverview`/`aggregateAiCostByOperation`) — replacing the current tier/MRR-first presentation.
+- [x] **BILLADMIN-02**: Force-tier and grant-credits remain available as secondary admin actions on the same page (not removed, just no longer the visual focus).
+- [x] **BILLADMIN-03**: The platform-wide summary card reflects real aggregated credit/cost data (via the no-arg `aggregateAiCostByOperation()` mode) instead of the current hardcoded `proCount*29 + bizCount*99` MRR calculation.
 
 ### Inbox Visual Redesign ("Premium Xtimator")
 
@@ -77,9 +77,9 @@ Every v1 requirement maps to exactly one phase. Coverage: 15/15 mapped, 0 orphan
 | NAV-03 | Phase 157 — Admin Nav Reorg & Naming Fixes | Complete |
 | NAMING-01 | Phase 157 — Admin Nav Reorg & Naming Fixes | Complete |
 | NAMING-02 | Phase 157 — Admin Nav Reorg & Naming Fixes | Complete |
-| BILLADMIN-01 | Phase 158 — Admin Billing Page Credit-Model Overhaul | Pending |
-| BILLADMIN-02 | Phase 158 — Admin Billing Page Credit-Model Overhaul | Pending |
-| BILLADMIN-03 | Phase 158 — Admin Billing Page Credit-Model Overhaul | Pending |
+| BILLADMIN-01 | Phase 158 — Admin Billing Page Credit-Model Overhaul | Complete |
+| BILLADMIN-02 | Phase 158 — Admin Billing Page Credit-Model Overhaul | Complete |
+| BILLADMIN-03 | Phase 158 — Admin Billing Page Credit-Model Overhaul | Complete |
 | INBOX-05 | Phase 159 — Inbox Visual Redesign | Pending |
 | INBOX-06 | Phase 159 — Inbox Visual Redesign | Pending |
 | INBOX-07 | Phase 159 — Inbox Visual Redesign | Pending |
