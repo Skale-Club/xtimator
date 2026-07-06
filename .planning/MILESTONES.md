@@ -1,5 +1,20 @@
 # Milestones
 
+## v4.17 Admin Polish & Credit UX Compliance (Shipped: 2026-07-06)
+
+**Phases completed:** 4 (156, 157, 158, 159) · 8 plans · 19 tasks · full unit suite green (3050+ passing; the only failures are the pre-existing, unrelated `blog-rls.test.ts`/`landing-page.test.tsx` issues documented across v4.13-v4.16)
+
+**Key accomplishments:**
+
+- Fixed 3 confirmed raw-credit-number leaks on the tenant Plans page (`TopUpPackCard`'s "≈X credits" subtext, `AutoTopupDialog`'s pack-picker, `CreditHistoryList`'s per-row deltas) — repairing a live regression against the v4.15 locked "never show a raw credit count" decision — added a real color-escalating progress bar to the topbar `CreditChip`, and reconciled tier pricing/features against `billing_config`/`lib/entitlements.ts` ground truth (fixing 5 factual inaccuracies in the process).
+- Reorganized the super-admin sidebar (Dashboard/Companies/Inbox promoted to the top 3 items, a new "Content" group built from scratch for Landing Page/Pages/Blog/SEO/Branding) and renamed "Legal Pages" → "Pages" including its slug (`/admin/legal` → `/admin/pages`, with a redirect stub left behind).
+- Fixed two names the owner explicitly called confusing: tenant Settings "Message" → "Message Template", super-admin "Support Mode" → "View as Company" — user-facing copy only; internal function names, audit-log literals, and the session cookie stayed byte-identical.
+- Overhauled the admin `/admin/billing` page to be credit-model-centric (per-company credit balance, real AI cost, effective markup, reusing the already-shipped v4.7/v4.15 cost-visibility stack) instead of a hardcoded tier/MRR calculation, keeping force-tier/grant-credits as secondary actions.
+- Redesigned the Inbox with a genuine "Premium Xtimator" glassmorphism treatment — a new deterministic-color initials-avatar utility, glass-surface list rows and thread-pane header, a richer 3-state unread/selected accent system — replacing the flat, avatar-less design the owner rejected as "ficou péssimo," plus matching glass polish on the Inbox Settings sub-page.
+- Caught and fixed 3 real defects before/during shipping: a non-functional regression-test regex in the credit-leak fix (would have silently let the exact bug regress undetected), a test file placed where the test runner would never collect it in the Inbox redesign, and a stale test allowlist that only failed when the full suite ran, found by the milestone-level integration audit — all three closed the same session, none shipped broken.
+
+---
+
 ## v4.16 Admin Inbox Consolidation (Shipped: 2026-07-06)
 
 **Phases completed:** 2 (154, 155) · 5 plans · 11 tasks · full WhatsApp/Inbox-scoped unit suite green (67+ tests) + e2e static-contract block green (the only failures are pre-existing, unrelated issues logged in each phase's `deferred-items.md`)
