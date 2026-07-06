@@ -25,12 +25,16 @@ const mockInsert = vi.fn()
 // Provide the select chain so the handler doesn't throw "select is not a function".
 const mockMaybeSingle = vi.fn()
 const mockSelect = vi.fn()
+// B5 (at-most-once fix): on a thrown handler error, the route deletes the
+// dedup row via .from('processed_stripe_events').delete().eq('event_id', ...).
+const mockDedupDeleteEq = vi.fn()
+const mockDedupDelete = vi.fn().mockImplementation(() => ({ eq: mockDedupDeleteEq }))
 
 vi.mock('@/lib/supabase/service', () => ({
   requireServiceClient: vi.fn().mockReturnValue({
     from: vi.fn().mockImplementation((table: string) => {
       if (table === 'processed_stripe_events') {
-        return { insert: mockInsert }
+        return { insert: mockInsert, delete: mockDedupDelete }
       }
       return { insert: mockInsert, update: mockUpdate, select: mockSelect }
     }),
@@ -66,6 +70,7 @@ beforeEach(() => {
   // Phase 153 Plan 03 defaults.
   mockSetupIntentRetrieve.mockResolvedValue({ payment_method: 'pm_test' })
   mockCustomersUpdate.mockResolvedValue({})
+  mockDedupDeleteEq.mockResolvedValue({ error: null })
 })
 
 describe('POST /api/webhooks/stripe — signature verification (STRIPE-02)', () => {
@@ -208,6 +213,27 @@ describe('POST /api/webhooks/stripe — invoice.paid (STRIPE-02)', () => {
         tier_renews_at: new Date(periodEnd * 1000).toISOString(),
       })
     )
+  })
+})
+
+describe('POST /api/webhooks/stripe — at-most-once fix (B5)', () => {
+  it('clears the dedup row and returns 500 when the handler throws, so a retry is NOT treated as already-processed', async () => {
+    mockSubscriptionsRetrieve.mockRejectedValueOnce(new Error('transient stripe error'))
+    mockConstructEvent.mockReturnValue({
+      id: 'evt_invoice_paid_fails',
+      type: 'invoice.paid',
+      data: {
+        object: { id: 'in_test_fail', subscription: 'sub_456' },
+      },
+    })
+
+    const res = await POST(makeRequest())
+
+    expect(res.status).toBe(500)
+    expect(mockDedupDelete).toHaveBeenCalled()
+    expect(mockDedupDeleteEq).toHaveBeenCalledWith('event_id', 'evt_invoice_paid_fails')
+    // The failure happened before the tier_renews_at update was reached.
+    expect(mockUpdate).not.toHaveBeenCalled()
   })
 })
 

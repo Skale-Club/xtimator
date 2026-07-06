@@ -76,8 +76,30 @@ export async function POST(request: NextRequest) {
     return new Response('Internal error', { status: 500 })
   }
 
-  // Step 4: handle event
-  await handleStripeEvent(event, stripe, svc)
+  // Step 4: handle event.
+  //
+  // Pre-launch audit fix (B5): the dedup row above is inserted BEFORE
+  // handling (needed to reject a second COPY of the same event arriving
+  // concurrently — see Pitfall below), but that made the dedup "at-most-once"
+  // in the wrong direction: if handleStripeEvent throws (a transient error,
+  // e.g. stripe.subscriptions.retrieve failing in the invoice.paid arm), this
+  // route returns 500, Stripe retries, and the retry hits the dedup row we
+  // already inserted — "Already processed" — permanently dropping an event
+  // that never actually succeeded (a paid checkout that never grants the
+  // tier/credits, with no further retry).
+  //
+  // Fix: on a thrown error, delete the dedup row before returning 500, so the
+  // NEXT delivery (Stripe's automatic retry, or a manual resend) is treated
+  // as fresh rather than already-processed. Concurrent-duplicate-delivery
+  // protection is preserved because the row still exists for the ENTIRE
+  // duration of a successful handling — only a genuine failure clears it.
+  try {
+    await handleStripeEvent(event, stripe, svc)
+  } catch (err) {
+    console.error('[Stripe] handleStripeEvent failed, clearing dedup row for retry:', err)
+    await svc.from('processed_stripe_events').delete().eq('event_id', event.id)
+    return new Response('Internal error', { status: 500 })
+  }
 
   return new Response('OK', { status: 200 })
 }
