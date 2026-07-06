@@ -25,6 +25,7 @@ export type RosterMember = {
 
 export type RosterInvite = {
   id: string
+  display_name: string | null
   email: string
   role: 'admin' | 'member'
 }
@@ -58,7 +59,7 @@ export async function listCompanyRoster(
   // 3. Pending invites only.
   const { data: invites } = await service
     .from('company_invites')
-    .select('id, email, role')
+    .select('id, display_name, email, role')
     .eq('company_id', companyId)
     .eq('status', 'pending')
     .order('created_at', { ascending: true })

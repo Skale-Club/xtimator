@@ -6,6 +6,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { CheckCircle, XCircle, Loader2, PenLine, Receipt, ExternalLink } from 'lucide-react'
 import { respondToEstimate } from '@/app/estimate/[token]/actions'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
+import { ensureReadableOnWhite, readableTextColor } from '@/lib/color/contrast'
 import type { ShareEstimateData } from '@/lib/queries/share'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { formatMinorUnits } from '@/lib/money/currency'
@@ -19,6 +20,12 @@ import {
   type DocumentCompany,
   type DocumentClient,
 } from '@/components/workspace/estimate/estimate-document'
+import { EstimateDocumentModern } from '@/components/share/estimate-document-modern'
+import {
+  type EstimateTemplateId,
+  isEstimateTemplateId,
+  DEFAULT_ESTIMATE_TEMPLATE_ID,
+} from '@/lib/estimate/templates/registry'
 
 const FLAG_MAP_LANG: Record<string, ComponentType<{ className?: string }>> = {
   en: FlagUS,
@@ -67,6 +74,9 @@ export function EstimateView({
   const requiresSignature = estimate.company.digital_signature_enabled && !alreadyResponded
   const { company, project } = estimate
   const brandColor = company.brand_primary_color ?? SYSTEM_COLORS.primary
+  // Render-time WCAG adaptation (stored brand color never mutated):
+  const brandText = ensureReadableOnWhite(brandColor) // brand color as text on white
+  const brandOnFill = readableTextColor(brandColor) // fixed foreground over a brand fill
 
   // ---------------------------------------------------------------------------
   // Convert to EstimateDocument types
@@ -122,6 +132,20 @@ export function EstimateView({
     currency_code: estimate.currency_code ?? 'USD',
     estimate_date: (estimate as { estimate_date?: string | null }).estimate_date ?? null,
     estimate_number: (estimate as { estimate_number?: string | null }).estimate_number ?? null,
+    // Signed URLs are already resolved server-side in lib/queries/share.ts
+    // (getEstimateByShareToken) — anon visitors have no session to call
+    // getSignedUrl with, so no client-side resolution happens here.
+    attachedPhotos:
+      (
+        estimate as unknown as {
+          attachedPhotos?: {
+            id: string
+            storage_path: string
+            caption: string | null
+            url: string
+          }[]
+        }
+      ).attachedPhotos ?? [],
     sections: estimate.sections.map((s) => ({
       id: s.id,
       title: s.title,
@@ -137,6 +161,14 @@ export function EstimateView({
       })),
     })),
   }
+
+  // Registry-resolved templateId — guarded via isEstimateTemplateId, never a raw
+  // string comparison. Legacy/unrecognized values fall back to the default (classic).
+  const templateId: EstimateTemplateId = isEstimateTemplateId(
+    estimate.company.estimate_template_style
+  )
+    ? estimate.company.estimate_template_style
+    : DEFAULT_ESTIMATE_TEMPLATE_ID
 
   // ---------------------------------------------------------------------------
   // Respond handlers
@@ -198,19 +230,33 @@ export function EstimateView({
         </div>
       )}
 
-      {/* Document body */}
-      <EstimateDocument
-        mode="view"
-        data={documentData}
-        company={documentCompany}
-        client={documentClient}
-        projectName={project.name}
-        projectType={project.project_type}
-        language={(estimate.language ?? 'en') as EstimateLanguage}
-        estimateVersion={estimate.version}
-        estimateSeq={estimate.estimate_seq}
-        estimateCreatedAt={estimate.created_at}
-      />
+      {/* Document body — registry-resolved templateId selects Classic vs Modern */}
+      {templateId === 'modern' ? (
+        <EstimateDocumentModern
+          data={documentData}
+          company={documentCompany}
+          client={documentClient}
+          projectName={project.name}
+          projectType={project.project_type}
+          language={(estimate.language ?? 'en') as EstimateLanguage}
+          estimateVersion={estimate.version}
+          estimateSeq={estimate.estimate_seq}
+          estimateCreatedAt={estimate.created_at}
+        />
+      ) : (
+        <EstimateDocument
+          mode="view"
+          data={documentData}
+          company={documentCompany}
+          client={documentClient}
+          projectName={project.name}
+          projectType={project.project_type}
+          language={(estimate.language ?? 'en') as EstimateLanguage}
+          estimateVersion={estimate.version}
+          estimateSeq={estimate.estimate_seq}
+          estimateCreatedAt={estimate.created_at}
+        />
+      )}
 
       {/* Estimate Terms (company-level) */}
       {estimate.company.estimate_terms_enabled && estimate.company.estimate_terms_text && (
@@ -218,7 +264,7 @@ export function EstimateView({
           <CardContent className="p-4 sm:p-6">
             <h3
               className="text-sm font-semibold uppercase tracking-wider mb-3"
-              style={{ color: brandColor }}
+              style={{ color: brandText }}
             >
               {t('Estimate Terms')}
             </h3>
@@ -235,7 +281,7 @@ export function EstimateView({
         <Card variant="glass">
           <CardContent className="p-6 sm:p-8 space-y-4">
             <div className="flex items-center gap-2">
-              <Receipt className="h-5 w-5" style={{ color: brandColor }} />
+              <Receipt className="h-5 w-5" style={{ color: brandText }} />
               <h3 className="text-base font-semibold">{t('Invoices')}</h3>
             </div>
             <div className="space-y-3">
@@ -268,8 +314,8 @@ export function EstimateView({
                       key={inv.id}
                       asChild
                       size="lg"
-                      className="w-full sm:w-auto text-white"
-                      style={{ backgroundColor: brandColor }}
+                      className="w-full sm:w-auto"
+                      style={{ backgroundColor: brandColor, color: brandOnFill }}
                     >
                       <a href={inv.hosted_invoice_url} target="_blank" rel="noopener noreferrer">
                         <ExternalLink className="mr-2 h-4 w-4" />
@@ -291,7 +337,7 @@ export function EstimateView({
         <Card>
           <CardContent className="p-6 sm:p-8 space-y-6">
             <div className="flex items-center gap-2">
-              <PenLine className="h-5 w-5" style={{ color: brandColor }} />
+              <PenLine className="h-5 w-5" style={{ color: brandText }} />
               <h3 className="text-base font-semibold">Sign to accept this estimate</h3>
             </div>
             <SignaturePad

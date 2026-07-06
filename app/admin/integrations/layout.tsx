@@ -29,16 +29,18 @@ export default async function IntegrationsLayout({
           <T>Manage API keys for services shared across all tenants. Changes take effect within 60 seconds.</T>
         </p>
       </div>
-      <Card variant="glass" className="p-6 md:p-8">
-        <IntegrationsNav
-          defaultSlug={DEFAULT_CATEGORY_SLUG}
-          categories={CATEGORIES.map((c) => ({
-            slug: c.slug,
-            title: c.title,
-            navLabel: c.navLabel,
-          }))}
-        />
-        <div className="mt-6">{children}</div>
+      <Card variant="glass" className="p-4 md:p-6">
+        <div className="flex flex-col gap-4 md:flex-row md:gap-6">
+          <IntegrationsNav
+            defaultSlug={DEFAULT_CATEGORY_SLUG}
+            categories={CATEGORIES.map((c) => ({
+              slug: c.slug,
+              title: c.title,
+              navLabel: c.navLabel,
+            }))}
+          />
+          <div className="min-w-0 flex-1">{children}</div>
+        </div>
       </Card>
     </div>
   )

@@ -8,8 +8,10 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
  *      value, operationType 'estimate', provider 'openrouter', the model id.
  *   2. A response with NO `usage.cost` → `recordAICost` called with `realCostUsd: null`
  *      (NEVER 0).
- *   3. The request body sent to fetch contains NO `usage` key (no deprecated
- *      `include` flag) and NO second fetch to `/api/v1/generation`.
+ *   3. The request body sent to fetch asks for inline usage accounting via
+ *      `usage: { include: true }` (OpenRouter's documented way to get the real
+ *      cost back in the SAME response) and makes NO second fetch to the
+ *      deprecated `/api/v1/generation` endpoint.
  *   4. companyId/attemptId in the recorded cost come from the injected `costContext`,
  *      never from the parsed tool-call arguments.
  */
@@ -146,7 +148,7 @@ describe('OpenRouterAdapter cost capture (COST-01)', () => {
     expect(mockRecord.mock.calls[0][0].realCostUsd).toBeNull()
   })
 
-  it('does NOT add a usage/stream_options flag to the request body and makes no /api/v1/generation call', async () => {
+  it('requests inline usage accounting (usage.include) and makes no /api/v1/generation call', async () => {
     const fetchMock = global.fetch as ReturnType<typeof vi.fn>
     fetchMock.mockResolvedValue(
       makeResponse({ cost: 0.01 })
@@ -154,12 +156,13 @@ describe('OpenRouterAdapter cost capture (COST-01)', () => {
 
     await new OpenRouterAdapter(MODEL).generateEstimate(makeInput())
 
+    // Exactly one call — cost comes back INLINE via usage accounting, never
+    // from a second round-trip to the deprecated generation endpoint.
     expect(fetchMock).toHaveBeenCalledTimes(1)
     const [url, init] = fetchMock.mock.calls[0]
     expect(String(url)).not.toContain('/api/v1/generation')
     const sentBody = JSON.parse((init as { body: string }).body)
-    expect(sentBody).not.toHaveProperty('usage')
-    expect(sentBody).not.toHaveProperty('stream_options')
+    expect(sentBody.usage).toEqual({ include: true })
   })
 
   it('correlates companyId/attemptId from costContext, never from parsed tool output', async () => {

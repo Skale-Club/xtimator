@@ -47,7 +47,11 @@ const RESEARCH_SYSTEM =
 
 type UrlCitation = {
   type?: string
+  /** Documented nested shape. */
   url_citation?: { url?: string; title?: string; content?: string }
+  /** D4 (quick-260705-2gp): live-observed FLAT shape — fields directly on the annotation. */
+  url?: string
+  content?: string
 }
 
 type OpenRouterResearchResponse = {
@@ -168,11 +172,19 @@ export function makeOpenRouterWebProvider(): PriceResearchProvider {
         if (typeof content !== 'string') return items.map((i) => missFor(i, currency))
 
         // Index the real citations returned by the search tool: url -> snippet.
+        // D4 (quick-260705-2gp): shape-tolerant — accepts BOTH the documented
+        // nested `url_citation` object and the live-observed FLAT shape (url +
+        // content directly on the annotation). A real citation must never be
+        // dropped over its shape: every dropped citation nulls a source_url and
+        // sends the result into the evidence gate's 100%-rejection mode.
         const citationByUrl = new Map<string, string>()
         for (const a of message?.annotations ?? []) {
-          const url = a?.url_citation?.url
+          // Skip ONLY when a type is present AND differs — an absent type stays
+          // tolerated (matches the previous indexer's behavior).
+          if (a?.type != null && a.type !== 'url_citation') continue
+          const url = a?.url_citation?.url ?? a?.url
           if (typeof url === 'string' && url.trim().length > 0) {
-            citationByUrl.set(url, a.url_citation?.content ?? '')
+            citationByUrl.set(url, a?.url_citation?.content ?? a?.content ?? '')
           }
         }
 
@@ -197,6 +209,21 @@ export function makeOpenRouterWebProvider(): PriceResearchProvider {
 
         const parsed = priceResearchPayloadSchema.safeParse(parsedUnknown)
         if (!parsed.success) return items.map((i) => missFor(i, currency))
+
+        // D4 telemetry (quick-260705-2gp): the model answered but ZERO citations
+        // were indexed → every source_url below gets nulled and isUsableCandidate
+        // rejects 100% of results — previously a SILENT failure mode (measured at
+        // a 97% evidence-gate rejection across a 100-estimate batch). Warn loudly
+        // so a degraded provider / annotations shape drift is visible in the logs.
+        if (parsed.data.results.length > 0 && citationByUrl.size === 0) {
+          console.warn(
+            `[price-research] openrouter-web: ${parsed.data.results.length} results but 0 citations indexed — annotations shape mismatch or missing; all results will fail the evidence gate`,
+            {
+              resultCount: parsed.data.results.length,
+              annotationCount: (message?.annotations ?? []).length,
+            }
+          )
+        }
 
         // Re-associate one result per requested item, enforcing the evidence gate:
         // a self-asserted source_url is only trusted when it matches a real

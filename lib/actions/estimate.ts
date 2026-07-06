@@ -9,6 +9,7 @@ import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { shareLinkExpiryFromNow } from '@/lib/estimates/share-link'
 import { dispatchXphereSync } from '@/lib/integrations/xphere/dispatch'
 import { computeEstimateTotals } from '@/lib/estimate/compute-totals'
+import { copyEstimatePhotos } from '@/lib/queries/estimate-photo'
 
 // ---------------------------------------------------------------------------
 // Auth helper (same pattern as recording.ts)
@@ -366,6 +367,30 @@ export async function createBlankEstimate(projectId: string) {
   const { supabase, company, claims } = ctx
   const companyId = company.id as string
 
+  // Idempotency guard — the lazy auto-create path (EstimateTab) may fire more
+  // than once (React strict-mode double-invoke, double navigation). If a current
+  // estimate already exists for this project, return it instead of creating a
+  // duplicate blank that would shove the existing one into version history.
+  const { data: current } = await supabase
+    .from('estimates')
+    .select('id')
+    .eq('project_id', projectId)
+    .eq('is_current', true)
+    .maybeSingle()
+  if (current?.id) {
+    return { data: { estimateId: current.id as string } }
+  }
+
+  // Version carry-forward (Quick-260704-pt2) — capture the currently-current
+  // estimate's id before flipping it, so its attached photos can be copied
+  // onto the new version below.
+  const { data: previousCurrent } = await supabase
+    .from('estimates')
+    .select('id')
+    .eq('project_id', projectId)
+    .eq('is_current', true)
+    .maybeSingle()
+
   // Mark existing estimates as not current
   await supabase
     .from('estimates')
@@ -450,6 +475,12 @@ export async function createBlankEstimate(projectId: string) {
 
   if (itemError) {
     return { error: 'Failed to create default item' }
+  }
+
+  // Version carry-forward — copy the previous current version's attached
+  // photos onto the new version (independent rows, own remove lifecycle).
+  if (previousCurrent?.id) {
+    await copyEstimatePhotos(supabase, previousCurrent.id, estimateId, companyId)
   }
 
   // Log activity

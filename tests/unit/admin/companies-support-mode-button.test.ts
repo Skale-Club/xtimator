@@ -1,0 +1,102 @@
+import { describe, it, expect } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+
+const readButton = () => readFileSync(resolve(process.cwd(), 'app/admin/companies/support-mode-button.tsx'), 'utf8')
+const readPage = () => readFileSync(resolve(process.cwd(), 'app/admin/companies/page.tsx'), 'utf8')
+// startSupportSession (Plan 01) THROWS rather than returning a result, and
+// support-mode-button.tsx is 'use client' — so per this plan's Step 1, the
+// direct `import ... from '@/lib/auth/support-mode'` lives in the sibling
+// 'use server' file (support-mode-actions.ts), not in the button itself.
+// The button imports the thin server-action wrapper instead.
+const readActions = () => readFileSync(resolve(process.cwd(), 'app/admin/companies/support-mode-actions.ts'), 'utf8')
+
+describe('app/admin/companies/support-mode-actions.ts: server-action wrapper contract', () => {
+  it('is a server action that imports startSupportSession from @/lib/auth/support-mode', () => {
+    try {
+      const src = readActions()
+      expect(src).toMatch(/^\s*['"]use server['"]/m)
+      expect(src).toMatch(/startSupportSession/)
+      expect(src).toMatch(/from\s+['"]@\/lib\/auth\/support-mode['"]/)
+    } catch {
+      expect.fail('Wave 0: app/admin/companies/support-mode-actions.ts not yet written')
+    }
+  })
+})
+
+describe('app/admin/companies/support-mode-button.tsx: contract', () => {
+  it('imports the startSupportSessionAction server-action wrapper', () => {
+    try {
+      expect(readButton()).toMatch(/startSupportSessionAction/)
+    } catch {
+      expect.fail('Wave 0: app/admin/companies/support-mode-button.tsx not yet written')
+    }
+  })
+
+  it('uses the Eye icon (visually distinct from HandoffButton\'s Send icon)', () => {
+    try {
+      expect(readButton()).toMatch(/Eye/)
+      expect(readButton()).not.toMatch(/\bSend\b/)
+    } catch {
+      expect.fail('Wave 0: app/admin/companies/support-mode-button.tsx not yet written')
+    }
+  })
+
+  it('label reads "View as Company →"', () => {
+    try {
+      expect(readButton()).toMatch(/View as Company/)
+    } catch {
+      expect.fail('Wave 0: app/admin/companies/support-mode-button.tsx not yet written')
+    }
+  })
+
+  it('is a client component with an error-handling path — mirrors HandoffButton (\'use client\' + useTransition + toast.error)', () => {
+    try {
+      const src = readButton()
+      expect(src).toMatch(/^\s*['"]use client['"]/m)
+      expect(src).toMatch(/useTransition/)
+      expect(src).toMatch(/toast\.error\(/)
+    } catch {
+      expect.fail('Wave 0: app/admin/companies/support-mode-button.tsx not yet written, or missing the required error-handling path (\'use client\' / useTransition / toast.error)')
+    }
+  })
+})
+
+describe('app/admin/companies/page.tsx: renders Support Mode row action in both table sections', () => {
+  // Note: the "Support Mode →" label text itself lives in support-mode-button.tsx
+  // (per the reference implementation's client-component split), so page.tsx is
+  // checked for the <SupportModeButton /> identifier/import it renders, not the
+  // literal label string — see companies-support-mode-button.test.ts's sibling
+  // describe block above, which already locks the label text at its source.
+  it('source references the SupportModeButton row action', () => {
+    try {
+      expect(readPage()).toMatch(/SupportModeButton/)
+    } catch {
+      expect.fail('Wave 0: app/admin/companies/page.tsx not yet updated with Support Mode row action')
+    }
+  })
+
+  it('row action ordering: HandoffButton before SupportModeButton before Configure, in the Demo Accounts section', () => {
+    try {
+      const src = readPage()
+      const handoffIdx = src.indexOf('HandoffButton')
+      const supportIdx = src.indexOf('SupportModeButton', handoffIdx)
+      const configureIdx = src.indexOf('Configure', supportIdx)
+      expect(handoffIdx).toBeGreaterThan(-1)
+      expect(supportIdx).toBeGreaterThan(handoffIdx)
+      expect(configureIdx).toBeGreaterThan(supportIdx)
+    } catch {
+      expect.fail('Wave 0: app/admin/companies/page.tsx not yet updated with Support Mode row action')
+    }
+  })
+
+  it('the All Companies section also renders the SupportModeButton row action (appears more than once in the file)', () => {
+    try {
+      const src = readPage()
+      const matches = src.match(/SupportModeButton/g) ?? []
+      expect(matches.length).toBeGreaterThanOrEqual(2)
+    } catch {
+      expect.fail('Wave 0: app/admin/companies/page.tsx not yet updated with Support Mode row action')
+    }
+  })
+})

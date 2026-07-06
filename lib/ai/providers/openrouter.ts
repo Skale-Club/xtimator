@@ -92,7 +92,16 @@ type OpenRouterChatResponse = {
 }
 
 export class OpenRouterAdapter implements AIProvider {
-  constructor(private readonly model: string) {
+  /**
+   * @param apiKeyOverride Billing v2 BYOK: the company's OWN OpenRouter key
+   *   (decrypted upstream in getAIProvider). When present it replaces the
+   *   platform key for every call this adapter makes — the company pays its own
+   *   AI bill, and the credit ledger skips debits for it. NEVER logged.
+   */
+  constructor(
+    private readonly model: string,
+    private readonly apiKeyOverride?: string
+  ) {
     if (!model) throw new Error('OpenRouter model is required')
   }
 
@@ -140,7 +149,8 @@ export class OpenRouterAdapter implements AIProvider {
       projectId?: string | null
     }
   }): Promise<Record<string, unknown>> {
-    const apiKey = await getIntegrationKey('openrouter')
+    // BYOK: the per-company key override wins; otherwise the platform key.
+    const apiKey = this.apiKeyOverride ?? (await getIntegrationKey('openrouter'))
     if (!apiKey) throw new Error('OpenRouter API key not configured')
 
     const startTime = new Date()
@@ -167,6 +177,10 @@ export class OpenRouterAdapter implements AIProvider {
         type: 'function',
         function: { name: 'create_estimate' },
       },
+      // COST-01: ask OpenRouter to include the real upstream USD cost in the
+      // response `usage` block. Without this, `usage.cost` is often absent and
+      // credit debiting has nothing to charge against.
+      usage: { include: true },
     }
 
     const res = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
@@ -207,12 +221,19 @@ export class OpenRouterAdapter implements AIProvider {
     try {
       const parsed = JSON.parse(argsJson) as Record<string, unknown>
       // Phase 110 (COST-01): capture the real USD cost alongside the existing
-      // Langfuse token block. `usage.cost` is returned automatically — null when
-      // absent, NEVER coerced to 0. Correlation ids come ONLY from the trusted,
-      // non-LLM costContext (never from `parsed`/json.choices). `void` so a
-      // cost-write failure can never affect the return (recordAICost never-throws).
+      // Langfuse token block. `usage.cost` is returned when we request
+      // `usage: { include: true }` — null when absent, NEVER coerced to 0.
+      // Correlation ids come ONLY from the trusted, non-LLM costContext (never
+      // from `parsed`/json.choices).
+      //
+      // AWAIT (not `void`): this runs inside an Inngest step. When the step
+      // resolves/suspends, the serverless invocation can be frozen and any
+      // floating promise dropped before its fetch/INSERT lands — which left
+      // ai_cost_events empty and broke credit debiting entirely. recordAICost
+      // is never-throw (internal try/catch), so awaiting it is safe and can
+      // never affect the estimate return.
       const realCostUsd = json.usage?.cost ?? null
-      void recordAICost({
+      await recordAICost({
         attemptId: args.costContext?.attemptId ?? randomUUID(),
         operationType: 'estimate',
         provider: 'openrouter',

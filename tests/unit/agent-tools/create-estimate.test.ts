@@ -21,11 +21,22 @@ vi.mock('@/lib/inngest/client', () => ({
   inngest: { send: (...args: unknown[]) => mockSend(...args) },
 }))
 
-import { createEstimate } from '@/lib/agent-tools/create-estimate'
+// Billing v2: createEstimate now runs the credit gate before dispatch — stub it
+// permissive here (gate behavior has its own tests) + a bare service client.
+const mockCheckCredits = vi.fn()
+vi.mock('@/lib/billing/credit-ledger', () => ({
+  checkCredits: (...args: unknown[]) => mockCheckCredits(...args),
+}))
+vi.mock('@/lib/supabase/service', () => ({
+  requireServiceClient: vi.fn().mockReturnValue({}),
+}))
+
+import { createEstimate, INSUFFICIENT_CREDITS_MESSAGE } from '@/lib/agent-tools/create-estimate'
 import { EVENT_ESTIMATE_GENERATE } from '@/lib/inngest/events'
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mockCheckCredits.mockResolvedValue({ allowed: true, balance: 1000, shortfall: 0 })
 })
 
 describe('createEstimate — EVENT_ESTIMATE_GENERATE dispatch (NEUT-01)', () => {
@@ -86,5 +97,14 @@ describe('createEstimate — EVENT_ESTIMATE_GENERATE dispatch (NEUT-01)', () => 
     await expect(
       createEstimate({ companyId: 'co-1', projectId: 'proj-1' })
     ).rejects.toThrow()
+  })
+
+  // Billing v2: the credit wall — a blocked balance rejects BEFORE any dispatch.
+  it('Test 4: throws INSUFFICIENT_CREDITS_MESSAGE and dispatches NOTHING when the gate blocks', async () => {
+    mockCheckCredits.mockResolvedValue({ allowed: false, balance: 0, shortfall: 1 })
+    await expect(
+      createEstimate({ companyId: 'co-1', projectId: 'proj-1' })
+    ).rejects.toThrow(INSUFFICIENT_CREDITS_MESSAGE)
+    expect(mockSend).not.toHaveBeenCalled()
   })
 })

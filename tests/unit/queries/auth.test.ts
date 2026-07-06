@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 // unstable_cache wraps the function — make it a passthrough so the inner fn is testable
 vi.mock('next/cache', () => ({
   unstable_cache: (fn: (...args: unknown[]) => unknown) => fn,
-  revalidateTag: vi.fn(),
+  updateTag: vi.fn(),
   revalidatePath: vi.fn(),
 }))
 

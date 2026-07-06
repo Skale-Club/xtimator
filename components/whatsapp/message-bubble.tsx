@@ -129,7 +129,7 @@ export function MessageBubble({ m }: { m: WaMessageRow }) {
             ? failed
               ? 'bg-destructive/10 text-foreground border border-destructive/40'
               : 'bg-[image:var(--gradient-brand)] text-white'
-            : 'bg-muted text-foreground',
+            : 'bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] text-foreground border border-[var(--glass-border)]',
         )}
       >
         {content}

@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Check, ChevronsUpDown, Building2, Loader2 } from 'lucide-react'
@@ -15,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { switchActiveCompany } from '@/lib/actions/active-company'
+import { AdminCreateCompanyModal } from '@/components/app-shell/admin-create-company-modal'
 
 /**
  * Phase 81 — Company switcher dropdown.
@@ -38,6 +38,8 @@ interface CompanySelectorProps {
   companies: CompanyOption[]
   activeCompanyId: string
   collapsed?: boolean
+  /** Platform admin — renders the "Add new company" item. Hidden for regular users. */
+  isAdmin?: boolean
   /**
    * Optional slot rendered at the bottom of the dropdown, after the
    * "Add new company" item and a separator. Used by Sidebar to merge the
@@ -55,11 +57,13 @@ export function CompanySelector({
   companies,
   activeCompanyId,
   collapsed = false,
+  isAdmin = false,
   accountMenuSlot,
 }: CompanySelectorProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [pendingId, setPendingId] = useState<string | null>(null)
+  const [showCreateModal, setShowCreateModal] = useState(false)
 
   const active =
     companies.find((c) => c.id === activeCompanyId) ?? companies[0] ?? null
@@ -80,6 +84,7 @@ export function CompanySelector({
   }
 
   return (
+    <>
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         {collapsed ? (
@@ -160,18 +165,21 @@ export function CompanySelector({
           )
         })}
 
-        <DropdownMenuSeparator />
-
-        <DropdownMenuItem asChild>
-          <Link
-            href="/onboarding?mode=add"
-            prefetch
-            className="flex items-center gap-2 text-muted-foreground"
-          >
-            <Building2 className="h-4 w-4" />
-            <span>Add new company</span>
-          </Link>
-        </DropdownMenuItem>
+        {isAdmin && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="flex items-center gap-2 cursor-pointer"
+              onSelect={(e) => {
+                e.preventDefault()
+                setShowCreateModal(true)
+              }}
+            >
+              <Building2 className="h-4 w-4" />
+              <span>Add new company</span>
+            </DropdownMenuItem>
+          </>
+        )}
 
         {accountMenuSlot && (
           <>
@@ -181,5 +189,13 @@ export function CompanySelector({
         )}
       </DropdownMenuContent>
     </DropdownMenu>
+
+    {isAdmin && (
+      <AdminCreateCompanyModal
+        open={showCreateModal}
+        onOpenChange={setShowCreateModal}
+      />
+    )}
+  </>
   )
 }

@@ -1,10 +1,8 @@
 'use client'
-
-import { useEffect } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { ArrowRight, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { motion, useReducedMotion, type Variants } from 'framer-motion'
 
 type HeroContent = {
   heroHeadline: string
@@ -14,21 +12,8 @@ type HeroContent = {
   heroImageUrl: string | null
 }
 
-const FADE_UP_ANIMATION_VARIANTS: Variants = {
-  hidden: { opacity: 0, y: 30 },
-  show: { opacity: 1, y: 0, transition: { type: 'spring', duration: 1 } },
-}
-
 export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onOpenAuth?: (mode: 'login' | 'signup') => void }) {
-  const reduce = useReducedMotion()
   const hasImage = !!content.heroImageUrl
-
-  useEffect(() => {
-    const els = Array.from(document.querySelectorAll<HTMLElement>('.cta-glow'))
-    els.forEach(el => { el.style.animation = 'none' })
-    void document.body.offsetHeight
-    els.forEach(el => { el.style.animation = '' })
-  }, [])
 
   return (
     <section className="relative isolate flex flex-1 min-h-0 flex-col overflow-hidden border-b border-white/5 bg-transparent min-h-[420px] sm:min-h-0 sm:max-h-[520px] md:max-h-[620px] lg:max-h-[520px]">
@@ -46,44 +31,31 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
           }
         >
           {/* Left: headline + CTAs */}
-          <motion.div
-            initial={reduce ? false : 'hidden'}
-            animate="show"
-            viewport={{ once: true }}
-            variants={{
-              hidden: {},
-              show: { transition: { staggerChildren: 0.15 } },
-            }}
+          <div
             className={
               hasImage
                 ? 'hero-left relative z-10 flex min-w-0 flex-col justify-center space-y-4 sm:w-[55%] sm:shrink-0 md:w-[58%] lg:w-[55%]'
                 : 'max-w-3xl space-y-4'
             }
+            style={{ fontFamily: 'ui-sans-serif, system-ui, sans-serif' }}
           >
-            <motion.div
-              variants={FADE_UP_ANIMATION_VARIANTS}
-              className={hasImage ? 'flex justify-start' : 'flex justify-center'}
-            >
+            <div className={hasImage ? 'flex justify-start' : 'flex justify-center'}>
               <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-medium text-secondary backdrop-blur-sm">
                 <Sparkles className="size-3.5" aria-hidden="true" />
                 Built for contractors
               </div>
-            </motion.div>
+            </div>
 
-            <motion.h1
-              variants={FADE_UP_ANIMATION_VARIANTS}
-              className="hero-h1 text-[clamp(29px,7.7vw,56px)] sm:text-[clamp(35px,5.5vw,42px)] md:text-[clamp(32px,4.5vw,46px)] lg:text-[clamp(42px,4.5vw,56px)] font-semibold leading-[1.05] tracking-[-0.03em] lg:w-[580px]"
-            >
+            <h1 className="hero-h1 text-[clamp(29px,7.7vw,56px)] sm:text-[clamp(35px,5.5vw,42px)] md:text-[clamp(32px,4.5vw,46px)] lg:text-[clamp(42px,4.5vw,56px)] font-semibold leading-[1.05] tracking-[-0.03em] lg:w-[580px]">
               {content.heroHeadline.split(' ')[0]}
               {/* Always break after word 1 — keeps the title 3 lines on desktop too */}
               <br />
               {' '}{content.heroHeadline.split(' ')[1]}
               <br className="hidden sm:block" />
               {' '}{content.heroHeadline.split(' ').slice(2).join(' ')}
-            </motion.h1>
+            </h1>
 
-            <motion.p
-              variants={FADE_UP_ANIMATION_VARIANTS}
+            <p
               className={
                 hasImage
                   // xl:text-[20px] keeps the title:subheadline ratio (~2.8) harmonic on
@@ -106,10 +78,9 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
                   {text.slice(b2)}
                 </>
               })()}
-            </motion.p>
+            </p>
 
-            <motion.div
-              variants={FADE_UP_ANIMATION_VARIANTS}
+            <div
               className={
                 hasImage
                   ? 'flex flex-col gap-2 min-[1280px]:flex-row min-[1280px]:gap-3'
@@ -130,24 +101,20 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
               >
                 <Link href="/demo">See Demo</Link>
               </Button>
-            </motion.div>
-          </motion.div>
+            </div>
+          </div>
 
           {/* Right: image */}
           {hasImage && (
-            <motion.div
-              initial={reduce ? false : { opacity: 0, scale: 0.95, rotate: -2 }}
-              animate={{ opacity: 1, scale: 1, rotate: 0 }}
-              transition={{ duration: 1, type: 'spring', delay: 0.3 }}
-              className="hero-image absolute top-[23%] bottom-0 right-[-15px] w-[75%] z-0 sm:h-auto sm:absolute sm:top-[1in] sm:bottom-0 sm:left-[calc(58%_-_100px)] sm:right-[-2rem] sm:w-auto sm:scale-110 sm:origin-bottom md:top-16 lg:top-[36px] lg:left-[calc(35%_+_55px)] lg:right-[-2.5rem] lg:scale-100 xl:top-[65px] xl:left-[calc(35%_+_45px)] xl:right-[-30px]"
-            >
-              <img
+            <div className="hero-image absolute top-[23%] bottom-0 right-[-15px] hidden w-[75%] z-0 sm:block sm:h-auto sm:absolute sm:top-[1in] sm:bottom-0 sm:left-[calc(58%_-_100px)] sm:right-[-2rem] sm:w-auto sm:scale-110 sm:origin-bottom md:top-16 lg:top-[36px] lg:left-[calc(35%_+_55px)] lg:right-[-2.5rem] lg:scale-100 xl:top-[65px] xl:left-[calc(35%_+_45px)] xl:right-[-30px]">
+              <Image
                 src={content.heroImageUrl!}
                 alt=""
-                className="absolute inset-0 h-full w-full origin-bottom object-contain object-bottom min-[1280px]:scale-110"
-                loading="eager"
+                fill
+                sizes="(max-width: 639px) 75vw, (max-width: 1279px) 52vw, 640px"
+                className="origin-bottom object-contain object-bottom min-[1280px]:scale-110"
               />
-            </motion.div>
+            </div>
           )}
         </div>
       </div>

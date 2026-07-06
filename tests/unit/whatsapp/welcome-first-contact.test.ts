@@ -42,10 +42,10 @@ describe('claimWhatsAppWelcome', () => {
     expect(won).toBe(false)
   })
 
-  it('targets company_whatsapp scoped to the company and only-when-null', async () => {
+  it('targets whatsapp_company_configs scoped to the company and only-when-null', async () => {
     const { from, update, eq, is } = makeClient([{ company_id: 'c1' }])
     await claimWhatsAppWelcome({ from } as never, 'c1')
-    expect(from).toHaveBeenCalledWith('company_whatsapp')
+    expect(from).toHaveBeenCalledWith('whatsapp_company_configs')
     expect(update).toHaveBeenCalledWith(
       expect.objectContaining({ welcome_sent_at: expect.any(String) })
     )

@@ -61,22 +61,36 @@ async function ensureSeatProduct(stripe: Stripe): Promise<string> {
 export async function syncSubscriptionSeatItem(
   stripe: Stripe,
   subscriptionId: string,
-  desired: { quantity: number; unitAmount: number }
+  desired: { quantity: number; unitAmount: number; annualUnitAmount?: number }
 ): Promise<void> {
   const subscription = await stripe.subscriptions.retrieve(subscriptionId)
   const items = subscription.items?.data ?? []
   const seatItem = items.find((it) => it.metadata?.kind === SEAT_ITEM_METADATA_KIND)
 
+  // Read the subscription's billing interval so the seat item's recurring period
+  // matches the subscription (annual subs get a yearly seat item, not monthly).
+  const subscriptionInterval = (
+    (subscription.items?.data?.[0]?.plan?.interval) ?? 'month'
+  ) as 'month' | 'year'
+
+  // For annual subscriptions, prefer the caller-supplied annualUnitAmount when
+  // provided; fall back to unitAmount if annualUnitAmount is absent/null.
+  const resolvedUnitAmount =
+    subscriptionInterval === 'year' && desired.annualUnitAmount != null
+      ? desired.annualUnitAmount
+      : desired.unitAmount
+
   const productId = await ensureSeatProduct(stripe)
 
   // Inline price_data so the unit_amount is config-driven — never a hardcoded
   // pre-created Price ID. currency matches the subscription's existing currency
-  // to avoid a multi-currency Stripe error.
+  // to avoid a multi-currency Stripe error. recurring.interval mirrors the
+  // subscription so we don't mix monthly seat items on an annual subscription.
   const priceData: Stripe.SubscriptionItemCreateParams.PriceData = {
     currency: subscription.currency ?? 'usd',
     product: productId,
-    unit_amount: desired.unitAmount,
-    recurring: { interval: 'month' },
+    unit_amount: resolvedUnitAmount,
+    recurring: { interval: subscriptionInterval },
   }
 
   if (seatItem) {

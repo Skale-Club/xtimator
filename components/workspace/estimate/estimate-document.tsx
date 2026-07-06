@@ -19,8 +19,11 @@ import {
   arrayMove,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { Check, GripVertical, Plus, RotateCcw, Trash2, UserPlus } from 'lucide-react'
+import { Check, GripVertical, Plus, RotateCcw, Trash2, UserPlus, X } from 'lucide-react'
 import { toast } from 'sonner'
+import { Skeleton } from '@/components/ui/skeleton'
+import { createClient } from '@/lib/supabase/client'
+import { createStorage } from '@/lib/storage'
 import { MoneyInput } from '@/components/ui/money-input'
 import { Switch } from '@/components/ui/switch'
 import {
@@ -48,6 +51,7 @@ import { formatMoney } from '@/lib/money/currency'
 import { deriveDepositDisplay } from '@/lib/estimate/deposit-display'
 import { formatPhoneForDisplay } from '@/lib/phone/format'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
+import { ensureReadableOnWhite, readableTextColor } from '@/lib/color/contrast'
 import { linkProjectToClient } from '@/lib/actions/project'
 import { ItemCardMobile } from './item-card-mobile'
 import { PriceBookCombobox } from './price-book-combobox'
@@ -102,6 +106,7 @@ const DOC_LABELS = {
     customized: 'Customized',
     usingDefault: 'Default',
     resetToDefault: 'Reset to default',
+    photos: 'Photos',
   },
   pt: {
     estimate: 'ORÇAMENTO',
@@ -145,6 +150,7 @@ const DOC_LABELS = {
     customized: 'Personalizado',
     usingDefault: 'Padrão',
     resetToDefault: 'Restaurar padrão',
+    photos: 'Fotos',
   },
   es: {
     estimate: 'PRESUPUESTO',
@@ -188,6 +194,7 @@ const DOC_LABELS = {
     customized: 'Personalizado',
     usingDefault: 'Predeterminado',
     resetToDefault: 'Restablecer',
+    photos: 'Fotos',
   },
 }
 
@@ -233,6 +240,7 @@ interface DocLabels {
   customized: string
   usingDefault: string
   resetToDefault: string
+  photos: string
 }
 
 const DATE_LOCALE: Record<EstimateLanguage, string> = {
@@ -318,6 +326,20 @@ export interface DocumentSection {
   items: DocumentItem[]
 }
 
+/**
+ * Deliberately NOT the full lib/queries/photo.ts Photo type — the document
+ * surface only needs these fields and shouldn't couple to the photos query
+ * module. `url`, when present, is a pre-resolved signed URL (view/share mode,
+ * resolved server-side); when absent (edit mode), AttachedPhotoThumb resolves
+ * one client-side the same way PhotoCard does.
+ */
+export interface DocumentPhoto {
+  id: string
+  storage_path: string
+  caption: string | null
+  url?: string
+}
+
 export interface EstimateDocumentData {
   summary: string | null
   notes: string | null
@@ -342,6 +364,7 @@ export interface EstimateDocumentData {
   sections: DocumentSection[]
   estimate_date: string | null
   estimate_number: string | null
+  attachedPhotos?: DocumentPhoto[]
 }
 
 interface EstimateDocumentProps {
@@ -370,6 +393,8 @@ interface EstimateDocumentProps {
   onRenameProject?: (name: string) => Promise<void>
   /** Quick-260525-qbc: price book for description autocomplete (defaults to []) */
   priceBookItems?: PriceBookItem[]
+  /** Edit mode only — renders a remove "x" on each attached-photo thumbnail. Never passed in view/share mode. */
+  onDetachPhoto?: (photoId: string) => void
 }
 
 // ---------------------------------------------------------------------------
@@ -652,6 +677,7 @@ function DocumentSectionBlock({
   dispatch,
   isEditable,
   brandColor,
+  brandOnFill,
   currencyCode,
   L,
   lang,
@@ -662,6 +688,7 @@ function DocumentSectionBlock({
   dispatch?: React.Dispatch<EstimateAction>
   isEditable: boolean
   brandColor: string
+  brandOnFill: string
   currencyCode: string
   L: DocLabels
   lang: EstimateLanguage
@@ -716,10 +743,11 @@ function DocumentSectionBlock({
                 title: e.target.value,
               })
             }
-            className="flex-1 bg-transparent text-white font-semibold text-base focus:outline-none placeholder:text-white/50 focus:bg-white/10 rounded px-1 min-w-0"
+            style={{ color: brandOnFill }}
+            className="flex-1 bg-transparent font-semibold text-base focus:outline-none placeholder:text-white/50 focus:bg-white/10 rounded px-1 min-w-0"
           />
         ) : (
-          <span className="flex-1 text-white font-semibold text-base select-none">{section.title}</span>
+          <span className="flex-1 font-semibold text-base select-none" style={{ color: brandOnFill }}>{section.title}</span>
         )}
 
         {isEditable && dispatch && (
@@ -887,6 +915,7 @@ function SortableDocumentSection({
   dispatch,
   isEditable,
   brandColor,
+  brandOnFill,
   currencyCode,
   L,
   lang,
@@ -896,6 +925,7 @@ function SortableDocumentSection({
   dispatch: React.Dispatch<EstimateAction>
   isEditable: boolean
   brandColor: string
+  brandOnFill: string
   currencyCode: string
   L: DocLabels
   lang: EstimateLanguage
@@ -916,6 +946,7 @@ function SortableDocumentSection({
         dispatch={dispatch}
         isEditable={isEditable}
         brandColor={brandColor}
+        brandOnFill={brandOnFill}
         currencyCode={currencyCode}
         L={L}
         lang={lang}
@@ -934,14 +965,14 @@ function DocumentTotals({
   data,
   dispatch,
   isEditable,
-  brandColor,
+  brandText,
   L,
   defaultTaxRate,
 }: {
   data: EstimateDocumentData
   dispatch?: React.Dispatch<EstimateAction>
   isEditable: boolean
-  brandColor: string
+  brandText: string
   L: DocLabels
   /** R4 — company default tax rate (fraction); undefined when no default applies. */
   defaultTaxRate?: number
@@ -1101,7 +1132,7 @@ function DocumentTotals({
         {/* Grand total */}
         <div className="flex justify-between items-baseline pt-3 border-t-2 border-foreground">
           <span className="text-2xl font-bold select-none">{L.grandTotal}</span>
-          <span className="text-2xl font-bold tabular-nums" style={{ color: brandColor }}>
+          <span className="text-2xl font-bold tabular-nums" style={{ color: brandText }}>
             {fmt(data.total)}
           </span>
         </div>
@@ -1491,6 +1522,63 @@ function AddDetailsPopover({
 }
 
 // ---------------------------------------------------------------------------
+// AttachedPhotoThumb — static (non-drag-sort) thumbnail for the attached-
+// photos strip. Uses photo.url directly if pre-resolved (view/share mode);
+// otherwise resolves a signed URL client-side (edit mode), mirroring the
+// exact call PhotoCard already makes today.
+// ---------------------------------------------------------------------------
+
+function AttachedPhotoThumb({
+  photo,
+  onRemove,
+}: {
+  photo: DocumentPhoto
+  onRemove?: () => void
+}) {
+  const [imageUrl, setImageUrl] = useState<string | null>(photo.url ?? null)
+
+  useEffect(() => {
+    if (photo.url) {
+      setImageUrl(photo.url)
+      return
+    }
+    const supabase = createClient()
+    createStorage(supabase)
+      .getSignedUrl('photos', photo.storage_path, 3600)
+      .then((signedUrl) => {
+        setImageUrl(signedUrl)
+      })
+      .catch(() => {
+        // signed URL failed — leave skeleton in place
+      })
+  }, [photo.url, photo.storage_path])
+
+  return (
+    <div className="aspect-square overflow-hidden rounded-lg relative group">
+      {imageUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={imageUrl}
+          alt={photo.caption ?? ''}
+          className="object-cover w-full h-full"
+        />
+      ) : (
+        <Skeleton className="w-full h-full" />
+      )}
+      {onRemove && (
+        <button
+          onClick={onRemove}
+          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-destructive text-destructive-foreground rounded-full p-1 hover:bg-destructive/90"
+          aria-label="Remove photo"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // EstimateDocument — main export
 // ---------------------------------------------------------------------------
 
@@ -1512,10 +1600,14 @@ export function EstimateDocument({
   projectId,
   onRenameProject,
   priceBookItems = [],
+  onDetachPhoto,
 }: EstimateDocumentProps) {
   const lang = (language ?? 'en') as EstimateLanguage
   const L = DOC_LABELS[lang] ?? DOC_LABELS.en
   const brandColor = brandColorProp ?? company?.brand_primary_color ?? SYSTEM_COLORS.primary
+  // Render-time WCAG adaptation (stored brand color never mutated):
+  const brandText = ensureReadableOnWhite(brandColor) // brand color as text on white
+  const brandOnFill = readableTextColor(brandColor) // fixed foreground over a brand fill
   const isEditable = mode === 'edit' && !isReadOnly
 
   type OptionalField = 'summary' | 'payment_terms' | 'timeline' | 'warranty_terms' | 'notes'
@@ -1605,7 +1697,7 @@ export function EstimateDocument({
         >
           {/* LEFT — company info (Quick-260526-jo4) */}
           <div className="min-w-0">
-            <p className="font-bold text-lg leading-tight" style={{ color: brandColor }}>
+            <p className="font-bold text-lg leading-tight" style={{ color: brandText }}>
               {company.name}
             </p>
             {company.owner_name && (
@@ -1647,7 +1739,10 @@ export function EstimateDocument({
         className="py-6 px-6 sm:px-10 text-center"
         style={{ backgroundColor: brandColor }}
       >
-        <h1 className="text-3xl sm:text-4xl font-bold tracking-wide text-white select-none">
+        <h1
+          className="text-3xl sm:text-4xl font-bold tracking-wide select-none"
+          style={{ color: brandOnFill }}
+        >
           {L.estimate}
         </h1>
       </div>
@@ -1775,6 +1870,7 @@ export function EstimateDocument({
                   dispatch={dispatch}
                   isEditable={isEditable}
                   brandColor={brandColor}
+                  brandOnFill={brandOnFill}
                   currencyCode={data.currency_code}
                   L={L}
                   lang={lang}
@@ -1790,6 +1886,7 @@ export function EstimateDocument({
               section={section}
               isEditable={false}
               brandColor={brandColor}
+              brandOnFill={brandOnFill}
               currencyCode={data.currency_code}
               L={L}
               lang={lang}
@@ -1805,7 +1902,7 @@ export function EstimateDocument({
             onClick={() => dispatch({ type: 'ADD_SECTION' })}
             className="text-sm font-medium flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-colors select-none"
             style={{
-              color: brandColor,
+              color: brandText,
               backgroundColor: `${brandColor}1A`,
             }}
             onMouseEnter={(e) => {
@@ -1831,7 +1928,7 @@ export function EstimateDocument({
         data={data}
         dispatch={dispatch}
         isEditable={isEditable}
-        brandColor={brandColor}
+        brandText={brandText}
         L={L}
         defaultTaxRate={companyDefaults?.tax_rate}
       />
@@ -1885,6 +1982,28 @@ export function EstimateDocument({
               L={L}
             />
           )}
+        </div>
+      )}
+
+      {/* Attached photos — only when at least one photo is attached (zero-attached = no section anywhere) */}
+      {data.attachedPhotos && data.attachedPhotos.length > 0 && (
+        <div className="px-6 sm:px-10 pb-6 pt-4 border-t border-border/50">
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3 select-none">
+            {L.photos}
+          </p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+            {data.attachedPhotos.map((photo) => (
+              <AttachedPhotoThumb
+                key={photo.id}
+                photo={photo}
+                onRemove={
+                  isEditable && onDetachPhoto
+                    ? () => onDetachPhoto(photo.id)
+                    : undefined
+                }
+              />
+            ))}
+          </div>
         </div>
       )}
     </div>

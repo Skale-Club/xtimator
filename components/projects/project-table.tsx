@@ -1,16 +1,27 @@
 'use client'
 
 import Link from 'next/link'
-import { useState, type ReactNode } from 'react'
-import { FolderOpen, Pencil } from 'lucide-react'
-import { Card, CardContent } from '@/components/ui/card'
+import { useState, useTransition, type ReactNode } from 'react'
+import { useRouter } from 'next/navigation'
+import { FolderOpen, Pencil, UserPlus } from 'lucide-react'
+import { toast } from 'sonner'
 import { DataTable, type Column } from '@/components/ui/data-table'
 import { ProjectStatusBadge } from '@/components/projects/project-status-badge'
 import { ClientSheet } from '@/components/clients/client-sheet'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command'
 import { formatMoney } from '@/lib/money/currency'
 import { formatDate } from '@/lib/utils/format-date'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { createClient } from '@/lib/supabase/client'
+import { linkProjectToClient } from '@/lib/actions/project'
 import type { ClientDetail } from '@/lib/queries/clients'
 
 export interface ProjectTableRow {
@@ -40,8 +51,126 @@ interface ProjectTableProps<TProject extends ProjectTableRow> {
   noResultsDescription?: string
   fallbackCurrencyCode?: unknown
   headerRight?: ReactNode
+  headerLeft?: ReactNode
+  title?: ReactNode
+  pageSize?: number
   actionsHeader?: string
   companyId?: string
+}
+
+interface ClientSearchItem {
+  id: string
+  name: string
+  email: string | null
+}
+
+function InlineClientPicker({
+  projectId,
+  client,
+  companyId,
+  onEditClient,
+  onCreateNew,
+}: {
+  projectId: string
+  client: { id: string; name: string } | null | undefined
+  companyId?: string
+  onEditClient?: (clientId: string) => void
+  onCreateNew?: () => void
+}) {
+  const router = useRouter()
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const [clients, setClients] = useState<ClientSearchItem[] | null>(null)
+  const [, startTransition] = useTransition()
+
+  function loadClients() {
+    if (clients !== null) return
+    fetch('/api/clients')
+      .then((r) => r.json())
+      .then((d) => setClients(Array.isArray(d) ? d : []))
+      .catch(() => setClients([]))
+  }
+
+  function handleLink(clientId: string) {
+    startTransition(async () => {
+      const result = await linkProjectToClient(projectId, clientId)
+      if ('error' in result) { toast.error(result.error); return }
+      setOpen(false)
+      router.refresh()
+    })
+  }
+
+  if (client) {
+    return (
+      <div className="flex items-center gap-2">
+        <span className="text-muted-foreground">{client.name}</span>
+        {companyId && onEditClient && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onEditClient(client.id) }}
+            className="inline-flex items-center justify-center rounded-md p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            title="Edit client"
+          >
+            <Pencil className="h-3 w-3" />
+          </button>
+        )}
+      </div>
+    )
+  }
+
+  const filtered = (clients ?? []).filter(
+    (c) =>
+      c.name.toLowerCase().includes(search.toLowerCase()) ||
+      (c.email ?? '').toLowerCase().includes(search.toLowerCase())
+  )
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          onClick={(e) => { e.stopPropagation(); loadClients() }}
+          className="text-muted-foreground/40 hover:text-primary text-sm transition-colors hover:underline underline-offset-2"
+        >
+          + Add client
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[280px] p-0" align="start" onClick={(e) => e.stopPropagation()}>
+        <Command>
+          <CommandInput
+            placeholder="Search clients..."
+            value={search}
+            onValueChange={setSearch}
+          />
+          <CommandList>
+            {clients === null && <CommandEmpty>Loading...</CommandEmpty>}
+            {clients !== null && filtered.length === 0 && <CommandEmpty>No clients found.</CommandEmpty>}
+            {filtered.length > 0 && (
+              <CommandGroup>
+                {filtered.map((c) => (
+                  <CommandItem key={c.id} value={c.id} onSelect={() => handleLink(c.id)}>
+                    <div className="flex flex-col">
+                      <span>{c.name}</span>
+                      {c.email && <span className="text-xs text-muted-foreground">{c.email}</span>}
+                    </div>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            )}
+          </CommandList>
+          {onCreateNew && (
+            <div className="border-t p-1">
+              <button
+                onClick={() => { setOpen(false); onCreateNew() }}
+                className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
+              >
+                <UserPlus className="h-3.5 w-3.5" />
+                New client
+              </button>
+            </div>
+          )}
+        </Command>
+      </PopoverContent>
+    </Popover>
+  )
 }
 
 function ProjectPaidBadge({ project }: { project: ProjectTableRow }) {
@@ -71,12 +200,17 @@ export function ProjectTable<TProject extends ProjectTableRow>({
   noResultsDescription,
   fallbackCurrencyCode,
   headerRight,
+  headerLeft,
+  title,
+  pageSize,
   actionsHeader,
   companyId,
 }: ProjectTableProps<TProject>) {
   const { t } = useTranslation()
+  const router = useRouter()
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editingClient, setEditingClient] = useState<ClientDetail | null>(null)
+  const [createClientForProjectId, setCreateClientForProjectId] = useState<string | null>(null)
 
   async function handleEditClient(clientId: string) {
     const supabase = createClient()
@@ -103,6 +237,8 @@ export function ProjectTable<TProject extends ProjectTableRow>({
       key: 'name',
       header: t('Name'),
       className: 'pl-4',
+      sortDesc: 'z-a',
+      sortAsc: 'alphabetical',
       cell: (project) => (
         <div className="relative -m-3 -ml-4 flex items-center p-3 pl-4">
           <Link
@@ -120,36 +256,20 @@ export function ProjectTable<TProject extends ProjectTableRow>({
       key: 'client',
       header: t('Client'),
       cell: (project) => (
-        <div className="flex items-center gap-2">
-          <span className="text-muted-foreground">{project.client?.name ?? '-'}</span>
-          {companyId && project.client && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation()
-                handleEditClient(project.client!.id)
-              }}
-              className="inline-flex items-center justify-center rounded-md p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-              title={t('Edit client')}
-            >
-              <Pencil className="h-3 w-3" />
-            </button>
-          )}
-        </div>
+        <InlineClientPicker
+          projectId={project.id}
+          client={project.client}
+          companyId={companyId}
+          onEditClient={companyId ? handleEditClient : undefined}
+          onCreateNew={companyId ? () => setCreateClientForProjectId(project.id) : undefined}
+        />
       ),
-    },
-    {
-      key: 'type',
-      header: t('Type'),
-      cell: (project) => <>{project.project_type ?? '-'}</>,
-    },
-    {
-      key: 'status',
-      header: t('Status'),
-      cell: (project) => <ProjectStatusBadge status={project.status} />,
     },
     {
       key: 'total',
       header: t('Total'),
+      sortDesc: 'highest',
+      sortAsc: 'lowest',
       cell: (project) =>
         formatMoney(project.total, project.currency_code ?? fallbackCurrencyCode, {
           minimumFractionDigits: 0,
@@ -159,6 +279,8 @@ export function ProjectTable<TProject extends ProjectTableRow>({
     {
       key: 'date',
       header: t('Date'),
+      sortDesc: 'newest',
+      sortAsc: 'oldest',
       cell: (project) =>
         formatDate(project.created_at, {
           month: 'short',
@@ -205,9 +327,19 @@ export function ProjectTable<TProject extends ProjectTableRow>({
             sort: (a, b) => (b.total ?? 0) - (a.total ?? 0),
           },
           {
+            value: 'lowest',
+            label: t('Lowest Value'),
+            sort: (a, b) => (a.total ?? 0) - (b.total ?? 0),
+          },
+          {
             value: 'alphabetical',
             label: t('Alphabetical'),
             sort: (a, b) => a.name.localeCompare(b.name),
+          },
+          {
+            value: 'z-a',
+            label: t('Z → A'),
+            sort: (a, b) => b.name.localeCompare(a.name),
           },
         ]}
         defaultSort="newest"
@@ -224,7 +356,10 @@ export function ProjectTable<TProject extends ProjectTableRow>({
         noResultsTitle={noResultsTitle ?? t('No projects match your search')}
         noResultsDescription={noResultsDescription ?? ''}
         emptyIcon={FolderOpen}
+        headerLeft={headerLeft}
         headerRight={headerRight}
+        title={title}
+        pageSize={pageSize}
         renderMobileCard={(project) => (
           <ProjectTableCard
             key={project.id}
@@ -242,6 +377,19 @@ export function ProjectTable<TProject extends ProjectTableRow>({
           onOpenChange={handleSheetChange}
           client={editingClient}
           companyId={companyId}
+        />
+      )}
+      {companyId && createClientForProjectId && (
+        <ClientSheet
+          open
+          onOpenChange={(open) => { if (!open) setCreateClientForProjectId(null) }}
+          client={null}
+          companyId={companyId}
+          onCreated={async (clientId) => {
+            await linkProjectToClient(createClientForProjectId, clientId)
+            setCreateClientForProjectId(null)
+            router.refresh()
+          }}
         />
       )}
     </>
@@ -262,54 +410,43 @@ function ProjectTableCard<TProject extends ProjectTableRow>({
   onEditClient?: (clientId: string) => void
 }) {
   return (
-    <Card>
-      <CardContent className="p-4">
-        <div className="mb-2 flex items-start justify-between gap-3">
-          <div className="relative min-w-0 w-full">
-            <Link href={`/projects/${project.id}`} className="absolute inset-0 font-medium hover:underline">
-              {project.name}
-            </Link>
-            <ProjectPaidBadge project={project} />
-          </div>
-          <div className="shrink-0">{renderActions(project)}</div>
+    <div className="relative flex items-center gap-3 border-b border-border/50 py-3 last:border-0">
+      <Link href={`/projects/${project.id}`} className="absolute inset-0" aria-hidden tabIndex={-1} />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5">
+          <span className="font-medium truncate">{project.name}</span>
+          <ProjectPaidBadge project={project} />
         </div>
-        <div className="mb-3 space-y-1 text-sm text-muted-foreground">
-          {project.client?.name && (
-            <div className="flex items-center gap-1.5">
-              <p>{project.client.name}</p>
-              {companyId && onEditClient && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    onEditClient(project.client!.id)
-                  }}
-                  className="inline-flex items-center justify-center rounded-md p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                  title="Edit client"
-                >
-                  <Pencil className="h-3 w-3" />
-                </button>
-              )}
-            </div>
-          )}
-          {project.project_type && <p>{project.project_type}</p>}
-          <p>
-            {formatDate(project.created_at, {
-              month: 'short',
-              day: 'numeric',
-              year: 'numeric',
-            })}
-          </p>
-        </div>
-        <div className="flex items-center justify-between gap-3">
-          <ProjectStatusBadge status={project.status} />
-          <span className="font-semibold">
-            {formatMoney(project.total, project.currency_code ?? fallbackCurrencyCode, {
-              minimumFractionDigits: 0,
-              maximumFractionDigits: 0,
-            })}
+        <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
+          <span>
+            {formatDate(project.created_at, { month: 'short', day: 'numeric', year: 'numeric' })}
           </span>
+          {project.client?.name && (
+            <>
+              <span className="text-muted-foreground/30">·</span>
+              <span className="flex items-center gap-1">
+                {project.client.name}
+                {companyId && onEditClient && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onEditClient(project.client!.id) }}
+                    className="inline-flex items-center justify-center rounded p-0.5 hover:bg-muted hover:text-foreground transition-colors"
+                    title="Edit client"
+                  >
+                    <Pencil className="h-2.5 w-2.5" />
+                  </button>
+                )}
+              </span>
+            </>
+          )}
         </div>
-      </CardContent>
-    </Card>
+      </div>
+      <span className="shrink-0 font-semibold text-sm">
+        {formatMoney(project.total, project.currency_code ?? fallbackCurrencyCode, {
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 0,
+        })}
+      </span>
+      <div className="shrink-0 relative z-10">{renderActions(project)}</div>
+    </div>
   )
 }

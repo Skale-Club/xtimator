@@ -1,5 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
+// Billing v2: the credit gate now runs before dispatch — stub it permissive so
+// these tests stay focused on their own contract (the gate has its own tests).
+vi.mock('@/lib/billing/credit-ledger', () => ({
+  // plain async fn (not vi.fn) so global mock resets can never strip the value
+  checkCredits: async () => ({ allowed: true, balance: 1000, shortfall: 0 }),
+}))
+
 // Imports the real /api/generate-estimate route + its Inngest events tree at
 // runtime; under vitest's reused forked worker the import can exceed the 5s
 // default (import latency under contention, not a mock leak). Per-file timeout.
@@ -66,6 +73,24 @@ vi.mock('@/lib/ratelimit', () => ({
 }))
 vi.mock('@/lib/quota', () => ({
   checkQuota: async () => ({ allowed: true }),
+}))
+
+// The route calls requireServiceClient() for the GUARD-DEMO quota check.
+// Without this mock, the real function throws on CI (no Supabase env vars)
+// and the route returns 500 instead of 202.
+vi.mock('@/lib/supabase/service', () => ({
+  requireServiceClient: vi.fn(() => ({
+    from: () => ({
+      select: () => ({
+        eq: () => ({
+          single: async () => ({ data: null, error: null }),
+        }),
+      }),
+    }),
+  })),
+  // createServiceClient returns null so getBillingConfig() uses DEFAULT_BILLING_CONFIG
+  // (enforcementEnabled: false) instead of making a real Supabase network call.
+  createServiceClient: vi.fn().mockReturnValue(null),
 }))
 
 describe('REC-03/REC-04: attempt lineage + stable generate event id on Retry', () => {

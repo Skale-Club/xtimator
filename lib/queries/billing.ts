@@ -6,8 +6,7 @@ import { requireServiceClient } from '@/lib/supabase/service'
 import { getEntitlements, type Entitlements } from '@/lib/entitlements'
 
 export interface BillingData {
-  tier: string                          // 'free' | 'trial' | 'pro' | 'business'
-  tierTrialEndsAt: string | null        // ISO string from DB
+  tier: string                          // 'free' | 'pro' | 'business' (Billing v2: 'trial' retired)
   tierRenewsAt: string | null           // ISO string from DB
   stripeSubscriptionId: string | null
   estimatesThisMonth: number            // COUNT of 'estimate_generated' events this UTC month
@@ -27,7 +26,7 @@ export async function getBillingData(userId: string): Promise<BillingData | null
   // Fetch the company row for this user.
   const { data: company, error } = await serviceClient
     .from('companies')
-    .select('id, tier, tier_trial_ends_at, tier_renews_at, stripe_subscription_id')
+    .select('id, tier, tier_renews_at, stripe_subscription_id')
     .eq('user_id', userId)
     .single()
 
@@ -37,7 +36,6 @@ export async function getBillingData(userId: string): Promise<BillingData | null
 
   const companyId: string = (company as { id: string }).id
   const tier: string = (company as { tier: string }).tier ?? 'free'
-  const tierTrialEndsAt: string | null = (company as { tier_trial_ends_at: string | null }).tier_trial_ends_at
   const tierRenewsAt: string | null = (company as { tier_renews_at: string | null }).tier_renews_at
   const stripeSubscriptionId: string | null = (company as { stripe_subscription_id: string | null }).stripe_subscription_id
 
@@ -63,7 +61,6 @@ export async function getBillingData(userId: string): Promise<BillingData | null
 
   return {
     tier,
-    tierTrialEndsAt,
     tierRenewsAt,
     stripeSubscriptionId,
     estimatesThisMonth,

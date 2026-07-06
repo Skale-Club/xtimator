@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Plug, ChevronRight, Sparkles, Mic, MessageCircle } from 'lucide-react'
+import { CreditCard, Plug, ChevronRight } from 'lucide-react'
 
 import { T } from '@/components/i18n/t'
 import {
@@ -10,18 +10,10 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { getSelectedAIProvider } from '@/lib/platform-config'
+import { getAuthClaims } from '@/lib/queries/auth'
+import { requireServiceClient } from '@/lib/supabase/service'
 
 export const metadata = { title: 'Integrations | Settings' }
-
-// Display labels for the platform-selected LLM provider. These are brand names
-// (not secrets) — the read-only AI card surfaces *what powers estimates* for
-// transparency, never the API keys, which stay platform-managed in admin.
-const AI_PROVIDER_LABELS: Record<string, string> = {
-  anthropic: 'Claude (Anthropic)',
-  gemini: 'Gemini (Google)',
-  openrouter: 'OpenRouter',
-}
 
 function SectionHeading({ children }: { children: React.ReactNode }) {
   return (
@@ -32,10 +24,19 @@ function SectionHeading({ children }: { children: React.ReactNode }) {
 }
 
 export default async function SettingsIntegrationsPage() {
-  // Active LLM provider is a non-secret display value.
-  const aiProvider = await getSelectedAIProvider()
+  const claims = await getAuthClaims()
 
-  const estimateModelLabel = AI_PROVIDER_LABELS[aiProvider] ?? AI_PROVIDER_LABELS.anthropic
+  let stripeConnected = false
+  if (claims) {
+    const svc = requireServiceClient()
+    const { data: company } = await svc
+      .from('companies')
+      .select('stripe_account_id, stripe_connect_status')
+      .eq('user_id', claims.sub as string)
+      .single()
+    stripeConnected =
+      !!company?.stripe_account_id && company.stripe_connect_status === 'active'
+  }
 
   return (
     <div className="space-y-8 p-6">
@@ -44,82 +45,46 @@ export default async function SettingsIntegrationsPage() {
           <T>Integrations</T>
         </h1>
         <p className="text-sm text-muted-foreground">
-          <T>Connect outbound channels and AI assistants.</T>
+          <T>Connect the tools your business runs on.</T>
         </p>
       </header>
 
-      {/* AI — read-only transparency card. No setup, no secrets; just shows what
-          powers estimates. AI keys are platform-managed in admin. */}
+      {/* Collect payments — Stripe Connect setup. */}
       <section className="space-y-3">
         <SectionHeading>
-          <T>AI</T>
+          <T>Collect payments</T>
         </SectionHeading>
-        <Card className="bg-muted/30">
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-primary" aria-hidden />
-              <CardTitle className="text-base">
-                <T>Powering your estimates</T>
-              </CardTitle>
-            </div>
-            <CardDescription>
-              <T>
-                Managed by Xtimator. No setup required. These models turn your
-                audio and photos into a finished estimate.
-              </T>
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <dl className="space-y-3 text-sm">
-              <div className="flex items-start justify-between gap-4">
-                <dt className="flex items-center gap-2 text-muted-foreground">
-                  <Sparkles className="h-4 w-4" aria-hidden />
-                  <T>Estimate generation &amp; photo analysis</T>
-                </dt>
-                <dd className="font-medium">{estimateModelLabel}</dd>
+        <Link
+          href="/settings/integrations/stripe"
+          className="group block focus:outline-none"
+        >
+          <Card className="transition hover:border-primary/40 hover:shadow-sm group-focus-visible:ring-2 group-focus-visible:ring-ring">
+            <CardHeader>
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <CreditCard className="h-5 w-5 text-primary" aria-hidden />
+                  <CardTitle className="text-base">Stripe</CardTitle>
+                  <Badge variant={stripeConnected ? 'default' : 'secondary'}>
+                    {stripeConnected ? 'Connected' : 'Not connected'}
+                  </Badge>
+                </div>
+                <ChevronRight
+                  className="h-4 w-4 text-muted-foreground transition group-hover:translate-x-0.5"
+                  aria-hidden
+                />
               </div>
-              <div className="flex items-start justify-between gap-4">
-                <dt className="flex items-center gap-2 text-muted-foreground">
-                  <Mic className="h-4 w-4" aria-hidden />
-                  <T>Audio transcription</T>
-                </dt>
-                <dd className="font-medium">Whisper (OpenAI)</dd>
-              </div>
-            </dl>
-          </CardContent>
-        </Card>
+              <CardDescription>
+                <T>Let customers pay estimates online via Stripe Connect.</T>
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        </Link>
       </section>
 
-      {/* Messaging channels — platform-managed; no per-company setup required. */}
+      {/* Developer tools — use Xtimator from inside AI clients via MCP. */}
       <section className="space-y-3">
         <SectionHeading>
-          <T>Messaging channels</T>
-        </SectionHeading>
-        <Card className="bg-muted/30">
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <MessageCircle className="h-5 w-5 text-primary" aria-hidden />
-              <CardTitle className="text-base">
-                <T>WhatsApp</T>
-              </CardTitle>
-              <Badge variant="secondary">
-                <T>Platform-managed</T>
-              </Badge>
-            </div>
-            <CardDescription>
-              <T>
-                WhatsApp delivery is managed by Xtimator. Send estimates directly
-                to clients via WhatsApp from the project Send tab. No setup required.
-              </T>
-            </CardDescription>
-          </CardHeader>
-        </Card>
-      </section>
-
-      {/* Assistants — use Xtimator from inside AI clients via MCP. */}
-      <section className="space-y-3">
-        <SectionHeading>
-          <T>Assistants</T>
+          <T>Developer tools</T>
         </SectionHeading>
         <Link
           href="/settings/integrations/mcp"

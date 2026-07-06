@@ -1,6 +1,7 @@
 import 'server-only'
 import { getIntegrationKey, getBranding } from '@/lib/platform-config'
 import { getCanonicalBaseUrl } from '@/lib/utils/site-url'
+import { EMAIL_FROM_ADDRESS } from '@/lib/email/sender'
 
 /**
  * Team-invite transactional email.
@@ -20,7 +21,7 @@ import { getCanonicalBaseUrl } from '@/lib/utils/site-url'
  * Plan 02's inviteMember action passes a pre-generated token + context.
  */
 
-const FROM_ADDRESS = 'notifications@estimatebuilder.pro'
+const FROM_ADDRESS = EMAIL_FROM_ADDRESS
 
 function escHtml(s: string): string {
   return s
@@ -95,7 +96,7 @@ export interface InviteEmailContext {
   /** Pre-generated single-use token (by the action in Plan 02) — NOT generated here. */
   token: string
   /** The role the person was invited as. */
-  role: 'admin' | 'member'
+  role: 'admin' | 'member' | 'owner'
   /** The inviting company's name. */
   companyName: string
   /** Optional inviter display name, for the greeting. */

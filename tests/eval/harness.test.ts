@@ -192,6 +192,11 @@ function makeSupabaseMock() {
 
     if (table === 'estimates') {
       return {
+        // REPLACE-BLANK: delete pristine blank before versioning
+        delete: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnThis(),
+          is: vi.fn().mockReturnThis(),
+        }),
         // version reset (update is_current=false)
         update: vi.fn().mockReturnValue({
           eq: vi.fn().mockResolvedValue({ error: null }),
@@ -204,6 +209,15 @@ function makeSupabaseMock() {
                 single: vi.fn().mockResolvedValue({
                   data: { total: capture.total, sections: capture.sections },
                   error: null,
+                }),
+              }),
+            }
+          }
+          if (cols === 'id') {
+            return {
+              eq: vi.fn().mockReturnValue({
+                eq: vi.fn().mockReturnValue({
+                  maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
                 }),
               }),
             }

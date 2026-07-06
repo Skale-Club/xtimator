@@ -1,5 +1,45 @@
 # Retrospective: Xtimator
 
+## Milestone: v4.15 — Credit UX Polish & Admin Support Tooling
+
+**Shipped:** 2026-07-05
+**Phases:** 4 (150-153) | **Plans:** 12 (incl. 1 gap-closure plan) | **Requirements:** 13/13
+**Timeline:** same-day, fully autonomous execution (seeds planted → roadmap → 4 phases planned/executed/verified → milestone audit/completion, one continuous run)
+
+### What Was Built
+
+See `.planning/MILESTONES.md`'s v4.15 entry for the full phase-by-phase breakdown: Companies admin screen overhaul (search/filter/pagination), super-admin Support Mode (signed session-claim impersonation, audited), tenant usage progress bar + super-admin cost visibility, dollar-pack top-up + auto-top-up (off-session Stripe charging with an atomic concurrency lock).
+
+### What Worked
+
+- **Anchoring every CONTEXT.md decision to an existing in-codebase reference implementation** (Phase 93's Event Log for 150, `demo-banner.tsx`/`active-company.ts` for 151, `tier-card.tsx` for 153's pack picker) meant the plan-checker and executors had almost zero genuine ambiguity to resolve — most "grey areas" were "match this existing file's pattern," not open design questions.
+- **Running independent phases in parallel** (152's two disjoint-file plans; 150/151/152/153's UI-SPEC generation) shortened wall-clock time significantly without any real file conflicts once a genuine shared-file risk (152 and 153 both touching `credit-balance-card.tsx`) was identified in advance and sequenced instead of parallelized.
+- **The plan-checker caught 3 real, would-have-shipped bugs before any code was written**: a missing error-handling path on a row action, a missing `redirect()` on Support Mode exit, and a static-neutrality-test false positive that recurred once after an incomplete first fix — all fixed in 1-3 targeted revision rounds rather than discovered post-execution.
+- **The milestone integration checker caught 1 real, if minor, cross-phase seam** (Support Mode's topbar hardcoded `percentUsed=0` instead of computing the impersonated tenant's real usage) that no single phase's own verification would have surfaced, since each phase's tests only exercised its own code path.
+- **The Claude Code permission classifier correctly gated the one genuinely high-risk piece** (automatic off-session Stripe charging) and held the line even after a loosely-contextualized "autorizado" reply, only proceeding once given a precise, structured (AskUserQuestion), unambiguously-scoped confirmation — exactly the kind of safety behavior that should NOT be worked around.
+
+### What Was Inefficient
+
+- Three separate GSD housekeeping bugs consumed real turns this milestone: the `state`/`phase complete` commands repeatedly reverting `STATE.md`'s `milestone`/`milestone_name` frontmatter to a stale `v3.1.1` snapshot (re-asserted manually after nearly every state-mutating command); the `milestone complete` CLI's "accomplishments" extraction pulling one-liners from EVERY SUMMARY.md in the repo's history instead of scoping to the milestone's own phases; and `phases`/`plans`/`tasks` counts in that same output being whole-project totals, not milestone-scoped.
+- `PROJECT.md`, `ROADMAP.md`'s milestone-list markers, and this retrospective had all silently fallen behind since v4.7/v3.0 respectively — several milestones (v4.8 through v4.14) shipped without a `/gsd:complete-milestone` pass ever updating them. This meant part of this milestone's own completion work was un-scoped "catch up the docs" effort layered on top of the actual v4.15 completion, and that backlog for v4.8-v4.14 was deliberately NOT retroactively fixed (flagged instead as a separate housekeeping item) to avoid uncontrolled scope creep on unrelated milestones.
+
+### Patterns Established
+
+- **Shared-file conflict pre-check before parallelizing phase executors**: before spawning two phases' executors concurrently, diff their planned `files_modified` lists for overlap; sequence (don't parallelize) when a real overlap exists, even if the phases are otherwise roadmap-independent.
+- **Structured (AskUserQuestion) re-confirmation for classifier-blocked high-risk actions**, rather than retrying a denied action verbatim or accepting a loosely-contextualized chat reply as sufficient authorization.
+
+### Key Lessons
+
+- A generic multi-milestone workflow step (e.g. "delete ROADMAP.md/REQUIREMENTS.md and reorganize") should be checked against the PROJECT'S OWN established, already-observable convention before executing literally — this repo's real practice is "keep ROADMAP.md's full phase history forever, only collapse the just-shipped milestone's verbose section," which is not what the generic template's wording literally says to do.
+- Not every autonomous-execution authorization is a blanket authorization — real-money/hard-to-reverse capabilities within an otherwise-authorized scope may still warrant (and got, correctly) a second, narrower, explicit confirmation.
+
+### Cost Observations
+
+Not tracked this session (no per-agent cost/token instrumentation surfaced to the orchestrator). Approximate scale: ~50 subagent spawns across research/UI-spec/plan/execute/verify roles for a 4-phase, 13-requirement, ~40-file milestone.
+
+---
+*Note: this retrospective had no entries between v3.0 (below) and this v4.15 entry — milestones v1.4 through v4.14 shipped without a retrospective section being added. Not retroactively backfilled here (same reasoning as the ROADMAP.md/PROJECT.md gaps above).*
+
 ## Milestone: v1.3 — Smart Pricing
 
 **Shipped:** 2026-05-08

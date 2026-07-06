@@ -1,8 +1,15 @@
 import { getBlogPosts } from '@/lib/queries/blog'
 import Link from 'next/link'
 import { Card } from '@/components/ui/card'
+import type { Metadata } from 'next'
+import { createPublicMetadata } from '@/lib/seo/metadata'
 
 export const dynamic = 'force-dynamic'
+export const metadata: Metadata = createPublicMetadata({
+  title: 'Estimating Guides for Service Businesses',
+  description: 'Practical estimating, pricing, and proposal guidance for contractors and field service businesses.',
+  pathname: '/blog',
+})
 
 export default async function BlogListPage() {
   const posts = await getBlogPosts(0)
@@ -20,7 +27,7 @@ export default async function BlogListPage() {
               <Card variant="glass" className="overflow-hidden p-0">
                 {post.cover_image_url && (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={post.cover_image_url} alt="" className="w-full h-48 object-cover" />
+                  <img src={post.cover_image_url} alt={`Cover for ${post.title}`} className="w-full h-48 object-cover" />
                 )}
                 <div className="flex flex-col gap-2 p-6">
                   <h2 className="text-2xl font-semibold tracking-tight">
@@ -28,7 +35,7 @@ export default async function BlogListPage() {
                   </h2>
                   {post.excerpt && <p className="text-muted-foreground leading-[1.55]">{post.excerpt}</p>}
                   {post.published_at && (
-                    <time className="text-xs text-muted-foreground">
+                    <time dateTime={post.published_at} className="text-xs text-muted-foreground">
                       {new Date(post.published_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
                     </time>
                   )}

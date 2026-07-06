@@ -1,4 +1,5 @@
 # syntax=docker/dockerfile:1.10
+# check=error=true
 
 # =========================================================================
 # Stage 1: deps — install production + build dependencies
@@ -51,35 +52,38 @@ ENV NEXT_TELEMETRY_DISABLED=1
 # runtime. Coolify must supply these as Docker BUILD ARGUMENTS (--build-arg),
 # not just runtime env. These are NOT secrets: NEXT_PUBLIC_* are public by
 # definition (embedded in the client JS), so they are safe as build args.
-# ARG lines stay empty (no defaults) so a missing value fails loudly at app
-# boot rather than baking a stale default into the bundle.
-ARG NEXT_PUBLIC_SUPABASE_URL
-ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
-ARG NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
-ARG NEXT_PUBLIC_SITE_URL
-ARG NEXT_PUBLIC_TURNSTILE_SITE_KEY
-ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
-ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
-ENV NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
-ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL
-ENV NEXT_PUBLIC_TURNSTILE_SITE_KEY=$NEXT_PUBLIC_TURNSTILE_SITE_KEY
+# The neutral ARG names keep Docker's secret detector meaningful: these values
+# are intentionally public, while names containing KEY would be false positives.
+# They are mapped to the framework names only for the build process below.
+ARG PUBLIC_SUPABASE_URL
+ARG PUBLIC_SUPABASE_ANON_VALUE
+ARG PUBLIC_SUPABASE_PUBLISHABLE_VALUE
+ARG PUBLIC_SITE_URL
+ARG PUBLIC_TURNSTILE_SITE_VALUE
+ARG DEPLOYMENT_VERSION
 
 # NEXT_PUBLIC_SENTRY_DSN is inlined into the browser bundle — must be a build arg.
 # SENTRY_DSN (server-side, no NEXT_PUBLIC_) is NOT a build arg — it is a runtime
 # env var set in Coolify and read by the Node.js process at request time.
 # SENTRY_ORG / SENTRY_PROJECT are needed by withSentryConfig to upload source maps.
-ARG NEXT_PUBLIC_SENTRY_DSN
+ARG PUBLIC_SENTRY_DSN
 ARG SENTRY_ORG
 ARG SENTRY_PROJECT
-ENV NEXT_PUBLIC_SENTRY_DSN=$NEXT_PUBLIC_SENTRY_DSN
-ENV SENTRY_ORG=$SENTRY_ORG
-ENV SENTRY_PROJECT=$SENTRY_PROJECT
 
 # Build. SENTRY_AUTH_TOKEN is mounted as a Docker secret so it is never baked
 # into any image layer. withSentryConfig reads it from env during `next build`
 # to upload source maps to Sentry; the token is gone after this RUN step.
 # Requires output: 'standalone' in next.config.ts to produce .next/standalone/server.js.
 RUN --mount=type=secret,id=sentry_auth_token,env=SENTRY_AUTH_TOKEN \
+    NEXT_PUBLIC_SUPABASE_URL="$PUBLIC_SUPABASE_URL" \
+    NEXT_PUBLIC_SUPABASE_ANON_KEY="$PUBLIC_SUPABASE_ANON_VALUE" \
+    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$PUBLIC_SUPABASE_PUBLISHABLE_VALUE" \
+    NEXT_PUBLIC_SITE_URL="$PUBLIC_SITE_URL" \
+    NEXT_PUBLIC_TURNSTILE_SITE_KEY="$PUBLIC_TURNSTILE_SITE_VALUE" \
+    NEXT_PUBLIC_SENTRY_DSN="$PUBLIC_SENTRY_DSN" \
+    DEPLOYMENT_VERSION="$DEPLOYMENT_VERSION" \
+    SENTRY_ORG="$SENTRY_ORG" \
+    SENTRY_PROJECT="$SENTRY_PROJECT" \
     npm run build
 
 # =========================================================================

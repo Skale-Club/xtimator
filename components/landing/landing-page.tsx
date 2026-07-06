@@ -1,9 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import dynamic from 'next/dynamic'
 import type { LandingContent } from '@/lib/platform-config'
-import { AuthDialog } from '@/components/landing/auth-dialog'
 import { FinalCtaSection } from '@/components/landing/final-cta-section'
 import { FeaturesSection } from '@/components/landing/features-section'
 import { HeroSection } from '@/components/landing/hero-section'
@@ -12,6 +11,10 @@ import { TrustBar } from '@/components/landing/trust-bar'
 import { LandingFooter } from '@/components/landing/landing-footer'
 import { TopNav } from '@/components/landing/top-nav'
 
+const AuthDialog = dynamic(() =>
+  import('@/components/landing/auth-dialog').then((module) => module.AuthDialog),
+)
+
 interface LandingPageProps {
   content: LandingContent
   branding: { appName: string; logoUrl: string | null }
@@ -19,8 +22,6 @@ interface LandingPageProps {
 }
 
 export function LandingPage({ content, branding, navUser }: LandingPageProps) {
-  const router = useRouter()
-  const searchParams = useSearchParams()
   const [authOpen, setAuthOpen] = useState(false)
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('signup')
   // SEAT-04: the invite-accept route sends logged-out visitors here with a
@@ -29,17 +30,17 @@ export function LandingPage({ content, branding, navUser }: LandingPageProps) {
   const [authNext, setAuthNext] = useState<string | null>(null)
 
   useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search)
     const authParam = searchParams.get('auth')
     const nextParam = searchParams.get('next')
     if (authParam === 'login' || authParam === 'signup') {
       setAuthMode(authParam)
       if (nextParam) setAuthNext(nextParam)
       setAuthOpen(true)
-      router.replace('/', { scroll: false })
+      window.history.replaceState(window.history.state, '', '/')
     } else if (authParam) {
-      router.replace('/', { scroll: false })
+      window.history.replaceState(window.history.state, '', '/')
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   function openAuth(mode: 'login' | 'signup') {
@@ -94,7 +95,15 @@ export function LandingPage({ content, branding, navUser }: LandingPageProps) {
         </div>
       </div>
 
-      <AuthDialog branding={branding} open={authOpen} onClose={() => setAuthOpen(false)} initialMode={authMode} next={authNext} />
+      {authOpen && (
+        <AuthDialog
+          branding={branding}
+          open
+          onClose={() => setAuthOpen(false)}
+          initialMode={authMode}
+          next={authNext}
+        />
+      )}
     </div>
   )
 }

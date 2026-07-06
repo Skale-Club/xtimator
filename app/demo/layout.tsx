@@ -1,7 +1,12 @@
 import Link from 'next/link'
 import { DemoNav } from '@/components/demo/demo-nav'
+import type { Metadata } from 'next'
+import { PRIVATE_ROBOTS } from '@/lib/seo/route-policy'
 
-export const metadata = { title: 'Xtimator — Live Demo' }
+export const metadata: Metadata = {
+  title: 'Xtimator — Live Demo',
+  robots: PRIVATE_ROBOTS,
+}
 
 /**
  * Public, read-only demo shell.

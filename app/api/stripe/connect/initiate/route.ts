@@ -13,7 +13,7 @@ import { resolveBaseUrl } from '@/lib/utils/site-url'
  * Owner-initiated entry point for connecting a company's Stripe account via
  * Standard OAuth. Sets an httpOnly HMAC state cookie (10-min TTL) and 302s to
  * `connect.stripe.com/oauth/authorize`. When the platform's Connect Client ID
- * is not yet configured, redirects back to `/settings/payments` with a
+ * is not yet configured, redirects back to `/settings/integrations/stripe` with a
  * friendly error param instead of producing a broken Stripe URL.
  */
 export async function GET(req: NextRequest) {
@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
   // Read-only demo: never begin Stripe Connect onboarding.
   if (await isDemoSession()) {
     return NextResponse.redirect(
-      new URL('/settings/payments?error=demo_readonly', base)
+      new URL('/settings/integrations/stripe?error=demo_readonly', base)
     )
   }
 
@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
   const clientId = await getIntegrationKey('stripe_connect_client_id')
   if (!clientId) {
     return NextResponse.redirect(
-      new URL('/settings/payments?error=platform_not_configured', base)
+      new URL('/settings/integrations/stripe?error=platform_not_configured', base)
     )
   }
 

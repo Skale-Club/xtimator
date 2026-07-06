@@ -30,6 +30,7 @@ import {
   sendTypingIndicator,
 } from '@/lib/whatsapp/client'
 import { getEntitlements } from '@/lib/entitlements'
+import { checkCredits } from '@/lib/billing/credit-ledger'
 import { logOutboundMessage } from '@/lib/whatsapp/conversations'
 import { PLACEHOLDER_PREFIX } from '@/lib/constants/project'
 import type { WhatsAppMessage } from '@/lib/whatsapp/types'
@@ -344,6 +345,24 @@ export async function processInboundMessages(
 
   if (!entitlements.whatsappEnabled) {
     const body = 'WhatsApp channel is not available on your current plan. Upgrade at /settings/billing'
+    await sendWhatsAppMessage(ownerPhone, { type: 'text', text: { body } })
+    logOutboundMessage(supabase, {
+      companyId,
+      contactPhone: ownerPhone,
+      body,
+      msgType: 'text',
+      status: 'sent',
+    }).catch(() => undefined)
+    return
+  }
+
+  // Billing v2 credit gate — mirrors the web generate route: a spent balance
+  // blocks the (expensive) WhatsApp estimate-creation pipeline BEFORE any draft
+  // or media ingest. BYOK bypass + the enforcement flag live inside checkCredits.
+  const credit = await checkCredits(supabase, companyId, 1)
+  if (!credit.allowed) {
+    const body =
+      "You're out of AI credits — upgrade or top up at /settings/billing to keep creating estimates."
     await sendWhatsAppMessage(ownerPhone, { type: 'text', text: { body } })
     logOutboundMessage(supabase, {
       companyId,

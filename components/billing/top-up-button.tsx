@@ -7,13 +7,24 @@ import { toast } from 'sonner'
 
 /**
  * Phase 115 (CREDITUI-02) — top-up button.
+ * Phase 153-01 (CREDITUI-06) — parameterized `label` + `variant` so the new
+ * TopUpPackCard can render a per-pack CTA ("Top up $20") with a variant that
+ * matches the recommended-pack visual treatment.
  *
  * Mirrors components/billing/upgrade-buttons.tsx: POSTs the chosen pack index to
  * /api/billing/create-topup-session and redirects to the returned Stripe URL.
  * The pack (credits/price) is looked up SERVER-SIDE by index — the client only
  * sends `packIndex`, never credits or price (Phase-113 Pitfall 4).
  */
-export function TopUpButton({ packIndex }: { packIndex: number }) {
+export function TopUpButton({
+  packIndex,
+  label = 'Top up credits',
+  variant = 'primary',
+}: {
+  packIndex: number
+  label?: string
+  variant?: 'primary' | 'outline'
+}) {
   const { t } = useTranslation()
   const [loading, setLoading] = useState(false)
 
@@ -39,8 +50,8 @@ export function TopUpButton({ packIndex }: { packIndex: number }) {
   }
 
   return (
-    <Button onClick={handleTopUp} disabled={loading} size="sm">
-      {loading ? t('Redirecting...') : t('Top up credits')}
+    <Button onClick={handleTopUp} disabled={loading} size="sm" variant={variant}>
+      {loading ? t('Redirecting...') : t(label)}
     </Button>
   )
 }

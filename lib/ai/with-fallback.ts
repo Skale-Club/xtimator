@@ -15,6 +15,8 @@
  * failure state (ENGINE-04 preserved).
  */
 
+import { notifyOps } from '@/lib/observability/ops-alert'
+
 /** Result of a fallback-wrapped AI call. */
 export interface FallbackOutcome<T> {
   result: T
@@ -30,6 +32,9 @@ export interface FallbackOutcome<T> {
  * The `providerUnavailable` flag is the deterministic signal the failure model
  * (99-02) keys off of to map this to the typed reason `'provider_unavailable'`.
  * `.cause` carries the original PRIMARY error (not the fallback error).
+ * `fallbackCause` (additive, D8) carries the FALLBACK's own error so an
+ * operator can see WHY the fallback also failed (e.g. 'Gemini API key not
+ * configured') — previously that error was silently discarded.
  *
  * Constructor is flexible to support both call shapes in the test contract:
  *   - `new ProvidersUnavailableError(primaryErr)` — wrapper internal use; the
@@ -38,6 +43,8 @@ export interface FallbackOutcome<T> {
  */
 export class ProvidersUnavailableError extends Error {
   readonly providerUnavailable = true as const
+  /** The FALLBACK provider's error (additive — `.cause` stays the PRIMARY error). */
+  fallbackCause?: unknown
 
   constructor(causeOrMessage?: unknown, maybeCause?: unknown) {
     const hasExplicitMessage = arguments.length >= 2
@@ -71,12 +78,53 @@ export class InvalidEstimateOutputError extends Error {
  * Run `primary()`; on any throw run `fallback()` exactly once.
  *   - primary succeeds → { result, servedBy: 'primary', fallbackFired: false } (fallback NOT called).
  *   - primary throws, fallback succeeds → { result, servedBy: 'fallback', fallbackFired: true }.
- *   - both throw → throws a marked `ProvidersUnavailableError` carrying the PRIMARY error as `.cause`.
+ *   - both throw → throws a marked `ProvidersUnavailableError` carrying the PRIMARY error as
+ *     `.cause` and the fallback's error as `fallbackCause` (D8, observability only).
  *
  * `op` is retained for future logging/observability (GUARD-04, Phase 100) — no
  * behavior depends on it here. Tenant scope lives inside the `primary`/`fallback`
  * closures; this wrapper never accepts a `companyId` field (multi-tenant invariant).
  */
+/**
+ * Never-throw observability for the silent successful-fallback path. Routes the
+ * "primary down, fallback served" signal through `notifyOps` (which owns the
+ * Sentry + Telegram fan-out). Escalates to 'error' when the primary error string
+ * indicates an ACCOUNT-level failure (402 / insufficient credits / 401 /
+ * bad-or-missing key) — that means the primary is down for a billing/auth reason
+ * (not a transient blip) and an operator must act. Detection is deliberately
+ * simple string matching — the wrapper only has the thrown error, so do not
+ * over-engineer HTTP parsing.
+ *
+ * Stays a synchronous `void` function fired-and-forgotten from the fallback
+ * branch: `notifyOps` is itself never-throw and is not awaited. The billing
+ * escalation gets a distinct dedupeKey suffix (':billing') so a billing outage
+ * and a transient blip suppress independently within their windows.
+ *
+ * Reporting must NEVER break the AI call: `notifyOps` never throws and the body
+ * is additionally try/catch-swallowed (belt-and-suspenders).
+ *
+ * Company-agnostic (multi-tenant invariant): the signal carries op + primary
+ * error only, NEVER a companyId.
+ */
+function reportSilentFallback(op: string, primaryErr: unknown): void {
+  try {
+    const primaryError =
+      primaryErr instanceof Error ? primaryErr.message : String(primaryErr)
+    const billingOrAuth =
+      /402|insufficient credits|401|user not found|not configured/i.test(primaryError)
+    void notifyOps({
+      kind: 'ai_fallback',
+      title: `AI primary down for '${op}' — serving fallback`,
+      message: primaryError,
+      severity: billingOrAuth ? 'error' : 'warning',
+      dedupeKey: `ai_fallback:${op}${billingOrAuth ? ':billing' : ''}`,
+      suppressWindowSec: 900,
+    })
+  } catch {
+    // notifyOps is itself never-throw; this guard is belt-and-suspenders.
+  }
+}
+
 export async function callWithFallback<T>(args: {
   op: string
   primary: () => Promise<T>
@@ -98,11 +146,19 @@ export async function callWithFallback<T>(args: {
     }
     try {
       const result = await args.fallback()
+      // Never-throw observability side-effect: surface the silent degradation
+      // (primary down, fallback served) so it is visible within minutes instead
+      // of running unnoticed for hours. Does not touch control flow or return shape.
+      reportSilentFallback(args.op, primaryErr)
       return { result, servedBy: 'fallback', fallbackFired: true }
-    } catch {
+    } catch (fallbackErr) {
       // Both failed — re-throw the MARKED error carrying the PRIMARY error as
       // cause (NOT the fallback error). The wrapper never swallows the failure.
-      throw new ProvidersUnavailableError(primaryErr)
+      // D8: the fallback's error rides along as `fallbackCause` so operators can
+      // see why the fallback ALSO failed (previously discarded).
+      const err = new ProvidersUnavailableError(primaryErr)
+      err.fallbackCause = fallbackErr
+      throw err
     }
   }
 }

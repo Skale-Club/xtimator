@@ -7,6 +7,7 @@ import {
   saveEstimate,
   getEstimateByIdAction,
 } from '@/lib/actions/estimate'
+import { removePhotoFromEstimate } from '@/lib/actions/estimate-photo'
 import { renameProjectAction } from '@/lib/actions/project'
 import type { EstimateWithSections, Estimate } from '@/lib/queries/estimate'
 import type { InvoiceRow } from '@/lib/queries/invoice'
@@ -54,6 +55,11 @@ function stateToDocumentData(state: EstimateEditorState): EstimateDocumentData {
     estimate_date: state.estimate_date,
     estimate_number: state.estimate_number,
     currency_code: state.currency_code,
+    attachedPhotos: state.attachedPhotos.map((p) => ({
+      id: p.id,
+      storage_path: p.storage_path,
+      caption: p.caption,
+    })),
     sections: state.sections.map((s) => ({
       id: s.id,
       title: s.title,
@@ -162,6 +168,8 @@ interface EstimateEditorProps {
   linkClientSlot?: React.ReactNode
   /** Quick-260525-qbc: server-fetched price book for description autocomplete. */
   priceBookItems: PriceBookItem[]
+  /** Opens the send dialog. Auto-saves first if there are unsaved changes. */
+  onSend?: () => void
 }
 
 export function EstimateEditor({
@@ -180,6 +188,7 @@ export function EstimateEditor({
   onRecord,
   linkClientSlot,
   priceBookItems,
+  onSend,
 }: EstimateEditorProps) {
   const router = useRouter()
   const [state, dispatch] = useEstimateReducer(estimate)
@@ -217,6 +226,11 @@ export function EstimateEditor({
     if (ok) toast.success('Draft saved')
   }, [runSave])
 
+  const handleSend = useCallback(async () => {
+    if (!isReadOnly && state.isDirty) await runSave()
+    onSend?.()
+  }, [isReadOnly, state.isDirty, runSave, onSend])
+
   const handleDiscard = useCallback(async () => {
     const result = await getEstimateByIdAction(stateRef.current.id)
     if (result.error || !result.data) { toast.error('Failed to reload estimate'); return }
@@ -231,6 +245,14 @@ export function EstimateEditor({
     setLocalProjectName(name)
     router.refresh()
   }, [projectId, router])
+
+  const handleDetachPhoto = useCallback(async (photoId: string) => {
+    dispatch({ type: 'DETACH_PHOTO', photoId })
+    const result = await removePhotoFromEstimate(stateRef.current.id, photoId)
+    if ('error' in result) {
+      toast.error('Failed to remove photo')
+    }
+  }, [dispatch])
 
   // cmd/ctrl + S
   useEffect(() => {
@@ -312,6 +334,7 @@ export function EstimateEditor({
         projectId={projectId}
         onRenameProject={isReadOnly ? undefined : handleRenameProject}
         priceBookItems={priceBookItems}
+        onDetachPhoto={isReadOnly ? undefined : handleDetachPhoto}
       />
 
       {/* Phase 94 — issued-invoice display (D-19) + generate-invoice action (D-18).
@@ -336,7 +359,7 @@ export function EstimateEditor({
         isCurrent={isCurrent}
         isDirty={state.isDirty}
         status={saveStatus === 'dirty' ? 'idle' : (saveStatus as 'idle' | 'saving' | 'saved' | 'error')}
-        onSaveDraft={handleSaveDraft}
+        onSend={handleSend}
         onDiscard={handleDiscard}
         onRecord={onRecord}
         linkClientSlot={linkClientSlot}

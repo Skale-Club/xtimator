@@ -30,10 +30,16 @@ export function LandingFooter({ appName, logoUrl, onOpenAuth }: LandingFooterPro
               <h4 className="text-sm font-semibold text-white">Product</h4>
               <ul className="mt-4 sm:mt-6 space-y-4 text-sm text-muted-foreground">
                 <li>
-                  <Link href="#" className="transition-colors hover:text-white">Features</Link>
+                  <Link href="/#features" className="transition-colors hover:text-white">Features</Link>
                 </li>
                 <li>
-                  <Link href="#" className="transition-colors hover:text-white">How it works</Link>
+                  <Link href="/#how-it-works" className="transition-colors hover:text-white">How it works</Link>
+                </li>
+                <li>
+                  <Link href="/industries" className="transition-colors hover:text-white">Industries</Link>
+                </li>
+                <li>
+                  <Link href="/blog" className="transition-colors hover:text-white">Blog</Link>
                 </li>
                 <li>
                   <button type="button" onClick={() => onOpenAuth?.('signup')} className="transition-colors hover:text-white">Start</button>
@@ -65,14 +71,9 @@ export function LandingFooter({ appName, logoUrl, onOpenAuth }: LandingFooterPro
             </p>
             <p className="text-xs text-muted-foreground/60">Developed by Skale Club</p>
           </div>
-          <div className="hidden sm:flex gap-6 text-muted-foreground">
-            <Link href="#" className="transition-colors hover:text-white">
-              <span className="sr-only">Twitter</span>
-              <svg className="size-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M8.29 20.251c7.547 0 11.675-6.253 11.675-11.675 0-.178 0-.355-.012-.53A8.348 8.348 0 0022 5.92a8.19 8.19 0 01-2.357.646 4.118 4.118 0 001.804-2.27 8.224 8.224 0 01-2.605.996 4.107 4.107 0 00-6.993 3.743 11.65 11.65 0 01-8.457-4.287 4.106 4.106 0 001.27 5.477A4.072 4.072 0 012.8 9.713v.052a4.105 4.105 0 003.292 4.022 4.095 4.095 0 01-1.853.07 4.108 4.108 0 003.834 2.85A8.233 8.233 0 012 18.407a11.616 11.616 0 006.29 1.84" />
-              </svg>
-            </Link>
-          </div>
+          <Link href="/blog" className="hidden text-sm text-muted-foreground transition-colors hover:text-white sm:block">
+            Estimating guides
+          </Link>
         </div>
       </div>
     </footer>

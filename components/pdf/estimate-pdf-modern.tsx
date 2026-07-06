@@ -1,0 +1,847 @@
+import {
+  Document,
+  Page,
+  View,
+  Text,
+  Image,
+  Link,
+  StyleSheet,
+} from '@react-pdf/renderer'
+import type { EstimateWithSections } from '@/lib/queries/estimate'
+import { SYSTEM_COLORS } from '@/lib/system-colors'
+import { ensureReadableOnWhite, readableTextColor } from '@/lib/color/contrast'
+import { formatMoney } from '@/lib/money/currency'
+import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
+import { formatPhoneForDisplay } from '@/lib/phone/format'
+import { deriveDepositDisplay } from '@/lib/estimate/deposit-display'
+
+// ---------------------------------------------------------------------------
+// 260705-8u0-02: "Modern" editorial PDF template.
+// Same data/props/helpers as EstimatePDF (Classic) — only StyleSheet/JSX differ.
+// Serif (Times-Roman/Times-Bold built-in fonts), thin rule dividers, brand color
+// as accent-only (never a fill), large standalone hero total, more whitespace.
+// @react-pdf/renderer runs server-side with no React context — plain lookups.
+// Labels mirror lib/whatsapp/formatter.ts LABELS map (Phase 52).
+// ---------------------------------------------------------------------------
+
+interface PdfLabels {
+  estimate: string
+  project: string
+  billTo: string
+  summary: string
+  description: string
+  qty: string
+  unit: string
+  unitPrice: string
+  total: string
+  sectionSubtotal: string
+  subtotal: string
+  discount: string
+  tax: string
+  grandTotal: string
+  deposit: string
+  balanceDue: string
+  paymentTerms: string
+  timeline: string
+  warranty: string
+  notes: string
+  page: string
+  of: string
+  date: string
+  estimateNum: string
+  preparedBy: string
+  photos: string
+}
+
+const PDF_LABELS: Record<EstimateLanguage, PdfLabels> = {
+  en: {
+    estimate: 'ESTIMATE',
+    project: 'Project',
+    billTo: 'Bill To',
+    summary: 'Summary',
+    description: 'Description',
+    qty: 'Qty',
+    unit: 'Unit',
+    unitPrice: 'Unit Price',
+    total: 'Total',
+    sectionSubtotal: 'Section Subtotal',
+    subtotal: 'Subtotal',
+    discount: 'Discount',
+    tax: 'Tax',
+    grandTotal: 'Total',
+    deposit: 'Deposit',
+    balanceDue: 'Balance Due',
+    paymentTerms: 'Payment Terms',
+    timeline: 'Timeline',
+    warranty: 'Warranty',
+    notes: 'Notes',
+    page: 'Page',
+    of: 'of',
+    date: 'Date',
+    estimateNum: 'Estimate #',
+    preparedBy: 'Prepared by',
+    photos: 'Photos',
+  },
+  pt: {
+    estimate: 'ORÇAMENTO',
+    project: 'Projeto',
+    billTo: 'Faturar Para',
+    summary: 'Resumo',
+    description: 'Descrição',
+    qty: 'Qtd',
+    unit: 'Unidade',
+    unitPrice: 'Preço Unitário',
+    total: 'Total',
+    sectionSubtotal: 'Subtotal da Seção',
+    subtotal: 'Subtotal',
+    discount: 'Desconto',
+    tax: 'Imposto',
+    grandTotal: 'Total',
+    deposit: 'Entrada',
+    balanceDue: 'Saldo Devedor',
+    paymentTerms: 'Condições de Pagamento',
+    timeline: 'Prazo',
+    warranty: 'Garantia',
+    notes: 'Observações',
+    page: 'Página',
+    of: 'de',
+    date: 'Data',
+    estimateNum: 'Orçamento Nº',
+    preparedBy: 'Preparado por',
+    photos: 'Fotos',
+  },
+  es: {
+    estimate: 'PRESUPUESTO',
+    project: 'Proyecto',
+    billTo: 'Facturar A',
+    summary: 'Resumen',
+    description: 'Descripción',
+    qty: 'Cant',
+    unit: 'Unidad',
+    unitPrice: 'Precio Unitario',
+    total: 'Total',
+    sectionSubtotal: 'Subtotal de Sección',
+    subtotal: 'Subtotal',
+    discount: 'Descuento',
+    tax: 'Impuesto',
+    grandTotal: 'Total',
+    deposit: 'Depósito',
+    balanceDue: 'Saldo Pendiente',
+    paymentTerms: 'Términos de Pago',
+    timeline: 'Plazo',
+    warranty: 'Garantía',
+    notes: 'Notas',
+    page: 'Página',
+    of: 'de',
+    date: 'Fecha',
+    estimateNum: 'Presupuesto Nº',
+    preparedBy: 'Preparado por',
+    photos: 'Fotos',
+  },
+}
+
+const DATE_LOCALE: Record<EstimateLanguage, string> = {
+  en: 'en-US',
+  pt: 'pt-BR',
+  es: 'es-MX',
+}
+
+// Text-based language indicator for PDF header.
+// @react-pdf/renderer does not support SVG flags — plain text chip is used instead.
+const LANG_INDICATOR: Record<EstimateLanguage, string> = {
+  en: 'EN',
+  pt: 'PT',
+  es: 'ES',
+}
+
+interface CompanyInfo {
+  name: string
+  owner_name: string | null
+  phone: string | null
+  email: string | null
+  website: string | null
+  address: string | null
+  city: string | null
+  state: string | null
+  zip: string | null
+  logo_url: string | null
+  brand_primary_color: string | null
+  estimate_terms_enabled?: boolean
+  estimate_terms_text?: string | null
+}
+
+interface ClientInfo {
+  name: string
+  email: string | null
+  phone: string | null
+  address: string | null
+  city: string | null
+  state: string | null
+  zip: string | null
+}
+
+export interface EstimatePDFProps {
+  estimate: EstimateWithSections
+  company: CompanyInfo
+  client: ClientInfo | null
+  projectName: string
+  projectType: string | null
+  /** Target language — defaults to 'en'. Drives label translations and locale formatting. */
+  language?: EstimateLanguage
+  /** Name of the staff member or owner who generated this estimate. Shown as "Prepared by" in the PDF. */
+  preparedBy?: string | null
+  /** Attached photos with signed URLs pre-resolved server-side (route handler resolves them before rendering). Rendered only when non-empty. */
+  attachedPhotos?: { url: string; caption: string | null }[]
+}
+
+function formatAddress(obj: {
+  address: string | null
+  city: string | null
+  state: string | null
+  zip: string | null
+}): string | null {
+  const parts: string[] = []
+  if (obj.address) parts.push(obj.address)
+  const cityStateZip = [obj.city, obj.state].filter(Boolean).join(', ')
+  if (cityStateZip && obj.zip) {
+    parts.push(`${cityStateZip} ${obj.zip}`)
+  } else if (cityStateZip) {
+    parts.push(cityStateZip)
+  } else if (obj.zip) {
+    parts.push(obj.zip)
+  }
+  return parts.length > 0 ? parts.join('\n') : null
+}
+
+function formatDate(dateStr: string, locale = 'en-US'): string {
+  const d = new Date(dateStr)
+  return d.toLocaleDateString(locale, {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  })
+}
+
+const styles = StyleSheet.create({
+  page: {
+    fontFamily: 'Times-Roman',
+    fontSize: 10,
+    paddingTop: 52,
+    paddingBottom: 68,
+    paddingHorizontal: 52,
+    color: '#1f2937',
+  },
+  // Header — thin neutral hairline instead of a bold brand-colored border-bottom letterhead.
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 32,
+    paddingBottom: 20,
+    borderBottomWidth: 0.75,
+    borderBottomColor: '#d1d5db',
+  },
+  headerLeft: {
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    gap: 4,
+  },
+  headerRight: {
+    flexDirection: 'column',
+    alignItems: 'flex-end',
+    gap: 8,
+  },
+  logo: {
+    width: 64,
+    height: 64,
+    objectFit: 'contain' as const,
+  },
+  companyName: {
+    fontSize: 15,
+    fontFamily: 'Times-Bold',
+    marginBottom: 5,
+    color: '#1f2937',
+  },
+  companyContact: {
+    fontSize: 9,
+    color: '#6b7280',
+    lineHeight: 1.6,
+  },
+  contactLink: {
+    color: '#6b7280',
+    textDecoration: 'none',
+  },
+  nameLink: {
+    textDecoration: 'none',
+  },
+  infoValueLink: {
+    color: '#6b7280',
+    textDecoration: 'none',
+  },
+  // Estimate title — smaller, letter-spaced, left-aligned accent text with a thin rule
+  // underneath, instead of Classic's large centered bold headline.
+  estimateTitle: {
+    fontSize: 13,
+    fontFamily: 'Times-Bold',
+    letterSpacing: 2,
+    marginBottom: 6,
+    textAlign: 'left',
+  },
+  estimateTitleRule: {
+    borderBottomWidth: 0.75,
+    marginBottom: 28,
+    width: 60,
+  },
+  // Info grid
+  infoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 28,
+  },
+  infoBlock: {
+    width: '48%',
+  },
+  infoLabel: {
+    fontSize: 8,
+    fontFamily: 'Times-Bold',
+    color: '#9ca3af',
+    textTransform: 'uppercase',
+    letterSpacing: 1.5,
+    marginBottom: 5,
+  },
+  infoValue: {
+    fontSize: 10,
+    lineHeight: 1.6,
+  },
+  // Section — plain thin bottom-border rule instead of a brand-colored filled bar.
+  sectionHeader: {
+    paddingVertical: 6,
+    marginTop: 22,
+    marginBottom: 0,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1f2937',
+  },
+  sectionTitle: {
+    fontSize: 11,
+    fontFamily: 'Times-Bold',
+    color: '#1f2937',
+    letterSpacing: 0.5,
+  },
+  // Table — lighter/thinner divider rules, no filled header background, airier feel.
+  tableHeader: {
+    flexDirection: 'row',
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#d1d5db',
+  },
+  tableRow: {
+    flexDirection: 'row',
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#f0f1f3',
+  },
+  tableRowAlt: {},
+  colDescription: { width: '40%' },
+  colQty: { width: '12%', textAlign: 'center' },
+  colUnit: { width: '13%', textAlign: 'center' },
+  colUnitPrice: { width: '17%', textAlign: 'right' },
+  colTotal: { width: '18%', textAlign: 'right' },
+  tableHeaderText: {
+    fontSize: 8.5,
+    fontFamily: 'Times-Bold',
+    color: '#9ca3af',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  tableCellText: {
+    fontSize: 9.5,
+    fontFamily: 'Times-Roman',
+  },
+  // Section subtotal
+  sectionSubtotal: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    borderTopWidth: 0.5,
+    borderTopColor: '#d1d5db',
+  },
+  sectionSubtotalLabel: {
+    fontSize: 9,
+    fontFamily: 'Times-Bold',
+    color: '#6b7280',
+    marginRight: 12,
+  },
+  sectionSubtotalValue: {
+    fontSize: 9,
+    fontFamily: 'Times-Bold',
+    width: '18%',
+    textAlign: 'right',
+  },
+  // Totals — thin hairline-divided rows instead of a boxed/bordered table.
+  totalsContainer: {
+    marginTop: 28,
+    alignItems: 'flex-end',
+  },
+  totalsBlock: {
+    width: '48%',
+  },
+  totalsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 6,
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#e5e7eb',
+  },
+  totalsLabel: {
+    fontSize: 10,
+    color: '#6b7280',
+    fontFamily: 'Times-Roman',
+  },
+  totalsValue: {
+    fontSize: 10,
+    textAlign: 'right',
+    fontFamily: 'Times-Roman',
+  },
+  // Hero total — large standalone block, own margin, no border-top table row.
+  grandTotalBlock: {
+    marginTop: 16,
+    alignItems: 'flex-end',
+  },
+  grandTotalLabel: {
+    fontSize: 9,
+    fontFamily: 'Times-Bold',
+    color: '#9ca3af',
+    textTransform: 'uppercase',
+    letterSpacing: 1.5,
+    marginBottom: 4,
+  },
+  grandTotalValue: {
+    fontSize: 30,
+    fontFamily: 'Times-Bold',
+    textAlign: 'right',
+  },
+  // Terms
+  termsSection: {
+    marginTop: 32,
+  },
+  termsTitle: {
+    fontSize: 10.5,
+    fontFamily: 'Times-Bold',
+    marginBottom: 7,
+    paddingBottom: 5,
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#d1d5db',
+  },
+  termsText: {
+    fontSize: 9,
+    lineHeight: 1.6,
+    color: '#4b5563',
+    marginBottom: 14,
+  },
+  // Language badge in header
+  langBadge: {
+    fontSize: 8.5,
+    color: '#9ca3af',
+    marginTop: 2,
+    letterSpacing: 1,
+  },
+  // Footer
+  footer: {
+    position: 'absolute',
+    bottom: 34,
+    left: 52,
+    right: 52,
+    textAlign: 'center',
+    fontSize: 8,
+    color: '#9ca3af',
+  },
+})
+
+export default function EstimatePDFModern({
+  estimate,
+  company,
+  client,
+  projectName,
+  projectType,
+  language = 'en',
+  preparedBy,
+  attachedPhotos,
+}: EstimatePDFProps) {
+  const brandColor = company.brand_primary_color ?? SYSTEM_COLORS.primary
+  // Render-time WCAG adaptation of the brand color (stored value never mutated):
+  //   brandText   → brand color darkened to reach 4.5:1 as text on white
+  //   brandOnFill → black/white foreground with max contrast over a brand fill
+  const brandText = ensureReadableOnWhite(brandColor)
+  // brandOnFill → black/white foreground with max contrast over a brand fill. Computed
+  // for interface parity with EstimatePDF (Classic uses it for section-header text over
+  // a brand-color fill); Modern has no fill backgrounds, so it is unused in JSX here.
+  const brandOnFill = readableTextColor(brandColor)
+  const companyAddress = formatAddress(company)
+  const clientAddress = client ? formatAddress(client) : null
+  const L = PDF_LABELS[language] ?? PDF_LABELS.en
+  const dateLocale = DATE_LOCALE[language] ?? 'en-US'
+  const fmt = (v: number) => formatMoney(v, estimate.currency_code)
+  // PUI-02 (v4.11): READ the persisted deposit/balance-due from the server row (GUARD-03 —
+  // never recompute). showDeposit is false for legacy / deposit_type 'none' rows.
+  const dep = deriveDepositDisplay(estimate)
+  const fmtDate = (s: string) => formatDate(s, dateLocale)
+  const langLabel = LANG_INDICATOR[language] ?? 'EN'
+
+  return (
+    <Document>
+      <Page size="LETTER" style={styles.page}>
+        {/* Header - fixed on every page */}
+        <View style={styles.header} fixed>
+          <View style={styles.headerLeft}>
+            <View>
+              <Text style={styles.companyName}>
+                {company.website ? (
+                  <Link src={company.website} style={styles.nameLink}>
+                    {company.name}
+                  </Link>
+                ) : (
+                  company.name
+                )}
+              </Text>
+              <Text style={styles.companyContact}>
+                {(
+                  [
+                    company.phone && (
+                      <Link
+                        key="phone"
+                        src={`tel:${company.phone.replace(/[^\d+]/g, '')}`}
+                        style={styles.contactLink}
+                      >
+                        {formatPhoneForDisplay(company.phone)}
+                      </Link>
+                    ),
+                    company.email && (
+                      <Link
+                        key="email"
+                        src={`mailto:${company.email}`}
+                        style={styles.contactLink}
+                      >
+                        {company.email}
+                      </Link>
+                    ),
+                    company.website && (
+                      <Link
+                        key="website"
+                        src={company.website}
+                        style={styles.contactLink}
+                      >
+                        {company.website}
+                      </Link>
+                    ),
+                  ].filter(Boolean) as React.ReactNode[]
+                ).reduce<React.ReactNode[]>(
+                  (acc, node, i) => (i === 0 ? [node] : [...acc, '  |  ', node]),
+                  [],
+                )}
+              </Text>
+              {companyAddress && (
+                <Text style={styles.companyContact}>{companyAddress}</Text>
+              )}
+            </View>
+          </View>
+          {/* RIGHT — language badge stacked above logo (Quick-260526-jo4) */}
+          <View style={styles.headerRight}>
+            {/* Language indicator chip — text-based (SVG flags not supported in react-pdf) */}
+            <Text style={styles.langBadge}>{langLabel}</Text>
+            {company.logo_url && (
+              // eslint-disable-next-line jsx-a11y/alt-text
+              <Image src={company.logo_url} style={styles.logo} />
+            )}
+          </View>
+        </View>
+
+        {/* Title — accent-colored but smaller/letter-spaced, with a thin rule underneath */}
+        <Text style={[styles.estimateTitle, { color: brandText }]}>
+          {L.estimate}
+        </Text>
+        <View style={[styles.estimateTitleRule, { borderBottomColor: brandColor }]} />
+
+        {/* Project & Client Info */}
+        <View style={styles.infoRow}>
+          <View style={styles.infoBlock}>
+            <Text style={styles.infoLabel}>{L.project}</Text>
+            <Text style={styles.infoValue}>{projectName}</Text>
+            {projectType && (
+              <Text style={[styles.infoValue, { color: '#6b7280' }]}>
+                {projectType}
+              </Text>
+            )}
+            <Text
+              style={[
+                styles.infoValue,
+                { color: '#6b7280', marginTop: 4 },
+              ]}
+            >
+              {L.date}: {fmtDate(estimate.estimate_date ?? estimate.created_at)}
+            </Text>
+            <Text style={[styles.infoValue, { color: '#6b7280' }]}>
+              {L.estimateNum}{estimate.estimate_number ?? String(estimate.estimate_seq).padStart(4, '0')}
+            </Text>
+          </View>
+
+          {client && (
+            <View style={styles.infoBlock}>
+              <Text style={styles.infoLabel}>{L.billTo}</Text>
+              <Text
+                style={[styles.infoValue, { fontFamily: 'Times-Bold' }]}
+              >
+                {client.name}
+              </Text>
+              {client.email && (
+                <Text style={[styles.infoValue, { color: '#6b7280' }]}>
+                  <Link src={`mailto:${client.email}`} style={styles.infoValueLink}>
+                    {client.email}
+                  </Link>
+                </Text>
+              )}
+              {client.phone && (
+                <Text style={[styles.infoValue, { color: '#6b7280' }]}>
+                  <Link
+                    src={`tel:${client.phone.replace(/[^\d+]/g, '')}`}
+                    style={styles.infoValueLink}
+                  >
+                    {formatPhoneForDisplay(client.phone)}
+                  </Link>
+                </Text>
+              )}
+              {clientAddress && (
+                <Text style={[styles.infoValue, { color: '#6b7280' }]}>
+                  {clientAddress}
+                </Text>
+              )}
+            </View>
+          )}
+        </View>
+
+        {/* Summary */}
+        {estimate.summary && (
+          <View style={{ marginBottom: 20 }}>
+            <Text style={styles.infoLabel}>{L.summary}</Text>
+            <Text style={styles.termsText}>{estimate.summary}</Text>
+          </View>
+        )}
+
+        {/* Sections with Line Items */}
+        {estimate.sections
+          .map((section) => ({
+            ...section,
+            items: section.items.filter((i) => i.description.trim() !== ''),
+          }))
+          .filter((section) => section.items.length > 0)
+          .map((section) => (
+          <View key={section.id} wrap>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>{section.title}</Text>
+            </View>
+
+            {/* Table Header */}
+            <View style={styles.tableHeader}>
+              <Text style={[styles.tableHeaderText, styles.colDescription]}>
+                {L.description}
+              </Text>
+              <Text style={[styles.tableHeaderText, styles.colQty]}>
+                {L.qty}
+              </Text>
+              <Text style={[styles.tableHeaderText, styles.colUnit]}>
+                {L.unit}
+              </Text>
+              <Text style={[styles.tableHeaderText, styles.colUnitPrice]}>
+                {L.unitPrice}
+              </Text>
+              <Text style={[styles.tableHeaderText, styles.colTotal]}>
+                {L.total}
+              </Text>
+            </View>
+
+            {/* Table Rows */}
+            {section.items.map((item, idx) => (
+              <View
+                key={item.id}
+                style={[
+                  styles.tableRow,
+                  idx % 2 === 1 ? styles.tableRowAlt : {},
+                ]}
+              >
+                <Text style={[styles.tableCellText, styles.colDescription]}>
+                  {item.description}
+                </Text>
+                <Text style={[styles.tableCellText, styles.colQty]}>
+                  {item.quantity}
+                </Text>
+                <Text style={[styles.tableCellText, styles.colUnit]}>
+                  {item.unit ?? ''}
+                </Text>
+                <Text style={[styles.tableCellText, styles.colUnitPrice]}>
+                  {fmt(item.unit_price)}
+                </Text>
+                <Text style={[styles.tableCellText, styles.colTotal]}>
+                  {fmt(item.total)}
+                </Text>
+              </View>
+            ))}
+
+            {/* Section Subtotal */}
+            <View style={styles.sectionSubtotal}>
+              <Text style={styles.sectionSubtotalLabel}>
+                {L.sectionSubtotal}
+              </Text>
+              <Text style={styles.sectionSubtotalValue}>
+                {fmt(section.subtotal)}
+              </Text>
+            </View>
+          </View>
+        ))}
+
+        {/* Totals */}
+        <View style={styles.totalsContainer}>
+          <View style={styles.totalsBlock}>
+            <View style={styles.totalsRow}>
+              <Text style={styles.totalsLabel}>{L.subtotal}</Text>
+              <Text style={styles.totalsValue}>
+                {fmt(estimate.subtotal)}
+              </Text>
+            </View>
+
+            {estimate.discount_amount > 0 && (
+              <View style={styles.totalsRow}>
+                <Text style={styles.totalsLabel}>
+                  {L.discount}
+                  {estimate.discount_type === 'percentage'
+                    ? ` (${estimate.discount_value}%)`
+                    : ''}
+                </Text>
+                <Text style={[styles.totalsValue, { color: '#dc2626' }]}>
+                  -{fmt(estimate.discount_amount)}
+                </Text>
+              </View>
+            )}
+
+            {estimate.tax_amount > 0 && (
+              <View style={styles.totalsRow}>
+                <Text style={styles.totalsLabel}>
+                  {L.tax} ({(estimate.tax_rate * 100).toFixed(2)}%)
+                </Text>
+                <Text style={styles.totalsValue}>
+                  {fmt(estimate.tax_amount)}
+                </Text>
+              </View>
+            )}
+
+            {/* Hero total — large standalone number, own block, no border-top table row */}
+            <View style={styles.grandTotalBlock}>
+              <Text style={styles.grandTotalLabel}>{L.grandTotal}</Text>
+              <Text style={[styles.grandTotalValue, { color: brandText }]}>
+                {fmt(estimate.total)}
+              </Text>
+            </View>
+
+            {/* PUI-02 (v4.11): deposit + balance due — only when a deposit is set.
+                Locked order: Subtotal → Discount → Tax → Total → Deposit → Balance Due. */}
+            {dep.showDeposit && (
+              <View style={[styles.totalsRow, { marginTop: 16 }]}>
+                <Text style={styles.totalsLabel}>{L.deposit}</Text>
+                <Text style={styles.totalsValue}>-{fmt(dep.depositAmount)}</Text>
+              </View>
+            )}
+
+            {dep.showDeposit && (
+              <View style={styles.totalsRow}>
+                <Text style={styles.totalsLabel}>{L.balanceDue}</Text>
+                <Text style={styles.totalsValue}>{fmt(dep.balanceDue)}</Text>
+              </View>
+            )}
+          </View>
+        </View>
+
+        {/* Estimate Terms, Payment Terms, Warranty, Timeline, Notes */}
+        {(company.estimate_terms_enabled && company.estimate_terms_text ||
+          estimate.payment_terms ||
+          estimate.warranty_terms ||
+          estimate.timeline ||
+          estimate.notes) && (
+          <View style={styles.termsSection}>
+            {company.estimate_terms_enabled && company.estimate_terms_text && (
+              <>
+                <Text style={[styles.termsTitle, { color: brandText }]}>
+                  Estimate Terms
+                </Text>
+                <Text style={styles.termsText}>
+                  {company.estimate_terms_text}
+                </Text>
+              </>
+            )}
+            {estimate.payment_terms && (
+              <>
+                <Text style={styles.termsTitle}>{L.paymentTerms}</Text>
+                <Text style={styles.termsText}>
+                  {estimate.payment_terms}
+                </Text>
+              </>
+            )}
+            {estimate.timeline && (
+              <>
+                <Text style={styles.termsTitle}>{L.timeline}</Text>
+                <Text style={styles.termsText}>{estimate.timeline}</Text>
+              </>
+            )}
+            {estimate.warranty_terms && (
+              <>
+                <Text style={styles.termsTitle}>{L.warranty}</Text>
+                <Text style={styles.termsText}>
+                  {estimate.warranty_terms}
+                </Text>
+              </>
+            )}
+            {estimate.notes && (
+              <>
+                <Text style={styles.termsTitle}>{L.notes}</Text>
+                <Text style={styles.termsText}>{estimate.notes}</Text>
+              </>
+            )}
+          </View>
+        )}
+
+        {/* Attached photos — only when at least one photo is attached */}
+        {attachedPhotos && attachedPhotos.length > 0 && (
+          <View style={{ marginTop: 20 }} wrap={false}>
+            <Text style={styles.termsTitle}>{L.photos}</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 6 }}>
+              {attachedPhotos.map((photo, i) => (
+                // eslint-disable-next-line jsx-a11y/alt-text
+                <Image
+                  key={i}
+                  src={photo.url}
+                  style={{ width: 150, height: 150, objectFit: 'cover' as const }}
+                />
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* Prepared by */}
+        {preparedBy && (
+          <View style={{ marginTop: 20 }}>
+            <Text style={styles.infoLabel}>{L.preparedBy}</Text>
+            <Text style={styles.infoValue}>{preparedBy}</Text>
+          </View>
+        )}
+
+        {/* Footer - Page numbers on every page */}
+        <Text
+          style={styles.footer}
+          fixed
+          render={({ pageNumber, totalPages }) =>
+            `${L.page} ${pageNumber} ${L.of} ${totalPages}`
+          }
+        />
+      </Page>
+    </Document>
+  )
+}

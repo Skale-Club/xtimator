@@ -3,6 +3,8 @@ import { render, screen } from '@testing-library/react'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
 import {
@@ -23,7 +25,11 @@ describe('UI overlays — Phase 9 redesign', () => {
     render(
       <Dialog open>
         <DialogTrigger>open</DialogTrigger>
-        <DialogContent data-testid="dialog-content">body</DialogContent>
+        <DialogContent data-testid="dialog-content">
+          <DialogTitle>Overlay test</DialogTitle>
+          <DialogDescription>Verifies the dialog surface tokens.</DialogDescription>
+          body
+        </DialogContent>
       </Dialog>
     )
     const content = screen.getByTestId('dialog-content')

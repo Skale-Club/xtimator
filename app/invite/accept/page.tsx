@@ -2,6 +2,10 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { acceptInvite } from '@/lib/actions/invite-accept'
+import type { Metadata } from 'next'
+import { PRIVATE_ROBOTS } from '@/lib/seo/route-policy'
+
+export const metadata: Metadata = { robots: PRIVATE_ROBOTS }
 
 /**
  * SEAT-04 — the /invite/accept route the Phase-136 invite email links to.

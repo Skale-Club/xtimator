@@ -11,7 +11,7 @@ vi.mock('next/headers', () => ({
 }))
 vi.mock('next/cache', () => ({
   revalidatePath: vi.fn(),
-  revalidateTag: vi.fn(),
+  updateTag: vi.fn(),
   // Bypass unstable_cache so importing lib/queries/active-company.ts (for the cookie
   // constants) doesn't try to invoke the real Next.js cache layer.
   unstable_cache: <T extends (...args: never[]) => unknown>(fn: T) => fn,
@@ -21,7 +21,7 @@ vi.mock('@/lib/supabase/server', () => ({
 }))
 
 import { cookies } from 'next/headers'
-import { revalidatePath, revalidateTag } from 'next/cache'
+import { revalidatePath, updateTag } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import {
   ACTIVE_COMPANY_COOKIE,
@@ -85,7 +85,7 @@ describe('switchActiveCompany — SWITCH-06 / SWITCH-08', () => {
       'c-target',
       ACTIVE_COMPANY_COOKIE_OPTIONS
     )
-    expect(vi.mocked(revalidateTag)).toHaveBeenCalledWith('company')
+    expect(vi.mocked(updateTag)).toHaveBeenCalledWith('company')
     expect(vi.mocked(revalidatePath)).toHaveBeenCalledWith('/', 'layout')
   })
 
@@ -103,7 +103,7 @@ describe('switchActiveCompany — SWITCH-06 / SWITCH-08', () => {
 
     expect(result).toEqual({ error: 'forbidden' })
     expect(setSpy).not.toHaveBeenCalled()
-    expect(vi.mocked(revalidateTag)).not.toHaveBeenCalled()
+    expect(vi.mocked(updateTag)).not.toHaveBeenCalled()
     expect(vi.mocked(revalidatePath)).not.toHaveBeenCalled()
   })
 
@@ -122,7 +122,7 @@ describe('switchActiveCompany — SWITCH-06 / SWITCH-08', () => {
     expect(result).toEqual({ error: 'unauthenticated' })
     expect(supa._spies.from).not.toHaveBeenCalled()
     expect(setSpy).not.toHaveBeenCalled()
-    expect(vi.mocked(revalidateTag)).not.toHaveBeenCalled()
+    expect(vi.mocked(updateTag)).not.toHaveBeenCalled()
     expect(vi.mocked(revalidatePath)).not.toHaveBeenCalled()
   })
 })

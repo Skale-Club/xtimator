@@ -4,16 +4,14 @@ import { createClient } from '@/lib/supabase/server'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { createStorage } from '@/lib/storage'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
-import { revalidatePath, revalidateTag } from 'next/cache'
+import { revalidatePath, updateTag } from 'next/cache'
 import { normalizeCurrencyCode } from '@/lib/money/currency'
 import { resolveIndustries } from '@/lib/industries'
 import { appendIndustryPriceBook } from '@/lib/price-book-seed'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { assertWritable } from '@/lib/demo/guard'
-import { syncOwnerPhone } from '@/lib/whatsapp/sync-owner-phone'
-import { inngest } from '@/lib/inngest/client'
-import { EVENT_WHATSAPP_WELCOME } from '@/lib/inngest/events'
 import { sendProfileUpdatedEmail, diffProfileFields } from '@/lib/email/account-emails'
+import { isEstimateTemplateId, DEFAULT_ESTIMATE_TEMPLATE_ID } from '@/lib/estimate/templates/registry'
 
 async function getAuthContext() {
   const supabase = await createClient()
@@ -65,6 +63,10 @@ export async function updateCompanySettings(formData: FormData) {
   const existingLogoUrl = formData.get('existingLogoUrl') as string | null
   const defaultEstimateLanguage = formData.get('defaultEstimateLanguage') as string | null
   const currencyCode = normalizeCurrencyCode(formData.get('currencyCode'))
+  const estimateTemplateStyleRaw = formData.get('estimateTemplateStyle') as string | null
+  const estimateTemplateStyle = isEstimateTemplateId(estimateTemplateStyleRaw)
+    ? estimateTemplateStyleRaw
+    : DEFAULT_ESTIMATE_TEMPLATE_ID
 
   // Handle logo upload
   let logoUrl = existingLogoUrl
@@ -110,6 +112,7 @@ export async function updateCompanySettings(formData: FormData) {
       industries: resolvedIndustries,
       brand_primary_color: brandPrimaryColor || SYSTEM_COLORS.primary,
       logo_url: logoUrl || null,
+      estimate_template_style: estimateTemplateStyle,
       currency_code: currencyCode,
       default_estimate_language:
         defaultEstimateLanguage && defaultEstimateLanguage !== ''
@@ -177,8 +180,7 @@ export async function updateCompanySettings(formData: FormData) {
     }
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  ;(revalidateTag as any)('company')
+  updateTag('company')
   revalidatePath('/settings')
   revalidatePath('/dashboard')
   return { success: true }
@@ -189,6 +191,8 @@ export async function updateDefaults(data: {
   defaultPaymentTerms: string
   defaultWarrantyTerms: string
   defaultValidityDays: number
+  digitalSignatureEnabled?: boolean
+  emailDeliveryEnabled?: boolean
 }) {
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error }
@@ -209,6 +213,12 @@ export async function updateDefaults(data: {
       default_payment_terms: data.defaultPaymentTerms || null,
       default_warranty_terms: data.defaultWarrantyTerms || null,
       default_validity_days: data.defaultValidityDays,
+      ...(data.digitalSignatureEnabled !== undefined && {
+        digital_signature_enabled: data.digitalSignatureEnabled,
+      }),
+      ...(data.emailDeliveryEnabled !== undefined && {
+        email_delivery_enabled: data.emailDeliveryEnabled,
+      }),
     })
     .eq('id', company.id)
 
@@ -381,48 +391,7 @@ export async function updateProfile(formData: FormData) {
   // two writers target different rows risked duplicate owner_phone rows, which breaks
   // the inbound .maybeSingle() lookup in app/api/webhooks/whatsapp/route.ts.
 
-  revalidatePath('/settings/general')
-  return { ok: true }
-}
-
-export async function saveWhatsAppNumber(phone: string | null) {
-  const supabase = await createClient()
-  const { data: claimsData } = await supabase.auth.getClaims()
-  const claims = claimsData?.claims ?? null
-  if (!claims) return { error: 'Not authenticated' }
-
-  const denied = await assertWritable()
-  if (denied) return denied
-
-  const activeCompanyId = await getActiveCompanyId()
-  if (!activeCompanyId) return { error: 'No company found' }
-
-  const svc = requireServiceClient()
-  // Per-user WhatsApp number (tied to this user's row). This is the single writer
-  // for company_whatsapp.owner_phone. When the number is new/changed, fire the
-  // proactive welcome TEMPLATE off the request path via Inngest so the user can
-  // start building estimates by chat. Best-effort: never block the save.
-  const { phoneChanged, ownerPhone } = await syncOwnerPhone(
-    svc,
-    activeCompanyId,
-    phone,
-    claims.sub as string,
-  )
-  if (phoneChanged && ownerPhone) {
-    try {
-      await inngest.send({
-        name: EVENT_WHATSAPP_WELCOME,
-        data: { companyId: activeCompanyId, toPhone: ownerPhone },
-      })
-    } catch (e) {
-      console.warn(
-        '[settings.saveWhatsAppNumber] WhatsApp welcome dispatch failed:',
-        e instanceof Error ? e.message : String(e),
-      )
-    }
-  }
-
-  revalidatePath('/settings/general')
+  revalidatePath('/settings/account')
   return { ok: true }
 }
 

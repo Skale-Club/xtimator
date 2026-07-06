@@ -2,6 +2,10 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { getBranding } from '@/lib/platform-config'
 import { OnboardingSurvey } from '@/components/onboarding/onboarding-survey'
+import type { Metadata } from 'next'
+import { PRIVATE_ROBOTS } from '@/lib/seo/route-policy'
+
+export const metadata: Metadata = { robots: PRIVATE_ROBOTS }
 
 /**
  * Phase 81 — SWITCH-11: read `?mode=add` and thread it to the survey so the

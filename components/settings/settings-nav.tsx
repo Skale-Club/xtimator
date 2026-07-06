@@ -2,26 +2,21 @@
 
 import { usePathname } from 'next/navigation'
 import {
-  Bell, BookOpen, Building2, CreditCard, FileText, Globe,
-  PenLine, Plug, ShieldCheck, Send, Wallet, User, Users,
+  Bell, BookOpen, Building2, CreditCard, FileText,
+  Mail, Plug, ShieldCheck, Users,
 } from 'lucide-react'
 import { SubNav, type SubNavItem } from '@/components/ui/sub-nav'
 
 const ITEMS: SubNavItem[] = [
-  { value: 'general',            label: 'General',       Icon: User,        href: '/settings/general'            },
-  { value: 'company',            label: 'Company',       Icon: Building2,   href: '/settings/company'            },
-  { value: 'defaults',           label: 'Defaults',      Icon: FileText,    href: '/settings/defaults'           },
-  { value: 'notifications',      label: 'Notifications', Icon: Bell,        href: '/settings/notifications'      },
-  { value: 'delivery',           label: 'Delivery',      Icon: Send,        href: '/settings/delivery'           },
-  { value: 'billing',            label: 'Billing',       Icon: CreditCard,  href: '/settings/billing'            },
-  { value: 'payments',           label: 'Payments',      Icon: Wallet,      href: '/settings/payments'           },
-  { value: 'templates',          label: 'Templates',     Icon: PenLine,     href: '/settings/estimate-templates' },
-  { value: 'domain',             label: 'Domain',        Icon: Globe,       href: '/settings/custom-domain'      },
-  { value: 'knowledge',          label: 'Knowledge',     Icon: BookOpen,    href: '/settings/knowledge'          },
-  { value: 'integrations',       label: 'Integrations',  Icon: Plug,        href: '/settings/integrations'       },
-  { value: 'team',               label: 'Team',          Icon: Users,       href: '/settings/team'               },
-  { value: 'staff',              label: 'Staff',         Icon: Users,       href: '/settings/staff'              },
-  { value: 'account',            label: 'Account',       Icon: ShieldCheck, href: '/settings/account'            },
+  { value: 'company',       label: 'Company',       Icon: Building2,   href: '/settings/company'            },
+  { value: 'account',       label: 'Account',       Icon: ShieldCheck, href: '/settings/account'            },
+  { value: 'team',          label: 'Team',          Icon: Users,       href: '/settings/team'               },
+  { value: 'notifications', label: 'Notifications', Icon: Bell,        href: '/settings/notifications'      },
+  { value: 'estimates',     label: 'Estimates',     Icon: FileText,    href: '/settings/estimates'          },
+  { value: 'billing',       label: 'Plans',         Icon: CreditCard,  href: '/settings/billing'           },
+  { value: 'templates',     label: 'Message Template', Icon: Mail,     href: '/settings/estimate-templates' },
+  { value: 'knowledge',     label: 'Knowledge',     Icon: BookOpen,    href: '/settings/knowledge'          },
+  { value: 'integrations',  label: 'Integrations',  Icon: Plug,        href: '/settings/integrations'       },
 ]
 
 export function SettingsNav({ collapsed }: { collapsed?: boolean }) {

@@ -37,8 +37,8 @@ describe('phase 81 — CompanySelector static contract (SWITCH-17)', () => {
     expect(SRC).not.toMatch(/['"]active_company_id['"]/)
   })
 
-  it('renders a Link to /onboarding?mode=add', () => {
-    expect(SRC).toMatch(/href=["']\/onboarding\?mode=add["']/)
+  it('uses AdminCreateCompanyModal for adding a new company (admin path)', () => {
+    expect(SRC).toMatch(/AdminCreateCompanyModal/)
   })
 
   it('uses Loader2 icon for pending state', () => {

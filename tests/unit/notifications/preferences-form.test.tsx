@@ -51,14 +51,14 @@ describe('NotificationsForm', () => {
     fetchMock.mockResolvedValue({ ok: true, status: 204 })
   })
 
-  it('renders 12 channel toggles (3 categories × 4 channels) + master', () => {
+  it('renders 10 channel toggles (3 categories × 3 channels) + master', () => {
     render(
       <NotificationsForm initial={baseInitial} defaults={DEFAULT_PREFERENCES} />,
     )
     const switches = screen.getAllByRole('switch')
-    // Phase 104: 1 master email-digest + 12 per-category (3 × 4) = 13.
+    // D-15: WhatsApp removed — 1 master email-digest + 9 per-category (3 × 3) = 10.
     // (The push control is a Button, not a switch.)
-    expect(switches.length).toBeGreaterThanOrEqual(13)
+    expect(switches.length).toBeGreaterThanOrEqual(10)
   })
 
   it('toggling master email-digest off disables every category email switch', async () => {
@@ -122,14 +122,13 @@ describe('NotificationsForm', () => {
 })
 
 /**
- * Phase 104 plan 00 — Wave-0 EXTEND (NOTIF-01/02): 3 categories × 4 channels.
+ * Phase 104 plan 00 — Wave-0 EXTEND (NOTIF-01/02): 3 categories × 3 channels.
  *
- * RED until Wave 1 reduces the matrix to 3 category rows (Estimates, Billing,
- * System) + 4 channel columns (In-app, Email, WhatsApp, SMS) and Wave 2 adds the
- * phone/opt-in gating that disables the whatsapp/sms switches when no verified
- * phone is passed in props.
+ * D-15: WhatsApp column removed — tenant cannot enable proactive WhatsApp.
+ * Matrix is now 3 categories (Estimates, Billing, System) × 3 channels
+ * (In-app, Email, SMS). SMS switches are disabled when no verified phone.
  */
-describe('NotificationsForm — 3 categories × 4 channels (NOTIF-01/02 RED)', () => {
+describe('NotificationsForm — 3 categories × 3 channels (D-15)', () => {
   beforeEach(() => {
     fetchMock.mockReset()
     enableBrowserPushMock.mockReset()
@@ -155,7 +154,7 @@ describe('NotificationsForm — 3 categories × 4 channels (NOTIF-01/02 RED)', (
     expect(screen.queryByText('AI Jobs')).toBeNull()
   })
 
-  it('renders a WhatsApp + SMS switch per category (4 channel columns)', () => {
+  it('renders an SMS switch per category (no WhatsApp column)', () => {
     render(
       <NotificationsForm
         initial={baseInitial}
@@ -163,11 +162,17 @@ describe('NotificationsForm — 3 categories × 4 channels (NOTIF-01/02 RED)', (
         verifiedPhone={null}
       />,
     )
-    expect(screen.getByTestId('pref-whatsapp-billing')).toBeTruthy()
+    // WhatsApp switches must not exist (D-15)
+    expect(screen.queryByTestId('pref-whatsapp-billing')).toBeNull()
+    expect(screen.queryByTestId('pref-whatsapp-estimate')).toBeNull()
+    expect(screen.queryByTestId('pref-whatsapp-system')).toBeNull()
+    // SMS switches must exist
     expect(screen.getByTestId('pref-sms-billing')).toBeTruthy()
+    expect(screen.getByTestId('pref-sms-estimate')).toBeTruthy()
+    expect(screen.getByTestId('pref-sms-system')).toBeTruthy()
   })
 
-  it('disables the WhatsApp + SMS switches when no verified phone is provided', () => {
+  it('disables the SMS switches when no verified phone is provided', () => {
     render(
       <NotificationsForm
         initial={baseInitial}
@@ -175,13 +180,11 @@ describe('NotificationsForm — 3 categories × 4 channels (NOTIF-01/02 RED)', (
         verifiedPhone={null}
       />,
     )
-    const whatsapp = screen.getByTestId('pref-whatsapp-billing')
     const sms = screen.getByTestId('pref-sms-billing')
     const isDisabled = (el: HTMLElement) =>
       el.hasAttribute('disabled') ||
       el.getAttribute('data-disabled') !== null ||
       el.getAttribute('aria-disabled') === 'true'
-    expect(isDisabled(whatsapp)).toBe(true)
     expect(isDisabled(sms)).toBe(true)
   })
 })

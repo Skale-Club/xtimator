@@ -8,7 +8,14 @@ export type AuditAction =
   | 'integration.test'
   | 'ai_provider.set'
   | 'ai_provider.set_model'
+  | 'ai_provider.set_transcription_model'
   | 'company.set_model_override'
+  | 'company.set_demo_quota'
+  | 'company.byok_enabled'
+  | 'company.byok_disabled'
+  | 'company.handoff'
+  | 'company.support_mode_start'
+  | 'company.support_mode_end'
   | 'tier.force'
   | 'bonus_credits.grant'
   | 'branding.save'
@@ -25,6 +32,10 @@ export type AuditAction =
   | 'admin.remove'
   | 'price_research.set'
   | 'billing_config.save'
+  | 'whatsapp.account.save'
+  | 'whatsapp.sender.save'
+  | 'whatsapp.sender.status'
+  | 'whatsapp.sender.remove'
 
 interface LogParams {
   actorId: string

@@ -1,8 +1,8 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { LucideIcon } from 'lucide-react'
-import { Search, FolderOpen } from 'lucide-react'
+import { Search, FolderOpen, ChevronUp, ChevronDown, ChevronsUpDown, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import {
@@ -21,12 +21,17 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { EmptyState } from '@/components/dashboard/empty-state'
+import { cn } from '@/lib/utils'
 
 export interface Column<T> {
   key: string
   header: string
   cell: (row: T) => React.ReactNode
   className?: string
+  /** Sort option value for descending order (default when column header is clicked). */
+  sortDesc?: string
+  /** Sort option value for ascending order (secondary click). */
+  sortAsc?: string
 }
 
 export interface DataTableProps<T> {
@@ -50,6 +55,11 @@ export interface DataTableProps<T> {
   onRowClick?: (row: T) => void
   renderMobileCard?: (row: T) => React.ReactNode
   headerRight?: React.ReactNode
+  headerLeft?: React.ReactNode
+  /** Rendered before the search input on the controls row (e.g. "Recent projects" heading). */
+  title?: React.ReactNode
+  /** Number of rows per page. Omit to disable pagination (renders all rows). */
+  pageSize?: number
 }
 
 export function DataTable<T>({
@@ -73,6 +83,9 @@ export function DataTable<T>({
   onRowClick,
   renderMobileCard,
   headerRight,
+  headerLeft,
+  title,
+  pageSize,
 }: DataTableProps<T>) {
   const initialSort = defaultSort ?? sortOptions?.[0]?.value ?? ''
   const initialFilter = defaultFilter ?? filterTabs?.[0]?.key ?? 'all'
@@ -80,6 +93,24 @@ export function DataTable<T>({
   const [search, setSearch] = useState('')
   const [activeSort, setActiveSort] = useState(initialSort)
   const [activeFilter, setActiveFilter] = useState(initialFilter)
+  const [page, setPage] = useState(1)
+
+  // Reset to page 1 whenever search/sort/filter changes
+  useEffect(() => { setPage(1) }, [search, activeSort, activeFilter])
+
+  // Detect whether any column has column-header sort defined
+  const hasColumnSort = columns.some((c) => c.sortAsc !== undefined || c.sortDesc !== undefined)
+
+  function toggleColumnSort(col: Column<T>) {
+    if (!col.sortAsc && !col.sortDesc) return
+    const desc = col.sortDesc ?? ''
+    const asc = col.sortAsc ?? ''
+    if (activeSort === desc) {
+      setActiveSort(asc)
+    } else {
+      setActiveSort(desc)
+    }
+  }
 
   const displayData = useMemo(() => {
     let result = data
@@ -110,13 +141,20 @@ export function DataTable<T>({
     return result
   }, [data, search, activeFilter, activeSort, searchFn, filterTabs, sortOptions])
 
+  const totalPages = pageSize ? Math.ceil(displayData.length / pageSize) : 1
+  const paginatedData = pageSize
+    ? displayData.slice((page - 1) * pageSize, page * pageSize)
+    : displayData
+
   // Empty data state (no items at all)
   if (data.length === 0) {
     return (
       <div className="space-y-4">
-        {headerRight && (
-          <div className="flex justify-end">
-            {headerRight}
+        {(title || headerLeft || headerRight) && (
+          <div className="flex flex-wrap items-center gap-2">
+            {title}
+            {headerLeft}
+            {headerRight && <div className="ml-auto">{headerRight}</div>}
           </div>
         )}
         <EmptyState
@@ -135,18 +173,43 @@ export function DataTable<T>({
 
   return (
     <div className="space-y-4">
-      {/* Controls row: search + sort + filter tabs */}
+      {/* Controls row: title + headerLeft + search + sort (dropdown or column-based) */}
       <div className="flex flex-wrap items-center gap-2">
-        <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder={searchPlaceholder}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
-          />
-        </div>
-        {sortOptions && sortOptions.length > 0 && (
+        {title}
+        {/* When headerLeft is present without a title, merge it with the search
+            into a single bordered container so all controls look like siblings. */}
+        {headerLeft && !title ? (
+          <div className="flex flex-1 min-w-0 h-9 items-stretch overflow-hidden rounded-md border border-input">
+            {headerLeft}
+            <div className="relative flex-1 min-w-[140px]">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder={searchPlaceholder}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9 border-0 rounded-none h-full shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+              />
+            </div>
+          </div>
+        ) : (
+          <>
+            {headerLeft}
+            <div className={cn(
+              'relative min-w-[160px]',
+              title ? 'ml-auto w-[220px]' : 'flex-1',
+            )}>
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder={searchPlaceholder}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+          </>
+        )}
+        {/* Only show sort dropdown when no column handles sorting */}
+        {!hasColumnSort && sortOptions && sortOptions.length > 0 && (
           <Select value={activeSort} onValueChange={setActiveSort}>
             <SelectTrigger className="w-[140px] h-9">
               <SelectValue />
@@ -198,15 +261,35 @@ export function DataTable<T>({
             <Table>
               <TableHeader>
                 <TableRow>
-                  {columns.map((col) => (
-                    <TableHead key={col.key} className={col.className}>
-                      {col.header}
-                    </TableHead>
-                  ))}
+                  {columns.map((col) => {
+                    const isSortable = col.sortAsc !== undefined || col.sortDesc !== undefined
+                    const isActiveDesc = activeSort === col.sortDesc
+                    const isActiveAsc = activeSort === col.sortAsc
+                    return (
+                      <TableHead
+                        key={col.key}
+                        className={cn(col.className, isSortable && 'cursor-pointer select-none')}
+                        onClick={isSortable ? () => toggleColumnSort(col) : undefined}
+                      >
+                        <span className="inline-flex items-center gap-1">
+                          {col.header}
+                          {isSortable && (
+                            isActiveDesc ? (
+                              <ChevronDown className="h-3.5 w-3.5 text-foreground" />
+                            ) : isActiveAsc ? (
+                              <ChevronUp className="h-3.5 w-3.5 text-foreground" />
+                            ) : (
+                              <ChevronsUpDown className="h-3.5 w-3.5 text-muted-foreground/50" />
+                            )
+                          )}
+                        </span>
+                      </TableHead>
+                    )
+                  })}
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {displayData.map((row) => (
+                {paginatedData.map((row) => (
                   <TableRow
                     key={getRowKey(row)}
                     onClick={onRowClick ? () => onRowClick(row) : undefined}
@@ -223,14 +306,139 @@ export function DataTable<T>({
             </Table>
           </div>
 
+          {/* Mobile sort bar — mirrors column-header sort for small screens */}
+          {hasColumnSort && renderMobileCard && (
+            <div className="md:hidden flex items-center gap-1 overflow-x-auto pb-0.5">
+              <span className="shrink-0 text-xs text-muted-foreground pr-1">Sort:</span>
+              {columns.filter((c) => c.sortAsc !== undefined || c.sortDesc !== undefined).map((col) => {
+                const isDesc = activeSort === col.sortDesc
+                const isAsc = activeSort === col.sortAsc
+                const isActive = isDesc || isAsc
+                return (
+                  <button
+                    key={col.key}
+                    onClick={() => toggleColumnSort(col)}
+                    className={cn(
+                      'flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-xs transition-colors',
+                      isActive
+                        ? 'bg-primary/10 text-primary'
+                        : 'text-muted-foreground hover:text-foreground',
+                    )}
+                  >
+                    {col.header}
+                    {isActive ? (
+                      isDesc
+                        ? <ChevronDown className="h-3 w-3" />
+                        : <ChevronUp className="h-3 w-3" />
+                    ) : (
+                      <ChevronsUpDown className="h-3 w-3 opacity-40" />
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+
           {/* Mobile cards */}
           {renderMobileCard && (
-            <div className="md:hidden space-y-3">
-              {displayData.map((row) => renderMobileCard(row))}
+            <div className="md:hidden space-y-0">
+              {paginatedData.map((row) => renderMobileCard(row))}
             </div>
+          )}
+
+          {/* Pagination controls */}
+          {pageSize && totalPages > 1 && (
+            <PaginationBar
+              page={page}
+              totalPages={totalPages}
+              totalItems={displayData.length}
+              pageSize={pageSize}
+              onPageChange={setPage}
+            />
           )}
         </>
       )}
+    </div>
+  )
+}
+
+function PaginationBar({
+  page,
+  totalPages,
+  totalItems,
+  pageSize,
+  onPageChange,
+}: {
+  page: number
+  totalPages: number
+  totalItems: number
+  pageSize: number
+  onPageChange: (p: number) => void
+}) {
+  const from = (page - 1) * pageSize + 1
+  const to = Math.min(page * pageSize, totalItems)
+
+  // Build visible page list: always show first/last, current ±1, with ellipsis gaps
+  function getPages(): (number | 'ellipsis')[] {
+    if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1)
+    const near = new Set([1, totalPages, page - 1, page, page + 1].filter((p) => p >= 1 && p <= totalPages))
+    const sorted = Array.from(near).sort((a, b) => a - b)
+    const result: (number | 'ellipsis')[] = []
+    for (let i = 0; i < sorted.length; i++) {
+      if (i > 0 && sorted[i] - sorted[i - 1] > 1) result.push('ellipsis')
+      result.push(sorted[i])
+    }
+    return result
+  }
+
+  const pages = getPages()
+
+  return (
+    <div className="flex items-center justify-between gap-4 pt-1">
+      <span className="text-xs text-muted-foreground shrink-0">
+        {from}–{to} of {totalItems}
+      </span>
+      <div className="flex items-center gap-1">
+        <button
+          onClick={() => onPageChange(page - 1)}
+          disabled={page === 1}
+          className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-30"
+          aria-label="Previous page"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </button>
+
+        {pages.map((p, i) =>
+          p === 'ellipsis' ? (
+            <span key={`ellipsis-${i}`} className="flex h-7 w-7 items-center justify-center text-xs text-muted-foreground">
+              …
+            </span>
+          ) : (
+            <button
+              key={p}
+              onClick={() => onPageChange(p)}
+              className={cn(
+                'flex h-7 w-7 items-center justify-center rounded-md text-xs transition-colors',
+                p === page
+                  ? 'bg-primary text-primary-foreground font-medium'
+                  : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+              )}
+              aria-current={p === page ? 'page' : undefined}
+            >
+              {p}
+            </button>
+          )
+        )}
+
+        <button
+          onClick={() => onPageChange(page + 1)}
+          disabled={page === totalPages}
+          className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-30"
+          aria-label="Next page"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </button>
+      </div>
     </div>
   )
 }

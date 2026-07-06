@@ -13,6 +13,7 @@ import { buildOverageAffordance } from '@/lib/billing/overage-affordance'
 import { isSupportedLanguage } from '@/lib/i18n/resolve-estimate-language'
 import { demoGuardResponse } from '@/lib/demo/guard'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
+import { requireServiceClient } from '@/lib/supabase/service'
 
 /**
  * Phase 91 (REC-03/REC-04): pure, exported helper deriving the Inngest event id
@@ -78,14 +79,59 @@ export async function POST(request: Request) {
       throw new XtimatorError('not_found', 'company', 'No company found')
     }
 
-    // QUOTA-03: gate dispatch — recordUsage now lives inside the Inngest function
+    // GUARD-DEMO: demo estimate quota — blocks free demo companies after 3 estimates.
+    // Paid tiers (pro/business) bypass this check entirely.
+    const svc = requireServiceClient()
+    const { data: companyRow } = await svc
+      .from('companies')
+      .select('demo_estimate_quota, tier')
+      .eq('id', companyId)
+      .single()
+
+    if (
+      companyRow &&
+      companyRow.demo_estimate_quota !== null &&
+      companyRow.tier !== 'pro' &&
+      companyRow.tier !== 'business'
+    ) {
+      const { count } = await svc
+        .from('estimates')
+        .select('id', { count: 'exact', head: true })
+        .eq('company_id', companyId)
+
+      if ((count ?? 0) >= companyRow.demo_estimate_quota) {
+        return NextResponse.json(
+          { error: 'plan_limit_reached', upgradeUrl: '/settings/billing' },
+          { status: 402 }
+        )
+      }
+    }
+
+    // Billing v2 — THE credit gate (the free-tier wall). Credits are the
+    // customer-facing meter: a spent balance blocks generation with an upgrade
+    // affordance. estimatedCredits: 1 = "block an empty balance" (per-op cost
+    // estimation is a calibration refinement, not needed for the wall). BYOK
+    // companies bypass inside checkCredits; enforcementEnabled=false (admin
+    // panel) reverts this to record-only.
+    const credit = await checkCredits(svc, companyId, 1)
+    if (!credit.allowed) {
+      const affordance = buildOverageAffordance(credit)
+      return NextResponse.json(
+        {
+          error: 'plan_limit_reached',
+          reason: 'credits',
+          upgradeUrl: '/settings/billing',
+          ...(affordance ? { topUpUrl: affordance.topUpUrl } : {}),
+        },
+        { status: 402 }
+      )
+    }
+
+    // QUOTA-03: count-based ceilings (anti-abuse on paid tiers; free is
+    // credit-gated above with null count limits). recordUsage lives inside the
+    // Inngest function.
     const { allowed } = await checkQuota(supabase, companyId, 'estimate')
     if (!allowed) {
-      // TOPUP-03 / MIG-01: ADDITIVE enrichment only. The count-based gate above
-      // is unchanged; credit enforcement is OFF this milestone (checkCredits
-      // keeps allowed:true), so this never introduces a new block — it only
-      // surfaces a top-up path on the SAME 402 the count path already returns.
-      const credit = await checkCredits(supabase, companyId)
       const affordance = buildOverageAffordance(credit)
       return NextResponse.json(
         {

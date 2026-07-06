@@ -35,8 +35,9 @@ const { getBillingConfig } = await import('@/lib/billing/billing-config')
 const { POST } = await import('@/app/api/billing/create-topup-session/route')
 
 const TOPUP_PACKS = [
-  { credits: 1000, priceCents: 1500 },
-  { credits: 5000, priceCents: 6000 },
+  { credits: 1300, priceCents: 2000 },
+  { credits: 3500, priceCents: 5000 },
+  { credits: 7500, priceCents: 10000 },
 ]
 
 function makeRequest(body: object) {
@@ -92,14 +93,39 @@ describe('POST /api/billing/create-topup-session (TOPUP-02 route)', () => {
 
     const arg = mockSessionCreate.mock.calls[0][0]
     expect(arg.mode).toBe('payment')
-    expect(arg.line_items[0].price_data.unit_amount).toBe(6000)
+    expect(arg.line_items[0].price_data.unit_amount).toBe(5000)
     expect(arg.line_items[0].price_data.currency).toBe('usd')
     // Inline price_data ONLY — never a pre-created Price id.
     expect(arg.line_items[0]).not.toHaveProperty('price')
     expect(arg.metadata.type).toBe('credit_topup')
     expect(arg.metadata.companyId).toBe('co_1')
     // credits travels as a STRING in metadata (Stripe metadata is string-only).
-    expect(arg.metadata.credits).toBe('5000')
+    expect(arg.metadata.credits).toBe('3500')
+  })
+
+  it("creates a session for packIndex: 2 (the $100 pack)", async () => {
+    vi.mocked(createClient).mockResolvedValue(
+      makeSupabaseMock(
+        { sub: 'user-1', email: 'u@test.com' },
+        { id: 'co_1', stripe_customer_id: null }
+      ) as never
+    )
+
+    const res = await POST(makeRequest({ packIndex: 2 }))
+    const body = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(body.url).toBe('https://checkout.stripe.com/pay/topup')
+    expect(mockSessionCreate).toHaveBeenCalledTimes(1)
+
+    const arg = mockSessionCreate.mock.calls[0][0]
+    expect(arg.mode).toBe('payment')
+    expect(arg.line_items[0].price_data.unit_amount).toBe(10000)
+    expect(arg.line_items[0].price_data.currency).toBe('usd')
+    expect(arg.line_items[0]).not.toHaveProperty('price')
+    expect(arg.metadata.type).toBe('credit_topup')
+    expect(arg.metadata.companyId).toBe('co_1')
+    expect(arg.metadata.credits).toBe('7500')
   })
 
   it('rejects an out-of-range packIndex with 400', async () => {

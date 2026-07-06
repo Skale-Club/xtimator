@@ -24,6 +24,8 @@ interface PhotoGridProps {
   onReorder: (reorderedPhotos: Photo[]) => void
   onDelete: (id: string) => void
   onPhotoClick: (index: number) => void
+  isAttached: (id: string) => boolean
+  onToggleAttach: (id: string) => void
 }
 
 function SortablePhoto({
@@ -31,11 +33,15 @@ function SortablePhoto({
   index,
   onDelete,
   onPhotoClick,
+  isAttached,
+  onToggleAttach,
 }: {
   photo: Photo
   index: number
   onDelete: (id: string) => void
   onPhotoClick: (index: number) => void
+  isAttached: (id: string) => boolean
+  onToggleAttach: (id: string) => void
 }) {
   const {
     attributes,
@@ -58,6 +64,8 @@ function SortablePhoto({
         photo={photo}
         onClick={() => onPhotoClick(index)}
         onDelete={onDelete}
+        isAttached={isAttached(photo.id)}
+        onToggleAttach={onToggleAttach}
       />
     </div>
   )
@@ -68,6 +76,8 @@ export function PhotoGrid({
   onReorder,
   onDelete,
   onPhotoClick,
+  isAttached,
+  onToggleAttach,
 }: PhotoGridProps) {
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -111,6 +121,8 @@ export function PhotoGrid({
               index={index}
               onDelete={onDelete}
               onPhotoClick={onPhotoClick}
+              isAttached={isAttached}
+              onToggleAttach={onToggleAttach}
             />
           ))}
         </div>

@@ -6,7 +6,7 @@ import { createServiceClient } from '@/lib/supabase/service'
  *
  * A typed, null-safe, SERVER-ONLY reader over the metadata-only
  * `platform_integrations` `billing_config` row. Mirrors
- * `getSelectedAIProvider()` (lib/platform-config.ts): reads `metadata` via
+ * `getOpenRouterDefaultModel()` (lib/platform-config.ts): reads `metadata` via
  * `createServiceClient()` (RLS-bypassing service role — never the browser
  * client) and merges the stored values over {@link DEFAULT_BILLING_CONFIG}.
  *
@@ -29,7 +29,7 @@ export type TierBilling = {
   // seat is included) — CALIBRATE BEFORE CHARGING (placeholder, not final).
   includedSeats: number
 }
-export type BillingTier = 'free' | 'trial' | 'pro' | 'business' // mirrors the TierName union
+export type BillingTier = 'free' | 'pro' | 'business' // mirrors the TierName union (Billing v2: 'trial' retired — free IS the trial via signupCreditGrant)
 
 export type BillingConfig = {
   markup: number // global multiplier; default 4.5 (per-op map = v2 GRAN-01 extension point)
@@ -45,11 +45,27 @@ export type BillingConfig = {
   meteredOperations: Record<string, boolean> // which ops debit vs absorbed (schema slot for Phase 112; minimal UI now)
   absorbedChatRateLimitPerMin: number // anti-abuse for absorbed chat; default 20
   /**
-   * Master charging switch (CREDIT-05). Default FALSE — debits RECORD but
-   * checkCredits NEVER blocks until Phase 116 calibration flips it on
-   * (calibrate before charging).
+   * Billing v2: one-time credit grant at FIRST-company signup — the free tier's
+   * entire allowance ("the free tier IS the trial": no clock, just this balance).
+   * Idempotent per company (ledger key `signup:{companyId}`); added companies by
+   * the same user do NOT re-grant (anti credit-farming, D-14 spirit).
+   */
+  signupCreditGrant: number
+  /**
+   * Master charging switch (CREDIT-05). Billing v2 flips the default to TRUE:
+   * the free-tier wall REQUIRES enforcement (zero balance → block + upgrade
+   * wall). Grant sizes/markup remain calibration knobs in this config; flipping
+   * this off via the admin panel instantly reverts to record-only.
    */
   enforcementEnabled: boolean
+  /**
+   * Platform-wide auto-top-up kill switch (CREDITUI-07). Mirrors
+   * enforcementEnabled's exact pattern: default FALSE. The tenant-facing
+   * "Enable auto-top-up" toggle only renders/functions when this is true —
+   * gives the owner a single instant-disable switch independent of each
+   * tenant's own opt-in (company.auto_topup_enabled).
+   */
+  autoTopupEnabled: boolean
 }
 
 /**
@@ -63,30 +79,47 @@ export const DEFAULT_BILLING_CONFIG: BillingConfig = {
   whisperUsdPerMinute: 0.006,
   estimateFeePct: 0.01,
   estimateFeeMinCents: 1,
-  // CALIBRATE BEFORE CHARGING, NOT a final number — null-safe placeholder so the
-  // reader resolves a seat price before any admin save (same discipline as markup/estimateFeePct).
-  seatPriceCents: 1500,
-  // CALIBRATE BEFORE CHARGING, NOT a final number — placeholder ≈ 10× monthly so the (later-derived) annual discount is visible.
-  seatPriceAnnualCents: 15000,
+  // Billing v2 (v1 launch decision): seats are FREE — teammates share the
+  // company's credit pool, so usage is already metered by credits and per-seat
+  // billing would be double-dipping. Price 0 makes computeSeatChargeCents a
+  // no-op, so inviting a teammate never adds a Stripe seat item. Set a price
+  // here (admin panel, no deploy) to enable seat billing later.
+  seatPriceCents: 0,
+  seatPriceAnnualCents: 0,
   // includedSeats per tier is a CALIBRATION PLACEHOLDER (the owner seat is bundled,
   // so each defaults to 1) — CALIBRATE BEFORE CHARGING, do not invent generous numbers.
   // subscriptionPriceAnnualCents per tier is also a CALIBRATION PLACEHOLDER (≈10× monthly
   // for paid tiers so the later-derived annual discount is visible, 0 for free/trial) —
   // CALIBRATE BEFORE CHARGING, do NOT present these as final pricing.
+  // Billing v2: paid grants sized to SATISFY the CALIB-02 margin invariant at
+  // the default markup (grant real cost ≤ 30% of price) since enforcement now
+  // defaults ON — pro 3500 ≈ 27% of $29, business 12000 ≈ 27% of $99. Still
+  // CALIBRATION PLACEHOLDERS: tune price/grant/markup together in the panel.
   tiers: {
     free: { monthlyCreditGrant: 0, subscriptionPriceCents: 0, subscriptionPriceAnnualCents: 0, includedSeats: 1 },
-    trial: { monthlyCreditGrant: 2000, subscriptionPriceCents: 0, subscriptionPriceAnnualCents: 0, includedSeats: 1 },
-    pro: { monthlyCreditGrant: 9000, subscriptionPriceCents: 2900, subscriptionPriceAnnualCents: 29000, includedSeats: 1 },
-    business: { monthlyCreditGrant: 30000, subscriptionPriceCents: 9900, subscriptionPriceAnnualCents: 99000, includedSeats: 1 },
+    pro: { monthlyCreditGrant: 3500, subscriptionPriceCents: 2900, subscriptionPriceAnnualCents: 29000, includedSeats: 1 },
+    business: { monthlyCreditGrant: 12000, subscriptionPriceCents: 9900, subscriptionPriceAnnualCents: 99000, includedSeats: 1 },
   },
+  // Billing v2 (CREDITUI-06): 3 dollar-denominated packs at $20/$50/$100.
+  // Credits-per-pack are CALIBRATE-BEFORE-CHARGING placeholders (mild volume
+  // discount curve consistent with the prior 2-pack ratio) — NOT final pricing.
   topUpPacks: [
-    { credits: 1000, priceCents: 1500 },
-    { credits: 5000, priceCents: 6000 },
+    { credits: 1300, priceCents: 2000 },
+    { credits: 3500, priceCents: 5000 },
+    { credits: 7500, priceCents: 10000 },
   ],
   lowBalanceThresholds: [200, 50],
   meteredOperations: { estimate: true, photo_batch: true, audio_minutes: true, price_research: true },
   absorbedChatRateLimitPerMin: 20,
-  enforcementEnabled: false,
+  // Billing v2: free-tier one-time allowance. CALIBRATE (sized ≈ a handful of
+  // estimates at the default markup); adjustable at runtime via the admin panel.
+  signupCreditGrant: 2000,
+  // Billing v2: enforcement ON — the free wall depends on it (see type docs).
+  enforcementEnabled: true,
+  // Phase 153 (CREDITUI-07): auto-top-up kill switch defaults OFF, mirroring
+  // enforcementEnabled's exact pattern — flip on only after the tenant-facing
+  // settings UI (Plan 03) and the trigger core (this plan) are both verified.
+  autoTopupEnabled: false,
 }
 
 // 30s TTL cache mirroring brandingCache (lib/platform-config.ts). The

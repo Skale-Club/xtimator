@@ -51,20 +51,20 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Set up Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
 
       - name: Log in to GHCR
-        uses: docker/login-action@v3
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
         with:
           context: .
           push: true
@@ -79,14 +79,15 @@ jobs:
           # NEXT_PUBLIC_* are PUBLIC build args (inlined into the client bundle),
           # NOT secrets — they come from vars.* except SITE_URL (hardcoded above).
           build-args: |
-            NEXT_PUBLIC_SUPABASE_URL=${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
-            NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-            NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${{ vars.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
-            NEXT_PUBLIC_SITE_URL=${{ env.SITE_URL }}
-            NEXT_PUBLIC_TURNSTILE_SITE_KEY=${{ vars.NEXT_PUBLIC_TURNSTILE_SITE_KEY }}
-            NEXT_PUBLIC_SENTRY_DSN=${{ vars.NEXT_PUBLIC_SENTRY_DSN }}
+            PUBLIC_SUPABASE_URL=${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+            PUBLIC_SUPABASE_ANON_VALUE=${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+            PUBLIC_SUPABASE_PUBLISHABLE_VALUE=${{ vars.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+            PUBLIC_SITE_URL=${{ env.SITE_URL }}
+            PUBLIC_TURNSTILE_SITE_VALUE=${{ vars.NEXT_PUBLIC_TURNSTILE_SITE_KEY }}
+            PUBLIC_SENTRY_DSN=${{ vars.NEXT_PUBLIC_SENTRY_DSN }}
             SENTRY_ORG=${{ vars.SENTRY_ORG }}
             SENTRY_PROJECT=${{ vars.SENTRY_PROJECT }}
+            DEPLOYMENT_VERSION=${{ github.sha }}
           # SENTRY_AUTH_TOKEN is passed as a Docker build secret — never baked
           # into any image layer. Absent token silently skips source map upload.
           secrets: |

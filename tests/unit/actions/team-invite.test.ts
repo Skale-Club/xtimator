@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
+// lib/actions/team loads next/headers and server-action internals; the lazy
+// import inside each test can exceed 5s under fork-pool contention.
+vi.setConfig({ testTimeout: 15_000, hookTimeout: 15_000 })
+
 /**
  * SEAT-03 — inviteMember + revokeInvite server actions (lib/actions/team.ts).
  *
@@ -110,11 +114,12 @@ describe('SEAT-03: inviteMember', () => {
   it('happy path: inserts a pending invite, emails the token, returns success without the token', async () => {
     const { inviteMember } = await import('@/lib/actions/team')
 
-    const result = await inviteMember('c1', 'New@Person.com', 'member')
+    const result = await inviteMember('c1', 'New Person', 'New@Person.com', 'member')
 
     expect(invitesInsert).toHaveBeenCalledTimes(1)
     const inserted = invitesInsert.mock.calls[0][0] as Record<string, unknown>
     expect(inserted.company_id).toBe('c1')
+    expect(inserted.display_name).toBe('New Person')
     expect(inserted.email).toBe('new@person.com')
     expect(inserted.role).toBe('member')
     expect(inserted.status).toBe('pending')
@@ -135,7 +140,7 @@ describe('SEAT-03: inviteMember', () => {
   it('never returns the raw token to the client', async () => {
     const { inviteMember } = await import('@/lib/actions/team')
 
-    const result = await inviteMember('c1', 'a@b.co', 'member')
+    const result = await inviteMember('c1', 'A Person', 'a@b.co', 'member')
 
     expect(result).toEqual({ success: true })
     expect(Object.keys(result as object)).not.toContain('token')
@@ -147,7 +152,7 @@ describe('SEAT-03: inviteMember', () => {
     requireCompanyManager.mockRejectedValueOnce(new Error('forbidden'))
     const { inviteMember } = await import('@/lib/actions/team')
 
-    const result = await inviteMember('c1', 'a@b.co', 'member')
+    const result = await inviteMember('c1', 'A Person', 'a@b.co', 'member')
 
     expect(result).toHaveProperty('error')
     expect(invitesInsert).not.toHaveBeenCalled()
@@ -157,7 +162,7 @@ describe('SEAT-03: inviteMember', () => {
   it('rejects an invalid email before any DB write', async () => {
     const { inviteMember } = await import('@/lib/actions/team')
 
-    const result = await inviteMember('c1', 'not-an-email', 'member')
+    const result = await inviteMember('c1', 'A Person', 'not-an-email', 'member')
 
     expect(result).toHaveProperty('error')
     expect(invitesInsert).not.toHaveBeenCalled()
@@ -167,7 +172,7 @@ describe('SEAT-03: inviteMember', () => {
   it("rejects role 'owner'", async () => {
     const { inviteMember } = await import('@/lib/actions/team')
 
-    const result = await inviteMember('c1', 'a@b.co', 'owner' as 'member')
+    const result = await inviteMember('c1', 'A Person', 'a@b.co', 'owner' as 'member')
 
     expect(result).toHaveProperty('error')
     expect(invitesInsert).not.toHaveBeenCalled()
@@ -177,7 +182,7 @@ describe('SEAT-03: inviteMember', () => {
     membersSelectResult.data = [{ email: 'a@b.co' }]
     const { inviteMember } = await import('@/lib/actions/team')
 
-    const result = await inviteMember('c1', 'A@b.co', 'member')
+    const result = await inviteMember('c1', 'A Person', 'A@b.co', 'member')
 
     expect(result).toHaveProperty('error')
     expect(invitesInsert).not.toHaveBeenCalled()
@@ -188,7 +193,17 @@ describe('SEAT-03: inviteMember', () => {
     pendingInviteResult.data = [{ id: 'inv_existing' }]
     const { inviteMember } = await import('@/lib/actions/team')
 
-    const result = await inviteMember('c1', 'a@b.co', 'member')
+    const result = await inviteMember('c1', 'A Person', 'a@b.co', 'member')
+
+    expect(result).toHaveProperty('error')
+    expect(invitesInsert).not.toHaveBeenCalled()
+    expect(sendInviteEmail).not.toHaveBeenCalled()
+  })
+
+  it('rejects an empty display name before any DB write', async () => {
+    const { inviteMember } = await import('@/lib/actions/team')
+
+    const result = await inviteMember('c1', '   ', 'a@b.co', 'member')
 
     expect(result).toHaveProperty('error')
     expect(invitesInsert).not.toHaveBeenCalled()

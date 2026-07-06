@@ -1,6 +1,27 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import type React from 'react'
+import {
+  IconArgentina,
+  IconAustralia,
+  IconBrazil,
+  IconCanada,
+  IconChile,
+  IconColombia,
+  IconFrance,
+  IconGermany,
+  IconIndia,
+  IconItaly,
+  IconJapan,
+  IconMexico,
+  IconNetherlands,
+  IconPortugal,
+  IconSpain,
+  IconUnitedKingdom,
+  IconUnitedStates,
+  IconUruguay,
+} from 'nucleo-flags'
 import {
   Select,
   SelectContent,
@@ -12,6 +33,34 @@ import {
 } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
 import { COUNTRIES, applyMask, maxDigits, type Country } from '@/lib/phone/countries'
+
+type FlagComponent = React.ComponentType<React.SVGProps<SVGSVGElement> & { size?: number | string }>
+
+const FLAG_MAP: Record<string, FlagComponent> = {
+  AR: IconArgentina,
+  AU: IconAustralia,
+  BR: IconBrazil,
+  CA: IconCanada,
+  CL: IconChile,
+  CO: IconColombia,
+  DE: IconGermany,
+  ES: IconSpain,
+  FR: IconFrance,
+  GB: IconUnitedKingdom,
+  IN: IconIndia,
+  IT: IconItaly,
+  JP: IconJapan,
+  MX: IconMexico,
+  NL: IconNetherlands,
+  PT: IconPortugal,
+  US: IconUnitedStates,
+  UY: IconUruguay,
+}
+
+function FlagSvg({ code, className }: { code: string; className?: string }) {
+  const Comp = FLAG_MAP[code] ?? IconUnitedStates
+  return <Comp className={className} size={20} />
+}
 
 const preferred = COUNTRIES.filter(c => c.preferred)
 const others = COUNTRIES.filter(c => !c.preferred)
@@ -137,9 +186,9 @@ export function PhoneInput({
   return (
     <div className={`flex gap-2 ${className ?? ''}`}>
       <Select value={countryCode} onValueChange={handleCountryChange} disabled={disabled}>
-        <SelectTrigger className="w-[108px] shrink-0 gap-1.5">
+        <SelectTrigger className="w-[100px] shrink-0 min-h-[44px] gap-1.5">
           <span className="flex items-center gap-1.5 text-sm">
-            <span>{country.flag}</span>
+            <FlagSvg code={countryCode} className="shrink-0 rounded-sm" />
             <span className="text-muted-foreground">+{country.dial}</span>
           </span>
         </SelectTrigger>
@@ -149,7 +198,7 @@ export function PhoneInput({
             {preferred.map(c => (
               <SelectItem key={c.code} value={c.code}>
                 <span className="flex items-center gap-2 min-w-0">
-                  <span>{c.flag}</span>
+                  <FlagSvg code={c.code} className="shrink-0 rounded-sm" />
                   <span className="truncate">{c.name}</span>
                   <span className="ml-auto pl-3 text-muted-foreground shrink-0">+{c.dial}</span>
                 </span>
@@ -162,7 +211,7 @@ export function PhoneInput({
             {others.map(c => (
               <SelectItem key={c.code} value={c.code}>
                 <span className="flex items-center gap-2 min-w-0">
-                  <span>{c.flag}</span>
+                  <FlagSvg code={c.code} className="shrink-0 rounded-sm" />
                   <span className="truncate">{c.name}</span>
                   <span className="ml-auto pl-3 text-muted-foreground shrink-0">+{c.dial}</span>
                 </span>

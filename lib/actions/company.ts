@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
 import { redirect } from 'next/navigation'
-import { revalidatePath, revalidateTag } from 'next/cache'
+import { revalidatePath, updateTag } from 'next/cache'
 import { cookies } from 'next/headers'
 import { DEFAULT_CURRENCY_CODE, normalizeCurrencyCode } from '@/lib/money/currency'
 import {
@@ -13,11 +13,12 @@ import {
   getActiveCompanyId,
 } from '@/lib/queries/active-company'
 import { sendWelcomeEmail } from '@/lib/email/account-emails'
-import { syncOwnerPhone } from '@/lib/whatsapp/sync-owner-phone'
 import { dispatchXphereSync } from '@/lib/integrations/xphere/dispatch'
 import { seedIndustryPriceBook } from '@/lib/price-book-seed'
 import { getDefaultTaxRate } from '@/lib/tax-rates'
 import { resolveIndustries } from '@/lib/industries'
+import { captureBackgroundError } from '@/lib/observability/capture'
+import { grantSignupCredits, grantMonthlyCredits } from '@/lib/billing/credit-ledger'
 
 interface CompanyFormData {
   companyName?: string
@@ -114,39 +115,33 @@ export async function createOrUpdateCompany(
 
   if (mode === 'add') {
     // D-13: 'add' mode is unconditional INSERT. We do NOT SELECT first.
-    // D-14 / D-15: resolve the "source" company for tier/trial inheritance.
+    // D-14: resolve the "source" company for TIER inheritance — an added company
+    // by the same user inherits the tier and gets NO fresh signup credit grant
+    // (Billing v2 anti credit-farming: fresh free allowances come only from a
+    // genuinely new account's first company).
     const sourceCompanyId = await getActiveCompanyId()
     let inheritedTier: string | undefined
-    let inheritedTrialEndsAt: string | null | undefined
 
     if (sourceCompanyId) {
       const { data: source } = await supabase
         .from('companies')
-        .select('tier, tier_trial_ends_at')
+        .select('tier')
         .eq('id', sourceCompanyId)
         .single()
 
       if (source) {
         inheritedTier = source.tier as string
-        // D-15: copy literal value — past, future, or null. Never fresh.
-        inheritedTrialEndsAt = (source.tier_trial_ends_at as string | null) ?? null
       }
     }
 
-    // Build INSERT row. If we resolved a source, spread inheritance.
-    // Otherwise fall back to TIER-04 default (fresh 14-day trial) — degenerate path,
-    // realistically only tests trigger this; Phase 80 UI requires a source company.
+    // Build INSERT row. If we resolved a source, inherit its tier; otherwise the
+    // DB DEFAULT 'free' applies (degenerate path — Phase 80 UI requires a source).
     //
     // Phase 85: companies.user_id stays NOT NULL until v5+ drops the column.
     // INSERT WITH CHECK still requires (user_id = auth.uid()). Set it explicitly to claims.sub.
     const insertRow: Record<string, unknown> = { ...row, user_id: claims.sub }
     if (inheritedTier !== undefined) {
       insertRow.tier = inheritedTier
-      insertRow.tier_trial_ends_at = inheritedTrialEndsAt
-    } else {
-      const trialEndsAt = new Date()
-      trialEndsAt.setDate(trialEndsAt.getDate() + 14)
-      insertRow.tier_trial_ends_at = trialEndsAt.toISOString()
     }
 
     const { data: inserted, error: insertErr } = await supabase
@@ -183,20 +178,22 @@ export async function createOrUpdateCompany(
       }
     }
 
-    // Auto-fill the creating user's personal WhatsApp number from the company phone.
-    // At creation there is exactly one user (the owner) so the company phone becomes
-    // their default WhatsApp routing number. Tied to claims.sub so it surfaces in their
-    // Profile settings; additional users later get a blank field until they set their own.
-    // NOTE (Phase 98): the onboarding phone is the company's client-facing contact
-    // (companies.phone, shown on estimates). The owner's WhatsApp line is normally their
-    // PROFILE phone, synced to company_whatsapp.owner_phone in updateProfile; this is just
-    // a one-time creation-time seed and updateProfile overwrites it thereafter.
-    syncOwnerPhone(service, newCompanyId, data.phone, claims.sub as string).catch(() => undefined)
+    // Billing v2: an added company on an inherited PAID tier gets this month's
+    // credit grant immediately (keyed on the SAME company-month key the monthly
+    // cron uses, so the cron later no-ops — never a double grant). Inherited
+    // free tier gets NOTHING (anti credit-farming). Fire-and-forget.
+    if (inheritedTier === 'pro' || inheritedTier === 'business') {
+      grantMonthlyCredits(newCompanyId, inheritedTier, 'company-added').catch(
+        captureBackgroundError('company.addedCompanyGrant'),
+      )
+    }
 
     // Seed industry-specific price book defaults — ONLY when the user opted in
     // (fire-and-forget). Unchecked → the price book starts empty.
     if (data.prefillPriceBook) {
-      seedIndustryPriceBook(service, newCompanyId, resolvedIndustries, row.currency_code).catch(() => undefined)
+      seedIndustryPriceBook(service, newCompanyId, resolvedIndustries, row.currency_code).catch(
+        captureBackgroundError('company.seedPriceBook'),
+      )
     }
 
     // Send welcome email to new account owner (fire-and-forget)
@@ -205,7 +202,7 @@ export async function createOrUpdateCompany(
       toEmail: userEmail ?? data.email ?? '',
       ownerName: data.ownerName,
       companyName: data.companyName ?? 'My Company',
-    }).catch(() => undefined)
+    }).catch(captureBackgroundError('company.welcomeEmail'))
 
     // Mirror the new company into Xphere CRM (fire-and-forget).
     dispatchXphereSync(newCompanyId, 'company.created')
@@ -222,7 +219,7 @@ export async function createOrUpdateCompany(
       sameSite: 'lax',
     })
 
-    ;(revalidateTag as any)('company')
+    updateTag('company')
     revalidatePath('/', 'layout')
     redirect('/dashboard')
   }
@@ -248,25 +245,17 @@ export async function createOrUpdateCompany(
           'Could not save your company details. Please check your connection and try again.',
       }
     }
-    // Sync owner phone for existing company update (tie to the editing user's row).
-    // (Phase 98) Company phone is the client-facing estimate contact; the owner's
-    // WhatsApp line is primarily synced from their profile phone in updateProfile.
-    const svcUpdate = requireServiceClient()
-    syncOwnerPhone(svcUpdate, existing.id, data.phone, claims.sub as string).catch(() => undefined)
 
     // Mirror the company update into Xphere CRM (fire-and-forget).
     dispatchXphereSync(existing.id, 'company.updated')
   } else {
-    // Insert new company
-    // TIER-04: new companies start with a 14-day trial clock.
-    // tier itself uses the DB DEFAULT 'free' — no need to pass it explicitly.
-    // tier_trial_ends_at is set ONLY in INSERT, never in UPDATE, to avoid resetting on settings saves.
-    const trialEndsAt = new Date()
-    trialEndsAt.setDate(trialEndsAt.getDate() + 14)
-
+    // Insert new company.
+    // Billing v2: the free tier IS the trial — no 14-day clock. tier uses the DB
+    // DEFAULT 'free'; the one-time signup credit grant (below) is the entire
+    // free allowance, and the credit gate is the wall once it's spent.
     const { data: newCompany, error } = await supabase
       .from('companies')
-      .insert({ ...row, tier_trial_ends_at: trialEndsAt.toISOString() })
+      .insert(row)
       .select('id')
       .single()
 
@@ -285,16 +274,19 @@ export async function createOrUpdateCompany(
       role: 'owner',
     })
 
-    // Auto-fill the creating user's personal WhatsApp number from the company phone
-    // (single user at creation → company phone becomes their default routing number).
-    // (Phase 98) This is only a creation-time seed; owner_phone is primarily synced
-    // from the owner's profile phone in updateProfile thereafter.
-    syncOwnerPhone(service, newCompany.id, data.phone, claims.sub as string).catch(() => undefined)
+    // Billing v2: one-time signup credit grant — the free tier's allowance.
+    // Idempotent (ledger key `signup:{companyId}`); fire-and-forget so a grant
+    // hiccup never breaks onboarding, but observable via Sentry.
+    grantSignupCredits(newCompany.id).catch(
+      captureBackgroundError('company.signupCreditGrant'),
+    )
 
     // Seed industry-specific price book defaults — ONLY when the user opted in
     // (fire-and-forget). Unchecked → the price book starts empty.
     if (data.prefillPriceBook) {
-      seedIndustryPriceBook(service, newCompany.id, resolvedIndustries, row.currency_code).catch(() => undefined)
+      seedIndustryPriceBook(service, newCompany.id, resolvedIndustries, row.currency_code).catch(
+        captureBackgroundError('company.seedPriceBook'),
+      )
     }
 
     // Send welcome email (fire-and-forget)
@@ -303,7 +295,7 @@ export async function createOrUpdateCompany(
       toEmail: userEmail2 ?? data.email ?? '',
       ownerName: data.ownerName,
       companyName: data.companyName ?? 'My Company',
-    }).catch(() => undefined)
+    }).catch(captureBackgroundError('company.welcomeEmail'))
 
     // Mirror the new company into Xphere CRM (fire-and-forget).
     dispatchXphereSync(newCompany.id, 'company.created')
@@ -321,7 +313,7 @@ export async function createOrUpdateCompany(
     sameSite: 'lax',
   })
 
-  ;(revalidateTag as any)('company')
+  updateTag('company')
   revalidatePath('/', 'layout')
   redirect('/dashboard')
 }

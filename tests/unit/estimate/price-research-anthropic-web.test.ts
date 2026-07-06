@@ -159,6 +159,54 @@ describe('makeAnthropicWebProvider — evidence gate', () => {
     expect(isUsableCandidate(out[0])).toBe(false)
   })
 
+  it('warns loudly when results parse but ZERO citations are indexed — evidence gate untouched (D4)', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      // Parseable results but NO citations in any block — the silent 97%
+      // evidence-gate-rejection mode. Must warn while staying gated.
+      createMock.mockResolvedValue({
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              results: [
+                {
+                  name: 'Drywall repair',
+                  unit_price: 150,
+                  currency: 'USD',
+                  source_url: 'https://example.com/drywall-prices',
+                  snippet: 'no citation backing',
+                },
+              ],
+            }),
+          },
+        ],
+      })
+
+      const out = await makeAnthropicWebProvider().lookup(
+        [{ name: 'Drywall repair' }],
+        region,
+        'USD'
+      )
+
+      const msg = String(
+        warnSpy.mock.calls
+          .map((c) => c[0])
+          .find((m) => String(m).includes('[price-research]'))
+      )
+      expect(msg).toContain('[price-research]')
+      expect(msg).toContain('0 citations indexed')
+
+      // The evidence gate itself is UNTOUCHED — the result stays gated.
+      expect(out).toHaveLength(1)
+      expect(out[0].source_url).toBeNull()
+      expect(out[0].snippet).toBeNull()
+      expect(isUsableCandidate(out[0])).toBe(false)
+    } finally {
+      warnSpy.mockRestore()
+    }
+  })
+
   it('returns one miss per unanswered requested item', async () => {
     createMock.mockResolvedValue(citedResponse())
 

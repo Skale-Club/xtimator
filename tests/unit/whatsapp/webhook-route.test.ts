@@ -23,6 +23,17 @@ vi.mock('@/lib/whatsapp/send-welcome', () => ({
   welcomeOnFirstContact: vi.fn().mockResolvedValue(true),
 }))
 
+vi.mock('@/lib/whatsapp/account-registry', () => ({
+  findActiveWhatsAppSender: vi.fn().mockResolvedValue(null),
+  getWhatsAppAccountStatus: vi.fn(),
+  normalizeWhatsAppPhone: vi.fn((p: string) => {
+    if (!p) return null
+    const digits = p.replace(/[^\d]/g, '')
+    if (digits.length < 7 || digits.length > 15) return null
+    return `+${digits}`
+  }),
+}))
+
 // Mock next/server after() to be a no-op in tests
 vi.mock('next/server', async (importOriginal) => {
   const actual = await importOriginal<typeof import('next/server')>()
@@ -34,6 +45,7 @@ import { requireServiceClient } from '@/lib/supabase/service'
 import { processInboundWithDebounce } from '@/lib/whatsapp/handler'
 import { sendWhatsAppMessage } from '@/lib/whatsapp/client'
 import { welcomeOnFirstContact } from '@/lib/whatsapp/send-welcome'
+import { findActiveWhatsAppSender } from '@/lib/whatsapp/account-registry'
 import { GET, POST } from '@/app/api/webhooks/whatsapp/route'
 
 const mockVerify = vi.mocked(verifyWebhookSignature)
@@ -41,21 +53,11 @@ const mockServiceClient = vi.mocked(requireServiceClient)
 const mockProcessInbound = vi.mocked(processInboundWithDebounce)
 const mockSendWhatsApp = vi.mocked(sendWhatsAppMessage)
 const mockWelcome = vi.mocked(welcomeOnFirstContact)
+const mockFindSender = vi.mocked(findActiveWhatsAppSender)
 
-/** fromMock for an owner resolved via Route 1 (company_whatsapp.owner_phone). */
+/** fromMock for an owner resolved via Route 1 (findActiveWhatsAppSender). */
 function makeOwnerResolvedFromMock(companyId: string, dedupError: unknown = null) {
   return vi.fn().mockImplementation((table: string) => {
-    if (table === 'company_whatsapp') {
-      return {
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              maybeSingle: vi.fn().mockResolvedValue({ data: { company_id: companyId }, error: null }),
-            }),
-          }),
-        }),
-      }
-    }
     if (table === 'whatsapp_processed_messages') {
       return { insert: vi.fn().mockResolvedValue({ error: dedupError }) }
     }
@@ -134,6 +136,8 @@ describe('POST /api/webhooks/whatsapp', () => {
     mockSendWhatsApp.mockResolvedValue(undefined)
     mockWelcome.mockReset()
     mockWelcome.mockResolvedValue(true)
+    mockFindSender.mockReset()
+    mockFindSender.mockResolvedValue(null)
   })
 
   it('returns 401 when signature verification fails', async () => {
@@ -155,38 +159,18 @@ describe('POST /api/webhooks/whatsapp', () => {
     expect(mockServiceClient).not.toHaveBeenCalled()
   })
 
-  it('returns 200 and replies with setup guidance for an unknown sender', async () => {
+  it('returns 200 and replies with admin guidance for an unknown sender', async () => {
     mockVerify.mockReturnValue(true)
+    // findActiveWhatsAppSender returns null (no active sender for this phone)
+    mockFindSender.mockResolvedValue(null)
 
     const fromMock = vi.fn().mockImplementation((table: string) => {
-      if (table === 'company_whatsapp') {
-        return {
-          select: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              eq: vi.fn().mockReturnValue({
-                maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
-              }),
-            }),
-          }),
-        }
-      }
-      if (table === 'companies') {
-        return {
-          select: vi.fn().mockReturnValue({
-            ilike: vi.fn().mockReturnValue({
-              limit: vi.fn().mockResolvedValue({ data: [], error: null }),
-            }),
-          }),
-        }
-      }
       if (table === 'whatsapp_conversations') {
         return {
           select: vi.fn().mockReturnValue({
             eq: vi.fn().mockReturnValue({
               order: vi.fn().mockReturnValue({
-                limit: vi.fn().mockReturnValue({
-                  maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
-                }),
+                limit: vi.fn().mockResolvedValue({ data: [], error: null }),
               }),
             }),
           }),
@@ -196,9 +180,7 @@ describe('POST /api/webhooks/whatsapp', () => {
         return {
           select: vi.fn().mockReturnValue({
             eq: vi.fn().mockReturnValue({
-              limit: vi.fn().mockReturnValue({
-                maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
-              }),
+              limit: vi.fn().mockResolvedValue({ data: [], error: null }),
             }),
           }),
         }
@@ -228,7 +210,7 @@ describe('POST /api/webhooks/whatsapp', () => {
         expect.objectContaining({
           type: 'text',
           text: expect.objectContaining({
-            body: expect.stringContaining('Xtimator account'),
+            body: expect.stringContaining('administrator'),
           }),
         })
       )
@@ -237,6 +219,12 @@ describe('POST /api/webhooks/whatsapp', () => {
 
   it('fires the first-contact welcome for an owner-resolved message, then still processes it', async () => {
     mockVerify.mockReturnValue(true)
+    // Route 1: findActiveWhatsAppSender returns a match
+    mockFindSender.mockResolvedValue({
+      companyId: 'company-7',
+      userId: 'user-owner',
+      phoneE164: '+15551234567',
+    })
     const serviceClient = { from: makeOwnerResolvedFromMock('company-7') } as unknown as ReturnType<typeof requireServiceClient>
     mockServiceClient.mockReturnValue(serviceClient)
 
@@ -259,6 +247,11 @@ describe('POST /api/webhooks/whatsapp', () => {
 
   it('does NOT fire the welcome when the message is a duplicate (dedup short-circuits)', async () => {
     mockVerify.mockReturnValue(true)
+    mockFindSender.mockResolvedValue({
+      companyId: 'company-7',
+      userId: 'user-owner',
+      phoneE164: '+15551234567',
+    })
     const serviceClient = {
       from: makeOwnerResolvedFromMock('company-7', { code: '23505' }),
     } as unknown as ReturnType<typeof requireServiceClient>
@@ -274,27 +267,22 @@ describe('POST /api/webhooks/whatsapp', () => {
     expect(mockProcessInbound).not.toHaveBeenCalled()
   })
 
-  it('routes first owner audio messages by normalized companies.phone fallback', async () => {
+  it('routes via conversation fallback when sender is not active but conversation exists in exactly one company', async () => {
     mockVerify.mockReturnValue(true)
+    // Route 1: no active sender
+    mockFindSender.mockResolvedValue(null)
+
     const fromMock = vi.fn().mockImplementation((table: string) => {
-      if (table === 'company_whatsapp') {
+      if (table === 'whatsapp_conversations') {
+        // Single company in conversation history → exact match
         return {
           select: vi.fn().mockReturnValue({
             eq: vi.fn().mockReturnValue({
-              eq: vi.fn().mockReturnValue({
-                maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
-              }),
-            }),
-          }),
-        }
-      }
-      if (table === 'companies') {
-        return {
-          select: vi.fn().mockReturnValue({
-            ilike: vi.fn().mockReturnValue({
-              limit: vi.fn().mockResolvedValue({
-                data: [{ id: 'company-1', phone: '555-123-4567' }],
-                error: null,
+              order: vi.fn().mockReturnValue({
+                limit: vi.fn().mockResolvedValue({
+                  data: [{ company_id: 'company-conv' }],
+                  error: null,
+                }),
               }),
             }),
           }),
@@ -303,35 +291,19 @@ describe('POST /api/webhooks/whatsapp', () => {
       if (table === 'whatsapp_processed_messages') {
         return { insert: vi.fn().mockResolvedValue({ error: null }) }
       }
-      if (table === 'whatsapp_conversations') {
-        return {
-          select: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              order: vi.fn().mockReturnValue({
-                limit: vi.fn().mockReturnValue({
-                  maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
-                }),
-              }),
-            }),
-          }),
-        }
-      }
-      if (table === 'clients') {
-        return {
-          select: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
+      return {
+        insert: vi.fn().mockResolvedValue({ error: null }),
+        update: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) }),
+        }),
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            order: vi.fn().mockReturnValue({
               limit: vi.fn().mockReturnValue({
                 maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
               }),
             }),
-          }),
-        }
-      }
-      return {
-        insert: vi.fn().mockResolvedValue({ error: null }),
-        update: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            eq: vi.fn().mockResolvedValue({ error: null }),
+            maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
           }),
         }),
       }
@@ -343,14 +315,7 @@ describe('POST /api/webhooks/whatsapp', () => {
       entry: [{
         changes: [{
           value: {
-            contacts: [{ profile: { name: 'Owner' }, wa_id: '15551234567' }],
-            messages: [{
-              id: 'wamid.audio123',
-              from: '15551234567',
-              timestamp: '1234567890',
-              type: 'audio',
-              audio: { id: 'media-audio-id', mime_type: 'audio/ogg' },
-            }],
+            messages: [{ id: 'wamid.conv1', from: '15551234567', type: 'text', text: { body: 'Hi again' } }],
           },
         }],
       }],
@@ -361,11 +326,70 @@ describe('POST /api/webhooks/whatsapp', () => {
     expect(res.status).toBe(200)
     await vi.waitFor(() => {
       expect(mockProcessInbound).toHaveBeenCalledWith(
-        expect.objectContaining({ id: 'wamid.audio123', type: 'audio' }),
-        'company-1',
+        expect.objectContaining({ id: 'wamid.conv1', type: 'text' }),
+        'company-conv',
         '15551234567',
         serviceClient
       )
     })
+  })
+
+  it('fails closed on ambiguous conversation (multiple companies) — no routing', async () => {
+    mockVerify.mockReturnValue(true)
+    // Route 1: no active sender
+    mockFindSender.mockResolvedValue(null)
+
+    const fromMock = vi.fn().mockImplementation((table: string) => {
+      if (table === 'whatsapp_conversations') {
+        // Two different companies in conversation history → ambiguous
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              order: vi.fn().mockReturnValue({
+                limit: vi.fn().mockResolvedValue({
+                  data: [{ company_id: 'company-a' }, { company_id: 'company-b' }],
+                  error: null,
+                }),
+              }),
+            }),
+          }),
+        }
+      }
+      if (table === 'clients') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              limit: vi.fn().mockResolvedValue({ data: [], error: null }),
+            }),
+          }),
+        }
+      }
+      return { insert: vi.fn().mockResolvedValue({ error: null }) }
+    })
+    mockServiceClient.mockReturnValue({
+      from: fromMock,
+    } as unknown as ReturnType<typeof requireServiceClient>)
+
+    const messagePayload = JSON.stringify({
+      entry: [{
+        changes: [{
+          value: {
+            messages: [{ id: 'wamid.ambig1', from: '15551234567', type: 'text', text: { body: 'Hello' } }],
+          },
+        }],
+      }],
+    })
+    const req = makeRequest('POST', 'http://localhost/api/webhooks/whatsapp', messagePayload)
+    const res = await POST(req)
+    expect(res.status).toBe(200)
+
+    // Should NOT process — ambiguous conversation, fail closed
+    await new Promise((r) => setTimeout(r, 10))
+    expect(mockProcessInbound).not.toHaveBeenCalled()
+    // Should reply with guidance
+    expect(mockSendWhatsApp).toHaveBeenCalledWith(
+      '+15551234567',
+      expect.objectContaining({ type: 'text' })
+    )
   })
 })

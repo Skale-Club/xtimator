@@ -275,90 +275,10 @@ describe('payment.received instrumentation', () => {
 })
 
 // ----------------------------------------------------------------------
-// Block E — trial.expired cron
+// Blocks E/F (trial.expired / trial.expiring_3d crons) were REMOVED in
+// Billing v2: the 14-day trial is retired — the free tier IS the trial via the
+// one-time signup credit grant, and the trial crons no longer exist.
 // ----------------------------------------------------------------------
-describe('trial.expired instrumentation', () => {
-  beforeEach(() => vi.clearAllMocks())
-
-  it('expire-trials cron fires notify({eventType:"trial.expired"}) with force email channel', async () => {
-    const expiredRows = [{ id: 'co_t1', user_id: 'user_t1' }]
-    const lt = vi.fn().mockResolvedValue({ data: expiredRows, error: null })
-    const notFn = vi.fn().mockReturnValue({ lt })
-    const eq = vi.fn().mockReturnValue({ not: notFn })
-    const select = vi.fn().mockReturnValue({ eq })
-    const updateIn = vi.fn().mockResolvedValue({ error: null })
-    const update = vi.fn().mockReturnValue({ in: updateIn })
-    const svc = { from: vi.fn().mockReturnValue({ select, update }) }
-
-    vi.doMock('@/lib/supabase/service', () => ({
-      requireServiceClient: () => svc,
-    }))
-    process.env.CRON_SECRET = 'topsecret'
-
-    const { GET } = await import('@/app/api/cron/expire-trials/route')
-    await GET(new Request('http://x/cron', {
-      headers: { authorization: 'Bearer topsecret' },
-    }))
-
-    const { notify } = await import('@/lib/notifications/dispatch')
-    const calls = (notify as ReturnType<typeof vi.fn>).mock.calls
-    const match = calls.find((c) => (c[0] as { eventType: string }).eventType === 'trial.expired')
-    expect(match).toBeDefined()
-    const params = match![0] as Record<string, unknown>
-    expect((params.channels as { email?: boolean; inApp?: boolean } | undefined)?.email).toBe(true)
-    expect((params.channels as { email?: boolean; inApp?: boolean } | undefined)?.inApp).toBe(true)
-
-    vi.doUnmock('@/lib/supabase/service')
-  })
-})
-
-// ----------------------------------------------------------------------
-// Block F — trial.expiring_3d cron
-// ----------------------------------------------------------------------
-describe('trial.expiring_3d instrumentation', () => {
-  beforeEach(() => vi.clearAllMocks())
-
-  it('trial-warning-emails cron fires notify({eventType:"trial.expiring_3d"}) for T-3 cohort', async () => {
-    const t3 = [{ id: 'co_w1', name: 'BizA', user_id: 'user_w1' }]
-    const t0: Array<{ id: string; name: string; user_id: string }> = []
-    const lte = vi.fn()
-    const gte = vi.fn().mockReturnValue({ lte })
-    const notFn = vi.fn().mockReturnValue({ gte })
-    const eq = vi.fn().mockReturnValue({ not: notFn })
-    const select = vi.fn().mockReturnValue({ eq })
-
-    // alternate t3 / t0 responses
-    lte
-      .mockResolvedValueOnce({ data: t3, error: null })
-      .mockResolvedValueOnce({ data: t0, error: null })
-
-    const svc = {
-      from: vi.fn().mockReturnValue({ select }),
-      auth: { admin: { listUsers: vi.fn().mockResolvedValue({ data: { users: [{ id: 'user_w1', email: 'a@b.com' }] } }) } },
-    }
-
-    vi.doMock('@/lib/supabase/service', () => ({
-      requireServiceClient: () => svc,
-    }))
-    vi.doMock('@/lib/platform-config', () => ({
-      getIntegrationKey: vi.fn().mockResolvedValue(null),
-    }))
-    process.env.CRON_SECRET = 'topsecret'
-
-    const { GET } = await import('@/app/api/cron/trial-warning-emails/route')
-    await GET(new Request('http://x/cron', {
-      headers: { authorization: 'Bearer topsecret' },
-    }))
-
-    const { notify } = await import('@/lib/notifications/dispatch')
-    const calls = (notify as ReturnType<typeof vi.fn>).mock.calls
-    const match = calls.find((c) => (c[0] as { eventType: string }).eventType === 'trial.expiring_3d')
-    expect(match).toBeDefined()
-
-    vi.doUnmock('@/lib/supabase/service')
-    vi.doUnmock('@/lib/platform-config')
-  })
-})
 
 // ----------------------------------------------------------------------
 // Block G — quota crosses 80% (notifyQuotaThresholds helper)

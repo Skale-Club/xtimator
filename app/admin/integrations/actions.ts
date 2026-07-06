@@ -11,10 +11,13 @@ import {
   getIntegrationKey,
   getXphereConfig,
   invalidatePlatformConfig,
+  TRANSCRIPTION_MODELS,
   type IntegrationProvider,
 } from '@/lib/platform-config'
 import { integrationKeySchema, billingConfigSchema } from '@/lib/schemas/admin'
 import { validateMarginInvariant, type TierMarginResult } from '@/lib/billing/calibration'
+import { EMAIL_FROM_ADDRESS } from '@/lib/email/sender'
+import { sendTelegramMessage } from '@/lib/telegram/client'
 
 export type ActionResult =
   | { ok: true; message?: string }
@@ -145,7 +148,7 @@ async function runTestIntegrationKey(
     if (input.provider === 'resend') {
       const resend = new Resend(key)
       const { error } = await resend.emails.send({
-        from: 'onboarding@resend.dev',
+        from: EMAIL_FROM_ADDRESS,
         to: ctx.email,
         subject: 'Xtimator admin key test',
         text: 'Key verified',
@@ -414,6 +417,102 @@ export async function saveXphereBaseUrl(
 }
 
 /**
+ * Save the Telegram ops-alert destination chat_id into
+ * platform_integrations.telegram metadata. Stored as { chat_id: "..." }
+ * alongside the existing encrypted bot token (preserved), mirroring
+ * saveTwilioFromPhone.
+ *
+ * Telegram chat_ids are numeric and may be negative (groups/channels use a
+ * negative id). Empty is allowed so the operator can clear the destination
+ * (the system then goes dormant via getTelegramConfig()).
+ */
+export async function saveTelegramChatId(chatId: string): Promise<ActionResult> {
+  const ctx = await requireAdmin()
+  const trimmed = chatId.trim()
+  if (trimmed && !/^-?\d+$/.test(trimmed)) {
+    return {
+      ok: false,
+      message:
+        'Chat ID must be a numeric Telegram chat id (e.g. 123456789 or -1001234567890).',
+    }
+  }
+
+  const svc = requireServiceClient()
+  const { data: existing } = await svc
+    .from('platform_integrations')
+    .select('ciphertext, iv, auth_tag, metadata')
+    .eq('provider', 'telegram')
+    .maybeSingle()
+
+  const { error } = await svc.from('platform_integrations').upsert(
+    {
+      provider: 'telegram',
+      ciphertext: existing?.ciphertext ?? null,
+      iv: existing?.iv ?? null,
+      auth_tag: existing?.auth_tag ?? null,
+      metadata: { ...((existing?.metadata as object) ?? {}), chat_id: trimmed },
+      updated_at: new Date().toISOString(),
+      updated_by: ctx.userId,
+    },
+    { onConflict: 'provider' }
+  )
+
+  if (error) return { ok: false, message: error.message }
+
+  invalidatePlatformConfig()
+  revalidatePath('/admin/integrations')
+
+  void logAdminAction({
+    actorId: ctx.userId,
+    actorEmail: ctx.email,
+    action: 'integration.save',
+    targetType: 'integration',
+    targetId: 'telegram_chat_id',
+    metadata: { chat_id: trimmed },
+  })
+
+  return { ok: true }
+}
+
+/**
+ * Send a real test alert to the configured Telegram chat so the operator can
+ * verify their bot token + chat_id end to end from the admin panel.
+ *
+ * This is the ONE place a Telegram transport error is surfaced to the user —
+ * every event-driven alert path (later plans) swallows/logs failures instead.
+ * A missing/invalid credential surfaces here as { ok:false, message }.
+ */
+export async function sendTelegramTestAlert(): Promise<ActionResult> {
+  const ctx = await requireAdmin()
+  try {
+    await sendTelegramMessage(
+      "✅ Xtimator ops alerts connected — you'll receive system-health alerts here."
+    )
+  } catch (e) {
+    const message = e instanceof Error ? e.message : 'Unknown error'
+    void logAdminAction({
+      actorId: ctx.userId,
+      actorEmail: ctx.email,
+      action: 'integration.test',
+      targetType: 'integration',
+      targetId: 'telegram',
+      metadata: { ok: false },
+    })
+    return { ok: false, message }
+  }
+
+  void logAdminAction({
+    actorId: ctx.userId,
+    actorEmail: ctx.email,
+    action: 'integration.test',
+    targetType: 'integration',
+    targetId: 'telegram',
+    metadata: { ok: true },
+  })
+  return { ok: true, message: 'Test alert sent — check your Telegram.' }
+}
+
+/**
  * Save Phone Number ID and WABA ID for the Meta WhatsApp integration into
  * platform_integrations.metadata. Preserves existing encrypted token fields.
  * These are non-secret platform identifiers that enable DB-configurable routing
@@ -532,71 +631,11 @@ export async function saveWhatsAppSystemPrompt(
 }
 
 /**
- * Upsert the ai_config row in platform_integrations to switch the active AI
- * provider platform-wide. No redeploy required — factory reads from DB on every
- * request (D-04, D-19).
- */
-export async function setActiveAIProvider(
-  provider: 'anthropic' | 'gemini' | 'openrouter'
-): Promise<ActionResult> {
-  const ctx = await requireAdmin()
-  const svc = requireServiceClient()
-
-  // Best-effort read of previous metadata so we keep `openrouter_default_model`
-  // intact when switching providers (we only want to flip selected_ai_provider).
-  let previous: string | null = null
-  let prevMeta: { selected_ai_provider?: string; openrouter_default_model?: string } = {}
-  try {
-    const { data: prev } = await svc
-      .from('platform_integrations')
-      .select('metadata')
-      .eq('provider', 'ai_config')
-      .maybeSingle()
-    prevMeta =
-      (prev?.metadata ?? {}) as {
-        selected_ai_provider?: string
-        openrouter_default_model?: string
-      }
-    previous = prevMeta.selected_ai_provider ?? null
-  } catch {
-    // non-fatal — audit row will just record { new } without previous
-  }
-
-  const { error } = await svc.from('platform_integrations').upsert(
-    {
-      provider: 'ai_config',
-      ciphertext: null,
-      iv: null,
-      auth_tag: null,
-      metadata: { ...prevMeta, selected_ai_provider: provider },
-      updated_at: new Date().toISOString(),
-      updated_by: ctx.userId,
-    },
-    { onConflict: 'provider' }
-  )
-  if (error) {
-    return { ok: false, message: error.message }
-  }
-  invalidatePlatformConfig()
-  revalidatePath('/admin/integrations')
-
-  void logAdminAction({
-    actorId: ctx.userId,
-    actorEmail: ctx.email,
-    action: 'ai_provider.set',
-    targetType: 'ai_config',
-    targetId: provider,
-    metadata: { new: provider, previous },
-  })
-
-  return { ok: true, message: `Active AI provider set to ${provider}.` }
-}
-
-/**
- * Persist the platform-wide default OpenRouter model id. Used when the
- * active provider is OpenRouter and a company has no `ai_model_override`.
+ * Persist the platform-wide default OpenRouter model id. OpenRouter is the
+ * single AI engine (see lib/ai/index.ts), so this is THE model used for any
+ * company without an `ai_model_override`.
  *
- * Stored alongside `selected_ai_provider` in the `ai_config` metadata.
+ * Stored as `openrouter_default_model` in the `ai_config` metadata.
  */
 export async function setGlobalOpenRouterModel(
   model: string
@@ -613,18 +652,16 @@ export async function setGlobalOpenRouterModel(
   }
 
   const svc = requireServiceClient()
-  let prevMeta: { selected_ai_provider?: string; openrouter_default_model?: string } = {}
+  // Best-effort read so we preserve any unrelated ai_config keys (e.g. the
+  // transcription_model) when writing the default model.
+  let prevMeta: Record<string, unknown> = {}
   try {
     const { data: prev } = await svc
       .from('platform_integrations')
       .select('metadata')
       .eq('provider', 'ai_config')
       .maybeSingle()
-    prevMeta =
-      (prev?.metadata ?? {}) as {
-        selected_ai_provider?: string
-        openrouter_default_model?: string
-      }
+    prevMeta = (prev?.metadata ?? {}) as Record<string, unknown>
   } catch {
     // non-fatal — overwrite with just the new model
   }
@@ -660,6 +697,64 @@ export async function setGlobalOpenRouterModel(
 }
 
 /**
+ * Persist the platform-wide speech-to-text model id. Transcription does NOT
+ * route through OpenRouter (it calls OpenAI Whisper directly), so the choice is
+ * restricted to the known OpenAI transcription models. Stored alongside
+ * `openrouter_default_model` in the `ai_config` metadata.
+ */
+export async function setGlobalTranscriptionModel(
+  model: string
+): Promise<ActionResult> {
+  const ctx = await requireAdmin()
+  const trimmed = model.trim()
+  if (!TRANSCRIPTION_MODELS.includes(trimmed as (typeof TRANSCRIPTION_MODELS)[number])) {
+    return { ok: false, message: 'Unknown transcription model' }
+  }
+
+  const svc = requireServiceClient()
+  let prevMeta: Record<string, unknown> = {}
+  try {
+    const { data: prev } = await svc
+      .from('platform_integrations')
+      .select('metadata')
+      .eq('provider', 'ai_config')
+      .maybeSingle()
+    prevMeta = (prev?.metadata ?? {}) as Record<string, unknown>
+  } catch {
+    // non-fatal — overwrite with just the new model
+  }
+
+  const { error } = await svc.from('platform_integrations').upsert(
+    {
+      provider: 'ai_config',
+      ciphertext: null,
+      iv: null,
+      auth_tag: null,
+      metadata: { ...prevMeta, transcription_model: trimmed },
+      updated_at: new Date().toISOString(),
+      updated_by: ctx.userId,
+    },
+    { onConflict: 'provider' }
+  )
+  if (error) {
+    return { ok: false, message: error.message }
+  }
+  invalidatePlatformConfig()
+  revalidatePath('/admin/integrations')
+
+  void logAdminAction({
+    actorId: ctx.userId,
+    actorEmail: ctx.email,
+    action: 'ai_provider.set_transcription_model',
+    targetType: 'ai_config',
+    targetId: 'transcription',
+    metadata: { model: trimmed, previous: prevMeta.transcription_model ?? null },
+  })
+
+  return { ok: true, message: `Speech-to-text model set to ${trimmed}.` }
+}
+
+/**
  * Configure the v4.6 price-research source (the deferred super-admin control).
  *
  * Upserts the `platform_integrations` row `provider='price_research'` with
@@ -672,7 +767,7 @@ export async function setGlobalOpenRouterModel(
  *
  * DISABLE therefore persists research_source: null (a non-matching value) so the
  * readers go dormant while research_engine is preserved (re-enabling restores it).
- * Mirrors setActiveAIProvider: requireAdmin gate FIRST, service-role upsert,
+ * Mirrors setGlobalOpenRouterModel: requireAdmin gate FIRST, service-role upsert,
  * invalidate cache + revalidate path + audit. No API key involved — price_research
  * reuses the existing OpenRouter / Anthropic credentials.
  */

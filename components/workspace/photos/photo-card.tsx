@@ -1,22 +1,32 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { X } from 'lucide-react'
+import { X, Check } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { createClient } from '@/lib/supabase/client'
 import { createStorage } from '@/lib/storage'
 import { updatePhotoCaption, deletePhoto } from '@/lib/actions/photo'
 import type { Photo } from '@/lib/queries/photo'
 import { useTranslation } from '@/lib/i18n/use-translation'
+import { useEstimateVersionSlot } from '@/components/workspace/estimate-version-context'
 
 interface PhotoCardProps {
   photo: Photo
   onClick: () => void
   onDelete: (id: string) => void
+  isAttached: boolean
+  onToggleAttach: (photoId: string) => void
 }
 
-export function PhotoCard({ photo, onClick, onDelete }: PhotoCardProps) {
+export function PhotoCard({
+  photo,
+  onClick,
+  onDelete,
+  isAttached,
+  onToggleAttach,
+}: PhotoCardProps) {
   const { t } = useTranslation()
+  const { slot } = useEstimateVersionSlot()
   const [imageUrl, setImageUrl] = useState<string | null>(null)
   const [isEditingCaption, setIsEditingCaption] = useState(false)
   const [caption, setCaption] = useState(photo.caption ?? '')
@@ -93,6 +103,27 @@ export function PhotoCard({ photo, onClick, onDelete }: PhotoCardProps) {
       >
         <X className="h-3.5 w-3.5" />
       </button>
+
+      {/* Attach-to-estimate toggle — always visible (not hover-only), scoped to the active estimate version */}
+      {slot?.currentVersionId && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onToggleAttach(photo.id)
+          }}
+          className={`absolute top-2 left-2 rounded-full p-1 transition-colors ${
+            isAttached
+              ? 'bg-primary text-primary-foreground'
+              : 'bg-black/40 text-white hover:bg-black/60'
+          }`}
+          aria-label={
+            isAttached ? t('Detach from estimate') : t('Attach to estimate')
+          }
+          aria-pressed={isAttached}
+        >
+          <Check className="h-3.5 w-3.5" />
+        </button>
+      )}
 
       {/* Caption overlay */}
       <div

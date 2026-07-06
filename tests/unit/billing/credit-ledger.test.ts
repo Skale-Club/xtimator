@@ -392,4 +392,33 @@ describe('CREDIT-05: checkCredits', () => {
     expect(res.shortfall).toBe(100)
     expect(res.allowed).toBe(false)
   })
+
+  // Billing v2 (BYOK): a company on its OWN OpenRouter key is never gated by
+  // platform credits — even at zero balance with enforcement ON.
+  it('byok_enabled:true → allowed:true even at zero balance under enforcement', async () => {
+    billingConfig.enforcementEnabled = true
+    const byokClient = {
+      from() {
+        return {
+          select() {
+            return {
+              eq() {
+                return {
+                  async single() {
+                    return {
+                      data: { credit_balance: 0, byok_enabled: true },
+                      error: null,
+                    }
+                  },
+                }
+              },
+            }
+          },
+        }
+      },
+    }
+    const res = await checkCredits(byokClient as never, COMPANY, 100)
+    expect(res.allowed).toBe(true)
+    expect(res.shortfall).toBe(0)
+  })
 })

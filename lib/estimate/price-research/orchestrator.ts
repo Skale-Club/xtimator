@@ -80,6 +80,18 @@ export interface ResearchOutcome {
    * flaggedUnpriced>0 (with total>0) estimate to awaiting_details.
    */
   flaggedUnpriced: number
+  /**
+   * WI-1 (HARDEN-OBS-01): OPTIONAL attempted-vs-usable research telemetry. Surfaces the
+   * true research demand (candidates) versus what was actually usable (cacheHits +
+   * providerUsable) so a degraded provider — a low providerUsable/candidates hit-rate —
+   * becomes observable. STRICTLY ADDITIVE: every existing caller and all orchestrator
+   * tests ignore it and keep passing. Absent on the never-throw catch paths (optional).
+   *   - candidates      = true demand (post-anchor ai_estimate set size, pre-cap).
+   *   - cacheHits        = items re-tagged 'researched' from a cache HIT (free, no provider).
+   *   - providerUsable   = items re-tagged 'researched' via an evidence-gated provider/memo result.
+   *   - missed           = candidates − cacheHits − providerUsable (stayed ai_estimate), floored 0.
+   */
+  telemetry?: { candidates: number; cacheHits: number; providerUsable: number; missed: number }
 }
 
 /**
@@ -156,7 +168,11 @@ export async function researchUnmatchedPrices(
 
     // No candidates → return byte-identical sections; the provider is never touched.
     if (candidates.length === 0) {
-      return { sections, flaggedUnpriced: countFlaggedUnpriced(sections) }
+      return {
+        sections,
+        flaggedUnpriced: countFlaggedUnpriced(sections),
+        telemetry: { candidates: 0, cacheHits: 0, providerUsable: 0, missed: 0 },
+      }
     }
 
     // --- Cost-control CAP (Phase 109): research at most MAX_RESEARCH_ITEMS_PER_ESTIMATE
@@ -185,6 +201,12 @@ export async function researchUnmatchedPrices(
     // and ai_estimate items the research could not improve all stay as-is).
     const retag = new Map<LineItemOutput, LineItemOutput>()
 
+    // WI-1 telemetry counters (observability only — never influence the re-tag logic):
+    // cacheHits increments on a cache-pass re-tag; providerUsable on a memo/provider
+    // evidence-gated re-tag. `candidates.length` is the true demand (pre-cap).
+    let cacheHits = 0
+    let providerUsable = 0
+
     // --- Step 1: cache pass (a HIT is free — no provider call, no allowance) ---
     const misses: LineItemOutput[] = []
     for (const item of researchTargets) {
@@ -196,6 +218,7 @@ export async function researchUnmatchedPrices(
       }
       if (cached && isPriced(cached.unit_price)) {
         retag.set(item, { ...item, unit_price: cached.unit_price, price_source: 'researched' as const })
+        cacheHits++ // telemetry: a free cache-hit re-tag
       } else {
         misses.push(item)
       }
@@ -214,6 +237,7 @@ export async function researchUnmatchedPrices(
           const memoized = memo.get(mk) ?? null
           if (memoized && isUsableCandidate(memoized) && typeof memoized.unit_price === 'number') {
             retag.set(m, { ...m, unit_price: memoized.unit_price, price_source: 'researched' as const })
+            providerUsable++ // telemetry: memo HIT re-tag came from an evidence-gated provider result
           }
           // memoized null (or unusable) → known miss; item keeps ai_estimate.
         } else {
@@ -329,6 +353,8 @@ export async function researchUnmatchedPrices(
               if (usable) {
                 for (const m of remaining) {
                   if (buildMemoKey(ctx.region, m.description) === mk) {
+                    // telemetry: count each NEWLY re-tagged item once (skip an already-tagged one).
+                    if (!retag.has(m)) providerUsable++
                     retag.set(m, { ...m, unit_price: result.unit_price as number, price_source: 'researched' as const })
                   }
                 }
@@ -367,7 +393,15 @@ export async function researchUnmatchedPrices(
     // price_book is never $0 by definition; researched is >0 by the evidence gate;
     // the only $0 risk is an ai_estimate item priced at 0 with no research improvement.
     // Those FLAGGED UNPRICED items keep ai_estimate (not mutated, not dropped).
-    return { sections: rewritten, flaggedUnpriced: countFlaggedUnpriced(rewritten) }
+    // WI-1 telemetry: candidates = true demand (pre-cap); missed = candidates that stayed
+    // ai_estimate after the whole pass, floored at 0.
+    const telemetry = {
+      candidates: candidates.length,
+      cacheHits,
+      providerUsable,
+      missed: Math.max(0, candidates.length - cacheHits - providerUsable),
+    }
+    return { sections: rewritten, flaggedUnpriced: countFlaggedUnpriced(rewritten), telemetry }
   } catch {
     // NEVER-THROWS: return the original sections + a best-effort flagged count.
     try {

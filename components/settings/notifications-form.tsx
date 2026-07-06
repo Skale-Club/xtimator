@@ -4,17 +4,19 @@
  * Phase 77 / Phase 104 — Per-category notification preferences
  * + Web Push enable scaffold.
  *
- * Renders a 3-category × 4-channel matrix (Estimates, Billing, System ×
- * {in_app, email, whatsapp, sms}) plus a master "email digest enabled" switch
+ * Renders a 3-category × 3-channel matrix (Estimates, Billing, System ×
+ * {in_app, email, sms}) plus a master "email digest enabled" switch
  * and a browser-push enable button.
  *
- * WhatsApp + SMS are paid/consent-gated channels: their switches render but are
+ * SMS is a paid/consent-gated channel: its switch renders but is
  * DISABLED until a verified phone is on file (Wave 2 wires the real enable + the
- * per-channel opt-in). This wave only renders the disabled-by-default columns
+ * per-channel opt-in). This wave only renders the disabled-by-default column
  * driven by the `verifiedPhone` prop.
  *
+ * WhatsApp is platform-managed and cannot be enabled by tenants (D-15).
+ *
  * Save flow: PATCH /api/notifications/preferences with the full categories
- * object (now 4-channel) + email_digest_enabled. Push subscription is persisted
+ * object (now 3-channel) + email_digest_enabled. Push subscription is persisted
  * by `enableBrowserPush` directly (separate endpoint).
  */
 
@@ -74,12 +76,10 @@ export interface NotificationsFormProps {
   initial: NotificationsFormInitial
   defaults: Record<EventCategory, ChannelPrefs>
   /**
-   * The owner's verified phone (E.164) on file, or null when none. WhatsApp + SMS
-   * switches are disabled when null.
+   * The owner's verified phone (E.164) on file, or null when none. SMS
+   * switch is disabled when null.
    */
   verifiedPhone?: string | null
-  /** Whether the owner has already opted into WhatsApp notifications. */
-  whatsappOptIn?: boolean
   /** Whether the owner has already recorded explicit paid-SMS consent (TCPA). */
   smsOptIn?: boolean
 }
@@ -107,7 +107,6 @@ export function NotificationsForm({
   initial,
   defaults,
   verifiedPhone = null,
-  whatsappOptIn = false,
   smsOptIn = false,
 }: NotificationsFormProps) {
   const { t } = useTranslation()
@@ -122,7 +121,6 @@ export function NotificationsForm({
   // before any send; flipping any SMS toggle ON without prior consent surfaces the
   // inline consent confirmation rather than silently enabling.
   const [smsConsent, setSmsConsent] = useState(smsOptIn)
-  const [whatsappConsent, setWhatsappConsent] = useState(whatsappOptIn)
   const [smsConsentPending, setSmsConsentPending] = useState(false)
 
   const pushSupported = useMemo(() => {
@@ -134,7 +132,7 @@ export function NotificationsForm({
 
   function setChannel(
     cat: VisibleCategory,
-    channel: 'in_app' | 'email' | 'whatsapp' | 'sms',
+    channel: 'in_app' | 'email' | 'sms',
     value: boolean,
   ) {
     // First time SMS is turned ON without recorded consent → open the paid-channel
@@ -142,11 +140,6 @@ export function NotificationsForm({
     // no SMS sends until consent is confirmed + saved.
     if (channel === 'sms' && value && !smsConsent) {
       setSmsConsentPending(true)
-    }
-    if (channel === 'whatsapp' && value && !whatsappConsent) {
-      // WhatsApp is consent-gated too, but is not a billed channel, so enabling it
-      // records opt-in directly (no paid-channel confirmation needed).
-      setWhatsappConsent(true)
     }
     setMatrix((prev) => ({
       ...prev,
@@ -184,7 +177,6 @@ export function NotificationsForm({
             // Record the consent timestamps + the exact paid-SMS copy (TCPA audit).
             sms_opt_in_at: smsConsent ? nowIso : null,
             sms_opt_in_consent_text: smsConsent ? SMS_CONSENT_COPY : null,
-            whatsapp_opt_in_at: whatsappConsent ? nowIso : null,
           }),
         })
         if (!res.ok && res.status !== 204) {
@@ -243,11 +235,10 @@ export function NotificationsForm({
           </div>
 
           <div className="overflow-hidden rounded-[var(--radius-md)] border border-border">
-            <div className="grid grid-cols-[1fr_auto_auto_auto_auto] items-center gap-4 border-b border-border bg-muted/40 px-4 py-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            <div className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-4 border-b border-border bg-muted/40 px-4 py-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
               <span>{t('Category')}</span>
               <span className="w-16 text-center">{t('In-app')}</span>
               <span className="w-16 text-center">{t('Email')}</span>
-              <span className="w-16 text-center">{t('WhatsApp')}</span>
               <span className="w-16 text-center">{t('SMS')}</span>
             </div>
             {CATEGORIES.map((c) => {
@@ -255,7 +246,7 @@ export function NotificationsForm({
               return (
                 <div
                   key={c.key}
-                  className="grid grid-cols-[1fr_auto_auto_auto_auto] items-center gap-4 border-b border-border px-4 py-3 last:border-b-0"
+                  className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-4 border-b border-border px-4 py-3 last:border-b-0"
                 >
                   <div className="flex items-center gap-3">
                     <CategoryIcon
@@ -288,15 +279,6 @@ export function NotificationsForm({
                   </div>
                   <div className="flex w-16 justify-center">
                     <Switch
-                      data-testid={`pref-whatsapp-${c.key}`}
-                      checked={state.whatsapp && phoneOnFile}
-                      disabled={!phoneOnFile}
-                      onCheckedChange={(v) => setChannel(c.key, 'whatsapp', v)}
-                      aria-label={`${t(c.label)} ${t('WhatsApp')}`}
-                    />
-                  </div>
-                  <div className="flex w-16 justify-center">
-                    <Switch
                       data-testid={`pref-sms-${c.key}`}
                       checked={state.sms && phoneOnFile}
                       disabled={!phoneOnFile}
@@ -310,7 +292,7 @@ export function NotificationsForm({
             {!phoneOnFile && (
               <div className="border-t border-border bg-muted/20 px-4 py-2 text-xs text-muted-foreground">
                 {t(
-                  'Add a verified phone in your profile to enable WhatsApp and SMS notifications.',
+                  'Add a verified phone in your profile to enable SMS notifications.',
                 )}
               </div>
             )}

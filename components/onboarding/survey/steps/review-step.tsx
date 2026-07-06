@@ -1,7 +1,7 @@
 'use client'
 
 import type { OnboardingValues } from '@/lib/schemas/onboarding'
-import { INDUSTRIES, resolveIndustries } from '@/lib/industries'
+import { INDUSTRIES, resolveIndustries, isKnownIndustry } from '@/lib/industries'
 
 const LABEL_BY_ID = new Map(INDUSTRIES.map((i) => [i.id, i.label]))
 
@@ -22,6 +22,15 @@ export function ReviewStep({ values, logoPreview }: Props) {
   const servicesLabel = resolveIndustries([...values.industries, ...values.customIndustries])
     .map((v) => LABEL_BY_ID.get(v) ?? v)
     .join(', ')
+
+  // Surface a soft warning for custom / unrecognized industries. They're allowed
+  // (the selector supports free-text), but an unknown industry doesn't match a
+  // curated template or knowledge-base scope — and a mismatched pick (e.g.
+  // "Technology" for a cleaning business) silently degrades AI results. Uses the
+  // existing isKnownIndustry() helper; empty for standard selections.
+  const unknownIndustries = [...values.industries, ...values.customIndustries].filter(
+    (v) => v.trim() !== '' && !isKnownIndustry(v),
+  )
 
   const rows: Array<[string, string]> = [
     ['Company name', dash(values.companyName)],
@@ -54,6 +63,16 @@ export function ReviewStep({ values, logoPreview }: Props) {
             className="h-12 w-12 rounded-md border border-border object-cover"
           />
           <span className="text-sm text-muted-foreground">Logo selected</span>
+        </div>
+      ) : null}
+
+      {unknownIndustries.length > 0 ? (
+        <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-400">
+          <span className="font-medium">Double-check your services:</span>{' '}
+          {unknownIndustries.join(', ')}{' '}
+          {unknownIndustries.length === 1 ? 'is a custom entry' : 'are custom entries'} that
+          won&rsquo;t match a built-in template. If one of the standard trades fits your
+          business, pick it for better AI estimates.
         </div>
       ) : null}
 

@@ -13,15 +13,17 @@ import { saveEstimateTemplate } from '@/lib/actions/estimate-template'
 import { TEMPLATE_DEFAULTS } from '@/lib/utils/estimate-template'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface EstimateTemplateFormProps {
   company: CompanySettings
 }
 
 export function EstimateTemplateForm({ company }: EstimateTemplateFormProps) {
+  const { t } = useTranslation()
   const [isPending, startTransition] = useTransition()
   const router = useRouter()
 
@@ -46,155 +48,111 @@ export function EstimateTemplateForm({ company }: EstimateTemplateFormProps) {
       if ('error' in result) {
         toast.error(result.error)
       } else {
-        toast.success('Template saved.')
+        toast.success(t('Template saved.'))
         router.refresh()
       }
     })
   }
 
-  // Lightweight read-only preview (Claude's discretion — CONTEXT.md).
-  // Uses form.watch so the preview updates as the user types.
-  const previewLines = [
-    form.watch('greeting')  || TEMPLATE_DEFAULTS.greeting,
-    '',
-    form.watch('opener')    || TEMPLATE_DEFAULTS.opener,
-    '',
-    '[ Items and totals will appear here ]',
-    '',
-    form.watch('closer')    || TEMPLATE_DEFAULTS.closer,
-    '',
-    form.watch('signature') || TEMPLATE_DEFAULTS.signature,
-  ].join('\n')
-
   return (
-    <div className="space-y-6">
-      <Card className="w-full rounded-[var(--radius-md)]">
-        <CardHeader className="border-b border-border">
-          <CardTitle>Template Fields</CardTitle>
-          <CardDescription>
-            Leave a field empty to use the default. Changes apply to all future plain-text estimates.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="py-6">
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+    <Card className="w-full rounded-[var(--radius-md)]">
+      <CardHeader className="border-b border-border">
+        <CardTitle>{t('Message Template')}</CardTitle>
+        <CardDescription>
+          {t('Default message pre-filled when you copy or share an estimate. Edit it per-estimate in the send flow.')}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="py-6">
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
 
-              <FormField
-                control={form.control}
-                name="greeting"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Greeting</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        rows={3}
-                        placeholder={TEMPLATE_DEFAULTS.greeting}
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      Variables: <code className="text-xs">{'{client_name}'}</code>
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+            <FormField
+              control={form.control}
+              name="greeting"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Greeting')}</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      rows={2}
+                      placeholder={TEMPLATE_DEFAULTS.greeting}
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-              <FormField
-                control={form.control}
-                name="opener"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Opening</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        rows={3}
-                        placeholder={TEMPLATE_DEFAULTS.opener}
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      Variables:{' '}
-                      <code className="text-xs">{'{company_name}'}</code>,{' '}
-                      <code className="text-xs">{'{total}'}</code>,{' '}
-                      <code className="text-xs">{'{items_breakdown}'}</code>
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+            <FormField
+              control={form.control}
+              name="opener"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Opening')}</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      rows={3}
+                      placeholder={TEMPLATE_DEFAULTS.opener}
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-              <FormField
-                control={form.control}
-                name="closer"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Closing</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        rows={4}
-                        placeholder={TEMPLATE_DEFAULTS.closer}
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      Variables:{' '}
-                      <code className="text-xs">{'{company_name}'}</code>,{' '}
-                      <code className="text-xs">{'{owner_name}'}</code>,{' '}
-                      <code className="text-xs">{'{total}'}</code>
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+            <FormField
+              control={form.control}
+              name="closer"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Closing')}</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      rows={3}
+                      placeholder={TEMPLATE_DEFAULTS.closer}
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-              <FormField
-                control={form.control}
-                name="signature"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Signature</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        rows={4}
-                        placeholder={TEMPLATE_DEFAULTS.signature}
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      Variables:{' '}
-                      <code className="text-xs">{'{owner_name}'}</code>,{' '}
-                      <code className="text-xs">{'{company_name}'}</code>
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+            <FormField
+              control={form.control}
+              name="signature"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Sign-off')}</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      rows={3}
+                      placeholder={TEMPLATE_DEFAULTS.signature}
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-              <Button type="submit" disabled={isPending} className="min-w-40">
-                {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Save Template
-              </Button>
+            <p className="text-xs text-muted-foreground">
+              {t('Available variables:')}{' '}
+              <span className="font-mono">{'{client_name}'}</span>,{' '}
+              <span className="font-mono">{'{company_name}'}</span>,{' '}
+              <span className="font-mono">{'{owner_name}'}</span>,{' '}
+              <span className="font-mono">{'{total}'}</span>
+            </p>
 
-            </form>
-          </Form>
-        </CardContent>
-      </Card>
-
-      {/* Lightweight read-only preview — helps owners verify template without leaving the page */}
-      <Card className="w-full rounded-[var(--radius-md)]">
-        <CardHeader className="border-b border-border">
-          <CardTitle>Preview</CardTitle>
-          <CardDescription>
-            How your template looks (variables shown as-is; items and totals are placeholders).
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="py-6">
-          <pre className="whitespace-pre-wrap rounded-md bg-muted p-4 text-sm text-muted-foreground">
-            {previewLines}
-          </pre>
-        </CardContent>
-      </Card>
-    </div>
+            <Button type="submit" disabled={isPending} className="min-w-40">
+              {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {t('Save')}
+            </Button>
+          </form>
+        </Form>
+      </CardContent>
+    </Card>
   )
 }

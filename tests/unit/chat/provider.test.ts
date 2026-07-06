@@ -4,7 +4,7 @@
  * resolveChatModelId mirrors getAIProvider (lib/ai/index.ts) EXACTLY:
  *   1. companies.ai_model_override (per-company, via the service client)
  *   2. platform ai_config.openrouter_default_model (getOpenRouterDefaultModel)
- *   3. OR_DEFAULTS.chat ('anthropic/claude-sonnet-4-5')
+ *   3. OR_DEFAULTS.chat ('anthropic/claude-sonnet-5')
  *
  * resolveChatModel sources the key via getIntegrationKey('openrouter') (NEVER
  * process.env directly — Pitfall 5), throws when it is null, and constructs
@@ -99,7 +99,7 @@ describe('resolveChatModelId', () => {
     const id = await resolveChatModelId('company-1')
 
     expect(id).toBe(OR_DEFAULTS.chat)
-    expect(id).toBe('anthropic/claude-sonnet-4-5')
+    expect(id).toBe('anthropic/claude-sonnet-5')
   })
 
   it('skips the company read when no companyId and uses the platform default', async () => {

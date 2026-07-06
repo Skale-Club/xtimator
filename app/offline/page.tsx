@@ -1,7 +1,9 @@
 import Link from 'next/link'
 import { WifiOff } from 'lucide-react'
+import type { Metadata } from 'next'
+import { PRIVATE_ROBOTS } from '@/lib/seo/route-policy'
 
-export const metadata = { title: "You're offline" }
+export const metadata: Metadata = { title: "You're offline", robots: PRIVATE_ROBOTS }
 
 export default function OfflinePage() {
   return (

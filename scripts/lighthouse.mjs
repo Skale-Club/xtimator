@@ -1,57 +1,62 @@
 #!/usr/bin/env node
-// scripts/lighthouse.mjs
-// Usage: bun scripts/lighthouse.mjs http://localhost:9633/ http://localhost:9633/dashboard
-//
-// Phase 71 perf gate runner. Records Lighthouse perf/a11y/best-practices/seo
-// scores for the given URLs and prints a markdown table. Fails (exit 2) if any
-// URL scores below 80 on perf or a11y.
-//
-// If lighthouse/chrome-launcher aren't installed, exits 0 with an install hint
-// (this is a phase gate, not a build step — install during Plan 71-10).
 
 const urls = process.argv.slice(2)
 if (!urls.length) {
-  console.error('Usage: bun scripts/lighthouse.mjs <url> [<url>...]')
+  console.error('Usage: node scripts/lighthouse.mjs <url> [<url>...]')
   process.exit(1)
 }
 
-let lighthouse, launch
+let lighthouse, launch, desktopConfig
 try {
   ;({ default: lighthouse } = await import('lighthouse'))
   ;({ launch } = await import('chrome-launcher'))
-} catch (_e) {
-  console.error('lighthouse not installed. Run: bun add -d lighthouse chrome-launcher')
-  process.exit(0)
+  ;({ default: desktopConfig } = await import('lighthouse/core/config/desktop-config.js'))
+} catch (_error) {
+  console.error('lighthouse is required. Run: npm install --save-dev lighthouse chrome-launcher')
+  process.exit(1)
 }
 
-const chrome = await launch({ chromeFlags: ['--headless=new'] })
+const chrome = await launch({ chromeFlags: ['--headless=new', '--no-sandbox'] })
 const rows = []
-for (const url of urls) {
-  const result = await lighthouse(url, {
-    port: chrome.port,
-    output: 'json',
-    onlyCategories: ['performance', 'accessibility', 'best-practices', 'seo'],
-  })
-  const c = result.lhr.categories
-  rows.push({
-    url,
-    perf: Math.round((c.performance?.score ?? 0) * 100),
-    a11y: Math.round((c.accessibility?.score ?? 0) * 100),
-    bp: Math.round((c['best-practices']?.score ?? 0) * 100),
-    seo: Math.round((c.seo?.score ?? 0) * 100),
-  })
+try {
+  for (const url of urls) {
+    const result = await lighthouse(url, {
+      port: chrome.port,
+      output: 'json',
+      onlyCategories: ['performance', 'accessibility', 'best-practices', 'seo'],
+    }, desktopConfig)
+    if (result.lhr.runtimeError) {
+      throw new Error(`${url}: ${result.lhr.runtimeError.code} - ${result.lhr.runtimeError.message}`)
+    }
+    const categories = result.lhr.categories
+    rows.push({
+      url,
+      perf: Math.round((categories.performance?.score ?? 0) * 100),
+      a11y: Math.round((categories.accessibility?.score ?? 0) * 100),
+      bp: Math.round((categories['best-practices']?.score ?? 0) * 100),
+      seo: Math.round((categories.seo?.score ?? 0) * 100),
+    })
+  }
+} finally {
+  try {
+    await chrome.kill()
+  } catch (error) {
+    if (error?.code !== 'EPERM') throw error
+    console.warn('Warning: Chrome exited but its temporary profile could not be removed on Windows.')
+  }
 }
-await chrome.kill()
 
-const md = [
+console.log([
   '| URL | Performance | Accessibility | Best Practices | SEO |',
   '|-----|-------------|---------------|----------------|-----|',
-  ...rows.map((r) => `| ${r.url} | ${r.perf} | ${r.a11y} | ${r.bp} | ${r.seo} |`),
-].join('\n')
-console.log(md)
+  ...rows.map((row) => `| ${row.url} | ${row.perf} | ${row.a11y} | ${row.bp} | ${row.seo} |`),
+].join('\n'))
 
-const failures = rows.filter((r) => r.perf < 80 || r.a11y < 80)
+const failures = rows.filter((row) => row.perf < 85 || row.a11y < 85 || row.seo < 95)
 if (failures.length) {
-  console.error('\nFAIL: perf or a11y below 80:', failures.map((f) => f.url).join(', '))
+  console.error(
+    '\nFAIL: required thresholds are performance >=85, accessibility >=85, SEO >=95:',
+    failures.map((row) => row.url).join(', '),
+  )
   process.exit(2)
 }

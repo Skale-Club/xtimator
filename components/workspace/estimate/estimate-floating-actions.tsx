@@ -2,8 +2,7 @@
 
 import type { ReactNode } from 'react'
 import {
-  Loader2, Save, CheckCircle2,
-  RotateCcw, Pencil, MoreHorizontal, UserPlus,
+  Send, RotateCcw, Pencil, MoreHorizontal, UserPlus,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -31,7 +30,7 @@ interface EstimateFloatingActionsProps {
   isCurrent: boolean
   isDirty: boolean
   status: Status
-  onSaveDraft: () => void
+  onSend: () => void
   onDiscard: () => void
   onRecord?: () => void
   linkClientSlot?: ReactNode
@@ -103,40 +102,13 @@ export function EstimateFloatingActions({
   isCurrent,
   isDirty,
   status,
-  onSaveDraft,
+  onSend,
   onDiscard,
   onRecord,
   linkClientSlot,
 }: EstimateFloatingActionsProps) {
   if (!isCurrent) return null
 
-  // ── Saved confirmation flash ──────────────────────────────────────────────
-  if (!isDirty && status === 'saved') {
-    return (
-      <>
-        <div
-          className="sticky bottom-6 z-40 hidden md:flex justify-center"
-          style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
-        >
-          <div className="inline-flex items-center gap-2 rounded-full bg-[hsl(var(--success)/0.12)] px-4 py-2 text-sm text-[hsl(var(--success))] shadow-md">
-            <CheckCircle2 className="h-4 w-4" />
-            <span>Saved</span>
-          </div>
-        </div>
-        <div
-          className="sticky bottom-3 z-40 md:hidden flex px-4"
-          style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
-        >
-          <div className="flex-1 flex items-center justify-center gap-2 rounded-full bg-[hsl(var(--success)/0.12)] py-2 text-sm text-[hsl(var(--success))] shadow-md">
-            <CheckCircle2 className="h-4 w-4" />
-            Saved
-          </div>
-        </div>
-      </>
-    )
-  }
-
-  // ── Editable estimate ───────────────────────────────────────────────────
   const isSaving = status === 'saving'
 
   return (
@@ -189,9 +161,9 @@ export function EstimateFloatingActions({
             Discard
           </Button>
         </DiscardAlert>
-        <Button size="sm" variant="secondary" onClick={onSaveDraft} disabled={isSaving || !isDirty} className="rounded-full gap-1.5">
-          {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-          Save draft
+        <Button size="sm" onClick={onSend} disabled={isSaving} className="rounded-full gap-1.5">
+          <Send className="h-3.5 w-3.5" />
+          Send
         </Button>
       </DesktopPill>
 
@@ -233,13 +205,12 @@ export function EstimateFloatingActions({
         {/* Primary actions */}
         <Button
           size="sm"
-          variant="secondary"
-          onClick={onSaveDraft}
-          disabled={isSaving || !isDirty}
+          onClick={onSend}
+          disabled={isSaving}
           className="flex-1 gap-1.5 rounded-full"
         >
-          {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-          Save draft
+          <Send className="h-4 w-4" />
+          Send
         </Button>
       </MobileBar>
     </>

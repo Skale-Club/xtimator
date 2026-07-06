@@ -8,8 +8,8 @@ export default function DefaultsSettingsLoading() {
   return (
     <SettingsPageSkeleton
       noPadding
-      title="Estimate Defaults"
-      description="Set the reusable terms and calculation defaults applied when new estimates are created."
+      title="Estimates"
+      description="Set estimate defaults and delivery options."
     >
       <SettingsCard>
         <div className="space-y-8">
@@ -32,6 +32,20 @@ export default function DefaultsSettingsLoading() {
           </div>
 
           <Skeleton className="h-10 w-44 rounded-md" />
+        </div>
+      </SettingsCard>
+
+      {/* Estimate Terms skeleton */}
+      <SettingsCard>
+        <div className="space-y-4">
+          <div className="flex items-center justify-between rounded-[var(--radius-md)] border border-border p-4">
+            <div className="space-y-1.5">
+              <Skeleton className="h-4 w-36" />
+              <Skeleton className="h-3 w-64" />
+            </div>
+            <Skeleton className="h-6 w-10 rounded-full" />
+          </div>
+          <Skeleton className="h-10 w-40 rounded-md" />
         </div>
       </SettingsCard>
     </SettingsPageSkeleton>

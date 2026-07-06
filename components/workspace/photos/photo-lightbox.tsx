@@ -2,7 +2,13 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { Dialog, DialogContent } from '@/components/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase/client'
 import { createStorage } from '@/lib/storage'
@@ -77,6 +83,12 @@ export function PhotoLightbox({
         className="max-w-4xl p-0 gap-0"
         onKeyDown={handleKeyDown}
       >
+        <DialogHeader className="sr-only">
+          <DialogTitle>{t('Project photo')}</DialogTitle>
+          <DialogDescription>
+            {t('View the selected project photo and navigate between project photos.')}
+          </DialogDescription>
+        </DialogHeader>
         <div className="relative flex items-center justify-center bg-black min-h-[50vh]">
           {/* Image */}
           {imageUrl ? (

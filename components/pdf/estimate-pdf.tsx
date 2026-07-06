@@ -9,6 +9,7 @@ import {
 } from '@react-pdf/renderer'
 import type { EstimateWithSections } from '@/lib/queries/estimate'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
+import { ensureReadableOnWhite, readableTextColor } from '@/lib/color/contrast'
 import { formatMoney } from '@/lib/money/currency'
 import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
 import { formatPhoneForDisplay } from '@/lib/phone/format'
@@ -46,6 +47,7 @@ interface PdfLabels {
   date: string
   estimateNum: string
   preparedBy: string
+  photos: string
 }
 
 const PDF_LABELS: Record<EstimateLanguage, PdfLabels> = {
@@ -75,6 +77,7 @@ const PDF_LABELS: Record<EstimateLanguage, PdfLabels> = {
     date: 'Date',
     estimateNum: 'Estimate #',
     preparedBy: 'Prepared by',
+    photos: 'Photos',
   },
   pt: {
     estimate: 'ORÇAMENTO',
@@ -102,6 +105,7 @@ const PDF_LABELS: Record<EstimateLanguage, PdfLabels> = {
     date: 'Data',
     estimateNum: 'Orçamento Nº',
     preparedBy: 'Preparado por',
+    photos: 'Fotos',
   },
   es: {
     estimate: 'PRESUPUESTO',
@@ -129,6 +133,7 @@ const PDF_LABELS: Record<EstimateLanguage, PdfLabels> = {
     date: 'Fecha',
     estimateNum: 'Presupuesto Nº',
     preparedBy: 'Preparado por',
+    photos: 'Fotos',
   },
 }
 
@@ -182,6 +187,8 @@ export interface EstimatePDFProps {
   language?: EstimateLanguage
   /** Name of the staff member or owner who generated this estimate. Shown as "Prepared by" in the PDF. */
   preparedBy?: string | null
+  /** Attached photos with signed URLs pre-resolved server-side (route handler resolves them before rendering). Rendered only when non-empty. */
+  attachedPhotos?: { url: string; caption: string | null }[]
 }
 
 function formatAddress(obj: {
@@ -448,8 +455,14 @@ export default function EstimatePDF({
   projectType,
   language = 'en',
   preparedBy,
+  attachedPhotos,
 }: EstimatePDFProps) {
   const brandColor = company.brand_primary_color ?? SYSTEM_COLORS.primary
+  // Render-time WCAG adaptation of the brand color (stored value never mutated):
+  //   brandText   → brand color darkened to reach 4.5:1 as text on white
+  //   brandOnFill → black/white foreground with max contrast over a brand fill
+  const brandText = ensureReadableOnWhite(brandColor)
+  const brandOnFill = readableTextColor(brandColor)
   const companyAddress = formatAddress(company)
   const clientAddress = client ? formatAddress(client) : null
   const L = PDF_LABELS[language] ?? PDF_LABELS.en
@@ -472,10 +485,10 @@ export default function EstimatePDF({
           <View style={styles.headerLeft}>
             <View>
               <Text
-                style={[styles.companyName, { color: brandColor }]}
+                style={[styles.companyName, { color: brandText }]}
               >
                 {company.website ? (
-                  <Link src={company.website} style={[styles.nameLink, { color: brandColor }]}>
+                  <Link src={company.website} style={[styles.nameLink, { color: brandText }]}>
                     {company.name}
                   </Link>
                 ) : (
@@ -535,7 +548,7 @@ export default function EstimatePDF({
         </View>
 
         {/* Title */}
-        <Text style={[styles.estimateTitle, { color: brandColor }]}>
+        <Text style={[styles.estimateTitle, { color: brandText }]}>
           {L.estimate}
         </Text>
 
@@ -619,7 +632,7 @@ export default function EstimatePDF({
                 { backgroundColor: brandColor },
               ]}
             >
-              <Text style={styles.sectionTitle}>{section.title}</Text>
+              <Text style={[styles.sectionTitle, { color: brandOnFill }]}>{section.title}</Text>
             </View>
 
             {/* Table Header */}
@@ -717,12 +730,12 @@ export default function EstimatePDF({
 
             <View style={styles.grandTotalRow}>
               <Text
-                style={[styles.grandTotalLabel, { color: brandColor }]}
+                style={[styles.grandTotalLabel, { color: brandText }]}
               >
                 {L.grandTotal}
               </Text>
               <Text
-                style={[styles.grandTotalValue, { color: brandColor }]}
+                style={[styles.grandTotalValue, { color: brandText }]}
               >
                 {fmt(estimate.total)}
               </Text>
@@ -755,7 +768,7 @@ export default function EstimatePDF({
           <View style={styles.termsSection}>
             {company.estimate_terms_enabled && company.estimate_terms_text && (
               <>
-                <Text style={[styles.termsTitle, { color: brandColor }]}>
+                <Text style={[styles.termsTitle, { color: brandText }]}>
                   Estimate Terms
                 </Text>
                 <Text style={styles.termsText}>
@@ -791,6 +804,23 @@ export default function EstimatePDF({
                 <Text style={styles.termsText}>{estimate.notes}</Text>
               </>
             )}
+          </View>
+        )}
+
+        {/* Attached photos — only when at least one photo is attached */}
+        {attachedPhotos && attachedPhotos.length > 0 && (
+          <View style={{ marginTop: 16 }} wrap={false}>
+            <Text style={styles.termsTitle}>{L.photos}</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 6 }}>
+              {attachedPhotos.map((photo, i) => (
+                // eslint-disable-next-line jsx-a11y/alt-text
+                <Image
+                  key={i}
+                  src={photo.url}
+                  style={{ width: 150, height: 150, objectFit: 'cover' as const }}
+                />
+              ))}
+            </View>
           </View>
         )}
 

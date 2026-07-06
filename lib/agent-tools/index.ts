@@ -25,3 +25,21 @@ export {
 export { createEstimate } from './create-estimate'
 
 export { askKnowledge } from './ask-knowledge'
+
+export {
+  createPriceBookService,
+  type CreateServiceInput,
+  type CreateServiceResult,
+} from './create-service'
+
+export {
+  addCompanyKnowledge,
+  type AddKnowledgeInput,
+  type AddKnowledgeResult,
+} from './add-knowledge'
+
+export {
+  createProject,
+  type CreateProjectInput,
+  type CreateProjectResult,
+} from './create-project'

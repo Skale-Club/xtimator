@@ -44,6 +44,9 @@ interface SidebarProps {
   }>
   /** Read-only public demo session — hides sensitive nav entries. */
   isDemo?: boolean
+  /** Platform admin — shows the "Add new company" button in CompanySelector. */
+  isAdmin?: boolean
+  user?: { email: string; name?: string | null }
 }
 
 const COLLAPSE_KEY = 'sidebar_collapsed_desktop'
@@ -76,7 +79,7 @@ const TOUR_TARGET: Record<string, string> = {
   '/price-book':   'price-book',
 }
 
-export function Sidebar({ branding, company, memberships, isDemo }: SidebarProps) {
+export function Sidebar({ branding, company, memberships, isDemo, isAdmin, user }: SidebarProps) {
   const pathname = usePathname()
   const { t } = useTranslation()
   const { setShowWelcome, setIsReviewMode } = useTourContext()
@@ -95,6 +98,17 @@ export function Sidebar({ branding, company, memberships, isDemo }: SidebarProps
   // company list + Add new company entry inside a single dropdown.
   const accountMenuSlot = (
     <>
+      {user && (
+        <>
+          <div className="px-2 py-2">
+            {user.name && (
+              <p className="text-sm font-medium truncate">{user.name}</p>
+            )}
+            <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+          </div>
+          <DropdownMenuSeparator />
+        </>
+      )}
       {!isDemo && (
         <DropdownMenuItem asChild className="cursor-pointer">
           <Link href="/settings" className="flex items-center gap-2">
@@ -107,7 +121,7 @@ export function Sidebar({ branding, company, memberships, isDemo }: SidebarProps
       </DropdownMenuItem>
       <DropdownMenuSeparator />
       <DropdownMenuItem
-        className="cursor-pointer gap-2 text-destructive focus:text-destructive"
+        className="cursor-pointer gap-2 text-red-400 focus:text-red-400"
         onClick={() => signOut()}
       >
         <LogOut className="h-4 w-4" />{t('Sign Out')}
@@ -349,6 +363,7 @@ export function Sidebar({ branding, company, memberships, isDemo }: SidebarProps
               companies={memberships}
               activeCompanyId={company.id}
               collapsed={true}
+              isAdmin={isAdmin}
               accountMenuSlot={accountMenuSlot}
             />
             <Tooltip>
@@ -375,6 +390,7 @@ export function Sidebar({ branding, company, memberships, isDemo }: SidebarProps
                 companies={memberships}
                 activeCompanyId={company.id}
                 collapsed={false}
+                isAdmin={isAdmin}
                 accountMenuSlot={accountMenuSlot}
               />
             </div>

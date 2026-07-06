@@ -167,15 +167,30 @@ function makeSupabaseMock() {
 
     if (table === 'estimates') {
       return {
+        delete: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnThis(),
+          is: vi.fn().mockReturnThis(),
+        }),
         update: vi.fn().mockReturnValue({
           eq: vi.fn().mockResolvedValue({ error: null }),
         }),
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            order: vi.fn().mockReturnValue({
-              limit: vi.fn().mockResolvedValue({ data: [], error: null }),
+        select: vi.fn().mockImplementation((cols: string) => {
+          if (cols === 'id') {
+            return {
+              eq: vi.fn().mockReturnValue({
+                eq: vi.fn().mockReturnValue({
+                  maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+                }),
+              }),
+            }
+          }
+          return {
+            eq: vi.fn().mockReturnValue({
+              order: vi.fn().mockReturnValue({
+                limit: vi.fn().mockResolvedValue({ data: [], error: null }),
+              }),
             }),
-          }),
+          }
         }),
         insert: vi.fn().mockImplementation((payload: Record<string, unknown>) => {
           captured.estimateInsert = payload

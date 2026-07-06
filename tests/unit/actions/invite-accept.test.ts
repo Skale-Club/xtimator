@@ -32,7 +32,10 @@ vi.mock('@/lib/actions/active-company', () => ({
 }))
 
 // ─── next/cache ─────────────────────────────────────────────────────────────
-vi.mock('next/cache', () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }))
+vi.mock('next/cache', () => ({
+  revalidatePath: vi.fn(),
+  updateTag: vi.fn(),
+}))
 
 // ─── service-role Supabase per-table mock ───────────────────────────────────
 // invite lookup: .select(...).eq('token', ...).maybeSingle()
@@ -102,6 +105,7 @@ function pendingInvite(overrides: Record<string, unknown> = {}) {
   return {
     id: 'inv_1',
     company_id: 'c1',
+    display_name: 'Invitee Person',
     email: 'invitee@example.com',
     role: 'member',
     status: 'pending',
@@ -137,6 +141,7 @@ describe('SEAT-04: acceptInvite', () => {
     expect(member.user_id).toBe('u1')
     expect(member.company_id).toBe('c1')
     expect(member.role).toBe('member') // sourced from invite.role
+    expect(member.display_name).toBe('Invitee Person')
 
     // invite flipped to accepted (guarded WHERE status='pending')
     expect(invitesUpdate).toHaveBeenCalledTimes(1)
@@ -155,6 +160,24 @@ describe('SEAT-04: acceptInvite', () => {
     await acceptInvite('tok_valid')
 
     expect((upsertPayload as Record<string, unknown>).role).toBe('admin')
+  })
+
+  it('falls back to auth metadata for an older invite without a display name', async () => {
+    inviteLookupResult.data = pendingInvite({ display_name: null })
+    getClaims.mockResolvedValue({
+      data: {
+        claims: {
+          sub: 'u1',
+          email: 'invitee@example.com',
+          user_metadata: { full_name: 'Existing User' },
+        },
+      },
+    })
+    const { acceptInvite } = await import('@/lib/actions/invite-accept')
+
+    await acceptInvite('tok_valid')
+
+    expect((upsertPayload as Record<string, unknown>).display_name).toBe('Existing User')
   })
 
   it('rejects an expired invite: no member insert, no flip, no switch', async () => {

@@ -24,7 +24,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Card, CardContent } from '@/components/ui/card'
 import { DataTable, type Column } from '@/components/ui/data-table'
 import { ClientSheet } from '@/components/clients/client-sheet'
 import { deleteClientAction } from '@/lib/actions/client'
@@ -100,6 +99,8 @@ export function ClientList({ clients, companyId }: ClientListProps) {
     {
       key: 'name',
       header: t('Name'),
+      sortDesc: 'za',
+      sortAsc: 'az',
       cell: (client) => (
         <Link href={`/clients/${client.id}`} className="flex items-center gap-3 hover:underline">
           <Avatar className="h-8 w-8 shrink-0">
@@ -134,6 +135,8 @@ export function ClientList({ clients, companyId }: ClientListProps) {
     {
       key: 'projects',
       header: t('Projects'),
+      sortDesc: 'most',
+      sortAsc: 'fewest',
       cell: (client) => <Badge variant="secondary">{client.project_count}</Badge>,
     },
     {
@@ -155,7 +158,7 @@ export function ClientList({ clients, companyId }: ClientListProps) {
               {t('Edit')}
             </DropdownMenuItem>
             <DropdownMenuItem
-              className="text-destructive"
+              className="text-red-400 focus:text-red-400"
               onClick={() => handleDeletePrompt(client)}
             >
               {t('Delete')}
@@ -181,13 +184,12 @@ export function ClientList({ clients, companyId }: ClientListProps) {
         sortOptions={[
           { value: 'az', label: t('A → Z'), sort: (a, b) => a.name.localeCompare(b.name) },
           { value: 'za', label: t('Z → A'), sort: (a, b) => b.name.localeCompare(a.name) },
-          {
-            value: 'most',
-            label: t('Most projects'),
-            sort: (a, b) => b.project_count - a.project_count,
-          },
+          { value: 'most', label: t('Most projects'), sort: (a, b) => b.project_count - a.project_count },
+          { value: 'fewest', label: t('Fewest projects'), sort: (a, b) => a.project_count - b.project_count },
         ]}
         defaultSort="az"
+        pageSize={25}
+        title={<h2 className="text-2xl font-semibold tracking-[-0.015em] shrink-0">{t('Clients')}</h2>}
         emptyIcon={Users}
         emptyTitle={t('No clients yet')}
         emptyDescription={t('Add your first client to get started')}
@@ -201,51 +203,38 @@ export function ClientList({ clients, companyId }: ClientListProps) {
           </Button>
         }
         renderMobileCard={(client) => (
-          <Card key={client.id}>
-            <CardContent className="flex items-center justify-between p-4">
-              <Link
-                href={`/clients/${client.id}`}
-                className="flex items-center gap-3 flex-1 min-w-0"
-              >
-                <Avatar className="h-10 w-10 shrink-0">
-                  {client.logo_url && <AvatarImage src={client.logo_url} alt={client.name} />}
-                  <AvatarFallback className="text-sm">
-                    {client.name.charAt(0).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="min-w-0">
-                  <p className="font-medium truncate">{client.name}</p>
-                  <p className="text-sm text-muted-foreground truncate">
-                    {client.email || '---'}
-                  </p>
-                </div>
-              </Link>
-              <div className="flex items-center gap-2 shrink-0">
-                <Badge variant="secondary">{client.project_count}</Badge>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                      <MoreHorizontal className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem asChild>
-                      <Link href={`/clients/${client.id}`}>{t('View')}</Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleEditClient(client.id)}>
-                      {t('Edit')}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      className="text-destructive"
-                      onClick={() => handleDeletePrompt(client)}
-                    >
-                      {t('Delete')}
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </CardContent>
-          </Card>
+          <div key={client.id} className="relative flex items-center gap-3 border-b border-border/50 py-3 last:border-0">
+            <Link href={`/clients/${client.id}`} className="absolute inset-0" aria-hidden tabIndex={-1} />
+            <Avatar className="h-8 w-8 shrink-0">
+              {client.logo_url && <AvatarImage src={client.logo_url} alt={client.name} />}
+              <AvatarFallback className="text-xs">{client.name.charAt(0).toUpperCase()}</AvatarFallback>
+            </Avatar>
+            <div className="min-w-0 flex-1">
+              <p className="font-medium truncate">{client.name}</p>
+              {client.email && (
+                <p className="text-xs text-muted-foreground truncate">{client.email}</p>
+              )}
+            </div>
+            <Badge variant="secondary" className="shrink-0 relative z-10">{client.project_count}</Badge>
+            <div className="shrink-0 relative z-10">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem asChild>
+                    <Link href={`/clients/${client.id}`}>{t('View')}</Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleEditClient(client.id)}>{t('Edit')}</DropdownMenuItem>
+                  <DropdownMenuItem className="text-red-400 focus:text-red-400" onClick={() => handleDeletePrompt(client)}>
+                    {t('Delete')}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
         )}
       />
 

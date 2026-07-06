@@ -1,37 +1,24 @@
 'use client'
 
-import { useEffect, useState, startTransition } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
-import { Sparkles, FileText } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
 import { toast } from 'sonner'
 import { createBlankEstimate } from '@/lib/actions/estimate'
 import type { EstimateWithSections, Estimate } from '@/lib/queries/estimate'
 import type { InvoiceRow } from '@/lib/queries/invoice'
 import type { Recording } from '@/lib/queries/recording'
 import type { Photo } from '@/lib/queries/photo'
-import { GenerationProgress } from './generation-progress'
+import { Skeleton } from '@/components/ui/skeleton'
 import { EstimateEditor } from './estimate-editor'
+import { SendDialog } from '@/components/workspace/send/send-dialog'
 import {
   popStoredClientSuggestion,
   showClientSuggestionToast,
 } from './client-suggestion-toast'
 import { useTranslation } from '@/lib/i18n/use-translation'
-import { useLanguage } from '@/lib/i18n/language-context'
-import { pollJob } from '@/hooks/use-job-status'
-import {
-  type EstimateLanguage,
-  resolveEstimateLanguageWithSource,
-} from '@/lib/i18n/resolve-estimate-language'
 import type { DocumentClient, DocumentCompany, CompanyDefaults } from './estimate-document'
 import type { PriceBookItem } from '@/lib/queries/price-book'
+import type { EstimateTemplate } from '@/lib/utils/estimate-template'
 
 interface EstimateTabProps {
   projectId: string
@@ -52,6 +39,11 @@ interface EstimateTabProps {
   onRecord?: () => void
   linkClientSlot?: React.ReactNode
   priceBookItems: PriceBookItem[]
+  companyName: string
+  ownerName: string
+  estimateTemplate: EstimateTemplate
+  smsDeliveryEnabled?: boolean
+  whatsappSendEnabled?: boolean
 }
 
 export function EstimateTab({
@@ -72,15 +64,18 @@ export function EstimateTab({
   onRecord,
   linkClientSlot,
   priceBookItems,
+  companyName,
+  ownerName,
+  estimateTemplate,
+  smsDeliveryEnabled,
+  whatsappSendEnabled,
 }: EstimateTabProps) {
+  const [sendOpen, setSendOpen] = useState(false)
   const { t } = useTranslation()
-  const { language: appLanguage } = useLanguage()
   const router = useRouter()
   const searchParams = useSearchParams()
   const pathname = usePathname()
-  const [isGenerating, setIsGenerating] = useState(false)
-  const [generationStep, setGenerationStep] = useState(0)
-  const [isCreatingBlank, setIsCreatingBlank] = useState(false)
+  const blankFiredRef = useRef(false)
 
   // True when the user navigated here right after stopping a recording —
   // the pipeline is running server-side (Inngest) and we poll until the
@@ -101,10 +96,24 @@ export function EstimateTab({
     router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false })
   }, [isAutoGenerating, currentEstimate, searchParams, pathname, router])
 
-  const cascadeResult = resolveEstimateLanguageWithSource({
-    userAppLanguage: appLanguage as EstimateLanguage,
-  })
-  const estimateLanguage = cascadeResult.language
+  // Lazy materialization — a project with no estimate and no in-flight AI
+  // generation should simply BE a blank, editable estimate (not an empty-state
+  // chooser). Create the blank once, then refresh so the editor renders. Gated
+  // on !isAutoGenerating so this never races the AI-generation path (which
+  // creates the estimate itself). createBlankEstimate is idempotent as a
+  // backstop against a double-fire.
+  useEffect(() => {
+    if (currentEstimate || isAutoGenerating || blankFiredRef.current) return
+    blankFiredRef.current = true
+    createBlankEstimate(projectId).then((result) => {
+      if (result.error) {
+        toast.error(result.error)
+        blankFiredRef.current = false // allow a retry on the next render
+        return
+      }
+      router.refresh()
+    })
+  }, [currentEstimate, isAutoGenerating, projectId, router])
 
   useEffect(() => {
     const suggestion = popStoredClientSuggestion(projectId)
@@ -114,69 +123,6 @@ export function EstimateTab({
       })
     }
   }, [projectId, router])
-
-  const hasTranscript = recordings.some((r) => r.transcript && r.transcript.trim().length > 0)
-  const hasPhotos = photos.length > 0
-  const hasPrerequisites = hasTranscript || hasPhotos
-
-  async function handleGenerate() {
-    startTransition(() => {
-      setIsGenerating(true)
-      setGenerationStep(0)
-    })
-    try {
-      if (hasPhotos) {
-        const photoRes = await fetch('/api/analyze-photos', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ projectId }),
-        })
-        if (!photoRes.ok) {
-          const err = await photoRes.json().catch(() => ({}))
-          throw new Error(err.error || t('Photo analysis failed'))
-        }
-        const { jobId: analyzeJobId } = (await photoRes.json()) as { jobId: string }
-        const analyzeResult = await pollJob(analyzeJobId, new AbortController().signal)
-        if (analyzeResult.state !== 'completed') {
-          throw new Error(t('Photo analysis failed'))
-        }
-      }
-      setGenerationStep(1)
-      const genRes = await fetch('/api/generate-estimate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId, language: estimateLanguage }),
-      })
-      if (!genRes.ok) {
-        const err = await genRes.json().catch(() => ({}))
-        throw new Error(err.error || t('Estimate generation failed'))
-      }
-      const { jobId } = (await genRes.json()) as { jobId: string }
-      setGenerationStep(2)
-      const genResult = await pollJob(jobId, new AbortController().signal)
-      if (genResult.state !== 'completed') {
-        throw new Error(t('Estimate generation failed'))
-      }
-      setGenerationStep(3)
-      router.refresh()
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : t('Generation failed. Please try again.'))
-    } finally {
-      setIsGenerating(false)
-    }
-  }
-
-  async function handleCreateBlank() {
-    startTransition(() => setIsCreatingBlank(true))
-    const result = await createBlankEstimate(projectId)
-    if (result.error) {
-      toast.error(result.error)
-    } else {
-      toast.success(t('Blank estimate created'))
-      router.refresh()
-    }
-    startTransition(() => setIsCreatingBlank(false))
-  }
 
   if (isAutoGenerating && !currentEstimate) {
     const hasTranscript = recordings.some(r => r.transcript && r.transcript.trim().length > 0)
@@ -193,83 +139,76 @@ export function EstimateTab({
     )
   }
 
-  if (isGenerating) {
-    return <GenerationProgress currentStep={generationStep} />
-  }
-
   if (currentEstimate) {
     return (
-      <EstimateEditor
-        estimate={currentEstimate}
-        versions={allVersions}
-        issuedInvoices={issuedInvoices}
-        paymentsEnabled={paymentsEnabled}
-        projectId={projectId}
-        companyId={companyId}
-        companyBrandColor={companyBrandColor}
-        company={company}
-        companyDefaults={companyDefaults}
-        recordings={recordings}
-        photos={photos}
-        projectName={projectName}
-        projectType={projectType}
-        client={client}
-        onRecord={onRecord}
-        linkClientSlot={linkClientSlot}
-        priceBookItems={priceBookItems}
-      />
+      <>
+        <EstimateEditor
+          estimate={currentEstimate}
+          versions={allVersions}
+          issuedInvoices={issuedInvoices}
+          paymentsEnabled={paymentsEnabled}
+          projectId={projectId}
+          companyId={companyId}
+          companyBrandColor={companyBrandColor}
+          company={company}
+          companyDefaults={companyDefaults}
+          recordings={recordings}
+          photos={photos}
+          projectName={projectName}
+          projectType={projectType}
+          client={client}
+          onRecord={onRecord}
+          linkClientSlot={linkClientSlot}
+          priceBookItems={priceBookItems}
+          onSend={() => setSendOpen(true)}
+        />
+        <SendDialog
+          open={sendOpen}
+          onOpenChange={setSendOpen}
+          estimate={currentEstimate}
+          projectName={projectName}
+          companyName={companyName}
+          clientEmail={client?.email ?? null}
+          clientPhone={client?.phone ?? null}
+          clientName={client?.name ?? ''}
+          ownerName={ownerName}
+          companyWebsite={company.website}
+          estimateTemplate={estimateTemplate}
+          smsDeliveryEnabled={smsDeliveryEnabled ?? false}
+          whatsappSendEnabled={whatsappSendEnabled ?? false}
+        />
+      </>
     )
   }
 
+  // No estimate yet — the lazy effect above is creating a blank one. Show a brief
+  // skeleton mirroring the estimate document until the refresh swaps in the editor.
   return (
-    <div className="flex items-center justify-center py-16">
-      <Card variant="glass" className="w-full max-w-md">
-        <CardContent className="flex flex-col items-center text-center pt-8 pb-6 space-y-4">
-          <div className="h-14 w-14 rounded-full gradient-brand shadow-glow-brand flex items-center justify-center">
-            <Sparkles className="h-7 w-7 text-white" />
+    <div className="space-y-4" aria-busy>
+      <div className="rounded-lg border border-border bg-card overflow-hidden">
+        <div className="flex items-start justify-between gap-4 p-5">
+          <div className="space-y-2">
+            <Skeleton className="h-5 w-40" />
+            <Skeleton className="h-4 w-32" />
           </div>
-          <div>
-            <h3 className="text-lg font-semibold">{t('Generate AI Estimate')}</h3>
-            <p className="text-sm text-muted-foreground mt-1">
-              {t('Create a professional estimate from your audio recordings and photos using AI.')}
-            </p>
-          </div>
-
-          {hasPrerequisites ? (
-            <Button variant="primary" size="lg" onClick={handleGenerate} className="gap-2 min-h-[44px]">
-              <Sparkles className="h-4 w-4" />
-              {t('Generate Estimate')}
-            </Button>
-          ) : (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span tabIndex={0}>
-                    <Button variant="primary" size="lg" disabled className="gap-2 min-h-[44px]">
-                      <Sparkles className="h-4 w-4" />
-                      {t('Generate Estimate')}
-                    </Button>
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>{t('Add at least one audio recording or photo before generating an estimate.')}</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          )}
-
-          <Button
-            variant="link"
-            size="sm"
-            onClick={handleCreateBlank}
-            disabled={isCreatingBlank}
-            className="gap-1.5 text-muted-foreground"
-          >
-            <FileText className="h-3.5 w-3.5" />
-            {isCreatingBlank ? t('Creating...') : t('Create Blank Estimate')}
-          </Button>
-        </CardContent>
-      </Card>
+          <Skeleton className="h-12 w-12 rounded-md" />
+        </div>
+        <Skeleton className="h-10 w-full rounded-none" />
+        <div className="p-5 space-y-2">
+          <Skeleton className="h-3 w-16" />
+          <Skeleton className="h-5 w-64" />
+        </div>
+        <div className="border-t border-border px-5 py-4 space-y-3">
+          <Skeleton className="h-4 w-44" />
+          {Array.from({ length: 2 }).map((_, r) => (
+            <div key={r} className="flex items-center gap-3">
+              <Skeleton className="h-3 flex-1" />
+              <Skeleton className="h-3 w-12" />
+              <Skeleton className="h-3 w-16" />
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   )
 }

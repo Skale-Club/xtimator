@@ -167,7 +167,10 @@ export function IntegrationCard({
                 <AlertDescription>{saveError}</AlertDescription>
               </Alert>
             )}
-            <div className="flex items-center gap-3">
+            {/* items-start (not items-center): when the Test result Alert appears
+                below the Test button, the column grows — items-center would
+                re-center and SHIFT the buttons. Top-anchoring keeps Save/Test put. */}
+            <div className="flex items-start gap-3">
               <Button
                 type="submit"
                 disabled={isSaving}

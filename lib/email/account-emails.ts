@@ -2,6 +2,7 @@ import 'server-only'
 import { getIntegrationKey, getBranding, getWhatsAppDisplayNumber } from '@/lib/platform-config'
 import { getCanonicalBaseUrl } from '@/lib/utils/site-url'
 import { buildWaMeLink } from '@/lib/whatsapp/wa-link'
+import { EMAIL_FROM_ADDRESS } from '@/lib/email/sender'
 
 /**
  * Transactional account lifecycle emails.
@@ -12,7 +13,7 @@ import { buildWaMeLink } from '@/lib/whatsapp/wa-link'
  *   - If toEmail is empty → skip silently.
  */
 
-const FROM_ADDRESS = 'notifications@estimatebuilder.pro'
+const FROM_ADDRESS = EMAIL_FROM_ADDRESS
 
 function escHtml(s: string): string {
   return s

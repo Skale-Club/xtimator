@@ -3,6 +3,7 @@ import { requireServiceClient } from '@/lib/supabase/service'
 import { sendWhatsAppMessage } from '@/lib/whatsapp/client'
 import { logOutboundMessage } from '@/lib/whatsapp/conversations'
 import { isAuthorizedCron } from '@/lib/auth/cron-auth'
+import { notifyOps } from '@/lib/observability/ops-alert'
 
 export async function GET(request: Request) {
   if (!process.env.CRON_SECRET) {
@@ -23,6 +24,14 @@ export async function GET(request: Request) {
       .lt('expires_at', new Date().toISOString())
 
     if (error) {
+      void notifyOps({
+        kind: 'cron_failed',
+        title: 'Cron cleanup-whatsapp-sessions failed',
+        message: error.message,
+        severity: 'error',
+        dedupeKey: 'cron:cleanup-whatsapp-sessions',
+        suppressWindowSec: 3600,
+      })
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
@@ -55,6 +64,14 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ cleaned: sessions.length }, { status: 200 })
   } catch (err) {
+    void notifyOps({
+      kind: 'cron_failed',
+      title: 'Cron cleanup-whatsapp-sessions failed',
+      message: (err as Error).message ?? 'Cleanup failed',
+      severity: 'error',
+      dedupeKey: 'cron:cleanup-whatsapp-sessions',
+      suppressWindowSec: 3600,
+    })
     return NextResponse.json(
       { error: (err as Error).message ?? 'Cleanup failed' },
       { status: 500 }

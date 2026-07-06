@@ -18,6 +18,10 @@ interface TierCardProps {
   onSelect?: () => void
   current?: boolean
   popular?: boolean
+  showAnnual?: boolean
+  annualPrice?: string | null
+  annualPerMonth?: string | null
+  savePct?: number | null
 }
 
 /**
@@ -28,6 +32,10 @@ interface TierCardProps {
  * - Business → <Card variant="glass"> + 3px gradient-premium top edge, premium tri-gradient CTA
  *
  * Status mapping matches UI-SPEC: "Most popular" pill renders as <Badge variant="brand">.
+ *
+ * Phase 145 — Annual pricing display:
+ * - showAnnual=true + annualPrice → shows annual total + per-month equivalent + save badge
+ * - showAnnual=true + no annualPrice → falls back to monthly display (annual not configured)
  */
 export function TierCard({
   tier,
@@ -41,10 +49,17 @@ export function TierCard({
   onSelect,
   current,
   popular,
+  showAnnual,
+  annualPrice,
+  annualPerMonth,
+  savePct,
 }: TierCardProps) {
   const variant = tier === 'pro' ? 'stat' : 'glass'
   const buttonVariant =
     tier === 'free' ? 'outline' : tier === 'pro' ? 'primary' : 'premium'
+
+  const displayAnnual = showAnnual && !!annualPrice
+
   return (
     <Card
       variant={variant}
@@ -66,10 +81,28 @@ export function TierCard({
       <CardHeader className="p-0">
         <CardTitle className="text-xl"><T text={name} /></CardTitle>
       </CardHeader>
-      <div className="flex items-baseline gap-1.5">
-        <span className="font-mono text-3xl font-semibold tracking-tight">{price}</span>
-        <span className="text-sm text-muted-foreground whitespace-nowrap">/ <T text={period} /></span>
+
+      <div className="flex flex-col gap-1">
+        <div className="flex items-baseline gap-1.5">
+          <span className="font-mono text-3xl font-semibold tracking-tight">
+            {displayAnnual ? annualPrice : price}
+          </span>
+          <span className="text-sm text-muted-foreground whitespace-nowrap">
+            / <T text={displayAnnual ? 'year' : period} />
+          </span>
+        </div>
+        {displayAnnual && annualPerMonth && (
+          <p className="text-xs text-muted-foreground">
+            {annualPerMonth} <T text="/ mo · billed annually" />
+          </p>
+        )}
+        {displayAnnual && savePct != null && (
+          <Badge variant="brand" className="self-start text-xs">
+            <T text={`Save ${savePct}%`} />
+          </Badge>
+        )}
       </div>
+
       <ul className="flex-1 space-y-2 text-sm">
         {features.map((f) => (
           <li key={f} className="flex items-start gap-2">

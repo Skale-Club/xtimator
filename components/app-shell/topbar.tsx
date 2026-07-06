@@ -8,7 +8,6 @@ import { ThemeToggle } from '@/components/app-shell/theme-toggle'
 import { LanguageToggle } from '@/components/app-shell/language-toggle'
 import { NotificationBell } from '@/components/notifications/notification-bell'
 import { CreditChip } from '@/components/app-shell/credit-chip'
-import { NavUserDropdown } from '@/components/app-shell/nav-user-dropdown'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { ContextualTooltip, TOOLTIP_KEYS } from '@/components/tour/contextual-tooltip'
 import { useCurrentBreadcrumbs } from '@/components/app-shell/breadcrumb-context'
@@ -19,8 +18,7 @@ interface TopbarProps {
   }
   userId: string
   isAdmin?: boolean
-  navUser?: { email: string; avatarUrl: string | null } | null
-  creditBalance?: number
+  percentUsed?: number
 }
 
 const TITLE_MAP: Record<string, string> = {
@@ -43,7 +41,7 @@ function usePageTitle(pathname: string): string {
   return ''
 }
 
-export function Topbar({ company, userId, isAdmin, navUser, creditBalance }: TopbarProps) {
+export function Topbar({ company, userId, isAdmin, percentUsed }: TopbarProps) {
   const pathname = usePathname()
   const { t } = useTranslation()
   const router = useRouter()
@@ -124,10 +122,9 @@ export function Topbar({ company, userId, isAdmin, navUser, creditBalance }: Top
             <LanguageToggle />
           </span>
         </ContextualTooltip>
-        {typeof creditBalance === 'number' && <CreditChip balance={creditBalance} />}
+        {typeof percentUsed === 'number' && <CreditChip percentUsed={percentUsed} />}
         <NotificationBell companyId={company.id} userId={userId} />
         <ThemeToggle />
-        {navUser && <NavUserDropdown email={navUser.email} avatarUrl={navUser.avatarUrl} />}
       </div>
     </header>
   )

@@ -14,6 +14,8 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import { Switch } from '@/components/ui/switch'
+import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { useTranslation } from '@/lib/i18n/use-translation'
 
@@ -22,6 +24,7 @@ const defaultsSchema = z.object({
   defaultPaymentTerms: z.string().optional().or(z.literal('')),
   defaultWarrantyTerms: z.string().optional().or(z.literal('')),
   defaultValidityDays: z.coerce.number().int().min(1, 'Must be at least 1 day'),
+  digitalSignatureEnabled: z.boolean(),
 })
 
 type DefaultsValues = z.infer<typeof defaultsSchema>
@@ -42,24 +45,28 @@ export function DefaultsForm({ company }: DefaultsFormProps) {
       defaultPaymentTerms: company.default_payment_terms || '',
       defaultWarrantyTerms: company.default_warranty_terms || '',
       defaultValidityDays: company.default_validity_days || 30,
+      digitalSignatureEnabled: company.digital_signature_enabled,
     },
   })
 
   function onSubmit(values: DefaultsValues) {
     startTransition(async () => {
       const result = await updateDefaults({
-        defaultTaxRate: values.defaultTaxRate / 100, // Convert percentage to decimal
+        defaultTaxRate: values.defaultTaxRate / 100,
         defaultPaymentTerms: values.defaultPaymentTerms || '',
         defaultWarrantyTerms: values.defaultWarrantyTerms || '',
         defaultValidityDays: values.defaultValidityDays,
+        digitalSignatureEnabled: values.digitalSignatureEnabled,
       })
       if (result.error) {
         toast.error(result.error)
       } else {
-        toast.success(t('Estimate defaults saved.'))
+        toast.success(t('Estimate settings saved.'))
       }
     })
   }
+
+  const values = form.watch()
 
   return (
     <Card className="w-full rounded-[var(--radius-md)]">
@@ -160,9 +167,24 @@ export function DefaultsForm({ company }: DefaultsFormProps) {
               />
             </div>
 
+            {/* Signature toggle */}
+            <div className="flex min-h-24 items-center justify-between gap-4 rounded-[var(--radius-md)] border border-border bg-background p-4">
+              <Label htmlFor="digital-sig-enabled" className="grid flex-1 gap-1">
+                <span>{t('Require digital signature')}</span>
+                <span className="text-sm font-normal text-muted-foreground">
+                  {t('Clients draw a signature before accepting the estimate.')}
+                </span>
+              </Label>
+              <Switch
+                id="digital-sig-enabled"
+                checked={!!values.digitalSignatureEnabled}
+                onCheckedChange={(checked) => form.setValue('digitalSignatureEnabled', checked)}
+              />
+            </div>
+
             <Button type="submit" disabled={isPending} className="min-w-40">
               {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {t('Save Defaults')}
+              {t('Save')}
             </Button>
           </form>
         </Form>

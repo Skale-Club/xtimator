@@ -4,6 +4,9 @@
  * GET   → current user's prefs (with `push_enabled` derived boolean)
  * PATCH → partial update (categories, email_digest_enabled, push_subscription)
  *
+ * WhatsApp opt-in writes are rejected (D-15: tenant cannot enable proactive
+ * WhatsApp). Existing stored consent/history is preserved on reads.
+ *
  * Best-effort: read or write failures return 500 JSON, never throw.
  */
 
@@ -30,7 +33,9 @@ const PatchSchema = z.object({
   // Phase 104 (NOTIF-05) — explicit per-channel opt-in/consent (TCPA/cost).
   sms_opt_in_at: z.string().nullable().optional(),
   sms_opt_in_consent_text: z.string().nullable().optional(),
-  whatsapp_opt_in_at: z.string().nullable().optional(),
+  // D-15: WhatsApp opt-in writes are rejected — tenant cannot enable proactive
+  // WhatsApp. Existing stored consent/history is preserved on reads but the
+  // PATCH schema no longer accepts whatsapp_opt_in_at.
 })
 
 export async function GET() {

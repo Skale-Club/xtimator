@@ -12,6 +12,7 @@ import { getIntegrationKey, getBranding } from '@/lib/platform-config'
 import { rateLimit } from '@/lib/ratelimit'
 import { demoGuardResponse } from '@/lib/demo/guard'
 import { shareLinkExpiryFromNow } from '@/lib/estimates/share-link'
+import { emailFrom } from '@/lib/email/sender'
 
 interface SendRequestBody {
   to: string
@@ -146,7 +147,7 @@ export async function POST(
       html: string
       attachments?: { filename: string; content: Buffer }[]
     } = {
-      from: `${fromName} <onboarding@resend.dev>`,
+      from: emailFrom(fromName),
       to,
       subject,
       html,

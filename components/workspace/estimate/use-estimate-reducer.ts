@@ -2,6 +2,7 @@
 
 import { useReducer } from 'react'
 import type { EstimateWithSections } from '@/lib/queries/estimate'
+import type { Photo } from '@/lib/queries/photo'
 import { DEFAULT_CURRENCY_CODE } from '@/lib/money/currency'
 
 // ---------------------------------------------------------------------------
@@ -62,6 +63,7 @@ export interface EstimateEditorState {
   sections: EditorSection[]
   estimate_date: string | null
   estimate_number: string | null
+  attachedPhotos: Photo[]
   isDirty: boolean
 }
 
@@ -86,6 +88,8 @@ export type EstimateAction =
   | { type: 'UPDATE_TAX_RATE'; tax_rate: number }
   | { type: 'MARK_SAVED' }
   | { type: 'APPLY_REFINEMENT'; refined: RefinementPayload }
+  | { type: 'ATTACH_PHOTO'; photo: Photo }
+  | { type: 'DETACH_PHOTO'; photoId: string }
 
 /**
  * SEED-028 Phase C: shape returned by /api/estimates/[id]/refine (no DB write).
@@ -185,6 +189,7 @@ function initState(estimate: EstimateWithSections | null): EstimateEditorState {
       sections: [],
       estimate_date: null,
       estimate_number: null,
+      attachedPhotos: [],
       isDirty: false,
     }
   }
@@ -216,6 +221,7 @@ function initState(estimate: EstimateWithSections | null): EstimateEditorState {
     balance_due: (estimate as { balance_due?: number | null }).balance_due ?? estimate.total,
     estimate_date: (estimate as { estimate_date?: string | null }).estimate_date ?? null,
     estimate_number: (estimate as { estimate_number?: string | null }).estimate_number ?? null,
+    attachedPhotos: (estimate as { attachedPhotos?: Photo[] }).attachedPhotos ?? [],
     sections: estimate.sections
       .map((s) => ({
         id: s.id,
@@ -443,6 +449,24 @@ function estimateReducer(state: EstimateEditorState, action: EstimateAction): Es
 
     case 'MARK_SAVED':
       return { ...state, isDirty: false }
+
+    case 'ATTACH_PHOTO': {
+      if (state.attachedPhotos.some((p) => p.id === action.photo.id)) {
+        return state
+      }
+      return {
+        ...state,
+        attachedPhotos: [...state.attachedPhotos, action.photo],
+      }
+    }
+
+    case 'DETACH_PHOTO':
+      return {
+        ...state,
+        attachedPhotos: state.attachedPhotos.filter(
+          (p) => p.id !== action.photoId
+        ),
+      }
 
     case 'APPLY_REFINEMENT': {
       // Replace summary/notes/timeline/terms and the entire sections tree with

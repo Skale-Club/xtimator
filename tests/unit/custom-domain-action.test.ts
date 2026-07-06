@@ -6,7 +6,7 @@ vi.mock('@/lib/supabase/server', () => ({
 
 vi.mock('next/cache', () => ({
   revalidatePath: vi.fn(),
-  revalidateTag: vi.fn(),
+  updateTag: vi.fn(),
   // lib/queries/auth.ts wraps getCachedCompany in unstable_cache at import time.
   unstable_cache: (fn: (...args: unknown[]) => unknown) => fn,
 }))

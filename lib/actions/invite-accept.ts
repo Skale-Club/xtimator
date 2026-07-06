@@ -41,7 +41,7 @@ export async function acceptInvite(
   //    NOTE: never echo the token in any error; never console.log it.
   const { data: invite } = await service
     .from('company_invites')
-    .select('id, company_id, email, role, status, expires_at')
+    .select('id, company_id, display_name, email, role, status, expires_at')
     .eq('token', token)
     .maybeSingle()
   if (!invite) {
@@ -68,6 +68,17 @@ export async function acceptInvite(
     }
   }
 
+  // New invites carry the manager-provided name. Keep old pending links
+  // compatible by falling back to auth metadata, then the email local part.
+  const userMetadata =
+    typeof claims.user_metadata === 'object' && claims.user_metadata
+      ? (claims.user_metadata as Record<string, unknown>)
+      : {}
+  const displayName =
+    String(invite.display_name ?? '').trim() ||
+    String(userMetadata.full_name ?? userMetadata.name ?? '').trim() ||
+    inviteEmail.split('@')[0]
+
   // 6. SINGLE-USE atomic flip FIRST — guarded WHERE status='pending'. This runs
   //    BEFORE the member insert so a lost race writes no membership. A 0-row
   //    result means another accept already won → reject.
@@ -92,6 +103,7 @@ export async function acceptInvite(
       user_id: claims.sub as string,
       company_id: invite.company_id,
       role: invite.role,
+      display_name: displayName,
       email: invite.email,
     },
     { onConflict: 'user_id,company_id', ignoreDuplicates: true }

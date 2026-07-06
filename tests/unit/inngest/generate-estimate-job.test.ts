@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { readFileSync } from 'node:fs'
+import { notify } from '@/lib/notifications/dispatch'
+import { notifyOps } from '@/lib/observability/ops-alert'
 
 // Imports the real generate-estimate Inngest function + its (mocked) graph tree
 // at runtime; under vitest's reused forked worker the import can exceed the 5s
@@ -76,6 +78,12 @@ vi.mock('@/lib/observability/pipeline-events', () => ({
   recordPipelineEvent: vi.fn().mockResolvedValue(undefined),
 }))
 
+// quick-260705-c1y-03: mock the ops-alert fan-out so the onFailure wiring test can
+// assert notifyOps fires additively (top-level so it hoists with the other mocks).
+vi.mock('@/lib/observability/ops-alert', () => ({
+  notifyOps: vi.fn().mockResolvedValue(undefined),
+}))
+
 vi.mock('@/lib/inngest/client', () => ({
   inngest: {
     createFunction: vi.fn((opts: unknown, handler: unknown) => ({ opts, handler })),
@@ -97,8 +105,15 @@ type FnInternals = {
     idempotency?: string
     retries?: number
     triggers?: Array<{ event?: string }>
+    onFailure?: (arg: {
+      event: { data?: { event?: { data?: unknown } } }
+      error: unknown
+    }) => Promise<void>
   }
 }
+
+const mockNotify = notify as ReturnType<typeof vi.fn>
+const mockNotifyOps = notifyOps as ReturnType<typeof vi.fn>
 
 describe('INNGEST-02 + INNGEST-06: generateEstimateJob function config', () => {
   it('is created with id "generate-estimate" and idempotency: "event.data.requestId"', async () => {
@@ -107,6 +122,42 @@ describe('INNGEST-02 + INNGEST-06: generateEstimateJob function config', () => {
     expect(fn.opts.id).toBe('generate-estimate')
     expect(fn.opts.idempotency).toBe('event.data.requestId')
     expect(fn.opts.retries).toBe(2)
+  })
+})
+
+describe('quick-260705-c1y-03: generate-estimate onFailure fires notifyOps additively', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('invokes notifyOps(estimate_generation_failed) AND still calls the tenant notify()', async () => {
+    const { generateEstimateJob } = await import('@/lib/inngest/functions/generate-estimate')
+    const fn = generateEstimateJob as unknown as FnInternals
+    const onFailure = fn.opts.onFailure
+    expect(onFailure).toBeTypeOf('function')
+
+    // The handler unwraps its payload from event.data?.event?.data (the createFunction
+    // mock shape). Invoke the onFailure closure directly with a synthetic failure.
+    await onFailure!({
+      event: { data: { event: { data: { companyId: 'c1', projectId: 'p1', requestId: 'r1' } } } },
+      error: new Error('boom'),
+    })
+
+    // Additive ops alert fired exactly once with the right kind/severity/dedupeKey.
+    expect(mockNotifyOps).toHaveBeenCalledTimes(1)
+    const alert = mockNotifyOps.mock.calls[0][0] as {
+      kind: string
+      severity: string
+      dedupeKey: string
+      message: string
+    }
+    expect(alert.kind).toBe('estimate_generation_failed')
+    expect(alert.severity).toBe('error')
+    expect(alert.dedupeKey).toBe('gen_fail:c1')
+    expect(alert.message).toContain('boom')
+
+    // Additive, not a replacement — the existing tenant notify() still fires.
+    expect(mockNotify).toHaveBeenCalled()
   })
 })
 

@@ -6,6 +6,13 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
+// Billing v2: the credit gate now runs on every request — stub it permissive so
+// these tests stay focused on their own contract (the gate has its own tests).
+vi.mock('@/lib/billing/credit-ledger', () => ({
+  // plain async fn (not vi.fn) so global mock resets can never strip the value
+  checkCredits: async () => ({ allowed: true, balance: 1000, shortfall: 0 }),
+}))
+
 vi.mock('@/lib/inngest/client', () => ({
   inngest: {
     send: vi.fn().mockResolvedValue({ ids: ['evt_test'] }),
@@ -36,12 +43,23 @@ vi.mock('@/lib/queries/active-company', () => ({
   getActiveCompanyId: vi.fn(),
 }))
 
+// The route calls requireServiceClient() for the GUARD-DEMO quota check.
+// Without this mock, the real function throws on CI (no Supabase env vars)
+// and the route returns 500 instead of the expected status.
+vi.mock('@/lib/supabase/service', () => ({
+  requireServiceClient: vi.fn(),
+  // createServiceClient returns null so getBillingConfig() uses DEFAULT_BILLING_CONFIG
+  // (enforcementEnabled: false) instead of making a real Supabase network call.
+  createServiceClient: vi.fn().mockReturnValue(null),
+}))
+
 import { POST } from '@/app/api/generate-estimate/route'
 import { createClient } from '@/lib/supabase/server'
 import { generateEstimateForProject } from '@/lib/services/generate-estimate'
 import { checkQuota, recordUsage } from '@/lib/quota'
 import { inngest } from '@/lib/inngest/client'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
+import { requireServiceClient } from '@/lib/supabase/service'
 
 const mockCheckQuota = vi.mocked(checkQuota)
 const mockRecordUsage = vi.mocked(recordUsage)
@@ -81,6 +99,16 @@ describe('generate-estimate route — quota enforcement (dispatcher contract)', 
     vi.mocked(recordUsage).mockResolvedValue(undefined)
     mockSend.mockResolvedValue({ ids: ['evt_test'] } as never)
     vi.mocked(getActiveCompanyId).mockResolvedValue('company-1')
+    // Return null company row so the GUARD-DEMO quota check is a no-op.
+    vi.mocked(requireServiceClient).mockReturnValue({
+      from: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({ data: null, error: null }),
+          }),
+        }),
+      }),
+    } as never)
   })
 
   // Test A: quota exceeded → 402

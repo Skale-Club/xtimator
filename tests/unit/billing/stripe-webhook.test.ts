@@ -4,11 +4,16 @@ import { NextRequest } from 'next/server'
 // Stripe mock: class-based so constructors work (Phase 08 pattern)
 const mockConstructEvent = vi.fn()
 const mockSubscriptionsRetrieve = vi.fn()
+// Phase 153 Plan 03 (CREDITUI-07): autotopup_setup arm mocks.
+const mockSetupIntentRetrieve = vi.fn()
+const mockCustomersUpdate = vi.fn()
 
 vi.mock('@/lib/billing/stripe-client', () => ({
   getStripeClient: vi.fn().mockResolvedValue({
     webhooks: { constructEvent: mockConstructEvent },
     subscriptions: { retrieve: mockSubscriptionsRetrieve },
+    setupIntents: { retrieve: mockSetupIntentRetrieve },
+    customers: { update: mockCustomersUpdate },
   }),
 }))
 
@@ -58,6 +63,9 @@ beforeEach(() => {
   // (the deleted-subscription pre-lookup); keeps the handler off the CRM path.
   mockMaybeSingle.mockResolvedValue({ data: null })
   mockSelect.mockReturnValue({ eq: vi.fn().mockReturnValue({ maybeSingle: mockMaybeSingle }) })
+  // Phase 153 Plan 03 defaults.
+  mockSetupIntentRetrieve.mockResolvedValue({ payment_method: 'pm_test' })
+  mockCustomersUpdate.mockResolvedValue({})
 })
 
 describe('POST /api/webhooks/stripe — signature verification (STRIPE-02)', () => {
@@ -128,6 +136,54 @@ describe('POST /api/webhooks/stripe — checkout.session.completed (STRIPE-02)',
     expect(mockUpdate).toHaveBeenCalledWith(
       expect.objectContaining({ tier: 'business' })
     )
+  })
+})
+
+describe('POST /api/webhooks/stripe — checkout.session.completed autotopup_setup (CREDITUI-07)', () => {
+  it('retrieves the SetupIntent and sets the customer default_payment_method', async () => {
+    mockSetupIntentRetrieve.mockResolvedValue({ payment_method: 'pm_new_default' })
+
+    mockConstructEvent.mockReturnValue({
+      id: 'evt_autotopup_setup',
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          id: 'cs_setup_test',
+          mode: 'setup',
+          customer: 'cus_autotopup',
+          setup_intent: 'seti_test',
+          metadata: { type: 'autotopup_setup', companyId: 'company-autotopup' },
+        },
+      },
+    })
+
+    const res = await POST(makeRequest())
+
+    expect(res.status).toBe(200)
+    expect(mockSetupIntentRetrieve).toHaveBeenCalledWith('seti_test')
+    expect(mockCustomersUpdate).toHaveBeenCalledWith('cus_autotopup', {
+      invoice_settings: { default_payment_method: 'pm_new_default' },
+    })
+  })
+
+  it('does NOT fall through to the subscription-mode companies.update call (Pitfall 1 regression guard)', async () => {
+    mockConstructEvent.mockReturnValue({
+      id: 'evt_autotopup_setup_2',
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          id: 'cs_setup_test_2',
+          mode: 'setup',
+          customer: 'cus_autotopup_2',
+          setup_intent: 'seti_test_2',
+          metadata: { type: 'autotopup_setup', companyId: 'company-autotopup-2' },
+        },
+      },
+    })
+
+    await POST(makeRequest())
+
+    expect(mockUpdate).not.toHaveBeenCalled()
   })
 })
 

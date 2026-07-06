@@ -11,7 +11,7 @@ import { resolveBaseUrl } from '@/lib/utils/site-url'
  *
  * Stripe Connect OAuth callback. Verifies the HMAC state, exchanges the code
  * for a `stripe_user_id`, persists it on `companies`, and redirects back to
- * `/settings/payments` with `?connected=1` (success) or `?error=...` (failure).
+ * `/settings/integrations/stripe` with `?connected=1` (success) or `?error=...` (failure).
  *
  * IDEMPOTENT: If the company already has `stripe_account_id` set, the handler
  * short-circuits without re-exchanging the code. OAuth codes are single-use
@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
   const state = url.searchParams.get('state')
   const stripeError = url.searchParams.get('error')
   const base = resolveBaseUrl(req)
-  const settingsUrl = new URL('/settings/payments', base)
+  const settingsUrl = new URL('/settings/integrations/stripe', base)
 
   if (stripeError) {
     settingsUrl.searchParams.set('error', stripeError)

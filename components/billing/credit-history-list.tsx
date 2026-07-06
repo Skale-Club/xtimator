@@ -5,7 +5,7 @@ import {
   CardDescription,
   CardContent,
 } from '@/components/ui/card'
-import { History } from 'lucide-react'
+import { History, TrendingUp, TrendingDown } from 'lucide-react'
 import { T } from '@/components/i18n/t'
 import type { CreditHistoryRow } from '@/lib/queries/credits'
 
@@ -15,9 +15,11 @@ import type { CreditHistoryRow } from '@/lib/queries/credits'
  * Renders the recent ledger rows from getCreditOverview as a simple list:
  * a human label (from operation_type / reason), a SIGNED delta, and the date.
  *
- * Cardinal rule: NEVER renders real_cost_usd / markup / balance_after — they are
- * not even present on CreditHistoryRow (the Plan-01 owner-safe projection never
- * selected them). The owner sees credits consumed, never the cost math.
+ * Cardinal rule: NEVER renders the underlying real-cost or price-multiplier
+ * figures, and NEVER renders the post-transaction credit total — none of
+ * that is even present on CreditHistoryRow (the Plan-01 owner-safe
+ * projection never selected it). The owner sees credits consumed, never
+ * the cost math.
  */
 
 function rowLabel(row: CreditHistoryRow): React.ReactNode {
@@ -65,14 +67,19 @@ export function CreditHistoryList({ rows }: { rows: CreditHistoryRow[] }) {
               >
                 <span className="text-foreground">{rowLabel(row)}</span>
                 <div className="flex items-center gap-4">
-                  <span
-                    className={`font-mono font-medium tabular-nums ${
-                      positive ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'
-                    }`}
-                  >
-                    {positive ? '+' : ''}
-                    {row.delta_credits.toLocaleString()}
-                  </span>
+                  {positive ? (
+                    <TrendingUp
+                      data-testid="activity-positive"
+                      className="h-4 w-4 text-emerald-600 dark:text-emerald-400"
+                      aria-label="Credit added"
+                    />
+                  ) : (
+                    <TrendingDown
+                      data-testid="activity-negative"
+                      className="h-4 w-4 text-muted-foreground"
+                      aria-label="Credit used"
+                    />
+                  )}
                   <span className="whitespace-nowrap text-xs text-muted-foreground">
                     {new Date(row.created_at).toLocaleDateString('en-US', {
                       dateStyle: 'medium',

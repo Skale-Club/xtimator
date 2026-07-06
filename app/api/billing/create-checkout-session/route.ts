@@ -15,8 +15,9 @@ export async function POST(request: NextRequest) {
   const blocked = await demoGuardResponse()
   if (blocked) return blocked
 
-  const body = await request.json() as { plan?: string }
+  const body = await request.json() as { plan?: string; billingInterval?: string }
   const plan = body.plan === 'business' ? 'business' : 'pro'
+  const billingInterval = body.billingInterval === 'year' ? 'year' : 'month'
 
   const { data: company } = await supabase
     .from('companies')
@@ -29,13 +30,21 @@ export async function POST(request: NextRequest) {
   }
 
   const priceId =
-    plan === 'pro'
-      ? process.env.STRIPE_PRICE_PRO
-      : process.env.STRIPE_PRICE_BUSINESS
+    billingInterval === 'year'
+      ? plan === 'pro'
+        ? process.env.STRIPE_PRICE_PRO_ANNUAL
+        : process.env.STRIPE_PRICE_BUSINESS_ANNUAL
+      : plan === 'pro'
+        ? process.env.STRIPE_PRICE_PRO
+        : process.env.STRIPE_PRICE_BUSINESS
+
+  const envVarName = billingInterval === 'year'
+    ? `STRIPE_PRICE_${plan.toUpperCase()}_ANNUAL`
+    : `STRIPE_PRICE_${plan.toUpperCase()}`
 
   if (!priceId) {
     return NextResponse.json(
-      { error: `STRIPE_PRICE_${plan.toUpperCase()} env var not set` },
+      { error: `${envVarName} env var not set` },
       { status: 500 }
     )
   }
@@ -49,10 +58,10 @@ export async function POST(request: NextRequest) {
     customer: company.stripe_customer_id ?? undefined,
     success_url: `${process.env.NEXT_PUBLIC_APP_URL}/settings/billing?success=1`,
     cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/settings/billing?cancelled=1`,
-    // Store plan + companyId in metadata — avoids line_items expand call in webhook (RESEARCH Pitfall 3)
-    metadata: { companyId: company.id, plan },
+    // Store plan + companyId + billing_interval in metadata — avoids line_items expand call in webhook (RESEARCH Pitfall 3)
+    metadata: { companyId: company.id, plan, billing_interval: billingInterval },
     subscription_data: {
-      metadata: { companyId: company.id, plan },
+      metadata: { companyId: company.id, plan, billing_interval: billingInterval },
     },
   })
 

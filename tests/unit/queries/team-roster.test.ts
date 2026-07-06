@@ -62,7 +62,14 @@ beforeEach(() => {
     { user_id: 'u2', display_name: 'Member Two', email: 'm2@co.com', role: 'member' },
   ]
   membersResult.error = null
-  invitesResult.data = [{ id: 'inv_1', email: 'pending@co.com', role: 'member' }]
+  invitesResult.data = [
+    {
+      id: 'inv_1',
+      display_name: 'Pending Person',
+      email: 'pending@co.com',
+      role: 'member',
+    },
+  ]
   invitesResult.error = null
   configureSupabase()
 })
@@ -79,7 +86,14 @@ describe('SEAT-05: listCompanyRoster', () => {
         { user_id: 'u1', display_name: 'Owner One', email: 'owner@co.com', role: 'owner' },
         { user_id: 'u2', display_name: 'Member Two', email: 'm2@co.com', role: 'member' },
       ],
-      invites: [{ id: 'inv_1', email: 'pending@co.com', role: 'member' }],
+      invites: [
+        {
+          id: 'inv_1',
+          display_name: 'Pending Person',
+          email: 'pending@co.com',
+          role: 'member',
+        },
+      ],
     })
   })
 
@@ -90,7 +104,12 @@ describe('SEAT-05: listCompanyRoster', () => {
 
     // The invites returned are exactly what the pending-filtered select yields.
     expect('invites' in result && result.invites).toEqual([
-      { id: 'inv_1', email: 'pending@co.com', role: 'member' },
+      {
+        id: 'inv_1',
+        display_name: 'Pending Person',
+        email: 'pending@co.com',
+        role: 'member',
+      },
     ])
   })
 

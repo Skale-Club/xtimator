@@ -8,6 +8,7 @@ import { toast } from 'sonner'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -102,6 +103,9 @@ export function BulkAdjustDialog({
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Adjust prices | {folderName}</DialogTitle>
+          <DialogDescription>
+            Apply a percentage increase or decrease to every item in this category.
+          </DialogDescription>
         </DialogHeader>
 
         <Form {...form}>

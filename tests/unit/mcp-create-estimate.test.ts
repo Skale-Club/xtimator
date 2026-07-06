@@ -3,6 +3,13 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
+// Billing v2: the credit gate now runs before dispatch — stub it permissive so
+// these tests stay focused on their own contract (the gate has its own tests).
+vi.mock('@/lib/billing/credit-ledger', () => ({
+  // plain async fn (not vi.fn) so global mock resets can never strip the value
+  checkCredits: async () => ({ allowed: true, balance: 1000, shortfall: 0 }),
+}))
+
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
 // Supabase service client — a tiny per-test shim that returns whatever the

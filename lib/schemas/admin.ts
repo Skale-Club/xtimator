@@ -21,6 +21,7 @@ export const integrationKeySchema = z.object({
     'stripe_connect_client_id',
     'twilio',
     'xphere',
+    'telegram',
   ]),
   apiKey: z.string().min(1, 'API key is required'),
 })
@@ -159,7 +160,6 @@ export const billingConfigSchema = z.object({
   seatPriceAnnualCents: z.number().int().min(0),
   tiers: z.object({
     free: tierBillingSchema,
-    trial: tierBillingSchema,
     pro: tierBillingSchema,
     business: tierBillingSchema,
   }),
@@ -169,11 +169,18 @@ export const billingConfigSchema = z.object({
   lowBalanceThresholds: z.array(z.number().int().min(0)).max(5),
   meteredOperations: z.record(z.string(), z.boolean()),
   absorbedChatRateLimitPerMin: z.number().int().min(0).max(1000),
+  // Billing v2: one-time signup credit grant — the free tier's entire allowance.
+  signupCreditGrant: z.number().int().min(0),
   /**
-   * Master charging switch (CREDIT-05). Default FALSE — debits RECORD but
-   * checkCredits NEVER blocks until Phase 116 calibration flips it on.
+   * Master charging switch (CREDIT-05). Billing v2 runs with this ON — the
+   * free-tier wall depends on it; false reverts to record-only.
    */
   enforcementEnabled: z.boolean(),
+  /**
+   * Platform-wide auto-top-up kill switch (CREDITUI-07). Mirrors
+   * enforcementEnabled's exact pattern: default FALSE.
+   */
+  autoTopupEnabled: z.boolean(),
 })
 export type BillingConfigInput = z.infer<typeof billingConfigSchema>
 

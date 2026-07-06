@@ -19,6 +19,7 @@ import { generateAndUploadEstimatePDF } from '@/lib/whatsapp/pdf-delivery'
 import { getBranding } from '@/lib/platform-config'
 import { logOutboundMessage, toE164 } from '@/lib/whatsapp/conversations'
 import { getCanonicalBaseUrl } from '@/lib/utils/site-url'
+import { getWhatsAppAccountStatus } from '@/lib/whatsapp/account-registry'
 
 export interface DeliverEstimateResult {
   ok: boolean
@@ -61,11 +62,11 @@ export async function deliverEstimateViaWhatsApp(params: {
   if (!estimate.share_token) return { ok: false, error: 'Estimate has no share link' }
 
   // 2. Delivery format + company info.
-  const [{ data: waConfig }, { data: company }] = await Promise.all([
-    svc.from('company_whatsapp').select('delivery_format').eq('company_id', companyId).maybeSingle(),
+  const [accountStatus, { data: company }] = await Promise.all([
+    getWhatsAppAccountStatus(companyId),
     svc.from('companies').select('name, owner_name, website').eq('id', companyId).single(),
   ])
-  const deliveryFormat = ((waConfig?.delivery_format as string | null) ?? 'share_link') as DeliveryFormat
+  const deliveryFormat = (accountStatus.deliveryFormat ?? 'share_link') as DeliveryFormat
   const companyName = (company?.name as string | null) ?? null
   const ownerName = (company?.owner_name as string | null) ?? null
   const companyWebsite = (company?.website as string | null) ?? null

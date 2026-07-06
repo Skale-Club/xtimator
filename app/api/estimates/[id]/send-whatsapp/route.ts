@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { getEntitlements } from '@/lib/entitlements'
 import { deliverEstimateViaWhatsApp } from '@/lib/whatsapp/send-estimate'
+import { getWhatsAppAccountStatus } from '@/lib/whatsapp/account-registry'
 import { demoGuardResponse } from '@/lib/demo/guard'
 import { shareLinkExpiryFromNow } from '@/lib/estimates/share-link'
 
@@ -71,12 +72,6 @@ export async function POST(
       return NextResponse.json({ error: 'Estimate not found' }, { status: 404 })
     }
 
-    const { data: waConfig } = await supabase
-      .from('company_whatsapp')
-      .select('status')
-      .eq('company_id', estimate.company_id)
-      .maybeSingle()
-
     const whatsappEnabled = getEntitlements((company.tier as string) ?? 'free').whatsappEnabled
     if (!whatsappEnabled) {
       return NextResponse.json(
@@ -84,9 +79,13 @@ export async function POST(
         { status: 403 }
       )
     }
-    if (waConfig?.status !== 'active') {
+
+    // Gate: opaque account-active check via the server-only registry (D-06).
+    // No provisioning data leaked to the browser — only enabled/unavailable.
+    const accountStatus = await getWhatsAppAccountStatus(estimate.company_id)
+    if (!accountStatus.active) {
       return NextResponse.json(
-        { error: 'Connect and verify a WhatsApp number in Settings → Integrations first.' },
+        { error: 'WhatsApp delivery is currently unavailable. Please contact your administrator.' },
         { status: 403 }
       )
     }

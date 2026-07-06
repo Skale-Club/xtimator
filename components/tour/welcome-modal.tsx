@@ -1,6 +1,12 @@
 'use client'
 
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Mic, Camera, Sparkles, Send } from 'lucide-react'
 import { useTourContext } from './tour-provider'
@@ -53,10 +59,10 @@ export function WelcomeModal() {
           <DialogTitle className="text-xl font-semibold text-center">
             {t('Welcome to Xtimator!')}
           </DialogTitle>
+          <DialogDescription className="text-center">
+            {t("You're set up. Here's how the magic works:")}
+          </DialogDescription>
         </DialogHeader>
-        <p className="text-muted-foreground text-center text-sm">
-          {t("You're set up. Here's how the magic works:")}
-        </p>
         <ul className="space-y-3 mt-2">
           {[
             { Icon: Mic,      text: t('Record a job site walkthrough') },

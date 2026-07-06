@@ -1,19 +1,26 @@
-import { getOpenRouterDefaultModel, getSelectedAIProvider } from '@/lib/platform-config'
+import {
+  getOpenRouterDefaultModel,
+  getTranscriptionModel,
+} from '@/lib/platform-config'
 import type { Category } from '@/lib/admin/integrations-providers'
 import { loadCategoryInitials } from '@/lib/admin/integrations-providers'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { T } from '@/components/i18n/t'
 
-import { AIProviderSelector } from './ai-provider-selector'
+import { OpenRouterModelForm } from './openrouter-model-form'
+import { TranscriptionModelSelector } from './transcription-model-selector'
 import { IntegrationCard } from './integration-card'
 import { TwilioFromPhoneForm } from './twilio-from-phone-form'
 import { WhatsAppConfigForm } from './whatsapp-config-form'
 import { WhatsAppSystemPromptForm } from './whatsapp-system-prompt-form'
 import { XphereConfigForm } from './xphere-config-form'
 import { XphereStatus } from './xphere-status'
+import { TelegramChatIdForm } from './telegram-chat-id-form'
 import { PriceResearchConfigForm } from './price-research-config-form'
 import { DEFAULT_BILLING_CONFIG } from '@/lib/billing/billing-config'
+import { aggregateAiCostByOperation, type OpCostStat } from '@/lib/billing/calibration'
 import { BillingConfigForm } from './billing-config-form'
+import { MeasuredCostCard } from './measured-cost-card'
 
 type IntegrationCategoryContentProps = {
   category: Category
@@ -22,11 +29,12 @@ type IntegrationCategoryContentProps = {
 export async function IntegrationCategoryContent({
   category,
 }: IntegrationCategoryContentProps) {
-  const [initials, activeProvider, openRouterModel] = await Promise.all([
-    loadCategoryInitials(category),
-    category.showAISelector ? getSelectedAIProvider() : Promise.resolve(null),
-    category.showAISelector ? getOpenRouterDefaultModel() : Promise.resolve(null),
-  ])
+  const [initials, openRouterModel, transcriptionModel] =
+    await Promise.all([
+      loadCategoryInitials(category),
+      category.showAISelector ? getOpenRouterDefaultModel() : Promise.resolve(null),
+      category.showAISelector ? getTranscriptionModel() : Promise.resolve(null),
+    ])
 
   let twilioFromPhone = ''
   if (category.showFromPhone) {
@@ -74,6 +82,17 @@ export async function IntegrationCategoryContent({
     xphereBaseUrl = (data?.metadata as { base_url?: string } | null)?.base_url ?? ''
   }
 
+  let telegramChatId = ''
+  if (category.showTelegramConfig) {
+    const svc = requireServiceClient()
+    const { data } = await svc
+      .from('platform_integrations')
+      .select('metadata')
+      .eq('provider', 'telegram')
+      .maybeSingle()
+    telegramChatId = (data?.metadata as { chat_id?: string } | null)?.chat_id ?? ''
+  }
+
   let priceResearch = {
     enabled: false,
     source: 'openrouter_web' as 'openrouter_web' | 'anthropic_web',
@@ -97,6 +116,7 @@ export async function IntegrationCategoryContent({
   }
 
   let billingConfig = DEFAULT_BILLING_CONFIG
+  let costStats: OpCostStat[] = []
   if (category.showBillingConfig) {
     const svc = requireServiceClient()
     const { data } = await svc
@@ -112,6 +132,9 @@ export async function IntegrationCategoryContent({
           tiers: { ...DEFAULT_BILLING_CONFIG.tiers, ...(stored.tiers ?? {}) },
         }
       : DEFAULT_BILLING_CONFIG
+    // Measured real cost → shown next to the config so numbers are set against
+    // data, not guesses (empty until real generations exist).
+    costStats = await aggregateAiCostByOperation()
   }
 
   return (
@@ -134,12 +157,10 @@ export async function IntegrationCategoryContent({
         ))}
       </div>
 
-      {category.showAISelector && activeProvider && (
-        <div className="rounded-lg border border-border bg-card/40 p-4 md:p-6">
-          <AIProviderSelector
-            current={activeProvider}
-            currentOpenRouterModel={openRouterModel}
-          />
+      {category.showAISelector && (
+        <div className="rounded-lg border border-border bg-card/40 p-4 md:p-6 space-y-4">
+          <OpenRouterModelForm currentModel={openRouterModel} />
+          <TranscriptionModelSelector current={transcriptionModel ?? 'openai/whisper-1'} />
         </div>
       )}
 
@@ -152,6 +173,10 @@ export async function IntegrationCategoryContent({
           <XphereConfigForm current={xphereBaseUrl} />
           <XphereStatus />
         </>
+      )}
+
+      {category.showTelegramConfig && (
+        <TelegramChatIdForm current={telegramChatId} />
       )}
 
       {category.showWhatsAppConfig && (
@@ -169,7 +194,16 @@ export async function IntegrationCategoryContent({
         <PriceResearchConfigForm current={priceResearch} />
       )}
 
-      {category.showBillingConfig && <BillingConfigForm current={billingConfig} />}
+      {category.showBillingConfig && (
+        <>
+          <MeasuredCostCard
+            stats={costStats}
+            markup={billingConfig.markup}
+            creditUnitUsd={billingConfig.creditUnitUsd}
+          />
+          <BillingConfigForm current={billingConfig} />
+        </>
+      )}
     </div>
   )
 }

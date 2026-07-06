@@ -1,6 +1,10 @@
 import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
 
+const deploymentId = process.env.DEPLOYMENT_VERSION
+  ?.trim()
+  .replace(/[^a-zA-Z0-9_-]/g, '-');
+
 // Content-Security-Policy (Security Review S10). Shipped in REPORT-ONLY mode:
 // it surfaces violations in the browser console / report stream WITHOUT blocking
 // anything, so the policy can be validated against the real app (Supabase,
@@ -50,6 +54,11 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   devIndicators: false,
   output: 'standalone',
+  transpilePackages: ['nucleo-flags'],
+  // Self-hosted skew protection: navigation from a browser running an older
+  // build hard-reloads instead of sending stale RSC / Server Action references
+  // to the newly deployed container.
+  deploymentId: deploymentId || undefined,
   experimental: {
     serverActions: {
       // 3 step images (4MB each) + hero image (4MB) + JSON content
@@ -84,7 +93,11 @@ export default withSentryConfig(nextConfig, {
   sourcemaps: {
     deleteSourcemapsAfterUpload: true,
   },
+  webpack: {
+    treeshake: {
+      removeDebugLogging: true,
+    },
+  },
   // Proxy errors through /monitoring to bypass ad-blockers
   tunnelRoute: "/monitoring",
-  disableLogger: true,
 });

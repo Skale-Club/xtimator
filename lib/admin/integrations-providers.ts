@@ -36,6 +36,8 @@ export type Category = {
   showPriceResearchConfig?: boolean
   /** Billing category renders the billing-parameters config form below. */
   showBillingConfig?: boolean
+  /** Platform Alerts category renders the Telegram chat_id form + test-alert button below. */
+  showTelegramConfig?: boolean
 }
 
 export const CATEGORIES: ReadonlyArray<Category> = [
@@ -44,14 +46,34 @@ export const CATEGORIES: ReadonlyArray<Category> = [
     title: 'AI Providers',
     navLabel: 'AI',
     description:
-      'Models for estimate generation, photo analysis, and audio transcription. Switch active provider for LLM tasks below.',
-    showAISelector: false,
+      'One screen for every AI setting: the API key, the active LLM provider and model, the speech-to-text model, and price research. All apply at runtime — no redeploy.',
+    // The AI screen owns the global provider/model selector AND the price-research
+    // config (consolidated here so operators tune all AI behavior in one place).
+    showAISelector: true,
+    showPriceResearchConfig: true,
     providers: [
       {
         id: 'openrouter' as IntegrationProvider,
         title: 'OpenRouter',
         description:
           'Single API key, hundreds of models. Routes all AI tasks (estimate generation, photo analysis, audio transcription) through OpenRouter.',
+      },
+      // D5 (quick-260705-2gp): fallback-key rows restored so the operator can
+      // see/rotate them — the code paths (Gemini generation/vision fallback,
+      // OpenAI Whisper-direct transcription fallback) were already wired but the
+      // keys were invisible/unmanageable in the panel, leaving the OpenAI
+      // transcription fallback DEAD in production (key row missing).
+      {
+        id: 'gemini' as IntegrationProvider,
+        title: 'Google Gemini',
+        description:
+          'Fallback engine for estimate generation and photo analysis when OpenRouter fails. OpenRouter remains the primary engine for all AI tasks.',
+      },
+      {
+        id: 'openai' as IntegrationProvider,
+        title: 'OpenAI',
+        description:
+          'Whisper speech-to-text fallback — used only when OpenRouter transcription fails. OpenRouter remains the primary transcription engine.',
       },
     ],
   },
@@ -123,15 +145,6 @@ export const CATEGORIES: ReadonlyArray<Category> = [
     ],
   },
   {
-    slug: 'price-research',
-    title: 'Price Research',
-    navLabel: 'Price Research',
-    description:
-      'Researched regional pricing for estimate items with no price-book match. Reuses the configured OpenRouter / Anthropic key — no separate API key.',
-    showPriceResearchConfig: true,
-    providers: [],
-  },
-  {
     slug: 'billing',
     title: 'Billing',
     navLabel: 'Billing',
@@ -139,6 +152,22 @@ export const CATEGORIES: ReadonlyArray<Category> = [
       'Platform billing parameters — markup, credit denomination, per-tier grants and prices, top-up packs, Whisper rate, estimate fee %, low-balance thresholds. Applied at runtime, no redeploy. Tenants never see these controls. Defaults are illustrative — calibrate before charging (CALIB-02).',
     showBillingConfig: true,
     providers: [],
+  },
+  {
+    slug: 'ops-alerts',
+    title: 'Platform Alerts',
+    navLabel: 'Alerts',
+    description:
+      'System-health alerts (AI down, generation/transcription/vision failures, cron failures) delivered to the platform owner via Telegram. Enter a bot token and chat_id, then send a test alert.',
+    showTelegramConfig: true,
+    providers: [
+      {
+        id: 'telegram' as IntegrationProvider,
+        title: 'Telegram',
+        description:
+          'Bot token from @BotFather. Set the chat_id below (message the bot, then read it from https://api.telegram.org/bot<token>/getUpdates). Alerts stay off until both are set.',
+      },
+    ],
   },
 ] as const
 

@@ -14,6 +14,11 @@ import {
   computeTotalsDiscrepancy,
   TOTALS_EPSILON,
 } from '@/lib/estimate/totals'
+import {
+  buildEstimateQualitySignal,
+  reportEstimateQuality,
+  resolveQualityThresholds,
+} from '@/lib/estimate/quality/quality-signal'
 import { getPriceBookItems } from '@/lib/queries/price-book'
 import {
   resolveEstimateLanguage,
@@ -21,6 +26,7 @@ import {
 } from '@/lib/i18n/resolve-estimate-language'
 import { normalizeCurrencyCode } from '@/lib/money/currency'
 import { getWhatsAppSystemPrompt } from '@/lib/platform-config'
+import { copyEstimatePhotos } from '@/lib/queries/estimate-photo'
 
 export type ClientSuggestion = {
   detectedName: string
@@ -126,7 +132,10 @@ export async function generateEstimateForProject(
   const hasTranscripts = recordings.some(
     (r) => r.transcript && r.transcript.trim().length > 0
   )
-  const hasPhotos = photos.length > 0
+  // D3 (quick-260705-2gp): count only ANALYZED photos — the prompt builder
+  // below filters to ai_description, so an unanalyzed photo contributes zero
+  // context and must not satisfy the precondition on its own.
+  const hasPhotos = photos.some((p) => p.ai_description && p.ai_description.trim().length > 0)
   const hasPrompts =
     Array.isArray(options.prompts) &&
     options.prompts.some((p) => typeof p === 'string' && p.trim().length > 0)
@@ -311,6 +320,12 @@ export async function generateEstimateForProject(
   // error degrades to the anchored (pre-research) sections, never an estimate failure.
   let researchedSections = guardedSections
   let flaggedUnpriced = 0
+  // WI-1 (HARDEN-OBS-01): attempted-vs-usable research telemetry for the quality signal.
+  // Undefined until the research call sets it; on a research failure it stays undefined and
+  // buildEstimateQualitySignal treats absent research as "no data ⇒ no alarm" (graceful fallback).
+  let researchTelemetry:
+    | { candidates: number; cacheHits: number; providerUsable: number; missed: number }
+    | undefined
   try {
     const research = await researchUnmatchedPrices(guardedSections, {
       companyId, // param — NEVER LLM-derived
@@ -321,6 +336,7 @@ export async function generateEstimateForProject(
     })
     researchedSections = research.sections
     flaggedUnpriced = research.flaggedUnpriced
+    researchTelemetry = research.telemetry
   } catch (err) {
     // Non-fatal: keep the anchored sections; generation must still complete.
     console.warn('[generate-estimate] price research failed (non-fatal)', err)
@@ -376,6 +392,13 @@ export async function generateEstimateForProject(
   // (pre-anchor), with anchored/clamped counts. The AI total is NEVER persisted —
   // only the server safeGrandTotal writes to estimates.total. Best-effort: any
   // emission failure is swallowed so observability can never break generation.
+  //
+  // WI-1 (HARDEN-OBS-01): the discrepancy + quality signal are computed HERE (all inputs
+  // are already in scope), but the reportEstimateQuality CALL is deferred until AFTER
+  // persistence so the Sentry tag carries the real estimate_id (option (ii) in the plan —
+  // no test asserts console.info ordering; the eval harness does not read the tag string).
+  let qualitySignal: ReturnType<typeof buildEstimateQualitySignal> | null = null
+  let qualityDiscrepancy: ReturnType<typeof computeTotalsDiscrepancy> | null = null
   try {
     const aiProposedGrand = round2(aiProposedSubtotal * (1 + taxRate))
     const discrepancy = computeTotalsDiscrepancy({
@@ -384,14 +407,44 @@ export async function generateEstimateForProject(
       anchoredCount,
       clampedCount,
     })
-    // SINK: pipeline_events has no free-form metadata column for this signal, so we
-    // emit it to the structured log here. Plan 100-03 owns the Langfuse trace
-    // metadata seam (the Inngest job carries attemptId/correlationId) and can attach
-    // `discrepancy` there for end-to-end correlation.
-    console.info('[totals_discrepancy]', discrepancy)
+    qualityDiscrepancy = discrepancy
+    // Build the consolidated quality signal (pure): discrepancy magnitude + research
+    // attempted-vs-usable telemetry (graceful fallback if absent) + flagged-unpriced count.
+    qualitySignal = buildEstimateQualitySignal(
+      { discrepancy, flaggedUnpriced, research: researchTelemetry },
+      resolveQualityThresholds()
+    )
   } catch (err) {
-    console.warn('[generate-estimate] discrepancy metric emission failed', err)
+    console.warn('[generate-estimate] quality signal build failed', err)
   }
+
+  // REPLACE-BLANK: an untouched blank estimate must not leave an empty version
+  // behind. When the project's current estimate is a pristine blank — draft,
+  // never AI-written (summary IS NULL), and zero total — delete it before
+  // versioning so the AI result takes its place (typically version 1) instead of
+  // versioning on top of an empty shell. AI estimates always carry a summary and
+  // consolidated estimates aren't draft, so neither is matched; an edited blank
+  // (total>0) is preserved as a real version. The delete cascades to the blank's
+  // section/item rows.
+  await supabase
+    .from('estimates')
+    .delete()
+    .eq('project_id', projectId)
+    .eq('is_current', true)
+    .eq('workflow_status', 'draft')
+    .is('summary', null)
+    .eq('total', 0)
+
+  // Version carry-forward (Quick-260704-pt2) — capture the currently-current
+  // estimate's id AFTER the REPLACE-BLANK delete above: querying is_current=true
+  // post-delete means a deleted pristine-blank naturally returns no row (nothing
+  // to copy), while a real prior version (not deleted) is correctly captured.
+  const { data: previousCurrent } = await supabase
+    .from('estimates')
+    .select('id')
+    .eq('project_id', projectId)
+    .eq('is_current', true)
+    .maybeSingle()
 
   // Version management
   await supabase
@@ -453,6 +506,18 @@ export async function generateEstimateForProject(
 
   const estimateId = estimate.id as string
 
+  // WI-1 (HARDEN-OBS-01): emit the quality signal now that estimate_id is known. This
+  // ALWAYS fires the byte-identical console.info('[totals_discrepancy]', discrepancy) line
+  // (tests/eval + ops depend on it) and, on an anomaly (>threshold discrepancy OR low
+  // research hit-rate), raises a Sentry warning tagged with company_id/estimate_id.
+  // reportEstimateQuality NEVER throws, so observability can never break generation.
+  if (qualitySignal && qualityDiscrepancy) {
+    reportEstimateQuality(qualityDiscrepancy, qualitySignal, {
+      companyId,
+      estimateId,
+    })
+  }
+
   // Insert sections and items
   for (let sIdx = 0; sIdx < calculatedSections.length; sIdx++) {
     const section = calculatedSections[sIdx]
@@ -510,6 +575,12 @@ export async function generateEstimateForProject(
         throw new Error('Failed to save estimate items')
       }
     }
+  }
+
+  // Version carry-forward — copy the previous current version's attached
+  // photos onto the new version (independent rows, own remove lifecycle).
+  if (previousCurrent?.id) {
+    await copyEstimatePhotos(supabase, previousCurrent.id, estimateId, companyId)
   }
 
   // Update project status. RFALL-01: when research flagged an unpriced item AND the

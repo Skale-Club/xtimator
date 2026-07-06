@@ -4,6 +4,10 @@ import { getAuthClaims } from '@/lib/queries/auth'
 import { getBillingData } from '@/lib/queries/billing'
 import { getActiveCompany } from '@/lib/queries/active-company'
 import { getCreditOverview } from '@/lib/queries/credits'
+import { getBillingConfig } from '@/lib/billing/billing-config'
+import { getStripeClient } from '@/lib/billing/stripe-client'
+import { requireServiceClient } from '@/lib/supabase/service'
+import { computeUsagePercent } from '@/lib/billing/usage-percent'
 import {
   Card,
   CardHeader,
@@ -13,15 +17,16 @@ import {
 } from '@/components/ui/card'
 import { ManageSubscriptionButton } from '@/components/billing/manage-subscription-button'
 import { TierCardsGrid } from '@/components/billing/tier-cards-grid'
+import { TopUpPacksGrid } from '@/components/billing/topup-packs-grid'
 import { CreditBalanceCard } from '@/components/billing/credit-balance-card'
 import { CreditHistoryList } from '@/components/billing/credit-history-list'
+import { AutoTopupCard } from '@/components/billing/auto-topup-card'
 import { T } from '@/components/i18n/t'
 
-export const metadata = { title: 'Billing' }
+export const metadata = { title: 'Plans' }
 
 const TIER_DISPLAY: Record<string, string> = {
   free: 'Free',
-  trial: 'Trial',
   pro: 'Pro',
   business: 'Business',
 }
@@ -47,6 +52,77 @@ export default async function BillingPage() {
 
   const credits = await getCreditOverview(company.id)
 
+  const cfg = await getBillingConfig()
+  const cycleGrant =
+    data.tier === 'free'
+      ? cfg.signupCreditGrant
+      : cfg.tiers[data.tier as 'pro' | 'business']?.monthlyCreditGrant ?? 0
+  const percentUsed = computeUsagePercent({ balance: credits.balance, cycleGrant })
+  const annualPrices = {
+    pro: cfg.tiers.pro.subscriptionPriceAnnualCents,
+    business: cfg.tiers.business.subscriptionPriceAnnualCents,
+  }
+  const monthlyPricesCents = {
+    pro: cfg.tiers.pro.subscriptionPriceCents,
+    business: cfg.tiers.business.subscriptionPriceCents,
+  }
+
+  // Auto-top-up (CREDITUI-07) — read-only display data for the AutoTopupCard,
+  // gated behind cfg.autoTopupEnabled below. The Stripe read is wrapped in a
+  // try/catch defaulting to null: this page must never 500 on a Stripe hiccup
+  // for a read-only display.
+  let autoTopupCompany: {
+    auto_topup_enabled?: boolean | null
+    auto_topup_threshold_credits?: number | null
+    auto_topup_pack_index?: number | null
+    auto_topup_last_failed_at?: string | null
+    stripe_customer_id?: string | null
+  } | null = null
+  let autoTopupPaymentMethodLabel: string | null = null
+
+  if (cfg.autoTopupEnabled) {
+    const svc = requireServiceClient()
+    const { data: autoTopupRow } = await svc
+      .from('companies')
+      .select(
+        'auto_topup_enabled, auto_topup_threshold_credits, auto_topup_pack_index, auto_topup_last_failed_at, stripe_customer_id'
+      )
+      .eq('id', company.id)
+      .maybeSingle()
+    autoTopupCompany = autoTopupRow
+
+    if (autoTopupCompany?.stripe_customer_id) {
+      try {
+        const stripe = await getStripeClient()
+        const customer = (await stripe.customers.retrieve(autoTopupCompany.stripe_customer_id, {
+          expand: ['invoice_settings.default_payment_method'],
+        })) as unknown as {
+          invoice_settings?: {
+            default_payment_method?: { card?: { brand?: string; last4?: string } } | string | null
+          }
+        }
+        const pm = customer.invoice_settings?.default_payment_method
+        if (pm && typeof pm !== 'string' && pm.card?.brand && pm.card?.last4) {
+          const brand = pm.card.brand.charAt(0).toUpperCase() + pm.card.brand.slice(1)
+          autoTopupPaymentMethodLabel = `${brand} •••• ${pm.card.last4}`
+        }
+      } catch (err) {
+        console.warn('[settings/billing] auto-top-up payment method read failed:', err)
+        autoTopupPaymentMethodLabel = null
+      }
+    }
+  }
+
+  const autoTopupPack =
+    autoTopupCompany?.auto_topup_pack_index != null
+      ? cfg.topUpPacks[autoTopupCompany.auto_topup_pack_index]
+      : null
+  const autoTopupPackAmount = autoTopupPack ? `$${autoTopupPack.priceCents / 100}` : null
+  const autoTopupThresholdAmount =
+    autoTopupCompany?.auto_topup_threshold_credits != null
+      ? `$${(autoTopupCompany.auto_topup_threshold_credits / 100).toFixed(2).replace(/\.00$/, '')}`
+      : null
+
   const tierDisplay = TIER_DISPLAY[data.tier] ?? data.tier
 
   const formatDate = (iso: string) =>
@@ -58,7 +134,7 @@ export default async function BillingPage() {
     <div className="space-y-6 p-6">
       <header className="flex flex-col gap-1">
         <h1 className="text-[clamp(28px,3.5vw,40px)] font-semibold tracking-tight">
-          <T>Billing</T>
+          <T>Plans</T>
         </h1>
         <p className="text-sm text-muted-foreground">
           <T>You&rsquo;re on the</T>{' '}
@@ -81,20 +157,16 @@ export default async function BillingPage() {
               </div>
             </CardHeader>
             <CardContent className="space-y-2 px-0 pt-4 text-sm">
-              {data.tier === 'trial' && data.tierTrialEndsAt && (
-                <p className="text-muted-foreground">
-                  <span className="font-medium text-foreground"><T>Trial ends:</T></span>{' '}
-                  {formatDate(data.tierTrialEndsAt)}
-                </p>
-              )}
               {isPaid && data.tierRenewsAt && (
                 <p className="text-muted-foreground">
                   <span className="font-medium text-foreground"><T>Renews:</T></span>{' '}
                   {formatDate(data.tierRenewsAt)}
                 </p>
               )}
-              {data.tier === 'free' && !data.tierTrialEndsAt && (
-                <p className="text-muted-foreground"><T>No active trial</T></p>
+              {data.tier === 'free' && (
+                <p className="text-muted-foreground">
+                  <T>Free plan — your credit balance below is your remaining allowance.</T>
+                </p>
               )}
             </CardContent>
           </Card>
@@ -154,17 +226,43 @@ export default async function BillingPage() {
         {/* Credits (CREDITUI-01/02) — ADDITIVE to the count-based usage card above
             (MIG-01 parallel run). Owner sees credits + history, never cost math. */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <CreditBalanceCard
-            balance={credits.balance}
-            lowBalanceThresholds={credits.lowBalanceThresholds}
-          />
+          <CreditBalanceCard percentUsed={percentUsed} tier={data.tier} />
           <CreditHistoryList rows={credits.history} />
         </div>
+
+        {/* Top-up packs (CREDITUI-06) — dollar-denominated pack picker, always
+            visible (not gated behind the low-balance warning). */}
+        <div id="topup-packs" className="space-y-4">
+          <h2 className="text-2xl font-semibold tracking-tight"><T>Add credits</T></h2>
+          <TopUpPacksGrid packs={cfg.topUpPacks} />
+        </div>
+
+        {/* Auto top-up (CREDITUI-07) — gated behind the platform kill switch
+            (billing_config.autoTopupEnabled); omitted from the tree entirely,
+            not rendered-disabled, when the switch is off. */}
+        {cfg.autoTopupEnabled && (
+          <div className="space-y-4">
+            <AutoTopupCard
+              enabled={!!autoTopupCompany?.auto_topup_enabled}
+              packAmount={autoTopupPackAmount}
+              thresholdAmount={autoTopupThresholdAmount}
+              paymentMethodLabel={autoTopupPaymentMethodLabel}
+              lastFailed={!!autoTopupCompany?.auto_topup_last_failed_at}
+              packs={cfg.topUpPacks}
+              currentThresholdCredits={autoTopupCompany?.auto_topup_threshold_credits ?? null}
+              currentPackIndex={autoTopupCompany?.auto_topup_pack_index ?? null}
+            />
+          </div>
+        )}
 
         {/* Tier cards grid (Free / Pro / Business with per-tier gradient escalation) */}
         <div className="space-y-4">
           <h2 className="text-2xl font-semibold tracking-tight"><T>Choose your plan</T></h2>
-          <TierCardsGrid currentTier={data.tier as 'free' | 'trial' | 'pro' | 'business'} />
+          <TierCardsGrid
+            currentTier={data.tier as 'free' | 'trial' | 'pro' | 'business'}
+            annualPrices={annualPrices}
+            monthlyPricesCents={monthlyPricesCents}
+          />
         </div>
 
         {/* Manage subscription (Stripe Customer Portal — Phase 70 CONNECT-04) */}

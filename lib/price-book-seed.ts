@@ -697,13 +697,14 @@ export async function seedIndustryPriceBook(
   const folders = buildMergedFolders(toIndustryList(industries))
   if (folders.length === 0) return
 
-  // Guard: skip if already seeded (run once for the whole merged set).
-  const { count } = await supabase
-    .from('company_price_book')
-    .select('id', { count: 'exact', head: true })
-    .eq('company_id', companyId)
+  // Guard: skip if already seeded. Check both items AND folders so a partial
+  // failure (folders created, items not) doesn't re-run and create duplicates.
+  const [{ count: itemCount }, { count: folderCount }] = await Promise.all([
+    supabase.from('company_price_book').select('id', { count: 'exact', head: true }).eq('company_id', companyId),
+    supabase.from('price_book_folders').select('id', { count: 'exact', head: true }).eq('company_id', companyId),
+  ])
 
-  if ((count ?? 0) > 0) return
+  if ((itemCount ?? 0) > 0 || (folderCount ?? 0) > 0) return
 
   await insertFolders(supabase, companyId, folders, currencyCode, 0)
 }

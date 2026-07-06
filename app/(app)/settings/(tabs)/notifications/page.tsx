@@ -45,7 +45,6 @@ export default async function NotificationsTabPage() {
         initial={initial}
         defaults={DEFAULT_PREFERENCES}
         verifiedPhone={verifiedPhone}
-        whatsappOptIn={!!prefs?.whatsapp_opt_in_at}
         smsOptIn={!!prefs?.sms_opt_in_at}
       />
     </div>

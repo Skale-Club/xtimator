@@ -152,15 +152,30 @@ function makeSupabaseMock({
 
     if (table === 'estimates') {
       return {
+        delete: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnThis(),
+          is: vi.fn().mockReturnThis(),
+        }),
         update: vi.fn().mockReturnValue({
           eq: vi.fn().mockResolvedValue({ error: null }),
         }),
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            order: vi.fn().mockReturnValue({
-              limit: vi.fn().mockResolvedValue({ data: [], error: null }),
+        select: vi.fn().mockImplementation((cols: string) => {
+          if (cols === 'id') {
+            return {
+              eq: vi.fn().mockReturnValue({
+                eq: vi.fn().mockReturnValue({
+                  maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+                }),
+              }),
+            }
+          }
+          return {
+            eq: vi.fn().mockReturnValue({
+              order: vi.fn().mockReturnValue({
+                limit: vi.fn().mockResolvedValue({ data: [], error: null }),
+              }),
             }),
-          }),
+          }
         }),
         insert: vi.fn().mockReturnValue({
           select: vi.fn().mockReturnValue({
@@ -283,6 +298,22 @@ describe('generateEstimateForProject', () => {
 
     const result = await generateEstimateForProject('company-1', 'project-1')
     expect(result.estimateId).toBe('estimate-1')
+  })
+
+  it('rejects photos-only input when NO photo has an ai_description (D3)', async () => {
+    // The prompt builder only consumes photos WITH ai_description — a project
+    // whose only inputs are unanalyzed photos would generate a context-free
+    // estimate. The precondition must match what the prompt actually gets.
+    const { fromMock } = makeSupabaseMock()
+    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock } as never)
+    vi.mocked(getProjectRecordings).mockResolvedValue([])
+    vi.mocked(getProjectPhotos).mockResolvedValue([
+      { id: 'photo-1', ai_description: null } as never,
+    ])
+
+    await expect(
+      generateEstimateForProject('company-1', 'project-1')
+    ).rejects.toThrow('At least one audio transcript, photo, or prompt is required')
   })
 
   it('patches placeholder project name from AI suggestion', async () => {

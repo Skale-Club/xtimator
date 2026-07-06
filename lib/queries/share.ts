@@ -5,12 +5,20 @@ import type {
   EstimateItem,
   EstimateWithSections,
 } from '@/lib/queries/estimate'
+import { getEstimatePhotos } from '@/lib/queries/estimate-photo'
+import { createStorage } from '@/lib/storage'
 import { toMinorUnits } from '@/lib/money/currency'
 import { isShareLinkExpired } from '@/lib/estimates/share-link'
 
 // Internal fields never sent to the public browser payload: share_token is a
-// bearer credential the viewer already holds.
-export type ShareEstimate = Omit<EstimateWithSections, 'share_token'>
+// bearer credential the viewer already holds. attachedPhotos is also omitted
+// here and redeclared below with a signed `url` — the raw Photo rows (with
+// storage_path only) never leave the server; anon visitors have no session
+// to resolve their own signed URLs with.
+export type ShareEstimate = Omit<
+  EstimateWithSections,
+  'share_token' | 'attachedPhotos'
+>
 
 export interface ShareEstimateData {
   estimate: ShareEstimate & {
@@ -35,6 +43,7 @@ export interface ShareEstimateData {
       digital_signature_enabled: boolean
       estimate_terms_enabled: boolean
       estimate_terms_text: string | null
+      estimate_template_style: string
     }
     /** Phase 70 — Stripe Connect payment state. */
     payment_status: string
@@ -55,6 +64,13 @@ export interface ShareEstimateData {
       currency_code: string
       status: string
       hosted_invoice_url: string | null
+    }[]
+    /** Optional per-estimate-version photo attachments, with signed URLs pre-resolved server-side (anon visitors have no session). */
+    attachedPhotos: {
+      id: string
+      storage_path: string
+      caption: string | null
+      url: string
     }[]
   }
   client: {
@@ -116,9 +132,25 @@ export async function getEstimateByShareToken(
     })
   )
 
+  // Attached photos for this estimate version, with signed URLs resolved
+  // server-side (this requireServiceClient() instance bypasses RLS, so it
+  // always succeeds regardless of anon/RLS status; anon visitors have no
+  // session to resolve their own signed URLs with).
+  const attachedPhotosRaw = await getEstimatePhotos(supabase, estimate.id)
+  const storage = createStorage(supabase)
+  const attachedPhotos = await Promise.all(
+    attachedPhotosRaw.map(async (photo) => ({
+      id: photo.id,
+      storage_path: photo.storage_path,
+      caption: photo.caption,
+      url: await storage.getSignedUrl('photos', photo.storage_path, 3600),
+    }))
+  )
+
   const estimateWithSections: EstimateWithSections = {
     ...estimate,
     sections: sectionsWithItems,
+    attachedPhotos: attachedPhotosRaw,
   }
 
   // Fetch project + client
@@ -138,7 +170,7 @@ export async function getEstimateByShareToken(
   const { data: companyData } = await supabase
     .from('companies')
     .select(
-      'id, name, owner_name, phone, email, website, address, city, state, zip, logo_url, brand_primary_color, stripe_account_id, stripe_connect_status, digital_signature_enabled, estimate_terms_enabled, estimate_terms_text'
+      'id, name, owner_name, phone, email, website, address, city, state, zip, logo_url, brand_primary_color, stripe_account_id, stripe_connect_status, digital_signature_enabled, estimate_terms_enabled, estimate_terms_text, estimate_template_style'
     )
     .eq('id', estimate.company_id)
     .single()
@@ -205,9 +237,11 @@ export async function getEstimateByShareToken(
     : 0
 
   // Strip internal fields from the estimate before it crosses to the client:
-  // share_token (bearer credential).
+  // share_token (bearer credential), and the raw (no signed-URL) attachedPhotos
+  // — replaced below with the signed-URL-resolved version.
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { share_token: _shareToken, ...safeEstimate } = estimateWithSections
+  const { share_token: _shareToken, attachedPhotos: _rawAttachedPhotos, ...safeEstimate } =
+    estimateWithSections
 
   return {
     estimate: {
@@ -223,6 +257,9 @@ export async function getEstimateByShareToken(
       paid_at,
       payment_amount_cents,
       invoices,
+      // Override the raw (no-URL) attachedPhotos from safeEstimate with the
+      // signed-URL-resolved version built above.
+      attachedPhotos,
     },
     client,
   }

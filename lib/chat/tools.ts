@@ -34,7 +34,11 @@ import {
   findServiceByName,
   listRecentEstimates,
   listServices,
+  createPriceBookService,
+  addCompanyKnowledge,
+  createProject,
 } from '@/lib/agent-tools'
+import { DEMO_READONLY_MESSAGE } from '@/lib/demo/guard'
 
 export interface ChatToolContext {
   /** Trusted active-company id resolved from the authenticated owner. */
@@ -45,6 +49,12 @@ export interface ChatToolContext {
   industries: string[]
   /** Owner's preferred reply language, when known. */
   language?: 'en' | 'pt' | 'es'
+  /**
+   * True when the caller is the shared read-only demo user. The agent channels
+   * use the service client (which bypasses the demo-blocking RLS policies), so
+   * write tools must consult this flag explicitly (mirrors assertWritable()).
+   */
+  isDemo?: boolean
 }
 
 /**
@@ -65,14 +75,20 @@ export function buildChatTools(ctx: ChatToolContext) {
           .describe('Free-form scope notes to guide the estimate'),
       }),
       execute: async ({ projectId, prompts }) => {
-        const { jobId } = await createEstimate({
-          companyId: ctx.companyId,
-          projectId,
-          prompts,
-          language: ctx.language,
-          channel: 'web',
-        })
-        return { jobId, status: 'queued' as const }
+        try {
+          const { jobId } = await createEstimate({
+            companyId: ctx.companyId,
+            projectId,
+            prompts,
+            language: ctx.language,
+            channel: 'web',
+          })
+          return { jobId, status: 'queued' as const }
+        } catch (err) {
+          // Billing v2: surface the credit wall as a readable tool result (the
+          // model relays it) instead of an opaque tool error.
+          return { ok: false as const, message: (err as Error).message }
+        }
       },
     }),
 
@@ -133,6 +149,61 @@ export function buildChatTools(ctx: ChatToolContext) {
       description: "List the company's services / price-book items.",
       inputSchema: z.object({}),
       execute: async () => listServices(ctx.companyId, ctx.supabase),
+    }),
+
+    // ── Write tools ────────────────────────────────────────────────────────
+    // companyId/supabase stay trusted closures; only the genuine service fields
+    // are LLM inputs. All refuse writes for the read-only demo user.
+
+    createProject: tool({
+      description:
+        'Create a new project (a job) to attach an estimate to. Call this before createEstimate when starting a job from scratch. Optionally attach a client by id (find one with findClientByName first).',
+      inputSchema: z.object({
+        name: z.string().min(1).max(200).describe('A short name for the project/job'),
+        clientId: z.string().optional().describe('Optional client id to attach'),
+      }),
+      execute: async ({ name, clientId }) => {
+        if (ctx.isDemo) return { ok: false as const, message: DEMO_READONLY_MESSAGE }
+        return createProject(
+          ctx.supabase,
+          ctx.companyId,
+          { name, ...(clientId ? { clientId } : {}) },
+          'web',
+        )
+      },
+    }),
+
+    addService: tool({
+      description:
+        'Add a new fixed-price service to the price book, e.g. "add upholstery cleaning for a sofa at $180". Only fixed pricing is supported here.',
+      inputSchema: z.object({
+        name: z.string().min(1).max(200).describe('The service name'),
+        unitPrice: z.number().min(0).describe('Price in the company currency'),
+        unit: z.string().max(100).optional().describe('Optional unit label (e.g. "each", "hour")'),
+        notes: z.string().max(2000).optional().describe('Optional internal notes'),
+      }),
+      execute: async ({ name, unitPrice, unit, notes }) => {
+        if (ctx.isDemo) return { ok: false as const, message: DEMO_READONLY_MESSAGE }
+        return createPriceBookService(ctx.supabase, ctx.companyId, {
+          name,
+          unitPrice,
+          ...(unit ? { unit } : {}),
+          ...(notes ? { notes } : {}),
+        })
+      },
+    }),
+
+    addKnowledge: tool({
+      description:
+        'Save a company-specific note, rule, or preference the AI should remember when generating future estimates, e.g. "we always charge a $50 minimum" or "we don\'t do exterior windows".',
+      inputSchema: z.object({
+        title: z.string().min(1).max(200).describe('A short title for the entry'),
+        body: z.string().min(1).describe('The fact, rule, or preference to remember'),
+      }),
+      execute: async ({ title, body }) => {
+        if (ctx.isDemo) return { ok: false as const, message: DEMO_READONLY_MESSAGE }
+        return addCompanyKnowledge(ctx.supabase, ctx.companyId, { title, body, source: 'owner via chat' })
+      },
     }),
   }
 }

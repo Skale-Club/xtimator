@@ -8,12 +8,7 @@ import { welcomeOnFirstContact } from '@/lib/whatsapp/send-welcome'
 import { logInboundMessage, type WaMsgType } from '@/lib/whatsapp/conversations'
 import type { WhatsAppMessage, WhatsAppPayload } from '@/lib/whatsapp/types'
 import { rateLimit } from '@/lib/ratelimit'
-
-function normalizedPhoneDigits(value: string | null | undefined): string {
-  const digits = (value ?? '').replace(/\D/g, '')
-  if (digits.length === 10) return `1${digits}`
-  return digits
-}
+import { findActiveWhatsAppSender } from '@/lib/whatsapp/account-registry'
 
 // Map a Meta inbound message to the inbox log's (type, body) pair.
 function inboxFieldsFor(message: WhatsAppMessage): { msgType: WaMsgType; body: string | null } {
@@ -187,66 +182,50 @@ async function handleInboundMessage(payload: WhatsAppPayload): Promise<void> {
 
     const supabase = requireServiceClient()
 
-    // Route 1: company_whatsapp.owner_phone — explicit owner registration.
-    // This is the primary path: business owners register their personal WhatsApp
-    // number against their company so their messages are always routed correctly,
-    // even on the very first message before any conversation history exists.
-    const { data: ownerRow } = await supabase
-      .from('company_whatsapp')
-      .select('company_id, user_id')   // user_id added for per-user conversation scoping
-      .eq('owner_phone', `+${fromPhone}`)
-      .eq('status', 'active')
-      .maybeSingle()
+    // Route 1 (D-13): admin-provisioned authorized sender — the ONLY owner routing path.
+    // The account-registry enforces exactly-one-active-sender-per-phone globally.
+    const senderMatch = await findActiveWhatsAppSender(`+${fromPhone}`)
 
-    let resolvedCompanyId: string | null = ownerRow?.company_id ?? null
-    let resolvedOwnerPhone: string | null = null   // track for conversation scoping
-    let resolvedUserId: string | null = ownerRow?.user_id ?? null
+    let resolvedCompanyId: string | null = senderMatch?.companyId ?? null
+    let resolvedOwnerPhone: string | null = null
+    let resolvedUserId: string | null = senderMatch?.userId ?? null
     // Whether this message came from a registered owner (Route 1). Only owners get
-    // the first-contact welcome — Routes 2-4 are fallbacks / client contacts.
-    const resolvedViaOwner = Boolean(ownerRow?.company_id)
+    // the first-contact welcome — Routes 2-3 are fallbacks / client contacts.
+    const resolvedViaOwner = Boolean(senderMatch?.companyId)
 
     // When Route 1 matches, capture the owner_phone for conversation scoping
-    if (ownerRow) resolvedOwnerPhone = `+${fromPhone}`
+    if (senderMatch) resolvedOwnerPhone = `+${fromPhone}`
 
-    // Route 2: companies.phone fallback. This covers accounts created before
-    // company_whatsapp.owner_phone was backfilled/synced; without it, first
-    // owner audio messages are silently ignored and no project is created.
+    // Route 2 (D-14): existing conversation thread — returning contacts who messaged
+    // before. Exactly-one rule: if the phone appears in multiple companies' conversations,
+    // fail closed (ambiguous → no match).
     if (!resolvedCompanyId) {
-      const normalizedFromPhone = normalizedPhoneDigits(fromPhone)
-      const last4 = normalizedFromPhone.slice(-4)
-      const { data: companyRows } = await supabase
-        .from('companies')
-        .select('id, phone')
-        .ilike('phone', `%${last4}%`)
-        .limit(20)
-      const match = (companyRows ?? []).find(
-        (row: { id?: string | null; phone?: string | null }) =>
-          normalizedPhoneDigits(row.phone) === normalizedFromPhone
-      )
-      resolvedCompanyId = match?.id ?? null
-    }
-
-    // Route 3: existing conversation thread (returning contacts who messaged before)
-    if (!resolvedCompanyId) {
-      const { data: convRow } = await supabase
+      const { data: convRows } = await supabase
         .from('whatsapp_conversations')
         .select('company_id')
         .eq('contact_phone', `+${fromPhone}`)
         .order('last_message_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-      resolvedCompanyId = convRow?.company_id ?? null
+        .limit(2)
+      const uniqueCompanies = [...new Set((convRows ?? []).map((r: { company_id: string }) => r.company_id))]
+      if (uniqueCompanies.length === 1) {
+        resolvedCompanyId = uniqueCompanies[0]
+      }
+      // else: ambiguous (0 or >1 unique companies) → fail closed, continue to Route 3
     }
 
-    // Route 4: clients table (known client contacts)
+    // Route 3 (D-14): clients table — known client contacts. Exactly-one rule:
+    // fail closed on ambiguity (same phone in multiple companies' client lists).
     if (!resolvedCompanyId) {
-      const { data: clientRow } = await supabase
+      const { data: clientRows } = await supabase
         .from('clients')
         .select('company_id')
         .eq('phone', `+${fromPhone}`)
-        .limit(1)
-        .maybeSingle()
-      resolvedCompanyId = clientRow?.company_id ?? null
+        .limit(2)
+      const uniqueClientCompanies = [...new Set((clientRows ?? []).map((r: { company_id: string }) => r.company_id))]
+      if (uniqueClientCompanies.length === 1) {
+        resolvedCompanyId = uniqueClientCompanies[0]
+      }
+      // else: ambiguous → fail closed
     }
 
     if (!resolvedCompanyId) {
@@ -256,7 +235,7 @@ async function handleInboundMessage(payload: WhatsAppPayload): Promise<void> {
       await sendWhatsAppMessage(`+${fromPhone}`, {
         type: 'text',
         text: {
-          body: "I couldn't find an Xtimator account for this phone number. Add this number to your company phone in Xtimator settings, then try again.",
+          body: "I couldn't find an Xtimator account for this phone number. Please contact your administrator to have this number provisioned for WhatsApp routing.",
         },
       }).catch((sendErr) => {
         console.error('[WhatsApp] unknown sender reply failed:', sendErr)

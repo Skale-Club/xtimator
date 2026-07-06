@@ -4,8 +4,23 @@ import { createElement } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { getEstimateWithContext } from '@/lib/queries/estimate'
+import { createStorage } from '@/lib/storage'
 import EstimatePDF from '@/components/pdf/estimate-pdf'
+import EstimatePDFModern from '@/components/pdf/estimate-pdf-modern'
 import { isSupportedLanguage } from '@/lib/i18n/resolve-estimate-language'
+import {
+  DEFAULT_ESTIMATE_TEMPLATE_ID,
+  isEstimateTemplateId,
+  type EstimateTemplateId,
+} from '@/lib/estimate/templates/registry'
+
+// Registry-keyed component lookup — NOT if/else. Adding a future 3rd template is one
+// registry entry (lib/estimate/templates/registry.ts) + one map entry here + one new
+// component file.
+const PDF_TEMPLATE_COMPONENTS: Record<EstimateTemplateId, typeof EstimatePDF> = {
+  classic: EstimatePDF,
+  modern: EstimatePDFModern,
+}
 
 export async function GET(
   _request: Request,
@@ -60,9 +75,28 @@ export async function GET(
       }
     }
 
+    // Resolve signed URLs for attached photos server-side before rendering —
+    // estimate.attachedPhotos carries raw storage_path rows, not signed URLs.
+    const storage = createStorage(supabase)
+    const attachedPhotos = await Promise.all(
+      (estimate.attachedPhotos ?? []).map(async (photo) => ({
+        url: await storage.getSignedUrl('photos', photo.storage_path, 3600),
+        caption: photo.caption,
+      }))
+    )
+
+    // Resolve template component defensively — estimate_template_style may be an
+    // unrecognized/legacy string once the live column exists, or absent from the
+    // TS-only-patched type at runtime before the migration is live.
+    const rawTemplateId = (company as { estimate_template_style?: string }).estimate_template_style
+    const templateId: EstimateTemplateId = isEstimateTemplateId(rawTemplateId)
+      ? rawTemplateId
+      : DEFAULT_ESTIMATE_TEMPLATE_ID
+    const PDFComponent = PDF_TEMPLATE_COMPONENTS[templateId]
+
     // Render PDF to buffer — pass estimate language for localized labels
     const estimateLanguage = isSupportedLanguage(estimate.language) ? estimate.language : 'en'
-    const element = createElement(EstimatePDF, {
+    const element = createElement(PDFComponent, {
       estimate,
       company,
       client,
@@ -70,6 +104,7 @@ export async function GET(
       projectType,
       language: estimateLanguage,
       preparedBy,
+      attachedPhotos,
     })
     const pdfBuffer = await renderToBuffer(element as any)
 

@@ -138,6 +138,12 @@ interface CaptureRecorderProps {
    * empty (legacy fullscreen route + edit mode).
    */
   restorePhotos?: boolean
+  /**
+   * When provided, a "Start from scratch" link is shown in the popup footer.
+   * The parent creates a blank estimate and navigates to the editor directly,
+   * bypassing AI generation. Only passed in new-project mode (not edit mode).
+   */
+  onStartBlank?: () => Promise<void>
 }
 
 export function CaptureRecorder({
@@ -157,6 +163,7 @@ export function CaptureRecorder({
   setEstimateLanguage: setEstimateLanguageProp,
   draftKey,
   restorePhotos = false,
+  onStartBlank,
 }: CaptureRecorderProps) {
   const { t } = useTranslation()
   const { language: appLanguage } = useLanguage()
@@ -1012,6 +1019,7 @@ export function CaptureRecorder({
           interimTranscript={interimTranscript}
           // Horizontal layout: popup with no mode lock
           isHorizontal={isPopup && mode === undefined}
+          onStartBlank={onStartBlank}
         />
       ) : isPopup ? (
         // Popup variant — calm three-blue-dots overlay over a neutral surface.
@@ -1088,9 +1096,10 @@ interface RecorderBodyProps {
   interimTranscript: string
   // Horizontal 2-column layout (popup + unified mode)
   isHorizontal: boolean
+  onStartBlank?: () => Promise<void>
 }
 
-function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progress, onToggle, descriptionText, setDescriptionText, uploadedPhotos, isUploadingPhotos, photoItems, onRemovePhoto, photoInputRef, onPhotoFileChange, hasAnyInput, onGenerate, estimateLanguage, setEstimateLanguage, mode, liveTranscript, interimTranscript, isHorizontal }: RecorderBodyProps) {
+function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progress, onToggle, descriptionText, setDescriptionText, uploadedPhotos, isUploadingPhotos, photoItems, onRemovePhoto, photoInputRef, onPhotoFileChange, hasAnyInput, onGenerate, estimateLanguage, setEstimateLanguage, mode, liveTranscript, interimTranscript, isHorizontal, onStartBlank }: RecorderBodyProps) {
   const { t } = useTranslation()
 
   // Unified layout — responsive: stacked on mobile, 2-column on sm+
@@ -1162,8 +1171,8 @@ function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progre
         {/* Per-photo thumbnail strip — only when items exist */}
         <PhotoThumbnailGrid items={photoItems} onRemove={onRemovePhoto} />
 
-        {/* Footer: photos + language + generate */}
-        <div className="border-t px-3 py-2.5 grid grid-cols-2 gap-3 sm:gap-[256px] shrink-0">
+        {/* Footer — mobile: row1=[Photos][Blank], row2=[Generate]; desktop: [Photos][Blank]──[Generate] */}
+        <div className="border-t px-3 py-2.5 shrink-0">
           <input
             ref={photoInputRef}
             type="file"
@@ -1172,29 +1181,44 @@ function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progre
             className="hidden"
             onChange={onPhotoFileChange}
           />
-          <Button
-            variant="outline"
-            className="h-10 w-full"
-            onClick={() => photoInputRef.current?.click()}
-            disabled={isUploadingPhotos || photoItems.length >= MAX_PHOTOS}
-            data-testid="capture-add-photos"
-          >
-            {isUploadingPhotos ? (
-              <LoadingDots />
-            ) : (
-              <Camera />
-            )}
-            {photoItems.length > 0 ? `${photoItems.length}/${MAX_PHOTOS}` : t('Photos')}
-          </Button>
-          <Button
-            className="h-[38px] w-full"
-            onClick={onGenerate}
-            disabled={!hasAnyInput || isRecording}
-            data-testid="generate-estimate-btn"
-          >
-            {t('Generate')}
-            <Sparkles />
-          </Button>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            {/* Left group: Photos + Create Blank — side-by-side always */}
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="flex-1 sm:flex-none h-11"
+                onClick={() => photoInputRef.current?.click()}
+                disabled={isUploadingPhotos || photoItems.length >= MAX_PHOTOS}
+                data-testid="capture-add-photos"
+              >
+                {isUploadingPhotos ? <LoadingDots /> : <Camera />}
+                {photoItems.length > 0 ? `${photoItems.length}/${MAX_PHOTOS}` : t('Photos')}
+              </Button>
+              {onStartBlank && (
+                <Button
+                  variant="outline"
+                  className="flex-1 sm:flex-none h-11 bg-transparent hover:bg-accent/30"
+                  style={{ borderColor: 'hsl(var(--foreground) / 0.2)' }}
+                  onClick={onStartBlank}
+                  data-testid="start-from-scratch-btn"
+                >
+                  {t('Create Blank')}
+                </Button>
+              )}
+            </div>
+            {/* Spacer pushes Generate right on desktop */}
+            <div className="hidden sm:block sm:flex-1" />
+            <Button
+              size="lg"
+              className="w-full sm:w-auto"
+              onClick={onGenerate}
+              disabled={!hasAnyInput || isRecording}
+              data-testid="generate-estimate-btn"
+            >
+              {t('Generate')}
+              <Sparkles />
+            </Button>
+          </div>
         </div>
       </div>
     )

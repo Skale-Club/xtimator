@@ -73,12 +73,15 @@ beforeEach(() => {
 })
 
 describe('buildChatTools — surface', () => {
-  it('exposes all eight neutral capabilities as tools', () => {
+  it('exposes all neutral capabilities as tools', () => {
     const tools = buildChatTools(CTX)
     expect(Object.keys(tools).sort()).toEqual(
       [
+        'addKnowledge',
+        'addService',
         'askKnowledge',
         'createEstimate',
+        'createProject',
         'findClientByName',
         'findServiceByName',
         'getLatestEstimateForClient',

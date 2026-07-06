@@ -10,6 +10,13 @@ vi.mock('next/link', () => ({
   ),
 }))
 
+// Mock next/navigation (ProjectTable uses useRouter)
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn(), refresh: vi.fn(), replace: vi.fn() }),
+  usePathname: () => '/',
+  useSearchParams: () => new URLSearchParams(),
+}))
+
 // Mock server actions
 vi.mock('@/lib/actions/project', () => ({
   deleteProjectAction: vi.fn(),

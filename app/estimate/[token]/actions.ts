@@ -4,6 +4,7 @@ import { requireServiceClient } from '@/lib/supabase/service'
 import { getIntegrationKey, getBranding } from '@/lib/platform-config'
 import { notify } from '@/lib/notifications/dispatch'
 import { buildNotificationCopy } from '@/lib/notifications/copy'
+import { emailFrom } from '@/lib/email/sender'
 
 export async function logEstimateView(token: string): Promise<void> {
   const supabase = requireServiceClient()
@@ -94,7 +95,7 @@ export async function logEstimateView(token: string): Promise<void> {
         const branding = await getBranding()
         const appName = branding.appName
         await resend.emails.send({
-          from: `${appName} <notifications@estimatebuilder.pro>`,
+          from: emailFrom(appName),
           to: company.email,
           subject: `Your estimate was viewed - ${project?.name ?? 'Unknown Project'}`,
           text: `Hi ${company.name},\n\nYour estimate for "${project?.name ?? 'Unknown Project'}" was just viewed by the client.\n\nLog in to ${appName} to see more details.`,
@@ -209,7 +210,7 @@ export async function respondToEstimate(
         const branding = await getBranding()
         const appName = branding.appName
         await resend.emails.send({
-          from: `${appName} <notifications@estimatebuilder.pro>`,
+          from: emailFrom(appName),
           to: company.email,
           subject: `Estimate ${response} - ${project?.name ?? 'Unknown Project'}`,
           text: `Hi ${company.name},\n\nYour estimate for "${project?.name ?? 'Unknown Project'}" has been ${response} by the client.\n\nLog in to ${appName} to see more details.`,

@@ -1,45 +1,35 @@
 import { Skeleton } from '@/components/ui/skeleton'
-import { SettingsShellSkeleton } from '@/components/skeletons/settings-shell-skeleton'
-import {
-  SettingsPageSkeleton,
-  SettingsCard,
-} from '@/components/skeletons/settings-page-skeleton'
+import { SettingsPageSkeleton } from '@/components/skeletons/settings-page-skeleton'
 
-/**
- * /settings/estimate-templates — mirrors the EstimateTemplatesPage layout:
- * - Template Fields card (greeting, opener, closer, signature textareas + save)
- * - Preview card
- */
 export default function EstimateTemplatesLoading() {
   return (
-    <SettingsShellSkeleton>
-      <SettingsPageSkeleton
-        title="Estimate Templates"
-        description="Customize the greeting, opener, closing, and signature for your plain-text estimates."
-      >
-        <SettingsCard className="p-8">
-          <div className="space-y-8">
+    <SettingsPageSkeleton
+      title="Message Template"
+      description="Customize what clients see when you send them an estimate."
+    >
+      <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
+        <div className="rounded-[var(--radius-md)] border bg-card p-6">
+          <div className="space-y-6">
             {Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="space-y-2">
-                <Skeleton className="h-4 w-24" />
-                <Skeleton className="h-28 w-full rounded-md" />
-                <Skeleton className="h-3 w-48" />
+                <div className="flex items-center gap-2">
+                  <Skeleton className="h-5 w-5 rounded-full" />
+                  <Skeleton className="h-4 w-20" />
+                </div>
+                <Skeleton className="h-20 w-full rounded-md" />
+                <div className="flex gap-1.5">
+                  <Skeleton className="h-5 w-24 rounded" />
+                </div>
               </div>
             ))}
-            <div className="flex justify-end">
-              <Skeleton className="h-10 w-40 rounded-md" />
-            </div>
+            <Skeleton className="h-10 w-40 rounded-md" />
           </div>
-        </SettingsCard>
-
-        <SettingsCard>
-          <div className="space-y-2">
-            <Skeleton className="h-5 w-24" />
-            <Skeleton className="h-3 w-64" />
-          </div>
-          <Skeleton className="mt-4 h-40 w-full rounded-md" />
-        </SettingsCard>
-      </SettingsPageSkeleton>
-    </SettingsShellSkeleton>
+        </div>
+        <div className="space-y-2">
+          <Skeleton className="h-3 w-16" />
+          <Skeleton className="h-64 w-full rounded-[var(--radius-md)]" />
+        </div>
+      </div>
+    </SettingsPageSkeleton>
   )
 }

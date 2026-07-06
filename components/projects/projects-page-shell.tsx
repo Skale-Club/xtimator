@@ -1,23 +1,23 @@
 'use client'
 
-import { useTransition } from 'react'
-import Link from 'next/link'
+import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { FolderPlus } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Check, ChevronsUpDown } from 'lucide-react'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command'
+import { Button } from '@/components/ui/button'
 import { T } from '@/components/i18n/t'
 import { cn } from '@/lib/utils'
 import { ProjectRowActions } from '@/components/projects/project-row-actions'
 import { ProjectTable } from '@/components/projects/project-table'
-import { PageHeading } from '@/components/app-shell/page-heading'
 import type { ProjectListRow, ProjectListStatus } from '@/lib/queries/project'
 import type { ClientWithCount } from '@/lib/queries/clients'
 
@@ -42,6 +42,7 @@ export function ProjectsPageShell({
 }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
+  const [clientOpen, setClientOpen] = useState(false)
 
   function pushQuery(next: { status?: ProjectListStatus; client?: string | null }) {
     const params = new URLSearchParams()
@@ -53,56 +54,91 @@ export function ProjectsPageShell({
     startTransition(() => router.push(qs ? `/projects?${qs}` : '/projects'))
   }
 
-  return (
-    <div className="space-y-6 p-6">
-      <PageHeading><T>Projects</T></PageHeading>
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-3">
-          <Tabs
-            value={status}
-            onValueChange={(v) => pushQuery({ status: v as ProjectListStatus })}
+  const filterBar = (
+    <>
+      {/* Status tabs — transparent so the outer container border shows */}
+      <Tabs
+        value={status}
+        onValueChange={(v) => pushQuery({ status: v as ProjectListStatus })}
+        className="flex items-stretch"
+      >
+        <TabsList className="h-full rounded-none border-0 bg-transparent gap-0 px-1">
+          <TabsTrigger
+            value="active"
+            className="h-7 rounded-sm px-2.5 text-xs data-[state=active]:bg-accent data-[state=active]:text-foreground data-[state=active]:shadow-none"
           >
-            <TabsList>
-              <TabsTrigger value="active">
-                <T>Active</T>
-              </TabsTrigger>
-              <TabsTrigger value="archived">
-                <T>Archived</T>
-              </TabsTrigger>
-              <TabsTrigger value="trash">
-                <T>Trash</T>
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-          <Select
-            value={clientId ?? ALL_CLIENTS}
-            onValueChange={(v) => pushQuery({ client: v === ALL_CLIENTS ? null : v })}
+            <T>Active</T>
+          </TabsTrigger>
+          <TabsTrigger
+            value="archived"
+            className="h-7 rounded-sm px-2.5 text-xs data-[state=active]:bg-accent data-[state=active]:text-foreground data-[state=active]:shadow-none"
           >
-            <SelectTrigger className="w-[220px]">
-              <SelectValue placeholder="All clients" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL_CLIENTS}>
-                <T>All clients</T>
-              </SelectItem>
-              {clients.map((client) => (
-                <SelectItem key={client.id} value={client.id}>
-                  {client.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <Button variant="primary" asChild>
-          <Link href="?modal=new-project">
-            <FolderPlus className="mr-2 h-4 w-4" />
-            <T>New project</T>
-          </Link>
-        </Button>
-      </header>
+            <T>Archived</T>
+          </TabsTrigger>
+          <TabsTrigger
+            value="trash"
+            className="h-7 rounded-sm px-2.5 text-xs data-[state=active]:bg-accent data-[state=active]:text-foreground data-[state=active]:shadow-none"
+          >
+            <T>Trash</T>
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+      {/* Divider */}
+      <div className="w-px bg-border self-stretch shrink-0" />
+      {/* Client filter — ghost button, no individual border */}
+      <Popover open={clientOpen} onOpenChange={setClientOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="ghost"
+            className="h-full rounded-none px-3 gap-1.5 text-xs font-normal max-w-[160px]"
+          >
+            <span className="truncate">
+              {clientId
+                ? (clients.find((c) => c.id === clientId)?.name ?? 'All clients')
+                : 'All clients'}
+            </span>
+            <ChevronsUpDown className="h-3 w-3 shrink-0 text-muted-foreground" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[220px] p-0" align="start">
+          <Command>
+            <CommandInput placeholder="Search clients..." className="h-8 text-xs" />
+            <CommandList>
+              <CommandEmpty>No clients found.</CommandEmpty>
+              <CommandGroup>
+                <CommandItem
+                  value={ALL_CLIENTS}
+                  onSelect={() => { pushQuery({ client: null }); setClientOpen(false) }}
+                >
+                  <Check className={cn('mr-2 h-3.5 w-3.5', !clientId ? 'opacity-100' : 'opacity-0')} />
+                  All clients
+                </CommandItem>
+                {clients.map((client) => (
+                  <CommandItem
+                    key={client.id}
+                    value={client.name}
+                    onSelect={() => { pushQuery({ client: client.id }); setClientOpen(false) }}
+                  >
+                    <Check className={cn('mr-2 h-3.5 w-3.5', clientId === client.id ? 'opacity-100' : 'opacity-0')} />
+                    {client.name}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+      {/* Divider before search (search lives in DataTable's shared container) */}
+      <div className="w-px bg-border self-stretch shrink-0" />
+    </>
+  )
 
+  return (
+    <div className="p-6">
       <div aria-busy={isPending} className={cn(isPending && 'opacity-60')}>
         <ProjectTable<ProjectListRow>
+          headerLeft={filterBar}
+          pageSize={20}
           projects={projects}
           fallbackCurrencyCode={currencyCode}
           companyId={companyId}

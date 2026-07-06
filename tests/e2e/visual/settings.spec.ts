@@ -25,7 +25,7 @@ const SETTINGS_PATHS = [
   '/settings/custom-domain',
   '/settings/estimate-templates',
   '/settings/integrations',
-  '/settings/payments',
+  '/settings/integrations/stripe',
   '/price-book',
 ] as const
 

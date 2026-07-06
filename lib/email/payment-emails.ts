@@ -1,6 +1,7 @@
 import 'server-only'
 import { getIntegrationKey, getBranding } from '@/lib/platform-config'
 import { formatMinorUnits } from '@/lib/money/currency'
+import { emailFrom } from '@/lib/email/sender'
 
 /**
  * Plain-text branded payment notification emails for the Stripe Connect
@@ -56,7 +57,7 @@ export async function sendPaymentReceivedEmail(
     const resend = new Resend(key)
     const amount = formatMinorUnits(ctx.amountCents, ctx.currencyCode)
     await resend.emails.send({
-      from: `${branding.appName} <notifications@estimatebuilder.pro>`,
+      from: emailFrom(branding.appName),
       to: ctx.businessEmail,
       subject: `You received ${amount} — ${ctx.projectName}`,
       text: [
@@ -102,7 +103,7 @@ export async function sendPaymentReceiptEmail(
     const resend = new Resend(key)
     const amount = formatMinorUnits(ctx.amountCents, ctx.currencyCode)
     await resend.emails.send({
-      from: `${ctx.businessName} <notifications@estimatebuilder.pro>`,
+      from: emailFrom(ctx.businessName),
       to: ctx.customerEmail,
       subject: `Payment confirmation — ${amount} to ${ctx.businessName}`,
       text: [

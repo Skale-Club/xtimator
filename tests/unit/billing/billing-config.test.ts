@@ -84,7 +84,7 @@ describe('BILLCFG-01: getBillingConfig merge', () => {
     expect(cfg.tiers).toEqual(DEFAULT_BILLING_CONFIG.tiers)
   })
 
-  it('deep-merges tiers (tiers.pro updated, free/trial/business still default)', async () => {
+  it('deep-merges tiers (tiers.pro updated, free/business still default)', async () => {
     serviceClientImpl = () =>
       makeServiceClient({
         metadata: {
@@ -94,29 +94,55 @@ describe('BILLCFG-01: getBillingConfig merge', () => {
     const cfg = await getBillingConfig()
     expect(cfg.tiers.pro).toEqual({ monthlyCreditGrant: 12000, subscriptionPriceCents: 3900 })
     expect(cfg.tiers.free).toEqual(DEFAULT_BILLING_CONFIG.tiers.free)
-    expect(cfg.tiers.trial).toEqual(DEFAULT_BILLING_CONFIG.tiers.trial)
     expect(cfg.tiers.business).toEqual(DEFAULT_BILLING_CONFIG.tiers.business)
   })
 })
 
 // =============================================================================
-// CREDIT-05 — enforcementEnabled master charging switch (default false)
+// CREDIT-05 — enforcementEnabled master charging switch
+// Billing v2: default TRUE (the free-tier credit wall depends on it); a stored
+// admin row with false reverts the platform to record-only.
 // =============================================================================
-describe('CREDIT-05: enforcementEnabled (measure-only safety)', () => {
-  it('DEFAULT_BILLING_CONFIG.enforcementEnabled is false (calibrate before charging)', () => {
-    expect(DEFAULT_BILLING_CONFIG.enforcementEnabled).toBe(false)
+describe('CREDIT-05: enforcementEnabled (Billing v2 default ON)', () => {
+  it('DEFAULT_BILLING_CONFIG.enforcementEnabled is true (the free wall requires it)', () => {
+    expect(DEFAULT_BILLING_CONFIG.enforcementEnabled).toBe(true)
   })
 
-  it('a stored row WITHOUT enforcementEnabled still resolves to false (deep-merge tolerates absence)', async () => {
+  it('a stored row WITHOUT enforcementEnabled resolves to the default (true)', async () => {
     serviceClientImpl = () => makeServiceClient({ metadata: { markup: 5 } })
+    const cfg = await getBillingConfig()
+    expect(cfg.enforcementEnabled).toBe(true)
+  })
+
+  it('a stored row WITH enforcementEnabled: false overrides to record-only', async () => {
+    serviceClientImpl = () => makeServiceClient({ metadata: { enforcementEnabled: false } })
     const cfg = await getBillingConfig()
     expect(cfg.enforcementEnabled).toBe(false)
   })
 
-  it('a stored row WITH enforcementEnabled: true overrides the default to true', async () => {
-    serviceClientImpl = () => makeServiceClient({ metadata: { enforcementEnabled: true } })
+  it('DEFAULT_BILLING_CONFIG.signupCreditGrant is a positive one-time free allowance', () => {
+    expect(DEFAULT_BILLING_CONFIG.signupCreditGrant).toBeGreaterThan(0)
+  })
+})
+
+// =============================================================================
+// CREDITUI-07: autoTopupEnabled kill switch
+// =============================================================================
+describe('CREDITUI-07: autoTopupEnabled kill switch', () => {
+  it('DEFAULT_BILLING_CONFIG.autoTopupEnabled is false (mirrors enforcementEnabled default posture)', () => {
+    expect(DEFAULT_BILLING_CONFIG.autoTopupEnabled).toBe(false)
+  })
+
+  it('a stored row WITHOUT autoTopupEnabled resolves to the default (false)', async () => {
+    serviceClientImpl = () => makeServiceClient({ metadata: { markup: 5 } })
     const cfg = await getBillingConfig()
-    expect(cfg.enforcementEnabled).toBe(true)
+    expect(cfg.autoTopupEnabled).toBe(false)
+  })
+
+  it('a stored row WITH autoTopupEnabled: true overrides to true', async () => {
+    serviceClientImpl = () => makeServiceClient({ metadata: { autoTopupEnabled: true } })
+    const cfg = await getBillingConfig()
+    expect(cfg.autoTopupEnabled).toBe(true)
   })
 })
 
@@ -164,6 +190,28 @@ describe('SEAT-06: seat config deep-merge', () => {
     expect(cfg.tiers.business.includedSeats).toBe(
       DEFAULT_BILLING_CONFIG.tiers.business.includedSeats
     )
+  })
+})
+
+// =============================================================================
+// CREDITUI-06 — topUpPacks (3 dollar packs)
+// =============================================================================
+describe('CREDITUI-06: topUpPacks (3 dollar packs)', () => {
+  it('DEFAULT_BILLING_CONFIG.topUpPacks has exactly 3 entries', () => {
+    expect(DEFAULT_BILLING_CONFIG.topUpPacks).toHaveLength(3)
+  })
+
+  it('topUpPacks priceCents are $20/$50/$100 in order', () => {
+    expect(DEFAULT_BILLING_CONFIG.topUpPacks[0].priceCents).toBe(2000)
+    expect(DEFAULT_BILLING_CONFIG.topUpPacks[1].priceCents).toBe(5000)
+    expect(DEFAULT_BILLING_CONFIG.topUpPacks[2].priceCents).toBe(10000)
+  })
+
+  it('every pack credits value is a positive integer', () => {
+    for (const pack of DEFAULT_BILLING_CONFIG.topUpPacks) {
+      expect(Number.isInteger(pack.credits)).toBe(true)
+      expect(pack.credits).toBeGreaterThan(0)
+    }
   })
 })
 
@@ -355,7 +403,7 @@ describe('BILLCFG-03: getBillingConfig consumed ONLY by the reader + credit-ledg
     // consumers — added here together so the dormancy guard stays green when
     // Plan 03 lands, while the guard still fails on any OTHER consumer.
     const INVOICE_ACTION_PATH = resolve(process.cwd(), 'lib/actions/invoice.ts')
-    const PAYMENTS_PAGE_PATH = resolve(process.cwd(), 'app/(app)/settings/payments/page.tsx')
+    const PAYMENTS_PAGE_PATH = resolve(process.cwd(), 'app/(app)/settings/integrations/stripe/page.tsx')
     // Phase 115 (Credit Balance UX): the owner-facing credit overview query reads
     // lowBalanceThresholds from getBillingConfig to surface low-balance guidance
     // (CREDITUI-01) — the runtime-authoritative billing source, a legitimate
@@ -385,6 +433,52 @@ describe('BILLCFG-03: getBillingConfig consumed ONLY by the reader + credit-ledg
       process.cwd(),
       'lib/inngest/functions/monthly-credit-grant.ts',
     )
+    // Phase 145 (ANN-05): the Settings → Billing server page reads
+    // subscriptionPriceAnnualCents + subscriptionPriceCents per tier from
+    // getBillingConfig to derive the annual/monthly price props passed to
+    // TierCardsGrid — the runtime-authoritative billing source, a legitimate
+    // display consumer (DISPLAY ONLY — no mutation). The guard still fails on
+    // any OTHER reference of the symbol.
+    const BILLING_PAGE_PATH = resolve(
+      process.cwd(),
+      'app/(app)/settings/billing/page.tsx',
+    )
+    // Phase 152 Plan 01 (CREDITUI-03): the app shell layout reads
+    // signupCreditGrant / tiers[tier].monthlyCreditGrant from getBillingConfig
+    // to compute the topbar usage chip's percentUsed via computeUsagePercent —
+    // the runtime-authoritative billing source, a legitimate display consumer
+    // (DISPLAY ONLY — no mutation). The guard still fails on any OTHER
+    // reference of the symbol.
+    const APP_LAYOUT_PATH = resolve(process.cwd(), 'app/(app)/layout.tsx')
+    // Phase 152 Plan 02 (CREDITUI-05): the per-company admin detail page reads
+    // getBillingConfig to compute the effective markup shown on the new
+    // super-admin-only Cost & Billing card — a legitimate admin-only consumer
+    // (DISPLAY ONLY — no mutation, never tenant-facing). The guard still fails
+    // on any OTHER reference of the symbol.
+    const ADMIN_COMPANY_PAGE_PATH = resolve(
+      process.cwd(),
+      'app/admin/companies/[id]/page.tsx',
+    )
+    // Phase 153 Plan 02 (CREDITUI-07): triggerAutoTopupIfNeeded reads
+    // autoTopupEnabled (platform kill switch) + topUpPacks (to resolve the
+    // pack being auto-purchased) from getBillingConfig — the runtime-
+    // authoritative billing source, a legitimate consumer (same role as the
+    // credit-ledger debit call site it is invoked from). The guard still
+    // fails on any OTHER reference of the symbol.
+    const AUTO_TOPUP_PATH = resolve(process.cwd(), 'lib/billing/auto-topup.ts')
+    // Phase 153 Plan 03 (CREDITUI-07): saveAutoTopupSettings reads
+    // autoTopupEnabled (platform kill switch) + topUpPacks (to range-validate
+    // the tenant-selected packIndex server-side) from getBillingConfig — the
+    // runtime-authoritative billing source, a legitimate tenant-action
+    // consumer. The guard still fails on any OTHER reference of the symbol.
+    const AUTO_TOPUP_ACTION_PATH = resolve(process.cwd(), 'lib/actions/auto-topup.ts')
+    // Phase 158 (BILLADMIN-01/03): the super-admin billing overview page reads
+    // getBillingConfig to compute the platform-wide real-cost/credit summary
+    // (replacing the old hardcoded MRR math) and the per-tier prices shown in
+    // the credit-model-centric per-company table — a legitimate admin-only
+    // display consumer (DISPLAY ONLY — no mutation). The guard still fails on
+    // any OTHER reference of the symbol.
+    const ADMIN_BILLING_PAGE_PATH = resolve(process.cwd(), 'app/admin/billing/page.tsx')
     const ALLOWLIST = new Set([
       MODULE_PATH,
       CREDIT_LEDGER_PATH,
@@ -396,6 +490,12 @@ describe('BILLCFG-03: getBillingConfig consumed ONLY by the reader + credit-ledg
       SEAT_BILLING_PATH,
       SEAT_COST_SUMMARY_PATH,
       MONTHLY_CREDIT_GRANT_PATH,
+      BILLING_PAGE_PATH,
+      APP_LAYOUT_PATH,
+      ADMIN_COMPANY_PAGE_PATH,
+      AUTO_TOPUP_PATH,
+      AUTO_TOPUP_ACTION_PATH,
+      ADMIN_BILLING_PAGE_PATH,
     ])
 
     const collected: string[] = []

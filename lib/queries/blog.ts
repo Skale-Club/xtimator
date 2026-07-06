@@ -10,6 +10,7 @@ export type BlogPostSummary = {
   excerpt: string | null
   cover_image_url: string | null
   published_at: string | null
+  updated_at: string
 }
 
 export type BlogPost = BlogPostSummary & {
@@ -21,14 +22,14 @@ export type BlogPost = BlogPostSummary & {
   updated_at: string
 }
 
-export async function getBlogPosts(page = 0): Promise<BlogPostSummary[]> {
+export async function getBlogPosts(page = 0, pageSize = PAGE_SIZE): Promise<BlogPostSummary[]> {
   const supabase = await createClient()
   const { data } = await supabase
     .from('blog_posts')
-    .select('id, title, slug, excerpt, cover_image_url, published_at')
+    .select('id, title, slug, excerpt, cover_image_url, published_at, updated_at')
     .eq('status', 'published')
     .order('published_at', { ascending: false })
-    .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
+    .range(page * pageSize, (page + 1) * pageSize - 1)
   return data ?? []
 }
 
@@ -38,6 +39,7 @@ export async function getBlogPost(slug: string): Promise<BlogPost | null> {
     .from('blog_posts')
     .select('*')
     .eq('slug', slug)
+    .eq('status', 'published')
     .maybeSingle()
   return (data as BlogPost | null) ?? null
 }

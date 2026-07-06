@@ -26,7 +26,12 @@ import { z } from 'zod'
 import type { McpAuthContext } from '@/lib/mcp/auth'
 import { requireScope } from '@/lib/mcp/scope'
 import { requireServiceClient } from '@/lib/supabase/service'
-import { createEstimate } from '@/lib/agent-tools'
+import {
+  createEstimate,
+  createProject,
+  createPriceBookService,
+  addCompanyKnowledge,
+} from '@/lib/agent-tools'
 import {
   insufficientScope,
   invalidInput,
@@ -81,6 +86,90 @@ const CREATE_ESTIMATE_DEFINITION = {
   annotations: { ...WRITE_ANNOTATIONS, title: 'Create estimate' },
 } as const
 
+const CREATE_PROJECT_DEFINITION = {
+  name: 'create_project',
+  description:
+    "Create a new project (a job) for the active company. A project is the container an estimate attaches to — call this first when starting a job from scratch, then pass the returned id to create_estimate. Optionally link a client by their id (look one up with find_client first).",
+  inputSchema: {
+    type: 'object',
+    properties: {
+      name: {
+        type: 'string',
+        description: 'A short name for the project/job, e.g. "Kitchen deep clean — Ester".',
+        minLength: 1,
+        maxLength: 200,
+      },
+      client_id: {
+        type: 'string',
+        description: 'Optional client uuid to attach (resolve via find_client).',
+      },
+    },
+    required: ['name'],
+  },
+  annotations: { ...WRITE_ANNOTATIONS, title: 'Create project' },
+} as const
+
+const ADD_SERVICE_DEFINITION = {
+  name: 'add_service',
+  description:
+    "Add a new fixed-price service (a price-book item) to the active company's catalog. Use when the owner wants to add or register a service they offer, e.g. \"add upholstery cleaning for a sofa at $180\". Only fixed pricing is supported here; complex area-based or add-on pricing must be set up on the Price Book page.",
+  inputSchema: {
+    type: 'object',
+    properties: {
+      name: {
+        type: 'string',
+        description: 'The service name (1-200 chars), e.g. "3 Seater Sofa Cleaning".',
+        minLength: 1,
+        maxLength: 200,
+      },
+      unit_price: {
+        type: 'number',
+        description: 'The price for this service, in the company currency (>= 0).',
+        minimum: 0,
+      },
+      unit: {
+        type: 'string',
+        description: 'Optional unit label, e.g. "each", "sq ft", "hour".',
+      },
+      notes: {
+        type: 'string',
+        description: 'Optional internal notes about the service.',
+      },
+    },
+    required: ['name', 'unit_price'],
+  },
+  annotations: { ...WRITE_ANNOTATIONS, title: 'Add service' },
+} as const
+
+const ADD_KNOWLEDGE_DEFINITION = {
+  name: 'add_knowledge',
+  description:
+    "Save a company-specific knowledge entry (a note, policy, pricing rule, or preference) that the AI should remember and use when generating future estimates for this company. Use when the owner tells you something about how THEY work, e.g. \"remember that we always charge a $50 minimum\" or \"we don't do exterior windows\".",
+  inputSchema: {
+    type: 'object',
+    properties: {
+      title: {
+        type: 'string',
+        description: 'A short title for the entry (1-200 chars).',
+        minLength: 1,
+        maxLength: 200,
+      },
+      body: {
+        type: 'string',
+        description: 'The knowledge itself — the fact, rule, or preference to remember.',
+        minLength: 1,
+      },
+      source: {
+        type: 'string',
+        description: 'Optional provenance label (e.g. "owner via chat").',
+        maxLength: 500,
+      },
+    },
+    required: ['title', 'body'],
+  },
+  annotations: { ...WRITE_ANNOTATIONS, title: 'Add knowledge' },
+} as const
+
 const CHECK_JOB_STATUS_DEFINITION = {
   name: 'check_job_status',
   description:
@@ -104,6 +193,24 @@ const createEstimateInput = z.object({
   project_id: z.string().min(1),
   prompt: z.string().min(1).max(5000),
   language: z.enum(['en', 'pt', 'es']).optional(),
+})
+
+const createProjectInput = z.object({
+  name: z.string().min(1).max(200),
+  client_id: z.string().uuid().optional(),
+})
+
+const addServiceInput = z.object({
+  name: z.string().min(1).max(200),
+  unit_price: z.number().min(0),
+  unit: z.string().max(100).optional(),
+  notes: z.string().max(2000).optional(),
+})
+
+const addKnowledgeInput = z.object({
+  title: z.string().min(1).max(200),
+  body: z.string().min(1),
+  source: z.string().max(500).optional(),
 })
 
 const checkJobStatusInput = z.object({
@@ -193,6 +300,83 @@ async function handleCreateEstimate(
     status: 'queued',
     message:
       'Estimate generation queued. Poll check_job_status to track progress.',
+  })
+}
+
+// ── create_project ────────────────────────────────────────────────────────────
+
+async function handleCreateProject(
+  auth: McpAuthContext,
+  args: unknown,
+): Promise<ToolResult> {
+  ensureScope(auth, 'mcp:write')
+  const input = parseInput(createProjectInput, args)
+
+  const supabase = requireServiceClient()
+  const result = await createProject(
+    supabase,
+    auth.company_id,
+    { name: input.name, ...(input.client_id ? { clientId: input.client_id } : {}) },
+    'mcp',
+  )
+
+  if (!result.ok) throw invalidInput(result.message)
+  return jsonContent({
+    id: result.id,
+    name: result.name,
+    message: `Created project "${result.name}". Use create_estimate with project_id "${result.id}".`,
+  })
+}
+
+// ── add_service ───────────────────────────────────────────────────────────────
+
+async function handleAddService(
+  auth: McpAuthContext,
+  args: unknown,
+): Promise<ToolResult> {
+  ensureScope(auth, 'mcp:write')
+  const input = parseInput(addServiceInput, args)
+
+  // Service client bypasses RLS — tenancy is enforced by passing the trusted
+  // auth.company_id (never an LLM field) into the neutral capability.
+  const supabase = requireServiceClient()
+  const result = await createPriceBookService(supabase, auth.company_id, {
+    name: input.name,
+    unitPrice: input.unit_price,
+    ...(input.unit ? { unit: input.unit } : {}),
+    ...(input.notes ? { notes: input.notes } : {}),
+  })
+
+  if (!result.ok) throw invalidInput(result.message)
+  return jsonContent({
+    id: result.id,
+    name: result.name,
+    unit_price: result.unitPrice,
+    currency_code: result.currencyCode,
+    message: `Added "${result.name}" to the price book.`,
+  })
+}
+
+// ── add_knowledge ─────────────────────────────────────────────────────────────
+
+async function handleAddKnowledge(
+  auth: McpAuthContext,
+  args: unknown,
+): Promise<ToolResult> {
+  ensureScope(auth, 'mcp:write')
+  const input = parseInput(addKnowledgeInput, args)
+
+  const supabase = requireServiceClient()
+  const result = await addCompanyKnowledge(supabase, auth.company_id, {
+    title: input.title,
+    body: input.body,
+    ...(input.source ? { source: input.source } : {}),
+  })
+
+  if (!result.ok) throw invalidInput(result.message)
+  return jsonContent({
+    id: result.id,
+    message: 'Saved. The AI will use this when generating future estimates.',
   })
 }
 
@@ -305,19 +489,34 @@ async function handleCheckJobStatus(
 
 const TOOL_DEFINITIONS = [
   CREATE_ESTIMATE_DEFINITION,
+  CREATE_PROJECT_DEFINITION,
+  ADD_SERVICE_DEFINITION,
+  ADD_KNOWLEDGE_DEFINITION,
   CHECK_JOB_STATUS_DEFINITION,
 ] as const
 
 /**
- * Build the 2 write-side MCP tool entries (create_estimate, check_job_status)
- * for the given auth context. Wired into `registerAllTools` alongside
- * `buildReadTools` in `lib/mcp/tools/registry.ts`.
+ * Build the write-side MCP tool entries (create_estimate, add_service,
+ * add_knowledge, check_job_status) for the given auth context. Wired into
+ * `registerAllTools` alongside `buildReadTools` in `lib/mcp/tools/registry.ts`.
  */
 export function buildWriteTools(auth: McpAuthContext): ToolDefinitionEntry[] {
   return [
     {
       definition: CREATE_ESTIMATE_DEFINITION,
       handler: (args) => handleCreateEstimate(auth, args),
+    },
+    {
+      definition: CREATE_PROJECT_DEFINITION,
+      handler: (args) => handleCreateProject(auth, args),
+    },
+    {
+      definition: ADD_SERVICE_DEFINITION,
+      handler: (args) => handleAddService(auth, args),
+    },
+    {
+      definition: ADD_KNOWLEDGE_DEFINITION,
+      handler: (args) => handleAddKnowledge(auth, args),
     },
     {
       definition: CHECK_JOB_STATUS_DEFINITION,
@@ -331,10 +530,19 @@ export function buildWriteTools(auth: McpAuthContext): ToolDefinitionEntry[] {
 export const __testing = {
   TOOL_DEFINITIONS,
   CREATE_ESTIMATE_DEFINITION,
+  CREATE_PROJECT_DEFINITION,
+  ADD_SERVICE_DEFINITION,
+  ADD_KNOWLEDGE_DEFINITION,
   CHECK_JOB_STATUS_DEFINITION,
   handleCreateEstimate,
+  handleCreateProject,
+  handleAddService,
+  handleAddKnowledge,
   handleCheckJobStatus,
   createEstimateInput,
+  createProjectInput,
+  addServiceInput,
+  addKnowledgeInput,
   checkJobStatusInput,
   normalizeStatus,
   extractEstimateId,

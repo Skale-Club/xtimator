@@ -37,6 +37,7 @@ interface ClientSheetProps {
   onOpenChange: (open: boolean) => void
   client: ClientDetail | null
   companyId: string
+  onCreated?: (clientId: string) => void
 }
 
 const LANGUAGE_NOT_SET_VALUE = '__language_not_set__'
@@ -46,6 +47,7 @@ export function ClientSheet({
   onOpenChange,
   client,
   companyId,
+  onCreated,
 }: ClientSheetProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -167,6 +169,7 @@ export function ClientSheet({
         }
 
         toast.success('Client created')
+        if (result.data?.id) onCreated?.(result.data.id)
       }
       onOpenChange(false)
       router.refresh()

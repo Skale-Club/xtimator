@@ -5,7 +5,7 @@ import type { NextRequest } from 'next/server'
 // Pass-through so admin-context.ts can be imported without throwing.
 vi.mock('next/cache', () => ({
   unstable_cache: (fn: (...args: unknown[]) => unknown) => fn,
-  revalidateTag: vi.fn(),
+  updateTag: vi.fn(),
   revalidatePath: vi.fn(),
 }))
 

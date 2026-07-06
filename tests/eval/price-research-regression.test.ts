@@ -304,6 +304,10 @@ function makeSupabaseMock() {
 
     if (table === 'estimates') {
       return {
+        delete: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnThis(),
+          is: vi.fn().mockReturnThis(),
+        }),
         update: vi.fn().mockReturnValue({
           eq: vi.fn().mockResolvedValue({ error: null }),
         }),
@@ -314,6 +318,15 @@ function makeSupabaseMock() {
                 single: vi.fn().mockResolvedValue({
                   data: { total: capture.total, sections: capture.sections },
                   error: null,
+                }),
+              }),
+            }
+          }
+          if (cols === 'id') {
+            return {
+              eq: vi.fn().mockReturnValue({
+                eq: vi.fn().mockReturnValue({
+                  maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
                 }),
               }),
             }

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
@@ -65,6 +66,11 @@ export function CaptureModePicker({
           <DialogTitle>
             {step === 'recording' ? t('Record voice note') : t('Add input to estimate')}
           </DialogTitle>
+          <DialogDescription>
+            {step === 'recording'
+              ? t('Record the details you want to add to this estimate.')
+              : t('Choose how you want to add more details to this estimate.')}
+          </DialogDescription>
         </DialogHeader>
         {step === 'modality' ? (
           <div className="pt-2 pb-1">

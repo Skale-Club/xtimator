@@ -102,9 +102,18 @@ beforeEach(() => {
 })
 
 describe('charge-on gate — REJECT a failing enforcementEnabled flip (CALIB-02 proof)', () => {
-  it('rejects DEFAULT_BILLING_CONFIG + enforcementEnabled:true with ok:false and NO upsert', async () => {
-    // DEFAULT_BILLING_CONFIG's pro (0.69) + business (0.67) FAIL the ≤0.30 invariant.
-    const res = await saveBillingConfig({ ...DEFAULT_BILLING_CONFIG, enforcementEnabled: true })
+  it('rejects an over-granted config + enforcementEnabled:true with ok:false and NO upsert', async () => {
+    // Billing v2: the DEFAULTS are margin-safe (enforcement ships ON), so build
+    // a deliberately failing fixture — pro grant 9000 → $20 real cost, 0.69 > 0.30.
+    const failing = {
+      ...DEFAULT_BILLING_CONFIG,
+      enforcementEnabled: true,
+      tiers: {
+        ...DEFAULT_BILLING_CONFIG.tiers,
+        pro: { monthlyCreditGrant: 9000, subscriptionPriceCents: 2900, includedSeats: 1, subscriptionPriceAnnualCents: 29000 },
+      },
+    }
+    const res = await saveBillingConfig(failing)
     expect(res.ok).toBe(false)
     if (!res.ok) {
       // message must mention the failing tier(s)/margin so the operator can fix it.
@@ -112,6 +121,12 @@ describe('charge-on gate — REJECT a failing enforcementEnabled flip (CALIB-02 
     }
     expect(upsertMock).not.toHaveBeenCalled()
     expect(lastUpsertPayload).toBeNull()
+  })
+
+  it('accepts the margin-safe DEFAULTS with enforcementEnabled:true (Billing v2 ships ON)', async () => {
+    const res = await saveBillingConfig({ ...DEFAULT_BILLING_CONFIG, enforcementEnabled: true })
+    expect(res.ok).toBe(true)
+    expect(upsertMock).toHaveBeenCalledTimes(1)
   })
 })
 

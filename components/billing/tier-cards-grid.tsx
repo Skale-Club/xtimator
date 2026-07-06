@@ -2,17 +2,54 @@
 
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { cn } from '@/lib/utils'
 import { TierCard, type Tier } from './tier-card'
 import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface TierCardsGridProps {
   currentTier: Tier | 'trial'
+  annualPrices?: { pro?: number | null; business?: number | null }
+  monthlyPricesCents?: { pro?: number | null; business?: number | null }
 }
 
+/**
+ * Phase 156 (CREDITFIX-03) — feature-bullet verification pass.
+ *
+ * Prices are sourced live from billing_config via monthlyPricesCents/annualPrices
+ * props (see getMonthlyPriceDisplay/getAnnualDisplay below) — never hardcoded here.
+ *
+ * Feature bullets have NO equivalent billing_config field (they are marketing
+ * copy, not billing data — intentionally NOT moved into config, per locked
+ * decision: no new backend/ledger logic this phase). Each bullet below was
+ * checked against lib/entitlements.ts's actual tier-gating code on 2026-07-06:
+ *
+ * - Free "photos per estimate" / Pro "photos per estimate" / Business "photos
+ *   per estimate": all 3 corrected to match maxPhotosPerEstimate (3/20/50) —
+ *   previously overclaimed 10/50/"Unlimited".
+ * - Free "estimates" bullet corrected: free is credit-gated (maxEstimatesPerMonth
+ *   is null — no count cap), not "3 estimates per month" as previously claimed.
+ * - Pro "WhatsApp delivery" REMOVED: whatsappEnabled is true for ALL tiers
+ *   (lib/entitlements.ts) — it was never a Pro-exclusive differentiator.
+ * - Pro "Unlimited estimates" LEFT AS-IS: maxEstimatesPerMonth=200 is an
+ *   anti-abuse ceiling (per the file's own comment), not a customer-facing cap
+ *   — 200/mo functions as unlimited for realistic usage.
+ * - Business "Custom domain" LEFT AS-IS: matches customDomainEnabled=true,
+ *   business-exclusive, verified accurate.
+ * - "Custom branding" (pro) and "Stripe Connect payments" (business): NO
+ *   code-level gate exists anywhere in the codebase for either (grepped
+ *   customBranding/brandingEnabled and tier checks in app/api/stripe/connect/*
+ *   — zero matches). These are either aspirational copy or ungated-in-practice
+ *   capabilities; left as-is (adding new gating logic is out of scope — no new
+ *   backend logic this phase) but flagged here for a future phase to either
+ *   implement the gate or soften the copy.
+ * - "Basic templates" / "Email support" / "Priority email support" / "Phone +
+ *   chat support" / "Everything in Pro": non-code-gated support-channel or
+ *   structural copy, nothing in the codebase to verify against — left as-is.
+ */
 const TIERS: Array<{
   tier: Tier
   name: string
-  price: string
+  price?: string
   period: string
   features: string[]
   popular?: boolean
@@ -23,8 +60,8 @@ const TIERS: Array<{
     price: '$0',
     period: 'month',
     features: [
-      '3 estimates per month',
-      '10 photos per estimate',
+      'Estimates until your free credits run out',
+      '3 photos per estimate',
       'Basic templates',
       'Email support',
     ],
@@ -32,25 +69,22 @@ const TIERS: Array<{
   {
     tier: 'pro',
     name: 'Pro',
-    price: '$29',
     period: 'month',
     popular: true,
     features: [
       'Unlimited estimates',
-      '50 photos per estimate',
+      '20 photos per estimate',
       'Custom branding',
       'Priority email support',
-      'WhatsApp delivery',
     ],
   },
   {
     tier: 'business',
     name: 'Business',
-    price: '$99',
     period: 'month',
     features: [
       'Everything in Pro',
-      'Unlimited photos',
+      '50 photos per estimate',
       'Custom domain',
       'Stripe Connect payments',
       'Phone + chat support',
@@ -58,9 +92,10 @@ const TIERS: Array<{
   },
 ]
 
-export function TierCardsGrid({ currentTier }: TierCardsGridProps) {
+export function TierCardsGrid({ currentTier, annualPrices, monthlyPricesCents }: TierCardsGridProps) {
   const { t } = useTranslation()
   const [loading, setLoading] = useState<Tier | null>(null)
+  const [billingInterval, setBillingInterval] = useState<'month' | 'year'>('month')
 
   async function handleSelect(tier: Tier) {
     if (tier === 'free') return
@@ -69,7 +104,7 @@ export function TierCardsGrid({ currentTier }: TierCardsGridProps) {
       const res = await fetch('/api/billing/create-checkout-session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan: tier }),
+        body: JSON.stringify({ plan: tier, billingInterval }),
       })
       const data = await res.json()
       if (!res.ok || !data.url) {
@@ -84,32 +119,92 @@ export function TierCardsGrid({ currentTier }: TierCardsGridProps) {
     }
   }
 
+  function getMonthlyPriceDisplay(tier: Tier, fallback: string): string {
+    if (tier === 'free') return fallback // free is always $0, not config-driven
+    const cents = monthlyPricesCents?.[tier as 'pro' | 'business']
+    if (cents == null) return fallback // defensive fallback if prop not passed (e.g. isolated render/test)
+    return `$${(cents / 100).toFixed(0)}`
+  }
+
+  function getAnnualDisplay(tier: Tier) {
+    if (tier === 'free') return null
+    const annualCents = annualPrices?.[tier as 'pro' | 'business']
+    const monthlyCents = monthlyPricesCents?.[tier as 'pro' | 'business']
+    if (!annualCents || !monthlyCents) return null
+    const annualDollars = (annualCents / 100).toFixed(0)
+    const perMonthDollars = (annualCents / 100 / 12).toFixed(2)
+    const savePct = Math.round((1 - annualCents / (monthlyCents * 12)) * 100)
+    return {
+      annualPrice: `$${annualDollars}`,
+      annualPerMonth: `$${perMonthDollars}`,
+      savePct: savePct > 0 ? savePct : null,
+    }
+  }
+
   const normalized: Tier = currentTier === 'trial' ? 'free' : currentTier
 
   return (
-    <div className="mx-auto grid w-full max-w-5xl grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-      {TIERS.map((t) => (
-        <TierCard
-          key={t.tier}
-          tier={t.tier}
-          name={t.name}
-          price={t.price}
-          period={t.period}
-          features={t.features}
-          popular={t.popular}
-          current={normalized === t.tier}
-          ctaLabel={
-            loading === t.tier
-              ? 'Redirecting…'
-              : t.tier === 'free'
-                ? 'Get started'
-                : `Upgrade to ${t.name}`
-          }
-          currentLabel="Current plan"
-          popularLabel="Most popular"
-          onSelect={() => handleSelect(t.tier)}
-        />
-      ))}
+    <div className="space-y-6">
+      {/* Monthly / Annual toggle */}
+      <div className="flex items-center justify-center gap-1">
+        <button
+          type="button"
+          onClick={() => setBillingInterval('month')}
+          className={cn(
+            'rounded-lg px-4 py-2 text-sm font-medium transition-colors',
+            billingInterval === 'month'
+              ? 'bg-primary text-primary-foreground'
+              : 'text-muted-foreground hover:text-foreground'
+          )}
+        >
+          {t('Monthly')}
+        </button>
+        <button
+          type="button"
+          onClick={() => setBillingInterval('year')}
+          className={cn(
+            'rounded-lg px-4 py-2 text-sm font-medium transition-colors',
+            billingInterval === 'year'
+              ? 'bg-primary text-primary-foreground'
+              : 'text-muted-foreground hover:text-foreground'
+          )}
+        >
+          {t('Annual')}
+        </button>
+      </div>
+
+      <div className="mx-auto grid w-full max-w-5xl grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        {TIERS.map((tierItem) => {
+          const annualDisplay = billingInterval === 'year' ? getAnnualDisplay(tierItem.tier) : null
+          const monthlyPrice = getMonthlyPriceDisplay(tierItem.tier, tierItem.price ?? '$0')
+          return (
+            <TierCard
+              key={tierItem.tier}
+              tier={tierItem.tier}
+              name={tierItem.name}
+              price={monthlyPrice}
+              period={tierItem.period}
+              features={tierItem.features}
+              popular={tierItem.popular}
+              current={normalized === tierItem.tier}
+              showAnnual={billingInterval === 'year'}
+              annualPrice={annualDisplay?.annualPrice}
+              annualPerMonth={annualDisplay?.annualPerMonth}
+              savePct={annualDisplay?.savePct}
+              ctaLabel={
+                loading === tierItem.tier
+                  ? 'Redirecting…'
+                  : tierItem.tier === 'free'
+                    ? 'Get started'
+                    : `Upgrade to ${tierItem.name}`
+              }
+              currentLabel="Current plan"
+              popularLabel="Most popular"
+              onSelect={() => handleSelect(tierItem.tier)}
+            />
+          )
+        })}
+      </div>
     </div>
   )
 }

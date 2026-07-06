@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
+// lib/actions/team and lib/actions/invite-accept load next/headers and
+// server-action internals; lazy imports inside tests can exceed 5s under
+// fork-pool contention.
+vi.setConfig({ testTimeout: 15_000, hookTimeout: 15_000 })
+
 /**
  * SEAT-07 (wiring) — the three membership mutations invoke the never-throw
  * syncSeatBilling(companyId) as a guarded side-effect of a SUCCESSFUL change:
@@ -47,7 +52,10 @@ vi.mock('@/lib/auth/require-company-role', () => ({
 }))
 
 // ─── next/cache ─────────────────────────────────────────────────────────────
-vi.mock('next/cache', () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }))
+vi.mock('next/cache', () => ({
+  revalidatePath: vi.fn(),
+  updateTag: vi.fn(),
+}))
 
 // ─── service-role Supabase per-table mock ───────────────────────────────────
 // acceptInvite path: invite lookup (maybeSingle), guarded flip (update→eq→eq→select),

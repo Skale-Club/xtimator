@@ -10,9 +10,11 @@ import { randomUUID } from 'node:crypto'
 import { inngest } from '@/lib/inngest/client'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { transcribeAudioOR } from '@/lib/ai/openrouter-client'
+import { getTranscriptionModel } from '@/lib/platform-config'
 import { notify } from '@/lib/notifications/dispatch'
 import { buildNotificationCopy } from '@/lib/notifications/copy'
 import { recordPipelineEvent } from '@/lib/observability/pipeline-events'
+import { notifyOps } from '@/lib/observability/ops-alert'
 import { recordAICost } from '@/lib/billing/record-ai-cost'
 import { recordCreditDebit } from '@/lib/billing/credit-ledger'
 import { computeWhisperCostUsd } from '@/lib/billing/whisper-cost'
@@ -83,6 +85,18 @@ export const transcribeAudioJob = inngest.createFunction(
         errorMessage: String(error),
       })
 
+      // quick-260705-c1y-03: additive ops alert BEFORE the !companyId early return
+      // so a company-less transcription failure is still surfaced to ops. Never-throw
+      // fire-and-forget; does not gate or alter the tenant notify() below.
+      void notifyOps({
+        kind: 'transcription_failed',
+        title: 'Audio transcription failed after retries',
+        message: `recording=${payload.recordingId} company=${companyId ?? 'unknown'} err=${error instanceof Error ? error.message : String(error)}`,
+        severity: 'error',
+        dedupeKey: `transcribe_fail:${payload.recordingId}`,
+        suppressWindowSec: 600,
+      })
+
       if (!companyId) return
       const copy = buildNotificationCopy('ai_job.failed', {
         jobType: 'Audio transcription',
@@ -120,6 +134,12 @@ export const transcribeAudioJob = inngest.createFunction(
       userId: ident.userId,
     })
 
+    // Platform-wide speech-to-text model (super-admin selectable, DB-driven, no
+    // redeploy). Falls back to whisper-1 when unset. Resolved once and threaded
+    // into BOTH the transcription call and the cost attribution so the recorded
+    // model always matches what actually ran.
+    const sttModel = await getTranscriptionModel()
+
     // Step 1: Download audio + Whisper API call — checkpointed.
     // A failure inside save-transcript (step 2) will not re-run Whisper.
     const transcript = await step.run('whisper-transcribe', async () => {
@@ -134,7 +154,7 @@ export const transcribeAudioJob = inngest.createFunction(
       }
 
       const ext = storagePath.split('.').pop() ?? 'webm'
-      return await transcribeAudioOR(fileData, ext)
+      return await transcribeAudioOR(fileData, ext, sttModel)
     })
 
     // Step 2: Save transcript — separate step so a DB error doesn't re-call Whisper.
@@ -185,13 +205,14 @@ export const transcribeAudioJob = inngest.createFunction(
     // Phase 110 (COST-02): record the COMPUTED Whisper/STT cost. The provider
     // returns no cost, so cost = (recordings.duration_seconds / 60) × rate.
     // Correlated by attemptId alone (no usage_event coupling — Phase 112 owns
-    // metering). Best-effort: void so a cost-write never breaks transcription.
+    // metering). recordAICost is never-throw, so awaiting it inside a step is
+    // still safe for the transcription outcome.
     //
-    // Provider attribution: transcribeAudioOR runs OpenAI whisper-1 primary and
-    // falls back to Gemini ONCE on failure, but the fallback is hidden INSIDE
-    // that fn — the job cannot see which ran. We record the common case as
-    // provider:'openai' with the computed cost. The Gemini fallback returns no
-    // cost; we never guess a Gemini rate and never record 0 (null = unknown).
+    // Provider attribution: transcribeAudioOR runs OpenRouter STT as primary and
+    // falls back to OpenAI direct ONCE on failure, but the fallback is hidden
+    // INSIDE that fn — the job cannot see which ran. We record the common case as
+    // provider:'openrouter' with the computed cost. The rate lookup returns no
+    // cost for an unknown model; we never guess and never record 0 (null = unknown).
     const minutes = (ident.durationSeconds ?? 0) / 60
     // Phase 112 (CREDIT-02): compute the Whisper cost ONCE and thread the SAME value
     // into BOTH the cost-capture and the credit debit (no read-back race here — the
@@ -199,15 +220,20 @@ export const transcribeAudioJob = inngest.createFunction(
     // returns null for an unknown rate (e.g. a hidden Gemini fallback), so the debit
     // no-ops on null (null vs guessed 0).
     const whisperCost = computeWhisperCostUsd(ident.durationSeconds)
-    void recordAICost({
-      attemptId,
-      operationType: 'audio_minutes',
-      provider: 'openai',
-      model: 'whisper-1',
-      realCostUsd: whisperCost,
-      companyId: ident.companyId,
-      projectId: ident.projectId,
-      units: minutes > 0 ? minutes : null,
+    // D7 (quick-260705-2gp): the cost insert is memoized as its own Inngest step
+    // so a retry of a LATER step can never double-insert an ai_cost_events row
+    // (the previous bare `void recordAICost(...)` re-ran on every retry replay).
+    await step.run('record-ai-cost', async () => {
+      await recordAICost({
+        attemptId,
+        operationType: 'audio_minutes',
+        provider: 'openrouter',
+        model: sttModel,
+        realCostUsd: whisperCost,
+        companyId: ident.companyId,
+        projectId: ident.projectId,
+        units: minutes > 0 ? minutes : null,
+      })
     })
 
     // Phase 112 (CREDIT-02): credit debit for the transcription, retry-isolated and

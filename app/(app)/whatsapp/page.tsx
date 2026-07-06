@@ -1,12 +1,10 @@
-import { listConversations } from '@/lib/queries/whatsapp-inbox'
-import { WhatsAppInbox } from '@/components/whatsapp/whatsapp-inbox'
+import { notFound } from 'next/navigation'
 
-export const metadata = { title: 'WhatsApp' }
-
-// Conversations change as messages arrive; always render fresh.
-export const dynamic = 'force-dynamic'
-
+/**
+ * Route tombstone — the tenant WhatsApp inbox has been retired.
+ * Returning notFound() ensures no redirect, no content disclosure,
+ * and no inference of WhatsApp conversation existence.
+ */
 export default async function WhatsAppPage() {
-  const conversations = await listConversations()
-  return <WhatsAppInbox initialConversations={conversations} />
+  notFound()
 }

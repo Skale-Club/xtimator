@@ -67,6 +67,13 @@ function installMock(cfg: MockConfig) {
         }),
       }
     }
+    if (table === 'estimate_photos') {
+      return {
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({ order: vi.fn().mockResolvedValue({ data: [] }) })),
+        })),
+      }
+    }
     return { select: vi.fn() }
   })
 }
