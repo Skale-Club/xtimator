@@ -14,6 +14,7 @@ import { isSupportedLanguage } from '@/lib/i18n/resolve-estimate-language'
 import { demoGuardResponse } from '@/lib/demo/guard'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { requireServiceClient } from '@/lib/supabase/service'
+import { recordJobOwnership } from '@/lib/inngest/job-ownership'
 
 /**
  * Phase 91 (REC-03/REC-04): pure, exported helper deriving the Inngest event id
@@ -197,6 +198,9 @@ export async function POST(request: Request) {
       id: buildGenerateEventId(projectId, requestId),
       data: payload,
     })
+    // Awaited — see app/api/transcribe/route.ts for why this must not race
+    // the client's first poll.
+    if (ids[0]) await recordJobOwnership(ids[0], companyId)
 
     return NextResponse.json({ jobId: ids[0] }, { status: 202 })
   } catch (error) {

@@ -9,6 +9,7 @@ import { rateLimit } from '@/lib/ratelimit'
 import { checkQuota } from '@/lib/quota'
 import { checkCredits } from '@/lib/billing/credit-ledger'
 import { demoGuardResponse } from '@/lib/demo/guard'
+import { recordJobOwnership } from '@/lib/inngest/job-ownership'
 
 /**
  * Phase 67: route refactor. Returns { jobId } in <1s.
@@ -121,6 +122,9 @@ export async function POST(request: Request) {
       id: `photos-${projectId}-${requestId}`,
       data: payload,
     })
+    // Awaited — see app/api/transcribe/route.ts for why this must not race
+    // the client's first poll.
+    if (ids[0]) await recordJobOwnership(ids[0], companyId)
 
     return NextResponse.json({ jobId: ids[0] }, { status: 202 })
   } catch (error) {

@@ -34,6 +34,7 @@ import {
 } from '@/lib/inngest/events'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { checkCredits } from '@/lib/billing/credit-ledger'
+import { recordJobOwnership } from '@/lib/inngest/job-ownership'
 
 /** Thrown by createEstimate when the company's credit balance is spent. */
 export const INSUFFICIENT_CREDITS_MESSAGE =
@@ -70,5 +71,8 @@ export async function createEstimate(args: {
   })
   const jobId = ids[0]
   if (!jobId) throw new Error('createEstimate: inngest.send returned no event id')
+  // Awaited — see app/api/transcribe/route.ts for why this must not race the
+  // client's first poll.
+  await recordJobOwnership(jobId, args.companyId)
   return { jobId }
 }

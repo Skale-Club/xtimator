@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { getActiveCompanyId } from '@/lib/queries/active-company'
+import { getJobOwnerCompanyId } from '@/lib/inngest/job-ownership'
 
 /**
  * Phase 67 / Phase 91: Server-side status proxy for Inngest jobs.
@@ -15,9 +17,13 @@ import { createClient } from '@/lib/supabase/server'
  * those would make the 1.5s polling loop throw, which was the original bug. The
  * only non-200 is the 401 auth gate (sign-in is not a job state).
  *
- * Auth note (MVP): requires sign-in. Per-job ownership check is NOT enforced
- * here — any signed-in user can poll any jobId. Tightening this is tracked as a
- * follow-up before production deploy (RESEARCH.md Architecture Pattern 4 callout).
+ * Auth: requires sign-in, AND (pre-launch audit fix B4) the polling user's
+ * active company must match the company that dispatched this jobId
+ * (lib/inngest/job-ownership.ts, written at dispatch time by every route/
+ * action that hands a jobId back to the client). A mismatch — or an unknown
+ * jobId — folds into the existing `not_found` state rather than a distinct
+ * 403, so cross-tenant polling cannot distinguish "not yours" from "doesn't
+ * exist".
  *
  * Security: the signing key is never leaked beyond the boolean-ish
  * `config_unavailable` state (Project Constraint: service-role key never beyond
@@ -86,6 +92,18 @@ export async function GET(
   }
 
   const { jobId } = await params
+
+  // Ownership check (B4): fail-closed — an unrecorded or mismatched owner
+  // both fold into `not_found` so this endpoint never confirms or denies a
+  // foreign jobId's existence.
+  const [activeCompanyId, ownerCompanyId] = await Promise.all([
+    getActiveCompanyId(),
+    getJobOwnerCompanyId(jobId),
+  ])
+  if (!activeCompanyId || !ownerCompanyId || ownerCompanyId !== activeCompanyId) {
+    return NextResponse.json<JobStatusContract>({ state: 'not_found' })
+  }
+
   const devMode = isDevMode()
   const signingKey = process.env.INNGEST_SIGNING_KEY
   if (!devMode && !signingKey) {

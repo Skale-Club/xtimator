@@ -10,6 +10,7 @@ import { rateLimit } from '@/lib/ratelimit'
 import { checkQuota } from '@/lib/quota'
 import { checkCredits } from '@/lib/billing/credit-ledger'
 import { demoGuardResponse } from '@/lib/demo/guard'
+import { recordJobOwnership } from '@/lib/inngest/job-ownership'
 
 /**
  * Phase 67: NEW route. Dispatches Whisper transcription via Inngest.
@@ -129,6 +130,11 @@ export async function POST(request: Request) {
       id: `transcribe-${recordingId}`,
       data: payload,
     })
+    // Awaited (not fire-and-forget): the client's first poll can arrive within
+    // ~1.5s of this response, so the ownership row must exist before we return
+    // jobId — otherwise the GET /api/jobs/[jobId] ownership check below would
+    // race it.
+    if (ids[0]) await recordJobOwnership(ids[0], rec.company_id)
 
     return NextResponse.json({ jobId: ids[0] }, { status: 202 })
   } catch (error) {

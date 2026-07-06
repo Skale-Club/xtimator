@@ -9,6 +9,7 @@ import { getIntegrationKey } from '@/lib/platform-config'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { recordPipelineEvent } from '@/lib/observability/pipeline-events'
 import { assertWritable } from '@/lib/demo/guard'
+import { recordJobOwnership } from '@/lib/inngest/job-ownership'
 
 async function getAuthContext() {
   const supabase = await createClient()
@@ -236,6 +237,9 @@ export async function transcribeRecording(
       }),
     },
   })
+  // Awaited — see app/api/transcribe/route.ts for why this must not race the
+  // client's first poll.
+  if (ids[0]) await recordJobOwnership(ids[0], recording.company_id as string)
 
   return { data: { jobId: ids[0] } }
 }
