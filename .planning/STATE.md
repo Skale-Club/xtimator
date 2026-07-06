@@ -1,9 +1,9 @@
 ---
 gsd_state_version: 1.0
-milestone: v4.16
-milestone_name: Admin Inbox Consolidation
-status: shipped
-stopped_at: v4.16 archived and tagged; ready for /gsd:new-milestone
+milestone: v4.17
+milestone_name: Admin Polish & Credit UX Compliance
+status: defining
+stopped_at: Milestone started; defining requirements + roadmap
 last_updated: "2026-07-06T00:35:06.289Z"
 last_activity: 2026-07-06
 progress:
@@ -17,9 +17,11 @@ progress:
 
 ## Current Status
 
-- **Milestone**: v4.16 Admin Inbox Consolidation — SHIPPED 2026-07-06. 2 phases (154-155), 4/4 requirements (INBOX-01..04). Consolidated the three scattered super-admin WhatsApp surfaces into a single **Inbox**: one nav item, a two-pane master-detail conversation viewer (list + thread same page, Xphere-style, replacing the drawer), and an Inbox Settings area (Accounts + Templates). Read-only; credentials stay in Integrations; data layer + DB tables kept their `whatsapp_*` names. Executed autonomously end-to-end (research → plan → execute → goal-verify → milestone-audit → archive/tag) with no human-verify pauses per standing preference. Archived to `milestones/v4.16-*`. Manual-only pending item: the 4 new creds-gated live-nav e2e tests (row-click, direct-link, empty-state, mobile collapse) need `TEST_ADMIN_EMAIL`/`TEST_ADMIN_PASSWORD` to actually run. Next: `/gsd:new-milestone`.
+- **Milestone**: v4.17 Admin Polish & Credit UX Compliance — DEFINING 2026-07-06. Fixes a real regression against a locked v4.15 decision (tenant Plans page still leaks raw credit numbers in 3 places), then polishes the super-admin experience: nav reorg + new "Content" group + Legal Pages→Pages rename, two owner-flagged bad names fixed (Message→Message Template, Support Mode→View as Company), a credit-model-centric admin Billing page overhaul, and a "Premium Xtimator" glassmorphism visual redesign of the v4.16 Inbox. No new backend logic — 100% reuse of existing credit-ledger/billing_config functions. Fully autonomous overnight run per standing no-checkpoint-interruptions preference; owner unreachable for some naming calls, best-judgment names chosen and documented. Numbering continues the global counter — v4.16 ended at Phase 155, so v4.17 starts at **Phase 156**.
 
 ### Prior Milestone (shipped)
+
+- **Milestone**: v4.16 Admin Inbox Consolidation — SHIPPED 2026-07-06. 2 phases (154-155), 4/4 requirements (INBOX-01..04). Consolidated the three scattered super-admin WhatsApp surfaces into a single **Inbox**: one nav item, a two-pane master-detail conversation viewer (list + thread same page, Xphere-style, replacing the drawer), and an Inbox Settings area (Accounts + Templates). Read-only; credentials stay in Integrations; data layer + DB tables kept their `whatsapp_*` names. Executed autonomously end-to-end (research → plan → execute → goal-verify → milestone-audit → archive/tag) with no human-verify pauses per standing preference. Archived to `milestones/v4.16-*`. Manual-only pending item: the 4 new creds-gated live-nav e2e tests (row-click, direct-link, empty-state, mobile collapse) need `TEST_ADMIN_EMAIL`/`TEST_ADMIN_PASSWORD` to actually run.
 
 - **Milestone**: v4.15 Credit UX Polish & Admin Support Tooling — SHIPPED 2026-07-05. 4 phases (150-153), 13/13 requirements (CREDITUI-03..07, SUPPORT-01..04, ADMINCO-01..04). Usage progress bar + super-admin cost visibility, dollar-pack top-up + auto-top-up, Support Mode, Companies admin overhaul. Archived to milestones/v4.15-*.
 - **Phase plan (goal-backward, 4 phases — the Companies list first since Support Mode needs a stable place to launch from, then the security-sensitive impersonation, then the independent display-layer change, then the riskiest Stripe rework last):**
@@ -46,12 +48,12 @@ progress:
 
 ## Current Position
 
-Phase: none (v4.16 complete, no milestone active)
+Phase: Not started (defining requirements)
 Plan: —
-Status: v4.16 shipped 2026-07-06; awaiting `/gsd:new-milestone`
-Last activity: 2026-07-06
+Status: Defining requirements — v4.17 Admin Polish & Credit UX Compliance
+Last activity: 2026-07-06 — Milestone v4.17 started
 
-Note: `gsd-tools phase complete "155"` reported `next_phase: 999.1` (a pre-existing PARKING LOT placeholder — "Migrate Inngest to Self-Hosted Hetzner", disk_status empty, no plans) — this is NOT an active phase and was not started; it is simply the next entry the roadmap scanner found. v4.16 (Phases 154-155) is fully shipped and archived to `milestones/v4.16-*`; see the "Current Status" section above for the full summary.
+Note: `gsd-tools phase complete "155"` reported `next_phase: 999.1` (a pre-existing PARKING LOT placeholder — "Migrate Inngest to Self-Hosted Hetzner", disk_status empty, no plans) — this is NOT an active phase; the roadmap counter for v4.17 continues from Phase 156 (v4.16 ended at 155), not from 999.1. v4.16 (Phases 154-155) is fully shipped and archived to `milestones/v4.16-*`.
 
 ### Previous Position (v4.14 / Phase 1001, for continuity)
 
