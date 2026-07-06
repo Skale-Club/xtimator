@@ -30,8 +30,8 @@ Each requirement maps to exactly one roadmap phase.
 
 ### Naming Fixes
 
-- [ ] **NAMING-01**: The tenant Settings sidebar item "Message" is renamed to "Message Template" (matching the page's own internal card title); the page `<h1>` and `metadata.title` are updated to match. Route (`/settings/estimate-templates`) stays unchanged.
-- [ ] **NAMING-02**: The super-admin "Support Mode" feature is renamed to "View as Company" in every user-facing string — the Companies-list row action button, the persistent banner shown during an active session, the exit button, and both error toasts. Internal function names, audit-log action literals, the session cookie name, and file names are unchanged.
+- [x] **NAMING-01**: The tenant Settings sidebar item "Message" is renamed to "Message Template" (matching the page's own internal card title); the page `<h1>` and `metadata.title` are updated to match. Route (`/settings/estimate-templates`) stays unchanged.
+- [x] **NAMING-02**: The super-admin "Support Mode" feature is renamed to "View as Company" in every user-facing string — the Companies-list row action button, the persistent banner shown during an active session, the exit button, and both error toasts. Internal function names, audit-log action literals, the session cookie name, and file names are unchanged.
 
 ### Admin Billing Page Overhaul
 
@@ -75,8 +75,8 @@ Every v1 requirement maps to exactly one phase. Coverage: 15/15 mapped, 0 orphan
 | NAV-01 | Phase 157 — Admin Nav Reorg & Naming Fixes | Pending |
 | NAV-02 | Phase 157 — Admin Nav Reorg & Naming Fixes | Pending |
 | NAV-03 | Phase 157 — Admin Nav Reorg & Naming Fixes | Pending |
-| NAMING-01 | Phase 157 — Admin Nav Reorg & Naming Fixes | Pending |
-| NAMING-02 | Phase 157 — Admin Nav Reorg & Naming Fixes | Pending |
+| NAMING-01 | Phase 157 — Admin Nav Reorg & Naming Fixes | Complete |
+| NAMING-02 | Phase 157 — Admin Nav Reorg & Naming Fixes | Complete |
 | BILLADMIN-01 | Phase 158 — Admin Billing Page Credit-Model Overhaul | Pending |
 | BILLADMIN-02 | Phase 158 — Admin Billing Page Credit-Model Overhaul | Pending |
 | BILLADMIN-03 | Phase 158 — Admin Billing Page Credit-Model Overhaul | Pending |

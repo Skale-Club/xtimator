@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.17
 milestone_name: Admin Polish & Credit UX Compliance
 status: executing
-stopped_at: Phase 156 complete and goal-verified (3/3 requirements); starting Phase 157
-last_updated: "2026-07-06T04:34:35.356Z"
+stopped_at: Completed 157-02-PLAN.md
+last_updated: "2026-07-06T04:41:38.524Z"
 last_activity: 2026-07-06
 progress:
-  total_phases: 156
-  completed_phases: 156
+  total_phases: 4
+  completed_phases: 1
   total_plans: 7
-  completed_plans: 2
+  completed_plans: 3
 ---
 
 # Project State
@@ -49,13 +49,15 @@ progress:
 ## Current Position
 
 Phase: 157 of 159 (admin nav reorg naming fixes)
-Plan: Not started
-Status: Phase 156 COMPLETE — both plans shipped, 3/3 requirements (CREDITFIX-01..03) done.
+Plan: 02 of 3 complete (157-01 may still be executing concurrently; 157-03 depends on 157-02)
+Status: Phase 156 COMPLETE (3/3 requirements). Phase 157 Plan 02 (Message Template + View as Company renames) COMPLETE — NAMING-01/NAMING-02 both done, 2/2 tasks, 2 commits (8bf042bd, 6eea4d27). Plan 01 (nav-reorg + Legal Pages rename) running in parallel by a separate executor.
 Last activity: 2026-07-06
 
-Progress: [░░░░░░░░░░] 25% (1/4 v4.17 phases complete — Phase 156 fully shipped, 157/158/159 not yet started)
+Progress: [██░░░░░░░░] ~30% (1/4 v4.17 phases fully complete; Phase 157 in progress — Plan 02/3 done)
 
 Note: `gsd-tools phase complete "155"` reported `next_phase: 999.1` (a pre-existing PARKING LOT placeholder — "Migrate Inngest to Self-Hosted Hetzner", disk_status empty, no plans) — this is NOT an active phase; the roadmap counter for v4.17 continues from Phase 156 (v4.16 ended at 155), not from 999.1. v4.16 (Phases 154-155) is fully shipped and archived to `milestones/v4.16-*`.
+
+Note: `gsd-tools state update-progress` reverted the frontmatter `milestone`/`milestone_name` to a stale `v3.1.1` value and produced a nonsensical progress block during this plan's execution (a known, previously-observed tool bug) — manually corrected back to `milestone: v4.17` / `milestone_name: Admin Polish & Credit UX Compliance` and accurate phase/plan counts after every state-tool invocation in this session.
 
 v4.17 phase sequence (all 4 file-independent, recommended execution order): 156 Tenant Credit UX Compliance Fix (CREDITFIX-01..03) → 157 Admin Nav Reorg & Naming Fixes (NAV-01..03, NAMING-01..02) → 158 Admin Billing Page Credit-Model Overhaul (BILLADMIN-01..03) → 159 Inbox Visual Redesign "Premium Xtimator" (INBOX-05..08). Next: `/gsd:plan-phase 156`.
 
@@ -178,7 +180,7 @@ Prior: 102-01 (HARD-07 replay-safe TTL) shipped. Added a neutral `requestedAt: A
 Prior: 102-02 (HARD-06 cap half) shipped. Replaced the hard-coded `(state.refineAttempts ?? 0) < 1` literal in `checkVagueAfterAssessEdge` (`lib/estimate/graph/nodes/decide.ts`) with a single `AUTO_REFINE_MAX_ATTEMPTS` module constant — read once at module load via an IIFE (`Number.isFinite(raw) && raw >= 0 ? raw : 1`) from the optional non-secret `process.env.AUTO_REFINE_MAX_ATTEMPTS`, defaulting to 1. Operator kept exactly `<` so the default is byte-identical to today (Research Pitfall 1). `auto-refine.ts` doc comment updated to reference the configurable cap (documentation-only; increment logic untouched). Channel-neutral (no DB, no async, no channel import) → graph-neutrality stays green. `tests/unit/estimate/auto-refine-cap.test.ts` now fully GREEN (default=1 AND `AUTO_REFINE_MAX_ATTEMPTS=2` override cases); `auto-refine-isolation` + `graph-neutrality` (12/12) and `never-reply-regression` Path C (loops exactly once at default) stay green. No env VALUE committed — only the var NAME appears (CLAUDE.md secret-handling). 1 atomic commit (02a41f2). xphere untouched. HARD-06 NOT marked complete — only the configurable-cap half is done; the web recourse UI half is owned by Plan 102-04.
 Prior (102-00, Wave 0 RED/EXTEND scaffold): authored 4 failing-by-design test files (auto-refine-cap [HARD-06 cap, now GREEN via 102-02], replay-safe-ttl [HARD-07, still RED → 102-01], batch-reporting [HARD-05, still RED → 102-03], needs-details-banner [HARD-06 recourse, still RED → 102-04]); 2 commits (201afb0, 35e8537).
 Last activity: 2026-07-05
-Stopped at: Completed 155-02-PLAN.md
+Stopped at: Completed 157-02-PLAN.md
 Prior Stopped at: Completed 153-01-PLAN.md
 Next Up: **Phase 108 COMPLETE (5/5 plans — 108-01 metering [RMETER-01/02/03], 108-02 vagueness gate [RFALL-02], 108-03 orchestrator `researchUnmatchedPrices` [RPRICE-01/03/04, RFALL-01], 108-04 wire into `generateEstimateForProject` [RPRICE-01/03, RFALL-01], 108-05 "Couch cleaning 8 seats" full-graph regression [RFALL-03]).** THE PAYOFF is live in the production generation path AND locked by a green deterministic full-graph regression (EVIDENCED → $180/non-vague, empty-research+context → never-$0 ladder/non-vague, all-empty → still blocks). All three price-research adapters (`openrouter-web`, gated `anthropic-web`, deterministic `fixture`) remain configured-via-`platform_integrations` (all-misses no-op when unconfigured). Suggested: `/gsd:verify-work 108`, then `/gsd:execute-phase 109` (durability + cost-control hardening — dedicated `step.run('price-research')` retry isolation, runtime OpenRouter→Anthropic fallback ordering, per-estimate item caps, refine-loop memoization). DEFERRED (operational, carried from 108-01): apply migration `20260624000002_phase108_usage_event_price_researched.sql` (+ the earlier `20260624000001` price_research_cache) to remote via CI→GHCR→Coolify.
 Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gsd:verify-work 104` to validate the phase, then address the operational deferrals. DEFERRED (operational, all of Phase 104): apply migrations `20260621000001_notification_categories_remap.sql` + `20260621000002_notification_opt_in_consent.sql` + `20260621000003_whatsapp_notification_templates.sql` to the remote DB; ensure the Twilio from-number is SMS-capable; verify the Meta token carries `whatsapp_business_management` scope + author/approve the registry templates in Meta WhatsApp Manager (the `message_template_status_update` webhook then flips them to approved). Also still queued: `/gsd:verify-work 103` + `/gsd:complete-milestone` (v4.5) carry-over UATs.
@@ -860,6 +862,7 @@ Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gs
 - [Phase 155]: Company label in thread header falls back to matched list-row company_name since WaConversationRow has no company_name field; deep-linked off-page conversations show name+phone only
 - [Phase 155]: Verified exact post-155-01 call-site text via direct source read before writing static-contract assertions, per plan's grep-first instruction
 - [Phase 155]: Mobile-collapse empty-state assertion (toHaveCount(0)) confirmed against actual component: thread pane is hidden md:flex when nothing selected, so EmptyState text is not visible on mobile with no selection
+- [Phase 157]: Support Mode renamed to View as Company kept JSDoc comments consistent with new copy while preserving all internal identifiers (Rule 2 doc-consistency fix)
 
 ## Performance Metrics
 
@@ -1150,6 +1153,7 @@ Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gs
 | Phase 154 P03 | 20min | 2 tasks | 2 files |
 | Phase 155 P01 | 18min | 2 tasks | 2 files |
 | Phase 155 P02 | 25min | 2 tasks | 1 files |
+| Phase 157 P02 | 6 | 2 tasks | 5 files |
 
 ## Project Reference
 
