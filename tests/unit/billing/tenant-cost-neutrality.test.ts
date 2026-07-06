@@ -89,3 +89,87 @@ describe('CREDITUI-04: tenant-facing cost neutrality', () => {
     expect(violations).toEqual([])
   })
 })
+
+/**
+ * Phase 156 (CREDITFIX-01) — regression guard for the 3 confirmed v4.15
+ * CREDITUI-04 violations found on /settings/billing: TopUpPackCard's
+ * "≈ X credits" subtext, AutoTopupDialog's pack-picker "(≈X credits)"
+ * parenthetical, and CreditHistoryList's per-row numeric delta. This is
+ * NARROWER than the FORBIDDEN token scan above (which only checks
+ * real_cost_usd/markup/balance_after) — it specifically targets "a
+ * credits/delta_credits value being formatted for display via
+ * .toLocaleString()", the exact shape of all 3 original bugs, so a future
+ * regression in ANY components/billing/ file is caught automatically, not
+ * just these 3.
+ *
+ * IMPORTANT — why this is NOT a digit-literal regex: in source code, none
+ * of the 3 real violations have a literal digit adjacent to the word
+ * "credit(s)" — the number is only produced at RUNTIME via a rendered JSX
+ * expression (`{credits.toLocaleString()}`) or a template-literal
+ * interpolation (`` `≈ ${credits.toLocaleString()} credits` ``). A pattern
+ * like /\d[\d,]*\s*credits?\b/i (matching an actual digit character) was
+ * tested against the real pre-fix source of all 3 files and matched NONE
+ * of them — it only matches an invented string like "≈ 1,300 credits",
+ * which never appears in source. The patterns below instead target the
+ * actual rendering signal: a `credits`/`delta_credits` value immediately
+ * piped through `.toLocaleString()` (property access OR bare identifier),
+ * or a template literal that interpolates a value next to the literal
+ * word "credit(s)".
+ */
+const PROPERTY_ACCESS_PATTERN = /\.?(?:delta_)?credits\s*\.\s*toLocaleString\s*\(\s*\)/i
+const TEMPLATE_LITERAL_CREDITS_PATTERN = /`[^`]*\$\{[^`]*\}[^`]*\bcredits?\b[^`]*`/i
+const RAW_CREDIT_NUMBER_PATTERN = new RegExp(
+  `(?:${PROPERTY_ACCESS_PATTERN.source})|(?:${TEMPLATE_LITERAL_CREDITS_PATTERN.source})`,
+  'i'
+)
+const RENDERED_DELTA_CREDITS_PATTERN = /\.?delta_credits\s*\.\s*toLocaleString\s*\(\s*\)/i
+
+describe('CREDITFIX-01: no raw credit number reaches a tenant surface (regression guard)', () => {
+  const TARGET_FILES = [
+    'components/billing/topup-pack-card.tsx',
+    'components/billing/auto-topup-dialog.tsx',
+    'components/billing/credit-history-list.tsx',
+  ]
+
+  it('Test H (sanity/RED-guard): all 3 target files exist and are non-empty', () => {
+    for (const rel of TARGET_FILES) {
+      const abs = resolve(ROOT, rel)
+      expect(existsSync(abs), `${rel} should exist`).toBe(true)
+      expect(readFileSync(abs, 'utf8').length, `${rel} should be non-empty`).toBeGreaterThan(0)
+    }
+  })
+
+  it('Test F: none of the 3 files render a credits/delta_credits value via .toLocaleString(), and no template literal interpolates a value next to the word "credit(s)"', () => {
+    const violations: Array<{ file: string }> = []
+    for (const rel of TARGET_FILES) {
+      const src = stripComments(readFileSync(resolve(ROOT, rel), 'utf8'))
+      if (RAW_CREDIT_NUMBER_PATTERN.test(src)) {
+        violations.push({ file: rel })
+      }
+    }
+    expect(violations).toEqual([])
+  })
+
+  it('Test G: none of the 3 files render delta_credits (or a derivative) formatted via .toLocaleString()', () => {
+    const violations: Array<{ file: string }> = []
+    for (const rel of TARGET_FILES) {
+      const src = stripComments(readFileSync(resolve(ROOT, rel), 'utf8'))
+      if (RENDERED_DELTA_CREDITS_PATTERN.test(src)) {
+        violations.push({ file: rel })
+      }
+    }
+    expect(violations).toEqual([])
+  })
+
+  it('Test I (broader net): every non-test file under components/billing/ is free of the raw-credit-number pattern', () => {
+    const files = collectTsFiles(resolve(ROOT, COMPONENTS_BILLING_DIR))
+    const violations: Array<{ file: string }> = []
+    for (const file of files) {
+      const src = stripComments(readFileSync(file, 'utf8'))
+      if (RAW_CREDIT_NUMBER_PATTERN.test(src)) {
+        violations.push({ file: file.replace(ROOT, '').replace(/\\/g, '/') })
+      }
+    }
+    expect(violations).toEqual([])
+  })
+})
