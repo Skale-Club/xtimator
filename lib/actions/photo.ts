@@ -25,6 +25,15 @@ async function getAuthContext() {
   return { supabase, company }
 }
 
+// Pre-launch audit fix (A-3): the client caps photo capture at 16
+// (capture-recorder.tsx), but that's UI-only — nothing server-side stopped a
+// caller from creating hundreds of photo rows for one project, each of which
+// the analyze-photos job would otherwise try to run through paid Vision
+// analysis (that job now also caps itself at MAX_PHOTOS_PER_JOB=20 — see
+// lib/inngest/functions/analyze-photos.ts — but capping creation too avoids
+// unbounded row/storage growth from the same abuse path).
+const MAX_PHOTOS_PER_PROJECT = 50
+
 export async function createPhoto(
   projectId: string,
   storagePath: string,
@@ -33,6 +42,18 @@ export async function createPhoto(
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error }
   const { supabase, company } = ctx
+
+  if (!storagePath.startsWith(`${company.id}/`)) {
+    return { error: 'Invalid photo path.' }
+  }
+
+  const { count: existingCount } = await supabase
+    .from('photos')
+    .select('id', { count: 'exact', head: true })
+    .eq('project_id', projectId)
+  if ((existingCount ?? 0) >= MAX_PHOTOS_PER_PROJECT) {
+    return { error: `This project already has the maximum of ${MAX_PHOTOS_PER_PROJECT} photos.` }
+  }
 
   const { data: photo, error: insertError } = await supabase
     .from('photos')

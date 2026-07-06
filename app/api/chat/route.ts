@@ -44,6 +44,14 @@ import {
   type ChatRole,
 } from '@/lib/queries/chat'
 import { getEntitlements } from '@/lib/entitlements'
+import { rateLimit } from '@/lib/ratelimit'
+import { getBillingConfig } from '@/lib/billing/billing-config'
+
+// Pre-launch audit fix (B9): every other AI endpoint has a rate limit; this
+// one didn't (the turn itself is credit-absorbed per CHATMETER-01, so this IS
+// its only cost control). Also caps message count as a blunt guard against a
+// single request carrying an absurd synthetic history.
+const MAX_MESSAGES_PER_TURN = 100
 
 export async function POST(req: Request) {
   // 1. Authenticate the owner.
@@ -54,6 +62,21 @@ export async function POST(req: Request) {
     return new Response('Unauthorized', { status: 401 })
   }
   const userId = claims.sub as string
+
+  // 1b. Rate limit (pre-launch audit fix B9) — runtime-tunable via
+  // billing_config.absorbedChatRateLimitPerMin (default 20/min) so it can be
+  // tightened without a deploy. Checked before any DB/model work.
+  const billingCfg = await getBillingConfig()
+  const rl = await rateLimit('chatPerMinute', userId, billingCfg.absorbedChatRateLimitPerMin)
+  if (!rl.allowed) {
+    return new Response(
+      JSON.stringify({ error: 'rate_limit', retryAfter: rl.retryAfter }),
+      {
+        status: 429,
+        headers: { 'content-type': 'application/json', 'Retry-After': String(rl.retryAfter ?? 60) },
+      }
+    )
+  }
 
   // 2. Resolve the ACTIVE company — the trusted tenant (never from the body).
   const companyId = await getActiveCompanyId()
@@ -94,6 +117,13 @@ export async function POST(req: Request) {
   //    chooses the tenant — only `messages` is user/model content.
   const { messages, conversationId }: { messages: UIMessage[]; conversationId?: string } =
     await req.json()
+
+  if (!Array.isArray(messages) || messages.length > MAX_MESSAGES_PER_TURN) {
+    return new Response(
+      JSON.stringify({ error: 'bad_request', reason: 'Too many messages in this turn' }),
+      { status: 400, headers: { 'content-type': 'application/json' } }
+    )
+  }
 
   // 5. Resolve the model (Plan-01 slot resolver) + build the neutral tools with
   //    the trusted companyId + service client + owner scope.
