@@ -80,6 +80,19 @@ describe('/api/translate — I18N-05, I18N-08', () => {
     expect(body.error).toBeTruthy()
   })
 
+  it('returns 400 when texts has more than 200 entries (pre-launch audit fix)', async () => {
+    const texts = Array.from({ length: 201 }, (_, i) => `string ${i}`)
+    const res = await POST(makeRequest({ texts, targetLanguage: 'pt' }))
+    expect(res.status).toBe(400)
+    expect(translateTextsOR).not.toHaveBeenCalled()
+  })
+
+  it('returns 400 when a single string exceeds 2000 characters (pre-launch audit fix)', async () => {
+    const res = await POST(makeRequest({ texts: ['x'.repeat(2001)], targetLanguage: 'pt' }))
+    expect(res.status).toBe(400)
+    expect(translateTextsOR).not.toHaveBeenCalled()
+  })
+
   it('returns 503 when the AI is unavailable and there is no cache hit', async () => {
     vi.mocked(translateTextsOR).mockRejectedValue(new Error('AI down'))
     const res = await POST(makeRequest({ texts: ['Rare string'], targetLanguage: 'pt' }))

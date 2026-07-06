@@ -31,6 +31,16 @@ export async function POST(request: Request) {
   if (!body?.texts || !Array.isArray(body.texts) || body.texts.length === 0) {
     return NextResponse.json({ error: 'texts (non-empty array) required' }, { status: 400 })
   }
+  // Pre-launch audit fix: this endpoint had no cap on payload size — inside
+  // the per-minute rate limit window, a single request could still carry an
+  // arbitrarily large `texts` array (or arbitrarily long strings), amplifying
+  // AI translation cost far beyond what the rate limit alone bounds.
+  if (body.texts.length > 200 || body.texts.some((t: unknown) => typeof t !== 'string' || t.length > 2000)) {
+    return NextResponse.json(
+      { error: 'texts must be at most 200 strings, each at most 2000 characters' },
+      { status: 400 }
+    )
+  }
   if (!body?.targetLanguage || !['pt', 'es'].includes(body.targetLanguage)) {
     return NextResponse.json({ error: 'targetLanguage must be "pt" or "es"' }, { status: 400 })
   }
