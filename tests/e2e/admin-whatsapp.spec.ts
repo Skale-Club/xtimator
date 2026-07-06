@@ -170,15 +170,40 @@ test.describe('Admin WhatsApp: static contract (source-level)', () => {
     expect(src).not.toMatch(/revalidatePath/)
   })
 
-  test('admin-whatsapp-client.tsx passes company_id to loadAdminConversationThread', async () => {
+  test('admin-whatsapp-client.tsx loads thread by selected conversation id', async () => {
     const { readFileSync } = await import('node:fs')
     const { resolve } = await import('node:path')
     const src = readFileSync(
       resolve(process.cwd(), 'app/admin/inbox/admin-whatsapp-client.tsx'),
       'utf8'
     )
-    // Must call loadAdminConversationThread with both id and company_id
-    expect(src).toContain('loadAdminConversationThread(row.id, row.company_id)')
+    // Must call loadAdminConversationThread keyed on the URL-derived selected id, not a bare row-click closure
+    expect(src).toContain('loadAdminConversationThread(selectedId, row?.company_id)')
+    // Must derive selection from the conversation URL param, not local-only state
+    expect(src).toContain("sp.get('conversation')")
+  })
+
+  test('admin-whatsapp-client.tsx has no reply/message-send controls', async () => {
+    const { readFileSync } = await import('node:fs')
+    const { resolve } = await import('node:path')
+    const src = readFileSync(
+      resolve(process.cwd(), 'app/admin/inbox/admin-whatsapp-client.tsx'),
+      'utf8'
+    )
+    expect(src).not.toMatch(/sendMessage|reply|send_message|handleSend/i)
+  })
+
+  test('admin-whatsapp-client.tsx renders a two-pane layout with an empty-state placeholder', async () => {
+    const { readFileSync } = await import('node:fs')
+    const { resolve } = await import('node:path')
+    const src = readFileSync(
+      resolve(process.cwd(), 'app/admin/inbox/admin-whatsapp-client.tsx'),
+      'utf8'
+    )
+    expect(src).not.toMatch(/<table/)
+    expect(src).not.toMatch(/<Sheet\b/)
+    expect(src).toContain('EmptyState')
+    expect(src).toContain('Select a conversation')
   })
 
   // ── Plan 05 Task 2: Account provisioning contracts ──
