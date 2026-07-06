@@ -1,24 +1,23 @@
 ---
 gsd_state_version: 1.0
-milestone: v3.1.1
-milestone_name: MVP Launch Prep + Future-Proofing
-status: executing
-stopped_at: Completed 159-02-PLAN.md
+milestone: v4.17
+milestone_name: Admin Polish & Credit UX Compliance
+status: shipped
+stopped_at: v4.17 archived and tagged; ready for /gsd:new-milestone
 last_updated: "2026-07-06T05:31:48.207Z"
 last_activity: 2026-07-06
 progress:
-  total_phases: 107
-  completed_phases: 89
-  total_plans: 242
-  completed_plans: 253
-  percent: 60
+  total_phases: 159
+  completed_phases: 159
+  total_plans: 8
+  completed_plans: 8
 ---
 
 # Project State
 
 ## Current Status
 
-- **Milestone**: v4.17 Admin Polish & Credit UX Compliance — ROADMAP CREATED 2026-07-06. 4 phases (156-159), 15/15 requirements mapped (CREDITFIX-01..03, NAV-01..03, NAMING-01..02, BILLADMIN-01..03, INBOX-05..08), 0 orphans. Fixes a real regression against a locked v4.15 decision (tenant Plans page still leaks raw credit numbers in 3 places), then polishes the super-admin experience: nav reorg + new "Content" group + Legal Pages→Pages rename, two owner-flagged bad names fixed (Message→Message Template, Support Mode→View as Company), a credit-model-centric admin Billing page overhaul, and a "Premium Xtimator" glassmorphism visual redesign of the v4.16 Inbox. No new backend logic — 100% reuse of existing credit-ledger/billing_config functions. All 4 phases are file-independent (no blocking dependency spine); sequenced most-urgent-first, most-subjective-last. Fully autonomous overnight run per standing no-checkpoint-interruptions preference; owner unreachable for some naming calls, best-judgment names chosen and documented. Numbering continues the global counter — v4.16 ended at Phase 155, so v4.17 starts at **Phase 156**. Next: `/gsd:plan-phase 156`.
+- **Milestone**: v4.17 Admin Polish & Credit UX Compliance — SHIPPED 2026-07-06. 4 phases (156-159), 15/15 requirements (CREDITFIX-01..03, NAV-01..03, NAMING-01..02, BILLADMIN-01..03, INBOX-05..08). Fixed a real regression against a locked v4.15 decision (tenant Plans page leaked raw credit numbers in 3 places); reorganized the super-admin sidebar (Dashboard/Companies/Inbox first + new "Content" group) and renamed Legal Pages→Pages; fixed two owner-flagged confusing names (Message→Message Template, Support Mode→View as Company); overhauled the admin Billing page to be credit-model-centric; redesigned the Inbox with a genuine "Premium Xtimator" glassmorphism treatment. No new backend logic — 100% reuse of existing credit-ledger/billing_config functions. All 4 phases planned and largely executed in parallel since none actually depended on each other. Caught and fixed 3 real defects during plan-checking/integration-audit before shipping. Executed fully autonomously overnight per the standing no-checkpoint-interruptions preference; owner unreachable for some naming calls, best-judgment names chosen and documented. Archived to `milestones/v4.17-*`. Manual-only pending items: live-browser visual/contrast check of the redesigned Inbox and admin Billing page (no live UAT in this environment). Next: `/gsd:new-milestone`.
 
 ### Prior Milestone (shipped)
 
@@ -49,14 +48,12 @@ progress:
 
 ## Current Position
 
-Phase: 999.1 of 159 (migrate inngest self hosted hetzner)
-Plan: Not started
-Status: Executing — Phase 158 complete, Phase 159 next
+Phase: none (v4.17 complete, no milestone active)
+Plan: —
+Status: v4.17 shipped 2026-07-06; awaiting `/gsd:new-milestone`
 Last activity: 2026-07-06
 
-Progress: [██████░░░░] ~60% (3/4 v4.17 phases fully complete — 156, 157, 158 done; 159 remaining)
-
-Note: `gsd-tools phase complete "155"` reported `next_phase: 999.1` (a pre-existing PARKING LOT placeholder — "Migrate Inngest to Self-Hosted Hetzner", disk_status empty, no plans) — this is NOT an active phase; the roadmap counter for v4.17 continues from Phase 156 (v4.16 ended at 155), not from 999.1. v4.16 (Phases 154-155) is fully shipped and archived to `milestones/v4.16-*`.
+Note: `gsd-tools phase complete` calls throughout this milestone repeatedly reported `next_phase: 999.1` (a pre-existing PARKING LOT placeholder — "Migrate Inngest to Self-Hosted Hetzner", disk_status empty, no plans) — this was NEVER an active phase; v4.17 (Phases 156-159) is fully shipped and archived to `milestones/v4.17-*`; see the "Current Status" section above for the full summary.
 
 Note: `gsd-tools state update-progress` reverted the frontmatter `milestone`/`milestone_name` to a stale `v3.1.1` value and produced a nonsensical progress block during this plan's execution (a known, previously-observed tool bug) — manually corrected back to `milestone: v4.17` / `milestone_name: Admin Polish & Credit UX Compliance` and accurate phase/plan counts after every state-tool invocation in this session.
 
