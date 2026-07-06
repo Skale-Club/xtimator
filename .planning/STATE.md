@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.17
 milestone_name: Admin Polish & Credit UX Compliance
 status: executing
-stopped_at: Completed 156-02-PLAN.md
-last_updated: "2026-07-06T04:20:54.677Z"
-last_activity: 2026-07-06 — Phase 156 Plan 02 (Tier Pricing/Feature Reconciliation) executed
+stopped_at: Completed 156-01-PLAN.md
+last_updated: "2026-07-06T04:26:16.000Z"
+last_activity: 2026-07-06 — Phase 156 Plan 01 (Tenant Credit UX Compliance Fix + Topbar Progress Bar) executed
 progress:
   total_phases: 159
   completed_phases: 155
-  total_plans: 5
-  completed_plans: 5
+  total_plans: 7
+  completed_plans: 7
 ---
 
 # Project State
@@ -48,12 +48,12 @@ progress:
 
 ## Current Position
 
-Phase: 156 of 159 (Tenant Credit UX Compliance Fix) — executing (2 plans, run in parallel: 156-01 credit-leak/progress-bar fixes, 156-02 tier pricing/feature reconciliation)
-Plan: 156-02 (Tier Pricing/Feature Reconciliation) COMPLETE — CREDITFIX-03 done. TierCardsGrid's monthly price now sourced from billing_config.tiers[tier].subscriptionPriceCents via the existing monthlyPricesCents prop (mirrors the annual-price pattern); 5 factually-wrong feature bullets corrected against lib/entitlements.ts; 2 unverifiable bullets (Custom branding, Stripe Connect payments) documented in-code as flagged. New static-contract test guards the fix.
-Status: Phase 156 in progress — 156-02 shipped; 156-01 status tracked by its own executor/summary.
-Last activity: 2026-07-06 — Phase 156 Plan 02 executed and committed (e176be2b, 97ec52d9)
+Phase: 156 of 159 (Tenant Credit UX Compliance Fix) — COMPLETE (both plans shipped, run in parallel: 156-01 credit-leak/progress-bar fixes, 156-02 tier pricing/feature reconciliation)
+Plan: 156-01 (Tenant Credit UX Compliance Fix + Topbar Progress Bar) COMPLETE — CREDITFIX-01/02 done. Removed all 3 confirmed raw-credit-number leaks (TopUpPackCard, AutoTopupDialog, CreditHistoryList); added a real color-escalating Progress bar to the topbar CreditChip via a new shared lib/billing/usage-color.ts helper; extended tenant-cost-neutrality.test.ts with a CREDITFIX-01 regression guard targeting the actual `.toLocaleString()` rendering signal. 156-02 (Tier Pricing/Feature Reconciliation) COMPLETE — CREDITFIX-03 done. TierCardsGrid's monthly price now sourced from billing_config.tiers[tier].subscriptionPriceCents via the existing monthlyPricesCents prop (mirrors the annual-price pattern); 5 factually-wrong feature bullets corrected against lib/entitlements.ts; 2 unverifiable bullets (Custom branding, Stripe Connect payments) documented in-code as flagged. New static-contract test guards the fix.
+Status: Phase 156 COMPLETE — both plans shipped, 3/3 requirements (CREDITFIX-01..03) done.
+Last activity: 2026-07-06 — Phase 156 Plan 01 executed and committed (b9df34fb, 9135daf5, e67a4d81); Plan 02 executed and committed (e176be2b, 97ec52d9) by a concurrent parallel process
 
-Progress: [░░░░░░░░░░] 0% (0/4 v4.17 phases complete — Phase 156 not yet fully complete, 156-01 still pending/in-progress)
+Progress: [░░░░░░░░░░] 25% (1/4 v4.17 phases complete — Phase 156 fully shipped, 157/158/159 not yet started)
 
 Note: `gsd-tools phase complete "155"` reported `next_phase: 999.1` (a pre-existing PARKING LOT placeholder — "Migrate Inngest to Self-Hosted Hetzner", disk_status empty, no plans) — this is NOT an active phase; the roadmap counter for v4.17 continues from Phase 156 (v4.16 ended at 155), not from 999.1. v4.16 (Phases 154-155) is fully shipped and archived to `milestones/v4.16-*`.
 
@@ -345,6 +345,11 @@ Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gs
 
 ## Decisions
 
+- [Phase 156 156-01]: credits prop kept in TopUpPackCard's signature (still passed by topup-packs-grid.tsx) — only its rendering was removed; left as an unused destructured binding since it produces only an eslint warning, not a build-blocking error
+- [Phase 156 156-01]: CreditHistoryList's activity indicator uses TrendingUp/TrendingDown icons (not ArrowUpRight/ArrowDownRight or colored dots) — idiomatic with the file's existing lucide-react usage
+- [Phase 156 156-01]: Coins icon kept in CreditChip (executor discretion per plan) — preserves visual continuity alongside the new Progress bar
+- [Phase 156 156-01]: lib/billing/usage-color.ts extracted as a shared color-escalation helper consumed by both UsageProgressBar and the new CreditChip bar, eliminating threshold-drift risk between the two surfaces
+- [Phase 156 156-01]: Regression-guard regex in tenant-cost-neutrality.test.ts targets the `.toLocaleString()` rendering call site (not a digit-literal pattern), empirically verified against real pre-fix/post-fix source — a digit-literal regex would have provided zero protection since none of the 3 real violations have a literal digit adjacent to "credit(s)" in source
 - [Phase 156 156-02]: Free tier's price: '$0' stays a static literal (structurally never non-zero without a different product model); pro/business price fields removed from TIERS entirely and derived at render time via getMonthlyPriceDisplay(tier, fallback), mirroring the existing getAnnualDisplay pattern
 - [Phase 156 156-02]: Free's "3 estimates per month" bullet reworded to qualitative "Estimates until your free credits run out" (free is credit-gated, maxEstimatesPerMonth is null) instead of inventing an unbacked numeric cap — consistent with the CREDITFIX-01 no-raw-numbers principle
 - [Phase 156 156-02]: "WhatsApp delivery" removed from Pro's feature list (not added to Free's) — whatsappEnabled is true for all 3 tiers in lib/entitlements.ts, so it was never a Pro-exclusive differentiator; minimal-diff fix per plan scope
