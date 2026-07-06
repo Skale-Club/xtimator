@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v4.16
 milestone_name: Admin Inbox Consolidation
 status: executing
-stopped_at: Phase 154 complete and goal-verified; starting Phase 155
-last_updated: "2026-07-05T23:52:21.942Z"
+stopped_at: Completed 155-01-PLAN.md
+last_updated: "2026-07-06T00:00:52.665Z"
 last_activity: 2026-07-05
 progress:
   total_phases: 155
   completed_phases: 154
-  total_plans: 3
+  total_plans: 4
   completed_plans: 3
 ---
 
@@ -47,8 +47,8 @@ progress:
 ## Current Position
 
 Phase: 155
-Plan: Not started
-Status: Phase complete — ready for verification
+Plan: 2 of 2
+Status: Ready to execute
 Last activity: 2026-07-05
 
 Milestone: v4.16 Admin Inbox Consolidation — ROADMAP CREATED 2026-07-05. 2 phases (154-155), 4/4 requirements mapped (INBOX-01/03/04 → 154, INBOX-02 → 155), 0 orphans. Both phases are frontend/UI (UI hint = yes → UI-SPEC expected). Dependency spine: 154 (route consolidation + settings + all test updates — structural, preserves the existing table+Sheet UI so this phase is low-risk) → 155 (master-detail viewer refactor in place). Read-only Inbox (no reply/send — deferred to INBOXX-01); credentials stay in Integrations; data layer (lib/queries/admin-whatsapp.ts, lib/actions/admin-whatsapp*.ts) + DB tables keep their whatsapp_* names (user-facing rename only). Reuse listAdminWhatsAppConversations / loadAdminConversationThread / MessageBubble / AdminWhatsAppAccounts / WhatsAppTemplatesPanel — do NOT rebuild. Tests (unit path/existence + e2e admin-whatsapp spec) ship in the same change. Numbering continues the global counter — v4.15 ended at Phase 153, so v4.16 starts at Phase 154 (NOT a phase-number reset; the gsd-tools init current_milestone field is known-stale — trust the ROADMAP counter). Design reference: the Xphere inbox at C:\Users\Vanildo\Dev\xphere (same stack).
@@ -172,7 +172,7 @@ Prior: 102-01 (HARD-07 replay-safe TTL) shipped. Added a neutral `requestedAt: A
 Prior: 102-02 (HARD-06 cap half) shipped. Replaced the hard-coded `(state.refineAttempts ?? 0) < 1` literal in `checkVagueAfterAssessEdge` (`lib/estimate/graph/nodes/decide.ts`) with a single `AUTO_REFINE_MAX_ATTEMPTS` module constant — read once at module load via an IIFE (`Number.isFinite(raw) && raw >= 0 ? raw : 1`) from the optional non-secret `process.env.AUTO_REFINE_MAX_ATTEMPTS`, defaulting to 1. Operator kept exactly `<` so the default is byte-identical to today (Research Pitfall 1). `auto-refine.ts` doc comment updated to reference the configurable cap (documentation-only; increment logic untouched). Channel-neutral (no DB, no async, no channel import) → graph-neutrality stays green. `tests/unit/estimate/auto-refine-cap.test.ts` now fully GREEN (default=1 AND `AUTO_REFINE_MAX_ATTEMPTS=2` override cases); `auto-refine-isolation` + `graph-neutrality` (12/12) and `never-reply-regression` Path C (loops exactly once at default) stay green. No env VALUE committed — only the var NAME appears (CLAUDE.md secret-handling). 1 atomic commit (02a41f2). xphere untouched. HARD-06 NOT marked complete — only the configurable-cap half is done; the web recourse UI half is owned by Plan 102-04.
 Prior (102-00, Wave 0 RED/EXTEND scaffold): authored 4 failing-by-design test files (auto-refine-cap [HARD-06 cap, now GREEN via 102-02], replay-safe-ttl [HARD-07, still RED → 102-01], batch-reporting [HARD-05, still RED → 102-03], needs-details-banner [HARD-06 recourse, still RED → 102-04]); 2 commits (201afb0, 35e8537).
 Last activity: 2026-07-05
-Stopped at: Completed 154-03-PLAN.md
+Stopped at: Completed 155-01-PLAN.md
 Prior Stopped at: Completed 153-01-PLAN.md
 Next Up: **Phase 108 COMPLETE (5/5 plans — 108-01 metering [RMETER-01/02/03], 108-02 vagueness gate [RFALL-02], 108-03 orchestrator `researchUnmatchedPrices` [RPRICE-01/03/04, RFALL-01], 108-04 wire into `generateEstimateForProject` [RPRICE-01/03, RFALL-01], 108-05 "Couch cleaning 8 seats" full-graph regression [RFALL-03]).** THE PAYOFF is live in the production generation path AND locked by a green deterministic full-graph regression (EVIDENCED → $180/non-vague, empty-research+context → never-$0 ladder/non-vague, all-empty → still blocks). All three price-research adapters (`openrouter-web`, gated `anthropic-web`, deterministic `fixture`) remain configured-via-`platform_integrations` (all-misses no-op when unconfigured). Suggested: `/gsd:verify-work 108`, then `/gsd:execute-phase 109` (durability + cost-control hardening — dedicated `step.run('price-research')` retry isolation, runtime OpenRouter→Anthropic fallback ordering, per-estimate item caps, refine-loop memoization). DEFERRED (operational, carried from 108-01): apply migration `20260624000002_phase108_usage_event_price_researched.sql` (+ the earlier `20260624000001` price_research_cache) to remote via CI→GHCR→Coolify.
 Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gsd:verify-work 104` to validate the phase, then address the operational deferrals. DEFERRED (operational, all of Phase 104): apply migrations `20260621000001_notification_categories_remap.sql` + `20260621000002_notification_opt_in_consent.sql` + `20260621000003_whatsapp_notification_templates.sql` to the remote DB; ensure the Twilio from-number is SMS-capable; verify the Meta token carries `whatsapp_business_management` scope + author/approve the registry templates in Meta WhatsApp Manager (the `message_template_status_update` webhook then flips them to approved). Also still queued: `/gsd:verify-work 103` + `/gsd:complete-milestone` (v4.5) carry-over UATs.
@@ -842,6 +842,7 @@ Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gs
 - [Phase 154]: Left lib/actions/admin-whatsapp.ts, lib/actions/admin-whatsapp-accounts.ts, and lib/admin/audit-log.ts untouched in the e2e spec; their paths never moved
 - [Phase 154]: Deleted 3 obsolete two-tab contract e2e tests rather than repointing them, since the assertions are false by design after the Plan 01/02 page split
 - [Phase 154]: Logged 6 pre-existing, unrelated test failures (blog-rls, landing-page auth modal, 4 parallel-import timeout flakes) to deferred-items.md instead of fixing, per scope-boundary rule
+- [Phase 155]: Company label in thread header falls back to matched list-row company_name since WaConversationRow has no company_name field; deep-linked off-page conversations show name+phone only
 
 ## Performance Metrics
 
@@ -1130,6 +1131,7 @@ Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gs
 | Phase 154 P01 | 12min | 3 tasks | 6 files |
 | Phase 154 P02 | 18min | 2 tasks | 4 files |
 | Phase 154 P03 | 20min | 2 tasks | 2 files |
+| Phase 155 P01 | 18min | 2 tasks | 2 files |
 
 ## Project Reference
 

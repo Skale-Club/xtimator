@@ -24,7 +24,7 @@ Each requirement maps to exactly one roadmap phase.
 
 ### Inbox Master-Detail Viewer
 
-- [ ] **INBOX-02**: `/admin/inbox` presents a two-pane master-detail conversation viewer — a scrollable conversation list on the left (Xphere-style rows: contact name, last-message preview, timestamp, unread indicator, hover + selected states; company as a secondary label) with the existing search/filters and server-side pagination, and the conversation thread on the right pane on the same page (reusing `loadAdminConversationThread` + `MessageBubble`, read-only, with the 30-day note). Selecting a conversation updates `?conversation=<id>` (shallow) and loads its thread without a modal overlay; a direct link / refresh SSR-selects that thread; an empty-state prompts to pick a conversation. Mobile collapses to a single column (list ↔ thread with a back affordance).
+- [x] **INBOX-02**: `/admin/inbox` presents a two-pane master-detail conversation viewer — a scrollable conversation list on the left (Xphere-style rows: contact name, last-message preview, timestamp, unread indicator, hover + selected states; company as a secondary label) with the existing search/filters and server-side pagination, and the conversation thread on the right pane on the same page (reusing `loadAdminConversationThread` + `MessageBubble`, read-only, with the 30-day note). Selecting a conversation updates `?conversation=<id>` (shallow) and loads its thread without a modal overlay; a direct link / refresh SSR-selects that thread; an empty-state prompts to pick a conversation. Mobile collapses to a single column (list ↔ thread with a back affordance).
 
 ## v2 Requirements
 
@@ -53,7 +53,7 @@ Every v1 requirement maps to exactly one phase. Coverage: 4/4 mapped, 0 orphans,
 | INBOX-01 | Phase 154 — Inbox Route Consolidation & Settings | Complete |
 | INBOX-03 | Phase 154 — Inbox Route Consolidation & Settings | Complete |
 | INBOX-04 | Phase 154 — Inbox Route Consolidation & Settings | Complete |
-| INBOX-02 | Phase 155 — Inbox Master-Detail Viewer | Pending |
+| INBOX-02 | Phase 155 — Inbox Master-Detail Viewer | Complete |
 
 **Phase → requirement rollup:**
 - **Phase 154 — Inbox Route Consolidation & Settings**: INBOX-01, INBOX-03, INBOX-04
