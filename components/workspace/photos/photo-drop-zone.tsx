@@ -4,7 +4,7 @@ import { useRef, useState, useCallback } from 'react'
 import { Upload, CameraIcon, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
-import { compressImage } from '@/lib/utils/image-compressor'
+import { compressImage, isLikelyHeic } from '@/lib/utils/image-compressor'
 import { createClient } from '@/lib/supabase/client'
 import { createStorage } from '@/lib/storage'
 import { createPhoto } from '@/lib/actions/photo'
@@ -60,12 +60,26 @@ export function PhotoDropZone({
       for (let i = 0; i < fileArray.length; i++) {
         const file = fileArray[i]
 
-        // Compress image, fallback to original on failure
+        // Pre-launch audit fix: HEIC/HEIF (iPhone default camera format) can't
+        // be decoded by <canvas> in most browsers — reject with a clear
+        // message rather than silently uploading raw HEIC bytes mislabeled
+        // as image/jpeg (which broke thumbnails and AI photo analysis).
+        if (await isLikelyHeic(file)) {
+          toast.error(
+            t(
+              `Photo ${i + 1} is in HEIC format, which isn't supported. On iPhone, go to Settings > Camera > Formats and choose "Most Compatible".`
+            )
+          )
+          continue
+        }
+
+        // Compress image; on failure, skip rather than upload a mislabeled blob.
         let blob: Blob
         try {
           blob = await compressImage(file, 2000, 0.85)
         } catch {
-          blob = file
+          toast.error(t(`Failed to process photo ${i + 1}`))
+          continue
         }
 
         // Generate unique path

@@ -4,6 +4,7 @@ import { useRef, useEffect, useState, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface SignaturePadProps {
   signerName: string
@@ -18,6 +19,7 @@ export function SignaturePad({
   onSignatureChange,
   brandColor = '#2563eb',
 }: SignaturePadProps) {
+  const { t } = useTranslation()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [isDrawing, setIsDrawing] = useState(false)
   const [isEmpty, setIsEmpty] = useState(true)
@@ -100,7 +102,7 @@ export function SignaturePad({
   return (
     <div className="space-y-4">
       <div className="space-y-2">
-        <Label htmlFor="signer-name">Your full name</Label>
+        <Label htmlFor="signer-name">{t('Your full name')}</Label>
         <Input
           id="signer-name"
           placeholder="John Smith"
@@ -111,14 +113,14 @@ export function SignaturePad({
 
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <Label>Signature</Label>
+          <Label>{t('Signature')}</Label>
           {!isEmpty && (
             <button
               type="button"
               onClick={clearSignature}
               className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
             >
-              Clear
+              {t('Clear')}
             </button>
           )}
         </div>
@@ -143,7 +145,7 @@ export function SignaturePad({
         </div>
         {isEmpty && (
           <p className="text-xs text-muted-foreground">
-            Draw your signature above using your finger or mouse.
+            {t('Draw your signature above using your finger or mouse.')}
           </p>
         )}
       </div>

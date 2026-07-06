@@ -17,7 +17,7 @@ import { createPhoto, deletePhoto } from '@/lib/actions/photo'
 import { createClient } from '@/lib/supabase/client'
 import { createStorage } from '@/lib/storage'
 import { getSupportedAudioMimeType, getFileExtension } from '@/lib/utils/media-format'
-import { compressImage } from '@/lib/utils/image-compressor'
+import { compressImage, isLikelyHeic } from '@/lib/utils/image-compressor'
 import { Camera, Sparkles } from 'lucide-react'
 import { LoadingDots } from '@/components/ui/loading-dots'
 import type { ProjectDetail } from '@/lib/queries/project'
@@ -450,11 +450,23 @@ export function CaptureRecorder({
     const sortBase = photoItemsRef.current.filter(i => i.status === 'done').length
 
     await Promise.all(accepted.map(async (file, index) => {
+      // Pre-launch audit fix: HEIC/HEIF (iPhone default camera format) can't
+      // be decoded by <canvas> in most browsers — reject with a clear
+      // message rather than silently uploading raw HEIC bytes mislabeled
+      // as image/jpeg (which broke thumbnails and AI photo analysis).
+      if (await isLikelyHeic(file)) {
+        toast.error(
+          t('HEIC photos aren\'t supported. On iPhone, go to Settings > Camera > Formats and choose "Most Compatible".')
+        )
+        return
+      }
+
       let blob: Blob
       try {
         blob = await compressImage(file, 2000, 0.85)
       } catch {
-        blob = file
+        toast.error(t('Failed to process photo'))
+        return
       }
       const photoId = crypto.randomUUID()
       const previewUrl = URL.createObjectURL(blob)
