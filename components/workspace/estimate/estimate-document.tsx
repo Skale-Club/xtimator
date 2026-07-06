@@ -1685,6 +1685,13 @@ export function EstimateDocument({
         '--border': '240 5.9% 90%',
         '--card': '0 0% 100%',
         '--card-foreground': '240 10% 3.9%',
+        // The document forces a light "paper" surface. The glass tokens must be
+        // overridden too, otherwise glass cards nested in the paper (e.g. the
+        // mobile ItemCardMobile) inherit the app's DARK glass fill and render as
+        // dark-grey slabs with near-invisible labels on white. Pin them light.
+        '--glass-bg': 'rgba(255, 255, 255, 0.65)',
+        '--glass-bg-strong': 'rgba(255, 255, 255, 0.97)',
+        '--glass-border': 'rgba(15, 23, 42, 0.08)',
         color: 'hsl(240 10% 3.9%)',
         borderColor: '#3f3f46',
       } as React.CSSProperties}
