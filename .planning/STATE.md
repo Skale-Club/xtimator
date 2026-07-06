@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.17
 milestone_name: Admin Polish & Credit UX Compliance
 status: executing
-stopped_at: Completed 156-01-PLAN.md
-last_updated: "2026-07-06T04:26:16.000Z"
-last_activity: 2026-07-06 — Phase 156 Plan 01 (Tenant Credit UX Compliance Fix + Topbar Progress Bar) executed
+stopped_at: Phase 156 complete and goal-verified (3/3 requirements); starting Phase 157
+last_updated: "2026-07-06T04:34:35.356Z"
+last_activity: 2026-07-06
 progress:
-  total_phases: 159
-  completed_phases: 155
+  total_phases: 156
+  completed_phases: 156
   total_plans: 7
-  completed_plans: 7
+  completed_plans: 2
 ---
 
 # Project State
@@ -48,10 +48,10 @@ progress:
 
 ## Current Position
 
-Phase: 156 of 159 (Tenant Credit UX Compliance Fix) — COMPLETE (both plans shipped, run in parallel: 156-01 credit-leak/progress-bar fixes, 156-02 tier pricing/feature reconciliation)
-Plan: 156-01 (Tenant Credit UX Compliance Fix + Topbar Progress Bar) COMPLETE — CREDITFIX-01/02 done. Removed all 3 confirmed raw-credit-number leaks (TopUpPackCard, AutoTopupDialog, CreditHistoryList); added a real color-escalating Progress bar to the topbar CreditChip via a new shared lib/billing/usage-color.ts helper; extended tenant-cost-neutrality.test.ts with a CREDITFIX-01 regression guard targeting the actual `.toLocaleString()` rendering signal. 156-02 (Tier Pricing/Feature Reconciliation) COMPLETE — CREDITFIX-03 done. TierCardsGrid's monthly price now sourced from billing_config.tiers[tier].subscriptionPriceCents via the existing monthlyPricesCents prop (mirrors the annual-price pattern); 5 factually-wrong feature bullets corrected against lib/entitlements.ts; 2 unverifiable bullets (Custom branding, Stripe Connect payments) documented in-code as flagged. New static-contract test guards the fix.
+Phase: 157 of 159 (admin nav reorg naming fixes)
+Plan: Not started
 Status: Phase 156 COMPLETE — both plans shipped, 3/3 requirements (CREDITFIX-01..03) done.
-Last activity: 2026-07-06 — Phase 156 Plan 01 executed and committed (b9df34fb, 9135daf5, e67a4d81); Plan 02 executed and committed (e176be2b, 97ec52d9) by a concurrent parallel process
+Last activity: 2026-07-06
 
 Progress: [░░░░░░░░░░] 25% (1/4 v4.17 phases complete — Phase 156 fully shipped, 157/158/159 not yet started)
 
