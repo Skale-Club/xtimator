@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v4.17
 milestone_name: Admin Polish & Credit UX Compliance
-status: roadmapped
-stopped_at: Roadmap created (4 phases, 156-159); ready to plan Phase 156
-last_updated: "2026-07-06T01:00:00.000Z"
-last_activity: 2026-07-06
+status: executing
+stopped_at: Completed 156-02-PLAN.md
+last_updated: "2026-07-06T04:20:54.677Z"
+last_activity: 2026-07-06 — Phase 156 Plan 02 (Tier Pricing/Feature Reconciliation) executed
 progress:
   total_phases: 159
   completed_phases: 155
@@ -48,12 +48,12 @@ progress:
 
 ## Current Position
 
-Phase: 156 of 159 (Tenant Credit UX Compliance Fix) — ready to plan
-Plan: — (roadmap complete, no plans generated yet)
-Status: Roadmap created — v4.17 Admin Polish & Credit UX Compliance (4 phases, 15/15 requirements mapped, 0 orphans)
-Last activity: 2026-07-06 — ROADMAP.md + STATE.md written for v4.17; REQUIREMENTS.md traceability reconciled
+Phase: 156 of 159 (Tenant Credit UX Compliance Fix) — executing (2 plans, run in parallel: 156-01 credit-leak/progress-bar fixes, 156-02 tier pricing/feature reconciliation)
+Plan: 156-02 (Tier Pricing/Feature Reconciliation) COMPLETE — CREDITFIX-03 done. TierCardsGrid's monthly price now sourced from billing_config.tiers[tier].subscriptionPriceCents via the existing monthlyPricesCents prop (mirrors the annual-price pattern); 5 factually-wrong feature bullets corrected against lib/entitlements.ts; 2 unverifiable bullets (Custom branding, Stripe Connect payments) documented in-code as flagged. New static-contract test guards the fix.
+Status: Phase 156 in progress — 156-02 shipped; 156-01 status tracked by its own executor/summary.
+Last activity: 2026-07-06 — Phase 156 Plan 02 executed and committed (e176be2b, 97ec52d9)
 
-Progress: [░░░░░░░░░░] 0% (0/4 v4.17 phases complete)
+Progress: [░░░░░░░░░░] 0% (0/4 v4.17 phases complete — Phase 156 not yet fully complete, 156-01 still pending/in-progress)
 
 Note: `gsd-tools phase complete "155"` reported `next_phase: 999.1` (a pre-existing PARKING LOT placeholder — "Migrate Inngest to Self-Hosted Hetzner", disk_status empty, no plans) — this is NOT an active phase; the roadmap counter for v4.17 continues from Phase 156 (v4.16 ended at 155), not from 999.1. v4.16 (Phases 154-155) is fully shipped and archived to `milestones/v4.16-*`.
 
@@ -345,6 +345,10 @@ Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gs
 
 ## Decisions
 
+- [Phase 156 156-02]: Free tier's price: '$0' stays a static literal (structurally never non-zero without a different product model); pro/business price fields removed from TIERS entirely and derived at render time via getMonthlyPriceDisplay(tier, fallback), mirroring the existing getAnnualDisplay pattern
+- [Phase 156 156-02]: Free's "3 estimates per month" bullet reworded to qualitative "Estimates until your free credits run out" (free is credit-gated, maxEstimatesPerMonth is null) instead of inventing an unbacked numeric cap — consistent with the CREDITFIX-01 no-raw-numbers principle
+- [Phase 156 156-02]: "WhatsApp delivery" removed from Pro's feature list (not added to Free's) — whatsappEnabled is true for all 3 tiers in lib/entitlements.ts, so it was never a Pro-exclusive differentiator; minimal-diff fix per plan scope
+- [Phase 156 156-02]: "Custom branding" and "Stripe Connect payments" left unchanged but flagged in a code comment as unverifiable (no code-level gate found anywhere in the codebase) — adding new gating logic is out of scope this phase; a future phase can implement the gate or soften the copy
 - [Phase 151 151-03]: Split the client/server boundary into two files (support-mode-button.tsx 'use client' + support-mode-actions.ts 'use server') since a single file cannot carry both directives — the button imports the thin server-action wrapper, never startSupportSession directly
 - [Phase 151 151-03]: router.push('/dashboard') on success (client-side nav after a successful useTransition await) instead of a server redirect() — SupportModeBanner (Plan 02) is itself the happy-path confirmation, no success toast needed
 - [Phase 151 151-03]: All Companies row-actions <td> extended with the same flex/gap wrapper Demo Accounts already used, since it now renders two inline actions (SupportModeButton + Configure) instead of one

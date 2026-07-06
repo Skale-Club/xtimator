@@ -20,7 +20,7 @@ Each requirement maps to exactly one roadmap phase.
 
 - [ ] **CREDITFIX-01**: The tenant `/settings/billing` (Plans) page never renders a raw credit count anywhere — fixes 3 confirmed violations: `TopUpPackCard`'s "≈ X credits" subtext, `AutoTopupDialog`'s pack-picker `SelectItem` showing "(≈X credits)", and `CreditHistoryList`'s per-row credit deltas (e.g. "+2,000"). Only the existing % bar + qualitative low/critical states may communicate usage.
 - [ ] **CREDITFIX-02**: The topbar `CreditChip` renders an actual visible progress-bar element (reusing the existing `components/ui/progress.tsx` primitive with the same color-escalation as `UsageProgressBar`), not just "`X% used`" as plain text.
-- [ ] **CREDITFIX-03**: The Plans page's tier feature/price content (`TierCardsGrid`'s hardcoded `TIERS` array) is reconciled against `billing_config` reality — either sourced from config where the config already holds the value (prices), or verified accurate and documented as intentionally-static where the config has no equivalent field (feature bullet lists), so nothing stale/contradictory ships.
+- [x] **CREDITFIX-03**: The Plans page's tier feature/price content (`TierCardsGrid`'s hardcoded `TIERS` array) is reconciled against `billing_config` reality — either sourced from config where the config already holds the value (prices), or verified accurate and documented as intentionally-static where the config has no equivalent field (feature bullet lists), so nothing stale/contradictory ships.
 
 ### Admin Nav Reorganization
 
@@ -71,7 +71,7 @@ Every v1 requirement maps to exactly one phase. Coverage: 15/15 mapped, 0 orphan
 |-------------|-------|--------|
 | CREDITFIX-01 | Phase 156 — Tenant Credit UX Compliance Fix | Pending |
 | CREDITFIX-02 | Phase 156 — Tenant Credit UX Compliance Fix | Pending |
-| CREDITFIX-03 | Phase 156 — Tenant Credit UX Compliance Fix | Pending |
+| CREDITFIX-03 | Phase 156 — Tenant Credit UX Compliance Fix | Complete |
 | NAV-01 | Phase 157 — Admin Nav Reorg & Naming Fixes | Pending |
 | NAV-02 | Phase 157 — Admin Nav Reorg & Naming Fixes | Pending |
 | NAV-03 | Phase 157 — Admin Nav Reorg & Naming Fixes | Pending |

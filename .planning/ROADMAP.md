@@ -2497,7 +2497,7 @@ Full phase details archived: [milestones/v4.16-ROADMAP.md](milestones/v4.16-ROAD
 
 Plans:
 - [ ] 156-01-PLAN.md — Fix 3 raw-credit-number leaks (TopUpPackCard, AutoTopupDialog, CreditHistoryList) + real progress bar in CreditChip
-- [ ] 156-02-PLAN.md — Reconcile TierCardsGrid pricing/feature bullets against billing_config and lib/entitlements.ts
+- [x] 156-02-PLAN.md — Reconcile TierCardsGrid pricing/feature bullets against billing_config and lib/entitlements.ts
 **UI hint**: yes
 
 ### Phase 157: Admin Nav Reorg & Naming Fixes
