@@ -30,18 +30,18 @@ test.describe('Support Mode (SUPPORT-01, SUPPORT-02)', () => {
     await page.waitForURL(/\/(dashboard|admin)/, { timeout: 10000 })
 
     await page.goto('/admin/companies')
-    const supportModeLink = page.getByRole('button', { name: /Support Mode/ }).first()
+    const viewAsCompanyLink = page.getByRole('button', { name: /View as Company/ }).first()
     test.skip(
-      (await supportModeLink.count()) === 0,
-      'No companies with a Support Mode row action found — seed at least one company for this e2e test'
+      (await viewAsCompanyLink.count()) === 0,
+      'No companies with a View as Company row action found — seed at least one company for this e2e test'
     )
-    await supportModeLink.click()
+    await viewAsCompanyLink.click()
 
     await page.waitForURL(/\/dashboard/, { timeout: 10000 })
     const bodyText = await page.locator('body').innerText()
-    expect(bodyText).toMatch(/Support Mode/)
+    expect(bodyText).toMatch(/Viewing/)
 
-    await page.getByRole('button', { name: /Exit Support Mode/ }).click()
+    await page.getByRole('button', { name: /Exit view/ }).click()
     await page.waitForURL(/\/admin\/companies/, { timeout: 10000 })
   })
 })
