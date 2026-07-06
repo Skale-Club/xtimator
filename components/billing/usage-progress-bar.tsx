@@ -2,6 +2,7 @@
 
 import { Progress } from '@/components/ui/progress'
 import { cn } from '@/lib/utils'
+import { usageBandClass } from '@/lib/billing/usage-color'
 
 /**
  * Phase 152 Plan 01 (CREDITUI-03 / CREDITUI-04) — color-escalating usage bar.
@@ -20,12 +21,11 @@ import { cn } from '@/lib/utils'
  * Props are `{ percentUsed: number }` ONLY — never `balance`, `cycleGrant`, or
  * any dollar figure. This is the structural CREDITUI-04 enforcement point: the
  * raw credit balance never reaches this (or any) client-rendered component.
+ *
+ * Phase 156 (CREDITFIX-02): usageBandClass extracted to
+ * lib/billing/usage-color.ts so the new topbar CreditChip bar reuses the same
+ * thresholds instead of duplicating the if/else.
  */
-function usageBandClass(percentUsed: number): string {
-  if (percentUsed >= 90) return '[&>[data-slot=progress-indicator]]:bg-[hsl(var(--danger))]'
-  if (percentUsed >= 70) return '[&>[data-slot=progress-indicator]]:bg-[hsl(var(--warning))]'
-  return '[&>[data-slot=progress-indicator]]:bg-[hsl(var(--success))]'
-}
 
 export function UsageProgressBar({ percentUsed }: { percentUsed: number }) {
   return (
