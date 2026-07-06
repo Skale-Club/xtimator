@@ -2,6 +2,19 @@ import 'server-only'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { getStripeClient } from '@/lib/billing/stripe-client'
 import { getBillingConfig } from '@/lib/billing/billing-config'
+import { grantCredits } from '@/lib/billing/credit-ledger'
+
+/**
+ * Pre-launch audit fix (B2): hard cooldown between off-session charge
+ * attempts for the SAME company, independent of the acquire/release lock
+ * above (which only prevents true concurrency, not repeated attempts spread
+ * over time). Without this, a company stuck below its threshold gets
+ * re-charged on every single credit debit that crosses it.
+ */
+const CHARGE_COOLDOWN_MS = 60 * 60 * 1000 // 1 hour between attempts
+/** After a declined/failed charge, back off longer before retrying — the
+ * tenant needs time to see the failure banner and fix their payment method. */
+const FAILURE_BACKOFF_MS = 24 * 60 * 60 * 1000 // 24 hours after a failure
 
 /**
  * Phase 153 (CREDITUI-07) — off-session auto-top-up orchestration CORE.
@@ -69,7 +82,7 @@ export async function triggerAutoTopupIfNeeded(input: {
     const { data: co } = await svc
       .from('companies')
       .select(
-        'auto_topup_enabled, auto_topup_threshold_credits, auto_topup_pack_index, stripe_customer_id'
+        'auto_topup_enabled, auto_topup_threshold_credits, auto_topup_pack_index, stripe_customer_id, auto_topup_last_failed_at, auto_topup_last_charge_attempt_at'
       )
       .eq('id', input.companyId)
       .maybeSingle()
@@ -79,6 +92,8 @@ export async function triggerAutoTopupIfNeeded(input: {
       auto_topup_threshold_credits?: number | null
       auto_topup_pack_index?: number | null
       stripe_customer_id?: string | null
+      auto_topup_last_failed_at?: string | null
+      auto_topup_last_charge_attempt_at?: string | null
     } | null
 
     if (!company?.auto_topup_enabled) return
@@ -86,10 +101,34 @@ export async function triggerAutoTopupIfNeeded(input: {
     if (input.newBalance >= company.auto_topup_threshold_credits) return
     if (!company.stripe_customer_id || company.auto_topup_pack_index == null) return
 
+    // Cooldown / backoff — prevents the redispatch-on-every-debit failure mode:
+    // a company stuck below threshold must not be charged more than once per
+    // hour, and gets a full day of breathing room after a declined charge.
+    const now = Date.now()
+    if (
+      company.auto_topup_last_charge_attempt_at &&
+      now - new Date(company.auto_topup_last_charge_attempt_at).getTime() < CHARGE_COOLDOWN_MS
+    ) {
+      return
+    }
+    if (
+      company.auto_topup_last_failed_at &&
+      now - new Date(company.auto_topup_last_failed_at).getTime() < FAILURE_BACKOFF_MS
+    ) {
+      return
+    }
+
     const lockAcquired = await acquireAutoTopupLock(input.companyId)
     if (!lockAcquired) return // another concurrent debit already holds the lock — skip
 
     try {
+      // Stamp the attempt BEFORE charging (success or failure) so the cooldown
+      // applies even if the process crashes mid-charge or Stripe is slow.
+      await svc
+        .from('companies')
+        .update({ auto_topup_last_charge_attempt_at: new Date().toISOString() })
+        .eq('id', input.companyId)
+
       await chargeAutoTopup({
         companyId: input.companyId,
         stripeCustomerId: company.stripe_customer_id,
@@ -139,7 +178,11 @@ async function chargeAutoTopup(input: {
       throw new Error(`invalid auto_topup_pack_index ${input.packIndex}`)
     }
 
-    await stripe.paymentIntents.create(
+    // Deterministic per-hour idempotency key: dedupes retried Stripe API calls
+    // within the same attempt window, while the cooldown above already caps
+    // real attempts to at most one per hour anyway.
+    const hourBucket = new Date().toISOString().slice(0, 13) // YYYY-MM-DDTHH
+    const paymentIntent = await stripe.paymentIntents.create(
       {
         amount: pack.priceCents,
         currency: 'usd',
@@ -154,8 +197,22 @@ async function chargeAutoTopup(input: {
           credits: String(pack.credits),
         },
       },
-      { idempotencyKey: `autotopup:${input.companyId}:${Date.now()}` }
+      { idempotencyKey: `autotopup:${input.companyId}:${hourBucket}` }
     )
+
+    // Grant credits synchronously — the card has already been charged
+    // (confirm:true + error_on_requires_action:true means paymentIntents.create
+    // only resolves without throwing once Stripe confirms the charge). The
+    // webhook's payment_intent.succeeded handler grants the SAME idempotency
+    // key as a durable backstop in case this process crashes before returning,
+    // so the two paths dedupe against each other rather than double-granting.
+    await grantCredits({
+      companyId: input.companyId,
+      credits: pack.credits,
+      reason: 'topup',
+      refId: paymentIntent.id,
+      idempotencyKey: `autotopup:${paymentIntent.id}`,
+    })
 
     // Success — clear any prior failure flag so the tenant-facing banner clears.
     await svc.from('companies').update({ auto_topup_last_failed_at: null }).eq('id', input.companyId)

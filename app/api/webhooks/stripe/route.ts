@@ -220,6 +220,34 @@ async function handlePlatformEvent(
       break
     }
 
+    // Pre-launch audit fix (B2): auto-top-up off-session charges (see
+    // lib/billing/auto-topup.ts) previously had NO webhook handler at all —
+    // the card was charged but credits were never granted, and since the
+    // balance stayed below threshold, every subsequent debit re-triggered a
+    // new charge. This handler is a durable backstop: chargeAutoTopup() also
+    // grants credits synchronously right after the charge succeeds, using the
+    // SAME idempotency key (`autotopup:{paymentIntent.id}`) as here, so
+    // whichever path runs first grants and the other is a harmless no-op —
+    // covers the case where the serverless function crashes after Stripe
+    // confirms the charge but before the synchronous grant call completes.
+    case 'payment_intent.succeeded': {
+      const pi = event.data.object as Stripe.PaymentIntent
+      if (pi.metadata?.type === 'auto_topup') {
+        const topupCompanyId = pi.metadata.companyId
+        const credits = Number(pi.metadata.credits)
+        if (topupCompanyId && credits > 0) {
+          await grantCredits({
+            companyId: topupCompanyId,
+            credits,
+            reason: 'topup',
+            refId: pi.id,
+            idempotencyKey: `autotopup:${pi.id}`,
+          })
+        }
+      }
+      break
+    }
+
     case 'invoice.payment_failed': {
       // DO NOT downgrade — Stripe dunning handles retries (RESEARCH Pitfall 4)
       // customer.subscription.deleted fires only after all dunning retries exhausted
