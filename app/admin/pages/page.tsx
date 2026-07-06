@@ -25,7 +25,7 @@ export default async function AdminLegalPage() {
     <div className="flex flex-col gap-8">
       <div className="flex flex-col gap-2">
         <h1 className="text-[clamp(28px,3.5vw,40px)] font-semibold tracking-tight">
-          <T>Legal Pages</T>
+          <T>Pages</T>
         </h1>
         <p className="text-sm text-muted-foreground">
           <T>Edit the public Privacy Policy and Terms of Service. Content is written in Markdown and rendered safely.</T>
