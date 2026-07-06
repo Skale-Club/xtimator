@@ -24,9 +24,9 @@ Each requirement maps to exactly one roadmap phase.
 
 ### Admin Nav Reorganization
 
-- [ ] **NAV-01**: The super-admin sidebar shows Dashboard, Companies, Inbox as the first three items, in that order.
-- [ ] **NAV-02**: A new "Content" group (a new sectioned-nav UI pattern) visually contains Landing Page, Pages, Blog, SEO, Branding under a group header, distinct from the ungrouped items.
-- [ ] **NAV-03**: The nav item "Legal Pages" is renamed to "Pages", and its route slug changes from `/admin/legal` to `/admin/pages` — every hardcoded reference (nav entry, `revalidatePath` calls, any internal links) is retargeted; public routes (`/privacy-policy`, `/terms-of-service`) and the `legal_pages` DB table are untouched.
+- [x] **NAV-01**: The super-admin sidebar shows Dashboard, Companies, Inbox as the first three items, in that order.
+- [x] **NAV-02**: A new "Content" group (a new sectioned-nav UI pattern) visually contains Landing Page, Pages, Blog, SEO, Branding under a group header, distinct from the ungrouped items.
+- [x] **NAV-03**: The nav item "Legal Pages" is renamed to "Pages", and its route slug changes from `/admin/legal` to `/admin/pages` — every hardcoded reference (nav entry, `revalidatePath` calls, any internal links) is retargeted; public routes (`/privacy-policy`, `/terms-of-service`) and the `legal_pages` DB table are untouched.
 
 ### Naming Fixes
 
@@ -72,9 +72,9 @@ Every v1 requirement maps to exactly one phase. Coverage: 15/15 mapped, 0 orphan
 | CREDITFIX-01 | Phase 156 — Tenant Credit UX Compliance Fix | Complete |
 | CREDITFIX-02 | Phase 156 — Tenant Credit UX Compliance Fix | Complete |
 | CREDITFIX-03 | Phase 156 — Tenant Credit UX Compliance Fix | Complete |
-| NAV-01 | Phase 157 — Admin Nav Reorg & Naming Fixes | Pending |
-| NAV-02 | Phase 157 — Admin Nav Reorg & Naming Fixes | Pending |
-| NAV-03 | Phase 157 — Admin Nav Reorg & Naming Fixes | Pending |
+| NAV-01 | Phase 157 — Admin Nav Reorg & Naming Fixes | Complete |
+| NAV-02 | Phase 157 — Admin Nav Reorg & Naming Fixes | Complete |
+| NAV-03 | Phase 157 — Admin Nav Reorg & Naming Fixes | Complete |
 | NAMING-01 | Phase 157 — Admin Nav Reorg & Naming Fixes | Complete |
 | NAMING-02 | Phase 157 — Admin Nav Reorg & Naming Fixes | Complete |
 | BILLADMIN-01 | Phase 158 — Admin Billing Page Credit-Model Overhaul | Pending |

@@ -2514,7 +2514,7 @@ Plans:
 **Plans**: 3 plans (157-01, 157-02, 157-03)
 
 Plans:
-- [ ] 157-01-PLAN.md — Reorder nav (Dashboard/Companies/Inbox first) + build new Content group pattern + move Legal Pages editor to /admin/pages with redirect stub
+- [x] 157-01-PLAN.md — Reorder nav (Dashboard/Companies/Inbox first) + build new Content group pattern + move Legal Pages editor to /admin/pages with redirect stub
 - [x] 157-02-PLAN.md — Rename Message -> Message Template (settings nav + page) and Support Mode -> View as Company (button + banner copy)
 - [ ] 157-03-PLAN.md — Update Support Mode test string assertions to match View as Company / Exit view copy
 **UI hint**: yes
