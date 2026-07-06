@@ -2,12 +2,12 @@
 gsd_state_version: 1.0
 milestone: v4.17
 milestone_name: Admin Polish & Credit UX Compliance
-status: defining
-stopped_at: Milestone started; defining requirements + roadmap
-last_updated: "2026-07-06T00:35:06.289Z"
+status: roadmapped
+stopped_at: Roadmap created (4 phases, 156-159); ready to plan Phase 156
+last_updated: "2026-07-06T01:00:00.000Z"
 last_activity: 2026-07-06
 progress:
-  total_phases: 155
+  total_phases: 159
   completed_phases: 155
   total_plans: 5
   completed_plans: 5
@@ -17,7 +17,7 @@ progress:
 
 ## Current Status
 
-- **Milestone**: v4.17 Admin Polish & Credit UX Compliance — DEFINING 2026-07-06. Fixes a real regression against a locked v4.15 decision (tenant Plans page still leaks raw credit numbers in 3 places), then polishes the super-admin experience: nav reorg + new "Content" group + Legal Pages→Pages rename, two owner-flagged bad names fixed (Message→Message Template, Support Mode→View as Company), a credit-model-centric admin Billing page overhaul, and a "Premium Xtimator" glassmorphism visual redesign of the v4.16 Inbox. No new backend logic — 100% reuse of existing credit-ledger/billing_config functions. Fully autonomous overnight run per standing no-checkpoint-interruptions preference; owner unreachable for some naming calls, best-judgment names chosen and documented. Numbering continues the global counter — v4.16 ended at Phase 155, so v4.17 starts at **Phase 156**.
+- **Milestone**: v4.17 Admin Polish & Credit UX Compliance — ROADMAP CREATED 2026-07-06. 4 phases (156-159), 15/15 requirements mapped (CREDITFIX-01..03, NAV-01..03, NAMING-01..02, BILLADMIN-01..03, INBOX-05..08), 0 orphans. Fixes a real regression against a locked v4.15 decision (tenant Plans page still leaks raw credit numbers in 3 places), then polishes the super-admin experience: nav reorg + new "Content" group + Legal Pages→Pages rename, two owner-flagged bad names fixed (Message→Message Template, Support Mode→View as Company), a credit-model-centric admin Billing page overhaul, and a "Premium Xtimator" glassmorphism visual redesign of the v4.16 Inbox. No new backend logic — 100% reuse of existing credit-ledger/billing_config functions. All 4 phases are file-independent (no blocking dependency spine); sequenced most-urgent-first, most-subjective-last. Fully autonomous overnight run per standing no-checkpoint-interruptions preference; owner unreachable for some naming calls, best-judgment names chosen and documented. Numbering continues the global counter — v4.16 ended at Phase 155, so v4.17 starts at **Phase 156**. Next: `/gsd:plan-phase 156`.
 
 ### Prior Milestone (shipped)
 
@@ -48,12 +48,16 @@ progress:
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements — v4.17 Admin Polish & Credit UX Compliance
-Last activity: 2026-07-06 — Milestone v4.17 started
+Phase: 156 of 159 (Tenant Credit UX Compliance Fix) — ready to plan
+Plan: — (roadmap complete, no plans generated yet)
+Status: Roadmap created — v4.17 Admin Polish & Credit UX Compliance (4 phases, 15/15 requirements mapped, 0 orphans)
+Last activity: 2026-07-06 — ROADMAP.md + STATE.md written for v4.17; REQUIREMENTS.md traceability reconciled
+
+Progress: [░░░░░░░░░░] 0% (0/4 v4.17 phases complete)
 
 Note: `gsd-tools phase complete "155"` reported `next_phase: 999.1` (a pre-existing PARKING LOT placeholder — "Migrate Inngest to Self-Hosted Hetzner", disk_status empty, no plans) — this is NOT an active phase; the roadmap counter for v4.17 continues from Phase 156 (v4.16 ended at 155), not from 999.1. v4.16 (Phases 154-155) is fully shipped and archived to `milestones/v4.16-*`.
+
+v4.17 phase sequence (all 4 file-independent, recommended execution order): 156 Tenant Credit UX Compliance Fix (CREDITFIX-01..03) → 157 Admin Nav Reorg & Naming Fixes (NAV-01..03, NAMING-01..02) → 158 Admin Billing Page Credit-Model Overhaul (BILLADMIN-01..03) → 159 Inbox Visual Redesign "Premium Xtimator" (INBOX-05..08). Next: `/gsd:plan-phase 156`.
 
 ### Previous Position (v4.14 / Phase 1001, for continuity)
 
