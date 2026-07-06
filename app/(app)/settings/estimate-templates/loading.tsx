@@ -4,7 +4,7 @@ import { SettingsPageSkeleton } from '@/components/skeletons/settings-page-skele
 export default function EstimateTemplatesLoading() {
   return (
     <SettingsPageSkeleton
-      title="Message"
+      title="Message Template"
       description="Customize what clients see when you send them an estimate."
     >
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">

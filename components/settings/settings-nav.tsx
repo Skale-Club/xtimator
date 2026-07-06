@@ -14,7 +14,7 @@ const ITEMS: SubNavItem[] = [
   { value: 'notifications', label: 'Notifications', Icon: Bell,        href: '/settings/notifications'      },
   { value: 'estimates',     label: 'Estimates',     Icon: FileText,    href: '/settings/estimates'          },
   { value: 'billing',       label: 'Plans',         Icon: CreditCard,  href: '/settings/billing'           },
-  { value: 'templates',     label: 'Message',       Icon: Mail,        href: '/settings/estimate-templates' },
+  { value: 'templates',     label: 'Message Template', Icon: Mail,     href: '/settings/estimate-templates' },
   { value: 'knowledge',     label: 'Knowledge',     Icon: BookOpen,    href: '/settings/knowledge'          },
   { value: 'integrations',  label: 'Integrations',  Icon: Plug,        href: '/settings/integrations'       },
 ]
