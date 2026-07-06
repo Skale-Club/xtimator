@@ -33,7 +33,7 @@ export async function saveLegalPage(id: string, data: LegalPageInput): Promise<L
 
   if (error) return { ok: false, message: error.message }
 
-  revalidatePath('/admin/legal')
+  revalidatePath('/admin/pages')
   revalidatePath(`/${id === 'privacy_policy' ? 'privacy-policy' : 'terms-of-service'}`)
 
   void logAdminAction({
