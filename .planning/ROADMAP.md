@@ -2545,5 +2545,8 @@ Plans:
   3. An unread conversation shows a colored accent bar and/or dot as the primary unread signal, not only the existing outline `Badge` count
   4. The `/admin/inbox/settings` Accounts + Templates tables render with the same glass-surface treatment as the redesigned main Inbox, so the two surfaces feel visually consistent
   5. No reply/send/real-time behavior was added or changed — the Inbox remains fully read-only, matching the v4.16 scope fence
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 159-01-PLAN.md — Avatar utility + conversation-list row and thread-pane header glass redesign (INBOX-05, INBOX-06, INBOX-07)
+- [ ] 159-02-PLAN.md — Inbox Settings sub-page glass consistency verification + polish (INBOX-08)
 **UI hint**: yes
