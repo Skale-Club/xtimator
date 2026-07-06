@@ -71,6 +71,12 @@ vi.mock('@/lib/ai/openrouter-client', () => ({
   transcribeAudioOR: vi.fn(async () => ''),
   analyzePhotoOR: vi.fn(async () => ''),
 }))
+// Pre-launch audit fix (M-3): the route resolves the caller's company via
+// getActiveCompanyId() instead of the old companies.user_id = claims.sub lookup.
+const mockGetActiveCompanyId = vi.fn()
+vi.mock('@/lib/queries/active-company', () => ({
+  getActiveCompanyId: (...args: unknown[]) => mockGetActiveCompanyId(...args),
+}))
 
 import { POST } from '@/app/api/estimates/[id]/refine/route'
 
@@ -88,6 +94,7 @@ describe('refine route error surface', () => {
     mockGetClaims.mockResolvedValue({ data: { claims: { sub: 'user-1' } } })
     // Inner AI step throws — this is the failure we drive through the handler.
     mockRefineEstimate.mockRejectedValue(new Error('OpenRouter refine down'))
+    mockGetActiveCompanyId.mockResolvedValue('company-1')
     // companies lookup returns the owning company.
     mockFrom.mockImplementation((table: string) => {
       if (table === 'companies') {

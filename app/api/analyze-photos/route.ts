@@ -10,6 +10,7 @@ import { checkQuota } from '@/lib/quota'
 import { checkCredits } from '@/lib/billing/credit-ledger'
 import { demoGuardResponse } from '@/lib/demo/guard'
 import { recordJobOwnership } from '@/lib/inngest/job-ownership'
+import { getActiveCompanyId } from '@/lib/queries/active-company'
 
 /**
  * Phase 67: route refactor. Returns { jobId } in <1s.
@@ -65,16 +66,14 @@ export async function POST(request: Request) {
       )
     }
 
-    // Company lookup
-    const { data: company } = await supabase
-      .from('companies')
-      .select('id')
-      .eq('user_id', claims.sub)
-      .single()
-    if (!company) {
+    // Company lookup (pre-launch audit fix M-3): getActiveCompanyId() resolves
+    // via company_members, so this works for STAFF members too — the previous
+    // companies.user_id = claims.sub lookup only ever matched the account
+    // owner, breaking the capture flow for team members.
+    const companyId = await getActiveCompanyId()
+    if (!companyId) {
       return NextResponse.json({ error: 'No company found' }, { status: 401 })
     }
-    const companyId = (company as { id: string }).id
 
     // QUOTA-04: gate dispatch — recordUsage now lives inside the Inngest function
     const { allowed } = await checkQuota(supabase, companyId, 'photo_batch')

@@ -11,6 +11,7 @@ import { checkQuota } from '@/lib/quota'
 import { checkCredits } from '@/lib/billing/credit-ledger'
 import { demoGuardResponse } from '@/lib/demo/guard'
 import { recordJobOwnership } from '@/lib/inngest/job-ownership'
+import { getActiveCompanyId } from '@/lib/queries/active-company'
 
 /**
  * Phase 67: NEW route. Dispatches Whisper transcription via Inngest.
@@ -81,13 +82,13 @@ export async function POST(request: Request) {
       )
     }
 
-    // Ownership check via RLS-aware company lookup
-    const { data: company } = await supabase
-      .from('companies')
-      .select('id')
-      .eq('user_id', claims.sub)
-      .single()
-    if (!company || (company as { id: string }).id !== rec.company_id) {
+    // Ownership check (pre-launch audit fix M-3): getActiveCompanyId() resolves
+    // via company_members, so this now works for STAFF members too — the
+    // previous companies.user_id = claims.sub lookup only ever matched the
+    // account owner, so a team member recording audio on-site would hit
+    // "Not authorized" and the whole capture flow would fail for them.
+    const activeCompanyId = await getActiveCompanyId()
+    if (!activeCompanyId || activeCompanyId !== rec.company_id) {
       throw new XtimatorError(
         'forbidden',
         'recordings',

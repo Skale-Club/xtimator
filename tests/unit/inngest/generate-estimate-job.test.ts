@@ -123,6 +123,14 @@ describe('INNGEST-02 + INNGEST-06: generateEstimateJob function config', () => {
     expect(fn.opts.idempotency).toBe('event.data.requestId')
     expect(fn.opts.retries).toBe(2)
   })
+
+  it('M-2: serializes runs per project via concurrency: { limit: 1, key: event.data.projectId }', async () => {
+    const { generateEstimateJob } = await import('@/lib/inngest/functions/generate-estimate')
+    const fn = generateEstimateJob as unknown as {
+      opts: { concurrency?: { limit: number; key?: string } }
+    }
+    expect(fn.opts.concurrency).toEqual({ limit: 1, key: 'event.data.projectId' })
+  })
 })
 
 describe('quick-260705-c1y-03: generate-estimate onFailure fires notifyOps additively', () => {
