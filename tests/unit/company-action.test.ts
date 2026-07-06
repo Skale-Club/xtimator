@@ -109,13 +109,32 @@ function makeSupabaseMock({ isNewCompany }: { isNewCompany: boolean }) {
 }
 
 describe('createOrUpdateCompany — Billing v2 (mode: first regression)', () => {
+  let memberSelectMaybeSingle: ReturnType<typeof vi.fn>
+  let memberInsert: ReturnType<typeof vi.fn>
+
   beforeEach(() => {
     vi.clearAllMocks()
     vi.mocked(redirect).mockImplementation(() => { throw new Error('redirect') })
-    // Permissive service client so the first-company flow reaches the signup grant.
+    // Permissive service client so the first-company flow reaches the signup
+    // grant. company_members is table-aware (B6 self-heal in the UPDATE
+    // branch does a select().eq().eq().maybeSingle() before deciding whether
+    // to insert) — default: no existing membership row, so the self-heal
+    // insert fires.
+    memberSelectMaybeSingle = vi.fn().mockResolvedValue({ data: null })
+    memberInsert = vi.fn().mockResolvedValue({ error: null })
     vi.mocked(requireServiceClient).mockReturnValue({
-      from: vi.fn().mockReturnValue({
-        insert: vi.fn().mockResolvedValue({ error: null }),
+      from: vi.fn().mockImplementation((table: string) => {
+        if (table === 'company_members') {
+          return {
+            insert: memberInsert,
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                eq: vi.fn().mockReturnValue({ maybeSingle: memberSelectMaybeSingle }),
+              }),
+            }),
+          }
+        }
+        return { insert: vi.fn().mockResolvedValue({ error: null }) }
       }),
     } as never)
   })
@@ -143,6 +162,30 @@ describe('createOrUpdateCompany — Billing v2 (mode: first regression)', () => 
 
     expect(capturedUpdateRow).not.toBeNull()
     expect(capturedUpdateRow!['tier_trial_ends_at']).toBeUndefined()
+  })
+
+  it('B6 self-heal: UPDATE branch inserts a missing company_members row when none exists', async () => {
+    vi.mocked(createClient).mockResolvedValue(makeSupabaseMock({ isNewCompany: false }) as never)
+    memberSelectMaybeSingle.mockResolvedValue({ data: null }) // no existing membership row
+
+    const { createOrUpdateCompany } = await import('@/lib/actions/company')
+    await createOrUpdateCompany({ companyName: 'Existing Co' }).catch(() => {/* redirect throws */})
+
+    expect(memberInsert).toHaveBeenCalledWith({
+      user_id: 'user-abc',
+      company_id: 'company-xyz',
+      role: 'owner',
+    })
+  })
+
+  it('B6 self-heal: UPDATE branch does NOT re-insert when a company_members row already exists', async () => {
+    vi.mocked(createClient).mockResolvedValue(makeSupabaseMock({ isNewCompany: false }) as never)
+    memberSelectMaybeSingle.mockResolvedValue({ data: { user_id: 'user-abc' } }) // already a member
+
+    const { createOrUpdateCompany } = await import('@/lib/actions/company')
+    await createOrUpdateCompany({ companyName: 'Existing Co' }).catch(() => {/* redirect throws */})
+
+    expect(memberInsert).not.toHaveBeenCalled()
   })
 })
 
