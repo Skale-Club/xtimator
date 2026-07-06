@@ -123,6 +123,13 @@ export async function generateEstimateForProject(
 
   if (!project) throw new Error('Project not found')
   if (!company) throw new Error('Company not found')
+  // Security: this function runs on the service-role client (bypasses RLS),
+  // so ownership must be checked explicitly. Without this, any caller that
+  // can reach a valid projectId (web route, chat/MCP tool) could generate an
+  // estimate against another tenant's project — reading its transcripts/
+  // photos/client PII and writing destructive updates (version bump,
+  // is_current flips) to that tenant's data.
+  if (project.company_id !== companyId) throw new Error('Project not found')
 
   const currencyCode = normalizeCurrencyCode(company.currency_code)
   const priceBookItems = (await getPriceBookItems(supabase, companyId)).filter(
