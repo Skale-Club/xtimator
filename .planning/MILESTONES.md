@@ -1,5 +1,19 @@
 # Milestones
 
+## v4.16 Admin Inbox Consolidation (Shipped: 2026-07-06)
+
+**Phases completed:** 2 (154, 155) · 5 plans · 11 tasks · full WhatsApp/Inbox-scoped unit suite green (67+ tests) + e2e static-contract block green (the only failures are pre-existing, unrelated issues logged in each phase's `deferred-items.md`)
+
+**Key accomplishments:**
+
+- Collapsed the super-admin "WhatsApp" + "WA Templates" nav entries into a single "Inbox" item (`/admin/inbox`); the old `/admin/whatsapp` and `/admin/whatsapp-templates` routes now redirect to `/admin/inbox` and `/admin/inbox/settings` respectively, so no bookmarks break.
+- Split the old two-tab page into a conversations-only `/admin/inbox` page and a new `/admin/inbox/settings` tabbed page (Accounts + Templates), relocating `AdminWhatsAppAccounts` verbatim and retargeting all 6 `revalidatePath` calls — `WhatsAppTemplatesPanel` and its data layer untouched in place.
+- Replaced the conversation viewer's table + right-side `Sheet` drawer with a persistent two-pane master-detail layout (Xphere-style list + thread pane), selection driven entirely by a shallow `?conversation=<id>` URL param with SSR deep-link resolution and a mobile single-column collapse — fully read-only, zero reply/send code anywhere.
+- Updated every affected test file (unit path/existence assertions + the e2e admin-whatsapp spec, including the stale `loadAdminConversationThread(row.id, row.company_id)` static-contract assertion) and closed all 6 Wave-0 test gaps from 155-VALIDATION.md with new source-contract and creds-gated live-nav Playwright tests.
+- Confirmed via both phase-level verification and a milestone-level integration audit that the data layer (`lib/queries/admin-whatsapp.ts`, `lib/actions/admin-whatsapp*.ts`), DB tables (`whatsapp_*`), and Integrations > WhatsApp credentials were never touched — the rename/refactor is strictly UI + routing, matching the locked "user-facing rename only" decision.
+
+---
+
 ## v4.15 Credit UX Polish & Admin Support Tooling (Shipped: 2026-07-05)
 
 **Phases completed:** 4 (150, 151, 152, 153) · full unit suite green (~3028 passing; the only failures are the pre-existing, unrelated Windows parallel-import flakes in `blog-rls.test.ts`/`landing-page.test.tsx`, tracked separately)

@@ -14,17 +14,11 @@ The platform includes:
 
 A business owner can go from job site audio recording to a sent, professional estimate in under 5 minutes without touching a keyboard.
 
-## Current Milestone: v4.16 Admin Inbox Consolidation 🚧 (started 2026-07-05)
+## Last Milestone: v4.16 Admin Inbox Consolidation ✅ (shipped 2026-07-06)
+
+**Shipped:** both phases (154-155), 4/4 requirements (INBOX-01..04). Collapsed the two super-admin nav entries ("WhatsApp" + "WA Templates") into a single **Inbox** item at `/admin/inbox` (old routes redirect, no broken bookmarks); split the old two-tab page into a conversations-only Inbox page and a new `/admin/inbox/settings` tabbed page (Accounts + Templates), reusing every existing component unchanged; replaced the conversation viewer's table + right-side `Sheet` drawer with a persistent two-pane master-detail layout (Xphere-style list + thread pane), selection driven by a shallow `?conversation=<id>` URL param with SSR deep-linking and a mobile single-column collapse — fully read-only throughout. Integrations > WhatsApp credentials and the internal `whatsapp_*` data layer/DB tables were confirmed untouched by both a phase-level goal-verifier and a milestone-level integration audit (zero gaps found). Executed autonomously end-to-end (research → plan → execute → goal-verify → milestone-audit → archive/tag) per the standing no-checkpoint-interruptions preference. Archive: [milestones/v4.16](MILESTONES.md). Operational deferral: the 4 new creds-gated live-nav e2e tests (row-click, direct-link, empty-state, mobile collapse) need seeded `TEST_ADMIN_EMAIL`/`TEST_ADMIN_PASSWORD` to actually execute — written and correctly gated, not yet run.
 
 **Goal:** Consolidate the three scattered super-admin WhatsApp surfaces (`/admin/whatsapp` conversations+accounts, `/admin/whatsapp-templates`, and the `/admin/integrations/whatsapp` credentials) into a single coherent **Inbox** — one nav item, a two-pane master-detail conversation viewer (list + thread on the same page, Xphere-style, replacing the drawer overlay), and an Inbox "Settings" area folding in Accounts + Templates. Read-only (visualize conversations, no reply). Credentials stay in Integrations.
-
-**Target features:**
-- **Single "Inbox" nav item** — the two nav entries ("WhatsApp" + "WA Templates") collapse into one `/admin/inbox` item (slug + label renamed; old routes redirect).
-- **Two-pane master-detail inbox** — conversation list (left) + thread (right) on the same page, read-only, replacing the current table + right-side `Sheet` overlay; deep-linked via `?conversation=`; Xphere-style list rows (name, preview, timestamp, unread dot, selected state).
-- **Inbox Settings** — a gear/"Settings" affordance in the Inbox header → `/admin/inbox/settings` with Accounts (provisioning) + Templates tabs (reusing the existing components).
-- **Contained blast radius** — Integrations > WhatsApp credentials (token/IDs/system-prompt) unchanged; internal data layer + DB tables stay `whatsapp_*` (channel-specific; "Inbox" is the forward-looking multi-channel container); all path references + tests updated.
-
-**Key context (locked):** Read-only inbox (no reply/send — keeps the deliberate WAADM read-only posture). Inbox = operations (conversations + Accounts + Templates); Integrations = credentials (unchanged). Layout = two-pane master-detail, NOT a modal drawer. User-facing renames to "Inbox"; internal `whatsapp_*`/`admin-whatsapp*` names stay to keep blast radius small. Design reference: the Xphere inbox at `C:\Users\Vanildo\Dev\xphere` (same stack — Next + shadcn + Tailwind + Supabase). Numbering continues the global counter — v4.15 ended at Phase 153, so v4.16 starts at **Phase 154**.
 
 ## Last Milestone: v4.15 Credit UX Polish & Admin Support Tooling ✅ (shipped 2026-07-05)
 
@@ -475,4 +469,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context
 
 ---
-*Last updated: 2026-07-05 — v4.15 Credit UX Polish & Admin Support Tooling SHIPPED. All 4 phases (150-153), 13/13 requirements. SEED-039 + SEED-040 harvested. Note: PROJECT.md's footer/evolution-review had not been updated since v4.7 (2026-06-24) — milestones v4.8 through v4.14 shipped without a `/gsd:complete-milestone` pass updating this file; that backlog was not retroactively reconciled here (out of scope for this milestone's own completion) and remains a housekeeping item for the project owner. Next: `/gsd:new-milestone`.*
+*Last updated: 2026-07-06 — v4.16 Admin Inbox Consolidation SHIPPED. Both phases (154-155), 4/4 requirements. Note: PROJECT.md's footer/evolution-review had not been updated since v4.7 (2026-06-24) until the v4.15 pass on 2026-07-05 partially caught it up — milestones v4.8 through v4.14 still lack a full retroactive `/gsd:complete-milestone` reconciliation in this file; that backlog remains a housekeeping item for the project owner, out of scope for v4.16's own completion. Next: `/gsd:new-milestone`.*
