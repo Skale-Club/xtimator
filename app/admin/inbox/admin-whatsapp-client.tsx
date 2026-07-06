@@ -5,10 +5,12 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { Loader2, MessageSquare, ChevronLeft } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { T } from '@/components/i18n/t'
 import { MessageBubble } from '@/components/whatsapp/message-bubble'
 import { EmptyState } from '@/components/dashboard/empty-state'
 import { loadAdminConversationThread } from '@/lib/actions/admin-whatsapp'
+import { getInitials, getAvatarColor } from '@/lib/utils/avatar'
 import type { ConversationThread } from '@/lib/whatsapp/inbox-types'
 
 type Row = {
@@ -98,6 +100,13 @@ export function AdminWhatsAppClient({
               ) : (
                 conversations.map((row) => {
                   const ts = row.last_message_at ?? row.last_inbound_at
+                  const isSelected = row.id === selectedId
+                  const isUnread = row.unread_count > 0
+                  const avatarColor = getAvatarColor(row.contact_name || row.contact_phone)
+                  const accentClass =
+                    isSelected || isUnread
+                      ? "before:bg-[image:var(--gradient-brand)]"
+                      : "before:bg-transparent"
                   return (
                     <div
                       key={row.id}
@@ -110,18 +119,26 @@ export function AdminWhatsAppClient({
                           selectConversation(row)
                         }
                       }}
-                      className={`flex items-center gap-3 px-3 py-2 rounded-md cursor-pointer hover:bg-muted/20 ${
-                        row.id === selectedId
-                          ? 'bg-muted/60 border-l-2 border-[hsl(var(--primary))]'
-                          : 'border-l-2 border-transparent'
+                      className={`relative flex items-center gap-3 px-3 py-3 pl-4 cursor-pointer transition-colors before:content-[''] before:absolute before:inset-y-0 before:left-0 before:w-[3px] before:rounded-l-sm ${accentClass} ${
+                        isSelected
+                          ? 'bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)]'
+                          : 'hover:bg-[var(--glass-bg-light)]'
                       }`}
                     >
+                      <Avatar>
+                        <AvatarFallback className={`${avatarColor.bg} ${avatarColor.text} font-semibold`}>
+                          {getInitials(row.contact_name)}
+                        </AvatarFallback>
+                      </Avatar>
                       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                         <div className="flex items-center justify-between gap-2">
-                          <span className="text-sm font-medium truncate">
+                          <span className="text-sm font-semibold truncate">
                             {row.contact_name || <T>(unknown)</T>}
                           </span>
-                          <span className="text-xs text-muted-foreground whitespace-nowrap">
+                          <span className="flex items-center gap-1.5 text-xs text-muted-foreground whitespace-nowrap">
+                            {isUnread && (
+                              <span className="h-2 w-2 rounded-full bg-[hsl(var(--primary))]" aria-hidden="true" />
+                            )}
                             {ts ? new Date(ts).toLocaleString() : '—'}
                           </span>
                         </div>
@@ -129,7 +146,7 @@ export function AdminWhatsAppClient({
                           <span className="text-xs text-muted-foreground truncate">
                             {row.last_message_preview ?? '—'}
                           </span>
-                          {row.unread_count > 0 && <Badge variant="outline">{row.unread_count}</Badge>}
+                          {isUnread && <Badge variant="outline">{row.unread_count}</Badge>}
                         </div>
                         <span className="text-xs text-muted-foreground truncate">
                           {row.company_name || <T>(unknown company)</T>}
