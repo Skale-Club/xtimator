@@ -472,6 +472,13 @@ describe('BILLCFG-03: getBillingConfig consumed ONLY by the reader + credit-ledg
     // runtime-authoritative billing source, a legitimate tenant-action
     // consumer. The guard still fails on any OTHER reference of the symbol.
     const AUTO_TOPUP_ACTION_PATH = resolve(process.cwd(), 'lib/actions/auto-topup.ts')
+    // Phase 158 (BILLADMIN-01/03): the super-admin billing overview page reads
+    // getBillingConfig to compute the platform-wide real-cost/credit summary
+    // (replacing the old hardcoded MRR math) and the per-tier prices shown in
+    // the credit-model-centric per-company table — a legitimate admin-only
+    // display consumer (DISPLAY ONLY — no mutation). The guard still fails on
+    // any OTHER reference of the symbol.
+    const ADMIN_BILLING_PAGE_PATH = resolve(process.cwd(), 'app/admin/billing/page.tsx')
     const ALLOWLIST = new Set([
       MODULE_PATH,
       CREDIT_LEDGER_PATH,
@@ -488,6 +495,7 @@ describe('BILLCFG-03: getBillingConfig consumed ONLY by the reader + credit-ledg
       ADMIN_COMPANY_PAGE_PATH,
       AUTO_TOPUP_PATH,
       AUTO_TOPUP_ACTION_PATH,
+      ADMIN_BILLING_PAGE_PATH,
     ])
 
     const collected: string[] = []
