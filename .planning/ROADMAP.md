@@ -2511,7 +2511,12 @@ Plans:
   3. Navigating to the old `/admin/legal` route redirects (or the nav now points) to `/admin/pages`, the nav label reads "Pages", and every `revalidatePath`/internal link reference to the old slug is retargeted; `/privacy-policy`, `/terms-of-service`, and the `legal_pages` table are unchanged
   4. The tenant Settings sidebar shows "Message Template" (not "Message") with the page `<h1>` and `metadata.title` matching, while the URL stays `/settings/estimate-templates`
   5. Every user-facing Support Mode string (Companies-list row action, persistent banner, exit button, both error toasts) reads "View as Company" (or a natural derivative), while `startSupportSession`/`getSupportModeSession`/`endSupportSession`, the audit-log action literals, and the `support_mode_session` cookie name are byte-unchanged (grep-verifiable)
-**Plans**: TBD
+**Plans**: 3 plans (157-01, 157-02, 157-03)
+
+Plans:
+- [ ] 157-01-PLAN.md — Reorder nav (Dashboard/Companies/Inbox first) + build new Content group pattern + move Legal Pages editor to /admin/pages with redirect stub
+- [ ] 157-02-PLAN.md — Rename Message -> Message Template (settings nav + page) and Support Mode -> View as Company (button + banner copy)
+- [ ] 157-03-PLAN.md — Update Support Mode test string assertions to match View as Company / Exit view copy
 **UI hint**: yes
 
 ### Phase 158: Admin Billing Page Credit-Model Overhaul
