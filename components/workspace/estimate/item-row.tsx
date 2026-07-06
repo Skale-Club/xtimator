@@ -53,7 +53,7 @@ export function ItemRow({
           step="any"
           min="0"
           value={item.quantity}
-          onChange={(e) => onUpdate('quantity', parseFloat(e.target.value) || 0)}
+          onChange={(e) => onUpdate('quantity', Math.max(0, parseFloat(e.target.value) || 0))}
           className="h-9 w-full text-right"
           disabled={isReadOnly}
         />

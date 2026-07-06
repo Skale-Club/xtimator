@@ -48,7 +48,11 @@ export async function register() {
     const sentryClient = Sentry.init({
       dsn: process.env.SENTRY_DSN,
       environment: process.env.NODE_ENV,
-      sendDefaultPii: true,
+      // Pre-launch audit fix: server requests carry end-clients' PII
+      // (names/addresses/phone) in bodies/headers; sendDefaultPii would
+      // attach IPs/cookies/headers to every event by default. See the
+      // matching client-side change in instrumentation-client.ts.
+      sendDefaultPii: false,
       tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 1.0,
       includeLocalVariables: true,
       enableLogs: true,

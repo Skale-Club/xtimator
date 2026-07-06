@@ -24,6 +24,10 @@ const cspReportOnly = [
   "base-uri 'self'",
   "form-action 'self'",
   "frame-ancestors 'none'",
+  // Pre-launch audit fix: report-only mode was collecting violations
+  // NOWHERE — there was no report-uri, so the policy could never actually be
+  // validated before flipping to enforcing. Collector: app/api/csp-report.
+  "report-uri /api/csp-report",
 ].join('; ');
 
 // Baseline security headers (Security Review S10 / B03 — "zero headers" finding).

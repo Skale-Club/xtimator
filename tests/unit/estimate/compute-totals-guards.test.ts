@@ -75,6 +75,17 @@ describe('WI-2: compute-totals defensive guards (tax-rate coercion + balanceDue 
     expect(r.balanceDue).toBe(700) // valid deposit: the floor is a no-op
   })
 
+  it('pre-launch audit fix: a fixed discount exceeding subtotal+tax floors grandTotal at 0 (never negative)', () => {
+    const r = computeEstimateTotals(sections, {
+      taxRate: 0.1, // tax 100 -> subtotal+tax = 1100
+      discountType: 'amount',
+      discountValue: 5000, // wildly exceeds the total
+    })
+
+    expect(r.grandTotal).toBe(0) // floored — was previously -3900
+    expect(r.balanceDue).toBe(0) // no deposit configured -> balanceDue === grandTotal
+  })
+
   it('BYTE-IDENTICAL regression: valid input is unchanged (guards are no-ops)', () => {
     const r = computeEstimateTotals(sections, { taxRate: 0.1 })
 
