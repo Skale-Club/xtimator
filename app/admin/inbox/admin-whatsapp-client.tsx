@@ -172,7 +172,7 @@ export function AdminWhatsAppClient({
               </div>
             ) : (
               <>
-                <div className="border-b px-4 py-3">
+                <div className="border-b border-[var(--glass-border)] bg-[var(--glass-bg-light)] px-4 py-3">
                   <button
                     type="button"
                     onClick={clearSelection}
@@ -181,15 +181,26 @@ export function AdminWhatsAppClient({
                     <ChevronLeft className="h-4 w-4" />
                     <T>Back</T>
                   </button>
-                  <p className="text-sm font-medium">
-                    {thread?.conversation.contact_name?.trim() || thread?.conversation.contact_phone}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {thread?.conversation.contact_phone}
-                    {companyLabel ? ` · ${companyLabel}` : ''}
-                  </p>
+                  <div className="flex items-center gap-3">
+                    <Avatar>
+                      <AvatarFallback
+                        className={`${getAvatarColor(thread?.conversation.contact_name || thread?.conversation.contact_phone).bg} ${getAvatarColor(thread?.conversation.contact_name || thread?.conversation.contact_phone).text} font-semibold`}
+                      >
+                        {getInitials(thread?.conversation.contact_name ?? null)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex min-w-0 flex-col">
+                      <p className="text-sm font-semibold truncate">
+                        {thread?.conversation.contact_name?.trim() || thread?.conversation.contact_phone}
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {thread?.conversation.contact_phone}
+                        {companyLabel ? ` · ${companyLabel}` : ''}
+                      </p>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex-1 overflow-y-auto px-4 py-4 space-y-2">
+                <div className="flex-1 overflow-y-auto px-4 py-4 space-y-2 bg-[var(--glass-bg-light)]">
                   {loading ? (
                     <div className="flex justify-center py-8">
                       <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
