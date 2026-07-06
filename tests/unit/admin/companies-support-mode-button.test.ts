@@ -42,9 +42,9 @@ describe('app/admin/companies/support-mode-button.tsx: contract', () => {
     }
   })
 
-  it('label reads "Support Mode →"', () => {
+  it('label reads "View as Company →"', () => {
     try {
-      expect(readButton()).toMatch(/Support Mode/)
+      expect(readButton()).toMatch(/View as Company/)
     } catch {
       expect.fail('Wave 0: app/admin/companies/support-mode-button.tsx not yet written')
     }

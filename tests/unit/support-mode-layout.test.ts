@@ -84,9 +84,9 @@ describe('components/admin/support-mode-banner.tsx: contract', () => {
     }
   })
 
-  it('contains the locked "Support Mode" copy per UI-SPEC', () => {
+  it('contains the new "Viewing ... as ..." copy (View as Company rename)', () => {
     try {
-      expect(readBanner()).toMatch(/Support Mode/)
+      expect(readBanner()).toMatch(/Viewing/)
     } catch {
       expect.fail('Wave 0: components/admin/support-mode-banner.tsx not yet written')
     }
