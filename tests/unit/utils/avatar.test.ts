@@ -29,7 +29,7 @@ describe('getAvatarColor', () => {
 
   it('varies output for at least 2 distinct sample names', () => {
     const a = getAvatarColor('Maria Silva')
-    const b = getAvatarColor('Joao Pedro')
+    const b = getAvatarColor('Ana Costa')
     expect(a).not.toEqual(b)
   })
 
