@@ -47,9 +47,6 @@ export function TopUpPackCard({
           <span className="font-mono text-3xl font-semibold tracking-tight">${amount}</span>
         </CardTitle>
       </CardHeader>
-      <p className="text-sm text-muted-foreground">
-        <T text={`≈ ${credits.toLocaleString()} credits`} />
-      </p>
       <TopUpButton
         packIndex={packIndex}
         label={`Top up $${amount}`}

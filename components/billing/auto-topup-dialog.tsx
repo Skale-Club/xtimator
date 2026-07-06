@@ -108,7 +108,7 @@ export function AutoTopupDialogLauncher({
                 <SelectContent>
                   {packs.map((pack, i) => (
                     <SelectItem key={i} value={String(i)}>
-                      ${pack.priceCents / 100} (&asymp;{pack.credits.toLocaleString()} credits)
+                      ${pack.priceCents / 100}
                     </SelectItem>
                   ))}
                 </SelectContent>
