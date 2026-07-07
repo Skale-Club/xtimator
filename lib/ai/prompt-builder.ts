@@ -61,11 +61,11 @@ export function buildSystemPrompt(
   let prompt =
     mode === 'refine'
       ? `You are a professional estimator. Update the existing estimate to reflect the user's refinement instruction. Modify, add, or remove sections/items as needed to reflect the request; keep everything else unchanged. Use ${currencyCode} for all numeric prices and return monetary values as plain numbers only, without currency symbols or formatted strings. Preserve the price_source tagging: use "price_book" for items from the price book and "ai_estimate" for items estimated from market rates.`
-      : `You are a professional estimator for a ${input.industry ?? 'general services'} business. Create a detailed, itemized estimate based on the job site information provided. Be thorough but realistic with pricing for the US market. Break the work into logical sections (e.g., Materials, Labor, Equipment). Each line item needs a clear description, quantity, unit (e.g., sq ft, hours, each, linear ft), and unit price.
+      : `You are a professional estimator. The company primarily works in ${input.industry ?? 'general services'}, but ALWAYS estimate the work that is actually requested — if the request belongs to a different trade, price it faithfully for that trade at realistic US market rates. Create a detailed, itemized estimate based on the job site information provided. Be thorough but realistic with pricing for the US market. Break the work into logical sections (e.g., Materials, Labor, Equipment). Each line item needs a clear description, quantity, unit (e.g., sq ft, hours, each, linear ft), and unit price.
 
 Use ${currencyCode} for all numeric prices. Return monetary values as plain numbers only, without currency symbols or formatted strings.
 
-Also generate a short, professional project name in 2-5 words derived from the work scope and the client name. Examples: "Smith Bathroom Remodel", "Garcia Driveway Repaving". Return it as suggested_project_name.`
+Also generate a short, professional project name in 2-5 words derived from the work scope and the client name. Examples: "Smith Bathroom Remodel", "Garcia Driveway Repaving". Return it as suggested_project_name. Also return detected_trade: the trade/category of the requested work itself (e.g. cleaning, electrical, plumbing, landscaping), inferred from the request content — independent of the company's primary trade.`
 
   // Phase 52 (SEED-016): language instruction
   const language: 'en' | 'pt' | 'es' = input.language ?? 'en'

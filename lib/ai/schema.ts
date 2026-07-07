@@ -56,6 +56,10 @@ export const estimateOutputSchema = z.object({
     .optional()
     .nullable()
     .transform((v) => (typeof v === 'string' && v.trim().length > 0 ? v.trim() : null)),
+  // QUICK-mv1-01 — the trade/category of the REQUESTED work, inferred by the AI
+  // independent of company.industry (a soft prior — see prompt-builder.ts). Optional
+  // so legacy/cached outputs (generated before this field existed) still parse.
+  detected_trade: z.string().optional(),
   summary: z.string(),
   notes: z.string().optional(),
   timeline: z.string().optional(),

@@ -26,11 +26,15 @@ export class AnthropicAdapter implements AIProvider {
           description: 'Create a structured estimate with sections and line items',
           input_schema: {
             type: 'object' as const,
-            required: ['summary', 'sections', 'suggested_project_name'],
+            required: ['summary', 'sections', 'suggested_project_name', 'detected_trade'],
             properties: {
               suggested_project_name: {
                 type: 'string',
                 description: 'A short, professional project name in 2-5 words derived from the work scope and client. Examples: "Smith Bathroom Remodel", "Garcia Driveway Repaving", "Patel Kitchen Reno". Avoid generic words like "Project" or "Estimate".',
+              },
+              detected_trade: {
+                type: 'string',
+                description: "The trade/category of the REQUESTED work itself (e.g. cleaning, electrical, plumbing, landscaping), inferred from the request content — independent of the company's configured industry.",
               },
               suggested_client_name: {
                 type: 'string',
@@ -139,11 +143,15 @@ export class AnthropicAdapter implements AIProvider {
           description: 'Create a structured estimate with sections and line items',
           input_schema: {
             type: 'object' as const,
-            required: ['summary', 'sections', 'suggested_project_name'],
+            required: ['summary', 'sections', 'suggested_project_name', 'detected_trade'],
             properties: {
               suggested_project_name: {
                 type: 'string',
                 description: 'A short, professional project name in 2-5 words. Return the same name unless the instruction changes it.',
+              },
+              detected_trade: {
+                type: 'string',
+                description: 'The trade/category of the work. Return the same value unless the instruction changes the trade of the requested work.',
               },
               suggested_client_name: {
                 type: 'string',

@@ -102,9 +102,14 @@ export class GeminiAdapter implements AIProvider {
       description: 'Create a structured estimate with sections and line items',
       parameters: {
         type: Type.OBJECT,
-        required: ['summary', 'sections', 'suggested_project_name'],
+        required: ['summary', 'sections', 'suggested_project_name', 'detected_trade'],
         properties: {
           suggested_project_name: { type: Type.STRING, description: 'Short professional project name 2-5 words.' },
+          detected_trade: {
+            type: Type.STRING,
+            description:
+              "The trade/category of the REQUESTED work itself (e.g. cleaning, electrical, plumbing, landscaping), inferred from the request content — independent of the company's configured industry.",
+          },
           suggested_client_name: {
             type: Type.STRING,
             description: 'The customer/homeowner/business name explicitly mentioned in the transcript, description, or photo analysis. Return an empty string or omit when no clear client name is present. Do not infer from generic project titles or addresses.',
@@ -219,9 +224,13 @@ export class GeminiAdapter implements AIProvider {
       description: 'Create a structured estimate with sections and line items',
       parameters: {
         type: Type.OBJECT,
-        required: ['summary', 'sections', 'suggested_project_name'],
+        required: ['summary', 'sections', 'suggested_project_name', 'detected_trade'],
         properties: {
           suggested_project_name: { type: Type.STRING, description: 'Short professional project name. Return the same name unless the instruction changes it.' },
+          detected_trade: {
+            type: Type.STRING,
+            description: 'The trade/category of the work. Return the same value unless the instruction changes the trade of the requested work.',
+          },
           suggested_client_name: { type: Type.STRING, description: 'The customer name. Return the same value unless the instruction changes it.' },
           summary: { type: Type.STRING, description: 'Brief summary of work scope' },
           notes: { type: Type.STRING },
