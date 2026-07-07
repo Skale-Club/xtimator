@@ -32,7 +32,11 @@ describe('App Router icon contract (Phase 13)', () => {
   it('ships all canonical icon assets under app/', () => {
     expect(existsSync(resolve(appDir, 'icon.svg'))).toBe(true)
     expect(existsSync(resolve(appDir, 'icon.png'))).toBe(true)
-    expect(existsSync(resolve(appDir, 'apple-icon.png'))).toBe(true)
+    // apple-icon is a DYNAMIC route (app/apple-icon.tsx): it composites the
+    // branding logo centered over a solid background so iOS never squircle-crops
+    // the glyph. A static apple-icon.png must NOT coexist with it.
+    expect(existsSync(resolve(appDir, 'apple-icon.tsx'))).toBe(true)
+    expect(existsSync(resolve(appDir, 'apple-icon.png'))).toBe(false)
     expect(existsSync(resolve(appDir, 'manifest.ts'))).toBe(true)
     // Regression guard: app/favicon.ico must NOT exist. As a Next.js file convention
     // it always emits a high-priority <link rel="icon" type="image/x-icon"> that wins

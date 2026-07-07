@@ -47,13 +47,15 @@ export async function generateMetadata(): Promise<Metadata> {
       template: `%s | ${title}`,
     },
     ...(facebookAppId ? { other: { 'fb:app_id': facebookAppId } } : {}),
-    // When custom branding exists: use org's favicon/logo.
-    // Otherwise: omit icons so Next.js auto-serves app/icon.svg (branded, color-scheme aware)
-    // and app/apple-icon.png — no need to override with a PNG fallback.
+    // When custom branding exists: use org's favicon/logo for the browser tab.
+    // Otherwise: omit so Next.js auto-serves app/icon.svg (branded, color-scheme aware).
+    // NEVER override `apple` here: a raw logo (transparent, full-bleed) gets a
+    // black background and squircle-cropped edges on the iOS home screen.
+    // app/apple-icon.tsx generates a padded, solid-background icon instead and
+    // Next.js links it automatically.
     icons: b.faviconUrl || b.logoUrl
       ? {
           icon: [{ url: b.faviconUrl ?? b.logoUrl!, type: 'image/png' }],
-          apple: [{ url: b.faviconUrl ?? b.logoUrl!, type: 'image/png' }],
         }
       : undefined,
   }
