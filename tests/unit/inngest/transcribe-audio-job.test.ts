@@ -8,9 +8,16 @@ import { transcribeAudioJob } from '@/lib/inngest/functions/transcribe-audio'
  *
  * Plan 67-02 delivers lib/inngest/functions/transcribe-audio.ts. Contract:
  *   - createFunction id = 'transcribe-audio'
- *   - idempotency CEL = 'event.data.recordingId' (recording UUID is naturally unique)
  *   - Whisper fetch is wrapped in step.run('whisper-transcribe', ...)
  *   - DB update is wrapped in step.run('save-transcript', ...)
+ *
+ * 260707-lyq (P4) UPDATE: the function-level `idempotency: 'event.data.recordingId'`
+ * config was REMOVED — it absorbed genuine user Retries for 24h, making the
+ * capture popup's Retry button a universal no-op (260707-lyq audit). Dedup for
+ * the FIRST dispatch now relies solely on the deterministic event id minted at
+ * the dispatch site (`transcribe-${recordingId}`, lib/actions/recording.ts); a
+ * real Retry changes that id via a `-r${dispatchNonce}` suffix, so Inngest
+ * treats it as a genuinely new run instead of silently deduping it away.
  */
 
 type FnInternals = {
@@ -22,10 +29,10 @@ type FnInternals = {
 }
 
 describe('INNGEST-03 + INNGEST-06: transcribeAudioJob', () => {
-  it('is created with id "transcribe-audio" and idempotency: "event.data.recordingId"', () => {
+  it('is created with id "transcribe-audio", retries: 2, and NO function-level idempotency (260707-lyq)', () => {
     const fn = transcribeAudioJob as unknown as FnInternals
     expect(fn.opts.id).toBe('transcribe-audio')
-    expect(fn.opts.idempotency).toBe('event.data.recordingId')
+    expect(fn.opts.idempotency).toBeUndefined()
     expect(fn.opts.retries).toBe(2)
   })
 
@@ -59,17 +66,16 @@ describe('INNGEST-03 + INNGEST-06: transcribeAudioJob', () => {
     expect(stepRunCount).toBeGreaterThanOrEqual(2)
   })
 
-  // REC-04 dedup contract: the recordingId-keyed idempotency config co-exists
-  // with the memoized whisper step. On a user Retry the dispatch reuses the same
-  // recordingId, so the event id `transcribe-${recordingId}` is stable, Inngest
-  // dedups the re-dispatch, and the already-successful whisper-transcribe step is
-  // NOT re-charged. (Inngest owns dedup; asserting the config + step boundary is
-  // the testable seam.)
-  it('keys idempotency on recordingId so a re-dispatch with the same recordingId is deduped and the whisper step is memoized', () => {
+  // 260707-lyq (P4) dedup contract (supersedes the old REC-04 idempotency-config
+  // contract): the recordingId-keyed function idempotency is GONE. Dedup for the
+  // original dispatch now lives entirely in the deterministic event id minted at
+  // the dispatch site; a genuine Retry bumps `dispatchNonce`, which changes the
+  // event id and lets the run actually execute. The memoized whisper step still
+  // protects a same-run retry (Inngest's own step-replay semantics) from
+  // re-charging Whisper mid-run.
+  it('has no function-level idempotency (removed so a nonce\'d retry can run) and still memoizes the whisper step per-run', () => {
     const fn = transcribeAudioJob as unknown as FnInternals
-    // recordingId is the stable idempotency key — a Retry that reuses the same
-    // recordingId yields the same dedup key (no re-charge of a successful run).
-    expect(fn.opts.idempotency).toBe('event.data.recordingId')
+    expect(fn.opts.idempotency).toBeUndefined()
 
     const src = readFileSync(
       resolve(process.cwd(), 'lib/inngest/functions/transcribe-audio.ts'),

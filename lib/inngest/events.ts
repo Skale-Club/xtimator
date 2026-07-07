@@ -85,6 +85,15 @@ export type TranscribeAudioPayload = {
   requestId?: string
   /** Estimate language forwarded to the generate-estimate event. */
   estimateLanguage?: 'en' | 'pt' | 'es'
+  /**
+   * 260707-lyq (P4): retry ordinal. transcribeRecording folds this into the
+   * dispatched event id (`transcribe-${recordingId}-r${dispatchNonce}`) so a
+   * genuine user Retry mints a NEW Inngest event id instead of colliding with
+   * the original dispatch's id — the function-level `idempotency` config was
+   * also removed (see transcribe-audio.ts) so the new run actually executes
+   * instead of being absorbed by Inngest's 24h event-id dedup window.
+   */
+  dispatchNonce?: number
 }
 
 export type AnalyzePhotosPayload = {

@@ -9,9 +9,11 @@
  *
  * DELIBERATE NON-GOAL: this watchdog does NOT auto-redispatch a stuck attempt.
  * Re-dispatch risks double-charging the tenant and pollutes the attempt's
- * event timeline with a second in-flight run. Instead, the owner gets a
- * Telegram alert and the app already has a manual retry-transcription button
- * (260521-jx9).
+ * event timeline with a second in-flight run. Instead, recovery is manual:
+ * the capture popup's Retry (a genuine re-run via dispatchNonce as of
+ * 260707-lyq — the standalone manual retry-transcription button from
+ * 260521-jx9 was deleted in commit 4727359f) plus the Telegram alert this
+ * sweep sends to ops.
  */
 import { inngest } from '@/lib/inngest/client'
 import { requireServiceClient } from '@/lib/supabase/service'

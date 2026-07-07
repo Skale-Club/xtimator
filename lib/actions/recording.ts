@@ -10,6 +10,13 @@ import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { recordPipelineEvent } from '@/lib/observability/pipeline-events'
 import { assertWritable } from '@/lib/demo/guard'
 import { recordJobOwnership } from '@/lib/inngest/job-ownership'
+import { checkCredits } from '@/lib/billing/credit-ledger'
+
+// 260707-lyq (P4): Billing v2 credit gate shared by every server-owned dispatch
+// path in this module (startRecordingPipeline, createTextRecording's optional
+// chain). Same copy everywhere so the UI can string-match it if ever needed.
+const INSUFFICIENT_CREDITS_MESSAGE =
+  'You are out of credits — top up in Settings → Billing to keep generating estimates.'
 
 async function getAuthContext() {
   const supabase = await createClient()
@@ -119,6 +126,34 @@ export async function createTextRecording(
   // the client gap between saving a typed description and dispatching generation.
   // Lazy-imported + try/caught in the same style as transcribeRecording's dispatch.
   if (options?.autoGenerateEstimate) {
+    // 260707-lyq (P4): Billing v2 credit gate — insufficient credits BLOCK the
+    // generate-estimate dispatch (plain saves stay free: this whole branch only
+    // runs when autoGenerateEstimate was requested). Wrapped so a checkCredits
+    // read failure fails OPEN (never wrongly blocks generation on an
+    // infrastructure hiccup) — mirrors the never-throw discipline the rest of
+    // lib/billing/credit-ledger.ts already follows internally (isByokCompany).
+    let creditsAllowed = true
+    try {
+      const credit = await checkCredits(supabase, company.id, 1)
+      creditsAllowed = credit.allowed
+    } catch (err) {
+      console.warn('[createTextRecording] checkCredits failed — failing open:', err)
+    }
+    if (!creditsAllowed) {
+      void recordPipelineEvent({
+        attemptId: eventAttemptId,
+        inputType: 'manual_text',
+        step: 'save_recording',
+        status: 'failed',
+        companyId: company.id,
+        projectId,
+        errorCode: 'insufficient_credits',
+        errorMessage: 'Insufficient credits',
+        provider: null,
+      })
+      return { error: INSUFFICIENT_CREDITS_MESSAGE }
+    }
+
     const { inngest } = await import('@/lib/inngest/client')
     const { EVENT_ESTIMATE_GENERATE } = await import('@/lib/inngest/events')
     const reqId = options.requestId ?? randomUUID()
@@ -322,6 +357,13 @@ export async function transcribeRecording(
     autoGenerateEstimate?: boolean
     requestId?: string
     estimateLanguage?: 'en' | 'pt' | 'es'
+    /**
+     * 260707-lyq (P4): retry ordinal. When set (Retry), folded into the
+     * dispatched event id as `-r${dispatchNonce}` so the re-dispatch gets a
+     * genuinely NEW Inngest event id instead of colliding with the original
+     * dispatch's `transcribe-${recordingId}` id.
+     */
+    dispatchNonce?: number
   }
 ) {
   // 260707-grq: no attemptId fallback previously existed here — mint one so
@@ -392,14 +434,20 @@ export async function transcribeRecording(
   // server-action 500 that the client's runPipeline does NOT catch — the UI
   // hung on 'transcribing' forever. Now degrades to a friendly retryable error.
   try {
+    // 260707-lyq (P4): nonce'd event id — 0/undefined keeps the legacy
+    // `transcribe-${recordingId}` format (existing dedup behavior for the
+    // FIRST dispatch); a real Retry passes a nonce so the id changes and
+    // Inngest treats it as a genuinely new event instead of a duplicate.
+    const eventId = `transcribe-${recordingId}${options?.dispatchNonce ? `-r${options.dispatchNonce}` : ''}`
     const { ids } = await inngest.send({
       name: EVENT_TRANSCRIBE_AUDIO,
-      id: `transcribe-${recordingId}`,
+      id: eventId,
       data: {
         companyId: recording.company_id as string,
         recordingId,
         storagePath: recording.storage_path as string,
         attemptId,
+        ...(options?.dispatchNonce !== undefined && { dispatchNonce: options.dispatchNonce }),
         ...(options?.autoGenerateEstimate && {
           autoGenerateEstimate: true,
           requestId: options.requestId,
@@ -432,9 +480,11 @@ export async function transcribeRecording(
  * 260707-hhp (P1): single client→server round trip after audio upload. Creates the
  * recording row AND dispatches the transcribe→generate chain in one call, so the
  * browser can die immediately afterwards without orphaning the generation.
- * Retry path: pass `recordingId` to skip creation and re-dispatch only (the
- * transcribe event id `transcribe-${recordingId}` is idempotent — a duplicate
- * dispatch is deduped by Inngest).
+ * Retry path: pass `recordingId` to skip creation and re-dispatch only. As of
+ * 260707-lyq (P4), pass `dispatchNonce` too so the re-dispatch is a GENUINE new
+ * run — the transcribe event id folds in `-r${dispatchNonce}` and the
+ * function-level idempotency config was removed (see transcribe-audio.ts), so a
+ * bare re-dispatch of the same `recordingId` no longer silently no-ops.
  */
 export async function startRecordingPipeline(input: {
   projectId: string
@@ -444,7 +494,46 @@ export async function startRecordingPipeline(input: {
   attemptId: string
   requestId: string
   estimateLanguage?: 'en' | 'pt' | 'es'
+  dispatchNonce?: number     // Retry: bump so the re-dispatch gets a new event id
 }): Promise<{ data: { recordingId: string; transcribeJobId: string } } | { error: string }> {
+  // 260707-lyq (P4): Billing v2 credit gate — insufficient credits BLOCK this
+  // entire server-owned dispatch path, before a recording is created OR a
+  // transcription is (re-)dispatched. Mirrors app/api/analyze-photos/route.ts's
+  // checkCredits(supabase, companyId, 1) call exactly (same client type, args,
+  // and insufficient-result shape).
+  const ctx = await getAuthContext()
+  // Reconstructed (not forwarded as-is): same TS quirk noted below at
+  // createRecording's error-widening call site — getAuthContext's inferred
+  // return type widens `error` to `string | undefined` once narrowed here
+  // against this function's explicit `{ error: string }` return annotation.
+  // The nullish fallback is unreachable at runtime (every branch always
+  // assigns a real message).
+  if ('error' in ctx) return { error: ctx.error ?? 'Not authenticated' }
+  const { supabase, company } = ctx
+
+  let creditsAllowed = true
+  try {
+    const credit = await checkCredits(supabase, company.id, 1)
+    creditsAllowed = credit.allowed
+  } catch (err) {
+    // Fail OPEN — a metering-read failure must never wrongly block generation.
+    console.warn('[startRecordingPipeline] checkCredits failed — failing open:', err)
+  }
+  if (!creditsAllowed) {
+    void recordPipelineEvent({
+      attemptId: input.attemptId,
+      inputType: 'recording',
+      step: 'save_recording',
+      status: 'failed',
+      companyId: company.id,
+      projectId: input.projectId,
+      errorCode: 'insufficient_credits',
+      errorMessage: 'Insufficient credits',
+      provider: null,
+    })
+    return { error: INSUFFICIENT_CREDITS_MESSAGE }
+  }
+
   let recordingId = input.recordingId
 
   if (!recordingId) {
@@ -472,6 +561,7 @@ export async function startRecordingPipeline(input: {
     autoGenerateEstimate: true,
     requestId: input.requestId,
     estimateLanguage: input.estimateLanguage,
+    dispatchNonce: input.dispatchNonce,
   })
   if ('error' in dispatched) {
     return { error: dispatched.error ?? 'Transcription service is temporarily unavailable — your recording is saved. Please retry.' }

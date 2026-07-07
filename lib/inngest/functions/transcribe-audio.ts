@@ -4,7 +4,12 @@
  *
  * Implements:
  *   - INNGEST-03 (Whisper moves out of synchronous server action)
- *   - INNGEST-06 (idempotent via event.data.recordingId — recording UUID is naturally unique)
+ *   - INNGEST-06 (idempotent dispatch via a deterministic event id minted at
+ *     every call site — `transcribe-${recordingId}`, or `-r${dispatchNonce}`
+ *     suffixed on a genuine Retry. The function-level `idempotency` config
+ *     that used to key on `event.data.recordingId` was REMOVED in 260707-lyq:
+ *     it additionally absorbed genuine user Retries for 24h — see the comment
+ *     on the createFunction config below.)
  */
 import { randomUUID } from 'node:crypto'
 import { inngest } from '@/lib/inngest/client'
@@ -16,7 +21,7 @@ import { buildNotificationCopy } from '@/lib/notifications/copy'
 import { recordPipelineEvent } from '@/lib/observability/pipeline-events'
 import { notifyOps } from '@/lib/observability/ops-alert'
 import { recordAICost } from '@/lib/billing/record-ai-cost'
-import { recordCreditDebit } from '@/lib/billing/credit-ledger'
+import { recordCreditDebit, checkCredits } from '@/lib/billing/credit-ledger'
 import { computeWhisperCostUsd } from '@/lib/billing/whisper-cost'
 import {
   EVENT_TRANSCRIBE_AUDIO,
@@ -62,7 +67,12 @@ async function loadCompanyForRecording(recordingId: string): Promise<{
 export const transcribeAudioJob = inngest.createFunction(
   {
     id: 'transcribe-audio',
-    idempotency: 'event.data.recordingId',
+    // 260707-lyq (P4): the function-level `idempotency` config (previously
+    // keyed on the recordingId event field) has been REMOVED. Event-id dedup
+    // (deterministic ids at every dispatch site) already guarantees
+    // at-most-once per dispatch intent; function-level idempotency
+    // additionally absorbed genuine Retries for 24h (260707-lyq audit) —
+    // removed so a nonce'd retry can actually run.
     retries: 2,
     triggers: [{ event: EVENT_TRANSCRIBE_AUDIO }],
     // Phase 77 NOTIF-04: ai_job.failed on retry exhaustion.
@@ -172,6 +182,28 @@ export const transcribeAudioJob = inngest.createFunction(
     // uploading the recording. ident.projectId is already loaded above.
     if (data.autoGenerateEstimate && ident.projectId) {
       await step.run('dispatch-generate-estimate', async () => {
+        // 260707-lyq (P4): Billing v2 credit gate — insufficient credits BLOCK
+        // this chained dispatch (transcription itself already succeeded and
+        // stays; only the generate-estimate hop is skipped). Uses the service
+        // client (this is a background job, no request-scoped client exists) —
+        // checkCredits' plain `companies` select works unchanged against it.
+        const svc = requireServiceClient()
+        const credit = await checkCredits(svc, data.companyId, 1)
+        if (!credit.allowed) {
+          void recordPipelineEvent({
+            attemptId,
+            inputType,
+            step: 'generate_estimate',
+            status: 'failed',
+            companyId: data.companyId,
+            projectId: ident.projectId,
+            errorCode: 'insufficient_credits',
+            errorMessage: 'Insufficient credits',
+            provider: null,
+          })
+          return
+        }
+
         const reqId = data.requestId ?? randomUUID()
         await inngest.send({
           name: EVENT_ESTIMATE_GENERATE,
