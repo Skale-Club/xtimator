@@ -69,6 +69,11 @@ const POLL_MS = 1500
  * prevents an infinite spinner when a job silently never starts (e.g. an
  * Inngest sync outage). */
 const MAX_POLL_DURATION_MS = 5 * 60 * 1000
+/** Inngest creates the run AFTER accepting the event — production evidence
+ * (260707-kgn): event accepted, client polled at t+1s → not_found, run created
+ * at t+3s, job then succeeded. Within this window a not_found body means
+ * "not yet", not "gone" — keep polling. Past it, not_found is terminal. */
+const NOT_FOUND_GRACE_MS = 20_000
 /** Consecutive fetch/parse failures tolerated before giving up entirely. */
 const MAX_CONSECUTIVE_POLL_ERRORS = 6
 const NETWORK_RETRY_BASE_MS = 1000
@@ -136,6 +141,11 @@ export async function pollJob(jobId: string, signal: AbortSignal): Promise<JobRe
       await new Promise((resolve) => setTimeout(resolve, POLL_MS))
       continue
     }
+    if (body.state === 'not_found' && Date.now() - startedAt < NOT_FOUND_GRACE_MS) {
+      // Inngest hasn't created the run yet — not gone, just not yet visible.
+      await new Promise((resolve) => setTimeout(resolve, POLL_MS))
+      continue
+    }
     return toJobResult(body)
   }
   throw new Error('Aborted')
@@ -178,6 +188,12 @@ export function useJobStatus(jobId: string | null): UseJobStatusState {
           consecutiveErrors = 0
 
           if (body.state === 'processing') {
+            setState({ state: 'processing', output: null, reason: null })
+            await new Promise((r) => setTimeout(r, POLL_MS))
+            continue
+          }
+          if (body.state === 'not_found' && Date.now() - startedAt < NOT_FOUND_GRACE_MS) {
+            // Inngest hasn't created the run yet — not gone, just not yet visible.
             setState({ state: 'processing', output: null, reason: null })
             await new Promise((r) => setTimeout(r, POLL_MS))
             continue
