@@ -58,6 +58,10 @@ interface JournalRowFixture {
   error_message: string | null
   estimate_id: string | null
   company_id: string | null
+  // QUICK-psh-02: needed by the needs_details enrichment (fetches
+  // projects.needs_details by project_id). Optional — omitted fixtures
+  // exercise the "no projectId available" early-return path.
+  project_id?: string | null
 }
 
 function makeAuthedSupabase() {
@@ -68,12 +72,16 @@ function makeAuthedSupabase() {
   }
 }
 
-/** service-role client stub for the pipeline_events + estimates table-switch. */
+/** service-role client stub for the pipeline_events + estimates + projects table-switch. */
 function makeServiceClientMock(opts: {
   rows: JournalRowFixture[]
   estimateExists?: boolean
+  // QUICK-psh-02: projects.needs_details row content for the enrichment read.
+  // `undefined` (default) means "not asserted" (the projects branch still
+  // resolves { data: null } so an unrelated test path never throws).
+  projectNeedsDetails?: { reason: string; questions: string[]; attempt_id: string; created_at: string } | null
 }) {
-  const { rows, estimateExists = false } = opts
+  const { rows, estimateExists = false, projectNeedsDetails = null } = opts
   return {
     from: vi.fn().mockImplementation((table: string) => {
       if (table === 'pipeline_events') {
@@ -93,6 +101,17 @@ function makeServiceClientMock(opts: {
                 maybeSingle: vi.fn().mockResolvedValue({
                   data: estimateExists ? { id: 'existing-estimate' } : null,
                 }),
+              }),
+            }),
+          }),
+        }
+      }
+      if (table === 'projects') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({
+                data: { needs_details: projectNeedsDetails },
               }),
             }),
           }),
@@ -158,6 +177,89 @@ describe('getAttemptOutcome — journal rule precedence (260707-lyq)', () => {
     )
 
     const result = await getAttemptOutcome('attempt-8a0c13e8')
+
+    expect(result).toEqual({ state: 'needs_details' })
+  })
+
+  it('needs_details enrichment (QUICK-psh-02): matching attempt_id → reason + questions included', async () => {
+    mockRequireServiceClient.mockReturnValue(
+      makeServiceClientMock({
+        rows: [
+          {
+            step: 'generate_estimate',
+            status: 'succeeded',
+            error_code: null,
+            error_message: null,
+            estimate_id: null,
+            company_id: 'company-1',
+            project_id: 'project-1',
+          },
+        ],
+        projectNeedsDetails: {
+          reason: 'missing_specifics',
+          questions: ['How many square feet?', 'What material?'],
+          attempt_id: 'attempt-match',
+          created_at: '2026-07-07T00:00:00Z',
+        },
+      }) as never
+    )
+
+    const result = await getAttemptOutcome('attempt-match')
+
+    expect(result).toEqual({
+      state: 'needs_details',
+      reason: 'missing_specifics',
+      questions: ['How many square feet?', 'What material?'],
+    })
+  })
+
+  it('needs_details enrichment (QUICK-psh-02): stale attempt_id (belongs to a prior attempt) → bare needs_details', async () => {
+    mockRequireServiceClient.mockReturnValue(
+      makeServiceClientMock({
+        rows: [
+          {
+            step: 'generate_estimate',
+            status: 'succeeded',
+            error_code: null,
+            error_message: null,
+            estimate_id: null,
+            company_id: 'company-1',
+            project_id: 'project-1',
+          },
+        ],
+        projectNeedsDetails: {
+          reason: 'too_short',
+          questions: ['stale question'],
+          attempt_id: 'attempt-OLD',
+          created_at: '2026-07-01T00:00:00Z',
+        },
+      }) as never
+    )
+
+    const result = await getAttemptOutcome('attempt-new')
+
+    expect(result).toEqual({ state: 'needs_details' })
+  })
+
+  it('needs_details enrichment (QUICK-psh-02): absent needs_details column data → bare needs_details (tolerated)', async () => {
+    mockRequireServiceClient.mockReturnValue(
+      makeServiceClientMock({
+        rows: [
+          {
+            step: 'generate_estimate',
+            status: 'succeeded',
+            error_code: null,
+            error_message: null,
+            estimate_id: null,
+            company_id: 'company-1',
+            project_id: 'project-1',
+          },
+        ],
+        projectNeedsDetails: null,
+      }) as never
+    )
+
+    const result = await getAttemptOutcome('attempt-noenrich')
 
     expect(result).toEqual({ state: 'needs_details' })
   })
