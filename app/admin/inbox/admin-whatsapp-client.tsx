@@ -103,10 +103,6 @@ export function AdminWhatsAppClient({
                   const isSelected = row.id === selectedId
                   const isUnread = row.unread_count > 0
                   const avatarColor = getAvatarColor(row.contact_name || row.contact_phone)
-                  const accentClass =
-                    isSelected || isUnread
-                      ? "before:bg-[image:var(--gradient-brand)]"
-                      : "before:bg-transparent"
                   return (
                     <div
                       key={row.id}
@@ -119,36 +115,33 @@ export function AdminWhatsAppClient({
                           selectConversation(row)
                         }
                       }}
-                      className={`relative flex items-center gap-3 px-3 py-3 pl-4 cursor-pointer transition-colors before:content-[''] before:absolute before:inset-y-0 before:left-0 before:w-[3px] before:rounded-l-sm ${accentClass} ${
+                      className={`relative flex items-center gap-3 px-4 py-3.5 cursor-pointer transition-all border-b border-border/40 last:border-0 ${
                         isSelected
-                          ? 'bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)]'
+                          ? 'bg-primary/5 before:absolute before:inset-y-0 before:left-0 before:w-1 before:bg-[hsl(var(--primary))]'
                           : 'hover:bg-[var(--glass-bg-light)]'
                       }`}
                     >
-                      <Avatar>
-                        <AvatarFallback className={`${avatarColor.bg} ${avatarColor.text} font-semibold`}>
+                      <Avatar className="h-10 w-10 shrink-0 shadow-sm border border-border/50">
+                        <AvatarFallback className={`${avatarColor.bg} ${avatarColor.text} font-semibold text-sm`}>
                           {getInitials(row.contact_name)}
                         </AvatarFallback>
                       </Avatar>
-                      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                      <div className="flex min-w-0 flex-1 flex-col gap-1">
                         <div className="flex items-center justify-between gap-2">
-                          <span className="text-sm font-semibold truncate">
+                          <span className={`text-sm truncate ${isSelected || isUnread ? 'font-semibold text-foreground' : 'font-medium text-foreground/90'}`}>
                             {row.contact_name || <T>(unknown)</T>}
                           </span>
-                          <span className="flex items-center gap-1.5 text-xs text-muted-foreground whitespace-nowrap">
-                            {isUnread && (
-                              <span className="h-2 w-2 rounded-full bg-[hsl(var(--primary))]" aria-hidden="true" />
-                            )}
-                            {ts ? new Date(ts).toLocaleString() : '—'}
+                          <span className={`text-[11px] whitespace-nowrap ${isUnread ? 'text-[hsl(var(--primary))] font-medium' : 'text-muted-foreground'}`}>
+                            {ts ? new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
                           </span>
                         </div>
                         <div className="flex items-center justify-between gap-2">
-                          <span className="text-xs text-muted-foreground truncate">
+                          <span className={`text-xs truncate ${isUnread ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
                             {row.last_message_preview ?? '—'}
                           </span>
-                          {isUnread && <Badge variant="outline">{row.unread_count}</Badge>}
+                          {isUnread && <Badge className="h-5 min-w-[20px] px-1.5 flex items-center justify-center text-[10px] rounded-full bg-[hsl(var(--primary))] text-primary-foreground border-none">{row.unread_count}</Badge>}
                         </div>
-                        <span className="text-xs text-muted-foreground truncate">
+                        <span className="text-[10px] uppercase tracking-wider text-muted-foreground/80 truncate font-semibold">
                           {row.company_name || <T>(unknown company)</T>}
                         </span>
                       </div>
@@ -172,7 +165,7 @@ export function AdminWhatsAppClient({
               </div>
             ) : (
               <>
-                <div className="border-b border-[var(--glass-border)] bg-[var(--glass-bg-light)] px-4 py-3">
+                <div className="border-b border-border/40 bg-[var(--glass-bg-light)] px-5 py-4 shadow-sm z-10">
                   <button
                     type="button"
                     onClick={clearSelection}
@@ -190,20 +183,20 @@ export function AdminWhatsAppClient({
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex min-w-0 flex-col">
-                      <p className="text-sm font-semibold truncate">
+                      <p className="text-base font-semibold truncate tracking-tight text-foreground/95">
                         {thread?.conversation.contact_name?.trim() || thread?.conversation.contact_phone}
                       </p>
-                      <p className="text-xs text-muted-foreground truncate">
+                      <p className="text-xs font-medium text-muted-foreground truncate">
                         {thread?.conversation.contact_phone}
                         {companyLabel ? ` · ${companyLabel}` : ''}
                       </p>
                     </div>
                   </div>
                 </div>
-                <div className="flex-1 overflow-y-auto px-4 py-4 space-y-2 bg-[var(--glass-bg-light)]">
+                <div className="flex-1 overflow-y-auto px-6 py-6 space-y-3 bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] dark:bg-[radial-gradient(#262626_1px,transparent_1px)] [background-size:16px_16px] bg-[var(--glass-bg-light)]">
                   {loading ? (
                     <div className="flex justify-center py-8">
-                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground/50" />
                     </div>
                   ) : (thread?.messages.length ?? 0) === 0 ? (
                     <p className="py-8 text-center text-sm text-muted-foreground">

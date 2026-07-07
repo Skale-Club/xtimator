@@ -59,38 +59,36 @@ export default async function AdminInboxPage({
     filters.companyId || filters.senderId || filters.q || filters.status || filters.unreadOnly || filters.dateFrom || filters.dateTo
 
   return (
-    <div className="flex h-full min-h-0 flex-col space-y-8">
+    <div className="flex h-full min-h-0 flex-col space-y-4">
       {/* Page header */}
-      <div className="flex items-start justify-between gap-4">
-        <div className="space-y-2">
-          <h1 className="text-[clamp(28px,3.5vw,40px)] font-semibold tracking-tight">
-            <T>Inbox</T>
-          </h1>
-          <p className="text-muted-foreground">
-            <T>
-              Platform-managed conversations across every connected channel. Read-only conversation inspection.
-            </T>
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-semibold tracking-tight">
+              <T>Inbox</T>
+            </h1>
+            <span className="text-xs text-muted-foreground bg-muted/50 px-2 py-0.5 rounded-full">
+              {convResult.total === 0 && !hasActiveFilters ? (
+                <T>No conversations</T>
+              ) : (
+                <T text={`${convResult.total} convos`} />
+              )}
+            </span>
+          </div>
+          <p className="text-sm text-muted-foreground hidden sm:block">
+            <T>Platform-managed conversations. Read-only inspection.</T>
           </p>
         </div>
         <Link
           href="/admin/inbox/settings"
-          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground shrink-0 mt-1"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors shrink-0 bg-secondary/30 hover:bg-secondary/60 px-3 py-1.5 rounded-md"
         >
           <Settings2 size={16} /> <T>Settings</T>
         </Link>
       </div>
 
-      {/* Conversations count */}
-      <p className="text-xs text-muted-foreground">
-        {convResult.total === 0 && !hasActiveFilters ? (
-          <T>No WhatsApp conversations yet.</T>
-        ) : (
-          <T text={`${convResult.total} conversations · Page ${convResult.page} of ${convResult.pageCount}`} />
-        )}
-      </p>
-
       {/* Two-pane master-detail viewer */}
-      <div className="flex-1 min-h-0 overflow-hidden">
+      <div className="flex-1 min-h-0 overflow-hidden rounded-xl border border-border shadow-sm">
         <AdminWhatsAppClient
           conversations={rows}
           initialConversationId={initialConversationId}

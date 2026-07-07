@@ -121,15 +121,15 @@ export function MessageBubble({ m }: { m: WaMessageRow }) {
     )
 
   return (
-    <div className={cn('flex', outbound ? 'justify-end' : 'justify-start')}>
+    <div className={cn('flex w-full', outbound ? 'justify-end' : 'justify-start')}>
       <div
         className={cn(
-          'max-w-[75%] rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap break-words',
+          'max-w-[85%] rounded-2xl px-4 py-2.5 text-[15px] leading-relaxed whitespace-pre-wrap break-words shadow-sm',
           outbound
             ? failed
-              ? 'bg-destructive/10 text-foreground border border-destructive/40'
-              : 'bg-[image:var(--gradient-brand)] text-white'
-            : 'bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] text-foreground border border-[var(--glass-border)]',
+              ? 'bg-destructive/10 text-foreground border border-destructive/40 rounded-br-sm'
+              : 'bg-[hsl(var(--primary))] text-primary-foreground rounded-br-sm'
+            : 'bg-background/95 backdrop-blur-md text-foreground border border-border/50 rounded-bl-sm',
         )}
       >
         {content}
