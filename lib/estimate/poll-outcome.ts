@@ -44,6 +44,19 @@ export type EstimateOutcome =
   | { state: 'timeout' }
 
 /**
+ * 260707-o7a: journal-derived progress payload forwarded on every `pending`
+ * tick — drives the REAL progress bar (lib/estimate/progress-model.ts).
+ */
+export interface StageProgress {
+  /** Step of the last journal row (started OR succeeded), null before any row. */
+  lastStep: string | null
+  /** Steps with a `succeeded` event, in journal order. */
+  completedSteps: string[]
+  /** created_at of the latest `started` event without a matching `succeeded`. */
+  activeStepStartedAt: string | null
+}
+
+/**
  * Pure decision core — exported for tests. `previousEstimateId` distinguishes
  * a NEW current estimate (created by THIS attempt's dispatch) from one that
  * already existed before dispatch (e.g. an edit-mode rerun where a current
@@ -122,12 +135,13 @@ export async function pollEstimateOutcome(opts: {
    */
   attemptId?: string
   /**
-   * Fires on every tick the journal read comes back `pending`, with the last
-   * recorded step (e.g. 'save_recording' | 'transcribe' | 'analyze' |
-   * `null` before any journal row exists yet) — stage progression derives
-   * from this instead of a separate recordings/transcript query.
+   * Fires on every tick the journal read comes back `pending`, with the
+   * journal-derived {@link StageProgress} payload (lastStep for stage
+   * progression + completedSteps/activeStepStartedAt for the real progress
+   * bar) — stage progression derives from this instead of a separate
+   * recordings/transcript query.
    */
-  onStageProgress?: (lastStep: string | null) => void
+  onStageProgress?: (progress: StageProgress) => void
 }): Promise<EstimateOutcome> {
   const {
     projectId,
@@ -157,7 +171,11 @@ export async function pollEstimateOutcome(opts: {
           return { state: 'failed', step: attemptOutcome.step, reason: attemptOutcome.reason }
         }
         if (attemptOutcome.state === 'pending') {
-          onStageProgress?.(attemptOutcome.lastStep)
+          onStageProgress?.({
+            lastStep: attemptOutcome.lastStep,
+            completedSteps: attemptOutcome.completedSteps,
+            activeStepStartedAt: attemptOutcome.activeStepStartedAt,
+          })
         }
         // 'unauthorized' — a scoping edge (e.g. a stale claims read); never
         // fail the UI on it. Falls through silently to the DB-truth check.

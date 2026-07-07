@@ -24,7 +24,8 @@ import { LoadingDots } from '@/components/ui/loading-dots'
 import { WaveformVisualizer } from '@/components/workspace/audio/waveform-visualizer'
 import type { ProjectDetail } from '@/lib/queries/project'
 import type { Photo } from '@/lib/queries/photo'
-import { pollEstimateOutcome, getCurrentEstimateId, type EstimateOutcome } from '@/lib/estimate/poll-outcome'
+import { pollEstimateOutcome, getCurrentEstimateId, type EstimateOutcome, type StageProgress } from '@/lib/estimate/poll-outcome'
+import { getStepMedians } from '@/lib/actions/attempt-outcome'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { useLanguage } from '@/lib/i18n/language-context'
 import { EstimateLanguageSelector } from '@/components/estimate/estimate-language-selector'
@@ -89,17 +90,6 @@ function isAbortSignal(err: unknown): boolean {
   return e?.name === 'AbortError' || e?.message === 'Aborted'
 }
 
-type SpeechRecognitionInstance = {
-  start: () => void
-  stop: () => void
-  continuous: boolean
-  interimResults: boolean
-  lang: string
-  onresult: ((event: { resultIndex: number; results: ArrayLike<ArrayLike<{ transcript: string }> & { isFinal: boolean }> }) => void) | null
-  onerror: ((event: unknown) => void) | null
-}
-type SpeechRecognitionCtor = new () => SpeechRecognitionInstance
-
 type PhotoItemStatus = 'uploading' | 'done' | 'error'
 interface PhotoItem {
   id: string                 // client-minted photoId (storage filename source pre-success)
@@ -110,6 +100,20 @@ interface PhotoItem {
 
 type Stage = 'idle' | 'saving' | 'transcribing' | 'analyzing' | 'generating' | 'done'
 type StageKey = 'saving' | 'transcribing' | 'analyzing' | 'generating'
+
+// 260707-o7a: journal-derived progress snapshot for the real progress bar
+// (CaptureProcessingOverlay). Reset at each dispatch; updated on every
+// pending poll tick via handleStageProgress.
+interface AttemptProgress {
+  completedSteps: string[]
+  activeStep: string | null
+  activeStepStartedAt: string | null
+}
+const EMPTY_ATTEMPT_PROGRESS: AttemptProgress = {
+  completedSteps: [],
+  activeStep: null,
+  activeStepStartedAt: null,
+}
 
 interface CaptureRecorderProps {
   project: ProjectDetail
@@ -213,9 +217,23 @@ export function CaptureRecorder({
   const [photoItems, setPhotoItems] = useState<PhotoItem[]>([])
   const isUploadingPhotos = photoItems.some(i => i.status === 'uploading')
 
-  // Live transcript state (Web Speech API preview — horizontal layout only)
-  const [liveTranscript, setLiveTranscript] = useState('')
-  const [interimTranscript, setInterimTranscript] = useState('')
+  // 260707-o7a: real progress bar state — journal-derived (never advances a
+  // segment without its succeeded event) + live step medians fetched ONCE per
+  // capture session (not per tick).
+  const [attemptProgress, setAttemptProgress] = useState<AttemptProgress>(EMPTY_ATTEMPT_PROGRESS)
+  const [stepMedians, setStepMedians] = useState<Record<string, number> | undefined>(undefined)
+  // Session-level fetch guard (ref, per plan): the medians read fires once per
+  // capture session; the state mirror above exists only so the value flows
+  // into CaptureProcessingOverlay's props (a bare ref write wouldn't re-render).
+  const stepMediansRequestedRef = useRef(false)
+  const ensureStepMedians = useCallback(() => {
+    if (stepMediansRequestedRef.current) return
+    stepMediansRequestedRef.current = true
+    // Best-effort: getStepMedians never throws (falls back internally), but a
+    // network-level server-action rejection is still possible — the model's
+    // FALLBACK_MEDIANS_MS covers the undefined case.
+    void getStepMedians().then(setStepMedians).catch(() => {})
+  }, [])
 
   // Language for the estimate — default from app language (cascade layer 4).
   // Controlled by the parent when props are supplied (popup lifts it into the
@@ -237,7 +255,6 @@ export function CaptureRecorder({
   const warnedRef = useRef<boolean>(false)
   const abortControllerRef = useRef<AbortController>(new AbortController())
   const photoInputRef = useRef<HTMLInputElement>(null)
-  const speechRecognitionRef = useRef<SpeechRecognitionInstance | null>(null)
   // Wall-clock elapsed mirror (RESEARCH Pattern 4 / 260707-grq): runPipeline reads
   // this ref instead of the `elapsedMs` state closure, which is stale by the time
   // recorder.onstop fires (root cause of the duration=0 production bug).
@@ -390,10 +407,8 @@ export function CaptureRecorder({
       audioContextRef.current.close().catch(() => {})
       audioContextRef.current = null
     }
-    speechRecognitionRef.current?.stop()
     setAnalyser(null)
     setIsRecording(false)
-    setInterimTranscript('')
     // Flip stage synchronously so React never paints an interim frame with
     // stage='idle' && isRecording=false (which would re-show the recorder UI).
     // runPipeline() will also call setStage('saving') from the async onstop
@@ -459,7 +474,6 @@ export function CaptureRecorder({
     if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
       audioContextRef.current.close().catch(() => {})
     }
-    speechRecognitionRef.current?.stop()
     abortControllerRef.current?.abort()
   }, [])
 
@@ -511,13 +525,25 @@ export function CaptureRecorder({
   }, [])
 
   // 260707-lyq (P4 Wave 2): journal-driven stage progression — fires on every
-  // pollEstimateOutcome tick where the journal read came back `pending`, with
-  // the last recorded step. Replaces the old per-path recordingId/transcript
-  // (or analyze-job-completed) polling: stage progression now comes entirely
-  // from the journal, matching every path's actual server-side pipeline order.
-  const handleStageProgress = useCallback((lastStep: string | null) => {
-    if (lastStep === 'save_recording') setStage('transcribing')
-    else if (lastStep === 'transcribe' || lastStep === 'analyze') setStage('generating')
+  // pollEstimateOutcome tick where the journal read came back `pending`.
+  // Replaces the old per-path recordingId/transcript (or analyze-job-completed)
+  // polling: stage progression now comes entirely from the journal, matching
+  // every path's actual server-side pipeline order.
+  // 260707-o7a: also stores the journal-derived progress snapshot for the real
+  // progress bar. The active step is lastStep ONLY when the journal hasn't
+  // confirmed it succeeded — a bar segment can therefore never advance (or
+  // fill past ACTIVE_FILL_CAP) without its journal succeeded event.
+  const handleStageProgress = useCallback((progress: StageProgress) => {
+    if (progress.lastStep === 'save_recording') setStage('transcribing')
+    else if (progress.lastStep === 'transcribe' || progress.lastStep === 'analyze') setStage('generating')
+    setAttemptProgress({
+      completedSteps: progress.completedSteps,
+      activeStep:
+        progress.lastStep && !progress.completedSteps.includes(progress.lastStep)
+          ? progress.lastStep
+          : null,
+      activeStepStartedAt: progress.activeStepStartedAt,
+    })
   }, [])
 
   // 260707-hhp (P1 client half): shared outcome handling for all three
@@ -545,6 +571,7 @@ export function CaptureRecorder({
       attemptIdRef.current = null
       requestIdRef.current = null
       previousEstimateIdRef.current = undefined
+      setAttemptProgress(EMPTY_ATTEMPT_PROGRESS)
       setStage('idle')
       return
     }
@@ -670,6 +697,11 @@ export function CaptureRecorder({
     setStage('saving')
     setFailedAt(undefined)
     setErrorMessage(undefined)
+    // 260707-o7a: fresh dispatch — clear the progress snapshot (a Retry must
+    // not show the previous run's segments) + kick the one-per-session
+    // medians fetch (non-blocking).
+    setAttemptProgress(EMPTY_ATTEMPT_PROGRESS)
+    ensureStepMedians()
 
     // Pre-flight (hardening before the server): a zero-byte blob or sub-second take can
     // never produce a transcript — surface it instantly instead of uploading and letting
@@ -744,7 +776,7 @@ export function CaptureRecorder({
       if (isAbortSignal(err)) return  // unmount; not a user-facing failure
       failAt('generating', (err as Error).message ?? t('Estimate generation failed'))
     }
-  }, [companyId, projectId, estimateLanguage, ensureAttempt, captureOutcomeBaseline, handleStageProgress, t, failAt, handleEstimateOutcome])
+  }, [companyId, projectId, estimateLanguage, ensureAttempt, captureOutcomeBaseline, handleStageProgress, ensureStepMedians, t, failAt, handleEstimateOutcome])
 
   // Mirror the latest runPipeline closure into a ref — recorder.onstop is bound
   // ONCE at recording start and must invoke the LATEST closure (fresh
@@ -756,6 +788,11 @@ export function CaptureRecorder({
     abortControllerRef.current = new AbortController()
     setFailedAt(undefined)
     setErrorMessage(undefined)
+    // 260707-o7a: fresh dispatch — clear the progress snapshot + kick the
+    // one-per-session medians fetch (non-blocking). The audio branch below
+    // (runPipeline) repeats both harmlessly (idempotent).
+    setAttemptProgress(EMPTY_ATTEMPT_PROGRESS)
+    ensureStepMedians()
     // REC-03/REC-04: mint the attempt lineage ONCE on first Generate; reused on Retry.
     ensureAttempt()
 
@@ -835,7 +872,7 @@ export function CaptureRecorder({
         failAt('analyzing', (err as Error).message ?? t('Estimate generation failed'))
       }
     }
-  }, [descriptionText, audioBlob, uploadedPhotos, projectId, runPipeline, estimateLanguage, t, ensureAttempt, captureOutcomeBaseline, handleStageProgress, failAt, handleEstimateOutcome])
+  }, [descriptionText, audioBlob, uploadedPhotos, projectId, runPipeline, estimateLanguage, t, ensureAttempt, captureOutcomeBaseline, handleStageProgress, ensureStepMedians, failAt, handleEstimateOutcome])
 
   // Start recording
   const startRecording = useCallback(async () => {
@@ -843,8 +880,6 @@ export function CaptureRecorder({
     setElapsedMs(0)
     elapsedMsRef.current = 0
     warnedRef.current = false
-    setLiveTranscript('')
-    setInterimTranscript('')
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
@@ -886,34 +921,10 @@ export function CaptureRecorder({
       setIsRecording(true)
 
       tickIntervalRef.current = setInterval(tick, TICK_MS)
-
-      // Web Speech API live transcript preview follows the device/spoken language (navigator.language),
-      // independent of estimateLanguage which only controls the generated estimate output (Chrome/Edge only)
-      const w = window as typeof window & {
-        SpeechRecognition?: SpeechRecognitionCtor
-        webkitSpeechRecognition?: SpeechRecognitionCtor
-      }
-      const SpeechRecognitionAPI = w.SpeechRecognition ?? w.webkitSpeechRecognition
-      if (SpeechRecognitionAPI) {
-        const recognition = new SpeechRecognitionAPI()
-        recognition.continuous = true
-        recognition.interimResults = true
-        recognition.lang = navigator.language || 'en-US'
-        recognition.onresult = (event) => {
-          let interim = ''
-          let final = ''
-          for (let i = event.resultIndex; i < event.results.length; i++) {
-            const phrase = event.results[i][0].transcript
-            if (event.results[i].isFinal) final += phrase + ' '
-            else interim += phrase
-          }
-          if (final) setLiveTranscript(prev => prev + final)
-          setInterimTranscript(interim)
-        }
-        recognition.onerror = () => {}
-        recognition.start()
-        speechRecognitionRef.current = recognition
-      }
+      // 260707-o7a: the Web Speech API live caption was REMOVED entirely — it
+      // cannot handle multilingual code-switching (showed English for
+      // Portuguese speech). Whisper (server-side, multilingual auto-detect)
+      // is the only transcription; recording shows waveform + timer only.
     } catch (err: unknown) {
       const error = err as { name?: string }
       if (error?.name === 'NotAllowedError') {
@@ -1031,9 +1042,6 @@ export function CaptureRecorder({
           setEstimateLanguage={setEstimateLanguage}
           // Single-modality lock (undefined in legacy fullscreen route → all three blocks)
           mode={mode}
-          // Live transcript
-          liveTranscript={liveTranscript}
-          interimTranscript={interimTranscript}
           // Horizontal layout: popup with no mode lock
           isHorizontal={isPopup && mode === undefined}
           onStartBlank={onStartBlank}
@@ -1044,7 +1052,19 @@ export function CaptureRecorder({
         // overlay; `min-h-[260px]` ensures the overlay has visible space even on
         // short content (the parent Dialog already constrains max-height).
         <div className="relative flex-1 min-h-[260px]">
-          {!failedAt && <CaptureProcessingOverlay stage={stage} />}
+          {/* 260707-o7a: real journal-driven progress — segments only advance on
+              journal succeeded events (attemptProgress via handleStageProgress);
+              medians make the in-segment fill an honest elapsed-vs-typical read. */}
+          {!failedAt && (
+            <CaptureProcessingOverlay
+              stage={stage}
+              mode={activeMode}
+              completedSteps={attemptProgress.completedSteps}
+              activeStep={attemptProgress.activeStep}
+              activeStepStartedAt={attemptProgress.activeStepStartedAt}
+              medians={stepMedians}
+            />
+          )}
           {failedAt && (
             <div className="flex-1 flex items-center justify-center p-4">
               <div className="w-full max-w-md">
@@ -1106,15 +1126,12 @@ interface RecorderBodyProps {
   setEstimateLanguage: (lang: EstimateLanguage) => void
   // Single-modality lock — undefined renders the unified layout
   mode?: CaptureMode
-  // Live transcript props (Web Speech API preview)
-  liveTranscript: string
-  interimTranscript: string
   // Horizontal 2-column layout (popup + unified mode)
   isHorizontal: boolean
   onStartBlank?: () => Promise<void>
 }
 
-function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progress, onToggle, descriptionText, setDescriptionText, uploadedPhotos, isUploadingPhotos, photoItems, onRemovePhoto, photoInputRef, onPhotoFileChange, hasAnyInput, onGenerate, estimateLanguage, setEstimateLanguage, mode, liveTranscript, interimTranscript, isHorizontal, onStartBlank }: RecorderBodyProps) {
+function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progress, onToggle, descriptionText, setDescriptionText, uploadedPhotos, isUploadingPhotos, photoItems, onRemovePhoto, photoInputRef, onPhotoFileChange, hasAnyInput, onGenerate, estimateLanguage, setEstimateLanguage, mode, isHorizontal, onStartBlank }: RecorderBodyProps) {
   const { t } = useTranslation()
 
   // Unified layout — responsive: stacked on mobile, 2-column on sm+
@@ -1149,22 +1166,14 @@ function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progre
         {/* Z-10: Recording Immersive Overlay */}
         {isRecording && (
           <div className="absolute inset-0 z-10 flex flex-col items-center justify-center p-6 bg-background/80 backdrop-blur-md animate-in fade-in duration-300">
-            {/* Live Transcript Top */}
+            {/* 260707-o7a: no live caption — transcription happens behind the
+                curtains (Whisper, multilingual). Listening pulse only. */}
             <div className="flex-1 w-full max-w-md flex flex-col justify-end pb-8">
-              {(liveTranscript || interimTranscript) ? (
-                <p className="text-foreground/90 text-lg sm:text-xl text-center leading-relaxed whitespace-pre-wrap font-medium">
-                  {liveTranscript}
-                  {interimTranscript && (
-                    <span className="text-muted-foreground">{interimTranscript}</span>
-                  )}
-                </p>
-              ) : (
-                <p className="text-muted-foreground/60 italic text-center animate-pulse">
-                  {t('Listening...')}
-                </p>
-              )}
+              <p className="text-muted-foreground/60 italic text-center animate-pulse">
+                {t('Listening...')}
+              </p>
             </div>
-            
+
             {/* Center: Waveform & Timer */}
             <div className="flex flex-col items-center gap-6 shrink-0 mb-[120px]">
                <p className="text-4xl sm:text-5xl font-mono text-foreground tabular-nums tracking-tight font-light">
