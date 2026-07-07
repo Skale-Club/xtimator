@@ -40,7 +40,22 @@ export async function createTextRecording(
   const eventAttemptId = attemptId ?? randomUUID()
   const t0 = Date.now()
   const ctx = await getAuthContext()
-  if ('error' in ctx) return { error: ctx.error }
+  if ('error' in ctx) {
+    // 260707-grq: auth early-return was previously invisible in /admin/events.
+    void recordPipelineEvent({
+      attemptId: eventAttemptId,
+      inputType: 'manual_text',
+      step: 'save_recording',
+      status: 'failed',
+      companyId: null,
+      projectId,
+      errorMessage: ctx.error,
+      errorCode: 'auth',
+      durationMs: Date.now() - t0,
+      provider: null,
+    })
+    return { error: ctx.error }
+  }
   const { supabase, company } = ctx
 
   const { data: recording, error: insertError } = await supabase
@@ -123,13 +138,55 @@ export async function createRecording(
   const eventAttemptId = attemptId ?? randomUUID()
   const t0 = Date.now()
   const ctx = await getAuthContext()
-  if ('error' in ctx) return { error: ctx.error }
+  if ('error' in ctx) {
+    // 260707-grq: auth early-return was previously invisible in /admin/events.
+    void recordPipelineEvent({
+      attemptId: eventAttemptId,
+      inputType: 'recording',
+      step: 'save_recording',
+      status: 'failed',
+      companyId: null,
+      projectId,
+      errorMessage: ctx.error,
+      errorCode: 'auth',
+      durationMs: Date.now() - t0,
+      provider: null,
+    })
+    return { error: ctx.error }
+  }
   const { supabase, company } = ctx
 
   if (!storagePath.startsWith(`${company.id}/`)) {
+    // 260707-grq: cross-tenant / malformed path — was previously invisible.
+    void recordPipelineEvent({
+      attemptId: eventAttemptId,
+      inputType: 'recording',
+      step: 'save_recording',
+      status: 'failed',
+      companyId: company.id,
+      projectId,
+      errorMessage: 'Invalid recording path.',
+      errorCode: 'validation_path',
+      durationMs: Date.now() - t0,
+      provider: null,
+    })
     return { error: 'Invalid recording path.' }
   }
   if (!(durationSeconds > 0) || durationSeconds > MAX_RECORDING_DURATION_SECONDS) {
+    // 260707-grq (TODAY'S PRODUCTION KILLER): a stale client duration=0 hits this
+    // branch — now visible in /admin/events instead of silently killing the pipeline.
+    void recordPipelineEvent({
+      attemptId: eventAttemptId,
+      inputType: 'recording',
+      step: 'save_recording',
+      status: 'failed',
+      companyId: company.id,
+      projectId,
+      errorMessage: `Invalid recording duration: ${durationSeconds}s (client sent a non-positive or oversized value)`,
+      errorCode: 'validation_duration',
+      durationMs: Date.now() - t0,
+      provider: null,
+    })
     return { error: 'Invalid recording duration.' }
   }
 
@@ -222,8 +279,25 @@ export async function transcribeRecording(
     estimateLanguage?: 'en' | 'pt' | 'es'
   }
 ) {
+  // 260707-grq: no attemptId fallback previously existed here — mint one so
+  // every early-return below has a stable id to write a pipeline event against.
+  const eventAttemptId = attemptId ?? randomUUID()
+
   const ctx = await getAuthContext()
-  if ('error' in ctx) return { error: ctx.error }
+  if ('error' in ctx) {
+    void recordPipelineEvent({
+      attemptId: eventAttemptId,
+      inputType: 'recording',
+      step: 'transcribe',
+      status: 'failed',
+      companyId: null,
+      projectId: null,
+      errorMessage: ctx.error,
+      errorCode: 'auth',
+      provider: null,
+    })
+    return { error: ctx.error }
+  }
   const { supabase } = ctx
 
   // Get recording row (RLS-enforced via authenticated client)
@@ -233,8 +307,32 @@ export async function transcribeRecording(
     .eq('id', recordingId)
     .single()
 
-  if (!recording) return { error: 'Recording not found' }
+  if (!recording) {
+    void recordPipelineEvent({
+      attemptId: eventAttemptId,
+      inputType: 'recording',
+      step: 'transcribe',
+      status: 'failed',
+      companyId: null,
+      projectId: null,
+      errorMessage: 'Recording not found',
+      errorCode: 'not_found',
+      provider: null,
+    })
+    return { error: 'Recording not found' }
+  }
   if (!recording.storage_path) {
+    void recordPipelineEvent({
+      attemptId: eventAttemptId,
+      inputType: 'recording',
+      step: 'transcribe',
+      status: 'failed',
+      companyId: recording.company_id as string,
+      projectId: recording.project_id as string,
+      errorMessage: 'This recording has no audio file to transcribe.',
+      errorCode: 'no_audio',
+      provider: null,
+    })
     return { error: 'This recording has no audio file to transcribe.' }
   }
 
@@ -245,26 +343,81 @@ export async function transcribeRecording(
   const { inngest } = await import('@/lib/inngest/client')
   const { EVENT_TRANSCRIBE_AUDIO } = await import('@/lib/inngest/events')
 
-  const { ids } = await inngest.send({
-    name: EVENT_TRANSCRIBE_AUDIO,
-    id: `transcribe-${recordingId}`,
-    data: {
-      companyId: recording.company_id as string,
-      recordingId,
-      storagePath: recording.storage_path as string,
-      attemptId,
-      ...(options?.autoGenerateEstimate && {
-        autoGenerateEstimate: true,
-        requestId: options.requestId,
-        estimateLanguage: options.estimateLanguage,
-      }),
-    },
-  })
-  // Awaited — see app/api/transcribe/route.ts for why this must not race the
-  // client's first poll.
-  if (ids[0]) await recordJobOwnership(ids[0], recording.company_id as string)
+  // 260707-grq: previously an inngest.send throw propagated as an unhandled
+  // server-action 500 that the client's runPipeline does NOT catch — the UI
+  // hung on 'transcribing' forever. Now degrades to a friendly retryable error.
+  try {
+    const { ids } = await inngest.send({
+      name: EVENT_TRANSCRIBE_AUDIO,
+      id: `transcribe-${recordingId}`,
+      data: {
+        companyId: recording.company_id as string,
+        recordingId,
+        storagePath: recording.storage_path as string,
+        attemptId,
+        ...(options?.autoGenerateEstimate && {
+          autoGenerateEstimate: true,
+          requestId: options.requestId,
+          estimateLanguage: options.estimateLanguage,
+        }),
+      },
+    })
+    // Awaited — see app/api/transcribe/route.ts for why this must not race the
+    // client's first poll.
+    if (ids[0]) await recordJobOwnership(ids[0], recording.company_id as string)
 
-  return { data: { jobId: ids[0] } }
+    return { data: { jobId: ids[0] } }
+  } catch (err) {
+    void recordPipelineEvent({
+      attemptId: eventAttemptId,
+      inputType: 'recording',
+      step: 'transcribe',
+      status: 'failed',
+      companyId: recording.company_id as string,
+      projectId: recording.project_id as string,
+      errorMessage: String(err instanceof Error ? err.message : err).slice(0, 300),
+      errorCode: 'dispatch_failed',
+      provider: null,
+    })
+    return { error: 'Transcription service is temporarily unavailable — your recording is saved. Please retry.' }
+  }
+}
+
+// 260707-grq: client-leg telemetry. The capture pipeline is orchestrated by the browser;
+// when a step fails CLIENT-side (or a server action's error return is only visible in the
+// browser), this authed, best-effort action lands a failed row in pipeline_events so the
+// attempt is visible in /admin/events. Never throws; message truncated; enum-validated
+// against the pipeline_events CHECK constraints.
+const REPORTABLE_STEPS = ['save_recording', 'transcribe', 'analyze', 'generate_estimate'] as const
+const REPORTABLE_INPUT_TYPES = ['recording', 'photo', 'manual_text'] as const
+
+export async function reportClientPipelineFailure(input: {
+  attemptId: string
+  projectId: string
+  step: (typeof REPORTABLE_STEPS)[number]
+  inputType: (typeof REPORTABLE_INPUT_TYPES)[number]
+  errorMessage: string
+}) {
+  try {
+    const ctx = await getAuthContext()
+    if ('error' in ctx) return { error: ctx.error }
+    if (!REPORTABLE_STEPS.includes(input.step)) return { error: 'Invalid step' }
+    if (!REPORTABLE_INPUT_TYPES.includes(input.inputType)) return { error: 'Invalid input type' }
+    void recordPipelineEvent({
+      attemptId: input.attemptId,
+      inputType: input.inputType,
+      step: input.step,
+      status: 'failed',
+      companyId: ctx.company.id,
+      projectId: input.projectId,
+      errorMessage: String(input.errorMessage ?? '').slice(0, 300),
+      errorCode: 'client_reported',
+      provider: null,
+    })
+    return { data: true }
+  } catch {
+    return { error: 'report failed' }
+  }
 }
 
 export async function updateTranscript(recordingId: string, transcript: string) {
