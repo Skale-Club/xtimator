@@ -21,6 +21,18 @@ Sentry.init({
   ignoreErrors: [
     "ResizeObserver loop limit exceeded",
     "Non-Error promise rejection captured",
+    // Browser-extension noise (XTIMATOR-9): extensions calling their own
+    // chrome.runtime APIs from content scripts injected into our pages. Not
+    // reachable from application code.
+    /runtime\.sendMessage/i,
+    /Extension context invalidated/i,
+    /chrome-extension|moz-extension|safari-extension|safari-web-extension/i,
+  ],
+  // Drop events whose stack originates inside an injected extension script.
+  denyUrls: [
+    /^chrome-extension:\/\//i,
+    /^moz-extension:\/\//i,
+    /^safari(-web)?-extension:\/\//i,
   ],
   beforeSend(event) {
     // Browser translation (manual/forced, or a translation extension)
