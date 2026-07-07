@@ -32,14 +32,23 @@ vi.mock('@/lib/observability/pipeline-events', () => ({
   recordPipelineEvent: vi.fn().mockResolvedValue(undefined),
 }))
 
-import { createRecording } from '@/lib/actions/recording'
+// 260707-hhp (P1): createTextRecording's optional chain dispatches via the
+// Inngest client — mocked so the "dispatch failure" path is testable without
+// a real Inngest event key.
+vi.mock('@/lib/inngest/client', () => ({
+  inngest: { send: vi.fn() },
+}))
+
+import { createRecording, createTextRecording } from '@/lib/actions/recording'
 import { createClient } from '@/lib/supabase/server'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { recordPipelineEvent } from '@/lib/observability/pipeline-events'
+import { inngest } from '@/lib/inngest/client'
 
 const mockCreateClient = vi.mocked(createClient)
 const mockGetActiveCompanyId = vi.mocked(getActiveCompanyId)
 const mockRecordPipelineEvent = vi.mocked(recordPipelineEvent)
+const mockInngestSend = vi.mocked(inngest.send)
 
 const insertSpy = vi.fn().mockImplementation((row: unknown) => ({
   select: vi.fn().mockReturnValue({
@@ -145,6 +154,98 @@ describe('createRecording — early-return pipeline events (260707-grq)', () => 
 
     expect('error' in result).toBe(false)
     expect(insertSpy).toHaveBeenCalledOnce()
+    const failedCalls = mockRecordPipelineEvent.mock.calls.filter(
+      ([ev]) => ev.status === 'failed'
+    )
+    expect(failedCalls).toHaveLength(0)
+  })
+})
+
+// 260707-hhp (P1): createTextRecording's optional server-side chain into
+// generate-estimate. Reuses this file's table-switch supabase mock convention.
+function makeTextRecordingSupabaseMock() {
+  return {
+    auth: {
+      getClaims: vi.fn().mockResolvedValue({ data: { claims: { sub: 'user-1' } } }),
+    },
+    from: vi.fn().mockImplementation((table: string) => {
+      if (table === 'recordings') {
+        return {
+          insert: vi.fn().mockReturnValue({
+            select: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: { id: 'rec-text-1', project_id: 'project-1', transcript: 'a description' },
+                error: null,
+              }),
+            }),
+          }),
+        }
+      }
+      if (table === 'estimate_activity') {
+        return { insert: vi.fn().mockResolvedValue({ error: null }) }
+      }
+      return {}
+    }),
+  }
+}
+
+describe('createTextRecording — optional generate-estimate chain (260707-hhp)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetActiveCompanyId.mockResolvedValue('company-1')
+  })
+
+  it('dispatch failure returns the friendly error AND records errorCode dispatch_failed', async () => {
+    mockCreateClient.mockResolvedValue(makeTextRecordingSupabaseMock() as never)
+    mockInngestSend.mockRejectedValue(new Error('inngest unavailable'))
+
+    const result = await createTextRecording('project-1', 'a description', 'attempt-1', {
+      autoGenerateEstimate: true,
+      requestId: 'req-1',
+    })
+
+    expect(result).toEqual({
+      error: 'Your description was saved but generation could not start — please retry.',
+    })
+    expect(mockRecordPipelineEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        attemptId: 'attempt-1',
+        step: 'generate_estimate',
+        status: 'failed',
+        errorCode: 'dispatch_failed',
+        companyId: 'company-1',
+        projectId: 'project-1',
+      })
+    )
+  })
+
+  it('dispatch success returns data + jobId without recording a failed event', async () => {
+    mockCreateClient.mockResolvedValue(makeTextRecordingSupabaseMock() as never)
+    mockInngestSend.mockResolvedValue({ ids: ['job-1'] } as never)
+
+    const result = await createTextRecording('project-1', 'a description', 'attempt-1', {
+      autoGenerateEstimate: true,
+      requestId: 'req-1',
+    })
+
+    expect('error' in result).toBe(false)
+    if (!('error' in result)) {
+      expect(result.jobId).toBe('job-1')
+      expect(result.data).toEqual(
+        expect.objectContaining({ id: 'rec-text-1' })
+      )
+    }
+    expect(mockInngestSend).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'estimate-project-1-req-1',
+        data: expect.objectContaining({
+          companyId: 'company-1',
+          projectId: 'project-1',
+          inputType: 'manual_text',
+          channel: 'web',
+        }),
+      })
+    )
     const failedCalls = mockRecordPipelineEvent.mock.calls.filter(
       ([ev]) => ev.status === 'failed'
     )
