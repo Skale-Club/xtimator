@@ -7,7 +7,22 @@ export function SWRegister() {
     if (!('serviceWorker' in navigator)) return
 
     if (process.env.NODE_ENV === 'production') {
-      navigator.serviceWorker.register('/sw.js').catch(() => {})
+      // Emergency PWA rollback: remove existing workers that can interfere
+      // with production assets. Keep this until the PWA cache strategy is rebuilt.
+      navigator.serviceWorker.getRegistrations()
+        .then((regs) => Promise.all(regs.map((r) => r.unregister())))
+        .catch(() => {})
+
+      if (typeof caches !== 'undefined') {
+        caches.keys()
+          .then((keys) => Promise.all(
+            keys
+              .filter((k) => k.startsWith('shell-') || k.startsWith('pages-'))
+              .map((k) => caches.delete(k))
+          ))
+          .catch(() => {})
+      }
+
       return
     }
 
