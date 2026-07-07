@@ -35,6 +35,16 @@ export const autoRefineNode = async (
 ): Promise<Partial<EstimateStateType>> => {
   const supabase = requireServiceClient()
   // Best-effort revert — swallow errors (consistent with WhatsApp adapter pattern).
+  //
+  // QUICK-mv1-01 (zero side effects on discard): this revert intentionally does
+  // NOT restore projects.name/project_type. The rename + project_type write in
+  // generateEstimateForProject (lib/services/generate-estimate.ts) now happens
+  // AFTER persistence and is gated on the SAME vagueness verdict assessNode
+  // re-derives from the just-persisted rows — the exact estimate we are about to
+  // revert HERE never touched projects.name/project_type in the first place (it
+  // was vague ⇒ the generate call skipped those writes). There is nothing to
+  // restore; adding restore logic here would be dead code for the current
+  // mechanism. If that gating is ever removed, this revert must be revisited.
   try {
     await revertVagueEstimate(supabase, state.projectId, state.estimateId ?? null)
   } catch {

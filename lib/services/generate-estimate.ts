@@ -19,6 +19,7 @@ import {
   reportEstimateQuality,
   resolveQualityThresholds,
 } from '@/lib/estimate/quality/quality-signal'
+import { isVagueEstimate } from '@/lib/estimate/quality/vagueness'
 import { getPriceBookItems } from '@/lib/queries/price-book'
 import {
   resolveEstimateLanguage,
@@ -263,24 +264,6 @@ export async function generateEstimateForProject(
       matchedClientId: (matchedClient?.id as string | undefined) ?? null,
       matchedClientName: (matchedClient?.name as string | undefined) ?? null,
       autoLinked,
-    }
-  }
-
-  // Patch project name only if it's still the eager-create placeholder (D-05)
-  if (aiEstimate.suggested_project_name?.trim()) {
-    const { data: currentProject } = await supabase
-      .from('projects')
-      .select('name')
-      .eq('id', projectId)
-      .single()
-    if (
-      currentProject?.name &&
-      currentProject.name.startsWith(PLACEHOLDER_PREFIX)
-    ) {
-      await supabase
-        .from('projects')
-        .update({ name: aiEstimate.suggested_project_name.trim() })
-        .eq('id', projectId)
     }
   }
 
@@ -603,6 +586,71 @@ export async function generateEstimateForProject(
     .from('projects')
     .update({ status: projectStatus, total: safeGrandTotal })
     .eq('id', projectId)
+
+  // QUICK-mv1-01 — zero side effects on discard: rename + project_type + mismatch
+  // logging moved from the pre-persist position (formerly here, before the AI
+  // output was even validated) to AFTER persistence, and gated on the SAME
+  // vagueness verdict the assess node independently re-derives from these exact
+  // rows (total=safeGrandTotal, sections=calculatedSections — byte-identical
+  // inputs to assessNode's DB re-read). A pass this gate marks vague is the exact
+  // pass auto-refine / the default adapter's finalize will revert — so skipping
+  // these writes here means a reverted pass never had them in the first place;
+  // no restore-on-revert logic is needed in auto-refine.ts / revert.ts.
+  const passIsVague = isVagueEstimate({
+    total: safeGrandTotal,
+    sections: calculatedSections,
+  })
+
+  if (!passIsVague) {
+    // Patch project name only if it's still the eager-create placeholder (D-05).
+    if (aiEstimate.suggested_project_name?.trim()) {
+      const { data: currentProject } = await supabase
+        .from('projects')
+        .select('name')
+        .eq('id', projectId)
+        .single()
+      if (
+        currentProject?.name &&
+        currentProject.name.startsWith(PLACEHOLDER_PREFIX)
+      ) {
+        await supabase
+          .from('projects')
+          .update({ name: aiEstimate.suggested_project_name.trim() })
+          .eq('id', projectId)
+      }
+    }
+
+    // detected_trade: the trade of the REQUESTED work, independent of
+    // company.industry (soft prior — lib/ai/prompt-builder.ts). Persisted so
+    // project_type reflects reality even when industry was configured for a
+    // different trade.
+    const detectedTrade =
+      aiEstimate.detected_trade?.trim().toLowerCase() || null
+    if (detectedTrade) {
+      await supabase
+        .from('projects')
+        .update({ project_type: detectedTrade })
+        .eq('id', projectId)
+    }
+
+    // trade_mismatch_detected: raw material for the future industry
+    // auto-suggestion UX (no UI in this task) — recorded only when both sides
+    // are known and disagree (case-insensitive).
+    const configuredIndustry = company.industry?.trim().toLowerCase() || null
+    if (
+      detectedTrade &&
+      configuredIndustry &&
+      detectedTrade !== configuredIndustry
+    ) {
+      await supabase.from('estimate_activity').insert({
+        project_id: projectId,
+        company_id: companyId,
+        estimate_id: estimateId,
+        event_type: 'trade_mismatch_detected',
+        metadata: { detected: detectedTrade, configured: configuredIndustry },
+      })
+    }
+  }
 
   // Log activity
   await supabase.from('estimate_activity').insert({
