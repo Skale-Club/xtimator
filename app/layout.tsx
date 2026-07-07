@@ -47,17 +47,13 @@ export async function generateMetadata(): Promise<Metadata> {
       template: `%s | ${title}`,
     },
     ...(facebookAppId ? { other: { 'fb:app_id': facebookAppId } } : {}),
-    // When custom branding exists: use org's favicon/logo for the browser tab.
-    // Otherwise: omit so Next.js auto-serves app/icon.svg (branded, color-scheme aware).
-    // NEVER override `apple` here: a raw logo (transparent, full-bleed) gets a
-    // black background and squircle-cropped edges on the iOS home screen.
-    // app/apple-icon.tsx generates a padded, solid-background icon instead and
-    // Next.js links it automatically.
-    icons: b.faviconUrl || b.logoUrl
-      ? {
-          icon: [{ url: b.faviconUrl ?? b.logoUrl!, type: 'image/png' }],
-        }
-      : undefined,
+    // Icons are intentionally NOT set here. The dynamic app/icon.tsx (favicon)
+    // and app/apple-icon.tsx (apple-touch-icon) routes are the single source of
+    // truth: both composite the real brand mark (DB favicon/logo) over a solid
+    // dark background, so every tab/home-screen icon is always the DB logo and
+    // always dark. Setting `icons.icon` here would ALSO emit a second, competing
+    // rel=icon link tag pointing at the raw (background-less) logo and let the
+    // browser pick the wrong one.
   }
 }
 

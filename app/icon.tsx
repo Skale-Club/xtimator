@@ -2,28 +2,27 @@ import { ImageResponse } from 'next/og'
 import { BRAND_ICON_BG, loadBrandLogoDataUri } from '@/lib/brand-icon'
 
 /**
- * Dynamic apple-touch-icon (180×180).
+ * Dynamic browser-tab favicon.
  *
- * iOS home-screen icons get a solid background and an edge-to-edge squircle
- * crop — a raw branding logo (transparent, full-bleed) renders as a black
- * square with the glyph cut off at the corners. This route composites the
- * real brand mark (admin favicon/logo, else the bundled real-logo asset)
- * centered at ~62% over the solid brand-dark background, which is the
- * Apple-recommended safe zone, so the installed icon is never cropped.
+ * Renders the real brand mark — the admin favicon/logo from `platform_branding`,
+ * else the bundled real-logo asset — centered over the solid brand-dark
+ * background so the tab icon is ALWAYS dark and ALWAYS the DB logo (never a
+ * hand-drawn glyph). Replaces the former static app/icon.png + app/icon.svg,
+ * which shipped a stale/hand-drawn mark and let a light tile through in light mode.
  *
- * layout.tsx intentionally does NOT override `icons.apple` — Next.js
- * auto-links this route as the apple-touch-icon.
+ * layout.tsx intentionally does NOT set `icons.icon` — Next.js auto-links this
+ * route, so it is the single source of truth for the tab favicon.
  */
 
-export const size = { width: 180, height: 180 }
+export const size = { width: 256, height: 256 }
 export const contentType = 'image/png'
 // Branding can change at runtime (admin upload) — re-render hourly.
 export const revalidate = 3600
 
-// 112/180 ≈ 62% — keeps the mark inside the squircle safe zone.
-const GLYPH = 112
+// 210/256 ≈ 82% — a touch of padding around the mark, favicon-tile style.
+const GLYPH = 210
 
-export default async function AppleIcon() {
+export default async function Icon() {
   const logo = await loadBrandLogoDataUri()
 
   return new ImageResponse(

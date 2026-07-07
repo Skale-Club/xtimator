@@ -30,8 +30,15 @@ function publicIconConflicts() {
 
 describe('App Router icon contract (Phase 13)', () => {
   it('ships all canonical icon assets under app/', () => {
-    expect(existsSync(resolve(appDir, 'icon.svg'))).toBe(true)
-    expect(existsSync(resolve(appDir, 'icon.png'))).toBe(true)
+    // The favicon is a DYNAMIC route (app/icon.tsx): it composites the real
+    // brand mark (DB favicon/logo) over a solid dark background, so the tab icon
+    // is always the DB logo and always dark. The former static app/icon.png +
+    // app/icon.svg shipped a stale/hand-drawn mark and MUST NOT coexist with it
+    // (a static file-convention icon would emit a competing <link rel="icon">
+    // that the browser can pick over the dynamic route).
+    expect(existsSync(resolve(appDir, 'icon.tsx'))).toBe(true)
+    expect(existsSync(resolve(appDir, 'icon.svg'))).toBe(false)
+    expect(existsSync(resolve(appDir, 'icon.png'))).toBe(false)
     // apple-icon is a DYNAMIC route (app/apple-icon.tsx): it composites the
     // branding logo centered over a solid background so iOS never squircle-crops
     // the glyph. A static apple-icon.png must NOT coexist with it.
@@ -61,11 +68,13 @@ describe('App Router icon contract (Phase 13)', () => {
     expect(manifestSource).toMatch(/background_color:\s*['"]#0a0a0f['"]/)
     // theme_color now comes from SYSTEM_COLORS.primary (avoids duplication of the hex literal)
     expect(manifestSource).toMatch(/theme_color:\s*SYSTEM_COLORS\.primary/)
-    // Phase 15-03: manifest icons are DB-backed branding URLs with static /icons/* fallbacks.
     // Manifest generation must never 502 just because platform branding lookup fails.
     expect(manifestSource).toMatch(/branding lookup failed; using static manifest fallback/)
-    expect(manifestSource).toMatch(/src:\s*['"]\/icons\/icon-192\.png['"]/)
-    expect(manifestSource).toMatch(/src:\s*['"]\/icons\/icon-512\.png['"]/)
+    // The "any" tile is the dynamic /icon route (real DB logo composited on a
+    // dark background); the maskable tiles are pre-composited dark PNGs.
+    expect(manifestSource).toMatch(/src:\s*['"]\/icon['"]/)
+    expect(manifestSource).toMatch(/src:\s*['"]\/icons\/icon-maskable-192\.png['"]/)
+    expect(manifestSource).toMatch(/src:\s*['"]\/icons\/icon-maskable-512\.png['"]/)
     expect(manifestSource).toMatch(/purpose:\s*['"]maskable['"]/)
   })
 
@@ -77,5 +86,30 @@ describe('App Router icon contract (Phase 13)', () => {
 
   it('avoids duplicate public icon ownership', () => {
     expect(publicIconConflicts()).toEqual([])
+  })
+
+  it('renders the real brand mark on a dark background — never a hand-drawn glyph', () => {
+    const iconSource = readFileSync(resolve(appDir, 'icon.tsx'), 'utf8')
+    const appleSource = readFileSync(resolve(appDir, 'apple-icon.tsx'), 'utf8')
+    const appIconSource = readFileSync(resolve(root, 'components/ui/app-icon.tsx'), 'utf8')
+
+    // Both icon routes composite the DB logo over the shared dark background.
+    for (const src of [iconSource, appleSource]) {
+      expect(src).toMatch(/loadBrandLogoDataUri/)
+      expect(src).toMatch(/BRAND_ICON_BG/)
+    }
+
+    // No hand-drawn glyph anywhere: the mark is always the real logo image, so
+    // these files must not draw an SVG path/rect or a substitute "X" glyph.
+    for (const src of [iconSource, appleSource, appIconSource]) {
+      expect(src).not.toMatch(/<path\b/)
+      expect(src).not.toMatch(/<rect\b/)
+      expect(src).not.toMatch(/>\s*X\s*</)
+    }
+
+    // The shared loader falls back to the bundled real-logo asset, not a glyph.
+    const loaderSource = readFileSync(resolve(root, 'lib/brand-icon.ts'), 'utf8')
+    expect(loaderSource).toMatch(/public\/icons\/logo\.png/)
+    expect(loaderSource).not.toMatch(/<path\b/)
   })
 })
