@@ -9,6 +9,7 @@ import { SYSTEM_COLORS } from '@/lib/system-colors'
 import { ensureReadableOnWhite, readableTextColor } from '@/lib/color/contrast'
 import type { ShareEstimateData } from '@/lib/queries/share'
 import { useTranslation } from '@/lib/i18n/use-translation'
+import { ScopedLanguageProvider, type Language } from '@/lib/i18n/language-context'
 import { formatMinorUnits } from '@/lib/money/currency'
 import type { ComponentType } from 'react'
 import { FlagUS, FlagBR, FlagES } from '@/components/app-shell/flags'
@@ -53,7 +54,22 @@ interface EstimateViewProps {
   whiteLabelMode?: boolean
 }
 
-export function EstimateView({
+// Pre-launch audit fix: an anonymous client's browser has no prior
+// LanguageProvider preference, so without this scoped override every
+// t() call below rendered in English regardless of estimate.language —
+// the language the contractor actually sent the estimate in. Scoping the
+// override HERE (rather than in EstimateViewInner) is required: a
+// component can't consume a context provider it renders itself.
+export function EstimateView(props: EstimateViewProps) {
+  const language = (props.estimate.language ?? 'en') as Language
+  return (
+    <ScopedLanguageProvider language={language} setLanguage={() => {}}>
+      <EstimateViewInner {...props} />
+    </ScopedLanguageProvider>
+  )
+}
+
+function EstimateViewInner({
   estimate,
   client,
   token,
@@ -338,7 +354,7 @@ export function EstimateView({
           <CardContent className="p-6 sm:p-8 space-y-6">
             <div className="flex items-center gap-2">
               <PenLine className="h-5 w-5" style={{ color: brandText }} />
-              <h3 className="text-base font-semibold">Sign to accept this estimate</h3>
+              <h3 className="text-base font-semibold">{t('Sign to accept this estimate')}</h3>
             </div>
             <SignaturePad
               signerName={signerName}
@@ -359,7 +375,7 @@ export function EstimateView({
                 ) : (
                   <CheckCircle className="mr-2 h-4 w-4" />
                 )}
-                Sign & Accept Estimate
+                {t('Sign & Accept Estimate')}
               </Button>
               <Button
                 size="lg"
@@ -367,7 +383,7 @@ export function EstimateView({
                 onClick={() => { setShowSignaturePad(false); setError(null) }}
                 disabled={isSubmittingSignature}
               >
-                Cancel
+                {t('Cancel')}
               </Button>
             </div>
           </CardContent>

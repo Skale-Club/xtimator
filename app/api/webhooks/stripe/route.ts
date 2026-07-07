@@ -76,8 +76,30 @@ export async function POST(request: NextRequest) {
     return new Response('Internal error', { status: 500 })
   }
 
-  // Step 4: handle event
-  await handleStripeEvent(event, stripe, svc)
+  // Step 4: handle event.
+  //
+  // Pre-launch audit fix (B5): the dedup row above is inserted BEFORE
+  // handling (needed to reject a second COPY of the same event arriving
+  // concurrently — see Pitfall below), but that made the dedup "at-most-once"
+  // in the wrong direction: if handleStripeEvent throws (a transient error,
+  // e.g. stripe.subscriptions.retrieve failing in the invoice.paid arm), this
+  // route returns 500, Stripe retries, and the retry hits the dedup row we
+  // already inserted — "Already processed" — permanently dropping an event
+  // that never actually succeeded (a paid checkout that never grants the
+  // tier/credits, with no further retry).
+  //
+  // Fix: on a thrown error, delete the dedup row before returning 500, so the
+  // NEXT delivery (Stripe's automatic retry, or a manual resend) is treated
+  // as fresh rather than already-processed. Concurrent-duplicate-delivery
+  // protection is preserved because the row still exists for the ENTIRE
+  // duration of a successful handling — only a genuine failure clears it.
+  try {
+    await handleStripeEvent(event, stripe, svc)
+  } catch (err) {
+    console.error('[Stripe] handleStripeEvent failed, clearing dedup row for retry:', err)
+    await svc.from('processed_stripe_events').delete().eq('event_id', event.id)
+    return new Response('Internal error', { status: 500 })
+  }
 
   return new Response('OK', { status: 200 })
 }
@@ -216,6 +238,34 @@ async function handlePlatformEvent(
           refId: invoice.id,
           idempotencyKey: monthGrantKey(grantCompany.id, new Date()), // company-month dedup (shared with cron)
         })
+      }
+      break
+    }
+
+    // Pre-launch audit fix (B2): auto-top-up off-session charges (see
+    // lib/billing/auto-topup.ts) previously had NO webhook handler at all —
+    // the card was charged but credits were never granted, and since the
+    // balance stayed below threshold, every subsequent debit re-triggered a
+    // new charge. This handler is a durable backstop: chargeAutoTopup() also
+    // grants credits synchronously right after the charge succeeds, using the
+    // SAME idempotency key (`autotopup:{paymentIntent.id}`) as here, so
+    // whichever path runs first grants and the other is a harmless no-op —
+    // covers the case where the serverless function crashes after Stripe
+    // confirms the charge but before the synchronous grant call completes.
+    case 'payment_intent.succeeded': {
+      const pi = event.data.object as Stripe.PaymentIntent
+      if (pi.metadata?.type === 'auto_topup') {
+        const topupCompanyId = pi.metadata.companyId
+        const credits = Number(pi.metadata.credits)
+        if (topupCompanyId && credits > 0) {
+          await grantCredits({
+            companyId: topupCompanyId,
+            credits,
+            reason: 'topup',
+            refId: pi.id,
+            idempotencyKey: `autotopup:${pi.id}`,
+          })
+        }
       }
       break
     }

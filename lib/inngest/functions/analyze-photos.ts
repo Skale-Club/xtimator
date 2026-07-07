@@ -36,6 +36,12 @@ async function loadOwnerUserId(companyId: string): Promise<string | null> {
   }
 }
 
+// Server-side ceiling on photos analyzed per job. The client caps at 16
+// (capture-recorder.tsx), but that's UI-only — createPhoto has no server
+// limit, so a caller could otherwise queue hundreds of Vision calls in a
+// single dispatch.
+const MAX_PHOTOS_PER_JOB = 20
+
 type ImageMediaType = 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif'
 
 function getMimeType(storagePath: string): ImageMediaType {
@@ -126,14 +132,22 @@ export const analyzePhotosJob = inngest.createFunction(
       userId: ownerUserId,
     })
 
-    // Step 1: Load photo list (cheap; checkpointed so a retry skips the query)
+    // Step 1: Load photo list (cheap; checkpointed so a retry skips the query).
+    // Security: this runs on the service-role client (bypasses RLS), so the
+    // query MUST scope by company_id — not project_id alone — or any caller
+    // able to dispatch this event with a foreign projectId could trigger paid
+    // Vision analysis (and an ai_description overwrite) on another tenant's
+    // photos. Capped at 20 photos/job — MAX_PHOTOS_PER_JOB below — since the
+    // client-side cap (capture-recorder.tsx) is not enforced server-side.
     const photos = await step.run('load-photos', async () => {
       const supabase = requireServiceClient()
       const { data } = await supabase
         .from('photos')
         .select('id, storage_path')
         .eq('project_id', projectId)
+        .eq('company_id', companyId)
         .order('sort_order')
+        .limit(MAX_PHOTOS_PER_JOB)
       return (data ?? []) as Array<{ id: string; storage_path: string }>
     })
 

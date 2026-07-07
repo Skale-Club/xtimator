@@ -181,7 +181,14 @@ export function computeEstimateTotals(
     taxAmount = Math.round(rawTax * 100) / 100
   }
 
-  const grandTotal = Math.round(((subtotal - discGlobal) + taxAmount) * 100) / 100
+  // Pre-launch audit fix: floor grandTotal at 0, mirroring the existing
+  // WI-2/HARDEN-GUARD-01 balanceDue floor below — a discount exceeding
+  // subtotal+tax previously produced a negative grand total (and therefore a
+  // negative balanceDue too, since balanceDue's own floor can't fix an
+  // already-negative input consistently). Math.max(0, …) is a strict no-op
+  // for every normal discount (<= subtotal+tax ⇒ already >= 0), so every
+  // existing golden total is byte-identical.
+  const grandTotal = Math.max(0, Math.round(((subtotal - discGlobal) + taxAmount) * 100) / 100)
 
   // DEP-01 (LOCKED sequence): deposit computed from grandTotal; balanceDue = grandTotal − deposit.
   // depositType absent / 'none' / null → deposit 0 → balanceDue = grandTotal (byte-identical retrocompat).

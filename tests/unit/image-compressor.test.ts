@@ -1,5 +1,53 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { compressImage } from '@/lib/utils/image-compressor'
+import { compressImage, isLikelyHeic } from '@/lib/utils/image-compressor'
+
+// Pre-launch audit fix: iPhone photos in the default "High Efficiency" camera
+// format upload as HEIC, which most browsers' <canvas> can't decode —
+// compressImage would reject and the caller used to silently fall back to
+// uploading the raw HEIC bytes mislabeled as image/jpeg. isLikelyHeic lets
+// callers detect and reject BEFORE that happens.
+describe('isLikelyHeic', () => {
+  function fileWithMagicBytes(name: string, type: string, brand: string): File {
+    const bytes = new Uint8Array(12)
+    // bytes[0..3] is the box size (irrelevant here); bytes[4..7] must spell 'ftyp'
+    bytes.set([0, 0, 0, 24], 0)
+    bytes.set([...'ftyp'].map((c) => c.charCodeAt(0)), 4)
+    bytes.set([...brand].map((c) => c.charCodeAt(0)), 8)
+    return new File([bytes], name, { type })
+  }
+
+  it('detects HEIC by file extension even when type is empty', async () => {
+    const file = new File(['x'], 'IMG_0001.HEIC', { type: '' })
+    expect(await isLikelyHeic(file)).toBe(true)
+  })
+
+  it('detects HEIF by file extension', async () => {
+    const file = new File(['x'], 'photo.heif', { type: '' })
+    expect(await isLikelyHeic(file)).toBe(true)
+  })
+
+  it('detects HEIC by MIME type', async () => {
+    const file = new File(['x'], 'photo.jpg', { type: 'image/heic' })
+    expect(await isLikelyHeic(file)).toBe(true)
+  })
+
+  it('detects HEIC by the ISO-BMFF ftyp box brand when name/type are misleading', async () => {
+    const file = fileWithMagicBytes('photo.jpg', 'image/jpeg', 'heic')
+    expect(await isLikelyHeic(file)).toBe(true)
+  })
+
+  it('does not flag a real JPEG (no ftyp box) as HEIC', async () => {
+    const file = new File([new Uint8Array([0xff, 0xd8, 0xff, 0xe0])], 'photo.jpg', {
+      type: 'image/jpeg',
+    })
+    expect(await isLikelyHeic(file)).toBe(false)
+  })
+
+  it('does not flag an unrelated ftyp brand (e.g. an mp4) as HEIC', async () => {
+    const file = fileWithMagicBytes('video.mp4', 'video/mp4', 'isom')
+    expect(await isLikelyHeic(file)).toBe(false)
+  })
+})
 
 describe('compressImage', () => {
   let mockCanvas: {

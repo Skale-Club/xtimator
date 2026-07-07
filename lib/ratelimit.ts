@@ -28,6 +28,9 @@ export type LimitName =
   | 'transcribePerMinute'
   | 'refinePerMinute'
   | 'sendPerMinute'
+  // Pre-launch audit fix (B9) — /api/chat had NO rate limit at all (the turn
+  // itself is credit-absorbed, so this is its only cost control).
+  | 'chatPerMinute'
 
 interface LimitConfig {
   max: number
@@ -56,6 +59,10 @@ export const limits: Record<LimitName, LimitConfig> = {
   transcribePerMinute: { max: 10, window: 60 }, // Whisper dispatch
   refinePerMinute: { max: 10, window: 60 },     // Whisper + Vision + Claude in one call
   sendPerMinute: { max: 10, window: 60 },       // Resend email / Twilio SMS fan-out
+
+  // Default only — the chat route passes billing_config.absorbedChatRateLimitPerMin
+  // as a runtime-tunable override (see the `maxOverride` param below).
+  chatPerMinute: { max: 20, window: 60 },
 }
 
 export interface RateLimitResult {
@@ -77,19 +84,24 @@ export interface RateLimitResult {
  *
  * @param name - One of the configured limit names
  * @param identifier - The thing being limited (IP, userId, phone, etc.)
+ * @param maxOverride - Optional runtime-tunable max (e.g. from billing_config)
+ *   that replaces the static config's `max` for this call, without a deploy.
+ *   The window stays fixed (static config only).
  */
 export async function rateLimit(
   name: LimitName,
-  identifier: string
+  identifier: string,
+  maxOverride?: number
 ): Promise<RateLimitResult> {
   const config = limits[name]
+  const max = maxOverride ?? config.max
   const redis = getRedis()
 
   // Fail-open: if Redis is not configured, allow the request.
   // Strict callers (tier enforcement) should not rely on this — they need a
   // separate hard check anyway.
   if (!redis) {
-    return { allowed: true, count: 0, max: config.max }
+    return { allowed: true, count: 0, max }
   }
 
   const key = `rate:${name}:${identifier}`
@@ -103,23 +115,23 @@ export async function rateLimit(
     const results = await pipeline.exec<[number, 0 | 1]>()
     const count = results[0]
 
-    if (count > config.max) {
+    if (count > max) {
       // Read TTL to compute retryAfter (best effort — race-safe enough for headers)
       const ttl = await redis.ttl(key)
       return {
         allowed: false,
         count,
-        max: config.max,
+        max,
         retryAfter: ttl > 0 ? ttl : config.window,
       }
     }
 
-    return { allowed: true, count, max: config.max }
+    return { allowed: true, count, max }
   } catch (err) {
     // Redis errored — fail open with a warning. Don't break production over a
     // Redis hiccup.
     console.warn('[ratelimit] Redis error, failing open', err)
-    return { allowed: true, count: 0, max: config.max }
+    return { allowed: true, count: 0, max }
   }
 }
 

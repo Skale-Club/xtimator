@@ -1,3 +1,24 @@
+// Pre-launch audit fix: HEIC/HEIF photos from an iPhone's default camera
+// format can't be decoded by <img>/<canvas> in most browsers, so
+// compressImage below would reject and the caller used to silently fall
+// back to uploading the raw HEIC bytes mislabeled as image/jpeg. Detect it
+// up front (file.type is unreliable across browsers, so we also check the
+// extension and the ISO-BMFF 'ftyp' box's brand) so the caller can reject
+// with a clear message instead.
+const HEIC_FTYP_BRANDS = ['heic', 'heix', 'hevc', 'hevx', 'mif1', 'msf1']
+
+export async function isLikelyHeic(file: File): Promise<boolean> {
+  if (/\.(heic|heif)$/i.test(file.name)) return true
+  if (file.type === 'image/heic' || file.type === 'image/heif') return true
+
+  const header = new Uint8Array(await file.slice(0, 12).arrayBuffer())
+  if (header.length < 12) return false
+  const boxType = String.fromCharCode(...header.slice(4, 8))
+  if (boxType !== 'ftyp') return false
+  const brand = String.fromCharCode(...header.slice(8, 12)).toLowerCase()
+  return HEIC_FTYP_BRANDS.includes(brand)
+}
+
 export function compressImage(
   file: File,
   maxWidth: number = 2000,

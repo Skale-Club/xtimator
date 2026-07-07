@@ -83,6 +83,12 @@ vi.mock('@/lib/ai/openrouter-client', () => ({
   transcribeAudioOR: vi.fn(async () => ''),
   analyzePhotoOR: vi.fn(async () => ''),
 }))
+// Pre-launch audit fix (M-3): the route resolves the caller's company via
+// getActiveCompanyId() instead of the old companies.user_id = claims.sub lookup.
+const mockGetActiveCompanyId = vi.fn()
+vi.mock('@/lib/queries/active-company', () => ({
+  getActiveCompanyId: (...args: unknown[]) => mockGetActiveCompanyId(...args),
+}))
 
 import { POST } from '@/app/api/estimates/[id]/refine/route'
 
@@ -110,6 +116,7 @@ describe('HARD-01: refine route response-shape + status-code contract', () => {
     mockDemoGuard.mockResolvedValue(null)
     mockRateLimit.mockResolvedValue({ allowed: true })
     mockRefineEstimate.mockResolvedValue(REFINED_OUTPUT)
+    mockGetActiveCompanyId.mockResolvedValue('company-1')
     mockFrom.mockImplementation((table: string) => {
       if (table === 'companies') {
         return {

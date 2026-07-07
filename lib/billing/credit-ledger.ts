@@ -32,9 +32,6 @@ import { triggerAutoTopupIfNeeded } from '@/lib/billing/auto-topup'
  * there is no channel branch; an op that spent nothing simply records nothing.
  */
 
-/** Postgres unique_violation — the partial-unique idempotency index already has this row. */
-const PG_UNIQUE_VIOLATION = '23505'
-
 export type DebitOperationType =
   | 'estimate'
   | 'photo_batch'
@@ -96,48 +93,31 @@ export async function recordCreditDebit(input: {
 
     const key = debitIdemKey(input.attemptId, input.operationType)
 
-    // Dedup: a retried debit with the same key is a no-op (mirror recordUsage;
-    // do NOT use .upsert(onConflict) — supabase-js can't supply the partial
-    // index predicate as an arbiter).
-    const { data: existing } = await svc
-      .from('credit_ledger')
-      .select('id')
-      .eq('company_id', input.companyId)
-      .eq('idempotency_key', key)
-      .limit(1)
-      .maybeSingle()
-    if (existing) return
-
-    // Read the cached balance, compute balance_after (debit = negative delta).
-    const { data: co } = await svc
-      .from('companies')
-      .select('credit_balance')
-      .eq('id', input.companyId)
-      .single()
-    const current = (co as { credit_balance?: number } | null)?.credit_balance ?? 0
-    const balanceAfter = current - credits
-
-    const { error } = await svc.from('credit_ledger').insert({
-      company_id: input.companyId,
-      delta_credits: -credits,
-      reason: 'debit',
-      operation_type: input.operationType,
-      ref_id: input.attemptId,
-      real_cost_usd: input.realCostUsd,
-      markup: cfg.markup,
-      balance_after: balanceAfter,
-      idempotency_key: key,
+    // Atomic RPC (pre-launch audit fix B3): locks the company row, applies the
+    // delta to credit_balance, and inserts the ledger row in ONE transaction —
+    // replaces the prior SELECT-then-INSERT-then-UPDATE race. `previous` is
+    // read only for the low-balance-crossing notification below; it is not
+    // used to compute the new balance.
+    const previous = await readCachedBalance(svc, input.companyId)
+    const { data: rpcData, error: rpcError } = await svc.rpc('apply_credit_ledger_entry', {
+      p_company_id: input.companyId,
+      p_delta_credits: -credits,
+      p_reason: 'debit',
+      p_operation_type: input.operationType,
+      p_ref_id: input.attemptId,
+      p_real_cost_usd: input.realCostUsd,
+      p_markup: cfg.markup,
+      p_idempotency_key: key,
     })
-    // A concurrent retry won the insert race — the partial unique index rejected
-    // the duplicate. That is the dedup working, not a failure.
-    if (error && (error as { code?: string }).code !== PG_UNIQUE_VIOLATION) {
-      throw new Error(`recordCreditDebit insert failed: ${(error as { message?: string }).message}`)
+    if (rpcError) {
+      throw new Error(`recordCreditDebit RPC failed: ${rpcError.message}`)
     }
-
-    await svc
-      .from('companies')
-      .update({ credit_balance: balanceAfter })
-      .eq('id', input.companyId)
+    const result = (Array.isArray(rpcData) ? rpcData[0] : rpcData) as
+      | { balance_after: number; applied: boolean }
+      | undefined
+    if (!result?.applied) return // idempotent no-op — already recorded by a concurrent/retried call
+    const balanceAfter = result.balance_after
+    const current = previous
 
     // Phase 115 (CREDITUI-02): best-effort low-balance heads-up. `void` so a
     // notification delay never blocks the debit return; the helper is itself
@@ -270,48 +250,36 @@ export async function grantCredits(input: {
     if (!(input.credits > 0)) return
     const svc = requireServiceClient()
 
-    // Dedup by idempotencyKey if one is supplied (mirror recordCreditDebit).
-    if (input.idempotencyKey) {
-      const { data: existing } = await svc
-        .from('credit_ledger')
-        .select('id')
-        .eq('company_id', input.companyId)
-        .eq('idempotency_key', input.idempotencyKey)
-        .limit(1)
-        .maybeSingle()
-      if (existing) return
-    }
-
-    const { data: co } = await svc
-      .from('companies')
-      .select('credit_balance')
-      .eq('id', input.companyId)
-      .single()
-    const current = (co as { credit_balance?: number } | null)?.credit_balance ?? 0
-    const balanceAfter = current + input.credits
-
-    const { error } = await svc.from('credit_ledger').insert({
-      company_id: input.companyId,
-      delta_credits: input.credits,
-      reason: input.reason,
-      operation_type: null,
-      ref_id: input.refId ?? null,
-      real_cost_usd: null,
-      markup: null,
-      balance_after: balanceAfter,
-      idempotency_key: input.idempotencyKey ?? null,
+    // Atomic RPC (pre-launch audit fix B3) — see recordCreditDebit for the race
+    // this closes. `applied: false` means a concurrent/retried call already
+    // recorded this exact idempotencyKey; nothing further to do.
+    const { error: rpcError } = await svc.rpc('apply_credit_ledger_entry', {
+      p_company_id: input.companyId,
+      p_delta_credits: input.credits,
+      p_reason: input.reason,
+      p_operation_type: null,
+      p_ref_id: input.refId ?? null,
+      p_real_cost_usd: null,
+      p_markup: null,
+      p_idempotency_key: input.idempotencyKey ?? null,
     })
-    if (error && (error as { code?: string }).code !== PG_UNIQUE_VIOLATION) {
-      throw new Error(`grantCredits insert failed: ${(error as { message?: string }).message}`)
+    if (rpcError) {
+      throw new Error(`grantCredits RPC failed: ${rpcError.message}`)
     }
-
-    await svc
-      .from('companies')
-      .update({ credit_balance: balanceAfter })
-      .eq('id', input.companyId)
   } catch (err) {
     console.warn('[grantCredits] swallowed write failure:', err)
   }
+}
+
+/** Best-effort read of the cached balance — used only for notification
+ * before/after comparisons, never to compute a write. */
+async function readCachedBalance(svc: SupabaseClient, companyId: string): Promise<number> {
+  const { data } = await svc
+    .from('companies')
+    .select('credit_balance')
+    .eq('id', companyId)
+    .single()
+  return (data as { credit_balance?: number } | null)?.credit_balance ?? 0
 }
 
 /**

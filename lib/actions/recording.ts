@@ -9,6 +9,7 @@ import { getIntegrationKey } from '@/lib/platform-config'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { recordPipelineEvent } from '@/lib/observability/pipeline-events'
 import { assertWritable } from '@/lib/demo/guard'
+import { recordJobOwnership } from '@/lib/inngest/job-ownership'
 
 async function getAuthContext() {
   const supabase = await createClient()
@@ -96,6 +97,22 @@ export async function createTextRecording(
   return { data: recording }
 }
 
+// Pre-launch audit fix (A-2 / B10): storagePath and durationSeconds are
+// client-declared. Two abuse vectors this closes:
+//   1. A storagePath outside the caller's own company prefix would let the
+//      transcribe worker (service role, no ownership check on the download
+//      itself) read another tenant's audio file if that path were ever
+//      guessed/leaked.
+//   2. duration_seconds feeds computeWhisperCostUsd (lib/inngest/functions/
+//      transcribe-audio.ts) — a declared 0 makes that return null, which is a
+//      no-op for the credit debit ("free" transcription). Reject non-positive
+//      and unreasonably large values outright rather than trusting the client.
+// NOTE: this validates the CLAIMED duration against a sane range — it does
+// not (yet) probe the actual audio file to derive a ground-truth duration,
+// which would need an audio-parsing dependency this codebase doesn't carry
+// today. Tracked as a follow-up if the range check proves insufficient.
+const MAX_RECORDING_DURATION_SECONDS = 15 * 60 // 900s — client hard-caps at 10 min; generous slack for encoding variance
+
 export async function createRecording(
   projectId: string,
   storagePath: string,
@@ -108,6 +125,13 @@ export async function createRecording(
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error }
   const { supabase, company } = ctx
+
+  if (!storagePath.startsWith(`${company.id}/`)) {
+    return { error: 'Invalid recording path.' }
+  }
+  if (!(durationSeconds > 0) || durationSeconds > MAX_RECORDING_DURATION_SECONDS) {
+    return { error: 'Invalid recording duration.' }
+  }
 
   const { data: recording, error: insertError } = await supabase
     .from('recordings')
@@ -236,6 +260,9 @@ export async function transcribeRecording(
       }),
     },
   })
+  // Awaited — see app/api/transcribe/route.ts for why this must not race the
+  // client's first poll.
+  if (ids[0]) await recordJobOwnership(ids[0], recording.company_id as string)
 
   return { data: { jobId: ids[0] } }
 }

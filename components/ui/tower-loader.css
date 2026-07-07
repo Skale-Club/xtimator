@@ -95,7 +95,7 @@
   0% {
     z-index: 20;
     opacity: 0;
-    translate: 0px -6px;
+    translate: -20px -6px;
   }
 
   20% {
@@ -131,7 +131,7 @@
   0% {
     z-index: 20;
     opacity: 0;
-    translate: 0px -6px;
+    translate: 20px -6px;
   }
 
   20% {

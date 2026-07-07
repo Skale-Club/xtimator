@@ -93,6 +93,9 @@ function stateToDocumentData(state: EstimateEditorState): EstimateDocumentData {
 function stateToSavePayload(state: EstimateEditorState) {
   return {
     id: state.id,
+    // Pre-launch audit fix (B7): optimistic-concurrency baseline — see
+    // saveEstimate's expectedUpdatedAt doc in lib/actions/estimate.ts.
+    expectedUpdatedAt: state.updated_at,
     summary: state.summary,
     notes: state.notes,
     timeline: state.timeline,
@@ -206,20 +209,45 @@ export function EstimateEditor({
   // Save handlers
   // -------------------------------------------------------------------------
 
+  const handleDiscard = useCallback(async () => {
+    const result = await getEstimateByIdAction(stateRef.current.id)
+    if (result.error || !result.data) { toast.error('Failed to reload estimate'); return }
+    dispatch({ type: 'INIT', estimate: result.data })
+    setSaveStatus('idle')
+    toast.success('Changes discarded')
+  }, [dispatch])
+
   const runSave = useCallback(async (): Promise<boolean> => {
     if (isReadOnly) return false
     setSaveStatus('saving')
     const result = await saveEstimate(stateToSavePayload(stateRef.current))
     if (result.error) {
       setSaveStatus('error')
-      toast.error(result.error)
+      // Pre-launch audit fix (B7): a conflict means the save was REJECTED
+      // server-side (another tab/session saved first) — local edits are still
+      // sitting unsaved in the editor, not lost, but must not be silently
+      // retried as-is (that would just fail again). Give the user a longer,
+      // explicit toast with a one-click path to load the latest version —
+      // reusing the existing Discard reload plumbing via handleDiscard.
+      if ('conflict' in result && result.conflict) {
+        toast.error(result.error, {
+          duration: 15000,
+          action: {
+            label: 'Load latest version',
+            onClick: () => void handleDiscard(),
+          },
+        })
+      } else {
+        toast.error(result.error)
+      }
       return false
     }
-    dispatch({ type: 'MARK_SAVED' })
+    if (!result.data) return false
+    dispatch({ type: 'MARK_SAVED', updated_at: result.data.updated_at })
     setSaveStatus('saved')
     setTimeout(() => setSaveStatus((s) => (s === 'saved' ? 'idle' : s)), 2500)
     return true
-  }, [isReadOnly, dispatch])
+  }, [isReadOnly, dispatch, handleDiscard])
 
   const handleSaveDraft = useCallback(async () => {
     const ok = await runSave()
@@ -230,14 +258,6 @@ export function EstimateEditor({
     if (!isReadOnly && state.isDirty) await runSave()
     onSend?.()
   }, [isReadOnly, state.isDirty, runSave, onSend])
-
-  const handleDiscard = useCallback(async () => {
-    const result = await getEstimateByIdAction(stateRef.current.id)
-    if (result.error || !result.data) { toast.error('Failed to reload estimate'); return }
-    dispatch({ type: 'INIT', estimate: result.data })
-    setSaveStatus('idle')
-    toast.success('Changes discarded')
-  }, [dispatch])
 
   const handleRenameProject = useCallback(async (name: string) => {
     const result = await renameProjectAction(projectId, name)
@@ -276,6 +296,57 @@ export function EstimateEditor({
     window.addEventListener('beforeunload', onBeforeUnload)
     return () => window.removeEventListener('beforeunload', onBeforeUnload)
   }, [isReadOnly])
+
+  // Pre-launch audit fix (B7) — SPA navigation guard: beforeunload above only
+  // covers a full page unload/refresh. Clicking a <Link> (Next.js App Router
+  // client-side navigation — the bottom nav, breadcrumbs, etc.) never fires
+  // beforeunload, so a user could tap "Projects" and lose unsaved edits with
+  // zero warning. Intercept same-origin anchor clicks in the capture phase
+  // while dirty; on confirm, re-dispatch the navigation via router.push (the
+  // original click was prevented).
+  useEffect(() => {
+    function onClickCapture(e: MouseEvent) {
+      if (isReadOnly || !stateRef.current.isDirty) return
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+      const anchor = (e.target as HTMLElement | null)?.closest?.('a[href]') as HTMLAnchorElement | null
+      if (!anchor || (anchor.target && anchor.target !== '_self')) return
+
+      let url: URL
+      try {
+        url = new URL(anchor.href, window.location.href)
+      } catch {
+        return
+      }
+      if (url.origin !== window.location.origin) return
+      // Same page (hash-only / query-only jump on the current path) — not a navigation away.
+      if (url.pathname === window.location.pathname) return
+
+      e.preventDefault()
+      e.stopPropagation()
+      if (window.confirm('You have unsaved changes. Leave this page and discard them?')) {
+        router.push(url.pathname + url.search + url.hash)
+      }
+    }
+    document.addEventListener('click', onClickCapture, true)
+    return () => document.removeEventListener('click', onClickCapture, true)
+  }, [isReadOnly, router])
+
+  // Autosave (pre-launch audit fix B7): debounced background save while
+  // dirty, so edits are persisted within a few seconds of the user stopping
+  // typing — a second safety net alongside the explicit Save button, in case
+  // the user navigates away (e.g. backgrounds the browser tab on mobile)
+  // without tapping Save or triggering the SPA-navigation confirm above.
+  useEffect(() => {
+    if (isReadOnly || !state.isDirty) return
+    const timer = setTimeout(() => {
+      void runSave()
+    }, 3000)
+    return () => clearTimeout(timer)
+    // Intentionally depends on the whole `state` object (not just isDirty) so
+    // every edit resets the debounce timer — a genuine debounce, not a
+    // fire-once-then-never-again effect.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state, isReadOnly, runSave])
 
   // -------------------------------------------------------------------------
   // Version switching
@@ -361,6 +432,7 @@ export function EstimateEditor({
         status={saveStatus === 'dirty' ? 'idle' : (saveStatus as 'idle' | 'saving' | 'saved' | 'error')}
         onSend={handleSend}
         onDiscard={handleDiscard}
+        onSaveDraft={handleSaveDraft}
         onRecord={onRecord}
         linkClientSlot={linkClientSlot}
       />

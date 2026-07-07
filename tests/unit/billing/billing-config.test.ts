@@ -479,6 +479,12 @@ describe('BILLCFG-03: getBillingConfig consumed ONLY by the reader + credit-ledg
     // display consumer (DISPLAY ONLY — no mutation). The guard still fails on
     // any OTHER reference of the symbol.
     const ADMIN_BILLING_PAGE_PATH = resolve(process.cwd(), 'app/admin/billing/page.tsx')
+    // Pre-launch audit fix (Onda 2, chat abuse guard): the chat route reads
+    // absorbedChatRateLimitPerMin from getBillingConfig to rate-limit the
+    // absorbed-cost AI chat endpoint per company — the runtime-authoritative
+    // billing source, a legitimate consumer. The guard still fails on any
+    // OTHER reference of the symbol.
+    const CHAT_ROUTE_PATH = resolve(process.cwd(), 'app/api/chat/route.ts')
     const ALLOWLIST = new Set([
       MODULE_PATH,
       CREDIT_LEDGER_PATH,
@@ -496,6 +502,7 @@ describe('BILLCFG-03: getBillingConfig consumed ONLY by the reader + credit-ledg
       AUTO_TOPUP_PATH,
       AUTO_TOPUP_ACTION_PATH,
       ADMIN_BILLING_PAGE_PATH,
+      CHAT_ROUTE_PATH,
     ])
 
     const collected: string[] = []

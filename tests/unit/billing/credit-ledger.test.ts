@@ -8,13 +8,26 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
  *   - CREDIT-02: recordCreditDebit math = round(real_cost × markup / creditUnitUsd).
  *   - CREDIT-07: a null real cost (or a cost rounding to 0 credits) → NO debit;
  *                a service-client failure NEVER throws (best-effort, console.warn).
- *   - CREDIT-06: idempotent debits — check-then-insert dedup + 23505 swallow;
+ *   - CREDIT-06: idempotent debits — the atomic RPC's own dedup (mirrored here
+ *                via reads.ledgerExisting) + a unique_violation from a lost
+ *                race is a no-op, not a thrown error;
  *                debitIdemKey('a1','estimate') === 'a1:debit:estimate'.
- *   - CREDIT-03: each write reads + updates companies.credit_balance;
- *                reconcileBalance recomputes SUM(delta_credits).
+ *   - CREDIT-03: each write atomically updates companies.credit_balance via
+ *                apply_credit_ledger_entry; reconcileBalance recomputes
+ *                SUM(delta_credits) directly (unchanged, no RPC).
  *   - CREDIT-04: grantCredits writes a POSITIVE grant row + bumps balance.
  *   - CREDIT-05: checkCredits returns {allowed,balance,shortfall}; allowed:true
  *                ALWAYS when enforcementEnabled:false, gated when true.
+ *
+ * Pre-launch audit fix (B3): recordCreditDebit/grantCredits now call the
+ * atomic `apply_credit_ledger_entry` RPC (a single locked transaction) instead
+ * of a JS-side SELECT-then-INSERT-then-UPDATE. The mock's `rpc()` method
+ * simulates that function's contract (see the migration for the real SQL):
+ * on a fresh idempotency key it computes balance_after = current + delta,
+ * records the ledger insert + balance update for assertions, and returns
+ * {balance_after, applied:true}; on a pre-existing key (or an in-function
+ * unique_violation) it returns {balance_after, applied:false} WITHOUT ever
+ * surfacing as a JS error — matching the SQL function's own race handling.
  *
  * The service client + billing-config reader are mocked. NO DB, NO network,
  * NO secrets — pure unit tests over the never-throw helper shape.
@@ -111,6 +124,45 @@ function makeServiceClient() {
           }
         },
       }
+    },
+    // Simulates apply_credit_ledger_entry (see the atomic-RPC migration).
+    // recordCreditDebit/grantCredits are the only callers.
+    async rpc(fnName: string, params: Record<string, unknown>) {
+      if (fnName !== 'apply_credit_ledger_entry') {
+        throw new Error(`unexpected rpc call: ${fnName}`)
+      }
+      if (insertThrows) throw new Error('insert exploded')
+
+      // Pre-existing idempotency key (either the test's dedup fixture, or a
+      // 23505 the real function would catch internally) → no-op, no error.
+      if (
+        (params.p_idempotency_key && reads.ledgerExisting) ||
+        insertError?.code === '23505'
+      ) {
+        return { data: [{ balance_after: reads.companyBalance ?? 0, applied: false }], error: null }
+      }
+      if (insertError) {
+        return { data: null, error: insertError }
+      }
+
+      const current = reads.companyBalance ?? 0
+      const balanceAfter = current + (params.p_delta_credits as number)
+      captured.inserts.push({
+        table: 'credit_ledger',
+        payload: {
+          company_id: params.p_company_id,
+          delta_credits: params.p_delta_credits,
+          reason: params.p_reason,
+          operation_type: params.p_operation_type,
+          ref_id: params.p_ref_id,
+          real_cost_usd: params.p_real_cost_usd,
+          markup: params.p_markup,
+          balance_after: balanceAfter,
+          idempotency_key: params.p_idempotency_key,
+        },
+      })
+      captured.updates.push({ table: 'companies', payload: { credit_balance: balanceAfter } })
+      return { data: [{ balance_after: balanceAfter, applied: true }], error: null }
     },
   }
 }

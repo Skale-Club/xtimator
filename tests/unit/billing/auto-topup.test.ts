@@ -191,6 +191,15 @@ describe('CREDITUI-07: credit-ledger.ts wiring', () => {
             return { eq: async () => Promise.resolve({ error: null }) }
           },
         }),
+        // Simulates apply_credit_ledger_entry — recordCreditDebit's write path.
+        async rpc(fnName: string, params: Record<string, unknown>) {
+          if (fnName !== 'apply_credit_ledger_entry') {
+            throw new Error(`unexpected rpc call: ${fnName}`)
+          }
+          const balanceAfter = 100 + (params.p_delta_credits as number) // current balance = 100
+          ledgerCaptured.push({ table: 'credit_ledger', payload: params })
+          return { data: [{ balance_after: balanceAfter, applied: true }], error: null }
+        },
       }),
     }))
     vi.doMock('@/lib/billing/billing-config', () => ({

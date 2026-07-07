@@ -1,5 +1,18 @@
 import { describe, it, expect } from 'vitest'
-import { isPublicRoute } from '@/lib/supabase/proxy'
+// Pre-launch audit fix: this test used to import from lib/supabase/proxy.ts,
+// a stale duplicate never imported by any application code (grep confirms
+// zero importers). Next.js 16 renamed the middleware convention to
+// `proxy.ts` at the project root — THAT file (not the lib/supabase one) is
+// the real, live middleware entry point, so this test previously provided
+// ZERO coverage of actual routing/auth behavior. Fixed to import the real
+// module.
+import { isPublicRoute, isProtectedRoute } from '@/proxy'
+
+/** Mirrors proxy.ts's exact anonymous-redirect guard:
+ *  `!claims && isProtectedRoute(pathname) && !isPublicRoute(pathname)`. */
+function wouldRedirectAnonymous(pathname: string): boolean {
+  return isProtectedRoute(pathname) && !isPublicRoute(pathname)
+}
 
 describe('Middleware route protection rules (D-05)', () => {
   it('/ is a public route', () => {
@@ -14,10 +27,6 @@ describe('Middleware route protection rules (D-05)', () => {
     expect(isPublicRoute('/signup')).toBe(false)
   })
 
-  it('/estimate/abc is a public estimate route (not protected)', () => {
-    expect(isPublicRoute('/estimate/abc123')).toBe(true)
-  })
-
   it('/reset-password is no longer a route (returns false)', () => {
     expect(isPublicRoute('/reset-password')).toBe(false)
   })
@@ -27,11 +36,60 @@ describe('Middleware route protection rules (D-05)', () => {
   })
 
   it('/dashboard is a protected route', () => {
-    expect(isPublicRoute('/dashboard')).toBe(false)
+    expect(wouldRedirectAnonymous('/dashboard')).toBe(true)
   })
 
   it('/onboarding is a protected route', () => {
-    expect(isPublicRoute('/onboarding')).toBe(false)
+    expect(wouldRedirectAnonymous('/onboarding')).toBe(true)
+  })
+
+  it('/api/cron/anything is public (own CRON_SECRET auth)', () => {
+    expect(wouldRedirectAnonymous('/api/cron/cleanup-orphan-projects')).toBe(false)
+  })
+
+  it('/api/webhooks/stripe is public (signature-verified)', () => {
+    expect(wouldRedirectAnonymous('/api/webhooks/stripe')).toBe(false)
+  })
+
+  it('/api/inngest is public (Inngest-signed requests)', () => {
+    expect(wouldRedirectAnonymous('/api/inngest')).toBe(false)
+  })
+
+  it('/api/health is public (pre-launch audit fix — Docker healthcheck + uptime monitors)', () => {
+    expect(wouldRedirectAnonymous('/api/health')).toBe(false)
+  })
+
+  it('/api/mcp is public (pre-launch audit fix — RFC 6750 Bearer auth, own challenge flow)', () => {
+    expect(wouldRedirectAnonymous('/api/mcp')).toBe(false)
+  })
+
+  it('/api/csp-report is public (pre-launch audit fix — unauthenticated browser CSP reports)', () => {
+    expect(wouldRedirectAnonymous('/api/csp-report')).toBe(false)
+  })
+
+  it('/api/estimates/123 (a normal authenticated API route) redirects an anonymous caller', () => {
+    expect(wouldRedirectAnonymous('/api/estimates/123')).toBe(true)
+  })
+})
+
+describe('Public share link (/estimate/[token]) — pre-launch audit fix', () => {
+  // app/estimate/[token] is the ONLY route under the literal '/estimate' URL
+  // prefix, and it's the public link a business sends to its clients (forced
+  // light theme + noindex robots specifically for logged-out viewing — see
+  // app/estimate/[token]/layout.tsx). '/estimate' used to sit in
+  // PROTECTED_ROUTE_PREFIXES with an exemption for a '/estimate/public'
+  // folder that never existed in app/, so EVERY anonymous visit to a real
+  // share link (e.g. /estimate/<uuid-share-token>) was 307-redirected to
+  // /?auth=login — silently breaking the core "send an estimate link to a
+  // client" flow for any client without a session. Fixed by removing
+  // '/estimate' from the protected prefixes entirely (there is nothing
+  // authenticated to protect at that URL).
+  it('an anonymous visit to a real share-token URL is NOT redirected to login', () => {
+    expect(wouldRedirectAnonymous('/estimate/a1b2c3d4-e5f6-7890-abcd-ef1234567890')).toBe(false)
+  })
+
+  it('/estimate (bare, no token) is also not redirected', () => {
+    expect(wouldRedirectAnonymous('/estimate')).toBe(false)
   })
 })
 
@@ -43,14 +101,7 @@ describe('Landing root (/) routing rules (D-01, D-02)', () => {
   })
 
   it('unauthenticated GET / does NOT trigger the protected-route redirect', () => {
-    const pathname = '/'
-    const claims = null // unauthenticated
-    const isAuthRoute = pathname.startsWith('/callback')
-    const isPublicEstimate = pathname.startsWith('/estimate')
-    const isLandingRoot = pathname === '/'
-    // The guard that would redirect to /?auth=login
-    const wouldRedirectToLogin = !claims && !isAuthRoute && !isPublicEstimate && !isLandingRoot
-    expect(wouldRedirectToLogin).toBe(false)
+    expect(wouldRedirectAnonymous('/')).toBe(false)
   })
 
   it('authenticated GET / triggers redirect to /dashboard', () => {

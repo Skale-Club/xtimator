@@ -73,6 +73,68 @@ describe('REC-05: pollJob interprets the discriminated contract', () => {
   })
 })
 
+describe('B8: pollJob retries transient network errors and gives up on a deadline', () => {
+  beforeEach(() => {
+    vi.resetAllMocks()
+    vi.stubGlobal('fetch', mockFetch)
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+  })
+
+  it('retries a single transient network error with backoff and recovers (does NOT throw)', async () => {
+    vi.useFakeTimers()
+    let callCount = 0
+    mockFetch.mockImplementation(() => {
+      callCount += 1
+      if (callCount === 1) return Promise.reject(new TypeError('Failed to fetch'))
+      return Promise.resolve(
+        jsonResponse({ state: 'completed', output: { estimateId: 'est-1' } })
+      )
+    })
+
+    const controller = new AbortController()
+    const promise = pollJob('evt_xyz', controller.signal)
+    await vi.runAllTimersAsync()
+    const result = await promise
+
+    expect(result.state).toBe('completed')
+    expect(callCount).toBe(2)
+  })
+
+  it('gives up after MAX_CONSECUTIVE_POLL_ERRORS consecutive network failures with a Network error reason', async () => {
+    vi.useFakeTimers()
+    mockFetch.mockRejectedValue(new TypeError('Failed to fetch'))
+
+    const controller = new AbortController()
+    const promise = pollJob('evt_xyz', controller.signal)
+    await vi.runAllTimersAsync()
+    const result = await promise
+
+    expect(result.state).toBe('failed')
+    if (result.state === 'failed') {
+      expect(result.reason).toMatch(/network error/i)
+    }
+  })
+
+  it('gives up after the overall deadline when the job never leaves processing', async () => {
+    vi.useFakeTimers()
+    mockFetch.mockResolvedValue(jsonResponse({ state: 'processing' }))
+
+    const controller = new AbortController()
+    const promise = pollJob('evt_xyz', controller.signal)
+    await vi.runAllTimersAsync()
+    const result = await promise
+
+    expect(result.state).toBe('failed')
+    if (result.state === 'failed') {
+      expect(result.reason).toMatch(/longer than expected/i)
+    }
+  })
+})
+
 describe('REC-05: useJobStatus exposes a discriminated state', () => {
   beforeEach(() => {
     vi.resetAllMocks()

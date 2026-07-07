@@ -4,7 +4,17 @@ import { NextResponse, type NextRequest } from 'next/server'
 const PROTECTED_ROUTE_PREFIXES = [
   '/dashboard',
   '/onboarding',
-  '/estimate',
+  // Pre-launch audit fix: '/estimate' used to be listed here, but the ONLY
+  // route that ever lived at that literal URL prefix is app/estimate/[token]
+  // — the PUBLIC share-link page a business sends to its clients (rendered
+  // in a forced-light layout with noindex robots specifically for logged-out
+  // viewing; see app/estimate/[token]/layout.tsx). The PUBLIC_PREFIXES
+  // exemption below only ever matched '/estimate/public', a folder that has
+  // never existed in app/ — so every anonymous visit to a share link was
+  // 307-redirected to /?auth=login by this middleware, silently breaking the
+  // core "send an estimate link to a client" flow for anyone not already
+  // signed in. There is no authenticated content under '/estimate' to
+  // protect, so it's removed entirely rather than special-cased.
   '/company',
   '/team',
   '/settings',
@@ -14,7 +24,7 @@ const PROTECTED_ROUTE_PREFIXES = [
 
 const PUBLIC_EXACT_ROUTES = ['/', '/callback'] as const
 
-const PUBLIC_PREFIXES = ['/estimate/public', '/icon', '/apple-icon', '/manifest.webmanifest'] as const
+const PUBLIC_PREFIXES = ['/icon', '/apple-icon', '/manifest.webmanifest'] as const
 
 export function isPublicRoute(pathname: string): boolean {
   if (PUBLIC_EXACT_ROUTES.includes(pathname as (typeof PUBLIC_EXACT_ROUTES)[number])) {
@@ -36,6 +46,27 @@ export function isPublicRoute(pathname: string): boolean {
   // (this silently broke the whole pipeline for ~11 days after '/api' entered the
   // protected prefixes). Same rationale as the webhook/cron exemptions above.
   if (pathname === '/api/inngest' || pathname.startsWith('/api/inngest/')) {
+    return true
+  }
+  // Pre-launch audit fix: /api/health exposes only booleans + a commit sha
+  // (no PII/secrets — see app/api/health/route.ts) and is meant to be probed
+  // anonymously by the Docker HEALTHCHECK and external uptime monitors. Without
+  // this exemption it 307-redirects to /?auth=login for any unauthenticated
+  // caller, so no external monitor (or the compose healthcheck) can ever reach it.
+  if (pathname === '/api/health') {
+    return true
+  }
+  // Browsers POST CSP violation reports here unauthenticated (no session to
+  // check against) — see app/api/csp-report/route.ts.
+  if (pathname === '/api/csp-report') {
+    return true
+  }
+  // /api/mcp authenticates every request itself via RFC 6750 Bearer tokens
+  // (lib/mcp/auth.ts) — it has no Supabase session concept. Without this
+  // exemption, an MCP client's unauthenticated discovery request gets a 307 to
+  // the login page instead of the RFC-9728-compliant 401 + WWW-Authenticate
+  // challenge the MCP spec expects, breaking the OAuth discovery flow entirely.
+  if (pathname === '/api/mcp' || pathname.startsWith('/api/mcp/')) {
     return true
   }
   return PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix))

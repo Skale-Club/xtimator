@@ -82,6 +82,7 @@ function makeSupabaseMock({
     if (table === 'projects') {
       const projectData = {
         id: 'project-1',
+        company_id: 'company-1',
         name: projectName,
         project_type: 'General',
         target_budget: null,

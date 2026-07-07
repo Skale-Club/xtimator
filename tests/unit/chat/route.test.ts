@@ -58,6 +58,16 @@ vi.mock('@/lib/queries/chat', () => ({
   appendMessage: vi.fn(),
 }))
 
+// --- Rate limit (pre-launch audit fix B9) — allowed by default; individual
+// tests can override to exercise the 429 path.
+const rateLimitMock = vi.fn(async () => ({ allowed: true, count: 1, max: 20 }))
+vi.mock('@/lib/ratelimit', () => ({
+  rateLimit: (...args: unknown[]) => rateLimitMock(...args),
+}))
+vi.mock('@/lib/billing/billing-config', () => ({
+  getBillingConfig: vi.fn(async () => ({ absorbedChatRateLimitPerMin: 20 })),
+}))
+
 import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { resolveChatModel } from '@/lib/chat/provider'
@@ -137,6 +147,32 @@ describe('POST /api/chat', () => {
 
     expect(res.status).toBe(401)
     expect(buildChatToolsMock).not.toHaveBeenCalled()
+    expect(resolveChatModelMock).not.toHaveBeenCalled()
+  })
+
+  it('B9: returns 429 when the chat rate limit is exceeded (no model build)', async () => {
+    rateLimitMock.mockResolvedValueOnce({ allowed: false, count: 21, max: 20, retryAfter: 30 })
+
+    const res = await POST(chatRequest({ messages: [userMessage] }))
+
+    expect(res.status).toBe(429)
+    expect(res.headers.get('Retry-After')).toBe('30')
+    expect(resolveChatModelMock).not.toHaveBeenCalled()
+    expect(buildChatToolsMock).not.toHaveBeenCalled()
+  })
+
+  it('B9: passes billing_config.absorbedChatRateLimitPerMin as the rate-limit override', async () => {
+    await POST(chatRequest({ messages: [userMessage] }))
+
+    expect(rateLimitMock).toHaveBeenCalledWith('chatPerMinute', 'user-1', 20)
+  })
+
+  it('B9: returns 400 when the turn carries more than MAX_MESSAGES_PER_TURN messages', async () => {
+    const tooMany = Array.from({ length: 101 }, () => userMessage)
+
+    const res = await POST(chatRequest({ messages: tooMany }))
+
+    expect(res.status).toBe(400)
     expect(resolveChatModelMock).not.toHaveBeenCalled()
   })
 

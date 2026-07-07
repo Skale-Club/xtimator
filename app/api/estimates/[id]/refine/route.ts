@@ -25,6 +25,7 @@ import { makeRefineAdapter } from '@/lib/estimate/adapters/refine'
 import { rateLimit } from '@/lib/ratelimit'
 import { demoGuardResponse } from '@/lib/demo/guard'
 import { asResponse, XtimatorError, throwIfNotFound, throwIfForbidden } from '@/lib/errors'
+import { getActiveCompanyId } from '@/lib/queries/active-company'
 
 const MAX_PHOTOS = 5
 
@@ -76,16 +77,14 @@ export async function POST(
       )
     }
 
-    const { data: companyRow } = await supabase
-      .from('companies')
-      .select('id, default_tax_rate, default_payment_terms, default_warranty_terms')
-      .eq('user_id', claims.sub)
-      .single()
-
-    if (!companyRow) {
+    // Pre-launch audit fix (M-3): getActiveCompanyId() resolves via
+    // company_members, so this works for STAFF members too — the previous
+    // companies.user_id = claims.sub lookup only ever matched the account
+    // owner.
+    const companyId = await getActiveCompanyId()
+    if (!companyId) {
       throw new XtimatorError('unauthorized', 'estimates', 'No company found')
     }
-    const companyId = companyRow.id as string
 
     // Fetch current estimate
     const estimate = await getEstimateById(supabase, estimateId)

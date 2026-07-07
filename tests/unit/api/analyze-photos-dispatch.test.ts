@@ -44,13 +44,22 @@ vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(),
 }))
 
+// Pre-launch audit fix (M-3): the route resolves the caller's company via
+// getActiveCompanyId() (company_members-based, works for staff) instead of
+// the old companies.user_id = claims.sub lookup.
+vi.mock('@/lib/queries/active-company', () => ({
+  getActiveCompanyId: vi.fn().mockResolvedValue('company-1'),
+}))
+
 import { POST } from '@/app/api/analyze-photos/route'
 import { createClient } from '@/lib/supabase/server'
 import { checkQuota } from '@/lib/quota'
 import { inngest } from '@/lib/inngest/client'
+import { getActiveCompanyId } from '@/lib/queries/active-company'
 
 const mockSend = vi.mocked(inngest.send)
 const mockCheckQuota = vi.mocked(checkQuota)
+const mockGetActiveCompanyId = vi.mocked(getActiveCompanyId)
 
 function makeRequest(projectId?: string) {
   return new Request('http://localhost/api/analyze-photos', {
@@ -105,6 +114,7 @@ describe('INNGEST-04: POST /api/analyze-photos dispatch', () => {
     })
     mockSend.mockResolvedValue({ ids: ['evt_photos_xyz'] } as never)
     mockCheckQuota.mockResolvedValue({ allowed: true, remaining: null })
+    mockGetActiveCompanyId.mockResolvedValue('company-1')
   })
 
   it('returns { jobId } HTTP 202 in <1s', async () => {

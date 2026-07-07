@@ -2,7 +2,7 @@
 
 import type { ReactNode } from 'react'
 import {
-  Send, RotateCcw, Pencil, MoreHorizontal, UserPlus,
+  Send, RotateCcw, Pencil, MoreHorizontal, UserPlus, Save,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -32,6 +32,10 @@ interface EstimateFloatingActionsProps {
   status: Status
   onSend: () => void
   onDiscard: () => void
+  /** Pre-launch audit fix (B7): explicit Save affordance — previously the
+   * ONLY way to save a draft without sending was Cmd/Ctrl+S, which has no
+   * mobile equivalent (the primary capture-flow device). */
+  onSaveDraft: () => void
   onRecord?: () => void
   linkClientSlot?: ReactNode
 }
@@ -104,6 +108,7 @@ export function EstimateFloatingActions({
   status,
   onSend,
   onDiscard,
+  onSaveDraft,
   onRecord,
   linkClientSlot,
 }: EstimateFloatingActionsProps) {
@@ -161,6 +166,16 @@ export function EstimateFloatingActions({
             Discard
           </Button>
         </DiscardAlert>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={onSaveDraft}
+          disabled={isSaving || !isDirty}
+          className="rounded-full gap-1.5"
+        >
+          <Save className="h-3.5 w-3.5" />
+          {isSaving ? 'Saving…' : 'Save'}
+        </Button>
         <Button size="sm" onClick={onSend} disabled={isSaving} className="rounded-full gap-1.5">
           <Send className="h-3.5 w-3.5" />
           Send
@@ -203,6 +218,16 @@ export function EstimateFloatingActions({
         </DropdownMenu>
 
         {/* Primary actions */}
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={onSaveDraft}
+          disabled={isSaving || !isDirty}
+          className="rounded-full gap-1.5 shrink-0"
+          aria-label="Save draft"
+        >
+          <Save className="h-4 w-4" />
+        </Button>
         <Button
           size="sm"
           onClick={onSend}

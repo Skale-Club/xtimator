@@ -69,6 +69,17 @@ export function ProjectWorkspace({
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [, startTabTransition] = useTransition()
 
+  // Mobile-first: the rail starts collapsed on small viewports so the estimate
+  // content column isn't squeezed by the ~w-36 expanded rail (~37% of a phone
+  // screen). Desktop keeps the expanded default. Runs once on mount — the user
+  // can still toggle it open manually via the footer control. Deferred to an
+  // effect (not lazy initial state) to avoid an SSR/hydration mismatch.
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches) {
+      setSidebarCollapsed(true)
+    }
+  }, [])
+
   // Sync state when searchParams.tab changes (e.g., redirect from /capture)
   useEffect(() => {
     if (queryTab && (ALLOWED_TABS as readonly string[]).includes(queryTab)) {

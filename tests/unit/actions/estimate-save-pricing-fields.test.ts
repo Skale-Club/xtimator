@@ -82,7 +82,17 @@ function configureSupabase() {
           if ('subtotal' in payload || 'total' in payload) {
             estimatesUpdatePayload = payload
           }
-          return { eq: vi.fn().mockResolvedValue({ error: null }) }
+          // Pre-launch audit fix (B7): saveEstimate now chains .select() after
+          // .eq() to read back the row (optimistic-concurrency check + the
+          // new updated_at returned to the caller).
+          return {
+            eq: vi.fn().mockReturnValue({
+              select: vi.fn().mockResolvedValue({
+                data: [{ id: 'est_1', updated_at: '2026-01-01T00:00:00.000Z' }],
+                error: null,
+              }),
+            }),
+          }
         }),
         select: vi.fn().mockReturnValue({
           eq: vi.fn().mockReturnValue({

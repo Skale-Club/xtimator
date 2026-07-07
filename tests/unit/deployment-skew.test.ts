@@ -11,8 +11,13 @@ describe('self-hosted deployment skew protection', () => {
       'deploymentId: deploymentId || undefined',
     )
     expect(read('Dockerfile')).toContain('ARG DEPLOYMENT_VERSION')
+    // Pre-launch audit fix (Onda 3): build-deploy.yml now triggers on the
+    // Test workflow's workflow_run completion and threads the EXACT SHA that
+    // workflow validated (env.DEPLOY_SHA = workflow_run.head_sha || github.sha)
+    // rather than the raw github.sha of the deploy-trigger event — a tighter
+    // test-then-deploy guarantee, not a regression.
     expect(read('.github/workflows/build-deploy.yml')).toContain(
-      'DEPLOYMENT_VERSION=${{ github.sha }}',
+      'DEPLOYMENT_VERSION=${{ env.DEPLOY_SHA }}',
     )
   })
 

@@ -11,11 +11,18 @@ name: Scheduled Cron Jobs
 
 on:
   # Each schedule maps to one endpoint (see the case statement below).
+  #
+  # Pre-launch audit fix: this workflow used to also schedule expire-trials
+  # (01:00) and trial-warning-emails (09:00). Neither endpoint has existed in
+  # app/api/cron/ since Billing v2 replaced the 14-day trial clock with the
+  # one-time signup credit grant ("the free tier IS the trial" — see
+  # lib/actions/company.ts / lib/billing/credit-ledger.ts:grantSignupCredits).
+  # Those two schedules were failing every single day with a 404, masking
+  # real failures in the two crons that still matter. Removed rather than
+  # reimplemented — there is no trial-expiry concept left to enforce.
   schedule:
-    - cron: "0 1 * * *" # expire-trials
     - cron: "0 3 * * *" # cleanup-orphan-projects
     - cron: "0 4 * * *" # cleanup-whatsapp-sessions
-    - cron: "0 9 * * *" # trial-warning-emails
   workflow_dispatch:
 
 permissions:
@@ -93,26 +100,18 @@ jobs:
           }
 
           # Map the triggering schedule to its endpoint. A manual
-          # workflow_dispatch run has an empty SCHEDULE and exercises all four.
+          # workflow_dispatch run has an empty SCHEDULE and exercises both.
           case "${SCHEDULE:-}" in
-            "0 1 * * *")
-              hit "/api/cron/expire-trials" || overall_status=1
-              ;;
             "0 3 * * *")
               hit "/api/cron/cleanup-orphan-projects" || overall_status=1
               ;;
             "0 4 * * *")
               hit "/api/cron/cleanup-whatsapp-sessions" || overall_status=1
               ;;
-            "0 9 * * *")
-              hit "/api/cron/trial-warning-emails" || overall_status=1
-              ;;
             *)
               echo "No schedule match (manual dispatch?) — running all cron endpoints."
-              hit "/api/cron/expire-trials" || overall_status=1
               hit "/api/cron/cleanup-orphan-projects" || overall_status=1
               hit "/api/cron/cleanup-whatsapp-sessions" || overall_status=1
-              hit "/api/cron/trial-warning-emails" || overall_status=1
               ;;
           esac
 

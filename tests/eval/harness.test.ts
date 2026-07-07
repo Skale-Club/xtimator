@@ -120,6 +120,7 @@ function makeSupabaseMock() {
               single: vi.fn().mockResolvedValue({
                 data: {
                   id: PROJECT_ID,
+                  company_id: COMPANY_ID,
                   name: 'Eval Project',
                   project_type: 'General',
                   target_budget: null,

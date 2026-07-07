@@ -44,6 +44,19 @@ export const generateEstimateJob = inngest.createFunction(
     id: 'generate-estimate',
     idempotency: 'event.data.requestId',
     retries: 2,
+    // Pre-launch audit fix (M-2): serialize generation runs PER PROJECT. The
+    // idempotency key above only dedupes the SAME requestId (a retry of one
+    // attempt) — it does nothing for two genuinely different attempts fired
+    // close together (a double-click, or two channels racing: web + chat/MCP,
+    // each minting its own requestId). The version-bump/is_current flip inside
+    // generateEstimateForProject is read-then-write, so two concurrent runs
+    // against the same project could both read the same max(version) and both
+    // write is_current=true. limit:1 per projectId forces the second run to
+    // queue behind the first rather than race it.
+    concurrency: {
+      limit: 1,
+      key: 'event.data.projectId',
+    },
     triggers: [{ event: EVENT_ESTIMATE_GENERATE }],
     // Phase 77 NOTIF-04: on final retry exhaustion fire ai_job.failed.
     onFailure: async ({ event, error }) => {

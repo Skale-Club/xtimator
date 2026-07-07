@@ -246,6 +246,35 @@ export async function createOrUpdateCompany(
       }
     }
 
+    // Self-healing (pre-launch audit fix B6): a PRIOR onboarding attempt may
+    // have created this `companies` row but failed to insert the matching
+    // company_members row (that insert's error used to be silently ignored —
+    // see the 'else' branch below). getActiveCompany() resolves exclusively
+    // via company_members, so that failure mode permanently locked the user
+    // in a dashboard<->onboarding redirect loop. Re-submitting onboarding
+    // lands in THIS branch (a `companies` row already exists for the user),
+    // so repair the missing membership here rather than requiring a manual
+    // DB fix.
+    const healService = requireServiceClient()
+    const { data: existingMember } = await healService
+      .from('company_members')
+      .select('user_id')
+      .eq('user_id', claims.sub)
+      .eq('company_id', existing.id)
+      .maybeSingle()
+    if (!existingMember) {
+      const { error: healErr } = await healService.from('company_members').insert({
+        user_id: claims.sub,
+        company_id: existing.id,
+        role: 'owner',
+      })
+      if (healErr) {
+        return {
+          error: 'Could not finalize company membership. Please try again.',
+        }
+      }
+    }
+
     // Mirror the company update into Xphere CRM (fire-and-forget).
     dispatchXphereSync(existing.id, 'company.updated')
   } else {
@@ -268,11 +297,23 @@ export async function createOrUpdateCompany(
 
     // 'first' mode must also register company_members so RLS on projects/estimates passes.
     const service = requireServiceClient()
-    await service.from('company_members').insert({
+    const { error: memberErr } = await service.from('company_members').insert({
       user_id: claims.sub,
       company_id: newCompany.id,
       role: 'owner',
     })
+    if (memberErr) {
+      // Pre-launch audit fix (B6): this insert's error was previously
+      // unchecked. A failure here left a `companies` row with NO matching
+      // company_members row — and getActiveCompany() resolves EXCLUSIVELY via
+      // company_members, so the user would be stuck in a permanent
+      // dashboard<->onboarding redirect loop with no self-service recovery
+      // (re-submitting hit the `existing` branch below, which didn't retry
+      // this insert either — now self-healing, see that branch).
+      return {
+        error: 'Could not finalize company membership. Please try again.',
+      }
+    }
 
     // Billing v2: one-time signup credit grant — the free tier's allowance.
     // Idempotent (ledger key `signup:{companyId}`); fire-and-forget so a grant

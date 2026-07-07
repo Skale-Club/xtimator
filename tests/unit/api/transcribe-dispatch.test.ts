@@ -34,11 +34,20 @@ vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(),
 }))
 
+// Pre-launch audit fix (M-3): the route resolves the caller's company via
+// getActiveCompanyId() (company_members-based, works for staff) instead of
+// the old companies.user_id = claims.sub lookup.
+vi.mock('@/lib/queries/active-company', () => ({
+  getActiveCompanyId: vi.fn(),
+}))
+
 import { POST } from '@/app/api/transcribe/route'
 import { createClient } from '@/lib/supabase/server'
 import { inngest } from '@/lib/inngest/client'
+import { getActiveCompanyId } from '@/lib/queries/active-company'
 
 const mockSend = vi.mocked(inngest.send)
+const mockGetActiveCompanyId = vi.mocked(getActiveCompanyId)
 
 function makeRequest(recordingId?: string) {
   return new Request('http://localhost/api/transcribe', {
@@ -64,6 +73,8 @@ function makeSupabaseMock(opts: SbOpts = {}) {
     recordingCompanyId = 'company-1',
     callerCompanyId = 'company-1',
   } = opts
+
+  mockGetActiveCompanyId.mockResolvedValue(callerCompanyId ?? null)
 
   return {
     auth: {

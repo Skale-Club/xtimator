@@ -40,7 +40,7 @@ export function MobileHeader({ branding, navUser }: MobileHeaderProps) {
   return (
     <header
       data-testid="mobile-header"
-      className="sticky top-0 z-40 flex items-center justify-between glass border-b border-[var(--glass-border)] px-4 py-3 md:hidden"
+      className="sticky top-0 z-40 flex items-center justify-between glass border-b border-[var(--glass-border)] px-4 pb-3 pt-[calc(env(safe-area-inset-top,_0px)_+_0.75rem)] md:hidden"
     >
       {/* Left: Xtimator logo */}
       <div className="flex items-center gap-2 min-w-0 shrink">
