@@ -59,6 +59,13 @@ describe('Middleware route protection rules (D-05)', () => {
     expect(wouldRedirectAnonymous('/api/health')).toBe(false)
   })
 
+  it('/api/health/live is public (liveness probe the orchestrator uses to route traffic)', () => {
+    // Must answer 200 anonymously — the Docker/Coolify healthcheck has no
+    // session. A 307 here marks the container unhealthy → "no available server".
+    expect(wouldRedirectAnonymous('/api/health/live')).toBe(false)
+    expect(isPublicRoute('/api/health/live')).toBe(true)
+  })
+
   it('/api/mcp is public (pre-launch audit fix — RFC 6750 Bearer auth, own challenge flow)', () => {
     expect(wouldRedirectAnonymous('/api/mcp')).toBe(false)
   })

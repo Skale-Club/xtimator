@@ -125,9 +125,14 @@ USER nextjs
 EXPOSE 3000
 
 # Security Review S13: container healthcheck so orchestrators can route around
-# an unhealthy instance. Hits /api/health, which exercises DB + Redis.
-HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:3000/api/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"
+# an unhealthy instance. Uses /api/health/live — a PURE LIVENESS probe (no DB,
+# no storage). This gate must only fail when the Node process itself is down;
+# gating it on Supabase (the old /api/health deep check) meant any DB/storage
+# blip marked the container unhealthy → Coolify pulled it from the proxy →
+# "no available server" with the app running fine. Fast interval so a freshly
+# deployed container is marked healthy within seconds (short zero-downtime gap).
+HEALTHCHECK --interval=10s --timeout=3s --start-period=20s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:3000/api/health/live',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"
 
 # The standalone server entry — DO NOT use `npm start`, which requires
 # node_modules + `next` binary that aren't present in this stage.

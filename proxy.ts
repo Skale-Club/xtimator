@@ -53,7 +53,10 @@ export function isPublicRoute(pathname: string): boolean {
   // anonymously by the Docker HEALTHCHECK and external uptime monitors. Without
   // this exemption it 307-redirects to /?auth=login for any unauthenticated
   // caller, so no external monitor (or the compose healthcheck) can ever reach it.
-  if (pathname === '/api/health') {
+  // The prefix also covers /api/health/live (the dependency-free LIVENESS probe
+  // the orchestrator uses to route traffic) and any future /api/health/* probe —
+  // all must answer 200 anonymously or the container is (falsely) unhealthy.
+  if (pathname === '/api/health' || pathname.startsWith('/api/health/')) {
     return true
   }
   // Browsers POST CSP violation reports here unauthenticated (no session to

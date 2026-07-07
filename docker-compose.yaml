@@ -27,14 +27,19 @@ services:
       - APP_ORIGIN=https://xtimator.com
     ports:
       - "3000"
-    # Pre-launch audit fix: this used to hit '/' (only proves the landing page
-    # renders, not that DB/storage are alive) because /api/health 307-redirected
-    # to /?auth=login for the unauthenticated healthcheck request — proxy.ts's
-    # isPublicRoute() now exempts /api/health explicitly, so this can point at
-    # the real health probe (matches the Dockerfile's own HEALTHCHECK intent).
+    # Health gate for Coolify/Traefik routing. Uses /api/health/live — a PURE
+    # LIVENESS probe (no DB, no storage). Gating traffic on the deep /api/health
+    # check (DB + storage) meant any transient Supabase blip flipped the
+    # container to "unhealthy" and Coolify removed it from the proxy → users saw
+    # "no available server" with the app running fine. The deep readiness check
+    # still lives at /api/health for uptime monitors — it just must NOT gate the
+    # proxy. Fast interval so a fresh deploy goes healthy within seconds.
     healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:3000/api/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
-      interval: 30s
-      timeout: 10s
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:3000/api/health/live',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
       retries: 3
-      start_period: 40s
+      start_period: 20s
+    # Give in-flight requests time to drain when the old container is replaced,
+    # so a deploy swap never severs an active response mid-flight.
+    stop_grace_period: 30s
