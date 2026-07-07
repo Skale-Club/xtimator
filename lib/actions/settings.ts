@@ -186,6 +186,73 @@ export async function updateCompanySettings(formData: FormData) {
   return { success: true }
 }
 
+/**
+ * QUICK-psh-03 — one-tap Apply for the Settings -> Company trade suggestion
+ * (lib/queries/company.ts getTradeSuggestion). Sets companies.industry directly
+ * to the detected trade (the field generateEstimateForProject reads as the soft
+ * prior + compares detected_trade against) and folds it into `industries` so
+ * the Services multi-select stays consistent.
+ */
+export async function applyTradeSuggestion(trade: string) {
+  const ctx = await getAuthContext()
+  if ('error' in ctx) return { error: ctx.error }
+  const { supabase, company } = ctx
+
+  const normalizedTrade = trade.trim().toLowerCase()
+  if (!normalizedTrade) return { error: 'Invalid trade' }
+
+  const { data: currentCompany } = await supabase
+    .from('companies')
+    .select('industries, industry')
+    .eq('id', company.id)
+    .single()
+  const previousIndustries =
+    (currentCompany?.industries as string[] | null) ??
+    (currentCompany?.industry ? [currentCompany.industry as string] : [])
+  const nextIndustries = resolveIndustries(
+    previousIndustries.includes(normalizedTrade)
+      ? previousIndustries
+      : [...previousIndustries, normalizedTrade]
+  )
+
+  const { error } = await supabase
+    .from('companies')
+    .update({ industry: normalizedTrade, industries: nextIndustries })
+    .eq('id', company.id)
+
+  if (error) {
+    return { error: 'Failed to update primary trade. Please try again.' }
+  }
+
+  updateTag('company')
+  revalidatePath('/settings')
+  return { success: true }
+}
+
+/**
+ * QUICK-psh-03 — Dismiss for the Settings -> Company trade suggestion. Stamps
+ * `trade_suggestion_dismissed_at` so getTradeSuggestion only counts
+ * trade_mismatch_detected rows recorded AFTER this dismissal (a fresh mismatch
+ * pattern later can still resurface the suggestion).
+ */
+export async function dismissTradeSuggestion() {
+  const ctx = await getAuthContext()
+  if ('error' in ctx) return { error: ctx.error }
+  const { supabase, company } = ctx
+
+  const { error } = await supabase
+    .from('companies')
+    .update({ trade_suggestion_dismissed_at: new Date().toISOString() })
+    .eq('id', company.id)
+
+  if (error) {
+    return { error: 'Failed to dismiss suggestion. Please try again.' }
+  }
+
+  revalidatePath('/settings')
+  return { success: true }
+}
+
 export async function updateDefaults(data: {
   defaultTaxRate: number
   defaultPaymentTerms: string

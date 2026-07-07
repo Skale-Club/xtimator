@@ -99,6 +99,94 @@ export async function getCustomDomainSettings(
   return data ?? null
 }
 
+export interface TradeSuggestion {
+  suggestedTrade: string
+  occurrences: number
+}
+
+/**
+ * QUICK-psh-03 — Settings -> Company one-tap primary-trade suggestion.
+ *
+ * Reads the last 5 (or fewer) `trade_mismatch_detected` estimate_activity rows
+ * for the company (lib/services/generate-estimate.ts writes these — QUICK-mv1-01
+ * — when a KEPT generation's AI-detected trade differs from companies.industry),
+ * newer than any prior dismissal (`companies.trade_suggestion_dismissed_at` —
+ * QUICK-psh-03's durable-dismiss fallback: no lightweight per-company settings
+ * blob exists to reuse, and estimate_activity rows require a project_id so a
+ * company-level dismissal marker doesn't fit there).
+ *
+ * Returns a suggestion only when >= 3 of those rows agree on the SAME detected
+ * trade AND it still differs from the company's CURRENT industry (re-checked
+ * here — industry may have changed since some of the rows were written).
+ * Returns null on no-signal, a fresh dismissal, or any read failure (never
+ * throws — a suggestion-read hiccup must never break the Settings page).
+ */
+export async function getTradeSuggestion(
+  supabase: SupabaseClient,
+  companyId: string
+): Promise<TradeSuggestion | null> {
+  try {
+    const { data: companyRow } = await supabase
+      .from('companies')
+      .select('industry, trade_suggestion_dismissed_at')
+      .eq('id', companyId)
+      .maybeSingle()
+
+    const industry =
+      (companyRow as { industry?: string | null } | null)?.industry
+        ?.trim()
+        .toLowerCase() || null
+    const dismissedAt =
+      (companyRow as { trade_suggestion_dismissed_at?: string | null } | null)
+        ?.trade_suggestion_dismissed_at ?? null
+
+    let query = supabase
+      .from('estimate_activity')
+      .select('metadata, created_at')
+      .eq('company_id', companyId)
+      .eq('event_type', 'trade_mismatch_detected')
+    if (dismissedAt) {
+      // A prior dismissal silences the pattern that existed at dismiss time —
+      // only rows recorded AFTER it count toward a fresh suggestion.
+      query = query.gt('created_at', dismissedAt)
+    }
+
+    const { data: rows } = await query
+      .order('created_at', { ascending: false })
+      .limit(5)
+
+    const mismatchRows = (rows ?? []) as {
+      metadata: { detected?: string } | null
+      created_at: string
+    }[]
+    if (mismatchRows.length < 3) return null
+
+    const counts = new Map<string, number>()
+    for (const row of mismatchRows) {
+      const detected = row.metadata?.detected?.trim().toLowerCase()
+      if (!detected) continue
+      counts.set(detected, (counts.get(detected) ?? 0) + 1)
+    }
+
+    let topTrade: string | null = null
+    let topCount = 0
+    for (const [trade, count] of counts) {
+      if (count > topCount) {
+        topTrade = trade
+        topCount = count
+      }
+    }
+
+    if (!topTrade || topCount < 3) return null
+    if (industry && topTrade === industry) return null
+
+    return { suggestedTrade: topTrade, occurrences: topCount }
+  } catch (err) {
+    console.warn('[getTradeSuggestion] swallowed read failure:', err)
+    return null
+  }
+}
+
 /**
  * Fetch the tier and trial expiry for a user's company.
  * Used by Phase 56 checkQuota() and Phase 57 enforcement.
