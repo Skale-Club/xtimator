@@ -33,3 +33,12 @@ For Next.js boot chunks, any service worker exception or fallback response at th
 
 - passed: `node --check public/sw.js`
 - passed: `npm test -- tests/unit/pwa-service-worker.test.ts tests/unit/pwa/chunk-recovery.test.ts`
+
+## Follow-up: image loading regression report
+
+- timestamp: 2026-07-07
+  observation: "After v4 deploy, user reported all in-app images stopped loading."
+- timestamp: 2026-07-07
+  observation: "The v4 service worker still deleted every origin cache except the current shell/pages caches during activate. That cleanup was broader than necessary for the chunk fix."
+- timestamp: 2026-07-07
+  action: "Prepared v5 hotfix so image/icon requests bypass the service worker entirely and activation only deletes service-worker-owned shell-* / pages-* caches."

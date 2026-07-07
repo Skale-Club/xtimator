@@ -3,14 +3,14 @@
  *
  * Caching strategy:
  *   - _next/static/*              -> browser/HTTP cache (do not intercept)
- *   - /icons/*                    -> CacheFirst
+ *   - images/icons                -> browser/HTTP cache (do not intercept)
  *   - navigation (pages)          -> NetworkFirst with offline fallback
  *   - /api/*                      -> NetworkOnly (mutations, AI)
  *   - supabase REST/realtime      -> NetworkOnly
  *   - push events                 -> show notification (Phase 77 scaffold)
  */
 
-const CACHE_V = 'v4'
+const CACHE_V = 'v5'
 const SHELL = `shell-${CACHE_V}`
 const PAGES = `pages-${CACHE_V}`
 
@@ -24,12 +24,14 @@ self.addEventListener('install', (event) => {
   self.skipWaiting()
 })
 
-// Activate: evict old cache versions.
+// Activate: evict only this service worker's old cache versions.
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
       .then((keys) => Promise.all(
-        keys.filter((k) => !KNOWN_CACHES.includes(k)).map((k) => caches.delete(k))
+        keys
+          .filter((k) => (k.startsWith('shell-') || k.startsWith('pages-')) && !KNOWN_CACHES.includes(k))
+          .map((k) => caches.delete(k))
       ))
       .then(() => self.clients.claim())
   )
@@ -49,16 +51,14 @@ self.addEventListener('fetch', (event) => {
   // NetworkOnly: all API routes.
   if (url.pathname.startsWith('/api/')) return
 
+  // Let all images bypass the service worker. Images come from the browser,
+  // Next.js, or Supabase caching layers and should not depend on SW runtime.
+  if (request.destination === 'image' || url.pathname.startsWith('/icons/')) return
+
   // Let Next.js chunks bypass the service worker. If these script requests are
   // intercepted and the worker throws or returns a fallback response, the entire
   // app boot can fail before client-side recovery code runs.
   if (url.pathname.startsWith('/_next/static/')) return
-
-  // CacheFirst: installable app icons.
-  if (url.pathname.startsWith('/icons/')) {
-    event.respondWith(cacheFirst(SHELL, request))
-    return
-  }
 
   // NetworkFirst: navigations and other same-origin pages.
   // Never serve stale HTML while online: old documents can reference chunk files
