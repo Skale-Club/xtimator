@@ -25,10 +25,8 @@ interface SendDialogProps {
   clientPhone: string | null
   clientName: string
   ownerName: string
-  companyWebsite?: string | null
   estimateTemplate: EstimateTemplate
   smsDeliveryEnabled: boolean
-  whatsappSendEnabled?: boolean
 }
 
 export function SendDialog({
@@ -41,10 +39,8 @@ export function SendDialog({
   clientPhone,
   clientName,
   ownerName,
-  companyWebsite,
   estimateTemplate,
   smsDeliveryEnabled,
-  whatsappSendEnabled = false,
 }: SendDialogProps) {
   const [plainTextOpen, setPlainTextOpen] = useState(false)
 
@@ -53,11 +49,15 @@ export function SendDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+        {/* max-h in dvh + overflow-x-hidden: on phones the dialog fills most of
+            the visual viewport; nothing inside may create sideways scroll. */}
+        <DialogContent className="sm:max-w-2xl max-h-[85dvh] overflow-y-auto overflow-x-hidden">
           <DialogHeader>
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <DialogTitle>Send Estimate</DialogTitle>
+            {/* pr-8 clears the dialog's absolute close (X) button; the row wraps
+                on narrow screens instead of forcing horizontal overflow. */}
+            <div className="flex flex-wrap items-center justify-between gap-2 pr-8">
+              <div className="flex min-w-0 items-center gap-2">
+                <DialogTitle className="truncate">Send Estimate</DialogTitle>
                 <LanguageFlagChip lang={estimate.language} />
               </div>
               <SendActionsMenu
@@ -85,10 +85,6 @@ export function SendDialog({
             projectName={projectName}
             shareToken={estimate.share_token}
             smsDeliveryEnabled={smsDeliveryEnabled}
-            whatsappSendEnabled={whatsappSendEnabled}
-            estimate={estimate}
-            ownerName={ownerName}
-            companyWebsite={companyWebsite}
           />
         </DialogContent>
       </Dialog>

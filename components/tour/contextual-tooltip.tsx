@@ -66,6 +66,15 @@ export function ContextualTooltip({
   // Defensive: if there's no child to anchor against, render nothing tooltip-related.
   if (!children) return null
 
+  // Touch devices have no hover: Radix opens the tooltip on tap instead, which
+  // drops a large floating box over the UI (and over dialog content on phones)
+  // that only goes away on a second tap. Skip the tooltip entirely there.
+  const noHover =
+    typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(hover: none)').matches
+  if (noHover) return <>{children}</>
+
   return (
     <Tooltip>
       <TooltipTrigger asChild>{children}</TooltipTrigger>

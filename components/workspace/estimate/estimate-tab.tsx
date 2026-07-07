@@ -43,7 +43,6 @@ interface EstimateTabProps {
   ownerName: string
   estimateTemplate: EstimateTemplate
   smsDeliveryEnabled?: boolean
-  whatsappSendEnabled?: boolean
 }
 
 export function EstimateTab({
@@ -68,7 +67,6 @@ export function EstimateTab({
   ownerName,
   estimateTemplate,
   smsDeliveryEnabled,
-  whatsappSendEnabled,
 }: EstimateTabProps) {
   const [sendOpen, setSendOpen] = useState(false)
   const { t } = useTranslation()
@@ -172,10 +170,8 @@ export function EstimateTab({
           clientPhone={client?.phone ?? null}
           clientName={client?.name ?? ''}
           ownerName={ownerName}
-          companyWebsite={company.website}
           estimateTemplate={estimateTemplate}
           smsDeliveryEnabled={smsDeliveryEnabled ?? false}
-          whatsappSendEnabled={whatsappSendEnabled ?? false}
         />
       </>
     )
