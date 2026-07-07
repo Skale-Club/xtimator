@@ -32,24 +32,38 @@ export async function GET(request: NextRequest) {
     // getClaims() may not see the freshly-written session cookie on the first request.
     const user = data?.user ?? null
     if (user) {
-      const { data: company, error: companyError } = await supabase
-        .from('companies')
-        .select('id, theme_preference')
-        .eq('user_id', user.id)
-        .single()
+      // Company resolution MUST mirror the app shell (lib/queries/active-company.ts):
+      // a user "has a company" when they own one OR are a member of one via
+      // company_members (team staff, multi-company owners). The previous
+      // `.single()` on companies errored for 0 rows (staff / brand-new Google
+      // user) AND for >1 rows (owner of multiple companies), bouncing valid
+      // logins back to the landing page.
+      const [ownedResult, membershipResult] = await Promise.all([
+        supabase
+          .from('companies')
+          .select('id, theme_preference')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        supabase
+          .from('company_members')
+          .select('company_id')
+          .eq('user_id', user.id)
+          .limit(1)
+          .maybeSingle(),
+      ])
 
-      if (companyError) {
-        logAuthEvent({ event: 'oauth_callback', success: false, provider: 'google', error: `company_error: ${companyError.message}` })
-        return NextResponse.redirect(new URL('/?auth=login', baseUrl))
-      }
+      const ownedCompany = ownedResult.data
+      const hasCompany = !!ownedCompany || !!membershipResult.data
 
       // Sync theme cookie from DB so SSR serves correct theme on first load.
       // Route Handlers are allowed to write cookies (layouts are not).
-      if (company && isValidTheme(company.theme_preference)) {
-        await writeThemeCookie(company.theme_preference)
+      if (ownedCompany && isValidTheme(ownedCompany.theme_preference)) {
+        await writeThemeCookie(ownedCompany.theme_preference)
       }
 
-      const redirectTo = company ? '/dashboard' : '/onboarding'
+      const redirectTo = hasCompany ? '/dashboard' : '/onboarding'
       logAuthEvent({ event: 'oauth_callback', success: true, provider: 'google', userId: user.id, redirectTo })
       return NextResponse.redirect(new URL(redirectTo, baseUrl))
     }

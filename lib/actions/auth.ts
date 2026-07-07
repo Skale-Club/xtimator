@@ -16,6 +16,24 @@ function safeInviteNext(next: string | null): string | null {
   return next && next.startsWith('/invite/accept') ? next : null
 }
 
+/**
+ * True when the user owns a company OR belongs to one via company_members
+ * (team staff, multi-company owners). Mirrors the app shell's resolution
+ * (lib/queries/active-company.ts). A `.single()` on companies is NOT safe
+ * here: it errors for 0 rows (staff) and for >1 rows (multi-company owner),
+ * which used to misroute valid sign-ins to /onboarding or the landing page.
+ */
+async function userHasCompany(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string
+): Promise<boolean> {
+  const [owned, membership] = await Promise.all([
+    supabase.from('companies').select('id').eq('user_id', userId).limit(1).maybeSingle(),
+    supabase.from('company_members').select('company_id').eq('user_id', userId).limit(1).maybeSingle(),
+  ])
+  return !!owned.data || !!membership.data
+}
+
 export async function signUp(formData: FormData) {
   const supabase = await createClient()
   const email = formData.get('email') as string
@@ -102,13 +120,9 @@ export async function signIn(formData: FormData) {
   // getClaims() may not see the freshly-written session cookie on the first request.
   const user = data?.user ?? null
   if (user) {
-    const { data: company } = await supabase
-      .from('companies')
-      .select('id')
-      .eq('user_id', user.id)
-      .single()
+    const hasCompany = await userHasCompany(supabase, user.id)
     logAuthEvent({ event: 'sign_in_attempt', success: true, email, userId: user.id })
-    redirect(company ? '/dashboard' : '/onboarding')
+    redirect(hasCompany ? '/dashboard' : '/onboarding')
   }
 
   logAuthEvent({ event: 'sign_in_attempt', success: false, email, error: 'user_unavailable_after_sign_in' })
@@ -167,12 +181,8 @@ export async function updatePassword(formData: FormData) {
   const { data } = await supabase.auth.getClaims()
   const claims = data?.claims ?? null
   if (claims) {
-    const { data: company } = await supabase
-      .from('companies')
-      .select('id')
-      .eq('user_id', claims.sub)
-      .single()
-    redirect(company ? '/dashboard' : '/onboarding')
+    const hasCompany = await userHasCompany(supabase, claims.sub as string)
+    redirect(hasCompany ? '/dashboard' : '/onboarding')
   }
 
   redirect('/?auth=login')
