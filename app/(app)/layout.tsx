@@ -22,6 +22,7 @@ import { WelcomeModal } from '@/components/tour/welcome-modal'
 import { TourSpotlight } from '@/components/tour/tour-spotlight'
 import { TourHelpButton } from '@/components/tour/tour-help-button'
 import { SWRegister } from '@/components/pwa/sw-register'
+import { SessionKeepalive } from '@/components/pwa/session-keepalive'
 import { InstallPrompt } from '@/components/pwa/install-prompt'
 import { OfflineIndicator } from '@/components/pwa/offline-indicator'
 import { NewProjectDialog } from '@/components/projects/new-project-dialog'
@@ -126,6 +127,7 @@ export default async function AppShellLayout({
               <OfflineIndicator />
               <InstallPrompt />
               <SWRegister />
+              <SessionKeepalive />
             </div>
           </BreadcrumbProvider>
         </TourProvider>
@@ -241,6 +243,7 @@ export default async function AppShellLayout({
           <OfflineIndicator />
           <InstallPrompt />
           <SWRegister />
+          <SessionKeepalive />
         </div>
       </BreadcrumbProvider>
     </TourProvider>
