@@ -17,9 +17,11 @@ import { createPhoto, deletePhoto } from '@/lib/actions/photo'
 import { createClient } from '@/lib/supabase/client'
 import { createStorage } from '@/lib/storage'
 import { getSupportedAudioMimeType, getFileExtension } from '@/lib/utils/media-format'
+import { cn } from '@/lib/utils'
 import { compressImage, isLikelyHeic } from '@/lib/utils/image-compressor'
-import { Camera, Sparkles } from 'lucide-react'
+import { Camera, Sparkles, Mic, MicOff } from 'lucide-react'
 import { LoadingDots } from '@/components/ui/loading-dots'
+import { WaveformVisualizer } from '@/components/workspace/audio/waveform-visualizer'
 import type { ProjectDetail } from '@/lib/queries/project'
 import type { Photo } from '@/lib/queries/photo'
 import { pollJob, type JobResult } from '@/hooks/use-job-status'
@@ -1116,75 +1118,73 @@ function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progre
 
   // Unified layout — responsive: stacked on mobile, 2-column on sm+
   if (isHorizontal) {
+    // For the mobile popup redesign: immersive glassmorphism layout
     return (
-      <div className="flex flex-col flex-1 min-h-0">
-        {/* Body: stacked on mobile → side-by-side on sm+ */}
-        <div className="flex flex-col sm:flex-row flex-1 min-h-0 overflow-hidden">
-
-          {/* Text area — transcript preview while recording, manual input otherwise.
-              Sits FIRST (left on desktop / top on mobile). */}
-          <div className="flex flex-1 flex-col p-3 min-h-0">
-            {isRecording ? (
-              <div className="flex-1 rounded-md border border-input bg-muted/20 px-3 py-2 text-sm overflow-y-auto min-h-[85px] sm:min-h-[115px]">
-                {liveTranscript || interimTranscript ? (
-                  <p className="text-foreground leading-relaxed whitespace-pre-wrap">
-                    {liveTranscript}
-                    {interimTranscript && (
-                      <span className="text-muted-foreground">{interimTranscript}</span>
-                    )}
-                  </p>
-                ) : (
-                  <p className="text-muted-foreground/60 italic text-xs leading-relaxed">
-                    {t('Listening...')}
-                  </p>
-                )}
-              </div>
-            ) : (
-              <textarea
-                value={descriptionText}
-                onChange={e => setDescriptionText(e.target.value)}
-                placeholder={t('Describe the job here...')}
-                className="flex-1 w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring min-h-[85px] sm:min-h-[115px]"
-                data-testid="capture-description"
-              />
-            )}
-          </div>
-
-          {/* Mic section — FIRST on mobile (recording before the text), RIGHT
-              column on desktop. The WHOLE area is a tap target; clicks on the
-              inner mic button are skipped so its own onClick doesn't double-fire.
-              VoiceRecorder (smStack) lays out wave/timer/label/mic responsively:
-              [wave | label | mic] on mobile, [mic / wave / label] on desktop. */}
-          <div
-            onClick={(e) => {
-              if ((e.target as HTMLElement).closest('button')) return
-              onToggle()
-            }}
-            className="
-              order-first sm:order-none flex items-center px-4 py-3 border-b shrink-0 cursor-pointer
-              sm:border-b-0 sm:border-l sm:w-40 sm:py-5
-            "
-          >
-            <VoiceRecorder
-              size="sm"
-              analyser={analyser}
-              isRecording={isRecording}
-              elapsedMs={elapsedMs}
-              onToggle={onToggle}
-              showTimer={true}
-              micTestId="capture-mic"
-              smStack
-              helperText={isRecording ? t('Tap to stop') : t('Tap to record')}
-              className="flex-1 sm:w-full"
-            />
-          </div>
+      <div className="flex flex-col flex-1 min-h-0 relative bg-background">
+        
+        {/* Z-0: Main Text Area (Borderless, full canvas) */}
+        <div className="flex flex-col flex-1 min-h-0 relative z-0 p-4 pb-32">
+           <textarea
+             value={descriptionText}
+             onChange={e => setDescriptionText(e.target.value)}
+             placeholder={t('Describe the job here...')}
+             className="flex-1 w-full resize-none border-none bg-transparent text-base sm:text-lg placeholder:text-muted-foreground/60 focus:outline-none focus:ring-0 leading-relaxed"
+             data-testid="capture-description"
+           />
+           {onStartBlank && (
+             <div className="mt-4 flex justify-center pb-8">
+               <button
+                 type="button"
+                 onClick={onStartBlank}
+                 className="text-xs sm:text-sm text-muted-foreground/80 hover:text-foreground transition-colors py-2 px-4 rounded-full bg-muted/20 hover:bg-muted/40"
+                 data-testid="start-from-scratch-btn"
+               >
+                 {t('Or start with a blank estimate')}
+               </button>
+             </div>
+           )}
         </div>
 
-        {/* Per-photo thumbnail strip — only when items exist */}
-        <PhotoThumbnailGrid items={photoItems} onRemove={onRemovePhoto} />
+        {/* Z-10: Recording Immersive Overlay */}
+        {isRecording && (
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center p-6 bg-background/80 backdrop-blur-md animate-in fade-in duration-300">
+            {/* Live Transcript Top */}
+            <div className="flex-1 w-full max-w-md flex flex-col justify-end pb-8">
+              {(liveTranscript || interimTranscript) ? (
+                <p className="text-foreground/90 text-lg sm:text-xl text-center leading-relaxed whitespace-pre-wrap font-medium">
+                  {liveTranscript}
+                  {interimTranscript && (
+                    <span className="text-muted-foreground">{interimTranscript}</span>
+                  )}
+                </p>
+              ) : (
+                <p className="text-muted-foreground/60 italic text-center animate-pulse">
+                  {t('Listening...')}
+                </p>
+              )}
+            </div>
+            
+            {/* Center: Waveform & Timer */}
+            <div className="flex flex-col items-center gap-6 shrink-0 mb-[120px]">
+               <p className="text-4xl sm:text-5xl font-mono text-foreground tabular-nums tracking-tight font-light">
+                 <CaptureTimer elapsedMs={elapsedMs} />
+               </p>
+               <div className="w-full min-w-[280px]">
+                 <WaveformVisualizer analyser={analyser} isRecording={isRecording} height={80} />
+               </div>
+            </div>
+          </div>
+        )}
 
-        {/* Footer — mobile: row1=[Photos][Blank], row2=[Generate]; desktop: [Photos][Blank]──[Generate] */}
-        <div className="border-t px-3 py-2.5 shrink-0">
+        {/* Z-20: Floating Photo Thumbnails */}
+        {photoItems.length > 0 && (
+          <div className="absolute bottom-[88px] left-0 right-0 z-20 px-4">
+             <PhotoThumbnailGrid items={photoItems} onRemove={onRemovePhoto} />
+          </div>
+        )}
+
+        {/* Z-30: Glassmorphism Bottom Action Bar */}
+        <div className="absolute bottom-4 left-4 right-4 z-30">
           <input
             ref={photoInputRef}
             type="file"
@@ -1193,43 +1193,56 @@ function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progre
             className="hidden"
             onChange={onPhotoFileChange}
           />
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            {/* Left group: Photos + Create Blank — side-by-side always */}
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                className="flex-1 sm:flex-none h-11"
-                onClick={() => photoInputRef.current?.click()}
-                disabled={isUploadingPhotos || photoItems.length >= MAX_PHOTOS}
-                data-testid="capture-add-photos"
-              >
-                {isUploadingPhotos ? <LoadingDots /> : <Camera />}
-                {photoItems.length > 0 ? `${photoItems.length}/${MAX_PHOTOS}` : t('Photos')}
-              </Button>
-              {onStartBlank && (
-                <Button
-                  variant="outline"
-                  className="flex-1 sm:flex-none h-11 bg-transparent hover:bg-accent/30"
-                  style={{ borderColor: 'hsl(var(--foreground) / 0.2)' }}
-                  onClick={onStartBlank}
-                  data-testid="start-from-scratch-btn"
-                >
-                  {t('Create Blank')}
-                </Button>
-              )}
-            </div>
-            {/* Spacer pushes Generate right on desktop */}
-            <div className="hidden sm:block sm:flex-1" />
+          <div className="rounded-full bg-background/60 backdrop-blur-xl border border-border shadow-lg p-2 flex items-center justify-between gap-2">
+            
+            {/* Left: Camera */}
             <Button
-              size="lg"
-              className="w-full sm:w-auto"
-              onClick={onGenerate}
-              disabled={!hasAnyInput || isRecording}
-              data-testid="generate-estimate-btn"
+              variant="ghost"
+              size="icon"
+              className="rounded-full h-12 w-12 hover:bg-foreground/5 text-muted-foreground hover:text-foreground shrink-0 relative"
+              onClick={() => photoInputRef.current?.click()}
+              disabled={isUploadingPhotos || photoItems.length >= MAX_PHOTOS}
+              data-testid="capture-add-photos"
             >
-              {t('Generate')}
-              <Sparkles />
+              {isUploadingPhotos ? <LoadingDots /> : <Camera className="h-6 w-6" />}
+              {photoItems.length > 0 && (
+                <span className="absolute top-1 right-1 h-4 w-4 bg-primary text-[10px] font-bold text-primary-foreground rounded-full flex items-center justify-center">
+                  {photoItems.length}
+                </span>
+              )}
             </Button>
+
+            {/* Center: FAB Mic */}
+            <div className="flex-1 flex justify-center shrink-0">
+               <button
+                  type="button"
+                  onClick={onToggle}
+                  className={cn(
+                    "h-16 w-16 -mt-6 rounded-full flex items-center justify-center transition-all shadow-xl border-4 border-background",
+                    isRecording 
+                      ? "bg-red-500 animate-pulse hover:bg-red-600 text-white" 
+                      : "gradient-brand text-primary-foreground hover:opacity-90"
+                  )}
+                  aria-label={isRecording ? 'Stop recording' : 'Start recording'}
+                  data-testid="capture-mic"
+               >
+                  {isRecording ? <MicOff className="h-7 w-7" /> : <Mic className="h-7 w-7" />}
+               </button>
+            </div>
+
+            {/* Right: Generate */}
+            <Button
+               size="default"
+               className="rounded-full h-12 px-5 font-medium shrink-0 bg-primary/90 hover:bg-primary transition-colors text-sm"
+               onClick={onGenerate}
+               disabled={!hasAnyInput || isRecording}
+               data-testid="generate-estimate-btn"
+            >
+               <span className="hidden sm:inline mr-1">{t('Generate')}</span>
+               <span className="sm:hidden mr-1">{t('Gen')}</span>
+               <Sparkles className="h-4 w-4" />
+            </Button>
+
           </div>
         </div>
       </div>
