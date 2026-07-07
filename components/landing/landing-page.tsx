@@ -63,8 +63,9 @@ export function LandingPage({ content, branding, navUser }: LandingPageProps) {
         className="h-[100dvh] overflow-y-scroll overflow-x-hidden scroll-smooth overscroll-none [&::-webkit-scrollbar]:hidden"
         style={{ scrollbarWidth: 'none' }}
       >
-        {/* Snap page 1: hero + trust bar */}
-        <div className="hero-shell min-h-[100dvh] pt-16 flex flex-col">
+        {/* Snap page 1: hero + trust bar. pt matches TopNav height (4rem) plus the
+            PWA status-bar inset the nav now absorbs (safe-area-inset-top). */}
+        <div className="hero-shell min-h-[100dvh] pt-[calc(4rem_+_env(safe-area-inset-top,_0px))] flex flex-col">
           <HeroSection
             content={{
               heroHeadline: content.heroHeadline,

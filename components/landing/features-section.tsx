@@ -25,6 +25,9 @@ function FeatureCard({ feature }: { feature: Feature }) {
             src={feature.imageUrl}
             alt=""
             fill
+            // Skip /_next/image — the self-hosted optimizer intermittently fails
+            // (no sharp), which made these feature images vanish.
+            unoptimized
             sizes="(max-width: 719px) 80vw, (max-width: 1023px) 45vw, 360px"
             className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
           />
