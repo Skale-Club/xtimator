@@ -11,22 +11,31 @@ vi.mock('next/link', () => ({
   ),
 }))
 
-// Module-scope mocks for next/navigation so the LandingPage modal auto-open
-// tests can drive useSearchParams / useRouter behavior.
-const routerReplace = vi.fn()
-let currentSearchParams = new URLSearchParams('')
-
 vi.mock('next/navigation', () => ({
   useRouter: () => ({
-    replace: routerReplace,
+    replace: vi.fn(),
     push: vi.fn(),
     prefetch: vi.fn(),
     back: vi.fn(),
     forward: vi.fn(),
     refresh: vi.fn(),
   }),
-  useSearchParams: () => currentSearchParams,
+  useSearchParams: () => new URLSearchParams(''),
   usePathname: () => '/',
+}))
+
+// LandingPage renders TopNav -> TopNavAuth, which calls @/lib/supabase/client's
+// createClient() on mount (auth.getUser / onAuthStateChange). Mock it so that
+// call never reaches the real @supabase/ssr client (which throws without
+// NEXT_PUBLIC_SUPABASE_URL configured) — same pattern as
+// tests/unit/notifications/notification-bell.test.tsx.
+vi.mock('@/lib/supabase/client', () => ({
+  createClient: () => ({
+    auth: {
+      getUser: () => Promise.resolve({ data: { user: null } }),
+      onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
+    },
+  }),
 }))
 
 vi.stubGlobal(
@@ -107,27 +116,48 @@ describe('FeaturesSection (LAND-03)', () => {
 })
 
 // New: LandingPage modal auto-open from ?auth=login|signup
+//
+// NOTE: components/landing/landing-page.tsx (since commit 950a9226, "perf:
+// preserve static landing HTML") reads `window.location.search` directly and
+// strips the param via `window.history.replaceState` instead of Next's
+// useSearchParams()/router.replace() — this keeps the page eligible for static
+// rendering (see tests/unit/seo/home-cacheability.test.ts, which pins this
+// exact contract at the source-string level). These tests drive that
+// window-level API directly rather than the next/navigation mocks.
 describe('LandingPage modal auto-open', () => {
+  let replaceStateSpy: ReturnType<typeof vi.spyOn>
+
   beforeEach(() => {
-    routerReplace.mockClear()
-    currentSearchParams = new URLSearchParams('')
+    replaceStateSpy = vi.spyOn(window.history, 'replaceState')
   })
 
-  it('opens the AuthDialog in login mode when ?auth=login and strips the param via router.replace', async () => {
-    currentSearchParams = new URLSearchParams('auth=login')
+  afterEach(() => {
+    replaceStateSpy.mockRestore()
+    window.history.replaceState(window.history.state, '', '/')
+  })
+
+  it('opens the AuthDialog in login mode when ?auth=login and strips the param via history.replaceState', async () => {
+    window.history.replaceState(window.history.state, '', '/?auth=login')
+    replaceStateSpy.mockClear()
     render(<LandingPage content={LANDING_CONTENT} branding={BRANDING} />)
-    // AuthDialog mounts in a portal; the login heading "Sign in to {appName}" is the marker.
-    const heading = await screen.findByRole('heading', { name: /sign in to/i })
+    // AuthDialog is loaded via next/dynamic (async import), and the LandingPage
+    // portal also mounts TopNavAuth's own (closed) AuthDialog import — both take
+    // a beat to resolve, so give findByRole more room than the 1000ms default.
+    const heading = await screen.findByRole('heading', { name: /sign in to/i }, { timeout: 3000 })
     expect(heading).toBeTruthy()
-    expect(routerReplace).toHaveBeenCalledWith('/', { scroll: false })
+    // window.history.state is null in this jsdom test environment (no prior
+    // history entries carry state) — expect.anything() deliberately excludes
+    // null/undefined, so match the actual state value directly.
+    expect(replaceStateSpy).toHaveBeenCalledWith(window.history.state, '', '/')
   })
 
-  it('does NOT open the AuthDialog and does NOT call router.replace when no auth param is present', () => {
-    currentSearchParams = new URLSearchParams('')
+  it('does NOT open the AuthDialog and does NOT call history.replaceState when no auth param is present', async () => {
+    window.history.replaceState(window.history.state, '', '/')
+    replaceStateSpy.mockClear()
     render(<LandingPage content={LANDING_CONTENT} branding={BRANDING} />)
     // Heading from any mode of the dialog should NOT exist.
     expect(screen.queryByRole('heading', { name: /sign in to/i })).toBeNull()
     expect(screen.queryByRole('heading', { name: /create account/i })).toBeNull()
-    expect(routerReplace).not.toHaveBeenCalled()
+    expect(replaceStateSpy).not.toHaveBeenCalled()
   })
 })

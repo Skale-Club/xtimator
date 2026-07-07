@@ -34,7 +34,14 @@ function makeAnonClient(opts: {
   const maybySingle = vi.fn().mockResolvedValue({ data: single })
   const range = vi.fn().mockResolvedValue({ data: rows })
   const order = vi.fn().mockReturnValue({ range })
-  const eq = vi.fn().mockReturnValue({ order, maybeSingle: maybySingle })
+  // eq() must be chainable an arbitrary number of times (real Supabase query
+  // builder supports .eq().eq().eq()... before terminating with .order()/
+  // .range()/.maybeSingle()/etc.). Using mockImplementation (rather than
+  // mockReturnValue) lets the returned object reference `eq` itself via
+  // closure at call time, avoiding a TDZ error while still making
+  // `.eq('a', 1).eq('b', 2)` work — matching lib/queries/blog.ts:42's
+  // `.eq('slug', slug).eq('status', 'published')`.
+  const eq = vi.fn().mockImplementation(() => ({ eq, order, maybeSingle: maybySingle }))
   const select = vi.fn().mockReturnValue({ eq })
   const from = vi.fn().mockReturnValue({ select })
 
