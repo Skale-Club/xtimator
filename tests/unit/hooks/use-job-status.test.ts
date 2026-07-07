@@ -31,6 +31,7 @@ describe('REC-05: pollJob interprets the discriminated contract', () => {
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     vi.unstubAllGlobals()
   })
 
@@ -65,10 +66,18 @@ describe('REC-05: pollJob interprets the discriminated contract', () => {
     }
   })
 
-  it('resolves a not_found result without throwing', async () => {
+  // 260707-kgn: not_found is no longer immediately terminal — pollJob grace-
+  // periods it (Inngest creates the run after accepting the event) so this
+  // needs fake timers to advance past NOT_FOUND_GRACE_MS before it settles.
+  // See tests/unit/hooks/poll-job-not-found-grace.test.ts for full coverage
+  // of the grace-window behavior itself.
+  it('resolves a not_found result without throwing (after the grace window elapses)', async () => {
+    vi.useFakeTimers()
     mockFetch.mockResolvedValue(jsonResponse({ state: 'not_found' }))
     const controller = new AbortController()
-    const result = await pollJob('evt_xyz', controller.signal)
+    const promise = pollJob('evt_xyz', controller.signal)
+    await vi.runAllTimersAsync()
+    const result = await promise
     expect(result.state).toBe('not_found')
   })
 })
