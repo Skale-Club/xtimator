@@ -21,6 +21,10 @@ import type { EstimateStateType } from '@/lib/estimate/graph/state'
 import type { ChannelAdapter } from '@/lib/estimate/graph/types'
 import { revertVagueEstimate } from '@/lib/estimate/quality/revert'
 import { failureReasonToXtimatorError } from '@/lib/estimate/failure'
+import { buildNeedsDetails } from '@/lib/ai/needs-details'
+import { getProjectRecordings } from '@/lib/queries/recording'
+import { getProjectPhotos } from '@/lib/queries/photo'
+import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
 
 /**
  * Default (web/MCP) ChannelAdapter closure-factory. Mirrors the WhatsApp adapter
@@ -58,6 +62,49 @@ export function makeDefaultAdapter({ companyId, supabase }: {
           .update({ status: 'awaiting_details' })
           .eq('id', state.projectId)
           .eq('company_id', companyId)  // companyId from closure (QA-02), NOT state
+
+        // QUICK-psh-01: classify WHY + generate clarifying questions at THIS
+        // single final-vague terminal (autoRefine's intermediate revert never
+        // reaches finalize — see checkVagueAfterAssessEdge — so this call fires
+        // exactly once per discarded attempt). Never-throw: any failure here
+        // must not undo the awaiting_details signal already persisted above.
+        try {
+          const [recordings, photos, companyRow] = await Promise.all([
+            getProjectRecordings(supabase, state.projectId),
+            getProjectPhotos(supabase, state.projectId),
+            supabase.from('companies').select('industry').eq('id', companyId).maybeSingle(),
+          ])
+          const inputSummary = [
+            ...recordings.map((r) => r.transcript).filter((t): t is string => !!t?.trim()),
+            ...photos.map((p) => p.ai_description).filter((d): d is string => !!d?.trim()),
+            ...(state.prompts ?? []),
+          ]
+            .join('\n\n')
+            .trim()
+          const language = (state.estimateLanguage as EstimateLanguage | undefined) ?? 'en'
+          const industryHint =
+            (companyRow.data as { industry?: string | null } | null)?.industry ?? undefined
+
+          const needsDetails = await buildNeedsDetails(inputSummary, language, industryHint)
+
+          await supabase
+            .from('projects')
+            .update({
+              needs_details: {
+                reason: needsDetails.reason,
+                questions: needsDetails.questions,
+                attempt_id: state.attemptId ?? null,
+                created_at: new Date().toISOString(),
+              },
+            })
+            .eq('id', state.projectId)
+            .eq('company_id', companyId)
+        } catch (err) {
+          // non-fatal — the awaiting_details signal above already landed; the
+          // popup/banner fall back to the plain vague message with no enrichment.
+          console.warn('[default-adapter] needs-details enrichment swallowed failure:', err)
+        }
+
         // Return needsDetails=true so it surfaces in the Inngest job output (SMART-04).
         // /api/jobs/[jobId] returns run.output as-is → MCP callers read output.needsDetails.
         return { needsDetails: true }

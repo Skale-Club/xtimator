@@ -45,6 +45,16 @@ export const autoRefineNode = async (
   // was vague ⇒ the generate call skipped those writes). There is nothing to
   // restore; adding restore logic here would be dead code for the current
   // mechanism. If that gating is ever removed, this revert must be revisited.
+  //
+  // QUICK-psh-01 (classify-why + clarifying questions): for the SAME reason,
+  // this node never calls buildNeedsDetails / touches projects.needs_details.
+  // This node only runs on the FIRST vague verdict (refineAttempts still below
+  // the cap when checkVagueAfterAssessEdge routes here) — the SINGLE final-vague
+  // terminal that calls buildNeedsDetails is the default adapter's `finalize`,
+  // reached only once refineAttempts >= 1 AND the estimate is still vague. If
+  // this node ever wired needs_details too, an attempt that succeeds on its
+  // retry would incorrectly carry a stale needs_details from its first (never
+  // shown) vague pass.
   try {
     await revertVagueEstimate(supabase, state.projectId, state.estimateId ?? null)
   } catch {
