@@ -22,7 +22,6 @@ interface SendTabProps {
   companyWebsite?: string | null
   estimateTemplate: EstimateTemplate
   smsDeliveryEnabled: boolean
-  whatsappSendEnabled?: boolean
 }
 
 function StepHeading({ index, title }: { index: number; title: string }) {
@@ -36,7 +35,7 @@ function StepHeading({ index, title }: { index: number; title: string }) {
   )
 }
 
-export function SendTab({ estimate, projectName, companyName, clientEmail, clientPhone, clientName, ownerName, companyWebsite, estimateTemplate, smsDeliveryEnabled, whatsappSendEnabled = false }: SendTabProps) {
+export function SendTab({ estimate, projectName, companyName, clientEmail, clientPhone, clientName, ownerName, estimateTemplate, smsDeliveryEnabled }: SendTabProps) {
   const { t } = useTranslation()
   const [plainTextOpen, setPlainTextOpen] = useState(false)
 
@@ -98,10 +97,6 @@ export function SendTab({ estimate, projectName, companyName, clientEmail, clien
           projectName={projectName}
           shareToken={estimate.share_token}
           smsDeliveryEnabled={smsDeliveryEnabled}
-          whatsappSendEnabled={whatsappSendEnabled}
-          estimate={estimate}
-          ownerName={ownerName}
-          companyWebsite={companyWebsite}
         />
       </div>
 

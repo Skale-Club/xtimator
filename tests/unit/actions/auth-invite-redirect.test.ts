@@ -49,9 +49,17 @@ vi.mock('@/lib/supabase/server', () => ({
       signInWithPassword: (...a: unknown[]) => authSignInWithPassword(...a),
       getClaims: () => authGetClaims(),
     },
-    from: () => ({
+    // userHasCompany() queries BOTH `companies` and `company_members` via
+    // .select().eq().limit().maybeSingle(). Only `companies` is table-aware
+    // here: `company_members` always resolves to no row, so the "has company"
+    // outcome is driven entirely by companyResult (owned company) below.
+    from: (table: string) => ({
       select: () => ({
         eq: () => ({
+          limit: () => ({
+            maybeSingle: () =>
+              table === 'companies' ? companiesSingle() : Promise.resolve({ data: null }),
+          }),
           single: () => companiesSingle(),
         }),
       }),

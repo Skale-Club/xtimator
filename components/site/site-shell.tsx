@@ -38,7 +38,8 @@ export function SiteShell({ branding, children }: SiteShellProps) {
         className="fixed inset-0 -z-10 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,hsl(var(--primary)/0.15),hsl(var(--foreground)/0))]"
       />
       <SiteHeader branding={branding} />
-      <div className="pt-16">{children}</div>
+      {/* 4rem header + the PWA status-bar inset SiteHeader absorbs */}
+      <div className="pt-[calc(4rem_+_env(safe-area-inset-top,_0px))]">{children}</div>
       <SiteFooter branding={branding} />
     </div>
   )

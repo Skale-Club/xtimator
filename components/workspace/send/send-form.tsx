@@ -20,12 +20,11 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
-import { Send, CheckCircle2, Loader2, MessageSquare, MessageCircle, Mail, Copy, Check } from 'lucide-react'
+import { Send, CheckCircle2, Loader2, MessageSquare, Mail } from 'lucide-react'
 import { toast } from 'sonner'
 import { markAsSentAction } from '@/lib/actions/estimate'
 import { buildShareLink } from '@/lib/utils/share-link'
 import { useTranslation } from '@/lib/i18n/use-translation'
-import { formatEstimateForWhatsApp, type FormatterEstimate } from '@/lib/whatsapp/formatter'
 
 const sendEmailSchema = z.object({
   to: z.string().email('Valid email required'),
@@ -39,14 +38,8 @@ const sendSmsSchema = z.object({
   message: z.string().optional(),
 })
 
-const sendWhatsAppSchema = z.object({
-  to: z.string().regex(/^\+[1-9]\d{7,14}$/, 'Phone must be in E.164 format (e.g. +15551234567)'),
-  message: z.string().optional(),
-})
-
 type SendEmailValues = z.infer<typeof sendEmailSchema>
 type SendSmsValues = z.infer<typeof sendSmsSchema>
-type SendWhatsAppValues = z.infer<typeof sendWhatsAppSchema>
 
 interface SendFormProps {
   estimateId: string
@@ -57,11 +50,6 @@ interface SendFormProps {
   projectName: string
   shareToken: string
   smsDeliveryEnabled: boolean
-  whatsappSendEnabled?: boolean
-  /** Full estimate data used to pre-fill the WhatsApp message field. */
-  estimate?: FormatterEstimate | null
-  ownerName?: string | null
-  companyWebsite?: string | null
   /** SEED-028 Phase D: disable all send/PDF actions when the estimate is a draft. */
   disabled?: boolean
 }
@@ -70,29 +58,17 @@ export function SendForm({
   estimateId,
   clientEmail,
   clientPhone,
-  clientName,
   companyName,
   projectName,
   shareToken,
   smsDeliveryEnabled,
-  whatsappSendEnabled = false,
-  estimate,
-  ownerName,
-  companyWebsite,
   disabled,
 }: SendFormProps) {
   const { t } = useTranslation()
   const [sending, setSending] = useState(false)
   const [marking, setMarking] = useState(false)
-  const [whatsappMessageCopied, setWhatsappMessageCopied] = useState(false)
 
   const shareLink = buildShareLink(shareToken)
-
-  const whatsappDefaultMessage = estimate
-    ? formatEstimateForWhatsApp(estimate, clientName ?? null, companyName, ownerName ?? null, companyWebsite ?? null)
-    : ''
-
-  const channelCount = 1 + (smsDeliveryEnabled ? 1 : 0) + (whatsappSendEnabled ? 1 : 0)
 
   const emailForm = useForm<SendEmailValues>({
     resolver: zodResolver(sendEmailSchema) as any,
@@ -109,14 +85,6 @@ export function SendForm({
     defaultValues: {
       to: clientPhone ?? '',
       message: '',
-    },
-  })
-
-  const whatsappForm = useForm<SendWhatsAppValues>({
-    resolver: zodResolver(sendWhatsAppSchema) as any,
-    defaultValues: {
-      to: clientPhone ?? '',
-      message: whatsappDefaultMessage,
     },
   })
 
@@ -162,43 +130,6 @@ export function SendForm({
     }
   }
 
-  async function onWhatsAppSubmit(values: SendWhatsAppValues) {
-    setSending(true)
-    try {
-      const response = await fetch(`/api/estimates/${estimateId}/send-whatsapp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to: values.to, message: values.message }),
-      })
-      const data = await response.json()
-      if (!response.ok) {
-        toast.error(data.error ?? 'Failed to send via WhatsApp')
-        return
-      }
-      toast.success(
-        data.fallback === 'share_link'
-          ? 'PDF unavailable — sent the share link instead.'
-          : 'Estimate sent via WhatsApp!',
-      )
-    } catch {
-      toast.error('Failed to send via WhatsApp. Please try again.')
-    } finally {
-      setSending(false)
-    }
-  }
-
-  async function handleCopyWhatsAppMessage() {
-    const message = whatsappForm.getValues('message') ?? ''
-    try {
-      await navigator.clipboard.writeText(message)
-      setWhatsappMessageCopied(true)
-      toast.success('Copied to clipboard!')
-      setTimeout(() => setWhatsappMessageCopied(false), 2000)
-    } catch {
-      toast.error('Failed to copy')
-    }
-  }
-
   async function handleMarkAsSent() {
     setMarking(true)
     try {
@@ -216,13 +147,10 @@ export function SendForm({
   }
 
   return (
-    <Card variant="glass">
+    <Card variant="glass" className="min-w-0 overflow-hidden">
       <CardContent className="pt-6">
         <Tabs defaultValue="email">
-          <TabsList
-            className="grid w-full"
-            style={{ gridTemplateColumns: `repeat(${channelCount}, minmax(0, 1fr))` }}
-          >
+          <TabsList className={`grid w-full ${smsDeliveryEnabled ? 'grid-cols-2' : 'grid-cols-1'}`}>
             <TabsTrigger value="email" className="gap-2">
               <Mail className="h-4 w-4" />
               Email
@@ -231,12 +159,6 @@ export function SendForm({
               <TabsTrigger value="sms" className="gap-2">
                 <MessageSquare className="h-4 w-4" />
                 SMS
-              </TabsTrigger>
-            )}
-            {whatsappSendEnabled && (
-              <TabsTrigger value="whatsapp" className="gap-2">
-                <MessageCircle className="h-4 w-4" />
-                WhatsApp
               </TabsTrigger>
             )}
           </TabsList>
@@ -350,6 +272,9 @@ export function SendForm({
                       </FormItem>
                     )}
                   />
+                  <p className="text-xs text-muted-foreground">
+                    {t('The client receives a text message with the estimate link.')}
+                  </p>
                   <Button type="submit" variant="primary" size="lg" className="w-full" disabled={sending || disabled}>
                     {sending ? (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -357,80 +282,6 @@ export function SendForm({
                       <MessageSquare className="mr-2 h-4 w-4" />
                     )}
                     {sending ? 'Sending...' : 'Send SMS'}
-                  </Button>
-                </form>
-              </Form>
-            </TabsContent>
-          )}
-
-          {whatsappSendEnabled && (
-            <TabsContent value="whatsapp" className="mt-4">
-              <Form {...whatsappForm}>
-                <form onSubmit={whatsappForm.handleSubmit(onWhatsAppSubmit)} className="space-y-4">
-                  <FormField
-                    control={whatsappForm.control}
-                    name="to"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Phone number</FormLabel>
-                        <FormControl>
-                          <PhoneInput
-                            value={field.value ?? ''}
-                            onChange={(formatted) => {
-                              field.onChange(formatted.replace(/[^\d+]/g, ''))
-                            }}
-                            placeholder="+15551234567"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={whatsappForm.control}
-                    name="message"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Message</FormLabel>
-                        <FormControl>
-                          <div className="relative">
-                            <Textarea
-                              rows={12}
-                              placeholder={`${companyName} sent you an estimate. Review and approve it here: ${shareLink}`}
-                              className="pr-11"
-                              {...field}
-                            />
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon-xs"
-                              className="absolute top-2 right-2 bg-background/80"
-                              onClick={handleCopyWhatsAppMessage}
-                              aria-label="Copy message"
-                            >
-                              {whatsappMessageCopied ? (
-                                <Check className="h-3.5 w-3.5" />
-                              ) : (
-                                <Copy className="h-3.5 w-3.5" />
-                              )}
-                            </Button>
-                          </div>
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Delivery format (share link, formatted text, or PDF) follows your WhatsApp
-                    setting in Settings → Integrations.
-                  </p>
-                  <Button type="submit" variant="primary" size="lg" className="w-full" disabled={sending || disabled}>
-                    {sending ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <MessageCircle className="mr-2 h-4 w-4" />
-                    )}
-                    {sending ? 'Sending...' : 'Send WhatsApp'}
                   </Button>
                 </form>
               </Form>

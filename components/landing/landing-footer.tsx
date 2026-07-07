@@ -12,7 +12,9 @@ interface LandingFooterProps {
 export function LandingFooter({ appName, logoUrl, onOpenAuth }: LandingFooterProps) {
 
   return (
-    <footer className="border-t border-white/5 bg-background pt-5 pb-0 sm:py-16">
+    // pb env(safe-area-inset-bottom): keeps the footer clear of the iOS home
+    // indicator when the landing page runs as an installed PWA.
+    <footer className="border-t border-white/5 bg-background pt-5 pb-[env(safe-area-inset-bottom,_0px)] sm:pt-16 sm:pb-[calc(4rem_+_env(safe-area-inset-bottom,_0px))]">
       <div className="mx-auto max-w-6xl px-6 sm:px-8 lg:px-10">
         <div className="grid gap-8 sm:grid-cols-4 sm:gap-12 lg:gap-8">
           <div className="sm:col-span-2">

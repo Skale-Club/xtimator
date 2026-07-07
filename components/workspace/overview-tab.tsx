@@ -34,7 +34,6 @@ interface OverviewTabProps {
   ownerName: string
   estimateTemplate: EstimateTemplate
   smsDeliveryEnabled?: boolean
-  whatsappSendEnabled?: boolean
 }
 
 /**
@@ -64,7 +63,6 @@ export function OverviewTab({
   ownerName,
   estimateTemplate,
   smsDeliveryEnabled,
-  whatsappSendEnabled,
 }: OverviewTabProps) {
   const router = useRouter()
   const pathname = usePathname()
@@ -130,7 +128,6 @@ export function OverviewTab({
         ownerName={ownerName}
         estimateTemplate={estimateTemplate}
         smsDeliveryEnabled={smsDeliveryEnabled}
-        whatsappSendEnabled={whatsappSendEnabled}
       />
 
     </div>

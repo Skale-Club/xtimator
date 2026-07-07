@@ -188,6 +188,9 @@ function StepCard({
             alt={title}
             draggable={false}
             fill
+            // Skip /_next/image — the self-hosted optimizer intermittently fails
+            // (no sharp), which made these step images vanish.
+            unoptimized
             sizes="(max-width: 719px) 80vw, 280px"
             className="relative z-10 h-full w-full object-contain object-top"
             style={hasTransform ? {

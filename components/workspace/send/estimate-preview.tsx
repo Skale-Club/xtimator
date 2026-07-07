@@ -56,8 +56,8 @@ export function EstimatePreview({ estimate }: EstimatePreviewProps) {
                 <h4 className="text-sm font-semibold">{t(section.title)}</h4>
                 <div className="space-y-1">
                   {section.items.map((item) => (
-                    <div key={item.id} className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground">
+                    <div key={item.id} className="flex items-start justify-between gap-3 text-sm">
+                      <span className="min-w-0 break-words text-muted-foreground">
                         {item.description || t('Untitled item')}
                         {item.quantity > 1 && (
                           <span className="ml-1">
@@ -65,7 +65,7 @@ export function EstimatePreview({ estimate }: EstimatePreviewProps) {
                           </span>
                         )}
                       </span>
-                      <span className="font-medium tabular-nums">
+                      <span className="shrink-0 font-medium tabular-nums">
                         {money(item.total)}
                       </span>
                     </div>

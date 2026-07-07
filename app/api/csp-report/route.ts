@@ -13,8 +13,55 @@ import * as Sentry from '@sentry/nextjs'
  * a request would have violated the policy. No auth — this is an
  * unauthenticated browser-initiated report, exempted in proxy.ts's
  * isPublicRoute() the same way webhooks are.
+ *
+ * XTIMATOR-8 noise fix: forwarding EVERY report to Sentry as a captureMessage
+ * fired a "New Alert" per page-view for violations we can't act on — almost
+ * all of them caused by browser extensions injecting scripts/styles into the
+ * page. Extension-originated reports are now logged to stdout only; genuine
+ * app-originated violations still reach Sentry, fingerprinted by
+ * directive+blocked-uri so each unique violation is ONE grouped issue.
  */
 export const dynamic = 'force-dynamic'
+
+/** Sources that browsers report for extension/injected content — not actionable. */
+const EXTENSION_URI_RE =
+  /^(chrome-extension|moz-extension|safari-extension|safari-web-extension|chrome|about|resource):/i
+
+type CspReportFields = {
+  'blocked-uri'?: string
+  'source-file'?: string
+  'violated-directive'?: string
+  'effective-directive'?: string
+  // Reporting API (application/reports+json) uses camelCase
+  blockedURL?: string
+  sourceFile?: string
+  effectiveDirective?: string
+}
+
+/** Normalizes both the legacy csp-report shape and the Reporting API shape. */
+function extractReport(body: unknown): CspReportFields {
+  if (!body || typeof body !== 'object') return {}
+  if (Array.isArray(body)) {
+    const first = body[0] as Record<string, unknown> | undefined
+    if (first?.body && typeof first.body === 'object') return first.body as CspReportFields
+    return {}
+  }
+  const b = body as Record<string, unknown>
+  if (b['csp-report'] && typeof b['csp-report'] === 'object') {
+    return b['csp-report'] as CspReportFields
+  }
+  return b as CspReportFields
+}
+
+function isExtensionNoise(r: CspReportFields): boolean {
+  const blocked = r['blocked-uri'] ?? r.blockedURL ?? ''
+  const source = r['source-file'] ?? r.sourceFile ?? ''
+  if (EXTENSION_URI_RE.test(blocked) || EXTENSION_URI_RE.test(source)) return true
+  // `inline`/`eval` blocked-uri WITH an extension source-file is covered above;
+  // with no source-file at all there is nothing actionable to fix either.
+  if ((blocked === 'inline' || blocked === 'eval' || blocked === '') && !source) return true
+  return false
+}
 
 export async function POST(request: Request) {
   try {
@@ -23,10 +70,18 @@ export async function POST(request: Request) {
       // Never let a malformed/huge report crash logging — truncate defensively.
       const summary = JSON.stringify(body).slice(0, 4000)
       console.warn('[csp-report]', summary)
-      Sentry.captureMessage('CSP violation', {
-        level: 'warning',
-        extra: { report: body },
-      })
+
+      const report = extractReport(body)
+      if (!isExtensionNoise(report)) {
+        const directive =
+          report['effective-directive'] ?? report.effectiveDirective ?? report['violated-directive'] ?? 'unknown'
+        const blocked = report['blocked-uri'] ?? report.blockedURL ?? 'unknown'
+        Sentry.captureMessage(`CSP violation: ${directive} → ${blocked}`, {
+          level: 'warning',
+          fingerprint: ['csp-violation', directive, blocked],
+          extra: { report: body },
+        })
+      }
     }
   } catch (err) {
     console.warn('[csp-report] failed to process report:', err)
