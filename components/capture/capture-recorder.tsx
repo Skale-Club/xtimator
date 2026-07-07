@@ -905,7 +905,8 @@ export function CaptureRecorder({
 
       tickIntervalRef.current = setInterval(tick, TICK_MS)
 
-      // Web Speech API for live transcript preview (horizontal layout, Chrome/Edge only)
+      // Web Speech API live transcript preview follows the device/spoken language (navigator.language),
+      // independent of estimateLanguage which only controls the generated estimate output (Chrome/Edge only)
       const w = window as typeof window & {
         SpeechRecognition?: SpeechRecognitionCtor
         webkitSpeechRecognition?: SpeechRecognitionCtor
@@ -915,7 +916,7 @@ export function CaptureRecorder({
         const recognition = new SpeechRecognitionAPI()
         recognition.continuous = true
         recognition.interimResults = true
-        recognition.lang = estimateLanguage === 'pt' ? 'pt-BR' : estimateLanguage === 'es' ? 'es-ES' : 'en-US'
+        recognition.lang = navigator.language || 'en-US'
         recognition.onresult = (event) => {
           let interim = ''
           let final = ''
@@ -1131,7 +1132,7 @@ function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progre
              className="flex-1 w-full resize-none border-none bg-transparent text-base sm:text-lg placeholder:text-muted-foreground/60 focus:outline-none focus:ring-0 leading-relaxed"
              data-testid="capture-description"
            />
-           {onStartBlank && (
+           {onStartBlank && !descriptionText.trim() && !isRecording && (
              <div className="mt-4 flex justify-center pb-8">
                <button
                  type="button"
