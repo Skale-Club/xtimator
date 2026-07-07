@@ -78,6 +78,10 @@ function makeSupabaseMock({
     }
   })
 
+  // QUICK-mv1-01: hoisted so tests can assert estimate_activity rows
+  // (e.g. trade_mismatch_detected) across from('estimate_activity') calls.
+  const activityInsertSpy = vi.fn().mockResolvedValue({ error: null })
+
   const fromMock = vi.fn().mockImplementation((table: string) => {
     if (table === 'projects') {
       const projectData = {
@@ -201,7 +205,7 @@ function makeSupabaseMock({
     }
 
     if (table === 'estimate_activity') {
-      return { insert: vi.fn().mockResolvedValue({ error: null }) }
+      return { insert: activityInsertSpy }
     }
 
     return {
@@ -211,7 +215,7 @@ function makeSupabaseMock({
     }
   })
 
-  return { fromMock, updateSpy }
+  return { fromMock, updateSpy, activityInsertSpy }
 }
 
 function setupDefaults() {
@@ -446,5 +450,131 @@ describe('generateEstimateForProject', () => {
     expect(result.clientSuggestion!.autoLinked).toBe(false)
 
     warnSpy.mockRestore()
+  })
+
+  // QUICK-mv1-01 — zero side effects on discarded (vague) generations + detected_trade
+  // persistence on kept ones. The rename/project_type/mismatch writes are gated on the
+  // SAME isVagueEstimate verdict the assess node re-derives, so a pass auto-refine will
+  // revert never touched projects.name/project_type in the first place.
+
+  it('does NOT rename the placeholder when the generation is vague (total 0) — zero side effects on discard', async () => {
+    generateEstimateMock.mockResolvedValue({
+      ...DEFAULT_AI_OUTPUT,
+      detected_trade: 'cleaning',
+      sections: [
+        {
+          title: 'Labor',
+          items: [
+            {
+              description: 'Unpriceable vague work',
+              quantity: 1,
+              unit_price: 0,
+              price_source: 'ai_estimate',
+            },
+          ],
+        },
+      ],
+    })
+    vi.mocked(getAIProvider).mockResolvedValue({
+      generateEstimate: generateEstimateMock,
+      refineEstimate: vi.fn(),
+    })
+
+    const { fromMock, updateSpy, activityInsertSpy } = makeSupabaseMock({
+      projectName: 'Untitled project — 5/5/2026',
+    })
+    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock } as never)
+
+    await generateEstimateForProject('company-1', 'project-1')
+
+    const nameUpdate = updateSpy.mock.calls.find(
+      (args: unknown[]) =>
+        args[0] && typeof args[0] === 'object' && 'name' in (args[0] as object)
+    )
+    expect(nameUpdate).toBeUndefined()
+
+    const typeUpdate = updateSpy.mock.calls.find(
+      (args: unknown[]) =>
+        args[0] && typeof args[0] === 'object' && 'project_type' in (args[0] as object)
+    )
+    expect(typeUpdate).toBeUndefined()
+
+    const mismatchInsert = activityInsertSpy.mock.calls.find(
+      (args: unknown[]) =>
+        (args[0] as { event_type?: string })?.event_type === 'trade_mismatch_detected'
+    )
+    expect(mismatchInsert).toBeUndefined()
+  })
+
+  it('persists projects.project_type from detected_trade (lowercased/trimmed) on a kept generation', async () => {
+    generateEstimateMock.mockResolvedValue({
+      ...DEFAULT_AI_OUTPUT,
+      detected_trade: '  Cleaning ',
+    })
+    vi.mocked(getAIProvider).mockResolvedValue({
+      generateEstimate: generateEstimateMock,
+      refineEstimate: vi.fn(),
+    })
+
+    const { fromMock, updateSpy } = makeSupabaseMock()
+    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock } as never)
+
+    await generateEstimateForProject('company-1', 'project-1')
+
+    const typeUpdate = updateSpy.mock.calls.find(
+      (args: unknown[]) =>
+        args[0] && typeof args[0] === 'object' && 'project_type' in (args[0] as object)
+    )
+    expect(typeUpdate).toBeDefined()
+    expect((typeUpdate![0] as { project_type: string }).project_type).toBe('cleaning')
+  })
+
+  it('logs trade_mismatch_detected when detected_trade differs from company.industry', async () => {
+    // Mock company industry is 'construction'; the AI detects 'cleaning'.
+    generateEstimateMock.mockResolvedValue({
+      ...DEFAULT_AI_OUTPUT,
+      detected_trade: 'cleaning',
+    })
+    vi.mocked(getAIProvider).mockResolvedValue({
+      generateEstimate: generateEstimateMock,
+      refineEstimate: vi.fn(),
+    })
+
+    const { fromMock, activityInsertSpy } = makeSupabaseMock()
+    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock } as never)
+
+    await generateEstimateForProject('company-1', 'project-1')
+
+    const mismatchInsert = activityInsertSpy.mock.calls.find(
+      (args: unknown[]) =>
+        (args[0] as { event_type?: string })?.event_type === 'trade_mismatch_detected'
+    )
+    expect(mismatchInsert).toBeDefined()
+    expect((mismatchInsert![0] as { metadata: unknown }).metadata).toEqual({
+      detected: 'cleaning',
+      configured: 'construction',
+    })
+  })
+
+  it('does NOT log trade_mismatch_detected when detected_trade matches company.industry (case-insensitive)', async () => {
+    generateEstimateMock.mockResolvedValue({
+      ...DEFAULT_AI_OUTPUT,
+      detected_trade: 'Construction',
+    })
+    vi.mocked(getAIProvider).mockResolvedValue({
+      generateEstimate: generateEstimateMock,
+      refineEstimate: vi.fn(),
+    })
+
+    const { fromMock, activityInsertSpy } = makeSupabaseMock()
+    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock } as never)
+
+    await generateEstimateForProject('company-1', 'project-1')
+
+    const mismatchInsert = activityInsertSpy.mock.calls.find(
+      (args: unknown[]) =>
+        (args[0] as { event_type?: string })?.event_type === 'trade_mismatch_detected'
+    )
+    expect(mismatchInsert).toBeUndefined()
   })
 })
