@@ -8,9 +8,12 @@ import { pollJob } from '@/hooks/use-job-status'
  * LATER. pollJob previously treated `not_found` as immediately terminal, so
  * the user saw "We could not find this job — please retry." even though the
  * server-owned pipeline went on to succeed end-to-end. pollJob now grace-
- * periods a `not_found` body for NOT_FOUND_GRACE_MS (20s) before treating it
- * as terminal — this file covers that exact sequence plus the two edges
- * (grace expires; a real `failed` is still immediate).
+ * periods a `not_found` body for NOT_FOUND_GRACE_MS (widened 20s → 60s,
+ * 260707-lyq — a second, worse run-creation lag was observed in production)
+ * before treating it as terminal — this file covers that exact sequence plus
+ * the two edges (grace expires; a real `failed` is still immediate). Uses
+ * fake timers + `vi.runAllTimersAsync()` rather than a hardcoded ms value, so
+ * it stays correct across grace-window changes.
  */
 
 const mockFetch = vi.fn()
