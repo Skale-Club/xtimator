@@ -57,13 +57,29 @@ export function buildSearchOr(term: string): string {
 }
 
 // ── terminalStatus ────────────────────────────────────────────────────────────
-// D-01 precedence: failed > started > succeeded. Used in EventStepTimeline header.
+// 260707-hhp v2: latest-event semantics (matches the pipeline_attempts view v2
+// and lib/inngest/functions/pipeline-watchdog.ts's classifyLastEvent), replacing
+// the old D-01 failed > started > succeeded precedence — which reported
+// 'started' forever for any attempt that ever had a 'started' row, i.e. every
+// multi-event attempt including fully completed ones.
+//
+// Expects `rows` sorted by created_at ASCENDING (the order EventStepTimeline
+// already receives them in) and reads the LAST row to decide the outcome:
+//   - any row failed                                          → 'failed'
+//   - the last row succeeded on generate_estimate/preview_redirect → 'succeeded'
+//   - otherwise                                                → 'started'
 export function terminalStatus(
-  rows: { status: string }[],
+  rows: { status: string; step?: string }[],
 ): 'failed' | 'started' | 'succeeded' {
   if (rows.some((r) => r.status === 'failed')) return 'failed'
-  if (rows.some((r) => r.status === 'started')) return 'started'
-  return 'succeeded'
+  const last = rows[rows.length - 1]
+  if (
+    last?.status === 'succeeded' &&
+    (last.step === 'generate_estimate' || last.step === 'preview_redirect')
+  ) {
+    return 'succeeded'
+  }
+  return 'started'
 }
 
 // ── formatDuration ────────────────────────────────────────────────────────────

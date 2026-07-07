@@ -19,3 +19,5 @@ export { xphereSyncJob } from './xphere-sync'
 export { whatsAppWelcomeJob } from './whatsapp-welcome'
 // Phase 142 (ANN-02) — monthly AI-credit grant cron (decoupled from invoice cadence).
 export { monthlyCreditGrantJob } from './monthly-credit-grant'
+// 260707-hhp (P2) — pipeline stuck-attempt watchdog cron (10min cadence).
+export { pipelineWatchdogJob } from './pipeline-watchdog'

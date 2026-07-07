@@ -9,18 +9,48 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { terminalStatus, formatDuration } from '@/lib/admin/events-helpers'
 
-// ── terminalStatus precedence ─────────────────────────────────────────────────
-describe('ADMINLOG-04: terminalStatus precedence (failed > started > succeeded)', () => {
-  it('returns "failed" when any row has status=failed, even if others succeeded', () => {
-    expect(terminalStatus([{ status: 'succeeded' }, { status: 'failed' }])).toBe('failed')
+// ── terminalStatus v2 (latest-event semantics) ─────────────────────────────────
+// 260707-hhp: replaces the old failed > started > succeeded precedence — rows
+// are expected sorted by created_at ASCENDING; the LAST row decides the outcome.
+describe('ADMINLOG-04: terminalStatus v2 (latest-event semantics)', () => {
+  it('returns "failed" when any row has status=failed, even if a later row succeeded', () => {
+    expect(
+      terminalStatus([
+        { status: 'succeeded', step: 'save_recording' },
+        { status: 'failed', step: 'transcribe' },
+      ]),
+    ).toBe('failed')
   })
 
-  it('returns "started" when rows have started and succeeded but no failed', () => {
-    expect(terminalStatus([{ status: 'succeeded' }, { status: 'started' }])).toBe('started')
+  it('returns "started" when the latest row is started (still in flight)', () => {
+    expect(
+      terminalStatus([
+        { status: 'succeeded', step: 'save_recording' },
+        { status: 'started', step: 'transcribe' },
+      ]),
+    ).toBe('started')
   })
 
-  it('returns "succeeded" when all rows have status=succeeded', () => {
-    expect(terminalStatus([{ status: 'succeeded' }])).toBe('succeeded')
+  it('returns "started" when the latest row succeeded but on a non-terminal step', () => {
+    expect(terminalStatus([{ status: 'succeeded', step: 'transcribe' }])).toBe('started')
+  })
+
+  it('returns "succeeded" when the latest row succeeded on generate_estimate', () => {
+    expect(
+      terminalStatus([
+        { status: 'succeeded', step: 'save_recording' },
+        { status: 'succeeded', step: 'generate_estimate' },
+      ]),
+    ).toBe('succeeded')
+  })
+
+  it('returns "succeeded" when the latest row succeeded on preview_redirect', () => {
+    expect(
+      terminalStatus([
+        { status: 'succeeded', step: 'generate_estimate' },
+        { status: 'succeeded', step: 'preview_redirect' },
+      ]),
+    ).toBe('succeeded')
   })
 })
 

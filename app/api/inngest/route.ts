@@ -22,6 +22,7 @@ import {
   xphereSyncJob,
   whatsAppWelcomeJob,
   monthlyCreditGrantJob,
+  pipelineWatchdogJob,
 } from '@/lib/inngest/functions'
 
 export const { GET, POST, PUT } = serve({
@@ -39,5 +40,6 @@ export const { GET, POST, PUT } = serve({
     xphereSyncJob,
     whatsAppWelcomeJob,
     monthlyCreditGrantJob,
+    pipelineWatchdogJob,
   ],
 })
