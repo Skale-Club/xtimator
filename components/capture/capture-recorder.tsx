@@ -10,6 +10,7 @@ import { CaptureTimer } from '@/components/capture/capture-timer'
 import { CaptureStepper } from '@/components/capture/capture-stepper'
 import { CaptureProcessingOverlay } from '@/components/capture/capture-processing-overlay'
 import { CaptureFailure } from '@/components/capture/capture-failure'
+import { CaptureNeedsDetails } from '@/components/capture/capture-needs-details'
 import { VoiceRecorder } from '@/components/workspace/audio/voice-recorder'
 import { startRecordingPipeline, createTextRecording, reportClientPipelineFailure } from '@/lib/actions/recording'
 import { createBlankEstimate } from '@/lib/actions/estimate'
@@ -207,6 +208,14 @@ export function CaptureRecorder({
   const [failedAt, setFailedAt] = useState<StageKey | undefined>(undefined)
   const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined)
   const [retriesUsed, setRetriesUsed] = useState(0)
+  // QUICK-psh-02: classification + specific questions from the vague terminal
+  // (projects.needs_details via getAttemptOutcome), rendered as a compact panel
+  // instead of the old generic toast. null = no needs_details outcome pending.
+  // fallbackMessage is the path-specific vagueMessage (inline t() literal at
+  // each handleEstimateOutcome call site) used when reason/questions are absent.
+  const [needsDetailsInfo, setNeedsDetailsInfo] = useState<
+    { reason?: string; questions?: string[]; fallbackMessage: string } | null
+  >(null)
 
   // Multi-modal input state. Lazy-init from the saved draft (if any) so reopening
   // the popup restores the text the user typed before closing it.
@@ -565,14 +574,23 @@ export function CaptureRecorder({
       return
     }
     if (outcome.state === 'awaiting_details') {
-      toast.error(vagueMessage)
+      // QUICK-psh-02: a compact panel (CaptureNeedsDetails) replaces the old
+      // generic toast — reason/questions come from projects.needs_details
+      // (absent → the panel falls back to the plain vagueMessage). The same
+      // reset side-effects run immediately; the panel's "Record again" button
+      // (handleNeedsDetailsRecordAgain) is what actually reveals the recorder
+      // UI again (stage stays as-is here so the panel has somewhere to render).
+      setNeedsDetailsInfo({
+        reason: outcome.reason,
+        questions: outcome.questions,
+        fallbackMessage: vagueMessage,
+      })
       setAudioBlob(null)
       recordingIdRef.current = null
       attemptIdRef.current = null
       requestIdRef.current = null
       previousEstimateIdRef.current = undefined
       setAttemptProgress(EMPTY_ATTEMPT_PROGRESS)
-      setStage('idle')
       return
     }
     if (outcome.state === 'failed') {
@@ -586,6 +604,13 @@ export function CaptureRecorder({
     // timeout
     failAt('generating', t('Generation is taking longer than expected. It may still complete in the background — check the project in a minute, or retry.'))
   }, [onComplete, projectId, router, t, failAt, stepToStageKey])
+
+  // QUICK-psh-02: the needs-details panel's "Record again" action — dismisses
+  // the panel and reveals the (already-reset) recorder UI.
+  const handleNeedsDetailsRecordAgain = useCallback(() => {
+    setNeedsDetailsInfo(null)
+    setStage('idle')
+  }, [])
 
   // Multi-modal helpers
   const hasAnyInput = !!audioBlob || descriptionText.trim().length > 0 || uploadedPhotos.length > 0
@@ -697,6 +722,9 @@ export function CaptureRecorder({
     setStage('saving')
     setFailedAt(undefined)
     setErrorMessage(undefined)
+    // QUICK-psh-02: a fresh dispatch must not show a stale needs-details panel
+    // from a prior discarded attempt.
+    setNeedsDetailsInfo(null)
     // 260707-o7a: fresh dispatch — clear the progress snapshot (a Retry must
     // not show the previous run's segments) + kick the one-per-session
     // medians fetch (non-blocking).
@@ -788,6 +816,9 @@ export function CaptureRecorder({
     abortControllerRef.current = new AbortController()
     setFailedAt(undefined)
     setErrorMessage(undefined)
+    // QUICK-psh-02: a fresh dispatch must not show a stale needs-details panel
+    // from a prior discarded attempt.
+    setNeedsDetailsInfo(null)
     // 260707-o7a: fresh dispatch — clear the progress snapshot + kick the
     // one-per-session medians fetch (non-blocking). The audio branch below
     // (runPipeline) repeats both harmlessly (idempotent).
@@ -1055,7 +1086,7 @@ export function CaptureRecorder({
           {/* 260707-o7a: real journal-driven progress — segments only advance on
               journal succeeded events (attemptProgress via handleStageProgress);
               medians make the in-segment fill an honest elapsed-vs-typical read. */}
-          {!failedAt && (
+          {!failedAt && !needsDetailsInfo && (
             <CaptureProcessingOverlay
               stage={stage}
               mode={activeMode}
@@ -1077,6 +1108,21 @@ export function CaptureRecorder({
               </div>
             </div>
           )}
+          {/* QUICK-psh-02: needs-details panel — mutually exclusive with the
+              overlay/failure surfaces above (failedAt never coincides with a
+              needs_details outcome). */}
+          {!failedAt && needsDetailsInfo && (
+            <div className="flex-1 flex items-center justify-center p-4">
+              <div className="w-full max-w-md">
+                <CaptureNeedsDetails
+                  reason={needsDetailsInfo.reason}
+                  questions={needsDetailsInfo.questions}
+                  fallbackMessage={needsDetailsInfo.fallbackMessage}
+                  onRecordAgain={handleNeedsDetailsRecordAgain}
+                />
+              </div>
+            </div>
+          )}
         </div>
       ) : (
         // Legacy fullscreen /capture route — keep the existing CaptureStepper UX.
@@ -1093,6 +1139,15 @@ export function CaptureRecorder({
                 retriesUsed={retriesUsed}
                 onRetry={hasAnyInput ? handleRetry : undefined}
                 onEditManually={handleEditManually}
+              />
+            )}
+            {/* QUICK-psh-02: needs-details panel (legacy fullscreen route). */}
+            {!failedAt && needsDetailsInfo && (
+              <CaptureNeedsDetails
+                reason={needsDetailsInfo.reason}
+                questions={needsDetailsInfo.questions}
+                fallbackMessage={needsDetailsInfo.fallbackMessage}
+                onRecordAgain={handleNeedsDetailsRecordAgain}
               />
             )}
           </div>

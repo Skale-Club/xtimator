@@ -9,6 +9,17 @@ export interface ProjectDetail {
   target_budget: number | null
   total: number
   created_at: string
+  /**
+   * QUICK-psh-01/02: classification + clarifying questions persisted once at
+   * the final vague terminal (lib/estimate/adapters/default.ts). Read by the
+   * project-page needs-details banner when status === 'awaiting_details'.
+   */
+  needs_details: {
+    reason: string
+    questions: string[]
+    attempt_id: string
+    created_at: string
+  } | null
   client: {
     id: string
     name: string

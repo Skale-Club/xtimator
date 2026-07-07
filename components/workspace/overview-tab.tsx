@@ -96,7 +96,11 @@ export function OverviewTab({
       />
 
       {project.status === 'awaiting_details' && (
-        <NeedsDetailsBanner onAddDetails={() => setModePickerOpen(true)} />
+        <NeedsDetailsBanner
+          onAddDetails={() => setModePickerOpen(true)}
+          reason={project.needs_details?.reason}
+          questions={project.needs_details?.questions}
+        />
       )}
 
       <EstimateTab

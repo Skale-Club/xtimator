@@ -39,7 +39,11 @@ import { getAttemptOutcome } from '@/lib/actions/attempt-outcome'
 
 export type EstimateOutcome =
   | { state: 'completed'; estimateId: string }
-  | { state: 'awaiting_details' }
+  // QUICK-psh-02: reason/questions forward the AttemptOutcome needs_details
+  // enrichment (lib/actions/attempt-outcome.ts) — absent when the journal path
+  // wasn't used, the enrichment read missed, or the fallback DB-truth check
+  // below fired instead (it can never know the classification).
+  | { state: 'awaiting_details'; reason?: string; questions?: string[] }
   | { state: 'failed'; step: string; reason: string }
   | { state: 'timeout' }
 
@@ -165,7 +169,11 @@ export async function pollEstimateOutcome(opts: {
           return { state: 'completed', estimateId: attemptOutcome.estimateId }
         }
         if (attemptOutcome.state === 'needs_details') {
-          return { state: 'awaiting_details' }
+          return {
+            state: 'awaiting_details',
+            reason: attemptOutcome.reason,
+            questions: attemptOutcome.questions,
+          }
         }
         if (attemptOutcome.state === 'failed') {
           return { state: 'failed', step: attemptOutcome.step, reason: attemptOutcome.reason }

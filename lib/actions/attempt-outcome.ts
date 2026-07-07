@@ -33,7 +33,12 @@ import { FALLBACK_MEDIANS_MS } from '@/lib/estimate/progress-model'
 
 export type AttemptOutcome =
   | { state: 'completed'; estimateId: string }
-  | { state: 'needs_details' }
+  // QUICK-psh-02: reason/questions are additive enrichment read from
+  // projects.needs_details (set once at the final vague terminal — see
+  // lib/estimate/adapters/default.ts). Optional/absent when the attempt_id
+  // doesn't match (stale row from a prior attempt) or the column read fails —
+  // the bare `needs_details` shape stays a valid, backward-compatible outcome.
+  | { state: 'needs_details'; reason?: string; questions?: string[] }
   | { state: 'failed'; step: string; reason: string }
   // 260707-o7a: pending carries the journal-derived progress payload so the
   // client can drive the REAL progress bar (lib/estimate/progress-model.ts):
@@ -56,7 +61,44 @@ interface JournalRow {
   error_message: string | null
   estimate_id: string | null
   company_id: string | null
+  // QUICK-psh-02: needed to read the project's needs_details enrichment.
+  project_id: string | null
   created_at: string
+}
+
+/**
+ * QUICK-psh-02: reads projects.needs_details (set once at the final vague
+ * terminal — lib/estimate/adapters/default.ts) and enriches the bare
+ * needs_details outcome when it belongs to THIS attempt. Tolerates absent
+ * column data, a missing projectId, or any read failure — always degrades to
+ * the bare `{ state: 'needs_details' }` shape rather than throwing.
+ */
+async function enrichNeedsDetails(
+  svc: ReturnType<typeof requireServiceClient>,
+  projectId: string | null,
+  attemptId: string
+): Promise<AttemptOutcome> {
+  if (!projectId) return { state: 'needs_details' }
+  try {
+    const { data } = await svc
+      .from('projects')
+      .select('needs_details')
+      .eq('id', projectId)
+      .maybeSingle()
+    const nd = (
+      data as { needs_details?: { reason?: string; questions?: string[]; attempt_id?: string } | null } | null
+    )?.needs_details
+    // Only surface the enrichment when it was written FOR this exact attempt —
+    // a stale needs_details from a prior discarded attempt on the same project
+    // must never bleed into a newer one's outcome.
+    if (nd && nd.attempt_id === attemptId) {
+      return { state: 'needs_details', reason: nd.reason, questions: nd.questions }
+    }
+    return { state: 'needs_details' }
+  } catch (err) {
+    console.warn('[getAttemptOutcome] needs-details enrichment swallowed failure:', err)
+    return { state: 'needs_details' }
+  }
 }
 
 export async function getAttemptOutcome(attemptId: string): Promise<AttemptOutcome> {
@@ -75,7 +117,7 @@ export async function getAttemptOutcome(attemptId: string): Promise<AttemptOutco
     const svc = requireServiceClient()
     const { data } = await svc
       .from('pipeline_events')
-      .select('step,status,error_code,error_message,estimate_id,company_id,created_at')
+      .select('step,status,error_code,error_message,estimate_id,company_id,project_id,created_at')
       .eq('attempt_id', attemptId)
       .order('created_at', { ascending: true })
 
@@ -110,7 +152,9 @@ export async function getAttemptOutcome(attemptId: string): Promise<AttemptOutco
       }
       // estimate_id was null, OR the row is gone (deleted by auto-refine, the
       // 8a0c13e8 race) — the attempt did not durably produce a usable estimate.
-      return { state: 'needs_details' }
+      // QUICK-psh-02: enrich with the classification + questions persisted at
+      // the vague terminal, when available for THIS attempt.
+      return await enrichNeedsDetails(svc, succeeded.project_id, attemptId)
     }
 
     const failed = rows.find(
