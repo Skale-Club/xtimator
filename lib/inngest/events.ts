@@ -102,6 +102,14 @@ export type AnalyzePhotosPayload = {
    * analyze-photos path is always `photo`. Optional so older callers compile.
    */
   inputType?: 'recording' | 'photo' | 'manual_text'
+  /**
+   * 260707-hhp (P1): when true, the analyze-photos job automatically dispatches
+   * EVENT_ESTIMATE_GENERATE after descriptions are written, mirroring
+   * TranscribeAudioPayload's identical chain field for fire-and-forget dispatch.
+   */
+  autoGenerateEstimate?: boolean
+  /** Estimate language forwarded to the generate-estimate event. */
+  estimateLanguage?: 'en' | 'pt' | 'es'
 }
 
 export type WhatsAppProcessPayload = {

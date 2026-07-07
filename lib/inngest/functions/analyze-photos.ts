@@ -19,6 +19,7 @@ import { recordPipelineEvent } from '@/lib/observability/pipeline-events'
 import { notifyOps } from '@/lib/observability/ops-alert'
 import {
   EVENT_ANALYZE_PHOTOS,
+  EVENT_ESTIMATE_GENERATE,
   type AnalyzePhotosPayload,
 } from '@/lib/inngest/events'
 
@@ -181,6 +182,28 @@ export const analyzePhotosJob = inngest.createFunction(
         })
       )
     )
+
+    // 260707-hhp (P1): when the client requested fire-and-forget mode, chain
+    // directly into estimate generation now that descriptions are persisted —
+    // mirrors transcribe-audio.ts's dispatch-generate-estimate step exactly.
+    if (data.autoGenerateEstimate && projectId) {
+      await step.run('dispatch-generate-estimate', async () => {
+        const reqId = data.requestId ?? randomUUID()
+        await inngest.send({
+          name: EVENT_ESTIMATE_GENERATE,
+          id: `estimate-${projectId}-${reqId}`,
+          data: {
+            companyId,
+            projectId,
+            requestId: reqId,
+            language: data.estimateLanguage,
+            attemptId: data.attemptId,
+            inputType: 'photo' as const,
+            channel: 'web' as const,
+          },
+        })
+      })
+    }
 
     // Step 3: Final step — record usage on success only.
     await step.run('record-usage', async () => {

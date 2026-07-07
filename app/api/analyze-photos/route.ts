@@ -41,6 +41,15 @@ export async function POST(request: Request) {
       typeof body?.attemptId === 'string' && body.attemptId.length > 0
         ? body.attemptId
         : crypto.randomUUID()
+    // 260707-hhp (P1): optional server-side chain into generate-estimate —
+    // additive; absent on existing callers so their behavior is unchanged.
+    const autoGenerateEstimate = body?.autoGenerateEstimate === true
+    const estimateLanguage: 'en' | 'pt' | 'es' | undefined =
+      body?.estimateLanguage === 'en' ||
+      body?.estimateLanguage === 'pt' ||
+      body?.estimateLanguage === 'es'
+        ? body.estimateLanguage
+        : undefined
 
     // Auth
     const supabase = await createClient()
@@ -115,6 +124,7 @@ export async function POST(request: Request) {
       requestId,
       attemptId,
       inputType: 'photo',
+      ...(autoGenerateEstimate && { autoGenerateEstimate, estimateLanguage }),
     }
     const { ids } = await inngest.send({
       name: EVENT_ANALYZE_PHOTOS,

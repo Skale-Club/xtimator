@@ -34,7 +34,12 @@ async function getAuthContext() {
 export async function createTextRecording(
   projectId: string,
   description: string,
-  attemptId?: string
+  attemptId?: string,
+  options?: {
+    autoGenerateEstimate?: boolean
+    requestId?: string
+    estimateLanguage?: 'en' | 'pt' | 'es'
+  }
 ) {
   // Phase 92 (EVENT-02/D-08): server fallback so an event is never dropped.
   const eventAttemptId = attemptId ?? randomUUID()
@@ -109,6 +114,46 @@ export async function createTextRecording(
   })
 
   revalidatePath(`/projects/${projectId}`)
+
+  // 260707-hhp (P1): optional server-side chain into generate-estimate — closes
+  // the client gap between saving a typed description and dispatching generation.
+  // Lazy-imported + try/caught in the same style as transcribeRecording's dispatch.
+  if (options?.autoGenerateEstimate) {
+    const { inngest } = await import('@/lib/inngest/client')
+    const { EVENT_ESTIMATE_GENERATE } = await import('@/lib/inngest/events')
+    const reqId = options.requestId ?? randomUUID()
+    try {
+      const { ids } = await inngest.send({
+        name: EVENT_ESTIMATE_GENERATE,
+        id: `estimate-${projectId}-${reqId}`,
+        data: {
+          companyId: company.id,
+          projectId,
+          requestId: reqId,
+          language: options.estimateLanguage,
+          attemptId: eventAttemptId,
+          inputType: 'manual_text' as const,
+          channel: 'web' as const,
+        },
+      })
+      if (ids[0]) await recordJobOwnership(ids[0], company.id)
+      return { data: recording, jobId: ids[0] }
+    } catch (err) {
+      void recordPipelineEvent({
+        attemptId: eventAttemptId,
+        inputType: 'manual_text',
+        step: 'generate_estimate',
+        status: 'failed',
+        companyId: company.id,
+        projectId,
+        errorMessage: String(err instanceof Error ? err.message : err).slice(0, 300),
+        errorCode: 'dispatch_failed',
+        provider: null,
+      })
+      return { error: 'Your description was saved but generation could not start — please retry.' }
+    }
+  }
+
   return { data: recording }
 }
 
@@ -381,6 +426,58 @@ export async function transcribeRecording(
     })
     return { error: 'Transcription service is temporarily unavailable — your recording is saved. Please retry.' }
   }
+}
+
+/**
+ * 260707-hhp (P1): single client→server round trip after audio upload. Creates the
+ * recording row AND dispatches the transcribe→generate chain in one call, so the
+ * browser can die immediately afterwards without orphaning the generation.
+ * Retry path: pass `recordingId` to skip creation and re-dispatch only (the
+ * transcribe event id `transcribe-${recordingId}` is idempotent — a duplicate
+ * dispatch is deduped by Inngest).
+ */
+export async function startRecordingPipeline(input: {
+  projectId: string
+  storagePath?: string       // required when recordingId is absent
+  durationSeconds?: number   // required when recordingId is absent
+  recordingId?: string       // Retry: reuse the existing row
+  attemptId: string
+  requestId: string
+  estimateLanguage?: 'en' | 'pt' | 'es'
+}): Promise<{ data: { recordingId: string; transcribeJobId: string } } | { error: string }> {
+  let recordingId = input.recordingId
+
+  if (!recordingId) {
+    if (!input.storagePath || !input.durationSeconds) {
+      return { error: 'Missing recording data.' }
+    }
+    const created = await createRecording(
+      input.projectId,
+      input.storagePath,
+      input.durationSeconds,
+      input.attemptId
+    )
+    // Reconstructed (not forwarded as-is): TS widens the multi-branch inferred
+    // return type of createRecording's sibling error strings to include
+    // `undefined`; the nullish fallback below is unreachable at runtime (every
+    // branch always assigns a real message) and keeps this call site's return
+    // type a clean `{ error: string }`.
+    if ('error' in created) {
+      return { error: created.error ?? 'Failed to create recording. Please try again.' }
+    }
+    recordingId = created.data.id as string
+  }
+
+  const dispatched = await transcribeRecording(recordingId, input.attemptId, {
+    autoGenerateEstimate: true,
+    requestId: input.requestId,
+    estimateLanguage: input.estimateLanguage,
+  })
+  if ('error' in dispatched) {
+    return { error: dispatched.error ?? 'Transcription service is temporarily unavailable — your recording is saved. Please retry.' }
+  }
+
+  return { data: { recordingId, transcribeJobId: dispatched.data.jobId } }
 }
 
 // 260707-grq: client-leg telemetry. The capture pipeline is orchestrated by the browser;
