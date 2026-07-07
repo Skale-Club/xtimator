@@ -193,7 +193,13 @@ describe('260707-lyq (P4 Wave 2): pollEstimateOutcome — journal-first', () => 
   })
 
   it('journal pending -> falls through to the estimates/projects fallback (new estimate id wins)', async () => {
-    mockGetAttemptOutcome.mockResolvedValue({ state: 'pending', lastStep: 'transcribe', lastStatus: 'started' })
+    mockGetAttemptOutcome.mockResolvedValue({
+      state: 'pending',
+      lastStep: 'transcribe',
+      lastStatus: 'started',
+      completedSteps: ['save_recording'],
+      activeStepStartedAt: '2026-07-07T12:00:00.000Z',
+    })
     fallbackEstimateId = 'est-fallback'
 
     const outcome = await pollEstimateOutcome({
@@ -225,7 +231,13 @@ describe('260707-lyq (P4 Wave 2): pollEstimateOutcome — journal-first', () => 
   })
 
   it('onStageProgress fires with the journal lastStep on a pending tick', async () => {
-    mockGetAttemptOutcome.mockResolvedValue({ state: 'pending', lastStep: 'transcribe', lastStatus: 'started' })
+    mockGetAttemptOutcome.mockResolvedValue({
+      state: 'pending',
+      lastStep: 'transcribe',
+      lastStatus: 'started',
+      completedSteps: ['save_recording'],
+      activeStepStartedAt: '2026-07-07T12:00:00.000Z',
+    })
     const onStageProgress = vi.fn()
 
     // No fallback completion configured — the poll runs out the clock, proving
@@ -252,6 +264,8 @@ describe('260707-lyq (P4 Wave 2): pollEstimateOutcome — journal-first', () => 
       state: 'pending',
       lastStep: 'generate_estimate',
       lastStatus: 'started',
+      completedSteps: ['save_recording', 'transcribe'],
+      activeStepStartedAt: '2026-07-07T12:00:00.000Z',
     })
     fallbackProjectStatus = 'awaiting_details'
     fallbackEstimateId = null

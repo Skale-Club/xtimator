@@ -29,12 +29,24 @@
 import { createClient } from '@/lib/supabase/server'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
+import { FALLBACK_MEDIANS_MS } from '@/lib/estimate/progress-model'
 
 export type AttemptOutcome =
   | { state: 'completed'; estimateId: string }
   | { state: 'needs_details' }
   | { state: 'failed'; step: string; reason: string }
-  | { state: 'pending'; lastStep: string | null; lastStatus: string | null }
+  // 260707-o7a: pending carries the journal-derived progress payload so the
+  // client can drive the REAL progress bar (lib/estimate/progress-model.ts):
+  //   completedSteps — steps with a `succeeded` event, in journal order;
+  //   activeStepStartedAt — created_at of the latest `started` event whose
+  //   step has no `succeeded` event yet (null when nothing is mid-flight).
+  | {
+      state: 'pending'
+      lastStep: string | null
+      lastStatus: string | null
+      completedSteps: string[]
+      activeStepStartedAt: string | null
+    }
   | { state: 'unauthorized' }
 
 interface JournalRow {
@@ -44,6 +56,7 @@ interface JournalRow {
   error_message: string | null
   estimate_id: string | null
   company_id: string | null
+  created_at: string
 }
 
 export async function getAttemptOutcome(attemptId: string): Promise<AttemptOutcome> {
@@ -62,13 +75,13 @@ export async function getAttemptOutcome(attemptId: string): Promise<AttemptOutco
     const svc = requireServiceClient()
     const { data } = await svc
       .from('pipeline_events')
-      .select('step,status,error_code,error_message,estimate_id,company_id')
+      .select('step,status,error_code,error_message,estimate_id,company_id,created_at')
       .eq('attempt_id', attemptId)
       .order('created_at', { ascending: true })
 
     const rows = (data ?? []) as JournalRow[]
     if (rows.length === 0) {
-      return { state: 'pending', lastStep: null, lastStatus: null }
+      return { state: 'pending', lastStep: null, lastStatus: null, completedSteps: [], activeStepStartedAt: null }
     }
 
     // Company scope: at least one row must match the caller's active company
@@ -112,10 +125,96 @@ export async function getAttemptOutcome(attemptId: string): Promise<AttemptOutco
     }
 
     const last = rows[rows.length - 1]
-    return { state: 'pending', lastStep: last.step, lastStatus: last.status }
+
+    // 260707-o7a: progress payload for the real progress bar.
+    // completedSteps: first `succeeded` occurrence per step, journal order.
+    const completedSteps: string[] = []
+    const succeededSteps = new Set<string>()
+    for (const r of rows) {
+      if (r.status === 'succeeded' && !succeededSteps.has(r.step)) {
+        succeededSteps.add(r.step)
+        completedSteps.push(r.step)
+      }
+    }
+    // activeStepStartedAt: created_at of the LATEST `started` row whose step
+    // has no `succeeded` row in this attempt (ascending scan — last hit wins).
+    let activeStepStartedAt: string | null = null
+    for (const r of rows) {
+      if (r.status === 'started' && !succeededSteps.has(r.step)) {
+        activeStepStartedAt = r.created_at
+      }
+    }
+
+    return {
+      state: 'pending',
+      lastStep: last.step,
+      lastStatus: last.status,
+      completedSteps,
+      activeStepStartedAt,
+    }
   } catch (err) {
     // Never throw — a read failure must not break the client's polling loop.
     console.warn('[getAttemptOutcome] swallowed read failure:', err)
-    return { state: 'pending', lastStep: null, lastStatus: null }
+    return { state: 'pending', lastStep: null, lastStatus: null, completedSteps: [], activeStepStartedAt: null }
+  }
+}
+
+/**
+ * 260707-o7a — live step-duration medians for the real progress bar.
+ *
+ * Company-AGNOSTIC aggregate (durations only — no tenant data leaks) over the
+ * last 30 days of `succeeded` pipeline_events with a recorded duration_ms,
+ * merged over {@link FALLBACK_MEDIANS_MS}. Auth-gated like getAttemptOutcome
+ * (claims + active company required); on ANY failure (unauthenticated, query
+ * error, empty data) it degrades to the static fallbacks — the progress bar
+ * must never break on an observability read hiccup.
+ *
+ * percentile_disc(0.5) semantics are computed in JS over a bounded recent
+ * window (most-recent 2000 rows): PostgREST cannot express a grouped
+ * percentile aggregate without a dedicated DB function, and this plan ships
+ * no migration. Identical result for the window read.
+ *
+ * Call ONCE per capture session (the client caches it), NOT per poll tick.
+ */
+export async function getStepMedians(): Promise<Record<string, number>> {
+  try {
+    const supabase = await createClient()
+    const { data: claimsData } = await supabase.auth.getClaims()
+    const claims = claimsData?.claims ?? null
+    if (!claims) return { ...FALLBACK_MEDIANS_MS }
+
+    const activeCompanyId = await getActiveCompanyId()
+    if (!activeCompanyId) return { ...FALLBACK_MEDIANS_MS }
+
+    const svc = requireServiceClient()
+    const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+    const { data, error } = await svc
+      .from('pipeline_events')
+      .select('step,duration_ms')
+      .eq('status', 'succeeded')
+      .not('duration_ms', 'is', null)
+      .gte('created_at', since)
+      .order('created_at', { ascending: false })
+      .limit(2000)
+    if (error) return { ...FALLBACK_MEDIANS_MS }
+
+    const byStep = new Map<string, number[]>()
+    for (const row of (data ?? []) as { step: string; duration_ms: number | null }[]) {
+      if (typeof row.duration_ms !== 'number' || row.duration_ms <= 0) continue
+      const list = byStep.get(row.step)
+      if (list) list.push(row.duration_ms)
+      else byStep.set(row.step, [row.duration_ms])
+    }
+
+    const medians: Record<string, number> = { ...FALLBACK_MEDIANS_MS }
+    for (const [step, durations] of byStep) {
+      durations.sort((a, b) => a - b)
+      // percentile_disc(0.5): smallest value with cumulative distribution >= 0.5.
+      medians[step] = durations[Math.ceil(durations.length * 0.5) - 1]
+    }
+    return medians
+  } catch (err) {
+    console.warn('[getStepMedians] swallowed read failure:', err)
+    return { ...FALLBACK_MEDIANS_MS }
   }
 }
