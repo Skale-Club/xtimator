@@ -2,14 +2,15 @@
  * Xtimator service worker - offline cache (Phase 76.1) + push notifications (Phase 77).
  *
  * Caching strategy:
- *   - _next/static/* and /icons/* -> CacheFirst (immutable assets)
+ *   - _next/static/*              -> browser/HTTP cache (do not intercept)
+ *   - /icons/*                    -> CacheFirst
  *   - navigation (pages)          -> NetworkFirst with offline fallback
  *   - /api/*                      -> NetworkOnly (mutations, AI)
  *   - supabase REST/realtime      -> NetworkOnly
  *   - push events                 -> show notification (Phase 77 scaffold)
  */
 
-const CACHE_V = 'v3'
+const CACHE_V = 'v4'
 const SHELL = `shell-${CACHE_V}`
 const PAGES = `pages-${CACHE_V}`
 
@@ -48,8 +49,13 @@ self.addEventListener('fetch', (event) => {
   // NetworkOnly: all API routes.
   if (url.pathname.startsWith('/api/')) return
 
-  // CacheFirst: immutable static assets and icons.
-  if (url.pathname.startsWith('/_next/static/') || url.pathname.startsWith('/icons/')) {
+  // Let Next.js chunks bypass the service worker. If these script requests are
+  // intercepted and the worker throws or returns a fallback response, the entire
+  // app boot can fail before client-side recovery code runs.
+  if (url.pathname.startsWith('/_next/static/')) return
+
+  // CacheFirst: installable app icons.
+  if (url.pathname.startsWith('/icons/')) {
     event.respondWith(cacheFirst(SHELL, request))
     return
   }

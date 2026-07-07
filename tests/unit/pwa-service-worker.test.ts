@@ -6,7 +6,7 @@ const swSource = readFileSync(resolve(process.cwd(), 'public/sw.js'), 'utf8')
 
 describe('PWA service worker caching contract', () => {
   it('serves navigations with a network-first strategy to avoid stale Next.js HTML', () => {
-    expect(swSource).toContain("const CACHE_V = 'v3'")
+    expect(swSource).toContain("const CACHE_V = 'v4'")
     expect(swSource).toContain('event.respondWith(networkFirstWithFallback(PAGES, request))')
     expect(swSource).not.toContain('staleWhileRevalidateWithFallback')
 
@@ -20,8 +20,18 @@ describe('PWA service worker caching contract', () => {
     )
   })
 
-  it('keeps hashed static assets cache-first', () => {
+  it('does not intercept Next.js static chunks', () => {
     expect(swSource).toContain("url.pathname.startsWith('/_next/static/')")
-    expect(swSource).toContain('event.respondWith(cacheFirst(SHELL, request))')
+    expect(swSource).toContain("if (url.pathname.startsWith('/_next/static/')) return")
+  })
+
+  it('keeps installable app icons cache-first', () => {
+    const nextStaticReturn = swSource.indexOf("if (url.pathname.startsWith('/_next/static/')) return")
+    const iconsMatch = swSource.indexOf("if (url.pathname.startsWith('/icons/'))")
+    const iconsRespondWith = swSource.indexOf('event.respondWith(cacheFirst(SHELL, request))', iconsMatch)
+
+    expect(nextStaticReturn).toBeGreaterThan(-1)
+    expect(iconsMatch).toBeGreaterThan(nextStaticReturn)
+    expect(iconsRespondWith).toBeGreaterThan(iconsMatch)
   })
 })
