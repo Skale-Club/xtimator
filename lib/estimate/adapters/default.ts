@@ -69,11 +69,21 @@ export function makeDefaultAdapter({ companyId, supabase }: {
         // exactly once per discarded attempt). Never-throw: any failure here
         // must not undo the awaiting_details signal already persisted above.
         try {
-          const [recordings, photos, companyRow] = await Promise.all([
+          // Promise.allSettled (not Promise.all): a single query failing (e.g.
+          // recordings) must not also discard photos/company data that DID
+          // resolve — each input degrades independently to its safe default.
+          const [recordingsResult, photosResult, companyResult] = await Promise.allSettled([
             getProjectRecordings(supabase, state.projectId),
             getProjectPhotos(supabase, state.projectId),
             supabase.from('companies').select('industry').eq('id', companyId).maybeSingle(),
           ])
+          const recordings = recordingsResult.status === 'fulfilled' ? recordingsResult.value : []
+          const photos = photosResult.status === 'fulfilled' ? photosResult.value : []
+          const companyRow =
+            companyResult.status === 'fulfilled'
+              ? (companyResult.value as { data?: { industry?: string | null } | null })
+              : null
+
           const inputSummary = [
             ...recordings.map((r) => r.transcript).filter((t): t is string => !!t?.trim()),
             ...photos.map((p) => p.ai_description).filter((d): d is string => !!d?.trim()),
@@ -82,8 +92,7 @@ export function makeDefaultAdapter({ companyId, supabase }: {
             .join('\n\n')
             .trim()
           const language = (state.estimateLanguage as EstimateLanguage | undefined) ?? 'en'
-          const industryHint =
-            (companyRow.data as { industry?: string | null } | null)?.industry ?? undefined
+          const industryHint = companyRow?.data?.industry ?? undefined
 
           const needsDetails = await buildNeedsDetails(inputSummary, language, industryHint)
 

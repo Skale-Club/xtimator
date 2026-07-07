@@ -69,6 +69,29 @@ function makeSupabaseMock() {
 
   // Track update calls through closure
   const fromFn = vi.fn().mockImplementation((table: string) => {
+    // QUICK-psh-01: default.ts finalize also reads recordings/photos/companies
+    // (via Promise.allSettled) for the needs-details enrichment call — these
+    // three tables just need to resolve harmlessly (buildNeedsDetails itself
+    // never throws, so its own AI-call failure in this test env is already
+    // safe; this only prevents the SUPABASE reads from rejecting).
+    if (table === 'recordings' || table === 'photos') {
+      return {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            order: vi.fn().mockResolvedValue({ data: [] }),
+          }),
+        }),
+      }
+    }
+    if (table === 'companies') {
+      return {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            maybeSingle: vi.fn().mockResolvedValue({ data: null }),
+          }),
+        }),
+      }
+    }
     return {
       update: (values: Record<string, unknown>) => {
         updateCalls.push({ table, values, eqChain: eqCalls })
@@ -200,9 +223,31 @@ describe('Phase 96 — auto-refine isolation (SMART-01/03/04, QA-02)', () => {
     eqChainable.then = (res: (v: unknown) => void) => res({ error: null })
 
     const supabaseMock = {
-      from: vi.fn().mockReturnValue({
-        update: vi.fn().mockReturnValue(eqChainable),
-        delete: () => ({ eq: vi.fn().mockResolvedValue({ error: null }) }),
+      // QUICK-psh-01: see the comment in makeSupabaseMock() above — finalize
+      // also reads recordings/photos/companies for the needs-details enrichment.
+      from: vi.fn().mockImplementation((table: string) => {
+        if (table === 'recordings' || table === 'photos') {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                order: vi.fn().mockResolvedValue({ data: [] }),
+              }),
+            }),
+          }
+        }
+        if (table === 'companies') {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({ data: null }),
+              }),
+            }),
+          }
+        }
+        return {
+          update: vi.fn().mockReturnValue(eqChainable),
+          delete: () => ({ eq: vi.fn().mockResolvedValue({ error: null }) }),
+        }
       }),
     }
 
