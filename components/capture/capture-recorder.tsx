@@ -11,7 +11,7 @@ import { CaptureStepper } from '@/components/capture/capture-stepper'
 import { CaptureProcessingOverlay } from '@/components/capture/capture-processing-overlay'
 import { CaptureFailure } from '@/components/capture/capture-failure'
 import { VoiceRecorder } from '@/components/workspace/audio/voice-recorder'
-import { createRecording, transcribeRecording, createTextRecording } from '@/lib/actions/recording'
+import { createRecording, transcribeRecording, createTextRecording, reportClientPipelineFailure } from '@/lib/actions/recording'
 import { createBlankEstimate } from '@/lib/actions/estimate'
 import { createPhoto, deletePhoto } from '@/lib/actions/photo'
 import { createClient } from '@/lib/supabase/client'
@@ -66,6 +66,15 @@ export function clampToPhotoLimit(
   const remaining = Math.max(0, MAX_PHOTOS - currentCount)
   const take = Math.min(remaining, incoming)
   return { take, overflowed: incoming > remaining }
+}
+
+// Minimum meaningful recording length — anything shorter is blocked client-side
+// (pre-flight) so the server's B10 duration validation can never reject a real take.
+export const MIN_RECORDING_MS = 1000
+// Wall-clock elapsed → whole seconds for createRecording. Clamped to >=1 as
+// belt-and-braces: the server rejects 0 (pre-launch audit B10).
+export function finalizeDurationSeconds(elapsedMs: number): number {
+  return Math.max(1, Math.floor(elapsedMs / 1000))
 }
 
 type SpeechRecognitionInstance = {
@@ -218,11 +227,31 @@ export function CaptureRecorder({
   const abortControllerRef = useRef<AbortController>(new AbortController())
   const photoInputRef = useRef<HTMLInputElement>(null)
   const speechRecognitionRef = useRef<SpeechRecognitionInstance | null>(null)
+  // Wall-clock elapsed mirror (RESEARCH Pattern 4 / 260707-grq): runPipeline reads
+  // this ref instead of the `elapsedMs` state closure, which is stale by the time
+  // recorder.onstop fires (root cause of the duration=0 production bug).
+  const elapsedMsRef = useRef(0)
 
   // Mirror photoItems into a ref so the unmount cleanup + remove handler read
   // the latest items without re-subscribing / re-creating callbacks.
   const photoItemsRef = useRef<PhotoItem[]>([])
   useEffect(() => { photoItemsRef.current = photoItems }, [photoItems])
+
+  // Mirror audioBlob/uploadedPhotos into refs so failAt's client-telemetry read
+  // (260707-grq) doesn't turn it into a value reactive on component state —
+  // that would force every useCallback that calls failAt (runPipeline,
+  // triggerEstimateGeneration, handleGenerate) to list it as a dependency,
+  // widening their memoization and re-creating them more often than before.
+  const audioBlobRef = useRef<Blob | null>(null)
+  useEffect(() => { audioBlobRef.current = audioBlob }, [audioBlob])
+  const uploadedPhotosRef = useRef<Photo[]>([])
+  useEffect(() => { uploadedPhotosRef.current = uploadedPhotos }, [uploadedPhotos])
+
+  // recorder.onstop is bound ONCE at recording start; calling runPipeline through a
+  // ref guarantees the LATEST closure (fresh estimateLanguage, elapsed refs) runs at stop
+  // — the direct call captured the start-time render where elapsedMs was still 0
+  // (root cause of the duration=0 bug, 260707-grq).
+  const runPipelineRef = useRef<(blob: Blob) => Promise<void>>(async () => {})
 
   // Persist the typed description as the user types so any close path (outside
   // click, X, Escape) keeps the draft. Empty text clears the stored draft.
@@ -322,6 +351,9 @@ export function CaptureRecorder({
   // Stop recording (memoized for use in callbacks)
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      // Snapshot the final wall-clock BEFORE .stop() — recorder.onstop reads
+      // elapsedMsRef (not the elapsedMs state closure) via runPipelineRef (260707-grq).
+      elapsedMsRef.current = performance.now() - startTimeRef.current
       mediaRecorderRef.current.stop()
     }
     if (tickIntervalRef.current) {
@@ -351,6 +383,7 @@ export function CaptureRecorder({
   const tick = useCallback(() => {
     const elapsed = performance.now() - startTimeRef.current
     setElapsedMs(elapsed)
+    elapsedMsRef.current = elapsed
     if (elapsed >= WARN_AT_MS && !warnedRef.current) {
       warnedRef.current = true
       toast.warning(t('60 seconds remaining'), {
@@ -412,11 +445,28 @@ export function CaptureRecorder({
     for (const it of photoItemsRef.current) URL.revokeObjectURL(it.previewUrl)
   }, [])
 
-  // Pipeline helper: set failure state
-  function failAt(s: StageKey, msg: string) {
+  // Pipeline helper: set failure state + best-effort client-side telemetry so a failure
+  // in the CLIENT leg of the pipeline is still visible in /admin/events (260707-grq).
+  // useCallback (dep: projectId only — audioBlob/uploadedPhotos/attemptId are read via
+  // refs above) keeps this referentially stable so the callers' manual dependency
+  // arrays (which list `failAt`) don't get recreated on every render.
+  const failAt = useCallback((s: StageKey, msg: string) => {
     setFailedAt(s)
     setErrorMessage(msg)
-  }
+    const stepMap = {
+      saving: 'save_recording',
+      transcribing: 'transcribe',
+      analyzing: 'analyze',
+      generating: 'generate_estimate',
+    } as const
+    void reportClientPipelineFailure({
+      attemptId: attemptIdRef.current ?? crypto.randomUUID(),
+      projectId,
+      step: stepMap[s],
+      inputType: audioBlobRef.current ? 'recording' : uploadedPhotosRef.current.length > 0 ? 'photo' : 'manual_text',
+      errorMessage: msg,
+    }).catch(() => {})
+  }, [projectId])
 
   // Multi-modal helpers
   const hasAnyInput = !!audioBlob || descriptionText.trim().length > 0 || uploadedPhotos.length > 0
@@ -588,7 +638,7 @@ export function CaptureRecorder({
       if ((err as Error).name === 'AbortError') return
       failAt('generating', (err as Error).message ?? t('Estimate generation failed'))
     }
-  }, [projectId, router, t, estimateLanguage, onComplete, reasonForJobState])
+  }, [projectId, router, t, estimateLanguage, onComplete, reasonForJobState, failAt])
 
   // Full AI pipeline (RESEARCH Pattern 5)
   const runPipeline = useCallback(async (blob: Blob) => {
@@ -596,6 +646,16 @@ export function CaptureRecorder({
     setStage('saving')
     setFailedAt(undefined)
     setErrorMessage(undefined)
+
+    // Pre-flight (hardening before the server): a zero-byte blob or sub-second take can
+    // never produce a transcript — surface it instantly instead of uploading and letting
+    // the server's B10 validation reject it.
+    if (blob.size === 0 || elapsedMsRef.current < MIN_RECORDING_MS) {
+      toast.error(t('Recording too short — please record at least a few seconds describing the job.'))
+      setAudioBlob(null)
+      setStage('idle')
+      return
+    }
 
     // REC-03/REC-04: mint the attempt lineage once (reused on Retry).
     ensureAttempt()
@@ -621,8 +681,9 @@ export function CaptureRecorder({
         return
       }
 
-      // Create recording row
-      const created = await createRecording(projectId, storagePath, Math.floor(elapsedMs / 1000))
+      // Create recording row — reads the wall-clock ref (not the elapsedMs state
+      // closure, which is stale by the time recorder.onstop fires; 260707-grq).
+      const created = await createRecording(projectId, storagePath, finalizeDurationSeconds(elapsedMsRef.current))
       if ('error' in created) { failAt('saving', created.error ?? t('Failed to save recording')); return }
       recordingDbId = created.data.id as string
       recordingIdRef.current = recordingDbId
@@ -744,7 +805,12 @@ export function CaptureRecorder({
       if ((err as Error).name === 'AbortError') return  // unmount; not a user-facing failure
       failAt('analyzing', (err as Error).message ?? t('Estimate generation failed'))
     }
-  }, [companyId, projectId, elapsedMs, router, estimateLanguage, onComplete, ensureAttempt, reasonForJobState, t])
+  }, [companyId, projectId, router, estimateLanguage, onComplete, ensureAttempt, reasonForJobState, t, failAt])
+
+  // Mirror the latest runPipeline closure into a ref — recorder.onstop is bound
+  // ONCE at recording start and must invoke the LATEST closure (fresh
+  // estimateLanguage/onComplete/elapsed refs), not the one captured at start (260707-grq).
+  useEffect(() => { runPipelineRef.current = runPipeline }, [runPipeline])
 
   // Unified generation handler (text-only, audio, or photos-only)
   const handleGenerate = useCallback(async () => {
@@ -856,12 +922,13 @@ export function CaptureRecorder({
         failAt('analyzing', (err as Error).message ?? t('Estimate generation failed'))
       }
     }
-  }, [descriptionText, audioBlob, uploadedPhotos, projectId, runPipeline, triggerEstimateGeneration, estimateLanguage, t, onComplete, router, ensureAttempt, reasonForJobState])
+  }, [descriptionText, audioBlob, uploadedPhotos, projectId, runPipeline, triggerEstimateGeneration, estimateLanguage, t, onComplete, router, ensureAttempt, reasonForJobState, failAt])
 
   // Start recording
   const startRecording = useCallback(async () => {
     chunksRef.current = []
     setElapsedMs(0)
+    elapsedMsRef.current = 0
     warnedRef.current = false
     setLiveTranscript('')
     setInterimTranscript('')
@@ -895,8 +962,10 @@ export function CaptureRecorder({
       recorder.onstop = () => {
         const blob = new Blob(chunksRef.current, { type: recorder.mimeType })
         setAudioBlob(blob)
-        // Pipeline fires after blob is set — use the blob directly
-        runPipeline(blob)
+        // Pipeline fires after blob is set — call through runPipelineRef so the
+        // LATEST closure runs at stop, not the one bound when onstop was assigned
+        // at recording start (260707-grq: root cause of the duration=0 bug).
+        void runPipelineRef.current(blob)
       }
 
       recorder.start()
