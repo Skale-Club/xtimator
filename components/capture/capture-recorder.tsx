@@ -11,7 +11,7 @@ import { CaptureStepper } from '@/components/capture/capture-stepper'
 import { CaptureProcessingOverlay } from '@/components/capture/capture-processing-overlay'
 import { CaptureFailure } from '@/components/capture/capture-failure'
 import { VoiceRecorder } from '@/components/workspace/audio/voice-recorder'
-import { createRecording, transcribeRecording, createTextRecording, reportClientPipelineFailure } from '@/lib/actions/recording'
+import { startRecordingPipeline, createTextRecording, reportClientPipelineFailure } from '@/lib/actions/recording'
 import { createBlankEstimate } from '@/lib/actions/estimate'
 import { createPhoto, deletePhoto } from '@/lib/actions/photo'
 import { createClient } from '@/lib/supabase/client'
@@ -25,6 +25,7 @@ import { WaveformVisualizer } from '@/components/workspace/audio/waveform-visual
 import type { ProjectDetail } from '@/lib/queries/project'
 import type { Photo } from '@/lib/queries/photo'
 import { pollJob, type JobResult } from '@/hooks/use-job-status'
+import { pollEstimateOutcome, getCurrentEstimateId, type EstimateOutcome } from '@/lib/estimate/poll-outcome'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { useLanguage } from '@/lib/i18n/language-context'
 import { EstimateLanguageSelector } from '@/components/estimate/estimate-language-selector'
@@ -75,6 +76,85 @@ export const MIN_RECORDING_MS = 1000
 // belt-and-braces: the server rejects 0 (pre-launch audit B10).
 export function finalizeDurationSeconds(elapsedMs: number): number {
   return Math.max(1, Math.floor(elapsedMs / 1000))
+}
+
+// 260707-hhp (P1 client half): pollJob (hooks/use-job-status.ts, read-only) rethrows
+// a signal-abort as a plain Error with message 'Aborted' — NOT a DOMException named
+// 'AbortError' — because its internal catch block re-throws `new Error('Aborted')`
+// rather than preserving the caught exception. pollEstimateOutcome (our new module)
+// correctly throws a DOMException named 'AbortError'. Since the dispatch-and-watch
+// race below awaits both, check both shapes so an unmount during the race is always
+// a silent return, never a failAt (plan constraint) — regardless of which side's
+// abort exception happens to win the race.
+function isAbortSignal(err: unknown): boolean {
+  const e = err as { name?: string; message?: string } | null | undefined
+  return e?.name === 'AbortError' || e?.message === 'Aborted'
+}
+
+type OutcomeRaceResult =
+  | { kind: 'outcome'; outcome: EstimateOutcome }
+  | { kind: 'job-failed'; result: JobResult }
+
+/**
+ * Runs pollEstimateOutcome (DB truth) alongside pollJob (fast-failure signal for
+ * the transcribe/analyze step it's racing) concurrently. pollJob resolving
+ * 'completed' is progress information ONLY — the outcome poll still owns
+ * completion, so that is NOT a race winner; we keep waiting on the outcome poll.
+ * Only a non-completed job result short-circuits the wait (abort the outcome poll,
+ * surface the failure). Whichever side stops being useful is aborted via a child
+ * AbortController derived from the caller's signal so it doesn't keep polling in
+ * the background after we've moved on.
+ */
+async function raceEstimateOutcomeAgainstJob(params: {
+  jobId: string
+  projectId: string
+  previousEstimateId: string | null
+  parentSignal: AbortSignal
+  recordingId?: string
+  onTranscriptReady?: () => void
+  onJobCompleted?: () => void
+}): Promise<OutcomeRaceResult> {
+  const child = new AbortController()
+  const onParentAbort = () => child.abort()
+  if (params.parentSignal.aborted) child.abort()
+  else params.parentSignal.addEventListener('abort', onParentAbort, { once: true })
+
+  const outcomePromise = pollEstimateOutcome({
+    projectId: params.projectId,
+    previousEstimateId: params.previousEstimateId,
+    signal: child.signal,
+    recordingId: params.recordingId,
+    onTranscriptReady: params.onTranscriptReady,
+  })
+  const jobPromise = pollJob(params.jobId, child.signal)
+
+  try {
+    const firstSettled = await Promise.race([
+      outcomePromise.then((outcome) => ({ kind: 'outcome' as const, outcome })),
+      jobPromise.then((result) => ({ kind: 'job' as const, result })),
+    ])
+
+    if (firstSettled.kind === 'job') {
+      if (firstSettled.result.state !== 'completed') {
+        child.abort() // fast failure — the outcome poll is no longer useful
+        return { kind: 'job-failed', result: firstSettled.result }
+      }
+      // Progress only — the outcome poll remains the source of truth for completion.
+      params.onJobCompleted?.()
+      const outcome = await outcomePromise
+      child.abort()
+      return { kind: 'outcome', outcome }
+    }
+
+    child.abort() // outcome won — the job poll is no longer needed
+    return { kind: 'outcome', outcome: firstSettled.outcome }
+  } finally {
+    params.parentSignal.removeEventListener('abort', onParentAbort)
+    // Swallow the loser's rejection (its own abort exception once `child` aborts)
+    // — only the winner's settlement (or a genuine early rejection) drives the caller.
+    outcomePromise.catch(() => {})
+    jobPromise.catch(() => {})
+  }
 }
 
 type SpeechRecognitionInstance = {
@@ -190,7 +270,6 @@ export function CaptureRecorder({
   const [stage, setStage] = useState<Stage>('idle')
   const [failedAt, setFailedAt] = useState<StageKey | undefined>(undefined)
   const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined)
-  const [transcript, setTranscript] = useState<string | undefined>(undefined)
   const [retriesUsed, setRetriesUsed] = useState(0)
 
   // Multi-modal input state. Lazy-init from the saved draft (if any) so reopening
@@ -240,8 +319,8 @@ export function CaptureRecorder({
   // Mirror audioBlob/uploadedPhotos into refs so failAt's client-telemetry read
   // (260707-grq) doesn't turn it into a value reactive on component state —
   // that would force every useCallback that calls failAt (runPipeline,
-  // triggerEstimateGeneration, handleGenerate) to list it as a dependency,
-  // widening their memoization and re-creating them more often than before.
+  // handleGenerate) to list it as a dependency, widening their memoization and
+  // re-creating them more often than before.
   const audioBlobRef = useRef<Blob | null>(null)
   useEffect(() => { audioBlobRef.current = audioBlob }, [audioBlob])
   const uploadedPhotosRef = useRef<Photo[]>([])
@@ -324,12 +403,26 @@ export function CaptureRecorder({
   const attemptIdRef = useRef<string | null>(null)
   const requestIdRef = useRef<string | null>(null)
   const recordingIdRef = useRef<string | null>(null)
+  // 260707-hhp (P1 client half): dispatch-and-watch outcome baseline. `undefined`
+  // means "not yet captured this attempt" (a distinct sentinel from a real `null`,
+  // which means "no current estimate exists yet"). Captured ONCE per attempt
+  // (before the first dispatch) and deliberately NOT re-read on Retry — a
+  // half-finished first try's estimate must still count as NEW.
+  const previousEstimateIdRef = useRef<string | null | undefined>(undefined)
 
   // Mint the attempt + request lineage once; subsequent calls (Retry) are no-ops.
   const ensureAttempt = useCallback(() => {
     if (!attemptIdRef.current) attemptIdRef.current = crypto.randomUUID()
     if (!requestIdRef.current) requestIdRef.current = crypto.randomUUID()
   }, [])
+
+  // Capture the pre-dispatch outcome baseline once per attempt (see ref comment
+  // above). Called at the top of each path's dispatch, after ensureAttempt().
+  const captureOutcomeBaseline = useCallback(async () => {
+    if (previousEstimateIdRef.current === undefined) {
+      previousEstimateIdRef.current = await getCurrentEstimateId(projectId)
+    }
+  }, [projectId])
 
   // Build the friendly, i18n failure reason for a non-completed pollJob result.
   // Inline t() ternaries so the extractor picks up the keys (Pitfall 5).
@@ -468,6 +561,36 @@ export function CaptureRecorder({
     }).catch(() => {})
   }, [projectId])
 
+  // 260707-hhp (P1 client half): shared outcome handling for all three
+  // dispatch-and-watch paths (audio/text/photos) — completed → done/onComplete;
+  // awaiting_details → the path-specific vague toast + full attempt reset;
+  // timeout → a friendly failAt explaining generation may still finish in the
+  // background. `vagueMessage` is an inline t('...') literal at each call site
+  // (extractor requirement) forwarded in as a plain string.
+  const handleEstimateOutcome = useCallback((outcome: EstimateOutcome, vagueMessage: string) => {
+    if (outcome.state === 'completed') {
+      setStage('done')
+      if (onComplete) {
+        onComplete(outcome.estimateId)
+      } else {
+        router.push(`/projects/${projectId}?tab=estimate&estimate=${outcome.estimateId}`)
+      }
+      return
+    }
+    if (outcome.state === 'awaiting_details') {
+      toast.error(vagueMessage)
+      setAudioBlob(null)
+      recordingIdRef.current = null
+      attemptIdRef.current = null
+      requestIdRef.current = null
+      previousEstimateIdRef.current = undefined
+      setStage('idle')
+      return
+    }
+    // timeout
+    failAt('generating', t('Generation is taking longer than expected. It may still complete in the background — check the project in a minute, or retry.'))
+  }, [onComplete, projectId, router, t, failAt])
+
   // Multi-modal helpers
   const hasAnyInput = !!audioBlob || descriptionText.trim().length > 0 || uploadedPhotos.length > 0
 
@@ -566,81 +689,13 @@ export function CaptureRecorder({
     if (photoInputRef.current) photoInputRef.current.value = ''
   }, [])
 
-  // Trigger estimate generation (shared by text-only and photos-only paths)
-  // Phase 67: route now returns { jobId }; poll until terminal, then read output.
-  // Phase 73-02: forward estimateLanguage so cascade uses the user's selection.
-  const triggerEstimateGeneration = useCallback(async () => {
-    try {
-      const dispatchRes = await fetch('/api/generate-estimate', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          projectId,
-          language: estimateLanguage,
-          requestId: requestIdRef.current,
-          attemptId: attemptIdRef.current,
-          // Phase 92 (EVENT-03): tag the recording path explicitly for lineage.
-          inputType: 'recording',
-        }),
-        signal: abortControllerRef.current.signal,
-      })
-      if (!dispatchRes.ok) {
-        const body = await dispatchRes.json().catch(() => ({}))
-        failAt('generating', (body as { error?: string }).error ?? t('Estimate generation failed'))
-        return
-      }
-      const { jobId } = (await dispatchRes.json()) as { jobId: string }
-
-      // Poll Inngest until the function reports terminal status. pollJob now
-      // resolves Plan 01's JobResult discriminant (never throws on failure), so
-      // branch on result.state instead of relying on a thrown error.
-      const result = await pollJob(jobId, abortControllerRef.current.signal)
-      if (result.state !== 'completed') {
-        failAt('generating', reasonForJobState(result, 'generation'))
-        return
-      }
-      // The Inngest dev server returns `output: ""` for our generate-estimate
-      // function (see runPipeline note for root cause), so we read the
-      // newly-current estimate row from the DB rather than result.output.
-      const supabase = createClient()
-      const { data: estRow } = await supabase
-        .from('estimates')
-        .select('id')
-        .eq('project_id', projectId)
-        .eq('is_current', true)
-        .single()
-      const estimateId = (estRow?.id as string | undefined) ?? null
-      if (!estimateId) {
-        const flags = result.output as { needsDetails?: boolean } | null
-        let isNeedsDetails = flags?.needsDetails === true
-        if (!isNeedsDetails) {
-          const { data: proj } = await supabase
-            .from('projects').select('status').eq('id', projectId).single()
-          isNeedsDetails = (proj as { status?: string } | null)?.status === 'awaiting_details'
-        }
-        if (isNeedsDetails) {
-          toast.error(t('Description too vague — please add more detail with specific tasks, materials, and quantities'))
-          attemptIdRef.current = null
-          requestIdRef.current = null
-          setStage('idle')
-          return
-        }
-        failAt('generating', t('Estimate generation completed but no estimate was found'))
-        return
-      }
-      setStage('done')
-      if (onComplete) {
-        onComplete(estimateId)
-      } else {
-        router.push(`/projects/${projectId}?tab=estimate&estimate=${estimateId}`)
-      }
-    } catch (err) {
-      if ((err as Error).name === 'AbortError') return
-      failAt('generating', (err as Error).message ?? t('Estimate generation failed'))
-    }
-  }, [projectId, router, t, estimateLanguage, onComplete, reasonForJobState, failAt])
-
-  // Full AI pipeline (RESEARCH Pattern 5)
+  // 260707-hhp (P1 client half): dispatch-and-watch audio pipeline. ONE server
+  // round trip (startRecordingPipeline — Plan 01) creates the recording row +
+  // dispatches the transcribe→generate chain; the client then only WATCHES the
+  // database for the outcome via pollEstimateOutcome. pollJob is kept ONLY as a
+  // fast-failure race on the transcribe job (see raceEstimateOutcomeAgainstJob)
+  // — a completed transcribe job is progress information, never treated as the
+  // race winner, since the outcome poll alone owns completion.
   const runPipeline = useCallback(async (blob: Blob) => {
     abortControllerRef.current = new AbortController()
     setStage('saving')
@@ -659,153 +714,71 @@ export function CaptureRecorder({
 
     // REC-03/REC-04: mint the attempt lineage once (reused on Retry).
     ensureAttempt()
+    // Baseline captured BEFORE dispatch, once per attempt — reused (not re-read) on Retry.
+    await captureOutcomeBaseline()
 
-    const supabase = createClient()
-    const storage = createStorage(supabase)
-
-    // On a Retry, reuse the recording row created on the first run so the
-    // transcribe event id (transcribe-${recordingId}) is stable → no re-upload,
-    // no re-transcribe charge. Only upload + create the row on the first run.
-    let recordingDbId = recordingIdRef.current
-    if (!recordingDbId) {
-      const recordingId = crypto.randomUUID()
+    // On a Retry, reuse the recording row created on the first run — skip the
+    // upload + let startRecordingPipeline re-dispatch only (transcribe event id
+    // transcribe-${recordingId} is idempotent; no re-upload, no double charge).
+    let storagePath: string | undefined
+    if (!recordingIdRef.current) {
+      const fileNameId = crypto.randomUUID()
       const ext = getFileExtension(mimeTypeRef.current)
-      const storagePath = `${companyId}/${projectId}/${recordingId}.${ext}`
-
-      // Upload to Supabase Storage
+      storagePath = `${companyId}/${projectId}/${fileNameId}.${ext}`
       try {
-        await storage.upload('audio', storagePath, blob, { contentType: mimeTypeRef.current || 'audio/webm', upsert: false })
+        await createStorage(createClient()).upload('audio', storagePath, blob, {
+          contentType: mimeTypeRef.current || 'audio/webm',
+          upsert: false,
+        })
       } catch (err) {
         console.error('[capture] audio upload failed:', err)
         failAt('saving', err instanceof Error ? err.message : t('Failed to upload audio file'))
         return
       }
-
-      // Create recording row — reads the wall-clock ref (not the elapsedMs state
-      // closure, which is stale by the time recorder.onstop fires; 260707-grq).
-      const created = await createRecording(projectId, storagePath, finalizeDurationSeconds(elapsedMsRef.current))
-      if ('error' in created) { failAt('saving', created.error ?? t('Failed to save recording')); return }
-      recordingDbId = created.data.id as string
-      recordingIdRef.current = recordingDbId
     }
 
-    // Transcribe — Phase 67: dispatch returns { jobId }, poll until terminal.
-    // NOTE: the Inngest dev server returns `output: ""` for our function despite
-    // it returning { transcript } (multiple step.run + a fire-and-forget
-    // `void notify(...)` at the end appear to drop the final return value from
-    // the SDK's run output). The `save-transcript` step already persists the
-    // transcript to recordings.transcript, so we read it from the DB once
-    // pollJob signals Completed. Same pattern used by
-    // components/workspace/ai-input-group/use-ai-input-submit.ts.
+    const started = await startRecordingPipeline({
+      projectId,
+      storagePath,
+      // Reads the wall-clock ref (not the elapsedMs state closure, which is
+      // stale by the time recorder.onstop fires; 260707-grq).
+      durationSeconds: storagePath ? finalizeDurationSeconds(elapsedMsRef.current) : undefined,
+      recordingId: recordingIdRef.current ?? undefined,
+      attemptId: attemptIdRef.current!,
+      requestId: requestIdRef.current!,
+      estimateLanguage,
+    })
+    if ('error' in started) {
+      failAt('saving', started.error ?? t('Failed to save recording'))
+      return
+    }
+    recordingIdRef.current = started.data.recordingId
+
     setStage('transcribing')
-    const dispatched = await transcribeRecording(recordingDbId, attemptIdRef.current ?? undefined)
-    if ('error' in dispatched) {
-      failAt('transcribing', dispatched.error ?? t('Transcription dispatch failed'))
-      return
-    }
     try {
-      // pollJob resolves Plan 01's JobResult discriminant (never throws on
-      // failure). Branch on result.state; only AbortError is still thrown.
-      const transcribeResult = await pollJob(
-        (dispatched.data as { jobId: string }).jobId,
-        abortControllerRef.current.signal
-      )
-      if (transcribeResult.state !== 'completed') {
-        failAt('transcribing', reasonForJobState(transcribeResult, 'transcription'))
-        return
-      }
-      const { data: recRow } = await supabase
-        .from('recordings')
-        .select('transcript')
-        .eq('id', recordingDbId)
-        .single()
-      const transcribedText = ((recRow?.transcript as string | null) ?? '').trim()
-      if (!transcribedText) {
-        failAt('transcribing', t("We couldn't catch your description | please try again or edit manually."))
-        return
-      }
-      setTranscript(transcribedText)
-    } catch (err) {
-      if ((err as Error).name === 'AbortError') return
-      failAt('transcribing', (err as Error).message ?? t('Transcription failed'))
-      return
-    }
-
-    // Generate estimate — Phase 67: dispatch + poll.
-    setStage('analyzing')
-    try {
-      const dispatchRes = await fetch('/api/generate-estimate', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          projectId,
-          language: estimateLanguage,
-          requestId: requestIdRef.current,
-          attemptId: attemptIdRef.current,
-          // Phase 92 (EVENT-03): tag the recording path explicitly for lineage.
-          inputType: 'recording',
-        }),
-        signal: abortControllerRef.current.signal,
+      const raced = await raceEstimateOutcomeAgainstJob({
+        jobId: started.data.transcribeJobId,
+        projectId,
+        previousEstimateId: previousEstimateIdRef.current ?? null,
+        parentSignal: abortControllerRef.current.signal,
+        recordingId: recordingIdRef.current,
+        onTranscriptReady: () => setStage('generating'),
       })
-      if (!dispatchRes.ok) {
-        const body = await dispatchRes.json().catch(() => ({}))
-        failAt('analyzing', (body as { error?: string }).error ?? t('Estimate generation failed'))
-        return
-      }
-      const { jobId } = (await dispatchRes.json()) as { jobId: string }
 
-      // Stepper progression: dispatch accepted → flip to "generating" while we poll.
-      setStage('generating')
+      if (raced.kind === 'job-failed') {
+        failAt('transcribing', reasonForJobState(raced.result, 'transcription'))
+        return
+      }
 
-      // pollJob resolves Plan 01's JobResult discriminant; branch on state.
-      // Same Inngest dev-server output quirk as transcription above — read the
-      // newly-current estimate row from the DB instead of trusting result.output.
-      const genResult = await pollJob(jobId, abortControllerRef.current.signal)
-      if (genResult.state !== 'completed') {
-        failAt('analyzing', reasonForJobState(genResult, 'generation'))
-        return
-      }
-      const { data: estRow } = await supabase
-        .from('estimates')
-        .select('id')
-        .eq('project_id', projectId)
-        .eq('is_current', true)
-        .single()
-      const estimateId = (estRow?.id as string | undefined) ?? null
-      if (!estimateId) {
-        // The vague-estimate path ran: the AI generated no line items, auto-refine
-        // ran once, estimate was deleted, and project.status set to 'awaiting_details'.
-        // Check job output first (reliable in prod); fall back to project status (works in dev).
-        const flags = genResult.output as { needsDetails?: boolean } | null
-        let isNeedsDetails = flags?.needsDetails === true
-        if (!isNeedsDetails) {
-          const { data: proj } = await supabase
-            .from('projects').select('status').eq('id', projectId).single()
-          isNeedsDetails = (proj as { status?: string } | null)?.status === 'awaiting_details'
-        }
-        if (isNeedsDetails) {
-          toast.error(t('Description too vague — please record again with specific tasks, materials, and quantities'))
-          setAudioBlob(null)
-          recordingIdRef.current = null
-          attemptIdRef.current = null
-          requestIdRef.current = null
-          setStage('idle')
-          return
-        }
-        failAt('analyzing', t('Estimate generation completed but no estimate was found'))
-        return
-      }
-      setStage('done')
-      if (onComplete) {
-        onComplete(estimateId)
-      } else {
-        router.push(`/projects/${projectId}?tab=estimate&estimate=${estimateId}`)
-      }
+      handleEstimateOutcome(
+        raced.outcome,
+        t('Description too vague — please record again with specific tasks, materials, and quantities')
+      )
     } catch (err) {
-      if ((err as Error).name === 'AbortError') return  // unmount; not a user-facing failure
-      failAt('analyzing', (err as Error).message ?? t('Estimate generation failed'))
+      if (isAbortSignal(err)) return  // unmount; not a user-facing failure
+      failAt('generating', (err as Error).message ?? t('Estimate generation failed'))
     }
-  }, [companyId, projectId, router, estimateLanguage, onComplete, ensureAttempt, reasonForJobState, t, failAt])
+  }, [companyId, projectId, estimateLanguage, ensureAttempt, captureOutcomeBaseline, reasonForJobState, t, failAt, handleEstimateOutcome])
 
   // Mirror the latest runPipeline closure into a ref — recorder.onstop is bound
   // ONCE at recording start and must invoke the LATEST closure (fresh
@@ -821,21 +794,42 @@ export function CaptureRecorder({
     ensureAttempt()
 
     if (descriptionText.trim() && !audioBlob && uploadedPhotos.length === 0) {
-      // Text-only path: saving (createTextRecording) → generating (poll)
+      // Text-only path: ONE dispatch (createTextRecording's autoGenerateEstimate
+      // chain — Plan 01) then watch the DB. No separate job to race — the
+      // dispatch either succeeded (jobId returned) or returned { error }.
       setStage('saving')
-      const recording = await createTextRecording(projectId, descriptionText.trim())
+      await captureOutcomeBaseline()
+      const recording = await createTextRecording(projectId, descriptionText.trim(), attemptIdRef.current ?? undefined, {
+        autoGenerateEstimate: true,
+        requestId: requestIdRef.current ?? undefined,
+        estimateLanguage,
+      })
       if ('error' in recording) { failAt('saving', recording.error ?? t('Failed to save description')); return }
       setStage('generating')
-      await triggerEstimateGeneration()
+      try {
+        const outcome = await pollEstimateOutcome({
+          projectId,
+          previousEstimateId: previousEstimateIdRef.current ?? null,
+          signal: abortControllerRef.current.signal,
+        })
+        handleEstimateOutcome(
+          outcome,
+          t('Description too vague — please add more detail with specific tasks, materials, and quantities')
+        )
+      } catch (err) {
+        if (isAbortSignal(err)) return
+        failAt('generating', (err as Error).message ?? t('Estimate generation failed'))
+      }
     } else if (audioBlob) {
       // Audio path (existing) — audio blob triggers runPipeline
       runPipeline(audioBlob)
     } else if (uploadedPhotos.length > 0) {
-      // Photos-only path: analyze photos first so ai_description is written to DB,
-      // then generate the estimate with that context.
+      // Photos-only path: dispatch photo analysis (autoGenerateEstimate chain —
+      // Plan 01), racing pollJob(analyzeJobId) ONLY as a fast-failure signal
+      // (mirrors the audio path); the outcome poll owns completion.
       setStage('analyzing')
+      await captureOutcomeBaseline()
       try {
-        // Step 1: dispatch photo analysis and wait for ai_description to be written
         const analyzeRes = await fetch('/api/analyze-photos', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
@@ -843,6 +837,8 @@ export function CaptureRecorder({
             projectId,
             requestId: requestIdRef.current,
             attemptId: attemptIdRef.current,
+            autoGenerateEstimate: true,
+            estimateLanguage,
           }),
           signal: abortControllerRef.current.signal,
         })
@@ -852,77 +848,32 @@ export function CaptureRecorder({
           return
         }
         const { jobId: analyzeJobId } = (await analyzeRes.json()) as { jobId: string }
-        const analyzeResult = await pollJob(analyzeJobId, abortControllerRef.current.signal)
-        if (analyzeResult.state !== 'completed') {
-          failAt('analyzing', reasonForJobState(analyzeResult, 'generation'))
+
+        const raced = await raceEstimateOutcomeAgainstJob({
+          jobId: analyzeJobId,
+          projectId,
+          previousEstimateId: previousEstimateIdRef.current ?? null,
+          parentSignal: abortControllerRef.current.signal,
+          // The analyze job poll's OWN "completed" is progress here (photos
+          // analyzed, generation chain dispatched) — not the race winner.
+          onJobCompleted: () => setStage('generating'),
+        })
+
+        if (raced.kind === 'job-failed') {
+          failAt('analyzing', reasonForJobState(raced.result, 'generation'))
           return
         }
 
-        // Step 2: generate estimate (photos now have ai_description in DB)
-        setStage('generating')
-        const dispatchRes = await fetch('/api/generate-estimate', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({
-            projectId,
-            language: estimateLanguage,
-            requestId: requestIdRef.current,
-            attemptId: attemptIdRef.current,
-            inputType: 'photo',
-          }),
-          signal: abortControllerRef.current.signal,
-        })
-        if (!dispatchRes.ok) {
-          const body = await dispatchRes.json().catch(() => ({}))
-          failAt('generating', (body as { error?: string }).error ?? t('Estimate generation failed'))
-          return
-        }
-        const { jobId } = (await dispatchRes.json()) as { jobId: string }
-        // Read estimate from DB after completion — see runPipeline note for why
-        // the Inngest dev server returns an empty function output.
-        const photosResult = await pollJob(jobId, abortControllerRef.current.signal)
-        if (photosResult.state !== 'completed') {
-          failAt('generating', reasonForJobState(photosResult, 'generation'))
-          return
-        }
-        const supabase = createClient()
-        const { data: estRow } = await supabase
-          .from('estimates')
-          .select('id')
-          .eq('project_id', projectId)
-          .eq('is_current', true)
-          .single()
-        const estimateId = (estRow?.id as string | undefined) ?? null
-        if (!estimateId) {
-          const flags = photosResult.output as { needsDetails?: boolean } | null
-          let isNeedsDetails = flags?.needsDetails === true
-          if (!isNeedsDetails) {
-            const { data: proj } = await supabase
-              .from('projects').select('status').eq('id', projectId).single()
-            isNeedsDetails = (proj as { status?: string } | null)?.status === 'awaiting_details'
-          }
-          if (isNeedsDetails) {
-            toast.error(t('Photos too vague — please add a voice description or more detailed photos'))
-            attemptIdRef.current = null
-            requestIdRef.current = null
-            setStage('idle')
-            return
-          }
-          failAt('generating', t('Estimate generation completed but no estimate was found'))
-          return
-        }
-        setStage('done')
-        if (onComplete) {
-          onComplete(estimateId)
-        } else {
-          router.push(`/projects/${projectId}?tab=estimate&estimate=${estimateId}`)
-        }
+        handleEstimateOutcome(
+          raced.outcome,
+          t('Photos too vague — please add a voice description or more detailed photos')
+        )
       } catch (err) {
-        if ((err as Error).name === 'AbortError') return
+        if (isAbortSignal(err)) return
         failAt('analyzing', (err as Error).message ?? t('Estimate generation failed'))
       }
     }
-  }, [descriptionText, audioBlob, uploadedPhotos, projectId, runPipeline, triggerEstimateGeneration, estimateLanguage, t, onComplete, router, ensureAttempt, reasonForJobState, failAt])
+  }, [descriptionText, audioBlob, uploadedPhotos, projectId, runPipeline, estimateLanguage, t, ensureAttempt, captureOutcomeBaseline, reasonForJobState, failAt, handleEstimateOutcome])
 
   // Start recording
   const startRecording = useCallback(async () => {
@@ -1132,7 +1083,10 @@ export function CaptureRecorder({
         // Legacy fullscreen /capture route — keep the existing CaptureStepper UX.
         <div className="flex-1 flex items-center justify-center p-4">
           <div className="w-full max-w-md space-y-6">
-            <CaptureStepper currentStage={stage} failedAt={failedAt} transcript={transcript} mode={activeMode} />
+            {/* 260707-hhp (P1 client half): the dispatch-and-watch model no longer reads
+                the transcript text client-side (only a stage-progression signal via
+                onTranscriptReady) — the mid-generation transcript preview is dropped. */}
+            <CaptureStepper currentStage={stage} failedAt={failedAt} mode={activeMode} />
             {failedAt && (
               <CaptureFailure
                 errorMessage={errorMessage ?? t('Something went wrong')}
