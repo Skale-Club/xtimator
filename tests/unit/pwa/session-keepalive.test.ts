@@ -32,10 +32,14 @@ describe('keepalive route', () => {
     expect(route).toContain('no-store')
   })
 
-  it('lives under /api so the service worker treats it as NetworkOnly', () => {
-    // public/sw.js returns early (NetworkOnly) for url.pathname.startsWith('/api/')
+  it('is never intercepted by the service worker', () => {
+    // public/sw.js was rolled back to a no-fetch cleanup worker (emergency PWA
+    // rollback). With no fetch handler at all, keepalive /api/* calls can never
+    // be served from a service-worker cache — a stronger guarantee than the
+    // previous NetworkOnly early-return for url.pathname.startsWith('/api/').
     const sw = readFileSync(resolve(process.cwd(), 'public/sw.js'), 'utf8')
-    expect(sw).toContain("url.pathname.startsWith('/api/')")
+    expect(sw).not.toContain("self.addEventListener('fetch'")
+    expect(sw).not.toContain('event.respondWith')
   })
 })
 
