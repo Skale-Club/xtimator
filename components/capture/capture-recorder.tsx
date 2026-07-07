@@ -24,7 +24,6 @@ import { LoadingDots } from '@/components/ui/loading-dots'
 import { WaveformVisualizer } from '@/components/workspace/audio/waveform-visualizer'
 import type { ProjectDetail } from '@/lib/queries/project'
 import type { Photo } from '@/lib/queries/photo'
-import { pollJob, type JobResult } from '@/hooks/use-job-status'
 import { pollEstimateOutcome, getCurrentEstimateId, type EstimateOutcome } from '@/lib/estimate/poll-outcome'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { useLanguage } from '@/lib/i18n/language-context'
@@ -78,111 +77,16 @@ export function finalizeDurationSeconds(elapsedMs: number): number {
   return Math.max(1, Math.floor(elapsedMs / 1000))
 }
 
-// 260707-hhp (P1 client half): pollJob (hooks/use-job-status.ts, read-only) rethrows
-// a signal-abort as a plain Error with message 'Aborted' — NOT a DOMException named
-// 'AbortError' — because its internal catch block re-throws `new Error('Aborted')`
-// rather than preserving the caught exception. pollEstimateOutcome (our new module)
-// correctly throws a DOMException named 'AbortError'. Since the dispatch-and-watch
-// race below awaits both, check both shapes so an unmount during the race is always
-// a silent return, never a failAt (plan constraint) — regardless of which side's
-// abort exception happens to win the race.
+// 260707-lyq (P4 Wave 2): pollJob (hooks/use-job-status.ts) rethrows a signal-abort
+// as a plain Error with message 'Aborted' — NOT a DOMException named 'AbortError'.
+// pollEstimateOutcome throws a DOMException named 'AbortError'. capture-recorder no
+// longer races the two (see below) but pollJob is still used elsewhere in this
+// codebase with the same abort convention, so both shapes are checked here —
+// harmless/defensive now that only pollEstimateOutcome's abort actually fires from
+// this file's call sites.
 function isAbortSignal(err: unknown): boolean {
   const e = err as { name?: string; message?: string } | null | undefined
   return e?.name === 'AbortError' || e?.message === 'Aborted'
-}
-
-type OutcomeRaceResult =
-  | { kind: 'outcome'; outcome: EstimateOutcome }
-  | { kind: 'job-failed'; result: JobResult }
-
-/**
- * Runs pollEstimateOutcome (DB truth) alongside pollJob (fast-failure signal for
- * the transcribe/analyze step it's racing) concurrently. The job race exists
- * ONLY to (a) fast-fail a run Inngest itself reports as `failed` and (b) advance
- * photo-path progress on `completed` — pollEstimateOutcome (the DB) is the
- * single source of truth for success/failure of the attempt.
- *
- * `completed` is progress information ONLY — the outcome poll still owns
- * completion, so it is NOT a race winner; we keep waiting on the outcome poll.
- * `not_found` / `config_unavailable` are ADVISORY (260707-kgn) — production
- * evidence showed a not_found snapshot moments before the run appeared and the
- * attempt succeeded seconds later (Inngest creates the run after accepting the
- * event; hooks/use-job-status.ts also grace-periods this at the source, but an
- * in-flight race predating that grace window — or a job genuinely still
- * invisible — must not fail the UI either). Neither state may ever win the race
- * or produce a user-facing failure: it's logged for diagnosis and the outcome
- * poll is re-awaited. Only `failed` short-circuits the wait (abort the outcome
- * poll, surface the failure) — the outcome poll's own 6-minute timeout already
- * covers the genuinely-dead case with a friendly message.
- *
- * Whichever side stops being useful is aborted via a child AbortController
- * derived from the caller's signal so it doesn't keep polling in the background
- * after we've moved on.
- */
-async function raceEstimateOutcomeAgainstJob(params: {
-  jobId: string
-  projectId: string
-  previousEstimateId: string | null
-  parentSignal: AbortSignal
-  recordingId?: string
-  onTranscriptReady?: () => void
-  onJobCompleted?: () => void
-}): Promise<OutcomeRaceResult> {
-  const child = new AbortController()
-  const onParentAbort = () => child.abort()
-  if (params.parentSignal.aborted) child.abort()
-  else params.parentSignal.addEventListener('abort', onParentAbort, { once: true })
-
-  const outcomePromise = pollEstimateOutcome({
-    projectId: params.projectId,
-    previousEstimateId: params.previousEstimateId,
-    signal: child.signal,
-    recordingId: params.recordingId,
-    onTranscriptReady: params.onTranscriptReady,
-  })
-  const jobPromise = pollJob(params.jobId, child.signal)
-
-  try {
-    let firstSettled = await Promise.race([
-      outcomePromise.then((outcome) => ({ kind: 'outcome' as const, outcome })),
-      jobPromise.then((result) => ({ kind: 'job' as const, result })),
-    ])
-
-    if (
-      firstSettled.kind === 'job' &&
-      firstSettled.result.state !== 'completed' &&
-      firstSettled.result.state !== 'failed'
-    ) {
-      // Advisory-only (not_found / config_unavailable) — this can never win the
-      // race. Log for diagnosis, swallow it, and keep waiting on the DB truth.
-      console.warn(
-        '[capture] job race saw advisory state — ignoring, DB outcome poll remains authoritative:',
-        firstSettled.result.state
-      )
-      firstSettled = { kind: 'outcome', outcome: await outcomePromise }
-    }
-
-    if (firstSettled.kind === 'job') {
-      if (firstSettled.result.state === 'failed') {
-        child.abort() // fast failure — the outcome poll is no longer useful
-        return { kind: 'job-failed', result: firstSettled.result }
-      }
-      // 'completed' — progress only; the outcome poll remains the source of truth.
-      params.onJobCompleted?.()
-      const outcome = await outcomePromise
-      child.abort()
-      return { kind: 'outcome', outcome }
-    }
-
-    child.abort() // outcome won — the job poll is no longer needed
-    return { kind: 'outcome', outcome: firstSettled.outcome }
-  } finally {
-    params.parentSignal.removeEventListener('abort', onParentAbort)
-    // Swallow the loser's rejection (its own abort exception once `child` aborts)
-    // — only the winner's settlement (or a genuine early rejection) drives the caller.
-    outcomePromise.catch(() => {})
-    jobPromise.catch(() => {})
-  }
 }
 
 type SpeechRecognitionInstance = {
@@ -422,15 +326,28 @@ export function CaptureRecorder({
     return () => { cancelled = true }
   }, [restorePhotos, projectId])
 
-  // REC-03/REC-04 attempt lineage. attemptId/requestId are minted ONCE on the
-  // first Generate and reused on Retry (NOT reset) so the generate-estimate
-  // event id (estimate-${projectId}-${requestId}) is stable → Inngest dedups a
-  // re-dispatch and an already-completed step is not re-charged. recordingIdRef
-  // holds the recording row id so a Retry reuses the same transcribe event id
-  // (transcribe-${recordingId}) instead of re-uploading + re-transcribing.
+  // REC-03/REC-04 attempt lineage — REWRITTEN 260707-lyq (P4 Wave 2): attemptId
+  // is the stable lineage id (minted ONCE, never reset — even across Retry) so
+  // the journal (pipeline_events) can be read as one continuous attempt history.
+  // requestId/dispatchNonce are the OPPOSITE: re-minted on every Retry (see
+  // onRetry below) so a Retry is a GENUINE re-run — a fresh requestId yields a
+  // fresh generate-estimate event id (estimate-${projectId}-${requestId}), and a
+  // bumped dispatchNonce folds into the transcribe event id
+  // (transcribe-${recordingId}-r${dispatchNonce}) so Inngest creates a brand
+  // new run instead of deduping against the original dispatch. (Previously
+  // requestId was reused across Retry for Inngest-level dedup — that made the
+  // Retry button a no-op once transcribe-audio.ts's function-level idempotency
+  // was removed in 260707-lyq Wave 1; see lib/actions/recording.ts.)
+  // recordingIdRef still holds the recording row id so a Retry reuses the same
+  // row (skip re-upload) — only the DISPATCH gets a new id, not the audio file.
   const attemptIdRef = useRef<string | null>(null)
   const requestIdRef = useRef<string | null>(null)
   const recordingIdRef = useRef<string | null>(null)
+  // 260707-lyq (P4 Wave 2): retry ordinal, folded into the re-dispatched
+  // transcribe event id (see lib/actions/recording.ts's dispatchNonce param).
+  // Bumped on every Retry click; text/photos retries don't need it (their
+  // event ids derive from requestId alone — see onRetry below).
+  const dispatchNonceRef = useRef(0)
   // 260707-hhp (P1 client half): dispatch-and-watch outcome baseline. `undefined`
   // means "not yet captured this attempt" (a distinct sentinel from a real `null`,
   // which means "no current estimate exists yet"). Captured ONCE per attempt
@@ -438,7 +355,9 @@ export function CaptureRecorder({
   // half-finished first try's estimate must still count as NEW.
   const previousEstimateIdRef = useRef<string | null | undefined>(undefined)
 
-  // Mint the attempt + request lineage once; subsequent calls (Retry) are no-ops.
+  // Mint the attempt lineage once; a Retry nulls requestIdRef first (see
+  // onRetry below) so this re-mints ONLY requestId — attemptIdRef is never
+  // reset, preserving the lineage across retries.
   const ensureAttempt = useCallback(() => {
     if (!attemptIdRef.current) attemptIdRef.current = crypto.randomUUID()
     if (!requestIdRef.current) requestIdRef.current = crypto.randomUUID()
@@ -451,23 +370,6 @@ export function CaptureRecorder({
       previousEstimateIdRef.current = await getCurrentEstimateId(projectId)
     }
   }, [projectId])
-
-  // Build the friendly, i18n failure reason for a non-completed pollJob result.
-  // Inline t() ternaries so the extractor picks up the keys (Pitfall 5).
-  const reasonForJobState = useCallback(
-    (
-      result: JobResult,
-      kind: 'transcription' | 'generation'
-    ): string =>
-      result.state === 'config_unavailable'
-        ? t('Processing service is temporarily unavailable — your recording is saved. You can edit manually.')
-        : result.state === 'not_found'
-          ? t('We could not find this job — please retry.')
-          : kind === 'transcription'
-            ? t('Transcription failed.')
-            : t('Estimate generation failed.'),
-    [t]
-  )
 
   // Stop recording (memoized for use in callbacks)
   const stopRecording = useCallback(() => {
@@ -571,9 +473,14 @@ export function CaptureRecorder({
   // useCallback (dep: projectId only — audioBlob/uploadedPhotos/attemptId are read via
   // refs above) keeps this referentially stable so the callers' manual dependency
   // arrays (which list `failAt`) don't get recreated on every render.
-  const failAt = useCallback((s: StageKey, msg: string) => {
+  // 260707-lyq (P4 Wave 2): `skipReport` — a journal-sourced failure (the new
+  // 'failed' EstimateOutcome) already has a durable pipeline_events row (the
+  // server recorded it); calling reportClientPipelineFailure for it too would
+  // double-report the same failure under a synthetic 'client_reported' code.
+  const failAt = useCallback((s: StageKey, msg: string, opts?: { skipReport?: boolean }) => {
     setFailedAt(s)
     setErrorMessage(msg)
+    if (opts?.skipReport) return
     const stepMap = {
       saving: 'save_recording',
       transcribing: 'transcribe',
@@ -589,9 +496,35 @@ export function CaptureRecorder({
     }).catch(() => {})
   }, [projectId])
 
+  // 260707-lyq (P4 Wave 2): inverse of failAt's stepMap — maps a journal
+  // failure's `step` (pipeline_events enum) back onto the UI's StageKey so
+  // failAt highlights the stage that actually failed. Defaults to 'generating'
+  // for any step outside the known 4 (defensive; every journaled step in this
+  // pipeline is one of these).
+  const stepToStageKey = useCallback((step: string): StageKey => {
+    switch (step) {
+      case 'save_recording': return 'saving'
+      case 'transcribe': return 'transcribing'
+      case 'analyze': return 'analyzing'
+      default: return 'generating' // generate_estimate + defensive fallback
+    }
+  }, [])
+
+  // 260707-lyq (P4 Wave 2): journal-driven stage progression — fires on every
+  // pollEstimateOutcome tick where the journal read came back `pending`, with
+  // the last recorded step. Replaces the old per-path recordingId/transcript
+  // (or analyze-job-completed) polling: stage progression now comes entirely
+  // from the journal, matching every path's actual server-side pipeline order.
+  const handleStageProgress = useCallback((lastStep: string | null) => {
+    if (lastStep === 'save_recording') setStage('transcribing')
+    else if (lastStep === 'transcribe' || lastStep === 'analyze') setStage('generating')
+  }, [])
+
   // 260707-hhp (P1 client half): shared outcome handling for all three
   // dispatch-and-watch paths (audio/text/photos) — completed → done/onComplete;
   // awaiting_details → the path-specific vague toast + full attempt reset;
+  // 260707-lyq (P4 Wave 2): failed → the journal's REAL error, surfaced via
+  // failAt (stage-mapped, report suppressed — the journal already has it);
   // timeout → a friendly failAt explaining generation may still finish in the
   // background. `vagueMessage` is an inline t('...') literal at each call site
   // (extractor requirement) forwarded in as a plain string.
@@ -615,9 +548,17 @@ export function CaptureRecorder({
       setStage('idle')
       return
     }
+    if (outcome.state === 'failed') {
+      // 260707-lyq (P4 Wave 2): journal-sourced failure — the server's REAL
+      // error_message, surfaced within ~1 tick instead of the 6-minute
+      // timeout. skipReport: true — the journal already has this failure
+      // (the server wrote it), so failAt must not double-report it.
+      failAt(stepToStageKey(outcome.step), outcome.reason, { skipReport: true })
+      return
+    }
     // timeout
     failAt('generating', t('Generation is taking longer than expected. It may still complete in the background — check the project in a minute, or retry.'))
-  }, [onComplete, projectId, router, t, failAt])
+  }, [onComplete, projectId, router, t, failAt, stepToStageKey])
 
   // Multi-modal helpers
   const hasAnyInput = !!audioBlob || descriptionText.trim().length > 0 || uploadedPhotos.length > 0
@@ -719,11 +660,11 @@ export function CaptureRecorder({
 
   // 260707-hhp (P1 client half): dispatch-and-watch audio pipeline. ONE server
   // round trip (startRecordingPipeline — Plan 01) creates the recording row +
-  // dispatches the transcribe→generate chain; the client then only WATCHES the
-  // database for the outcome via pollEstimateOutcome. pollJob is kept ONLY as a
-  // fast-failure race on the transcribe job (see raceEstimateOutcomeAgainstJob)
-  // — a completed transcribe job is progress information, never treated as the
-  // race winner, since the outcome poll alone owns completion.
+  // dispatches the transcribe→generate chain; the client then only WATCHES for
+  // the outcome via pollEstimateOutcome. 260707-lyq (P4 Wave 2): the poll is now
+  // journal-first (attemptId) — the old pollJob fast-failure race helper is
+  // REMOVED entirely; the journal surfaces a real failure within ~1 tick,
+  // making that race redundant.
   const runPipeline = useCallback(async (blob: Blob) => {
     abortControllerRef.current = new AbortController()
     setStage('saving')
@@ -775,6 +716,9 @@ export function CaptureRecorder({
       attemptId: attemptIdRef.current!,
       requestId: requestIdRef.current!,
       estimateLanguage,
+      // 260707-lyq (P4 Wave 2): 0 on the FIRST dispatch (legacy event-id
+      // format); Retry bumps this ref before calling runPipeline again.
+      dispatchNonce: dispatchNonceRef.current,
     })
     if ('error' in started) {
       failAt('saving', started.error ?? t('Failed to save recording'))
@@ -784,29 +728,23 @@ export function CaptureRecorder({
 
     setStage('transcribing')
     try {
-      const raced = await raceEstimateOutcomeAgainstJob({
-        jobId: started.data.transcribeJobId,
+      const outcome = await pollEstimateOutcome({
         projectId,
         previousEstimateId: previousEstimateIdRef.current ?? null,
-        parentSignal: abortControllerRef.current.signal,
-        recordingId: recordingIdRef.current,
-        onTranscriptReady: () => setStage('generating'),
+        signal: abortControllerRef.current.signal,
+        attemptId: attemptIdRef.current ?? undefined,
+        onStageProgress: handleStageProgress,
       })
 
-      if (raced.kind === 'job-failed') {
-        failAt('transcribing', reasonForJobState(raced.result, 'transcription'))
-        return
-      }
-
       handleEstimateOutcome(
-        raced.outcome,
+        outcome,
         t('Description too vague — please record again with specific tasks, materials, and quantities')
       )
     } catch (err) {
       if (isAbortSignal(err)) return  // unmount; not a user-facing failure
       failAt('generating', (err as Error).message ?? t('Estimate generation failed'))
     }
-  }, [companyId, projectId, estimateLanguage, ensureAttempt, captureOutcomeBaseline, reasonForJobState, t, failAt, handleEstimateOutcome])
+  }, [companyId, projectId, estimateLanguage, ensureAttempt, captureOutcomeBaseline, handleStageProgress, t, failAt, handleEstimateOutcome])
 
   // Mirror the latest runPipeline closure into a ref — recorder.onstop is bound
   // ONCE at recording start and must invoke the LATEST closure (fresh
@@ -839,6 +777,8 @@ export function CaptureRecorder({
           projectId,
           previousEstimateId: previousEstimateIdRef.current ?? null,
           signal: abortControllerRef.current.signal,
+          attemptId: attemptIdRef.current ?? undefined,
+          onStageProgress: handleStageProgress,
         })
         handleEstimateOutcome(
           outcome,
@@ -853,8 +793,10 @@ export function CaptureRecorder({
       runPipeline(audioBlob)
     } else if (uploadedPhotos.length > 0) {
       // Photos-only path: dispatch photo analysis (autoGenerateEstimate chain —
-      // Plan 01), racing pollJob(analyzeJobId) ONLY as a fast-failure signal
-      // (mirrors the audio path); the outcome poll owns completion.
+      // Plan 01) then watch the journal. 260707-lyq (P4 Wave 2): the old
+      // pollJob(analyzeJobId) race is REMOVED — stage progression (analyzing →
+      // generating) and failure detection both come from onStageProgress /
+      // the journal-first outcome poll now.
       setStage('analyzing')
       await captureOutcomeBaseline()
       try {
@@ -875,25 +817,17 @@ export function CaptureRecorder({
           failAt('analyzing', (body as { error?: string }).error ?? t('Photo analysis failed'))
           return
         }
-        const { jobId: analyzeJobId } = (await analyzeRes.json()) as { jobId: string }
 
-        const raced = await raceEstimateOutcomeAgainstJob({
-          jobId: analyzeJobId,
+        const outcome = await pollEstimateOutcome({
           projectId,
           previousEstimateId: previousEstimateIdRef.current ?? null,
-          parentSignal: abortControllerRef.current.signal,
-          // The analyze job poll's OWN "completed" is progress here (photos
-          // analyzed, generation chain dispatched) — not the race winner.
-          onJobCompleted: () => setStage('generating'),
+          signal: abortControllerRef.current.signal,
+          attemptId: attemptIdRef.current ?? undefined,
+          onStageProgress: handleStageProgress,
         })
 
-        if (raced.kind === 'job-failed') {
-          failAt('analyzing', reasonForJobState(raced.result, 'generation'))
-          return
-        }
-
         handleEstimateOutcome(
-          raced.outcome,
+          outcome,
           t('Photos too vague — please add a voice description or more detailed photos')
         )
       } catch (err) {
@@ -901,7 +835,7 @@ export function CaptureRecorder({
         failAt('analyzing', (err as Error).message ?? t('Estimate generation failed'))
       }
     }
-  }, [descriptionText, audioBlob, uploadedPhotos, projectId, runPipeline, estimateLanguage, t, ensureAttempt, captureOutcomeBaseline, reasonForJobState, failAt, handleEstimateOutcome])
+  }, [descriptionText, audioBlob, uploadedPhotos, projectId, runPipeline, estimateLanguage, t, ensureAttempt, captureOutcomeBaseline, handleStageProgress, failAt, handleEstimateOutcome])
 
   // Start recording
   const startRecording = useCallback(async () => {
@@ -1009,6 +943,26 @@ export function CaptureRecorder({
     router.push(`/projects/${projectId}`)
   }
 
+  // 260707-lyq (P4 Wave 2): Real Retry — re-mints requestId (fresh event ids)
+  // and bumps dispatchNonce (audio's transcribe re-dispatch) while leaving
+  // attemptIdRef untouched (stable lineage) and previousEstimateIdRef untouched
+  // (a half-finished first try's estimate must still count as NEW; see the ref
+  // comment above). attemptId is NOT re-minted — ensureAttempt() only fills in
+  // the now-null requestId. Text/photos retries don't need a nonce: a fresh
+  // requestId alone already yields new estimate-/analyze- event ids (both
+  // derive their Inngest event id from requestId, not a recordingId).
+  const handleRetry = useCallback(() => {
+    setRetriesUsed(r => r + 1)
+    dispatchNonceRef.current += 1
+    requestIdRef.current = null
+    ensureAttempt()
+    if (audioBlob) {
+      runPipeline(audioBlob)
+    } else {
+      handleGenerate()
+    }
+  }, [audioBlob, ensureAttempt, runPipeline, handleGenerate])
+
   // Color class for ring and timer (D-07)
   const ringColorClass =
     elapsedMs >= RED_AT_MS    ? 'stroke-red-500'   :
@@ -1097,10 +1051,7 @@ export function CaptureRecorder({
                 <CaptureFailure
                   errorMessage={errorMessage ?? t('Something went wrong')}
                   retriesUsed={retriesUsed}
-                  onRetry={audioBlob ? () => {
-                    setRetriesUsed(r => r + 1)
-                    runPipeline(audioBlob)
-                  } : undefined}
+                  onRetry={hasAnyInput ? handleRetry : undefined}
                   onEditManually={handleEditManually}
                 />
               </div>
@@ -1112,17 +1063,15 @@ export function CaptureRecorder({
         <div className="flex-1 flex items-center justify-center p-4">
           <div className="w-full max-w-md space-y-6">
             {/* 260707-hhp (P1 client half): the dispatch-and-watch model no longer reads
-                the transcript text client-side (only a stage-progression signal via
-                onTranscriptReady) — the mid-generation transcript preview is dropped. */}
+                the transcript text client-side (only a journal-driven stage-progression
+                signal, see handleStageProgress) — the mid-generation transcript preview
+                is dropped. */}
             <CaptureStepper currentStage={stage} failedAt={failedAt} mode={activeMode} />
             {failedAt && (
               <CaptureFailure
                 errorMessage={errorMessage ?? t('Something went wrong')}
                 retriesUsed={retriesUsed}
-                onRetry={audioBlob ? () => {
-                  setRetriesUsed(r => r + 1)
-                  runPipeline(audioBlob)
-                } : undefined}
+                onRetry={hasAnyInput ? handleRetry : undefined}
                 onEditManually={handleEditManually}
               />
             )}

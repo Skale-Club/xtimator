@@ -72,8 +72,11 @@ const MAX_POLL_DURATION_MS = 5 * 60 * 1000
 /** Inngest creates the run AFTER accepting the event — production evidence
  * (260707-kgn): event accepted, client polled at t+1s → not_found, run created
  * at t+3s, job then succeeded. Within this window a not_found body means
- * "not yet", not "gone" — keep polling. Past it, not_found is terminal. */
-const NOT_FOUND_GRACE_MS = 20_000
+ * "not yet", not "gone" — keep polling. Past it, not_found is terminal.
+ * Widened 20s → 60s (260707-lyq): a SECOND, worse production run-creation lag
+ * was observed 2026-07-07 19:45 UTC — the Inngest run wasn't visible until
+ * ~30s after the event was accepted, deep inside the old 20s grace window. */
+const NOT_FOUND_GRACE_MS = 60_000
 /** Consecutive fetch/parse failures tolerated before giving up entirely. */
 const MAX_CONSECUTIVE_POLL_ERRORS = 6
 const NETWORK_RETRY_BASE_MS = 1000
