@@ -253,7 +253,13 @@ describe('260707-lyq (P4 Wave 2): pollEstimateOutcome — journal-first', () => 
     })
 
     expect(outcome).toEqual({ state: 'timeout' })
-    expect(onStageProgress).toHaveBeenCalledWith('transcribe')
+    // 260707-o7a: onStageProgress now forwards the full journal-derived
+    // StageProgress payload (drives the real progress bar), not just lastStep.
+    expect(onStageProgress).toHaveBeenCalledWith({
+      lastStep: 'transcribe',
+      completedSteps: ['save_recording'],
+      activeStepStartedAt: '2026-07-07T12:00:00.000Z',
+    })
   })
 
   it('stale projects.status=awaiting_details is IGNORED when attemptId is present (production stale-status regression)', async () => {
