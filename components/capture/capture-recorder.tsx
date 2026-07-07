@@ -97,13 +97,27 @@ type OutcomeRaceResult =
 
 /**
  * Runs pollEstimateOutcome (DB truth) alongside pollJob (fast-failure signal for
- * the transcribe/analyze step it's racing) concurrently. pollJob resolving
- * 'completed' is progress information ONLY — the outcome poll still owns
- * completion, so that is NOT a race winner; we keep waiting on the outcome poll.
- * Only a non-completed job result short-circuits the wait (abort the outcome poll,
- * surface the failure). Whichever side stops being useful is aborted via a child
- * AbortController derived from the caller's signal so it doesn't keep polling in
- * the background after we've moved on.
+ * the transcribe/analyze step it's racing) concurrently. The job race exists
+ * ONLY to (a) fast-fail a run Inngest itself reports as `failed` and (b) advance
+ * photo-path progress on `completed` — pollEstimateOutcome (the DB) is the
+ * single source of truth for success/failure of the attempt.
+ *
+ * `completed` is progress information ONLY — the outcome poll still owns
+ * completion, so it is NOT a race winner; we keep waiting on the outcome poll.
+ * `not_found` / `config_unavailable` are ADVISORY (260707-kgn) — production
+ * evidence showed a not_found snapshot moments before the run appeared and the
+ * attempt succeeded seconds later (Inngest creates the run after accepting the
+ * event; hooks/use-job-status.ts also grace-periods this at the source, but an
+ * in-flight race predating that grace window — or a job genuinely still
+ * invisible — must not fail the UI either). Neither state may ever win the race
+ * or produce a user-facing failure: it's logged for diagnosis and the outcome
+ * poll is re-awaited. Only `failed` short-circuits the wait (abort the outcome
+ * poll, surface the failure) — the outcome poll's own 6-minute timeout already
+ * covers the genuinely-dead case with a friendly message.
+ *
+ * Whichever side stops being useful is aborted via a child AbortController
+ * derived from the caller's signal so it doesn't keep polling in the background
+ * after we've moved on.
  */
 async function raceEstimateOutcomeAgainstJob(params: {
   jobId: string
@@ -129,17 +143,31 @@ async function raceEstimateOutcomeAgainstJob(params: {
   const jobPromise = pollJob(params.jobId, child.signal)
 
   try {
-    const firstSettled = await Promise.race([
+    let firstSettled = await Promise.race([
       outcomePromise.then((outcome) => ({ kind: 'outcome' as const, outcome })),
       jobPromise.then((result) => ({ kind: 'job' as const, result })),
     ])
 
+    if (
+      firstSettled.kind === 'job' &&
+      firstSettled.result.state !== 'completed' &&
+      firstSettled.result.state !== 'failed'
+    ) {
+      // Advisory-only (not_found / config_unavailable) — this can never win the
+      // race. Log for diagnosis, swallow it, and keep waiting on the DB truth.
+      console.warn(
+        '[capture] job race saw advisory state — ignoring, DB outcome poll remains authoritative:',
+        firstSettled.result.state
+      )
+      firstSettled = { kind: 'outcome', outcome: await outcomePromise }
+    }
+
     if (firstSettled.kind === 'job') {
-      if (firstSettled.result.state !== 'completed') {
+      if (firstSettled.result.state === 'failed') {
         child.abort() // fast failure — the outcome poll is no longer useful
         return { kind: 'job-failed', result: firstSettled.result }
       }
-      // Progress only — the outcome poll remains the source of truth for completion.
+      // 'completed' — progress only; the outcome poll remains the source of truth.
       params.onJobCompleted?.()
       const outcome = await outcomePromise
       child.abort()
