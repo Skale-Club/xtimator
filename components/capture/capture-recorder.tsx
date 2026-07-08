@@ -79,6 +79,21 @@ export function finalizeDurationSeconds(elapsedMs: number): number {
   return Math.max(1, Math.floor(elapsedMs / 1000))
 }
 
+// 260707-ru5: pause-aware elapsed clock. `accumulatedMs` is the sum of every
+// already-recorded segment; `segmentStartMs` is the performance.now() the
+// CURRENT segment started at (null = paused/idle — no live segment to add).
+// Pure so it's trivially testable without a real MediaRecorder.
+export function computeElapsedMs(accumulatedMs: number, segmentStartMs: number | null, nowMs: number): number {
+  return accumulatedMs + (segmentStartMs === null ? 0 : nowMs - segmentStartMs)
+}
+
+// Feature gate — MediaRecorder.pause/resume support (missing on some older
+// mobile WebViews). SSR-safe: MediaRecorder doesn't exist server-side.
+const SUPPORTS_PAUSE =
+  typeof window !== 'undefined' &&
+  typeof MediaRecorder !== 'undefined' &&
+  typeof MediaRecorder.prototype.pause === 'function'
+
 // 260707-lyq (P4 Wave 2): pollJob (hooks/use-job-status.ts) rethrows a signal-abort
 // as a plain Error with message 'Aborted' — NOT a DOMException named 'AbortError'.
 // pollEstimateOutcome throws a DOMException named 'AbortError'. capture-recorder no
@@ -199,6 +214,7 @@ export function CaptureRecorder({
 
   // Recording state
   const [isRecording, setIsRecording] = useState(false)
+  const [isPaused, setIsPaused] = useState(false)
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null)
   const [elapsedMs, setElapsedMs] = useState(0)
   const [analyser, setAnalyser] = useState<AnalyserNode | null>(null)
@@ -260,7 +276,11 @@ export function CaptureRecorder({
   const chunksRef = useRef<Blob[]>([])
   const mimeTypeRef = useRef<string>('')
   const tickIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const startTimeRef = useRef<number>(0)
+  // 260707-ru5: pause-aware clock — accumulatedMsRef sums every completed
+  // segment; segmentStartRef is the performance.now() the CURRENT segment
+  // started at (null while paused/idle — see computeElapsedMs above).
+  const accumulatedMsRef = useRef<number>(0)
+  const segmentStartRef = useRef<number | null>(null)
   const warnedRef = useRef<boolean>(false)
   const abortControllerRef = useRef<AbortController>(new AbortController())
   const photoInputRef = useRef<HTMLInputElement>(null)
@@ -397,12 +417,16 @@ export function CaptureRecorder({
     }
   }, [projectId])
 
-  // Stop recording (memoized for use in callbacks)
+  // Stop recording (memoized for use in callbacks). Valid from both
+  // 'recording' and 'paused' MediaRecorder states — state !== 'inactive'
+  // covers both.
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       // Snapshot the final wall-clock BEFORE .stop() — recorder.onstop reads
       // elapsedMsRef (not the elapsedMs state closure) via runPipelineRef (260707-grq).
-      elapsedMsRef.current = performance.now() - startTimeRef.current
+      // computeElapsedMs handles both a live segment (segmentStartRef set) and
+      // a paused stop (segmentStartRef null — accumulated is already final).
+      elapsedMsRef.current = computeElapsedMs(accumulatedMsRef.current, segmentStartRef.current, performance.now())
       mediaRecorderRef.current.stop()
     }
     if (tickIntervalRef.current) {
@@ -418,6 +442,7 @@ export function CaptureRecorder({
     }
     setAnalyser(null)
     setIsRecording(false)
+    setIsPaused(false)
     // Flip stage synchronously so React never paints an interim frame with
     // stage='idle' && isRecording=false (which would re-show the recorder UI).
     // runPipeline() will also call setStage('saving') from the async onstop
@@ -426,9 +451,38 @@ export function CaptureRecorder({
     setStage((s) => s === 'idle' ? 'saving' : s)
   }, [])
 
-  // Tick — wall-clock elapsed (RESEARCH Pattern 4)
+  // Pause recording — 260707-ru5. Accumulates the just-finished segment,
+  // clears segmentStartRef (freezing computeElapsedMs), and calls the native
+  // MediaRecorder.pause() (no dataavailable fires while paused). Deliberately
+  // does NOT touch stream/tracks/AudioContext — the permission-revoked guard
+  // (mute/inactive listener above) needs the track to stay alive during pause.
+  const pauseRecording = useCallback(() => {
+    const rec = mediaRecorderRef.current
+    if (!rec || rec.state !== 'recording') return
+    const now = performance.now()
+    accumulatedMsRef.current = computeElapsedMs(accumulatedMsRef.current, segmentStartRef.current, now)
+    segmentStartRef.current = null
+    elapsedMsRef.current = accumulatedMsRef.current
+    setElapsedMs(accumulatedMsRef.current)
+    rec.pause()
+    setIsPaused(true)
+  }, [])
+
+  // Resume recording — 260707-ru5. Starts a fresh segment; idempotent via
+  // rec.state (a stray double-click while already recording is a no-op).
+  const resumeRecording = useCallback(() => {
+    const rec = mediaRecorderRef.current
+    if (!rec || rec.state !== 'paused') return
+    rec.resume()
+    segmentStartRef.current = performance.now()
+    setIsPaused(false)
+  }, [])
+
+  // Tick — wall-clock elapsed (RESEARCH Pattern 4). computeElapsedMs freezes
+  // the value while paused (segmentStartRef null) — thresholds below therefore
+  // only ever count actually-recorded time (260707-ru5).
   const tick = useCallback(() => {
-    const elapsed = performance.now() - startTimeRef.current
+    const elapsed = computeElapsedMs(accumulatedMsRef.current, segmentStartRef.current, performance.now())
     setElapsedMs(elapsed)
     elapsedMsRef.current = elapsed
     if (elapsed >= WARN_AT_MS && !warnedRef.current) {
@@ -910,6 +964,8 @@ export function CaptureRecorder({
     chunksRef.current = []
     setElapsedMs(0)
     elapsedMsRef.current = 0
+    accumulatedMsRef.current = 0
+    setIsPaused(false)
     warnedRef.current = false
 
     try {
@@ -948,7 +1004,7 @@ export function CaptureRecorder({
       }
 
       recorder.start()
-      startTimeRef.current = performance.now()
+      segmentStartRef.current = performance.now()
       setIsRecording(true)
 
       tickIntervalRef.current = setInterval(tick, TICK_MS)
