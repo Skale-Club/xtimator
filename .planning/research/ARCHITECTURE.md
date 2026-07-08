@@ -1,335 +1,293 @@
-# Architecture Research — v4.6 Researched Pricing Agent
+# Architecture Research — v4.18 Estimate Document & Send Experience Refresh
 
-**Domain:** AI estimate pipeline enrichment (regional market-price research for price-book misses)
-**Researched:** 2026-06-23
-**Confidence:** HIGH (grounded against the real graph/service/schema/UI files; the web-search *source* itself stays an open decision behind a seam)
+**Domain:** Subsequent-milestone integration research (existing production Next.js 14 App Router + Supabase SaaS)
+**Researched:** 2026-07-08
+**Confidence:** HIGH — every finding below is grounded in direct inspection of the current codebase (files/line ranges cited in Sources), not training-data assumptions about generic Next.js/Supabase architecture.
 
----
-
-## TL;DR Recommendation
-
-1. **WHERE:** Add a research step as an **enrichment inside `generateEstimateForProject`, immediately AFTER `anchorAndClampSections`** — NOT as a new graph node. The anchor pass is the only place that has *already* tagged which items are `price_book` matches; everything still tagged `ai_estimate` after anchoring is exactly the set "no price-book match" the milestone targets. Doing it here also means web, WhatsApp, and MCP all get it for free (the service is the shared core).
-2. **BATCHED, not per-item:** one research call for ALL unmatched items per estimate (a single `step.run`), not N calls.
-3. **CACHE:** a new `price_research_cache` table keyed by `(company_id, normalized_service_name, region)` with a TTL column; reuses the price-book RLS/service-role pattern.
-4. **PRECEDENCE:** `price_book > researched > ai_estimate`, enforced by running research only over the post-anchor `ai_estimate` set (anchored items are never touched).
-5. **SEAM:** a `PriceResearchProvider` interface resolved by `getPriceResearchProvider()` reading active source from `platform_integrations` — mirrors `getAIProviderWithFallback` / `getIntegrationKey` exactly, so Brave / OpenRouter-web / Gemini-grounding / pricing-API are swappable via admin config.
-6. **DURABILITY:** give research its own `step.run('price-research', …)` so a research-source timeout retries in isolation without re-charging the generate LLM call.
-
----
+This is **not** a greenfield ecosystem survey. It answers: how do 4 tightly-coupled features (SEED-041..044) integrate with an existing, already-hardened estimate pipeline without breaking the channel-neutral generation core or the GUARD-03 deterministic-math invariant.
 
 ## Standard Architecture
 
-### Where the new step lives in the existing pipeline
+### System Overview — the estimate document/send/share surface today
 
 ```
-Inngest job: generate-estimate.ts
-└─ step.run('orchestrate-estimate')          ← whole LangGraph in ONE step (DURABLE-02)
-   └─ buildEstimateGraph(adapter, { runner })
-        START → ingest → generate → assess → (autoRefine|finalize) → END
-                          │
-                          └─ makeGenerateNode(runner)
-                               └─ runner.run('ai-generate', () =>
-                                    generateEstimateForProject(companyId, projectId, opts)   ← shared core
-                                  )
-                                    1. gather project/client/company/priceBook
-                                    2. provider.generateEstimate(input)         (OpenRouter→Gemini)
-                                    3. anchorAndClampSections(...)               ← tags price_book vs ai_estimate
-                                ┌─▶ 3.5  ★ NEW: researchUnmatchedPrices(...)     ← THIS MILESTONE
-                                │        • input = sections still tagged 'ai_estimate' + client region
-                                │        • cache lookup → research provider → write unit_price + 'researched'
-                                4. server totals authority (totals.ts)
-                                5. persist estimates / estimate_sections / estimate_items
+┌──────────────────────────────────────────────────────────────────────────────────┐
+│  EDITOR (authenticated, tenant-scoped)                                            │
+│  estimate-tab.tsx → estimate-editor.tsx → useEstimateReducer (client state)       │
+│    stateToDocumentData() ─────────────► EstimateDocument (mode="edit")            │
+│    stateToSavePayload()  ─────────────► saveEstimate() [Server Action]            │
+└───────────────────────────────────────────┬───────────────────────────────────────┘
+                                              │ writes (GUARD-03: server recomputes ALL
+                                              │ math via computeEstimateTotals — client
+                                              │ never trusted for tax/discount/deposit)
+                                              ▼
+                              ┌───────────────────────────────┐
+                              │   estimates / estimate_sections /   (Supabase Postgres,
+                              │   estimate_items  (RLS, per-company)  RLS-scoped)
+                              └───────────────────────────────┘
+                                              │ read by 6 INDEPENDENT render/format paths
+                     ┌────────────┬───────────┼───────────┬────────────┬─────────────┐
+                     ▼            ▼           ▼           ▼            ▼             ▼
+             EstimateDocument  EstimateDocument  estimate-pdf.tsx  estimate-pdf-  estimate-   lib/whatsapp/
+             (mode="view",     Modern (share,    (classic PDF,     modern.tsx     template.ts  formatter.ts
+             classic share)    modern only)      /api/.../pdf)     (modern PDF)   buildItems-  formatEstimate-
+                                                                                    Breakdown()  ForWhatsApp()
+                     ▲            ▲                  ▲                 ▲              ▲             ▲
+                     │            │                  │                 │              │             │
+         app/estimate/[token]/page.tsx      app/api/estimates/[id]/pdf/route.ts   SendActionsMenu/  send-whatsapp/
+         → getEstimateByShareToken()        (also builds its own doc-data object   PlainTextSheet    route.ts →
+         (lib/queries/share.ts)             independently via getEstimateWithContext)                deliverEstimate-
+                                                                                                       ViaWhatsApp()
 ```
 
-The research step is a **fourth authority pass** in the same family as anchoring (Pillar 1) and totals (GUARD-03): a pure-ish enrichment that mutates `unit_price` + `price_source` on the section tree *before* the server computes authoritative totals.
+**The load-bearing fact for this whole milestone:** there is no single "assemble estimate document data" function today. `EstimateDocumentData` (the shared TS shape consumed by both classic renderers) is independently re-built by **at least 3 different code paths** — `stateToDocumentData()` in `estimate-editor.tsx` (from reducer state), the inline object literal in `estimate-view.tsx` (from `ShareEstimateData`), and `getEstimateWithContext()` in `lib/queries/estimate.ts` (consumed by the PDF route). Two more consumers (`buildItemsBreakdown` and `formatEstimateForWhatsApp`) don't even use `EstimateDocumentData` — they read the raw `EstimateWithSections`/`FormatterEstimate` row directly. **All 6 render/format paths currently do their own independent `field != null` check** to decide whether Summary/Notes/Timeline/Warranty/Payment Terms render. None of them consult a shared "is this visible" source of truth, because none exists yet.
 
-### Why enrichment-in-service, NOT a new graph node
+### Component Responsibilities (current state)
 
-| Criterion | New node after `generate` | Enrichment after anchoring (RECOMMENDED) |
-|-----------|---------------------------|------------------------------------------|
-| Knows which items lack a price-book match | NO — anchoring runs *inside* the service, after the node returns. A node would have to re-fetch the persisted estimate and re-derive matches. | YES — sits a few lines after `anchorAndClampSections`, reads `price_source==='ai_estimate'` directly. |
-| Channel neutrality | Must stay channel-neutral; OK but redundant | Service is already channel-neutral and shared by all 3 channels. |
-| Totals correctness | Node mutates AFTER persistence → totals already wrong, needs re-persist | Runs BEFORE totals + persistence → totals authority sees researched prices natively. |
-| Vagueness gate ($0 → "too vague") | `assess` runs on the persisted estimate; if research is a later node, the originating bug ("$0 → blocked") still fires before research. | Research fills $0 → `assess` sees real numbers → bug fixed. **This is the originating requirement.** |
-| Code churn | New node + state channels + edges + re-fetch logic | One new call + one new module; graph topology untouched. |
+| Component/Module | Responsibility | File |
+|---|---|---|
+| `useEstimateReducer` | Client-side editor state machine; recomputes preview totals (`recalculate()`) mirroring the server engine byte-for-byte | `components/workspace/estimate/use-estimate-reducer.ts` |
+| `computeEstimateTotals` | Server-side, deterministic tax/discount/deposit/markup math (GUARD-03 authority) | `lib/estimate/compute-totals.ts` |
+| `saveEstimate` | Server Action; recomputes totals via the engine, persists sections/items/estimate row, optimistic-concurrency check | `lib/actions/estimate.ts` |
+| `EstimateDocument` | THE shared classic renderer — used in BOTH `mode="edit"` (editor) and `mode="view"` (share page, classic template only). 2018 lines. Owns `InlineProjectName`, `LinkClientInline`, `DocumentTotals`, `TermsBlock`, `AddDetailsPopover`, `SortableDocumentItemRow` (desktop table row), the mobile branch that renders `ItemCardMobile` | `components/workspace/estimate/estimate-document.tsx` |
+| `EstimateDocumentModern` | Share-only modern-template renderer (parallel implementation, not a variant of `EstimateDocument`) | `components/share/estimate-document-modern.tsx` |
+| `estimate-pdf.tsx` / `estimate-pdf-modern.tsx` | `@react-pdf/renderer` PDF renderers, registry-selected by `companies.estimate_template_style` | `components/pdf/` |
+| `getEstimateByShareToken` / `getShareLinkState` | Public bearer-token lookup — the ONLY authorization mechanism for `/estimate/[token]`; strips `share_token` from the response before it reaches the browser | `lib/queries/share.ts` |
+| `buildShareLink` | **Client-only** URL builder (`window.location.origin`) — cannot be called from server routes | `lib/utils/share-link.ts` |
+| `EstimateFloatingActions` | The `Save / Send` (+ overflow: Edit Estimate, Discard, Link Client) sticky pill — desktop + mobile variants | `components/workspace/estimate/estimate-floating-actions.tsx` |
+| `SendDialog` → `SendForm` + `SendActionsMenu` + `PlainTextSheet` | Current channel-first (Email/SMS tabs) send UI + a separate "Share & Export" dropdown | `components/workspace/send/*.tsx` |
+| `resolveTemplate` / `buildItemsBreakdown` | Pure plain-text template engine (already unit-testable, no React/DB) | `lib/utils/estimate-template.ts` |
+| `deliverEstimateViaWhatsApp` / `formatEstimateForWhatsApp` | WhatsApp-specific delivery + formatter, honors `company.delivery_format` (`share_link`/`formatted_text`/`pdf_attachment`) | `lib/whatsapp/send-estimate.ts`, `lib/whatsapp/formatter.ts` |
+| `linkProjectToClient` / `unlinkProjectFromClient` | Server actions — the ONLY DB write path for client linkage (already exist, already correct) | `lib/actions/project.ts:256-286` |
+| `LinkClientInline` / `LinkClientButton` / `LinkClientCard` | **3 independent** implementations of the same fetch-clients → Command search → select → `linkProjectToClient` → toast → `router.refresh()` flow | `estimate-document.tsx:1339-1415`, `components/workspace/link-client-button.tsx`, `components/workspace/link-client-card.tsx` |
+| `proxy.ts` | Route-level auth gate (Next.js middleware, renamed). `/estimate` is deliberately **absent** from `PROTECTED_ROUTE_PREFIXES`, so **any** path depth under `/estimate/*` is already public — a friendly 2-segment route needs zero proxy changes for auth | `proxy.ts:4-23` |
 
-The decisive point is the **originating bug**: "Couch cleaning 8seats" generated `$0`, `assess`/`isVagueEstimate` blocked it. `assess` runs on the *already-persisted* estimate inside the graph. If research were a node placed *after* `assess`, the block already happened. Placing research *before* persistence (inside the service) means the vagueness gate sees researched prices — which is the whole point. (Placing a research node *between* `generate` and `assess` is theoretically possible but would require the node to re-load the just-persisted estimate, re-derive the unmatched set, re-run totals, and re-persist — strictly worse than doing it in-line where the section tree is still in memory and untagged-vs-tagged is already known.)
+## Integration Architecture — answering the 4 sub-questions
 
-### Component Responsibilities
+### (a) Where presentation settings live, and how every consumer reads the same snapshot
 
-| Component | Responsibility | New / Modified |
-|-----------|----------------|----------------|
-| `lib/estimate/price-research/index.ts` `researchUnmatchedPrices(sections, ctx)` | Pure-orchestration: filter `ai_estimate` items, batch them, cache-check, call provider, write `unit_price` + `price_source:'researched'`. Never throws (mirrors anchoring's non-fatal contract). | **NEW** |
-| `lib/estimate/price-research/provider.ts` `PriceResearchProvider` + `getPriceResearchProvider()` | Source seam. Resolves active research source from `platform_integrations`; returns `{ lookup(items, region) }`. | **NEW** |
-| `lib/estimate/price-research/providers/{brave,openrouter-web,…}.ts` | Concrete source adapters. | **NEW** (≥1) |
-| `lib/estimate/price-research/cache.ts` | `(company_id, normalized_name, region)` read/write against `price_research_cache`. | **NEW** |
-| `price_research_cache` table | Multi-tenant cache with TTL. | **NEW (migration)** |
-| `lib/services/generate-estimate.ts` | Insert one call between `anchorAndClampSections` (~line 277) and totals (~line 282). Thread `client.city`/`client.state` region. | **MODIFIED** |
-| `lib/ai/schema.ts` `price_source` enum | Add `'researched'`; relax the D-15 preprocess (today coerces anything ≠ `price_book` → `ai_estimate`). | **MODIFIED** |
-| `lib/ai/types.ts` `LineItemOutput.price_source` | Add `'researched'`. | **MODIFIED** |
-| `lib/ai/price-anchoring.ts` | The `'price_book' as const` literal stays; type widening only. Anchoring still wins (precedence). | **MODIFIED (type only)** |
-| `estimate_items.price_source` CHECK | `… IN ('price_book','ai_estimate','researched')`. | **MODIFIED (migration)** |
-| `lib/actions/estimate.ts` (editor save) | `price_source` union `+ 'researched'`; the existing `isManuallyEdited → null` rule already covers edits. | **MODIFIED** |
-| `components/workspace/estimate/use-estimate-reducer.ts` | `EditorItem.price_source` union `+ 'researched'`. | **MODIFIED** |
-| `item-row.tsx` / `item-card-mobile.tsx` | New "Researched" badge branch (3rd variant alongside Price book / AI estimate). | **MODIFIED** |
-| `lib/admin/integrations-providers.ts` + admin UI | New "Price Research" category / source selector. | **MODIFIED** |
-| `lib/inngest/functions/generate-estimate.ts` | Optional: inject a real `StepRunner` so research becomes its own `step.run` (durability isolation). | **MODIFIED (optional, recommended)** |
+**Recommendation: one new nullable JSONB column, `estimates.presentation_settings`, mirroring the exact precedent already in this codebase (`companies.tax_config JSONB`, landed dormant-first in `supabase/migrations/20260627000001_phase129_advanced_pricing_schema.sql`).** Do **not** use `estimates.metadata` — no such generic column exists on `estimates` today (only `estimate_activity.metadata` and `estimate_deliveries` have metadata-shaped columns; inventing a new generic bag on `estimates` would be a new pattern, not a reused one). Do **not** use N separate typed nullable boolean columns — SEED-041 needs ~8-10 toggle-shaped flags (summary/sections/payment-terms/timeline/warranty/notes/photos visibility, section-subtotals, qty/price visibility, estimate-number/date visibility); a JSONB bag is the established idiom here for "extensible, mostly-off, per-row configuration" and avoids a migration per future toggle.
 
----
-
-## Recommended Project Structure
-
-```
-lib/estimate/price-research/
-├── index.ts                 # researchUnmatchedPrices(sections, ctx) — orchestrator, never throws
-├── provider.ts              # PriceResearchProvider interface + getPriceResearchProvider()
-├── cache.ts                 # cacheGet / cachePut keyed (company_id, normalized_name, region)
-├── normalize.ts             # reuse normalizeNameForMatch from price-anchoring.ts; add region normalizer
-└── providers/
-    ├── brave.ts             # Brave Search source adapter
-    ├── openrouter-web.ts    # OpenRouter web-search model source adapter
-    └── (gemini-grounding.ts / pricing-api.ts as added)
-
-supabase/migrations/
-└── 2026MMDD_price_research_cache_and_source.sql   # new table + CHECK widen + (optional) source seed
-
-components/workspace/estimate/                       # MODIFIED: add 'researched' badge
-```
-
-### Structure Rationale
-
-- **Sibling to `lib/ai/price-anchoring.ts`, but under `lib/estimate/`** — research is a *pricing-domain* concern (region, market lookup), distinct from the LLM provider layer. Keeping it under `lib/estimate/` mirrors `lib/estimate/quality/` and `lib/estimate/totals.ts` (estimate-domain authorities) and keeps it importable by the channel-neutral service without dragging in channel code.
-- **`providers/` mirrors `lib/ai/providers/`** — same mental model as the OpenRouter/Gemini/Anthropic adapter folder, so the swap pattern is familiar.
-- **`getPriceResearchProvider()` mirrors `getAIProviderWithFallback()`** — both are async factories that read active config from `platform_integrations` via `getIntegrationKey`/`getAIProvider`; engineers already know the shape.
-
----
-
-## Architectural Patterns
-
-### Pattern 1: Post-Anchor Enrichment (the placement)
-
-**What:** Run research over `sections.flatMap(s => s.items).filter(i => i.price_source === 'ai_estimate')` immediately after `anchorAndClampSections`, before totals.
-**When:** Always, inside the shared service.
-**Trade-offs:** + single integration point, all channels free, totals/vagueness see real prices. − the service grows another responsibility (mitigated by extracting the logic into its own module and keeping the call a one-liner).
-
-```typescript
-// lib/services/generate-estimate.ts — after anchorAndClampSections (~line 280)
-const { sections: guardedSections } = anchorAndClampSections(aiEstimate.sections, priceBookMapped)
-
-// ★ NEW: research only the items anchoring left as 'ai_estimate'
-const researchedSections = await runner.run('price-research', () =>
-  researchUnmatchedPrices(guardedSections, {
-    companyId,                       // tenant scope — NEVER from LLM output
-    region: { city: client?.city ?? null, state: client?.state ?? null },
-    currencyCode,
-  })
-)
-// then totals + persistence read researchedSections instead of guardedSections
-```
-
-### Pattern 2: Provider Seam (the swappable source)
-
-**What:** `PriceResearchProvider` interface + `getPriceResearchProvider()` factory reading the active source from `platform_integrations`, exactly like `getAIProvider(companyId)`.
-**When:** Resolved once per `researchUnmatchedPrices` call.
-**Trade-offs:** + Brave/OpenRouter-web/Gemini/pricing-API swap with zero call-site change; admin can flip it live (the decision is still open, so the seam *is* the deliverable). − one indirection layer (negligible).
-
-```typescript
-// lib/estimate/price-research/provider.ts
-export interface ResearchedPrice {
-  normalizedName: string
-  unitPrice: number          // USD; 0 allowed only if source genuinely returns 0
-  confidence?: number        // optional, for future "low-confidence" badge
-}
-export interface PriceResearchProvider {
-  // BATCHED: all unmatched item names in one shot
-  lookup(items: { name: string }[], region: Region, currencyCode: string): Promise<ResearchedPrice[]>
-}
-export async function getPriceResearchProvider(): Promise<PriceResearchProvider | null> {
-  const source = await getActiveResearchSource()        // reads platform_integrations
-  switch (source) {
-    case 'brave':          return makeBraveProvider(await getIntegrationKey('brave_search'))
-    case 'openrouter_web': return makeOpenRouterWebProvider(await getIntegrationKey('openrouter'))
-    default:               return null                   // disabled → enrichment is a no-op
-  }
-}
-```
-
-`null` provider (source unconfigured) → `researchUnmatchedPrices` returns input unchanged → items stay `ai_estimate`. This is the graceful-degrade pattern already used by `getXphereConfig()` / Stripe-Connect ("degrade gracefully when admin key absent").
-
-### Pattern 3: TTL Cache with Tenant Scope (avoid re-researching)
-
-**What:** Before calling the provider, look up each normalized `(company_id, name, region)` in `price_research_cache`; only send cache-misses to the provider; write fresh results back with `expires_at`.
-**When:** Every research call.
-**Trade-offs:** + huge cost/latency win on repeat services (same company quotes "couch cleaning per seat" in "Austin, TX" repeatedly); + bounds web-search spend. − cache staleness (mitigated by TTL); − one extra table.
-
-**Why scope by `company_id`?** Two reasons: (1) RLS uniformity with the rest of the schema (every tenant table gates on `company_id` per the v4.0 RLS rewrite); (2) a researched price may be margin-adjusted per company (the milestone mentions admin-config margins). A platform-wide cache would leak one tenant's adjusted price into another. If margins are applied *after* the cache, a shared `(name, region)` cache is possible — but `company_id`-scoping is the safe default and matches every existing table.
+**Split calculation from presentation exactly as the seed's own product rules demand — and exactly as v4.11 already built the precedent for:**
+- Calculation-affecting knobs (Tax Off/Custom, Discount, Deposit) are **already** first-class typed columns (`tax_rate`, `discount_type`/`discount_value`, `deposit_type`/`deposit_value`) that `computeEstimateTotals` reads directly. **No schema change needed for these** — "Tax: Off" is simply `tax_rate = 0` (matches Decision-to-Lock #3's own leaning in SEED-041, and matches the existing `DefaultStateIndicator`/"Customized vs Default" UI pattern already in `DocumentTotals`). Routing these through the NEW gear panel is a UI-wiring change only, not a data-model change.
+- Presentation-only knobs (section visibility, subtotal visibility, etc.) go in `presentation_settings`. **NULL/absent = show everything (retrocompat)** — same "dormant/type-guard-degrade" discipline as `isTaxConfig()` in `compute-totals.ts` (a malformed or absent config degrades to the safe default, never throws).
 
 ```sql
-CREATE TABLE public.price_research_cache (
-  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  company_id      UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
-  normalized_name TEXT NOT NULL,          -- normalizeNameForMatch(item.description)
-  region          TEXT NOT NULL,          -- normalized "city|state" or "state" or "US"
-  unit_price      NUMERIC(12,2) NOT NULL,
-  currency_code   TEXT NOT NULL DEFAULT 'USD',
-  source          TEXT,                   -- which provider produced it (audit)
-  confidence      NUMERIC,                -- optional
-  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  expires_at      TIMESTAMPTZ NOT NULL,   -- created_at + TTL; cron/lazy purge
-  UNIQUE (company_id, normalized_name, region, currency_code)
-);
-ALTER TABLE public.price_research_cache ENABLE ROW LEVEL SECURITY;
--- Deny-all to clients; written/read only via requireServiceClient() from the service
--- (mirrors pipeline_events posture). No authenticated policy needed — service-role bypasses RLS.
+-- mirrors 20260627000001's exact idiom: idempotent, dormant, comment-documented
+ALTER TABLE estimates ADD COLUMN IF NOT EXISTS presentation_settings JSONB;
+COMMENT ON COLUMN estimates.presentation_settings IS
+  'Per-estimate document presentation overrides (SEED-041). NULL = show everything (retrocompat). Read by the shared lib/estimate/presentation-settings.ts resolver — never by ad hoc field != null checks.';
 ```
 
-**TTL recommendation:** **30 days** for market prices (regional service rates move slowly; weekly would burn budget for little gain, yearly risks drift). Lazy purge: treat `expires_at < now()` as a miss; optional weekly cron `DELETE … WHERE expires_at < now()` (the project already runs pg_cron + Vercel-cron fallback patterns). Reuse `getIntegrationKey`'s 30s in-memory TTL idea only for the *active-source string*, not for prices.
+**The drift-prevention mechanism (the actual answer to "how must every consumer read the SAME settings snapshot"):** introduce one new pure module, e.g. `lib/estimate/presentation-settings.ts`, exporting:
+- `resolvePresentationSettings(raw: unknown): ResolvedPresentationSettings` — a type-guard + defaults-fill function (same shape as `isTaxConfig`'s defensive pattern), so a malformed/legacy value never crashes a renderer.
+- `isSectionVisible(settings: ResolvedPresentationSettings, field: 'summary' | 'payment_terms' | 'timeline' | 'warranty_terms' | 'notes' | 'photos'): boolean`.
 
-### Pattern 4: Batched Lookup (per-item vs batched)
+Then **every one of the 6 existing independent consumers must import and call this instead of its own `field != null` check**:
 
-**What:** One provider call for all unmatched item names, not one call per item.
-**When:** Always inside a single Inngest step.
+| Consumer | File | Current behavior (must change) |
+|---|---|---|
+| Editor + classic share | `components/workspace/estimate/estimate-document.tsx` | Replace the local `isFieldVisible`/`revealed` Set/`toggleField` mechanism (lines 1613-1632) — see callout below, this is not additive, it's a replacement |
+| Modern share | `components/share/estimate-document-modern.tsx` | Currently unconditional `estimate.summary &&` style checks (needs same audit as classic) |
+| Classic PDF | `components/pdf/estimate-pdf.tsx:613,764-805` | `estimate.summary &&`, `estimate.payment_terms \|\| ...` — swap for `isSectionVisible()` |
+| Modern PDF | `components/pdf/estimate-pdf-modern.tsx:624,765-812` | Same pattern, same fix |
+| Plain text | `lib/utils/estimate-template.ts` `buildItemsBreakdown()` | Currently renders ALL sections/items unconditionally — needs a `presentation_settings`-aware variant (sections don't have individual visibility, but the "show quantities/unit prices" flag and Notes text will need to reach this pure function) |
+| WhatsApp formatted | `lib/whatsapp/formatter.ts` `formatEstimateForWhatsApp()` | Same — `deliverEstimateViaWhatsApp` fetches its own narrow `estimates` select (`lib/whatsapp/send-estimate.ts:46-59`); that select must widen to include `presentation_settings` |
 
-| Approach | Latency (N unmatched items) | Cost | Failure blast radius |
-|----------|------------------------------|------|----------------------|
-| Per-item | N × round-trip (serial) or N concurrent (rate-limit risk) | N × search cost | one item fails → partial; retries multiply |
-| **Batched** | 1 round-trip | 1 search/LLM call | one call retries cleanly inside `step.run` |
+**Critical existing-behavior conflict to flag for planning (not just an addition):** `estimate-document.tsx`'s current "hide a section" mechanism is `toggleField()` (lines 1619-1632), which for an already-filled field **destructively clears it** (`dispatch({ type: 'UPDATE_FIELD', field, value: null })`). SEED-041 explicitly requires non-destructive toggling ("retain the text so it can be toggled back on"). This means `isFieldVisible`/`revealed`/`toggleField`/`AddDetailsPopover`'s wiring must be **replaced**, not layered underneath, by the new persisted `presentation_settings` flags — otherwise the editor will have two contradictory "is this shown" mechanisms (local ephemeral `revealed` Set vs. persisted `presentation_settings`) fighting each other. `EstimateDocumentData` (the shared type, `estimate-document.tsx:343`) should gain `presentation_settings?: ResolvedPresentationSettings | null`, threaded through by both `stateToDocumentData()` (editor) and the `documentData` builder in `estimate-view.tsx`.
 
-A typical estimate has a handful of unmatched items; N serial web searches inside one Inngest step risks the step's wall-clock budget. A batched call — "return average US market unit prices for these services in {city, state}: [...]" — is one round-trip, one retry unit, one cost unit. For a pure pricing-API source that only accepts one query per item, the provider adapter can fan out *internally* (its concern), but the **seam contract is batched** (`lookup(items[], region)`), so the orchestrator and cache logic never change when the source changes.
+`saveEstimate`'s `SaveEstimateInput` (`lib/actions/estimate.ts:70-97`) needs one new optional field (`presentation_settings?: ...`) — pass-through only, zero interaction with `computeEstimateTotals`, so GUARD-03 stays untouched.
 
----
+### (b) Friendly URL alongside the token-only route — security model
 
-## Data Flow
+**The existing `share_token` (`UUID DEFAULT gen_random_uuid()`, `supabase/migrations/20260409000001_initial_schema.sql:94`) is the sole bearer credential** — `getEstimateByShareToken()` (`lib/queries/share.ts:87-99`) looks up the row **exclusively** by exact match on this column and strips it from every response before it reaches the browser (`lib/queries/share.ts:243`). Any friendly-URL design must preserve this exactly: **the human-readable part of the path must never participate in authorization** — it is decoration only, resolved and validated purely for display.
 
-### Research enrichment flow (the new path)
+**Recommendation: a NEW short opaque token column with its own unique index, not a truncation/reuse of the existing UUID.** A raw UUID (36 chars, hyphenated) is unsuitable for a "friendly" URL suffix, and truncating it arbitrarily (a) weakens entropy in a way that's hard to reason about and (b) can't be efficiently indexed for a prefix-match query. Instead:
+
+```sql
+ALTER TABLE estimates ADD COLUMN IF NOT EXISTS public_slug_token TEXT;  -- e.g. nanoid(10), generated once
+CREATE UNIQUE INDEX IF NOT EXISTS idx_estimates_public_slug_token
+  ON public.estimates(public_slug_token) WHERE public_slug_token IS NOT NULL;
+```
+— this exactly mirrors the existing hardening precedent `idx_estimates_share_token` in `supabase/migrations/20260706000007_rls_hardening_indexes_grants.sql:56-57` (partial unique index, `WHERE ... IS NOT NULL`, dormant-safe for legacy rows). Backfill existing rows in the same migration (or lazily on first send, matching how `share_expires_at` is already lazily refreshed on every send path).
+
+**`companySlug` also does not exist yet** — no `companies.slug` column exists in the schema (confirmed by grep; the only `slug` precedent in this codebase is `blog_posts.slug` with its own unique index, `supabase/migrations/20260503000001_phase15_admin_panel.sql:13,25`). Add `companies.slug` the same way (generated from `company.name` at creation or via a one-time backfill migration + trigger/action on rename).
+
+**`estimateSlug` should NOT be persisted or required to be unique.** Since the trailing `shortToken` is what actually resolves the row, the slug text is purely cosmetic — compute it on the fly from the project/estimate title at render/send time (the codebase already does exactly this kind of ad hoc slugification for PDF filenames: `projectName.replace(/[^a-zA-Z0-9\s-]/g,'').replace(/\s+/g,'-').slice(0,50)` in both `send/route.ts:169-172` and `pdf/route.ts:112-115`). This avoids a slug-uniqueness migration burden and avoids stale-slug problems after a project rename — old shared links keep resolving correctly (the token still matches) even if the visible slug text no longer matches the current title; no redirect-to-fix-the-slug logic is needed.
+
+**Route implementation:** Next.js App Router supports two **structurally distinct** dynamic trees at the same top-level prefix without conflict — the existing `app/estimate/[token]/page.tsx` (1 segment) and a new `app/estimate/[companySlug]/[estimateSlug]/page.tsx` (2 segments) can coexist; Next.js dispatches by segment count/shape, not by name. `[estimateSlug]`'s actual param value is `{estimateSlug}-{shortToken}` — parse the token as the suffix after the last `-` (or a fixed-length suffix if the token generator uses a fixed length, which is simpler and less fragile than delimiter-splitting against a slug that might itself contain hyphens).
+
+**`proxy.ts` requires zero changes** — `/estimate` is deliberately absent from `PROTECTED_ROUTE_PREFIXES` (see the "Pre-launch audit fix" comment at `proxy.ts:7-17`), so `isProtectedRoute()` returns `false` for any path under `/estimate/*` regardless of depth; the new 2-segment route is public by construction, same as today's 1-segment route.
+
+**`lib/queries/share.ts` needs a sibling lookup**, e.g. `getEstimateByPublicToken(token)` (or generalize `getEstimateByShareToken` to accept a `{ column: 'share_token' | 'public_slug_token' }` param) plus a matching `getShareLinkState` variant — both reusing the exact same expiry (`share_expires_at`) and PII-stripping discipline already proven in the existing function.
+
+**Backward compat is free by construction:** leave `app/estimate/[token]/page.tsx` completely unmodified — it keeps resolving via `share_token` exactly as today. No redirect is required for the seed's stated requirement ("old links keep working"); a 301-to-canonical-friendly-URL can be added later as a pure enhancement once `companies.slug`/`public_slug_token` backfill is confirmed complete for the estimate being visited.
+
+**A genuinely new finding relevant to sub-question (b) — the URL-builder duplication that will make this migration painful if not centralized first:** `buildShareLink()` (`lib/utils/share-link.ts`) is **client-only** (reads `window.location.origin`), so it can only be called from client components. Every **server-side** call site that needs to embed a share URL in an outbound message has independently hand-rolled the same string instead of importing a shared helper:
+- `app/api/estimates/[id]/send-sms/route.ts:103` — `` `${baseUrl}/estimate/${estimate.share_token}` ``
+- `lib/whatsapp/send-estimate.ts:76` — `` `${baseUrl}/estimate/${estimate.share_token}` ``
+- `lib/whatsapp/confirm-actions.ts:123` — `` `${getCanonicalBaseUrl()}/estimate/${estimate.share_token}` ``
+- `app/api/estimates/[id]/send/route.ts:113` builds an (unused/dead) `shareLink` local and actually leaves the link to be typed into the email body by the user via `SendForm`'s default `body` value (`buildShareLink(shareToken)` computed client-side in `send-form.tsx:71`).
+
+**This is the real shared choke point for SEED-042**, more so than any single component: recommend introducing ONE isomorphic path-builder — e.g. `buildEstimatePublicPath(company: {slug, name}, estimate: {id, public_slug_token, share_token, project_name}): string` returning just the **path** (no origin) — and updating `buildShareLink` (client) and all 4 server call sites above to combine it with `window.location.origin` / `getCanonicalBaseUrl()` respectively. Doing this FIRST (as part of the URL-contract phase) means the friendly-URL rollout is a one-function change propagated everywhere, instead of 4-5 separate patches with drift risk.
+
+**White-label/custom-domain flag — worth a quick verification, not a blocker:** `app/estimate/[token]/page.tsx` reads an `x-white-label` request header (`headers().get('x-white-label')`) that, per `.planning/phases/39-subdomain-routing-white-label/39-01-SUMMARY.md`, was originally set by a "custom host detection block" in `proxy.ts` "before updateSession()". **That block no longer exists in the current `proxy.ts`** (159 lines, fully read, no `white-label` or custom-host logic present) — meaning `isWhiteLabel` is very likely always `false` today regardless of custom domain. This predates and is unrelated to this milestone, but because SEED-042 explicitly claims "custom domains and white-label routing should still work with the new path," recommend a 10-minute verification pass (confirm whether white-label detection moved elsewhere, e.g. `next.config.js` rewrites, or is genuinely dead) before building custom-domain-aware slug resolution on top of it.
+
+### (c) Suggested phase/build order
+
+The four seeds have **near-zero data-model dependencies on each other**, but they have a **hard file-contention dependency** in one place (`estimate-document.tsx`) and **one real cross-feature data dependency**: the Send Hub's "Online Estimate / PDF / Plain Text" previews are supposed to show the client "what they'll see," which is meaningless before presentation settings exist.
 
 ```
-generateEstimateForProject
-  └─ anchorAndClampSections → guardedSections (items tagged price_book | ai_estimate)
-       └─ researchUnmatchedPrices(guardedSections, {companyId, region, currencyCode})
-            1. unmatched = items where price_source === 'ai_estimate'
-            2. region = normalize(client.city, client.state)  (fallback: state → "US")
-            3. cacheGet(company_id, normalizedName, region) for each → {hits, misses}
-            4. if misses.length:
-                 provider = await getPriceResearchProvider()
-                 if provider: results = await provider.lookup(misses, region, currencyCode)
-                              cachePut(results)            (write-through, expires_at = now+TTL)
-            5. for each unmatched item with a hit/result:
-                 item.unit_price  = researchedPrice
-                 item.price_source = 'researched'
-               (no hit & no result → item STAYS 'ai_estimate' — never downgrade price_book)
-            6. return rewritten sections
-  └─ totals.ts computes authoritative subtotal/tax/grand over researched prices
-  └─ persist estimate_items with price_source ∈ {price_book, researched, ai_estimate}
-  └─ assess (graph) now sees non-$0 numbers → vagueness gate passes
+Phase A ─┬─ SEED-042 URL contract + data model            (zero overlap w/ B, C)
+         │   migrations, lib/queries/share.ts, lib/utils/share-link.ts + server
+         │   call-site consolidation, new [companySlug]/[estimateSlug] route
+         │
+Phase B ─┴─ SEED-041 settings model + persistence          (small overlap w/ C via
+             migration, lib/estimate/presentation-settings.ts,                the reducer + EstimateDocumentData
+             use-estimate-reducer.ts action + EstimateDocumentData field,     type — land BEFORE Phase C)
+             saveEstimate() pass-through field
+
+Phase C  ── estimate-document.tsx CONSOLIDATED PASS         (SEED-041 UI, SEED-043, SEED-044
+             all edit this ONE 2018-line file — sequence          all land here — see (d) below
+             sub-steps, don't run 3 parallel agents on it)         for the recommended internal order)
+
+Phase D  ── SEED-042 Send Hub UI + delivery templates        (depends on Phase B's settings
+             + presentation-settings-aware plain-text/            existing; depends on Phase A's
+             WhatsApp formatter updates                           friendly URL existing to surface
+                                                                     it in the "Online Estimate" tab)
 ```
 
-### Precedence guarantee (`price_book > researched > ai_estimate`)
+- **Phase A and Phase B can run fully in parallel** — disjoint file sets (A: `lib/queries/share.ts`, `lib/utils/share-link.ts`, new route, migrations for `companies.slug`/`estimates.public_slug_token`; B: `use-estimate-reducer.ts`, `lib/actions/estimate.ts`, a new `lib/estimate/presentation-settings.ts`, migration for `estimates.presentation_settings`). Two migrations in the same milestone are fine as long as they're separate idempotent files (matches existing convention of one migration per concern).
+- **Phase C must be sequenced internally, not parallelized**, because SEED-041 (gear-driven visibility rewiring), SEED-043 (mobile item editor swap), and SEED-044 (alignment pass + `InlineProjectName` + client-picker consolidation) all touch `estimate-document.tsx` directly. See (d) for the recommended internal C1→C2→C3 order.
+- **Phase D is the only piece with a genuine cross-seed data dependency** (needs Phase B's `presentation_settings` to exist so the plain-text/WhatsApp preview in the new Send Hub can honor hidden sections) and a soft UX dependency on Phase A (surfacing the friendly URL in the "Online Estimate" tab). Phase D's own files (`components/workspace/send/*.tsx`) are otherwise disjoint from Phase C's files, so **Phase D could start in parallel with Phase C** once Phase B is done — the only shared touch-point is `estimate-floating-actions.tsx`, which both the SEED-041 gear button and the SEED-042 Send-hub trigger wire into, and that's a small, additive, low-conflict file (243 lines, clear prop-based extension points already).
 
-- **price_book wins absolutely:** research only ever reads items already tagged `ai_estimate`. Anchored (`price_book`) items are out of the candidate set — they can never be overwritten by research.
-- **researched beats ai_estimate:** a successful lookup re-tags `ai_estimate → researched`.
-- **ai_estimate is the floor:** no hit / source disabled / provider error → item keeps `ai_estimate`. Research is **non-fatal and additive**, exactly like anchoring (which "must never break generation").
+### (d) New vs modified components per feature, and the shared choke points
 
----
+**SEED-041 — Settings control panel**
 
-## Scaling Considerations
+| New | Modified |
+|---|---|
+| `EstimateSettingsPopover` (or `.../estimate/estimate-settings-panel.tsx`) — desktop popover / mobile sheet, gear-triggered | `components/workspace/estimate/estimate-floating-actions.tsx` — add gear button + `onOpenSettings` prop |
+| `lib/estimate/presentation-settings.ts` — `resolvePresentationSettings`, `isSectionVisible`, defaults | `components/workspace/estimate/estimate-document.tsx` — **replace** `isFieldVisible`/`revealed`/`toggleField`/`AddDetailsPopover` wiring (destructive → persisted) |
+| Migration `NNN_estimate_presentation_settings.sql` | `components/workspace/estimate/use-estimate-reducer.ts` — new `UPDATE_PRESENTATION_SETTINGS` action, new state field |
+| | `lib/actions/estimate.ts` — `SaveEstimateInput` gains the field (pass-through) |
+| | `components/workspace/estimate/estimate-editor.tsx` — `stateToDocumentData()`/`stateToSavePayload()` |
+| | `components/share/estimate-view.tsx` — thread settings into `documentData` |
+| | `components/share/estimate-document-modern.tsx`, `components/pdf/estimate-pdf.tsx`, `components/pdf/estimate-pdf-modern.tsx`, `lib/utils/estimate-template.ts`, `lib/whatsapp/formatter.ts`, `lib/whatsapp/send-estimate.ts` (widen its narrow `estimates` select) — all 6 consumers from part (a) |
 
-| Scale | Adjustments |
-|-------|-------------|
-| 0–1k estimates/mo | Cache + batched call is plenty. Single research source. |
-| 1k–100k | Cache hit-rate dominates cost; consider a platform-wide `(name, region)` cache layer behind the per-company one IF margins are applied post-cache. Add provider fallback (Brave→OpenRouter-web) mirroring AI fallback. |
-| 100k+ | Pre-warm cache for the company's most-quoted services; move purge to a dedicated cron; rate-limit the research source per company tier (reuse `checkQuota`). |
+**SEED-042 — Format-first send + friendly links**
 
-### Scaling Priorities
+| New | Modified |
+|---|---|
+| `app/estimate/[companySlug]/[estimateSlug]/page.tsx` (+ `actions.ts` mirroring the token route's) | `lib/queries/share.ts` — new `getEstimateByPublicToken`/state variant |
+| `SendHub` (replaces the channel-first `SendDialog` composition) with 3 format tabs (Online/PDF/Plain Text) | `lib/utils/share-link.ts` — isomorphic path builder |
+| `lib/estimate/public-url.ts` (or similar) — `buildEstimatePublicPath()` shared path-builder | `app/api/estimates/[id]/send-sms/route.ts`, `send-whatsapp/route.ts`, `send/route.ts` — use the shared builder instead of inline string construction |
+| Migration: `companies.slug`, `estimates.public_slug_token` + unique indexes | `lib/whatsapp/confirm-actions.ts`, `lib/whatsapp/send-estimate.ts` |
+| | `components/workspace/send/send-form.tsx`, `send-actions-menu.tsx`, `plain-text-sheet.tsx` — likely absorbed into the new format-first hub, not kept as-is |
+| | `estimate_deliveries` table — widen `channel` CHECK / add a `format` column (mirrors the existing idempotent-migration style in `20260519000003_estimate_deliveries.sql`) |
 
-1. **First bottleneck: research-source cost/latency.** Fix order already baked in: cache → batch → TTL. A warm cache makes most generations skip the network entirely.
-2. **Second bottleneck: Inngest step wall-clock** if a source is slow. Fix: research gets its **own `step.run`** (below), so it neither blocks nor re-charges the generate LLM step on retry.
+**SEED-043 — Mobile line-item editor parity**
 
----
+| New | Modified |
+|---|---|
+| A document-native mobile item editor (refactor `ItemCardMobile` in place, or a new `DocumentItemMobileEditor` per the seed's own open decision) sharing compact field classes with `SortableDocumentItemRow` | `components/workspace/estimate/estimate-document.tsx` — the `sm:hidden` branch inside `DocumentSectionBlock` (lines ~765-806) |
+| | `components/workspace/estimate/item-card-mobile.tsx` (if refactored in place rather than replaced) |
+| — confirmed dead code, safe to delete or leave alone: `components/workspace/estimate/section-card.tsx` (only self-referenced; grep across `components/` found zero importers) — this resolves the seed's own "audit the active render path" open question. `item-row.tsx` is only imported by the dead `section-card.tsx`, so it is transitively dead too. | |
 
-## Durability inside Inngest
+**SEED-044 — Document alignment + client editing**
 
-The whole graph runs in **one** `step.run('orchestrate-estimate')` (DURABLE-02: Inngest is the sole durability layer, no LangGraph checkpointer). Two options for research:
+| New | Modified |
+|---|---|
+| A shared client-picker (e.g. `useClientPicker()` hook or `ClientLinkPopover` component) consolidating the fetch/search/select/toast/refresh logic currently triplicated in `LinkClientInline` (`estimate-document.tsx:1339-1415`), `LinkClientButton` (`components/workspace/link-client-button.tsx`), `LinkClientCard` (`components/workspace/link-client-card.tsx`) | `components/workspace/estimate/estimate-document.tsx` — `InlineProjectName`'s `decoration-dotted` → solid thin underline; `Bill To` block gains hover/focus edit affordance wired to the new picker + `unlinkProjectFromClient`; broad spacing/alignment pass across company header/title band/info grid/summary/section headers |
+| | `components/workspace/link-client-button.tsx`, `components/workspace/link-client-card.tsx` — refactor to consume the new shared picker instead of their own Command/fetch logic |
 
-- **Recommended:** thread a real `StepRunner` into `buildEstimateGraph(adapter, { runner })` from `generate-estimate.ts` so `researchUnmatchedPrices` runs in `runner.run('price-research', …)`. Because the graph today runs inside a single outer `step.run`, true nested-step isolation requires the runner to map to `step.run`. The seam *already exists* (`StepRunner`, `passthroughRunner`) and the generate node already wraps its AI call in `runner.run('ai-generate', …)` — research follows the identical pattern. Net effect: a research-source timeout retries the research unit without re-invoking the (already-succeeded, already-paid-for) LLM generate call.
-- **Minimum viable:** call `researchUnmatchedPrices` inline (passthroughRunner). Simpler, but a research-source failure that throws would bubble to the whole `orchestrate-estimate` step and re-run generation on retry. **Mitigation that makes this acceptable:** `researchUnmatchedPrices` **never throws** (catches all provider/cache errors, returns input unchanged) — same contract as `anchorAndClampSections`. With never-throw, inline is safe; the dedicated step is purely a cost/retry-isolation optimization.
+**Shared choke points ranked by sequencing risk:**
 
-**Decision:** ship inline + never-throw first (Phase 108), add the dedicated `step.run` as a hardening step (Phase 109) once a real source is wired and its latency is measured.
+1. **`components/workspace/estimate/estimate-document.tsx`** (2018 lines) — touched by SEED-041 (visibility rewiring), SEED-043 (mobile branch), SEED-044 (alignment + `InlineProjectName` + `LinkClientInline`). **3 of 4 features, same file.** Highest risk if worked on in parallel — recommend the internal order below.
+2. **The 6-consumer render/format fan-out** (part a's table) — not a single file, but a single *concept* that must land consistently across 6 files or the "editor shows X, client sees Y" bug class reappears immediately.
+3. **Server-side share-URL construction** (part b's finding) — 4 independent inline string-builders that must all move to one shared path-builder in the same phase, or the friendly URL only half-rolls-out (e.g. SMS gets it, WhatsApp confirm-actions doesn't).
+4. **`estimate-floating-actions.tsx`** — low risk, additive only (gear button for 041, unchanged `onSend` trigger reused by 042's new hub).
 
----
+**Recommended internal order for the `estimate-document.tsx` phase (C1 → C2 → C3):**
+1. **C1 — SEED-044 first**: extract the shared client-picker, fix `InlineProjectName`'s underline, do the alignment/spacing pass. This is the most self-contained of the three (mostly styling + one new extracted component) and settles the file's structure before the other two add behavior on top of it.
+2. **C2 — SEED-041 second**: rewire `isFieldVisible`/`toggleField`/`AddDetailsPopover` to read `presentation_settings` (requires Phase B already landed), wire the gear button. Doing this after C1 means the diff is against the already-aligned layout, not a moving target.
+3. **C3 — SEED-043 last**: swap the mobile item editor. Most isolated of the three (only the `sm:hidden` branch + `item-card-mobile.tsx`), and benefits from verifying mobile parity against the *final* desktop state (post-alignment, post-settings) rather than an intermediate one.
 
-## Anti-Patterns
+## Patterns to Follow
 
-### Anti-Pattern 1: Research as a post-`assess` graph node
-**What people do:** add a node after `generate`/`assess` to "enrich prices."
-**Why it's wrong:** the vagueness gate (`assess`/`isVagueEstimate`) already ran on the persisted $0 estimate and blocked it — the originating bug is NOT fixed. The node must also re-load + re-total + re-persist.
-**Do this instead:** enrich in-service before totals/persistence.
+### Pattern 1: Dormant-first JSONB with a pure resolver + type guard
 
-### Anti-Pattern 2: Trusting `region` or item names from LLM output for tenant/cache keys
-**What people do:** key the cache or scope queries off model-produced strings.
-**Why it's wrong:** breaks the project-wide invariant "`companyId` is never LLM-derived." A poisoned name could read another tenant's cache.
-**Do this instead:** `company_id` from closure/param; `region` from the persisted `client.city/state`; only the *item description text* (used for the search query and the normalized cache key) comes from the model — and it's tenant-scoped by `company_id` in the key.
+**What:** Add nullable JSONB columns via idempotent `ADD COLUMN IF NOT EXISTS`, ship them fully inert (NULL = old behavior), and centralize every read through one pure function that degrades safely on malformed/absent data (`isTaxConfig()` in `compute-totals.ts` is the canonical example — never throws, falls back to the flat/retrocompat path).
+**When to use:** Any new per-row configuration bag where the toggle set is expected to grow (this milestone's `presentation_settings`).
+**Trade-off:** JSONB loses column-level constraints/indexing on individual keys — acceptable here because these are UI toggles, not query filters.
 
-### Anti-Pattern 3: Per-item synchronous web searches inside the Inngest step
-**What people do:** loop `await search(item)` over items.
-**Why it's wrong:** N serial round-trips blow the step budget; N concurrent ones hit source rate limits; retries multiply cost.
-**Do this instead:** batched `lookup(items[], region)`; let a single-query-only source fan out internally.
+### Pattern 2: Server is the sole arithmetic authority (GUARD-03) — extend inputs, never outputs
 
-### Anti-Pattern 4: Overwriting `price_book` or persisting research as authoritative totals
-**What people do:** re-price everything, or write the source's returned total.
-**Why it's wrong:** violates `price_book > researched`; bypasses GUARD-03 server totals authority.
-**Do this instead:** research only `ai_estimate` items; only `unit_price` + `price_source` change; `totals.ts` remains the sole total authority.
+**What:** The client reducer's `recalculate()` (`use-estimate-reducer.ts:125-164`) is explicitly a **preview only**; `saveEstimate()` always recomputes via `computeEstimateTotals` server-side and the persisted row is authoritative.
+**When to use:** Any new field that could plausibly affect a total (tax/discount/deposit toggles in SEED-041's settings panel). `presentation_settings` is safe specifically *because* it's read-visibility-only and never reaches `compute-totals.ts` — keep it that way; if a future field looks like it could change a number, it belongs in the typed columns/engine inputs, not the JSONB bag.
+**Example:** `lib/estimate/compute-totals.ts:87-90` — `computeEstimateTotals` takes exactly the inputs it needs (`taxRate`, `discountType`, `depositType`, etc.); nothing UI-shaped is ever passed in.
 
----
+### Pattern 3: Registry-keyed component lookup, not if/else
+
+**What:** `PDF_TEMPLATE_COMPONENTS: Record<EstimateTemplateId, Component>` in `app/api/estimates/[id]/pdf/route.ts:20-23`, backed by `lib/estimate/templates/registry.ts`'s `isEstimateTemplateId` type guard.
+**When to use:** Any place branching on a small closed set of variants (already used for classic/modern template selection). Not directly needed by this milestone's 4 features, but the presentation-settings resolver and the new format-first Send Hub (Online/PDF/Plain Text) should follow the same registry idiom rather than inline conditionals, for consistency with the surrounding code.
+
+## Anti-Patterns to Avoid
+
+### Anti-Pattern 1: Encoding "is visible" as "is non-null"
+
+**What people do (today, in `estimate-document.tsx`):** `isFieldVisible('summary') = data.summary != null || revealed.has('summary')` — conflates "has content" with "should be shown," and hiding destroys the content (`dispatch({ ..., value: null })`).
+**Why it's wrong:** SEED-041 explicitly calls this out as a product requirement to fix — a business owner should be able to hide Notes for one client without losing the text.
+**Do this instead:** Persisted boolean visibility flags in `presentation_settings`, fully independent of whether the underlying text field is null or populated.
+
+### Anti-Pattern 2: Re-deriving the same public URL in N places
+
+**What people do (today):** `send-sms/route.ts`, `lib/whatsapp/send-estimate.ts`, and `lib/whatsapp/confirm-actions.ts` each independently write `` `${baseUrl}/estimate/${estimate.share_token}` ``, while `buildShareLink()` (the one existing shared helper) can't be reused server-side because it's client-only.
+**Why it's wrong:** A friendly-URL migration touches N call sites with N chances to miss one (exactly the failure mode SEED-042's "keep old links working, don't break WhatsApp/SMS" requirement is worried about).
+**Do this instead:** One isomorphic path-builder, imported everywhere a share URL needs constructing, exercised by a single unit test that would catch any call site still hand-rolling the old shape.
 
 ## Integration Points
-
-### External Services
-
-| Service | Integration Pattern | Notes |
-|---------|---------------------|-------|
-| Brave Search (candidate) | New `brave_search` provider in `platform_integrations` (encrypted key via `getIntegrationKey`); `makeBraveProvider`. | Independent index; key already supported by the encrypted-key path. |
-| OpenRouter web-search model (candidate) | Reuse existing `openrouter` key; `makeOpenRouterWebProvider` issues a web-grounded completion. | Zero new key; stays on the project's primary AI path. |
-| Gemini grounding / pricing API (candidates) | Same seam; add adapter + (maybe) new `platform_integrations` provider id. | Decision deferred — seam absorbs whichever wins. |
 
 ### Internal Boundaries
 
 | Boundary | Communication | Notes |
-|----------|---------------|-------|
-| `generate-estimate.ts` ↔ `price-research/index.ts` | direct async call, never-throws | one new line after anchoring |
-| `price-research` ↔ `platform_integrations` | `getPriceResearchProvider()` → `getIntegrationKey` | mirrors `getAIProvider` |
-| `price-research` ↔ `price_research_cache` | service-role client (`requireServiceClient`) | RLS deny-all to clients, like `pipeline_events` |
-| schema/types ↔ anchoring/totals/persistence/editor | the `'researched'` enum value | single thread through ~8 files (schema.ts, types.ts, price-anchoring type, estimate_items CHECK, actions/estimate.ts, use-estimate-reducer.ts + item-row + item-card-mobile) |
-
----
-
-## Suggested Build Order (dependency-ordered phases)
-
-**Phase 105 — `price_source: 'researched'` threading (foundation, no behavior change).**
-Widen `lib/ai/schema.ts` enum (relax D-15 preprocess to allow `'researched'`), `lib/ai/types.ts` `LineItemOutput`, `price-anchoring.ts` types, `estimate_items.price_source` CHECK migration, `lib/actions/estimate.ts` + `use-estimate-reducer.ts` unions, and the "Researched" badge in `item-row.tsx` / `item-card-mobile.tsx`. Ships green with zero items ever tagged `researched` yet (badge dormant). *Depends on: nothing.* *Unblocks: everything.*
-
-**Phase 106 — Cache table + tenant-scoped cache module.**
-Migration for `price_research_cache` (RLS deny-all), `cache.ts` (get/put, TTL=30d, normalized region), `normalize.ts` (reuse `normalizeNameForMatch` + region normalizer). Unit-tested in isolation. *Depends on: nothing (parallelizable with 105).* *Unblocks: 108.*
-
-**Phase 107 — Provider seam + first source.**
-`PriceResearchProvider` interface, `getPriceResearchProvider()` (reads active source from `platform_integrations`, returns `null` when unconfigured), one concrete adapter (recommend **OpenRouter-web first** — no new key, stays on primary path — then Brave behind the same seam). Admin UI: new "Price Research" source selector in `integrations-providers.ts`. *Depends on: nothing for the interface; admin wiring reuses existing pattern.* *Unblocks: 108.*
-
-**Phase 108 — Orchestrator + service integration (the payoff).**
-`researchUnmatchedPrices` (filter `ai_estimate` → cache-check → batched `provider.lookup` → write-through → re-tag), wired into `generateEstimateForProject` after `anchorAndClampSections`, **never-throws**, inline (passthroughRunner). End-to-end: the "couch cleaning $0" case now gets a researched price and passes the vagueness gate. *Depends on: 105, 106, 107.* *Unblocks: the milestone goal.*
-
-**Phase 109 — Durability + hardening (optional).**
-Inject a real `StepRunner` from `generate-estimate.ts` so research runs in its own `step.run('price-research')`; add provider fallback (source A → source B) mirroring AI fallback; admin-config margins applied post-research; optional purge cron. *Depends on: 108.* *Defer until a real source's latency is measured.*
-
-> Phases 105 and 106/107 can run in parallel; 108 is the join point; 109 is post-hoc hardening. Numbering continues the global counter (v4.6 starts at Phase 105 per PROJECT.md).
-
----
+|---|---|---|
+| Editor reducer ↔ `saveEstimate()` | Server Action, full-object payload, optimistic-concurrency via `expectedUpdatedAt` | `presentation_settings` slots in here as a pass-through field, no math coupling |
+| `estimates.presentation_settings` ↔ 6 renderers | Direct Supabase row read per consumer (no shared query layer exists yet) | Recommend the `lib/estimate/presentation-settings.ts` resolver as the enforced single read-path, not a new query abstraction (would be a larger refactor than this milestone needs) |
+| Public share route ↔ `estimates` table | Bearer-token exact-match lookup via service-role client (RLS bypassed intentionally, PII stripped in the query layer) | New friendly route must reuse this exact posture with a second token column, never the slug |
+| `proxy.ts` ↔ `/estimate/*` | Prefix-based route classification, `/estimate` deliberately unprotected at any depth | Zero changes needed for the new 2-segment route |
+| WhatsApp delivery format ↔ presentation settings | `company.delivery_format` (`share_link`/`formatted_text`/`pdf_attachment`) already branches per-company; `formatted_text` path must additionally honor per-estimate `presentation_settings` | `lib/whatsapp/send-estimate.ts:69,110-113` |
 
 ## Sources
 
-- Codebase (HIGH — read directly): `lib/services/generate-estimate.ts`, `lib/ai/price-anchoring.ts`, `lib/estimate/totals.ts`, `lib/estimate/graph/{index,state,types}.ts`, `lib/estimate/graph/nodes/{generate,decide}.ts`, `lib/ai/{schema,types,provider-with-fallback}.ts`, `lib/inngest/functions/generate-estimate.ts`, `lib/platform-config.ts` (`getIntegrationKey`), `lib/admin/integrations-providers.ts`, `components/workspace/estimate/{item-row,item-card-mobile,use-estimate-reducer}.tsx`, `lib/actions/estimate.ts`, `supabase/migrations/20260506000001_phase19_price_book.sql`.
-- `.planning/PROJECT.md` — v4.6 milestone definition, locked constraints (OpenRouter primary, Brave candidate, Phase 105 start), originating bug.
-- `lib/estimate/graph/CHECKPOINTING.md` (DURABLE-02: Inngest sole durability) — referenced via `index.ts` header.
+All findings are direct codebase inspection (HIGH confidence) of the following files, read in full or in relevant part during this research pass:
+
+- `.planning/PROJECT.md` (Current Milestone: v4.18 section)
+- `.planning/seeds/SEED-041-estimate-settings-control-panel.md`
+- `.planning/seeds/SEED-042-format-first-send-flow-friendly-estimate-links.md`
+- `.planning/seeds/SEED-043-mobile-estimate-line-item-editor-parity.md`
+- `.planning/seeds/SEED-044-estimate-document-alignment-and-client-editing.md`
+- `lib/estimate/compute-totals.ts`
+- `lib/queries/share.ts`
+- `lib/utils/share-link.ts`
+- `app/estimate/[token]/page.tsx`, `app/estimate/[token]/actions.ts`
+- `app/api/estimates/[id]/send/route.ts`, `send-sms/route.ts`, `send-whatsapp/route.ts`, `pdf/route.ts`
+- `components/workspace/estimate/estimate-document.tsx` (full 2018 lines)
+- `components/workspace/estimate/use-estimate-reducer.ts` (full)
+- `components/workspace/estimate/estimate-editor.tsx`, `estimate-tab.tsx`, `estimate-floating-actions.tsx`
+- `components/workspace/estimate/item-card-mobile.tsx`, `section-card.tsx` (confirmed dead code)
+- `components/share/estimate-view.tsx` (full), `estimate-document-modern.tsx` (structural)
+- `components/pdf/estimate-pdf-modern.tsx`, `estimate-pdf.tsx` (structural/grep)
+- `components/workspace/send/send-dialog.tsx`, `send-form.tsx`, `send-actions-menu.tsx`, `plain-text-sheet.tsx` (full)
+- `components/workspace/link-client-button.tsx`, `link-client-card.tsx` (full)
+- `lib/utils/estimate-template.ts` (full), `lib/whatsapp/send-estimate.ts` (full), `lib/whatsapp/confirm-actions.ts` (grep)
+- `lib/actions/project.ts` (full), `lib/actions/estimate.ts` (partial), `lib/queries/estimate.ts` (partial)
+- `lib/estimate/templates/registry.ts` (full)
+- `lib/estimates/share-link.ts` (full), `lib/utils/site-url.ts` (full)
+- `proxy.ts` (full)
+- `supabase/migrations/20260409000001_initial_schema.sql`, `20260627000001_phase129_advanced_pricing_schema.sql`, `20260519000003_estimate_deliveries.sql`, `20260706000007_rls_hardening_indexes_grants.sql`, `20260503000001_phase15_admin_panel.sql` (grep + relevant sections)
+- `.planning/phases/39-subdomain-routing-white-label/39-01-SUMMARY.md` (grep, cross-referenced against current `proxy.ts` — found the white-label header-setting logic no longer present)
 
 ---
-*Architecture research for: v4.6 Researched Pricing Agent (regional market-price enrichment for price-book misses)*
-*Researched: 2026-06-23*
+*Architecture research for: v4.18 Estimate Document & Send Experience Refresh (Xtimator)*
+*Researched: 2026-07-08*

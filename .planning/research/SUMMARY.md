@@ -1,173 +1,175 @@
 # Project Research Summary
 
-**Project:** Xtimator -- v4.6 Pricing Intelligence: Researched Pricing Agent (Pillar 2)
-**Domain:** External-search-backed regional market-price enrichment inside an AI estimate pipeline (US home-services SaaS)
-**Researched:** 2026-06-23
-**Confidence:** HIGH (stack/architecture/pitfalls grounded against real code + official vendor docs; feature norms MEDIUM-HIGH)
+**Project:** Xtimator
+**Milestone:** v4.18 — Estimate Document & Send Experience Refresh (SEED-041..044)
+**Domain:** Incremental UI/UX + data-model refresh of an existing production SaaS's core estimate document, per-document settings, and send/share surface (US service-business estimating SaaS)
+**Researched:** 2026-07-08
+**Confidence:** HIGH
 
 ## Executive Summary
 
-v4.6 closes a single, sharp bug with broad consequences: when an estimate line item has no price-book match, today's AI guess can emit $0, and the vagueness gate (`isVagueEstimate`) blocks the whole estimate as "too vague" ("Couch cleaning 8seats" is the canonical case). The milestone replaces that guess, for unmatched items only, with a **regionally researched market price** tagged `price_source: 'researched'` and backed by evidence. The existing stack (Next.js App Router, the v4.3 canonical LangGraph estimate graph inside an Inngest job, OpenRouter-primary provider fallback, `platform_integrations` encrypted-key store, `price_source` tagging) is **fixed and out of scope** -- this is purely an additive enrichment plus one search source.
+This milestone is consolidation and hardening work on an already-shipped, already-hardened estimate pipeline — not a new subsystem. All four seeds (per-estimate settings panel, format-first send hub with friendly URLs, mobile line-item parity, document alignment + inline client editing) can be built entirely with technology already installed (`radix-ui`, `cmdk`, `zod`, `react-hook-form`, Node's built-in `crypto`) and by extending patterns this codebase has already proven out: the `companies.tax_config` dormant-first JSONB + type-guard idiom for settings, the `share_token` exact-match service-role lookup for public access, and the registry-keyed component pattern for template selection. Zero new npm packages are recommended, and the correct instinct throughout planning should be "extend an existing pattern," not "introduce a new one."
 
-The load-bearing decisions are settled across all four research streams. **Search source:** use OpenRouter's native web-search server tool (engine `exa`, a *separate* call from the forced `create_estimate` call) -- same vendor, same key, same billing, ~$0.005/req, zero new dependency; Anthropic web search (with native `user_location`) is the gated *quality fallback* if regional grounding proves weak; Brave (free tier gone Feb 2026), dedicated pricing APIs (no public API), and scraping (legal/ToS/brittleness) are rejected. **Placement:** enrich *inside* `generateEstimateForProject`, immediately **after `anchorAndClampSections`** -- NOT as a post-`assess` graph node -- because the anchor pass is the only place that already knows which items lack a price-book match, and running before totals/persistence means the vagueness gate sees real numbers (which is the literal fix). **Precedence is absolute: `price_book > researched > ai_estimate`** (research only ever touches post-anchor `ai_estimate` items).
+The single biggest structural risk is that five-to-six independent code paths (editor, classic share, modern share, classic PDF, modern PDF, plain-text/WhatsApp) each currently decide section visibility with their own `field != null` check and there is no shared source of truth — meaning a naive implementation of the new settings panel will almost certainly ship a setting that "works in the editor" but silently doesn't apply to the PDF or the client's actual WhatsApp message. A close second risk is security regression on the new friendly public URL: this exact codebase already shipped and had to revert an anon-RLS PII leak on `estimates` once (`20260606000002_drop_estimates_anon_select_policy.sql`), and a slug-based lookup implemented carelessly recreates the identical bug class. Both risks are well understood and have concrete, codebase-grounded mitigations (a single shared visibility resolver imported everywhere; keeping all public lookups on `requireServiceClient()` with exact-match filtering, never a new anon RLS policy).
 
-The dominant risk is not "can we look up a price" but "can we do it **trustworthily, deterministically, and cheaply**." Four guardrails are non-negotiable and must ship with the feature, not after: (1) **no fallback rung is ever $0** -- researched -> non-zero `ai_estimate` floor -> flagged "needs your price" routed to the existing `awaiting_details` path, never a silent $0 block; (2) the `'researched'` tag is **evidence-gated** (requires `source_url` + snippet + `researched_at`) so a guess is never laundered as researched; (3) the search source sits behind a **`PriceResearchProvider` port with a deterministic fixture adapter** so the v4.5 eval harness + CI regression gate stay green; (4) **prompt-injection hardening is reused** (route every snippet through `sanitizeField` + a `<search_result>` tag in the existing ## Security block). Caching (`price_research_cache`, tenant-scoped, ~30-day TTL) and cost controls (per-estimate item caps + a provider spend cap) bound the per-estimate blast radius.
+The recommended approach is to sequence the milestone around dependency reality, not seed numbering: land the URL/security contract (SEED-042 foundation) and the settings data model (SEED-041 foundation) first — these are file-disjoint and can run in parallel — then do a single, internally-sequenced pass over the 2018-line `estimate-document.tsx` file that three of the four seeds all touch, and only then build the Send Hub UI and roll the settings resolver out across all six render/format consumers, since that rollout is the one piece with genuine dependencies on both foundations. Every phase should close with an explicit cross-surface verification step (does the PDF, the plain-text message, and both share templates all agree with what the editor shows?) rather than treating "the editor preview updates" as done.
 
 ## Key Findings
 
 ### Recommended Stack
 
-The recommendation is to add a web-search call whose grounded result is injected as context into the *existing* OpenRouter estimate path -- never to combine a forced `tool_choice: create_estimate` with a server web-search tool in one turn (undocumented/unreliable on OpenRouter). The search runs first, grounds a number, then the unchanged structured-estimate call proceeds. See `STACK.md`.
+Confirmed directly against `package.json`, the lockfile, and live source: **no new runtime dependencies are needed for any of the four target features.** `radix-ui@^1.4.3` already backs both `components/ui/popover.tsx` and `components/ui/sheet.tsx` (the latter already supports `side="bottom"` — a functional bottom sheet today, no `vaul` needed). `cmdk@^1.1.1` already backs `components/ui/command.tsx` and is already used in production for a client picker (`link-client-card.tsx`, `link-client-button.tsx`) — exactly the pattern SEED-044 needs to consolidate. Short unguessable public tokens should use Node's built-in `crypto.randomBytes(n).toString('base64url')` (this project's existing idiom via `crypto.randomUUID()` used in 4+ places), not `nanoid` (present only as a transitive dependency of `postcss`, not safe to import directly). Slug generation should reuse the existing dependency-free `slugify()` one-liner already proven in production for `blog_posts.slug`.
 
 **Core technologies:**
-- **OpenRouter web-search server tool (`openrouter:web_search`, engine `exa`)** -- grounded regional price lookup for unmatched items, as a separate OpenRouter call -- same vendor/key/billing as the primary AI path, ~$0.005/req, **no new credential or npm dependency**. Pin `exa` for deterministic pricing (`auto` may route to provider search at variable cost).
-- **Existing OpenRouter chat-completions path** -- synthesize grounded snippets into a single `unit_price` (+ low/high metadata) -- already built (`lib/ai/providers/openrouter.ts`); research result is injected as context.
-- **`zod` (already in repo)** -- validate the researched payload before writing `price_source: 'researched'` -- mirrors existing `normalizeOutput` discipline; never trust a raw model number into the DB.
-- **`platform_integrations` admin store (existing)** -- hold active source + region/margin/fallback config -- reuses AES-256-GCM encrypted, runtime-configurable store; zero env vars.
-
-**Runner-up (gated quality fallback):** Anthropic Claude web search ($10/1k searches) with native `user_location {city, region, country}` -- strongest regional grounding + citations, but inverts the provider hierarchy (Anthropic is only the fallback vendor), so gate it behind a `platform_integrations` flag and use only if A/B shows OpenRouter/Exa regional quality is weak.
-
-**Rejected:** Brave Search (viable + cheap but adds a new key + a metered vendor whose **free tier was removed Feb 2026**, ~$0.003-0.005/query, 50 QPS, no default spend cap); Gemini grounding ($35/1k after 1,500/day free -- couples a core feature to the fallback vendor); **dedicated pricing APIs** (RSMeans/Angi/HomeAdvisor -- **no public developer API**); **direct scraping** (ToS/legal exposure, brittleness, headless-browser dependency the project deliberately avoided). Always pair the chosen source with a deterministic safety-net fallback so a failed lookup still yields a non-$0 price.
+- `radix-ui` (Popover, Sheet primitives) — desktop-popover / mobile-bottom-sheet for the settings panel, already themed to the app's glass design system
+- `cmdk` via `components/ui/command.tsx` — command-palette search-select for the consolidated client picker, already load-bearing in production
+- Node built-in `crypto.randomBytes(...).toString('base64url')` — short, CSPRNG-backed public token suffix; no polyfill needed (Node floor ≥20.9)
+- Nullable JSONB column + typed TS interface + degrade-to-default type guard (the `companies.tax_config`/`isTaxConfig()` pattern) — the proven shape for `estimates.presentation_settings`
+- `zod` + `react-hook-form` — validate/build the new settings-panel form fields the same way every other server action in this codebase does
 
 ### Expected Features
 
-Industry norm (RSMeans/Homewyse/Profit Rhino) is *national average x regional adjustment, shown as a range, with visible sources, always human-overridable*. Xtimator's novelty is doing the lookup **on-demand per line item via AI web search** instead of a licensed static DB -- that changes the mechanism, not the expected behavior. See `FEATURES.md`.
+Per-document settings overrides, non-destructive section hiding, and link/portal-primary send flows are all well-established table stakes across the service-business estimating category (Housecall Pro, Jobber, ServiceTitan) — this milestone is catching up to and, in two areas, slightly ahead of the observed market, not inventing a novel category.
 
 **Must have (table stakes):**
-- **Regional localization via client city/state in the search query** -- direct local lookup ("couch cleaning cost Austin TX"); the whole point of the milestone.
-- **`price_source: 'researched'` value + editor badge** -- distinct from `price_book` / `ai_estimate`; trust-critical, locked decision.
-- **No-data fallback chain + vagueness-gate fix** -- researched -> non-zero `ai_estimate` floor -> flagged "needs your price" (non-blocking); directly kills the originating $0 bug.
-- **Human override preserved** -- confirm existing `Edited` flow clears `researched` and that item is never re-researched (one-way).
-- **Minimal source capture** -- store `source_url` + snippet count on the researched item even if UI is just "researched from N sources"; cheap now, expensive to retrofit, underpins the `researched` tag integrity.
+- Per-estimate override of tax/discount/deposit, scoped to that estimate only, without touching company defaults
+- Hiding a section/field only changes presentation — never deletes underlying data or silently recalculates totals (Housecall Pro's explicit, documented behavior)
+- Section/column visibility toggles (summary, line detail, terms, notes) as coarse on/off controls, not granular per-sub-field toggles
+- Link/portal as the primary send artifact with PDF generated on demand, not force-attached
+- Old share links (`/estimate/{share_token}`) keep working after the URL-format change
+- No-login viewing of a shared estimate, company branding auto-applied
 
-**Should have (competitive):**
-- **Source transparency / "researched from N sources"** -- the single biggest trust lever (converts "the AI made it up" into "here is where this came from").
-- **Low / avg / high range retained as metadata** -- honesty signal; avg drives the line, low/high on hover. Anti-feature: do NOT replace the single editable `unit_price` with a range.
-- **Service+region cache (30-90 day TTL)** -- big cost/latency win once volume is visible.
-- **Admin-panel research config** -- source selection, default markup, fallback mode, TTL; ship thin with sane defaults.
-- **Confidence signal** from source count/agreement.
+**Should have (differentiators):**
+- In-canvas hover-to-edit "Bill To" block — no researched competitor (PandaDoc, DocuSign, Bonsai) does true in-canvas recipient editing
+- Three equal top-level format choices (Online / PDF / Plain Text) fully replacing channel tabs — ahead of even Jobber/HoneyBook, which lean link-first without fully exposing three peer choices
+- Human-readable branded URL (`/estimate/{companySlug}/{estimateSlug}-{shortToken}`) on the shared domain with zero tenant DNS setup, matching the Notion-style hybrid pattern
+- Mobile line-item editor with true document-native visual parity (exceeds Joist, the cleanest researched mobile-first competitor)
 
-**Defer (v4.6.x / v5+):**
-- Coarse regional-multiplier fallback table (only if direct local lookup proves too sparse for rural regions).
-- Full clickable per-line citations UI.
-- Cross-tenant pricing analytics from the cache (needs volume + privacy pass).
-
-**Explicit anti-features (do NOT build):** real-time live scraping per item; a single "the market price is $X" with no range/uncertainty; a proprietary RSMeans-clone cost DB; auto-applying researched prices silently into the sent estimate without review; letting researched prices override the price book; re-researching items the owner already edited.
+**Defer (v2+):**
+- Granular per-field visibility toggles inside a section — add only if owners request it after the coarse on/off ships
+- Reusable settings presets/templates (explicitly deferred in SEED-041 itself)
+- Tenant custom-domain white-labeling (Proposify-style CNAME) — heavier DNS lift, unnecessary while shared-domain friendly URLs already read as branded
+- Pixel-based PDF/email open-tracking analytics — explicit anti-feature, unrequested scope creep, unreliable in practice
 
 ### Architecture Approach
 
-Add the research step as an **enrichment inside `generateEstimateForProject`, immediately after `anchorAndClampSections`** (the post-anchor `ai_estimate` set *is* the "no price-book match" set), running BEFORE totals + persistence so the graph's `assess`/vagueness gate sees real numbers. One **batched** lookup for all unmatched items (not N calls), behind a swappable provider seam, with a tenant-scoped TTL cache. The orchestrator **never throws** (mirrors anchoring's non-fatal contract). See `ARCHITECTURE.md`.
+There is no single "assemble estimate document data" function today — `EstimateDocumentData` is independently rebuilt by at least 3 code paths, and 6 render/format consumers each make their own `field != null` visibility decision. The correct architecture is to introduce exactly one new pure resolver module (`lib/estimate/presentation-settings.ts`) and one new isomorphic URL path-builder, and require every existing consumer to import and call them rather than re-deriving logic locally — mirroring how `lib/estimate/compute-totals.ts` is already the single authority for math (GUARD-03). Calculation-affecting settings (tax/discount/deposit) need zero schema changes — they already live in typed columns the engine reads directly; only presentation-only settings need a new dormant-first nullable JSONB column (`estimates.presentation_settings`, NULL = show everything).
 
 **Major components:**
-1. **`lib/estimate/price-research/index.ts researchUnmatchedPrices(sections, ctx)`** -- filter `ai_estimate` items -> cache-check -> batched `provider.lookup` -> write-through -> re-tag `researched`; never throws.
-2. **`lib/estimate/price-research/provider.ts PriceResearchProvider + getPriceResearchProvider()`** -- the swappable-source seam, resolving active source from `platform_integrations` (mirrors `getAIProviderWithFallback`); `null` when unconfigured -> enrichment is a no-op. **This is also the determinism seam** the eval harness injects a fixture adapter into.
-3. **`price_research_cache` table (new migration)** -- `(company_id, normalized_name, region, currency)` unique key + `expires_at`; deny-all client RLS, service-role-only (mirrors `pipeline_events`).
-4. **`lib/services/generate-estimate.ts` (modified)** -- one new call between anchoring and totals, threading `client.city/state` region.
-5. **The `'researched'` enum thread** -- single value through ~8 files: `lib/ai/schema.ts` (relax the D-15 preprocess), `lib/ai/types.ts`, `price-anchoring.ts` (type widen only -- `price_book` still wins), `estimate_items.price_source` CHECK, `lib/actions/estimate.ts`, `use-estimate-reducer.ts`, `item-row.tsx`, `item-card-mobile.tsx` (new "Researched" badge).
+1. `lib/estimate/presentation-settings.ts` — new pure resolver (`resolvePresentationSettings`, `isSectionVisible`); single source of truth all 6 renderers must call
+2. `lib/estimate/public-url.ts` (new) + `lib/utils/share-link.ts` (extended) — isomorphic path-builder replacing 7 independent inline URL-string constructions (including two inside `lib/billing/connect-webhook.ts`, easy to overlook)
+3. `app/estimate/[companySlug]/[estimateSlug]/page.tsx` (new, coexists with unmodified `app/estimate/[token]/page.tsx`) + `getEstimateByPublicToken()` sibling to `getEstimateByShareToken()` — same service-role, exact-match, PII-stripping posture, new short-suffix column with its own partial unique index
+4. `components/workspace/estimate/estimate-document.tsx` (2018 lines) — the shared choke point; SEED-041 (visibility rewiring), SEED-043 (mobile branch), and SEED-044 (alignment + client picker) all touch this one file and must be sequenced internally, not parallelized
+5. `SendHub` (new, replaces channel-first `SendDialog`) — 3 format tabs (Online/PDF/Plain Text), depends on the settings resolver existing so previews are accurate
 
 ### Critical Pitfalls
 
-From `PITFALLS.md` (10 total; top correctness/cost items below):
-
-1. **Re-introducing the $0/vague trap on the no-data path** (the single most important) -- research returning nothing must degrade to a non-zero `ai_estimate`, or route to the existing `awaiting_details` path; **never** leave $0 (re-trips the gate) and **never** write an arbitrary placeholder. Regression-test the "Couch cleaning 8seats" fixture with an empty research response -> asserts a non-zero priced estimate.
-2. **Hallucinated / citation-less `researched` prices** -- the tag must be **evidence-gated**: stamp `researched` only when `source_url` + snippet + `researched_at` exist; weak grounding falls through to honest `ai_estimate`, never a fake `researched`. Separate retrieval from generation.
-3. **Non-determinism breaks the v4.5 eval harness + CI gate** -- seam the source behind `PriceResearchProvider`, ship a **deterministic fixture adapter** + golden fixtures + a fixed clock for `researched_at`/TTL; extend quality metrics with a "no $0 researched items" assertion. Never hit a live API in the gated suite.
-4. **Prompt injection from web content** -- search snippets are attacker-influenceable; route every snippet through the existing `sanitizeField` + a `<search_result>` tag enumerated in `buildSystemPrompt` ## Security block; prefer structured numeric extraction over free-text-into-LLM. Reuse the proven transcript/photo hardening, do not invent a parallel path.
-5. **Cost / latency / rate-limit explosion** -- batched (not per-item) lookup; tenant-scoped TTL cache (a hit is $0); **per-estimate item cap + provider spend cap**; memoize research across the auto-refine loop (do not re-pay on refine); distinguish 429-retry from quota-drained-degrade; never block the whole estimate on one slow lookup.
-
-Plus: **multi-tenant cache leakage** (cache only the neutral market datum -- no `company_id`/client/margin in the *value*; apply margins after read; service-role-only table) and **channel neutrality** (the new module imports nothing channel-specific -- the `ENGINE-01` static gate).
+1. **Settings-drift across renderers** — the gear panel's toggle updates the editor preview but the PDF/plain-text/WhatsApp message the client actually receives still shows old content, because those paths never learned about the new setting. Avoid by routing all 6 consumers through one shared `isSectionVisible()` resolver, verified with a test that diffs presence across all output surfaces for the same toggle — not just editor + one renderer.
+2. **New non-destructive settings collide with the existing destructive "Add Details" hide toggle** — `toggleField()` today sets a field to `null` (deletes content) while SEED-041 requires hide-without-deleting. Shipping both as independent controls over the same five fields guarantees "I hid a section and the text is gone" support tickets. Lock the decision (retire the destructive toggle, or scope `AddDetailsPopover` to empty-field-only) before building the UI.
+3. **Recreating the exact anon-RLS PII-leak class already fixed once on this table** — `20260606000002_drop_estimates_anon_select_policy.sql` documents a real, previously-shipped vulnerability where a "non-null" predicate let `anon` harvest every share token and scrape client PII. A slug-based lookup that isn't service-role + exact-match recreates this. No new anon RLS policy on `estimates`, ever, for this milestone.
+4. **The "friendly" short suffix is guessable/enumerable despite looking random** — company/estimate slugs are public-derivable; if the secret suffix is short, low-alphabet, or derived from predictable inputs (sequential ID, timestamp), the combined URL is far weaker than the current 128-bit UUID `share_token`. Use ≥10 base62 chars from a CSPRNG, and consider basic rate limiting on the public route (none exists today).
+5. **Scattered URL builders silently drop the Stripe redirect query-param contract** — 7 independent inline share-URL constructions exist today (including 2 inside payment-webhook code, `connect-webhook.ts`, easy to miss). A "helpful" pass to update all call sites to the new format risks breaking `?stripe=success`/`?stripe=canceled` redirects for real paying customers unless routed through one shared builder and re-verified against the existing Stripe e2e tests.
 
 ## Implications for Roadmap
 
-Both the architecture and pitfalls researchers proposed a phase breakdown. They agree on the shape; the architecture version is more concrete (numbered 105-109, continuing the global counter) and the pitfalls version maps every pitfall to a phase. The reconciled breakdown below uses the architecture numbering and folds the pitfalls' correctness/cost mappings into each phase. **Numbering continues globally -- v4.5 ended at Phase 103, so v4.6 starts at Phase 105.**
+Based on combined research, the four seeds have near-zero data-model dependencies on each other but one hard file-contention point (`estimate-document.tsx`, touched by 3 of 4 seeds) and one genuine cross-seed data dependency (the Send Hub needs the settings resolver to exist before its previews mean anything). Suggested phase structure:
 
-### Phase 105: `price_source: 'researched'` Threading (foundation, no behavior change)
-**Rationale:** Pure type/enum/badge plumbing with zero runtime behavior -- unblocks everything else and ships green with the badge dormant (no item is ever tagged `researched` yet). No external dependency.
-**Delivers:** Widened `lib/ai/schema.ts` enum (relax D-15 preprocess), `lib/ai/types.ts`, `price-anchoring.ts` type widen, `estimate_items.price_source` CHECK migration, `actions/estimate.ts` + `use-estimate-reducer.ts` unions, "Researched" badge in `item-row.tsx` / `item-card-mobile.tsx`.
-**Addresses:** `price_source: 'researched'` value + badge (table stakes); human-override `Edited`-clears-`researched` confirmation.
-**Avoids:** Precedence pitfall by type-only widening -- `price_book` still wins.
+### Phase 1: URL Contract & Public Access Security
+**Rationale:** Contains the single highest-severity pitfall in the milestone (anon-PII-leak re-creation) and has zero file overlap with other phases — do this first, in isolation, with an explicit security checkpoint before any UI depends on it.
+**Delivers:** `companies.slug` + `estimates.public_slug_token` columns (partial unique indexes, dormant-first), new `app/estimate/[companySlug]/[estimateSlug]/page.tsx` route coexisting with the unmodified token route, `getEstimateByPublicToken()`/`getShareLinkState()` siblings, one isomorphic `buildEstimatePublicPath()` path-builder replacing all 7 existing inline URL constructions (including the 2 inside `connect-webhook.ts`), `logEstimateView`/`respondToEstimate` wired to the estimate's real `share_token` regardless of which route was used to reach it.
+**Addresses:** Friendly branded URLs, old share links keep working (FEATURES.md table stakes)
+**Avoids:** Pitfalls 3 (anon RLS/PII leak), 4 (weak suffix entropy), 5 (scattered URL builders / Stripe regression), 6 (view-logging silently breaks on the new route)
 
-### Phase 106: Cache Table + Tenant-Scoped Cache Module
-**Rationale:** Cache is core, not optional -- without it the cost/latency/rate-limit pitfalls bite at any real volume. Parallelizable with 105. Region-granularity + key-canonicalization decisions live here (and feed the search query in 108).
-**Delivers:** `price_research_cache` migration (deny-all RLS), `cache.ts` (get/put, TTL=30d, normalized region), `normalize.ts` (reuse `normalizeNameForMatch` + region normalizer), a **static leakage test** (no `company_id`/client/margin in the value).
-**Uses:** Supabase service-role pattern (mirrors `pipeline_events`).
-**Implements:** `price_research_cache` component.
-**Avoids:** Pitfall 5 (stale/wrong-region keys -- canonical `(service, region, currency)` + TTL), Pitfall 6 (multi-tenant leakage -- neutral datum only, margins applied after read).
+### Phase 2: Presentation Settings Data Model & Persistence
+**Rationale:** File-disjoint from Phase 1 (different migration, different modules) — can run in parallel with Phase 1 if desired, but must land before Phase 4 (Send Hub) and before the settings-UI sub-step of Phase 3. No dependency on Phase 1.
+**Delivers:** `estimates.presentation_settings` JSONB column (dormant-first, mirroring the `tax_config` precedent exactly), `lib/estimate/presentation-settings.ts` (`resolvePresentationSettings`, `isSectionVisible`, type-guard degrade-to-default), `use-estimate-reducer.ts` new action + state field, `SaveEstimateInput` pass-through field (zero interaction with `computeEstimateTotals` — GUARD-03 stays untouched), the explicit decision lock on destructive-vs-non-destructive hiding (Pitfall 2).
+**Uses:** JSONB + typed TS interface + type-guard stack pattern (STACK.md answer c)
+**Implements:** `lib/estimate/presentation-settings.ts` resolver component (ARCHITECTURE.md part a)
 
-### Phase 107: Provider Seam + First Source (+ determinism seam)
-**Rationale:** The source decision is open behind a seam, so the **seam itself is the deliverable**. Ship the determinism seam (fixture adapter) *with* the first real adapter so the CI gate never goes red. Recommend OpenRouter-web first (no new key, stays on primary path).
-**Delivers:** `PriceResearchProvider` interface + `getPriceResearchProvider()` (reads active source, `null` when unconfigured), OpenRouter-web adapter (`makeOpenRouterWebProvider`), **deterministic fixture adapter + golden `(service, region) -> candidates` fixtures + fixed clock**, admin "Price Research" source selector in `integrations-providers.ts`, prompt-injection hardening (`sanitizeField` + `<search_result>` tag in ## Security).
-**Uses:** OpenRouter web-search (`engine: exa`), existing `openrouter` key, Langfuse tracing.
-**Implements:** provider seam component.
-**Avoids:** Pitfall 9 (non-determinism), Pitfall 7 (prompt injection), Pitfall 2 (hallucinated tag -- evidence-gating built into the adapter contract).
+### Phase 3: Estimate Document Consolidated Pass
+**Rationale:** Three of four seeds (SEED-041 UI, SEED-043, SEED-044) all edit the same 2018-line `estimate-document.tsx` file — this must be one internally-sequenced phase, not three parallel agents. Depends on Phase 2 for the settings-wiring sub-step.
+**Delivers, in internal order:**
+  - **3a (SEED-044 first):** shared client-picker extraction (consolidating `LinkClientInline`, `LinkClientButton`, `LinkClientCard` — a 4th, undocumented implementation confirmed inside `estimate-document.tsx`), `InlineProjectName` reconciled against the more mature `ProjectTitle` component (validation + error-retry behavior), alignment/spacing pass, hover-to-edit Bill To wired to `linkProjectToClient`/`unlinkProjectFromClient` (already-existing server actions)
+  - **3b (SEED-041 UI second):** gear button wired into `estimate-floating-actions.tsx`, `isFieldVisible`/`toggleField`/`AddDetailsPopover` rewired to read persisted `presentation_settings` (replacement, not layering)
+  - **3c (SEED-043 last):** mobile line-item editor rebuilt on document-native styling, verified against the *final* desktop state
+**Addresses:** In-canvas Bill To editing, document alignment, mobile line-item parity, settings gear UI (FEATURES.md differentiators)
+**Avoids:** Pitfalls 7 (client-picker re-fork), 9 (wrong-viewport mobile verification), 10 (touch-target regression), 11 (diverged inline-rename implementations)
 
-### Phase 108: Orchestrator + Service Integration (the payoff)
-**Rationale:** The join point where the bug is actually fixed. Depends on 105/106/107. Ships inline + never-throws (the never-throw contract makes inline safe).
-**Delivers:** `researchUnmatchedPrices` (filter `ai_estimate` -> cache-check -> batched `provider.lookup` -> write-through -> re-tag), wired into `generateEstimateForProject` after `anchorAndClampSections`; the **fallback ladder** (researched -> non-zero `ai_estimate` floor -> `awaiting_details`); the vagueness-gate distinction ("whole estimate empty" = block vs "one flagged unpriced item" = allow); the **"Couch cleaning 8seats" regression fixture** in the eval harness.
-**Addresses:** regional localization, no-data fallback chain (table stakes), minimal source capture.
-**Avoids:** Pitfall 1 (the $0/vague trap -- this is literally the milestone correctness contract), Pitfall 10.
-
-### Phase 109: Durability + Cost-Control Hardening (optional, post-measurement)
-**Rationale:** Defer until a real source latency/cost is measured. Folds in the pitfalls researcher dedicated cost-control concerns.
-**Delivers:** real `StepRunner` so research runs in its own `step.run('price-research')` (retry isolation, no re-charging the LLM generate call); provider fallback (OpenRouter-web -> Anthropic-quality-fallback) mirroring AI fallback; **per-estimate item cap + provider spend cap + quota integration**; refine-loop memoization; concurrency cap + 429 backoff + circuit-breaker; admin-config margins applied post-research; optional purge cron.
-**Uses:** existing Redis rate-limiting infra (SEED-012), `usage_events`/`checkQuota`.
-**Avoids:** Pitfall 2 (latency blowup), Pitfall 3 (cost explosion), Pitfall 4 (rate-limit/quota).
+### Phase 4: Format-First Send Hub & Cross-Surface Settings Rollout
+**Rationale:** The only phase with a genuine cross-seed data dependency — the Online/PDF/Plain-Text previews are meaningless without Phase 2's settings existing, and surfacing the friendly URL in the "Online Estimate" tab needs Phase 1. Files are otherwise disjoint from Phase 3, so this could start in parallel with Phase 3 once Phase 2 is done.
+**Delivers:** `SendHub` replacing the channel-first `SendDialog`/`SendForm`/`SendActionsMenu`, `estimate_deliveries.channel` CHECK widened + `format` column added (mirroring the existing `20260526000005` precedent), the settings resolver rolled out to the remaining consumers (classic/modern PDF, classic/modern share, plain-text `buildItemsBreakdown()`, WhatsApp `formatEstimateForWhatsApp()` — widening its narrow `estimates` select to include `presentation_settings`), an explicit cross-surface diff test (one toggle → verified identical across all 6 outputs).
+**Delivers (from FEATURES.md):** Format-first Send hub (3 artifact choices), presentation settings honored consistently everywhere
+**Avoids:** Pitfall 1 (settings-drift — this is the phase where it either gets fully closed or silently ships), Pitfall 8 (`estimate_deliveries` schema can't hold the new format×channel model)
 
 ### Phase Ordering Rationale
 
-- **Dependency-driven:** 105 (types) and 106/107 (cache + seam) are independent and parallelizable; 108 is the join where behavior turns on; 109 hardens after real latency/cost is observed.
-- **Correctness-first within phases:** the eval seam + fixtures (107) and the fallback ladder + regression fixture (108) ship *in the same phase* as the behavior they guard -- deferring them re-opens the exact bug or breaks the CI gate.
-- **Region granularity is decided early** (106) because it shapes both the cache key and the 108 search query.
-- **Cost controls can lag** (109) only because the per-estimate item cap is the backstop and a warm cache makes most generations skip the network -- but the provider spend cap should be set as an owner-setup runbook item from day one.
+- Phase 1 and Phase 2 are file-disjoint and can run in parallel; Phase 1 is sequenced first in this list only because it carries the single highest-severity pitfall (security) and should have its own checkpoint before other work references the new URL shape.
+- Phase 3 must be internally sequenced (not split across parallel agents) because SEED-041, SEED-043, and SEED-044 all modify `estimate-document.tsx`; the 3a to 3b to 3c order was chosen so each seed builds on an already-settled layout rather than a moving target.
+- Phase 4 is placed last because it is the only phase with a real dependency on both foundational phases (URL contract + settings model) and is where Pitfall 1 (settings-drift) is either definitively closed or silently ships — its own success criteria must require diffing all 5-6 render/format surfaces, not just "the editor preview updates."
+- This ordering directly avoids the pitfall class documented repeatedly across PITFALLS.md: shipping a change that "looks done" in one surface (editor, PR screenshot, one viewport) while silently regressing another (PDF, plain-text, a different mobile width, an already-shipped-but-different component).
 
 ### Research Flags
 
-Phases likely needing deeper research during planning:
-- **Phase 107:** the OpenRouter web-search adapter -- LOW-confidence area is exactly how `engine: exa` returns citations/snippets in a form we can evidence-gate on; a short spike to confirm the response shape (and that a forced `create_estimate` is genuinely kept on a *separate* call) is warranted. Also where the source-lock decision (OpenRouter-web vs Anthropic-quality-fallback) must be confirmed.
-- **Phase 108:** the vagueness-gate distinction ("empty estimate" vs "one flagged item") touches `isVagueEstimate` + the auto-refine/`awaiting_details` interaction (Phase 96) -- verify the refine loop does not re-research and that flagged items route cleanly.
+Phases likely needing a deeper look or an explicit decision-lock during planning (not necessarily a full `/gsd:research-phase`, since the codebase-grounded research here is already HIGH confidence):
+- **Phase 1:** Quick verification pass (~10 min per ARCHITECTURE.md) on whether the `x-white-label` custom-domain header logic referenced by `app/estimate/[token]/page.tsx` still exists anywhere in `proxy.ts`/`next.config.js` before building custom-domain-aware slug resolution on an assumption it works.
+- **Phase 2:** Decision-lock required (SEED-041's own open decision #1) on destructive-vs-non-destructive hide semantics before UI work starts — this is a product decision, not a research gap.
+- **Phase 4:** Decision-lock required on SEED-042's own open decisions #6 (default vs. remembered last-used send format) and #7 (whether client-only actions like copy/open/download belong in `estimate_deliveries` at all, versus a lighter client-analytics event) before the delivery-logging migration is finalized.
+- **Phase 3 (SEED-043 sub-step):** Decision-lock required on the seed's own open question — minimum acceptable touch target for dense estimate editing — before compact controls are implemented.
 
-Phases with standard patterns (skip research-phase):
-- **Phase 105:** mechanical enum/type/badge threading along a known path -- well-understood.
-- **Phase 106:** cache table follows the established `pipeline_events` service-role/deny-all RLS pattern.
+Phases with standard, well-documented patterns (safe to proceed directly from this research, no additional research-phase needed):
+- **Phase 1's data-access pattern** — service-role + exact-match lookup is already proven in this exact codebase (`getEstimateByShareToken`); the new lookup is a sibling, not a new pattern.
+- **Phase 2's JSONB pattern** — dormant-first nullable JSONB + type-guard-with-defaults is already proven twice in this codebase (`companies.tax_config`, `platform_integrations.metadata`/`billing-config.ts`).
+- **Phase 3's client-picker consolidation** — the 3-4 existing implementations are already near-identical; this is a refactor with a known target shape, not new UX research.
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | Pricing/capability facts verified against official OpenRouter / Anthropic / Brave / Gemini docs (June 2026); the one LOW spot is forced-tool + web-search coexistence (resolved by mandating a separate call). |
-| Features | MEDIUM-HIGH | Regional-multiplier / range / source-transparency norms are well established (RSMeans/Homewyse/Profit Rhino = HIGH); the on-demand AI-web-search variant of those patterns is less documented (MEDIUM). |
-| Architecture | HIGH | Grounded directly against the real graph/service/schema/UI files; the web-search source stays an open decision behind a seam, so the architecture holds regardless of which source wins. |
-| Pitfalls | HIGH | Brave metering, OpenRouter pricing, Inngest step-timeout semantics verified against current sources; mapping grounded in reads of `prompt-builder.ts`, `vagueness.ts`, PROJECT.md. |
+| Stack | HIGH | Every claim verified directly against `package.json`, the lockfile, and live source files — no training-data guesses; zero new dependencies recommended |
+| Features | MEDIUM-HIGH | Direct competitor help-docs verified via WebFetch for Housecall Pro and PandaDoc; multi-source WebSearch corroboration for the rest; a few specific claims (Bonsai inline editing, exact PandaDoc override UI mechanics) are explicitly flagged LOW confidence but are non-blocking since Xtimator's approach in those areas is a stated differentiator, not a parity requirement |
+| Architecture | HIGH | Every finding grounded in direct inspection of the current codebase (files/line ranges cited); confirms the exact shared choke points and consumer fan-out that make Pitfall 1 real, not hypothetical |
+| Pitfalls | HIGH | Every pitfall grounded in direct codebase inspection, including one already-shipped-and-reverted real vulnerability (`20260606000002`) that directly predicts the friendly-URL risk |
 
 **Overall confidence:** HIGH
 
-### Gaps to Address (open decisions to confirm with the user before requirements freeze)
+### Gaps to Address
 
-- **Final source lock:** OpenRouter-web (engine `exa`) as default vs Anthropic web search (`user_location`) as a gated quality fallback. Default to OpenRouter-web; confirm whether to wire the Anthropic fallback in v4.6 or defer to 109. *Handle:* confirm at requirements; the seam absorbs either way.
-- **Region granularity:** city+state vs metro vs ZIP. Research recommends **metro / city+state** (ZIP too sparse, state too coarse). *Handle:* lock in 106 since it shapes the cache key and search query.
-- **Markup / margin policy on researched prices:** does the admin-configured margin apply to researched prices, and is it applied *before* or *after* the cache write? This determines cache scope (see below). *Handle:* confirm at requirements; recommendation is margin applied **after** cache read so the cached datum stays neutral.
-- **Cache scope:** tenant-scoped `(company_id, ...)` vs platform-shared `(name, region)`. Architecture defaults to **`company_id`-scoped** (RLS uniformity + safe if margins are baked per-company); a platform-shared layer is only safe if margins are applied strictly post-cache. *Handle:* tie this decision to the margin decision above; ship tenant-scoped first.
-- **Provider spend cap / owner runbook:** the chosen source dashboard spend cap must be set (no default cap on Brave/OpenRouter). *Handle:* owner-setup runbook item, secrets as placeholders only.
+- Several product decisions are explicitly left open by the seeds themselves (destructive-vs-non-destructive hide semantics, default vs. remembered send format, whether copy/open/download belong in `estimate_deliveries`, minimum mobile touch target) — these are not research gaps but decisions that must be locked during phase planning before the corresponding UI is built, per the Research Flags above.
+- The `x-white-label` custom-domain header path referenced by existing code may be dead (no matching logic found in current `proxy.ts`) — needs a short verification pass in Phase 1 before any custom-domain-aware behavior is assumed to work for the new friendly URL.
+- FEATURES.md's LOW-confidence claims (Bonsai's exact editing flow, PandaDoc's precise per-document override UI mechanics) don't block planning since Xtimator's designed behavior in those specific areas (in-canvas Bill To editing, consolidated settings gear) is explicitly framed as ahead-of-market, not a gap to close against a known competitor pattern.
 
 ## Sources
 
-### Primary (HIGH confidence)
-- OpenRouter web-search server tool docs -- engines (`exa` $0.005/req <=10 results), `:online`/`plugins` deprecated, forced-tool + web-search coexistence undocumented.
-- Anthropic web search tool docs -- $10/1k searches, native `user_location {city, region, country}`, citations.
-- Brave Search API docs + pricing -- ~$5/1k, 50 QPS, rate-limit headers.
-- Inngest Usage Limits / Steps docs -- step duration bounded by host timeout, steps are independent retry/replay units.
-- Xtimator codebase -- `lib/ai/providers/openrouter.ts`, `provider-with-fallback.ts`, `price-anchoring.ts`, `lib/services/generate-estimate.ts`, `lib/estimate/graph/*`, `lib/ai/schema+types.ts`, `lib/inngest/functions/generate-estimate.ts`, `lib/platform-config.ts`, `lib/admin/integrations-providers.ts`, `components/workspace/estimate/*`, `lib/ai/prompt-builder.ts` (S06 hardening), `lib/estimate/quality/vagueness.ts`, `.planning/PROJECT.md` v4.6.
+### Primary (HIGH confidence — direct codebase inspection)
+- `package.json`, `pnpm-lock.yaml` — dependency verification
+- `components/ui/popover.tsx`, `sheet.tsx`, `command.tsx` — existing shadcn/Radix/cmdk wrappers
+- `lib/estimate/compute-totals.ts`, `lib/billing/billing-config.ts` — JSONB + type-guard precedent
+- `lib/queries/share.ts`, `app/estimate/[token]/page.tsx`, `app/estimate/[token]/actions.ts`, `lib/utils/share-link.ts` — public access + URL construction
+- `supabase/migrations/20260606000002_drop_estimates_anon_select_policy.sql` — previously-fixed real PII-leak vulnerability on this exact table
+- `supabase/migrations/20260409000001_initial_schema.sql`, `20260627000001_phase129_advanced_pricing_schema.sql`, `20260519000003_estimate_deliveries.sql`, `20260526000005_phase81_whatsapp_delivery_channel.sql`, `20260706000007_rls_hardening_indexes_grants.sql`
+- `components/workspace/estimate/estimate-document.tsx` (full 2018 lines), `use-estimate-reducer.ts`, `estimate-editor.tsx`, `estimate-floating-actions.tsx`
+- `components/workspace/link-client-button.tsx`, `link-client-card.tsx`; `components/workspace/project-title.tsx`
+- `components/share/estimate-view.tsx`, `estimate-document-modern.tsx`; `components/pdf/estimate-pdf.tsx`, `estimate-pdf-modern.tsx`
+- `lib/whatsapp/send-estimate.ts`, `confirm-actions.ts`, `formatter.ts`; `lib/billing/connect-webhook.ts`; `lib/utils/estimate-template.ts`
+- `proxy.ts`; `tests/e2e/visual/_helpers.ts`, `share.spec.ts`, `tests/e2e/estimate-share-payment.spec.ts`
+- `.planning/PROJECT.md`, `.planning/seeds/SEED-041..044-*.md`
 
-### Secondary (MEDIUM confidence)
-- Brave free-tier removal (Feb 2026) -- implicator.ai + agentdeals.dev (corroborated across sources).
-- Gemini grounding pricing ($35/1k after 1,500/day free).
-- RSMeans / Angi / HomeAdvisor -- no public developer API (GetApp/Capterra profiles, Apify scraper listings).
-- Industry pricing norms -- RSMeans City Cost Index, Homewyse (BLS wage data, Lower-Higher range), Profit Rhino / Housecall Pro flat-rate price book.
+### Secondary (MEDIUM-HIGH confidence — verified competitor documentation)
+- [Adjust Individual Estimate Settings — Housecall Pro](https://help.housecallpro.com/en/articles/6908612-adjust-individual-estimate-settings-on-web-or-mobile) (WebFetch-verified)
+- [Document settings — PandaDoc](https://support.pandadoc.com/en/articles/9715025-document-settings), [Edit sent documents — PandaDoc](https://support.pandadoc.com/en/articles/9714684-edit-sent-documents)
+- [Quote Basics / Client Hub — Jobber Help Center](https://help.getjobber.com/hc/en-us/articles/115009378727-Quote-Basics)
+- [Use Online Estimates — ServiceTitan](https://help.servicetitan.com/how-to/online-estimates)
+- [How clients access and submit smart files — HoneyBook](https://help.honeybook.com/en/articles/9768365-how-clients-access-and-submit-smart-files)
+- [Branded URL — Proposify Knowledge Base](https://support.proposify.com/articles/2882195-branded-url)
+- [Payment Link API — Stripe Docs](https://docs.stripe.com/api/payment-link) (opaque-ID URL pattern, official docs)
+- [nextjs.org/docs/app/guides/upgrading/version-16](https://nextjs.org/docs/app/guides/upgrading/version-16) — Node ≥20.9 floor confirmation
 
-### Tertiary (LOW confidence)
-- On-demand AI-web-search-per-item as a pricing mechanism -- sparse direct documentation; grounding/caching/hallucination best-practice extrapolated from LLM-grounding guides (Towards Data Science, Firecrawl, AiBrain).
-- OpenRouter `engine: exa` exact citation/snippet response shape -- needs a confirming spike in Phase 107.
+### Tertiary (LOW confidence, flagged and non-blocking)
+- Bonsai inline client editing (could not verify either way)
+- Exact PandaDoc per-document settings override UI mechanics (capability confirmed, mechanics not detailed publicly)
+- Notion-style URL architecture blog post (single-source but internally consistent with observed Notion behavior)
+- Joist mobile UI review aggregators (third-party reviews, not official docs)
 
 ---
-*Research completed: 2026-06-23*
+*Research completed: 2026-07-08*
 *Ready for roadmap: yes*
