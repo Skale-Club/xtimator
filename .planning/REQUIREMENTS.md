@@ -30,7 +30,7 @@ Each requirement maps to exactly one roadmap phase.
 - [x] **PUBURL-01**: A shared estimate can be opened via a friendly branded URL shaped `/estimate/{companySlug}/{estimateSlug}-{shortToken}`, generated for every estimate (existing and new). *(Complete — Plan 01 landed the schema/builder, Plan 03 landed the route that resolves it, Plan 05 wires new-estimate creation + backfills existing rows.)*
 - [x] **PUBURL-02**: Every existing `/estimate/{share_token}` link keeps resolving and behaving exactly as today (same expiration via `share_expires_at`, same view-logging, same accept/decline actions) — zero regression for links already sent to real clients. *(Complete — Plan 02 proved the existing functions byte-unchanged; Plan 03 proved `app/estimate/[token]/*` byte-for-byte untouched via `git diff`.)*
 - [x] **PUBURL-03**: The public lookup for the new friendly route uses the same service-role + exact-match posture as the existing token lookup — no new `anon`-accessible RLS policy is added to `estimates` under any condition. *(Complete — enforced by both Plan 01's static migration-contract test and Plan 02's live anon-RLS negative test.)*
-- [ ] **PUBURL-04**: All existing inline share-URL construction call sites (including the 2 inside the Stripe Connect webhook) are replaced by one shared isomorphic path-builder, verified to preserve the `?stripe=success`/`?stripe=canceled` redirect contract. *(Plan 01 landed the builder; Plan 04 migrates the actual call sites.)*
+- [x] **PUBURL-04**: All existing inline share-URL construction call sites (including the 2 inside the Stripe Connect webhook) are replaced by one shared isomorphic path-builder, verified to preserve the `?stripe=success`/`?stripe=canceled` redirect contract. *(Complete — Plan 04 migrated all 5 real call sites (SMS, WhatsApp x2, Stripe Connect webhook x2) with a permanent repo-wide sweep test guarding against regression.)*
 - [x] **PUBURL-05**: View-logging and accept/decline actions work identically regardless of which URL (token or friendly) the client used to reach the estimate. *(Complete — Plan 02 landed `realShareToken` threading; Plan 03's new route keys `logEstimateView`/`EstimateView`/`respondToEstimate` off `realShareToken`, and a live e2e spec proves the parity.)*
 - [x] **PUBURL-06**: The existing custom-domain white-label behavior (SEED-009) is verified compatible with the new friendly route before it ships; if the underlying header logic is found dead, that finding is documented rather than assumed working.
 
@@ -92,7 +92,7 @@ Every v1 requirement maps to exactly one phase. Coverage: 24/24 mapped, 0 orphan
 | PUBURL-01 | Phase 160 — URL Contract & Public Access Security | Complete |
 | PUBURL-02 | Phase 160 — URL Contract & Public Access Security | Complete |
 | PUBURL-03 | Phase 160 — URL Contract & Public Access Security | Complete |
-| PUBURL-04 | Phase 160 — URL Contract & Public Access Security | In progress (Plan 01/05 of 05) |
+| PUBURL-04 | Phase 160 — URL Contract & Public Access Security | Complete |
 | PUBURL-05 | Phase 160 — URL Contract & Public Access Security | Complete |
 | PUBURL-06 | Phase 160 — URL Contract & Public Access Security | Complete |
 | PRESENT-01 | Phase 161 — Presentation Settings Data Model & Persistence | Pending |

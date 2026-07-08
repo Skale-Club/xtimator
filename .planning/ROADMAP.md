@@ -2516,12 +2516,12 @@ Full phase details archived: [milestones/v4.17-ROADMAP.md](milestones/v4.17-ROAD
   4. One shared isomorphic path-builder is the sole source of estimate share URLs across the codebase — all 7 existing inline URL-construction call sites (including the 2 inside the Stripe Connect webhook) are replaced by it, and the `?stripe=success`/`?stripe=canceled` redirect contract is verified unbroken after a Stripe Connect payment
   5. The existing custom-domain white-label behavior (SEED-009) is confirmed compatible with the new friendly route through direct verification — or, if the underlying `x-white-label` header logic is found dead, that finding is documented rather than assumed working
 
-**Plans:** 3/5 plans executed
+**Plans:** 5/5 plans executed
 Plans:
 - [x] 160-01-PLAN.md — Schema migration (companies.slug + estimates.public_slug_token) + lib/estimate/public-url.ts generator/builder/parser
 - [x] 160-02-PLAN.md — getEstimateByPublicToken/getShareLinkStateByPublicToken query layer + live RLS negative-regression test
 - [x] 160-03-PLAN.md — New friendly-URL route (page/layout/error/loading) + live e2e parity test
-- [ ] 160-04-PLAN.md — Migrate all 5 inline share-URL call sites (SMS, WhatsApp x2, Stripe Connect webhook x2) to buildEstimatePublicPath + permanent no-hardcode sweep test
+- [x] 160-04-PLAN.md — Migrate all 5 inline share-URL call sites (SMS, WhatsApp x2, Stripe Connect webhook x2) to buildEstimatePublicPath + permanent no-hardcode sweep test
 - [x] 160-05-PLAN.md — Wire public_slug_token into new-estimate creation + one-time idempotent backfill script for existing rows
 
 ### Phase 161: Presentation Settings Data Model & Persistence
