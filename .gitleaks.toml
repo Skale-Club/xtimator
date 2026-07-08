@@ -58,6 +58,8 @@ paths = [
   '''\.git/''',
   # Test fixtures: deterministic high-entropy values used only in tests, never real secrets
   '''tests/fixtures/test-encryption-key\.ts$''',
+  # Public-URL token/fixture test file: deterministic base62 test tokens, never real secrets
+  '''tests/unit/estimates/public-url\.test\.ts$''',
 ]
 # Allow placeholder/documentation patterns
 regexes = [
