@@ -2360,10 +2360,10 @@ Plans:
 
 ### Phases
 
-- [ ] **Phase 146: Super-Admin Role System** — Add `is_super_admin boolean DEFAULT false` to `profiles` via idempotent authored-only migration + RLS policy; single `requireSuperAdmin()` server helper that reads the column (never a client-supplied flag); remove ALL hardcoded email checks from the codebase. (ADMIN-01)
-- [ ] **Phase 147: Admin Company Creation Modal** — Show "Add new company" button in `CompanySelector` only when `is_super_admin` is true; clicking opens a quick-creation modal (not a new page) with minimal fields (company name, industry, phone, email, optional logo); creates the company + switches to it; the new company starts with a 3-estimate quota. (ADMIN-02, ADMIN-03)
-- [ ] **Phase 148: Demo Estimate Quota** — New companies created via the admin modal start with `estimate_quota = 3`; a server-side guard tracks usage and blocks generation when exhausted showing a paywall; super-admin panel exposes a manual quota-grant control per company. (ADMIN-04)
-- [ ] **Phase 149: Account Handoff** — Admin can share the demo company with the prospect by entering their email in a Handoff modal; reuses the Phase 136 `inviteMember` flow with role `'owner'`; the client receives the Resend invite email and joins via the existing Phase 137 `acceptInvite` path. (ADMIN-05)
+- [x] **Phase 146: Super-Admin Role System** — Add `is_super_admin boolean DEFAULT false` to `profiles` via idempotent authored-only migration + RLS policy; single `requireSuperAdmin()` server helper that reads the column (never a client-supplied flag); remove ALL hardcoded email checks from the codebase. (ADMIN-01) (completed 2026-07-05)
+- [x] **Phase 147: Admin Company Creation Modal** — Show "Add new company" button in `CompanySelector` only when `is_super_admin` is true; clicking opens a quick-creation modal (not a new page) with minimal fields (company name, industry, phone, email, optional logo); creates the company + switches to it; the new company starts with a 3-estimate quota. (ADMIN-02, ADMIN-03) (completed 2026-07-05)
+- [x] **Phase 148: Demo Estimate Quota** — New companies created via the admin modal start with `estimate_quota = 3`; a server-side guard tracks usage and blocks generation when exhausted showing a paywall; super-admin panel exposes a manual quota-grant control per company. (ADMIN-04) (completed 2026-07-05)
+- [x] **Phase 149: Account Handoff** — Admin can share the demo company with the prospect by entering their email in a Handoff modal; reuses the Phase 136 `inviteMember` flow with role `'owner'`; the client receives the Resend invite email and joins via the existing Phase 137 `acceptInvite` path. (ADMIN-05) (completed 2026-07-05)
 
 ### Phase Details — v4.14 Admin Sales Mode
 
@@ -2516,7 +2516,13 @@ Full phase details archived: [milestones/v4.17-ROADMAP.md](milestones/v4.17-ROAD
   4. One shared isomorphic path-builder is the sole source of estimate share URLs across the codebase — all 7 existing inline URL-construction call sites (including the 2 inside the Stripe Connect webhook) are replaced by it, and the `?stripe=success`/`?stripe=canceled` redirect contract is verified unbroken after a Stripe Connect payment
   5. The existing custom-domain white-label behavior (SEED-009) is confirmed compatible with the new friendly route through direct verification — or, if the underlying `x-white-label` header logic is found dead, that finding is documented rather than assumed working
 
-**Plans**: TBD
+**Plans:** 5 plans
+Plans:
+- [ ] 160-01-PLAN.md — Schema migration (companies.slug + estimates.public_slug_token) + lib/estimate/public-url.ts generator/builder/parser
+- [ ] 160-02-PLAN.md — getEstimateByPublicToken/getShareLinkStateByPublicToken query layer + live RLS negative-regression test
+- [ ] 160-03-PLAN.md — New friendly-URL route (page/layout/error/loading) + live e2e parity test
+- [ ] 160-04-PLAN.md — Migrate all 5 inline share-URL call sites (SMS, WhatsApp x2, Stripe Connect webhook x2) to buildEstimatePublicPath + permanent no-hardcode sweep test
+- [ ] 160-05-PLAN.md — Wire public_slug_token into new-estimate creation + one-time idempotent backfill script for existing rows
 
 ### Phase 161: Presentation Settings Data Model & Persistence
 
