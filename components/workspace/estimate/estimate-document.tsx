@@ -1,7 +1,9 @@
 'use client'
 
 import Image from 'next/image'
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useTransition } from 'react'
+import { toast } from 'sonner'
+import { useTranslation } from '@/lib/i18n/use-translation'
 import {
   DndContext,
   closestCenter,
@@ -1338,39 +1340,109 @@ function TermsBlock({
 // InlineProjectName — click-to-edit project name inside document
 // ---------------------------------------------------------------------------
 
-function InlineProjectName({
+// Phase 162-03 (DOCUX-04) — reconciled with ProjectTitle's validation contract:
+//   - empty draft → toast.error + stay editing (no server call)
+//   - >200 char draft → toast.error + stay editing (no server call)
+//   - no-op (trimmed === name) → close editing, no server call
+//   - server error (onRename rejects) → revert draft to name, KEEP edit mode
+//     open so user can retry. InlineProjectName does NOT re-toast — the
+//     caller (handleRenameProject in estimate-editor.tsx) owns the single
+//     user-visible error surface.
+//   - Escape cancels + reverts draft
+//   - autofocus + select-all on enter-edit
+//   - maxLength=200 + aria-label="Project name"
+//   - double-submit guard when isPending
+// Underline is a thin solid border-b (transparent by default,
+// foreground/40 on hover/focus-visible) — replaces the previous
+// dotted hover-underline affordance.
+// Exported so tests can render it in isolation.
+export function InlineProjectName({
   name,
   onRename,
 }: {
   name: string
   onRename: (v: string) => Promise<void>
 }) {
+  const { t } = useTranslation()
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(name)
-  const [pending, setPending] = useState(false)
+  const [isPending, startTransition] = useTransition()
   const inputRef = useRef<HTMLInputElement>(null)
 
-  useEffect(() => { if (editing) inputRef.current?.focus() }, [editing])
+  useEffect(() => {
+    if (editing) {
+      inputRef.current?.focus()
+      inputRef.current?.select()
+    }
+  }, [editing])
 
-  async function commit() {
+  function enterEdit() {
+    setDraft(name)
+    setEditing(true)
+  }
+
+  function handleCancel() {
+    setEditing(false)
+    setDraft(name)
+  }
+
+  function handleSubmit() {
+    // Double-submit guard (mirrors ProjectTitle L45)
+    if (isPending) return
+
     const trimmed = draft.trim()
-    if (!trimmed || trimmed === name) { setEditing(false); return }
-    setPending(true)
-    try { await onRename(trimmed) } finally { setPending(false); setEditing(false) }
+
+    // No-op if unchanged (mirrors ProjectTitle L48-53)
+    if (trimmed === name) {
+      setEditing(false)
+      return
+    }
+
+    // Empty validation (mirrors ProjectTitle L56-59)
+    if (trimmed.length === 0) {
+      toast.error(t('Project name is required'))
+      return
+    }
+    // 200-char limit (mirrors ProjectTitle L60-63)
+    if (trimmed.length > 200) {
+      toast.error(t('Name must be 200 characters or less'))
+      return
+    }
+
+    startTransition(async () => {
+      try {
+        await onRename(trimmed)
+        setEditing(false)
+      } catch {
+        // Error retry: revert draft, KEEP editing open so user can retry
+        // (mirrors ProjectTitle L67-72 semantics). onRename's caller
+        // (handleRenameProject in estimate-editor.tsx) surfaces the toast
+        // — single-toast rule; InlineProjectName's catch only reverts.
+        setDraft(name)
+      }
+    })
   }
 
   if (editing) {
     return (
       <input
         ref={inputRef}
+        type="text"
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
-        onBlur={commit}
         onKeyDown={(e) => {
-          if (e.key === 'Enter') { e.preventDefault(); void commit() }
-          if (e.key === 'Escape') { setEditing(false); setDraft(name) }
+          if (e.key === 'Enter') {
+            e.preventDefault()
+            handleSubmit()
+          } else if (e.key === 'Escape') {
+            e.preventDefault()
+            handleCancel()
+          }
         }}
-        disabled={pending}
+        onBlur={handleSubmit}
+        disabled={isPending}
+        maxLength={200}
+        aria-label={t('Project name')}
         className="text-2xl font-bold bg-transparent border-b border-primary focus:outline-none w-full disabled:opacity-60"
       />
     )
@@ -1378,8 +1450,15 @@ function InlineProjectName({
 
   return (
     <p
-      className="text-2xl font-bold cursor-pointer hover:underline decoration-dotted underline-offset-2"
-      onClick={() => { setDraft(name); setEditing(true) }}
+      className="text-2xl font-bold cursor-pointer transition-colors border-b border-transparent hover:border-foreground/40 focus-visible:border-foreground/40 outline-none"
+      tabIndex={0}
+      onClick={enterEdit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          enterEdit()
+        }
+      }}
     >
       {name}
     </p>

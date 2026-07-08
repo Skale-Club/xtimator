@@ -261,7 +261,14 @@ export function EstimateEditor({
 
   const handleRenameProject = useCallback(async (name: string) => {
     const result = await renameProjectAction(projectId, name)
-    if (result.error) { toast.error(result.error); return }
+    if (result.error) {
+      // Phase 162-03 (DOCUX-04, Option B) — surface the toast HERE (single
+      // user-visible error surface) AND throw so InlineProjectName's catch
+      // reverts the draft and keeps edit mode open for retry. The catch in
+      // InlineProjectName does NOT re-toast — single-toast rule.
+      toast.error(result.error)
+      throw new Error(result.error)
+    }
     setLocalProjectName(name)
     router.refresh()
   }, [projectId, router])
