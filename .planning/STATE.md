@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.18
 milestone_name: Estimate Document & Send Experience Refresh
 status: executing
-stopped_at: Completed 160-04-PLAN.md — Phase 160 all 5/5 plans complete
-last_updated: "2026-07-08T16:12:13.641Z"
-last_activity: 2026-07-08 -- Phase 160 (URL Contract & Public Access Security) all 5 plans shipped: 160-01 (schema+builder), 160-02 (query layer+RLS test), 160-03 (friendly route+e2e), 160-04 (call-site migration, PUBURL-04), 160-05 (new-estimate wiring+backfill). 6/6 requirements (PUBURL-01..06) closed. Next: goal-verification via gsd-verifier, then Phase 161.
+stopped_at: Phase 160 COMPLETE (5/5 plans, verification passed 7/7). Starting Phase 161.
+last_updated: "2026-07-08T16:29:46.269Z"
+last_activity: 2026-07-08 -- Phase 160 (URL Contract & Public Access Security) shipped and verified. Next: Phase 161 (Presentation Settings Data Model & Persistence).
 progress:
   total_phases: 4
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 5
-  completed_plans: 3
+  completed_plans: 5
 ---
 
 # Project State
@@ -52,10 +52,10 @@ progress:
 
 ## Current Position
 
-Phase: 160 of 4 in milestone v4.18 (URL Contract & Public Access Security) — ALL PLANS COMPLETE
-Plan: 5 of 5 complete (160-01 schema/builder, 160-02 query layer/RLS test, 160-03 friendly route/e2e, 160-04 call-site migration, 160-05 new-estimate wiring/backfill)
-Status: All 6 requirements (PUBURL-01..06) closed. Awaiting goal-verification (gsd-verifier) before advancing to Phase 161.
-Last activity: 2026-07-08 - Executed and merged 160-04-PLAN.md (call-site migration to buildEstimatePublicPath: SMS route, WhatsApp send-estimate, WhatsApp confirm-actions, Stripe Connect webhook x2, PUBURL-04). See [160-04-SUMMARY.md](phases/160-url-contract-public-access-security/160-04-SUMMARY.md).
+Phase: 161 of 4 in milestone v4.18 (Presentation Settings Data Model & Persistence) — not started
+Plan: —
+Status: Phase 160 COMPLETE (5/5 plans, verification passed 7/7, all 6 requirements PUBURL-01..06 closed). `gsd-tools phase complete` reported `next_phase: 999.1` — this is the pre-existing PARKING LOT placeholder (empty, no plans, not part of any milestone), NOT the real next phase; ignored per documented precedent from the v4.17 cycle (see below). Real next phase is 161.
+Last activity: 2026-07-08 -- Phase 160 shipped and verified. Starting Phase 161.
 
 ### Previous Position (v4.17, for continuity)
 
