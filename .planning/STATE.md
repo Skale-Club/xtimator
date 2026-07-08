@@ -53,9 +53,9 @@ progress:
 ## Current Position
 
 Phase: 161 (presentation-settings-data-model-persistence) — EXECUTING
-Plan: 1 of 2
-Status: Executing Phase 161
-Last activity: 2026-07-08 -- Phase 161 execution started
+Plan: 1 of 2 complete (161-01 migration + pure resolver TDD, 13/13 tests green, GUARD-03 boundary enforced statically). Next: 161-02 (plumbing pass-through into query/save/reducer).
+Status: Wave 1 done — PRESENT-01..05 all satisfied at the data-model/resolver level. Plan 161-02 threads the type through 3 seams.
+Last activity: 2026-07-08 -- Plan 161-01 complete. See [161-01-SUMMARY.md](phases/161-presentation-settings-data-model-persistence/161-01-SUMMARY.md).
 
 ### Previous Position (v4.17, for continuity)
 

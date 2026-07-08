@@ -2538,9 +2538,9 @@ Plans:
   4. A single pure resolver module (`resolvePresentationSettings`/`isSectionVisible`) is the one place in the codebase that decides section visibility — a test proves no renderer reimplements its own visibility check
   5. Changing an already-sent/already-viewed estimate's presentation or pricing settings shows a non-blocking inline notice that the client has already seen the estimate
 
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 Plans:
-- [ ] 161-01-PLAN.md — Migration (estimates.presentation_settings JSONB) + lib/estimate/presentation-settings.ts pure resolver (TDD) + unit tests (PRESENT-01..05)
+- [x] 161-01-PLAN.md — Migration (estimates.presentation_settings JSONB) + lib/estimate/presentation-settings.ts pure resolver (TDD) + unit tests (PRESENT-01..05)
 - [ ] 161-02-PLAN.md — Thread PresentationSettings type through Estimate query interface, saveEstimate() pass-through, and the editor reducer (PRESENT-01, PRESENT-03)
 
 ### Phase 162: Estimate Document Consolidated Pass
