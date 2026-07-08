@@ -7,6 +7,7 @@ import { rateLimit } from '@/lib/ratelimit'
 import { demoGuardResponse } from '@/lib/demo/guard'
 import { getCanonicalBaseUrl } from '@/lib/utils/site-url'
 import { shareLinkExpiryFromNow } from '@/lib/estimates/share-link'
+import { buildEstimatePublicPath } from '@/lib/estimate/public-url'
 
 interface SendSmsRequestBody {
   to: string
@@ -61,7 +62,7 @@ export async function POST(
     // Fetch estimate with company to verify ownership
     const { data: estimate } = await supabase
       .from('estimates')
-      .select('id, project_id, company_id, share_token')
+      .select('id, project_id, company_id, share_token, public_slug_token')
       .eq('id', id)
       .single()
 
@@ -76,7 +77,7 @@ export async function POST(
     // Verify company belongs to user
     const { data: company } = await supabase
       .from('companies')
-      .select('id, name, sms_delivery_enabled')
+      .select('id, name, sms_delivery_enabled, slug')
       .eq('id', estimate.company_id)
       .single()
 
@@ -100,7 +101,10 @@ export async function POST(
     // Build share URL
     const branding = await getBranding()
     const baseUrl = branding.canonicalBaseUrl ?? getCanonicalBaseUrl()
-    const shareUrl = `${baseUrl}/estimate/${estimate.share_token}`
+    const shareUrl = `${baseUrl}${buildEstimatePublicPath(
+      { slug: company.slug, name: company.name },
+      { id: estimate.id, public_slug_token: estimate.public_slug_token, share_token: estimate.share_token }
+    )}`
 
     const smsBody = message?.trim() ||
       `${company.name} sent you an estimate. Review and approve it here: ${shareUrl}`

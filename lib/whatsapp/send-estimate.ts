@@ -20,6 +20,7 @@ import { getBranding } from '@/lib/platform-config'
 import { logOutboundMessage, toE164 } from '@/lib/whatsapp/conversations'
 import { getCanonicalBaseUrl } from '@/lib/utils/site-url'
 import { getWhatsAppAccountStatus } from '@/lib/whatsapp/account-registry'
+import { buildEstimatePublicPath } from '@/lib/estimate/public-url'
 
 export interface DeliverEstimateResult {
   ok: boolean
@@ -46,7 +47,7 @@ export async function deliverEstimateViaWhatsApp(params: {
   const { data: estimate } = await svc
     .from('estimates')
     .select(`
-      id, project_id, share_token, total, subtotal, tax_rate, tax_amount,
+      id, project_id, share_token, public_slug_token, total, subtotal, tax_rate, tax_amount,
       deposit_type, deposit_value, balance_due,
       currency_code, summary, payment_terms, timeline, language,
       sections:estimate_sections(
@@ -64,7 +65,7 @@ export async function deliverEstimateViaWhatsApp(params: {
   // 2. Delivery format + company info.
   const [accountStatus, { data: company }] = await Promise.all([
     getWhatsAppAccountStatus(companyId),
-    svc.from('companies').select('name, owner_name, website').eq('id', companyId).single(),
+    svc.from('companies').select('name, owner_name, website, slug').eq('id', companyId).single(),
   ])
   const deliveryFormat = (accountStatus.deliveryFormat ?? 'share_link') as DeliveryFormat
   const companyName = (company?.name as string | null) ?? null
@@ -73,7 +74,10 @@ export async function deliverEstimateViaWhatsApp(params: {
 
   const branding = await getBranding()
   const baseUrl = branding.canonicalBaseUrl ?? getCanonicalBaseUrl()
-  const shareUrl = `${baseUrl}/estimate/${estimate.share_token}`
+  const shareUrl = `${baseUrl}${buildEstimatePublicPath(
+    { slug: company?.slug ?? null, name: companyName ?? 'Company' },
+    { id: estimateId, public_slug_token: estimate.public_slug_token, share_token: estimate.share_token }
+  )}`
   const shareMessage =
     params.customMessage?.trim() ||
     `${companyName ?? 'We'} sent you an estimate. Review and approve it here: ${shareUrl}`
