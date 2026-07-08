@@ -149,6 +149,16 @@ function EstimateViewInner({
     currency_code: estimate.currency_code ?? 'USD',
     estimate_date: (estimate as { estimate_date?: string | null }).estimate_date ?? null,
     estimate_number: (estimate as { estimate_number?: string | null }).estimate_number ?? null,
+    // Phase 162-04 (DOCUX-01) — thread persisted overrides to the classic
+    // share renderer so hidden sections stay hidden. Phase 163 will wire the
+    // same into the send-hub PDF/plain-text renderers; here we just feed
+    // EstimateDocument so its resolver call gates section visibility. NULL
+    // preserves today's byte-identical behavior (all sections visible).
+    presentation_settings:
+      (estimate as { presentation_settings?: unknown }).presentation_settings as
+        | import('@/lib/estimate/presentation-settings').PresentationSettings
+        | null
+        | undefined ?? null,
     // Signed URLs are already resolved server-side in lib/queries/share.ts
     // (getEstimateByShareToken) — anon visitors have no session to call
     // getSignedUrl with, so no client-side resolution happens here.

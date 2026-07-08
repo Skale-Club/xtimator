@@ -57,6 +57,9 @@ function stateToDocumentData(state: EstimateEditorState): EstimateDocumentData {
     estimate_date: state.estimate_date,
     estimate_number: state.estimate_number,
     currency_code: state.currency_code,
+    // Phase 162-04 (DOCUX-01) — thread raw override state so EstimateDocument
+    // resolves section visibility via isSectionVisible(resolvePresentationSettings(...)).
+    presentation_settings: state.presentation_settings,
     attachedPhotos: state.attachedPhotos.map((p) => ({
       id: p.id,
       storage_path: p.storage_path,
@@ -113,6 +116,9 @@ function stateToSavePayload(state: EstimateEditorState) {
     tax_rate: state.tax_rate,
     estimate_date: state.estimate_date,
     estimate_number: state.estimate_number,
+    // Phase 162-04 (DOCUX-01) — server pass-through for the Phase 161-02 seam.
+    // saveEstimate persists this in estimates.presentation_settings JSONB.
+    presentation_settings: state.presentation_settings,
     sections: state.sections.map((s) => ({
       id: s.id,
       title: s.title,

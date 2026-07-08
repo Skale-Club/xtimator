@@ -20,7 +20,7 @@ import {
   arrayMove,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { Check, GripVertical, Plus, RotateCcw, Trash2, X } from 'lucide-react'
+import { GripVertical, Plus, RotateCcw, Trash2, X } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { createClient } from '@/lib/supabase/client'
 import { createStorage } from '@/lib/storage'
@@ -45,6 +45,11 @@ import { formatPhoneForDisplay } from '@/lib/phone/format'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
 import { ensureReadableOnWhite, readableTextColor } from '@/lib/color/contrast'
 import { ClientPicker } from '@/components/clients/client-picker'
+import {
+  resolvePresentationSettings,
+  isSectionVisible,
+  type PresentationSettings,
+} from '@/lib/estimate/presentation-settings'
 import { ItemCardMobile } from './item-card-mobile'
 import { PriceBookCombobox } from './price-book-combobox'
 import type { EstimateAction, EditorItem } from './use-estimate-reducer'
@@ -362,6 +367,10 @@ export interface EstimateDocumentData {
   estimate_date: string | null
   estimate_number: string | null
   attachedPhotos?: DocumentPhoto[]
+  // Phase 162-04 (DOCUX-01, PRESENT-04) — raw override state; the document
+  // renders section visibility via isSectionVisible(resolvePresentationSettings(...)).
+  // NULL keeps today's byte-identical behavior (all sections visible).
+  presentation_settings: PresentationSettings | null
 }
 
 interface EstimateDocumentProps {
@@ -1479,59 +1488,13 @@ export function InlineProjectName({
 }
 
 // ---------------------------------------------------------------------------
-// AddDetailsPopover — toggles optional sections on/off in the editor
+// Phase 162-04 (DOCUX-01, PITFALLS.md #1 + #8) — the legacy Add-Details
+// popover component and the local ephemeral visibility mechanism were
+// retired atomically here. Section visibility is now driven end-to-end by
+// the gear-panel-persisted overrides on presentation_settings.sections,
+// resolved via the Phase 161 pure resolver
+// (resolvePresentationSettings + isSectionVisible).
 // ---------------------------------------------------------------------------
-
-type OptionalFieldKey = 'summary' | 'payment_terms' | 'timeline' | 'warranty_terms' | 'notes'
-
-function AddDetailsPopover({
-  L,
-  isFieldVisible,
-  onToggle,
-}: {
-  L: DocLabels
-  isFieldVisible: (f: OptionalFieldKey) => boolean
-  onToggle: (f: OptionalFieldKey) => void
-}) {
-  const [open, setOpen] = useState(false)
-  const items: { field: OptionalFieldKey; label: string }[] = [
-    { field: 'summary', label: L.summary },
-    { field: 'payment_terms', label: L.paymentTerms },
-    { field: 'timeline', label: L.timeline },
-    { field: 'warranty_terms', label: L.warranty },
-    { field: 'notes', label: L.notes },
-  ]
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          className="text-sm font-medium flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-colors select-none text-muted-foreground hover:text-foreground hover:bg-muted/50"
-        >
-          <Plus className="h-4 w-4" />
-          {L.addDetails}
-        </button>
-      </PopoverTrigger>
-      <PopoverContent align="start" className="w-56 p-1">
-        {items.map(({ field, label }) => {
-          const visible = isFieldVisible(field)
-          return (
-            <button
-              key={field}
-              type="button"
-              onClick={() => onToggle(field)}
-              className="w-full flex items-center justify-between gap-2 px-2 py-1.5 text-sm rounded-md hover:bg-accent hover:text-accent-foreground transition-colors text-left"
-            >
-              <span>{label}</span>
-              {visible && <Check className="h-4 w-4 text-muted-foreground" />}
-            </button>
-          )
-        })}
-      </PopoverContent>
-    </Popover>
-  )
-}
 
 // ---------------------------------------------------------------------------
 // AttachedPhotoThumb — static (non-drag-sort) thumbnail for the attached-
@@ -1622,26 +1585,11 @@ export function EstimateDocument({
   const brandOnFill = readableTextColor(brandColor) // fixed foreground over a brand fill
   const isEditable = mode === 'edit' && !isReadOnly
 
-  type OptionalField = 'summary' | 'payment_terms' | 'timeline' | 'warranty_terms' | 'notes'
-  const [revealed, setRevealed] = useState<Set<OptionalField>>(new Set())
-
-  const isFieldVisible = (field: OptionalField): boolean =>
-    data[field] != null || revealed.has(field)
-
-  const toggleField = (field: OptionalField) => {
-    setRevealed((prev) => {
-      const next = new Set(prev)
-      if (next.has(field) || data[field] != null) {
-        next.delete(field)
-        if (dispatch && data[field] != null) {
-          dispatch({ type: 'UPDATE_FIELD', field, value: null })
-        }
-      } else {
-        next.add(field)
-      }
-      return next
-    })
-  }
+  // Phase 162-04 (DOCUX-01) — section visibility is now driven by the
+  // presentation_settings JSONB (persisted via the gear panel), resolved
+  // through the Phase 161 pure resolver. Non-destructive: hiding a section
+  // via the panel leaves data[field] intact so re-showing restores content.
+  const resolvedSettings = resolvePresentationSettings(data.presentation_settings)
 
   // Default displayed estimate number: zero-padded per-company sequence when available,
   // otherwise falls back to the per-project version (legacy behavior).
@@ -1679,11 +1627,18 @@ export function EstimateDocument({
 
   const companyAddr = company ? formatAddress(company) : null
   const clientAddr = client ? formatAddress(client) : null
+  // hasTerms wraps the terms container; each individual TermsBlock also
+  // gates on `(isEditable || data[field] != null)` below. In view mode with
+  // all null terms this still evaluates true iff at least one has content,
+  // which prevents an empty bordered wrapper from rendering.
+  const isTermVisible = (field: 'payment_terms' | 'timeline' | 'warranty_terms' | 'notes') =>
+    isSectionVisible(resolvedSettings, field) &&
+    (isEditable || data[field] != null)
   const hasTerms =
-    isFieldVisible('payment_terms') ||
-    isFieldVisible('timeline') ||
-    isFieldVisible('warranty_terms') ||
-    isFieldVisible('notes')
+    isTermVisible('payment_terms') ||
+    isTermVisible('timeline') ||
+    isTermVisible('warranty_terms') ||
+    isTermVisible('notes')
 
   return (
     <div
@@ -1856,8 +1811,13 @@ export function EstimateDocument({
         )}
       </div>
 
-      {/* Summary — only renders when filled or explicitly revealed in editor */}
-      {isFieldVisible('summary') && (
+      {/* Summary — visibility driven by presentation_settings.sections.summary.
+          View mode additionally auto-suppresses empty content (preserves the
+          pre-Phase-162 share-page behavior for legacy estimates whose
+          presentation_settings is null → resolver returns all visible). Edit
+          mode always renders when visible so the owner can type into it. */}
+      {isSectionVisible(resolvedSettings, 'summary') &&
+        (isEditable || data.summary != null) && (
         <div className="px-6 sm:px-10 py-4 border-b border-border/50">
           <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-1.5 select-none">
             {L.summary}
@@ -1873,7 +1833,7 @@ export function EstimateDocument({
                 })
               }
               rows={3}
-              autoFocus={revealed.has('summary') && data.summary == null}
+              autoFocus={false}
               className={INLINE_TEXTAREA_CLS}
             />
           ) : (
@@ -1949,11 +1909,11 @@ export function EstimateDocument({
             <Plus className="h-4 w-4" />
             {L.addSection}
           </button>
-          <AddDetailsPopover
-            L={L}
-            isFieldVisible={isFieldVisible}
-            onToggle={toggleField}
-          />
+          {/* Phase 162-04 (DOCUX-01) — the Add-details popover trigger is
+              gone; section show/hide is now the gear panel's Document
+              Sections toggles (presentation_settings.sections via
+              resolvePresentationSettings). Non-destructive: hiding a
+              section leaves data[field] intact for a later un-hide. */}
         </div>
       )}
 
@@ -1967,60 +1927,67 @@ export function EstimateDocument({
         defaultTaxRate={companyDefaults?.tax_rate}
       />
 
-      {/* Terms — each block renders only when filled or explicitly revealed */}
+      {/* Terms — visibility driven by presentation_settings.sections. View mode
+          additionally auto-suppresses null content (byte-identical to today
+          for legacy estimates). Edit mode always renders visible sections
+          so the owner has a textarea to type into. */}
       {hasTerms && (
         <div className="px-6 sm:px-10 py-6 border-t border-border/50 space-y-4">
-          {isFieldVisible('payment_terms') && (
+          {isSectionVisible(resolvedSettings, 'payment_terms') &&
+            (isEditable || data.payment_terms != null) && (
             <TermsBlock
               label={L.paymentTerms}
               value={data.payment_terms}
               field="payment_terms"
               dispatch={dispatch}
               isEditable={isEditable}
-              autoFocus={revealed.has('payment_terms') && data.payment_terms == null}
+              autoFocus={false}
               defaultValue={companyDefaults?.payment_terms}
               L={L}
             />
           )}
-          {isFieldVisible('timeline') && (
+          {isSectionVisible(resolvedSettings, 'timeline') &&
+            (isEditable || data.timeline != null) && (
             <TermsBlock
               label={L.timeline}
               value={data.timeline}
               field="timeline"
               dispatch={dispatch}
               isEditable={isEditable}
-              autoFocus={revealed.has('timeline') && data.timeline == null}
+              autoFocus={false}
               L={L}
             />
           )}
-          {isFieldVisible('warranty_terms') && (
+          {isSectionVisible(resolvedSettings, 'warranty_terms') &&
+            (isEditable || data.warranty_terms != null) && (
             <TermsBlock
               label={L.warranty}
               value={data.warranty_terms}
               field="warranty_terms"
               dispatch={dispatch}
               isEditable={isEditable}
-              autoFocus={revealed.has('warranty_terms') && data.warranty_terms == null}
+              autoFocus={false}
               defaultValue={companyDefaults?.warranty_terms}
               L={L}
             />
           )}
-          {isFieldVisible('notes') && (
+          {isSectionVisible(resolvedSettings, 'notes') &&
+            (isEditable || data.notes != null) && (
             <TermsBlock
               label={L.notes}
               value={data.notes}
               field="notes"
               dispatch={dispatch}
               isEditable={isEditable}
-              autoFocus={revealed.has('notes') && data.notes == null}
+              autoFocus={false}
               L={L}
             />
           )}
         </div>
       )}
 
-      {/* Attached photos — only when at least one photo is attached (zero-attached = no section anywhere) */}
-      {data.attachedPhotos && data.attachedPhotos.length > 0 && (
+      {/* Attached photos — gated on presentation_settings.sections.photos AND non-empty list */}
+      {isSectionVisible(resolvedSettings, 'photos') && data.attachedPhotos && data.attachedPhotos.length > 0 && (
         <div className="px-6 sm:px-10 py-6 border-t border-border/50">
           <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3 select-none">
             {L.photos}

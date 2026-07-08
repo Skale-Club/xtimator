@@ -47,6 +47,8 @@ function makeData(overrides: Partial<EstimateDocumentData> = {}): EstimateDocume
     currency_code: 'USD',
     estimate_date: null,
     estimate_number: null,
+    // Phase 162-04 (DOCUX-01) — NULL preserves today's all-visible behavior.
+    presentation_settings: null,
     sections: [
       {
         id: 's1',

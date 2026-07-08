@@ -79,6 +79,8 @@ const dataWithSections: EstimateDocumentData = {
   sections: [section],
   estimate_date: '2026-07-08',
   estimate_number: '0001',
+  // Phase 162-04 (DOCUX-01) — NULL preserves today's all-visible behavior.
+  presentation_settings: null,
 }
 
 const client: DocumentClient = {

@@ -78,6 +78,8 @@ const emptyData: EstimateDocumentData = {
   sections: [],
   estimate_date: '2026-07-08',
   estimate_number: null,
+  // Phase 162-04 (DOCUX-01) — NULL preserves today's all-visible behavior.
+  presentation_settings: null,
 }
 
 // NOTE: linkedClient's name is deliberately DISTINCT from the DEFAULT_CLIENTS
