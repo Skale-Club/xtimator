@@ -9,9 +9,9 @@ import type { EditorItem } from '@/components/workspace/estimate/use-estimate-re
 // surface, NO glass card wrapper, 44px touch targets preserved on the trash
 // button + Switch container.
 //
-// These replace the Wave 0 (162-01) placeholder `it.todo` scaffolds. Every
-// assertion below is grounded in the DOCUX-06 truths from 162-05-PLAN.md's
-// must_haves block.
+// These replace the Wave 0 (162-01) placeholder pending-test scaffolds.
+// Every assertion below is grounded in the DOCUX-06 truths from
+// 162-05-PLAN.md's must_haves block.
 
 // ---- Stub EditorItem builder (mirrors the shape used in the retired
 // price-badge.test.tsx, extended with v4.11 advanced-pricing fields) ----
