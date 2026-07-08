@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.18
 milestone_name: Estimate Document & Send Experience Refresh
 status: executing
-stopped_at: Starting Phase 161 (2 plans)
-last_updated: "2026-07-08T16:55:53.762Z"
-last_activity: 2026-07-08 -- Phase 161 execution started
+stopped_at: Phase 161 complete (2/2 plans). Next Phase 162.
+last_updated: "2026-07-08T18:46:37.993Z"
+last_activity: 2026-07-08 -- Phase 161 verification PASSED (5/5), plans 2/2, ready to plan Phase 162
 progress:
   total_phases: 106
-  completed_phases: 86
+  completed_phases: 87
   total_plans: 241
-  completed_plans: 250
+  completed_plans: 252
 ---
 
 # Project State
@@ -52,10 +52,14 @@ progress:
 
 ## Current Position
 
-Phase: 161 (presentation-settings-data-model-persistence) — EXECUTING
-Plan: 1 of 2 complete (161-01 migration + pure resolver TDD, 13/13 tests green, GUARD-03 boundary enforced statically). Next: 161-02 (plumbing pass-through into query/save/reducer).
-Status: Wave 1 done — PRESENT-01..05 all satisfied at the data-model/resolver level. Plan 161-02 threads the type through 3 seams.
-Last activity: 2026-07-08 -- Plan 161-01 complete. See [161-01-SUMMARY.md](phases/161-presentation-settings-data-model-persistence/161-01-SUMMARY.md).
+Phase: 162 (estimate-document-consolidated-pass) — READY TO PLAN
+Plan: 0 of TBD (Phase 161 shipped 2/2, verification PASSED 5/5; Phase 162 next per v4.18 dependency spine)
+Status: Phase 161 complete — presentation_settings data model + resolver + 3-seam plumbing (Estimate type + saveEstimate pass-through + editor reducer UPDATE_PRESENTATION_SETTINGS). GUARD-03 upheld structurally. Ready for Phase 162 discuss/plan.
+Last activity: 2026-07-08 -- Phase 161 verification passed, 2/2 plans complete. Autonomous v4.18 execution continuing.
+
+Note: `gsd-tools phase complete` reports `next_phase: 999.1` — that is the pre-existing PARKING LOT placeholder (Migrate Inngest to Self-Hosted Hetzner), not the real next phase. The v4.18 dependency spine says Phase 162 is next.
+
+Note: `gsd-tools phase complete` (and `state update-progress`) reverted the frontmatter milestone to a stale `v3.1.1` / MVP Launch Prep value again (known tool bug documented in memory) — manually corrected back to `milestone: v4.18` / `Estimate Document & Send Experience Refresh`.
 
 ### Previous Position (v4.17, for continuity)
 
