@@ -1603,7 +1603,7 @@ Plans:
 **Plans:** 6 plans
 Plans:
 - [ ] 163-01-PLAN.md — Wave 0 test scaffolding (7 test files) unblocking RED->GREEN cycles for SENDHUB-01..06
-- [ ] 163-02-PLAN.md — Dormant-first migration widening estimate_deliveries (format column + channel/provider CHECK) (SENDHUB-03)
+- [x] 163-02-PLAN.md — Dormant-first migration widening estimate_deliveries (format column + channel/provider CHECK) (SENDHUB-03)
 - [ ] 163-03-PLAN.md — Resolver rollout across 6 renderers (classic/modern PDF + modern share + plain-text + WhatsApp) + close estimate-document.tsx:1602 sections gap (SENDHUB-04, SENDHUB-05)
 - [ ] 163-04-PLAN.md — SendHubDialog UI (3 format cards + Mark as Sent footer + LanguageFlagChip) + estimate-tab.tsx import swap (SENDHUB-01, SENDHUB-06)
 - [ ] 163-05-PLAN.md — Delivery-route + WhatsApp fallback + markAsSentAction/logDeliveryAction + SendHubDialog placeholder->real wiring (SENDHUB-02, SENDHUB-03)
