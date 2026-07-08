@@ -104,7 +104,7 @@ export const CATEGORIES: ReadonlyArray<Category> = [
     ],
   },
   {
-    slug: 'payments',
+    slug: 'stripe',
     title: 'Stripe',
     navLabel: 'Stripe',
     description: 'Platform Stripe credentials plus tenant Stripe connections so service businesses can accept card payments on shared estimates.',

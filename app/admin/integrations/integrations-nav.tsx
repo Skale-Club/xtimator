@@ -26,7 +26,7 @@ const CATEGORY_ICONS: Record<string, LucideIcon> = {
   ai: Sparkles,
   email: Mail,
   whatsapp: MessageCircle,
-  payments: CreditCard,
+  stripe: CreditCard,
   sms: MessageSquare,
   crm: Contact,
   billing: Receipt,
