@@ -2556,12 +2556,12 @@ Plans:
   4. The full document — company header, estimate title band, project/bill-to grid, summary, section headers, and line-item table — shows no accidental spacing/offset inconsistencies, verified on both desktop and mobile against the same estimate; the mobile line-item editor at 360px/390px/430px matches the desktop document-native table language (no standalone glass card) with no text clipping and no regression to existing touch targets
   5. `section-card.tsx` and `item-row.tsx` are removed from the codebase with no remaining imports
 
-**Plans:** 3/5 plans executed
+**Plans:** 4/5 plans executed
 Plans:
 - [x] 162-01-PLAN.md — Wave 0 test scaffolding (7 test files, 63 it.todo markers) unblocking RED->GREEN cycles for DOCUX-01..07
 - [x] 162-02-PLAN.md — Consolidated ClientPicker (4 variants) + call-site swap; delete link-client-{button,card}.tsx; DocumentClient.id plumbing (DOCUX-03)
 - [x] 162-03-PLAN.md — Bill To pencil affordance + InlineProjectName reconciliation + full alignment pass (SECTION_PX + unified vertical rhythm) + regenerated share visual baselines (DOCUX-02, DOCUX-04, DOCUX-05)
-- [ ] 162-04-PLAN.md — PresentationSettingsPanel (Popover/Sheet, 3 groups, GUARD-03) + gear icon in floating pill + atomic retirement of revealed/toggleField/isFieldVisible/AddDetailsPopover with resolver-driven visibility (DOCUX-01)
+- [x] 162-04-PLAN.md — PresentationSettingsPanel (Popover/Sheet, 3 groups, GUARD-03) + gear icon in floating pill + atomic retirement of revealed/toggleField/isFieldVisible/AddDetailsPopover with resolver-driven visibility (DOCUX-01)
 - [ ] 162-05-PLAN.md — Mobile line-item rebuild (doc-native transparent inputs, 44px touch targets) + delete section-card.tsx + item-row.tsx + price-badge.test.tsx (DOCUX-06, DOCUX-07)
 **UI hint**: yes
 
