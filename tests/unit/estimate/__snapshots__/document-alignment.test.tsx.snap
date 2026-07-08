@@ -1,0 +1,259 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`EstimateDocument alignment (DOCUX-05) > view mode DOM — snapshot stable post-alignment 1`] = `
+<div
+  class="rounded-3xl border-4 shadow-lg overflow-hidden"
+  style="background-color: rgb(255, 255, 255); color-scheme: light; --foreground: 240 10% 3.9%; --muted-foreground: 240 3.8% 46.1%; --muted: 240 4.8% 95.9%; --border: 240 5.9% 90%; --card: 0 0% 100%; --card-foreground: 240 10% 3.9%; --glass-bg: rgba(255, 255, 255, 0.65); --glass-bg-strong: rgba(255, 255, 255, 0.97); --glass-border: rgba(15, 23, 42, 0.08); color: rgb(9, 9, 11); border-color: rgb(63, 63, 70);"
+>
+  <div
+    class="py-6 px-6 sm:px-10 text-center"
+    style="background-color: rgb(64, 110, 241);"
+  >
+    <h1
+      class="text-3xl sm:text-4xl font-bold tracking-wide select-none"
+      style="color: rgb(0, 0, 0);"
+    >
+      ESTIMATE
+    </h1>
+  </div>
+  <div
+    class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 px-6 sm:px-10 py-6 sm:py-8 border-b border-border/50"
+  >
+    <div>
+      <p
+        class="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-1.5 select-none"
+      >
+        Project
+      </p>
+      <p
+        class="text-2xl font-bold"
+      >
+        Deck Rebuild
+      </p>
+      <p
+        class="text-base text-muted-foreground mt-3"
+      >
+        Date
+        : 
+        July 7, 2026
+      </p>
+      <p
+        class="text-base text-muted-foreground mt-2 tabular-nums"
+      >
+        Estimate #
+        0001
+      </p>
+    </div>
+    <div
+      class="group"
+    >
+      <div
+        class="flex items-center justify-between gap-2 mb-1.5"
+      >
+        <p
+          class="text-xs font-semibold uppercase tracking-widest text-muted-foreground select-none"
+        >
+          Bill To
+        </p>
+      </div>
+      <div
+        class="space-y-0.5"
+      >
+        <p
+          class="text-2xl font-bold"
+        >
+          Existing Ltd
+        </p>
+      </div>
+    </div>
+  </div>
+  <div
+    class="divide-y divide-border"
+  >
+    <div>
+      <div
+        class="flex items-center gap-2 px-6 sm:px-10 py-2 group/header"
+        style="background-color: rgb(64, 110, 241);"
+      >
+        <span
+          class="flex-1 font-semibold text-base select-none"
+          style="color: rgb(0, 0, 0);"
+        >
+          Materials
+        </span>
+      </div>
+      <div
+        class="sm:hidden"
+      >
+        <div
+          class="px-6 sm:px-10 py-2.5 border-b border-border/50 last:border-b-0 even:bg-muted/20"
+        >
+          <p
+            class="text-base font-medium"
+          >
+            Cedar planks
+          </p>
+          <div
+            class="flex justify-between text-sm text-muted-foreground mt-0.5"
+          >
+            <span>
+              10
+               
+              ea
+               ×
+               
+              $10.00
+            </span>
+            <span
+              class="font-medium text-foreground tabular-nums"
+            >
+              $100.00
+            </span>
+          </div>
+        </div>
+      </div>
+      <div
+        class="hidden sm:block overflow-x-auto"
+      >
+        <table
+          class="w-full"
+        >
+          <thead>
+            <tr
+              class="bg-muted/50 text-xs text-muted-foreground border-b border-border/50"
+            >
+              <th
+                class="py-1.5 px-3 text-left font-medium w-[40%]"
+              >
+                Description
+              </th>
+              <th
+                class="py-1.5 px-2 w-[12%] text-center font-medium"
+              >
+                Qty
+              </th>
+              <th
+                class="py-1.5 px-2 w-[13%] text-center font-medium"
+              >
+                Unit
+              </th>
+              <th
+                class="py-1.5 px-2 w-[17%] text-right font-medium"
+              >
+                Unit Price
+              </th>
+              <th
+                class="py-1.5 px-3 w-[18%] text-right font-medium"
+              >
+                Total
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              class="border-b border-border/50 last:border-0 "
+            >
+              <td
+                class="py-2 px-3 text-base"
+              >
+                Cedar planks
+              </td>
+              <td
+                class="py-2 px-2 text-base text-center tabular-nums"
+              >
+                10
+              </td>
+              <td
+                class="py-2 px-2 text-base text-center"
+              >
+                ea
+              </td>
+              <td
+                class="py-2 px-2 text-base text-right tabular-nums"
+              >
+                $10.00
+              </td>
+              <td
+                class="py-2 px-3 text-base text-right tabular-nums font-medium"
+              >
+                $100.00
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div
+        class="flex justify-end items-center gap-3 px-6 sm:px-10 py-2 border-t border-border/50 bg-muted/10"
+      >
+        <span
+          class="text-sm text-muted-foreground select-none"
+        >
+          Section Subtotal
+        </span>
+        <span
+          class="text-sm font-semibold tabular-nums"
+        >
+          $100.00
+        </span>
+      </div>
+    </div>
+  </div>
+  <div
+    class="flex justify-end px-6 sm:px-10 py-6 border-t border-border/50"
+  >
+    <div
+      class="w-full max-w-xs space-y-2"
+    >
+      <div
+        class="flex justify-between text-base"
+      >
+        <span
+          class="text-muted-foreground select-none"
+        >
+          Subtotal
+        </span>
+        <span
+          class="tabular-nums font-medium"
+        >
+          $100.00
+        </span>
+      </div>
+      <div
+        class="flex justify-between items-baseline pt-3 border-t-2 border-foreground"
+      >
+        <span
+          class="text-2xl font-bold select-none"
+        >
+          Total
+        </span>
+        <span
+          class="text-2xl font-bold tabular-nums"
+          style="color: rgb(54, 103, 240);"
+        >
+          $100.00
+        </span>
+      </div>
+    </div>
+  </div>
+  <div
+    class="px-6 sm:px-10 py-6 border-t border-border/50 space-y-4"
+  >
+    <div>
+      <div
+        class="flex items-center justify-between gap-2 mb-1.5"
+      >
+        <p
+          class="text-sm font-semibold uppercase tracking-wider text-muted-foreground select-none"
+        >
+          Payment Terms
+        </p>
+      </div>
+      <p
+        class="text-base text-muted-foreground whitespace-pre-line leading-relaxed"
+      >
+        Net 30
+      </p>
+    </div>
+  </div>
+</div>
+`;

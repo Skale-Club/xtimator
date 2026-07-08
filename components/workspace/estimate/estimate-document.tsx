@@ -428,6 +428,18 @@ const INLINE_INPUT_CLS =
 const INLINE_TEXTAREA_CLS =
   'w-full bg-transparent text-base text-muted-foreground whitespace-pre-line resize-none leading-relaxed p-1 focus:outline-none focus:bg-muted/30 focus:rounded-sm hover:bg-muted/20 hover:rounded-sm transition-colors'
 
+// Section-scoped horizontal padding — every doc surface below the ESTIMATE
+// title band aligns to `px-6 sm:px-10` (Phase 162-03 3a alignment pass,
+// DOCUX-05). Applied to:
+//   - DocumentSectionBlock section header bar
+//   - Read-only mobile stacked row
+//   - Section subtotal footer
+//   - Add-item row
+//   - Info grid, DocumentTotals, Add-section row, Terms, Attached Photos
+//     already use this literal string via px-6 sm:px-10; SECTION_PX is
+//     the future-proof extraction so any drift is one-line-fixable.
+const SECTION_PX = 'px-6 sm:px-10'
+
 // ---------------------------------------------------------------------------
 // DatePopover — inline-styled date trigger that opens a calendar popover
 // ---------------------------------------------------------------------------
@@ -718,7 +730,7 @@ function DocumentSectionBlock({
     <div>
       {/* Section header bar */}
       <div
-        className="flex items-center gap-2 px-3 py-2 group/header"
+        className={`flex items-center gap-2 ${SECTION_PX} py-2 group/header`}
         style={{ backgroundColor: brandColor }}
       >
         {isEditable && (
@@ -785,7 +797,7 @@ function DocumentSectionBlock({
           ) : (
             <div
               key={item.id}
-              className="px-3 py-2.5 border-b border-border/50 last:border-b-0 even:bg-muted/20"
+              className={`${SECTION_PX} py-2.5 border-b border-border/50 last:border-b-0 even:bg-muted/20`}
             >
               <p className="text-base font-medium">{item.description}</p>
               <div className="flex justify-between text-sm text-muted-foreground mt-0.5">
@@ -881,7 +893,7 @@ function DocumentSectionBlock({
 
       {/* Add item — edit mode only, placed right after the last item */}
       {isEditable && dispatch && (
-        <div className="px-3 py-1.5 border-t border-dashed border-border/50">
+        <div className={`${SECTION_PX} py-1.5 border-t border-dashed border-border/50`}>
           <button
             onClick={() => dispatch({ type: 'ADD_ITEM', sectionId: section.id })}
             className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors select-none"
@@ -893,7 +905,7 @@ function DocumentSectionBlock({
       )}
 
       {/* Section subtotal */}
-      <div className="flex justify-end items-center gap-3 px-3 py-2 border-t border-border/50 bg-muted/10">
+      <div className={`flex justify-end items-center gap-3 ${SECTION_PX} py-2 border-t border-border/50 bg-muted/10`}>
         <span className="text-sm text-muted-foreground select-none">{L.sectionSubtotal}</span>
         <span className="text-sm font-semibold tabular-nums">
           {formatMoney(section.subtotal, currencyCode)}
@@ -992,7 +1004,7 @@ function DocumentTotals({
   })
 
   return (
-    <div className="flex justify-end px-6 sm:px-10 py-5 border-t border-border/50">
+    <div className="flex justify-end px-6 sm:px-10 py-6 border-t border-border/50">
       <div className="w-full max-w-xs space-y-2">
         {/* Subtotal */}
         <div className="flex justify-between text-base">
@@ -1755,7 +1767,7 @@ export function EstimateDocument({
       </div>
 
       {/* Info grid: PROJECT | BILL TO */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 px-6 sm:px-10 pt-8 sm:pt-10 pb-5 border-b border-border/50">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 px-6 sm:px-10 py-6 sm:py-8 border-b border-border/50">
         {/* PROJECT */}
         <div>
           <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-1.5 select-none">
@@ -1957,7 +1969,7 @@ export function EstimateDocument({
 
       {/* Terms — each block renders only when filled or explicitly revealed */}
       {hasTerms && (
-        <div className="px-6 sm:px-10 pb-6 pt-4 border-t border-border/50 space-y-4">
+        <div className="px-6 sm:px-10 py-6 border-t border-border/50 space-y-4">
           {isFieldVisible('payment_terms') && (
             <TermsBlock
               label={L.paymentTerms}
@@ -2009,7 +2021,7 @@ export function EstimateDocument({
 
       {/* Attached photos — only when at least one photo is attached (zero-attached = no section anywhere) */}
       {data.attachedPhotos && data.attachedPhotos.length > 0 && (
-        <div className="px-6 sm:px-10 pb-6 pt-4 border-t border-border/50">
+        <div className="px-6 sm:px-10 py-6 border-t border-border/50">
           <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3 select-none">
             {L.photos}
           </p>

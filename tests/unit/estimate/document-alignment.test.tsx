@@ -196,9 +196,14 @@ describe('EstimateDocument alignment (DOCUX-05)', () => {
 
   it('vertical rhythm — DocumentTotals wrapper uses py-6 (not py-5)', () => {
     const { container } = render(<EstimateDocument mode="view" {...baseProps} />)
-    // DocumentTotals wrapper: flex + justify-end + px-6 sm:px-10.
-    const totals = Array.from(container.querySelectorAll('div.flex.justify-end')).find((n) =>
-      n.className.includes('px-6') && n.className.includes('sm:px-10')
+    // DocumentTotals wrapper: flex + justify-end + px-6 sm:px-10, and NOT the
+    // section subtotal footer (which also has flex+justify-end+px-6 but adds
+    // items-center + gap-3 + bg-muted/10). Filter by absence of bg-muted/10.
+    const totals = Array.from(container.querySelectorAll('div.flex.justify-end')).find(
+      (n) =>
+        n.className.includes('px-6') &&
+        n.className.includes('sm:px-10') &&
+        !n.className.includes('bg-muted/10')
     )
     expect(totals).toBeTruthy()
     expect((totals as Element).className.split(/\s+/).includes('py-6')).toBe(true)
