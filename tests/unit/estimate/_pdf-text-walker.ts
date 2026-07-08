@@ -6,6 +6,7 @@
 // share ONE implementation. Underscore prefix signals: not a test file.
 
 import type { ReactElement, ReactNode } from 'react'
+import { Text as PDFText } from '@react-pdf/renderer'
 
 export function flattenText(children: ReactNode): string {
   if (children == null || typeof children === 'boolean') return ''
@@ -23,8 +24,10 @@ export function collectTextNodes(node: ReactElement | ReactNode, out: string[]):
   if (typeof node !== 'object' || !('props' in (node as object))) return
   const el = node as ReactElement
   // @react-pdf/renderer exposes displayName='Text' on its Text primitive.
+  // Also match by reference equality against the imported Text — either match
+  // is sufficient (some builds omit displayName after minification).
   const displayName = (el.type as { displayName?: string })?.displayName
-  if (displayName === 'Text') {
+  if (displayName === 'Text' || el.type === PDFText) {
     out.push(flattenText(el.props.children))
     return
   }
