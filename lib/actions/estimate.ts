@@ -10,6 +10,7 @@ import { shareLinkExpiryFromNow } from '@/lib/estimates/share-link'
 import { dispatchXphereSync } from '@/lib/integrations/xphere/dispatch'
 import { computeEstimateTotals } from '@/lib/estimate/compute-totals'
 import { copyEstimatePhotos } from '@/lib/queries/estimate-photo'
+import type { PresentationSettings } from '@/lib/estimate/presentation-settings'
 
 // ---------------------------------------------------------------------------
 // Auth helper (same pattern as recording.ts)
@@ -83,6 +84,10 @@ interface SaveEstimateInput {
   // v4.11 deposit — OPTIONAL with no-op defaults (retrocompat: 'none' / null).
   deposit_type?: 'none' | 'percent' | 'amount' | null
   deposit_value?: number | null
+  // Phase 161 (PRESENT-01/03): pass-through only -- NEVER read by the totals
+  // engine below. GUARD-03: presentation/pricing-override STATE has zero
+  // interaction with the deterministic totals engine.
+  presentation_settings?: PresentationSettings | null
   /**
    * Pre-launch audit fix (B7): the estimates.updated_at value the caller's
    * local state was loaded/last-saved from. OPTIONAL for back-compat with any
@@ -192,6 +197,9 @@ export async function saveEstimate(estimateData: SaveEstimateInput) {
       deposit_type: estimateData.deposit_type ?? 'none',
       deposit_value: estimateData.deposit_value ?? null,
       balance_due: balanceDue,
+      // Phase 161 (PRESENT-01/03): pure pass-through -- never touches the
+      // totals-engine call above (GUARD-03).
+      presentation_settings: estimateData.presentation_settings ?? null,
       updated_at: new Date().toISOString(),
     })
     .eq('id', estimateData.id)
