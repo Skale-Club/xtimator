@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v3.1.1
-milestone_name: MVP Launch Prep + Future-Proofing
-status: verifying
-stopped_at: Completed 162-05-PLAN.md — Phase 162 CLOSED
-last_updated: "2026-07-08T21:44:32.622Z"
-last_activity: 2026-07-08
+milestone: v4.18
+milestone_name: Estimate Document & Send Experience Refresh
+status: executing
+stopped_at: Phase 162 complete (5/5 plans, verification human_needed auto-approved). Next Phase 163.
+last_updated: "2026-07-08T21:53:12.580Z"
+last_activity: 2026-07-08 -- Phase 162 shipped: gear panel + Bill To pencil + client-picker consolidation + alignment pass + mobile parity + dead-code deletion (DOCUX-01..07)
 progress:
-  total_phases: 18
-  completed_phases: 18
-  total_plans: 51
-  completed_plans: 51
+  total_phases: 106
+  completed_phases: 88
+  total_plans: 246
+  completed_plans: 257
 ---
 
 # Project State
@@ -52,12 +52,12 @@ progress:
 
 ## Current Position
 
-Phase: 162 (estimate-document-consolidated-pass) — EXECUTING
-Plan: 5 of 5
-Status: Phase complete — ready for verification
-Last activity: 2026-07-08
+Phase: 163 (format-first-send-hub-cross-surface-settings-rollout) — READY TO PLAN
+Plan: 0 of TBD (v4.18 last phase; SENDHUB-01..06 requirements pending)
+Status: Phase 162 complete (5/5 plans; verification human_needed auto-approved per standing preference — 5 owner UAT items enumerated in 162-VERIFICATION.md). Phase 163 is the final v4.18 phase.
+Last activity: 2026-07-08 -- Phase 162 shipped: gear panel + Bill To pencil + ClientPicker consolidation + SECTION_PX alignment + mobile parity + dead-code deletion. 440/440 estimate/component/client tests green.
 
-Note: `gsd-tools phase complete` reports `next_phase: 999.1` — that is the pre-existing PARKING LOT placeholder (Migrate Inngest to Self-Hosted Hetzner), not the real next phase. The v4.18 dependency spine says Phase 162 is next.
+Note: `gsd-tools phase complete` reports `is_last_phase: true` and `next_phase: null` — that reflects the tool's stale v3.1.1 view; the v4.18 dependency spine says Phase 163 is next.
 
 Note: `gsd-tools phase complete` (and `state update-progress`) reverted the frontmatter milestone to a stale `v3.1.1` / MVP Launch Prep value again (known tool bug documented in memory) — manually corrected back to `milestone: v4.18` / `Estimate Document & Send Experience Refresh`.
 
