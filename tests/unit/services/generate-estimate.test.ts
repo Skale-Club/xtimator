@@ -28,6 +28,10 @@ vi.mock('@/lib/ai', () => ({
   getAIProvider: vi.fn(),
 }))
 
+vi.mock('@/lib/estimate/public-url', () => ({
+  generatePublicSlugToken: vi.fn().mockReturnValue('deterministic-token-1'),
+}))
+
 import { generateEstimateForProject } from '@/lib/services/generate-estimate'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { getProjectRecordings } from '@/lib/queries/recording'
@@ -81,6 +85,13 @@ function makeSupabaseMock({
   // QUICK-mv1-01: hoisted so tests can assert estimate_activity rows
   // (e.g. trade_mismatch_detected) across from('estimate_activity') calls.
   const activityInsertSpy = vi.fn().mockResolvedValue({ error: null })
+
+  // PUBURL-01: hoisted so tests can assert the public_slug_token insert payload.
+  const estimatesInsertSpy = vi.fn().mockReturnValue({
+    select: vi.fn().mockReturnValue({
+      single: vi.fn().mockResolvedValue({ data: { id: 'estimate-1' }, error: null }),
+    }),
+  })
 
   const fromMock = vi.fn().mockImplementation((table: string) => {
     if (table === 'projects') {
@@ -182,11 +193,7 @@ function makeSupabaseMock({
             }),
           }
         }),
-        insert: vi.fn().mockReturnValue({
-          select: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({ data: { id: 'estimate-1' }, error: null }),
-          }),
-        }),
+        insert: estimatesInsertSpy,
       }
     }
 
@@ -215,7 +222,7 @@ function makeSupabaseMock({
     }
   })
 
-  return { fromMock, updateSpy, activityInsertSpy }
+  return { fromMock, updateSpy, activityInsertSpy, estimatesInsertSpy }
 }
 
 function setupDefaults() {
@@ -245,6 +252,17 @@ describe('generateEstimateForProject', () => {
     expect(result.estimateId).toBe('estimate-1')
     expect(result.version).toBe(1)
     expect(result.clientSuggestion).toBeNull()
+  })
+
+  it('persists a public_slug_token on every newly created estimate (PUBURL-01)', async () => {
+    const { fromMock, estimatesInsertSpy } = makeSupabaseMock()
+    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock } as never)
+
+    await generateEstimateForProject('company-1', 'project-1')
+
+    expect(estimatesInsertSpy).toHaveBeenCalledOnce()
+    const insertPayload = estimatesInsertSpy.mock.calls[0][0] as { public_slug_token: string }
+    expect(insertPayload.public_slug_token).toBe('deterministic-token-1')
   })
 
   it('calls generateEstimate with correct input fields', async () => {
