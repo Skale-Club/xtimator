@@ -3,8 +3,8 @@ import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/re
 import { ClientPicker } from '@/components/clients/client-picker'
 
 // Wave 1 (162-02) — DOCUX-02 (billTo variant) + DOCUX-03 (single consolidated
-// component). Real RTL assertions replacing the 162-01 it.todo scaffold. Every
-// test targets `components/clients/client-picker.tsx` — the ONE shared picker.
+// component). Real RTL assertions replacing the 162-01 scaffold placeholders.
+// Every test targets `components/clients/client-picker.tsx` — the ONE picker.
 
 // -------------------------------------------------------------------------
 // Mocks
