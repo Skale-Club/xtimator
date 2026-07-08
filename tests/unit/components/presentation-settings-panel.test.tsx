@@ -3,7 +3,7 @@ import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 import type { PresentationSettings } from '@/lib/estimate/presentation-settings'
 
 // Wave 4 (162-04) — DOCUX-01 PresentationSettingsPanel real assertions
-// replacing the Wave 0 `it.todo` scaffolds. Every test targets the panel
+// replacing the Wave 0 placeholder scaffolds. Every test targets the panel
 // exported from `components/workspace/estimate/presentation-settings-panel.tsx`
 // (Popover ≥768px / Sheet <768px branch, three control groups, GUARD-03).
 
