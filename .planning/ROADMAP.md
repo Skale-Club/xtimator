@@ -2520,7 +2520,7 @@ Full phase details archived: [milestones/v4.17-ROADMAP.md](milestones/v4.17-ROAD
 Plans:
 - [x] 160-01-PLAN.md — Schema migration (companies.slug + estimates.public_slug_token) + lib/estimate/public-url.ts generator/builder/parser
 - [x] 160-02-PLAN.md — getEstimateByPublicToken/getShareLinkStateByPublicToken query layer + live RLS negative-regression test
-- [ ] 160-03-PLAN.md — New friendly-URL route (page/layout/error/loading) + live e2e parity test
+- [x] 160-03-PLAN.md — New friendly-URL route (page/layout/error/loading) + live e2e parity test
 - [ ] 160-04-PLAN.md — Migrate all 5 inline share-URL call sites (SMS, WhatsApp x2, Stripe Connect webhook x2) to buildEstimatePublicPath + permanent no-hardcode sweep test
 - [x] 160-05-PLAN.md — Wire public_slug_token into new-estimate creation + one-time idempotent backfill script for existing rows
 
