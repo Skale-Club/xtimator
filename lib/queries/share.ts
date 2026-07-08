@@ -285,3 +285,186 @@ export async function getShareLinkState(token: string): Promise<ShareLinkState> 
   if (isShareLinkExpired(exp)) return 'expired'
   return 'active'
 }
+
+/**
+ * Sibling to getEstimateByShareToken, keyed by the friendly-URL
+ * public_slug_token instead of share_token (PUBURL-01/03). Identical
+ * service-role + exact-match + expiry-check + PII-stripping discipline --
+ * see 20260606000002_drop_estimates_anon_select_policy.sql for the
+ * vulnerability class this discipline avoids.
+ *
+ * CRITICAL (Pitfall 6 / PUBURL-05): exposes the estimate's REAL share_token
+ * as `realShareToken` (server-side only) so the friendly route's page.tsx
+ * can key logEstimateView/respondToEstimate/expiry checks off the SAME
+ * value app/estimate/[token]/page.tsx already uses -- never off shortToken.
+ */
+export interface PublicTokenEstimateData extends ShareEstimateData {
+  /** The estimate's real share_token, resolved server-side only for reuse
+   *  by logEstimateView/respondToEstimate. NEVER render this into any
+   *  client-visible field beyond what EstimateView already does with its
+   *  `token` prop today. */
+  realShareToken: string
+}
+
+export async function getEstimateByPublicToken(
+  shortToken: string
+): Promise<PublicTokenEstimateData | null> {
+  const supabase = requireServiceClient()
+
+  const { data: estimateData } = await supabase
+    .from('estimates')
+    .select('*')
+    .eq('public_slug_token', shortToken)
+    .single()
+
+  if (!estimateData) return null
+
+  const shareExpiresAt =
+    (estimateData as { share_expires_at?: string | null }).share_expires_at ?? null
+  if (isShareLinkExpired(shareExpiresAt)) {
+    return null
+  }
+
+  const estimate = estimateData as Estimate
+  const realShareToken = estimate.share_token
+
+  const { data: sectionsData } = await supabase
+    .from('estimate_sections')
+    .select('*')
+    .eq('estimate_id', estimate.id)
+    .order('sort_order', { ascending: true })
+
+  const sections = (sectionsData ?? []) as EstimateSection[]
+
+  const sectionsWithItems = await Promise.all(
+    sections.map(async (section) => {
+      const { data: itemsData } = await supabase
+        .from('estimate_items')
+        .select('*')
+        .eq('section_id', section.id)
+        .order('sort_order', { ascending: true })
+
+      return {
+        ...section,
+        items: (itemsData ?? []) as EstimateItem[],
+      }
+    })
+  )
+
+  const attachedPhotosRaw = await getEstimatePhotos(supabase, estimate.id)
+  const storage = createStorage(supabase)
+  const attachedPhotos = await Promise.all(
+    attachedPhotosRaw.map(async (photo) => ({
+      id: photo.id,
+      storage_path: photo.storage_path,
+      caption: photo.caption,
+      url: await storage.getSignedUrl('photos', photo.storage_path, 3600),
+    }))
+  )
+
+  const estimateWithSections: EstimateWithSections = {
+    ...estimate,
+    sections: sectionsWithItems,
+    attachedPhotos: attachedPhotosRaw,
+  }
+
+  const { data: projectData } = await supabase
+    .from('projects')
+    .select(
+      'name, project_type, client_id, client:clients(name, email, phone, address, city, state, zip)'
+    )
+    .eq('id', estimate.project_id)
+    .single()
+
+  if (!projectData) return null
+
+  const { data: companyData } = await supabase
+    .from('companies')
+    .select(
+      'id, name, owner_name, phone, email, website, address, city, state, zip, logo_url, brand_primary_color, stripe_account_id, stripe_connect_status, digital_signature_enabled, estimate_terms_enabled, estimate_terms_text, estimate_template_style'
+    )
+    .eq('id', estimate.company_id)
+    .single()
+
+  if (!companyData) return null
+
+  type ShareInvoice = ShareEstimateData['estimate']['invoices'][number]
+  let invoices: ShareInvoice[] = []
+  try {
+    const invoicesQuery = supabase
+      .from('invoices')
+      .select('id, kind, amount_cents, currency_code, status, hosted_invoice_url')
+    const { data: invoiceRows } = (await invoicesQuery
+      ?.eq?.('estimate_id', estimate.id)
+      ?.in?.('status', ['open', 'paid'])) ?? { data: null }
+    invoices = (invoiceRows ?? []) as ShareInvoice[]
+  } catch {
+    invoices = []
+  }
+
+  const clientRaw = projectData.client as
+    | { name: string; email: string | null; phone: string | null; address: string | null; city: string | null; state: string | null; zip: string | null }[]
+    | { name: string; email: string | null; phone: string | null; address: string | null; city: string | null; state: string | null; zip: string | null }
+    | null
+
+  const client = Array.isArray(clientRaw) ? clientRaw[0] ?? null : clientRaw
+
+  const estimateRaw = estimateData as Record<string, unknown>
+  const payment_status =
+    typeof estimateRaw.payment_status === 'string'
+      ? (estimateRaw.payment_status as string)
+      : 'unpaid'
+  const stripe_checkout_session_id =
+    (estimateRaw.stripe_checkout_session_id as string | null) ?? null
+  const paid_at = (estimateRaw.paid_at as string | null) ?? null
+  const payment_amount_cents =
+    (estimateRaw.payment_amount_cents as number | null) ?? null
+  const totalDollars = Number(estimate.total ?? 0)
+  const total_amount_cents = Number.isFinite(totalDollars)
+    ? toMinorUnits(totalDollars, estimate.currency_code)
+    : 0
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { share_token: _shareToken, attachedPhotos: _rawAttachedPhotos, ...safeEstimate } =
+    estimateWithSections
+
+  return {
+    estimate: {
+      ...safeEstimate,
+      project: {
+        name: projectData.name as string,
+        project_type: projectData.project_type as string | null,
+      },
+      company: companyData as ShareEstimateData['estimate']['company'],
+      payment_status,
+      total_amount_cents,
+      stripe_checkout_session_id,
+      paid_at,
+      payment_amount_cents,
+      invoices,
+      attachedPhotos,
+    },
+    client,
+    realShareToken,
+  }
+}
+
+/**
+ * Sibling to getShareLinkState, keyed by public_slug_token instead of
+ * share_token (PUBURL-01/05). Same PII-free column selection.
+ */
+export async function getShareLinkStateByPublicToken(
+  shortToken: string
+): Promise<ShareLinkState> {
+  const supabase = requireServiceClient()
+  const { data } = await supabase
+    .from('estimates')
+    .select('share_expires_at')
+    .eq('public_slug_token', shortToken)
+    .maybeSingle()
+
+  if (!data) return 'missing'
+  const exp = (data as { share_expires_at?: string | null }).share_expires_at ?? null
+  if (isShareLinkExpired(exp)) return 'expired'
+  return 'active'
+}
