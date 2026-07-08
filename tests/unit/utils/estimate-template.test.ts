@@ -83,6 +83,7 @@ describe('buildItemsBreakdown', () => {
     estimate_date: null,
     is_current: true,
     share_token: 'tok',
+    public_slug_token: null,
     status: 'draft',
     language: 'en',
     summary: null,
@@ -106,6 +107,7 @@ describe('buildItemsBreakdown', () => {
     client_response: null,
     created_at: '2026-01-01',
     updated_at: '2026-01-01',
+    presentation_settings: null,
     attachedPhotos: [],
     sections: [
       {

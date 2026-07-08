@@ -4,6 +4,7 @@ import { useReducer } from 'react'
 import type { EstimateWithSections } from '@/lib/queries/estimate'
 import type { Photo } from '@/lib/queries/photo'
 import { DEFAULT_CURRENCY_CODE } from '@/lib/money/currency'
+import type { PresentationSettings } from '@/lib/estimate/presentation-settings'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -64,6 +65,10 @@ export interface EstimateEditorState {
   estimate_date: string | null
   estimate_number: string | null
   attachedPhotos: Photo[]
+  /** Phase 161 (PRESENT-01/03): dormant-first -- NULL = today's behavior (all
+   *  visible, no overrides). Never read by recalculate() (GUARD-03: visibility
+   *  and override STATE never affect totals math here). */
+  presentation_settings: PresentationSettings | null
   isDirty: boolean
   /** Pre-launch audit fix (B7): optimistic-concurrency baseline — the
    * estimates.updated_at this state was loaded from. saveEstimate compares it
@@ -91,6 +96,7 @@ export type EstimateAction =
   | { type: 'UPDATE_DISCOUNT'; discount_type: string | null; discount_value: number }
   | { type: 'UPDATE_DEPOSIT'; deposit_type: string; deposit_value: number | null }
   | { type: 'UPDATE_TAX_RATE'; tax_rate: number }
+  | { type: 'UPDATE_PRESENTATION_SETTINGS'; presentation_settings: PresentationSettings }
   | { type: 'MARK_SAVED'; updated_at: string }
   | { type: 'APPLY_REFINEMENT'; refined: RefinementPayload }
   | { type: 'ATTACH_PHOTO'; photo: Photo }
@@ -195,6 +201,7 @@ function initState(estimate: EstimateWithSections | null): EstimateEditorState {
       estimate_date: null,
       estimate_number: null,
       attachedPhotos: [],
+      presentation_settings: null,
       isDirty: false,
       updated_at: new Date(0).toISOString(),
     }
@@ -228,6 +235,7 @@ function initState(estimate: EstimateWithSections | null): EstimateEditorState {
     estimate_date: (estimate as { estimate_date?: string | null }).estimate_date ?? null,
     estimate_number: (estimate as { estimate_number?: string | null }).estimate_number ?? null,
     attachedPhotos: (estimate as { attachedPhotos?: Photo[] }).attachedPhotos ?? [],
+    presentation_settings: (estimate as { presentation_settings?: PresentationSettings | null }).presentation_settings ?? null,
     sections: estimate.sections
       .map((s) => ({
         id: s.id,
@@ -453,6 +461,9 @@ function estimateReducer(state: EstimateEditorState, action: EstimateAction): Es
       }
       return recalculate(updated)
     }
+
+    case 'UPDATE_PRESENTATION_SETTINGS':
+      return { ...state, presentation_settings: action.presentation_settings, isDirty: true }
 
     case 'MARK_SAVED':
       return { ...state, isDirty: false, updated_at: action.updated_at }
