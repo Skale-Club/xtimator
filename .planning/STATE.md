@@ -2,12 +2,12 @@
 gsd_state_version: 1.0
 milestone: v4.18
 milestone_name: Estimate Document & Send Experience Refresh
-status: defining-requirements
-stopped_at: Milestone started; requirements not yet defined
+status: roadmap-created
+stopped_at: Roadmap created (Phases 160-163, 24/24 requirements mapped, 0 orphans); ready to plan Phase 160
 last_updated: "2026-07-08T00:00:00.000Z"
 last_activity: 2026-07-08
 progress:
-  total_phases: 0
+  total_phases: 4
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -16,6 +16,10 @@ progress:
 # Project State
 
 ## Current Status
+
+- **Milestone**: v4.18 Estimate Document & Send Experience Refresh — ROADMAP CREATED 2026-07-08. **4 phases (160-163)**, **24/24 requirements mapped** (PUBURL-01..06, PRESENT-01..05, DOCUX-01..07, SENDHUB-01..06), **0 orphans, 0 duplicates**. Per-estimate settings panel (gear on the floating Photos/Send pill) for tax/discount/deposit overrides + non-destructive section visibility via one shared resolver (`lib/estimate/presentation-settings.ts`); a format-first Send hub (Online Estimate/PDF/Plain Text) replacing the channel-first Email/SMS tabs + friendlier branded URLs (`/estimate/{companySlug}/{estimateSlug}-{shortToken}`, old token links keep working forever, no new anon RLS ever added to `estimates`); a mobile line-item editor rebuilt to match the desktop document-native table language; a full document alignment pass + inline-editable Bill To via one consolidated client-picker. Sequencing follows research's file-contention analysis: Phase 160 (URL contract/security) and Phase 161 (settings data model) are file-disjoint and can run in parallel; Phase 162 (the 2018-line `estimate-document.tsx` consolidated pass) is internally sequenced 3a→3b→3c and depends on Phase 161; Phase 163 (Send Hub + cross-surface settings rollout) depends on Phase 161 and benefits from Phase 160, closing the milestone's #1 structural risk (settings-drift). Server-side math stays authoritative via `lib/estimate/compute-totals.ts` throughout — GUARD-03 unchanged. Source: SEED-041 + SEED-042 + SEED-043 + SEED-044. Numbering continues the global counter — v4.17 ended at Phase 159, so v4.18 starts at **Phase 160**. Next: `/gsd:plan-phase 160` (Phase 160 and 161 are file-disjoint — could be planned/executed in parallel per research).
+
+### Previous Milestone (shipped)
 
 - **Milestone**: v4.17 Admin Polish & Credit UX Compliance — SHIPPED 2026-07-06. 4 phases (156-159), 15/15 requirements (CREDITFIX-01..03, NAV-01..03, NAMING-01..02, BILLADMIN-01..03, INBOX-05..08). Fixed a real regression against a locked v4.15 decision (tenant Plans page leaked raw credit numbers in 3 places); reorganized the super-admin sidebar (Dashboard/Companies/Inbox first + new "Content" group) and renamed Legal Pages→Pages; fixed two owner-flagged confusing names (Message→Message Template, Support Mode→View as Company); overhauled the admin Billing page to be credit-model-centric; redesigned the Inbox with a genuine "Premium Xtimator" glassmorphism treatment. No new backend logic — 100% reuse of existing credit-ledger/billing_config functions. All 4 phases planned and largely executed in parallel since none actually depended on each other. Caught and fixed 3 real defects during plan-checking/integration-audit before shipping. Executed fully autonomously overnight per the standing no-checkpoint-interruptions preference; owner unreachable for some naming calls, best-judgment names chosen and documented. Archived to `milestones/v4.17-*`. Manual-only pending items: live-browser visual/contrast check of the redesigned Inbox and admin Billing page (no live UAT in this environment). Next: `/gsd:new-milestone`.
 
@@ -48,10 +52,10 @@ progress:
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-07-08 - Milestone v4.18 Estimate Document & Send Experience Refresh started (SEED-041/042/043/044)
+Phase: 160 of 4 in milestone v4.18 (URL Contract & Public Access Security) — ready to plan
+Plan: — (not yet planned)
+Status: Roadmap created; ready to plan Phase 160
+Last activity: 2026-07-08 - ROADMAP.md + STATE.md written for v4.18 (Phases 160-163, 24/24 requirements mapped, 0 orphans); REQUIREMENTS.md traceability updated. Next: /gsd:plan-phase 160 (file-disjoint from 161 per research — could run in parallel)
 
 ### Previous Position (v4.17, for continuity)
 

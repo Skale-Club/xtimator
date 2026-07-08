@@ -7,7 +7,7 @@
 > **Locked decisions (non-negotiable, resolved autonomously from research + seed "Decisions to Lock" per the standing no-checkpoint-interruptions preference):**
 > - **Friendly URL shape:** `/estimate/{companySlug}/{estimateSlug}-{shortToken}`, where `shortToken` is ≥10 base62 chars from `crypto.randomBytes(...).toString('base64url')` stored in a NEW `estimates.public_slug_token` column (its own unique index) — never a truncated/reused `share_token` UUID. Old `/estimate/{share_token}` links keep working forever; both routes coexist permanently, no forced migration.
 > - **No new anon RLS policy on `estimates`, ever.** The friendly-URL lookup mirrors `getEstimateByShareToken`'s exact service-role + exact-match posture. This codebase already shipped and reverted one anon-RLS PII leak on this table (`20260606000002_drop_estimates_anon_select_policy.sql`) — do not recreate that bug class.
-> - **Non-destructive hiding is the ONLY hiding mechanism going forward.** The new presentation-settings toggles never clear field content; this REPLACES today's destructive `toggleField()` for Summary/Sections/Payment Terms/Timeline/Warranty/Notes — no dual system.
+> - **Non-destructive hiding is the ONLY hiding mechanism going forward.** The new presentation-settings toggles never clear field content, this REPLACES today's destructive `toggleField()` for Summary/Sections/Payment Terms/Timeline/Warranty/Notes — no dual system.
 > - **"Tax Off" preserves the default rate.** It's a separate enabled/disabled flag on top of the existing rate, not a mutation to `tax_rate = 0` — so re-enabling restores the original value.
 > - **Section visibility is honored on ALL channels from day one** — editor, both share templates (classic/modern), both PDF templates, plain-text, and WhatsApp. Deferring any channel is exactly the "settings-drift" risk research flagged as the #1 structural risk of this milestone.
 > - **Coarse toggles only — no granular per-field hiding in v1** (e.g., no "show quantities but hide unit price"). Matches the seed's own stated caution and FEATURES.md's "must have = coarse, differentiator/risk = granular."
@@ -85,20 +85,40 @@ Deferred to a future milestone. Tracked but not in this roadmap.
 
 ## Traceability
 
-Every v1 requirement maps to exactly one phase. Coverage: 24/24 mapped, 0 orphans, 0 duplicates. Numbering continues the global counter — v4.17 ended at Phase 159, so this milestone is expected to start at **Phase 160** (final phase numbers confirmed by the roadmapper).
+Every v1 requirement maps to exactly one phase. Coverage: 24/24 mapped, 0 orphans, 0 duplicates. Numbering continues the global counter — v4.17 ended at Phase 159, so this milestone starts at **Phase 160**.
 
-| Requirement | Phase (working title) | Status |
-|-------------|------------------------|--------|
-| PUBURL-01..06 | URL Contract & Public Access Security | Pending |
-| PRESENT-01..05 | Presentation Settings Data Model & Persistence | Pending |
-| DOCUX-01..07 | Estimate Document Consolidated Pass | Pending |
-| SENDHUB-01..06 | Format-First Send Hub & Cross-Surface Settings Rollout | Pending |
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| PUBURL-01 | Phase 160 — URL Contract & Public Access Security | Pending |
+| PUBURL-02 | Phase 160 — URL Contract & Public Access Security | Pending |
+| PUBURL-03 | Phase 160 — URL Contract & Public Access Security | Pending |
+| PUBURL-04 | Phase 160 — URL Contract & Public Access Security | Pending |
+| PUBURL-05 | Phase 160 — URL Contract & Public Access Security | Pending |
+| PUBURL-06 | Phase 160 — URL Contract & Public Access Security | Pending |
+| PRESENT-01 | Phase 161 — Presentation Settings Data Model & Persistence | Pending |
+| PRESENT-02 | Phase 161 — Presentation Settings Data Model & Persistence | Pending |
+| PRESENT-03 | Phase 161 — Presentation Settings Data Model & Persistence | Pending |
+| PRESENT-04 | Phase 161 — Presentation Settings Data Model & Persistence | Pending |
+| PRESENT-05 | Phase 161 — Presentation Settings Data Model & Persistence | Pending |
+| DOCUX-01 | Phase 162 — Estimate Document Consolidated Pass | Pending |
+| DOCUX-02 | Phase 162 — Estimate Document Consolidated Pass | Pending |
+| DOCUX-03 | Phase 162 — Estimate Document Consolidated Pass | Pending |
+| DOCUX-04 | Phase 162 — Estimate Document Consolidated Pass | Pending |
+| DOCUX-05 | Phase 162 — Estimate Document Consolidated Pass | Pending |
+| DOCUX-06 | Phase 162 — Estimate Document Consolidated Pass | Pending |
+| DOCUX-07 | Phase 162 — Estimate Document Consolidated Pass | Pending |
+| SENDHUB-01 | Phase 163 — Format-First Send Hub & Cross-Surface Settings Rollout | Pending |
+| SENDHUB-02 | Phase 163 — Format-First Send Hub & Cross-Surface Settings Rollout | Pending |
+| SENDHUB-03 | Phase 163 — Format-First Send Hub & Cross-Surface Settings Rollout | Pending |
+| SENDHUB-04 | Phase 163 — Format-First Send Hub & Cross-Surface Settings Rollout | Pending |
+| SENDHUB-05 | Phase 163 — Format-First Send Hub & Cross-Surface Settings Rollout | Pending |
+| SENDHUB-06 | Phase 163 — Format-First Send Hub & Cross-Surface Settings Rollout | Pending |
 
-**Phase → requirement rollup (research-recommended order, subject to roadmapper confirmation):**
-- **Phase 1 — URL Contract & Public Access Security**: PUBURL-01, PUBURL-02, PUBURL-03, PUBURL-04, PUBURL-05, PUBURL-06 (file-disjoint from Phase 2; highest-severity pitfall, done first with its own security checkpoint)
-- **Phase 2 — Presentation Settings Data Model & Persistence**: PRESENT-01, PRESENT-02, PRESENT-03, PRESENT-04, PRESENT-05 (file-disjoint from Phase 1, can run in parallel; must land before Phase 4 and the settings-UI sub-step of Phase 3)
-- **Phase 3 — Estimate Document Consolidated Pass**: DOCUX-01, DOCUX-02, DOCUX-03, DOCUX-04, DOCUX-05, DOCUX-06, DOCUX-07 (internally sequenced 3a client-picker/alignment → 3b settings UI wiring → 3c mobile parity, since 3 of 4 seeds touch the same `estimate-document.tsx`)
-- **Phase 4 — Format-First Send Hub & Cross-Surface Settings Rollout**: SENDHUB-01, SENDHUB-02, SENDHUB-03, SENDHUB-04, SENDHUB-05, SENDHUB-06 (depends on Phase 2's settings model and benefits from Phase 1's friendly URLs; closes the settings-drift risk)
+**Phase → requirement rollup:**
+- **Phase 160 — URL Contract & Public Access Security**: PUBURL-01, PUBURL-02, PUBURL-03, PUBURL-04, PUBURL-05, PUBURL-06 (file-disjoint from Phase 161; highest-severity pitfall, done first with its own security checkpoint)
+- **Phase 161 — Presentation Settings Data Model & Persistence**: PRESENT-01, PRESENT-02, PRESENT-03, PRESENT-04, PRESENT-05 (file-disjoint from Phase 160, can run in parallel; must land before Phase 163 and the settings-UI sub-step of Phase 162)
+- **Phase 162 — Estimate Document Consolidated Pass**: DOCUX-01, DOCUX-02, DOCUX-03, DOCUX-04, DOCUX-05, DOCUX-06, DOCUX-07 (internally sequenced 3a client-picker/alignment → 3b settings UI wiring → 3c mobile parity, since 3 of 4 seeds touch the same `estimate-document.tsx`)
+- **Phase 163 — Format-First Send Hub & Cross-Surface Settings Rollout**: SENDHUB-01, SENDHUB-02, SENDHUB-03, SENDHUB-04, SENDHUB-05, SENDHUB-06 (depends on Phase 161's settings model and benefits from Phase 160's friendly URLs; closes the settings-drift risk)
 
 ---
-*Requirements defined: 2026-07-08 — milestone v4.18 Estimate Document & Send Experience Refresh, informed by 4-agent research (STACK/FEATURES/ARCHITECTURE/PITFALLS, see `.planning/research/SUMMARY.md`). Phase numbering continues the global counter — v4.17 ended at Phase 159, so this milestone is expected to start at Phase 160.*
+*Requirements defined: 2026-07-08 — milestone v4.18 Estimate Document & Send Experience Refresh, informed by 4-agent research (STACK/FEATURES/ARCHITECTURE/PITFALLS, see `.planning/research/SUMMARY.md`). Phase numbering continues the global counter — v4.17 ended at Phase 159, so this milestone starts at Phase 160. Roadmap: [.planning/ROADMAP.md](ROADMAP.md).*
