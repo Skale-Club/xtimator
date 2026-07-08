@@ -1,8 +1,8 @@
 ---
 phase: 160
 slug: url-contract-public-access-security
-status: draft
-nyquist_compliant: false
+status: final
+nyquist_compliant: true
 wave_0_complete: false
 created: 2026-07-08
 ---
@@ -36,15 +36,16 @@ created: 2026-07-08
 
 ## Per-Task Verification Map
 
-*To be completed by the planner as tasks are assigned IDs — see `.planning/phases/160-url-contract-public-access-security/160-RESEARCH.md`'s "Validation Architecture" section for the full per-requirement test design (PUBURL-01..06), which every task's `<acceptance_criteria>` should draw from directly.*
-
-| Task ID | Plan | Wave | Requirement | Test Type | Automated Command | File Exists | Status |
-|---------|------|------|-------------|-----------|-------------------|-------------|--------|
-| TBD | TBD | TBD | PUBURL-01 | unit | `npx vitest run tests/unit/estimates/public-token.test.ts` | ❌ W0 | ⬜ pending |
-| TBD | TBD | TBD | PUBURL-03 | integration | `npx vitest run tests/integration/estimates-public-token-rls.test.ts` | ❌ W0 | ⬜ pending |
-| TBD | TBD | TBD | PUBURL-05 | unit | `npx vitest run tests/unit/share-query.test.ts` | ✅ (extend existing) | ⬜ pending |
+| Task | Plan | Wave | Requirement | Test Type | Automated Command | File Exists | Status |
+|------|------|------|-------------|-----------|-------------------|-------------|--------|
+| 160-01 (migration + public-url.ts) | 01 | 1 | PUBURL-01, PUBURL-03, PUBURL-04 | unit (static migration-contract guard) | `npx vitest run tests/unit/phase160-public-url-contract-migration.test.ts tests/unit/estimates/public-url.test.ts` | ❌ W0 | ⬜ pending |
+| 160-02 (query layer + live RLS test) | 02 | 1 | PUBURL-02, PUBURL-03, PUBURL-05 | unit + integration (live anon RLS) | `npx vitest run tests/unit/estimates/public-token.test.ts tests/integration/estimates-public-token-rls.test.ts` | ❌ W0 | ⬜ pending |
+| 160-03 (friendly route + e2e parity) | 03 | 2 | PUBURL-01, PUBURL-02, PUBURL-05, PUBURL-06 | e2e (gated on live Supabase creds) | `npx playwright test estimate-friendly-url.spec.ts` | ❌ W0 | ⬜ pending |
+| 160-04 (call-site migration + sweep) | 04 | 2 | PUBURL-04 | unit + grep sweep | `npx vitest run tests/unit/webhooks/connect-events.test.ts tests/unit/estimates/no-hardcoded-share-url.test.ts` | mixed (extends existing + new) | ⬜ pending |
+| 160-05 (new-estimate wiring + backfill) | 05 | 2 | PUBURL-01 | unit | `npx vitest run tests/unit/services/generate-estimate.test.ts` | ✅ (extend existing) | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
+*Verified by gsd-plan-checker (2026-07-08): PUBURL-03 doubly enforced (static regex guard in 160-01 + genuine live-DB anon-client negative test in 160-02, not a mock) — see checker report for full cross-reference of file/line citations.*
 
 ---
 
@@ -73,4 +74,4 @@ created: 2026-07-08
 - [ ] Feedback latency < 60s
 - [ ] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending — planner/executor to finalize Per-Task Verification Map with real task IDs
+**Approval:** approved 2026-07-08 — plan-checker verification passed (2 non-blocking warnings, both documentation-sync/coverage-quality notes, no functional risk)
