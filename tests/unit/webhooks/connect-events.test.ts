@@ -63,6 +63,17 @@ const estimateSelect = vi.fn()
 const estimateSelectEq = vi.fn()
 const estimateSelectSingle = vi.fn()
 
+// estimates.update().eq().select().single() — checkout.session.completed path
+const estimateUpdate = vi.fn()
+const estimateUpdateEq = vi.fn()
+const estimateUpdateSelect = vi.fn()
+const estimateUpdateSingle = vi.fn()
+
+// projects.select().eq().single() — checkout.session.completed's project-name lookup
+const projectSelect = vi.fn()
+const projectSelectEq = vi.fn()
+const projectSelectSingle = vi.fn()
+
 function resetSupabaseMocks() {
   dedupInsert.mockReset()
   invoiceUpdate.mockReset()
@@ -77,6 +88,13 @@ function resetSupabaseMocks() {
   estimateSelect.mockReset()
   estimateSelectEq.mockReset()
   estimateSelectSingle.mockReset()
+  estimateUpdate.mockReset()
+  estimateUpdateEq.mockReset()
+  estimateUpdateSelect.mockReset()
+  estimateUpdateSingle.mockReset()
+  projectSelect.mockReset()
+  projectSelectEq.mockReset()
+  projectSelectSingle.mockReset()
 
   // Default: dedup insert succeeds (not a duplicate)
   dedupInsert.mockResolvedValue({ error: null })
@@ -106,6 +124,7 @@ function resetSupabaseMocks() {
       name: 'Test Business',
       stripe_account_display_name: 'Test Business Display',
       user_id: 'user_fixture_1',
+      slug: 'acme-co',
     },
     error: null,
   })
@@ -118,9 +137,30 @@ function resetSupabaseMocks() {
   estimateSelect.mockReturnValue({ eq: estimateSelectEq })
   estimateSelectEq.mockReturnValue({ single: estimateSelectSingle })
   estimateSelectSingle.mockResolvedValue({
-    data: { share_token: 'tok_x', project_id: 'pr_x' },
+    data: { share_token: 'tok_x', project_id: 'pr_x', public_slug_token: null },
     error: null,
   })
+
+  // estimates.update().eq().select().single() — checkout.session.completed path
+  estimateUpdate.mockReturnValue({ eq: estimateUpdateEq })
+  estimateUpdateEq.mockReturnValue({ select: estimateUpdateSelect })
+  estimateUpdateSelect.mockReturnValue({ single: estimateUpdateSingle })
+  estimateUpdateSingle.mockResolvedValue({
+    data: {
+      id: 'est_fixture_1',
+      company_id: 'co_fixture_1',
+      project_id: 'proj_fixture_1',
+      share_token: 'tok_x',
+      public_slug_token: 'friendlytoken1',
+      currency_code: 'usd',
+    },
+    error: null,
+  })
+
+  // projects.select().eq().single()
+  projectSelect.mockReturnValue({ eq: projectSelectEq })
+  projectSelectEq.mockReturnValue({ single: projectSelectSingle })
+  projectSelectSingle.mockResolvedValue({ data: { name: 'Bathroom remodel' }, error: null })
 }
 
 vi.mock('@/lib/supabase/service', () => ({
@@ -136,7 +176,10 @@ vi.mock('@/lib/supabase/service', () => ({
         return { select: companySelect, update: companyUpdate }
       }
       if (table === 'estimates') {
-        return { select: estimateSelect }
+        return { select: estimateSelect, update: estimateUpdate }
+      }
+      if (table === 'projects') {
+        return { select: projectSelect }
       }
       throw new Error(`Unexpected table: ${table}`)
     }),
@@ -314,5 +357,21 @@ describe('stripe connect webhook — account.application.deauthorized (unchanged
     expect(invoiceUpdate).not.toHaveBeenCalled()
     expect(sendPaymentReceivedEmail).not.toHaveBeenCalled()
     expect(notify).not.toHaveBeenCalled()
+  })
+})
+
+describe('checkout.session.completed — friendly URL (Phase 160, PUBURL-04)', () => {
+  it('builds estimateShareUrl via buildEstimatePublicPath (friendly path) when slug + public_slug_token are present', async () => {
+    const event = makeConnectEvent('checkout.session.completed')
+    mockConstructEvent.mockReturnValue(event)
+
+    const res = await POST(makeRequest())
+    expect(res.status).toBe(200)
+
+    expect(sendPaymentReceivedEmail).toHaveBeenCalledTimes(1)
+    const ctx = sendPaymentReceivedEmail.mock.calls[0][0] as { estimateShareUrl: string }
+    expect(ctx.estimateShareUrl).toBe(
+      'https://xtimator.com/estimate/acme-co/bathroom-remodel-friendlytoken1'
+    )
   })
 })
