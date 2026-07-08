@@ -15,6 +15,7 @@ import type { Recording } from '@/lib/queries/recording'
 import type { Photo } from '@/lib/queries/photo'
 import { useEstimateReducer, type EstimateEditorState } from './use-estimate-reducer'
 import { EstimateFloatingActions } from './estimate-floating-actions'
+import { PresentationSettingsPanel } from './presentation-settings-panel'
 import { IssuedInvoicesPanel } from './issued-invoices-panel'
 import { GenerateInvoiceDialog } from './generate-invoice-dialog'
 import {
@@ -27,6 +28,7 @@ import {
 import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
 import type { PriceBookItem } from '@/lib/queries/price-book'
 import { useEstimateVersionSlot } from '@/components/workspace/estimate-version-context'
+import { hasEstimateBeenSentOrViewed } from '@/lib/estimate/presentation-settings'
 
 // ---------------------------------------------------------------------------
 // State → EstimateDocumentData converter
@@ -201,6 +203,11 @@ export function EstimateEditor({
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
   const [currentVersionId, setCurrentVersionId] = useState(estimate.id)
   const [localProjectName, setLocalProjectName] = useState(projectName)
+  // Phase 162-04 (DOCUX-01) — Presentation Settings Panel open/close state,
+  // mirroring the existing saveStatus / currentVersionId pattern. Owned here
+  // so the panel renders as a sibling of EstimateFloatingActions and can read
+  // state.presentation_settings + hasEstimateBeenSentOrViewed at the boundary.
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   const isReadOnly = !state.is_current
   const isCurrent = state.is_current
@@ -441,8 +448,32 @@ export function EstimateEditor({
         status={slotSaveStatus}
         onSend={handleSend}
         onOpenPhotos={onOpenPhotos}
+        onOpenSettings={isReadOnly ? undefined : () => setSettingsOpen(true)}
         linkClientSlot={linkClientSlot}
       />
+
+      {/* Phase 162-04 (DOCUX-01) — the ONE presentation-settings write path.
+          The panel's onChange emits a plain PresentationSettings object that
+          we convert into the single reducer action below. GUARD-03 boundary
+          lives here, never inside the panel. */}
+      {isCurrent && !isReadOnly && (
+        <PresentationSettingsPanel
+          open={settingsOpen}
+          onOpenChange={setSettingsOpen}
+          settings={state.presentation_settings}
+          onChange={(next) =>
+            dispatch({
+              type: 'UPDATE_PRESENTATION_SETTINGS',
+              presentation_settings: next,
+            })
+          }
+          defaultTaxRate={state.tax_rate}
+          estimateSentOrViewed={hasEstimateBeenSentOrViewed({
+            sent_at: estimate.sent_at,
+            viewed_at: estimate.viewed_at,
+          })}
+        />
+      )}
     </div>
   )
 }

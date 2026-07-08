@@ -1,7 +1,7 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { Send, Camera } from 'lucide-react'
+import { Send, Camera, Settings } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 type Status = 'idle' | 'saving' | 'saved' | 'error'
@@ -12,6 +12,9 @@ interface EstimateFloatingActionsProps {
   onSend: () => void
   /** Opens the Photos dialog on top of the estimate (replaces the old sub-sidebar nav). */
   onOpenPhotos?: () => void
+  /** Phase 162-04 (DOCUX-01) — opens the PresentationSettingsPanel. When
+   *  omitted the gear button is not rendered (backward-compat). */
+  onOpenSettings?: () => void
   linkClientSlot?: ReactNode
 }
 
@@ -47,6 +50,7 @@ export function EstimateFloatingActions({
   status,
   onSend,
   onOpenPhotos,
+  onOpenSettings,
   linkClientSlot,
 }: EstimateFloatingActionsProps) {
   if (!isCurrent) return null
@@ -55,6 +59,17 @@ export function EstimateFloatingActions({
 
   return (
     <Pill>
+      {onOpenSettings && (
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={onOpenSettings}
+          aria-label="Settings"
+          className="rounded-full text-foreground"
+        >
+          <Settings className="h-3.5 w-3.5" />
+        </Button>
+      )}
       {linkClientSlot}
       {onOpenPhotos && (
         <Button size="sm" variant="ghost" onClick={onOpenPhotos} className="rounded-full gap-1.5 text-foreground">
