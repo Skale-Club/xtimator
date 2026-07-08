@@ -357,6 +357,11 @@ describe('getAttemptOutcome — journal rule precedence (260707-lyq)', () => {
       state: 'pending',
       lastStep: 'transcribe',
       lastStatus: 'started',
+      // 260707-o7a: pending now carries progress-bar payload — save_recording
+      // succeeded → completed; transcribe started with no created_at in the
+      // mock rows → activeStepStartedAt undefined.
+      completedSteps: ['save_recording'],
+      activeStepStartedAt: undefined,
     })
   })
 
@@ -398,7 +403,14 @@ describe('getAttemptOutcome — journal rule precedence (260707-lyq)', () => {
 
     const result = await getAttemptOutcome('attempt-boom')
 
-    expect(result).toEqual({ state: 'pending', lastStep: null, lastStatus: null })
+    expect(result).toEqual({
+      state: 'pending',
+      lastStep: null,
+      lastStatus: null,
+      // 260707-o7a: degraded pending carries the empty progress payload.
+      completedSteps: [],
+      activeStepStartedAt: null,
+    })
   })
 })
 
