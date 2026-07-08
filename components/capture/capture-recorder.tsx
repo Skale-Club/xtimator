@@ -20,7 +20,7 @@ import { createStorage } from '@/lib/storage'
 import { getSupportedAudioMimeType, getFileExtension } from '@/lib/utils/media-format'
 import { cn } from '@/lib/utils'
 import { compressImage, isLikelyHeic } from '@/lib/utils/image-compressor'
-import { Camera, Sparkles, Mic, MicOff } from 'lucide-react'
+import { Camera, Sparkles, Pause, Play } from 'lucide-react'
 import { LoadingDots } from '@/components/ui/loading-dots'
 import { WaveformVisualizer } from '@/components/workspace/audio/waveform-visualizer'
 import type { ProjectDetail } from '@/lib/queries/project'
@@ -1109,10 +1109,12 @@ export function CaptureRecorder({
         <RecorderBody
           analyser={analyser}
           isRecording={isRecording}
+          isPaused={isPaused}
           elapsedMs={elapsedMs}
           ringColorClass={ringColorClass}
           progress={progress}
           onToggle={handleToggleRecording}
+          onPause={isPaused ? resumeRecording : pauseRecording}
           // Multi-modal props
           descriptionText={descriptionText}
           setDescriptionText={setDescriptionText}
@@ -1217,10 +1219,15 @@ export function CaptureRecorder({
 interface RecorderBodyProps {
   analyser: AnalyserNode | null
   isRecording: boolean
+  // 260707-ru5: pause state (popup-only feature — see onPause below)
+  isPaused: boolean
   elapsedMs: number
   ringColorClass: string
   progress: number
   onToggle: () => void
+  // 260707-ru5: toggles pause/resume — resumeRecording when isPaused, else
+  // pauseRecording. Only rendered (isHorizontal FAB bar) when SUPPORTS_PAUSE.
+  onPause: () => void
   // Multi-modal props
   descriptionText: string
   setDescriptionText: React.Dispatch<React.SetStateAction<string>>
@@ -1242,7 +1249,7 @@ interface RecorderBodyProps {
   onStartBlank?: () => Promise<void>
 }
 
-function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progress, onToggle, descriptionText, setDescriptionText, uploadedPhotos, isUploadingPhotos, photoItems, onRemovePhoto, photoInputRef, onPhotoFileChange, hasAnyInput, onGenerate, estimateLanguage, setEstimateLanguage, mode, isHorizontal, onStartBlank }: RecorderBodyProps) {
+function RecorderBody({ analyser, isRecording, isPaused, elapsedMs, ringColorClass, progress, onToggle, onPause, descriptionText, setDescriptionText, uploadedPhotos, isUploadingPhotos, photoItems, onRemovePhoto, photoInputRef, onPhotoFileChange, hasAnyInput, onGenerate, estimateLanguage, setEstimateLanguage, mode, isHorizontal, onStartBlank }: RecorderBodyProps) {
   const { t } = useTranslation()
 
   // Unified layout — responsive: stacked on mobile, 2-column on sm+
@@ -1274,24 +1281,33 @@ function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progre
            )}
         </div>
 
-        {/* Z-10: Recording Immersive Overlay */}
+        {/* Z-10: Recording Immersive Overlay — 260707-ru5: the recording screen
+            and the idle canvas are ONE surface, not a separate layer. Same
+            bg-background as the idle textarea (no extra backdrop-blur/opacity
+            "other screen" read); the glass action bar (z-30 below) is the
+            shared visual anchor across both states. */}
         {isRecording && (
-          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center p-6 bg-background/80 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center p-6 bg-background animate-in fade-in duration-300">
             {/* 260707-o7a: no live caption — transcription happens behind the
-                curtains (Whisper, multilingual). Listening pulse only. */}
+                curtains (Whisper, multilingual). Listening pulse only.
+                260707-ru5: paused reads as a static amber status, not a pulse. */}
             <div className="flex-1 w-full max-w-md flex flex-col justify-end pb-8">
-              <p className="text-muted-foreground/60 italic text-center animate-pulse">
-                {t('Listening...')}
+              <p className={cn(
+                'text-center',
+                isPaused ? 'text-amber-500/80 font-medium not-italic' : 'text-muted-foreground/60 italic animate-pulse'
+              )}>
+                {isPaused ? t('Paused') : t('Listening...')}
               </p>
             </div>
 
-            {/* Center: Waveform & Timer */}
+            {/* Center: Waveform & Timer — 260707-ru5: CaptureTimer rendered
+                directly (fixes the nested <p> DOM violation the old wrapper
+                caused); className overrides scale to match this popup's
+                lighter typographic tone (twMerge resolves via cn()). */}
             <div className="flex flex-col items-center gap-6 shrink-0 mb-[120px]">
-               <p className="text-4xl sm:text-5xl font-mono text-foreground tabular-nums tracking-tight font-light">
-                 <CaptureTimer elapsedMs={elapsedMs} />
-               </p>
+               <CaptureTimer elapsedMs={elapsedMs} className="text-5xl sm:text-6xl font-light tracking-tight" />
                <div className="w-full min-w-[280px]">
-                 <WaveformVisualizer analyser={analyser} isRecording={isRecording} height={80} />
+                 <WaveformVisualizer analyser={analyser} isRecording={isRecording && !isPaused} height={80} />
                </div>
             </div>
           </div>
@@ -1316,38 +1332,66 @@ function RecorderBody({ analyser, isRecording, elapsedMs, ringColorClass, progre
           />
           <div className="rounded-full bg-background/60 backdrop-blur-xl border border-border shadow-lg p-2 flex items-center justify-between gap-2">
             
-            {/* Left: Camera */}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="rounded-full h-12 w-12 hover:bg-foreground/5 text-muted-foreground hover:text-foreground shrink-0 relative"
-              onClick={() => photoInputRef.current?.click()}
-              disabled={isUploadingPhotos || photoItems.length >= MAX_PHOTOS}
-              data-testid="capture-add-photos"
-            >
-              {isUploadingPhotos ? <LoadingDots /> : <Camera className="h-6 w-6" />}
-              {photoItems.length > 0 && (
-                <span className="absolute top-1 right-1 h-4 w-4 bg-primary text-[10px] font-bold text-primary-foreground rounded-full flex items-center justify-center">
-                  {photoItems.length}
-                </span>
-              )}
-            </Button>
+            {/* Left: Camera when idle. During recording, when SUPPORTS_PAUSE
+                is available, the SAME footprint (h-12 w-12 rounded-full)
+                becomes the Pause/Resume control — no reflow of the bar's
+                geometry. Without pause support, Camera stays as-is (the
+                pre-existing binary UX). */}
+            {isRecording && SUPPORTS_PAUSE ? (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="rounded-full h-12 w-12 hover:bg-foreground/5 text-muted-foreground hover:text-foreground shrink-0"
+                onClick={onPause}
+                aria-label={isPaused ? t('Resume recording') : t('Pause recording')}
+                data-testid="capture-pause"
+              >
+                {isPaused ? <Play className="h-6 w-6 fill-current" /> : <Pause className="h-6 w-6 fill-current" />}
+              </Button>
+            ) : (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="rounded-full h-12 w-12 hover:bg-foreground/5 text-muted-foreground hover:text-foreground shrink-0 relative"
+                onClick={() => photoInputRef.current?.click()}
+                disabled={isUploadingPhotos || photoItems.length >= MAX_PHOTOS}
+                data-testid="capture-add-photos"
+              >
+                {isUploadingPhotos ? <LoadingDots /> : <Camera className="h-6 w-6" />}
+                {photoItems.length > 0 && (
+                  <span className="absolute top-1 right-1 h-4 w-4 bg-primary text-[10px] font-bold text-primary-foreground rounded-full flex items-center justify-center">
+                    {photoItems.length}
+                  </span>
+                )}
+              </Button>
+            )}
 
-            {/* Center: FAB Mic */}
+            {/* Center: FAB — glass+REC-dot idle / gradient-danger stop+halo
+                recording / same stop dimmed (no halo) while paused. Replaces
+                the dated animate-pulse mic icon with a classic REC button. */}
             <div className="flex-1 flex justify-center shrink-0">
                <button
                   type="button"
                   onClick={onToggle}
                   className={cn(
                     "h-16 w-16 -mt-6 rounded-full flex items-center justify-center transition-all shadow-xl border-4 border-background",
-                    isRecording 
-                      ? "bg-red-500 animate-pulse hover:bg-red-600 text-white" 
-                      : "gradient-brand text-primary-foreground hover:opacity-90"
+                    isRecording
+                      ? cn("gradient-danger text-white relative", isPaused && "opacity-80")
+                      : "bg-background/80 backdrop-blur-xl ring-1 ring-border hover:bg-background group"
                   )}
-                  aria-label={isRecording ? 'Stop recording' : 'Start recording'}
+                  aria-label={isRecording ? t('Stop recording') : t('Start recording')}
                   data-testid="capture-mic"
                >
-                  {isRecording ? <MicOff className="h-7 w-7" /> : <Mic className="h-7 w-7" />}
+                  {isRecording ? (
+                    <>
+                      {!isPaused && (
+                        <span className="absolute inset-0 rounded-full bg-red-500/30 animate-ping motion-reduce:hidden" />
+                      )}
+                      <span className="h-6 w-6 rounded-[6px] bg-white" />
+                    </>
+                  ) : (
+                    <span className="h-7 w-7 rounded-full gradient-danger shadow-[0_0_16px_rgba(239,68,68,0.35)] transition-transform group-hover:scale-110" />
+                  )}
                </button>
             </div>
 

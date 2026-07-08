@@ -320,7 +320,7 @@ export function InlineAudioRecorder({ projectId, companyId, onBack, onComplete }
           <ArrowLeft className="h-4 w-4" />
         </button>
         <span className="text-sm text-muted-foreground">
-          {isRecording ? t('Tap to stop when done') : t('Tap the mic to start recording')}
+          {isRecording ? t('Tap to stop when done') : t('Tap to record')}
         </span>
       </div>
 

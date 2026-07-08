@@ -11,11 +11,11 @@
  */
 
 import * as React from 'react'
-import { Mic, MicOff } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { WaveformVisualizer } from '@/components/workspace/audio/waveform-visualizer'
 import { CircularProgressRing } from '@/components/capture/circular-progress-ring'
 import { cn } from '@/lib/utils'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 export interface VoiceRecorderProps {
   // Required visual state — owned by parent
@@ -75,19 +75,27 @@ export function VoiceRecorder(props: VoiceRecorderProps) {
     smStack = false,
   } = props
 
-  // Shared mic button class fragments
+  const { t } = useTranslation()
+
+  // Shared mic button class fragments — 260707-ru5 restyle: classic REC dot
+  // (idle) / stop square with a ping halo (recording), replacing the old
+  // Mic/MicOff icons + opaque animate-pulse. Purely presentational — this
+  // component owns no recording state; onToggle stays binary (no pause here,
+  // that's popup-only in capture-recorder.tsx).
   const micBase =
-    'rounded-full flex items-center justify-center transition-all min-h-[44px] min-w-[44px] ' +
+    'rounded-full flex items-center justify-center transition-all min-h-[44px] min-w-[44px] relative ' +
     'disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none'
   const micState = isRecording
-    ? 'bg-red-500 animate-pulse hover:bg-red-600 text-white shadow-glow-brand'
-    : 'gradient-brand text-primary-foreground hover:opacity-90 shadow-glow-brand'
+    ? 'bg-red-500 hover:bg-red-600 text-white shadow-glow-brand'
+    : 'bg-background/70 border border-border backdrop-blur-sm hover:bg-background group shadow-glow-brand'
 
-  // Per-size mic dimensions + icon sizing
+  // Per-size mic dimensions + REC-dot / stop-square sizing
   const micSizeClass =
     size === 'sm' ? 'h-9 w-9' : size === 'md' ? 'h-16 w-16' : 'h-11 w-11'
-  const iconSizeClass =
-    size === 'sm' ? 'h-4 w-4' : size === 'md' ? 'h-7 w-7' : 'h-5 w-5'
+  const dotSizeClass =
+    size === 'sm' ? 'h-3.5 w-3.5' : size === 'md' ? 'h-6 w-6' : 'h-4 w-4'
+  const squareSizeClass =
+    size === 'sm' ? 'h-3 w-3 rounded-[3px]' : size === 'md' ? 'h-5 w-5 rounded-[5px]' : 'h-4 w-4 rounded-[4px]'
 
   const micButton = (
     <button
@@ -95,13 +103,19 @@ export function VoiceRecorder(props: VoiceRecorderProps) {
       onClick={onToggle}
       disabled={disabled}
       className={cn(micBase, micSizeClass, micState)}
-      aria-label={isRecording ? 'Stop recording' : 'Start recording'}
+      aria-label={isRecording ? t('Stop recording') : t('Start recording')}
       data-testid={micTestId}
     >
       {isRecording ? (
-        <MicOff className={iconSizeClass} />
+        <>
+          {/* Halo only on md/lg — sm is too small for the ping to read cleanly */}
+          {size !== 'sm' && (
+            <span className="absolute inset-0 rounded-full bg-red-500/30 animate-ping motion-reduce:hidden" />
+          )}
+          <span className={cn('bg-white', squareSizeClass)} />
+        </>
       ) : (
-        <Mic className={iconSizeClass} />
+        <span className={cn('rounded-full gradient-danger transition-transform group-hover:scale-110', dotSizeClass)} />
       )}
     </button>
   )

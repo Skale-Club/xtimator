@@ -76,6 +76,13 @@ export const staticDict: Record<'pt' | 'es', TranslationDict> = {
     'Overview': 'Visão geral',
     'Audio': 'Áudio',
 
+    // Voice recorder — REC/pause controls (260707-ru5)
+    'Paused': 'Pausado',
+    'Pause recording': 'Pausar gravação',
+    'Resume recording': 'Retomar gravação',
+    'Start recording': 'Iniciar gravação',
+    'Stop recording': 'Parar gravação',
+
     // Table headers
     'Client': 'Cliente',
     'Type': 'Tipo',
@@ -291,6 +298,13 @@ export const staticDict: Record<'pt' | 'es', TranslationDict> = {
     // Section headings
     'Overview': 'Resumen',
     'Audio': 'Audio',
+
+    // Voice recorder — REC/pause controls (260707-ru5)
+    'Paused': 'Pausado',
+    'Pause recording': 'Pausar grabación',
+    'Resume recording': 'Reanudar grabación',
+    'Start recording': 'Iniciar grabación',
+    'Stop recording': 'Detener grabación',
 
     // Table headers
     'Client': 'Cliente',
