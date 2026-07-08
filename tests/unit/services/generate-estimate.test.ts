@@ -37,6 +37,7 @@ import { requireServiceClient } from '@/lib/supabase/service'
 import { getProjectRecordings } from '@/lib/queries/recording'
 import { getProjectPhotos } from '@/lib/queries/photo'
 import { getAIProvider } from '@/lib/ai'
+import { generatePublicSlugToken } from '@/lib/estimate/public-url'
 
 const DEFAULT_AI_OUTPUT: EstimateOutput = {
   suggested_project_name: 'Smith Kitchen Reno',
@@ -235,6 +236,9 @@ function setupDefaults() {
     { id: 'rec-1', transcript: 'Replace kitchen cabinets' } as never,
   ])
   vi.mocked(getProjectPhotos).mockResolvedValue([])
+  // vi.resetAllMocks() in beforeEach wipes the vi.mock() factory-level
+  // mockReturnValue below, so it must be re-armed here (same pattern as getAIProvider).
+  vi.mocked(generatePublicSlugToken).mockReturnValue('deterministic-token-1')
 }
 
 describe('generateEstimateForProject', () => {

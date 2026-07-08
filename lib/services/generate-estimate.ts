@@ -28,6 +28,7 @@ import {
 import { normalizeCurrencyCode } from '@/lib/money/currency'
 import { getWhatsAppSystemPrompt } from '@/lib/platform-config'
 import { copyEstimatePhotos } from '@/lib/queries/estimate-photo'
+import { generatePublicSlugToken } from '@/lib/estimate/public-url'
 
 export type ClientSuggestion = {
   detectedName: string
@@ -485,6 +486,10 @@ export async function generateEstimateForProject(
       deposit_value: null,
       balance_due: safeBalanceDue,
       language,
+      // PUBURL-01: every NEW estimate gets a friendly-URL token at creation time —
+      // the backfill script (scripts/backfill-public-urls.ts) only covers
+      // PRE-EXISTING rows. Same generator as the backfill script — one code path.
+      public_slug_token: generatePublicSlugToken(),
       created_by_user_id: options.createdByUserId ?? null,
     })
     .select('id')
