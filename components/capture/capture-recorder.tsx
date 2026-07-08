@@ -1303,11 +1303,14 @@ function RecorderBody({ analyser, isRecording, isPaused, elapsedMs, ringColorCla
             {/* Center: Waveform & Timer — 260707-ru5: CaptureTimer rendered
                 directly (fixes the nested <p> DOM violation the old wrapper
                 caused); className overrides scale to match this popup's
-                lighter typographic tone (twMerge resolves via cn()). */}
+                lighter typographic tone (twMerge resolves via cn()).
+                260707-shg: waveform is the hero of the recording state —
+                taller (100 vs 80) and width capped to max-w-md so bars keep
+                a consistent gap/scale with the popup's padding. */}
             <div className="flex flex-col items-center gap-6 shrink-0 mb-[120px]">
                <CaptureTimer elapsedMs={elapsedMs} className="text-5xl sm:text-6xl font-light tracking-tight" />
-               <div className="w-full min-w-[280px]">
-                 <WaveformVisualizer analyser={analyser} isRecording={isRecording && !isPaused} height={80} />
+               <div className="w-full max-w-md">
+                 <WaveformVisualizer analyser={analyser} isRecording={isRecording && !isPaused} height={100} />
                </div>
             </div>
           </div>
