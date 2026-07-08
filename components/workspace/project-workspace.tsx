@@ -4,7 +4,7 @@ import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { useEffect, useState, useTransition } from 'react'
 import { ArrowLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { ProjectHeader } from './project-header'
 import { OverviewTab } from './overview-tab'
 import { PhotosTab } from './photos/photos-tab'
@@ -150,6 +150,9 @@ export function ProjectWorkspace({
           <DialogContent className="w-[90vw] max-w-3xl max-h-[85dvh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{t('Photos')}</DialogTitle>
+              <DialogDescription className="sr-only">
+                {t('View and manage photos captured for this project.')}
+              </DialogDescription>
             </DialogHeader>
             <PhotosTab projectId={project.id} companyId={project.company_id} initialPhotos={photos} />
           </DialogContent>
