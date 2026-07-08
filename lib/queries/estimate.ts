@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Photo } from './photo'
 import { getEstimatePhotos } from './estimate-photo'
+import type { PresentationSettings } from '@/lib/estimate/presentation-settings'
 
 export interface Estimate {
   id: string
@@ -49,6 +50,11 @@ export interface Estimate {
   payment_amount_cents?: number | null
   /** User who created this estimate — drives "Prepared by" in PDFs. */
   created_by_user_id?: string | null
+  /** Phase 161 (PRESENT-01): dormant-first JSONB. NULL = today's behavior (all
+   *  sections visible, no tax/discount/deposit overrides). Read EXCLUSIVELY
+   *  through lib/estimate/presentation-settings.ts's resolvePresentationSettings()
+   *  -- never by ad hoc field checks (PRESENT-04). */
+  presentation_settings: PresentationSettings | null
 }
 
 export interface EstimateSection {
