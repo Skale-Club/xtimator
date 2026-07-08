@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useState } from 'react'
-import { LinkClientButton } from './link-client-button'
+import { ClientPicker } from '@/components/clients/client-picker'
 import { NeedsDetailsBanner } from './needs-details-banner'
 import { EstimateTab } from './estimate/estimate-tab'
 import { captureHref, type CaptureMode } from '@/components/projects/estimate-creation-popup'
@@ -45,8 +45,9 @@ interface OverviewTabProps {
  * below it. The Project Summary card from the previous overview is gone.
  *
  * R6 — Record + conditional Link Client are wired into the floating action
- * bar via slot props. The full LinkClientCard remains for the no-estimate
- * state where the wider explanatory surface is appropriate.
+ * bar via slot props. The full ClientPicker card variant remains for the
+ * no-estimate state where the wider explanatory surface is appropriate.
+ * Phase 162-02 (DOCUX-03) — consolidated onto <ClientPicker variant="button">.
  */
 export function OverviewTab({
   project,
@@ -74,7 +75,11 @@ export function OverviewTab({
 
   const linkClientSlot =
     !project.client && currentEstimate ? (
-      <LinkClientButton projectId={project.id} />
+      <ClientPicker
+        projectId={project.id}
+        currentClientId={null}
+        variant="button"
+      />
     ) : null
 
   function handleModeSelect(mode: CaptureMode) {

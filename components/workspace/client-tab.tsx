@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input'
 import { PhoneInput } from '@/components/ui/phone-input'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Card, CardContent } from '@/components/ui/card'
-import { LinkClientCard } from './link-client-card'
+import { ClientPicker } from '@/components/clients/client-picker'
 import { patchClientContactAction } from '@/lib/actions/client'
 import type { ProjectDetail } from '@/lib/queries/project'
 
@@ -49,7 +49,13 @@ export function ClientTab({ project }: ClientTabProps) {
   }
 
   if (!client) {
-    return <LinkClientCard projectId={project.id} />
+    return (
+      <ClientPicker
+        projectId={project.id}
+        currentClientId={null}
+        variant="card"
+      />
+    )
   }
 
   return (

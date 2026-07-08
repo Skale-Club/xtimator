@@ -1,8 +1,7 @@
 'use client'
 
 import Image from 'next/image'
-import { useState, useRef, useEffect, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useRef, useEffect } from 'react'
 import {
   DndContext,
   closestCenter,
@@ -19,8 +18,7 @@ import {
   arrayMove,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { Check, GripVertical, Plus, RotateCcw, Trash2, UserPlus, X } from 'lucide-react'
-import { toast } from 'sonner'
+import { Check, GripVertical, Plus, RotateCcw, Trash2, X } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { createClient } from '@/lib/supabase/client'
 import { createStorage } from '@/lib/storage'
@@ -38,21 +36,12 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from '@/components/ui/command'
 import { Calendar } from '@/components/ui/calendar'
 import { formatMoney } from '@/lib/money/currency'
 import { deriveDepositDisplay } from '@/lib/estimate/deposit-display'
 import { formatPhoneForDisplay } from '@/lib/phone/format'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
 import { ensureReadableOnWhite, readableTextColor } from '@/lib/color/contrast'
-import { linkProjectToClient } from '@/lib/actions/project'
 import { ItemCardMobile } from './item-card-mobile'
 import { PriceBookCombobox } from './price-book-combobox'
 import type { EstimateAction, EditorItem } from './use-estimate-reducer'
@@ -1338,86 +1327,12 @@ function TermsBlock({
 }
 
 // ---------------------------------------------------------------------------
-// LinkClientInline — "No client linked" → popover search (edit mode)
+// Phase 162-02 (DOCUX-03): the inline "no client linked" popover implementation
+// that used to live here is gone — the consolidated ClientPicker
+// (`components/clients/client-picker.tsx`) covers the inline variant via
+// `variant="inline"`, and the DOCUX-03 grep gate enforces that nothing
+// references the retired symbols.
 // ---------------------------------------------------------------------------
-
-interface ClientSearchItem {
-  id: string
-  name: string
-  email: string | null
-}
-
-function ClientSearchList({ search, onSelect }: { search: string; onSelect: (id: string) => void }) {
-  const [clients, setClients] = useState<ClientSearchItem[] | null>(null)
-  const [loaded, setLoaded] = useState(false)
-
-  if (!loaded && clients === null) {
-    setLoaded(true)
-    fetch('/api/clients')
-      .then((r) => r.json())
-      .then((data) => setClients(Array.isArray(data) ? data : []))
-      .catch(() => setClients([]))
-  }
-
-  if (clients === null) return <CommandEmpty>Loading…</CommandEmpty>
-
-  const filtered = clients.filter(
-    (c) =>
-      c.name.toLowerCase().includes(search.toLowerCase()) ||
-      (c.email ?? '').toLowerCase().includes(search.toLowerCase())
-  )
-
-  if (filtered.length === 0) return <CommandEmpty>No clients found.</CommandEmpty>
-
-  return (
-    <CommandList>
-      <CommandGroup>
-        {filtered.map((c) => (
-          <CommandItem key={c.id} value={c.id} onSelect={() => onSelect(c.id)}>
-            <div className="flex flex-col">
-              <span>{c.name}</span>
-              {c.email && <span className="text-xs text-muted-foreground">{c.email}</span>}
-            </div>
-          </CommandItem>
-        ))}
-      </CommandGroup>
-    </CommandList>
-  )
-}
-
-function LinkClientInline({ projectId }: { projectId: string }) {
-  const router = useRouter()
-  const [, startTransition] = useTransition()
-  const [open, setOpen] = useState(false)
-  const [search, setSearch] = useState('')
-
-  function handleSelect(clientId: string) {
-    startTransition(async () => {
-      const result = await linkProjectToClient(projectId, clientId)
-      if ('error' in result) { toast.error(result.error); return }
-      toast.success('Client linked')
-      setOpen(false)
-      router.refresh()
-    })
-  }
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <button className="flex items-center gap-1.5 text-lg text-muted-foreground italic hover:text-foreground transition-colors group">
-          <UserPlus className="h-4 w-4 flex-shrink-0" />
-          <span>No client linked</span>
-        </button>
-      </PopoverTrigger>
-      <PopoverContent className="w-[280px] p-0" align="start">
-        <Command>
-          <CommandInput placeholder="Search clients…" value={search} onValueChange={setSearch} />
-          <ClientSearchList search={search} onSelect={handleSelect} />
-        </Command>
-      </PopoverContent>
-    </Popover>
-  )
-}
 
 // ---------------------------------------------------------------------------
 // InlineProjectName — click-to-edit project name inside document
