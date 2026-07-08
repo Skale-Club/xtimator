@@ -28,10 +28,10 @@ Each requirement maps to exactly one roadmap phase.
 ### URL Contract & Public Access Security
 
 - [ ] **PUBURL-01**: A shared estimate can be opened via a friendly branded URL shaped `/estimate/{companySlug}/{estimateSlug}-{shortToken}`, generated for every estimate (existing and new).
-- [ ] **PUBURL-02**: Every existing `/estimate/{share_token}` link keeps resolving and behaving exactly as today (same expiration via `share_expires_at`, same view-logging, same accept/decline actions) — zero regression for links already sent to real clients.
-- [ ] **PUBURL-03**: The public lookup for the new friendly route uses the same service-role + exact-match posture as the existing token lookup — no new `anon`-accessible RLS policy is added to `estimates` under any condition.
+- [x] **PUBURL-02**: Every existing `/estimate/{share_token}` link keeps resolving and behaving exactly as today (same expiration via `share_expires_at`, same view-logging, same accept/decline actions) — zero regression for links already sent to real clients.
+- [x] **PUBURL-03**: The public lookup for the new friendly route uses the same service-role + exact-match posture as the existing token lookup — no new `anon`-accessible RLS policy is added to `estimates` under any condition.
 - [ ] **PUBURL-04**: All existing inline share-URL construction call sites (including the 2 inside the Stripe Connect webhook) are replaced by one shared isomorphic path-builder, verified to preserve the `?stripe=success`/`?stripe=canceled` redirect contract.
-- [ ] **PUBURL-05**: View-logging and accept/decline actions work identically regardless of which URL (token or friendly) the client used to reach the estimate.
+- [x] **PUBURL-05**: View-logging and accept/decline actions work identically regardless of which URL (token or friendly) the client used to reach the estimate.
 - [ ] **PUBURL-06**: The existing custom-domain white-label behavior (SEED-009) is verified compatible with the new friendly route before it ships; if the underlying header logic is found dead, that finding is documented rather than assumed working.
 
 ### Presentation Settings Data Model & Persistence
@@ -90,10 +90,10 @@ Every v1 requirement maps to exactly one phase. Coverage: 24/24 mapped, 0 orphan
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | PUBURL-01 | Phase 160 — URL Contract & Public Access Security | Pending |
-| PUBURL-02 | Phase 160 — URL Contract & Public Access Security | Pending |
-| PUBURL-03 | Phase 160 — URL Contract & Public Access Security | Pending |
+| PUBURL-02 | Phase 160 — URL Contract & Public Access Security | Complete |
+| PUBURL-03 | Phase 160 — URL Contract & Public Access Security | Complete |
 | PUBURL-04 | Phase 160 — URL Contract & Public Access Security | Pending |
-| PUBURL-05 | Phase 160 — URL Contract & Public Access Security | Pending |
+| PUBURL-05 | Phase 160 — URL Contract & Public Access Security | Complete |
 | PUBURL-06 | Phase 160 — URL Contract & Public Access Security | Pending |
 | PRESENT-01 | Phase 161 — Presentation Settings Data Model & Persistence | Pending |
 | PRESENT-02 | Phase 161 — Presentation Settings Data Model & Persistence | Pending |
