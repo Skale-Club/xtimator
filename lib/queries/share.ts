@@ -74,6 +74,11 @@ export interface ShareEstimateData {
     }[]
   }
   client: {
+    // Phase 162-02 (DOCUX-02) — required by the widened DocumentClient
+    // interface so the share renderer can construct a DocumentClient literal
+    // without a type error. Not rendered in the share view today, but the
+    // shared interface makes it mandatory.
+    id: string
     name: string
     email: string | null
     phone: string | null
@@ -157,7 +162,7 @@ export async function getEstimateByShareToken(
   const { data: projectData } = await supabase
     .from('projects')
     .select(
-      'name, project_type, client_id, client:clients(name, email, phone, address, city, state, zip)'
+      'name, project_type, client_id, client:clients(id, name, email, phone, address, city, state, zip)'
     )
     .eq('id', estimate.project_id)
     .single()
@@ -196,8 +201,11 @@ export async function getEstimateByShareToken(
   }
 
   // Extract client from project join (Supabase returns it as array or object)
+  // Phase 162-02 (DOCUX-02) — `id` widened onto the shape so ShareEstimateData
+  // can carry it through to the shared DocumentClient interface.
   const clientRaw = projectData.client as
     | {
+        id: string
         name: string
         email: string | null
         phone: string | null
@@ -207,6 +215,7 @@ export async function getEstimateByShareToken(
         zip: string | null
       }[]
     | {
+        id: string
         name: string
         email: string | null
         phone: string | null
@@ -371,7 +380,7 @@ export async function getEstimateByPublicToken(
   const { data: projectData } = await supabase
     .from('projects')
     .select(
-      'name, project_type, client_id, client:clients(name, email, phone, address, city, state, zip)'
+      'name, project_type, client_id, client:clients(id, name, email, phone, address, city, state, zip)'
     )
     .eq('id', estimate.project_id)
     .single()
@@ -402,9 +411,11 @@ export async function getEstimateByPublicToken(
     invoices = []
   }
 
+  // Phase 162-02 (DOCUX-02) — `id` widened onto the shape so ShareEstimateData
+  // can carry it through to the shared DocumentClient interface.
   const clientRaw = projectData.client as
-    | { name: string; email: string | null; phone: string | null; address: string | null; city: string | null; state: string | null; zip: string | null }[]
-    | { name: string; email: string | null; phone: string | null; address: string | null; city: string | null; state: string | null; zip: string | null }
+    | { id: string; name: string; email: string | null; phone: string | null; address: string | null; city: string | null; state: string | null; zip: string | null }[]
+    | { id: string; name: string; email: string | null; phone: string | null; address: string | null; city: string | null; state: string | null; zip: string | null }
     | null
 
   const client = Array.isArray(clientRaw) ? clientRaw[0] ?? null : clientRaw

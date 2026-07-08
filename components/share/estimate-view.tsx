@@ -114,6 +114,7 @@ function EstimateViewInner({
 
   const documentClient: DocumentClient | null = client
     ? {
+        id: client.id,
         name: client.name,
         email: client.email,
         phone: client.phone,

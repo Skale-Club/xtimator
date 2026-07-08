@@ -121,6 +121,7 @@ export function OverviewTab({
         projectName={project.name}
         projectType={project.project_type ?? null}
         client={project.client ? {
+          id: project.client.id,
           name: project.client.name,
           email: project.client.email ?? null,
           phone: project.client.phone ?? null,

@@ -292,6 +292,11 @@ export interface CompanyDefaults {
 }
 
 export interface DocumentClient {
+  // Phase 162-02 (DOCUX-02) — required so the Bill To pencil variant of
+  // ClientPicker (162-03) can render the Unlink action against the
+  // currently-linked client. Also unlocks any downstream call sites that
+  // need to link back to /clients/{id}.
+  id: string
   name: string
   email: string | null
   phone: string | null

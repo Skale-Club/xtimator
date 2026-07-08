@@ -1,5 +1,6 @@
 'use client'
 
+import * as React from 'react'
 import { useState, useTransition, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Pencil, UserPlus, X } from 'lucide-react'
@@ -57,7 +58,7 @@ interface ClientSearchItem {
   phone: string | null
 }
 
-export function ClientPicker(props: ClientPickerProps): JSX.Element {
+export function ClientPicker(props: ClientPickerProps): React.JSX.Element {
   const { t } = useTranslation()
   const router = useRouter()
   const [, startTransition] = useTransition()
@@ -96,7 +97,7 @@ export function ClientPicker(props: ClientPickerProps): JSX.Element {
   // Variant-specific trigger. Locked API: no arbitrary render-prop escape
   // hatches (see PITFALLS.md #4). New variants must be enumerated here.
   // -------------------------------------------------------------------------
-  let trigger: JSX.Element
+  let trigger: React.JSX.Element
   switch (props.variant) {
     case 'card':
       trigger = (
@@ -218,7 +219,7 @@ function ClientList({
 }: {
   search: string
   onSelect: (id: string) => void
-}): JSX.Element {
+}): React.JSX.Element {
   const { t } = useTranslation()
   const [clients, setClients] = useState<ClientSearchItem[] | null>(null)
 
