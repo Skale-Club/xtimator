@@ -105,9 +105,16 @@ export const CATEGORIES: ReadonlyArray<Category> = [
   },
   {
     slug: 'payments',
-    title: 'Payments',
-    description: 'Enable tenant Stripe connections so service businesses can accept card payments on shared estimates.',
+    title: 'Stripe',
+    navLabel: 'Stripe',
+    description: 'Platform Stripe credentials plus tenant Stripe connections so service businesses can accept card payments on shared estimates.',
     providers: [
+      {
+        id: 'stripe' as IntegrationProvider,
+        title: 'Stripe Secret Key',
+        description:
+          'sk_live_... (or sk_test_...) value from Stripe Dashboard → Developers → API keys. Powers checkout sessions, subscriptions, and webhook signature verification.',
+      },
       {
         id: 'stripe_connect_client_id' as IntegrationProvider,
         title: 'Stripe Connect Client ID',

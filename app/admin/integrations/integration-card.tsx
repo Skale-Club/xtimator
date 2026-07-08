@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Loader2, Save, Trash2 } from 'lucide-react'
@@ -80,6 +81,7 @@ export function IntegrationCard({
   const [saveError, setSaveError] = useState<string | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const { t } = useTranslation()
+  const router = useRouter()
 
   const form = useForm<IntegrationKeyInput>({
     resolver: zodResolver(integrationKeySchema),
@@ -103,6 +105,14 @@ export function IntegrationCard({
       }
       toast.success(`${title} ${t('key saved.')}`)
       form.reset({ provider, apiKey: '' })
+      // The "Connected" badge and the filled-dots placeholder both derive from
+      // the `initial` prop passed down from the server component. revalidatePath
+      // (inside saveIntegrationKey) only marks that data stale for the NEXT
+      // request — an already-mounted client component won't pick it up without
+      // this refresh, so right after saving the badge stayed gray and the input
+      // fell back to the plain "Paste your..." placeholder instead of showing
+      // the saved key as configured.
+      router.refresh()
     })
   }
 
@@ -115,6 +125,7 @@ export function IntegrationCard({
       }
       toast.success(`${title} ${t('key removed.')}`)
       setConfirmOpen(false)
+      router.refresh()
     })
   }
 
