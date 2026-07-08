@@ -44,13 +44,13 @@ Each requirement maps to exactly one roadmap phase.
 
 ### Estimate Document Consolidated Pass
 
-- [ ] **DOCUX-01**: A gear icon on the left side of the floating `Photos / Send` pill opens a settings panel — a popover on desktop, a bottom sheet on mobile — exposing the Pricing, Document Sections, and Client Presentation controls from PRESENT-01/03.
-- [ ] **DOCUX-02**: The `Bill To` block is editable directly inside the estimate document — hovering/focusing it in edit mode reveals a pencil icon; clicking opens a compact popover to search and switch the linked client, or unlink the current one.
-- [ ] **DOCUX-03**: The existing client-picker implementations (`LinkClientInline`, `LinkClientButton`, `LinkClientCard`, and the 4th implementation inside `estimate-document.tsx`) are consolidated into one shared component reused everywhere a client can be linked.
-- [ ] **DOCUX-04**: The project name's inline-edit affordance uses a thin solid underline on hover/focus (replacing the dotted/serrated underline) and reconciles with `ProjectTitle`'s validation/error-retry behavior.
-- [ ] **DOCUX-05**: A full alignment pass removes accidental spacing/offset inconsistencies across the company header, estimate title band, project/bill-to grid, summary, section headers, and line-item table — verified on desktop and mobile against the same estimate.
-- [ ] **DOCUX-06**: The mobile line-item editor visually matches the desktop document-native table language (same density, hierarchy, document surface) instead of a standalone glass card — verified at 360px/390px/430px with no text clipping and no regression to existing touch targets.
-- [ ] **DOCUX-07**: Confirmed-dead components (`section-card.tsx`, `item-row.tsx`) are removed as part of this pass.
+- [x] **DOCUX-01**: A gear icon on the left side of the floating `Photos / Send` pill opens a settings panel — a popover on desktop, a bottom sheet on mobile — exposing the Pricing, Document Sections, and Client Presentation controls from PRESENT-01/03.
+- [x] **DOCUX-02**: The `Bill To` block is editable directly inside the estimate document — hovering/focusing it in edit mode reveals a pencil icon; clicking opens a compact popover to search and switch the linked client, or unlink the current one.
+- [x] **DOCUX-03**: The existing client-picker implementations (`LinkClientInline`, `LinkClientButton`, `LinkClientCard`, and the 4th implementation inside `estimate-document.tsx`) are consolidated into one shared component reused everywhere a client can be linked.
+- [x] **DOCUX-04**: The project name's inline-edit affordance uses a thin solid underline on hover/focus (replacing the dotted/serrated underline) and reconciles with `ProjectTitle`'s validation/error-retry behavior.
+- [x] **DOCUX-05**: A full alignment pass removes accidental spacing/offset inconsistencies across the company header, estimate title band, project/bill-to grid, summary, section headers, and line-item table — verified on desktop and mobile against the same estimate.
+- [x] **DOCUX-06**: The mobile line-item editor visually matches the desktop document-native table language (same density, hierarchy, document surface) instead of a standalone glass card — verified at 360px/390px/430px with no text clipping and no regression to existing touch targets.
+- [x] **DOCUX-07**: Confirmed-dead components (`section-card.tsx`, `item-row.tsx`) are removed as part of this pass.
 
 ### Format-First Send Hub & Cross-Surface Settings Rollout
 
@@ -100,13 +100,13 @@ Every v1 requirement maps to exactly one phase. Coverage: 24/24 mapped, 0 orphan
 | PRESENT-03 | Phase 161 — Presentation Settings Data Model & Persistence | Pending |
 | PRESENT-04 | Phase 161 — Presentation Settings Data Model & Persistence | Pending |
 | PRESENT-05 | Phase 161 — Presentation Settings Data Model & Persistence | Pending |
-| DOCUX-01 | Phase 162 — Estimate Document Consolidated Pass | Pending |
-| DOCUX-02 | Phase 162 — Estimate Document Consolidated Pass | Pending |
-| DOCUX-03 | Phase 162 — Estimate Document Consolidated Pass | Pending |
-| DOCUX-04 | Phase 162 — Estimate Document Consolidated Pass | Pending |
-| DOCUX-05 | Phase 162 — Estimate Document Consolidated Pass | Pending |
-| DOCUX-06 | Phase 162 — Estimate Document Consolidated Pass | Pending |
-| DOCUX-07 | Phase 162 — Estimate Document Consolidated Pass | Pending |
+| DOCUX-01 | Phase 162 — Estimate Document Consolidated Pass | Complete |
+| DOCUX-02 | Phase 162 — Estimate Document Consolidated Pass | Complete |
+| DOCUX-03 | Phase 162 — Estimate Document Consolidated Pass | Complete |
+| DOCUX-04 | Phase 162 — Estimate Document Consolidated Pass | Complete |
+| DOCUX-05 | Phase 162 — Estimate Document Consolidated Pass | Complete |
+| DOCUX-06 | Phase 162 — Estimate Document Consolidated Pass | Complete |
+| DOCUX-07 | Phase 162 — Estimate Document Consolidated Pass | Complete |
 | SENDHUB-01 | Phase 163 — Format-First Send Hub & Cross-Surface Settings Rollout | Pending |
 | SENDHUB-02 | Phase 163 — Format-First Send Hub & Cross-Surface Settings Rollout | Pending |
 | SENDHUB-03 | Phase 163 — Format-First Send Hub & Cross-Surface Settings Rollout | Pending |
