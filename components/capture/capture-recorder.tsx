@@ -1406,8 +1406,7 @@ function RecorderBody({ analyser, isRecording, isPaused, elapsedMs, ringColorCla
                disabled={!hasAnyInput || isRecording}
                data-testid="generate-estimate-btn"
             >
-               <span className="hidden sm:inline mr-1">{t('Generate')}</span>
-               <span className="sm:hidden mr-1">{t('Gen')}</span>
+               <span className="mr-1">{t('Generate')}</span>
                <Sparkles className="h-4 w-4" />
             </Button>
 
