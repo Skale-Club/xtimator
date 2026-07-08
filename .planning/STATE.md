@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v4.18
 milestone_name: Estimate Document & Send Experience Refresh
 status: executing
-stopped_at: Completed 160-03-PLAN.md and 160-05-PLAN.md (Wave 2, 2 of 3)
-last_updated: "2026-07-08T15:16:30.655Z"
-last_activity: 2026-07-08 - Executed 160-03-PLAN.md (friendly-URL route + e2e parity spec) and 160-05-PLAN.md (public_slug_token wired into generate-estimate.ts + idempotent backfill script, not yet run against any remote). Plan 160-04 (call-site migration) still executing in a parallel worktree. NOTE: gsd-tools state cmds repeatedly revert milestone/status/progress to a stale v3.1.1 snapshot — manually corrected back to v4.18 after every invocation, per this file's documented known GSD state-revert issue.
+stopped_at: Completed 160-04-PLAN.md — Phase 160 all 5/5 plans complete
+last_updated: "2026-07-08T16:12:13.641Z"
+last_activity: 2026-07-08 -- Phase 160 (URL Contract & Public Access Security) all 5 plans shipped: 160-01 (schema+builder), 160-02 (query layer+RLS test), 160-03 (friendly route+e2e), 160-04 (call-site migration, PUBURL-04), 160-05 (new-estimate wiring+backfill). 6/6 requirements (PUBURL-01..06) closed. Next: goal-verification via gsd-verifier, then Phase 161.
 progress:
   total_phases: 4
   completed_phases: 0
@@ -52,10 +52,10 @@ progress:
 
 ## Current Position
 
-Phase: 160 of 4 in milestone v4.18 (URL Contract & Public Access Security) — EXECUTING
-Plan: 4 of 5 complete (160-01/02 Wave 1 done; 160-03 friendly-URL route + e2e parity and 160-05 new-estimate wiring + backfill script from Wave 2 both merged). Only 160-04 (inline URL call-site migration) remains, executing in a parallel worktree.
-Status: PUBURL-01/02/03/05/06 fully closed. Only PUBURL-04 (call-site migration) still open, pending 160-04's merge.
-Last activity: 2026-07-08 - Executed and merged 160-03-PLAN.md (friendly-URL route + live e2e parity spec) and 160-05-PLAN.md (public_slug_token wired into generate-estimate.ts + idempotent backfill script, not yet run against any remote). See [160-03-SUMMARY.md](phases/160-url-contract-public-access-security/160-03-SUMMARY.md) and [160-05-SUMMARY.md](phases/160-url-contract-public-access-security/160-05-SUMMARY.md).
+Phase: 160 of 4 in milestone v4.18 (URL Contract & Public Access Security) — ALL PLANS COMPLETE
+Plan: 5 of 5 complete (160-01 schema/builder, 160-02 query layer/RLS test, 160-03 friendly route/e2e, 160-04 call-site migration, 160-05 new-estimate wiring/backfill)
+Status: All 6 requirements (PUBURL-01..06) closed. Awaiting goal-verification (gsd-verifier) before advancing to Phase 161.
+Last activity: 2026-07-08 - Executed and merged 160-04-PLAN.md (call-site migration to buildEstimatePublicPath: SMS route, WhatsApp send-estimate, WhatsApp confirm-actions, Stripe Connect webhook x2, PUBURL-04). See [160-04-SUMMARY.md](phases/160-url-contract-public-access-security/160-04-SUMMARY.md).
 
 ### Previous Position (v4.17, for continuity)
 
@@ -191,7 +191,7 @@ Prior: 102-01 (HARD-07 replay-safe TTL) shipped. Added a neutral `requestedAt: A
 Prior: 102-02 (HARD-06 cap half) shipped. Replaced the hard-coded `(state.refineAttempts ?? 0) < 1` literal in `checkVagueAfterAssessEdge` (`lib/estimate/graph/nodes/decide.ts`) with a single `AUTO_REFINE_MAX_ATTEMPTS` module constant — read once at module load via an IIFE (`Number.isFinite(raw) && raw >= 0 ? raw : 1`) from the optional non-secret `process.env.AUTO_REFINE_MAX_ATTEMPTS`, defaulting to 1. Operator kept exactly `<` so the default is byte-identical to today (Research Pitfall 1). `auto-refine.ts` doc comment updated to reference the configurable cap (documentation-only; increment logic untouched). Channel-neutral (no DB, no async, no channel import) → graph-neutrality stays green. `tests/unit/estimate/auto-refine-cap.test.ts` now fully GREEN (default=1 AND `AUTO_REFINE_MAX_ATTEMPTS=2` override cases); `auto-refine-isolation` + `graph-neutrality` (12/12) and `never-reply-regression` Path C (loops exactly once at default) stay green. No env VALUE committed — only the var NAME appears (CLAUDE.md secret-handling). 1 atomic commit (02a41f2). xphere untouched. HARD-06 NOT marked complete — only the configurable-cap half is done; the web recourse UI half is owned by Plan 102-04.
 Prior (102-00, Wave 0 RED/EXTEND scaffold): authored 4 failing-by-design test files (auto-refine-cap [HARD-06 cap, now GREEN via 102-02], replay-safe-ttl [HARD-07, still RED → 102-01], batch-reporting [HARD-05, still RED → 102-03], needs-details-banner [HARD-06 recourse, still RED → 102-04]); 2 commits (201afb0, 35e8537).
 Last activity: 2026-07-08 - Completed quick task 260707-umu: dashboard Recent projects filters aligned with Projects page control bar
-Stopped at: Completed 160-03-PLAN.md and 160-05-PLAN.md (Wave 2, 2 of 3)
+Stopped at: Completed 160-04-PLAN.md — Phase 160 all 5/5 plans complete
 Prior Stopped at: Completed 157-01-PLAN.md
 Next Up: **Phase 108 COMPLETE (5/5 plans — 108-01 metering [RMETER-01/02/03], 108-02 vagueness gate [RFALL-02], 108-03 orchestrator `researchUnmatchedPrices` [RPRICE-01/03/04, RFALL-01], 108-04 wire into `generateEstimateForProject` [RPRICE-01/03, RFALL-01], 108-05 "Couch cleaning 8 seats" full-graph regression [RFALL-03]).** THE PAYOFF is live in the production generation path AND locked by a green deterministic full-graph regression (EVIDENCED → $180/non-vague, empty-research+context → never-$0 ladder/non-vague, all-empty → still blocks). All three price-research adapters (`openrouter-web`, gated `anthropic-web`, deterministic `fixture`) remain configured-via-`platform_integrations` (all-misses no-op when unconfigured). Suggested: `/gsd:verify-work 108`, then `/gsd:execute-phase 109` (durability + cost-control hardening — dedicated `step.run('price-research')` retry isolation, runtime OpenRouter→Anthropic fallback ordering, per-estimate item caps, refine-loop memoization). DEFERRED (operational, carried from 108-01): apply migration `20260624000002_phase108_usage_event_price_researched.sql` (+ the earlier `20260624000001` price_research_cache) to remote via CI→GHCR→Coolify.
 Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gsd:verify-work 104` to validate the phase, then address the operational deferrals. DEFERRED (operational, all of Phase 104): apply migrations `20260621000001_notification_categories_remap.sql` + `20260621000002_notification_opt_in_consent.sql` + `20260621000003_whatsapp_notification_templates.sql` to the remote DB; ensure the Twilio from-number is SMS-capable; verify the Meta token carries `whatsapp_business_management` scope + author/approve the registry templates in Meta WhatsApp Manager (the `message_template_status_update` webhook then flips them to approved). Also still queued: `/gsd:verify-work 103` + `/gsd:complete-milestone` (v4.5) carry-over UATs.
@@ -886,6 +886,8 @@ Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gs
 - [Phase 160]: 160-02: getEstimateByPublicToken/getShareLinkStateByPublicToken appended as byte-identical-security siblings to the existing share-token query functions; realShareToken threaded through for downstream view-logging/accept-decline parity (PUBURL-02/03/05)
 - [Phase 160]: public_slug_token set explicitly app-side at insert time (not a DB DEFAULT) to avoid a second, divergent RNG mechanism (pgcrypto/gen_random_bytes) in a codebase that has none today
 - [Phase 160]: Duplicated layout.tsx/error.tsx/loading.tsx verbatim into the new friendly-URL route directory rather than hoisting a shared layout, per 160-RESEARCH.md's discretion note -- keeps the coexist-never-touch posture literal
+- [Phase 160]: 160-04: confirm-actions.ts's actionSend widens its existing projects.select to include name (zero extra query) rather than a dedicated lookup, for the buildEstimatePublicPath project_name param
+- [Phase 160]: 160-04: new sweep test (no-hardcoded-share-url.test.ts) needed an explicit 20000ms it() timeout -- walking app/components/lib now approaches vitest's 5s default on this codebase's size
 
 ## Performance Metrics
 
@@ -1185,6 +1187,7 @@ Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gs
 | Phase 160 P02 | 12min | 2 tasks | 3 files |
 | Phase 160 P05 | 19min | 2 tasks | 3 files |
 | Phase 160 P03 | 32min | 3 tasks | 6 files |
+| Phase 160 P04 | 55min | 3 tasks | 6 files |
 
 ## Project Reference
 

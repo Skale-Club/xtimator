@@ -11,6 +11,7 @@ import { generateAndUploadEstimatePDF } from '@/lib/whatsapp/pdf-delivery'
 import { formatEstimateForWhatsApp, type FormatterEstimate } from '@/lib/whatsapp/formatter'
 import { getCanonicalBaseUrl } from '@/lib/utils/site-url'
 import { logOutboundMessage } from '@/lib/whatsapp/conversations'
+import { buildEstimatePublicPath } from '@/lib/estimate/public-url'
 import { formatMoney } from '@/lib/money/currency'
 import { getWhatsAppAccountStatus } from '@/lib/whatsapp/account-registry'
 
@@ -91,7 +92,7 @@ export async function actionSend(
     supabase
       .from('estimates')
       .select(`
-        id, share_token, total, subtotal, tax_rate, tax_amount,
+        id, share_token, public_slug_token, total, subtotal, tax_rate, tax_amount,
         deposit_type, deposit_value, balance_due, currency_code, summary,
         payment_terms, timeline, language,
         sections:estimate_sections(
@@ -101,9 +102,9 @@ export async function actionSend(
       `)
       .eq('id', draft_estimate_id)
       .single(),
-    supabase.from('projects').select('id, client_id').eq('id', draft_project_id).single(),
+    supabase.from('projects').select('id, client_id, name').eq('id', draft_project_id).single(),
     getWhatsAppAccountStatus(companyId),
-    supabase.from('companies').select('name').eq('id', companyId).single(),
+    supabase.from('companies').select('name, slug').eq('id', companyId).single(),
   ])
 
   const estimate = estimateResult.data
@@ -120,7 +121,10 @@ export async function actionSend(
     .eq('id', draft_estimate_id)
     .eq('workflow_status', 'draft')
 
-  const shareUrl = `${getCanonicalBaseUrl()}/estimate/${estimate.share_token}`
+  const shareUrl = `${getCanonicalBaseUrl()}${buildEstimatePublicPath(
+    { slug: companyResult.data?.slug ?? null, name: companyName ?? 'Company' },
+    { id: draft_estimate_id, public_slug_token: estimate.public_slug_token, share_token: estimate.share_token, project_name: project.name }
+  )}`
 
   let clientPhone: string | null = null
   let clientName: string | null = null

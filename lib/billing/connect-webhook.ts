@@ -5,6 +5,7 @@ import { notify } from '@/lib/notifications/dispatch'
 import { buildNotificationCopy } from '@/lib/notifications/copy'
 import { formatMinorUnits } from '@/lib/money/currency'
 import { getCanonicalBaseUrl } from '@/lib/utils/site-url'
+import { buildEstimatePublicPath } from '@/lib/estimate/public-url'
 
 /**
  * Connected-account Stripe webhook handler (Phase 70, plan 70-04).
@@ -97,7 +98,7 @@ async function handleCheckoutSessionCompleted(
       payment_amount_cents: session.amount_total,
     })
     .eq('id', estimateId)
-    .select('id, company_id, project_id, share_token, currency_code')
+    .select('id, company_id, project_id, share_token, public_slug_token, currency_code')
     .single()
 
   if (error || !updated) {
@@ -114,7 +115,7 @@ async function handleCheckoutSessionCompleted(
   const [companyRes, projectRes] = await Promise.all([
     svc
       .from('companies')
-      .select('email, name, stripe_account_display_name, user_id')
+      .select('email, name, stripe_account_display_name, user_id, slug')
       .eq('id', updated.company_id)
       .single(),
     svc
@@ -130,6 +131,7 @@ async function handleCheckoutSessionCompleted(
         name: string | null
         stripe_account_display_name: string | null
         user_id: string | null
+        slug: string | null
       }
     | null
   const project = projectRes.data as { name: string | null } | null
@@ -176,7 +178,10 @@ async function handleCheckoutSessionCompleted(
     amountCents: session.amount_total ?? 0,
     currencyCode: updated.currency_code,
     projectName: project?.name ?? 'Service estimate',
-    estimateShareUrl: `${origin}/estimate/${updated.share_token}`,
+    estimateShareUrl: `${origin}${buildEstimatePublicPath(
+      { slug: company?.slug ?? null, name: company?.name ?? 'Your service provider' },
+      { id: updated.id, public_slug_token: updated.public_slug_token, share_token: updated.share_token, project_name: project?.name }
+    )}`,
     businessName:
       company?.stripe_account_display_name ??
       company?.name ??
@@ -253,12 +258,12 @@ async function handleInvoicePaid(
   const [companyRes, estimateRes] = await Promise.all([
     svc
       .from('companies')
-      .select('email, name, stripe_account_display_name, user_id')
+      .select('email, name, stripe_account_display_name, user_id, slug')
       .eq('id', updated.company_id)
       .single(),
     svc
       .from('estimates')
-      .select('share_token, project_id')
+      .select('share_token, project_id, public_slug_token')
       .eq('id', updated.estimate_id)
       .single(),
   ])
@@ -269,10 +274,11 @@ async function handleInvoicePaid(
         name: string | null
         stripe_account_display_name: string | null
         user_id: string | null
+        slug: string | null
       }
     | null
   const estimate = estimateRes.data as
-    | { share_token: string | null; project_id: string | null }
+    | { share_token: string | null; project_id: string | null; public_slug_token: string | null }
     | null
 
   // Phase 77 NOTIF-04: payment.received in-app + email (force channels).
@@ -321,7 +327,10 @@ async function handleInvoicePaid(
     currencyCode: updated.currency_code,
     projectName: updated.project_name ?? 'Service estimate',
     estimateShareUrl: estimate?.share_token
-      ? `${origin}/estimate/${estimate.share_token}`
+      ? `${origin}${buildEstimatePublicPath(
+          { slug: company?.slug ?? null, name: company?.name ?? 'Your service provider' },
+          { id: updated.estimate_id, public_slug_token: estimate.public_slug_token, share_token: estimate.share_token, project_name: updated.project_name }
+        )}`
       : origin,
     businessName:
       company?.stripe_account_display_name ??
