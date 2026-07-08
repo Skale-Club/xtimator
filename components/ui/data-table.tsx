@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import { Search, FolderOpen, ChevronUp, ChevronDown, ChevronsUpDown, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Input } from '@/components/ui/input'
@@ -95,21 +95,29 @@ export function DataTable<T>({
   const [activeFilter, setActiveFilter] = useState(initialFilter)
   const [page, setPage] = useState(1)
 
-  // Reset to page 1 whenever search/sort/filter changes
-  useEffect(() => { setPage(1) }, [search, activeSort, activeFilter])
-
   // Detect whether any column has column-header sort defined
   const hasColumnSort = columns.some((c) => c.sortAsc !== undefined || c.sortDesc !== undefined)
+
+  function updateSearch(value: string) {
+    setSearch(value)
+    setPage(1)
+  }
+
+  function updateSort(value: string) {
+    setActiveSort(value)
+    setPage(1)
+  }
+
+  function updateFilter(value: string) {
+    setActiveFilter(value)
+    setPage(1)
+  }
 
   function toggleColumnSort(col: Column<T>) {
     if (!col.sortAsc && !col.sortDesc) return
     const desc = col.sortDesc ?? ''
     const asc = col.sortAsc ?? ''
-    if (activeSort === desc) {
-      setActiveSort(asc)
-    } else {
-      setActiveSort(desc)
-    }
+    updateSort(activeSort === desc ? asc : desc)
   }
 
   const displayData = useMemo(() => {
@@ -176,17 +184,22 @@ export function DataTable<T>({
       {/* Controls row: title + headerLeft + search + sort (dropdown or column-based) */}
       <div className="flex flex-wrap items-center gap-2">
         {title}
-        {/* When headerLeft is present without a title, merge it with the search
-            into a single bordered container so all controls look like siblings. */}
-        {headerLeft && !title ? (
-          <div className="flex flex-1 min-w-0 h-9 items-stretch overflow-hidden rounded-md border border-input">
+        {/* When headerLeft is present, merge it with search into one bordered control group. */}
+        {headerLeft ? (
+          <div className={cn(
+            'flex min-w-0 h-9 items-stretch overflow-hidden rounded-md border border-input',
+            title ? 'ml-auto max-w-full' : 'flex-1',
+          )}>
             {headerLeft}
-            <div className="relative flex-1 min-w-[140px]">
+            <div className={cn(
+              'relative min-w-[140px]',
+              title ? 'w-[220px]' : 'flex-1',
+            )}>
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder={searchPlaceholder}
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => updateSearch(e.target.value)}
                 className="pl-9 border-0 rounded-none h-full shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
               />
             </div>
@@ -202,7 +215,7 @@ export function DataTable<T>({
               <Input
                 placeholder={searchPlaceholder}
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => updateSearch(e.target.value)}
                 className="pl-9"
               />
             </div>
@@ -210,7 +223,7 @@ export function DataTable<T>({
         )}
         {/* Only show sort dropdown when no column handles sorting */}
         {!hasColumnSort && sortOptions && sortOptions.length > 0 && (
-          <Select value={activeSort} onValueChange={setActiveSort}>
+          <Select value={activeSort} onValueChange={updateSort}>
             <SelectTrigger className="w-[140px] h-9">
               <SelectValue />
             </SelectTrigger>
@@ -233,7 +246,7 @@ export function DataTable<T>({
                 key={tab.key}
                 variant={activeFilter === tab.key ? 'default' : 'ghost'}
                 size="sm"
-                onClick={() => setActiveFilter(tab.key)}
+                onClick={() => updateFilter(tab.key)}
                 className="capitalize px-2.5 py-1 h-8 text-xs"
               >
                 {tab.label}
@@ -250,8 +263,8 @@ export function DataTable<T>({
           title={noResultsTitle}
           description={noResultsDescription}
           onClearFilter={() => {
-            setSearch('')
-            setActiveFilter(firstTabKey)
+            updateSearch('')
+            updateFilter(firstTabKey)
           }}
         />
       ) : (

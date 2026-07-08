@@ -85,14 +85,8 @@ describe('ProjectList', () => {
 
   it('status filter shows only matching projects', () => {
     render(<ProjectList projects={sampleProjects} />)
-    // Use getAllByRole to get all buttons, then find the filter button for "estimate_ready"
-    // "estimate_ready" status only has 1 project (Deck Build) and the filter button
-    const buttons = screen.getAllByRole('button')
-    const estimateReadyFilterBtn = buttons.find(
-      (btn) => btn.textContent === 'estimate_ready' && btn.getAttribute('data-slot') === 'button'
-    )
-    expect(estimateReadyFilterBtn).toBeDefined()
-    fireEvent.click(estimateReadyFilterBtn!)
+    const estimateReadyFilterTab = screen.getByRole('tab', { name: 'Estimate ready' })
+    fireEvent.click(estimateReadyFilterTab)
 
     // Deck Build is estimate_ready
     expect(screen.getAllByText('Deck Build').length).toBeGreaterThanOrEqual(1)

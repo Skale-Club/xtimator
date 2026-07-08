@@ -1,9 +1,8 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { Check, ChevronsUpDown } from 'lucide-react'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
   Command,
@@ -17,11 +16,18 @@ import { Button } from '@/components/ui/button'
 import { T } from '@/components/i18n/t'
 import { cn } from '@/lib/utils'
 import { ProjectRowActions } from '@/components/projects/project-row-actions'
+import { ProjectStatusTabs } from '@/components/projects/project-status-tabs'
 import { ProjectTable } from '@/components/projects/project-table'
 import type { ProjectListRow, ProjectListStatus } from '@/lib/queries/project'
 import type { ClientWithCount } from '@/lib/queries/clients'
 
 const ALL_CLIENTS = '__all__'
+
+const STATUS_OPTIONS: ReadonlyArray<{ value: ProjectListStatus; label: ReactNode }> = [
+  { value: 'active', label: <T>Active</T> },
+  { value: 'archived', label: <T>Archived</T> },
+  { value: 'trash', label: <T>Trash</T> },
+]
 
 interface Props {
   status: ProjectListStatus
@@ -57,32 +63,11 @@ export function ProjectsPageShell({
   const filterBar = (
     <>
       {/* Status tabs — transparent so the outer container border shows */}
-      <Tabs
+      <ProjectStatusTabs
         value={status}
-        onValueChange={(v) => pushQuery({ status: v as ProjectListStatus })}
-        className="flex items-stretch"
-      >
-        <TabsList className="h-full rounded-none border-0 bg-transparent gap-0 px-1">
-          <TabsTrigger
-            value="active"
-            className="h-7 rounded-sm px-2.5 text-xs data-[state=active]:bg-accent data-[state=active]:text-foreground data-[state=active]:shadow-none"
-          >
-            <T>Active</T>
-          </TabsTrigger>
-          <TabsTrigger
-            value="archived"
-            className="h-7 rounded-sm px-2.5 text-xs data-[state=active]:bg-accent data-[state=active]:text-foreground data-[state=active]:shadow-none"
-          >
-            <T>Archived</T>
-          </TabsTrigger>
-          <TabsTrigger
-            value="trash"
-            className="h-7 rounded-sm px-2.5 text-xs data-[state=active]:bg-accent data-[state=active]:text-foreground data-[state=active]:shadow-none"
-          >
-            <T>Trash</T>
-          </TabsTrigger>
-        </TabsList>
-      </Tabs>
+        options={STATUS_OPTIONS}
+        onValueChange={(nextStatus) => pushQuery({ status: nextStatus })}
+      />
       {/* Divider */}
       <div className="w-px bg-border self-stretch shrink-0" />
       {/* Client filter — ghost button, no individual border */}
