@@ -2,8 +2,8 @@
 phase: 163
 slug: format-first-send-hub-cross-surface-settings-rollout
 status: draft
-nyquist_compliant: false
-wave_0_complete: false
+nyquist_compliant: true
+wave_0_complete: true
 created: 2026-07-08
 ---
 
@@ -53,13 +53,13 @@ created: 2026-07-08
 
 ## Wave 0 Requirements
 
-- [ ] `tests/unit/estimate/_pdf-text-walker.ts` — extract `collectTextNodes`/`flattenText` from `tests/unit/pdf/estimate-pdf-totals.test.tsx:22-51` (shared helper for cross-surface test)
-- [ ] `tests/unit/estimate/presentation-settings-cross-surface.test.tsx` — covers SENDHUB-04 + SENDHUB-05
-- [ ] `tests/unit/estimate/delivery-insert-format.test.ts` — static grep for `format:` in every `estimate_deliveries.insert({...})`
-- [ ] `tests/unit/db/phase163-migration-contract.test.ts` — parses new migration; asserts columns + CHECK widenings
-- [ ] `tests/unit/api/send-sms-format-fallback.test.ts` — SMS byte-identical body across all 3 formats
-- [ ] `tests/unit/whatsapp/send-estimate-format-fallback.test.ts` — WhatsApp: `type: 'text'` share-link body for pdf/plain_text (NOT `type: 'document'`)
-- [ ] `tests/unit/workspace/send-hub-dialog.test.tsx` — SENDHUB-01 + SENDHUB-06 (may fold into one file)
+- [x] `tests/unit/estimate/_pdf-text-walker.ts` — extract `collectTextNodes`/`flattenText` from `tests/unit/pdf/estimate-pdf-totals.test.tsx:22-51` (shared helper for cross-surface test)
+- [x] `tests/unit/estimate/presentation-settings-cross-surface.test.tsx` — covers SENDHUB-04 + SENDHUB-05
+- [x] `tests/unit/estimate/delivery-insert-format.test.ts` — static grep for `format:` in every `estimate_deliveries.insert({...})`
+- [x] `tests/unit/db/phase163-migration-contract.test.ts` — parses new migration; asserts columns + CHECK widenings (bundled by 163-02)
+- [x] `tests/unit/api/send-sms-format-fallback.test.ts` — SMS byte-identical body across all 3 formats
+- [x] `tests/unit/whatsapp/send-estimate-format-fallback.test.ts` — WhatsApp: `type: 'text'` share-link body for pdf/plain_text (NOT `type: 'document'`)
+- [x] `tests/unit/workspace/send-hub-dialog.test.tsx` — SENDHUB-01 + SENDHUB-06 (may fold into one file)
 
 *Framework already installed — no `npm install` needed.*
 

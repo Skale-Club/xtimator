@@ -54,12 +54,12 @@ Each requirement maps to exactly one roadmap phase.
 
 ### Format-First Send Hub & Cross-Surface Settings Rollout
 
-- [ ] **SENDHUB-01**: Clicking `Send` opens a hub organized around three primary formats — Online Estimate (default), PDF, and Plain Text — each exposing its own delivery actions (copy/open/email/SMS/WhatsApp/download as applicable), replacing the channel-first Email/SMS tabs and the separate "Share & Export" menu.
-- [ ] **SENDHUB-02**: Sending PDF or Plain Text via SMS/WhatsApp falls back to delivering the Online Estimate link.
+- [x] **SENDHUB-01**: Clicking `Send` opens a hub organized around three primary formats — Online Estimate (default), PDF, and Plain Text — each exposing its own delivery actions (copy/open/email/SMS/WhatsApp/download as applicable), replacing the channel-first Email/SMS tabs and the separate "Share & Export" menu.
+- [x] **SENDHUB-02**: Sending PDF or Plain Text via SMS/WhatsApp falls back to delivering the Online Estimate link.
 - [x] **SENDHUB-03**: `estimate_deliveries` records both `format` (online_link / pdf / plain_text) and a widened `channel` (adds copy / open / download / manual alongside email / sms / whatsapp).
-- [ ] **SENDHUB-04**: The PRESENT-04 settings resolver is wired into every remaining render/format path — classic PDF, modern PDF, classic share, modern share, the plain-text template, and the WhatsApp formatter.
-- [ ] **SENDHUB-05**: A cross-surface verification test confirms that, for a single presentation-settings toggle, section visibility is identical across all 6 render/format outputs — not just the editor preview.
-- [ ] **SENDHUB-06**: `Mark as Sent` and language selection remain available in the new Send hub as secondary actions, visually subordinate to the three primary format choices.
+- [x] **SENDHUB-04**: The PRESENT-04 settings resolver is wired into every remaining render/format path — classic PDF, modern PDF, classic share, modern share, the plain-text template, and the WhatsApp formatter.
+- [x] **SENDHUB-05**: A cross-surface verification test confirms that, for a single presentation-settings toggle, section visibility is identical across all 6 render/format outputs — not just the editor preview.
+- [x] **SENDHUB-06**: `Mark as Sent` and language selection remain available in the new Send hub as secondary actions, visually subordinate to the three primary format choices.
 
 ## v2 Requirements
 
@@ -107,12 +107,12 @@ Every v1 requirement maps to exactly one phase. Coverage: 24/24 mapped, 0 orphan
 | DOCUX-05 | Phase 162 — Estimate Document Consolidated Pass | Complete |
 | DOCUX-06 | Phase 162 — Estimate Document Consolidated Pass | Complete |
 | DOCUX-07 | Phase 162 — Estimate Document Consolidated Pass | Complete |
-| SENDHUB-01 | Phase 163 — Format-First Send Hub & Cross-Surface Settings Rollout | Pending |
-| SENDHUB-02 | Phase 163 — Format-First Send Hub & Cross-Surface Settings Rollout | Pending |
+| SENDHUB-01 | Phase 163 — Format-First Send Hub & Cross-Surface Settings Rollout | Complete |
+| SENDHUB-02 | Phase 163 — Format-First Send Hub & Cross-Surface Settings Rollout | Complete |
 | SENDHUB-03 | Phase 163 — Format-First Send Hub & Cross-Surface Settings Rollout | Complete |
-| SENDHUB-04 | Phase 163 — Format-First Send Hub & Cross-Surface Settings Rollout | Pending |
-| SENDHUB-05 | Phase 163 — Format-First Send Hub & Cross-Surface Settings Rollout | Pending |
-| SENDHUB-06 | Phase 163 — Format-First Send Hub & Cross-Surface Settings Rollout | Pending |
+| SENDHUB-04 | Phase 163 — Format-First Send Hub & Cross-Surface Settings Rollout | Complete |
+| SENDHUB-05 | Phase 163 — Format-First Send Hub & Cross-Surface Settings Rollout | Complete |
+| SENDHUB-06 | Phase 163 — Format-First Send Hub & Cross-Surface Settings Rollout | Complete |
 
 **Phase → requirement rollup:**
 - **Phase 160 — URL Contract & Public Access Security**: PUBURL-01, PUBURL-02, PUBURL-03, PUBURL-04, PUBURL-05, PUBURL-06 (file-disjoint from Phase 161; highest-severity pitfall, done first with its own security checkpoint)
