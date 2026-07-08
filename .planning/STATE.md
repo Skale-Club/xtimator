@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v4.17
-milestone_name: Admin Polish & Credit UX Compliance
-status: shipped
-stopped_at: v4.17 archived and tagged; ready for /gsd:new-milestone
-last_updated: "2026-07-06T05:31:48.207Z"
-last_activity: 2026-07-06
+milestone: v4.18
+milestone_name: Estimate Document & Send Experience Refresh
+status: defining-requirements
+stopped_at: Milestone started; requirements not yet defined
+last_updated: "2026-07-08T00:00:00.000Z"
+last_activity: 2026-07-08
 progress:
-  total_phases: 159
-  completed_phases: 159
-  total_plans: 8
-  completed_plans: 8
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
 ---
 
 # Project State
@@ -48,6 +48,13 @@ progress:
 
 ## Current Position
 
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-07-08 - Milestone v4.18 Estimate Document & Send Experience Refresh started (SEED-041/042/043/044)
+
+### Previous Position (v4.17, for continuity)
+
 Phase: none (v4.17 complete, no milestone active)
 Plan: —
 Status: v4.17 shipped 2026-07-06; awaiting `/gsd:new-milestone`
@@ -57,7 +64,7 @@ Note: `gsd-tools phase complete` calls throughout this milestone repeatedly repo
 
 Note: `gsd-tools state update-progress` reverted the frontmatter `milestone`/`milestone_name` to a stale `v3.1.1` value and produced a nonsensical progress block during this plan's execution (a known, previously-observed tool bug) — manually corrected back to `milestone: v4.17` / `milestone_name: Admin Polish & Credit UX Compliance` and accurate phase/plan counts after every state-tool invocation in this session.
 
-v4.17 phase sequence (all 4 file-independent, recommended execution order): 156 Tenant Credit UX Compliance Fix (CREDITFIX-01..03) → 157 Admin Nav Reorg & Naming Fixes (NAV-01..03, NAMING-01..02) → 158 Admin Billing Page Credit-Model Overhaul (BILLADMIN-01..03) → 159 Inbox Visual Redesign "Premium Xtimator" (INBOX-05..08). Next: `/gsd:plan-phase 156`.
+v4.17 phase sequence (all 4 file-independent, recommended execution order): 156 Tenant Credit UX Compliance Fix (CREDITFIX-01..03) → 157 Admin Nav Reorg & Naming Fixes (NAV-01..03, NAMING-01..02) → 158 Admin Billing Page Credit-Model Overhaul (BILLADMIN-01..03) → 159 Inbox Visual Redesign "Premium Xtimator" (INBOX-05..08).
 
 ### Previous Position (v4.14 / Phase 1001, for continuity)
 
