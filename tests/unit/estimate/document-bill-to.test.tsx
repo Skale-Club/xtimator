@@ -80,9 +80,12 @@ const emptyData: EstimateDocumentData = {
   estimate_number: null,
 }
 
+// NOTE: linkedClient's name is deliberately DISTINCT from the DEFAULT_CLIENTS
+// list ('Acme', 'Bravo') so `findByText('Acme')` in the popover-open flow
+// resolves to the cmdk item, not the Bill To label above it.
 const linkedClient: DocumentClient = {
-  id: 'c1',
-  name: 'Acme',
+  id: 'existing-linked-id',
+  name: 'Existing Ltd',
   email: null,
   phone: null,
   address: null,
@@ -91,20 +94,24 @@ const linkedClient: DocumentClient = {
   zip: null,
 }
 
+// Use the `in` check to distinguish "not provided" from "explicit undefined"
+// so a test can pass `projectId: undefined` to exercise the defensive guard.
 function baseProps(overrides?: {
   mode?: 'edit' | 'view'
   client?: DocumentClient | null
   projectId?: string
 }) {
+  const clientOverridden = overrides && 'client' in overrides
+  const projectIdOverridden = overrides && 'projectId' in overrides
   return {
     mode: overrides?.mode ?? 'edit',
     data: emptyData,
-    client: overrides?.client === undefined ? linkedClient : overrides.client,
+    client: clientOverridden ? overrides!.client! : linkedClient,
     projectName: 'Deck Rebuild',
     projectType: null,
     estimateVersion: 1,
     estimateCreatedAt: '2026-07-08T00:00:00Z',
-    projectId: overrides?.projectId === undefined ? 'project-1' : overrides.projectId,
+    projectId: projectIdOverridden ? overrides!.projectId : 'project-1',
     dispatch: overrides?.mode === 'view' ? undefined : vi.fn(),
   } as const
 }

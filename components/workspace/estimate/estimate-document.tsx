@@ -44,6 +44,7 @@ import { deriveDepositDisplay } from '@/lib/estimate/deposit-display'
 import { formatPhoneForDisplay } from '@/lib/phone/format'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
 import { ensureReadableOnWhite, readableTextColor } from '@/lib/color/contrast'
+import { ClientPicker } from '@/components/clients/client-picker'
 import { ItemCardMobile } from './item-card-mobile'
 import { PriceBookCombobox } from './price-book-combobox'
 import type { EstimateAction, EditorItem } from './use-estimate-reducer'
@@ -1804,12 +1805,27 @@ export function EstimateDocument({
           )}
         </div>
 
-        {/* BILL TO — only renders when client is linked */}
+        {/* BILL TO — only renders when client is linked.
+            Phase 162-03 (DOCUX-02): `group` wrapper enables the pencil
+            affordance's `group-hover:opacity-100` reveal. The pencil
+            renders via the ClientPicker component's billTo variant (the consolidated
+            picker from Phase 162-02, edit-mode-only + projectId-guarded
+            so mode="view" (share page) never sees an edit affordance. */}
         {client && (
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-1.5 select-none">
-              {L.billTo}
-            </p>
+          <div className="group">
+            <div className="flex items-center justify-between gap-2 mb-1.5">
+              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground select-none">
+                {L.billTo}
+              </p>
+              {isEditable && projectId && (
+                <ClientPicker
+                  projectId={projectId}
+                  currentClientId={client.id ?? null}
+                  variant="billTo"
+                  align="end"
+                />
+              )}
+            </div>
             <div className="space-y-0.5">
               <p className="text-2xl font-bold">{client.name}</p>
               {client.email && (
