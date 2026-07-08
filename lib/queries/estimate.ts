@@ -16,6 +16,8 @@ export interface Estimate {
   estimate_date: string | null
   is_current: boolean
   share_token: string
+  /** Phase 160 (PUBURL-01/03): second, independent friendly-URL token. NULL until backfilled. */
+  public_slug_token: string | null
   status: string
   /** Phase 52 (SEED-016): target language for this estimate. Defaults to 'en'. */
   language: 'en' | 'pt' | 'es'
