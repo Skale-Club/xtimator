@@ -27,7 +27,7 @@ Each requirement maps to exactly one roadmap phase.
 
 ### URL Contract & Public Access Security
 
-- [ ] **PUBURL-01**: A shared estimate can be opened via a friendly branded URL shaped `/estimate/{companySlug}/{estimateSlug}-{shortToken}`, generated for every estimate (existing and new). *(Plan 01 landed the schema/builder; still needs Plan 03's route + Plan 05's new-estimate wiring/backfill.)*
+- [x] **PUBURL-01**: A shared estimate can be opened via a friendly branded URL shaped `/estimate/{companySlug}/{estimateSlug}-{shortToken}`, generated for every estimate (existing and new). *(Plan 01 landed the schema/builder; still needs Plan 03's route + Plan 05's new-estimate wiring/backfill.)*
 - [ ] **PUBURL-02**: Every existing `/estimate/{share_token}` link keeps resolving and behaving exactly as today (same expiration via `share_expires_at`, same view-logging, same accept/decline actions) — zero regression for links already sent to real clients. *(Plan 02 proved the existing functions byte-unchanged; final proof lands with Plan 03's route + Plan 04's call-site migration.)*
 - [x] **PUBURL-03**: The public lookup for the new friendly route uses the same service-role + exact-match posture as the existing token lookup — no new `anon`-accessible RLS policy is added to `estimates` under any condition. *(Complete — enforced by both Plan 01's static migration-contract test and Plan 02's live anon-RLS negative test.)*
 - [ ] **PUBURL-04**: All existing inline share-URL construction call sites (including the 2 inside the Stripe Connect webhook) are replaced by one shared isomorphic path-builder, verified to preserve the `?stripe=success`/`?stripe=canceled` redirect contract. *(Plan 01 landed the builder; Plan 04 migrates the actual call sites.)*
