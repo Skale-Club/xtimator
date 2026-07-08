@@ -2,9 +2,9 @@
 
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { useEffect, useState, useTransition } from 'react'
-import { ClipboardList, Camera, UserRound, ChevronLeft, ChevronRight } from 'lucide-react'
-import { cn } from '@/lib/utils'
-import { SubNav, type SubNavItem } from '@/components/ui/sub-nav'
+import { ArrowLeft } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { ProjectHeader } from './project-header'
 import { OverviewTab } from './overview-tab'
 import { PhotosTab } from './photos/photos-tab'
@@ -20,7 +20,7 @@ import type { PriceBookItem } from '@/lib/queries/price-book'
 import type { DocumentCompany, CompanyDefaults } from './estimate/estimate-document'
 import { useTranslation } from '@/lib/i18n/use-translation'
 
-const ALLOWED_TABS = ['overview', 'photos', 'client'] as const
+const ALLOWED_TABS = ['overview', 'client'] as const
 type WorkspaceTab = (typeof ALLOWED_TABS)[number]
 
 interface ProjectWorkspaceProps {
@@ -64,19 +64,8 @@ export function ProjectWorkspace({
       : defaultTab
 
   const [activeTab, setActiveTab] = useState<WorkspaceTab>(initial)
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [photosOpen, setPhotosOpen] = useState(false)
   const [, startTabTransition] = useTransition()
-
-  // Mobile-first: the rail starts collapsed on small viewports so the estimate
-  // content column isn't squeezed by the ~w-36 expanded rail (~37% of a phone
-  // screen). Desktop keeps the expanded default. Runs once on mount — the user
-  // can still toggle it open manually via the footer control. Deferred to an
-  // effect (not lazy initial state) to avoid an SSR/hydration mismatch.
-  useEffect(() => {
-    if (typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches) {
-      setSidebarCollapsed(true)
-    }
-  }, [])
 
   // Sync state when searchParams.tab changes (e.g., redirect from /capture)
   useEffect(() => {
@@ -103,85 +92,32 @@ export function ProjectWorkspace({
     })
   }
 
-  const NAV_ITEMS: SubNavItem[] = [
-    { value: 'overview', label: t('Overview'), Icon: ClipboardList },
-    { value: 'client',   label: t('Client'),   Icon: UserRound     },
-    { value: 'photos',   label: t('Photos'),   Icon: Camera        },
-  ]
-
   return (
     /*
-     * Two-column workspace at ALL breakpoints:
-     *   - An in-flow STICKY rail on the left. sticky top-0 pins it to the scroll
-     *     container's top (which already sits below the header/topbar) so it never
-     *     scrolls away and never tucks under the header. It ends just above the
-     *     mobile bottom-nav so the collapse footer stays visible.
-     *   - A flex-1 content column on the right holding the sticky project header
-     *     + the active tab. The header sits to the RIGHT of the rail, so the rail
-     *     never covers the project title.
+     * Single-column workspace at ALL breakpoints. The old sub-sidebar rail
+     * (Overview/Client/Photos) is gone — Photos opens as a dialog on top of
+     * the estimate (staying in-context, no navigation away from editing),
+     * while Client still swaps the content column with a "Back" control.
      */
     <div className="relative flex min-h-full flex-row gap-0 items-start -mb-[calc(5rem_+_env(safe-area-inset-bottom,_0px))] md:-mb-6">
 
-      {/* Nav — in-flow STICKY rail at ALL breakpoints. sticky top-0 pins it to the
-          top of the scroll container (<main>), which already sits below the
-          header/topbar — so the rail never tucks under the header regardless of
-          the header's exact height (no magic top offset, no overlap). Being
-          in-flow, it also sits naturally after the primary sidebar (no md:left)
-          and the content column is a plain flex-1 sibling (no margin offset).
-          Height stops just above the mobile bottom-nav so the collapse footer
-          stays visible. */}
-      <div
-        className={cn(
-          'sticky top-0 z-20 self-start shrink-0',
-          'h-[calc(100dvh-60px-5rem-env(safe-area-inset-bottom,_0px))]',
-          'md:z-30 md:h-[calc(100vh-4rem)]',
-          'transition-[width] duration-200 ease-in-out',
-          sidebarCollapsed ? 'w-14 md:w-14' : 'w-36 md:w-40',
-        )}
-      >
-        <aside
-          className={[
-            'shrink-0 border-border bg-background h-full flex flex-col',
-            'border-r overflow-y-auto pt-3 pb-0',
-            'md:pt-4',
-            sidebarCollapsed ? 'px-1' : 'px-2 md:px-3',
-          ].join(' ')}
-        >
-          <div className="flex flex-col flex-1 md:overflow-y-auto md:pt-1">
-            {/* Collapse toggle lives in the footer below — a single control. */}
-            <SubNav
-              items={NAV_ITEMS}
-              activeValue={activeTab}
-              onSelect={handleSelect}
-              collapsed={sidebarCollapsed}
-              alwaysVertical
-            />
-          </div>
-
-          <div className="mt-auto flex flex-col justify-center shrink-0 md:h-[var(--app-rail-footer-h)] border-t border-[var(--glass-border)] p-2">
-            <div className={`flex ${sidebarCollapsed ? 'justify-center' : 'justify-end'}`}>
-              <button
-                type="button"
-                onClick={() => setSidebarCollapsed((c) => !c)}
-                title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-                className="p-1 rounded text-muted-foreground/40 hover:text-muted-foreground hover:bg-muted/40 transition-colors"
-              >
-                {sidebarCollapsed
-                  ? <ChevronRight className="h-4 w-4" />
-                  : <ChevronLeft className="h-4 w-4" />}
-              </button>
-            </div>
-          </div>
-        </aside>
-      </div>
-
-      {/* Content — plain flex-1 sibling of the in-flow rail (no margin offset).
-          The project header lives here (to the right of the rail) and sticks to
-          the top of the scroll area as content scrolls. */}
+      {/* Content — the project header sticks to the top of the scroll area as
+          content scrolls. */}
       <div className="min-w-0 flex-1">
         <ProjectHeader project={project} />
 
         <div className="px-5 py-6 md:px-6">
+        {activeTab === 'client' && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => handleSelect('overview')}
+            className="mb-4 -ml-2 gap-1.5 text-muted-foreground hover:text-foreground"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            {t('Back to estimate')}
+          </Button>
+        )}
         {activeTab === 'overview' && (
           <OverviewTab
             project={project}
@@ -200,10 +136,8 @@ export function ProjectWorkspace({
             ownerName={ownerName}
             estimateTemplate={estimateTemplate}
             smsDeliveryEnabled={smsDeliveryEnabled}
+            onOpenPhotos={() => setPhotosOpen(true)}
           />
-        )}
-        {activeTab === 'photos' && (
-          <PhotosTab projectId={project.id} companyId={project.company_id} initialPhotos={photos} />
         )}
         {activeTab === 'client' && (
           <div className="space-y-4">
@@ -211,6 +145,15 @@ export function ProjectWorkspace({
           </div>
         )}
         </div>
+
+        <Dialog open={photosOpen} onOpenChange={setPhotosOpen}>
+          <DialogContent className="w-[90vw] max-w-3xl max-h-[85dvh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>{t('Photos')}</DialogTitle>
+            </DialogHeader>
+            <PhotosTab projectId={project.id} companyId={project.company_id} initialPhotos={photos} />
+          </DialogContent>
+        </Dialog>
 
         {/* Bottom clearance spacer — lives INSIDE the flex-row's containing block
             (same one the sticky rail and sticky floating action bar use), paired

@@ -166,9 +166,9 @@ interface EstimateEditorProps {
   projectName: string
   projectType: string | null
   client: DocumentClient | null
-  /** R6 — wired by parent surface (OverviewTab). */
-  onRecord?: () => void
   linkClientSlot?: React.ReactNode
+  /** Opens the Photos dialog (floating-bar affordance). */
+  onOpenPhotos?: () => void
   /** Quick-260525-qbc: server-fetched price book for description autocomplete. */
   priceBookItems: PriceBookItem[]
   /** Opens the send dialog. Auto-saves first if there are unsaved changes. */
@@ -188,8 +188,8 @@ export function EstimateEditor({
   projectName,
   projectType,
   client,
-  onRecord,
   linkClientSlot,
+  onOpenPhotos,
   priceBookItems,
   onSend,
 }: EstimateEditorProps) {
@@ -366,6 +366,8 @@ export function EstimateEditor({
   const handleVersionChangeRef = useRef(handleVersionChange)
   handleVersionChangeRef.current = handleVersionChange
 
+  const slotSaveStatus = saveStatus === 'dirty' ? 'idle' : (saveStatus as 'idle' | 'saving' | 'saved' | 'error')
+
   useEffect(() => {
     setSlot({
       currentVersionId,
@@ -376,9 +378,10 @@ export function EstimateEditor({
       onVersionChange: (id) => handleVersionChangeRef.current(id),
       projectName: localProjectName,
       onProjectRenamed: setLocalProjectName,
+      saveStatus: slotSaveStatus,
     })
     return () => setSlot(null)
-  }, [currentVersionId, versions, state.version, state.isDirty, isReadOnly, setSlot, localProjectName])
+  }, [currentVersionId, versions, state.version, state.isDirty, isReadOnly, setSlot, localProjectName, slotSaveStatus])
 
   // -------------------------------------------------------------------------
   // Render
@@ -428,12 +431,9 @@ export function EstimateEditor({
 
       <EstimateFloatingActions
         isCurrent={isCurrent}
-        isDirty={state.isDirty}
-        status={saveStatus === 'dirty' ? 'idle' : (saveStatus as 'idle' | 'saving' | 'saved' | 'error')}
+        status={slotSaveStatus}
         onSend={handleSend}
-        onDiscard={handleDiscard}
-        onSaveDraft={handleSaveDraft}
-        onRecord={onRecord}
+        onOpenPhotos={onOpenPhotos}
         linkClientSlot={linkClientSlot}
       />
     </div>

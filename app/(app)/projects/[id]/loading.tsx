@@ -1,5 +1,4 @@
 import { Skeleton } from '@/components/ui/skeleton'
-import { WorkspaceSubnavSkeleton } from '@/components/skeletons/workspace-subnav-skeleton'
 
 export default function ProjectLoading() {
   return (
@@ -17,8 +16,6 @@ export default function ProjectLoading() {
       </header>
 
       <div className="flex min-h-full flex-col md:flex-row">
-        <WorkspaceSubnavSkeleton />
-
         {/* Content skeleton — mirrors OverviewTab → EstimateEditor surface */}
         <div className="min-w-0 flex-1 px-4 py-6 md:px-6 space-y-4">
           <div className="rounded-lg border border-border bg-card overflow-hidden">

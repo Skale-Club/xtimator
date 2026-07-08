@@ -87,8 +87,12 @@ export function WaveformVisualizer({ analyser, isRecording, height = 96 }: Wavef
     // `!ctx` narrowing across a closure boundary.
     const context = ctx
 
-    canvas.width = width
-    canvas.height = height
+    // Render at the device's native resolution (retina/scaled displays) and
+    // draw in CSS-px coordinates via the transform — crisp bars, no jaggies.
+    const dpr = window.devicePixelRatio || 1
+    canvas.width = Math.round(width * dpr)
+    canvas.height = Math.round(height * dpr)
+    context.setTransform(dpr, 0, 0, dpr, 0, 0)
 
     const maxBars = Math.max(Math.floor(width / (BAR_WIDTH + BAR_GAP)), 1)
     // Drop overflow from a previous, wider layout so pushBar's own trimming
@@ -207,7 +211,7 @@ export function WaveformVisualizer({ analyser, isRecording, height = 96 }: Wavef
       <canvas
         ref={canvasRef}
         className="w-full rounded-md"
-        style={{ imageRendering: 'pixelated', height }}
+        style={{ height }}
       />
     </div>
   )

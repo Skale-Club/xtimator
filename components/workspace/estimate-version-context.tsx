@@ -13,6 +13,8 @@ export interface VersionSlot {
   /** Shared project name state — kept in sync across header and document */
   projectName: string
   onProjectRenamed: (name: string) => void
+  /** Autosave status — surfaced next to the "Edit with AI" button in the header. */
+  saveStatus: 'idle' | 'saving' | 'saved' | 'error'
 }
 
 interface EstimateVersionCtx {

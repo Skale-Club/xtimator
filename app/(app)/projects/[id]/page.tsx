@@ -14,7 +14,7 @@ import { ProjectPageShell } from '@/components/workspace/project-page-shell'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { DocumentCompany, CompanyDefaults } from '@/components/workspace/estimate/estimate-document'
 
-const ALLOWED_TABS = ['overview', 'photos', 'client'] as const
+const ALLOWED_TABS = ['overview', 'client'] as const
 type AllowedTab = (typeof ALLOWED_TABS)[number]
 
 export default async function ProjectPage({
@@ -183,26 +183,6 @@ async function ProjectTabs({
 function ProjectWorkspaceSkeleton({ project }: { project: Awaited<ReturnType<typeof getProjectById>> & {} }) {
   return (
     <div className="relative flex min-h-full flex-row gap-0 items-start">
-      {/* Sticky rail skeleton — mirrors ProjectWorkspace's in-flow sub-sidebar */}
-      <div className="sticky top-0 z-20 self-start shrink-0 h-[calc(100dvh-60px-5rem-env(safe-area-inset-bottom,_0px))] w-40 md:z-30 md:h-[calc(100vh-4rem)] md:w-48">
-        <aside
-          aria-busy
-          className="shrink-0 border-border bg-background h-full flex flex-col border-r overflow-y-auto pt-3 pb-0 md:pt-4 px-2 md:px-3"
-        >
-          <nav aria-label="Section navigation" className="flex flex-col gap-1">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="flex items-center gap-3 rounded-[var(--radius-md)] px-3 py-2">
-                <Skeleton className="h-4 w-4 shrink-0 rounded" />
-                <Skeleton className="h-3 w-24" />
-              </div>
-            ))}
-          </nav>
-          <div className="mt-auto flex justify-end shrink-0 md:h-[var(--app-rail-footer-h)] border-t border-[var(--glass-border)] p-2">
-            <Skeleton className="h-6 w-6 rounded" />
-          </div>
-        </aside>
-      </div>
-
       {/* Content column — real header renders instantly while tabs stream */}
       <div className="min-w-0 flex-1">
         <ProjectHeader project={project} />

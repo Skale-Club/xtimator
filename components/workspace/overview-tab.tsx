@@ -34,6 +34,8 @@ interface OverviewTabProps {
   ownerName: string
   estimateTemplate: EstimateTemplate
   smsDeliveryEnabled?: boolean
+  /** Opens the Photos dialog (floating-bar affordance). */
+  onOpenPhotos?: () => void
 }
 
 /**
@@ -63,6 +65,7 @@ export function OverviewTab({
   ownerName,
   estimateTemplate,
   smsDeliveryEnabled,
+  onOpenPhotos,
 }: OverviewTabProps) {
   const router = useRouter()
   const pathname = usePathname()
@@ -127,6 +130,7 @@ export function OverviewTab({
           zip: null,
         } : null}
         linkClientSlot={linkClientSlot}
+        onOpenPhotos={onOpenPhotos}
         priceBookItems={priceBookItems}
         companyName={companyName}
         ownerName={ownerName}

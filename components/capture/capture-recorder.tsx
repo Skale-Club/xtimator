@@ -1256,8 +1256,8 @@ function RecorderBody({ analyser, isRecording, isPaused, elapsedMs, ringColorCla
   if (isHorizontal) {
     // For the mobile popup redesign: immersive glassmorphism layout
     return (
-      <div className="flex flex-col flex-1 min-h-0 relative bg-background">
-        
+      <div className="flex flex-col flex-1 min-h-[380px] relative overflow-hidden bg-background">
+
         {/* Z-0: Main Text Area (Borderless, full canvas) */}
         <div className="flex flex-col flex-1 min-h-0 relative z-0 p-4 pb-32">
            <textarea
@@ -1287,31 +1287,51 @@ function RecorderBody({ analyser, isRecording, isPaused, elapsedMs, ringColorCla
             "other screen" read); the glass action bar (z-30 below) is the
             shared visual anchor across both states. */}
         {isRecording && (
-          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center p-6 bg-background animate-in fade-in duration-300">
-            {/* 260707-o7a: no live caption — transcription happens behind the
-                curtains (Whisper, multilingual). Listening pulse only.
-                260707-ru5: paused reads as a static amber status, not a pulse. */}
-            <div className="flex-1 w-full max-w-md flex flex-col justify-end pb-8">
-              <p className={cn(
-                'text-center',
-                isPaused ? 'text-amber-500/80 font-medium not-italic' : 'text-muted-foreground/60 italic animate-pulse'
-              )}>
+          <div
+            className={cn(
+              'absolute inset-0 z-10 flex flex-col items-center overflow-hidden bg-background animate-in fade-in duration-300 px-6 pt-6',
+              // Bottom padding clears the floating action bar (and the photo
+              // strip when present) INSIDE the flex layout — the old
+              // mb-[120px] + justify-center pushed content past the container
+              // edges and "Listening..." bled out above the dialog.
+              photoItems.length > 0 ? 'pb-[196px]' : 'pb-[120px]'
+            )}
+          >
+            {/* Ambient brand glow behind the waveform — depth without shapes. */}
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-x-0 bottom-0 -z-10 h-64 bg-[radial-gradient(ellipse_at_bottom,hsl(var(--primary)/0.10),transparent_65%)]"
+            />
+
+            {/* Status pill — 260707-o7a: no live caption (transcription is
+                Whisper, server-side); a REC-style pill replaces the dated
+                pulsing italic line. Paused reads as static amber. */}
+            <div className="flex-1 min-h-0 w-full flex flex-col items-center justify-end pb-6">
+              <div
+                className={cn(
+                  'flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-[11px] font-medium uppercase tracking-[0.16em]',
+                  isPaused
+                    ? 'border-amber-500/25 bg-amber-500/10 text-amber-500'
+                    : 'border-red-500/20 bg-red-500/10 text-red-500'
+                )}
+              >
+                <span className="relative flex h-1.5 w-1.5">
+                  {!isPaused && (
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-70 motion-reduce:hidden" />
+                  )}
+                  <span className={cn('relative inline-flex h-1.5 w-1.5 rounded-full', isPaused ? 'bg-amber-500' : 'bg-red-500')} />
+                </span>
                 {isPaused ? t('Paused') : t('Listening...')}
-              </p>
+              </div>
             </div>
 
-            {/* Center: Waveform & Timer — 260707-ru5: CaptureTimer rendered
-                directly (fixes the nested <p> DOM violation the old wrapper
-                caused); className overrides scale to match this popup's
-                lighter typographic tone (twMerge resolves via cn()).
-                260707-shg: waveform is the hero of the recording state —
-                taller (100 vs 80) and width capped to max-w-md so bars keep
-                a consistent gap/scale with the popup's padding. */}
-            <div className="flex flex-col items-center gap-6 shrink-0 mb-[120px]">
-               <CaptureTimer elapsedMs={elapsedMs} className="text-5xl sm:text-6xl font-light tracking-tight" />
-               <div className="w-full max-w-md">
-                 <WaveformVisualizer analyser={analyser} isRecording={isRecording && !isPaused} height={100} />
-               </div>
+            {/* Timer + waveform pinned just above the action bar. CaptureTimer
+                is rendered directly (no nested <p>); paused dims it. */}
+            <div className="w-full max-w-md shrink-0 flex flex-col items-center gap-5">
+              <CaptureTimer elapsedMs={elapsedMs} className={cn(isPaused && 'text-muted-foreground')} />
+              <div className="w-full">
+                <WaveformVisualizer analyser={analyser} isRecording={isRecording && !isPaused} height={72} />
+              </div>
             </div>
           </div>
         )}

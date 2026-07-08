@@ -60,7 +60,7 @@ function NewProjectDialogInner() {
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose() }}>
       <DialogContent
         showCloseButton={false}
-        className="p-0 gap-0 sm:max-w-xl max-h-[85dvh] flex flex-col"
+        className="p-0 gap-0 sm:max-w-xl max-h-[85dvh] flex flex-col overflow-hidden"
       >
         {/* Scope the language to this popup only — selecting a language re-skins
             the popup + the estimate, never the rest of the app. */}

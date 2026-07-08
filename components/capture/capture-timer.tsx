@@ -18,14 +18,14 @@ export function CaptureTimer({ elapsedMs, className }: CaptureTimerProps) {
   const colorClass =
     elapsedMs >= RED_AT_MS    ? 'text-red-500'   :
     elapsedMs >= AMBER_AT_MS  ? 'text-amber-500' :
-                                'text-primary'
+                                'text-foreground'
   return (
-    <p
-      className={cn('text-6xl sm:text-7xl font-mono font-bold tabular-nums transition-colors duration-300', colorClass, className)}
+    <div
+      className={cn('font-sans text-5xl sm:text-6xl font-extralight tabular-nums tracking-tight transition-colors duration-300', colorClass, className)}
       aria-live="polite"
       data-testid="capture-timer"
     >
       {formatDuration(seconds)}
-    </p>
+    </div>
   )
 }

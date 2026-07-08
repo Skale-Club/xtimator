@@ -36,8 +36,8 @@ interface EstimateTabProps {
   projectName: string
   projectType: string | null
   client: DocumentClient | null
-  onRecord?: () => void
   linkClientSlot?: React.ReactNode
+  onOpenPhotos?: () => void
   priceBookItems: PriceBookItem[]
   companyName: string
   ownerName: string
@@ -60,8 +60,8 @@ export function EstimateTab({
   projectName,
   projectType,
   client,
-  onRecord,
   linkClientSlot,
+  onOpenPhotos,
   priceBookItems,
   companyName,
   ownerName,
@@ -155,8 +155,8 @@ export function EstimateTab({
           projectName={projectName}
           projectType={projectType}
           client={client}
-          onRecord={onRecord}
           linkClientSlot={linkClientSlot}
+          onOpenPhotos={onOpenPhotos}
           priceBookItems={priceBookItems}
           onSend={() => setSendOpen(true)}
         />

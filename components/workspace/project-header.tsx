@@ -40,8 +40,16 @@ export function ProjectHeader({ project }: ProjectHeaderProps) {
           />
         </div>
 
-        {/* Right: Edit-with-AI button */}
+        {/* Right: autosave status + Edit-with-AI button */}
         <div className="flex items-center gap-2 shrink-0 pt-0.5 sm:pt-0">
+          {(slot?.saveStatus === 'saving' || slot?.saveStatus === 'saved') && (
+            <span
+              className="hidden sm:inline text-xs text-muted-foreground whitespace-nowrap"
+              aria-live="polite"
+            >
+              {slot.saveStatus === 'saving' ? 'Saving…' : 'Saved'}
+            </span>
+          )}
           <EditEstimateHeaderButton projectId={project.id} />
         </div>
       </div>
