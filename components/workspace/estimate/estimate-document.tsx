@@ -1599,11 +1599,19 @@ export function EstimateDocument({
       : String(estimateVersion)
 
   // View/PDF: skip items with empty descriptions and sections that end up empty.
+  // SENDHUB-04 (Phase 163): close the Phase 162 gap — gate the line-items block on
+  // the resolver's 'sections' toggle. WRAP the existing empty-item filter (do NOT
+  // replace it — editor-mode content-nullability preservation still lives here).
+  // The isEditable branch stays unwrapped because Phase 162 established that
+  // hiding sections in the editor makes the toggle unusable; only VIEW-mode
+  // (share page + PDF) applies the resolver gate.
   const visibleSections = isEditable
     ? data.sections
-    : data.sections
-        .map((s) => ({ ...s, items: s.items.filter((i) => i.description.trim() !== '') }))
-        .filter((s) => s.items.length > 0)
+    : isSectionVisible(resolvedSettings, 'sections')
+      ? data.sections
+          .map((s) => ({ ...s, items: s.items.filter((i) => i.description.trim() !== '') }))
+          .filter((s) => s.items.length > 0)
+      : []
 
   const sectionSensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),

@@ -4,6 +4,10 @@ import { formatPhoneForDisplay } from '@/lib/phone/format'
 import { ensureReadableOnWhite } from '@/lib/color/contrast'
 import { deriveDepositDisplay } from '@/lib/estimate/deposit-display'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
+import {
+  resolvePresentationSettings,
+  isSectionVisible,
+} from '@/lib/estimate/presentation-settings'
 import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
 import type {
   EstimateDocumentData,
@@ -199,6 +203,12 @@ export function EstimateDocumentModern({
   estimateSeq,
   estimateCreatedAt,
 }: EstimateDocumentModernProps) {
+  // SENDHUB-04 (Phase 163): resolve once at the render boundary (mirrors
+  // components/workspace/estimate/estimate-document.tsx:1592). data.presentation_settings
+  // is already threaded via estimate-view.tsx:157-161's cast-with-fallback — no
+  // re-cast needed here.
+  const resolvedSettings = resolvePresentationSettings(data.presentation_settings)
+
   const lang = (language ?? 'en') as EstimateLanguage
   const L = DOC_LABELS[lang] ?? DOC_LABELS.en
 
@@ -215,9 +225,13 @@ export function EstimateDocumentModern({
 
   // View mode: skip items with empty descriptions and sections that end up empty
   // — same filtering as Classic's view-mode branch.
-  const visibleSections = data.sections
-    .map((s) => ({ ...s, items: s.items.filter((i) => i.description.trim() !== '') }))
-    .filter((s) => s.items.length > 0)
+  // SENDHUB-04 (Phase 163): gate the line-items block on the resolver's 'sections'
+  // toggle (mirrors the Classic wrap-around at estimate-document.tsx:1602).
+  const visibleSections = isSectionVisible(resolvedSettings, 'sections')
+    ? data.sections
+        .map((s) => ({ ...s, items: s.items.filter((i) => i.description.trim() !== '') }))
+        .filter((s) => s.items.length > 0)
+    : []
 
   const companyAddr = formatAddress(company)
   const clientAddr = client ? formatAddress(client) : null
@@ -233,11 +247,13 @@ export function EstimateDocumentModern({
 
   const fmt = (v: number) => formatMoney(v, data.currency_code)
 
+  // SENDHUB-04 (Phase 163): each term block is independently gated below; the
+  // outer wrapper stays hidden when every gated term is invisible OR null.
   const hasTerms =
-    data.payment_terms != null ||
-    data.timeline != null ||
-    data.warranty_terms != null ||
-    data.notes != null
+    (isSectionVisible(resolvedSettings, 'payment_terms') && data.payment_terms != null) ||
+    (isSectionVisible(resolvedSettings, 'timeline') && data.timeline != null) ||
+    (isSectionVisible(resolvedSettings, 'warranty_terms') && data.warranty_terms != null) ||
+    (isSectionVisible(resolvedSettings, 'notes') && data.notes != null)
 
   return (
     <div
@@ -343,8 +359,8 @@ export function EstimateDocumentModern({
         )}
       </div>
 
-      {/* Summary — conditional on data.summary */}
-      {data.summary != null && (
+      {/* Summary — conditional on data.summary + SENDHUB-04 resolver gate */}
+      {isSectionVisible(resolvedSettings, 'summary') && data.summary != null && (
         <div className="px-8 sm:px-12 py-6 border-b border-border/50">
           <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-1.5 select-none">
             {L.summary}
@@ -493,7 +509,7 @@ export function EstimateDocumentModern({
       {/* Terms — each block only when filled */}
       {hasTerms && (
         <div className="px-8 sm:px-12 pb-8 pt-2 border-t border-border/50 space-y-6">
-          {data.payment_terms != null && (
+          {isSectionVisible(resolvedSettings, 'payment_terms') && data.payment_terms != null && (
             <div>
               <p className="text-sm font-semibold uppercase tracking-wider text-muted-foreground select-none mb-1.5">
                 {L.paymentTerms}
@@ -503,7 +519,7 @@ export function EstimateDocumentModern({
               </p>
             </div>
           )}
-          {data.timeline != null && (
+          {isSectionVisible(resolvedSettings, 'timeline') && data.timeline != null && (
             <div>
               <p className="text-sm font-semibold uppercase tracking-wider text-muted-foreground select-none mb-1.5">
                 {L.timeline}
@@ -513,7 +529,7 @@ export function EstimateDocumentModern({
               </p>
             </div>
           )}
-          {data.warranty_terms != null && (
+          {isSectionVisible(resolvedSettings, 'warranty_terms') && data.warranty_terms != null && (
             <div>
               <p className="text-sm font-semibold uppercase tracking-wider text-muted-foreground select-none mb-1.5">
                 {L.warranty}
@@ -523,7 +539,7 @@ export function EstimateDocumentModern({
               </p>
             </div>
           )}
-          {data.notes != null && (
+          {isSectionVisible(resolvedSettings, 'notes') && data.notes != null && (
             <div>
               <p className="text-sm font-semibold uppercase tracking-wider text-muted-foreground select-none mb-1.5">
                 {L.notes}
@@ -536,8 +552,8 @@ export function EstimateDocumentModern({
         </div>
       )}
 
-      {/* Attached photos — conditional on non-empty array */}
-      {data.attachedPhotos && data.attachedPhotos.length > 0 && (
+      {/* Attached photos — conditional on non-empty array + SENDHUB-04 resolver gate */}
+      {isSectionVisible(resolvedSettings, 'photos') && data.attachedPhotos && data.attachedPhotos.length > 0 && (
         <div className="px-8 sm:px-12 pb-8 pt-2 border-t border-border/50">
           <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3 select-none">
             {L.photos}
