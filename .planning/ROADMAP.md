@@ -1606,7 +1606,7 @@ Plans:
 - [x] 163-02-PLAN.md — Dormant-first migration widening estimate_deliveries (format column + channel/provider CHECK) (SENDHUB-03)
 - [x] 163-03-PLAN.md — Resolver rollout across 6 renderers (classic/modern PDF + modern share + plain-text + WhatsApp) + close estimate-document.tsx:1602 sections gap (SENDHUB-04, SENDHUB-05)
 - [x] 163-04-PLAN.md — SendHubDialog UI (3 format cards + Mark as Sent footer + LanguageFlagChip) + estimate-tab.tsx import swap (SENDHUB-01, SENDHUB-06)
-- [ ] 163-05-PLAN.md — Delivery-route + WhatsApp fallback + markAsSentAction/logDeliveryAction + SendHubDialog placeholder->real wiring (SENDHUB-02, SENDHUB-03)
+- [x] 163-05-PLAN.md — Delivery-route + WhatsApp fallback + markAsSentAction/logDeliveryAction + SendHubDialog placeholder->real wiring (SENDHUB-02, SENDHUB-03)
 - [ ] 163-06-PLAN.md — Deletion sweep of retired channel-first surfaces (send-dialog, send-form, send-actions-menu, send-tab, estimate-preview) (SENDHUB-01)
 **UI hint**: yes
 
