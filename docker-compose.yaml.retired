@@ -1,3 +1,20 @@
+# ⚠️ RETIRED 2026-07-09 — no longer deployed. Kept for reference / rollback.
+#
+# This compose file backed the old Coolify "Docker Compose" resource
+# (wucewun01rpf7z29qjmhhvbn), which is now STOPPED. Coolify does NOT do
+# rolling/zero-downtime updates for compose resources — every deploy stopped
+# the old container before starting the new one, so xtimator.com served
+# "no available server" for the whole pull+boot+healthcheck window.
+#
+# Production now runs on the Coolify "Docker Image" resource
+# (cf1cqh0bq8jyw91e78tcw8c6, APP_UUID in build-deploy.yml) with rolling
+# updates: the new container starts first, the /api/health/live probe (curl —
+# added to the runner image) gates the traffic switch, and the old container
+# stops last. Rollback: start the old resource in Coolify (it still holds the
+# xtimator.com domain config) — no repo change needed for a start (only a full
+# redeploy re-reads this file).
+#
+# ── Original header ──────────────────────────────────────────────────────
 # Coolify deploys this PREBUILT image instead of building on the VPS.
 # The image is built on a 16GB GitHub Actions runner and pushed to GHCR by
 # .github/workflows/build-deploy.yml, so Coolify only does `docker pull` + run.

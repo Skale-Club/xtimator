@@ -47,7 +47,11 @@ permissions:
 
 env:
   IMAGE_NAME: ghcr.io/skale-club/xtimator
-  APP_UUID: wucewun01rpf7z29qjmhhvbn
+  # Docker Image resource (rolling/zero-downtime deploys). The old compose
+  # resource wucewun01rpf7z29qjmhhvbn had NO rolling-update support — every
+  # deploy stopped the old container before starting the new one, taking
+  # xtimator.com down for the whole pull+boot+healthcheck window.
+  APP_UUID: cf1cqh0bq8jyw91e78tcw8c6
   COOLIFY_BASE: https://coolify.skale.club
   # Canonical site URL — hardcoded (NOT a Variable) so no stray newline/quote
   # can be reintroduced. The old Coolify value had a literal \n; do not repeat.
