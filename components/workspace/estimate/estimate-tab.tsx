@@ -10,7 +10,10 @@ import type { Recording } from '@/lib/queries/recording'
 import type { Photo } from '@/lib/queries/photo'
 import { Skeleton } from '@/components/ui/skeleton'
 import { EstimateEditor } from './estimate-editor'
-import { SendDialog } from '@/components/workspace/send/send-dialog'
+// Phase 163-04 (SENDHUB-01/-06): the format-first hub replaces the retired
+// channel-first dialog. Same dialog-open state slot, same prop shape + 2
+// new optional props (companySlug, whatsappEnabled) threaded below.
+import { SendHubDialog } from '@/components/workspace/send/send-hub-dialog'
 import {
   popStoredClientSuggestion,
   showClientSuggestionToast,
@@ -43,6 +46,22 @@ interface EstimateTabProps {
   ownerName: string
   estimateTemplate: EstimateTemplate
   smsDeliveryEnabled?: boolean
+  /**
+   * Phase 163-04 (SENDHUB-01): company slug for buildEstimatePublicPath in the
+   * hub's Online Estimate card. Optional here -- when the parent chain
+   * (OverviewTab -> ProjectWorkspace -> page.tsx) hasn't threaded it yet,
+   * buildEstimatePublicPath falls back to the legacy /estimate/{share_token}
+   * path. Wired end-to-end in 163-05 once the delivery-action buttons need
+   * real URLs.
+   */
+  companySlug?: string | null
+  /**
+   * Phase 163-04 (SENDHUB-01): whether WhatsApp delivery is configured for
+   * this account. Optional; defaults to true inside the hub so the WhatsApp
+   * placeholder buttons show unless the parent explicitly disables them.
+   * 163-05 wires real gating from getWhatsAppAccountStatus().
+   */
+  whatsappEnabled?: boolean
 }
 
 export function EstimateTab({
@@ -67,6 +86,8 @@ export function EstimateTab({
   ownerName,
   estimateTemplate,
   smsDeliveryEnabled,
+  companySlug,
+  whatsappEnabled,
 }: EstimateTabProps) {
   const [sendOpen, setSendOpen] = useState(false)
   const { t } = useTranslation()
@@ -160,18 +181,20 @@ export function EstimateTab({
           priceBookItems={priceBookItems}
           onSend={() => setSendOpen(true)}
         />
-        <SendDialog
+        <SendHubDialog
           open={sendOpen}
           onOpenChange={setSendOpen}
           estimate={currentEstimate}
           projectName={projectName}
           companyName={companyName}
+          companySlug={companySlug ?? null}
           clientEmail={client?.email ?? null}
           clientPhone={client?.phone ?? null}
           clientName={client?.name ?? ''}
           ownerName={ownerName}
           estimateTemplate={estimateTemplate}
           smsDeliveryEnabled={smsDeliveryEnabled ?? false}
+          whatsappEnabled={whatsappEnabled}
         />
       </>
     )
