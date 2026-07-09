@@ -14,6 +14,10 @@ import { formatMoney } from '@/lib/money/currency'
 import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
 import { formatPhoneForDisplay } from '@/lib/phone/format'
 import { deriveDepositDisplay } from '@/lib/estimate/deposit-display'
+import {
+  resolvePresentationSettings,
+  isSectionVisible,
+} from '@/lib/estimate/presentation-settings'
 
 // ---------------------------------------------------------------------------
 // 260705-8u0-02: "Modern" editorial PDF template.
@@ -469,6 +473,14 @@ export default function EstimatePDFModern({
   preparedBy,
   attachedPhotos,
 }: EstimatePDFProps) {
+  // SENDHUB-04 (Phase 163): resolve once at the render boundary. Cast-with-fallback
+  // mirrors components/share/estimate-view.tsx:157-161 — the query type may lag the
+  // dormant-first Phase 161 column, so we defensively cast without breaking
+  // EstimateWithSections's stable type surface.
+  const resolvedSettings = resolvePresentationSettings(
+    (estimate as { presentation_settings?: unknown }).presentation_settings
+  )
+
   const brandColor = company.brand_primary_color ?? SYSTEM_COLORS.primary
   // Render-time WCAG adaptation of the brand color (stored value never mutated):
   //   brandText   → brand color darkened to reach 4.5:1 as text on white
@@ -620,16 +632,16 @@ export default function EstimatePDFModern({
           )}
         </View>
 
-        {/* Summary */}
-        {estimate.summary && (
+        {/* Summary — SENDHUB-04 (Phase 163): resolver-gated */}
+        {isSectionVisible(resolvedSettings, 'summary') && estimate.summary && (
           <View style={{ marginBottom: 20 }}>
             <Text style={styles.infoLabel}>{L.summary}</Text>
             <Text style={styles.termsText}>{estimate.summary}</Text>
           </View>
         )}
 
-        {/* Sections with Line Items */}
-        {estimate.sections
+        {/* Sections with Line Items — SENDHUB-04 (Phase 163): resolver-gated */}
+        {isSectionVisible(resolvedSettings, 'sections') && estimate.sections
           .map((section) => ({
             ...section,
             items: section.items.filter((i) => i.description.trim() !== ''),
@@ -760,12 +772,14 @@ export default function EstimatePDFModern({
           </View>
         </View>
 
-        {/* Estimate Terms, Payment Terms, Warranty, Timeline, Notes */}
+        {/* Estimate Terms, Payment Terms, Warranty, Timeline, Notes.
+            SENDHUB-04 (Phase 163): each block gated on its resolver key; the
+            outer wrapper stays hidden when every gated term is invisible OR null. */}
         {(company.estimate_terms_enabled && company.estimate_terms_text ||
-          estimate.payment_terms ||
-          estimate.warranty_terms ||
-          estimate.timeline ||
-          estimate.notes) && (
+          (isSectionVisible(resolvedSettings, 'payment_terms') && estimate.payment_terms) ||
+          (isSectionVisible(resolvedSettings, 'warranty_terms') && estimate.warranty_terms) ||
+          (isSectionVisible(resolvedSettings, 'timeline') && estimate.timeline) ||
+          (isSectionVisible(resolvedSettings, 'notes') && estimate.notes)) && (
           <View style={styles.termsSection}>
             {company.estimate_terms_enabled && company.estimate_terms_text && (
               <>
@@ -777,7 +791,7 @@ export default function EstimatePDFModern({
                 </Text>
               </>
             )}
-            {estimate.payment_terms && (
+            {isSectionVisible(resolvedSettings, 'payment_terms') && estimate.payment_terms && (
               <>
                 <Text style={styles.termsTitle}>{L.paymentTerms}</Text>
                 <Text style={styles.termsText}>
@@ -785,13 +799,13 @@ export default function EstimatePDFModern({
                 </Text>
               </>
             )}
-            {estimate.timeline && (
+            {isSectionVisible(resolvedSettings, 'timeline') && estimate.timeline && (
               <>
                 <Text style={styles.termsTitle}>{L.timeline}</Text>
                 <Text style={styles.termsText}>{estimate.timeline}</Text>
               </>
             )}
-            {estimate.warranty_terms && (
+            {isSectionVisible(resolvedSettings, 'warranty_terms') && estimate.warranty_terms && (
               <>
                 <Text style={styles.termsTitle}>{L.warranty}</Text>
                 <Text style={styles.termsText}>
@@ -799,7 +813,7 @@ export default function EstimatePDFModern({
                 </Text>
               </>
             )}
-            {estimate.notes && (
+            {isSectionVisible(resolvedSettings, 'notes') && estimate.notes && (
               <>
                 <Text style={styles.termsTitle}>{L.notes}</Text>
                 <Text style={styles.termsText}>{estimate.notes}</Text>
@@ -808,8 +822,8 @@ export default function EstimatePDFModern({
           </View>
         )}
 
-        {/* Attached photos — only when at least one photo is attached */}
-        {attachedPhotos && attachedPhotos.length > 0 && (
+        {/* Attached photos — SENDHUB-04 (Phase 163): resolver-gated */}
+        {isSectionVisible(resolvedSettings, 'photos') && attachedPhotos && attachedPhotos.length > 0 && (
           <View style={{ marginTop: 20 }} wrap={false}>
             <Text style={styles.termsTitle}>{L.photos}</Text>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 6 }}>
