@@ -15,7 +15,9 @@ const cspReportOnly = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline' https://js.stripe.com https://challenges.cloudflare.com",
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob: https://*.supabase.co https://*.supabase.in",
+  // *.googleusercontent.com — Google account avatars (lh3/lh4/lh5.googleusercontent.com)
+  // surfaced after Google OAuth sign-in. Was missing → 35+ CSP img-src reports (XTIMATOR-B).
+  "img-src 'self' data: blob: https://*.supabase.co https://*.supabase.in https://*.googleusercontent.com",
   "font-src 'self'",
   "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.anthropic.com https://api.openai.com https://openrouter.ai https://api.stripe.com https://api.inngest.com",
   "frame-src https://js.stripe.com https://challenges.cloudflare.com",
