@@ -23,7 +23,7 @@ describe('SENDHUB-01/-06: SendHubDialog component contract', () => {
   })
 
   it('the hub does not use the retired channel-first Tabs structure', () => {
-    // The old SendForm used <Tabs>. The hub must not.
+    // The old channel-first form used <Tabs>. The hub must not.
     expect(source).not.toMatch(/from\s+['"]@\/components\/ui\/tabs['"]/)
   })
 

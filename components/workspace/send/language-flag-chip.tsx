@@ -1,16 +1,15 @@
-// Phase 163 (SENDHUB-06): re-homed from the retired
-// components/workspace/send/estimate-preview.tsx. Displays a country-flag chip
-// for the estimate's language (en/pt/es). Display-only -- there is NO picker
-// anywhere in the send surface (per RESEARCH Q5: language is set at generation
-// time in lib/services/generate-estimate.ts and cannot be changed post-hoc).
+// Phase 163 (SENDHUB-06): country-flag chip for the estimate's language
+// (en/pt/es). Display-only -- there is NO picker anywhere in the send surface
+// (per RESEARCH Q5: language is set at generation time in
+// lib/services/generate-estimate.ts and cannot be changed post-hoc).
 //
 // The customer-facing share surface has its OWN LanguageFlagChip in
 // components/share/estimate-view.tsx with different styling; do not consolidate
 // here.
 //
-// Two definitions coexisting for one plan is fine -- estimate-preview.tsx still
-// exports LanguageFlagChip until the deletion sweep in 163-06. Every consumer
-// (send-dialog / hub) is being flipped to this file so nothing breaks.
+// The sole consumer is the hub in the same directory
+// (send-hub-dialog.tsx). Introduced in 163-04 alongside the format-first
+// SendHubDialog and locked in as the sole copy in 163-06 (deletion sweep).
 
 'use client'
 

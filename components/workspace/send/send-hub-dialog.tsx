@@ -1,7 +1,7 @@
 // components/workspace/send/send-hub-dialog.tsx
 // Phase 163 (SENDHUB-01, SENDHUB-03, SENDHUB-06): format-first Send hub.
 // Three primary format cards (Online Estimate / PDF / Plain Text), each with
-// its own delivery actions. Retires the channel-first SendForm tabs AND the
+// its own delivery actions. Retires the channel-first email/SMS tab layout AND the
 // separate dropdown menu that used to sit in the dialog header (see 163-06
 // for the deletion sweep).
 //
@@ -208,7 +208,7 @@ export function SendHubDialog({
   // to accept `format`. If clientEmail/clientPhone is null, we abort with a
   // clear toast -- a modal input flow is a follow-up. Recipient is pulled
   // from the linked client's contact fields (drop-in with the retired
-  // SendForm's field-picker behaviour).
+  // channel-first form's field-picker behaviour).
   // ---------------------------------------------------------------------------
   async function sendEmail(opts: { format: SendFormat; label: string }) {
     if (!clientEmail) {
@@ -311,8 +311,8 @@ export function SendHubDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        {/* Wider than the retired SendDialog so 3 format cards can lay side-by-
-            side at md+; on mobile they stack. max-h in dvh + overflow-y-auto
+        {/* Wider than the retired channel-first dialog so 3 format cards can lay
+            side-by-side at md+; on mobile they stack. max-h in dvh + overflow-y-auto
             mirrors the retired dialog's mobile-friendliness. */}
         <DialogContent className="sm:max-w-3xl max-h-[85dvh] overflow-y-auto overflow-x-hidden">
           <DialogHeader>
@@ -537,7 +537,7 @@ export function SendHubDialog({
 
       {/* PlainTextSheet is opened from the Plain Text card's "Edit" action.
           It stays a Sheet (right-side drawer) -- same UX as the retired
-          plain-text editor affordance from the send-actions-menu, minus the
+          plain-text editor affordance from the old dropdown, minus the
           menu wrapper. */}
       <PlainTextSheet
         key={estimate.id}

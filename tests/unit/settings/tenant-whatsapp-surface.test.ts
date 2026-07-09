@@ -156,19 +156,19 @@ describe('D-04/D-05/D-07/D-15: tenant WhatsApp surface guard', () => {
   })
 
   it('opaque estimate send route/form still exists (D-06)', () => {
-    // The Send tab and WhatsApp send API must remain intact
+    // The Send hub and WhatsApp send API must remain intact
     expect(existsSync(resolve(ROOT, 'app/(app)/projects/[id]/page.tsx'))).toBe(true)
-    // The send-whatsapp API route must exist
+    // The send-whatsapp API route must exist (Phase 163 widened it; still lives
+    // at the same path).
     const sendRoute = existsSync(
       resolve(ROOT, 'app/api/estimates/[id]/send-whatsapp/route.ts'),
     )
-    // If the route doesn't exist at this path, check alternatives
+    // If the route ever moves, the format-first Send hub still references
+    // whatsapp delivery.
     if (!sendRoute) {
-      // Allow: the send-whatsapp functionality may live elsewhere
-      // The key invariant is that the Send tab still references whatsapp send
-      const workspaceFile = resolve(ROOT, 'components/workspace/send/send-tab.tsx')
-      if (existsSync(workspaceFile)) {
-        const src = readFileSync(workspaceFile, 'utf8')
+      const hubFile = resolve(ROOT, 'components/workspace/send/send-hub-dialog.tsx')
+      if (existsSync(hubFile)) {
+        const src = readFileSync(hubFile, 'utf8')
         expect(src).toMatch(/whatsapp/i)
       }
     }
