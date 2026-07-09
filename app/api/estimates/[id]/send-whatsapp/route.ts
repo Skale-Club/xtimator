@@ -10,6 +10,11 @@ import { shareLinkExpiryFromNow } from '@/lib/estimates/share-link'
 interface SendWhatsAppRequestBody {
   to: string
   message?: string
+  // Phase 163 (SENDHUB-02, W-1 fix): hub's format choice at Send time. Must
+  // be forwarded into deliverEstimateViaWhatsApp -- without this, the
+  // dispatcher's effectiveDeliveryFormat branch never sees pdf/plain_text and
+  // Meta gets a document payload even when the owner picked PDF.
+  format?: 'online_link' | 'pdf' | 'plain_text'
 }
 
 const E164_RE = /^\+[1-9]\d{7,14}$/
@@ -41,6 +46,15 @@ export async function POST(
     }
 
     const { to, message } = body
+    // Phase 163 (SENDHUB-02, W-1 fix): widen with the `format` field.
+    // Default 'online_link'; forwarded to deliverEstimateViaWhatsApp below.
+    const format = (body.format ?? 'online_link') as 'online_link' | 'pdf' | 'plain_text'
+    if (!['online_link', 'pdf', 'plain_text'].includes(format)) {
+      return NextResponse.json(
+        { error: "Invalid format (must be 'online_link', 'pdf', or 'plain_text')" },
+        { status: 400 }
+      )
+    }
     if (!to || !E164_RE.test(to)) {
       return NextResponse.json(
         { error: 'Valid phone number in E.164 format required (e.g. +15551234567)' },
@@ -119,6 +133,10 @@ export async function POST(
       clientId,
       clientName,
       customMessage: message ?? null,
+      // Phase 163 (SENDHUB-02, W-1 fix): forward the request-body format so
+      // the dispatcher's effectiveDeliveryFormat branch can force share_link
+      // for pdf/plain_text regardless of the account's deliveryFormat preference.
+      format,
     })
 
     if (!result.ok) {

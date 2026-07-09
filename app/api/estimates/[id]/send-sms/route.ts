@@ -12,6 +12,10 @@ import { buildEstimatePublicPath } from '@/lib/estimate/public-url'
 interface SendSmsRequestBody {
   to: string
   message?: string
+  // Phase 163 (SENDHUB-02, SENDHUB-03): hub's format choice. SMS body is
+  // ALREADY link-only across all 3 formats (byte-identical), so this field
+  // only feeds the estimate_deliveries insert -- no branching on the send path.
+  format?: 'online_link' | 'pdf' | 'plain_text'
 }
 
 const E164_RE = /^\+[1-9]\d{7,14}$/
@@ -52,6 +56,15 @@ export async function POST(
     }
 
     const { to, message } = body
+    // Phase 163 (SENDHUB-02, SENDHUB-03): widen with the `format` field.
+    // Default 'online_link'; body construction is unchanged (already link-only).
+    const format = (body.format ?? 'online_link') as 'online_link' | 'pdf' | 'plain_text'
+    if (!['online_link', 'pdf', 'plain_text'].includes(format)) {
+      return NextResponse.json(
+        { error: "Invalid format (must be 'online_link', 'pdf', or 'plain_text')" },
+        { status: 400 }
+      )
+    }
     if (!to || !E164_RE.test(to)) {
       return NextResponse.json(
         { error: 'Valid phone number in E.164 format required (e.g. +15551234567)' },
@@ -120,6 +133,7 @@ export async function POST(
         estimate_id: estimate.id,
         company_id: estimate.company_id,
         channel: 'sms',
+        format: format,
         recipient_phone: to,
         provider: 'twilio',
         status: 'failed',
@@ -137,6 +151,7 @@ export async function POST(
       estimate_id: estimate.id,
       company_id: estimate.company_id,
       channel: 'sms',
+      format: format,
       recipient_phone: to,
       provider: 'twilio',
       provider_message_id: result.sid ?? null,

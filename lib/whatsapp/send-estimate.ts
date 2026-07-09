@@ -21,6 +21,7 @@ import { logOutboundMessage, toE164 } from '@/lib/whatsapp/conversations'
 import { getCanonicalBaseUrl } from '@/lib/utils/site-url'
 import { getWhatsAppAccountStatus } from '@/lib/whatsapp/account-registry'
 import { buildEstimatePublicPath } from '@/lib/estimate/public-url'
+import type { PresentationSettings } from '@/lib/estimate/presentation-settings'
 
 export interface DeliverEstimateResult {
   ok: boolean
@@ -31,6 +32,15 @@ export interface DeliverEstimateResult {
 
 type DeliveryFormat = 'share_link' | 'formatted_text' | 'pdf_attachment'
 
+/**
+ * Phase 163 (SENDHUB-02): the hub's format choice at Send time. Independent
+ * of the company's account-wide `deliveryFormat` preference above. When the
+ * hub picks 'pdf' or 'plain_text', `effectiveDeliveryFormat` is forced to
+ * 'share_link' regardless of the account preference -- Meta must NEVER get a
+ * `type: 'document'` payload for those two formats.
+ */
+export type SendFormat = 'online_link' | 'pdf' | 'plain_text'
+
 export async function deliverEstimateViaWhatsApp(params: {
   svc: SupabaseClient
   estimateId: string
@@ -39,17 +49,26 @@ export async function deliverEstimateViaWhatsApp(params: {
   clientId?: string | null
   clientName?: string | null
   customMessage?: string | null
+  /**
+   * Phase 163 (SENDHUB-02): the hub's format choice. Optional/nullable to
+   * preserve back-compat with callers that pre-date the hub (the inbox
+   * "send estimate" action currently omits it, resolving to today's behaviour
+   * -- account-wide `deliveryFormat` applies).
+   */
+  format?: SendFormat | null
 }): Promise<DeliverEstimateResult> {
   const { svc, estimateId, companyId } = params
   const toPhone = toE164(params.toPhone)
 
   // 1. Estimate (scoped to company) with the fields the formatter needs.
+  //    Phase 163 (SENDHUB-04): also pull `presentation_settings` so the
+  //    formatted_text branch's formatter can honour the toggle.
   const { data: estimate } = await svc
     .from('estimates')
     .select(`
       id, project_id, share_token, public_slug_token, total, subtotal, tax_rate, tax_amount,
       deposit_type, deposit_value, balance_due,
-      currency_code, summary, payment_terms, timeline, language,
+      currency_code, summary, payment_terms, timeline, language, presentation_settings,
       sections:estimate_sections(
         title, subtotal,
         items:estimate_items(description, quantity, unit, unit_price, total)
@@ -72,6 +91,16 @@ export async function deliverEstimateViaWhatsApp(params: {
   const ownerName = (company?.owner_name as string | null) ?? null
   const companyWebsite = (company?.website as string | null) ?? null
 
+  // Phase 163 (SENDHUB-02): PDF or Plain Text over WhatsApp ALWAYS falls back
+  // to the share link. The company's account-wide `pdf_attachment` /
+  // `formatted_text` preference is honoured ONLY for the `online_link` format.
+  // Byte-identical to today's `share_link` behaviour for the fallback path.
+  // Meta must NEVER get a `type: 'document'` payload for pdf/plain_text.
+  const effectiveDeliveryFormat: DeliveryFormat =
+    (params.format === 'pdf' || params.format === 'plain_text')
+      ? 'share_link'
+      : deliveryFormat
+
   const branding = await getBranding()
   const baseUrl = branding.canonicalBaseUrl ?? getCanonicalBaseUrl()
   const shareUrl = `${baseUrl}${buildEstimatePublicPath(
@@ -88,7 +117,7 @@ export async function deliverEstimateViaWhatsApp(params: {
   let sentPreview = shareMessage
 
   try {
-    if (deliveryFormat === 'pdf_attachment') {
+    if (effectiveDeliveryFormat === 'pdf_attachment') {
       try {
         const { signedUrl, filename } = await generateAndUploadEstimatePDF(
           estimateId,
@@ -111,8 +140,17 @@ export async function deliverEstimateViaWhatsApp(params: {
         await sendWhatsAppMessage(toPhone, { type: 'text', text: { body: shareMessage } })
         fallback = 'share_link'
       }
-    } else if (deliveryFormat === 'formatted_text') {
-      const formatted = formatEstimateForWhatsApp(estimate as unknown as FormatterEstimate, params.clientName ?? null, companyName, ownerName, companyWebsite)
+    } else if (effectiveDeliveryFormat === 'formatted_text') {
+      const formatted = formatEstimateForWhatsApp(
+        estimate as unknown as FormatterEstimate,
+        params.clientName ?? null,
+        companyName,
+        ownerName,
+        companyWebsite,
+        // Phase 163 (SENDHUB-04): honour the toggle. Cast-with-fallback mirrors
+        // components/share/estimate-view.tsx:157-161 -- dormant-first-safe.
+        (estimate as { presentation_settings?: unknown }).presentation_settings as PresentationSettings | null | undefined ?? null,
+      )
       await sendWhatsAppMessage(toPhone, { type: 'text', text: { body: formatted } })
       sentPreview = formatted
     } else {
@@ -124,6 +162,7 @@ export async function deliverEstimateViaWhatsApp(params: {
       estimate_id: estimateId,
       company_id: companyId,
       channel: 'whatsapp',
+      format: params.format ?? 'online_link',
       recipient_phone: toPhone,
       provider: 'meta',
       status: 'failed',
@@ -148,6 +187,7 @@ export async function deliverEstimateViaWhatsApp(params: {
     estimate_id: estimateId,
     company_id: companyId,
     channel: 'whatsapp',
+    format: params.format ?? 'online_link',
     recipient_phone: toPhone,
     provider: 'meta',
     status: 'sent',

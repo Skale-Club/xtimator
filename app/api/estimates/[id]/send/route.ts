@@ -19,6 +19,11 @@ interface SendRequestBody {
   subject: string
   body: string
   attachPdf: boolean
+  // Phase 163 (SENDHUB-03): the hub's format choice at Send time (independent
+  // of transport channel). Default 'online_link' for back-compat with any
+  // caller that omits it. Never affects email body construction in this phase
+  // -- it flows through to the `estimate_deliveries.format` column.
+  format?: 'online_link' | 'pdf' | 'plain_text'
 }
 
 function isValidEmail(email: string): boolean {
@@ -68,6 +73,15 @@ export async function POST(
     }
 
     const { to, subject, body, attachPdf } = reqBody
+    // Phase 163 (SENDHUB-03): widen with the `format` field. Default to
+    // 'online_link' for back-compat with any caller that doesn't send it.
+    const format = (reqBody.format ?? 'online_link') as 'online_link' | 'pdf' | 'plain_text'
+    if (!['online_link', 'pdf', 'plain_text'].includes(format)) {
+      return NextResponse.json(
+        { error: "Invalid format (must be 'online_link', 'pdf', or 'plain_text')" },
+        { status: 400 }
+      )
+    }
 
     if (!to || !isValidEmail(to)) {
       return NextResponse.json(
@@ -192,6 +206,7 @@ export async function POST(
         estimate_id: id,
         company_id: estimate.company_id,
         channel: 'email',
+        format: format,
         recipient_email: to,
         subject,
         provider: 'resend',
@@ -209,6 +224,7 @@ export async function POST(
       estimate_id: id,
       company_id: estimate.company_id,
       channel: 'email',
+      format: format,
       recipient_email: to,
       subject,
       provider: 'resend',
