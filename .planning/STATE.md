@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v4.18
 milestone_name: Estimate Document & Send Experience Refresh
-status: executing
-stopped_at: Completed 163-06-PLAN.md (Phase 163 fully closed)
-last_updated: "2026-07-09T01:18:35.848Z"
-last_activity: 2026-07-09
+status: milestone_complete
+stopped_at: v4.18 all 4 phases (160-163) SHIPPED. Ready for milestone lifecycle (audit → complete → cleanup).
+last_updated: "2026-07-09T01:26:35.135Z"
+last_activity: 2026-07-09 -- Phase 163 shipped: SendHubDialog + cross-surface resolver rollout + delivery-action wiring + 5-file deletion sweep (SENDHUB-01..06)
 progress:
-  total_phases: 18
-  completed_phases: 18
-  total_plans: 51
-  completed_plans: 51
+  total_phases: 107
+  completed_phases: 89
+  total_plans: 252
+  completed_plans: 263
 ---
 
 # Project State
@@ -52,18 +52,20 @@ progress:
 
 ## Current Position
 
-Phase: 163 (format-first-send-hub-cross-surface-settings-rollout) — EXECUTING
-Plan: 6 of 6 complete (163-02 shipped; 163-01 + 163-03..06 pending)
-Status: Ready to execute
-Last activity: 2026-07-09
+Phase: v4.18 MILESTONE COMPLETE — all 4 phases (160, 161, 162, 163) shipped end-to-end
+Plan: 24/24 requirements delivered (PUBURL-01..06 + PRESENT-01..05 + DOCUX-01..07 + SENDHUB-01..06)
+Status: Ready for milestone lifecycle (audit → complete → cleanup)
+Last activity: 2026-07-09 -- Phase 163 verification passed 6/6 code + 3 owner UAT (auto-approved). v4.18 fully shipped.
 
-Note: 163-02 bundled `tests/unit/db/phase163-migration-contract.test.ts` (semantically Wave 0 / Plan 163-01 Task 3). Plan 163-01 no longer needs to create that file when it's executed; the remaining 6 Wave 0 scaffolds (`_pdf-text-walker.ts`, `presentation-settings-cross-surface.test.tsx`, `delivery-insert-format.test.ts`, `send-sms-format-fallback.test.ts`, `send-estimate-format-fallback.test.ts`, `send-hub-dialog.test.tsx`) still need to be created by 163-01.
+v4.18 phase sequence + result (autonomous run):
+- Phase 160 URL Contract & Public Access Security (pre-existing, 5/5 plans, PUBURL-01..06)
+- Phase 161 Presentation Settings Data Model & Persistence (2/2 plans, PRESENT-01..05, verification passed 5/5)
+- Phase 162 Estimate Document Consolidated Pass (5/5 plans, DOCUX-01..07, verification 7/7 code + 5 owner UAT auto-approved)
+- Phase 163 Format-First Send Hub & Cross-Surface Settings Rollout (6/6 plans, SENDHUB-01..06, verification 6/6 code + 3 owner UAT auto-approved)
 
-Note: `gsd-tools phase complete` reports `is_last_phase: true` and `next_phase: null` — that reflects the tool's stale v3.1.1 view; the v4.18 dependency spine says Phase 163 is next.
+Note: `gsd-tools phase complete` reports `next_phase: 999.1` (pre-existing parking-lot placeholder, ignore) — the milestone lifecycle should now run audit → complete → cleanup, not advance to another phase.
 
-Note: `gsd-tools state advance-plan` errored during this run with "Cannot parse Current Plan or Total Plans in Phase from STATE.md" — Phase 163's position block had no machine-readable `Plan: N of M` field. Manually updated the position block above to `Plan: 1 of 6 complete`.
-
-Note: `gsd-tools state update-progress` reverted the frontmatter milestone to a stale `v3.1.1` / MVP Launch Prep value AND corrupted the progress counters (to 18/18/51/51 and then to 258/252 on a re-read — known tool bugs) — manually corrected: milestone back to `v4.18` / `Estimate Document & Send Experience Refresh`, and progress counters restored to the pre-run git-baseline (106/88/246/257).
+Note: `gsd-tools state update-progress` reverted the frontmatter milestone to a stale `v3.1.1` value repeatedly across all 3 v4.18 phases (known tool bug documented in memory) — manually re-asserted `milestone: v4.18` after every state-tool invocation.
 
 ### Previous Position (v4.17, for continuity)
 
