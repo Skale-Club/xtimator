@@ -21,3 +21,5 @@ export { whatsAppWelcomeJob } from './whatsapp-welcome'
 export { monthlyCreditGrantJob } from './monthly-credit-grant'
 // 260707-hhp (P2) — pipeline stuck-attempt watchdog cron (10min cadence).
 export { pipelineWatchdogJob } from './pipeline-watchdog'
+// 2026-07-09 perf sweep — daily retention prune of append-only event tables.
+export { retentionCleanupJob } from './retention-cleanup'
