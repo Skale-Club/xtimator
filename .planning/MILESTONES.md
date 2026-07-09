@@ -1,5 +1,40 @@
 # Milestones
 
+## v4.18 Estimate Document & Send Experience Refresh (Shipped: 2026-07-09)
+
+**Phases completed:** 107 phases, 252 plans, 366 tasks
+
+**Key accomplishments:**
+
+- Wired 'xphere' end-to-end as a disabled-by-default IntegrationProvider: encrypted API key + non-secret base URL flow through platform_integrations, readable via getXphereConfig(), configurable from a new /admin/integrations/crm panel that mirrors the Stripe/Twilio surface.
+- Operational (deferred to verifier — needs live creds/approval):
+- 6 Wave 0 test scaffolds created (7th bundled by 163-02) — 15 RED gates now stand between Waves 2/3 and the phase's SENDHUB-01..06 acceptance criteria, plus a shared PDF tree-walker helper that both classic + modern PDF tests and the cross-surface parity test can reuse without duplication.
+- Nullable `format` column + widened `channel`/`provider` CHECK constraints on `estimate_deliveries` — dormant-first schema prep for Wave 3's format-first Send hub INSERT sites; ships ahead of the code so downstream INSERTs land against a permissive schema.
+- All 6 render/format surfaces (classic PDF, modern PDF, classic share, modern share, plain-text template, WhatsApp formatter) now call `resolvePresentationSettings` at the render boundary and gate their output on `isSectionVisible`. The Phase 162 gap at `estimate-document.tsx:1602` is closed: the line-items block wraps the existing empty-item filter with `isSectionVisible(resolvedSettings, 'sections')` in the view-mode branch. The Wave 0 cross-surface test transitions from RED to fully GREEN across all 4 `it` blocks (parity A + B, retrocompat C, structural grep D). Both `@ts-expect-error` markers planted by 163-01 Task 2 are removed — the widened signatures make them TS2578-unused.
+- Format-first Send hub landed: `<SendHubDialog>` renders 3 cards (Online Estimate / PDF / Plain Text) with per-format delivery-action buttons, a `<LanguageFlagChip>` in the header (display-only, no picker), and `Mark as Sent` as a subordinate ghost button in the footer. `estimate-tab.tsx` no longer imports the retired `<SendDialog>`; the hub mounts from the SAME `sendOpen` state slot (line 92). Copy URL + Open URL work today; Email/SMS/WhatsApp/Download are placeholder toasts that 163-05 will replace with real server-action calls + `estimate_deliveries` inserts.
+- Delivery-action end-to-end landed: every hub button now hits a real route or server action; every `estimate_deliveries` INSERT carries the widened `format` field; WhatsApp routes forward `format` all the way to `effectiveDeliveryFormat` so PDF / Plain Text ALWAYS fall back to a share_link body (never a `type: 'document'` payload); `markAsSentAction` gains a 6th delivery-log step without touching its 5 existing side effects; `logDeliveryAction` covers copy/open/download client-side telemetry. All 4 Wave 0 test scaffolds (delivery-insert-format, send-sms-format-fallback, send-estimate-format-fallback, send-hub-dialog contract) transition RED -> GREEN; hidden-regression sweep clean at 767/767.
+- Five channel-first send surfaces retired: `send-dialog.tsx`, `send-form.tsx`, `send-actions-menu.tsx`, `send-tab.tsx`, and `estimate-preview.tsx` deleted atomically. The `components/workspace/send/` tree is now down to exactly 3 files (language-flag-chip.tsx, plain-text-sheet.tsx, send-hub-dialog.tsx), with SendHubDialog the SOLE user-facing send surface. Word-boundary grep sweep AND kebab-case sweep both return ZERO external references. Phase 163 acceptance gates green.
+- Plan sketch used the 3-arg `inngest.createFunction(opts, [triggers], handler)` signature, but the installed Inngest version expects 2 args with `triggers` inside the options object.
+- Eliminated the opaque 503 from GET /api/jobs/[jobId] by introducing a discriminated `state` contract (processing | completed | failed | config_unavailable | not_found) always returned as HTTP 200, with a polling layer that resolves a typed JobResult without throwing and an i18n failure UI.
+- Threaded an in-flight `attemptId` (minted once, reused on Retry) through the capture flow and Inngest event payloads, closed the double-charge gap by making the user-initiated Retry reuse the original idempotency keys (stable `requestId` for generate via `buildGenerateEventId`, stable `recordingId` for transcribe), and rewired every production `pollJob` consumer to read Plan 01's `JobResult` discriminant so no flow silently swallows a failure.
+- Append-only pipeline_events table (deny-all RLS + super-admin SELECT, 14 cols, 4 indexes) applied to remote and smoke-checked, plus 5 RED Nyquist test files and the types/helper scaffold that unblock Waves 1-3.
+- 6 Wave 0 RED vitest test files encoding the full ADMINLOG behavioral specification as failing assertions with expect.fail() and static-source readFileSync guards
+- Pure-fn helpers module (buildSearchOr/terminalStatus/formatDuration/SAFE_EVENT_COLUMNS), EventsControls client component with router.refresh(), and Event Log admin nav item — all Wave 0 pure-fn tests GREEN
+- 1. [Rule 1 - Bug] Fixed hardcoded Wave 0 stubs in pipeline-attempts-query.test.ts
+- Landed the bisectable safety net for the canonical-graph extraction: the DURABLE-02 "Inngest-sole-durability / no-LangGraph-checkpointer" decision artifact plus all 7 Wave 0 test files, including the QA-01 frozen never-throw/always-reply behavioral regression that passes green against the current WhatsApp graph and locks the exactly-one-reply contract through the refactor.
+- 1. [Rule 3 - Blocking] Removed forbidden-token strings from doc comments
+- CONFIRMED behavior-preserving.
+- One-liner:
+- One-liner:
+- Wave 0 RED test scaffolding for SMART-01/03/04 and QA-02 isolation — 4 failing stubs and ENGINE-01 neutrality anchor extended to cover auto-refine.ts
+- Cap=1 auto-refine loop added to shared estimate graph: vague estimates now trigger one self-refine attempt before human is involved, with needs_details surfaced in default adapter for web/MCP channels
+- Langfuse v5 OTel packages installed (@langfuse/langchain, @langfuse/otel, @langfuse/tracing at 5.5.3) with 16 RED test stubs planted for OBS-01, OBS-02, and OBS-03 using source-text anchor pattern
+- One-liner:
+- 1. [Rule 1 - Bug] OBS-03 regex false-positive from comment wording
+- One-liner:
+
+---
+
 ## v4.17 Admin Polish & Credit UX Compliance (Shipped: 2026-07-06)
 
 **Phases completed:** 4 (156, 157, 158, 159) · 8 plans · 19 tasks · full unit suite green (3050+ passing; the only failures are the pre-existing, unrelated `blog-rls.test.ts`/`landing-page.test.tsx` issues documented across v4.13-v4.16)

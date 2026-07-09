@@ -1,11 +1,11 @@
 ---
 gsd_state_version: 1.0
-milestone: v4.18
-milestone_name: Estimate Document & Send Experience Refresh
-status: milestone_complete
-stopped_at: v4.18 all 4 phases (160-163) SHIPPED. Ready for milestone lifecycle (audit → complete → cleanup).
-last_updated: "2026-07-09T01:26:35.135Z"
-last_activity: 2026-07-09 -- Phase 163 shipped: SendHubDialog + cross-surface resolver rollout + delivery-action wiring + 5-file deletion sweep (SENDHUB-01..06)
+milestone: v3.1.1
+milestone_name: MVP Launch Prep + Future-Proofing
+status: completed
+stopped_at: Completed 163-06-PLAN.md (Phase 163 fully closed)
+last_updated: "2026-07-09T01:34:49.188Z"
+last_activity: 2026-07-09
 progress:
   total_phases: 107
   completed_phases: 89
@@ -55,9 +55,10 @@ progress:
 Phase: v4.18 MILESTONE COMPLETE — all 4 phases (160, 161, 162, 163) shipped end-to-end
 Plan: 24/24 requirements delivered (PUBURL-01..06 + PRESENT-01..05 + DOCUX-01..07 + SENDHUB-01..06)
 Status: Ready for milestone lifecycle (audit → complete → cleanup)
-Last activity: 2026-07-09 -- Phase 163 verification passed 6/6 code + 3 owner UAT (auto-approved). v4.18 fully shipped.
+Last activity: 2026-07-09
 
 v4.18 phase sequence + result (autonomous run):
+
 - Phase 160 URL Contract & Public Access Security (pre-existing, 5/5 plans, PUBURL-01..06)
 - Phase 161 Presentation Settings Data Model & Persistence (2/2 plans, PRESENT-01..05, verification passed 5/5)
 - Phase 162 Estimate Document Consolidated Pass (5/5 plans, DOCUX-01..07, verification 7/7 code + 5 owner UAT auto-approved)
