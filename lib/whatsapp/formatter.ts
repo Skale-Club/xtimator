@@ -11,6 +11,11 @@
  */
 import { formatMoney } from '@/lib/money/currency'
 import { deriveDepositDisplay } from '@/lib/estimate/deposit-display'
+import {
+  resolvePresentationSettings,
+  isSectionVisible,
+  type PresentationSettings,
+} from '@/lib/estimate/presentation-settings'
 
 export type FormatterItem = {
   description: string
@@ -117,8 +122,12 @@ const LABELS: Record<'en' | 'pt' | 'es', FormatterLabels> = {
  * Uses plain text with line breaks — renders well in WhatsApp without
  * requiring Meta template approval.
  *
- * @param responsibleName - Name of the person sending the estimate (owner / rep)
- * @param companyWebsite  - Company website URL shown in the sign-off
+ * @param responsibleName     - Name of the person sending the estimate (owner / rep)
+ * @param companyWebsite      - Company website URL shown in the sign-off
+ * @param presentation_settings - SENDHUB-04 (Phase 163): trailing OPTIONAL nullable arg.
+ *                              When omitted, resolver defaults preserve today's behavior
+ *                              (all sections visible). No signature-object explosion
+ *                              (per Phase 163 Pitfall 4) — trailing optional only.
  */
 export function formatEstimateForWhatsApp(
   estimate: FormatterEstimate,
@@ -126,30 +135,38 @@ export function formatEstimateForWhatsApp(
   companyName: string | null,
   responsibleName?: string | null,
   companyWebsite?: string | null,
+  presentation_settings?: PresentationSettings | null,
 ): string {
   const language = estimate.language ?? 'en'
   const L = LABELS[language]
   const money = (n: number) => formatMoney(n, estimate.currency_code)
   const lines: string[] = []
 
+  // SENDHUB-04 (Phase 163): resolve once. When arg is omitted, resolver defaults
+  // preserve today's behavior (all sections visible) — retrocompat for
+  // tests/unit/whatsapp/formatter.test.ts.
+  const resolved = resolvePresentationSettings(presentation_settings)
+
   // ── Greeting + intro ─────────────────────────────────────────────────────
   lines.push(clientName ? L.greetingWithName(clientName) : L.greetingAnon)
   lines.push(companyName ? L.intro(companyName) : L.introAnon)
   lines.push('')
 
-  // ── Sections ─────────────────────────────────────────────────────────────
-  for (const section of estimate.sections) {
-    lines.push(`[${section.title}]`)
-    for (const item of section.items) {
-      if (item.quantity > 1) {
-        lines.push(
-          `- ${item.description} x ${item.quantity} (${money(item.unit_price)} each): ${money(item.total)}`
-        )
-      } else {
-        lines.push(`- ${item.description} x ${item.quantity}: ${money(item.total)}`)
+  // ── Sections ── SENDHUB-04: resolver-gated on 'sections' toggle ──────────
+  if (isSectionVisible(resolved, 'sections')) {
+    for (const section of estimate.sections) {
+      lines.push(`[${section.title}]`)
+      for (const item of section.items) {
+        if (item.quantity > 1) {
+          lines.push(
+            `- ${item.description} x ${item.quantity} (${money(item.unit_price)} each): ${money(item.total)}`
+          )
+        } else {
+          lines.push(`- ${item.description} x ${item.quantity}: ${money(item.total)}`)
+        }
       }
+      lines.push('')
     }
-    lines.push('')
   }
 
   // ── Totals ────────────────────────────────────────────────────────────────

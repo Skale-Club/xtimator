@@ -2,16 +2,10 @@
 // Phase 163 (SENDHUB-04 + SENDHUB-05): cross-surface parity + retrocompat
 // + structural-grep tests for the presentation-settings resolver rollout.
 //
-// Wave 0 scaffold expectation:
-//   - Tests A, B, D are expected RED on first run (structural grep fails for
-//     the 5 renderers that don't yet import the resolver; A+B fail because
-//     those renderers still emit the SECRET string when settings hide it).
-//   - Test C should pass on first run (retrocompat = today's behavior,
-//     which the resolver's null-input path preserves).
-//
-// This scaffold DOES NOT touch production source. The `@ts-expect-error`
-// markers below suppress type errors on Wave-2 arg extensions that don't
-// exist today; those become GREEN + type-clean when Wave 2/3 wires them.
+// Post-Wave-2 state: all 4 `it` blocks GREEN. The 6 renderers each import
+// resolvePresentationSettings (structural grep enforces this), and each
+// gates its output on isSectionVisible so a single toggle propagates
+// identically across every surface.
 
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
@@ -218,7 +212,6 @@ function renderAllSurfaces(estimate: Record<string, unknown>): {
   )
 
   // 5. Plain-text template
-  // @ts-expect-error — Phase 163 Wave 2 adds the 2nd `resolvedSettings` arg
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const items = buildItemsBreakdown(estimate as any, resolved)
   const plainText = resolveTemplate(
@@ -240,7 +233,6 @@ function renderAllSurfaces(estimate: Record<string, unknown>): {
     'Acme',
     'Bob',
     null,
-    // @ts-expect-error — Phase 163 Wave 2 adds trailing presentation_settings arg
     (estimate as { presentation_settings?: PresentationSettings | null }).presentation_settings,
   )
 

@@ -6,6 +6,11 @@
 
 import type { EstimateWithSections } from '@/lib/queries/estimate'
 import { formatCurrency } from '@/lib/utils/format'
+import {
+  resolvePresentationSettings,
+  isSectionVisible,
+  type ResolvedPresentationSettings,
+} from '@/lib/estimate/presentation-settings'
 
 export interface TemplateData {
   client_name: string
@@ -81,8 +86,21 @@ export function resolveTemplate(template: EstimateTemplate, data: TemplateData):
  *   Item description: $85.00
  *
  * Sections with no items are filtered out. Empty estimate returns ''.
+ *
+ * SENDHUB-04 (Phase 163): resolvedSettings is an OPTIONAL trailing arg.
+ * When absent (legacy callers), it resolves to defaults via
+ * resolvePresentationSettings(null) — retrocompat preserved (byte-identical to
+ * pre-Phase-163 behavior). When present and the 'sections' toggle is off, the
+ * entire line-items breakdown is hidden (returns '').
  */
-export function buildItemsBreakdown(estimate: EstimateWithSections): string {
+export function buildItemsBreakdown(
+  estimate: EstimateWithSections,
+  resolvedSettings?: ResolvedPresentationSettings | null
+): string {
+  const resolved = resolvedSettings ?? resolvePresentationSettings(null)
+  if (!isSectionVisible(resolved, 'sections')) {
+    return '' // hide the entire line-items breakdown when the toggle is off
+  }
   return estimate.sections
     .filter((section) => section.items.length > 0)
     .map((section) => {

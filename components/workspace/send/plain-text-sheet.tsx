@@ -14,6 +14,7 @@ import { Copy, Check, RotateCcw } from 'lucide-react'
 import { toast } from 'sonner'
 import { resolveTemplate, buildItemsBreakdown } from '@/lib/utils/estimate-template'
 import { formatCurrency } from '@/lib/utils/format'
+import { resolvePresentationSettings } from '@/lib/estimate/presentation-settings'
 import type { EstimateWithSections } from '@/lib/queries/estimate'
 import type { EstimateTemplate } from '@/lib/utils/estimate-template'
 import { useTranslation } from '@/lib/i18n/use-translation'
@@ -40,12 +41,18 @@ export function PlainTextSheet({
   const { t } = useTranslation()
 
   function generateText(): string {
+    // SENDHUB-04 (Phase 163): pass resolved settings so buildItemsBreakdown
+    // respects the estimate's 'sections' toggle. Cast-with-fallback mirrors
+    // components/share/estimate-view.tsx:157-161 — dormant-first-safe.
+    const resolvedSettings = resolvePresentationSettings(
+      (estimate as { presentation_settings?: unknown }).presentation_settings
+    )
     return resolveTemplate(estimateTemplate, {
       client_name: clientName,
       company_name: companyName,
       owner_name: ownerName,
       total: formatCurrency(estimate.total, estimate.currency_code),
-      items_breakdown: buildItemsBreakdown(estimate),
+      items_breakdown: buildItemsBreakdown(estimate, resolvedSettings),
     })
   }
 
