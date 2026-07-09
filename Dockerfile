@@ -93,6 +93,15 @@ FROM node:24-alpine AS runner
 
 WORKDIR /app
 
+# curl — required by Coolify's health check for Docker Image resources. Coolify
+# execs `curl`/`wget` INSIDE the container to gate its rolling (zero-downtime)
+# deploy; node:alpine ships neither, so without this Coolify marks every new
+# container unhealthy and rolls back (the container itself is fine — Next.js
+# binds 0.0.0.0:3000 — but the probe can't run). ~4MB. The Dockerfile
+# HEALTHCHECK below still uses `node -e` (no external dep) for Docker-native
+# health; curl here is purely for Coolify's orchestration-side probe.
+RUN apk add --no-cache curl
+
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
