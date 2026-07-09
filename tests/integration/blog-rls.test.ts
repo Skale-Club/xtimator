@@ -1,16 +1,20 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 
 /**
- * Tests for lib/queries/blog.ts — RLS behavior (BLOG-02).
+ * Tests for lib/queries/blog.ts — draft/published visibility (BLOG-02).
  *
  * Strategy:
- *   - Mock @/lib/supabase/server to return a controlled query chain
+ *   - Mock @/lib/supabase/service to return a controlled query chain
  *   - Verify getBlogPosts() only returns published posts
- *   - Verify getBlogPost() returns null when the row is a draft (RLS behavior)
+ *   - Verify getBlogPost() returns null when the row is a draft
+ *
+ * Note: blog.ts now reads through the cookieless service-role client (ISR),
+ * which BYPASSES RLS — the explicit `status = 'published'` filter in each
+ * query is the security boundary these tests assert on.
  */
 
-vi.mock('@/lib/supabase/server', () => ({
-  createClient: vi.fn(),
+vi.mock('@/lib/supabase/service', () => ({
+  createServiceClient: vi.fn(),
 }))
 
 // blog.ts has 'server-only' — stub it so vitest can import the module
@@ -58,12 +62,12 @@ describe('blog_posts RLS — public visibility (BLOG-02)', () => {
   })
 
   it('anon client returns only published posts from blog_posts', async () => {
-    const serverModule = await import('@/lib/supabase/server')
+    const serviceModule = await import('@/lib/supabase/service')
     const publishedPosts = [
       { id: '1', title: 'Published Post', slug: 'published-post', excerpt: null, cover_image_url: null, published_at: '2025-01-01T00:00:00Z' },
     ]
     const client = makeAnonClient({ rowsForSelect: publishedPosts })
-    ;(serverModule.createClient as ReturnType<typeof vi.fn>).mockResolvedValue(client)
+    ;(serviceModule.createServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(client)
 
     const { getBlogPosts } = await import('@/lib/queries/blog')
     const result = await getBlogPosts(0)
@@ -75,10 +79,10 @@ describe('blog_posts RLS — public visibility (BLOG-02)', () => {
   })
 
   it('anon client returns empty array when all posts are drafts', async () => {
-    const serverModule = await import('@/lib/supabase/server')
+    const serviceModule = await import('@/lib/supabase/service')
     // RLS would filter out drafts — anon client gets empty array
     const client = makeAnonClient({ rowsForSelect: [] })
-    ;(serverModule.createClient as ReturnType<typeof vi.fn>).mockResolvedValue(client)
+    ;(serviceModule.createServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(client)
 
     const { getBlogPosts } = await import('@/lib/queries/blog')
     const result = await getBlogPosts(0)
@@ -87,10 +91,10 @@ describe('blog_posts RLS — public visibility (BLOG-02)', () => {
   })
 
   it('getBlogPost returns null for a draft post slug via anon client', async () => {
-    const serverModule = await import('@/lib/supabase/server')
+    const serviceModule = await import('@/lib/supabase/service')
     // RLS blocks drafts — maybeSingle returns null
     const client = makeAnonClient({ singleResult: null })
-    ;(serverModule.createClient as ReturnType<typeof vi.fn>).mockResolvedValue(client)
+    ;(serviceModule.createServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(client)
 
     const { getBlogPost } = await import('@/lib/queries/blog')
     const result = await getBlogPost('draft-post-slug')
@@ -99,7 +103,7 @@ describe('blog_posts RLS — public visibility (BLOG-02)', () => {
   })
 
   it('getBlogPost returns post object for a published post slug via anon client', async () => {
-    const serverModule = await import('@/lib/supabase/server')
+    const serviceModule = await import('@/lib/supabase/service')
     const publishedPost = {
       id: '2',
       title: 'Live Post',
@@ -115,7 +119,7 @@ describe('blog_posts RLS — public visibility (BLOG-02)', () => {
       updated_at: '2025-03-10T00:00:00Z',
     }
     const client = makeAnonClient({ singleResult: publishedPost })
-    ;(serverModule.createClient as ReturnType<typeof vi.fn>).mockResolvedValue(client)
+    ;(serviceModule.createServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(client)
 
     const { getBlogPost } = await import('@/lib/queries/blog')
     const result = await getBlogPost('live-post')

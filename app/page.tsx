@@ -32,7 +32,14 @@ export default async function RootPage() {
           }),
         ]}
       />
-      <Suspense fallback={null}>
+      <Suspense
+        fallback={
+          <div
+            aria-hidden
+            className="min-h-screen bg-background bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,hsl(var(--primary)/0.15),hsl(var(--foreground)/0))]"
+          />
+        }
+      >
         <LandingPage
           content={landingContent}
           branding={{ appName: branding.appName, logoUrl: branding.logoUrl }}

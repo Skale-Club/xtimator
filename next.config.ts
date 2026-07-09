@@ -70,8 +70,16 @@ const nextConfig: NextConfig = {
       // 3 step images (4MB each) + hero image (4MB) + JSON content
       bodySizeLimit: '20mb',
     },
+    // Tree-shake barrel imports for large icon / util packages so only the
+    // referenced members are bundled.
+    optimizePackageImports: ['lucide-react', 'date-fns'],
   },
   images: {
+    // Prefer modern formats; AVIF then WebP fall back to the original.
+    formats: ['image/avif', 'image/webp'],
+    // Supabase public storage cover URLs are effectively immutable — cache the
+    // optimized variants for 31 days to avoid re-optimizing on every request.
+    minimumCacheTTL: 2678400,
     remotePatterns: [
       {
         protocol: 'https',
