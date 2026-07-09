@@ -774,6 +774,108 @@ export async function markAsSentAction(estimateId: string) {
   // Mirror the estimate-sent activity into Xphere CRM (fire-and-forget).
   dispatchXphereSync(companyId, 'estimate.sent')
 
+  // Phase 163 (SENDHUB-03): also record this as an estimate_deliveries row.
+  // channel: 'manual' + format: null are the widened enum values from the
+  // 20260709000001 migration. provider: 'client' -- no network provider used.
+  // This is the 6th side effect; it fires AFTER the 5 existing ones (sent_at
+  // update, projects.status, estimate_activity, Xphere sync) but BEFORE the
+  // revalidatePath below, so the revalidated view sees the new row.
+  // Non-fatal: mark-as-sent already succeeded via the 5 side-effects above --
+  // a delivery-log insert failure must NEVER regress the mark-as-sent path.
+  try {
+    const { error: delErr } = await supabase.from('estimate_deliveries').insert({
+      estimate_id: estimateId,
+      company_id: companyId,
+      channel: 'manual',
+      format: null,
+      provider: 'client',
+      status: 'sent',
+      sent_at: new Date().toISOString(),
+    })
+    if (delErr) {
+      console.error('[163-05] markAsSentAction delivery-log insert failed', delErr)
+    }
+  } catch (err) {
+    console.error('[163-05] markAsSentAction delivery-log insert threw', err)
+  }
+
   revalidatePath(`/projects/${projectId}`)
   return { success: true }
+}
+
+// ---------------------------------------------------------------------------
+// Action 7 (Phase 163 SENDHUB-03): logDeliveryAction
+// ---------------------------------------------------------------------------
+//
+// Records a copy/open/download client-side delivery-action into
+// estimate_deliveries. Provider 'client' + widened channel enum ('copy',
+// 'open', 'download') come from the 20260709000001 migration.
+//
+// Non-throwing: the caller (hub button) should never see a failure toast for
+// a delivery-log write. If it fails, we log to server console and move on --
+// the UX has already succeeded (the URL was copied / the tab was opened / the
+// PDF is downloading). Returns `void`.
+//
+// Auth: reuses getAuthContext -- the caller must be an authenticated company
+// member, and the estimate must belong to that company (RLS enforces it).
+
+export async function logDeliveryAction(input: {
+  estimateId: string
+  format: 'online_link' | 'pdf' | 'plain_text'
+  channel: 'copy' | 'open' | 'download'
+}): Promise<void> {
+  try {
+    // Narrow-guard the input at the action boundary. Callers are TypeScript-
+    // typed but this is a server action -- browser payload is untrusted.
+    if (!input || typeof input.estimateId !== 'string' || !input.estimateId) {
+      console.error('[163-05] logDeliveryAction: missing estimateId')
+      return
+    }
+    if (!['online_link', 'pdf', 'plain_text'].includes(input.format)) {
+      console.error('[163-05] logDeliveryAction: invalid format', input.format)
+      return
+    }
+    if (!['copy', 'open', 'download'].includes(input.channel)) {
+      console.error('[163-05] logDeliveryAction: invalid channel', input.channel)
+      return
+    }
+
+    const ctx = await getAuthContext()
+    if ('error' in ctx) {
+      console.error('[163-05] logDeliveryAction: auth failed', ctx.error)
+      return
+    }
+    const { supabase, company } = ctx
+    const companyId = company.id as string
+
+    // Verify the estimate belongs to this company (RLS also enforces it, but
+    // this gives us a clear early-return path with logging).
+    const { data: est, error: estErr } = await supabase
+      .from('estimates')
+      .select('id, company_id')
+      .eq('id', input.estimateId)
+      .single()
+    if (estErr || !est || est.company_id !== companyId) {
+      console.error(
+        '[163-05] logDeliveryAction: estimate not found or wrong company',
+        estErr,
+      )
+      return
+    }
+
+    const { error: insErr } = await supabase.from('estimate_deliveries').insert({
+      estimate_id: input.estimateId,
+      company_id: companyId,
+      channel: input.channel,
+      format: input.format,
+      provider: 'client',
+      status: 'sent',
+      sent_at: new Date().toISOString(),
+    })
+    if (insErr) {
+      console.error('[163-05] logDeliveryAction insert failed', insErr)
+    }
+  } catch (err) {
+    console.error('[163-05] logDeliveryAction threw', err)
+  }
 }
