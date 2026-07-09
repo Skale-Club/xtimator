@@ -424,7 +424,12 @@ function formatAddress(obj: {
 
 function formatDate(dateStr: string, lang: EstimateLanguage = 'en'): string {
   const locale = DATE_LOCALE[lang] ?? 'en-US'
-  return new Date(dateStr).toLocaleDateString(locale, {
+  // Date-only strings (YYYY-MM-DD) MUST parse as LOCAL midnight, not UTC.
+  // `new Date('2026-07-08')` is UTC midnight, which renders as the PREVIOUS
+  // day for any viewer west of UTC (and made the doc snapshot non-deterministic
+  // in CI). Mirrors DatePopover's `${value}T00:00:00` convention below.
+  const normalized = /^\d{4}-\d{2}-\d{2}$/.test(dateStr) ? `${dateStr}T00:00:00` : dateStr
+  return new Date(normalized).toLocaleDateString(locale, {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
