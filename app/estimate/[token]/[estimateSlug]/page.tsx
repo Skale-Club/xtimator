@@ -11,7 +11,15 @@ import { hexToHslTriplet } from '@/lib/color'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
 
 interface FriendlySharePageProps {
-  params: Promise<{ companySlug: string; estimateSlug: string }>
+  // The first URL segment carries the COMPANY SLUG, but the param key is
+  // `token` — Next.js requires every dynamic segment at the same path
+  // position to share one name, and the legacy share route owns
+  // `app/estimate/[token]`. Two sibling names ([token] vs [companySlug])
+  // pass `next build` but crash the router on EVERY runtime request
+  // ("You cannot use different slug names for the same dynamic path"),
+  // which took prod down. The value is cosmetic here: this page resolves
+  // the estimate purely from the short token inside `estimateSlug`.
+  params: Promise<{ token: string; estimateSlug: string }>
 }
 
 export async function generateMetadata({
