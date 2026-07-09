@@ -57,9 +57,17 @@ function isExtensionNoise(r: CspReportFields): boolean {
   const blocked = r['blocked-uri'] ?? r.blockedURL ?? ''
   const source = r['source-file'] ?? r.sourceFile ?? ''
   if (EXTENSION_URI_RE.test(blocked) || EXTENSION_URI_RE.test(source)) return true
-  // `inline`/`eval` blocked-uri WITH an extension source-file is covered above;
-  // with no source-file at all there is nothing actionable to fix either.
-  if ((blocked === 'inline' || blocked === 'eval' || blocked === '') && !source) return true
+  // `inline`/`eval` script-src reports are NOT actionable per-request in the
+  // current report-only policy, regardless of source-file:
+  //   • script-src already grants 'unsafe-inline', so an `inline` report is
+  //     contradictory noise.
+  //   • `eval` originates from bundled third-party code (a dependency using
+  //     new Function/eval, surfaced from a first-party _next/ chunk). It can
+  //     only be addressed wholesale — add 'unsafe-eval' OR drop the dep —
+  //     BEFORE flipping CSP to enforcing, never fixed per page-view.
+  // These were firing one escalating Sentry issue each on every page load
+  // (XTIMATOR-A / XTIMATOR-8). Still logged to stdout above for visibility.
+  if (blocked === 'inline' || blocked === 'eval' || blocked === '') return true
   return false
 }
 
