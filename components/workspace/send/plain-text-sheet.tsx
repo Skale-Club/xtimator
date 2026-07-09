@@ -15,6 +15,7 @@ import { toast } from 'sonner'
 import { resolveTemplate, buildItemsBreakdown } from '@/lib/utils/estimate-template'
 import { formatCurrency } from '@/lib/utils/format'
 import { resolvePresentationSettings } from '@/lib/estimate/presentation-settings'
+import { logDeliveryAction } from '@/lib/actions/estimate'
 import type { EstimateWithSections } from '@/lib/queries/estimate'
 import type { EstimateTemplate } from '@/lib/utils/estimate-template'
 import { useTranslation } from '@/lib/i18n/use-translation'
@@ -65,6 +66,13 @@ export function PlainTextSheet({
       setCopied(true)
       toast.success(t('Copied to clipboard!'))
       setTimeout(() => setCopied(false), 2000)
+      // Phase 163 (SENDHUB-03): fire-and-forget delivery log for the copy.
+      // Failure here must never surface a toast -- the copy already succeeded.
+      void logDeliveryAction({
+        estimateId: estimate.id,
+        format: 'plain_text',
+        channel: 'copy',
+      })
     } catch {
       toast.error(t('Failed to copy'))
     }

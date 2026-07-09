@@ -1,23 +1,16 @@
 // components/workspace/send/send-hub-dialog.tsx
-// Phase 163 (SENDHUB-01, SENDHUB-06): format-first Send hub.
+// Phase 163 (SENDHUB-01, SENDHUB-03, SENDHUB-06): format-first Send hub.
 // Three primary format cards (Online Estimate / PDF / Plain Text), each with
 // its own delivery actions. Retires the channel-first SendForm tabs AND the
 // separate dropdown menu that used to sit in the dialog header (see 163-06
 // for the deletion sweep).
 //
-// Copy URL + Open URL are wired TODAY -- they are pure client-side operations
-// (clipboard write + window.open) that don't require server logging. 163-05
-// will ADD server-side delivery-tracking (an estimate_deliveries.insert with
-// {channel: 'copy' | 'open', format: 'online_link', ...}) on top of them.
-//
-// Email / SMS / WhatsApp / Download buttons are PLACEHOLDERS -- their onClick
-// shows toast.info('...  wired in 163-05'). Plan 163-05 replaces them with
-// real server-action calls that also record deliveries into estimate_deliveries
-// with the widened { format, channel, provider } payload from 163-02's
-// migration.
-//
-// Mark as Sent IS wired here (SENDHUB-06 requirement of THIS plan) via the
-// existing markAsSentAction server action.
+// 163-04 landed the layout + Copy URL / Open URL bindings. 163-05 (THIS plan)
+// replaces every remaining placeholder onClick with a real server-action or
+// route call, threads the `format` field into every send POST body, and
+// records copy/open/download actions via logDeliveryAction. The retire and
+// dispatch surfaces (email/SMS/WhatsApp routes + WhatsApp dispatcher +
+// estimate_deliveries schema) were widened in Tasks 1-2 of this same plan.
 
 'use client'
 
@@ -50,10 +43,18 @@ import {
 } from 'lucide-react'
 import { LanguageFlagChip } from './language-flag-chip'
 import { PlainTextSheet } from './plain-text-sheet'
-import { markAsSentAction } from '@/lib/actions/estimate'
+import { logDeliveryAction, markAsSentAction } from '@/lib/actions/estimate'
 import { buildEstimatePublicPath } from '@/lib/estimate/public-url'
+import {
+  resolveTemplate,
+  buildItemsBreakdown,
+} from '@/lib/utils/estimate-template'
+import { formatCurrency } from '@/lib/utils/format'
+import { resolvePresentationSettings } from '@/lib/estimate/presentation-settings'
 import type { EstimateWithSections } from '@/lib/queries/estimate'
 import type { EstimateTemplate } from '@/lib/utils/estimate-template'
+
+type SendFormat = 'online_link' | 'pdf' | 'plain_text'
 
 export interface SendHubDialogProps {
   open: boolean
@@ -92,12 +93,15 @@ export function SendHubDialog({
   companySlug,
   smsDeliveryEnabled,
   whatsappEnabled,
+  clientEmail,
+  clientPhone,
   clientName,
   ownerName,
   estimateTemplate,
 }: SendHubDialogProps) {
   const [plainTextOpen, setPlainTextOpen] = useState(false)
   const [isMarkingSent, startMarkTransition] = useTransition()
+  const [pendingAction, setPendingAction] = useState<string | null>(null)
 
   if (!estimate) return null
 
@@ -119,10 +123,20 @@ export function SendHubDialog({
       : publicPath
   }
 
+  // ---------------------------------------------------------------------------
+  // Online Estimate: pure client-side URL affordances (no network dispatch).
+  // logDeliveryAction is fire-and-forget -- copy/open success is what matters
+  // to the user, and a log-write failure must NEVER trigger an error toast.
+  // ---------------------------------------------------------------------------
   async function handleCopyUrl() {
     try {
       await navigator.clipboard.writeText(buildAbsoluteUrl())
       toast.success('Link copied')
+      void logDeliveryAction({
+        estimateId: estimate!.id,
+        format: 'online_link',
+        channel: 'copy',
+      })
     } catch {
       toast.error('Failed to copy link')
     }
@@ -131,14 +145,151 @@ export function SendHubDialog({
   function handleOpenUrl() {
     if (typeof window !== 'undefined') {
       window.open(buildAbsoluteUrl(), '_blank', 'noopener,noreferrer')
+      void logDeliveryAction({
+        estimateId: estimate!.id,
+        format: 'online_link',
+        channel: 'open',
+      })
     }
   }
 
-  function placeholder(action: string) {
-    // SENDHUB-05: real wiring lands in 163-05 alongside estimate_deliveries
-    // logging. Keeping a distinct toast per action makes RTL smoke testing in
-    // a follow-up cheap.
-    toast.info(`${action} — wired in 163-05`)
+  // ---------------------------------------------------------------------------
+  // PDF: download opens the existing /api/estimates/[id]/pdf route in a new
+  // tab. logDeliveryAction fires BEFORE the open so the row lands even if the
+  // download stream errors afterwards.
+  // ---------------------------------------------------------------------------
+  function handleDownloadPdf() {
+    if (typeof window === 'undefined') return
+    void logDeliveryAction({
+      estimateId: estimate!.id,
+      format: 'pdf',
+      channel: 'download',
+    })
+    // deliveryLog=true is a signal to /pdf/route.ts that this open was
+    // triggered by the hub. Wiring the route to self-log on the flag is a
+    // follow-up; today the client-side logDeliveryAction above is authoritative.
+    window.open(
+      `/api/estimates/${estimate!.id}/pdf?deliveryLog=true`,
+      '_blank',
+      'noopener,noreferrer',
+    )
+  }
+
+  // ---------------------------------------------------------------------------
+  // Plain Text: render locally using the same recipe PlainTextSheet uses,
+  // then copy + log.
+  // ---------------------------------------------------------------------------
+  async function handleCopyPlainText() {
+    try {
+      const resolvedSettings = resolvePresentationSettings(
+        (estimate as { presentation_settings?: unknown }).presentation_settings,
+      )
+      const text = resolveTemplate(estimateTemplate, {
+        client_name: clientName,
+        company_name: companyName,
+        owner_name: ownerName,
+        total: formatCurrency(estimate!.total, estimate!.currency_code),
+        items_breakdown: buildItemsBreakdown(estimate!, resolvedSettings),
+      })
+      await navigator.clipboard.writeText(text)
+      toast.success('Plain text copied')
+      void logDeliveryAction({
+        estimateId: estimate!.id,
+        format: 'plain_text',
+        channel: 'copy',
+      })
+    } catch {
+      toast.error('Failed to copy plain text')
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Email / SMS / WhatsApp per format. Each POSTs to the route Task 1 widened
+  // to accept `format`. If clientEmail/clientPhone is null, we abort with a
+  // clear toast -- a modal input flow is a follow-up. Recipient is pulled
+  // from the linked client's contact fields (drop-in with the retired
+  // SendForm's field-picker behaviour).
+  // ---------------------------------------------------------------------------
+  async function sendEmail(opts: { format: SendFormat; label: string }) {
+    if (!clientEmail) {
+      toast.error("No email on file for this client")
+      return
+    }
+    setPendingAction(`email-${opts.format}`)
+    try {
+      const res = await fetch(`/api/estimates/${estimate!.id}/send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: clientEmail,
+          subject: `Your estimate from ${companyName}`,
+          body: `Hi ${clientName || 'there'},\n\nYour estimate is ready. View it here: ${buildAbsoluteUrl()}\n\nThanks,\n${ownerName}`,
+          attachPdf: false,
+          format: opts.format,
+        }),
+      })
+      if (!res.ok) {
+        const errBody = (await res.json().catch(() => ({}))) as { error?: string }
+        toast.error(errBody.error ?? `Failed to send ${opts.label}`)
+        return
+      }
+      toast.success(`${opts.label} sent`)
+    } catch {
+      toast.error(`Failed to send ${opts.label}`)
+    } finally {
+      setPendingAction(null)
+    }
+  }
+
+  async function sendSms(opts: { format: SendFormat; label: string }) {
+    if (!clientPhone) {
+      toast.error("No phone on file for this client")
+      return
+    }
+    setPendingAction(`sms-${opts.format}`)
+    try {
+      const res = await fetch(`/api/estimates/${estimate!.id}/send-sms`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: clientPhone, format: opts.format }),
+      })
+      if (!res.ok) {
+        const errBody = (await res.json().catch(() => ({}))) as { error?: string }
+        toast.error(errBody.error ?? `Failed to send ${opts.label}`)
+        return
+      }
+      toast.success(`${opts.label} sent`)
+    } catch {
+      toast.error(`Failed to send ${opts.label}`)
+    } finally {
+      setPendingAction(null)
+    }
+  }
+
+  async function sendWhatsapp(opts: { format: SendFormat; label: string }) {
+    if (!clientPhone) {
+      toast.error("No phone on file for this client")
+      return
+    }
+    setPendingAction(`whatsapp-${opts.format}`)
+    try {
+      // NOTE: the WhatsApp route destructures `to` (E.164), NOT `phone`.
+      const res = await fetch(`/api/estimates/${estimate!.id}/send-whatsapp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: clientPhone, format: opts.format }),
+      })
+      if (!res.ok) {
+        const errBody = (await res.json().catch(() => ({}))) as { error?: string }
+        toast.error(errBody.error ?? `Failed to send ${opts.label}`)
+        return
+      }
+      toast.success(`${opts.label} sent`)
+    } catch {
+      toast.error(`Failed to send ${opts.label}`)
+    } finally {
+      setPendingAction(null)
+    }
   }
 
   function handleMarkAsSent() {
@@ -217,7 +368,8 @@ export function SendHubDialog({
                   variant="outline"
                   size="sm"
                   className="justify-start"
-                  onClick={() => placeholder('Email link')}
+                  disabled={pendingAction === 'email-online_link'}
+                  onClick={() => void sendEmail({ format: 'online_link', label: 'Email link' })}
                 >
                   <Mail className="mr-2 h-3.5 w-3.5" /> Email
                 </Button>
@@ -226,7 +378,8 @@ export function SendHubDialog({
                     variant="outline"
                     size="sm"
                     className="justify-start"
-                    onClick={() => placeholder('SMS link')}
+                    disabled={pendingAction === 'sms-online_link'}
+                    onClick={() => void sendSms({ format: 'online_link', label: 'SMS link' })}
                   >
                     <MessageSquare className="mr-2 h-3.5 w-3.5" /> SMS
                   </Button>
@@ -236,7 +389,8 @@ export function SendHubDialog({
                     variant="outline"
                     size="sm"
                     className="justify-start"
-                    onClick={() => placeholder('WhatsApp link')}
+                    disabled={pendingAction === 'whatsapp-online_link'}
+                    onClick={() => void sendWhatsapp({ format: 'online_link', label: 'WhatsApp link' })}
                   >
                     <Send className="mr-2 h-3.5 w-3.5" /> WhatsApp
                   </Button>
@@ -260,7 +414,7 @@ export function SendHubDialog({
                   variant="outline"
                   size="sm"
                   className="justify-start"
-                  onClick={() => placeholder('Download PDF')}
+                  onClick={handleDownloadPdf}
                 >
                   <Download className="mr-2 h-3.5 w-3.5" /> Download PDF
                 </Button>
@@ -268,7 +422,8 @@ export function SendHubDialog({
                   variant="outline"
                   size="sm"
                   className="justify-start"
-                  onClick={() => placeholder('Email PDF')}
+                  disabled={pendingAction === 'email-pdf'}
+                  onClick={() => void sendEmail({ format: 'pdf', label: 'Email PDF' })}
                 >
                   <Mail className="mr-2 h-3.5 w-3.5" /> Email
                 </Button>
@@ -277,7 +432,8 @@ export function SendHubDialog({
                     variant="outline"
                     size="sm"
                     className="justify-start"
-                    onClick={() => placeholder('SMS PDF (link fallback)')}
+                    disabled={pendingAction === 'sms-pdf'}
+                    onClick={() => void sendSms({ format: 'pdf', label: 'SMS (link fallback)' })}
                   >
                     <MessageSquare className="mr-2 h-3.5 w-3.5" /> SMS
                   </Button>
@@ -287,9 +443,8 @@ export function SendHubDialog({
                     variant="outline"
                     size="sm"
                     className="justify-start"
-                    onClick={() =>
-                      placeholder('WhatsApp PDF (link fallback)')
-                    }
+                    disabled={pendingAction === 'whatsapp-pdf'}
+                    onClick={() => void sendWhatsapp({ format: 'pdf', label: 'WhatsApp (link fallback)' })}
                   >
                     <Send className="mr-2 h-3.5 w-3.5" /> WhatsApp
                   </Button>
@@ -313,7 +468,7 @@ export function SendHubDialog({
                   variant="outline"
                   size="sm"
                   className="justify-start"
-                  onClick={() => placeholder('Copy plain text')}
+                  onClick={() => void handleCopyPlainText()}
                 >
                   <Copy className="mr-2 h-3.5 w-3.5" /> Copy
                 </Button>
@@ -329,7 +484,8 @@ export function SendHubDialog({
                   variant="outline"
                   size="sm"
                   className="justify-start"
-                  onClick={() => placeholder('Email plain text')}
+                  disabled={pendingAction === 'email-plain_text'}
+                  onClick={() => void sendEmail({ format: 'plain_text', label: 'Email plain text' })}
                 >
                   <Mail className="mr-2 h-3.5 w-3.5" /> Email
                 </Button>
@@ -338,9 +494,8 @@ export function SendHubDialog({
                     variant="outline"
                     size="sm"
                     className="justify-start"
-                    onClick={() =>
-                      placeholder('SMS plain text (link fallback)')
-                    }
+                    disabled={pendingAction === 'sms-plain_text'}
+                    onClick={() => void sendSms({ format: 'plain_text', label: 'SMS (link fallback)' })}
                   >
                     <MessageSquare className="mr-2 h-3.5 w-3.5" /> SMS
                   </Button>
@@ -350,9 +505,8 @@ export function SendHubDialog({
                     variant="outline"
                     size="sm"
                     className="justify-start"
-                    onClick={() =>
-                      placeholder('WhatsApp plain text (link fallback)')
-                    }
+                    disabled={pendingAction === 'whatsapp-plain_text'}
+                    onClick={() => void sendWhatsapp({ format: 'plain_text', label: 'WhatsApp (link fallback)' })}
                   >
                     <Send className="mr-2 h-3.5 w-3.5" /> WhatsApp
                   </Button>
@@ -375,7 +529,7 @@ export function SendHubDialog({
               {isMarkingSent ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : null}
-              {isMarkingSent ? 'Marking…' : 'Mark as sent'}
+              {isMarkingSent ? 'Marking' : 'Mark as sent'}
             </Button>
           </div>
         </DialogContent>
