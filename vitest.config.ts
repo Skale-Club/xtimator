@@ -7,6 +7,16 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
+    // The default 5s testTimeout assumes fast tests, but this suite is large
+    // (450+ files) and several tests defer heavy module-graph loading into the
+    // timed test body via runtime `await import(...)` — the first test in each
+    // such file pays the on-demand esbuild transform + evaluation cost. Run in
+    // isolation that cost is sub-second; under full-suite parallel CPU contention
+    // it can exceed 5s, producing load-induced timeout flakes (not code bugs).
+    // A generous shared budget removes the flake without masking real hangs
+    // (a genuinely stuck test still fails well under 30s).
+    testTimeout: 30_000,
+    hookTimeout: 30_000,
     setupFiles: ['tests/setup/load-env.ts'],
     include: [
       'tests/unit/**/*.test.ts',
