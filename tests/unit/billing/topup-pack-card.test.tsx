@@ -28,4 +28,11 @@ describe('TopUpPackCard (CREDITFIX-01 / CREDITUI-04)', () => {
     expect(html).not.toMatch(/\d[\d,]*\s*credits?/i)
     expect(html).not.toContain('≈')
   })
+
+  it('Test A2: a fractional-dollar pack renders two decimals via formatUsd ("$20.50")', () => {
+    const { container } = render(
+      <TopUpPackCard packIndex={0} priceCents={2050} credits={1300} />
+    )
+    expect(container.innerHTML).toContain('$20.50')
+  })
 })

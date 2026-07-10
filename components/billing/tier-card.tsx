@@ -17,6 +17,7 @@ interface TierCardProps {
   popularLabel?: string
   onSelect?: () => void
   current?: boolean
+  disabled?: boolean
   popular?: boolean
   showAnnual?: boolean
   annualPrice?: string | null
@@ -48,6 +49,7 @@ export function TierCard({
   popularLabel = 'Most popular',
   onSelect,
   current,
+  disabled,
   popular,
   showAnnual,
   annualPrice,
@@ -116,7 +118,7 @@ export function TierCard({
       <Button
         variant={buttonVariant}
         onClick={onSelect}
-        disabled={current}
+        disabled={current || disabled}
         className="h-auto min-h-10 w-full whitespace-normal py-2 text-center leading-tight"
       >
         <T text={current ? currentLabel : ctaLabel} />

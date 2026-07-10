@@ -50,7 +50,9 @@ describe('CreditBalanceCard (CREDITUI-03 / CREDITUI-04)', () => {
     expect(getByTestId('credit-low-warning')).toBeTruthy()
     const html = container.innerHTML
     expect(html).toContain('You’re approaching your usage limit for this cycle.')
-    expect(html).toContain('/settings/billing?topup=1#topup-packs')
+    expect(html).toContain('#topup-packs')
+    expect(html).not.toContain('?topup=1')
+    expect(html).toContain('#choose-plan')
     expect(html).toContain('Top up now')
     expect(html).toContain('Upgrade plan')
   })
@@ -62,7 +64,9 @@ describe('CreditBalanceCard (CREDITUI-03 / CREDITUI-04)', () => {
     expect(html).toContain(
       'You’ve nearly used up your usage for this cycle. Top up or upgrade to keep generating.'
     )
-    expect(html).toContain('/settings/billing?topup=1#topup-packs')
+    expect(html).toContain('#topup-packs')
+    expect(html).not.toContain('?topup=1')
+    expect(html).toContain('#choose-plan')
     expect(html).toContain('Top up now')
     expect(html).toContain('Upgrade plan')
   })

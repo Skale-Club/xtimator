@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
 import { CreditCard, TrendingUp } from 'lucide-react'
 import { getAuthClaims } from '@/lib/queries/auth'
@@ -21,9 +22,11 @@ import { TopUpPacksGrid } from '@/components/billing/topup-packs-grid'
 import { CreditBalanceCard } from '@/components/billing/credit-balance-card'
 import { CreditHistoryList } from '@/components/billing/credit-history-list'
 import { AutoTopupCard } from '@/components/billing/auto-topup-card'
+import { BillingStatusToast } from '@/components/billing/billing-status-toast'
+import { formatUsd } from '@/lib/billing/format-usd'
 import { T } from '@/components/i18n/t'
 
-export const metadata = { title: 'Plans' }
+export const metadata = { title: 'Billing & Plans' }
 
 const TIER_DISPLAY: Record<string, string> = {
   free: 'Free',
@@ -121,10 +124,10 @@ export default async function BillingPage() {
     autoTopupCompany?.auto_topup_pack_index != null
       ? cfg.topUpPacks[autoTopupCompany.auto_topup_pack_index]
       : null
-  const autoTopupPackAmount = autoTopupPack ? `$${autoTopupPack.priceCents / 100}` : null
+  const autoTopupPackAmount = autoTopupPack ? formatUsd(autoTopupPack.priceCents) : null
   const autoTopupThresholdAmount =
     autoTopupCompany?.auto_topup_threshold_credits != null
-      ? `$${(autoTopupCompany.auto_topup_threshold_credits / 100).toFixed(2).replace(/\.00$/, '')}`
+      ? formatUsd(autoTopupCompany.auto_topup_threshold_credits)
       : null
 
   const tierDisplay = TIER_DISPLAY[data.tier] ?? data.tier
@@ -136,6 +139,9 @@ export default async function BillingPage() {
 
   return (
     <div className="space-y-6 p-6">
+      <Suspense fallback={null}>
+        <BillingStatusToast />
+      </Suspense>
       <header className="flex flex-col gap-1">
         <h1 className="text-[clamp(28px,3.5vw,40px)] font-semibold tracking-tight">
           <T>Plans</T>
@@ -143,7 +149,7 @@ export default async function BillingPage() {
         <p className="text-sm text-muted-foreground">
           <T>You&rsquo;re on the</T>{' '}
           <strong className="text-foreground"><T text={tierDisplay} /></strong>{' '}
-          <T>plan. Choose the tier that fits your business | upgrade or downgrade anytime.</T>
+          <T>plan. Choose the tier that fits your business — upgrade or downgrade anytime.</T>
         </p>
       </header>
 
@@ -161,11 +167,17 @@ export default async function BillingPage() {
               </div>
             </CardHeader>
             <CardContent className="space-y-2 px-0 pt-4 text-sm">
-              {isPaid && data.tierRenewsAt && (
-                <p className="text-muted-foreground">
-                  <span className="font-medium text-foreground"><T>Renews:</T></span>{' '}
-                  {formatDate(data.tierRenewsAt)}
+              {isPaid && data.tierCancelledAt ? (
+                <p className="text-amber-600 dark:text-amber-400">
+                  <T text={`Your plan ends on ${formatDate(data.tierCancelledAt)}`} />
                 </p>
+              ) : (
+                isPaid && data.tierRenewsAt && (
+                  <p className="text-muted-foreground">
+                    <span className="font-medium text-foreground"><T>Renews:</T></span>{' '}
+                    {formatDate(data.tierRenewsAt)}
+                  </p>
+                )
               )}
               {data.tier === 'free' && (
                 <p className="text-muted-foreground">
@@ -191,38 +203,26 @@ export default async function BillingPage() {
               <div className="flex items-center justify-between gap-3">
                 <span className="text-muted-foreground"><T>Estimates</T></span>
                 <span className="whitespace-nowrap font-mono font-medium">
-                  {data.entitlements.maxEstimatesPerMonth !== null ? (
-                    `${data.estimatesThisMonth} / ${data.entitlements.maxEstimatesPerMonth}`
-                  ) : (
-                    <>
-                      {data.estimatesThisMonth}{' '}
-                      <span className="font-sans text-xs text-muted-foreground">
-                        <T>/ Unlimited</T>
-                      </span>
-                    </>
-                  )}
+                  {data.estimatesThisMonth}{' '}
+                  <span className="font-sans text-xs text-muted-foreground">
+                    <T>this month</T>
+                  </span>
                 </span>
               </div>
               <div className="flex items-center justify-between gap-3">
                 <span className="text-muted-foreground"><T>Photos analyzed</T></span>
                 <span className="whitespace-nowrap text-right font-mono font-medium">
-                  {data.entitlements.maxPhotosPerEstimate !== null ? (
-                    <>
-                      {data.photosThisMonth} / {data.entitlements.maxPhotosPerEstimate}{' '}
-                      <span className="font-sans text-xs text-muted-foreground">
-                        <T>per estimate</T>
-                      </span>
-                    </>
-                  ) : (
-                    <>
-                      {data.photosThisMonth}{' '}
-                      <span className="font-sans text-xs text-muted-foreground">
-                        <T>/ Unlimited</T>
-                      </span>
-                    </>
-                  )}
+                  {data.photosThisMonth}{' '}
+                  <span className="font-sans text-xs text-muted-foreground">
+                    <T>this month</T>
+                  </span>
                 </span>
               </div>
+              {data.entitlements.maxPhotosPerEstimate !== null && (
+                <p className="text-xs text-muted-foreground">
+                  <T text={`Up to ${data.entitlements.maxPhotosPerEstimate} photos per estimate on your plan.`} />
+                </p>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -260,7 +260,7 @@ export default async function BillingPage() {
         )}
 
         {/* Tier cards grid (Free / Pro / Business with per-tier gradient escalation) */}
-        <div className="space-y-4">
+        <div id="choose-plan" className="space-y-4">
           <h2 className="text-2xl font-semibold tracking-tight"><T>Choose your plan</T></h2>
           <TierCardsGrid
             currentTier={data.tier as 'free' | 'trial' | 'pro' | 'business'}

@@ -5,6 +5,11 @@ import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { TierCard, type Tier } from './tier-card'
 import { useTranslation } from '@/lib/i18n/use-translation'
+import { formatUsd } from '@/lib/billing/format-usd'
+
+// Tier ranking — used to distinguish an upgrade ("Upgrade to Pro") from a
+// lateral/downward switch ("Switch to Pro") relative to the user's current tier.
+const TIER_RANK: Record<Tier, number> = { free: 0, pro: 1, business: 2 }
 
 interface TierCardsGridProps {
   currentTier: Tier | 'trial'
@@ -123,7 +128,7 @@ export function TierCardsGrid({ currentTier, annualPrices, monthlyPricesCents }:
     if (tier === 'free') return fallback // free is always $0, not config-driven
     const cents = monthlyPricesCents?.[tier as 'pro' | 'business']
     if (cents == null) return fallback // defensive fallback if prop not passed (e.g. isolated render/test)
-    return `$${(cents / 100).toFixed(0)}`
+    return formatUsd(cents)
   }
 
   function getAnnualDisplay(tier: Tier) {
@@ -131,17 +136,17 @@ export function TierCardsGrid({ currentTier, annualPrices, monthlyPricesCents }:
     const annualCents = annualPrices?.[tier as 'pro' | 'business']
     const monthlyCents = monthlyPricesCents?.[tier as 'pro' | 'business']
     if (!annualCents || !monthlyCents) return null
-    const annualDollars = (annualCents / 100).toFixed(0)
     const perMonthDollars = (annualCents / 100 / 12).toFixed(2)
     const savePct = Math.round((1 - annualCents / (monthlyCents * 12)) * 100)
     return {
-      annualPrice: `$${annualDollars}`,
+      annualPrice: formatUsd(annualCents),
       annualPerMonth: `$${perMonthDollars}`,
       savePct: savePct > 0 ? savePct : null,
     }
   }
 
   const normalized: Tier = currentTier === 'trial' ? 'free' : currentTier
+  const isPaidUser = normalized === 'pro' || normalized === 'business'
 
   return (
     <div className="space-y-6">
@@ -149,6 +154,7 @@ export function TierCardsGrid({ currentTier, annualPrices, monthlyPricesCents }:
       <div className="flex items-center justify-center gap-1">
         <button
           type="button"
+          aria-pressed={billingInterval === 'month'}
           onClick={() => setBillingInterval('month')}
           className={cn(
             'rounded-lg px-4 py-2 text-sm font-medium transition-colors',
@@ -161,6 +167,7 @@ export function TierCardsGrid({ currentTier, annualPrices, monthlyPricesCents }:
         </button>
         <button
           type="button"
+          aria-pressed={billingInterval === 'year'}
           onClick={() => setBillingInterval('year')}
           className={cn(
             'rounded-lg px-4 py-2 text-sm font-medium transition-colors',
@@ -177,6 +184,21 @@ export function TierCardsGrid({ currentTier, annualPrices, monthlyPricesCents }:
         {TIERS.map((tierItem) => {
           const annualDisplay = billingInterval === 'year' ? getAnnualDisplay(tierItem.tier) : null
           const monthlyPrice = getMonthlyPriceDisplay(tierItem.tier, tierItem.price ?? '$0')
+          // Free card is a portal-only downgrade path for paid users — render it
+          // disabled (it never had a checkout wire-up; onSelect returns early)
+          // so it doesn't read as an enabled no-op.
+          const freeDisabledForPaid = tierItem.tier === 'free' && isPaidUser
+          const ranksAbove = TIER_RANK[normalized] > TIER_RANK[tierItem.tier]
+          const ctaLabel =
+            loading === tierItem.tier
+              ? 'Redirecting…'
+              : tierItem.tier === 'free'
+                ? freeDisabledForPaid
+                  ? 'Downgrade via portal'
+                  : 'Get started'
+                : ranksAbove
+                  ? `Switch to ${tierItem.name}`
+                  : `Upgrade to ${tierItem.name}`
           return (
             <TierCard
               key={tierItem.tier}
@@ -191,13 +213,8 @@ export function TierCardsGrid({ currentTier, annualPrices, monthlyPricesCents }:
               annualPrice={annualDisplay?.annualPrice}
               annualPerMonth={annualDisplay?.annualPerMonth}
               savePct={annualDisplay?.savePct}
-              ctaLabel={
-                loading === tierItem.tier
-                  ? 'Redirecting…'
-                  : tierItem.tier === 'free'
-                    ? 'Get started'
-                    : `Upgrade to ${tierItem.name}`
-              }
+              ctaLabel={ctaLabel}
+              disabled={freeDisabledForPaid}
               currentLabel="Current plan"
               popularLabel="Most popular"
               onSelect={() => handleSelect(tierItem.tier)}

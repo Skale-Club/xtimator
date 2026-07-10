@@ -11,6 +11,8 @@ import { Button } from '@/components/ui/button'
 import { MoneyInput } from '@/components/ui/money-input'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 import { saveAutoTopupSettings, disableAutoTopup } from '@/lib/actions/auto-topup'
+import { useTranslation } from '@/lib/i18n/use-translation'
+import { formatUsd } from '@/lib/billing/format-usd'
 
 /**
  * Phase 153 Plan 03 (CREDITUI-07) — Manage auto top-up modal + its launcher
@@ -35,12 +37,19 @@ interface AutoTopupDialogLauncherProps {
 export function AutoTopupDialogLauncher({
   enabled, packs, currentThresholdCredits, currentPackIndex, hasPaymentMethod,
 }: AutoTopupDialogLauncherProps) {
+  const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const [thresholdDollars, setThresholdDollars] = useState(
     currentThresholdCredits ? currentThresholdCredits / 100 : 0
   )
+  const [thresholdTouched, setThresholdTouched] = useState(false)
   const [packIndex, setPackIndex] = useState(currentPackIndex ?? 1)
   const [isPending, startTransition] = useTransition()
+
+  // Client-side mirror of the server's threshold bounds — keeps Save disabled
+  // (and shows a hint) before a round-trip. Server validation is authoritative
+  // and left untouched.
+  const thresholdValid = thresholdDollars > 0 && thresholdDollars <= 10000
 
   function handleSave() {
     startTransition(async () => {
@@ -50,7 +59,7 @@ export function AutoTopupDialogLauncher({
         toast.error(result.error)
         return
       }
-      toast.success('Auto top-up settings saved.')
+      toast.success(t('Auto top-up settings saved.'))
       setOpen(false)
     })
   }
@@ -62,7 +71,7 @@ export function AutoTopupDialogLauncher({
         toast.error(result.error)
         return
       }
-      toast.success('Auto top-up turned off.')
+      toast.success(t('Auto top-up turned off.'))
       setOpen(false)
     })
   }
@@ -70,33 +79,45 @@ export function AutoTopupDialogLauncher({
   return (
     <>
       <Button variant={enabled ? 'outline' : 'primary'} size="sm" onClick={() => setOpen(true)}>
-        {enabled ? 'Manage' : 'Enable auto-top-up'}
+        {enabled ? t('Manage') : t('Enable auto-top-up')}
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-md glass-strong border border-[var(--glass-border)]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <RefreshCw className="h-4 w-4 text-primary" />
-              Manage auto top-up
+              {t('Manage auto top-up')}
             </DialogTitle>
             <DialogDescription className="sr-only">
-              Configure the balance threshold, purchase amount, and payment method for automatic credit top-up.
+              {t('Configure the balance threshold, purchase amount, and payment method for automatic credit top-up.')}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-1.5">
-              <Label htmlFor="autotopup-threshold">When balance drops below</Label>
+              <Label htmlFor="autotopup-threshold">{t('When balance drops below')}</Label>
               <MoneyInput
                 id="autotopup-threshold"
                 value={thresholdDollars}
-                onValueChange={setThresholdDollars}
+                onValueChange={(v) => {
+                  setThresholdDollars(v)
+                  setThresholdTouched(true)
+                }}
+                onBlur={() => setThresholdTouched(true)}
                 currencyCode="USD"
                 disabled={isPending}
               />
-              <p className="text-xs text-muted-foreground">We&rsquo;ll check this every time credits are used.</p>
+              {thresholdTouched && !thresholdValid ? (
+                <p className="text-xs text-destructive">
+                  {t('Enter an amount between $0 and $10,000.')}
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  {t('We’ll check this every time credits are used.')}
+                </p>
+              )}
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="autotopup-pack">Purchase this amount</Label>
+              <Label htmlFor="autotopup-pack">{t('Purchase this amount')}</Label>
               <Select
                 value={String(packIndex)}
                 onValueChange={(v) => setPackIndex(Number(v))}
@@ -108,16 +129,16 @@ export function AutoTopupDialogLauncher({
                 <SelectContent>
                   {packs.map((pack, i) => (
                     <SelectItem key={i} value={String(i)}>
-                      ${pack.priceCents / 100}
+                      {formatUsd(pack.priceCents)}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label>Payment method</Label>
+              <Label>{t('Payment method')}</Label>
               {hasPaymentMethod ? (
-                <p className="text-sm text-muted-foreground">Payment method on file.</p>
+                <p className="text-sm text-muted-foreground">{t('Payment method on file.')}</p>
               ) : (
                 <PaymentMethodSetupButton />
               )}
@@ -132,15 +153,19 @@ export function AutoTopupDialogLauncher({
                 onClick={handleTurnOff}
                 disabled={isPending}
               >
-                Turn off auto top-up
+                {t('Turn off auto top-up')}
               </Button>
             )}
             <div className="flex gap-2">
               <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={isPending}>
-                Cancel
+                {t('Cancel')}
               </Button>
-              <Button type="button" onClick={handleSave} disabled={isPending || !hasPaymentMethod}>
-                {isPending ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Saving…</> : 'Save changes'}
+              <Button
+                type="button"
+                onClick={handleSave}
+                disabled={isPending || !hasPaymentMethod || !thresholdValid}
+              >
+                {isPending ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />{t('Saving…')}</> : t('Save changes')}
               </Button>
             </div>
           </DialogFooter>
@@ -151,6 +176,7 @@ export function AutoTopupDialogLauncher({
 }
 
 function PaymentMethodSetupButton() {
+  const { t } = useTranslation()
   const [loading, setLoading] = useState(false)
   async function handleAdd() {
     setLoading(true)
@@ -158,21 +184,21 @@ function PaymentMethodSetupButton() {
       const res = await fetch('/api/billing/create-autotopup-setup-session', { method: 'POST' })
       const data = await res.json()
       if (!res.ok || !data.url) {
-        toast.error('Could not start payment method setup. Please try again.')
+        toast.error(t('Could not start payment method setup. Please try again.'))
         return
       }
       window.location.href = data.url
     } catch {
-      toast.error('Could not start payment method setup. Please try again.')
+      toast.error(t('Could not start payment method setup. Please try again.'))
     } finally {
       setLoading(false)
     }
   }
   return (
     <div className="space-y-1">
-      <p className="text-sm text-muted-foreground">No payment method on file. Add one to enable auto top-up.</p>
+      <p className="text-sm text-muted-foreground">{t('No payment method on file. Add one to enable auto top-up.')}</p>
       <Button type="button" variant="outline" size="sm" onClick={handleAdd} disabled={loading}>
-        {loading ? 'Redirecting…' : 'Add payment method'}
+        {loading ? t('Redirecting…') : t('Add payment method')}
       </Button>
     </div>
   )

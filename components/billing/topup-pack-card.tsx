@@ -3,6 +3,7 @@ import { Card, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { T } from '@/components/i18n/t'
 import { TopUpButton } from '@/components/billing/top-up-button'
+import { formatUsd } from '@/lib/billing/format-usd'
 
 /**
  * Phase 153-01 (CREDITUI-06) — a single dollar-denominated top-up pack card.
@@ -24,7 +25,7 @@ export function TopUpPackCard({
   credits: number
   recommended?: boolean
 }) {
-  const amount = priceCents / 100
+  const amount = formatUsd(priceCents)
   return (
     <Card
       variant="glass"
@@ -44,12 +45,12 @@ export function TopUpPackCard({
       )}
       <CardHeader className="p-0">
         <CardTitle className="text-xl">
-          <span className="font-mono text-3xl font-semibold tracking-tight">${amount}</span>
+          <span className="font-mono text-3xl font-semibold tracking-tight">{amount}</span>
         </CardTitle>
       </CardHeader>
       <TopUpButton
         packIndex={packIndex}
-        label={`Top up $${amount}`}
+        label={`Top up ${amount}`}
         variant={recommended ? 'primary' : 'outline'}
       />
     </Card>

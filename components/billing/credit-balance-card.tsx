@@ -83,13 +83,13 @@ export function CreditBalanceCard({
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <Link
-                href="/settings/billing?topup=1#topup-packs"
+                href="#topup-packs"
                 className="text-sm font-medium underline underline-offset-2 hover:no-underline"
               >
                 <T>Top up now</T>
               </Link>
               <Link
-                href="/settings/billing"
+                href="#choose-plan"
                 className="text-sm font-medium underline underline-offset-2 hover:no-underline"
               >
                 <T>Upgrade plan</T>

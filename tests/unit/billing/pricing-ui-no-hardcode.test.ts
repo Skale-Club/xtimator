@@ -50,4 +50,10 @@ describe('pricing-ui-no-hardcode', () => {
     expect(src).toMatch(/monthlyPricesCents/)
     expect(src).toMatch(/getMonthlyPriceDisplay|monthlyPricesCents\?\.\[/)
   })
+
+  it('formats dollar amounts through the shared formatUsd helper, not a .toFixed(0) truncation', () => {
+    expect(src).toMatch(/formatUsd/)
+    // The whole-dollar truncation is gone — formatUsd owns decimal rules now.
+    expect(src).not.toMatch(/\.toFixed\(0\)/)
+  })
 })

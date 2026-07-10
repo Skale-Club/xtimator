@@ -44,6 +44,6 @@ describe('auto-topup-dialog (CREDITFIX-01 / CREDITUI-04)', () => {
 
   it('Test B (continued): dollar amount is still derived from priceCents', () => {
     const label = selectItemMatch?.[1] ?? ''
-    expect(label).toMatch(/\$\{pack\.priceCents \/ 100\}/)
+    expect(label).toMatch(/formatUsd\(pack\.priceCents\)/)
   })
 })
