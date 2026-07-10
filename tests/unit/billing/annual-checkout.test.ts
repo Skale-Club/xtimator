@@ -34,6 +34,9 @@ vi.mock('@/lib/billing/stripe-client', () => ({
 // ------------------------------------------------------------------
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 
+// Active-company resolver mock — returns the caller's company id.
+vi.mock('@/lib/queries/active-company', () => ({ getActiveCompanyId: vi.fn() }))
+
 // ------------------------------------------------------------------
 // Demo guard mock — not blocked (returns null)
 // ------------------------------------------------------------------
@@ -47,6 +50,7 @@ vi.stubEnv('STRIPE_PRICE_BUSINESS', 'price_test_business')
 vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://app.test')
 
 const { createClient } = await import('@/lib/supabase/server')
+const { getActiveCompanyId } = await import('@/lib/queries/active-company')
 const { POST } = await import('@/app/api/billing/create-checkout-session/route')
 
 // ------------------------------------------------------------------
@@ -70,8 +74,8 @@ function makeSupabaseMock() {
     from: vi.fn().mockReturnValue({
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
-      single: vi.fn().mockResolvedValue({
-        data: { id: 'co-1', stripe_customer_id: null },
+      maybeSingle: vi.fn().mockResolvedValue({
+        data: { id: 'co-1', stripe_customer_id: null, stripe_subscription_id: null },
         error: null,
       }),
     }),
@@ -80,6 +84,7 @@ function makeSupabaseMock() {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  vi.mocked(getActiveCompanyId).mockResolvedValue('co-1')
   vi.mocked(createClient).mockResolvedValue(makeSupabaseMock() as never)
   mockSessionsCreate.mockResolvedValue({ url: 'https://checkout.stripe.com/pay/test' })
   // Annual env vars are set per-test (or absent to test the 500 path)

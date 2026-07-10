@@ -6,6 +6,7 @@ import { requireServiceClient } from '@/lib/supabase/service'
 import { dispatchXphereSync } from '@/lib/integrations/xphere/dispatch'
 import { grantCredits, monthGrantKey } from '@/lib/billing/credit-ledger'
 import { getBillingConfig } from '@/lib/billing/billing-config'
+import { resolveTierFromPriceId } from '@/lib/billing/stripe-price-map'
 
 // ------------------------------------------------------------------
 // POST: Stripe webhook handler (STRIPE-02, STRIPE-04)
@@ -172,6 +173,28 @@ async function handlePlatformEvent(
       // tier resolved from metadata.plan — stored at checkout creation (RESEARCH Pitfall 3)
       const tier = session.metadata?.plan === 'business' ? 'business' : 'pro'
 
+      // Safety net: if this company already has a DIFFERENT subscription on file,
+      // a fresh Checkout would leave the old one live and double-bill. Cancel the
+      // old subscription before overwriting the row. Wrapped in try/catch — it may
+      // already be canceled (e.g. the portal update flow migrated the same sub).
+      const { data: existing } = await svc
+        .from('companies')
+        .select('stripe_subscription_id')
+        .eq('id', companyId)
+        .maybeSingle()
+
+      const oldSubId = (existing as { stripe_subscription_id?: string | null } | null)
+        ?.stripe_subscription_id
+      const newSubId = session.subscription as string
+      if (oldSubId && oldSubId !== newSubId) {
+        try {
+          await stripe.subscriptions.cancel(oldSubId)
+          console.warn('[Stripe] checkout.session.completed canceled superseded subscription:', oldSubId)
+        } catch (err) {
+          console.warn('[Stripe] checkout.session.completed could not cancel old subscription (may already be canceled):', oldSubId, err instanceof Error ? err.message : err)
+        }
+      }
+
       const { error } = await svc
         .from('companies')
         .update({
@@ -275,6 +298,57 @@ async function handlePlatformEvent(
       // customer.subscription.deleted fires only after all dunning retries exhausted
       const invoice = event.data.object as Stripe.Invoice
       console.warn('[Stripe] Payment failed for invoice:', invoice.id, '— no tier change applied')
+      break
+    }
+
+    case 'customer.subscription.updated': {
+      // Required for the Customer Portal update flow (create-checkout-session's
+      // upgrade path) to reflect in the DB — a plan change made in the portal
+      // arrives here, not via checkout.session.completed.
+      const subscription = event.data.object as Stripe.Subscription
+
+      // Map the first item's price id to a tier (null when unknown — leave tier as-is).
+      const priceId = subscription.items?.data?.[0]?.price?.id ?? null
+      const resolvedTier = resolveTierFromPriceId(priceId)
+
+      // current_period_end moved under a nested shape in the 2026-04-22 Stripe API
+      // types but the runtime object still carries it — same cast as invoice.paid.
+      const subWithPeriod = subscription as unknown as { current_period_end?: number | null }
+      const renewsAt = subWithPeriod.current_period_end
+        ? new Date(subWithPeriod.current_period_end * 1000).toISOString()
+        : null
+
+      // Pending-cancel tracking: cancel_at is set when cancel_at_period_end is true.
+      const cancelledAt = subscription.cancel_at_period_end
+        ? new Date((subscription.cancel_at as number) * 1000).toISOString()
+        : null
+
+      // Resolve the company BEFORE the update (for the CRM sync id below).
+      const { data: c } = await svc
+        .from('companies')
+        .select('id')
+        .eq('stripe_subscription_id', subscription.id)
+        .maybeSingle()
+
+      const updatePayload: {
+        tier_renews_at: string | null
+        tier_cancelled_at: string | null
+        tier?: string
+      } = { tier_renews_at: renewsAt, tier_cancelled_at: cancelledAt }
+      // Only overwrite tier when the price resolved to a known tier.
+      if (resolvedTier) updatePayload.tier = resolvedTier
+
+      const { error } = await svc
+        .from('companies')
+        .update(updatePayload)
+        .eq('stripe_subscription_id', subscription.id)
+
+      if (error) {
+        console.error('[Stripe] customer.subscription.updated update failed:', error)
+      }
+
+      // Mirror the change into Xphere CRM (fire-and-forget). No-op if no row matched.
+      if (c?.id) dispatchXphereSync(c.id, 'subscription.updated')
       break
     }
 

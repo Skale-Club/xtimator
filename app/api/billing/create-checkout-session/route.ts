@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { getStripeClient } from '@/lib/billing/stripe-client'
 import { demoGuardResponse } from '@/lib/demo/guard'
 
@@ -19,11 +20,16 @@ export async function POST(request: NextRequest) {
   const plan = body.plan === 'business' ? 'business' : 'pro'
   const billingInterval = body.billingInterval === 'year' ? 'year' : 'month'
 
-  const { data: company } = await supabase
-    .from('companies')
-    .select('id, stripe_customer_id')
-    .eq('user_id', claims.sub)
-    .single()
+  // Scope to the active company (getActiveCompanyId validates membership via RLS),
+  // then fetch the columns needed for checkout by id with the RLS-bound client.
+  const companyId = await getActiveCompanyId()
+  const { data: company } = companyId
+    ? await supabase
+        .from('companies')
+        .select('id, stripe_customer_id, stripe_subscription_id')
+        .eq('id', companyId)
+        .maybeSingle()
+    : { data: null }
 
   if (!company?.id) {
     return NextResponse.json({ error: 'Company not found' }, { status: 400 })
@@ -50,6 +56,48 @@ export async function POST(request: NextRequest) {
   }
 
   const stripe = await getStripeClient()
+
+  // Upgrade/downgrade safety net: a company that already has a live subscription
+  // must NEVER get a second one from a fresh Checkout (double billing). Route it
+  // through the Customer Portal update flow instead.
+  if (company.stripe_subscription_id) {
+    try {
+      const sub = await stripe.subscriptions.retrieve(company.stripe_subscription_id)
+      if (sub.status === 'active' || sub.status === 'trialing' || sub.status === 'past_due') {
+        const item = sub.items.data[0]
+        if (item?.price?.id === priceId) {
+          return NextResponse.json({ error: 'Already on this plan' }, { status: 400 })
+        }
+        try {
+          const portal = await stripe.billingPortal.sessions.create({
+            customer: company.stripe_customer_id as string,
+            flow_data: {
+              type: 'subscription_update_confirm',
+              subscription_update_confirm: {
+                subscription: sub.id,
+                items: [{ id: item.id, price: priceId, quantity: 1 }],
+              },
+            },
+            return_url: `${process.env.NEXT_PUBLIC_APP_URL}/settings/billing?upgraded=1`,
+          })
+          return NextResponse.json({ url: portal.url })
+        } catch {
+          // Portal not configured for subscription updates — fall back to a plain
+          // portal session so the user can still switch plans there.
+          const portal = await stripe.billingPortal.sessions.create({
+            customer: company.stripe_customer_id as string,
+            return_url: `${process.env.NEXT_PUBLIC_APP_URL}/settings/billing`,
+          })
+          return NextResponse.json({ url: portal.url })
+        }
+      }
+      // Subscription exists but is not live (canceled/incomplete/etc.) — fall
+      // through to a normal Checkout to start a fresh one.
+    } catch {
+      // retrieve failed (e.g. the subscription was deleted at Stripe) — fall
+      // through to a normal Checkout.
+    }
+  }
 
   const session = await stripe.checkout.sessions.create({
     mode: 'subscription',

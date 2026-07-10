@@ -32,27 +32,31 @@ const TIER_DISPLAY: Record<string, string> = {
 }
 
 export default async function BillingPage() {
-  const claims = await getAuthClaims()
+  // Auth + active company resolve first — everything below is scoped to the
+  // active company's id. getActiveCompany() re-uses the request-cached auth
+  // claims, so running both together adds no duplicate work.
+  const [claims, company] = await Promise.all([getAuthClaims(), getActiveCompany()])
 
   if (!claims) {
     redirect('/?auth=login')
   }
 
-  const data = await getBillingData(claims.sub as string)
+  if (!company) {
+    redirect('/onboarding')
+  }
+
+  // Billing data, credits, and config are independent of one another once the
+  // company id is known — fetch them in parallel.
+  const [data, credits, cfg] = await Promise.all([
+    getBillingData(company.id),
+    getCreditOverview(company.id),
+    getBillingConfig(),
+  ])
 
   if (!data) {
     redirect('/onboarding')
   }
 
-  const company = await getActiveCompany()
-
-  if (!company) {
-    redirect('/onboarding')
-  }
-
-  const credits = await getCreditOverview(company.id)
-
-  const cfg = await getBillingConfig()
   const cycleGrant =
     data.tier === 'free'
       ? cfg.signupCreditGrant

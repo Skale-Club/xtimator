@@ -8,6 +8,7 @@ import { getEntitlements, type Entitlements } from '@/lib/entitlements'
 export interface BillingData {
   tier: string                          // 'free' | 'pro' | 'business' (Billing v2: 'trial' retired)
   tierRenewsAt: string | null           // ISO string from DB
+  tierCancelledAt: string | null        // ISO string from DB — set while a paid sub is pending-cancel
   stripeSubscriptionId: string | null
   estimatesThisMonth: number            // COUNT of 'estimate_generated' events this UTC month
   photosThisMonth: number               // COUNT of 'photo_analyzed' events this UTC month
@@ -15,53 +16,64 @@ export interface BillingData {
 }
 
 /**
- * Fetches billing data for a user's company.
+ * Fetches billing data for a company.
  * Returns null if the company does not exist (e.g., before onboarding).
  *
- * @param userId  The user's auth UUID (sub claim).
+ * Company-scoped (takes companyId, NOT userId) so the page can scope every
+ * card to the active company — the product supports one user owning 2+
+ * companies (company switcher + add mode), which a `.single()`-by-user_id
+ * lookup broke.
+ *
+ * @param companyId  The active company's UUID.
  */
-export async function getBillingData(userId: string): Promise<BillingData | null> {
+export async function getBillingData(companyId: string): Promise<BillingData | null> {
   const serviceClient = requireServiceClient()
 
-  // Fetch the company row for this user.
-  const { data: company, error } = await serviceClient
+  // Fetch the company row by id.
+  const { data: company } = await serviceClient
     .from('companies')
-    .select('id, tier, tier_renews_at, stripe_subscription_id')
-    .eq('user_id', userId)
-    .single()
+    .select('id, tier, tier_renews_at, tier_cancelled_at, stripe_subscription_id')
+    .eq('id', companyId)
+    .maybeSingle()
 
-  if (error || !company) {
+  if (!company) {
     return null
   }
 
-  const companyId: string = (company as { id: string }).id
   const tier: string = (company as { tier: string }).tier ?? 'free'
   const tierRenewsAt: string | null = (company as { tier_renews_at: string | null }).tier_renews_at
+  const tierCancelledAt: string | null = (company as { tier_cancelled_at: string | null }).tier_cancelled_at
   const stripeSubscriptionId: string | null = (company as { stripe_subscription_id: string | null }).stripe_subscription_id
 
   // Compute start of current UTC month.
   const now = new Date()
   const startOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
+  const startOfMonthIso = startOfMonth.toISOString()
 
-  // Fetch all usage events for this company in the current month.
-  // Fetching all event_types in one query and counting in JS to avoid N+1.
-  const { data: events } = await serviceClient
-    .from('usage_events')
-    .select('event_type')
-    .eq('company_id', companyId)
-    .gte('created_at', startOfMonth.toISOString())
+  // Count usage events with two head:true count queries (no rows transferred) —
+  // avoids pulling every event row into JS just to count them.
+  const [estimatesRes, photosRes] = await Promise.all([
+    serviceClient
+      .from('usage_events')
+      .select('*', { count: 'exact', head: true })
+      .eq('company_id', companyId)
+      .eq('event_type', 'estimate_generated')
+      .gte('created_at', startOfMonthIso),
+    serviceClient
+      .from('usage_events')
+      .select('*', { count: 'exact', head: true })
+      .eq('company_id', companyId)
+      .eq('event_type', 'photo_analyzed')
+      .gte('created_at', startOfMonthIso),
+  ])
 
-  const rows = events ?? []
-  const estimatesThisMonth = rows.filter(
-    (r: { event_type: string }) => r.event_type === 'estimate_generated'
-  ).length
-  const photosThisMonth = rows.filter(
-    (r: { event_type: string }) => r.event_type === 'photo_analyzed'
-  ).length
+  const estimatesThisMonth = estimatesRes.count ?? 0
+  const photosThisMonth = photosRes.count ?? 0
 
   return {
     tier,
     tierRenewsAt,
+    tierCancelledAt,
     stripeSubscriptionId,
     estimatesThisMonth,
     photosThisMonth,

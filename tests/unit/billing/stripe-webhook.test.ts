@@ -4,6 +4,8 @@ import { NextRequest } from 'next/server'
 // Stripe mock: class-based so constructors work (Phase 08 pattern)
 const mockConstructEvent = vi.fn()
 const mockSubscriptionsRetrieve = vi.fn()
+// Cancel-superseded-subscription safety net (checkout.session.completed arm).
+const mockSubscriptionsCancel = vi.fn()
 // Phase 153 Plan 03 (CREDITUI-07): autotopup_setup arm mocks.
 const mockSetupIntentRetrieve = vi.fn()
 const mockCustomersUpdate = vi.fn()
@@ -11,7 +13,7 @@ const mockCustomersUpdate = vi.fn()
 vi.mock('@/lib/billing/stripe-client', () => ({
   getStripeClient: vi.fn().mockResolvedValue({
     webhooks: { constructEvent: mockConstructEvent },
-    subscriptions: { retrieve: mockSubscriptionsRetrieve },
+    subscriptions: { retrieve: mockSubscriptionsRetrieve, cancel: mockSubscriptionsCancel },
     setupIntents: { retrieve: mockSetupIntentRetrieve },
     customers: { update: mockCustomersUpdate },
   }),
@@ -42,6 +44,11 @@ vi.mock('@/lib/supabase/service', () => ({
 }))
 
 vi.stubEnv('STRIPE_WEBHOOK_SECRET', 'whsec_test')
+// Price env vars for resolveTierFromPriceId (customer.subscription.updated arm).
+vi.stubEnv('STRIPE_PRICE_PRO', 'price_pro_test')
+vi.stubEnv('STRIPE_PRICE_PRO_ANNUAL', 'price_pro_annual_test')
+vi.stubEnv('STRIPE_PRICE_BUSINESS', 'price_biz_test')
+vi.stubEnv('STRIPE_PRICE_BUSINESS_ANNUAL', 'price_biz_annual_test')
 
 const { POST } = await import('@/app/api/webhooks/stripe/route')
 
@@ -71,6 +78,7 @@ beforeEach(() => {
   mockSetupIntentRetrieve.mockResolvedValue({ payment_method: 'pm_test' })
   mockCustomersUpdate.mockResolvedValue({})
   mockDedupDeleteEq.mockResolvedValue({ error: null })
+  mockSubscriptionsCancel.mockResolvedValue({})
 })
 
 describe('POST /api/webhooks/stripe — signature verification (STRIPE-02)', () => {
@@ -270,6 +278,142 @@ describe('POST /api/webhooks/stripe — customer.subscription.deleted (STRIPE-02
       })
     )
     expect(mockUpdate.mock.calls[0][0]).toHaveProperty('tier_cancelled_at')
+  })
+})
+
+describe('POST /api/webhooks/stripe — checkout.session.completed supersede (B)', () => {
+  it('cancels a DIFFERENT pre-existing subscription before overwriting the row', async () => {
+    // Pre-lookup returns an existing (different) subscription on the company.
+    mockMaybeSingle.mockResolvedValueOnce({ data: { stripe_subscription_id: 'sub_old' } })
+
+    mockConstructEvent.mockReturnValue({
+      id: 'evt_checkout_supersede',
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          id: 'cs_supersede',
+          mode: 'subscription',
+          customer: 'cus_x',
+          subscription: 'sub_new',
+          metadata: { companyId: 'company-x', plan: 'pro' },
+        },
+      },
+    })
+
+    const res = await POST(makeRequest())
+
+    expect(res.status).toBe(200)
+    expect(mockSubscriptionsCancel).toHaveBeenCalledWith('sub_old')
+    // Row still overwritten to the new subscription.
+    expect(mockUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ stripe_subscription_id: 'sub_new', tier: 'pro' })
+    )
+  })
+
+  it('does NOT cancel when the pre-existing subscription is the SAME id', async () => {
+    mockMaybeSingle.mockResolvedValueOnce({ data: { stripe_subscription_id: 'sub_same' } })
+
+    mockConstructEvent.mockReturnValue({
+      id: 'evt_checkout_same',
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          id: 'cs_same',
+          mode: 'subscription',
+          customer: 'cus_x',
+          subscription: 'sub_same',
+          metadata: { companyId: 'company-x', plan: 'pro' },
+        },
+      },
+    })
+
+    await POST(makeRequest())
+
+    expect(mockSubscriptionsCancel).not.toHaveBeenCalled()
+  })
+})
+
+describe('POST /api/webhooks/stripe — customer.subscription.updated (B)', () => {
+  it('maps the item price to a tier and sets tier_renews_at + clears tier_cancelled_at', async () => {
+    mockMaybeSingle.mockResolvedValueOnce({ data: { id: 'company-upd' } })
+    const periodEnd = 1900000000
+
+    mockConstructEvent.mockReturnValue({
+      id: 'evt_sub_updated',
+      type: 'customer.subscription.updated',
+      data: {
+        object: {
+          id: 'sub_upd',
+          current_period_end: periodEnd,
+          cancel_at_period_end: false,
+          cancel_at: null,
+          items: { data: [{ id: 'si_1', price: { id: 'price_biz_test' } }] },
+        },
+      },
+    })
+
+    const res = await POST(makeRequest())
+
+    expect(res.status).toBe(200)
+    expect(mockUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tier: 'business',
+        tier_renews_at: new Date(periodEnd * 1000).toISOString(),
+        tier_cancelled_at: null,
+      })
+    )
+  })
+
+  it('sets tier_cancelled_at from cancel_at when cancel_at_period_end is true', async () => {
+    mockMaybeSingle.mockResolvedValueOnce({ data: { id: 'company-upd' } })
+    const cancelAt = 1950000000
+
+    mockConstructEvent.mockReturnValue({
+      id: 'evt_sub_updated_cancel',
+      type: 'customer.subscription.updated',
+      data: {
+        object: {
+          id: 'sub_upd_cancel',
+          current_period_end: 1900000000,
+          cancel_at_period_end: true,
+          cancel_at: cancelAt,
+          items: { data: [{ id: 'si_1', price: { id: 'price_pro_test' } }] },
+        },
+      },
+    })
+
+    await POST(makeRequest())
+
+    expect(mockUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tier: 'pro',
+        tier_cancelled_at: new Date(cancelAt * 1000).toISOString(),
+      })
+    )
+  })
+
+  it('does NOT overwrite tier when the price id is unknown', async () => {
+    mockMaybeSingle.mockResolvedValueOnce({ data: { id: 'company-upd' } })
+
+    mockConstructEvent.mockReturnValue({
+      id: 'evt_sub_updated_unknown',
+      type: 'customer.subscription.updated',
+      data: {
+        object: {
+          id: 'sub_upd_unknown',
+          current_period_end: 1900000000,
+          cancel_at_period_end: false,
+          cancel_at: null,
+          items: { data: [{ id: 'si_1', price: { id: 'price_unknown' } }] },
+        },
+      },
+    })
+
+    await POST(makeRequest())
+
+    const payload = mockUpdate.mock.calls[0][0]
+    expect(payload).not.toHaveProperty('tier')
+    expect(payload).toHaveProperty('tier_renews_at')
   })
 })
 

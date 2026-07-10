@@ -21,6 +21,7 @@ import { NextRequest } from 'next/server'
 
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 vi.mock('@/lib/billing/stripe-client', () => ({ getStripeClient: vi.fn() }))
+vi.mock('@/lib/queries/active-company', () => ({ getActiveCompanyId: vi.fn() }))
 // Read-only demo guard: null = not blocked (mirror create-checkout-session).
 vi.mock('@/lib/demo/guard', () => ({ demoGuardResponse: vi.fn().mockResolvedValue(null) }))
 // topUpPacks the route reads to build the inline price_data.
@@ -30,6 +31,7 @@ vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://app.test')
 
 const { createClient } = await import('@/lib/supabase/server')
 const { getStripeClient } = await import('@/lib/billing/stripe-client')
+const { getActiveCompanyId } = await import('@/lib/queries/active-company')
 const { getBillingConfig } = await import('@/lib/billing/billing-config')
 // This import drives RED — the route does not exist yet (113-02 creates it).
 const { POST } = await import('@/app/api/billing/create-topup-session/route')
@@ -59,7 +61,7 @@ function makeSupabaseMock(
     from: vi.fn().mockReturnValue({
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
-      single: vi.fn().mockResolvedValue({ data: companyData, error: null }),
+      maybeSingle: vi.fn().mockResolvedValue({ data: companyData, error: null }),
     }),
   }
 }
@@ -68,6 +70,7 @@ const mockSessionCreate = vi.fn()
 
 beforeEach(() => {
   vi.clearAllMocks()
+  vi.mocked(getActiveCompanyId).mockResolvedValue('co_1')
   vi.mocked(getBillingConfig).mockResolvedValue({ topUpPacks: TOPUP_PACKS } as never)
   mockSessionCreate.mockResolvedValue({ url: 'https://checkout.stripe.com/pay/topup' })
   vi.mocked(getStripeClient).mockResolvedValue({

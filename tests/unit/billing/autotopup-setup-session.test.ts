@@ -14,12 +14,14 @@ import { NextRequest } from 'next/server'
 
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 vi.mock('@/lib/billing/stripe-client', () => ({ getStripeClient: vi.fn() }))
+vi.mock('@/lib/queries/active-company', () => ({ getActiveCompanyId: vi.fn() }))
 vi.mock('@/lib/demo/guard', () => ({ demoGuardResponse: vi.fn().mockResolvedValue(null) }))
 
 vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://app.test')
 
 const { createClient } = await import('@/lib/supabase/server')
 const { getStripeClient } = await import('@/lib/billing/stripe-client')
+const { getActiveCompanyId } = await import('@/lib/queries/active-company')
 const { demoGuardResponse } = await import('@/lib/demo/guard')
 const { POST } = await import('@/app/api/billing/create-autotopup-setup-session/route')
 
@@ -40,7 +42,7 @@ function makeSupabaseMock(
     from: vi.fn().mockReturnValue({
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
-      single: vi.fn().mockResolvedValue({ data: companyData, error: null }),
+      maybeSingle: vi.fn().mockResolvedValue({ data: companyData, error: null }),
     }),
   }
 }
@@ -49,6 +51,7 @@ const mockSessionCreate = vi.fn()
 
 beforeEach(() => {
   vi.clearAllMocks()
+  vi.mocked(getActiveCompanyId).mockResolvedValue('co_1')
   mockSessionCreate.mockResolvedValue({ url: 'https://checkout.stripe.com/pay/autotopup-setup' })
   vi.mocked(getStripeClient).mockResolvedValue({
     checkout: { sessions: { create: mockSessionCreate } },

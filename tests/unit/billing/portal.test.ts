@@ -3,11 +3,13 @@ import { NextRequest } from 'next/server'
 
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 vi.mock('@/lib/billing/stripe-client', () => ({ getStripeClient: vi.fn() }))
+vi.mock('@/lib/queries/active-company', () => ({ getActiveCompanyId: vi.fn() }))
 
 vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://app.test')
 
 const { createClient } = await import('@/lib/supabase/server')
 const { getStripeClient } = await import('@/lib/billing/stripe-client')
+const { getActiveCompanyId } = await import('@/lib/queries/active-company')
 const { POST } = await import('@/app/api/billing/create-portal-session/route')
 
 function makeRequest() {
@@ -29,7 +31,7 @@ function makeSupabaseMock(
     from: vi.fn().mockReturnValue({
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
-      single: vi.fn().mockResolvedValue({
+      maybeSingle: vi.fn().mockResolvedValue({
         data: companyData,
         error: null,
       }),
@@ -37,7 +39,10 @@ function makeSupabaseMock(
   }
 }
 
-beforeEach(() => { vi.clearAllMocks() })
+beforeEach(() => {
+  vi.clearAllMocks()
+  vi.mocked(getActiveCompanyId).mockResolvedValue('company-1')
+})
 
 describe('POST /api/billing/create-portal-session', () => {
   it('returns { url } for company with stripe_customer_id', async () => {

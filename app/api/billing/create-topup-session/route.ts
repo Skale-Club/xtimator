@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { getStripeClient } from '@/lib/billing/stripe-client'
 import { demoGuardResponse } from '@/lib/demo/guard'
 import { getBillingConfig } from '@/lib/billing/billing-config'
@@ -29,11 +30,14 @@ export async function POST(request: NextRequest) {
   const body = (await request.json().catch(() => null)) as { packIndex?: number } | null
   const packIndex = Number(body?.packIndex)
 
-  const { data: company } = await supabase
-    .from('companies')
-    .select('id, stripe_customer_id')
-    .eq('user_id', claims.sub)
-    .single()
+  const companyId = await getActiveCompanyId()
+  const { data: company } = companyId
+    ? await supabase
+        .from('companies')
+        .select('id, stripe_customer_id')
+        .eq('id', companyId)
+        .maybeSingle()
+    : { data: null }
 
   if (!company?.id) {
     return NextResponse.json({ error: 'Company not found' }, { status: 400 })
