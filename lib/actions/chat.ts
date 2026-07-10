@@ -25,6 +25,13 @@ import {
   createConversation,
   listConversations,
   getConversationWithMessages,
+  deleteConversation,
+  ownsConversation,
+  findMessageRow,
+  updateMessageParts,
+  deleteMessagesFrom,
+  upsertMessageVote,
+  listMessageVotes,
 } from '@/lib/queries/chat'
 import { toUIMessages } from '@/lib/chat/history-mapper'
 import { getCurrentEstimate } from '@/lib/queries/estimate'
@@ -125,7 +132,7 @@ export async function listChatConversations(): Promise<ChatConversationSummary[]
  */
 export async function getChatThread(
   conversationId: string,
-): Promise<{ id: string; messages: UIMessage[] } | null> {
+): Promise<{ id: string; messages: UIMessage[]; votes: Record<string, boolean> } | null> {
   const supabase = await createClient()
   const { data: claimsData } = await supabase.auth.getClaims()
   const userId = claimsData?.claims?.sub as string | undefined
@@ -133,7 +140,107 @@ export async function getChatThread(
 
   const thread = await getConversationWithMessages(conversationId, userId)
   if (!thread) return null
-  return { id: thread.conversation.id, messages: toUIMessages(thread.messages) }
+  const votes = await listMessageVotes(conversationId, userId)
+  return { id: thread.conversation.id, messages: toUIMessages(thread.messages), votes }
+}
+
+/**
+ * deleteChatConversation — owner-scoped conversation delete for the bubble's
+ * history menu. Messages and votes cascade at the DB level.
+ */
+export async function deleteChatConversation(conversationId: string): Promise<boolean> {
+  const supabase = await createClient()
+  const { data: claimsData } = await supabase.auth.getClaims()
+  const userId = claimsData?.claims?.sub as string | undefined
+  if (!userId) return false
+
+  return deleteConversation(conversationId, userId)
+}
+
+/**
+ * voteChatMessage — upsert one owner's 👍/👎 on an assistant message, keyed by
+ * the UIMessage id (stable across reloads via chat_messages.client_id).
+ */
+export async function voteChatMessage(args: {
+  conversationId: string
+  messageId: string
+  isUpvoted: boolean
+}): Promise<boolean> {
+  const supabase = await createClient()
+  const { data: claimsData } = await supabase.auth.getClaims()
+  const userId = claimsData?.claims?.sub as string | undefined
+  if (!userId) return false
+  if (!(await ownsConversation(args.conversationId, userId))) return false
+
+  return upsertMessageVote({
+    conversationId: args.conversationId,
+    messageId: args.messageId,
+    userId,
+    isUpvoted: args.isUpvoted,
+  })
+}
+
+/**
+ * editChatMessage — server-side half of edit-and-resend.
+ *
+ * useChat's sendMessage({ text, messageId }) truncates the CLIENT history after
+ * the edited user message and replaces it; this keeps the PERSISTED history in
+ * sync: rewrite the edited row's parts in place, then delete every row that
+ * followed it. The resend's onFinish then re-appends the new assistant turn
+ * (and skips the user row — it already exists by client id).
+ */
+export async function editChatMessage(args: {
+  conversationId: string
+  messageId: string
+  text: string
+}): Promise<boolean> {
+  const supabase = await createClient()
+  const { data: claimsData } = await supabase.auth.getClaims()
+  const userId = claimsData?.claims?.sub as string | undefined
+  if (!userId) return false
+  if (!(await ownsConversation(args.conversationId, userId))) return false
+
+  const row = await findMessageRow(args.conversationId, args.messageId)
+  if (!row || row.role !== 'user') return false
+
+  const updated = await updateMessageParts(row.id, args.conversationId, [
+    { type: 'text', text: args.text },
+  ])
+  if (!updated) return false
+
+  return deleteMessagesFrom({
+    conversationId: args.conversationId,
+    fromCreatedAt: row.created_at,
+    inclusive: false,
+  })
+}
+
+/**
+ * truncateChatFrom — server-side half of regenerate.
+ *
+ * useChat's regenerate({ messageId }) drops the assistant message (and anything
+ * after) client-side and re-requests; this deletes the same span from the
+ * persisted history (inclusive — the old assistant turn goes too) so a reload
+ * never resurrects the replaced response.
+ */
+export async function truncateChatFrom(args: {
+  conversationId: string
+  messageId: string
+}): Promise<boolean> {
+  const supabase = await createClient()
+  const { data: claimsData } = await supabase.auth.getClaims()
+  const userId = claimsData?.claims?.sub as string | undefined
+  if (!userId) return false
+  if (!(await ownsConversation(args.conversationId, userId))) return false
+
+  const row = await findMessageRow(args.conversationId, args.messageId)
+  if (!row) return false
+
+  return deleteMessagesFrom({
+    conversationId: args.conversationId,
+    fromCreatedAt: row.created_at,
+    inclusive: true,
+  })
 }
 
 /**

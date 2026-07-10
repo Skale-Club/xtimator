@@ -27,9 +27,11 @@ vi.mock('next/link', () => ({
 
 const listChatConversations = vi.fn()
 const getChatThread = vi.fn()
+const deleteChatConversation = vi.fn()
 vi.mock('@/lib/actions/chat', () => ({
   listChatConversations: (...a: unknown[]) => listChatConversations(...a),
   getChatThread: (...a: unknown[]) => getChatThread(...a),
+  deleteChatConversation: (...a: unknown[]) => deleteChatConversation(...a),
 }))
 
 // The real ChatThread drives useChat/transport — out of scope here. The stub
@@ -45,6 +47,8 @@ import { ChatBubble } from '@/components/chat/chat-bubble'
 beforeEach(() => {
   listChatConversations.mockReset()
   getChatThread.mockReset()
+  deleteChatConversation.mockReset()
+  deleteChatConversation.mockResolvedValue(true)
 })
 
 describe('ChatBubble', () => {
@@ -73,7 +77,7 @@ describe('ChatBubble', () => {
       { id: 'conv-2', title: 'Newer', updated_at: '2026-07-01T10:00:00Z' },
       { id: 'conv-1', title: 'Older', updated_at: '2026-06-01T10:00:00Z' },
     ])
-    getChatThread.mockResolvedValue({ id: 'conv-2', messages: [] })
+    getChatThread.mockResolvedValue({ id: 'conv-2', messages: [], votes: {} })
 
     const { getByLabelText, getByTestId } = render(<ChatBubble chatEnabled={true} />)
     fireEvent.click(getByLabelText('Open chat assistant'))
@@ -108,7 +112,7 @@ describe('ChatBubble', () => {
     listChatConversations.mockResolvedValue([
       { id: 'conv-1', title: 'Older', updated_at: '2026-06-01T10:00:00Z' },
     ])
-    getChatThread.mockResolvedValue({ id: 'conv-1', messages: [] })
+    getChatThread.mockResolvedValue({ id: 'conv-1', messages: [], votes: {} })
 
     const { getByLabelText, getByTestId } = render(<ChatBubble chatEnabled={true} />)
     fireEvent.click(getByLabelText('Open chat assistant'))
@@ -117,6 +121,31 @@ describe('ChatBubble', () => {
     })
 
     fireEvent.click(getByLabelText('New chat'))
+    expect(getByTestId('chat-thread').getAttribute('data-conversation-id')).toBe('')
+  })
+
+  it('deletes a conversation from the history menu and resets the thread when active', async () => {
+    listChatConversations.mockResolvedValue([
+      { id: 'conv-1', title: 'Only chat', updated_at: '2026-06-01T10:00:00Z' },
+    ])
+    getChatThread.mockResolvedValue({ id: 'conv-1', messages: [], votes: {} })
+
+    const { getByLabelText, getByTestId } = render(<ChatBubble chatEnabled={true} />)
+    fireEvent.click(getByLabelText('Open chat assistant'))
+    await waitFor(() => {
+      expect(getByTestId('chat-thread').getAttribute('data-conversation-id')).toBe('conv-1')
+    })
+
+    // Open the history dropdown (Radix opens on pointerdown), then delete the row.
+    fireEvent.pointerDown(
+      getByLabelText('Chat history'),
+      { pointerId: 1, button: 0, ctrlKey: false },
+    )
+    await waitFor(() => expect(getByLabelText('Delete conversation')).toBeTruthy())
+    fireEvent.click(getByLabelText('Delete conversation'))
+
+    await waitFor(() => expect(deleteChatConversation).toHaveBeenCalledWith('conv-1'))
+    // The deleted conversation was active → the thread resets to a fresh chat.
     expect(getByTestId('chat-thread').getAttribute('data-conversation-id')).toBe('')
   })
 })

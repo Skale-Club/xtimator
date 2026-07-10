@@ -13,12 +13,15 @@
 import type { UIMessage } from 'ai'
 import type { ChatMessageRow } from '@/lib/queries/chat'
 
-/** Seed persisted history into useChat({ messages }). User/assistant rows only. */
+/** Seed persisted history into useChat({ messages }). User/assistant rows only.
+ *  Prefers the persisted client_id so reloads keep the LIVE session's message
+ *  ids (votes / edit / regenerate stay keyed correctly); pre-migration rows
+ *  fall back to the DB uuid. */
 export function toUIMessages(rows: ChatMessageRow[]): UIMessage[] {
   return rows
     .filter((r) => r.role === 'user' || r.role === 'assistant')
     .map((r) => ({
-      id: r.id,
+      id: r.client_id ?? r.id,
       role: r.role as 'user' | 'assistant',
       parts: (Array.isArray(r.parts) ? r.parts : []) as UIMessage['parts'],
     }))

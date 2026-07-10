@@ -29,7 +29,12 @@ import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { useTranslation } from '@/lib/i18n/use-translation'
-import { createChatConversation } from '@/lib/actions/chat'
+import {
+  createChatConversation,
+  voteChatMessage,
+  editChatMessage,
+  truncateChatFrom,
+} from '@/lib/actions/chat'
 import { ChatMessage } from '@/components/chat/chat-message'
 import { ChatComposer } from '@/components/chat/chat-composer'
 
@@ -60,11 +65,14 @@ function describeChatError(raw: string): string {
 export function ChatThread({
   conversationId,
   initialMessages,
+  initialVotes = {},
   embedded = false,
   onConversationCreated,
 }: {
   conversationId: string | null
   initialMessages: UIMessage[]
+  /** This owner's persisted votes for the seeded history (UIMessage id → 👍/👎). */
+  initialVotes?: Record<string, boolean>
   /** Bubble mode: no route navigation on conversation create. */
   embedded?: boolean
   /** Notifies the host (e.g. the bubble's history menu) of a pre-created conversation. */
@@ -73,8 +81,9 @@ export function ChatThread({
   const router = useRouter()
   const { t } = useTranslation()
   const [activeId, setActiveId] = useState<string | null>(conversationId)
+  const [votes, setVotes] = useState<Record<string, boolean>>(initialVotes)
 
-  const { messages, sendMessage, status, stop } = useChat({
+  const { messages, sendMessage, status, stop, regenerate } = useChat({
     id: activeId ?? undefined,
     messages: initialMessages,
     transport: new DefaultChatTransport({
@@ -133,6 +142,37 @@ export function ChatThread({
     sendMessage({ text: value }, { body: { conversationId: convId } })
   }
 
+  // ── Message actions (AI-chatbot parity) ────────────────────────────────────
+
+  function handleVote(messageId: string, isUpvoted: boolean) {
+    if (!activeId) return
+    // Optimistic — a failed persist just leaves the local highlight; harmless.
+    setVotes((v) => ({ ...v, [messageId]: isUpvoted }))
+    void voteChatMessage({ conversationId: activeId, messageId, isUpvoted })
+  }
+
+  async function handleEdit(messageId: string, text: string) {
+    if (busy) return
+    // Server first: rewrite the edited row + drop what followed, so the resend's
+    // onFinish appends onto a consistent history.
+    if (activeId) {
+      await editChatMessage({ conversationId: activeId, messageId, text })
+    }
+    // sendMessage({ messageId }) replaces the message and truncates after it.
+    sendMessage({ text, messageId }, { body: { conversationId: activeId } })
+  }
+
+  async function handleRegenerate(messageId: string) {
+    if (busy) return
+    // Server first: drop the old assistant turn (inclusive) before re-requesting.
+    if (activeId) {
+      await truncateChatFrom({ conversationId: activeId, messageId })
+    }
+    void regenerate({ messageId, body: { conversationId: activeId } })
+  }
+
+  const lastAssistantId = [...messages].reverse().find((m) => m.role === 'assistant')?.id
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {/* Messages */}
@@ -158,7 +198,19 @@ export function ChatThread({
             </div>
           </div>
         ) : (
-          messages.map((m) => <ChatMessage key={m.id} message={m} />)
+          messages.map((m) => (
+            <ChatMessage
+              key={m.id}
+              message={m}
+              busy={busy}
+              vote={votes[m.id]}
+              onVote={activeId ? handleVote : undefined}
+              onEdit={m.role === 'user' ? (id, text) => void handleEdit(id, text) : undefined}
+              onRegenerate={
+                m.id === lastAssistantId ? (id) => void handleRegenerate(id) : undefined
+              }
+            />
+          ))
         )}
         <div ref={endRef} />
       </div>

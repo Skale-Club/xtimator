@@ -30,6 +30,7 @@ import {
   History,
   Sparkles,
   Loader2,
+  Trash2,
 } from 'lucide-react'
 import type { UIMessage } from 'ai'
 import { cn } from '@/lib/utils'
@@ -44,6 +45,7 @@ import {
 import {
   listChatConversations,
   getChatThread,
+  deleteChatConversation,
   type ChatConversationSummary,
 } from '@/lib/actions/chat'
 import { ChatThread } from '@/components/chat/chat-thread'
@@ -51,6 +53,7 @@ import { ChatThread } from '@/components/chat/chat-thread'
 interface ThreadState {
   id: string | null
   messages: UIMessage[]
+  votes: Record<string, boolean>
   /** Remount key — bumping it resets useChat state across switches (mirrors
    *  the /chat page's key={activeId ?? 'new'} contract). */
   key: number
@@ -63,7 +66,12 @@ export function ChatBubble({ chatEnabled }: { chatEnabled: boolean }) {
   const [loading, setLoading] = useState(false)
   const [loadedOnce, setLoadedOnce] = useState(false)
   const [conversations, setConversations] = useState<ChatConversationSummary[]>([])
-  const [thread, setThread] = useState<ThreadState>({ id: null, messages: [], key: 0 })
+  const [thread, setThread] = useState<ThreadState>({
+    id: null,
+    messages: [],
+    votes: {},
+    key: 0,
+  })
 
   async function openPanel() {
     setOpen(true)
@@ -78,7 +86,9 @@ export function ChatBubble({ chatEnabled }: { chatEnabled: boolean }) {
       setConversations(convs)
       if (convs[0]) {
         const th = await getChatThread(convs[0].id)
-        if (th) setThread((s) => ({ id: th.id, messages: th.messages, key: s.key + 1 }))
+        if (th) {
+          setThread((s) => ({ id: th.id, messages: th.messages, votes: th.votes, key: s.key + 1 }))
+        }
       }
       setLoadedOnce(true)
     } finally {
@@ -91,14 +101,23 @@ export function ChatBubble({ chatEnabled }: { chatEnabled: boolean }) {
     setLoading(true)
     try {
       const th = await getChatThread(id)
-      if (th) setThread((s) => ({ id: th.id, messages: th.messages, key: s.key + 1 }))
+      if (th) {
+        setThread((s) => ({ id: th.id, messages: th.messages, votes: th.votes, key: s.key + 1 }))
+      }
     } finally {
       setLoading(false)
     }
   }
 
   function newChat() {
-    setThread((s) => ({ id: null, messages: [], key: s.key + 1 }))
+    setThread((s) => ({ id: null, messages: [], votes: {}, key: s.key + 1 }))
+  }
+
+  async function removeConversation(id: string) {
+    // Optimistic removal; the delete cascades messages + votes server-side.
+    setConversations((list) => list.filter((c) => c.id !== id))
+    if (id === thread.id) newChat()
+    await deleteChatConversation(id)
   }
 
   function onConversationCreated() {
@@ -177,9 +196,23 @@ export function ChatBubble({ chatEnabled }: { chatEnabled: boolean }) {
                         <DropdownMenuItem
                           key={c.id}
                           onSelect={() => void selectConversation(c.id)}
-                          className={cn(thread.id === c.id && 'bg-muted/60')}
+                          className={cn('group/item gap-2', thread.id === c.id && 'bg-muted/60')}
                         >
-                          <span className="truncate">{c.title ?? t('Untitled chat')}</span>
+                          <span className="min-w-0 flex-1 truncate">
+                            {c.title ?? t('Untitled chat')}
+                          </span>
+                          <button
+                            type="button"
+                            aria-label={t('Delete conversation')}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              e.preventDefault()
+                              void removeConversation(c.id)
+                            }}
+                            className="shrink-0 rounded p-1 text-muted-foreground transition-colors hover:text-destructive"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
                         </DropdownMenuItem>
                       ))
                     )}
@@ -229,6 +262,7 @@ export function ChatBubble({ chatEnabled }: { chatEnabled: boolean }) {
               key={thread.key}
               conversationId={thread.id}
               initialMessages={thread.messages}
+              initialVotes={thread.votes}
               embedded
               onConversationCreated={onConversationCreated}
             />

@@ -56,6 +56,8 @@ vi.mock('@/lib/chat/system-prompt', () => ({
 vi.mock('@/lib/queries/chat', () => ({
   createConversation: vi.fn(),
   appendMessage: vi.fn(),
+  // Insert-once guard for the turn's user message: null = not yet persisted.
+  findMessageRow: vi.fn(async () => null),
 }))
 
 // --- Rate limit (pre-launch audit fix B9) — allowed by default; individual
@@ -71,7 +73,7 @@ vi.mock('@/lib/billing/billing-config', () => ({
 import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { resolveChatModel } from '@/lib/chat/provider'
-import { createConversation, appendMessage } from '@/lib/queries/chat'
+import { createConversation, appendMessage, findMessageRow } from '@/lib/queries/chat'
 import { POST } from '@/app/api/chat/route'
 
 const getActiveCompanyIdMock = vi.mocked(getActiveCompanyId)
@@ -79,6 +81,7 @@ const requireServiceClientMock = vi.mocked(requireServiceClient)
 const resolveChatModelMock = vi.mocked(resolveChatModel)
 const createConversationMock = vi.mocked(createConversation)
 const appendMessageMock = vi.mocked(appendMessage)
+const findMessageRowMock = vi.mocked(findMessageRow)
 
 /** A chainable service-client mock that resolves the companies row. */
 function makeServiceClientMock(companyRow: unknown) {
@@ -137,6 +140,7 @@ beforeEach(() => {
   resolveChatModelMock.mockResolvedValue(makeMockModel() as never)
   createConversationMock.mockResolvedValue({ id: 'conv-1' } as never)
   appendMessageMock.mockResolvedValue({ id: 'msg-1' } as never)
+  findMessageRowMock.mockResolvedValue(null)
 })
 
 describe('POST /api/chat', () => {
@@ -239,7 +243,7 @@ describe('POST /api/chat', () => {
     await new Response(res.body).text() // drain so onFinish settles within the test
   })
 
-  it('persists the new assistant tail via appendMessage after the stream drains (conversationId present)', async () => {
+  it('persists the user turn + assistant tail via appendMessage after the stream drains (conversationId present)', async () => {
     const res = await POST(
       chatRequest({ messages: [userMessage], conversationId: 'conv-existing' }),
     )
@@ -248,10 +252,28 @@ describe('POST /api/chat', () => {
     await new Response(res.body).text()
 
     expect(createConversationMock).not.toHaveBeenCalled()
-    expect(appendMessageMock).toHaveBeenCalled()
-    const call = appendMessageMock.mock.calls[0][0]
-    expect(call.conversationId).toBe('conv-existing')
-    expect(call.role).toBe('assistant')
+    // The turn's user message persists first (insert-once by client id), then
+    // the new assistant tail — so history reloads include BOTH sides.
+    const roles = appendMessageMock.mock.calls.map((c) => c[0].role)
+    expect(roles[0]).toBe('user')
+    expect(roles).toContain('assistant')
+    for (const call of appendMessageMock.mock.calls) {
+      expect(call[0].conversationId).toBe('conv-existing')
+      expect(call[0].clientId).toBeTruthy()
+    }
+  })
+
+  it('skips re-persisting a user message that already has a row (edit/regenerate resend)', async () => {
+    findMessageRowMock.mockResolvedValueOnce({ id: 'row-1' } as never)
+
+    const res = await POST(
+      chatRequest({ messages: [userMessage], conversationId: 'conv-existing' }),
+    )
+    await new Response(res.body).text()
+
+    const roles = appendMessageMock.mock.calls.map((c) => c[0].role)
+    expect(roles).not.toContain('user')
+    expect(roles).toContain('assistant')
   })
 
   it('creates the conversation first when conversationId is absent, then persists', async () => {

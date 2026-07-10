@@ -41,6 +41,7 @@ import { CHAT_SYSTEM_PROMPT } from '@/lib/chat/system-prompt'
 import {
   createConversation,
   appendMessage,
+  findMessageRow,
   type ChatRole,
 } from '@/lib/queries/chat'
 import { getEntitlements } from '@/lib/entitlements'
@@ -147,6 +148,10 @@ export async function POST(req: Request) {
   //    response, so the whole block is best-effort (try/catch + console.warn).
   return result.toUIMessageStreamResponse({
     originalMessages: messages,
+    // Server-generated response-message id: the client adopts it from the start
+    // chunk, so the LIVE UIMessage id and the persisted client_id below are the
+    // SAME id — votes/edit/regenerate keyed client-side survive a reload.
+    generateMessageId: () => crypto.randomUUID(),
     onFinish: async ({ messages: full }) => {
       try {
         // Resolve the conversation: create one when the client did not supply an id.
@@ -157,13 +162,32 @@ export async function POST(req: Request) {
           convId = conv.id
         }
 
-        // Persist only the NEW tail (the assistant/tool turn appended this round).
+        // The turn's user message is NOT in the tail (the client sent it inside
+        // `messages`) — persist it here, insert-once by UIMessage id so an
+        // edit-resend (whose row editChatMessage already rewrote) or a
+        // regenerate (same user message re-sent) never duplicates the row.
+        const lastUser = [...messages].reverse().find((m) => m.role === 'user')
+        if (lastUser) {
+          const existing = await findMessageRow(convId, lastUser.id)
+          if (!existing) {
+            await appendMessage({
+              conversationId: convId,
+              role: 'user',
+              parts: lastUser.parts,
+              clientId: lastUser.id,
+            })
+          }
+        }
+
+        // Persist the NEW tail (the assistant/tool turn appended this round).
+        // clientId keeps the UIMessage id across reloads (votes/edit/regenerate).
         const tail = full.slice(messages.length)
         for (const m of tail) {
           await appendMessage({
             conversationId: convId,
             role: m.role as ChatRole,
             parts: m.parts,
+            clientId: m.id,
           })
         }
       } catch (err) {
