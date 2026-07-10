@@ -40,9 +40,14 @@ function blobToBase64(blob: Blob): Promise<string> {
 export function ChatComposer({
   onSend,
   busy,
+  streaming = false,
+  onStop,
 }: {
   onSend: (text: string) => void
   busy: boolean
+  /** The assistant is mid-stream — the send slot becomes a Stop button. */
+  streaming?: boolean
+  onStop?: () => void
 }) {
   const { t } = useTranslation()
   const [text, setText] = useState('')
@@ -54,7 +59,9 @@ export function ChatComposer({
   const chunksRef = useRef<Blob[]>([])
   const photoInputRef = useRef<HTMLInputElement>(null)
 
-  // Disabled while the parent thread is streaming OR while we normalize media.
+  // Gates SUBMIT + media buttons while the parent thread is streaming or while
+  // we normalize media. The textarea itself only locks during normalization
+  // (its result overwrites the draft) — typing stays open mid-stream.
   const disabled = busy || normalizing
 
   function submitText() {
@@ -195,24 +202,38 @@ export function ChatComposer({
           }
         }}
         placeholder={t('Type a message…')}
-        disabled={disabled}
+        // Typing stays open while the assistant streams (only submit is gated) —
+        // media normalization still locks the field (its result overwrites text).
+        disabled={normalizing}
         aria-label={t('Message')}
         className="max-h-32 min-h-[40px] flex-1 resize-none"
       />
 
-      <Button
-        type="button"
-        onClick={submitText}
-        disabled={disabled || text.trim().length === 0}
-        size="icon"
-        aria-label={t('Send')}
-      >
-        {normalizing ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
-        ) : (
-          <Send className="h-4 w-4" />
-        )}
-      </Button>
+      {streaming && onStop ? (
+        <Button
+          type="button"
+          onClick={onStop}
+          size="icon"
+          variant="outline"
+          aria-label={t('Stop generating')}
+        >
+          <Square className="h-4 w-4" />
+        </Button>
+      ) : (
+        <Button
+          type="button"
+          onClick={submitText}
+          disabled={disabled || text.trim().length === 0}
+          size="icon"
+          aria-label={t('Send')}
+        >
+          {normalizing ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Send className="h-4 w-4" />
+          )}
+        </Button>
+      )}
     </div>
   )
 }

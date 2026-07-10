@@ -1,10 +1,11 @@
 /**
- * Dormant in-app Chat structural fence.
+ * In-app Chat scope fence (bubble activation).
  *
- * The UI is intentionally hidden while the underlying backend remains dormant:
- * the owner route redirects to Dashboard, tenant navigation has no Chat entry,
- * and no public route may mount chat UI. The existing API retains its owner
- * authentication and entitlement gates as defense in depth.
+ * The chat is ACTIVE, but only through the ChatBubble mounted in the authed
+ * app-shell layout — there is deliberately NO dedicated /chat surface:
+ * the owner route still redirects to Dashboard, tenant navigation has no Chat
+ * entry, and no public route may mount chat UI. The API retains its owner
+ * authentication and entitlement gates as the security boundary.
  */
 import { describe, expect, it } from 'vitest'
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
@@ -49,12 +50,19 @@ function collectSourceFiles(dirRel: string): string[] {
 
 const FORBIDDEN_CHAT_TOKENS = ['ChatWorkspace', '@/components/chat', '/api/chat']
 
-describe('dormant chat scope fence', () => {
+describe('chat scope fence (bubble-only surface)', () => {
   it('redirects the owner chat page without loading chat UI', () => {
     const src = read(CHAT_PAGE_PATH)
     expect(src).toContain("redirect('/dashboard')")
     expect(src).not.toContain('ChatWorkspace')
     expect(src).not.toContain('listConversations')
+  })
+
+  it('mounts the chat bubble in the authed app-shell layout, demo-hidden', () => {
+    const src = read('app/(app)/layout.tsx')
+    expect(src).toContain('ChatBubble')
+    expect(src).toContain('!isDemo && <ChatBubble')
+    expect(src).toContain('chatEnabled={getEntitlements(tier).chatEnabled}')
   })
 
   it('does not expose /chat in tenant navigation', () => {

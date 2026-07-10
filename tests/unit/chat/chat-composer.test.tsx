@@ -60,14 +60,35 @@ describe('ChatComposer (CHATUI-01/03)', () => {
     expect(textarea.value).toBe('')
   })
 
-  it('disables the composer while busy (status !== ready)', () => {
+  it('gates submit while busy but keeps the textarea open for typing', () => {
     const onSend = vi.fn()
     const { container } = render(<ChatComposer onSend={onSend} busy={true} />)
     const textarea = container.querySelector('textarea') as HTMLTextAreaElement
-    expect(textarea.disabled).toBe(true)
+    // Typing stays available during a streaming turn (Vercel AI Chatbot parity);
+    // only submission is gated.
+    expect(textarea.disabled).toBe(false)
 
     const sendBtn = container.querySelector('button[aria-label="Send"]') as HTMLButtonElement
     expect(sendBtn.disabled).toBe(true)
+
+    fireEvent.change(textarea, { target: { value: 'queued question' } })
+    fireEvent.keyDown(textarea, { key: 'Enter', shiftKey: false })
+    expect(onSend).not.toHaveBeenCalled()
+  })
+
+  it('swaps Send for a Stop button while streaming and fires onStop', () => {
+    const onSend = vi.fn()
+    const onStop = vi.fn()
+    const { container } = render(
+      <ChatComposer onSend={onSend} busy={true} streaming={true} onStop={onStop} />,
+    )
+    expect(container.querySelector('button[aria-label="Send"]')).toBeNull()
+    const stopBtn = container.querySelector(
+      'button[aria-label="Stop generating"]',
+    ) as HTMLButtonElement
+    expect(stopBtn).toBeTruthy()
+    fireEvent.click(stopBtn)
+    expect(onStop).toHaveBeenCalledTimes(1)
   })
 
   it('photo path: compresses → normalizeChatInput({kind:photo}) → injects returned text', async () => {

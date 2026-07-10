@@ -25,6 +25,7 @@ function row(partial: Partial<ChatMessageRow>): ChatMessageRow {
     role: 'user',
     parts: [],
     attachments: null,
+    client_id: null,
     created_at: '2026-06-25T00:00:00Z',
     ...partial,
   }
@@ -33,6 +34,15 @@ function row(partial: Partial<ChatMessageRow>): ChatMessageRow {
 describe('toUIMessages (CHATUI-02 history seed)', () => {
   it('returns [] for empty input', () => {
     expect(toUIMessages([])).toEqual([])
+  })
+
+  it('prefers the persisted client_id as the UIMessage id (uuid fallback when null)', () => {
+    const out = toUIMessages([
+      row({ id: 'db-uuid-1', client_id: 'ui-msg-1', role: 'user', parts: [] }),
+      row({ id: 'db-uuid-2', client_id: null, role: 'assistant', parts: [] }),
+    ])
+    // Live-session ids survive the reload → votes/edit/regenerate stay keyed.
+    expect(out.map((m) => m.id)).toEqual(['ui-msg-1', 'db-uuid-2'])
   })
 
   it('preserves order of user/assistant rows', () => {

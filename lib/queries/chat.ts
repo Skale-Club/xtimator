@@ -36,6 +36,8 @@ export interface ChatMessageRow {
   role: ChatRole
   parts: unknown
   attachments: unknown | null
+  /** The AI SDK UIMessage id the client generated (null on pre-migration rows). */
+  client_id: string | null
   created_at: string
 }
 
@@ -124,6 +126,8 @@ export async function appendMessage(args: {
   role: ChatRole
   parts: unknown
   attachments?: unknown | null
+  /** UIMessage id from the client/stream — persisted so reloads keep the same ids. */
+  clientId?: string | null
 }): Promise<ChatMessageRow | null> {
   const companyId = await getActiveCompanyId()
   if (!companyId) return null
@@ -138,6 +142,7 @@ export async function appendMessage(args: {
       role: args.role,
       parts: args.parts ?? [],
       attachments: args.attachments ?? null,
+      client_id: args.clientId ?? null,
     })
     .select('*')
     .single()
@@ -150,4 +155,187 @@ export async function appendMessage(args: {
     .eq('company_id', companyId)
 
   return (data as ChatMessageRow) ?? null
+}
+
+/** True when the conversation exists, belongs to the active company AND this owner.
+ *  The cheap ownership gate the write actions (edit/truncate/vote/delete) run
+ *  before touching rows — chat threads are owner-private within a company. */
+export async function ownsConversation(
+  conversationId: string,
+  userId: string,
+): Promise<boolean> {
+  const companyId = await getActiveCompanyId()
+  if (!companyId) return false
+  const svc = createServiceClient()
+  if (!svc) return false
+
+  const { data } = await svc
+    .from('chat_conversations')
+    .select('id')
+    .eq('id', conversationId)
+    .eq('company_id', companyId)
+    .eq('user_id', userId)
+    .maybeSingle()
+
+  return !!data
+}
+
+/** Delete one conversation (messages/votes cascade), tenant + owner scoped. */
+export async function deleteConversation(
+  conversationId: string,
+  userId: string,
+): Promise<boolean> {
+  const companyId = await getActiveCompanyId()
+  if (!companyId) return false
+  const svc = createServiceClient()
+  if (!svc) return false
+
+  const { error } = await svc
+    .from('chat_conversations')
+    .delete()
+    .eq('id', conversationId)
+    .eq('company_id', companyId)
+    .eq('user_id', userId)
+
+  return !error
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/**
+ * Resolve a UIMessage id to its persisted row within one conversation.
+ * New rows match on client_id; pre-migration history rows seed the DB uuid as
+ * the UIMessage id, so a uuid-shaped miss falls back to the primary key.
+ */
+export async function findMessageRow(
+  conversationId: string,
+  messageId: string,
+): Promise<ChatMessageRow | null> {
+  const companyId = await getActiveCompanyId()
+  if (!companyId) return null
+  const svc = createServiceClient()
+  if (!svc) return null
+
+  const { data: byClientId } = await svc
+    .from('chat_messages')
+    .select('*')
+    .eq('conversation_id', conversationId)
+    .eq('company_id', companyId)
+    .eq('client_id', messageId)
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+  if (byClientId) return byClientId as ChatMessageRow
+
+  if (!UUID_RE.test(messageId)) return null
+  const { data: byId } = await svc
+    .from('chat_messages')
+    .select('*')
+    .eq('conversation_id', conversationId)
+    .eq('company_id', companyId)
+    .eq('id', messageId)
+    .maybeSingle()
+  return (byId as ChatMessageRow) ?? null
+}
+
+/** Replace one persisted message's parts (the edit-user-message rewrite). */
+export async function updateMessageParts(
+  rowId: string,
+  conversationId: string,
+  parts: unknown,
+): Promise<boolean> {
+  const companyId = await getActiveCompanyId()
+  if (!companyId) return false
+  const svc = createServiceClient()
+  if (!svc) return false
+
+  const { error } = await svc
+    .from('chat_messages')
+    .update({ parts })
+    .eq('id', rowId)
+    .eq('conversation_id', conversationId)
+    .eq('company_id', companyId)
+
+  return !error
+}
+
+/**
+ * Delete a conversation's persisted tail from an anchor row's created_at —
+ * inclusive (regenerate: the old assistant turn goes too) or exclusive (edit:
+ * the edited user row is UPDATED in place, only what followed it goes).
+ * Keeps the DB in sync with the client-side truncation sendMessage({messageId})
+ * / regenerate() perform, so a reload never resurrects replaced turns.
+ */
+export async function deleteMessagesFrom(args: {
+  conversationId: string
+  fromCreatedAt: string
+  inclusive: boolean
+}): Promise<boolean> {
+  const companyId = await getActiveCompanyId()
+  if (!companyId) return false
+  const svc = createServiceClient()
+  if (!svc) return false
+
+  let query = svc
+    .from('chat_messages')
+    .delete()
+    .eq('conversation_id', args.conversationId)
+    .eq('company_id', companyId)
+  query = args.inclusive
+    ? query.gte('created_at', args.fromCreatedAt)
+    : query.gt('created_at', args.fromCreatedAt)
+  const { error } = await query
+
+  return !error
+}
+
+/** Upsert one owner's 👍/👎 on a message (keyed by UIMessage id). */
+export async function upsertMessageVote(args: {
+  conversationId: string
+  messageId: string
+  userId: string
+  isUpvoted: boolean
+}): Promise<boolean> {
+  const companyId = await getActiveCompanyId()
+  if (!companyId) return false
+  const svc = createServiceClient()
+  if (!svc) return false
+
+  const { error } = await svc.from('chat_message_votes').upsert(
+    {
+      conversation_id: args.conversationId,
+      company_id: companyId,
+      user_id: args.userId,
+      message_id: args.messageId,
+      is_upvoted: args.isUpvoted,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'conversation_id,message_id,user_id' },
+  )
+
+  return !error
+}
+
+/** One conversation's votes for one owner, as UIMessage-id → is_upvoted. */
+export async function listMessageVotes(
+  conversationId: string,
+  userId: string,
+): Promise<Record<string, boolean>> {
+  const companyId = await getActiveCompanyId()
+  if (!companyId) return {}
+  const svc = createServiceClient()
+  if (!svc) return {}
+
+  const { data } = await svc
+    .from('chat_message_votes')
+    .select('message_id, is_upvoted')
+    .eq('conversation_id', conversationId)
+    .eq('company_id', companyId)
+    .eq('user_id', userId)
+
+  const out: Record<string, boolean> = {}
+  for (const row of (data ?? []) as { message_id: string; is_upvoted: boolean }[]) {
+    out[row.message_id] = row.is_upvoted
+  }
+  return out
 }
