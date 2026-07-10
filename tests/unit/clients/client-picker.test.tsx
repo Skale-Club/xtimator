@@ -163,4 +163,68 @@ describe('ClientPicker (DOCUX-02, DOCUX-03)', () => {
     fireEvent.click(screen.getByRole('button', { name: /link client/i }))
     await screen.findByText('No clients found.')
   })
+
+  it('renders cell variant — "+ Add client" trigger when no client is linked', async () => {
+    render(<ClientPicker projectId="p1" currentClientId={null} variant="cell" />)
+    const trigger = screen.getByText('+ Add client')
+    fireEvent.click(trigger)
+    // Opens the same search popover as the other variants, without Unlink
+    await screen.findByText('Acme')
+    expect(screen.queryByText('Unlink client')).toBeNull()
+  })
+
+  it('renders cell variant — client name as trigger; opening exposes list + Unlink footer', async () => {
+    render(
+      <ClientPicker projectId="p1" currentClientId="c1" clientName="Acme" variant="cell" />
+    )
+    expect(screen.queryByText('+ Add client')).toBeNull()
+    const trigger = screen.getByRole('button', { name: 'Acme' })
+    fireEvent.click(trigger)
+    await screen.findByText('Bravo')
+    expect(screen.getByText('Unlink client')).toBeTruthy()
+  })
+
+  it('cell variant — selecting a different client calls linkProjectToClient (change client)', async () => {
+    render(
+      <ClientPicker projectId="project-1" currentClientId="c1" clientName="Acme" variant="cell" />
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Acme' }))
+    const bravo = await screen.findByText('Bravo')
+    const item = bravo.closest('[cmdk-item]') ?? bravo
+    fireEvent.click(item)
+    await waitFor(() => {
+      expect(mockLink).toHaveBeenCalledWith('project-1', 'c2')
+    })
+  })
+
+  it('cell variant — Unlink footer calls unlinkProjectFromClient', async () => {
+    render(
+      <ClientPicker projectId="project-1" currentClientId="c1" clientName="Acme" variant="cell" />
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Acme' }))
+    const unlink = await screen.findByText('Unlink client')
+    fireEvent.click(unlink)
+    await waitFor(() => {
+      expect(mockUnlink).toHaveBeenCalledWith('project-1')
+    })
+  })
+
+  it('onCreateNew renders a "New client" footer action that closes the popover and fires the callback', async () => {
+    const onCreateNew = vi.fn()
+    render(
+      <ClientPicker
+        projectId="p1"
+        currentClientId={null}
+        variant="cell"
+        onCreateNew={onCreateNew}
+      />
+    )
+    fireEvent.click(screen.getByText('+ Add client'))
+    const newClient = await screen.findByText('New client')
+    fireEvent.click(newClient)
+    expect(onCreateNew).toHaveBeenCalledTimes(1)
+    await waitFor(() => {
+      expect(screen.queryByText('New client')).toBeNull()
+    })
+  })
 })
