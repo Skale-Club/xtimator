@@ -26,9 +26,10 @@ vi.mock('@/lib/i18n/language-context', () => ({
   useLanguage: () => ({
     language: currentLanguage,
     setLanguage: vi.fn(),
-    pendingCount: 0,
-    setPendingCount: setPendingCountMock,
   }),
+  // useTranslation now bumps the pending count via the dedicated setter hook
+  // (split out of useLanguage so count changes don't re-render every consumer).
+  useSetTranslationPending: () => setPendingCountMock,
 }))
 
 // Import after mocks

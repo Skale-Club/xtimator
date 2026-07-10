@@ -1,10 +1,10 @@
 'use client'
 
 import { Loader2 } from 'lucide-react'
-import { useLanguage } from '@/lib/i18n/language-context'
+import { useTranslationPendingCount } from '@/lib/i18n/language-context'
 
 export function TranslationLoadingOverlay() {
-  const { pendingCount } = useLanguage()
+  const pendingCount = useTranslationPendingCount()
 
   if (pendingCount === 0) return null
 
