@@ -6,7 +6,7 @@ import { BlogContent } from '@/components/blog/blog-content'
 import { Card } from '@/components/ui/card'
 import { SiteShell } from '@/components/site/site-shell'
 
-export const dynamic = 'force-dynamic'
+export const revalidate = 3600
 
 export async function generateMetadata(): Promise<Metadata> {
   const page = await getLegalPage('privacy_policy')

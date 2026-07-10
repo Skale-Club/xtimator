@@ -3,16 +3,28 @@
 import { useEffect, useState } from 'react'
 import dynamic from 'next/dynamic'
 import type { LandingContent } from '@/lib/platform-config'
-import { FinalCtaSection } from '@/components/landing/final-cta-section'
-import { FeaturesSection } from '@/components/landing/features-section'
 import { HeroSection } from '@/components/landing/hero-section'
-import { HowItWorksSection } from '@/components/landing/how-it-works-section'
 import { TrustBar } from '@/components/landing/trust-bar'
 import { LandingFooter } from '@/components/landing/landing-footer'
 import { TopNav } from '@/components/landing/top-nav'
 
 const AuthDialog = dynamic(() =>
   import('@/components/landing/auth-dialog').then((module) => module.AuthDialog),
+)
+
+// Below-the-fold sections each pull in framer-motion. Loading them via
+// next/dynamic code-splits that dependency out of the landing page's initial
+// client chunk — the hero + trust bar (first paint) stay statically imported.
+// SSR stays enabled (default) so the content still renders server-side for SEO;
+// dynamic nonetheless splits the CLIENT chunk, deferring framer-motion.
+const HowItWorksSection = dynamic(() =>
+  import('@/components/landing/how-it-works-section').then((m) => m.HowItWorksSection),
+)
+const FeaturesSection = dynamic(() =>
+  import('@/components/landing/features-section').then((m) => m.FeaturesSection),
+)
+const FinalCtaSection = dynamic(() =>
+  import('@/components/landing/final-cta-section').then((m) => m.FinalCtaSection),
 )
 
 interface LandingPageProps {

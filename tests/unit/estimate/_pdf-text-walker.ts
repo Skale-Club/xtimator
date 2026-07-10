@@ -8,12 +8,16 @@
 import type { ReactElement, ReactNode } from 'react'
 import { Text as PDFText } from '@react-pdf/renderer'
 
+// ReactElement's props default to `unknown` in the React 19 types, so give the
+// walker a children-bearing element shape to index into.
+type ElementWithChildren = ReactElement<{ children?: ReactNode }>
+
 export function flattenText(children: ReactNode): string {
   if (children == null || typeof children === 'boolean') return ''
   if (typeof children === 'string' || typeof children === 'number') return String(children)
   if (Array.isArray(children)) return children.map(flattenText).join('')
   if (typeof children === 'object' && 'props' in (children as object)) {
-    return flattenText((children as ReactElement).props.children)
+    return flattenText((children as ElementWithChildren).props.children)
   }
   return ''
 }
@@ -22,7 +26,7 @@ export function collectTextNodes(node: ReactElement | ReactNode, out: string[]):
   if (node == null || typeof node === 'boolean') return
   if (Array.isArray(node)) { node.forEach((n) => collectTextNodes(n, out)); return }
   if (typeof node !== 'object' || !('props' in (node as object))) return
-  const el = node as ReactElement
+  const el = node as ElementWithChildren
   // @react-pdf/renderer exposes displayName='Text' on its Text primitive.
   // Also match by reference equality against the imported Text — either match
   // is sufficient (some builds omit displayName after minification).
@@ -31,5 +35,5 @@ export function collectTextNodes(node: ReactElement | ReactNode, out: string[]):
     out.push(flattenText(el.props.children))
     return
   }
-  collectTextNodes(el.props.children as ReactNode, out)
+  collectTextNodes(el.props.children, out)
 }

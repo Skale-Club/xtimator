@@ -1,10 +1,11 @@
 import { getBlogPosts } from '@/lib/queries/blog'
 import Link from 'next/link'
+import Image from 'next/image'
 import { Card } from '@/components/ui/card'
 import type { Metadata } from 'next'
 import { createPublicMetadata } from '@/lib/seo/metadata'
 
-export const dynamic = 'force-dynamic'
+export const revalidate = 300
 export const metadata: Metadata = createPublicMetadata({
   title: 'Estimating Guides for Service Businesses',
   description: 'Practical estimating, pricing, and proposal guidance for contractors and field service businesses.',
@@ -26,8 +27,15 @@ export default async function BlogListPage() {
             <article key={post.id}>
               <Card variant="glass" className="overflow-hidden p-0">
                 {post.cover_image_url && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={post.cover_image_url} alt={`Cover for ${post.title}`} className="w-full h-48 object-cover" />
+                  <div className="relative w-full h-48">
+                    <Image
+                      src={post.cover_image_url}
+                      alt={`Cover for ${post.title}`}
+                      fill
+                      sizes="(max-width: 768px) 100vw, 768px"
+                      className="object-cover"
+                    />
+                  </div>
                 )}
                 <div className="flex flex-col gap-2 p-6">
                   <h2 className="text-2xl font-semibold tracking-tight">

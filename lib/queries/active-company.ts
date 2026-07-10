@@ -1,4 +1,5 @@
 import 'server-only'
+import { cache } from 'react'
 import { cookies } from 'next/headers'
 import { unstable_cache } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
@@ -40,8 +41,14 @@ export const ACTIVE_COMPANY_COOKIE_OPTIONS = {
  * Returns null when the user is unauthenticated or has zero memberships.
  *
  * Side effect: writes the `active_company_id` cookie on fallback (D-06).
+ *
+ * Memoized per-request via React `cache()` (same pattern as getAuthClaims):
+ * nearly every route/action resolves the active company, so without this the
+ * cookie validation + membership lookup ran once per caller. `cache()` collapses
+ * them to a single resolution per request — the cookie-write side effect on
+ * fallback therefore also fires at most once per request.
  */
-export async function getActiveCompanyId(): Promise<string | null> {
+export const getActiveCompanyId = cache(async (): Promise<string | null> => {
   const claims = await getAuthClaims()
   if (!claims?.sub) return null
 
@@ -96,7 +103,7 @@ export async function getActiveCompanyId(): Promise<string | null> {
   }
 
   return fallback
-}
+})
 
 /**
  * Loads the full AppCompany row for the active company id, cached by activeCompanyId

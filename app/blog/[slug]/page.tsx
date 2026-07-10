@@ -1,13 +1,22 @@
 import { notFound } from 'next/navigation'
+import Image from 'next/image'
 import type { Metadata } from 'next'
-import { getBlogPost } from '@/lib/queries/blog'
+import { getBlogPost, getPublishedSlugs } from '@/lib/queries/blog'
 import { BlogContent } from '@/components/blog/blog-content'
 import { Card } from '@/components/ui/card'
 import { createPublicMetadata } from '@/lib/seo/metadata'
 import { JsonLd } from '@/components/seo/json-ld'
 import { articleSchema, breadcrumbSchema } from '@/lib/seo/structured-data'
 
-export const dynamic = 'force-dynamic'
+export const revalidate = 600
+
+// Pre-render the latest published posts at build; unknown/new slugs still render
+// on-demand and cache via the default dynamicParams behaviour, and getBlogPost()
+// returning null continues to trigger notFound() (404) for non-existent slugs.
+export async function generateStaticParams(): Promise<Array<{ slug: string }>> {
+  const slugs = await getPublishedSlugs(100)
+  return slugs.map((slug) => ({ slug }))
+}
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params
@@ -71,8 +80,16 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
             )}
           </header>
           {post.cover_image_url && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={post.cover_image_url} alt={`Cover for ${post.title}`} className="rounded-2xl w-full mb-10 object-cover max-h-80 border border-[var(--glass-border)] shadow-glass" />
+            <div className="relative w-full h-80 mb-10 rounded-2xl overflow-hidden border border-[var(--glass-border)] shadow-glass">
+              <Image
+                src={post.cover_image_url}
+                alt={`Cover for ${post.title}`}
+                fill
+                priority
+                sizes="(max-width: 768px) 100vw, 768px"
+                className="object-cover"
+              />
+            </div>
           )}
           <Card variant="glass" className="p-8 sm:p-10">
             <BlogContent markdown={post.content} />

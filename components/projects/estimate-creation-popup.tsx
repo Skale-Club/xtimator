@@ -1,6 +1,7 @@
 'use client'
 
 import { Suspense, useEffect, useState } from 'react'
+import dynamic from 'next/dynamic'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { Loader2, ArrowLeft } from 'lucide-react'
 import {
@@ -10,7 +11,22 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog'
-import { CaptureRecorder } from '@/components/capture/capture-recorder'
+
+// Lazy-loaded: the CaptureRecorder bundle (~1.5k LOC + the MediaRecorder
+// pipeline) is heavy and this popup is mounted on every authenticated page.
+// next/dynamic with ssr:false keeps that chunk out of the initial payload —
+// it only loads once the popup actually opens and renders the recorder.
+const CaptureRecorder = dynamic(
+  () => import('@/components/capture/capture-recorder').then((m) => m.CaptureRecorder),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex items-center justify-center py-16">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    ),
+  },
+)
 import { getProjectMinimalAction, renameProjectAction } from '@/lib/actions/project'
 import type { ProjectDetail } from '@/lib/queries/project'
 import { isPlaceholderName } from '@/lib/constants/project'

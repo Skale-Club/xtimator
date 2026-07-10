@@ -17,7 +17,12 @@ const localStorageMock = (() => {
 Object.defineProperty(global, 'localStorage', { value: localStorageMock })
 
 // Import after mocks
-import { LanguageProvider, useLanguage } from '@/lib/i18n/language-context'
+import {
+  LanguageProvider,
+  useLanguage,
+  useTranslationPendingCount,
+  useSetTranslationPending,
+} from '@/lib/i18n/language-context'
 
 // Helper consumer component
 function LanguageDisplay() {
@@ -117,8 +122,11 @@ describe('setLanguage', () => {
 })
 
 describe('pendingCount', () => {
+  // pendingCount moved out of useLanguage() into dedicated contexts so count
+  // bumps don't re-render every translated component — read via the new hooks.
   function PendingCountDisplay() {
-    const { pendingCount, setPendingCount } = useLanguage()
+    const pendingCount = useTranslationPendingCount()
+    const setPendingCount = useSetTranslationPending()
     return (
       <div>
         <span data-testid="pending">{pendingCount}</span>

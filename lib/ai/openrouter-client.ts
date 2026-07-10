@@ -46,6 +46,20 @@ const SITE_HEADERS = {
   'X-Title': 'Xtimator',
 }
 
+/**
+ * Request timeouts (ms) for the raw fetch AI calls. Without a signal a hung
+ * upstream connection would keep the request (and any Inngest step / route
+ * handler) open indefinitely. Budgets are deliberately generous — a too-short
+ * timeout that aborts a still-progressing request is worse than none.
+ *   - chat/vision/translation: 120s (a single completion).
+ *   - transcription: 300s (long job-site audio can legitimately take minutes).
+ * AbortSignal.timeout(...) rejects the fetch with a TimeoutError, which surfaces
+ * as a thrown error through the existing !res.ok / callWithFallback / caller
+ * catch paths — same handling as any other network failure.
+ */
+const AI_CHAT_TIMEOUT_MS = 120_000
+const AI_TRANSCRIBE_TIMEOUT_MS = 300_000
+
 /** Fetch and validate the OpenRouter API key. Throws if not configured. */
 export async function getORKey(): Promise<string> {
   const key = await getIntegrationKey('openrouter')
@@ -105,6 +119,7 @@ export async function transcribeAudioOR(
         model: orModel,
         input_audio: { data: base64, format: ext },
       }),
+      signal: AbortSignal.timeout(AI_TRANSCRIBE_TIMEOUT_MS),
     })
 
     if (!res.ok) {
@@ -138,6 +153,7 @@ export async function transcribeAudioOR(
       method: 'POST',
       headers: { Authorization: `Bearer ${apiKey}` },
       body: form,
+      signal: AbortSignal.timeout(AI_TRANSCRIBE_TIMEOUT_MS),
     })
 
     if (!res.ok) {
@@ -243,6 +259,7 @@ export async function analyzePhotoOR(
         ...SITE_HEADERS,
       },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(AI_CHAT_TIMEOUT_MS),
     })
 
     if (!res.ok) {
@@ -348,6 +365,7 @@ export async function translateTextsOR(
       ...SITE_HEADERS,
     },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(AI_CHAT_TIMEOUT_MS),
   })
 
   if (!res.ok) {

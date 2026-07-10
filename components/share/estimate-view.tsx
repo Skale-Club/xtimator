@@ -1,8 +1,10 @@
 'use client'
 
 import { useState } from 'react'
+import dynamic from 'next/dynamic'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
 import { CheckCircle, XCircle, Loader2, PenLine, Receipt, ExternalLink } from 'lucide-react'
 import { respondToEstimate } from '@/app/estimate/[token]/actions'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
@@ -15,18 +17,49 @@ import type { ComponentType } from 'react'
 import { FlagUS, FlagBR, FlagES } from '@/components/app-shell/flags'
 import { LANGUAGE_LABELS, type EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
 import { SignaturePad } from '@/components/share/signature-pad'
-import {
-  EstimateDocument,
-  type EstimateDocumentData,
-  type DocumentCompany,
-  type DocumentClient,
+import type {
+  EstimateDocumentData,
+  DocumentCompany,
+  DocumentClient,
 } from '@/components/workspace/estimate/estimate-document'
-import { EstimateDocumentModern } from '@/components/share/estimate-document-modern'
 import {
   type EstimateTemplateId,
   isEstimateTemplateId,
   DEFAULT_ESTIMATE_TEMPLATE_ID,
 } from '@/lib/estimate/templates/registry'
+
+// The public recipient page only ever renders ONE template. Statically
+// importing both shipped the classic editor (2k LOC + @dnd-kit) AND the modern
+// renderer to every visitor. next/dynamic splits each into its own chunk so
+// only the selected template's code is fetched. SSR stays enabled (default) so
+// the document still renders server-side for the recipient / SEO; dynamic
+// nonetheless code-splits the client chunk. A skeleton covers the client
+// hydration/lazy-load window.
+function DocumentSkeleton() {
+  return (
+    <div className="space-y-4 rounded-lg border border-border bg-card p-6" aria-busy>
+      <Skeleton className="h-6 w-48" />
+      <Skeleton className="h-4 w-64" />
+      <Skeleton className="h-40 w-full" />
+    </div>
+  )
+}
+
+const EstimateDocument = dynamic(
+  () =>
+    import('@/components/workspace/estimate/estimate-document').then(
+      (m) => m.EstimateDocument
+    ),
+  { loading: () => <DocumentSkeleton /> }
+)
+
+const EstimateDocumentModern = dynamic(
+  () =>
+    import('@/components/share/estimate-document-modern').then(
+      (m) => m.EstimateDocumentModern
+    ),
+  { loading: () => <DocumentSkeleton /> }
+)
 
 const FLAG_MAP_LANG: Record<string, ComponentType<{ className?: string }>> = {
   en: FlagUS,

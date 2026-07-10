@@ -79,7 +79,36 @@ export function isProtectedRoute(pathname: string): boolean {
   return PROTECTED_ROUTE_PREFIXES.some((prefix) => pathname.startsWith(prefix))
 }
 
+/**
+ * Machine-to-machine API routes that authenticate via their OWN mechanism
+ * (Stripe/webhook signatures, Inngest's X-Inngest-Signature, cron's CRON_SECRET
+ * bearer) or are fully public (health probes, browser CSP reports). They NEVER
+ * read a Supabase session, so they must not pay the getClaims() round-trip on
+ * every hit. This is a strict SUBSET of isPublicRoute — kept deliberately narrow
+ * (no '/', no '/api/mcp' whose 401 challenge flow still runs through the client)
+ * so only clearly claim-free paths short-circuit.
+ */
+function isClaimFreeApiRoute(pathname: string): boolean {
+  return (
+    pathname === '/api/webhooks' || pathname.startsWith('/api/webhooks/') ||
+    pathname === '/api/inngest' || pathname.startsWith('/api/inngest/') ||
+    pathname === '/api/cron' || pathname.startsWith('/api/cron/') ||
+    pathname === '/api/health' || pathname.startsWith('/api/health/') ||
+    pathname === '/api/csp-report'
+  )
+}
+
 export async function proxy(request: NextRequest) {
+  // Perf: short-circuit claim-free machine/public API routes BEFORE constructing
+  // the Supabase client + calling getClaims(). These endpoints authenticate
+  // themselves (signatures/bearer tokens) or are public probes, so the auth
+  // validation was pure overhead on every webhook/inngest/cron/health hit. The
+  // landing page '/' and all protected routes deliberately fall through below so
+  // the authed-'/'-→-/dashboard redirect and protected-route gating still run.
+  if (isClaimFreeApiRoute(request.nextUrl.pathname)) {
+    return NextResponse.next({ request })
+  }
+
   let supabaseResponse = NextResponse.next({ request })
 
   const supabase = createServerClient(

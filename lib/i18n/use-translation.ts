@@ -1,7 +1,7 @@
 'use client'
 
 import type { Dispatch, SetStateAction } from 'react'
-import { useLanguage } from './language-context'
+import { useLanguage, useSetTranslationPending } from './language-context'
 import { staticDict } from './translations'
 
 // Module-level in-memory cache — persists for browser session
@@ -109,7 +109,10 @@ function resolveAsync(
 }
 
 export function useTranslation() {
-  const { language, setPendingCount } = useLanguage()
+  const { language } = useLanguage()
+  // Read the stable setter only — NOT the count — so bumping pendingCount on
+  // each translation batch never re-renders this (ubiquitous) hook's consumers.
+  const setPendingCount = useSetTranslationPending()
 
   function t(text: string): string {
     // EN fast-path: return text unchanged with zero overhead

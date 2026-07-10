@@ -103,8 +103,30 @@ export function EstimateTab({
 
   useEffect(() => {
     if (!isAutoGenerating || currentEstimate) return
-    const id = setInterval(() => router.refresh(), 2000)
-    return () => clearInterval(id)
+    // The freshly generated estimate only becomes visible to this surface
+    // through an RSC refetch (router.refresh) — no estimate-generation jobId is
+    // threaded here (it's minted in a chained server-side Inngest step after
+    // transcription), so the lightweight /api/jobs/[jobId] status hook can't be
+    // wired at this layer. Instead of a flat 2s interval that refetched the
+    // whole route ~30x over a 30-60s generation, back off progressively:
+    // responsive early, gentle later. The effect re-runs and short-circuits at
+    // the guard above the moment `currentEstimate` lands, so refreshing stops
+    // immediately on completion.
+    let cancelled = false
+    let delay = 2000
+    const MAX_DELAY = 10000
+    let timer: ReturnType<typeof setTimeout>
+    const tick = () => {
+      if (cancelled) return
+      router.refresh()
+      delay = Math.min(Math.round(delay * 1.5), MAX_DELAY)
+      timer = setTimeout(tick, delay)
+    }
+    timer = setTimeout(tick, delay)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
   }, [isAutoGenerating, currentEstimate, router])
 
   useEffect(() => {

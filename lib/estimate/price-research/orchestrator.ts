@@ -208,14 +208,23 @@ export async function researchUnmatchedPrices(
     let providerUsable = 0
 
     // --- Step 1: cache pass (a HIT is free — no provider call, no allowance) ---
+    // Each cacheGet is independent, so fire them all in parallel (up to
+    // MAX_RESEARCH_ITEMS_PER_ESTIMATE reads) instead of awaiting one at a time,
+    // then partition into hits (re-tag) / misses. Promise.all preserves array
+    // order, so the misses list keeps its original researchTargets ordering.
+    const cacheReads = await Promise.all(
+      researchTargets.map(async (item) => {
+        try {
+          const cached = await cacheGet(ctx.companyId, item.description, ctx.region, ctx.currency)
+          return { item, cached }
+        } catch {
+          return { item, cached: null } // a cache read failure degrades to a MISS, never throws
+        }
+      })
+    )
+
     const misses: LineItemOutput[] = []
-    for (const item of researchTargets) {
-      let cached = null
-      try {
-        cached = await cacheGet(ctx.companyId, item.description, ctx.region, ctx.currency)
-      } catch {
-        cached = null // a cache read failure degrades to a MISS, never throws
-      }
+    for (const { item, cached } of cacheReads) {
       if (cached && isPriced(cached.unit_price)) {
         retag.set(item, { ...item, unit_price: cached.unit_price, price_source: 'researched' as const })
         cacheHits++ // telemetry: a free cache-hit re-tag

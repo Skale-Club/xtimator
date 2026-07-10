@@ -15,9 +15,9 @@ Sentry.init({
   replaysSessionSampleRate: 0.05,
   replaysOnErrorSampleRate: 1.0,
   enableLogs: true,
-  integrations: [
-    Sentry.replayIntegration({ maskAllText: true, blockAllMedia: true }),
-  ],
+  // Session Replay is loaded lazily AFTER init (see loadReplay below) so its
+  // ~50-70KB integration bundle stays out of the initial client payload for
+  // every visitor. The sample rates above still gate whether it records.
   ignoreErrors: [
     "ResizeObserver loop limit exceeded",
     "Non-Error promise rejection captured",
@@ -43,6 +43,21 @@ Sentry.init({
     return event;
   },
 });
+
+// Lazy-load Session Replay: fetch the integration bundle from the Sentry CDN
+// only after init instead of shipping it in the initial chunk. The sample rates
+// set in Sentry.init still control recording. Guarded + silent so a blocked/
+// failed CDN load (ad blocker, offline, CSP) never affects the app.
+if (process.env.NEXT_PUBLIC_SENTRY_DSN) {
+  void (async () => {
+    try {
+      const replayIntegration = await Sentry.lazyLoadIntegration("replayIntegration");
+      Sentry.addIntegration(replayIntegration({ maskAllText: true, blockAllMedia: true }));
+    } catch {
+      // Best-effort — Replay is a debugging aid, not a critical path.
+    }
+  })();
+}
 
 // Captures App Router client-side navigation transitions
 export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;

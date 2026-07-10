@@ -1,15 +1,31 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import dynamic from 'next/dynamic'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 
 import { resumeOrCreateDraftProjectAction, getProjectMinimalAction } from '@/lib/actions/project'
 import { createBlankEstimate } from '@/lib/actions/estimate'
 import { LoadingDots } from '@/components/ui/loading-dots'
-import { CaptureRecorder } from '@/components/capture/capture-recorder'
 import type { ProjectDetail } from '@/lib/queries/project'
 import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
+
+// Lazy-loaded: the CaptureRecorder bundle (~1.5k LOC + the MediaRecorder
+// pipeline) is heavy and this wizard is mounted on every authenticated page.
+// next/dynamic with ssr:false keeps that chunk out of the initial payload —
+// it only loads once the wizard has a project and renders the recorder.
+const CaptureRecorder = dynamic(
+  () => import('@/components/capture/capture-recorder').then((m) => m.CaptureRecorder),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex items-center justify-center py-16">
+        <LoadingDots className="text-muted-foreground" dotClassName="h-2.5 w-2.5" />
+      </div>
+    ),
+  },
+)
 
 // Persisted id of the in-progress draft project for the New Xtimate popup.
 // Reusing it across opens is what lets the typed text + uploaded photos survive
