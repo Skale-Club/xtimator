@@ -159,6 +159,40 @@ describe('POST /api/billing/create-checkout-session', () => {
     expect(mockStripe.checkout.sessions.create).not.toHaveBeenCalled()
   })
 
+  it('returns 502 and NEVER creates a fresh Checkout when both portal calls fail for a live subscriber', async () => {
+    const mockSupabase = makeSupabaseMock(
+      { sub: 'user-1', email: 'u@test.com' },
+      { id: 'company-1', stripe_customer_id: 'cus_1', stripe_subscription_id: 'sub_existing' }
+    )
+    vi.mocked(createClient).mockResolvedValue(mockSupabase as never)
+
+    const sessionCreate = vi.fn()
+    // Portal never configured: both the flow_data call and the plain fallback throw.
+    const portalCreate = vi.fn().mockRejectedValue(new Error('No portal configuration found'))
+    const mockStripe = {
+      checkout: { sessions: { create: sessionCreate } },
+      subscriptions: {
+        retrieve: vi.fn().mockResolvedValue({
+          id: 'sub_existing',
+          status: 'active',
+          items: { data: [{ id: 'si_1', price: { id: 'price_biz_test' } }] },
+        }),
+        cancel: vi.fn(),
+      },
+      billingPortal: { sessions: { create: portalCreate } },
+    }
+    vi.mocked(getStripeClient).mockResolvedValue(mockStripe as never)
+
+    const res = await POST(makeRequest({ plan: 'pro' }))
+    const body = await res.json()
+
+    expect(res.status).toBe(502)
+    expect(body.error).toMatch(/portal/i)
+    expect(portalCreate).toHaveBeenCalledTimes(2)
+    // The double-billing invariant: a live subscription must never gain a sibling.
+    expect(sessionCreate).not.toHaveBeenCalled()
+  })
+
   it('falls through to normal Checkout when retrieve fails (deleted subscription)', async () => {
     const mockSupabase = makeSupabaseMock(
       { sub: 'user-1', email: 'u@test.com' },
