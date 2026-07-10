@@ -138,6 +138,20 @@ describe('saveAutoTopupSettings (CREDITUI-07)', () => {
     )
   })
 
+  it('snapshots the selected pack price + credits so a later config reprice cannot change the charge', async () => {
+    const result = await saveAutoTopupSettings({ thresholdCredits: 200, packIndex: 2 })
+
+    expect(result).toEqual({ success: true })
+    // TOPUP_PACKS[2] === { credits: 7500, priceCents: 10000 }
+    expect(mockUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        auto_topup_pack_index: 2,
+        auto_topup_pack_price_cents: 10000,
+        auto_topup_pack_credits: 7500,
+      })
+    )
+  })
+
   it('returns the demo-blocked error when called by the shared demo session', async () => {
     vi.mocked(assertWritable).mockResolvedValue({ error: 'This is a read-only demo. Create a free account to make changes.' })
 

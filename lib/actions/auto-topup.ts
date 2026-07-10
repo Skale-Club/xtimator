@@ -76,12 +76,18 @@ export async function saveAutoTopupSettings(input: {
     return { error: 'Add a payment method before enabling auto top-up.' }
   }
 
+  // Snapshot the pack the tenant is authorizing (price + credits) so a later
+  // admin reorder/reprice of billing_config.topUpPacks cannot change what this
+  // company gets charged; auto_topup_pack_index is kept as a legacy fallback.
+  const selectedPack = cfg.topUpPacks[input.packIndex]
   const { error } = await svc
     .from('companies')
     .update({
       auto_topup_enabled: true,
       auto_topup_threshold_credits: input.thresholdCredits,
       auto_topup_pack_index: input.packIndex,
+      auto_topup_pack_price_cents: selectedPack.priceCents,
+      auto_topup_pack_credits: selectedPack.credits,
     })
     .eq('id', ctx.companyId)
 

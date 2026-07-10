@@ -82,7 +82,7 @@ export async function triggerAutoTopupIfNeeded(input: {
     const { data: co } = await svc
       .from('companies')
       .select(
-        'auto_topup_enabled, auto_topup_threshold_credits, auto_topup_pack_index, stripe_customer_id, auto_topup_last_failed_at, auto_topup_last_charge_attempt_at'
+        'auto_topup_enabled, auto_topup_threshold_credits, auto_topup_pack_index, auto_topup_pack_price_cents, auto_topup_pack_credits, stripe_customer_id, auto_topup_last_failed_at, auto_topup_last_charge_attempt_at'
       )
       .eq('id', input.companyId)
       .maybeSingle()
@@ -91,6 +91,8 @@ export async function triggerAutoTopupIfNeeded(input: {
       auto_topup_enabled?: boolean
       auto_topup_threshold_credits?: number | null
       auto_topup_pack_index?: number | null
+      auto_topup_pack_price_cents?: number | null
+      auto_topup_pack_credits?: number | null
       stripe_customer_id?: string | null
       auto_topup_last_failed_at?: string | null
       auto_topup_last_charge_attempt_at?: string | null
@@ -133,6 +135,8 @@ export async function triggerAutoTopupIfNeeded(input: {
         companyId: input.companyId,
         stripeCustomerId: company.stripe_customer_id,
         packIndex: company.auto_topup_pack_index,
+        packPriceCents: company.auto_topup_pack_price_cents ?? null,
+        packCredits: company.auto_topup_pack_credits ?? null,
       })
     } finally {
       await releaseAutoTopupLock(input.companyId)
@@ -157,6 +161,8 @@ async function chargeAutoTopup(input: {
   companyId: string
   stripeCustomerId: string
   packIndex: number
+  packPriceCents?: number | null
+  packCredits?: number | null
 }): Promise<void> {
   const svc = requireServiceClient()
   try {
@@ -172,10 +178,20 @@ async function chargeAutoTopup(input: {
       throw new Error('no payment method on file')
     }
 
-    const cfg = await getBillingConfig()
-    const pack = cfg.topUpPacks[input.packIndex]
-    if (!pack) {
-      throw new Error(`invalid auto_topup_pack_index ${input.packIndex}`)
+    // Charge what the tenant authorized: prefer the per-company snapshot
+    // (price + credits captured at save time) so a later admin reorder/reprice
+    // of billing_config.topUpPacks cannot change the amount. Legacy rows with a
+    // null snapshot fall back to the index lookup (original behavior).
+    let pack: { priceCents: number; credits: number }
+    if (input.packPriceCents != null && input.packCredits != null) {
+      pack = { priceCents: input.packPriceCents, credits: input.packCredits }
+    } else {
+      const cfg = await getBillingConfig()
+      const configPack = cfg.topUpPacks[input.packIndex]
+      if (!configPack) {
+        throw new Error(`invalid auto_topup_pack_index ${input.packIndex}`)
+      }
+      pack = configPack
     }
 
     // Deterministic per-hour idempotency key: dedupes retried Stripe API calls

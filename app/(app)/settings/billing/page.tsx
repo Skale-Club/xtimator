@@ -6,6 +6,7 @@ import { getBillingData } from '@/lib/queries/billing'
 import { getActiveCompany } from '@/lib/queries/active-company'
 import { getCreditOverview } from '@/lib/queries/credits'
 import { getBillingConfig } from '@/lib/billing/billing-config'
+import { getStripeDisplayPrices } from '@/lib/billing/stripe-display-prices'
 import { getStripeClient } from '@/lib/billing/stripe-client'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { computeUsagePercent } from '@/lib/billing/usage-percent'
@@ -50,10 +51,11 @@ export default async function BillingPage() {
 
   // Billing data, credits, and config are independent of one another once the
   // company id is known — fetch them in parallel.
-  const [data, credits, cfg] = await Promise.all([
+  const [data, credits, cfg, stripePrices] = await Promise.all([
     getBillingData(company.id),
     getCreditOverview(company.id),
     getBillingConfig(),
+    getStripeDisplayPrices(),
   ])
 
   if (!data) {
@@ -65,13 +67,16 @@ export default async function BillingPage() {
       ? cfg.signupCreditGrant
       : cfg.tiers[data.tier as 'pro' | 'business']?.monthlyCreditGrant ?? 0
   const percentUsed = computeUsagePercent({ balance: credits.balance, cycleGrant })
+  // Invariant: the tier card must show what Stripe will actually charge — the
+  // live Stripe price (when resolvable) OVERRIDES the billing_config price;
+  // null Stripe slots fall back to config exactly as before.
   const annualPrices = {
-    pro: cfg.tiers.pro.subscriptionPriceAnnualCents,
-    business: cfg.tiers.business.subscriptionPriceAnnualCents,
+    pro: stripePrices.pro.yearCents ?? cfg.tiers.pro.subscriptionPriceAnnualCents,
+    business: stripePrices.business.yearCents ?? cfg.tiers.business.subscriptionPriceAnnualCents,
   }
   const monthlyPricesCents = {
-    pro: cfg.tiers.pro.subscriptionPriceCents,
-    business: cfg.tiers.business.subscriptionPriceCents,
+    pro: stripePrices.pro.monthCents ?? cfg.tiers.pro.subscriptionPriceCents,
+    business: stripePrices.business.monthCents ?? cfg.tiers.business.subscriptionPriceCents,
   }
 
   // Auto-top-up (CREDITUI-07) — read-only display data for the AutoTopupCard,
@@ -82,6 +87,8 @@ export default async function BillingPage() {
     auto_topup_enabled?: boolean | null
     auto_topup_threshold_credits?: number | null
     auto_topup_pack_index?: number | null
+    auto_topup_pack_price_cents?: number | null
+    auto_topup_pack_credits?: number | null
     auto_topup_last_failed_at?: string | null
     stripe_customer_id?: string | null
   } | null = null
@@ -92,7 +99,7 @@ export default async function BillingPage() {
     const { data: autoTopupRow } = await svc
       .from('companies')
       .select(
-        'auto_topup_enabled, auto_topup_threshold_credits, auto_topup_pack_index, auto_topup_last_failed_at, stripe_customer_id'
+        'auto_topup_enabled, auto_topup_threshold_credits, auto_topup_pack_index, auto_topup_pack_price_cents, auto_topup_pack_credits, auto_topup_last_failed_at, stripe_customer_id'
       )
       .eq('id', company.id)
       .maybeSingle()
@@ -120,11 +127,17 @@ export default async function BillingPage() {
     }
   }
 
+  // Prefer the per-company price snapshot (what the tenant authorized) over the
+  // live index lookup, so a later admin reorder/reprice doesn't misreport the
+  // amount we'll charge; fall back to the index for legacy (null-snapshot) rows.
   const autoTopupPack =
     autoTopupCompany?.auto_topup_pack_index != null
       ? cfg.topUpPacks[autoTopupCompany.auto_topup_pack_index]
       : null
-  const autoTopupPackAmount = autoTopupPack ? formatUsd(autoTopupPack.priceCents) : null
+  const autoTopupPackPriceCents =
+    autoTopupCompany?.auto_topup_pack_price_cents ?? autoTopupPack?.priceCents ?? null
+  const autoTopupPackAmount =
+    autoTopupPackPriceCents != null ? formatUsd(autoTopupPackPriceCents) : null
   const autoTopupThresholdAmount =
     autoTopupCompany?.auto_topup_threshold_credits != null
       ? formatUsd(autoTopupCompany.auto_topup_threshold_credits)

@@ -17,6 +17,8 @@ let companyRow: {
   auto_topup_enabled?: boolean
   auto_topup_threshold_credits?: number | null
   auto_topup_pack_index?: number | null
+  auto_topup_pack_price_cents?: number | null
+  auto_topup_pack_credits?: number | null
   stripe_customer_id?: string | null
 } | null = null
 
@@ -143,6 +145,57 @@ describe('CREDITUI-07: never-throws under failure', () => {
       triggerAutoTopupIfNeeded({ companyId: COMPANY, newBalance: 50 })
     ).resolves.toBeUndefined()
     expect(paymentIntentsCreate).not.toHaveBeenCalled()
+  })
+})
+
+// =============================================================================
+// Pack snapshot: the company must be charged/granted what it authorized at save
+// time, independent of any later admin reorder/reprice of billing_config packs.
+// =============================================================================
+describe('CREDITUI-07: pack snapshot (charge what was authorized)', () => {
+  it('charges the per-company snapshot price/credits over the config pack when both are present', async () => {
+    // Snapshot says $50 / 3500 credits; the live config pack at index 0 is a
+    // DIFFERENT $20 / 1300 — the charge must use the snapshot, not the config.
+    companyRow = {
+      auto_topup_enabled: true,
+      auto_topup_threshold_credits: 100,
+      auto_topup_pack_index: 0,
+      auto_topup_pack_price_cents: 5000,
+      auto_topup_pack_credits: 3500,
+      stripe_customer_id: 'cus_test',
+    }
+    billingConfig = {
+      autoTopupEnabled: true,
+      topUpPacks: [{ credits: 1300, priceCents: 2000 }],
+    }
+
+    await triggerAutoTopupIfNeeded({ companyId: COMPANY, newBalance: 50 })
+
+    expect(paymentIntentsCreate).toHaveBeenCalledTimes(1)
+    expect(paymentIntentsCreate.mock.calls[0][0]).toMatchObject({ amount: 5000 })
+    expect(paymentIntentsCreate.mock.calls[0][0].metadata).toMatchObject({ credits: '3500' })
+  })
+
+  it('falls back to the config pack (index lookup) when the snapshot is absent (legacy row)', async () => {
+    // No snapshot columns — legacy company. Charge resolves from config index 0.
+    companyRow = {
+      auto_topup_enabled: true,
+      auto_topup_threshold_credits: 100,
+      auto_topup_pack_index: 0,
+      auto_topup_pack_price_cents: null,
+      auto_topup_pack_credits: null,
+      stripe_customer_id: 'cus_test',
+    }
+    billingConfig = {
+      autoTopupEnabled: true,
+      topUpPacks: [{ credits: 1300, priceCents: 2000 }],
+    }
+
+    await triggerAutoTopupIfNeeded({ companyId: COMPANY, newBalance: 50 })
+
+    expect(paymentIntentsCreate).toHaveBeenCalledTimes(1)
+    expect(paymentIntentsCreate.mock.calls[0][0]).toMatchObject({ amount: 2000 })
+    expect(paymentIntentsCreate.mock.calls[0][0].metadata).toMatchObject({ credits: '1300' })
   })
 })
 
