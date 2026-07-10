@@ -135,21 +135,23 @@ export async function getEstimateWithContext(
   const estimate = await getEstimateById(supabase, estimateId)
   if (!estimate) return null
 
-  const { data: project } = await supabase
-    .from('projects')
-    .select(
-      'name, project_type, client:clients(name, email, phone, address, city, state, zip)'
-    )
-    .eq('id', estimate.project_id)
-    .single()
-
-  const { data: company } = await supabase
-    .from('companies')
-    .select(
-      'name, owner_name, phone, email, website, address, city, state, zip, logo_url, brand_primary_color, estimate_terms_enabled, estimate_terms_text, estimate_template_style'
-    )
-    .eq('id', estimate.company_id)
-    .single()
+  // The project and company selects are independent — fetch them in parallel.
+  const [{ data: project }, { data: company }] = await Promise.all([
+    supabase
+      .from('projects')
+      .select(
+        'name, project_type, client:clients(name, email, phone, address, city, state, zip)'
+      )
+      .eq('id', estimate.project_id)
+      .single(),
+    supabase
+      .from('companies')
+      .select(
+        'name, owner_name, phone, email, website, address, city, state, zip, logo_url, brand_primary_color, estimate_terms_enabled, estimate_terms_text, estimate_template_style'
+      )
+      .eq('id', estimate.company_id)
+      .single(),
+  ])
 
   return { estimate, project, company }
 }

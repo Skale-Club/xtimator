@@ -199,12 +199,16 @@ function makeSupabaseMock({
     }
 
     if (table === 'estimate_sections') {
+      // Sections are bulk-inserted (.insert(rows).select('id')) and the service
+      // guards that the returned row count matches the payload, so echo one id
+      // per inserted row.
       return {
-        insert: vi.fn().mockReturnValue({
-          select: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({ data: { id: 'section-1' }, error: null }),
+        insert: vi.fn().mockImplementation((rows: unknown[]) => ({
+          select: vi.fn().mockResolvedValue({
+            data: rows.map((_row, i) => ({ id: `section-${i + 1}` })),
+            error: null,
           }),
-        }),
+        })),
       }
     }
 

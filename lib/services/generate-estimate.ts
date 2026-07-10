@@ -513,62 +513,71 @@ export async function generateEstimateForProject(
     })
   }
 
-  // Insert sections and items
-  for (let sIdx = 0; sIdx < calculatedSections.length; sIdx++) {
-    const section = calculatedSections[sIdx]
+  // Insert sections and items in exactly two round-trips (was 2×S sequential).
+  // 1) Bulk-insert every section, RETURNING ids in insertion order.
+  // 2) Bulk-insert every item across all sections in one call, mapping each item
+  //    to its section id by position. sort_order fields are preserved exactly:
+  //    sIdx for sections, iIdx for items within a section.
+  const sectionInsertRows = calculatedSections.map((section, sIdx) => ({
+    estimate_id: estimateId,
+    company_id: companyId,
+    title: section.title,
+    sort_order: sIdx,
+    subtotal: section.subtotal,
+  }))
 
-    const { data: sectionRow, error: sectionError } = await supabase
+  let sectionIds: string[] = []
+  if (sectionInsertRows.length > 0) {
+    const { data: sectionRows, error: sectionsError } = await supabase
       .from('estimate_sections')
-      .insert({
-        estimate_id: estimateId,
-        company_id: companyId,
-        title: section.title,
-        sort_order: sIdx,
-        subtotal: section.subtotal,
-      })
+      .insert(sectionInsertRows)
       .select('id')
-      .single()
 
-    if (sectionError || !sectionRow) {
+    // PostgREST returns the inserted rows in the SAME order as the payload for a
+    // single INSERT, so index i ↔ calculatedSections[i]. Guard the length so a
+    // partial/reordered result can never silently misattach items.
+    if (sectionsError || !sectionRows || sectionRows.length !== sectionInsertRows.length) {
       throw new Error('Failed to save estimate section')
     }
+    sectionIds = sectionRows.map((row) => row.id as string)
+  }
 
-    const sectionId = sectionRow.id as string
+  const itemInsertRows = calculatedSections.flatMap((section, sIdx) => {
+    const sectionId = sectionIds[sIdx]
+    return section.items.map((item, iIdx) => ({
+      section_id: sectionId,
+      company_id: companyId,
+      description: item.description,
+      quantity: item.quantity,
+      unit: item.unit ?? null,
+      unit_price: item.unit_price,
+      total: item.total,
+      sort_order: iIdx,
+      price_source: item.price_source,
+      // TAX-03: persist the AI's per-item classification into the dormant Phase 129 columns.
+      // These survive AI → anchoring → research → compute via the `...item` spreads. Defaults
+      // (taxable=true, tax_category=null) keep retrocompat rows byte-identical.
+      taxable: item.taxable ?? true,
+      tax_category: item.tax_category ?? null,
+      // DISC-01: persist the per-item line discount (AI INPUT, amount) — survives AI → anchoring →
+      // research → compute via the ...item spreads. Default 0 keeps retrocompat rows byte-identical.
+      discount: (item.discount as number | undefined) ?? 0,
+      // MARK-01: persist the AI's cost + markup_pct (inputs) so the price book / editor can show how
+      // the unit_price was derived. Survive AI → anchoring → research → compute via the ...item spreads.
+      // null when absent (byte-identical retrocompat — the Phase-129 columns are nullable). The
+      // persisted unit_price above already carries the server-resolved price from compute-totals (Task 2).
+      cost: (item.cost as number | undefined) ?? null,
+      markup_pct: (item.markup_pct as number | undefined) ?? null,
+    }))
+  })
 
-    if (section.items.length > 0) {
-      const itemRows = section.items.map((item, iIdx) => ({
-        section_id: sectionId,
-        company_id: companyId,
-        description: item.description,
-        quantity: item.quantity,
-        unit: item.unit ?? null,
-        unit_price: item.unit_price,
-        total: item.total,
-        sort_order: iIdx,
-        price_source: item.price_source,
-        // TAX-03: persist the AI's per-item classification into the dormant Phase 129 columns.
-        // These survive AI → anchoring → research → compute via the `...item` spreads. Defaults
-        // (taxable=true, tax_category=null) keep retrocompat rows byte-identical.
-        taxable: item.taxable ?? true,
-        tax_category: item.tax_category ?? null,
-        // DISC-01: persist the per-item line discount (AI INPUT, amount) — survives AI → anchoring →
-        // research → compute via the ...item spreads. Default 0 keeps retrocompat rows byte-identical.
-        discount: (item.discount as number | undefined) ?? 0,
-        // MARK-01: persist the AI's cost + markup_pct (inputs) so the price book / editor can show how
-        // the unit_price was derived. Survive AI → anchoring → research → compute via the ...item spreads.
-        // null when absent (byte-identical retrocompat — the Phase-129 columns are nullable). The
-        // persisted unit_price above already carries the server-resolved price from compute-totals (Task 2).
-        cost: (item.cost as number | undefined) ?? null,
-        markup_pct: (item.markup_pct as number | undefined) ?? null,
-      }))
+  if (itemInsertRows.length > 0) {
+    const { error: itemsError } = await supabase
+      .from('estimate_items')
+      .insert(itemInsertRows)
 
-      const { error: itemsError } = await supabase
-        .from('estimate_items')
-        .insert(itemRows)
-
-      if (itemsError) {
-        throw new Error('Failed to save estimate items')
-      }
+    if (itemsError) {
+      throw new Error('Failed to save estimate items')
     }
   }
 
@@ -587,10 +596,6 @@ export async function generateEstimateForProject(
   // to before. projects.status is unconstrained TEXT (no migration).
   const projectStatus =
     flaggedUnpriced > 0 && safeGrandTotal > 0 ? 'awaiting_details' : 'estimate_ready'
-  await supabase
-    .from('projects')
-    .update({ status: projectStatus, total: safeGrandTotal })
-    .eq('id', projectId)
 
   // QUICK-mv1-01 — zero side effects on discard: rename + project_type + mismatch
   // logging moved from the pre-persist position (formerly here, before the AI
@@ -606,47 +611,49 @@ export async function generateEstimateForProject(
     sections: calculatedSections,
   })
 
+  // Consolidate the up-to-4 sequential project writes (status/total, re-select
+  // name, name patch, project_type) into ONE combined UPDATE. status + total are
+  // always written; name + project_type join the same statement conditionally.
+  // detected_trade is captured here so the trade-mismatch activity log below can
+  // reuse it without an extra derivation.
+  const projectUpdate: Record<string, unknown> = {
+    status: projectStatus,
+    total: safeGrandTotal,
+  }
+
+  // detected_trade: the trade of the REQUESTED work, independent of
+  // company.industry (soft prior — lib/ai/prompt-builder.ts). Persisted so
+  // project_type reflects reality even when industry was configured for a
+  // different trade.
+  const detectedTrade = !passIsVague
+    ? aiEstimate.detected_trade?.trim().toLowerCase() || null
+    : null
+
   if (!passIsVague) {
     // Patch project name only if it's still the eager-create placeholder (D-05).
-    if (aiEstimate.suggested_project_name?.trim()) {
-      const { data: currentProject } = await supabase
-        .from('projects')
-        .select('name')
-        .eq('id', projectId)
-        .single()
-      if (
-        currentProject?.name &&
-        currentProject.name.startsWith(PLACEHOLDER_PREFIX)
-      ) {
-        await supabase
-          .from('projects')
-          .update({ name: aiEstimate.suggested_project_name.trim() })
-          .eq('id', projectId)
-      }
+    // Reuse the already-loaded `project` row rather than re-selecting: nothing in
+    // this function mutates projects.name between the top-of-function load and
+    // here, so project.name is the authoritative current value.
+    const suggestedName = aiEstimate.suggested_project_name?.trim()
+    const currentName = project.name as string | null
+    if (suggestedName && currentName && currentName.startsWith(PLACEHOLDER_PREFIX)) {
+      projectUpdate.name = suggestedName
     }
 
-    // detected_trade: the trade of the REQUESTED work, independent of
-    // company.industry (soft prior — lib/ai/prompt-builder.ts). Persisted so
-    // project_type reflects reality even when industry was configured for a
-    // different trade.
-    const detectedTrade =
-      aiEstimate.detected_trade?.trim().toLowerCase() || null
     if (detectedTrade) {
-      await supabase
-        .from('projects')
-        .update({ project_type: detectedTrade })
-        .eq('id', projectId)
+      projectUpdate.project_type = detectedTrade
     }
+  }
 
-    // trade_mismatch_detected: raw material for the future industry
-    // auto-suggestion UX (no UI in this task) — recorded only when both sides
-    // are known and disagree (case-insensitive).
+  await supabase.from('projects').update(projectUpdate).eq('id', projectId)
+
+  // trade_mismatch_detected: raw material for the future industry auto-suggestion
+  // UX (no UI in this task) — recorded only on a non-vague pass when both sides
+  // are known and disagree (case-insensitive). Separate table, so it stays its
+  // own write.
+  if (!passIsVague && detectedTrade) {
     const configuredIndustry = company.industry?.trim().toLowerCase() || null
-    if (
-      detectedTrade &&
-      configuredIndustry &&
-      detectedTrade !== configuredIndustry
-    ) {
+    if (configuredIndustry && detectedTrade !== configuredIndustry) {
       await supabase.from('estimate_activity').insert({
         project_id: projectId,
         company_id: companyId,

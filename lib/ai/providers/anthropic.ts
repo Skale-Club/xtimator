@@ -13,7 +13,11 @@ export class AnthropicAdapter implements AIProvider {
     const apiKey = await getIntegrationKey('anthropic')
     if (!apiKey) throw new Error('Anthropic API key not configured')
 
-    const anthropic = new Anthropic({ apiKey })
+    // Bound each request: without an explicit timeout the SDK would wait on a
+    // hung upstream connection indefinitely, holding the route/Inngest step open.
+    // maxRetries lets the SDK transparently retry transient failures (incl. an
+    // aborted request) before the error surfaces to with-fallback's error path.
+    const anthropic = new Anthropic({ apiKey, timeout: 120_000, maxRetries: 2 })
 
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
@@ -120,7 +124,11 @@ export class AnthropicAdapter implements AIProvider {
     const apiKey = await getIntegrationKey('anthropic')
     if (!apiKey) throw new Error('Anthropic API key not configured')
 
-    const anthropic = new Anthropic({ apiKey })
+    // Bound each request: without an explicit timeout the SDK would wait on a
+    // hung upstream connection indefinitely, holding the route/Inngest step open.
+    // maxRetries lets the SDK transparently retry transient failures (incl. an
+    // aborted request) before the error surfaces to with-fallback's error path.
+    const anthropic = new Anthropic({ apiKey, timeout: 120_000, maxRetries: 2 })
 
     // HARD-02/UNIFY-02: refine reuses the SHARED prompt builder — all live
     // adapters share one prompt source (no bespoke refine prompt anywhere). The

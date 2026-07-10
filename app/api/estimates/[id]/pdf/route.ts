@@ -23,7 +23,7 @@ const PDF_TEMPLATE_COMPONENTS: Record<EstimateTemplateId, typeof EstimatePDF> = 
 }
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -50,6 +50,29 @@ export async function GET(
     }
 
     const { estimate, project, company } = result
+
+    // PDF caching (lightweight ETag / 304 approach — see summary): the rendered
+    // bytes are a function of the estimate content (updated_at bumps on every
+    // edit), the selected template, and the label language. Emit an ETag over
+    // exactly those inputs; when the client re-requests an UNCHANGED estimate we
+    // answer 304 and skip the expensive renderToBuffer AND the preparedBy lookup
+    // + per-photo signed-URL resolution below. A full storage-object cache was
+    // deliberately avoided: this route's PDF varies by company branding /
+    // preparedBy / attached photos (none captured by estimate.updated_at) and is
+    // a DIFFERENT render than the send route's attachment, so a shared
+    // updated_at-keyed object would risk serving stale/wrong PDFs.
+    const rawTemplateId = (company as { estimate_template_style?: string }).estimate_template_style
+    const templateId: EstimateTemplateId = isEstimateTemplateId(rawTemplateId)
+      ? rawTemplateId
+      : DEFAULT_ESTIMATE_TEMPLATE_ID
+    const estimateLanguage = isSupportedLanguage(estimate.language) ? estimate.language : 'en'
+    const etag = `"est-${estimate.id}-${estimate.updated_at}-${templateId}-${estimateLanguage}"`
+    if (request.headers.get('if-none-match') === etag) {
+      return new Response(null, {
+        status: 304,
+        headers: { ETag: etag, 'Cache-Control': 'private, no-cache' },
+      })
+    }
 
     const projectName = project?.name ?? 'Untitled Project'
     const projectType = project?.project_type ?? null
@@ -87,15 +110,11 @@ export async function GET(
 
     // Resolve template component defensively — estimate_template_style may be an
     // unrecognized/legacy string once the live column exists, or absent from the
-    // TS-only-patched type at runtime before the migration is live.
-    const rawTemplateId = (company as { estimate_template_style?: string }).estimate_template_style
-    const templateId: EstimateTemplateId = isEstimateTemplateId(rawTemplateId)
-      ? rawTemplateId
-      : DEFAULT_ESTIMATE_TEMPLATE_ID
+    // TS-only-patched type at runtime before the migration is live. templateId +
+    // estimateLanguage were already resolved above for the ETag.
     const PDFComponent = PDF_TEMPLATE_COMPONENTS[templateId]
 
     // Render PDF to buffer — pass estimate language for localized labels
-    const estimateLanguage = isSupportedLanguage(estimate.language) ? estimate.language : 'en'
     const element = createElement(PDFComponent, {
       estimate,
       company,
@@ -118,7 +137,11 @@ export async function GET(
       headers: {
         'Content-Type': 'application/pdf',
         'Content-Disposition': `attachment; filename="Estimate-${safeProjectName}.pdf"`,
-        'Cache-Control': 'no-store',
+        // no-cache (not no-store) so the client keeps the body but revalidates
+        // against the ETag on the next download — an unchanged estimate then
+        // gets a 304 and no re-render.
+        'Cache-Control': 'private, no-cache',
+        ETag: etag,
       },
     })
   } catch (error) {

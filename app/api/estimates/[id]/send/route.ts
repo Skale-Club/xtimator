@@ -219,41 +219,41 @@ export async function POST(
       )
     }
 
-    // Log successful delivery
-    await svc.from('estimate_deliveries').insert({
-      estimate_id: id,
-      company_id: estimate.company_id,
-      channel: 'email',
-      format: format,
-      recipient_email: to,
-      subject,
-      provider: 'resend',
-      provider_message_id: sendData?.id ?? null,
-      status: 'sent',
-      sent_at: sentAt,
-    })
-
-    // Update estimate sent_at + refresh the share-link expiry (re-sending revives
-    // an expired link — the natural "regenerate link" path).
-    await supabase
-      .from('estimates')
-      .update({ sent_at: sentAt, share_expires_at: shareLinkExpiryFromNow() })
-      .eq('id', id)
-
-    // Update project status to 'sent'
-    await supabase
-      .from('projects')
-      .update({ status: 'sent' })
-      .eq('id', projectId)
-
-    // Log activity
-    await supabase.from('estimate_activity').insert({
-      project_id: projectId,
-      company_id: estimate.company_id,
-      estimate_id: id,
-      event_type: 'estimate_sent',
-      metadata: { to, subject, attach_pdf: attachPdf, channel: 'email' },
-    })
+    // The four post-send writes are independent — run them in parallel. Each is
+    // fire-and-forget (supabase returns { error } rather than throwing, and none
+    // was error-checked before), so semantics are preserved: individual DB
+    // failures don't fail the request, and the email has already been sent.
+    await Promise.all([
+      // Log successful delivery
+      svc.from('estimate_deliveries').insert({
+        estimate_id: id,
+        company_id: estimate.company_id,
+        channel: 'email',
+        format: format,
+        recipient_email: to,
+        subject,
+        provider: 'resend',
+        provider_message_id: sendData?.id ?? null,
+        status: 'sent',
+        sent_at: sentAt,
+      }),
+      // Update estimate sent_at + refresh the share-link expiry (re-sending revives
+      // an expired link — the natural "regenerate link" path).
+      supabase
+        .from('estimates')
+        .update({ sent_at: sentAt, share_expires_at: shareLinkExpiryFromNow() })
+        .eq('id', id),
+      // Update project status to 'sent'
+      supabase.from('projects').update({ status: 'sent' }).eq('id', projectId),
+      // Log activity
+      supabase.from('estimate_activity').insert({
+        project_id: projectId,
+        company_id: estimate.company_id,
+        estimate_id: id,
+        event_type: 'estimate_sent',
+        metadata: { to, subject, attach_pdf: attachPdf, channel: 'email' },
+      }),
+    ])
 
     // Revalidate project page
     revalidatePath(`/projects/${projectId}`)

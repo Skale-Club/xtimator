@@ -25,38 +25,44 @@ export async function getDashboardStats(
   supabase: SupabaseClient,
   companyId: string
 ): Promise<DashboardStats> {
-  // Total active projects (exclude archived + trashed; mirrors /projects "Active" view filter
-  // from getProjectsForListPage in lib/queries/project.ts).
-  const { count: totalProjects } = await supabase
-    .from('projects')
-    .select('*', { count: 'exact', head: true })
-    .eq('company_id', companyId)
-    .is('archived_at', null)
-    .is('deleted_at', null)
-
-  // Pending estimates (draft or sent, current version)
-  const { count: pendingEstimates } = await supabase
-    .from('estimates')
-    .select('*', { count: 'exact', head: true })
-    .eq('company_id', companyId)
-    .eq('is_current', true)
-    .in('status', ['draft', 'sent'])
-
-  // Accepted estimates (current version, client accepted)
-  const { count: acceptedEstimates } = await supabase
-    .from('estimates')
-    .select('*', { count: 'exact', head: true })
-    .eq('company_id', companyId)
-    .eq('is_current', true)
-    .eq('client_response', 'accepted')
-
-  // Total revenue (sum of accepted estimate totals)
-  const { data: acceptedData } = await supabase
-    .from('estimates')
-    .select('total')
-    .eq('company_id', companyId)
-    .eq('is_current', true)
-    .eq('client_response', 'accepted')
+  // The four aggregates are independent — run them in parallel (one round-trip
+  // of latency instead of four sequential ones).
+  const [
+    { count: totalProjects },
+    { count: pendingEstimates },
+    { count: acceptedEstimates },
+    { data: acceptedData },
+  ] = await Promise.all([
+    // Total active projects (exclude archived + trashed; mirrors /projects "Active" view
+    // filter from getProjectsForListPage in lib/queries/project.ts).
+    supabase
+      .from('projects')
+      .select('*', { count: 'exact', head: true })
+      .eq('company_id', companyId)
+      .is('archived_at', null)
+      .is('deleted_at', null),
+    // Pending estimates (draft or sent, current version)
+    supabase
+      .from('estimates')
+      .select('*', { count: 'exact', head: true })
+      .eq('company_id', companyId)
+      .eq('is_current', true)
+      .in('status', ['draft', 'sent']),
+    // Accepted estimates (current version, client accepted)
+    supabase
+      .from('estimates')
+      .select('*', { count: 'exact', head: true })
+      .eq('company_id', companyId)
+      .eq('is_current', true)
+      .eq('client_response', 'accepted'),
+    // Total revenue (sum of accepted estimate totals)
+    supabase
+      .from('estimates')
+      .select('total')
+      .eq('company_id', companyId)
+      .eq('is_current', true)
+      .eq('client_response', 'accepted'),
+  ])
 
   const totalRevenue = (acceptedData ?? []).reduce(
     (sum, row) => sum + (Number(row.total) || 0),
@@ -79,6 +85,15 @@ export async function getProjects(
   // project so the dashboard list can render a "Paid" badge without an
   // N+1 round-trip (Phase 70-05 polish — CONTEXT.md "Claude's Discretion"
   // green-lit this micro-feature).
+  //
+  // Intentionally UNBOUNDED (no .limit()): getProjects is shared by two
+  // consumers that both need the full active set —
+  //   1. the dashboard "Recent projects" list (components/dashboard/project-list.tsx)
+  //      filters by status and paginates ENTIRELY client-side over this array, so a
+  //      server-side cap would silently hide older projects from "Sent"/"Paid" filters;
+  //   2. app/demo/projects/page.tsx renders every row in one table (no pagination).
+  // A .limit() would break both, so the full active set is returned; the real
+  // /projects page uses the separately-paginated getProjectsForListPage instead.
   const { data } = await supabase
     .from('projects')
     .select(
