@@ -102,7 +102,7 @@ describe('POST /api/webhooks/stripe — signature verification (STRIPE-02)', () 
 })
 
 describe('POST /api/webhooks/stripe — checkout.session.completed (STRIPE-02)', () => {
-  it('updates companies.tier, stripe_customer_id, stripe_subscription_id, clears tier_trial_ends_at', async () => {
+  it('updates companies.tier, stripe_customer_id, stripe_subscription_id, clears tier_trial_ends_at AND tier_cancelled_at', async () => {
     mockConstructEvent.mockReturnValue({
       id: 'evt_checkout',
       type: 'checkout.session.completed',
@@ -126,6 +126,9 @@ describe('POST /api/webhooks/stripe — checkout.session.completed (STRIPE-02)',
         stripe_customer_id: 'cus_123',
         stripe_subscription_id: 'sub_456',
         tier_trial_ends_at: null,
+        // Re-subscribe after a lapse must clear the stale pending-cancel marker,
+        // or page.tsx renders "plan ends on <past date>" for an active payer.
+        tier_cancelled_at: null,
       })
     )
   })

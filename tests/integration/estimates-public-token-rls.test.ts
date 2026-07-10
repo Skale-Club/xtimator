@@ -10,7 +10,7 @@
  * Skip condition: env vars NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY
  * / NEXT_PUBLIC_SUPABASE_ANON_KEY absent (mirrors tests/integration/price-book-rls.test.ts).
  */
-import { describe, it, expect, afterAll } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -32,13 +32,27 @@ d('estimates.public_slug_token — RLS (Phase 160, PUBURL-03)', () => {
 
   let seededToken: string
   let seededCompanyId: string
+  // companies.user_id is NOT NULL and FK → auth.users(id) (initial_schema).
+  // Seed a throwaway auth user so the company insert satisfies both; deleted
+  // in afterAll (ON DELETE CASCADE also drops the company/project/estimate).
+  let seededUserId: string
+
+  beforeAll(async () => {
+    const { data: created, error: userErr } = await serviceClient.auth.admin.createUser({
+      email: `${E2E_PREFIX}${Date.now()}@test.xtimator.local`,
+      password: `pw-${Date.now()}`,
+      email_confirm: true,
+    })
+    expect(userErr).toBeNull()
+    seededUserId = created.user!.id
+  }, 30_000)
 
   it('setup: seed one company + estimate with a known public_slug_token', async () => {
     seededToken = `${E2E_PREFIX}${Date.now()}`
 
     const { data: company, error: companyErr } = await serviceClient
       .from('companies')
-      .insert({ name: `${E2E_PREFIX}co-${Date.now()}` })
+      .insert({ name: `${E2E_PREFIX}co-${Date.now()}`, user_id: seededUserId })
       .select('id')
       .single()
     expect(companyErr).toBeNull()
@@ -87,6 +101,10 @@ d('estimates.public_slug_token — RLS (Phase 160, PUBURL-03)', () => {
       await serviceClient.from('estimates').delete().eq('company_id', seededCompanyId)
       await serviceClient.from('projects').delete().eq('company_id', seededCompanyId)
       await serviceClient.from('companies').delete().eq('id', seededCompanyId)
+    }
+    // Drop the throwaway auth user (cascades to any rows we missed above).
+    if (seededUserId) {
+      try { await serviceClient.auth.admin.deleteUser(seededUserId) } catch { /* best-effort */ }
     }
   })
 })

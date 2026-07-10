@@ -48,6 +48,12 @@ import { requireServiceClient } from '@/lib/supabase/service'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { cookies as nextCookies } from 'next/headers'
 import { grantSignupCredits, grantMonthlyCredits } from '@/lib/billing/credit-ledger'
+// Static import (not a per-test `await import`): the action drags in a heavy
+// module graph (server-only, inngest client, email, price-book seed). Loading it
+// inside the FIRST test's body raced the 5s testTimeout under full-suite CPU
+// contention and flaked. vi.mock() is hoisted above imports, so the mocks above
+// still apply; the graph now loads once during collection, off the test clock.
+import { createOrUpdateCompany } from '@/lib/actions/company'
 
 // Capture what was passed to insert() or update()
 let capturedInsertRow: Record<string, unknown> | null = null
@@ -142,7 +148,6 @@ describe('createOrUpdateCompany — Billing v2 (mode: first regression)', () => 
   it('INSERT branch: writes NO trial clock and fires the one-time signup credit grant', async () => {
     vi.mocked(createClient).mockResolvedValue(makeSupabaseMock({ isNewCompany: true }) as never)
 
-    const { createOrUpdateCompany } = await import('@/lib/actions/company')
 
     await createOrUpdateCompany({ companyName: 'New Co' }).catch(() => {/* redirect throws */})
 
@@ -156,7 +161,6 @@ describe('createOrUpdateCompany — Billing v2 (mode: first regression)', () => 
   it('UPDATE branch: existing company does NOT get tier_trial_ends_at reset', async () => {
     vi.mocked(createClient).mockResolvedValue(makeSupabaseMock({ isNewCompany: false }) as never)
 
-    const { createOrUpdateCompany } = await import('@/lib/actions/company')
 
     await createOrUpdateCompany({ companyName: 'Existing Co' }).catch(() => {/* redirect throws */})
 
@@ -168,7 +172,6 @@ describe('createOrUpdateCompany — Billing v2 (mode: first regression)', () => 
     vi.mocked(createClient).mockResolvedValue(makeSupabaseMock({ isNewCompany: false }) as never)
     memberSelectMaybeSingle.mockResolvedValue({ data: null }) // no existing membership row
 
-    const { createOrUpdateCompany } = await import('@/lib/actions/company')
     await createOrUpdateCompany({ companyName: 'Existing Co' }).catch(() => {/* redirect throws */})
 
     expect(memberInsert).toHaveBeenCalledWith({
@@ -182,7 +185,6 @@ describe('createOrUpdateCompany — Billing v2 (mode: first regression)', () => 
     vi.mocked(createClient).mockResolvedValue(makeSupabaseMock({ isNewCompany: false }) as never)
     memberSelectMaybeSingle.mockResolvedValue({ data: { user_id: 'user-abc' } }) // already a member
 
-    const { createOrUpdateCompany } = await import('@/lib/actions/company')
     await createOrUpdateCompany({ companyName: 'Existing Co' }).catch(() => {/* redirect throws */})
 
     expect(memberInsert).not.toHaveBeenCalled()
@@ -276,7 +278,6 @@ describe('createOrUpdateCompany — mode: add (Phase 79 D-12/D-13/D-14/D-15)', (
       sourceTrialEndsAt: null,
       sourceCompanyId: 'existing-co',
     })
-    const { createOrUpdateCompany } = await import('@/lib/actions/company')
     await createOrUpdateCompany({ companyName: 'Second Co' }, { mode: 'add' }).catch(() => {})
     expect(capturedAddInsertRow).not.toBeNull()
     expect(capturedAddInsertRow!.name).toBe('Second Co')
@@ -287,7 +288,6 @@ describe('createOrUpdateCompany — mode: add (Phase 79 D-12/D-13/D-14/D-15)', (
       sourceTier: 'pro',
       sourceCompanyId: 'existing-co',
     })
-    const { createOrUpdateCompany } = await import('@/lib/actions/company')
     await createOrUpdateCompany({ companyName: 'Co' }, { mode: 'add' }).catch(() => {})
     expect(capturedMemberInsertRow).toEqual({
       user_id: 'user-abc',
@@ -301,7 +301,6 @@ describe('createOrUpdateCompany — mode: add (Phase 79 D-12/D-13/D-14/D-15)', (
       sourceTier: 'pro',
       sourceCompanyId: 'existing-co',
     })
-    const { createOrUpdateCompany } = await import('@/lib/actions/company')
     await createOrUpdateCompany({ companyName: 'Co' }, { mode: 'add' }).catch(() => {})
     expect(cookieSetSpy).toHaveBeenCalledWith(
       'active_company_id',
@@ -321,7 +320,6 @@ describe('createOrUpdateCompany — mode: add (Phase 79 D-12/D-13/D-14/D-15)', (
       sourceTrialEndsAt: null,
       sourceCompanyId: 'existing-co',
     })
-    const { createOrUpdateCompany } = await import('@/lib/actions/company')
     await createOrUpdateCompany({ companyName: 'Co' }, { mode: 'add' }).catch(() => {})
     expect(capturedAddInsertRow!.tier).toBe('pro')
     expect('tier_trial_ends_at' in capturedAddInsertRow!).toBe(false)
@@ -336,7 +334,6 @@ describe('createOrUpdateCompany — mode: add (Phase 79 D-12/D-13/D-14/D-15)', (
       sourceTrialEndsAt: null,
       sourceCompanyId: 'existing-co',
     })
-    const { createOrUpdateCompany } = await import('@/lib/actions/company')
     await createOrUpdateCompany({ companyName: 'Co' }, { mode: 'add' }).catch(() => {})
     expect(capturedAddInsertRow!.tier).toBe('free')
     expect('tier_trial_ends_at' in capturedAddInsertRow!).toBe(false)
@@ -350,7 +347,6 @@ describe('createOrUpdateCompany — mode: add (Phase 79 D-12/D-13/D-14/D-15)', (
       sourceTrialEndsAt: null,
       sourceCompanyId: 'existing-co',
     })
-    const { createOrUpdateCompany } = await import('@/lib/actions/company')
     await createOrUpdateCompany({ companyName: 'Co' }, { mode: 'add' }).catch(() => {})
     expect(capturedAddInsertRow!.tier).toBe('business')
     expect(grantMonthlyCredits).toHaveBeenCalledWith('new-company-id', 'business', 'company-added')
@@ -361,7 +357,6 @@ describe('createOrUpdateCompany — mode: add (Phase 79 D-12/D-13/D-14/D-15)', (
       sourceTier: 'pro',
       sourceCompanyId: 'existing-co',
     })
-    const { createOrUpdateCompany } = await import('@/lib/actions/company')
     // @ts-expect-error — intentionally pass a malicious user_id that should be ignored
     await createOrUpdateCompany({ companyName: 'Co', user_id: 'attacker-uid' }, { mode: 'add' }).catch(() => {})
     expect(capturedAddInsertRow!.user_id).toBe('user-abc')
@@ -371,7 +366,6 @@ describe('createOrUpdateCompany — mode: add (Phase 79 D-12/D-13/D-14/D-15)', (
     makeAddModeSupabaseMock({
       sourceCompanyId: null,
     })
-    const { createOrUpdateCompany } = await import('@/lib/actions/company')
     await createOrUpdateCompany({ companyName: 'Co' }, { mode: 'add' }).catch(() => {})
     expect(capturedAddInsertRow!.tier).toBeUndefined()
     expect('tier_trial_ends_at' in capturedAddInsertRow!).toBe(false)

@@ -202,6 +202,14 @@ async function handlePlatformEvent(
           stripe_subscription_id: session.subscription as string,
           tier,
           tier_trial_ends_at: null, // paid plan — clear trial
+          // Clear any stale pending-cancel marker. A prior lapse
+          // (customer.subscription.deleted) sets tier_cancelled_at=now() with
+          // stripe_subscription_id=null; a fresh re-subscribe via Checkout skips
+          // the upgrade guard (null sub id) and would otherwise leave the stale
+          // timestamp, making page.tsx render "plan ends on <past date>" for a
+          // freshly-active paying customer. customer.subscription.updated is not
+          // guaranteed to fire on new-sub creation, so clear it here.
+          tier_cancelled_at: null,
         })
         .eq('id', companyId)
 
