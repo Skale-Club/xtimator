@@ -213,6 +213,7 @@ let capture = freshCapture()
 function makeSupabaseMock() {
   let itemId = 0
   let sectionId = 0
+  const sectionsById = new Map<string, { items: Array<{ id: string }> }>()
 
   const from = vi.fn().mockImplementation((table: string) => {
     if (table === 'projects') {
@@ -356,15 +357,20 @@ function makeSupabaseMock() {
 
     if (table === 'estimate_sections') {
       return {
-        insert: vi.fn().mockImplementation(() => {
-          capture.sections.push({ items: [] })
+        // CAPTURE each section. Sections are bulk-inserted
+        // (.insert(rows).select('id')) — echo one id per row so the service's
+        // row-count guard passes, and remember each id -> capture section so
+        // the items bulk-insert can attach rows by section_id.
+        insert: vi.fn().mockImplementation((rows: Array<Record<string, unknown>>) => {
+          const returned = rows.map(() => {
+            const section = { items: [] as Array<{ id: string }> }
+            capture.sections.push(section)
+            const id = `section-${sectionId++}`
+            sectionsById.set(id, section)
+            return { id }
+          })
           return {
-            select: vi.fn().mockReturnValue({
-              single: vi.fn().mockResolvedValue({
-                data: { id: `section-${sectionId++}` },
-                error: null,
-              }),
-            }),
+            select: vi.fn().mockResolvedValue({ data: returned, error: null }),
           }
         }),
       }
@@ -372,12 +378,12 @@ function makeSupabaseMock() {
 
     if (table === 'estimate_items') {
       return {
+        // CAPTURE items onto their section — the single bulk insert spans all
+        // sections, each row carrying its section_id.
         insert: vi.fn().mockImplementation((rows: Array<Record<string, unknown>>) => {
-          const target = capture.sections[capture.sections.length - 1]
-          if (target) {
-            for (let i = 0; i < rows.length; i++) {
-              target.items.push({ id: `item-${itemId++}` })
-            }
+          for (const row of rows) {
+            const target = sectionsById.get(row.section_id as string)
+            if (target) target.items.push({ id: `item-${itemId++}` })
           }
           return Promise.resolve({ error: null })
         }),
