@@ -21,10 +21,16 @@
 import { normalizeInput } from '@/lib/agent-tools'
 import { createClient } from '@/lib/supabase/server'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
-import { createConversation } from '@/lib/queries/chat'
+import {
+  createConversation,
+  listConversations,
+  getConversationWithMessages,
+} from '@/lib/queries/chat'
+import { toUIMessages } from '@/lib/chat/history-mapper'
 import { getCurrentEstimate } from '@/lib/queries/estimate'
 import { requireServiceClient } from '@/lib/supabase/service'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { UIMessage } from 'ai'
 
 type ChatNormalizeArg =
   | { kind: 'audio'; base64: string; ext: string }
@@ -70,14 +76,64 @@ export async function normalizeChatInput(
  * second conversation, splitting the first turn across two threads. Owner-scoped:
  * auth mirrors normalizeChatInput / app/api/chat/route.ts. Returns the id or null.
  */
-export async function createChatConversation(): Promise<{ id: string } | null> {
+export async function createChatConversation(
+  title?: string | null,
+): Promise<{ id: string } | null> {
   const supabase = await createClient()
   const { data: claimsData } = await supabase.auth.getClaims()
   const userId = claimsData?.claims?.sub as string | undefined
   if (!userId) return null
 
-  const conv = await createConversation(userId)
+  // Title = the first user message, truncated — mirrors the Vercel AI Chatbot's
+  // auto-title so the history list never shows a wall of "Untitled chat".
+  const trimmed = title?.trim().slice(0, 80) || null
+  const conv = await createConversation(userId, trimmed)
   return conv ? { id: conv.id } : null
+}
+
+/** Compact conversation summary for the bubble's history menu. */
+export interface ChatConversationSummary {
+  id: string
+  title: string | null
+  updated_at: string
+}
+
+/**
+ * listChatConversations — owner-scoped conversation list for the chat bubble.
+ *
+ * The bubble is a client island mounted in the app-shell layout, so it cannot
+ * receive server-fetched props per page load without taxing EVERY route; it
+ * lazily calls this on first open instead. Auth posture mirrors
+ * createChatConversation; tenant scoping lives in listConversations.
+ */
+export async function listChatConversations(): Promise<ChatConversationSummary[]> {
+  const supabase = await createClient()
+  const { data: claimsData } = await supabase.auth.getClaims()
+  const userId = claimsData?.claims?.sub as string | undefined
+  if (!userId) return []
+
+  const rows = await listConversations(userId)
+  return rows.map(({ id, title, updated_at }) => ({ id, title, updated_at }))
+}
+
+/**
+ * getChatThread — one conversation's history as UIMessages, for the bubble.
+ *
+ * Owner + tenant scoped via getConversationWithMessages (a cross-tenant or
+ * cross-owner id resolves to null). Rows map through the same toUIMessages
+ * seed the /chat page used, so history round-trips into useChat verbatim.
+ */
+export async function getChatThread(
+  conversationId: string,
+): Promise<{ id: string; messages: UIMessage[] } | null> {
+  const supabase = await createClient()
+  const { data: claimsData } = await supabase.auth.getClaims()
+  const userId = claimsData?.claims?.sub as string | undefined
+  if (!userId) return null
+
+  const thread = await getConversationWithMessages(conversationId, userId)
+  if (!thread) return null
+  return { id: thread.conversation.id, messages: toUIMessages(thread.messages) }
 }
 
 /**

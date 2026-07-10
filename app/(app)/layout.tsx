@@ -27,6 +27,8 @@ import { InstallPrompt } from '@/components/pwa/install-prompt'
 import { OfflineIndicator } from '@/components/pwa/offline-indicator'
 import { NewProjectDialog } from '@/components/projects/new-project-dialog'
 import { EstimateCreationPopup } from '@/components/projects/estimate-creation-popup'
+import { ChatBubble } from '@/components/chat/chat-bubble'
+import { getEntitlements } from '@/lib/entitlements'
 import { BreadcrumbProvider } from '@/components/app-shell/breadcrumb-context'
 import type { Metadata } from 'next'
 import { PRIVATE_ROBOTS } from '@/lib/seo/route-policy'
@@ -234,6 +236,10 @@ export default async function AppShellLayout({
             </main>
           </div>
           <BottomNav isDemo={isDemo} />
+          {/* The in-app chat bubble — hidden in the read-only demo (write tools
+              refuse mutations there anyway) and in Support Mode (admin tooling,
+              rendered by the other branch above). */}
+          {!isDemo && <ChatBubble chatEnabled={getEntitlements(tier).chatEnabled} />}
           <NewProjectDialog />
           <EstimateCreationPopup />
           <TranslationLoadingOverlay />
