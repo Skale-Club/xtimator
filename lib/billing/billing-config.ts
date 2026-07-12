@@ -20,6 +20,24 @@ import { createServiceClient } from '@/lib/supabase/service'
  */
 
 export type TopUpPack = { credits: number; priceCents: number }
+/**
+ * Per-tier entitlement caps + feature flags, mirroring lib/entitlements.ts
+ * `Entitlements` (minus monthlyCreditGrant, which already lives on TierBilling).
+ * Runtime-editable home for the numbers currently hardcoded in that module.
+ * null = unlimited on the count caps (never Infinity — see lib/entitlements.ts).
+ */
+export type TierEntitlements = {
+  maxEstimatesPerMonth: number | null
+  maxEstimatesPerDay: number | null
+  maxPriceResearchPerMonth: number | null
+  maxPhotosPerEstimate: number
+  maxAudioMinutesPerEstimate: number
+  whatsappEnabled: boolean
+  pdfEnabled: boolean
+  priceBookEnabled: boolean
+  customDomainEnabled: boolean
+  chatEnabled: boolean
+}
 export type TierBilling = {
   monthlyCreditGrant: number
   subscriptionPriceCents: number
@@ -28,6 +46,16 @@ export type TierBilling = {
   // seats bundled in the tier before per-seat billing kicks in (e.g. the owner
   // seat is included) — CALIBRATE BEFORE CHARGING (placeholder, not final).
   includedSeats: number
+  // Stripe Price IDs auto-created/refreshed from subscriptionPriceCents /
+  // subscriptionPriceAnnualCents by the save action (no Stripe dashboard). null
+  // until the first save provisions them.
+  stripePriceIdMonth: string | null
+  stripePriceIdYear: string | null
+  // Runtime-editable per-tier entitlement caps + feature flags (mirrors
+  // lib/entitlements.ts, the static fallback).
+  entitlements: TierEntitlements
+  // Marketing feature bullets rendered on the tier card (was hardcoded copy).
+  featureBullets: string[]
 }
 export type BillingTier = 'free' | 'pro' | 'business' // mirrors the TierName union (Billing v2: 'trial' retired — free IS the trial via signupCreditGrant)
 
@@ -96,9 +124,85 @@ export const DEFAULT_BILLING_CONFIG: BillingConfig = {
   // defaults ON — pro 3500 ≈ 27% of $29, business 12000 ≈ 27% of $99. Still
   // CALIBRATION PLACEHOLDERS: tune price/grant/markup together in the panel.
   tiers: {
-    free: { monthlyCreditGrant: 0, subscriptionPriceCents: 0, subscriptionPriceAnnualCents: 0, includedSeats: 1 },
-    pro: { monthlyCreditGrant: 3500, subscriptionPriceCents: 2900, subscriptionPriceAnnualCents: 29000, includedSeats: 1 },
-    business: { monthlyCreditGrant: 12000, subscriptionPriceCents: 9900, subscriptionPriceAnnualCents: 99000, includedSeats: 1 },
+    free: {
+      monthlyCreditGrant: 0,
+      subscriptionPriceCents: 0,
+      subscriptionPriceAnnualCents: 0,
+      includedSeats: 1,
+      stripePriceIdMonth: null,
+      stripePriceIdYear: null,
+      entitlements: {
+        maxEstimatesPerMonth: null,
+        maxEstimatesPerDay: null,
+        maxPriceResearchPerMonth: 50,
+        maxPhotosPerEstimate: 3,
+        maxAudioMinutesPerEstimate: 2,
+        whatsappEnabled: true,
+        pdfEnabled: true,
+        priceBookEnabled: false,
+        customDomainEnabled: false,
+        chatEnabled: true,
+      },
+      featureBullets: [
+        'Estimates until your free credits run out',
+        '3 photos per estimate',
+        'Basic templates',
+        'Email support',
+      ],
+    },
+    pro: {
+      monthlyCreditGrant: 3500,
+      subscriptionPriceCents: 2900,
+      subscriptionPriceAnnualCents: 29000,
+      includedSeats: 1,
+      stripePriceIdMonth: null,
+      stripePriceIdYear: null,
+      entitlements: {
+        maxEstimatesPerMonth: 200,
+        maxEstimatesPerDay: 30,
+        maxPriceResearchPerMonth: 1000,
+        maxPhotosPerEstimate: 20,
+        maxAudioMinutesPerEstimate: 15,
+        whatsappEnabled: true,
+        pdfEnabled: true,
+        priceBookEnabled: true,
+        customDomainEnabled: false,
+        chatEnabled: true,
+      },
+      featureBullets: [
+        'Unlimited estimates',
+        '20 photos per estimate',
+        'Custom branding',
+        'Priority email support',
+      ],
+    },
+    business: {
+      monthlyCreditGrant: 12000,
+      subscriptionPriceCents: 9900,
+      subscriptionPriceAnnualCents: 99000,
+      includedSeats: 1,
+      stripePriceIdMonth: null,
+      stripePriceIdYear: null,
+      entitlements: {
+        maxEstimatesPerMonth: null,
+        maxEstimatesPerDay: 100,
+        maxPriceResearchPerMonth: null,
+        maxPhotosPerEstimate: 50,
+        maxAudioMinutesPerEstimate: 30,
+        whatsappEnabled: true,
+        pdfEnabled: true,
+        priceBookEnabled: true,
+        customDomainEnabled: true,
+        chatEnabled: true,
+      },
+      featureBullets: [
+        'Everything in Pro',
+        '50 photos per estimate',
+        'Custom domain',
+        'Stripe Connect payments',
+        'Phone + chat support',
+      ],
+    },
   },
   // Billing v2 (CREDITUI-06): 3 dollar-denominated packs at $20/$50/$100.
   // Credits-per-pack are CALIBRATE-BEFORE-CHARGING placeholders (mild volume
@@ -160,10 +264,34 @@ export async function getBillingConfig(): Promise<BillingConfig> {
     billingConfigCache = { value: DEFAULT_BILLING_CONFIG, fetchedAt: now }
     return DEFAULT_BILLING_CONFIG
   }
+  // Deep-merge each tier so a row written before `entitlements` existed still
+  // resolves that nested object from the defaults (research Pitfall 6). Every
+  // tier now carries a nested `entitlements` map that must fall through
+  // field-by-field, not be dropped when a stored tier omits it.
+  const storedTiers = (stored.tiers ?? {}) as Partial<
+    Record<BillingTier, Partial<TierBilling>>
+  >
+  const tierNames: BillingTier[] = ['free', 'pro', 'business']
+  const tiers = Object.fromEntries(
+    tierNames.map((t) => {
+      const storedTier = storedTiers[t] ?? {}
+      return [
+        t,
+        {
+          ...DEFAULT_BILLING_CONFIG.tiers[t],
+          ...storedTier,
+          entitlements: {
+            ...DEFAULT_BILLING_CONFIG.tiers[t].entitlements,
+            ...(storedTier.entitlements ?? {}),
+          },
+        },
+      ]
+    })
+  ) as Record<BillingTier, TierBilling>
   const value: BillingConfig = {
     ...DEFAULT_BILLING_CONFIG,
     ...stored,
-    tiers: { ...DEFAULT_BILLING_CONFIG.tiers, ...(stored.tiers ?? {}) },
+    tiers,
   }
   billingConfigCache = { value, fetchedAt: now }
   return value

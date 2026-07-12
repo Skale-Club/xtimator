@@ -139,6 +139,24 @@ export const blogPostSchema = z.object({
  *
  * MONEY is INTEGER CENTS; PERCENTAGES are 0..1 decimals (research Pitfall 4).
  */
+/**
+ * Per-tier entitlement caps + feature flags — mirrors lib/entitlements.ts
+ * `Entitlements` (minus monthlyCreditGrant, which lives on tierBillingSchema).
+ * null = unlimited on the count caps (never Infinity — JSON serialization).
+ */
+const tierEntitlementsSchema = z.object({
+  maxEstimatesPerMonth: z.number().int().min(0).nullable(),
+  maxEstimatesPerDay: z.number().int().min(0).nullable(),
+  maxPriceResearchPerMonth: z.number().int().min(0).nullable(),
+  maxPhotosPerEstimate: z.number().int().min(0),
+  maxAudioMinutesPerEstimate: z.number().int().min(0),
+  whatsappEnabled: z.boolean(),
+  pdfEnabled: z.boolean(),
+  priceBookEnabled: z.boolean(),
+  customDomainEnabled: z.boolean(),
+  chatEnabled: z.boolean(),
+})
+
 const tierBillingSchema = z.object({
   monthlyCreditGrant: z.number().int().min(0),
   subscriptionPriceCents: z.number().int().min(0),
@@ -146,6 +164,13 @@ const tierBillingSchema = z.object({
   subscriptionPriceAnnualCents: z.number().int().min(0),
   // seats bundled in the tier before per-seat billing (non-negative int count).
   includedSeats: z.number().int().min(0),
+  // Stripe Price IDs auto-created/refreshed by the save action (null until provisioned).
+  stripePriceIdMonth: z.string().nullable(),
+  stripePriceIdYear: z.string().nullable(),
+  // Runtime-editable per-tier entitlement caps + feature flags.
+  entitlements: tierEntitlementsSchema,
+  // Marketing feature bullets rendered on the tier card.
+  featureBullets: z.array(z.string().max(120)).max(8),
 })
 
 export const billingConfigSchema = z.object({

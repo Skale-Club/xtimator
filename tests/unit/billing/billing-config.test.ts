@@ -46,6 +46,7 @@ import {
   invalidateBillingConfigCache,
 } from '@/lib/billing/billing-config'
 import { billingConfigSchema } from '@/lib/schemas/admin'
+import { tiers as staticTiers, type TierName } from '@/lib/entitlements'
 
 beforeEach(() => {
   serviceClientImpl = () => null
@@ -84,7 +85,7 @@ describe('BILLCFG-01: getBillingConfig merge', () => {
     expect(cfg.tiers).toEqual(DEFAULT_BILLING_CONFIG.tiers)
   })
 
-  it('deep-merges tiers (tiers.pro updated, free/business still default)', async () => {
+  it('deep-merges tiers field-by-field (tiers.pro overrides applied, unset fields from DEFAULT; free/business untouched)', async () => {
     serviceClientImpl = () =>
       makeServiceClient({
         metadata: {
@@ -92,7 +93,16 @@ describe('BILLCFG-01: getBillingConfig merge', () => {
         },
       })
     const cfg = await getBillingConfig()
-    expect(cfg.tiers.pro).toEqual({ monthlyCreditGrant: 12000, subscriptionPriceCents: 3900 })
+    // the two overridden fields apply...
+    expect(cfg.tiers.pro.monthlyCreditGrant).toBe(12000)
+    expect(cfg.tiers.pro.subscriptionPriceCents).toBe(3900)
+    // ...and every unset field (annual price, seats, stripe ids, entitlements,
+    // bullets) falls through from the default pro tier (field-level deep merge).
+    expect(cfg.tiers.pro).toEqual({
+      ...DEFAULT_BILLING_CONFIG.tiers.pro,
+      monthlyCreditGrant: 12000,
+      subscriptionPriceCents: 3900,
+    })
     expect(cfg.tiers.free).toEqual(DEFAULT_BILLING_CONFIG.tiers.free)
     expect(cfg.tiers.business).toEqual(DEFAULT_BILLING_CONFIG.tiers.business)
   })
@@ -267,6 +277,92 @@ describe('ANN-01: annual price deep-merge', () => {
     expect(cfg.tiers.business.subscriptionPriceAnnualCents).toBe(
       DEFAULT_BILLING_CONFIG.tiers.business.subscriptionPriceAnnualCents
     )
+  })
+})
+
+// =============================================================================
+// Per-tier entitlements — DEFAULT matches lib/entitlements.ts; deep-merge fills
+// the nested `entitlements` object from defaults; new stripePriceId fields null.
+// =============================================================================
+describe('per-tier entitlements in billing_config', () => {
+  const TIER_NAMES: TierName[] = ['free', 'pro', 'business']
+  const ENTITLEMENT_FIELDS = [
+    'maxEstimatesPerMonth',
+    'maxEstimatesPerDay',
+    'maxPriceResearchPerMonth',
+    'maxPhotosPerEstimate',
+    'maxAudioMinutesPerEstimate',
+    'whatsappEnabled',
+    'pdfEnabled',
+    'priceBookEnabled',
+    'customDomainEnabled',
+    'chatEnabled',
+  ] as const
+
+  it('DEFAULT entitlements per tier match lib/entitlements.ts field-by-field', () => {
+    for (const t of TIER_NAMES) {
+      const cfgEnt = DEFAULT_BILLING_CONFIG.tiers[t].entitlements
+      const staticEnt = staticTiers[t]
+      for (const field of ENTITLEMENT_FIELDS) {
+        expect(cfgEnt[field], `${t}.${field}`).toBe(staticEnt[field])
+      }
+    }
+  })
+
+  it('a stored tier that OMITS entitlements resolves the whole object from DEFAULT (Pitfall-6)', async () => {
+    serviceClientImpl = () =>
+      makeServiceClient({
+        metadata: {
+          tiers: { pro: { monthlyCreditGrant: 9999, subscriptionPriceCents: 3900 } },
+        },
+      })
+    const cfg = await getBillingConfig()
+    // the override applied, but entitlements fell through from defaults
+    expect(cfg.tiers.pro.monthlyCreditGrant).toBe(9999)
+    expect(cfg.tiers.pro.entitlements).toEqual(DEFAULT_BILLING_CONFIG.tiers.pro.entitlements)
+    expect(cfg.tiers.free.entitlements).toEqual(DEFAULT_BILLING_CONFIG.tiers.free.entitlements)
+    expect(cfg.tiers.business.entitlements).toEqual(
+      DEFAULT_BILLING_CONFIG.tiers.business.entitlements
+    )
+  })
+
+  it('a stored tier with a PARTIAL entitlements object deep-merges the missing fields from DEFAULT', async () => {
+    serviceClientImpl = () =>
+      makeServiceClient({
+        metadata: {
+          tiers: { pro: { entitlements: { maxPhotosPerEstimate: 40 } } },
+        },
+      })
+    const cfg = await getBillingConfig()
+    expect(cfg.tiers.pro.entitlements.maxPhotosPerEstimate).toBe(40)
+    // every OTHER entitlement field still resolves from the default
+    expect(cfg.tiers.pro.entitlements.maxEstimatesPerMonth).toBe(
+      DEFAULT_BILLING_CONFIG.tiers.pro.entitlements.maxEstimatesPerMonth
+    )
+    expect(cfg.tiers.pro.entitlements.chatEnabled).toBe(
+      DEFAULT_BILLING_CONFIG.tiers.pro.entitlements.chatEnabled
+    )
+  })
+
+  it('new per-tier stripePriceId fields default to null for all three tiers', () => {
+    for (const t of TIER_NAMES) {
+      expect(DEFAULT_BILLING_CONFIG.tiers[t].stripePriceIdMonth).toBeNull()
+      expect(DEFAULT_BILLING_CONFIG.tiers[t].stripePriceIdYear).toBeNull()
+    }
+  })
+
+  it('a pre-existing row WITHOUT a tiers key still resolves stripePriceId nulls + entitlements from DEFAULT', async () => {
+    serviceClientImpl = () => makeServiceClient({ metadata: { markup: 5 } })
+    const cfg = await getBillingConfig()
+    expect(cfg.tiers.pro.stripePriceIdMonth).toBeNull()
+    expect(cfg.tiers.pro.stripePriceIdYear).toBeNull()
+    expect(cfg.tiers.pro.entitlements).toEqual(DEFAULT_BILLING_CONFIG.tiers.pro.entitlements)
+  })
+
+  it('DEFAULT featureBullets per tier are non-empty marketing copy', () => {
+    for (const t of TIER_NAMES) {
+      expect(DEFAULT_BILLING_CONFIG.tiers[t].featureBullets.length).toBeGreaterThan(0)
+    }
   })
 })
 
