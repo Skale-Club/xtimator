@@ -141,7 +141,7 @@ export const DEFAULT_BILLING_CONFIG: BillingConfig = {
         pdfEnabled: true,
         priceBookEnabled: false,
         customDomainEnabled: false,
-        chatEnabled: true,
+        chatEnabled: false,
       },
       featureBullets: [
         'Estimates until your free credits run out',

@@ -62,7 +62,7 @@ export const tiers: Record<TierName, Entitlements> = {
     pdfEnabled: true,
     priceBookEnabled: false,
     customDomainEnabled: false,
-    chatEnabled: true, // opened up on free — usage stays bound by the credit balance
+    chatEnabled: false,
   },
   pro: {
     maxEstimatesPerMonth: 200, // anti-abuse ceiling; credits are the real meter

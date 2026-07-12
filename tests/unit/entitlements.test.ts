@@ -127,13 +127,12 @@ describe('entitlements', () => {
     expect(getEntitlements('garbage').monthlyCreditGrant).toBe(0)
   })
 
-  // Phase 126 (CHATMETER-02): chatEnabled originally gated in-app chat as a
-  // Pro/Business feature. Chat is now OPENED UP on free too (usage stays bound by
-  // the credit balance), so every tier has chatEnabled true. The entitlement
-  // field and the route's 403 gate remain in place so chat can be re-gated by
-  // flipping a single flag.
-  it('free tier has chatEnabled true (chat opened up on free)', () => {
-    expect(tiers.free.chatEnabled).toBe(true)
+  // Phase 126 (CHATMETER-02): chatEnabled gates the in-app chat as a Pro/Business
+  // feature. The flag is now runtime-editable via billing_config (an admin can
+  // open chat up on free from the panel), but the DEFAULT preserves the prior
+  // behavior — free does NOT include in-app chat.
+  it('free tier has chatEnabled false (in-app chat is a Pro/Business feature)', () => {
+    expect(tiers.free.chatEnabled).toBe(false)
   })
 
   it('pro tier has chatEnabled true', () => {
@@ -144,13 +143,13 @@ describe('entitlements', () => {
     expect(tiers.business.chatEnabled).toBe(true)
   })
 
-  it('getEntitlements resolves chatEnabled (free true, pro true)', () => {
-    expect(getEntitlements('free').chatEnabled).toBe(true)
+  it('getEntitlements resolves chatEnabled (free false, pro true)', () => {
+    expect(getEntitlements('free').chatEnabled).toBe(false)
     expect(getEntitlements('pro').chatEnabled).toBe(true)
   })
 
-  it('getEntitlements falls back to free chatEnabled (true) for an unknown tier', () => {
-    expect(getEntitlements('garbage').chatEnabled).toBe(true)
+  it('getEntitlements falls back to free chatEnabled (false) for an unknown tier', () => {
+    expect(getEntitlements('garbage').chatEnabled).toBe(false)
   })
 
   // Billing v2: the 14-day trial tier is RETIRED — the free tier IS the trial
