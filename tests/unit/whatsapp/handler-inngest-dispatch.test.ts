@@ -25,7 +25,7 @@ vi.mock('@/lib/inngest/client', () => ({
   inngest: { send: (...args: unknown[]) => mockInngestSend(...args) },
 }))
 
-vi.mock('@/lib/entitlements', () => ({
+vi.mock('@/lib/entitlements-server', () => ({
   getEntitlementsForTier: vi.fn(),
 }))
 
@@ -57,7 +57,7 @@ vi.mock('@anthropic-ai/sdk', () => ({
 
 import { processInboundMessages } from '@/lib/whatsapp/handler'
 import { generateEstimateForProject } from '@/lib/services/generate-estimate'
-import { getEntitlementsForTier } from '@/lib/entitlements'
+import { getEntitlementsForTier } from '@/lib/entitlements-server'
 import { sendWhatsAppMessage, downloadWhatsAppMedia } from '@/lib/whatsapp/client'
 import { getIntegrationKey } from '@/lib/platform-config'
 import type { WhatsAppMessage } from '@/lib/whatsapp/types'

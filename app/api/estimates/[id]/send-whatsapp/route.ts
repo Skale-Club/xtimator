@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireServiceClient } from '@/lib/supabase/service'
-import { getEntitlementsForTier } from '@/lib/entitlements'
+import { getEntitlementsForTier } from '@/lib/entitlements-server'
 import { deliverEstimateViaWhatsApp } from '@/lib/whatsapp/send-estimate'
 import { getWhatsAppAccountStatus } from '@/lib/whatsapp/account-registry'
 import { demoGuardResponse } from '@/lib/demo/guard'

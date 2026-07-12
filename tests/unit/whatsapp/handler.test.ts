@@ -28,7 +28,7 @@ vi.mock('@/lib/inngest/client', () => ({
   inngest: { send: (...args: unknown[]) => mockInngestSend(...args) },
 }))
 
-vi.mock('@/lib/entitlements', () => ({
+vi.mock('@/lib/entitlements-server', () => ({
   getEntitlementsForTier: vi.fn(),
 }))
 
@@ -46,7 +46,7 @@ vi.mock('@/lib/whatsapp/confirm', () => ({
 import { processInboundMessage } from '@/lib/whatsapp/handler'
 import { sendWhatsAppMessage } from '@/lib/whatsapp/client'
 import { processConfirmationReply } from '@/lib/whatsapp/confirm'
-import { getEntitlementsForTier } from '@/lib/entitlements'
+import { getEntitlementsForTier } from '@/lib/entitlements-server'
 import type { WhatsAppMessage } from '@/lib/whatsapp/types'
 
 const mockSend = vi.mocked(sendWhatsAppMessage)

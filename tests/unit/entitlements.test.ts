@@ -12,7 +12,8 @@ vi.mock('@/lib/billing/billing-config', async (importActual) => {
   return { ...actual, getBillingConfig: () => getBillingConfigMock() }
 })
 
-import { getEntitlements, getEntitlementsForTier, tiers, type TierName } from '@/lib/entitlements'
+import { getEntitlements, tiers, type TierName } from '@/lib/entitlements'
+import { getEntitlementsForTier } from '@/lib/entitlements-server'
 import { DEFAULT_BILLING_CONFIG, type BillingConfig } from '@/lib/billing/billing-config'
 
 // Deep-clone the default config so per-test overrides never leak between tests.

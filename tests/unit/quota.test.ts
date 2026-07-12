@@ -7,7 +7,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 
 // Mock entitlements module — quota.ts now enforces via the async
 // getEntitlementsForTier (config-sourced) resolver.
-vi.mock('@/lib/entitlements', () => ({
+vi.mock('@/lib/entitlements-server', () => ({
   getEntitlementsForTier: vi.fn(),
 }))
 
@@ -17,7 +17,7 @@ vi.mock('@/lib/queries/company', () => ({
 }))
 
 import { checkQuota, recordUsage } from '@/lib/quota'
-import { getEntitlementsForTier } from '@/lib/entitlements'
+import { getEntitlementsForTier } from '@/lib/entitlements-server'
 
 // ---------------------------------------------------------------------------
 // Mock Supabase factory

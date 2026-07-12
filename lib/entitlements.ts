@@ -97,34 +97,13 @@ export const tiers: Record<TierName, Entitlements> = {
  * Falls back to 'free' if tier value is unrecognized — defensive against legacy
  * rows (e.g. a stray retired 'trial') and future DB states.
  * Usage in quota checks: if (limit !== null && used >= limit) { block }
+ *
+ * The billing-config-sourced async resolver `getEntitlementsForTier` lives in
+ * the SERVER-ONLY companion `lib/entitlements-server.ts`; keeping it out of this
+ * module is what lets client components import the static `tiers`/getEntitlements
+ * without dragging `@/lib/billing/billing-config` (server-only) into the client
+ * bundle.
  */
 export function getEntitlements(tier: string): Entitlements {
   return tiers[tier as TierName] ?? tiers.free
-}
-
-/**
- * SERVER-SIDE authority (Phase 112 — runtime-editable entitlements). Resolves a
- * tier's entitlements from `billing_config.tiers[tier].entitlements` (the
- * super-admin panel, applied without a deploy) merged OVER the static default so
- * config wins per field and any field the stored row omits falls back to the
- * constant above. An unrecognized tier resolves to static `free`, matching
- * getEntitlements.
- *
- * getBillingConfig is server-only and pulled in via a DYNAMIC import so this
- * module's static graph stays client-safe — the sync getEntitlements/`tiers`
- * export keep working for client and test importers (chat-bubble.tsx et al.).
- */
-export async function getEntitlementsForTier(tier: string): Promise<Entitlements> {
-  const fallback = getEntitlements(tier)
-  try {
-    const { getBillingConfig } = await import('@/lib/billing/billing-config')
-    const cfg = await getBillingConfig()
-    const configured = cfg.tiers[tier as TierName]?.entitlements
-    if (!configured) return fallback
-    // Config wins per field; unset fields fall through to the static default.
-    return { ...fallback, ...configured, monthlyCreditGrant: fallback.monthlyCreditGrant }
-  } catch {
-    // Static build / service client unavailable — degrade to the static default.
-    return fallback
-  }
 }

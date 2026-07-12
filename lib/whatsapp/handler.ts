@@ -29,7 +29,7 @@ import {
   markMessageAsRead,
   sendTypingIndicator,
 } from '@/lib/whatsapp/client'
-import { getEntitlementsForTier } from '@/lib/entitlements'
+import { getEntitlementsForTier } from '@/lib/entitlements-server'
 import { checkCredits } from '@/lib/billing/credit-ledger'
 import { logOutboundMessage } from '@/lib/whatsapp/conversations'
 import { PLACEHOLDER_PREFIX } from '@/lib/constants/project'

@@ -3,7 +3,8 @@
 // Uses requireServiceClient because usage_events has deny-all RLS.
 
 import { requireServiceClient } from '@/lib/supabase/service'
-import { getEntitlementsForTier, type Entitlements } from '@/lib/entitlements'
+import { type Entitlements } from '@/lib/entitlements'
+import { getEntitlementsForTier } from '@/lib/entitlements-server'
 
 export interface BillingData {
   tier: string                          // 'free' | 'pro' | 'business' (Billing v2: 'trial' retired)

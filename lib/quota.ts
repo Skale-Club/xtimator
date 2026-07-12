@@ -5,7 +5,7 @@
 // Phase 57 wires these two functions into routes.
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { getEntitlementsForTier } from '@/lib/entitlements'
+import { getEntitlementsForTier } from '@/lib/entitlements-server'
 import { notify } from '@/lib/notifications/dispatch'
 import { buildNotificationCopy } from '@/lib/notifications/copy'
 

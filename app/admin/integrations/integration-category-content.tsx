@@ -17,7 +17,7 @@ import { XphereConfigForm } from './xphere-config-form'
 import { XphereStatus } from './xphere-status'
 import { TelegramChatIdForm } from './telegram-chat-id-form'
 import { PriceResearchConfigForm } from './price-research-config-form'
-import { DEFAULT_BILLING_CONFIG } from '@/lib/billing/billing-config'
+import { DEFAULT_BILLING_CONFIG, getBillingConfig } from '@/lib/billing/billing-config'
 import { aggregateAiCostByOperation, type OpCostStat } from '@/lib/billing/calibration'
 import { BillingConfigForm } from './billing-config-form'
 import { MeasuredCostCard } from './measured-cost-card'
@@ -118,20 +118,12 @@ export async function IntegrationCategoryContent({
   let billingConfig = DEFAULT_BILLING_CONFIG
   let costStats: OpCostStat[] = []
   if (category.showBillingConfig) {
-    const svc = requireServiceClient()
-    const { data } = await svc
-      .from('platform_integrations')
-      .select('metadata')
-      .eq('provider', 'billing_config')
-      .maybeSingle()
-    const stored = (data?.metadata as Partial<typeof DEFAULT_BILLING_CONFIG> | null) ?? null
-    billingConfig = stored
-      ? {
-          ...DEFAULT_BILLING_CONFIG,
-          ...stored,
-          tiers: { ...DEFAULT_BILLING_CONFIG.tiers, ...(stored.tiers ?? {}) },
-        }
-      : DEFAULT_BILLING_CONFIG
+    // Source the form's `current` from the canonical deep-merge reader so a
+    // legacy billing_config row that predates the nested fields (entitlements /
+    // featureBullets / stripePriceId*) still resolves every field from the
+    // defaults — a shallow tier merge would drop those and crash the form's
+    // useState initializer (research Pitfall 6).
+    billingConfig = await getBillingConfig()
     // Measured real cost → shown next to the config so numbers are set against
     // data, not guesses (empty until real generations exist).
     costStats = await aggregateAiCostByOperation()

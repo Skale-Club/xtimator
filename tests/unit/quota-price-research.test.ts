@@ -8,8 +8,8 @@ import { join } from 'node:path'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
-// Mock entitlements module (quota.ts imports getEntitlementsForTier).
-vi.mock('@/lib/entitlements', () => ({
+// Mock entitlements-server module (quota.ts imports getEntitlementsForTier).
+vi.mock('@/lib/entitlements-server', () => ({
   getEntitlementsForTier: vi.fn(),
 }))
 

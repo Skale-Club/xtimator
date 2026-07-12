@@ -581,13 +581,24 @@ describe('BILLCFG-03: getBillingConfig consumed ONLY by the reader + credit-ledg
     // billing source, a legitimate consumer. The guard still fails on any
     // OTHER reference of the symbol.
     const CHAT_ROUTE_PATH = resolve(process.cwd(), 'app/api/chat/route.ts')
-    // Phase 112 (runtime-editable entitlements): lib/entitlements.ts's async
-    // getEntitlementsForTier resolver reads tiers[tier].entitlements from
-    // getBillingConfig (via a dynamic import so the module's static graph stays
-    // client-safe) — the server-side authority for tier caps + feature flags,
-    // a legitimate runtime billing-config consumer. The guard still fails on any
-    // OTHER reference of the symbol.
-    const ENTITLEMENTS_PATH = resolve(process.cwd(), 'lib/entitlements.ts')
+    // Phase 112 (runtime-editable entitlements): the async getEntitlementsForTier
+    // resolver reads tiers[tier].entitlements from getBillingConfig (via a dynamic
+    // import) — the server-side authority for tier caps + feature flags, a
+    // legitimate runtime billing-config consumer. It lives in the SERVER-ONLY
+    // lib/entitlements-server.ts (moved out of the client-reachable
+    // lib/entitlements.ts so the dynamic billing-config import no longer drags
+    // server-only into the client bundle). The guard still fails on any OTHER
+    // reference of the symbol.
+    const ENTITLEMENTS_PATH = resolve(process.cwd(), 'lib/entitlements-server.ts')
+    // Runtime-editable plans (BILLCFG-02): the admin integrations content server
+    // component sources the billing form's `current` prop from getBillingConfig —
+    // the canonical deep-merge reader — so a legacy row that predates the nested
+    // tier fields still resolves them from the defaults (was a hand-rolled shallow
+    // merge that crashed the form). A legitimate admin-only DISPLAY consumer.
+    const ADMIN_INTEGRATIONS_CONTENT_PATH = resolve(
+      process.cwd(),
+      'app/admin/integrations/integration-category-content.tsx',
+    )
     // v4.18 (panel-managed subscription Prices): checkout resolves the Stripe
     // Price id from tiers[t].stripePriceIdMonth/Year (config-first, env fallback);
     // stripe-price-map maps a live price id back to a tier recognizing the same
@@ -619,6 +630,7 @@ describe('BILLCFG-03: getBillingConfig consumed ONLY by the reader + credit-ledg
       CHECKOUT_SESSION_PATH,
       STRIPE_PRICE_MAP_PATH,
       STRIPE_DISPLAY_PRICES_PATH,
+      ADMIN_INTEGRATIONS_CONTENT_PATH,
     ])
 
     const collected: string[] = []

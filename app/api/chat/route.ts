@@ -44,7 +44,7 @@ import {
   findMessageRow,
   type ChatRole,
 } from '@/lib/queries/chat'
-import { getEntitlementsForTier } from '@/lib/entitlements'
+import { getEntitlementsForTier } from '@/lib/entitlements-server'
 import { rateLimit } from '@/lib/ratelimit'
 import { getBillingConfig } from '@/lib/billing/billing-config'
 
