@@ -13,7 +13,12 @@ const deploymentId = process.env.DEPLOYMENT_VERSION
 // tighten to a nonce-based variant before flipping to enforce.
 const cspReportOnly = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' https://js.stripe.com https://challenges.cloudflare.com",
+  // browser.sentry-cdn.com — Session Replay lazy-loads replay.min.js from the
+  // Sentry CDN (instrumentation-client.ts). Was missing → CSP report on every
+  // page that boots Replay (XTIMATOR-E); would hard-break Replay once CSP flips
+  // from report-only to enforcing. Event ingestion itself is same-origin via
+  // the /monitoring tunnelRoute, so connect-src 'self' already covers it.
+  "script-src 'self' 'unsafe-inline' https://js.stripe.com https://challenges.cloudflare.com https://browser.sentry-cdn.com",
   "style-src 'self' 'unsafe-inline'",
   // *.googleusercontent.com — Google account avatars (lh3/lh4/lh5.googleusercontent.com)
   // surfaced after Google OAuth sign-in. Was missing → 35+ CSP img-src reports (XTIMATOR-B).
