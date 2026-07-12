@@ -6,6 +6,17 @@ vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 vi.mock('@/lib/billing/stripe-client', () => ({
   getStripeClient: vi.fn(),
 }))
+// Config price ids null → the route falls back to the STRIPE_PRICE_* env vars,
+// which is the path these cases assert. (Prefer-config-over-env is proven where
+// ids are non-null; here we lock the env fallback.)
+vi.mock('@/lib/billing/billing-config', () => ({
+  getBillingConfig: vi.fn().mockResolvedValue({
+    tiers: {
+      pro: { stripePriceIdMonth: null, stripePriceIdYear: null },
+      business: { stripePriceIdMonth: null, stripePriceIdYear: null },
+    },
+  }),
+}))
 vi.mock('@/lib/queries/active-company', () => ({ getActiveCompanyId: vi.fn() }))
 vi.mock('@/lib/demo/guard', () => ({ demoGuardResponse: vi.fn().mockResolvedValue(null) }))
 

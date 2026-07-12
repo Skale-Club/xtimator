@@ -67,6 +67,20 @@ vi.mock('@/lib/platform-config', () => ({
   invalidatePlatformConfig: vi.fn(),
 }))
 
+// v4.18: saveBillingConfig provisions Stripe Prices via syncAllTierPrices before
+// the upsert. Mock it to echo back the config's EXISTING ids (a no-op sync) so
+// NO real Stripe client is constructed while exercising the charge-on gate.
+vi.mock('@/lib/billing/stripe-subscription-prices', () => ({
+  syncAllTierPrices: vi.fn(async (cfg: { tiers: Record<string, { stripePriceIdMonth?: string | null; stripePriceIdYear?: string | null }> }) => ({
+    pro: { month: cfg.tiers.pro.stripePriceIdMonth ?? null, year: cfg.tiers.pro.stripePriceIdYear ?? null },
+    business: { month: cfg.tiers.business.stripePriceIdMonth ?? null, year: cfg.tiers.business.stripePriceIdYear ?? null },
+  })),
+}))
+
+vi.mock('@/lib/billing/stripe-display-prices', () => ({
+  invalidateStripeDisplayPricesCache: vi.fn(),
+}))
+
 vi.mock('@/lib/admin/audit-log', () => ({
   logAdminAction: vi.fn(async () => undefined),
 }))
@@ -87,8 +101,8 @@ const PASSING_ON = {
   enforcementEnabled: true,
   tiers: {
     ...DEFAULT_BILLING_CONFIG.tiers,
-    pro: { monthlyCreditGrant: 1000, subscriptionPriceCents: 2900, includedSeats: 1, subscriptionPriceAnnualCents: 29000 },
-    business: { monthlyCreditGrant: 3000, subscriptionPriceCents: 9900, includedSeats: 1, subscriptionPriceAnnualCents: 99000 },
+    pro: { ...DEFAULT_BILLING_CONFIG.tiers.pro, monthlyCreditGrant: 1000, subscriptionPriceCents: 2900, includedSeats: 1, subscriptionPriceAnnualCents: 29000 },
+    business: { ...DEFAULT_BILLING_CONFIG.tiers.business, monthlyCreditGrant: 3000, subscriptionPriceCents: 9900, includedSeats: 1, subscriptionPriceAnnualCents: 99000 },
   },
 }
 
@@ -110,7 +124,7 @@ describe('charge-on gate — REJECT a failing enforcementEnabled flip (CALIB-02 
       enforcementEnabled: true,
       tiers: {
         ...DEFAULT_BILLING_CONFIG.tiers,
-        pro: { monthlyCreditGrant: 9000, subscriptionPriceCents: 2900, includedSeats: 1, subscriptionPriceAnnualCents: 29000 },
+        pro: { ...DEFAULT_BILLING_CONFIG.tiers.pro, monthlyCreditGrant: 9000, subscriptionPriceCents: 2900, includedSeats: 1, subscriptionPriceAnnualCents: 29000 },
       },
     }
     const res = await saveBillingConfig(failing)

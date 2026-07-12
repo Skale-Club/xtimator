@@ -16,6 +16,17 @@ vi.mock('@/lib/billing/stripe-client', () => ({
   }),
 }))
 
+// Config price ids null → resolver uses the STRIPE_PRICE_* env vars, the path
+// these cases assert (config-preferred resolution is covered where ids are set).
+vi.mock('@/lib/billing/billing-config', () => ({
+  getBillingConfig: async () => ({
+    tiers: {
+      pro: { stripePriceIdMonth: null, stripePriceIdYear: null },
+      business: { stripePriceIdMonth: null, stripePriceIdYear: null },
+    },
+  }),
+}))
+
 const { getStripeDisplayPrices, invalidateStripeDisplayPricesCache } = await import(
   '@/lib/billing/stripe-display-prices'
 )

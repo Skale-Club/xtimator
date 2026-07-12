@@ -29,6 +29,17 @@ vi.mock('@/lib/billing/stripe-client', () => ({
   }),
 }))
 
+// Config price ids null → the route falls back to the STRIPE_PRICE_* env vars,
+// the annual/monthly routing these cases assert.
+vi.mock('@/lib/billing/billing-config', () => ({
+  getBillingConfig: vi.fn().mockResolvedValue({
+    tiers: {
+      pro: { stripePriceIdMonth: null, stripePriceIdYear: null },
+      business: { stripePriceIdMonth: null, stripePriceIdYear: null },
+    },
+  }),
+}))
+
 // ------------------------------------------------------------------
 // Supabase server client mock — returns authenticated user + company
 // ------------------------------------------------------------------

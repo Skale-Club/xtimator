@@ -3,6 +3,7 @@ import type Stripe from 'stripe'
 import { createClient } from '@/lib/supabase/server'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { getStripeClient } from '@/lib/billing/stripe-client'
+import { getBillingConfig } from '@/lib/billing/billing-config'
 import { demoGuardResponse } from '@/lib/demo/guard'
 
 export async function POST(request: NextRequest) {
@@ -36,7 +37,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Company not found' }, { status: 400 })
   }
 
-  const priceId =
+  // Prefer the panel-managed Stripe Price id from billing_config (provisioned by
+  // saveBillingConfig from the admin dollar amount, no deploy); fall back to the
+  // STRIPE_PRICE_* env var only when the config slot is still null. Both absent →
+  // the same 500 as before.
+  const cfg = await getBillingConfig()
+  const tierCfg = cfg.tiers[plan]
+  const configPriceId =
+    billingInterval === 'year' ? tierCfg.stripePriceIdYear : tierCfg.stripePriceIdMonth
+  const envPriceId =
     billingInterval === 'year'
       ? plan === 'pro'
         ? process.env.STRIPE_PRICE_PRO_ANNUAL
@@ -44,6 +53,7 @@ export async function POST(request: NextRequest) {
       : plan === 'pro'
         ? process.env.STRIPE_PRICE_PRO
         : process.env.STRIPE_PRICE_BUSINESS
+  const priceId = configPriceId ?? envPriceId
 
   const envVarName = billingInterval === 'year'
     ? `STRIPE_PRICE_${plan.toUpperCase()}_ANNUAL`

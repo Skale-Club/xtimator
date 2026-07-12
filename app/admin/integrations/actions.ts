@@ -16,6 +16,8 @@ import {
 } from '@/lib/platform-config'
 import { integrationKeySchema, billingConfigSchema } from '@/lib/schemas/admin'
 import { validateMarginInvariant, type TierMarginResult } from '@/lib/billing/calibration'
+import { syncAllTierPrices } from '@/lib/billing/stripe-subscription-prices'
+import { invalidateStripeDisplayPricesCache } from '@/lib/billing/stripe-display-prices'
 import { EMAIL_FROM_ADDRESS } from '@/lib/email/sender'
 import { sendTelegramMessage } from '@/lib/telegram/client'
 
@@ -883,6 +885,21 @@ export async function saveBillingConfig(input: unknown): Promise<ActionResult> {
       }
     }
   }
+  // Provision/refresh the real Stripe subscription Prices from the config dollar
+  // amounts and merge the fresh ids back into the JSON we persist, so checkout
+  // charges exactly what the panel shows (no Stripe dashboard, no deploy). This
+  // NEVER blocks a save: a missing Stripe key no-ops (existing ids preserved),
+  // and any thrown error is logged while the config still persists with the
+  // pre-existing ids.
+  try {
+    const priceIds = await syncAllTierPrices(parsed.data)
+    parsed.data.tiers.pro.stripePriceIdMonth = priceIds.pro.month
+    parsed.data.tiers.pro.stripePriceIdYear = priceIds.pro.year
+    parsed.data.tiers.business.stripePriceIdMonth = priceIds.business.month
+    parsed.data.tiers.business.stripePriceIdYear = priceIds.business.year
+  } catch (err) {
+    console.error('[saveBillingConfig] Stripe price sync failed — persisting config with existing ids:', err instanceof Error ? err.message : err)
+  }
   const svc = requireServiceClient()
   const { error } = await svc.from('platform_integrations').upsert(
     {
@@ -899,6 +916,7 @@ export async function saveBillingConfig(input: unknown): Promise<ActionResult> {
   if (error) return { ok: false, message: error.message }
 
   invalidatePlatformConfig() // runtime apply, no deploy (flushes the billing TTL cache)
+  invalidateStripeDisplayPricesCache() // fresh Stripe Price ids → re-resolve displayed prices
   revalidatePath('/admin/integrations')
   void logAdminAction({
     actorId: ctx.userId,

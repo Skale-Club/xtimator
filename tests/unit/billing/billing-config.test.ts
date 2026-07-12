@@ -581,6 +581,22 @@ describe('BILLCFG-03: getBillingConfig consumed ONLY by the reader + credit-ledg
     // billing source, a legitimate consumer. The guard still fails on any
     // OTHER reference of the symbol.
     const CHAT_ROUTE_PATH = resolve(process.cwd(), 'app/api/chat/route.ts')
+    // Phase 112 (runtime-editable entitlements): lib/entitlements.ts's async
+    // getEntitlementsForTier resolver reads tiers[tier].entitlements from
+    // getBillingConfig (via a dynamic import so the module's static graph stays
+    // client-safe) — the server-side authority for tier caps + feature flags,
+    // a legitimate runtime billing-config consumer. The guard still fails on any
+    // OTHER reference of the symbol.
+    const ENTITLEMENTS_PATH = resolve(process.cwd(), 'lib/entitlements.ts')
+    // v4.18 (panel-managed subscription Prices): checkout resolves the Stripe
+    // Price id from tiers[t].stripePriceIdMonth/Year (config-first, env fallback);
+    // stripe-price-map maps a live price id back to a tier recognizing the same
+    // config ids; stripe-display-prices prefers the config ids over env when
+    // resolving the displayed unit_amount. All three are legitimate runtime
+    // billing-config consumers. The guard still fails on any OTHER reference.
+    const CHECKOUT_SESSION_PATH = resolve(process.cwd(), 'app/api/billing/create-checkout-session/route.ts')
+    const STRIPE_PRICE_MAP_PATH = resolve(process.cwd(), 'lib/billing/stripe-price-map.ts')
+    const STRIPE_DISPLAY_PRICES_PATH = resolve(process.cwd(), 'lib/billing/stripe-display-prices.ts')
     const ALLOWLIST = new Set([
       MODULE_PATH,
       CREDIT_LEDGER_PATH,
@@ -599,6 +615,10 @@ describe('BILLCFG-03: getBillingConfig consumed ONLY by the reader + credit-ledg
       AUTO_TOPUP_ACTION_PATH,
       ADMIN_BILLING_PAGE_PATH,
       CHAT_ROUTE_PATH,
+      ENTITLEMENTS_PATH,
+      CHECKOUT_SESSION_PATH,
+      STRIPE_PRICE_MAP_PATH,
+      STRIPE_DISPLAY_PRICES_PATH,
     ])
 
     const collected: string[] = []

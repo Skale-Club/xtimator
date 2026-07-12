@@ -317,7 +317,7 @@ async function handlePlatformEvent(
 
       // Map the first item's price id to a tier (null when unknown — leave tier as-is).
       const priceId = subscription.items?.data?.[0]?.price?.id ?? null
-      const resolvedTier = resolveTierFromPriceId(priceId)
+      const resolvedTier = await resolveTierFromPriceId(priceId)
 
       // current_period_end moved under a nested shape in the 2026-04-22 Stripe API
       // types but the runtime object still carries it — same cast as invoice.paid.

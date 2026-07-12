@@ -1,5 +1,6 @@
 import 'server-only'
 import { getStripeClient } from '@/lib/billing/stripe-client'
+import { getBillingConfig } from '@/lib/billing/billing-config'
 
 /**
  * Data-integrity fix — displayed price must equal charged price.
@@ -76,11 +77,22 @@ export async function getStripeDisplayPrices(): Promise<StripeDisplayPrices> {
     return empty
   }
 
+  // Prefer the panel-managed Price ids from billing_config (provisioned by
+  // saveBillingConfig) over the legacy STRIPE_PRICE_* env vars, so the displayed
+  // price tracks whatever checkout will actually charge. A config read failure
+  // degrades to the env vars alone (never-throw contract preserved).
+  let cfg: Awaited<ReturnType<typeof getBillingConfig>> | null = null
+  try {
+    cfg = await getBillingConfig()
+  } catch (err) {
+    console.warn('[stripe-display-prices] billing config unavailable; using env price ids:', err)
+  }
+
   const [proMonth, proYear, businessMonth, businessYear] = await Promise.all([
-    resolvePriceCents(stripe, process.env.STRIPE_PRICE_PRO),
-    resolvePriceCents(stripe, process.env.STRIPE_PRICE_PRO_ANNUAL),
-    resolvePriceCents(stripe, process.env.STRIPE_PRICE_BUSINESS),
-    resolvePriceCents(stripe, process.env.STRIPE_PRICE_BUSINESS_ANNUAL),
+    resolvePriceCents(stripe, cfg?.tiers.pro.stripePriceIdMonth ?? process.env.STRIPE_PRICE_PRO),
+    resolvePriceCents(stripe, cfg?.tiers.pro.stripePriceIdYear ?? process.env.STRIPE_PRICE_PRO_ANNUAL),
+    resolvePriceCents(stripe, cfg?.tiers.business.stripePriceIdMonth ?? process.env.STRIPE_PRICE_BUSINESS),
+    resolvePriceCents(stripe, cfg?.tiers.business.stripePriceIdYear ?? process.env.STRIPE_PRICE_BUSINESS_ANNUAL),
   ])
 
   const value: StripeDisplayPrices = {

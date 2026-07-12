@@ -62,6 +62,20 @@ vi.mock('@/lib/platform-config', () => ({
   invalidatePlatformConfig: vi.fn(),
 }))
 
+// v4.18: saveBillingConfig provisions Stripe Prices via syncAllTierPrices before
+// the upsert. Mock it to echo back the config's EXISTING ids (a no-op sync) so
+// the persisted metadata is unchanged and NO real Stripe client is constructed.
+vi.mock('@/lib/billing/stripe-subscription-prices', () => ({
+  syncAllTierPrices: vi.fn(async (cfg: { tiers: Record<string, { stripePriceIdMonth: string | null; stripePriceIdYear: string | null }> }) => ({
+    pro: { month: cfg.tiers.pro.stripePriceIdMonth, year: cfg.tiers.pro.stripePriceIdYear },
+    business: { month: cfg.tiers.business.stripePriceIdMonth, year: cfg.tiers.business.stripePriceIdYear },
+  })),
+}))
+
+vi.mock('@/lib/billing/stripe-display-prices', () => ({
+  invalidateStripeDisplayPricesCache: vi.fn(),
+}))
+
 vi.mock('@/lib/admin/audit-log', () => ({
   logAdminAction: vi.fn(async () => undefined),
 }))
