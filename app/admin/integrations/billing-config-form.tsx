@@ -20,6 +20,38 @@ const fieldsetClass =
   'rounded-lg border border-border bg-card/40 p-4 md:p-6 space-y-4'
 const legendClass = 'text-sm font-semibold'
 
+// Per-tier editable state. Number fields are held as strings (the raw <input>
+// value); the three nullable caps use '' to mean null (unlimited). Booleans and
+// the newline-joined featureBullets round-trip as-is until handleSave.
+type TierFormState = {
+  monthlyCreditGrant: string
+  subscriptionPriceCents: string
+  subscriptionPriceAnnualCents: string
+  includedSeats: string
+  maxEstimatesPerMonth: string
+  maxEstimatesPerDay: string
+  maxPriceResearchPerMonth: string
+  maxPhotosPerEstimate: string
+  maxAudioMinutesPerEstimate: string
+  whatsappEnabled: boolean
+  pdfEnabled: boolean
+  priceBookEnabled: boolean
+  customDomainEnabled: boolean
+  chatEnabled: boolean
+  featureBullets: string
+}
+
+// null-cap ⇒ '' so an empty input round-trips back to null (unlimited).
+function capToInput(v: number | null): string {
+  return v === null ? '' : String(v)
+}
+
+// '' ⇒ null (unlimited); any other value ⇒ Number(). The zod schema is the
+// validator of record — this only reconstructs the nullable shape.
+function inputToCap(v: string): number | null {
+  return v.trim() === '' ? null : Number(v)
+}
+
 export function BillingConfigForm({ current }: Props) {
   const { t } = useTranslation()
   const [isPending, startTransition] = useTransition()
@@ -42,27 +74,31 @@ export function BillingConfigForm({ current }: Props) {
     String(current.seatPriceAnnualCents)
   )
 
-  // Per-tier grants + prices + included seats
+  // Per-tier grants + prices + included seats + entitlements + feature bullets
   const [tiers, setTiers] = useState(() =>
     TIERS.reduce(
       (acc, tier) => {
+        const ent = current.tiers[tier].entitlements
         acc[tier] = {
           monthlyCreditGrant: String(current.tiers[tier].monthlyCreditGrant),
           subscriptionPriceCents: String(current.tiers[tier].subscriptionPriceCents),
           subscriptionPriceAnnualCents: String(current.tiers[tier].subscriptionPriceAnnualCents),
           includedSeats: String(current.tiers[tier].includedSeats),
+          maxEstimatesPerMonth: capToInput(ent.maxEstimatesPerMonth),
+          maxEstimatesPerDay: capToInput(ent.maxEstimatesPerDay),
+          maxPriceResearchPerMonth: capToInput(ent.maxPriceResearchPerMonth),
+          maxPhotosPerEstimate: String(ent.maxPhotosPerEstimate),
+          maxAudioMinutesPerEstimate: String(ent.maxAudioMinutesPerEstimate),
+          whatsappEnabled: ent.whatsappEnabled,
+          pdfEnabled: ent.pdfEnabled,
+          priceBookEnabled: ent.priceBookEnabled,
+          customDomainEnabled: ent.customDomainEnabled,
+          chatEnabled: ent.chatEnabled,
+          featureBullets: current.tiers[tier].featureBullets.join('\n'),
         }
         return acc
       },
-      {} as Record<
-        BillingTier,
-        {
-          monthlyCreditGrant: string
-          subscriptionPriceCents: string
-          subscriptionPriceAnnualCents: string
-          includedSeats: string
-        }
-      >
+      {} as Record<BillingTier, TierFormState>
     )
   )
 
@@ -88,14 +124,22 @@ export function BillingConfigForm({ current }: Props) {
   // free-tier wall depends on it; unchecking reverts to record-only.
   const [enforcementEnabled, setEnforcementEnabled] = useState(current.enforcementEnabled)
 
-  function updateTier(
+  // Platform-wide auto-top-up kill switch (CREDITUI-07).
+  const [autoTopupEnabled, setAutoTopupEnabled] = useState(current.autoTopupEnabled)
+
+  // Metering: which operations debit credits vs run absorbed, keyed exactly as
+  // stored (no keys invented) + the absorbed-chat anti-abuse rate limit.
+  const [meteredOperations, setMeteredOperations] = useState<Record<string, boolean>>(
+    () => ({ ...current.meteredOperations })
+  )
+  const [absorbedChatRateLimitPerMin, setAbsorbedChatRateLimitPerMin] = useState(
+    String(current.absorbedChatRateLimitPerMin)
+  )
+
+  function updateTier<K extends keyof TierFormState>(
     tier: BillingTier,
-    field:
-      | 'monthlyCreditGrant'
-      | 'subscriptionPriceCents'
-      | 'subscriptionPriceAnnualCents'
-      | 'includedSeats',
-    value: string
+    field: K,
+    value: TierFormState[K]
   ) {
     setTiers((prev) => ({ ...prev, [tier]: { ...prev[tier], [field]: value } }))
   }
@@ -127,11 +171,32 @@ export function BillingConfigForm({ current }: Props) {
       seatPriceAnnualCents: Number(seatPriceAnnualCents),
       tiers: TIERS.reduce(
         (acc, tier) => {
+          const s = tiers[tier]
           acc[tier] = {
-            monthlyCreditGrant: Number(tiers[tier].monthlyCreditGrant),
-            subscriptionPriceCents: Number(tiers[tier].subscriptionPriceCents),
-            subscriptionPriceAnnualCents: Number(tiers[tier].subscriptionPriceAnnualCents),
-            includedSeats: Number(tiers[tier].includedSeats),
+            monthlyCreditGrant: Number(s.monthlyCreditGrant),
+            subscriptionPriceCents: Number(s.subscriptionPriceCents),
+            subscriptionPriceAnnualCents: Number(s.subscriptionPriceAnnualCents),
+            includedSeats: Number(s.includedSeats),
+            // Stripe Price IDs are provisioned/refreshed by the save action from
+            // the price fields — pass the current IDs through unchanged.
+            stripePriceIdMonth: current.tiers[tier].stripePriceIdMonth,
+            stripePriceIdYear: current.tiers[tier].stripePriceIdYear,
+            entitlements: {
+              maxEstimatesPerMonth: inputToCap(s.maxEstimatesPerMonth),
+              maxEstimatesPerDay: inputToCap(s.maxEstimatesPerDay),
+              maxPriceResearchPerMonth: inputToCap(s.maxPriceResearchPerMonth),
+              maxPhotosPerEstimate: Number(s.maxPhotosPerEstimate),
+              maxAudioMinutesPerEstimate: Number(s.maxAudioMinutesPerEstimate),
+              whatsappEnabled: s.whatsappEnabled,
+              pdfEnabled: s.pdfEnabled,
+              priceBookEnabled: s.priceBookEnabled,
+              customDomainEnabled: s.customDomainEnabled,
+              chatEnabled: s.chatEnabled,
+            },
+            featureBullets: s.featureBullets
+              .split('\n')
+              .map((line) => line.trim())
+              .filter((line) => line.length > 0),
           }
           return acc
         },
@@ -148,12 +213,9 @@ export function BillingConfigForm({ current }: Props) {
         .map((s) => Number(s)),
       signupCreditGrant: Number(signupCreditGrant),
       enforcementEnabled,
-      // Carried through unchanged this phase so the saved row keeps the final shape.
-      meteredOperations: current.meteredOperations,
-      absorbedChatRateLimitPerMin: current.absorbedChatRateLimitPerMin,
-      // Phase 153 (CREDITUI-07): auto-top-up kill switch — carried through
-      // unchanged here; Plan 03 adds the editable toggle to this panel.
-      autoTopupEnabled: current.autoTopupEnabled,
+      meteredOperations,
+      absorbedChatRateLimitPerMin: Number(absorbedChatRateLimitPerMin),
+      autoTopupEnabled,
     }
 
     startTransition(async () => {
@@ -286,67 +348,243 @@ export function BillingConfigForm({ current }: Props) {
         </div>
       </fieldset>
 
-      {/* Per-tier grants & prices */}
+      {/* Per-tier grants, prices, entitlements & feature bullets */}
       <fieldset className={fieldsetClass}>
-        <legend className={legendClass}>{t('Per-tier grants & prices')}</legend>
-        <div className="space-y-4">
+        <legend className={legendClass}>{t('Per-tier plans')}</legend>
+        <p className="text-xs text-muted-foreground max-w-2xl">
+          {t(
+            'Saving creates or updates the real Stripe Price charged at checkout for each subscription price. Existing subscribers keep their current price until they switch plans.'
+          )}
+        </p>
+        <div className="space-y-6">
           {TIERS.map((tier) => (
-            <div key={tier} className="grid gap-4 sm:grid-cols-5 sm:items-end">
-              <span className="text-sm font-medium capitalize">{tier}</span>
+            <div
+              key={tier}
+              className="rounded-md border border-border bg-background/40 p-4 space-y-4"
+            >
+              <span className="text-sm font-semibold capitalize">{tier}</span>
+
+              {/* Grants & prices */}
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <label className="flex flex-col gap-1">
+                  <span className="text-xs text-muted-foreground">
+                    {t('Monthly credit grant')}
+                  </span>
+                  <input
+                    type="number"
+                    step="1"
+                    value={tiers[tier].monthlyCreditGrant}
+                    onChange={(e) => updateTier(tier, 'monthlyCreditGrant', e.target.value)}
+                    disabled={isPending}
+                    className={inputClass}
+                  />
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span className="text-xs text-muted-foreground">
+                    {t('Subscription price (cents)')}
+                  </span>
+                  <input
+                    type="number"
+                    step="1"
+                    value={tiers[tier].subscriptionPriceCents}
+                    onChange={(e) =>
+                      updateTier(tier, 'subscriptionPriceCents', e.target.value)
+                    }
+                    disabled={isPending}
+                    className={inputClass}
+                  />
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span className="text-xs text-muted-foreground">
+                    {t('Subscription price annual (cents)')}
+                  </span>
+                  <input
+                    type="number"
+                    step="1"
+                    value={tiers[tier].subscriptionPriceAnnualCents}
+                    onChange={(e) =>
+                      updateTier(tier, 'subscriptionPriceAnnualCents', e.target.value)
+                    }
+                    disabled={isPending}
+                    className={inputClass}
+                  />
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span className="text-xs text-muted-foreground">
+                    {t('Included seats')}
+                  </span>
+                  <input
+                    type="number"
+                    step="1"
+                    value={tiers[tier].includedSeats}
+                    onChange={(e) => updateTier(tier, 'includedSeats', e.target.value)}
+                    disabled={isPending}
+                    className={inputClass}
+                  />
+                </label>
+              </div>
+
+              {/* Entitlement caps */}
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+                <label className="flex flex-col gap-1">
+                  <span className="text-xs text-muted-foreground">
+                    {t('Max estimates / month')}
+                  </span>
+                  <input
+                    type="number"
+                    step="1"
+                    min="0"
+                    value={tiers[tier].maxEstimatesPerMonth}
+                    onChange={(e) =>
+                      updateTier(tier, 'maxEstimatesPerMonth', e.target.value)
+                    }
+                    disabled={isPending}
+                    className={inputClass}
+                    placeholder={t('unlimited')}
+                  />
+                  <span className="text-[11px] text-muted-foreground/80">
+                    {t('(empty = unlimited)')}
+                  </span>
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span className="text-xs text-muted-foreground">
+                    {t('Max estimates / day')}
+                  </span>
+                  <input
+                    type="number"
+                    step="1"
+                    min="0"
+                    value={tiers[tier].maxEstimatesPerDay}
+                    onChange={(e) => updateTier(tier, 'maxEstimatesPerDay', e.target.value)}
+                    disabled={isPending}
+                    className={inputClass}
+                    placeholder={t('unlimited')}
+                  />
+                  <span className="text-[11px] text-muted-foreground/80">
+                    {t('(empty = unlimited)')}
+                  </span>
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span className="text-xs text-muted-foreground">
+                    {t('Max price research / month')}
+                  </span>
+                  <input
+                    type="number"
+                    step="1"
+                    min="0"
+                    value={tiers[tier].maxPriceResearchPerMonth}
+                    onChange={(e) =>
+                      updateTier(tier, 'maxPriceResearchPerMonth', e.target.value)
+                    }
+                    disabled={isPending}
+                    className={inputClass}
+                    placeholder={t('unlimited')}
+                  />
+                  <span className="text-[11px] text-muted-foreground/80">
+                    {t('(empty = unlimited)')}
+                  </span>
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span className="text-xs text-muted-foreground">
+                    {t('Max photos / estimate')}
+                  </span>
+                  <input
+                    type="number"
+                    step="1"
+                    min="0"
+                    value={tiers[tier].maxPhotosPerEstimate}
+                    onChange={(e) =>
+                      updateTier(tier, 'maxPhotosPerEstimate', e.target.value)
+                    }
+                    disabled={isPending}
+                    className={inputClass}
+                  />
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span className="text-xs text-muted-foreground">
+                    {t('Max audio minutes / estimate')}
+                  </span>
+                  <input
+                    type="number"
+                    step="1"
+                    min="0"
+                    value={tiers[tier].maxAudioMinutesPerEstimate}
+                    onChange={(e) =>
+                      updateTier(tier, 'maxAudioMinutesPerEstimate', e.target.value)
+                    }
+                    disabled={isPending}
+                    className={inputClass}
+                  />
+                </label>
+              </div>
+
+              {/* Feature flags */}
+              <div className="flex flex-wrap gap-x-6 gap-y-2">
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={tiers[tier].whatsappEnabled}
+                    onChange={(e) => updateTier(tier, 'whatsappEnabled', e.target.checked)}
+                    disabled={isPending}
+                    className="h-4 w-4"
+                  />
+                  {t('WhatsApp')}
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={tiers[tier].pdfEnabled}
+                    onChange={(e) => updateTier(tier, 'pdfEnabled', e.target.checked)}
+                    disabled={isPending}
+                    className="h-4 w-4"
+                  />
+                  {t('PDF')}
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={tiers[tier].priceBookEnabled}
+                    onChange={(e) => updateTier(tier, 'priceBookEnabled', e.target.checked)}
+                    disabled={isPending}
+                    className="h-4 w-4"
+                  />
+                  {t('Price book')}
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={tiers[tier].customDomainEnabled}
+                    onChange={(e) =>
+                      updateTier(tier, 'customDomainEnabled', e.target.checked)
+                    }
+                    disabled={isPending}
+                    className="h-4 w-4"
+                  />
+                  {t('Custom domain')}
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={tiers[tier].chatEnabled}
+                    onChange={(e) => updateTier(tier, 'chatEnabled', e.target.checked)}
+                    disabled={isPending}
+                    className="h-4 w-4"
+                  />
+                  {t('Chat')}
+                </label>
+              </div>
+
+              {/* Feature bullets */}
               <label className="flex flex-col gap-1">
                 <span className="text-xs text-muted-foreground">
-                  {t('Monthly credit grant')}
+                  {t('Feature bullets (one per line)')}
                 </span>
-                <input
-                  type="number"
-                  step="1"
-                  value={tiers[tier].monthlyCreditGrant}
-                  onChange={(e) => updateTier(tier, 'monthlyCreditGrant', e.target.value)}
+                <textarea
+                  rows={4}
+                  value={tiers[tier].featureBullets}
+                  onChange={(e) => updateTier(tier, 'featureBullets', e.target.value)}
                   disabled={isPending}
-                  className={inputClass}
-                />
-              </label>
-              <label className="flex flex-col gap-1">
-                <span className="text-xs text-muted-foreground">
-                  {t('Subscription price (cents)')}
-                </span>
-                <input
-                  type="number"
-                  step="1"
-                  value={tiers[tier].subscriptionPriceCents}
-                  onChange={(e) =>
-                    updateTier(tier, 'subscriptionPriceCents', e.target.value)
-                  }
-                  disabled={isPending}
-                  className={inputClass}
-                />
-              </label>
-              <label className="flex flex-col gap-1">
-                <span className="text-xs text-muted-foreground">
-                  {t('Subscription price annual (cents)')}
-                </span>
-                <input
-                  type="number"
-                  step="1"
-                  value={tiers[tier].subscriptionPriceAnnualCents}
-                  onChange={(e) =>
-                    updateTier(tier, 'subscriptionPriceAnnualCents', e.target.value)
-                  }
-                  disabled={isPending}
-                  className={inputClass}
-                />
-              </label>
-              <label className="flex flex-col gap-1">
-                <span className="text-xs text-muted-foreground">
-                  {t('Included seats')}
-                </span>
-                <input
-                  type="number"
-                  step="1"
-                  value={tiers[tier].includedSeats}
-                  onChange={(e) => updateTier(tier, 'includedSeats', e.target.value)}
-                  disabled={isPending}
-                  className={inputClass}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 />
               </label>
             </div>
@@ -449,17 +687,64 @@ export function BillingConfigForm({ current }: Props) {
         </label>
       </fieldset>
 
-      {/* Carried-through (no UI this phase) */}
+      {/* Auto-top-up kill switch */}
       <fieldset className={fieldsetClass}>
-        <legend className={legendClass}>{t('Advanced (carried through)')}</legend>
-        <p className="text-sm text-muted-foreground">
-          {t(
-            'meteredOperations and absorbedChatRateLimitPerMin are saved at their current values and not editable in this phase.'
-          )}{' '}
-          <span className="text-muted-foreground/80">
-            absorbedChatRateLimitPerMin = {current.absorbedChatRateLimitPerMin}
+        <legend className={legendClass}>{t('Auto-top-up')}</legend>
+        <label className="flex items-start gap-3">
+          <input
+            type="checkbox"
+            checked={autoTopupEnabled}
+            onChange={(e) => setAutoTopupEnabled(e.target.checked)}
+            disabled={isPending}
+            className="mt-1 h-4 w-4"
+          />
+          <span className="flex flex-col gap-1">
+            <span className="text-sm font-medium">{t('Enable auto-top-up')}</span>
+            <span className="text-xs text-muted-foreground max-w-2xl">
+              {t(
+                'Platform-wide kill switch. Turning it on enables the tenant-facing auto-top-up feature for every company; each tenant still opts in individually.'
+              )}
+            </span>
           </span>
-        </p>
+        </label>
+      </fieldset>
+
+      {/* Metering */}
+      <fieldset className={fieldsetClass}>
+        <legend className={legendClass}>{t('Metering')}</legend>
+        <div className="space-y-3">
+          <span className="text-sm font-medium">{t('Metered operations')}</span>
+          <div className="flex flex-wrap gap-x-6 gap-y-2">
+            {Object.entries(meteredOperations).map(([op, enabled]) => (
+              <label key={op} className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={enabled}
+                  onChange={(e) =>
+                    setMeteredOperations((prev) => ({ ...prev, [op]: e.target.checked }))
+                  }
+                  disabled={isPending}
+                  className="h-4 w-4"
+                />
+                {op}
+              </label>
+            ))}
+          </div>
+          <label className="flex flex-col gap-1 max-w-sm">
+            <span className="text-sm font-medium">
+              {t('Absorbed chat rate limit (per minute)')}
+            </span>
+            <input
+              type="number"
+              step="1"
+              min="0"
+              value={absorbedChatRateLimitPerMin}
+              onChange={(e) => setAbsorbedChatRateLimitPerMin(e.target.value)}
+              disabled={isPending}
+              className={inputClass}
+            />
+          </label>
+        </div>
       </fieldset>
 
       <Button onClick={handleSave} disabled={isPending} className="min-h-[44px]">
