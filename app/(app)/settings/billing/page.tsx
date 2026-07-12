@@ -279,6 +279,11 @@ export default async function BillingPage() {
             currentTier={data.tier as 'free' | 'trial' | 'pro' | 'business'}
             annualPrices={annualPrices}
             monthlyPricesCents={monthlyPricesCents}
+            featureBullets={{
+              free: cfg.tiers.free.featureBullets,
+              pro: cfg.tiers.pro.featureBullets,
+              business: cfg.tiers.business.featureBullets,
+            }}
           />
         </div>
 

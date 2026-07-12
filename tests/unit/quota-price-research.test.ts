@@ -8,9 +8,9 @@ import { join } from 'node:path'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
-// Mock entitlements module (quota.ts imports getEntitlements).
+// Mock entitlements module (quota.ts imports getEntitlementsForTier).
 vi.mock('@/lib/entitlements', () => ({
-  getEntitlements: vi.fn(),
+  getEntitlementsForTier: vi.fn(),
 }))
 
 import { recordUsage, type EventType, type QuotaType } from '@/lib/quota'

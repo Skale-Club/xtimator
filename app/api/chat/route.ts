@@ -44,7 +44,7 @@ import {
   findMessageRow,
   type ChatRole,
 } from '@/lib/queries/chat'
-import { getEntitlements } from '@/lib/entitlements'
+import { getEntitlementsForTier } from '@/lib/entitlements'
 import { rateLimit } from '@/lib/ratelimit'
 import { getBillingConfig } from '@/lib/billing/billing-config'
 
@@ -107,7 +107,7 @@ export async function POST(req: Request) {
   //     build (mirrors the send-whatsapp channel gate; bare Response to match
   //     this file's 401/400 style). The page gate (Plan 02) is additive UX only.
   const tier = (company as { tier?: string | null } | null)?.tier ?? 'free'
-  if (!getEntitlements(tier).chatEnabled) {
+  if (!(await getEntitlementsForTier(tier)).chatEnabled) {
     return new Response(
       JSON.stringify({ error: 'chat_not_on_plan', upgradeUrl: '/settings/billing' }),
       { status: 403, headers: { 'content-type': 'application/json' } },

@@ -1,7 +1,28 @@
 // tests/unit/entitlements.test.ts
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { getEntitlements, tiers, type TierName } from '@/lib/entitlements'
+
+// getEntitlementsForTier dynamically imports billing-config; mock getBillingConfig
+// so every test is hermetic (never touches the real platform_integrations row)
+// and can control the config a tier resolves against. DEFAULT_BILLING_CONFIG stays
+// real (importActual) so the price_research suite below sees the true defaults.
+const getBillingConfigMock = vi.fn()
+vi.mock('@/lib/billing/billing-config', async (importActual) => {
+  const actual = await importActual<typeof import('@/lib/billing/billing-config')>()
+  return { ...actual, getBillingConfig: () => getBillingConfigMock() }
+})
+
+import { getEntitlements, getEntitlementsForTier, tiers, type TierName } from '@/lib/entitlements'
+import { DEFAULT_BILLING_CONFIG, type BillingConfig } from '@/lib/billing/billing-config'
+
+// Deep-clone the default config so per-test overrides never leak between tests.
+function cloneConfig(): BillingConfig {
+  return JSON.parse(JSON.stringify(DEFAULT_BILLING_CONFIG)) as BillingConfig
+}
+
+beforeEach(() => {
+  getBillingConfigMock.mockResolvedValue(DEFAULT_BILLING_CONFIG)
+})
 
 describe('entitlements', () => {
   // Billing v2: the free tier is CREDIT-gated (one-time signup grant → wall).
@@ -105,10 +126,13 @@ describe('entitlements', () => {
     expect(getEntitlements('garbage').monthlyCreditGrant).toBe(0)
   })
 
-  // Phase 126 (CHATMETER-02): chatEnabled gates the in-app chat as a Pro/Business
-  // feature. free=false (the gate's whole point); pro/business=true.
-  it('free tier has chatEnabled false (in-app chat is a Pro/Business feature)', () => {
-    expect(tiers.free.chatEnabled).toBe(false)
+  // Phase 126 (CHATMETER-02): chatEnabled originally gated in-app chat as a
+  // Pro/Business feature. Chat is now OPENED UP on free too (usage stays bound by
+  // the credit balance), so every tier has chatEnabled true. The entitlement
+  // field and the route's 403 gate remain in place so chat can be re-gated by
+  // flipping a single flag.
+  it('free tier has chatEnabled true (chat opened up on free)', () => {
+    expect(tiers.free.chatEnabled).toBe(true)
   })
 
   it('pro tier has chatEnabled true', () => {
@@ -119,13 +143,13 @@ describe('entitlements', () => {
     expect(tiers.business.chatEnabled).toBe(true)
   })
 
-  it('getEntitlements resolves chatEnabled (free false, pro true)', () => {
-    expect(getEntitlements('free').chatEnabled).toBe(false)
+  it('getEntitlements resolves chatEnabled (free true, pro true)', () => {
+    expect(getEntitlements('free').chatEnabled).toBe(true)
     expect(getEntitlements('pro').chatEnabled).toBe(true)
   })
 
-  it('getEntitlements falls back to free chatEnabled (false) for an unknown tier', () => {
-    expect(getEntitlements('garbage').chatEnabled).toBe(false)
+  it('getEntitlements falls back to free chatEnabled (true) for an unknown tier', () => {
+    expect(getEntitlements('garbage').chatEnabled).toBe(true)
   })
 
   // Billing v2: the 14-day trial tier is RETIRED — the free tier IS the trial
@@ -133,6 +157,68 @@ describe('entitlements', () => {
   // DB must resolve to free entitlements through the unknown-tier fallback.
   it("resolves a legacy 'trial' string to free entitlements (fallback)", () => {
     expect(getEntitlements('trial')).toEqual(tiers.free)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Phase 112: getEntitlementsForTier — the SERVER-SIDE authority. Reads
+// billing_config.tiers[tier].entitlements (runtime-editable, no deploy) merged
+// OVER the static default, so config wins per field and omitted fields fall back.
+// ---------------------------------------------------------------------------
+describe('getEntitlementsForTier (config-sourced, server-side authority)', () => {
+  it('returns the static default when the config mirrors it (no overrides)', async () => {
+    // beforeEach sets DEFAULT_BILLING_CONFIG, whose entitlements mirror the static tiers.
+    await expect(getEntitlementsForTier('pro')).resolves.toEqual(tiers.pro)
+    await expect(getEntitlementsForTier('free')).resolves.toEqual(tiers.free)
+  })
+
+  it('config-set values WIN per field over the static default', async () => {
+    const cfg = cloneConfig()
+    cfg.tiers.pro.entitlements.maxPhotosPerEstimate = 99
+    cfg.tiers.pro.entitlements.chatEnabled = false
+    cfg.tiers.pro.entitlements.maxEstimatesPerMonth = null
+    getBillingConfigMock.mockResolvedValue(cfg)
+
+    const ent = await getEntitlementsForTier('pro')
+    expect(ent.maxPhotosPerEstimate).toBe(99)
+    expect(ent.chatEnabled).toBe(false)
+    expect(ent.maxEstimatesPerMonth).toBeNull()
+    // Untouched fields still resolve from the (config = static) default.
+    expect(ent.maxAudioMinutesPerEstimate).toBe(tiers.pro.maxAudioMinutesPerEstimate)
+  })
+
+  it('falls back to the static default for fields the config entitlements OMIT', async () => {
+    const cfg = cloneConfig()
+    // A partial entitlements object (only one field) — the rest must fall through.
+    ;(cfg.tiers.business as { entitlements: unknown }).entitlements = {
+      maxPhotosPerEstimate: 5,
+    }
+    getBillingConfigMock.mockResolvedValue(cfg)
+
+    const ent = await getEntitlementsForTier('business')
+    expect(ent.maxPhotosPerEstimate).toBe(5) // config override
+    // Every omitted field resolves from static business.
+    expect(ent.customDomainEnabled).toBe(tiers.business.customDomainEnabled)
+    expect(ent.maxEstimatesPerDay).toBe(tiers.business.maxEstimatesPerDay)
+    expect(ent.maxPriceResearchPerMonth).toBe(tiers.business.maxPriceResearchPerMonth)
+  })
+
+  it('monthlyCreditGrant always comes from the static default (config entitlements omit it)', async () => {
+    const cfg = cloneConfig()
+    cfg.tiers.pro.entitlements.maxPhotosPerEstimate = 42
+    getBillingConfigMock.mockResolvedValue(cfg)
+    const ent = await getEntitlementsForTier('pro')
+    expect(ent.monthlyCreditGrant).toBe(tiers.pro.monthlyCreditGrant)
+  })
+
+  it('resolves an unknown tier to static free entitlements', async () => {
+    await expect(getEntitlementsForTier('enterprise')).resolves.toEqual(tiers.free)
+    await expect(getEntitlementsForTier('trial')).resolves.toEqual(tiers.free)
+  })
+
+  it('degrades to the static default when getBillingConfig throws', async () => {
+    getBillingConfigMock.mockRejectedValue(new Error('service client unavailable'))
+    await expect(getEntitlementsForTier('business')).resolves.toEqual(tiers.business)
   })
 })
 

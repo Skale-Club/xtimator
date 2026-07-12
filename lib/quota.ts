@@ -5,7 +5,7 @@
 // Phase 57 wires these two functions into routes.
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { getEntitlements } from '@/lib/entitlements'
+import { getEntitlementsForTier } from '@/lib/entitlements'
 import { notify } from '@/lib/notifications/dispatch'
 import { buildNotificationCopy } from '@/lib/notifications/copy'
 
@@ -55,7 +55,7 @@ export async function checkQuota(
       .single()
 
     const tier = (company as { tier: string } | null)?.tier ?? 'free'
-    const { maxPriceResearchPerMonth: limit } = getEntitlements(tier)
+    const { maxPriceResearchPerMonth: limit } = await getEntitlementsForTier(tier)
 
     // Unlimited research tier.
     if (limit === null) {
@@ -91,7 +91,7 @@ export async function checkQuota(
     .single()
 
   const tier = (company as { tier: string } | null)?.tier ?? 'free'
-  const entitlements = getEntitlements(tier)
+  const entitlements = await getEntitlementsForTier(tier)
   const { maxEstimatesPerMonth, maxEstimatesPerDay } = entitlements
 
   // Unlimited tier — both limits null.

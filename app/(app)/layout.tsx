@@ -28,7 +28,7 @@ import { OfflineIndicator } from '@/components/pwa/offline-indicator'
 import { NewProjectDialog } from '@/components/projects/new-project-dialog'
 import { EstimateCreationPopup } from '@/components/projects/estimate-creation-popup'
 import { ChatBubble } from '@/components/chat/chat-bubble'
-import { getEntitlements } from '@/lib/entitlements'
+import { getEntitlementsForTier } from '@/lib/entitlements'
 import { BreadcrumbProvider } from '@/components/app-shell/breadcrumb-context'
 import type { Metadata } from 'next'
 import { PRIVATE_ROBOTS } from '@/lib/seo/route-policy'
@@ -201,6 +201,11 @@ export default async function AppShellLayout({
     avatarUrl: (userData.user?.user_metadata?.avatar_url as string | undefined) ?? null,
   }
 
+  // Runtime-editable entitlements: the chat bubble's enablement now comes from
+  // billing_config (via getEntitlementsForTier), resolved before the JSX so the
+  // render stays synchronous.
+  const chatEnabled = (await getEntitlementsForTier(tier)).chatEnabled
+
   return (
     <TourProvider>
       <BreadcrumbProvider>
@@ -239,7 +244,7 @@ export default async function AppShellLayout({
           {/* The in-app chat bubble — hidden in the read-only demo (write tools
               refuse mutations there anyway) and in Support Mode (admin tooling,
               rendered by the other branch above). */}
-          {!isDemo && <ChatBubble chatEnabled={getEntitlements(tier).chatEnabled} />}
+          {!isDemo && <ChatBubble chatEnabled={chatEnabled} />}
           <NewProjectDialog />
           <EstimateCreationPopup />
           <TranslationLoadingOverlay />

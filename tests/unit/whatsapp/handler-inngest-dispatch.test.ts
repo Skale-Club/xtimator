@@ -26,7 +26,7 @@ vi.mock('@/lib/inngest/client', () => ({
 }))
 
 vi.mock('@/lib/entitlements', () => ({
-  getEntitlements: vi.fn(),
+  getEntitlementsForTier: vi.fn(),
 }))
 
 vi.mock('@/lib/services/generate-estimate', () => ({
@@ -57,13 +57,13 @@ vi.mock('@anthropic-ai/sdk', () => ({
 
 import { processInboundMessages } from '@/lib/whatsapp/handler'
 import { generateEstimateForProject } from '@/lib/services/generate-estimate'
-import { getEntitlements } from '@/lib/entitlements'
+import { getEntitlementsForTier } from '@/lib/entitlements'
 import { sendWhatsAppMessage, downloadWhatsAppMedia } from '@/lib/whatsapp/client'
 import { getIntegrationKey } from '@/lib/platform-config'
 import type { WhatsAppMessage } from '@/lib/whatsapp/types'
 
 const mockGenerate = vi.mocked(generateEstimateForProject)
-const mockGetEntitlements = vi.mocked(getEntitlements)
+const mockGetEntitlements = vi.mocked(getEntitlementsForTier)
 const mockSend = vi.mocked(sendWhatsAppMessage)
 const mockDownload = vi.mocked(downloadWhatsAppMedia)
 const mockGetKey = vi.mocked(getIntegrationKey)

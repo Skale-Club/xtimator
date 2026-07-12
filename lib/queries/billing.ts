@@ -3,7 +3,7 @@
 // Uses requireServiceClient because usage_events has deny-all RLS.
 
 import { requireServiceClient } from '@/lib/supabase/service'
-import { getEntitlements, type Entitlements } from '@/lib/entitlements'
+import { getEntitlementsForTier, type Entitlements } from '@/lib/entitlements'
 
 export interface BillingData {
   tier: string                          // 'free' | 'pro' | 'business' (Billing v2: 'trial' retired)
@@ -77,6 +77,6 @@ export async function getBillingData(companyId: string): Promise<BillingData | n
     stripeSubscriptionId,
     estimatesThisMonth,
     photosThisMonth,
-    entitlements: getEntitlements(tier),
+    entitlements: await getEntitlementsForTier(tier),
   }
 }

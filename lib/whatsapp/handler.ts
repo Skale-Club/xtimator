@@ -29,7 +29,7 @@ import {
   markMessageAsRead,
   sendTypingIndicator,
 } from '@/lib/whatsapp/client'
-import { getEntitlements } from '@/lib/entitlements'
+import { getEntitlementsForTier } from '@/lib/entitlements'
 import { checkCredits } from '@/lib/billing/credit-ledger'
 import { logOutboundMessage } from '@/lib/whatsapp/conversations'
 import { PLACEHOLDER_PREFIX } from '@/lib/constants/project'
@@ -341,7 +341,7 @@ export async function processInboundMessages(
     .eq('id', companyId)
     .single()
   const tier = (companyRow as { tier: string } | null)?.tier ?? 'free'
-  const entitlements = getEntitlements(tier)
+  const entitlements = await getEntitlementsForTier(tier)
 
   if (!entitlements.whatsappEnabled) {
     const body = 'WhatsApp channel is not available on your current plan. Upgrade at /settings/billing'

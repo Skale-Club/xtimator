@@ -62,7 +62,10 @@ describe('chat scope fence (bubble-only surface)', () => {
     const src = read('app/(app)/layout.tsx')
     expect(src).toContain('ChatBubble')
     expect(src).toContain('!isDemo && <ChatBubble')
-    expect(src).toContain('chatEnabled={getEntitlements(tier).chatEnabled}')
+    // Config-sourced entitlement gate: the bubble's chatEnabled is resolved via
+    // the async getEntitlementsForTier(tier) resolver before render.
+    expect(src).toContain('chatEnabled={chatEnabled}')
+    expect(src).toContain('getEntitlementsForTier(tier)')
   })
 
   it('does not expose /chat in tenant navigation', () => {

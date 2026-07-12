@@ -5,9 +5,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
-// Mock entitlements module
+// Mock entitlements module — quota.ts now enforces via the async
+// getEntitlementsForTier (config-sourced) resolver.
 vi.mock('@/lib/entitlements', () => ({
-  getEntitlements: vi.fn(),
+  getEntitlementsForTier: vi.fn(),
 }))
 
 // Mock company query module (not used directly in quota.ts but imported)
@@ -16,7 +17,7 @@ vi.mock('@/lib/queries/company', () => ({
 }))
 
 import { checkQuota, recordUsage } from '@/lib/quota'
-import { getEntitlements } from '@/lib/entitlements'
+import { getEntitlementsForTier } from '@/lib/entitlements'
 
 // ---------------------------------------------------------------------------
 // Mock Supabase factory
@@ -108,7 +109,7 @@ function mockEntitlements(overrides: Partial<{
   maxEstimatesPerDay: number | null
 }> = {}) {
   const defaults = { maxEstimatesPerMonth: 10, maxEstimatesPerDay: 3 }
-  ;(getEntitlements as ReturnType<typeof vi.fn>).mockReturnValue({ ...defaults, ...overrides })
+  ;(getEntitlementsForTier as ReturnType<typeof vi.fn>).mockResolvedValue({ ...defaults, ...overrides })
 }
 
 // ---------------------------------------------------------------------------

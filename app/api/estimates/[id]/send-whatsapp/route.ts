@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireServiceClient } from '@/lib/supabase/service'
-import { getEntitlements } from '@/lib/entitlements'
+import { getEntitlementsForTier } from '@/lib/entitlements'
 import { deliverEstimateViaWhatsApp } from '@/lib/whatsapp/send-estimate'
 import { getWhatsAppAccountStatus } from '@/lib/whatsapp/account-registry'
 import { demoGuardResponse } from '@/lib/demo/guard'
@@ -86,7 +86,7 @@ export async function POST(
       return NextResponse.json({ error: 'Estimate not found' }, { status: 404 })
     }
 
-    const whatsappEnabled = getEntitlements((company.tier as string) ?? 'free').whatsappEnabled
+    const whatsappEnabled = (await getEntitlementsForTier((company.tier as string) ?? 'free')).whatsappEnabled
     if (!whatsappEnabled) {
       return NextResponse.json(
         { error: 'WhatsApp delivery is not available on your current plan.' },

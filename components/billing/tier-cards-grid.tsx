@@ -15,41 +15,34 @@ interface TierCardsGridProps {
   currentTier: Tier | 'trial'
   annualPrices?: { pro?: number | null; business?: number | null }
   monthlyPricesCents?: { pro?: number | null; business?: number | null }
+  // Per-tier marketing bullets sourced live from billing_config
+  // (tiers[t].featureBullets), passed by the billing page. Falls back to the
+  // hardcoded TIERS[].features below only when a tier is missing (defensive for
+  // isolated renders / tests that don't wire the prop).
+  featureBullets?: Partial<Record<Tier, string[]>>
 }
 
 /**
- * Phase 156 (CREDITFIX-03) — feature-bullet verification pass.
+ * Phase 112 — feature bullets are now CONFIG-SOURCED.
  *
  * Prices are sourced live from billing_config via monthlyPricesCents/annualPrices
  * props (see getMonthlyPriceDisplay/getAnnualDisplay below) — never hardcoded here.
  *
- * Feature bullets have NO equivalent billing_config field (they are marketing
- * copy, not billing data — intentionally NOT moved into config, per locked
- * decision: no new backend/ledger logic this phase). Each bullet below was
- * checked against lib/entitlements.ts's actual tier-gating code on 2026-07-06:
+ * Feature bullets are likewise runtime-editable: the billing page reads
+ * billing_config.tiers[t].featureBullets and passes them via the `featureBullets`
+ * prop, so the super-admin panel edits them without a deploy. The TIERS[].features
+ * arrays below are the STATIC FALLBACK only (isolated render / tests, or a tier
+ * the prop omits). Their defaults mirror billing_config's featureBullets, which
+ * were verified accurate against lib/entitlements.ts's tier-gating on 2026-07-06:
  *
- * - Free "photos per estimate" / Pro "photos per estimate" / Business "photos
- *   per estimate": all 3 corrected to match maxPhotosPerEstimate (3/20/50) —
- *   previously overclaimed 10/50/"Unlimited".
- * - Free "estimates" bullet corrected: free is credit-gated (maxEstimatesPerMonth
- *   is null — no count cap), not "3 estimates per month" as previously claimed.
- * - Pro "WhatsApp delivery" REMOVED: whatsappEnabled is true for ALL tiers
- *   (lib/entitlements.ts) — it was never a Pro-exclusive differentiator.
- * - Pro "Unlimited estimates" LEFT AS-IS: maxEstimatesPerMonth=200 is an
- *   anti-abuse ceiling (per the file's own comment), not a customer-facing cap
- *   — 200/mo functions as unlimited for realistic usage.
- * - Business "Custom domain" LEFT AS-IS: matches customDomainEnabled=true,
- *   business-exclusive, verified accurate.
- * - "Custom branding" (pro) and "Stripe Connect payments" (business): NO
- *   code-level gate exists anywhere in the codebase for either (grepped
- *   customBranding/brandingEnabled and tier checks in app/api/stripe/connect/*
- *   — zero matches). These are either aspirational copy or ungated-in-practice
- *   capabilities; left as-is (adding new gating logic is out of scope — no new
- *   backend logic this phase) but flagged here for a future phase to either
- *   implement the gate or soften the copy.
- * - "Basic templates" / "Email support" / "Priority email support" / "Phone +
- *   chat support" / "Everything in Pro": non-code-gated support-channel or
- *   structural copy, nothing in the codebase to verify against — left as-is.
+ * - Free/Pro/Business "photos per estimate" match maxPhotosPerEstimate (3/20/50).
+ * - Free "estimates" bullet: free is credit-gated (maxEstimatesPerMonth null — no
+ *   count cap), not a fixed monthly count.
+ * - Pro "Unlimited estimates": maxEstimatesPerMonth=200 is an anti-abuse ceiling,
+ *   functions as unlimited for realistic usage.
+ * - Business "Custom domain": matches customDomainEnabled=true (business-exclusive).
+ * - "Custom branding" (pro) / "Stripe Connect payments" (business): no code-level
+ *   gate exists — aspirational/ungated copy, editable in the panel.
  */
 const TIERS: Array<{
   tier: Tier
@@ -97,7 +90,7 @@ const TIERS: Array<{
   },
 ]
 
-export function TierCardsGrid({ currentTier, annualPrices, monthlyPricesCents }: TierCardsGridProps) {
+export function TierCardsGrid({ currentTier, annualPrices, monthlyPricesCents, featureBullets }: TierCardsGridProps) {
   const { t } = useTranslation()
   const [loading, setLoading] = useState<Tier | null>(null)
   const [billingInterval, setBillingInterval] = useState<'month' | 'year'>('month')
@@ -184,6 +177,8 @@ export function TierCardsGrid({ currentTier, annualPrices, monthlyPricesCents }:
         {TIERS.map((tierItem) => {
           const annualDisplay = billingInterval === 'year' ? getAnnualDisplay(tierItem.tier) : null
           const monthlyPrice = getMonthlyPriceDisplay(tierItem.tier, tierItem.price ?? '$0')
+          // Config-sourced bullets win; hardcoded TIERS[].features is the fallback.
+          const features = featureBullets?.[tierItem.tier] ?? tierItem.features
           // Free card is a portal-only downgrade path for paid users — render it
           // disabled (it never had a checkout wire-up; onSelect returns early)
           // so it doesn't read as an enabled no-op.
@@ -206,7 +201,7 @@ export function TierCardsGrid({ currentTier, annualPrices, monthlyPricesCents }:
               name={tierItem.name}
               price={monthlyPrice}
               period={tierItem.period}
-              features={tierItem.features}
+              features={features}
               popular={tierItem.popular}
               current={normalized === tierItem.tier}
               showAnnual={billingInterval === 'year'}

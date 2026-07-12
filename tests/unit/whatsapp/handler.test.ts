@@ -29,7 +29,7 @@ vi.mock('@/lib/inngest/client', () => ({
 }))
 
 vi.mock('@/lib/entitlements', () => ({
-  getEntitlements: vi.fn(),
+  getEntitlementsForTier: vi.fn(),
 }))
 
 vi.mock('@/lib/whatsapp/client', () => ({
@@ -46,12 +46,12 @@ vi.mock('@/lib/whatsapp/confirm', () => ({
 import { processInboundMessage } from '@/lib/whatsapp/handler'
 import { sendWhatsAppMessage } from '@/lib/whatsapp/client'
 import { processConfirmationReply } from '@/lib/whatsapp/confirm'
-import { getEntitlements } from '@/lib/entitlements'
+import { getEntitlementsForTier } from '@/lib/entitlements'
 import type { WhatsAppMessage } from '@/lib/whatsapp/types'
 
 const mockSend = vi.mocked(sendWhatsAppMessage)
 const mockConfirm = vi.mocked(processConfirmationReply)
-const mockGetEntitlements = vi.mocked(getEntitlements)
+const mockGetEntitlements = vi.mocked(getEntitlementsForTier)
 
 function makeSupabaseMock({
   existingSession = null,
