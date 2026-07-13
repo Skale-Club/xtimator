@@ -15,6 +15,7 @@ import type { Recording } from '@/lib/queries/recording'
 import type { Photo } from '@/lib/queries/photo'
 import { useEstimateReducer, type EstimateEditorState } from './use-estimate-reducer'
 import { EstimateFloatingActions } from './estimate-floating-actions'
+import { RefineEstimateDialog } from './refine-estimate-dialog'
 import { PresentationSettingsPanel } from './presentation-settings-panel'
 import { IssuedInvoicesPanel } from './issued-invoices-panel'
 import { GenerateInvoiceDialog } from './generate-invoice-dialog'
@@ -456,6 +457,15 @@ export function EstimateEditor({
         onOpenPhotos={onOpenPhotos}
         onOpenSettings={isReadOnly ? undefined : () => setSettingsOpen(true)}
         linkClientSlot={linkClientSlot}
+        refineSlot={
+          isReadOnly ? undefined : (
+            <RefineEstimateDialog
+              estimateId={state.id}
+              version={state.version}
+              onApply={(refined) => dispatch({ type: 'APPLY_REFINEMENT', refined })}
+            />
+          )
+        }
       />
 
       {/* Phase 162-04 (DOCUX-01) — the ONE presentation-settings write path.

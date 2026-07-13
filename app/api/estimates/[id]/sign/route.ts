@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { isDemoCompany } from '@/lib/demo/config'
+import { respondToEstimate } from '@/app/estimate/[token]/actions'
 
 interface SignRequestBody {
   token: string
@@ -93,6 +94,17 @@ export async function POST(
       event_type: 'estimate_signed',
       metadata: { signer_name: signerName.trim() },
     })
+
+    // A signature IS acceptance — reuse the same accept path the public
+    // "Accept" button uses (client_response/responded_at, projects.status,
+    // notification + email) so a signed estimate is never left stuck without
+    // a client_response. Best-effort: the signature is already saved above,
+    // so a failure here (e.g. a race where the client also clicked Accept)
+    // must not fail the sign request itself.
+    const acceptResult = await respondToEstimate(token, 'accepted')
+    if (!acceptResult.success) {
+      console.warn('[sign] respondToEstimate after signing failed:', acceptResult.error)
+    }
 
     return NextResponse.json({ success: true })
   } catch (error) {

@@ -120,6 +120,14 @@ export interface RefinementPayload {
       unit?: string
       unit_price: number
       price_source: 'price_book' | 'ai_estimate' | 'researched'
+      // v4.11 advanced pricing — optional; present when the AI preserved/set them
+      // (the refine route now feeds these into the "Current Estimate" context it
+      // sees, mirroring generate's price_book/tax_category handling).
+      taxable?: boolean
+      tax_category?: 'labor' | 'materials' | 'other' | null
+      discount?: number
+      cost?: number | null
+      markup_pct?: number | null
     }>
   }>
 }
@@ -506,8 +514,16 @@ function estimateReducer(state: EstimateEditorState, action: EstimateAction): Es
           sort_order: iIdx,
           price_source: i.price_source,
           isManuallyEdited: false,
-          taxable: true,
-          discount: 0,
+          // Carry through advanced pricing when the AI preserved/set them (same
+          // no-op-default cast pattern as initState); previously hardcoded to
+          // taxable:true/discount:0, which silently wiped every line's per-item
+          // tax/discount/cost/markup state on every refinement, not just the
+          // lines the instruction actually touched.
+          taxable: i.taxable ?? true,
+          tax_category: i.tax_category ?? null,
+          discount: i.discount ?? 0,
+          cost: i.cost ?? null,
+          markup_pct: i.markup_pct ?? null,
         })),
       }))
       const updated: EstimateEditorState = {

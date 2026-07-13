@@ -210,6 +210,17 @@ export async function POST(
           unit: item.unit ?? undefined,
           unit_price: item.unit_price,
           price_source: (item.price_source ?? 'ai_estimate') as 'price_book' | 'ai_estimate' | 'researched',
+          // v4.11 advanced pricing — feed the current per-item tax/discount/cost/markup
+          // state into the "Current Estimate" context the refine prompt sees (it is
+          // told to "keep everything else unchanged"), same no-op-default cast pattern
+          // as use-estimate-reducer.ts's initState. Without these the AI's echoed
+          // response silently lost this state on every refinement, even for
+          // untouched lines (the reducer replaces the whole sections tree).
+          taxable: (item as { taxable?: boolean }).taxable ?? true,
+          tax_category: (item as { tax_category?: 'labor' | 'materials' | 'other' | null }).tax_category ?? null,
+          discount: (item as { discount?: number }).discount ?? 0,
+          cost: (item as { cost?: number | null }).cost ?? null,
+          markup_pct: (item as { markup_pct?: number | null }).markup_pct ?? null,
         })),
       })) as EstimateSectionOutput[],
     }

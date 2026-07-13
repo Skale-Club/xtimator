@@ -220,7 +220,7 @@ export function RefineEstimateDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-1.5">
+        <Button size="sm" variant="ghost" className="rounded-full gap-1.5 text-foreground">
           <Sparkles className="h-3.5 w-3.5" />
           Refine with AI
         </Button>
