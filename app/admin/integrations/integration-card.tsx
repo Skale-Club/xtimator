@@ -45,6 +45,7 @@ import {
 } from '@/lib/schemas/admin'
 import type { IntegrationProvider } from '@/lib/platform-config'
 
+import { Input } from '@/components/ui/input'
 import { MaskedKeyInput } from './masked-key-input'
 import { TestButton } from './test-button'
 import {
@@ -63,11 +64,40 @@ export type IntegrationCardInitial =
       updatedByEmail: string
     }
 
+/**
+ * One input of a COMPOSITE key. Some providers' credential is really two values
+ * the admin copies from two different places (Twilio: Account SID + Auth Token).
+ * Cramming them into one box and asking the admin to type the ':' themselves is
+ * a paste error waiting to happen — it produced a real "Key must be in
+ * AccountSid:AuthToken format" failure during a live credential rotation.
+ *
+ * This ONLY splits the input. The parts are joined with KEY_PART_SEPARATOR into
+ * the same single string that was always stored, so the server action, the
+ * encrypted storage format and getTwilioConfig() are all untouched.
+ */
+export interface IntegrationKeyPart {
+  /** Stable id — React key + test hook. */
+  id: string
+  label: string
+  placeholder?: string
+  /** Masked input + last4 hint (the actual secret half). Plain input otherwise. */
+  secret?: boolean
+  helpText?: string
+}
+
+/** The stored key joins its parts with this. Matches actions.ts's `key.split(':')`. */
+const KEY_PART_SEPARATOR = ':'
+
 interface IntegrationCardProps {
   provider: IntegrationProvider
   title: string
   description: string
   initial: IntegrationCardInitial
+  /**
+   * When present, the single API-key box is replaced by one input per part.
+   * Omit (every other provider) → single-field behavior is unchanged.
+   */
+  keyParts?: ReadonlyArray<IntegrationKeyPart>
 }
 
 export function IntegrationCard({
@@ -75,6 +105,7 @@ export function IntegrationCard({
   title,
   description,
   initial,
+  keyParts,
 }: IntegrationCardProps) {
   const [isSaving, startSaving] = useTransition()
   const [isDeleting, startDeleting] = useTransition()
@@ -94,6 +125,23 @@ export function IntegrationCard({
   const hasUnsavedKey = apiKeyDraft.length >= 10
   const canTest = isConfigured || hasUnsavedKey
 
+  // Composite-key drafts. `apiKey` stays the single source of truth for submit
+  // and Test — these only feed it.
+  const [parts, setParts] = useState<string[]>(() => (keyParts ?? []).map(() => ''))
+
+  function updatePart(index: number, value: string) {
+    const next = [...parts]
+    next[index] = value
+    setParts(next)
+    // All-blank stays blank so "leave blank to keep the existing key" survives.
+    // A partially-filled pair still joins, so the server's own
+    // "Key must be in AccountSid:AuthToken format" check reports it verbatim.
+    const joined = next.some((p) => p.trim())
+      ? next.map((p) => p.trim()).join(KEY_PART_SEPARATOR)
+      : ''
+    form.setValue('apiKey', joined, { shouldValidate: true, shouldDirty: true })
+  }
+
   function onSubmit(values: IntegrationKeyInput) {
     setSaveError(null)
     startSaving(async () => {
@@ -105,6 +153,7 @@ export function IntegrationCard({
       }
       toast.success(`${title} ${t('key saved.')}`)
       form.reset({ provider, apiKey: '' })
+      setParts((prev) => prev.map(() => ''))
       // The "Connected" badge and the filled-dots placeholder both derive from
       // the `initial` prop passed down from the server component. revalidatePath
       // (inside saveIntegrationKey) only marks that data stale for the NEXT
@@ -153,26 +202,70 @@ export function IntegrationCard({
             onSubmit={form.handleSubmit(onSubmit)}
             className="flex flex-col gap-4"
           >
-            <FormField
-              control={form.control}
-              name="apiKey"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('API key')}</FormLabel>
-                  <FormControl>
-                    <MaskedKeyInput
-                      placeholder={`${t('Paste your')} ${title} ${t('API key')}`}
-                      initialLast4={last4}
-                      autoComplete="off"
-                      spellCheck={false}
-                      disabled={isSaving}
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {keyParts?.length ? (
+              <div className="flex flex-col gap-4">
+                {keyParts.map((part, index) => (
+                  <FormItem key={part.id}>
+                    <FormLabel>{t(part.label)}</FormLabel>
+                    <FormControl>
+                      {part.secret ? (
+                        // last4 belongs to the secret half — it's the tail of the
+                        // stored ':'-joined key.
+                        <MaskedKeyInput
+                          placeholder={part.placeholder ?? ''}
+                          initialLast4={last4}
+                          autoComplete="off"
+                          spellCheck={false}
+                          disabled={isSaving}
+                          value={parts[index] ?? ''}
+                          onChange={(e) => updatePart(index, e.target.value)}
+                        />
+                      ) : (
+                        <Input
+                          placeholder={part.placeholder ?? ''}
+                          autoComplete="off"
+                          spellCheck={false}
+                          disabled={isSaving}
+                          className="min-h-[44px]"
+                          value={parts[index] ?? ''}
+                          onChange={(e) => updatePart(index, e.target.value)}
+                        />
+                      )}
+                    </FormControl>
+                    {part.helpText && (
+                      <p className="text-xs text-muted-foreground">{t(part.helpText)}</p>
+                    )}
+                  </FormItem>
+                ))}
+                {/* The joined value is what actually validates/submits. */}
+                <FormField
+                  control={form.control}
+                  name="apiKey"
+                  render={() => <FormMessage />}
+                />
+              </div>
+            ) : (
+              <FormField
+                control={form.control}
+                name="apiKey"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('API key')}</FormLabel>
+                    <FormControl>
+                      <MaskedKeyInput
+                        placeholder={`${t('Paste your')} ${title} ${t('API key')}`}
+                        initialLast4={last4}
+                        autoComplete="off"
+                        spellCheck={false}
+                        disabled={isSaving}
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
             {saveError && (
               <Alert variant="destructive">
                 <AlertDescription>{saveError}</AlertDescription>

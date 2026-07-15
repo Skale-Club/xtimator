@@ -2,7 +2,10 @@ import 'server-only'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { decrypt } from '@/lib/crypto/aes'
 import type { IntegrationProvider } from '@/lib/platform-config'
-import type { IntegrationCardInitial } from '@/app/admin/integrations/integration-card'
+import type {
+  IntegrationCardInitial,
+  IntegrationKeyPart,
+} from '@/app/admin/integrations/integration-card'
 
 /**
  * Single source of truth for integration provider catalog.
@@ -15,6 +18,12 @@ type Provider = {
   id: IntegrationProvider
   title: string
   description: string
+  /**
+   * Split the key input into one box per part (joined by ':' before storage).
+   * Only for providers whose credential is genuinely two values — omit and the
+   * card renders its usual single API-key box.
+   */
+  keyParts?: ReadonlyArray<IntegrationKeyPart>
 }
 
 export type Category = {
@@ -133,7 +142,25 @@ export const CATEGORIES: ReadonlyArray<Category> = [
         id: 'twilio' as IntegrationProvider,
         title: 'Twilio',
         description:
-          'Enter as "AccountSid:AuthToken". Set the outbound phone number in the From Phone field below after saving.',
+          'Both values come from the Twilio Console → Account Info. Set the outbound phone number in the From Phone field below after saving.',
+        // Twilio's credential is TWO values copied from two places in the
+        // console. One box + a hand-typed ':' produced a real "Key must be in
+        // AccountSid:AuthToken format" failure mid-rotation. They're still
+        // STORED joined by ':' — only the input is split.
+        keyParts: [
+          {
+            id: 'accountSid',
+            label: 'Account SID',
+            placeholder: 'AC…',
+            helpText: 'Starts with AC. Not a secret — it identifies the account.',
+          },
+          {
+            id: 'authToken',
+            label: 'Auth Token',
+            secret: true,
+            helpText: 'Twilio Console → Account Info → Auth Token. Rotate it there, never reuse.',
+          },
+        ],
       },
     ],
   },

@@ -145,6 +145,7 @@ export async function IntegrationCategoryContent({
             title={p.title}
             description={p.description}
             initial={initials.get(p.id) ?? { configured: false }}
+            keyParts={p.keyParts}
           />
         ))}
       </div>
