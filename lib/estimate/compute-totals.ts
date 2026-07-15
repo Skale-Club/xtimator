@@ -26,7 +26,8 @@ export interface TaxConfig {
 
 export interface ComputeTotalsItem {
   quantity: number
-  unit_price: number
+  unit_price?: number        // MARK-01 — optional: absent when the AI supplies cost + markup_pct
+                             // instead and the server derives the price (see :105-:109)
   discount?: number | null   // line discount (dormant — defaults to 0)
   cost?: number | null       // MARK-01 — per-unit cost basis (AI INPUT); server derives unit_price
   markup_pct?: number | null // MARK-01 — markup percent applied to cost (AI INPUT)
@@ -106,7 +107,7 @@ export function computeEstimateTotals(
       const effectiveUnitPrice =
         hasMarkup && !hasExplicitPrice
           ? Math.round((item.cost as number) * (1 + (item.markup_pct as number) / 100) * 100) / 100
-          : item.unit_price
+          : item.unit_price ?? 0
       const lineGross = Math.round(item.quantity * effectiveUnitPrice * 100) / 100
       const lineDiscount = item.discount ?? 0   // DORMANT: default 0 → lineNet == lineGross (Phase 131)
       const lineNet = lineGross - lineDiscount
