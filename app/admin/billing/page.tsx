@@ -53,25 +53,27 @@ export default async function AdminBillingPage() {
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-[clamp(28px,3.5vw,40px)] font-semibold tracking-tight"><T>Billing</T></h1>
-        <p className="text-muted-foreground">
-          <T>Monitor real AI cost, credit balances, and auto-top-up status per company.</T>
-        </p>
-      </div>
+      <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
+        <div className="flex flex-col gap-2">
+          <h1 className="text-[clamp(28px,3.5vw,40px)] font-semibold tracking-tight"><T>Billing</T></h1>
+          <p className="text-muted-foreground">
+            <T>Monitor real AI cost, credit balances, and auto-top-up status per company.</T>
+          </p>
+        </div>
 
-      {/* Platform AI cost stat card with gradient top edge */}
-      <Card variant="stat" className="p-6 flex flex-col gap-3 max-w-sm min-h-[120px]">
-        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          <T>Platform AI Cost</T>
-        </span>
-        <p className="font-mono text-3xl font-semibold tracking-tight">
-          ${totalRealCostUsd.toFixed(2)}
-        </p>
-        <p className="text-xs text-muted-foreground">
-          {totalCreditsEquivalent.toLocaleString()} <T>credits equivalent at</T> {billingConfig.markup}× <T>markup</T>
-        </p>
-      </Card>
+        {/* Platform AI cost stat card with gradient top edge */}
+        <Card variant="stat" className="p-6 flex flex-col gap-3 w-full md:w-auto md:min-w-[240px] md:shrink-0">
+          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            <T>Platform AI Cost</T>
+          </span>
+          <p className="font-mono text-3xl font-semibold tracking-tight">
+            ${totalRealCostUsd.toFixed(2)}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {totalCreditsEquivalent.toLocaleString()} <T>credits equivalent at</T> {billingConfig.markup}× <T>markup</T>
+          </p>
+        </Card>
+      </div>
 
       <Card variant="glass" className="p-4 md:p-6">
         <BillingTable
