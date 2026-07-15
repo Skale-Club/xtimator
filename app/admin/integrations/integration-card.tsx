@@ -139,7 +139,11 @@ export function IntegrationCard({
     const joined = next.some((p) => p.trim())
       ? next.map((p) => p.trim()).join(KEY_PART_SEPARATOR)
       : ''
-    form.setValue('apiKey', joined, { shouldValidate: true, shouldDirty: true })
+    // NOT shouldValidate: validating on every keystroke fired "API key is
+    // required" the instant a field was cleared, and the inserted message
+    // shifted Save/Test down mid-click. handleSubmit validates on submit —
+    // same as the single-field branch has always behaved.
+    form.setValue('apiKey', joined, { shouldDirty: true })
   }
 
   function onSubmit(values: IntegrationKeyInput) {
@@ -211,22 +215,37 @@ export function IntegrationCard({
                       {part.secret ? (
                         // last4 belongs to the secret half — it's the tail of the
                         // stored ':'-joined key.
+                        //
+                        // autoComplete="new-password", NOT "off": MaskedKeyInput
+                        // renders type="password", and a text input followed by a
+                        // password input is the exact shape Chrome reads as a login
+                        // form — it ignored "off" and autofilled the saved account
+                        // email into Account SID plus a saved password here, which
+                        // Twilio then rejected with "20003 invalid username".
+                        // "new-password" marks it as a set-a-new-secret field, which
+                        // Chrome does not fill from saved credentials.
                         <MaskedKeyInput
+                          name={`${provider}-${part.id}`}
                           placeholder={part.placeholder ?? ''}
                           initialLast4={last4}
-                          autoComplete="off"
+                          autoComplete="new-password"
                           spellCheck={false}
                           disabled={isSaving}
+                          data-1p-ignore
+                          data-lpignore="true"
                           value={parts[index] ?? ''}
                           onChange={(e) => updatePart(index, e.target.value)}
                         />
                       ) : (
                         <Input
+                          name={`${provider}-${part.id}`}
                           placeholder={part.placeholder ?? ''}
                           autoComplete="off"
                           spellCheck={false}
                           disabled={isSaving}
                           className="min-h-[44px]"
+                          data-1p-ignore
+                          data-lpignore="true"
                           value={parts[index] ?? ''}
                           onChange={(e) => updatePart(index, e.target.value)}
                         />

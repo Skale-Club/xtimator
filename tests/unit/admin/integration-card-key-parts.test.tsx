@@ -135,3 +135,63 @@ describe('IntegrationCard — composite key parts', () => {
     expect(screen.queryByText('Account SID')).toBeNull()
   })
 })
+
+// Both guards below cover bugs this split SHIPPED to production. A text input
+// followed by a password input is the exact shape Chrome reads as a login form.
+describe('IntegrationCard — composite parts must not read as a login form', () => {
+  it('the secret part opts out of saved-password autofill (new-password, not off)', () => {
+    const { container } = setup(TWILIO_PARTS)
+    const secret = container.querySelector('input[type="password"]') as HTMLInputElement
+    expect(secret).toBeTruthy()
+    // Chrome ignores autocomplete="off" on login-shaped forms and autofilled the
+    // account email into Account SID + a saved password here → Twilio 20003
+    // "invalid username". "new-password" is what actually opts out.
+    expect(secret.getAttribute('autocomplete')).toBe('new-password')
+  })
+
+  it('neither part is named like a username/password field', () => {
+    const { container } = setup(TWILIO_PARTS)
+    for (const el of inputs(container)) {
+      const name = (el.getAttribute('name') ?? '').toLowerCase()
+      expect(name).not.toMatch(/^(username|email|user|login|password|pass)$/)
+      // Password managers get an explicit opt-out too.
+      expect(el.hasAttribute('data-1p-ignore')).toBe(true)
+      expect(el.getAttribute('data-lpignore')).toBe('true')
+    }
+  })
+
+  it('clearing a part does NOT fire "required" before submit (no layout shift under the cursor)', async () => {
+    const { container } = setup(TWILIO_PARTS)
+    const [sid, token] = inputs(container)
+
+    fireEvent.change(sid, { target: { value: SID } })
+    fireEvent.change(token, { target: { value: TOKEN } })
+    fireEvent.change(sid, { target: { value: '' } })
+    fireEvent.change(token, { target: { value: '' } })
+
+    // Validating on every keystroke inserted this message the moment a field was
+    // cleared, pushing Save/Test down mid-click. Errors belong on submit.
+    await new Promise((r) => setTimeout(r, 0))
+    expect(screen.queryByText(/required/i)).toBeNull()
+  })
+
+  it('an emptied form still Tests the STORED key instead of a fragment', async () => {
+    testIntegrationKey.mockResolvedValue({ ok: true, message: 'Verified.' })
+    // configured: true → Test targets the saved key when no draft is typed.
+    const onChange = vi.fn()
+    void onChange
+    render(
+      <IntegrationCard
+        provider={'twilio' as never}
+        title="Twilio"
+        description="desc"
+        initial={{ configured: true, last4: 'dd7b', updatedAt: new Date().toISOString(), updatedByEmail: 'a@b.c' }}
+        keyParts={TWILIO_PARTS}
+      />
+    )
+    fireEvent.click(screen.getAllByText('Test')[0])
+    await vi.waitFor(() => expect(testIntegrationKey).toHaveBeenCalled())
+    // No `key` property at all → server reads the stored credential.
+    expect(testIntegrationKey).toHaveBeenCalledWith({ provider: 'twilio' })
+  })
+})
