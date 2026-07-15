@@ -44,9 +44,25 @@ jobs:
       - run: npm install --no-audit --no-fund
 
       # Scoped typecheck — app/lib/components/hooks only (tsconfig.ci.json).
-      # The full `tsc --noEmit` is red on 9 pre-existing test-file-only errors
-      # (research Pitfall 7); the scoped gate is GREEN and meaningful.
+      # This is the REAL gate: it covers only code that can actually reach
+      # production, so a failure here is always deploy-relevant. It deliberately
+      # excludes tests/**, which is exactly why the advisory step below exists.
       - run: npx tsc --noEmit -p tsconfig.ci.json
+
+      # Advisory bare typecheck — the WHOLE repo, tests/** included.
+      # NON-BLOCKING BY DESIGN (`continue-on-error: true`). Do NOT promote this
+      # to a hard gate: build-deploy.yml triggers on `workflow_run` for this
+      # workflow and only builds when `workflow_run.conclusion == 'success'`, so
+      # anything that can fail the Test workflow silently blocks EVERY deploy and
+      # stops prod from self-healing.
+      # What it watches: type drift in tests/** — stale mocks, fixtures missing
+      # newly-required fields. That drift is invisible to the scoped gate above
+      # and had silently reached 25 errors before quick-260715-aa1 brought bare
+      # `tsc --noEmit` to 0 (2026-07-15). Red here means drift to clean up, never
+      # a blocked merge.
+      - name: Bare typecheck (advisory, non-blocking)
+        continue-on-error: true
+        run: npx tsc --noEmit
 
       # Unit + eval suite. tests/integration is EXCLUDED (it needs live
       # Supabase → would break the secret-free gate; research Pitfall 6).
