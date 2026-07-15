@@ -83,7 +83,7 @@ vi.mock('@/lib/billing/billing-config', () => ({
 // getStripeClient returns a fake Stripe whose subscriptions.retrieve yields the
 // current seat item (for the idempotency read). syncSubscriptionSeatItem is the
 // spied SDK boundary the decision drives.
-const syncSeatItemSpy = vi.fn(async () => {})
+const syncSeatItemSpy = vi.fn(async (..._args: unknown[]) => {})
 let currentSeatItem: { quantity: number; unitAmount: number } | null = null
 let retrieveThrows = false
 

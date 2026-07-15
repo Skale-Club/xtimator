@@ -17,6 +17,7 @@ vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 })
  */
 
 import { passthroughRunner } from '@/lib/estimate/graph/types'
+import type { StepRunner } from '@/lib/estimate/graph/types'
 import { buildEstimateGraph } from '@/lib/estimate/graph'
 
 describe('DURABLE-01: passthroughRunner', () => {
@@ -40,7 +41,7 @@ describe('DURABLE-01: passthroughRunner', () => {
 
 describe('DURABLE-01: runner injection into buildEstimateGraph', () => {
   it('buildEstimateGraph(adapter, { runner }) accepts an injected StepRunner', async () => {
-    const runner = { run: vi.fn(async (_n: string, fn: () => Promise<unknown>) => fn()) }
+    const runner: StepRunner = { run: (_n, fn) => fn() }
     const adapter = {
       channel: 'whatsapp' as const,
       ingest: async () => ({}),

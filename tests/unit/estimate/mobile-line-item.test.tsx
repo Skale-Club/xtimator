@@ -140,13 +140,12 @@ describe('mobile line-item editor (DOCUX-06)', () => {
     // during `tsc --noEmit`. The runtime assertion just confirms the render did
     // not throw and produced a rendered DOM.
     const onUpdate = vi.fn<
-      [
-        'description' | 'quantity' | 'unit' | 'unit_price' | 'discount' | 'taxable',
-        string | number | boolean | null,
-      ],
-      void
+      (
+        field: 'description' | 'quantity' | 'unit' | 'unit_price' | 'discount' | 'taxable',
+        value: string | number | boolean | null
+      ) => void
     >()
-    const onRemove = vi.fn<[], void>()
+    const onRemove = vi.fn<() => void>()
     const { container } = render(
       <ItemCardMobile
         item={makeItem()}

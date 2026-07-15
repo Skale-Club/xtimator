@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { notify } from '@/lib/notifications/dispatch'
 import { notifyOps } from '@/lib/observability/ops-alert'
+import type { ChannelAdapter } from '@/lib/estimate/graph/types'
 
 // Imports the real generate-estimate Inngest function + its (mocked) graph tree
 // at runtime; under vitest's reused forked worker the import can exceed the 5s
@@ -205,8 +206,17 @@ describe('QA-03: web happy path — exactly 1 AI call, zero whatsapp_sessions ro
     // — this is the contract under test: the graph invocation path must not call it multiple times).
 
     // Invoke the graph once as the Inngest step would
-    const mockGraph = buildEstimateGraph as ReturnType<typeof vi.fn>
-    const graphInstance = mockGraph.mock?.results?.[0]?.value ?? (buildEstimateGraph as ReturnType<typeof vi.fn>)()
+    const mockGraph = vi.mocked(buildEstimateGraph)
+    // Fallback only fires if the job never built a graph. The mock ignores its
+    // args, but the real signature requires an adapter — supply a typed no-op one
+    // rather than casting, so this call still tracks buildEstimateGraph's contract.
+    const noopAdapter: ChannelAdapter = {
+      channel: 'web',
+      ingest: async () => ({}),
+      finalize: async () => ({}),
+      onError: async () => ({}),
+    }
+    const graphInstance = mockGraph.mock?.results?.[0]?.value ?? mockGraph(noopAdapter)
 
     await graphInstance.invoke({
       companyId: 'company-1',

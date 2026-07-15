@@ -69,7 +69,7 @@ describe('validateProductionEnv', () => {
   it('throws in production when NEXT_PUBLIC_SUPABASE_URL is missing', async () => {
     vi.stubEnv('NODE_ENV', 'production')
     Object.assign(process.env, fullyConfiguredEnv())
-    delete process.env.NEXT_PUBLIC_SUPABASE_URL
+    Reflect.deleteProperty(process.env, 'NEXT_PUBLIC_SUPABASE_URL')
 
     const { validateProductionEnv } = await import('@/lib/observability/env-check')
     expect(() => validateProductionEnv()).toThrow(/NEXT_PUBLIC_SUPABASE_URL/)
@@ -79,7 +79,7 @@ describe('validateProductionEnv', () => {
     vi.stubEnv('NODE_ENV', 'production')
     Object.assign(process.env, fullyConfiguredEnv())
     delete process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
-    delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    Reflect.deleteProperty(process.env, 'NEXT_PUBLIC_SUPABASE_ANON_KEY')
 
     const { validateProductionEnv } = await import('@/lib/observability/env-check')
     expect(() => validateProductionEnv()).toThrow()

@@ -19,6 +19,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { MockLanguageModelV3 } from 'ai/test'
 import { simulateReadableStream } from 'ai'
+import type { RateLimitResult } from '@/lib/ratelimit'
 
 // --- Auth: getClaims is configurable per-test (no-claims → 401) -------------
 const getClaimsMock = vi.fn()
@@ -62,7 +63,9 @@ vi.mock('@/lib/queries/chat', () => ({
 
 // --- Rate limit (pre-launch audit fix B9) — allowed by default; individual
 // tests can override to exercise the 429 path.
-const rateLimitMock = vi.fn(async () => ({ allowed: true, count: 1, max: 20 }))
+const rateLimitMock = vi.fn(
+  async (..._args: unknown[]): Promise<RateLimitResult> => ({ allowed: true, count: 1, max: 20 })
+)
 vi.mock('@/lib/ratelimit', () => ({
   rateLimit: (...args: unknown[]) => rateLimitMock(...args),
 }))
