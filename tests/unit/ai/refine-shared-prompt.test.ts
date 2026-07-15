@@ -46,7 +46,7 @@ describe('HARD-02/UNIFY-02: refine reuses the shared prompt builder', () => {
         expect(start).toBeGreaterThan(-1)
         const body = src.slice(start)
         // A shared-builder refine call carries a refine mode argument near the refine path.
-        expect(body).toMatch(/buildSystemPrompt\([^)]*mode:\s*['"]refine['"]/s)
+        expect(body).toMatch(/buildSystemPrompt\([^)]*mode:\s*['"]refine['"]/)
       })
     })
   }

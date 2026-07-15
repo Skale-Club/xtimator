@@ -127,7 +127,7 @@ beforeEach(() => {
   mockInngestSend.mockResolvedValue({ ids: ['evt-1'] })
   mockMarkRead.mockResolvedValue(undefined)
   mockTyping.mockResolvedValue(undefined)
-  mockGetEntitlements.mockReturnValue({
+  mockGetEntitlements.mockResolvedValue({
     whatsappEnabled: true,
     maxEstimatesPerMonth: null,
     maxEstimatesPerDay: 20,
@@ -138,6 +138,7 @@ beforeEach(() => {
     pdfEnabled: true,
     priceBookEnabled: true,
     customDomainEnabled: false,
+    chatEnabled: true,
   })
 })
 

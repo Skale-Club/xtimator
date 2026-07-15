@@ -142,10 +142,22 @@ describe('CALIB-02: zero-price tiers skipped', () => {
       ...DEFAULT_BILLING_CONFIG,
       tiers: {
         // free carries a large grant at price 0 — it MUST NOT drag overall pass
-        free: { monthlyCreditGrant: 5000, subscriptionPriceCents: 0 },
+        free: {
+          ...DEFAULT_BILLING_CONFIG.tiers.free,
+          monthlyCreditGrant: 5000,
+          subscriptionPriceCents: 0,
+        },
         // priced tiers calibrated to PASS
-        pro: { monthlyCreditGrant: 1000, subscriptionPriceCents: 2900 },
-        business: { monthlyCreditGrant: 3000, subscriptionPriceCents: 9900 },
+        pro: {
+          ...DEFAULT_BILLING_CONFIG.tiers.pro,
+          monthlyCreditGrant: 1000,
+          subscriptionPriceCents: 2900,
+        },
+        business: {
+          ...DEFAULT_BILLING_CONFIG.tiers.business,
+          monthlyCreditGrant: 3000,
+          subscriptionPriceCents: 9900,
+        },
       },
     }
     const res = validateMarginInvariant(cfg)
@@ -164,9 +176,17 @@ describe('CALIB-02: validateMarginInvariant — passing fixture', () => {
       tiers: {
         ...DEFAULT_BILLING_CONFIG.tiers,
         // pro: 1000 × 0.01 / 4.5 = 2.2222 ; 2.2222 / 29 = 0.0766 ≤ 0.30 PASS
-        pro: { monthlyCreditGrant: 1000, subscriptionPriceCents: 2900 },
+        pro: {
+          ...DEFAULT_BILLING_CONFIG.tiers.pro,
+          monthlyCreditGrant: 1000,
+          subscriptionPriceCents: 2900,
+        },
         // business: 3000 × 0.01 / 4.5 = 6.6667 ; 6.6667 / 99 = 0.0673 ≤ 0.30 PASS
-        business: { monthlyCreditGrant: 3000, subscriptionPriceCents: 9900 },
+        business: {
+          ...DEFAULT_BILLING_CONFIG.tiers.business,
+          monthlyCreditGrant: 3000,
+          subscriptionPriceCents: 9900,
+        },
       },
     }
     const res = validateMarginInvariant(cfg)

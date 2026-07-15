@@ -129,7 +129,7 @@ describe('INNGEST-07: lib/whatsapp/handler dispatch', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockInngestSend.mockResolvedValue({ ids: ['evt-1'] })
-    mockGetEntitlements.mockReturnValue({
+    mockGetEntitlements.mockResolvedValue({
       whatsappEnabled: true,
       maxEstimatesPerMonth: null,
       maxEstimatesPerDay: 20,
@@ -140,6 +140,7 @@ describe('INNGEST-07: lib/whatsapp/handler dispatch', () => {
       pdfEnabled: true,
       priceBookEnabled: true,
       customDomainEnabled: false,
+      chatEnabled: true,
     })
   })
 
@@ -228,7 +229,7 @@ describe('INNGEST-07: lib/whatsapp/handler dispatch', () => {
   })
 
   it('entitlement gate still rejects free tier (no dispatch, sends rejection message)', async () => {
-    mockGetEntitlements.mockReturnValue({
+    mockGetEntitlements.mockResolvedValue({
       whatsappEnabled: false,
       maxEstimatesPerMonth: 10,
       maxEstimatesPerDay: 3,
@@ -239,6 +240,7 @@ describe('INNGEST-07: lib/whatsapp/handler dispatch', () => {
       pdfEnabled: true,
       priceBookEnabled: false,
       customDomainEnabled: false,
+      chatEnabled: false,
     })
     const { client } = makeSupabase({ companyTier: 'free' })
     await processInboundMessages([AUDIO_MSG], 'company-1', '15551234567', client)

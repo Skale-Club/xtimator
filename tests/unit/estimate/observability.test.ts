@@ -35,7 +35,9 @@ describe('OBS-01: CallbackHandler attached at graph.invoke call sites', () => {
   it('OBS-01 web: generate-estimate.ts includes channel discriminator in handler metadata', () => {
     const src = read(GENERATE_ESTIMATE_FN)
     // Must carry channel in tags or metadata (not just the state field)
-    expect(src).toMatch(/tags.*web|metadata.*web|'web'.*estimate-engine|estimate-engine.*web/s)
+    expect(src).toMatch(
+      /tags[\s\S]*web|metadata[\s\S]*web|'web'[\s\S]*estimate-engine|estimate-engine[\s\S]*web/
+    )
   })
 
   it('OBS-01 whatsapp: estimate-graph.ts imports and instantiates CallbackHandler', () => {
@@ -55,7 +57,9 @@ describe('OBS-03: safe-metadata — no sensitive tokens in trace call sites', ()
   it('OBS-03: generate-estimate.ts CallbackHandler construction does not contain forbidden tokens', () => {
     const src = read(GENERATE_ESTIMATE_FN)
     // These tokens must NEVER appear in CallbackHandler metadata/tags
-    expect(src).not.toMatch(/langfuseSessionId.*transcript|transcript.*langfuseSessionId/s)
+    expect(src).not.toMatch(
+      /langfuseSessionId[\s\S]*transcript|transcript[\s\S]*langfuseSessionId/
+    )
     expect(src).not.toContain('raw_content')
     expect(src).not.toContain('apiKey')
     expect(src).not.toContain('audio_data')
@@ -63,7 +67,9 @@ describe('OBS-03: safe-metadata — no sensitive tokens in trace call sites', ()
 
   it('OBS-03: estimate-graph.ts CallbackHandler construction does not contain forbidden tokens', () => {
     const src = read(WHATSAPP_ESTIMATE_GRAPH)
-    expect(src).not.toMatch(/langfuseSessionId.*transcript|transcript.*langfuseSessionId/s)
+    expect(src).not.toMatch(
+      /langfuseSessionId[\s\S]*transcript|transcript[\s\S]*langfuseSessionId/
+    )
     expect(src).not.toContain('raw_content')
     expect(src).not.toContain('apiKey')
     expect(src).not.toContain('audio_data')

@@ -139,7 +139,7 @@ describe('processInboundMessage (handler.ts — dispatch-only after Plan 67-04)'
   beforeEach(() => {
     vi.clearAllMocks()
     mockInngestSend.mockResolvedValue({ ids: ['evt-1'] })
-    mockGetEntitlements.mockReturnValue({
+    mockGetEntitlements.mockResolvedValue({
       whatsappEnabled: true,
       maxEstimatesPerMonth: null,
       maxEstimatesPerDay: 20,
@@ -150,6 +150,7 @@ describe('processInboundMessage (handler.ts — dispatch-only after Plan 67-04)'
       pdfEnabled: true,
       priceBookEnabled: true,
       customDomainEnabled: false,
+      chatEnabled: true,
     })
   })
 
@@ -286,7 +287,7 @@ describe('processInboundMessage (handler.ts — dispatch-only after Plan 67-04)'
 
   describe('WhatsApp entitlement gate', () => {
     it('rejects free tier before any dispatch and sends upgrade message', async () => {
-      mockGetEntitlements.mockReturnValue({
+      mockGetEntitlements.mockResolvedValue({
         whatsappEnabled: false,
         maxEstimatesPerMonth: 10,
         maxEstimatesPerDay: 3,
@@ -297,6 +298,7 @@ describe('processInboundMessage (handler.ts — dispatch-only after Plan 67-04)'
         pdfEnabled: true,
         priceBookEnabled: false,
         customDomainEnabled: false,
+        chatEnabled: false,
       })
 
       const { client, projectInsertSpy } = makeSupabaseMock({ companyTier: 'free' })
