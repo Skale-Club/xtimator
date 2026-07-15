@@ -107,7 +107,10 @@ function stateToSavePayload(state: EstimateEditorState) {
     timeline: state.timeline,
     payment_terms: state.payment_terms,
     warranty_terms: state.warranty_terms,
-    discount_type: state.discount_type,
+    // Cast the reducer's wide `string | null` to the editor/DB domain at the
+    // boundary (same pattern as deposit_type below) — saveEstimate's zod schema
+    // now enforces this domain at runtime too.
+    discount_type: state.discount_type as 'percentage' | 'fixed' | null,
     discount_value: state.discount_value,
     // v4.11 deposit — send type+value only; saveEstimate (Plan 01) recomputes
     // balance_due server-side via computeEstimateTotals (server is authoritative).

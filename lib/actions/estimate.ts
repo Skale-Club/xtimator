@@ -10,7 +10,7 @@ import { shareLinkExpiryFromNow } from '@/lib/estimates/share-link'
 import { dispatchXphereSync } from '@/lib/integrations/xphere/dispatch'
 import { computeEstimateTotals, type TaxConfig } from '@/lib/estimate/compute-totals'
 import { copyEstimatePhotos } from '@/lib/queries/estimate-photo'
-import type { PresentationSettings } from '@/lib/estimate/presentation-settings'
+import { saveEstimateSchema, type SaveEstimateInput } from '@/lib/schemas/estimate'
 
 // ---------------------------------------------------------------------------
 // Auth helper (same pattern as recording.ts)
@@ -36,68 +36,22 @@ async function getAuthContext() {
   return { supabase, company, claims }
 }
 
-interface SaveItemInput {
-  id: string
-  description: string
-  quantity: number
-  unit: string | null
-  unit_price: number
-  sort_order: number
-  price_source: 'price_book' | 'ai_estimate' | 'researched' | null
-  isManuallyEdited?: boolean
-  // v4.11 advanced pricing — all OPTIONAL with no-op defaults (retrocompat).
-  taxable?: boolean
-  tax_category?: 'labor' | 'materials' | 'other' | null
-  discount?: number
-  cost?: number | null
-  markup_pct?: number | null
-}
-
-interface SaveSectionInput {
-  id: string
-  title: string
-  sort_order: number
-  items: SaveItemInput[]
-}
-
-interface SaveEstimateInput {
-  id: string
-  summary: string | null
-  notes: string | null
-  timeline: string | null
-  payment_terms: string | null
-  warranty_terms: string | null
-  discount_type: string | null
-  discount_value: number
-  tax_rate: number
-  sections: SaveSectionInput[]
-  estimate_date: string | null
-  estimate_number: string | null
-  // v4.11 deposit — OPTIONAL with no-op defaults (retrocompat: 'none' / null).
-  deposit_type?: 'none' | 'percent' | 'amount' | null
-  deposit_value?: number | null
-  // Phase 161 (PRESENT-01/03): pass-through only -- NEVER read by the totals
-  // engine below. GUARD-03: presentation/pricing-override STATE has zero
-  // interaction with the deterministic totals engine.
-  presentation_settings?: PresentationSettings | null
-  /**
-   * Pre-launch audit fix (B7): the estimates.updated_at value the caller's
-   * local state was loaded/last-saved from. OPTIONAL for back-compat with any
-   * caller that doesn't send it (skips the check, preserving old behavior) —
-   * but the editor always sends it. When present, the update is scoped to
-   * `.eq('updated_at', expectedUpdatedAt)`; a zero-row result means someone
-   * else already saved since this client last loaded, and the whole save is
-   * rejected BEFORE any section/item mutation runs (so a stale save never
-   * deletes items/sections the other writer just added).
-   */
-  expectedUpdatedAt?: string
-}
+// SaveEstimateInput is now inferred from lib/schemas/estimate.ts's zod schema —
+// single source of truth for both the compile-time type and the runtime validation
+// below (this is a 'use server' action reachable directly via its RPC endpoint,
+// bypassing TypeScript, so runtime validation is a real boundary, not redundant).
 
 // ---------------------------------------------------------------------------
 // Action 1: saveEstimate (editor auto-save with full math recalc)
 // ---------------------------------------------------------------------------
 
-export async function saveEstimate(estimateData: SaveEstimateInput) {
+export async function saveEstimate(rawEstimateData: SaveEstimateInput) {
+  const parsed = saveEstimateSchema.safeParse(rawEstimateData)
+  if (!parsed.success) {
+    return { error: `Invalid estimate data: ${parsed.error.issues[0]?.message ?? 'validation failed'}` }
+  }
+  const estimateData = parsed.data
+
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error }
   const { supabase, company } = ctx
