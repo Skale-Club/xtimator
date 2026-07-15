@@ -171,7 +171,43 @@ export function PhoneInput({
   }, [value])
 
   function handleNumberChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const digits = e.target.value.replace(/\D/g, '').slice(0, maxDigits(country.format))
+    const raw = e.target.value
+
+    // Paste tolerance. This field holds the NATIONAL number — the dial code
+    // lives in the country select. Pasting a full number used to swallow the
+    // dial code into the national digits: "+1" selected + "15082058040" pasted
+    // truncated to the first 10 digits ("1508205804") and silently rendered
+    // the impossible area code "150". Typing is unaffected; both branches
+    // below only fire for input that actually carries a country code.
+
+    // "+15082058040" — reparse and switch the select to the matching country.
+    if (raw.trimStart().startsWith('+')) {
+      const parsed = parseIncoming(raw)
+      if (parsed.localNumber) {
+        const dial = COUNTRIES.find(c => c.code === parsed.countryCode)?.dial ?? country.dial
+        setCountryCode(parsed.countryCode)
+        setLocalNumber(parsed.localNumber)
+        onChange(`+${dial} ${parsed.localNumber}`)
+        return
+      }
+    }
+
+    let digits = raw.replace(/\D/g, '')
+    const max = maxDigits(country.format)
+
+    // "15082058040" — dial code with no '+'. Guarded: only strip when the value
+    // is genuinely too long AND dropping the dial makes it fit exactly, so a
+    // national number that merely starts with the dial digits (e.g. BR DDD 55)
+    // is never touched.
+    if (
+      digits.length > max &&
+      digits.startsWith(country.dial) &&
+      digits.length - country.dial.length <= max
+    ) {
+      digits = digits.slice(country.dial.length)
+    }
+
+    digits = digits.slice(0, max)
     const masked = applyMask(digits, country.format)
     setLocalNumber(masked)
     onChange(digits ? `+${country.dial} ${masked}` : '')
