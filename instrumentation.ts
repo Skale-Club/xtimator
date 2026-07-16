@@ -27,6 +27,7 @@ import {
 } from '@sentry/opentelemetry'
 import { isUnreportableServerActionMismatch } from '@/lib/observability/sentry-filters'
 import { validateProductionEnv } from '@/lib/observability/env-check'
+import { maskLangfuseData } from '@/lib/observability/langfuse-mask'
 
 /**
  * Exported so Inngest functions can call `await langfuseProcessor?.forceFlush()`
@@ -73,6 +74,15 @@ export async function register() {
       publicKey: process.env.LANGFUSE_PUBLIC_KEY ?? '',
       secretKey: process.env.LANGFUSE_SECRET_KEY ?? '',
       baseUrl: process.env.LANGFUSE_BASEURL ?? 'https://cloud.langfuse.com',
+      // Pre-launch audit fix (IA/low): full prompts — WhatsApp transcripts and
+      // other customer PII — were exported verbatim in trace input/output,
+      // conflicting with the declared safe-metadata posture. This central mask
+      // covers every Langfuse span (CallbackHandler traces AND the
+      // langfuseClient shim) since all export through this one processor.
+      // Structure, ids, model names, token usage and lengths are preserved;
+      // free-text content is redacted. Policy + tests:
+      // lib/observability/langfuse-mask.ts.
+      mask: maskLangfuseData,
     })
 
     // 3. Single shared provider hosting both processors — Langfuse first so

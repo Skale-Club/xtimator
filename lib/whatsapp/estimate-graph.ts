@@ -80,6 +80,9 @@ export function buildEstimateGraph() {
 
       // OBS-01: unified Langfuse trace per WhatsApp estimate run.
       // Safe-metadata rule v4.2: only project/company IDs allowed — no sensitive data.
+      // Prompt/output content captured by this handler (incl. WhatsApp audio
+      // transcripts) is masked centrally by the LangfuseSpanProcessor in
+      // instrumentation.ts (lib/observability/langfuse-mask.ts).
       const handler = new CallbackHandler({
         sessionId: `whatsapp:${initial.projectId}`,
         userId: initial.companyId,
