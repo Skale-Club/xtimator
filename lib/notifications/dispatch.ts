@@ -4,7 +4,7 @@ import { inngest } from '@/lib/inngest/client'
 import { type EventType, EVENT_CATEGORIES } from './event-types'
 import { resolveChannels } from './preferences'
 import { resolveOwnerPhone } from './owner-phone'
-import { getTemplateForEvent } from './whatsapp-registry'
+import { getApprovedTemplateForEvent } from './whatsapp-registry'
 
 /**
  * Phase 77 (NOTIF-03) — Single fan-out entry point for the notifications system.
@@ -179,7 +179,12 @@ export async function notify(params: NotifyParams): Promise<NotifyResult> {
       if (phone) {
         if (channels.whatsapp) {
           try {
-            const tpl = getTemplateForEvent(params.eventType)
+            // DB-backed resolver (Phase 104.3): an admin-approved row in
+            // `whatsapp_notification_templates` wins; otherwise it falls back to
+            // the static registry map. Its own internal try/catch already degrades
+            // to the static map, but keep this branch's try/catch so any unexpected
+            // rejection still never breaks the in-app insert (Research Pitfall 4).
+            const tpl = await getApprovedTemplateForEvent(params.eventType)
             if (tpl) {
               await inngest.send({
                 name: 'notification/whatsapp.send',

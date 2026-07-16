@@ -46,6 +46,13 @@ vi.mock('@/lib/notifications/whatsapp-registry', () => ({
     languageCode: 'en_US',
     variables: () => ['Acme', '$100'],
   }),
+  // Phase 104.3 wiring: the WhatsApp dispatch branch resolves via the async
+  // DB-backed variant (approved DB row → template, static-map fallback).
+  getApprovedTemplateForEvent: vi.fn().mockResolvedValue({
+    templateName: 'owner_billing_alert',
+    languageCode: 'en_US',
+    variables: () => ['Acme', '$100'],
+  }),
 }))
 
 type SimpleResp<T = unknown> = { data: T; error: { message: string } | null }
@@ -290,6 +297,134 @@ describe('lib/notifications/dispatch — 4-channel routing + best-effort (NOTIF-
     // In-app insert STILL ran despite the throwing channel sends.
     expect(svc.__from.insert).toHaveBeenCalled()
     expect(result).toHaveProperty('ok')
+    warn.mockRestore()
+  })
+})
+
+/**
+ * Phase 104.3 wiring — dispatch resolves the WhatsApp template via the async
+ * DB-backed `getApprovedTemplateForEvent` (admin-approved DB row wins, static-map
+ * fallback) instead of the sync static-only `getTemplateForEvent`.
+ *
+ * The DB-wins-vs-fallback logic itself is covered against the real resolver in
+ * `whatsapp-registry.test.ts`; here we assert the DISPATCH wiring: whatever the
+ * resolver returns flows into the Inngest send, and a resolver failure degrades
+ * the branch gracefully without ever breaking the in-app insert.
+ */
+describe('lib/notifications/dispatch — DB-backed WhatsApp template resolver (NOTIF-03 / 104.3)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('uses the resolved (admin-approved) template name + language + vars in the WhatsApp send', async () => {
+    const { notify } = await import('@/lib/notifications/dispatch')
+    const { requireServiceClient } = await import('@/lib/supabase/service')
+    const { resolveChannels } = await import('@/lib/notifications/preferences')
+    const { getApprovedTemplateForEvent } = await import('@/lib/notifications/whatsapp-registry')
+    const { inngest } = await import('@/lib/inngest/client')
+    const svc = makeServiceClient({})
+    ;(requireServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(svc)
+    ;(resolveChannels as ReturnType<typeof vi.fn>).mockResolvedValue({
+      inApp: true,
+      email: false,
+      whatsapp: true,
+      sms: false,
+    })
+    // Simulate an admin-approved DB row resolving to a non-static template.
+    ;(getApprovedTemplateForEvent as ReturnType<typeof vi.fn>).mockResolvedValue({
+      templateName: 'db_approved_owner_estimate',
+      languageCode: 'pt_BR',
+      variables: (p: { title: string; body: string }) => [p.title, p.body],
+    })
+
+    await notify({
+      companyId: 'co_1',
+      userId: 'user_1',
+      eventType: 'estimate.accepted',
+      title: 'Estimate accepted',
+      body: 'Acme accepted your estimate',
+    })
+
+    expect(getApprovedTemplateForEvent).toHaveBeenCalledWith('estimate.accepted')
+    const sendMock = inngest.send as ReturnType<typeof vi.fn>
+    const whatsappCall = sendMock.mock.calls.find(([evt]) =>
+      String((evt as { name?: string })?.name ?? '').includes('whatsapp'),
+    )
+    expect(whatsappCall).toBeDefined()
+    const data = (whatsappCall?.[0] as { data?: Record<string, unknown> })?.data
+    expect(data?.templateName).toBe('db_approved_owner_estimate')
+    expect(data?.languageCode).toBe('pt_BR')
+    expect(data?.variables).toEqual(['Estimate accepted', 'Acme accepted your estimate'])
+  })
+
+  it('sends nothing over WhatsApp when the resolver yields no template (static fallback also empty)', async () => {
+    const { notify } = await import('@/lib/notifications/dispatch')
+    const { requireServiceClient } = await import('@/lib/supabase/service')
+    const { resolveChannels } = await import('@/lib/notifications/preferences')
+    const { getApprovedTemplateForEvent } = await import('@/lib/notifications/whatsapp-registry')
+    const { inngest } = await import('@/lib/inngest/client')
+    const svc = makeServiceClient({})
+    ;(requireServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(svc)
+    ;(resolveChannels as ReturnType<typeof vi.fn>).mockResolvedValue({
+      inApp: true,
+      email: false,
+      whatsapp: true,
+      sms: false,
+    })
+    ;(getApprovedTemplateForEvent as ReturnType<typeof vi.fn>).mockResolvedValue(null)
+
+    await notify({
+      companyId: 'co_1',
+      userId: 'user_1',
+      eventType: 'estimate.viewed',
+      title: 't',
+      body: 'b',
+    })
+
+    const sendMock = inngest.send as ReturnType<typeof vi.fn>
+    const whatsappCall = sendMock.mock.calls.find(([evt]) =>
+      String((evt as { name?: string })?.name ?? '').includes('whatsapp'),
+    )
+    expect(whatsappCall).toBeUndefined()
+  })
+
+  it('a rejecting resolver degrades gracefully — in-app insert still ran, notify() returns, no throw, no WhatsApp send', async () => {
+    const { notify } = await import('@/lib/notifications/dispatch')
+    const { requireServiceClient } = await import('@/lib/supabase/service')
+    const { resolveChannels } = await import('@/lib/notifications/preferences')
+    const { getApprovedTemplateForEvent } = await import('@/lib/notifications/whatsapp-registry')
+    const { inngest } = await import('@/lib/inngest/client')
+    const svc = makeServiceClient({ insertSingle: { data: { id: 'notif_inapp' }, error: null } })
+    ;(requireServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(svc)
+    ;(resolveChannels as ReturnType<typeof vi.fn>).mockResolvedValue({
+      inApp: true,
+      email: false,
+      whatsapp: true,
+      sms: false,
+    })
+    ;(getApprovedTemplateForEvent as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new Error('registry down'),
+    )
+
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const result = await notify({
+      companyId: 'co_1',
+      userId: 'user_1',
+      eventType: 'payment.received',
+      title: 'Payment received',
+      body: '$100',
+    })
+
+    // The in-app insert ran BEFORE the WhatsApp branch and is unaffected.
+    expect(svc.__from.insert).toHaveBeenCalled()
+    expect(result.ok).toBe(true)
+    expect(result.notificationId).toBe('notif_inapp')
+    // No WhatsApp send fired because template resolution threw (swallowed).
+    const sendMock = inngest.send as ReturnType<typeof vi.fn>
+    const whatsappCall = sendMock.mock.calls.find(([evt]) =>
+      String((evt as { name?: string })?.name ?? '').includes('whatsapp'),
+    )
+    expect(whatsappCall).toBeUndefined()
     warn.mockRestore()
   })
 })

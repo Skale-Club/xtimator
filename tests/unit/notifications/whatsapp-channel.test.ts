@@ -46,6 +46,13 @@ vi.mock('@/lib/notifications/whatsapp-registry', () => ({
     languageCode: 'en_US',
     variables: () => ['Acme', '$100'],
   }),
+  // Phase 104.3 wiring: dispatch resolves via the async DB-backed variant
+  // (approved DB row → template, static-map fallback).
+  getApprovedTemplateForEvent: vi.fn().mockResolvedValue({
+    templateName: 'owner_billing_alert',
+    languageCode: 'en_US',
+    variables: () => ['Acme', '$100'],
+  }),
 }))
 
 afterEach(() => {
@@ -117,13 +124,13 @@ describe('lib/notifications/dispatch — WhatsApp branch (NOTIF-03 RED)', () => 
     expect(whatsappCall).toBeUndefined()
   })
 
-  it('no-op when getTemplateForEvent returns null (no template mapped)', async () => {
+  it('no-op when getApprovedTemplateForEvent returns null (no template mapped)', async () => {
     const { notify } = await import('@/lib/notifications/dispatch')
     const { requireServiceClient } = await import('@/lib/supabase/service')
     const { inngest } = await import('@/lib/inngest/client')
-    const { getTemplateForEvent } = await import('@/lib/notifications/whatsapp-registry')
+    const { getApprovedTemplateForEvent } = await import('@/lib/notifications/whatsapp-registry')
     ;(requireServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(makeServiceClient())
-    ;(getTemplateForEvent as ReturnType<typeof vi.fn>).mockReturnValue(null)
+    ;(getApprovedTemplateForEvent as ReturnType<typeof vi.fn>).mockResolvedValue(null)
 
     await notify(BILLING_EVENT)
 
