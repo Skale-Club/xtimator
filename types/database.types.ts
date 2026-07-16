@@ -14,47 +14,6 @@ export type Database = {
   }
   public: {
     Tables: {
-      _legacy_company_whatsapp: {
-        Row: {
-          company_id: string
-          created_at: string
-          delivery_format: string
-          id: string
-          owner_phone: string | null
-          status: string
-          user_id: string | null
-          welcome_sent_at: string | null
-        }
-        Insert: {
-          company_id: string
-          created_at?: string
-          delivery_format?: string
-          id?: string
-          owner_phone?: string | null
-          status?: string
-          user_id?: string | null
-          welcome_sent_at?: string | null
-        }
-        Update: {
-          company_id?: string
-          created_at?: string
-          delivery_format?: string
-          id?: string
-          owner_phone?: string | null
-          status?: string
-          user_id?: string | null
-          welcome_sent_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "company_whatsapp_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "companies"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       admin_audit_log: {
         Row: {
           action: string
