@@ -132,3 +132,73 @@ jobs:
             -H "Authorization: Bearer ${COOLIFY_TOKEN}"
           echo
           echo "Deploy queued. Coolify will pull ghcr.io/…:latest and restart."
+
+      # ── Force an Inngest Cloud re-sync of the freshly-deployed serve endpoint ──
+      # Adding a new Inngest function requires Inngest Cloud to re-sync the serve
+      # URL (PUT /api/inngest). On 2026-06-03 a deploy landed whatsAppIntentRouterJob
+      # WITHOUT that sync, so Cloud accepted events but never invoked ANY function —
+      # every event-triggered job silently stopped in prod for days
+      # (.planning/debug/whatsapp-inbound-no-reply-recurrence.md). This step makes
+      # the re-sync an automatic, VISIBLE part of every deploy.
+      #
+      # Coolify does a rolling (zero-downtime) update: xtimator.com keeps answering
+      # from the OLD container until the new one is healthy and traffic cuts over.
+      # We must sync the NEW container — syncing the still-live old one would just
+      # re-register the STALE function set and reproduce the exact 06-03 failure.
+      # So we poll /api/health (which echoes GIT_SHA == this deploy's SHA) and only
+      # PUT /api/inngest once the new container is confirmed serving. Up to 10
+      # attempts, 30s apart, to cover the couple of minutes the rollout can take.
+      # Never syncing (or a non-200 sync) fails the workflow so the gap is visible.
+      - name: Force Inngest Cloud re-sync (post-deploy)
+        env:
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+        run: |
+          set -u
+          # If there's no Coolify token the deploy step above skipped the actual
+          # deploy (it exits 0 with a warning). No new container will come up, so
+          # skip the sync rather than fail on a rollout that never happened.
+          if [ -z "${COOLIFY_TOKEN:-}" ]; then
+            echo "COOLIFY_TOKEN not set — deploy was skipped upstream; nothing to re-sync."
+            exit 0
+          fi
+          base="${SITE_URL%/}"
+          deploy_sha="${DEPLOY_SHA}"
+          max_attempts=10
+          attempt=1
+
+          echo "Waiting for the new container (commit ${deploy_sha}) to serve traffic, then syncing Inngest…"
+
+          while [ $attempt -le $max_attempts ]; do
+            # /api/health returns compact JSON incl. "commit":"<GIT_SHA>". Only
+            # proceed once that commit matches THIS deploy — i.e. after cutover.
+            health_body=$(curl --silent --max-time 15 "${base}/api/health" || true)
+
+            if printf '%s' "${health_body}" | grep -q "\"commit\":\"${deploy_sha}\""; then
+              http_code=$(curl --silent --show-error --output /tmp/inngest_sync \
+                --write-out "%{http_code}" --max-time 30 \
+                -X PUT "${base}/api/inngest" || echo "000")
+
+              if [ "${http_code}" = "200" ]; then
+                echo "[inngest-sync] OK (HTTP 200) on attempt ${attempt} — functions re-synced for commit ${deploy_sha}."
+                exit 0
+              fi
+
+              echo "[inngest-sync] new container is live but PUT /api/inngest returned HTTP ${http_code} (attempt ${attempt}/${max_attempts})."
+            else
+              echo "[inngest-sync] waiting for rolling cutover — /api/health not yet serving commit ${deploy_sha} (attempt ${attempt}/${max_attempts})."
+            fi
+
+            attempt=$((attempt + 1))
+            if [ $attempt -le $max_attempts ]; then
+              sleep 30
+            fi
+          done
+
+          echo "::error::[inngest-sync] Could not re-sync Inngest Cloud after ${max_attempts} attempts — either the new container (commit ${deploy_sha}) never became live or PUT /api/inngest never returned 200. New/changed Inngest functions may be unregistered, silently stopping every event-triggered job. See .planning/debug/whatsapp-inbound-no-reply-recurrence.md."
+          if [ -s /tmp/inngest_sync ]; then
+            echo "::group::[inngest-sync] last PUT /api/inngest response body"
+            head -c 2048 /tmp/inngest_sync
+            echo ""
+            echo "::endgroup::"
+          fi
+          exit 1

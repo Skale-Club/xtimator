@@ -22,7 +22,11 @@ on:
   # reimplemented — there is no trial-expiry concept left to enforce.
   schedule:
     - cron: "0 3 * * *" # cleanup-orphan-projects
-    - cron: "0 4 * * *" # cleanup-whatsapp-sessions
+    # cleanup-whatsapp-sessions notifies owners about expired `awaiting_confirm`
+    # WhatsApp sessions. It used to run once daily at 04:00 UTC, so a notification
+    # could lag up to 24h behind the 10-min pg_cron purge. Now every 15 minutes so
+    # owners are alerted promptly (migration comment promised ~5-min cadence).
+    - cron: "*/15 * * * *" # cleanup-whatsapp-sessions
   workflow_dispatch:
 
 permissions:
@@ -105,7 +109,7 @@ jobs:
             "0 3 * * *")
               hit "/api/cron/cleanup-orphan-projects" || overall_status=1
               ;;
-            "0 4 * * *")
+            "*/15 * * * *")
               hit "/api/cron/cleanup-whatsapp-sessions" || overall_status=1
               ;;
             *)
