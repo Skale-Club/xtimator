@@ -9,16 +9,18 @@
  * (lib/agent-tools/normalize-input.ts, which wraps the ingestMultimodal
  * primitive). The WhatsApp-specific parts kept here:
  *   - downloadWhatsAppMedia (media fetch by id)
- *   - the mime/ext derivation: strip the codec param + remap mp4 → m4a (the m4a
- *     remap is load-bearing for OpenAI Whisper container detection)
  *   - the WhatsAppMessage type-switch
- * The actual transcribe/analyze is delegated to normalizeInput.
+ * The mime/ext derivation (codec-param strip + mp4 → m4a remap, load-bearing for
+ * OpenAI Whisper container detection) is shared with the CREATE-graph adapter via
+ * lib/whatsapp/media.ts (deriveAudioFormat / deriveImageFormat). The actual
+ * transcribe/analyze is delegated to normalizeInput.
  *
  * NEVER throws — failures return { ok: false, reason } so the router can fall
  * back to a graceful "couldn't read your message, please describe in text" reply.
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { downloadWhatsAppMedia } from '@/lib/whatsapp/client'
+import { deriveAudioFormat, deriveImageFormat } from '@/lib/whatsapp/media'
 import type { WhatsAppMessage } from '@/lib/whatsapp/types'
 import {
   normalizeInput,
@@ -44,11 +46,8 @@ export async function normalizeMessage(
 
   // --- audio --------------------------------------------------------------
   if (msg.type === 'audio' && msg.audio?.id) {
-    // Strip the codec parameter ("audio/ogg; codecs=opus" → "audio/ogg"),
-    // then remap mp4 → m4a so OpenAI Whisper identifies the container.
-    const mimeType = (msg.audio.mime_type ?? 'audio/ogg').split(';')[0].trim()
-    const rawExt = mimeType.split('/')[1] ?? 'ogg'
-    const ext = rawExt === 'mp4' ? 'm4a' : rawExt
+    // Codec-param strip + mp4 → m4a remap is shared with the CREATE-graph adapter.
+    const { mimeType, ext } = deriveAudioFormat(msg.audio.mime_type)
 
     let buf: Buffer
     try {
@@ -67,7 +66,7 @@ export async function normalizeMessage(
 
   // --- image --------------------------------------------------------------
   if (msg.type === 'image' && msg.image?.id) {
-    const mimeType = msg.image.mime_type ?? 'image/jpeg'
+    const { mimeType } = deriveImageFormat(msg.image.mime_type)
 
     let buf: Buffer
     try {

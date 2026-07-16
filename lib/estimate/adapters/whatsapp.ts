@@ -43,7 +43,6 @@ import { Annotation, StateGraph, Send, START, END } from '@langchain/langgraph'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { WhatsAppMessage } from '@/lib/whatsapp/types'
 import { requireServiceClient } from '@/lib/supabase/service'
-import { ingestMultimodal } from '@/lib/estimate/ingest/multimodal'
 import {
   buildAskDetailsMessage,
   revertVagueEstimate,
@@ -52,6 +51,12 @@ import {
   downloadWhatsAppMedia,
   sendWhatsAppMessage,
 } from '@/lib/whatsapp/client'
+import {
+  deriveAudioFormat,
+  deriveImageFormat,
+  transcribeAudioBuffer,
+  analyzeImageBuffer,
+} from '@/lib/whatsapp/media'
 import { logOutboundMessage } from '@/lib/whatsapp/conversations'
 import { getServerStorage } from '@/lib/storage'
 import { formatMoney } from '@/lib/money/currency'
@@ -187,13 +192,9 @@ export function makeWhatsAppAdapter({
       }
 
       if (msg.type === 'audio' && msg.audio?.id) {
-        // Derive MIME type and extension from the message — WhatsApp sends
-        // "audio/ogg; codecs=opus" (Android) or "audio/mp4" (iOS). Strip the
-        // codec parameter before splitting, and remap mp4 → m4a so OpenAI
-        // Whisper can identify the container from the filename.
-        const mimeType = (msg.audio.mime_type ?? 'audio/ogg').split(';')[0].trim()
-        const rawExt = mimeType.split('/')[1] ?? 'ogg'
-        const ext = rawExt === 'mp4' ? 'm4a' : rawExt
+        // MIME/codec/extension derivation (codec-param strip + mp4 → m4a remap)
+        // is shared with the intent-router path via lib/whatsapp/media.ts.
+        const { mimeType, ext } = deriveAudioFormat(msg.audio.mime_type)
 
         let audioBuffer: Buffer
         try {
@@ -223,18 +224,14 @@ export function makeWhatsAppAdapter({
 
         let transcript: string
         try {
-          // Route transcription through the shared, channel-neutral ingestion
-          // path (UNIFY-01) instead of calling transcribeAudioOR directly. Same
-          // fallback-wrapped primitive underneath; the Send[]/mediaResults batch
-          // structure around it is unchanged. ingestMultimodal swallows a single
-          // item failure and returns transcripts: [], so the empty-transcript
-          // guard below preserves today's ok:false outcome for a failed item.
-          const { transcripts } = await ingestMultimodal({
-            audio: [
-              { blob: new Blob([new Uint8Array(audioBuffer)], { type: mimeType }), ext },
-            ],
-          })
-          transcript = transcripts[0] ?? ''
+          // Route transcription through the shared WhatsApp media helper
+          // (lib/whatsapp/media.ts), which wraps the channel-neutral ingestion
+          // path (UNIFY-01). Same fallback-wrapped primitive underneath; the
+          // Send[]/mediaResults batch structure around it is unchanged.
+          // ingestMultimodal swallows a single item failure and returns
+          // transcripts: [], so transcribeAudioBuffer surfaces '' and the
+          // empty-transcript guard below preserves today's ok:false outcome.
+          transcript = await transcribeAudioBuffer(audioBuffer, { mimeType, ext })
         } catch (err) {
           console.error('[WhatsApp] audio transcription failed:', err)
           return { mediaResults: [{ msgId, ok: false, reason: 'transcription_failed' }] }
@@ -262,8 +259,8 @@ export function makeWhatsAppAdapter({
           return { mediaResults: [{ msgId, ok: false, reason: 'download_failed' }] }
         }
 
-        const mimeType = msg.image.mime_type ?? 'image/jpeg'
-        const ext = mimeType.split('/')[1] ?? 'jpg'
+        // MIME/extension derivation shared with the intent-router path.
+        const { mimeType, ext } = deriveImageFormat(msg.image.mime_type)
         const storagePath = `${companyId}/whatsapp/${projectId}-${msg.image.id}.${ext}`
 
         await getServerStorage().upload('photos', storagePath, imageBuffer, {
@@ -278,14 +275,12 @@ export function makeWhatsAppAdapter({
           .eq('wa_message_id', msgId)
           .eq('company_id', companyId)
 
-        // Route vision through the shared, channel-neutral ingestion path
-        // (UNIFY-01) instead of calling analyzePhotoOR directly. Same
-        // fallback-wrapped primitive underneath; storage upload + photos insert
-        // + mediaResults batch structure around it are unchanged.
-        const { photoDescriptions } = await ingestMultimodal({
-          photos: [{ base64: imageBuffer.toString('base64'), mimeType }],
-        })
-        const aiDescription = photoDescriptions[0] ?? ''
+        // Route vision through the shared WhatsApp media helper
+        // (lib/whatsapp/media.ts), which wraps the channel-neutral ingestion
+        // path (UNIFY-01). Same fallback-wrapped primitive underneath; storage
+        // upload + photos insert + mediaResults batch structure around it are
+        // unchanged.
+        const aiDescription = await analyzeImageBuffer(imageBuffer, mimeType)
 
         await svc.from('photos').insert({
           project_id: projectId,
