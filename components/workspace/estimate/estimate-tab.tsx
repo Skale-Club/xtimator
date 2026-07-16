@@ -56,10 +56,11 @@ interface EstimateTabProps {
    */
   companySlug?: string | null
   /**
-   * Phase 163-04 (SENDHUB-01): whether WhatsApp delivery is configured for
-   * this account. Optional; defaults to true inside the hub so the WhatsApp
-   * placeholder buttons show unless the parent explicitly disables them.
-   * 163-05 wires real gating from getWhatsAppAccountStatus().
+   * Phase 163 (SENDHUB): server-resolved WhatsApp availability (tier
+   * entitlement ∧ active account-registry status), threaded down from the
+   * project page and forwarded to the Send hub so WhatsApp actions hide when
+   * the channel is unavailable. Optional; when the parent omits it the hub
+   * defaults to showing the buttons.
    */
   whatsappEnabled?: boolean
 }

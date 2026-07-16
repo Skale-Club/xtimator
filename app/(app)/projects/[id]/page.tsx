@@ -8,6 +8,8 @@ import { getCurrentEstimate, getProjectEstimates } from '@/lib/queries/estimate'
 import { getInvoicesByEstimateId } from '@/lib/queries/invoice'
 import { getPriceBookItems } from '@/lib/queries/price-book'
 import { paymentsEnabled } from '@/lib/billing/payments-enabled'
+import { getEntitlementsForTier } from '@/lib/entitlements-server'
+import { getWhatsAppAccountStatus } from '@/lib/whatsapp/account-registry'
 import { ProjectWorkspace } from '@/components/workspace/project-workspace'
 import { ProjectHeader } from '@/components/workspace/project-header'
 import { ProjectPageShell } from '@/components/workspace/project-page-shell'
@@ -117,6 +119,18 @@ async function ProjectTabs({
     stripe_connect_status: (company?.stripe_connect_status as string | null) ?? null,
   })
 
+  // Phase 163 (SENDHUB) — resolve WhatsApp availability into a single opaque
+  // boolean for the Send hub. The tier entitlement is the coarse gate; the
+  // account registry's `.active` is the fine gate (a configured, non-suspended
+  // config row). Reuses the `tier` already selected in companyPromise — no extra
+  // query for entitlements. Only the boolean crosses into the client tree; the
+  // account status details (linked number, WABA id, provisioning) stay
+  // server-side and never reach the browser. The short-circuit avoids the
+  // registry read entirely when the tier doesn't include WhatsApp.
+  const whatsappAvailable =
+    (await getEntitlementsForTier((company?.tier as string | null) ?? 'free')).whatsappEnabled &&
+    (await getWhatsAppAccountStatus(project.company_id)).active
+
   const estimateTemplate = {
     greeting: (company?.estimate_template_greeting as string | null) ?? null,
     opener: (company?.estimate_template_opener as string | null) ?? null,
@@ -174,6 +188,7 @@ async function ProjectTabs({
       companyDefaults={companyDefaults}
       estimateTemplate={estimateTemplate}
       smsDeliveryEnabled={smsDeliveryEnabled}
+      whatsappEnabled={whatsappAvailable}
       priceBookItems={priceBookItems}
       defaultTab={defaultTab}
     />

@@ -77,9 +77,11 @@ export interface SendHubDialogProps {
   estimateTemplate: EstimateTemplate
   smsDeliveryEnabled: boolean
   /**
-   * Whether WhatsApp delivery is configured for this account. Defaults to true
-   * (buttons show but placeholder) so the hub's shape is stable across accounts;
-   * 163-05 wires real gating from getWhatsAppAccountStatus().
+   * Whether WhatsApp delivery is available for this account — a single opaque
+   * boolean resolved server-side in the project page from the tier entitlement
+   * ∧ the account registry's active status (getWhatsAppAccountStatus). When
+   * false, the WhatsApp actions are hidden. Defaults to true when the parent
+   * omits it, keeping the hub's shape stable.
    */
   whatsappEnabled?: boolean
 }

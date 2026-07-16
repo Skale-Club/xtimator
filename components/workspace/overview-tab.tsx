@@ -34,6 +34,9 @@ interface OverviewTabProps {
   ownerName: string
   estimateTemplate: EstimateTemplate
   smsDeliveryEnabled?: boolean
+  /** Phase 163 (SENDHUB) — server-resolved WhatsApp availability, forwarded to
+   * the Send hub via EstimateTab. */
+  whatsappEnabled?: boolean
   /** Opens the Photos dialog (floating-bar affordance). */
   onOpenPhotos?: () => void
 }
@@ -66,6 +69,7 @@ export function OverviewTab({
   ownerName,
   estimateTemplate,
   smsDeliveryEnabled,
+  whatsappEnabled,
   onOpenPhotos,
 }: OverviewTabProps) {
   const router = useRouter()
@@ -142,6 +146,7 @@ export function OverviewTab({
         ownerName={ownerName}
         estimateTemplate={estimateTemplate}
         smsDeliveryEnabled={smsDeliveryEnabled}
+        whatsappEnabled={whatsappEnabled}
       />
 
     </div>

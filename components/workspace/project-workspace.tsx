@@ -41,6 +41,9 @@ interface ProjectWorkspaceProps {
   companyDefaults: CompanyDefaults
   estimateTemplate: EstimateTemplate
   smsDeliveryEnabled?: boolean
+  /** Phase 163 (SENDHUB) — server-resolved WhatsApp availability (tier ∧ active
+   * account), threaded to the Send hub so WhatsApp actions hide when unavailable. */
+  whatsappEnabled?: boolean
   priceBookItems: PriceBookItem[]
   defaultTab?: WorkspaceTab
 }
@@ -49,6 +52,7 @@ export function ProjectWorkspace({
   project, activity, stats, recordings, photos,
   currentEstimate, allVersions, issuedInvoices, paymentsEnabled, companyName,
   ownerName, companyBrandColor, company, companyDefaults, estimateTemplate, smsDeliveryEnabled = false,
+  whatsappEnabled,
   priceBookItems,
   defaultTab = 'overview',
 }: ProjectWorkspaceProps) {
@@ -136,6 +140,7 @@ export function ProjectWorkspace({
             ownerName={ownerName}
             estimateTemplate={estimateTemplate}
             smsDeliveryEnabled={smsDeliveryEnabled}
+            whatsappEnabled={whatsappEnabled}
             onOpenPhotos={() => setPhotosOpen(true)}
           />
         )}
