@@ -14,9 +14,18 @@ import {
   actionSetClient,
   actionRegenerate,
   actionGetEstimateContext,
+  actionUpdateItem,
+  actionAddItem,
+  actionRemoveItem,
   formatEstimateContext,
+  type ItemMutationResult,
   type Session,
 } from '@/lib/whatsapp/confirm-actions'
+import {
+  getNumberedEstimate,
+  buildNumberedBreakdownLines,
+} from '@/lib/whatsapp/estimate-numbering'
+import { formatMoney } from '@/lib/money/currency'
 
 export function makeConfirmationTools(
   session: Session,
@@ -142,16 +151,126 @@ export function makeConfirmationTools(
     }
   )
 
+  // Compose a tool reply from an item-mutation result: the human summary plus
+  // the REFRESHED numbered breakdown so the agent (and its next reference) stay
+  // grounded on the new numbering after the edit.
+  const formatMutation = (result: ItemMutationResult): string => {
+    if (!result.ok) return result.message
+    const breakdown = result.breakdown
+    if (!breakdown) return result.message
+    const lines = buildNumberedBreakdownLines(breakdown.sections, breakdown.currencyCode)
+    const total = formatMoney(breakdown.total, breakdown.currencyCode)
+    return `${result.message}\n\nUpdated estimate — ${total}\n${lines}`
+  }
+
+  const updateItem = tool(
+    async ({
+      sectionNumber,
+      itemNumber,
+      price,
+      quantity,
+      name,
+    }: {
+      sectionNumber: number
+      itemNumber: number
+      price?: number
+      quantity?: number
+      name?: string
+    }) => {
+      const result = await actionUpdateItem(
+        session,
+        companyId,
+        supabase,
+        sectionNumber,
+        itemNumber,
+        { price, quantity, name }
+      )
+      return formatMutation(result)
+    },
+    {
+      name: 'update_item',
+      description:
+        'Change a single line item referenced by its number "section.item" (e.g. 2.3 = the 3rd item of the 2nd section). Set any of price, quantity, or name. Section/item totals and the estimate total are recomputed automatically. Only call with numbers that exist in the current numbered estimate — if the owner\'s reference is unclear, call get_estimate_details and/or ask which item they mean.',
+      schema: z.object({
+        sectionNumber: z.number().int().positive().describe('1-based section number (the N in N.M)'),
+        itemNumber: z.number().int().positive().describe('1-based item number within the section (the M in N.M)'),
+        price: z.number().nonnegative().optional().describe('New unit price in dollars'),
+        quantity: z.number().positive().optional().describe('New quantity'),
+        name: z.string().optional().describe('New item description'),
+      }),
+    }
+  )
+
+  const addItem = tool(
+    async ({
+      sectionNumber,
+      name,
+      price,
+      quantity,
+    }: {
+      sectionNumber: number
+      name: string
+      price: number
+      quantity?: number
+    }) => {
+      const result = await actionAddItem(
+        session,
+        companyId,
+        supabase,
+        sectionNumber,
+        name,
+        price,
+        quantity ?? 1
+      )
+      return formatMutation(result)
+    },
+    {
+      name: 'add_item',
+      description:
+        'Add a new line item to an existing section (referenced by its 1-based number). Totals are recomputed automatically. If it is unclear which section the owner means, call get_estimate_details and/or ask first.',
+      schema: z.object({
+        sectionNumber: z.number().int().positive().describe('1-based section number to add the item to'),
+        name: z.string().describe('Item description, e.g. "haul away debris"'),
+        price: z.number().nonnegative().describe('Unit price in dollars'),
+        quantity: z.number().positive().optional().describe('Quantity (defaults to 1)'),
+      }),
+    }
+  )
+
+  const removeItem = tool(
+    async ({ sectionNumber, itemNumber }: { sectionNumber: number; itemNumber: number }) => {
+      const result = await actionRemoveItem(session, companyId, supabase, sectionNumber, itemNumber)
+      return formatMutation(result)
+    },
+    {
+      name: 'remove_item',
+      description:
+        'Remove a line item referenced by its number "section.item" (e.g. 1.2). Totals are recomputed automatically. Only call with numbers that exist in the current numbered estimate.',
+      schema: z.object({
+        sectionNumber: z.number().int().positive().describe('1-based section number (the N in N.M)'),
+        itemNumber: z.number().int().positive().describe('1-based item number within the section (the M in N.M)'),
+      }),
+    }
+  )
+
   const getEstimateDetails = tool(
     async () => {
       if (!session.draft_estimate_id) return 'No estimate loaded.'
-      const ctx = await actionGetEstimateContext(supabase, session.draft_estimate_id)
-      return formatEstimateContext(ctx)
+      const [ctx, numbered] = await Promise.all([
+        actionGetEstimateContext(supabase, session.draft_estimate_id),
+        getNumberedEstimate(supabase, session.draft_estimate_id),
+      ])
+      const base = formatEstimateContext(ctx)
+      if (!numbered || numbered.sections.length === 0) return base
+      const lines = buildNumberedBreakdownLines(numbered.sections, numbered.currencyCode)
+      // The numbered breakdown grounds section/item references (N.M) for the
+      // edit tools; keep it alongside the human-readable context.
+      return `${base}\n\nNumbered breakdown (use these numbers for edits):\n${lines}`
     },
     {
       name: 'get_estimate_details',
       description:
-        'Get the current estimate details: total, sections, timeline, payment terms, and summary. Use to answer questions about the estimate.',
+        'Get the current estimate details: total, sections, timeline, payment terms, summary, AND a numbered breakdown (sections 1..N, items N.M) to reference when editing line items. Use to answer questions or to ground an item reference before an edit.',
       schema: z.object({}),
     }
   )
@@ -165,6 +284,9 @@ export function makeConfirmationTools(
     updateSummary,
     setClient,
     regenerateEstimate,
+    updateItem,
+    addItem,
+    removeItem,
     getEstimateDetails,
   ]
 }

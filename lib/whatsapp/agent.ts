@@ -22,6 +22,10 @@ import {
   formatEstimateContext,
   type Session,
 } from '@/lib/whatsapp/confirm-actions'
+import {
+  getNumberedEstimate,
+  buildNumberedBreakdownLines,
+} from '@/lib/whatsapp/estimate-numbering'
 import { sendWhatsAppMessage } from '@/lib/whatsapp/client'
 import { logOutboundMessage } from '@/lib/whatsapp/conversations'
 
@@ -73,19 +77,31 @@ export async function runConfirmationAgent(
   ownerPhone: string,
   supabase: SupabaseClient
 ): Promise<void> {
-  const [estimateCtx, history] = await Promise.all([
+  const [estimateCtx, numbered, history] = await Promise.all([
     session.draft_estimate_id
       ? actionGetEstimateContext(supabase, session.draft_estimate_id)
+      : Promise.resolve(null),
+    session.draft_estimate_id
+      ? getNumberedEstimate(supabase, session.draft_estimate_id)
       : Promise.resolve(null),
     loadConversationHistory(supabase, companyId, ownerPhone),
   ])
 
   const estimateText = formatEstimateContext(estimateCtx)
+  // The numbered breakdown mirrors what the owner saw in the confirmation, so
+  // the agent can resolve "item 2.3" without a get_estimate_details round-trip.
+  const numberedText =
+    numbered && numbered.sections.length > 0
+      ? buildNumberedBreakdownLines(numbered.sections, numbered.currencyCode)
+      : ''
 
   const systemPrompt = `You are a WhatsApp assistant helping a contractor (business owner) review and finalize their estimate before sending it to a client.
 
 Current estimate:
 ${estimateText}
+${numberedText ? `\nNumbered line items (use these numbers for edits):\n${numberedText}\n` : ''}
+
+The estimate is organized into numbered sections (1, 2, 3, …) each containing numbered items (1.1, 1.2, 2.1, …). An item reference like "2.3" means the 3rd item of the 2nd section. These numbers come from get_estimate_details and the confirmation message the owner already saw.
 
 Available actions via tools:
 - send_estimate: deliver the estimate to the client
@@ -96,7 +112,10 @@ Available actions via tools:
 - update_summary: update the estimate summary
 - set_client: set or update the client name and phone
 - regenerate_estimate: rebuild the estimate from the original recording
-- get_estimate_details: fetch the current estimate details
+- update_item: change one line item's price, quantity, or name by its number (e.g. "change item 2.3 price to 85")
+- add_item: add a new line item to a section (e.g. "add to section 2: haul away debris, $150")
+- remove_item: delete a line item by its number (e.g. "remove item 1.2")
+- get_estimate_details: fetch the current estimate details, including the numbered breakdown
 
 Instructions:
 - Respond in the same language the owner is using.
@@ -104,6 +123,7 @@ Instructions:
 - If the owner requests multiple changes, perform ALL of them in sequence before composing your reply.
 - After performing actions, confirm what was done in one short message.
 - Do NOT ask for confirmation before acting — just do what they asked.
+- Line-item edits (update_item / add_item / remove_item) are addressed by number. If the owner's reference to an item or section is ambiguous or not a clear number (e.g. "the tile one", "the second thing"), call get_estimate_details to see the current numbering and ASK which number they mean rather than guessing. Never invent an item/section number.
 - If something is truly unclear (e.g. missing a phone number), ask one specific question.`
 
   const tools = makeConfirmationTools(session, companyId, supabase)

@@ -14,6 +14,13 @@ import { logOutboundMessage } from '@/lib/whatsapp/conversations'
 import { buildEstimatePublicPath } from '@/lib/estimate/public-url'
 import { formatMoney } from '@/lib/money/currency'
 import { getWhatsAppAccountStatus } from '@/lib/whatsapp/account-registry'
+import { computeEstimateTotals, type TaxConfig } from '@/lib/estimate/compute-totals'
+import {
+  getNumberedEstimate,
+  resolveItem,
+  resolveSection,
+  type NumberedEstimate,
+} from '@/lib/whatsapp/estimate-numbering'
 
 export type Session = {
   id: string
@@ -355,6 +362,294 @@ export async function actionRegenerate(
 
   const context = await actionGetEstimateContext(supabase, newEstimateId)
   return { newEstimateId, context }
+}
+
+// ---------------------------------------------------------------------------
+// Section/item edits (Phase 51 follow-up) — resolve N.M via the shared
+// numbering invariant (lib/whatsapp/estimate-numbering.ts), mutate the row, then
+// recompute totals through the SAME engine the editor/generation use.
+// ---------------------------------------------------------------------------
+
+/**
+ * Recompute + persist an estimate's totals after a section/item mutation.
+ *
+ * Reuses the single authoritative totals engine `computeEstimateTotals`
+ * (lib/estimate/compute-totals.ts) — NOT a reimplementation. This mirrors the
+ * editor's `recalculateEstimateTotals` (lib/actions/estimate.ts): same field
+ * mapping, same 'percentage'|'fixed' → engine discount-type mapping, same
+ * tax_config sourcing. It is a separate function (not a shared import) because
+ * the editor version is bound to the authed request client + `revalidatePath`
+ * and does NOT persist per-item totals — this WhatsApp/service-client path runs
+ * inside Inngest (no request context) and DOES need to persist the mutated
+ * item's total. Persisting every item.total/section.subtotal is idempotent.
+ */
+async function recomputeEstimateTotals(
+  supabase: SupabaseClient,
+  estimateId: string,
+  companyId: string
+): Promise<void> {
+  const { data: estimate } = await supabase
+    .from('estimates')
+    .select(
+      'discount_type, discount_value, tax_rate, deposit_type, deposit_value, project_id, company_id'
+    )
+    .eq('id', estimateId)
+    .single()
+  if (!estimate) throw new Error('Estimate not found')
+
+  const { data: company } = await supabase
+    .from('companies')
+    .select('tax_config')
+    .eq('id', (estimate.company_id as string | null) ?? companyId)
+    .single()
+
+  const { data: sectionRows } = await supabase
+    .from('estimate_sections')
+    .select(
+      'id, title, items:estimate_items(id, quantity, unit_price, discount, taxable, tax_category, cost, markup_pct)'
+    )
+    .eq('estimate_id', estimateId)
+
+  const sections = (sectionRows ?? []) as Array<{
+    id: string
+    title: string | null
+    items: Array<Record<string, unknown>> | null
+  }>
+
+  // Editor/DB discount domain ('percentage'|'fixed') → engine domain
+  // ('percent'|'amount'|'none'). Identical to lib/actions/estimate.ts. Fresh
+  // WhatsApp estimates carry discount_type null → 'none' (byte-identical).
+  const engineDiscountType: 'percent' | 'amount' | 'none' =
+    estimate.discount_type === 'percentage'
+      ? 'percent'
+      : estimate.discount_type === 'fixed'
+        ? 'amount'
+        : 'none'
+
+  const taxConfig =
+    company?.tax_config != null ? (company.tax_config as TaxConfig) : null
+
+  const engineResult = computeEstimateTotals(
+    sections.map((section) => ({
+      title: (section.title as string | null) ?? '',
+      items: (section.items ?? []).map((item) => ({
+        // `id` rides through via the engine's `...item` spread so we can persist
+        // each recomputed line total back to its row.
+        id: item.id as string,
+        quantity: Number(item.quantity),
+        unit_price: Number(item.unit_price),
+        discount: (item.discount as number | null) ?? 0,
+        taxable: (item.taxable as boolean | null) ?? true,
+        tax_category: (item.tax_category as 'labor' | 'materials' | 'other' | null) ?? null,
+        cost: (item.cost as number | null) ?? null,
+        markup_pct: (item.markup_pct as number | null) ?? null,
+      })),
+    })),
+    {
+      taxRate: Number(estimate.tax_rate),
+      taxConfig,
+      discountType: engineDiscountType,
+      discountValue: Number(estimate.discount_value ?? 0),
+      depositType: (estimate.deposit_type as 'none' | 'percent' | 'amount' | null) ?? 'none',
+      depositValue: (estimate.deposit_value as number | null) ?? null,
+    }
+  )
+
+  const { subtotal, discountAmount, taxAmount, grandTotal: total, balanceDue } = engineResult
+
+  // Persist per-item totals + per-section subtotals (idempotent). engineResult
+  // sections align 1:1 by index with the input `sections`.
+  await Promise.all([
+    ...engineResult.sections.flatMap((sec) =>
+      sec.items.map((item) =>
+        supabase
+          .from('estimate_items')
+          .update({ total: item.total, unit_price: item.unit_price })
+          .eq('id', item.id as string)
+          .eq('company_id', companyId)
+      )
+    ),
+    ...engineResult.sections.map((sec, idx) =>
+      supabase
+        .from('estimate_sections')
+        .update({ subtotal: sec.subtotal })
+        .eq('id', sections[idx].id)
+        .eq('company_id', companyId)
+    ),
+  ])
+
+  await supabase
+    .from('estimates')
+    .update({
+      subtotal,
+      discount_amount: discountAmount,
+      tax_amount: taxAmount,
+      total,
+      balance_due: balanceDue,
+    })
+    .eq('id', estimateId)
+
+  const projectId = estimate.project_id as string | null
+  if (projectId) {
+    await supabase.from('projects').update({ total }).eq('id', projectId)
+  }
+}
+
+export type ItemEditFields = {
+  price?: number
+  quantity?: number
+  name?: string
+}
+
+/**
+ * Result of a section/item mutation. On success carries a short human summary
+ * plus the REFRESHED numbered breakdown so the agent can re-ground its next
+ * reference. On failure carries a user-facing error (e.g. N.M out of range).
+ */
+export type ItemMutationResult =
+  | { ok: false; message: string }
+  | { ok: true; message: string; breakdown: NumberedEstimate | null }
+
+/** update_item — resolve N.M and patch price/quantity/name, then recompute. */
+export async function actionUpdateItem(
+  session: Session,
+  companyId: string,
+  supabase: SupabaseClient,
+  sectionNumber: number,
+  itemNumber: number,
+  fields: ItemEditFields
+): Promise<ItemMutationResult> {
+  if (!session.draft_estimate_id) return { ok: false, message: 'No estimate to update.' }
+  const numbered = await getNumberedEstimate(supabase, session.draft_estimate_id)
+  if (!numbered) return { ok: false, message: 'No estimate loaded.' }
+
+  const res = resolveItem(numbered.sections, sectionNumber, itemNumber)
+  if (!res.ok) return { ok: false, message: res.error }
+  if (!res.item.id) return { ok: false, message: `Item ${sectionNumber}.${itemNumber} can't be edited (missing id).` }
+
+  const patch: Record<string, unknown> = {}
+  if (typeof fields.price === 'number') patch.unit_price = fields.price
+  if (typeof fields.quantity === 'number') patch.quantity = fields.quantity
+  if (typeof fields.name === 'string' && fields.name.trim()) patch.description = fields.name.trim()
+  if (Object.keys(patch).length === 0) {
+    return { ok: false, message: 'Nothing to change — specify a new price, quantity, or name.' }
+  }
+
+  const { error } = await supabase
+    .from('estimate_items')
+    .update(patch)
+    .eq('id', res.item.id)
+    .eq('company_id', companyId)
+  if (error) return { ok: false, message: `Update failed: ${error.message}` }
+
+  await recomputeEstimateTotals(supabase, session.draft_estimate_id, companyId)
+  const breakdown = await getNumberedEstimate(supabase, session.draft_estimate_id)
+  const name = typeof patch.description === 'string' ? patch.description : res.item.description
+  return {
+    ok: true,
+    message: `Updated item ${sectionNumber}.${itemNumber} (${name}).`,
+    breakdown,
+  }
+}
+
+/** add_item — append a new item to section N, then recompute. */
+export async function actionAddItem(
+  session: Session,
+  companyId: string,
+  supabase: SupabaseClient,
+  sectionNumber: number,
+  name: string,
+  price: number,
+  quantity = 1
+): Promise<ItemMutationResult> {
+  if (!session.draft_estimate_id) return { ok: false, message: 'No estimate to update.' }
+  const numbered = await getNumberedEstimate(supabase, session.draft_estimate_id)
+  if (!numbered) return { ok: false, message: 'No estimate loaded.' }
+
+  const res = resolveSection(numbered.sections, sectionNumber)
+  if (!res.ok) return { ok: false, message: res.error }
+  if (!res.section.id) return { ok: false, message: `Section ${sectionNumber} can't be edited (missing id).` }
+
+  // Reject an empty/whitespace description so a client-facing estimate never
+  // gets a blank line item (the tool schema requires `name`, but the LLM could
+  // still pass ""/whitespace). Mirrors update_item's name-trim guard.
+  const trimmedName = name.trim()
+  if (!trimmedName) {
+    return { ok: false, message: 'Give the new item a description (e.g. "haul away debris").' }
+  }
+
+  const qty = quantity > 0 ? quantity : 1
+
+  // Append AFTER the current last item so the new item takes the next N.M slot.
+  // Derive from the ACTUAL max sort_order in the section (not the item count) so
+  // a prior removal's sort_order gap can't cause a collision.
+  const { data: existingRows } = await supabase
+    .from('estimate_items')
+    .select('sort_order')
+    .eq('section_id', res.section.id)
+    .eq('company_id', companyId)
+  const maxSortOrder = (existingRows ?? []).reduce(
+    (max, r) => Math.max(max, Number((r as { sort_order?: number | null }).sort_order ?? 0)),
+    -1
+  )
+  const nextSortOrder = maxSortOrder + 1
+
+  const { error } = await supabase.from('estimate_items').insert({
+    section_id: res.section.id,
+    company_id: companyId,
+    description: trimmedName,
+    quantity: qty,
+    unit: null,
+    unit_price: price,
+    // Placeholder — recomputeEstimateTotals overwrites with the engine value.
+    total: Math.round(qty * price * 100) / 100,
+    sort_order: nextSortOrder,
+    // Owner-added line: no automated price source. The CHECK constraint allows
+    // NULL | 'price_book' | 'ai_estimate' | 'researched' — NULL means manual.
+    price_source: null,
+  })
+  if (error) return { ok: false, message: `Couldn't add the item: ${error.message}` }
+
+  await recomputeEstimateTotals(supabase, session.draft_estimate_id, companyId)
+  const breakdown = await getNumberedEstimate(supabase, session.draft_estimate_id)
+  return {
+    ok: true,
+    message: `Added "${trimmedName}" to section ${sectionNumber} (${res.section.title}).`,
+    breakdown,
+  }
+}
+
+/** remove_item — resolve N.M and delete it, then recompute. */
+export async function actionRemoveItem(
+  session: Session,
+  companyId: string,
+  supabase: SupabaseClient,
+  sectionNumber: number,
+  itemNumber: number
+): Promise<ItemMutationResult> {
+  if (!session.draft_estimate_id) return { ok: false, message: 'No estimate to update.' }
+  const numbered = await getNumberedEstimate(supabase, session.draft_estimate_id)
+  if (!numbered) return { ok: false, message: 'No estimate loaded.' }
+
+  const res = resolveItem(numbered.sections, sectionNumber, itemNumber)
+  if (!res.ok) return { ok: false, message: res.error }
+  if (!res.item.id) return { ok: false, message: `Item ${sectionNumber}.${itemNumber} can't be removed (missing id).` }
+
+  const removedName = res.item.description
+  const { error } = await supabase
+    .from('estimate_items')
+    .delete()
+    .eq('id', res.item.id)
+    .eq('company_id', companyId)
+  if (error) return { ok: false, message: `Couldn't remove the item: ${error.message}` }
+
+  await recomputeEstimateTotals(supabase, session.draft_estimate_id, companyId)
+  const breakdown = await getNumberedEstimate(supabase, session.draft_estimate_id)
+  return {
+    ok: true,
+    message: `Removed item ${sectionNumber}.${itemNumber} (${removedName}).`,
+    breakdown,
+  }
 }
 
 // ---------------------------------------------------------------------------

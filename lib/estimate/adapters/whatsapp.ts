@@ -60,6 +60,10 @@ import {
 import { logOutboundMessage } from '@/lib/whatsapp/conversations'
 import { getServerStorage } from '@/lib/storage'
 import { formatMoney } from '@/lib/money/currency'
+import {
+  numberSections,
+  buildNumberedBreakdownLines,
+} from '@/lib/whatsapp/estimate-numbering'
 import type { EstimateStateType } from '@/lib/estimate/graph/state'
 import type { ChannelAdapter } from '@/lib/estimate/graph/types'
 import { failureReasonToChannelCopy } from '@/lib/estimate/failure'
@@ -445,9 +449,16 @@ export function makeWhatsAppAdapter({
         expires_at: expiresAt,
       })
 
+      // Embed items so the confirmation shows a STABLE numbered breakdown
+      // (sections 1..N, items N.M). Those numbers are what the owner references
+      // in edit commands ("change item 2.3 to 85") — resolved by the same
+      // sort_order-based numbering (lib/whatsapp/estimate-numbering.ts). No
+      // `.order()` is chained; numberSections sorts in JS (ordering invariant).
       const { data: estimate } = await supabase
         .from('estimates')
-        .select('total, currency_code, summary, sections:estimate_sections(title, subtotal)')
+        .select(
+          'total, currency_code, summary, sections:estimate_sections(id, title, subtotal, sort_order, items:estimate_items(id, description, quantity, unit, unit_price, total, sort_order))'
+        )
         .eq('id', estimateId!)
         .single()
 
@@ -456,19 +467,17 @@ export function makeWhatsAppAdapter({
         (estimate as { currency_code: string | null } | null)?.currency_code ?? 'USD'
       const total = formatMoney(totalNum, currencyCode)
       const sectionRows =
-        (estimate as {
-          sections?: Array<{ title: string; subtotal: number }>
-        } | null)?.sections ?? []
-      const sections = sectionRows
-        .map((s) => `- ${s.title}: ${formatMoney(s.subtotal, currencyCode)}`)
-        .join('\n')
+        (estimate as { sections?: Parameters<typeof numberSections>[0] } | null)?.sections ?? []
+      const numberedSections = numberSections(sectionRows)
+      const breakdown = buildNumberedBreakdownLines(numberedSections, currencyCode)
 
       const body = [
         `Estimate ready - ${total}`,
         '',
-        sections,
+        breakdown,
         '',
         'Reply *send* to deliver to your client, or *cancel* to discard.',
+        'To change something, just tell me — e.g. "change item 1.1 to $120" or "remove item 2.3".',
         ...(droppedNote ? ['', droppedNote] : []),
       ].join('\n')
 
