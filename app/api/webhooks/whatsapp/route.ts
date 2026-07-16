@@ -286,6 +286,8 @@ async function handleInboundMessage(payload: WhatsAppPayload): Promise<void> {
     // owner sees the welcome ahead of any estimate reply. Best-effort.
     if (resolvedViaOwner) {
       try {
+        // Localized internally (companies.default_estimate_language cascade),
+        // resolved only after the atomic claim is won — no select on repeat messages.
         await welcomeOnFirstContact(supabase, resolvedCompanyId, `+${fromPhone}`)
       } catch (welcomeErr) {
         console.error('[WhatsApp] first-contact welcome error:', welcomeErr)

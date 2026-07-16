@@ -56,7 +56,10 @@ const mockWelcome = vi.mocked(welcomeOnFirstContact)
 const mockFindSender = vi.mocked(findActiveWhatsAppSender)
 
 /** fromMock for an owner resolved via Route 1 (findActiveWhatsAppSender). */
-function makeOwnerResolvedFromMock(companyId: string, dedupError: unknown = null) {
+function makeOwnerResolvedFromMock(
+  companyId: string,
+  dedupError: unknown = null
+) {
   return vi.fn().mockImplementation((table: string) => {
     if (table === 'whatsapp_processed_messages') {
       return { insert: vi.fn().mockResolvedValue({ error: dedupError }) }
@@ -233,7 +236,8 @@ describe('POST /api/webhooks/whatsapp', () => {
     expect(res.status).toBe(200)
 
     await vi.waitFor(() => {
-      // Welcome attempted for the owner, scoped to their company + their phone (with +)
+      // Welcome attempted for the owner, scoped to their company + their phone (with +).
+      // Language resolution lives inside welcomeOnFirstContact (post-claim).
       expect(mockWelcome).toHaveBeenCalledWith(serviceClient, 'company-7', '+15551234567')
       // Message is still handed to normal processing
       expect(mockProcessInbound).toHaveBeenCalledWith(
