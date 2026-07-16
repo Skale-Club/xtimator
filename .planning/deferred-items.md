@@ -24,7 +24,7 @@ Operational / scope deferrals surfaced during execution. Each carries forward wi
 
 **Pickup condition:** if `env-var-sweep.test.ts` starts flaking on CI/local due to the 5s default timeout as the codebase keeps growing, add the same explicit longer per-test timeout (e.g. `it('...', () => {...}, 20000)`) to that file.
 
-### Item 2 — pre-existing `chatEnabled` fixture drift in WhatsApp handler tests — OBSERVED, OUT OF SCOPE (160-04)
+### Item 2 — pre-existing `chatEnabled` fixture drift in WhatsApp handler tests — RESOLVED 2026-07-16 (fixed by commit `ef5cc1bf`, quick-260715-aa1; verified: bare `tsc --noEmit` clean, all whatsapp handler tests green)
 
 **What:** The plan's own verification command (`npx tsc --noEmit -p tsconfig.json | grep -E "send-sms|whatsapp|connect-webhook"`) also surfaces 5 pre-existing `TS2345` errors in `tests/unit/whatsapp/handler.test.ts`, `handler-intent-routing.test.ts`, and `handler-inngest-dispatch.test.ts` — inline `Entitlements` test fixtures missing the `chatEnabled` field.
 
