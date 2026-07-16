@@ -15,6 +15,7 @@ import type { Recording } from '@/lib/queries/recording'
 import type { Photo } from '@/lib/queries/photo'
 import { useEstimateReducer, type EstimateEditorState } from './use-estimate-reducer'
 import { EstimateFloatingActions } from './estimate-floating-actions'
+import { RefineEstimateDialog } from './refine-estimate-dialog'
 import { PresentationSettingsPanel } from './presentation-settings-panel'
 import { IssuedInvoicesPanel } from './issued-invoices-panel'
 import { GenerateInvoiceDialog } from './generate-invoice-dialog'
@@ -106,7 +107,10 @@ function stateToSavePayload(state: EstimateEditorState) {
     timeline: state.timeline,
     payment_terms: state.payment_terms,
     warranty_terms: state.warranty_terms,
-    discount_type: state.discount_type,
+    // Cast the reducer's wide `string | null` to the editor/DB domain at the
+    // boundary (same pattern as deposit_type below) — saveEstimate's zod schema
+    // now enforces this domain at runtime too.
+    discount_type: state.discount_type as 'percentage' | 'fixed' | null,
     discount_value: state.discount_value,
     // v4.11 deposit — send type+value only; saveEstimate (Plan 01) recomputes
     // balance_due server-side via computeEstimateTotals (server is authoritative).
@@ -456,6 +460,15 @@ export function EstimateEditor({
         onOpenPhotos={onOpenPhotos}
         onOpenSettings={isReadOnly ? undefined : () => setSettingsOpen(true)}
         linkClientSlot={linkClientSlot}
+        refineSlot={
+          isReadOnly ? undefined : (
+            <RefineEstimateDialog
+              estimateId={state.id}
+              version={state.version}
+              onApply={(refined) => dispatch({ type: 'APPLY_REFINEMENT', refined })}
+            />
+          )
+        }
       />
 
       {/* Phase 162-04 (DOCUX-01) — the ONE presentation-settings write path.

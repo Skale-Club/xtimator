@@ -8,9 +8,9 @@ import { DEFAULT_CURRENCY_CODE, normalizeCurrencyCode } from '@/lib/money/curren
 import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { shareLinkExpiryFromNow } from '@/lib/estimates/share-link'
 import { dispatchXphereSync } from '@/lib/integrations/xphere/dispatch'
-import { computeEstimateTotals } from '@/lib/estimate/compute-totals'
+import { computeEstimateTotals, type TaxConfig } from '@/lib/estimate/compute-totals'
 import { copyEstimatePhotos } from '@/lib/queries/estimate-photo'
-import type { PresentationSettings } from '@/lib/estimate/presentation-settings'
+import { saveEstimateSchema, type SaveEstimateInput } from '@/lib/schemas/estimate'
 
 // ---------------------------------------------------------------------------
 // Auth helper (same pattern as recording.ts)
@@ -27,7 +27,7 @@ async function getAuthContext() {
 
   const { data: company } = await supabase
     .from('companies')
-    .select('id, currency_code, default_tax_rate, default_payment_terms, default_warranty_terms')
+    .select('id, currency_code, default_tax_rate, default_payment_terms, default_warranty_terms, tax_config')
     .eq('id', activeCompanyId)
     .single()
 
@@ -36,76 +36,22 @@ async function getAuthContext() {
   return { supabase, company, claims }
 }
 
-// ---------------------------------------------------------------------------
-// Math helpers
-// ---------------------------------------------------------------------------
-
-function roundCents(value: number): number {
-  return Math.round(value * 100) / 100
-}
-
-interface SaveItemInput {
-  id: string
-  description: string
-  quantity: number
-  unit: string | null
-  unit_price: number
-  sort_order: number
-  price_source: 'price_book' | 'ai_estimate' | 'researched' | null
-  isManuallyEdited?: boolean
-  // v4.11 advanced pricing — all OPTIONAL with no-op defaults (retrocompat).
-  taxable?: boolean
-  tax_category?: 'labor' | 'materials' | 'other' | null
-  discount?: number
-  cost?: number | null
-  markup_pct?: number | null
-}
-
-interface SaveSectionInput {
-  id: string
-  title: string
-  sort_order: number
-  items: SaveItemInput[]
-}
-
-interface SaveEstimateInput {
-  id: string
-  summary: string | null
-  notes: string | null
-  timeline: string | null
-  payment_terms: string | null
-  warranty_terms: string | null
-  discount_type: string | null
-  discount_value: number
-  tax_rate: number
-  sections: SaveSectionInput[]
-  estimate_date: string | null
-  estimate_number: string | null
-  // v4.11 deposit — OPTIONAL with no-op defaults (retrocompat: 'none' / null).
-  deposit_type?: 'none' | 'percent' | 'amount' | null
-  deposit_value?: number | null
-  // Phase 161 (PRESENT-01/03): pass-through only -- NEVER read by the totals
-  // engine below. GUARD-03: presentation/pricing-override STATE has zero
-  // interaction with the deterministic totals engine.
-  presentation_settings?: PresentationSettings | null
-  /**
-   * Pre-launch audit fix (B7): the estimates.updated_at value the caller's
-   * local state was loaded/last-saved from. OPTIONAL for back-compat with any
-   * caller that doesn't send it (skips the check, preserving old behavior) —
-   * but the editor always sends it. When present, the update is scoped to
-   * `.eq('updated_at', expectedUpdatedAt)`; a zero-row result means someone
-   * else already saved since this client last loaded, and the whole save is
-   * rejected BEFORE any section/item mutation runs (so a stale save never
-   * deletes items/sections the other writer just added).
-   */
-  expectedUpdatedAt?: string
-}
+// SaveEstimateInput is now inferred from lib/schemas/estimate.ts's zod schema —
+// single source of truth for both the compile-time type and the runtime validation
+// below (this is a 'use server' action reachable directly via its RPC endpoint,
+// bypassing TypeScript, so runtime validation is a real boundary, not redundant).
 
 // ---------------------------------------------------------------------------
 // Action 1: saveEstimate (editor auto-save with full math recalc)
 // ---------------------------------------------------------------------------
 
-export async function saveEstimate(estimateData: SaveEstimateInput) {
+export async function saveEstimate(rawEstimateData: SaveEstimateInput) {
+  const parsed = saveEstimateSchema.safeParse(rawEstimateData)
+  if (!parsed.success) {
+    return { error: `Invalid estimate data: ${parsed.error.issues[0]?.message ?? 'validation failed'}` }
+  }
+  const estimateData = parsed.data
+
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error }
   const { supabase, company } = ctx
@@ -122,6 +68,11 @@ export async function saveEstimate(estimateData: SaveEstimateInput) {
         ? 'amount'
         : 'none'
 
+  // Company per-category tax rule (e.g. labor-exempt), same as generate-estimate.ts:
+  // a malformed value degrades to null (flat-rate retrocompat) rather than throwing.
+  const taxConfig =
+    company.tax_config != null ? (company.tax_config as TaxConfig) : null
+
   const engineResult = computeEstimateTotals(
     estimateData.sections.map((section) => ({
       title: section.title,
@@ -136,6 +87,7 @@ export async function saveEstimate(estimateData: SaveEstimateInput) {
     })),
     {
       taxRate: estimateData.tax_rate,
+      taxConfig,
       discountType: engineDiscountType,
       discountValue: estimateData.discount_value,
       depositType: estimateData.deposit_type ?? 'none',
@@ -605,25 +557,9 @@ export async function deleteEstimateItem(itemId: string) {
 
   if (deleteError) return { error: 'Failed to delete item' }
 
-  // Recalculate section subtotal
-  const { data: remainingItems } = await supabase
-    .from('estimate_items')
-    .select('total')
-    .eq('section_id', sectionId)
-
-  const sectionSubtotal = roundCents(
-    (remainingItems ?? []).reduce(
-      (sum, i) => sum + Number(i.total),
-      0
-    )
-  )
-
-  await supabase
-    .from('estimate_sections')
-    .update({ subtotal: sectionSubtotal })
-    .eq('id', sectionId)
-
-  // Get estimate_id from section
+  // Get estimate_id from section — recalculateEstimateTotals recomputes this
+  // section's subtotal (and every other section's) itself, so no separate
+  // manual subtotal patch is needed here.
   const { data: sectionRow } = await supabase
     .from('estimate_sections')
     .select('estimate_id')
@@ -642,47 +578,86 @@ export async function deleteEstimateItem(itemId: string) {
 // Helper: recalculate estimate totals from its sections
 // ---------------------------------------------------------------------------
 
+/**
+ * Delegates to the SAME shared engine as saveEstimate (GUARD-03) instead of
+ * reimplementing totals math. The prior inline version summed persisted
+ * section.subtotal values and applied a flat discount+tax formula, which
+ * silently ignored the company's per-category tax_config and never touched
+ * deposit_type/deposit_value — so balance_due went stale (still reflecting
+ * the pre-delete total) whenever a deposit was configured.
+ */
 async function recalculateEstimateTotals(
   supabase: Awaited<ReturnType<typeof createClient>>,
   estimateId: string
 ) {
-  // Get all sections for this estimate
-  const { data: sections } = await supabase
-    .from('estimate_sections')
-    .select('subtotal')
-    .eq('estimate_id', estimateId)
-
-  const subtotal = roundCents(
-    (sections ?? []).reduce(
-      (sum, s) => sum + Number(s.subtotal),
-      0
-    )
-  )
-
-  // Get current estimate for discount and tax info
   const { data: estimate } = await supabase
     .from('estimates')
     .select(
-      'discount_type, discount_value, tax_rate, project_id'
+      'discount_type, discount_value, tax_rate, deposit_type, deposit_value, project_id, company_id'
     )
     .eq('id', estimateId)
     .single()
 
   if (!estimate) return { error: 'Estimate not found' }
 
-  let discountAmount = 0
-  if (estimate.discount_type === 'percentage') {
-    discountAmount = roundCents(
-      (subtotal * Number(estimate.discount_value)) / 100
-    )
-  } else if (estimate.discount_type === 'fixed') {
-    discountAmount = Number(estimate.discount_value)
-  }
+  const { data: company } = await supabase
+    .from('companies')
+    .select('tax_config')
+    .eq('id', estimate.company_id as string)
+    .single()
 
-  const taxAmount = roundCents(
-    (subtotal - discountAmount) * Number(estimate.tax_rate)
+  const { data: sections } = await supabase
+    .from('estimate_sections')
+    .select(
+      'id, title, items:estimate_items(quantity, unit_price, discount, taxable, tax_category, cost, markup_pct)'
+    )
+    .eq('estimate_id', estimateId)
+
+  // Editor/DB domain ('percentage'|'fixed') → engine domain ('percent'|'amount'|'none'),
+  // same mapping as saveEstimate.
+  const engineDiscountType: 'percent' | 'amount' | 'none' =
+    estimate.discount_type === 'percentage'
+      ? 'percent'
+      : estimate.discount_type === 'fixed'
+        ? 'amount'
+        : 'none'
+
+  const taxConfig =
+    company?.tax_config != null ? (company.tax_config as TaxConfig) : null
+
+  const engineResult = computeEstimateTotals(
+    (sections ?? []).map((section) => ({
+      title: section.title as string,
+      items: ((section.items ?? []) as Array<Record<string, unknown>>).map((item) => ({
+        quantity: Number(item.quantity),
+        unit_price: Number(item.unit_price),
+        discount: (item.discount as number | null) ?? 0,
+        taxable: (item.taxable as boolean | null) ?? true,
+        tax_category: (item.tax_category as 'labor' | 'materials' | 'other' | null) ?? null,
+        cost: (item.cost as number | null) ?? null,
+        markup_pct: (item.markup_pct as number | null) ?? null,
+      })),
+    })),
+    {
+      taxRate: Number(estimate.tax_rate),
+      taxConfig,
+      discountType: engineDiscountType,
+      discountValue: Number(estimate.discount_value ?? 0),
+      depositType: (estimate.deposit_type as 'none' | 'percent' | 'amount' | null) ?? 'none',
+      depositValue: (estimate.deposit_value as number | null) ?? null,
+    }
   )
-  const total = roundCents(subtotal - discountAmount + taxAmount)
+
+  const { subtotal, discountAmount, taxAmount, grandTotal: total, balanceDue } = engineResult
+
+  await Promise.all(
+    (sections ?? []).map((section, idx) =>
+      supabase
+        .from('estimate_sections')
+        .update({ subtotal: engineResult.sections[idx].subtotal })
+        .eq('id', section.id as string)
+    )
+  )
 
   await supabase
     .from('estimates')
@@ -691,6 +666,7 @@ async function recalculateEstimateTotals(
       discount_amount: discountAmount,
       tax_amount: taxAmount,
       total,
+      balance_due: balanceDue,
       updated_at: new Date().toISOString(),
     })
     .eq('id', estimateId)

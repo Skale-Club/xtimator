@@ -16,6 +16,8 @@ interface EstimateFloatingActionsProps {
    *  omitted the gear button is not rendered (backward-compat). */
   onOpenSettings?: () => void
   linkClientSlot?: ReactNode
+  /** "Refine with AI" trigger (RefineEstimateDialog) — omitted on read-only versions. */
+  refineSlot?: ReactNode
 }
 
 // ---------------------------------------------------------------------------
@@ -52,6 +54,7 @@ export function EstimateFloatingActions({
   onOpenPhotos,
   onOpenSettings,
   linkClientSlot,
+  refineSlot,
 }: EstimateFloatingActionsProps) {
   if (!isCurrent) return null
 
@@ -71,6 +74,7 @@ export function EstimateFloatingActions({
         </Button>
       )}
       {linkClientSlot}
+      {refineSlot}
       {onOpenPhotos && (
         <Button size="sm" variant="ghost" onClick={onOpenPhotos} className="rounded-full gap-1.5 text-foreground">
           <Camera className="h-3.5 w-3.5" />
