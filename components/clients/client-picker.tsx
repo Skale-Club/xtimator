@@ -27,27 +27,32 @@ import { useTranslation } from '@/lib/i18n/use-translation'
 // ---------------------------------------------------------------------------
 // Phase 162-02 (DOCUX-02, DOCUX-03) — the ONE consolidated ClientPicker.
 // Replaces LinkClientInline (was inline in estimate-document.tsx),
-// LinkClientButton (was components/workspace/link-client-button.tsx), and
-// LinkClientCard (was components/workspace/link-client-card.tsx). Adds a
-// NEW `billTo` variant for the Bill To pencil affordance that 162-03 wires
-// into estimate-document.tsx, and a first-class Unlink footer action that
-// only renders when currentClientId !== null (the three legacy pickers
-// couldn't unlink at all).
+// LinkClientButton (was components/workspace/link-client-button.tsx),
+// LinkClientCard (was components/workspace/link-client-card.tsx), and
+// InlineClientPicker (was inline in projects/project-table.tsx — the `cell`
+// variant). Adds a NEW `billTo` variant for the Bill To pencil affordance
+// that 162-03 wires into estimate-document.tsx, and a first-class Unlink
+// footer action that only renders when currentClientId !== null (the legacy
+// pickers couldn't unlink at all).
 //
 // Locked API — no escape-hatch render props (PITFALLS.md #4). New variants
 // or capabilities must land as first-class props with their own tests.
 // ---------------------------------------------------------------------------
 
-export type ClientPickerVariant = 'card' | 'button' | 'inline' | 'billTo'
+export type ClientPickerVariant = 'card' | 'button' | 'inline' | 'billTo' | 'cell'
 
 export interface ClientPickerProps {
   projectId: string
   currentClientId: string | null
   variant: ClientPickerVariant
+  /** `cell` variant only: linked client's name, rendered as the trigger. */
+  clientName?: string | null
   align?: 'start' | 'center' | 'end'
   side?: 'top' | 'right' | 'bottom' | 'left'
   onLinked?: (clientId: string) => void
   onUnlinked?: () => void
+  /** When set, renders a "New client" footer action that closes the popover. */
+  onCreateNew?: () => void
   className?: string
 }
 
@@ -169,6 +174,30 @@ export function ClientPicker(props: ClientPickerProps): React.JSX.Element {
         </PopoverTrigger>
       )
       break
+    case 'cell':
+      trigger = (
+        <PopoverTrigger asChild>
+          {props.clientName ? (
+            <button
+              type="button"
+              onClick={(e) => e.stopPropagation()}
+              title={t('Change client')}
+              className="text-left text-muted-foreground transition-colors hover:text-foreground hover:underline underline-offset-2"
+            >
+              {props.clientName}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={(e) => e.stopPropagation()}
+              className="text-muted-foreground/40 hover:text-primary transition-colors hover:underline underline-offset-2"
+            >
+              + {t('Add client')}
+            </button>
+          )}
+        </PopoverTrigger>
+      )
+      break
   }
 
   const popoverWidth = props.variant === 'card' ? 'w-[350px]' : 'w-[320px]'
@@ -195,16 +224,31 @@ export function ClientPicker(props: ClientPickerProps): React.JSX.Element {
             onValueChange={setSearch}
           />
           <ClientList search={search} onSelect={handleLink} />
-          {props.currentClientId != null && (
+          {(props.onCreateNew || props.currentClientId != null) && (
             <div className="border-t border-border px-2 py-1">
-              <button
-                type="button"
-                onClick={handleUnlink}
-                className="w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded-md hover:bg-destructive/10 hover:text-destructive transition-colors"
-              >
-                <X className="h-3.5 w-3.5" />
-                {t('Unlink client')}
-              </button>
+              {props.onCreateNew && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpen(false)
+                    props.onCreateNew?.()
+                  }}
+                  className="w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded-md hover:bg-accent transition-colors"
+                >
+                  <UserPlus className="h-3.5 w-3.5" />
+                  {t('New client')}
+                </button>
+              )}
+              {props.currentClientId != null && (
+                <button
+                  type="button"
+                  onClick={handleUnlink}
+                  className="w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded-md hover:bg-destructive/10 hover:text-destructive transition-colors"
+                >
+                  <X className="h-3.5 w-3.5" />
+                  {t('Unlink client')}
+                </button>
+              )}
             </div>
           )}
         </Command>
