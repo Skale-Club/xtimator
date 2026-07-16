@@ -1,0 +1,17 @@
+-- Drop the frozen legacy WhatsApp table (endgame of the Phase 142.1 expand-migrate-contract).
+--
+-- Why now:
+--   * Zero runtime references remain: rg over app/, lib/, components/ finds no
+--     `.from('company_whatsapp')` / `.from('_legacy_company_whatsapp')` — enforced
+--     by tests/unit/whatsapp/admin-authority-contract.test.ts.
+--   * All 3 remaining prod rows were verified migrated on 2026-07-16: each has a
+--     whatsapp_company_configs row for its company_id and a whatsapp_authorized_senders
+--     row traceable via source_row_id.
+--   * The sensitive columns (verification_code OTP, phone_number_id, waba_id) were
+--     already dropped by 20260602000001_simplify_company_whatsapp.sql; dropping the
+--     table also purges any dropped-column remnants still physically present in heap
+--     tuples, completing the secret-hygiene remediation.
+--
+-- The table was renamed from company_whatsapp by
+-- 20260627000002_whatsapp_admin_registry_contract.sql (RLS forced, DML revoked).
+DROP TABLE IF EXISTS public._legacy_company_whatsapp;
