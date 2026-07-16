@@ -13,7 +13,6 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { runConfirmationAgent } from '@/lib/whatsapp/agent'
-import { parseEditCommand } from '@/lib/whatsapp/edit-commands'
 
 export type Session = {
   id: string
@@ -33,14 +32,4 @@ export async function processConfirmationReply(
   supabase: SupabaseClient
 ): Promise<void> {
   await runConfirmationAgent(textBody, session, companyId, ownerPhone, supabase)
-}
-
-// ---------------------------------------------------------------------------
-// Kept for backward-compat with existing tests
-// ---------------------------------------------------------------------------
-export function parseCommand(text: string): 'send' | 'cancel' | null {
-  const c = parseEditCommand(text)
-  if (c.kind === 'send') return 'send'
-  if (c.kind === 'cancel') return 'cancel'
-  return null
 }

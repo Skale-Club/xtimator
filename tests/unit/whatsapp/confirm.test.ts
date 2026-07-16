@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-// Imports the real confirm-actions / edit-commands chain at runtime; under
+// Imports the real confirm-actions chain at runtime; under
 // vitest's reused forked worker the import can exceed the 5s default (import
 // latency under contention). A timed-out sibling also bleeds a sendWhatsAppMessage
 // spy call into this file's "help message" count assertion (called 2 times instead
@@ -24,8 +24,13 @@ vi.mock('@/lib/whatsapp/account-registry', () => ({
   })),
 }))
 
-// The real agent calls the OpenAI API — replace with the deterministic
-// confirm-actions layer so existing unit tests keep their coverage.
+// The real agent calls the OpenAI API — replace with a deterministic stub that
+// routes "send"/"cancel" through the real confirm-actions layer so the live
+// confirm path (processConfirmationReply → actionSend/actionCancel → delivery
+// formats) keeps its coverage without an LLM. Natural-language edits are the
+// agent's job and are covered by the agent's own tests, not here.
+const HELP_REPLY = 'Reply *send* to deliver the estimate to your client, or *cancel* to discard it.'
+
 vi.mock('@/lib/whatsapp/agent', () => ({
   runConfirmationAgent: vi.fn(async (
     text: string,
@@ -34,70 +39,32 @@ vi.mock('@/lib/whatsapp/agent', () => ({
     ownerPhone: string,
     supabase: import('@supabase/supabase-js').SupabaseClient,
   ) => {
-    const { parseEditCommand, EDIT_HELP_MESSAGE } = await import('@/lib/whatsapp/edit-commands')
-    const {
-      actionSend, actionCancel, actionUpdateField, actionSetClient, actionRegenerate,
-      actionGetEstimateContext, formatEstimateContext,
-    } = await import('@/lib/whatsapp/confirm-actions')
+    const { actionSend, actionCancel } = await import('@/lib/whatsapp/confirm-actions')
     const { sendWhatsAppMessage } = await import('@/lib/whatsapp/client')
     const { logOutboundMessage } = await import('@/lib/whatsapp/conversations')
 
-    const cmd = parseEditCommand(text)
+    // Minimal verb detection: lowercase the first word, strip punctuation.
+    const verb = text.trim().split(/\s+/)[0].toLowerCase().replace(/[^\w]/g, '')
 
     const reply = async (body: string) => {
       await sendWhatsAppMessage(ownerPhone, { type: 'text', text: { body } })
       logOutboundMessage(supabase, { companyId, contactPhone: ownerPhone, body, msgType: 'text', status: 'sent' }).catch(() => undefined)
     }
 
-    const resend = async (prefix: string) => {
-      if (!session.draft_estimate_id) return
-      const ctx = await actionGetEstimateContext(supabase, session.draft_estimate_id)
-      await reply(`${prefix}\n\n${formatEstimateContext(ctx)}`)
+    if (verb === 'send') {
+      const result = await actionSend(session as never, companyId, supabase)
+      const ownerMsg = result.deliveredToClient
+        ? `✅ *Estimate sent!*\n\nYour client received the estimate via WhatsApp.\n\nShare link: ${result.shareUrl}`
+        : `✅ *Estimate ready!*\n\nShare link: ${result.shareUrl}\n\n_(No client phone on file — send the link manually)_`
+      await reply(ownerMsg)
+      return
     }
-
-    switch (cmd.kind) {
-      case 'send': {
-        const result = await actionSend(session as never, companyId, supabase)
-        const ownerMsg = result.deliveredToClient
-          ? `✅ *Estimate sent!*\n\nYour client received the estimate via WhatsApp.\n\nShare link: ${result.shareUrl}`
-          : `✅ *Estimate ready!*\n\nShare link: ${result.shareUrl}\n\n_(No client phone on file — send the link manually)_`
-        await reply(ownerMsg)
-        break
-      }
-      case 'cancel': {
-        await actionCancel(session as never, supabase)
-        await reply("❌ Estimate discarded. Send a new audio, text, or photo when you're ready.")
-        break
-      }
-      case 'edit-total':
-        await actionUpdateField(session as never, supabase, { total: cmd.value })
-        await resend('✏️ *Updated*')
-        break
-      case 'edit-timeline':
-        await actionUpdateField(session as never, supabase, { timeline: cmd.value })
-        await resend('✏️ *Updated*')
-        break
-      case 'edit-payment':
-        await actionUpdateField(session as never, supabase, { payment_terms: cmd.value })
-        await resend('✏️ *Updated*')
-        break
-      case 'edit-summary':
-        await actionUpdateField(session as never, supabase, { summary: cmd.value })
-        await resend('✏️ *Updated*')
-        break
-      case 'set-client': {
-        await actionSetClient(session as never, companyId, supabase, cmd.name, cmd.phone)
-        await reply(`👤 Client set to *${cmd.name}* (${cmd.phone}).\n\nReply *send* to deliver, *cancel* to discard, or use *edit* commands to adjust the estimate.`)
-        break
-      }
-      case 'regenerate': {
-        const r = await actionRegenerate(session as never, companyId, supabase)
-        await reply(`🔄 *Regenerated*\n\n${formatEstimateContext(r.context)}`)
-        break
-      }
-      default:
-        await reply(EDIT_HELP_MESSAGE)
+    if (verb === 'cancel') {
+      await actionCancel(session as never, supabase)
+      await reply("❌ Estimate discarded. Send a new audio, text, or photo when you're ready.")
+      return
     }
+    await reply(HELP_REPLY)
   }),
 }))
 
