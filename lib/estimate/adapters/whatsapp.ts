@@ -64,40 +64,16 @@ import {
   numberSections,
   buildNumberedBreakdownLines,
 } from '@/lib/whatsapp/estimate-numbering'
+import {
+  buildConfirmMessage,
+  buildDroppedNote,
+} from '@/lib/whatsapp/confirm-message'
 import type { EstimateStateType } from '@/lib/estimate/graph/state'
 import type { ChannelAdapter } from '@/lib/estimate/graph/types'
+import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
 import { failureReasonToChannelCopy } from '@/lib/estimate/failure'
 
 const SESSION_TTL_MINUTES = 30
-
-// HARD-05: friendly copy for the mediaResults reason vocabulary
-// ('download_failed' | 'transcription_failed' | 'empty_transcript' | 'no_message'
-// | 'unknown_error'). This is a DEDICATED map, kept SEPARATE from the frozen
-// failureReasonToChannelCopy (lib/estimate/failure.ts) whose strings are
-// regression-gated and must not be overloaded. Reserved for richer per-reason
-// wording; the count-aggregated note below is the minimum the test requires.
-const MEDIA_ITEM_NOTE: Record<string, string> = {
-  download_failed: "couldn't download",
-  transcription_failed: "couldn't transcribe",
-  empty_transcript: "couldn't make out",
-  no_message: "couldn't read",
-  unknown_error: "couldn't process",
-}
-
-/**
- * Compose ONE aggregated dropped-item note for a partial-success batch (HARD-05).
- * Count-based and pluralized; the estimate was still built from the usable items.
- * Returns '' when nothing was dropped so callers can omit it entirely. Aggregated
- * to a single line so the never-reply invariant (one reply per batch) is trivial.
- */
-function buildDroppedNote(dropped?: { count: number; reasons: string[] }): string {
-  if (!dropped || dropped.count < 1) return ''
-  // Touch MEDIA_ITEM_NOTE so the reason vocabulary stays the single source of
-  // truth; the count-aggregated line is what the reply surfaces today.
-  void MEDIA_ITEM_NOTE
-  const n = dropped.count
-  return `Note: I couldn't process ${n} of your message${n > 1 ? 's' : ''}, but I built your estimate from the rest.`
-}
 
 // ---------------------------------------------------------------------------
 // WhatsApp-superset ingest state (channel-specific — defined HERE, not in core)
@@ -389,11 +365,16 @@ export function makeWhatsAppAdapter({
     async finalize(state: EstimateStateType): Promise<Partial<EstimateStateType>> {
       const { projectId, estimateId, estimateLanguage } = state
 
-      // HARD-05: one aggregated dropped-item note for a partial-success batch.
-      // Composed INTO the single existing reply in both branches below — never a
-      // second sendWhatsAppMessage call (never-reply invariant). Empty when
-      // nothing was dropped (full success).
-      const droppedNote = buildDroppedNote(state.droppedInputs)
+      // estimateLanguage is guaranteed present at this node (set by generate) but
+      // we narrow defensively with a fallback to 'en'. Resolved ONCE here so both
+      // the localized dropped-item note and the confirmation frame share it.
+      const language = (estimateLanguage ?? 'en') as EstimateLanguage
+
+      // HARD-05: one aggregated dropped-item note for a partial-success batch,
+      // localized (pt/en/es). Composed INTO the single existing reply in both
+      // branches below — never a second sendWhatsAppMessage call (never-reply
+      // invariant). Empty when nothing was dropped (full success).
+      const droppedNote = buildDroppedNote(language, state.droppedInputs)
 
       if (state.isVague) {
         // --- askDetails (vague) ------------------------------------------------
@@ -416,9 +397,6 @@ export function makeWhatsAppAdapter({
           expires_at: expiresAt,
         })
 
-        // estimateLanguage is guaranteed present at this node (set by generate)
-        // but we narrow defensively with a fallback to 'en'.
-        const language = (estimateLanguage ?? 'en') as 'en' | 'pt' | 'es'
         const askBody = buildAskDetailsMessage(language)
         const body = droppedNote ? `${askBody}\n\n${droppedNote}` : askBody
         await sendWhatsAppMessage(ownerPhone, { type: 'text', text: { body } })
@@ -471,15 +449,11 @@ export function makeWhatsAppAdapter({
       const numberedSections = numberSections(sectionRows)
       const breakdown = buildNumberedBreakdownLines(numberedSections, currencyCode)
 
-      const body = [
-        `Estimate ready - ${total}`,
-        '',
-        breakdown,
-        '',
-        'Reply *send* to deliver to your client, or *cancel* to discard.',
-        'To change something, just tell me — e.g. "change item 1.1 to $120" or "remove item 2.3".',
-        ...(droppedNote ? ['', droppedNote] : []),
-      ].join('\n')
+      // Localized (pt/en/es) confirmation frame around the language-neutral
+      // numbered breakdown. The literal *send*/*cancel* protocol tokens and the
+      // N.M edit-command example numbers are preserved across all languages;
+      // buildConfirmMessage owns the frame strings (lib/whatsapp/confirm-message.ts).
+      const body = buildConfirmMessage(language, { total, breakdown, droppedNote })
 
       await sendWhatsAppMessage(ownerPhone, { type: 'text', text: { body } })
       await logOutboundMessage(requireServiceClient(), {
