@@ -2668,7 +2668,7 @@ Plans:
   3. A batch with one corrupt photo completes with the survivors (skip-and-continue), generates the estimate, and reports the skipped photo — the job hard-fails only when zero photos succeed
   4. No vision description is persisted mid-sentence-truncated: finish_reason is checked, and primary + Gemini fallback produce comparable-length descriptions under equivalent caps
 
-**Plans**: TBD
+**Plans**: 2 — 168-01 COMPLETE 2026-07-17 (PHOTO-02 backend/PHOTO-03/PHOTO-04: full-coverage chunked photo analysis replacing the 20-photo cutoff, skip-and-continue failure policy, vision truncation handling + cap parity, see [168-01-SUMMARY.md](phases/168-photo-pipeline-fidelity/168-01-SUMMARY.md)); 168-02 COMPLETE 2026-07-17 (PHOTO-01: user captions folded into the generation prompt through the existing sanitizeField boundary; PHOTO-02 UI half: "N of M photos analyzed" threaded from the journal into the capture processing overlay, see [168-02-SUMMARY.md](phases/168-photo-pipeline-fidelity/168-02-SUMMARY.md)). **Phase 168 COMPLETE.**
 
 ### Phase 169: Capture & Upload Resilience
 

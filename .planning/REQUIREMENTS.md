@@ -56,8 +56,8 @@ Each requirement maps to exactly one roadmap phase.
 
 ### Photo Pipeline Fidelity
 
-- [ ] **PHOTO-01**: User-entered photo captions are included (sanitized) alongside AI descriptions in the estimate generation prompt — typed context like "north wall, 12ft ceiling" is never discarded.
-- [x] **PHOTO-02**: All of a project's photos are analyzed (batched beyond the current first-20 cutoff), the user sees "N of M photos analyzed" when coverage is partial, and unanalyzed photos can be re-analyzed without re-charging already-analyzed ones.
+- [x] **PHOTO-01**: User-entered photo captions are included (sanitized) alongside AI descriptions in the estimate generation prompt — typed context like "north wall, 12ft ceiling" is never discarded. *(168-02: generate-estimate.ts folds `photos.caption` into `photoDescriptions` — "Photo N (caption: ...): description" — through the SAME sanitizeField boundary as ai_description; no-caption photos stay byte-identical.)*
+- [x] **PHOTO-02**: All of a project's photos are analyzed (batched beyond the current first-20 cutoff), the user sees "N of M photos analyzed" when coverage is partial, and unanalyzed photos can be re-analyzed without re-charging already-analyzed ones. *(168-01: full-coverage chunked analysis + skip-and-continue. 168-02: the UI half — attempt-outcome.ts surfaces the journal's analyzedCount/totalCount/failedCount on the pending payload, poll-outcome.ts forwards them via StageProgress, and capture-processing-overlay.tsx renders "N of M photos analyzed" whenever coverage is partial.)*
 - [x] **PHOTO-03**: One failing photo no longer fails the whole batch — per-photo skip-and-continue with the job failing only when zero photos succeed, matching the refine path's policy.
 - [x] **PHOTO-04**: Vision descriptions are never silently truncated mid-sentence — `finish_reason` is checked, the token cap is adequate, and the Gemini fallback uses an equivalent cap so both providers produce comparable descriptions.
 
@@ -100,6 +100,6 @@ Each requirement maps to exactly one roadmap phase.
 | SAVE-01..07 | 165 | Pending |
 | AIREL-01..05 | 166 | Complete |
 | BILL-01..06 | 167 | Complete |
-| PHOTO-01..04 | 168 | Pending |
+| PHOTO-01..04 | 168 | Complete |
 | CAPT-01..05 | 169 | Pending |
 | REFINE-01..02 | 170 | Pending |
