@@ -1785,6 +1785,7 @@ export type Database = {
           estimate_id: string | null
           id: string
           input_type: string
+          metadata: Json | null
           project_id: string | null
           provider: string | null
           retry_count: number
@@ -1802,6 +1803,7 @@ export type Database = {
           estimate_id?: string | null
           id?: string
           input_type: string
+          metadata?: Json | null
           project_id?: string | null
           provider?: string | null
           retry_count?: number
@@ -1819,6 +1821,7 @@ export type Database = {
           estimate_id?: string | null
           id?: string
           input_type?: string
+          metadata?: Json | null
           project_id?: string | null
           provider?: string | null
           retry_count?: number

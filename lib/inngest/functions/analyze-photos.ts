@@ -37,11 +37,11 @@ async function loadOwnerUserId(companyId: string): Promise<string | null> {
   }
 }
 
-// Server-side ceiling on photos analyzed per job. The client caps at 16
-// (capture-recorder.tsx), but that's UI-only — createPhoto has no server
-// limit, so a caller could otherwise queue hundreds of Vision calls in a
-// single dispatch.
-const MAX_PHOTOS_PER_JOB = 20
+// Phase 168 (PHOTO-02): photos are processed in fixed-size chunks so
+// concurrency stays bounded regardless of how many are queued in one job —
+// see INNGEST GUARDRAIL (2) at the chunk loop below. The per-PROJECT ceiling
+// lives at creation time instead (lib/actions/photo.ts's MAX_PHOTOS_PER_PROJECT).
+const VISION_CHUNK_SIZE = 10
 
 type ImageMediaType = 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif'
 
@@ -133,13 +133,22 @@ export const analyzePhotosJob = inngest.createFunction(
       userId: ownerUserId,
     })
 
-    // Step 1: Load photo list (cheap; checkpointed so a retry skips the query).
+    // Step 1: Load photo list (cheap; checkpointed so a MID-RUN retry replays
+    // the IDENTICAL list — this MUST stay a single step.run: inlining the
+    // null-filtered query out of the step would let a retry re-query a
+    // shrunken list (some photos already analyzed by the first attempt) and
+    // mismatch the already-memoized `vision-${photo.id}` steps below).
     // Security: this runs on the service-role client (bypasses RLS), so the
     // query MUST scope by company_id — not project_id alone — or any caller
     // able to dispatch this event with a foreign projectId could trigger paid
     // Vision analysis (and an ai_description overwrite) on another tenant's
-    // photos. Capped at 20 photos/job — MAX_PHOTOS_PER_JOB below — since the
-    // client-side cap (capture-recorder.tsx) is not enforced server-side.
+    // photos. The project-level photo COUNT cap lives at creation time
+    // (lib/actions/photo.ts), not here.
+    // Phase 168 (PHOTO-02, audit E1): `.is('ai_description', null)` replaces
+    // the old `.limit(20)` — photos 21+ were previously unreachable by ANY
+    // number of dispatches. Filtering to the null remainder also means a
+    // re-dispatch after a partial run only processes what's left — an
+    // already-analyzed photo is never re-charged.
     const photos = await step.run('load-photos', async () => {
       const supabase = requireServiceClient()
       const { data } = await supabase
@@ -148,40 +157,76 @@ export const analyzePhotosJob = inngest.createFunction(
         .eq('project_id', projectId)
         .eq('company_id', companyId)
         .order('sort_order')
-        .limit(MAX_PHOTOS_PER_JOB)
+        .is('ai_description', null)
       return (data ?? []) as Array<{ id: string; storage_path: string }>
     })
 
-    // Step 2: ONE step.run PER photo — each independently retriable.
-    // Promise.all parallelizes within Inngest's concurrency model; if one
-    // photo fails the others remain checkpointed and won't re-call Anthropic.
-    const descriptions = await Promise.all(
-      photos.map((photo) =>
-        step.run(`vision-${photo.id}`, async () => {
-          const supabase = requireServiceClient()
+    // Step 2: vision analysis, chunked. Each photo still gets its OWN
+    // step.run (`vision-${photo.id}`) — independently retriable/memoized,
+    // exactly as before. Chunking bounds CONCURRENCY ONLY:
+    // INNGEST GUARDRAIL — a chunk is NEVER wrapped in its own step.run;
+    // nested steps are illegal in Inngest and would destroy the per-photo
+    // re-charge protection. Promise.allSettled (not Promise.all) collects
+    // successes/failures across the whole run — see the skip-and-continue
+    // policy below.
+    type VisionSuccess = { photoId: string; description: string }
+    type VisionFailure = { photoId: string; reason: string }
+    const succeeded: VisionSuccess[] = []
+    const failed: VisionFailure[] = []
 
-          const { data: fileData, error: dlErr } = await supabase.storage
-            .from('photos')
-            .download(photo.storage_path)
-          if (dlErr || !fileData) {
-            throw new Error(
-              `Failed to download photo ${photo.id}: ${dlErr?.message ?? 'no data'}`
-            )
-          }
+    for (let i = 0; i < photos.length; i += VISION_CHUNK_SIZE) {
+      const chunk = photos.slice(i, i + VISION_CHUNK_SIZE)
+      const settled = await Promise.allSettled(
+        chunk.map((photo) =>
+          step.run(`vision-${photo.id}`, async () => {
+            const supabase = requireServiceClient()
 
-          const arrayBuffer = await fileData.arrayBuffer()
-          const base64 = Buffer.from(arrayBuffer).toString('base64')
-          const mimeType = getMimeType(photo.storage_path)
+            const { data: fileData, error: dlErr } = await supabase.storage
+              .from('photos')
+              .download(photo.storage_path)
+            if (dlErr || !fileData) {
+              throw new Error(
+                `Failed to download photo ${photo.id}: ${dlErr?.message ?? 'no data'}`
+              )
+            }
 
-          const description = await analyzePhotoOR(base64, mimeType)
-          await supabase
-            .from('photos')
-            .update({ ai_description: description })
-            .eq('id', photo.id)
-          return { photoId: photo.id, description }
-        })
+            const arrayBuffer = await fileData.arrayBuffer()
+            const base64 = Buffer.from(arrayBuffer).toString('base64')
+            const mimeType = getMimeType(photo.storage_path)
+
+            const description = await analyzePhotoOR(base64, mimeType)
+            await supabase
+              .from('photos')
+              .update({ ai_description: description })
+              .eq('id', photo.id)
+            return { photoId: photo.id, description }
+          })
+        )
       )
-    )
+      settled.forEach((result, idx) => {
+        const photo = chunk[idx]
+        if (result.status === 'fulfilled') {
+          succeeded.push(result.value)
+        } else {
+          const reason =
+            result.reason instanceof Error ? result.reason.message : String(result.reason)
+          failed.push({ photoId: photo.id, reason })
+          console.error(`[analyze-photos] vision failed for photo ${photo.id}:`, reason)
+        }
+      })
+    }
+
+    // Phase 168 (PHOTO-03 lands the skip-and-continue relaxation of this
+    // check in the next commit): today ANY failure still fails the whole
+    // batch — parity with the previous Promise.all behavior.
+    if (failed.length > 0) {
+      throw new Error(
+        `Photo analysis failed for ${failed.length} of ${photos.length} photo(s): ` +
+          failed.map((f) => `${f.photoId}: ${f.reason}`).join('; ')
+      )
+    }
+
+    const descriptions = succeeded
 
     // 260707-hhp (P1): when the client requested fire-and-forget mode, chain
     // directly into estimate generation now that descriptions are persisted —
@@ -270,6 +315,11 @@ export const analyzePhotosJob = inngest.createFunction(
     })
 
     // Phase 92 (EVENT-02/D-03): terminal succeeded analyze event with duration_ms.
+    // Phase 168 (PHOTO-02/03): additive metadata carries analyzed/total/failed
+    // counts so 168-02's "N of M photos analyzed" UI can read them off the
+    // journal (poll-outcome) — failedCount is always 0 until PHOTO-03's
+    // skip-and-continue relaxation lands (today ANY failure throws before
+    // reaching this event).
     void recordPipelineEvent({
       attemptId,
       inputType,
@@ -280,6 +330,11 @@ export const analyzePhotosJob = inngest.createFunction(
       userId: ownerUserId,
       provider: 'openrouter',
       durationMs: Date.now() - t0,
+      metadata: {
+        analyzedCount: succeeded.length,
+        totalCount: photos.length,
+        failedCount: failed.length,
+      },
     })
 
     // Phase 77 NOTIF-04: opt-in success notification.

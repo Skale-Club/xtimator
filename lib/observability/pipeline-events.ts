@@ -41,6 +41,14 @@ export interface PipelineEventInput {
   errorMessage?: string | null
   errorCode?: string | null
   durationMs?: number | null
+  /**
+   * Phase 168 (PHOTO-02/03): optional structured counts/context — additive,
+   * existing consumers unaffected (column defaults to NULL). First use:
+   * analyze-photos' terminal `succeeded` event carries
+   * `{ analyzedCount, totalCount, failedCount }` so 168-02's "N of M photos
+   * analyzed" UI can read it back off the journal (poll-outcome).
+   */
+  metadata?: Record<string, unknown> | null
 }
 
 /**
@@ -66,6 +74,7 @@ export async function recordPipelineEvent(ev: PipelineEventInput): Promise<void>
       error_code: ev.errorCode ?? null,
       duration_ms: ev.durationMs ?? null,
       retry_count: retryCount,
+      metadata: ev.metadata ?? null,
     })
   } catch (err) {
     // D-06: swallow — a logging failure must never break the pipeline.
