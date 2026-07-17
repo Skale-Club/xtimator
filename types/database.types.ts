@@ -1729,6 +1729,7 @@ export type Database = {
       photos: {
         Row: {
           ai_description: string | null
+          ai_extraction: Json | null
           caption: string | null
           company_id: string
           created_at: string
@@ -1739,6 +1740,7 @@ export type Database = {
         }
         Insert: {
           ai_description?: string | null
+          ai_extraction?: Json | null
           caption?: string | null
           company_id: string
           created_at?: string
@@ -1749,6 +1751,7 @@ export type Database = {
         }
         Update: {
           ai_description?: string | null
+          ai_extraction?: Json | null
           caption?: string | null
           company_id?: string
           created_at?: string
