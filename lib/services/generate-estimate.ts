@@ -208,9 +208,20 @@ export async function generateEstimateForProject(
     .filter((r) => r.transcript && r.transcript.trim().length > 0)
     .map((r) => r.transcript!)
 
+  // PHOTO-01 (audit E2): fold the user-entered caption (e.g. "north wall, 12ft
+  // ceiling" — already rendered in share/PDF) alongside the AI vision
+  // description so it reaches the estimator instead of being discarded. The
+  // WHOLE resulting string is wrapped in sanitizeField at prompt-builder.ts's
+  // <photo_description> tag — no parallel unsanitized path. No-caption photos
+  // keep the exact pre-existing string (byte-identical).
   const photoDescriptions = photos
     .filter((p) => p.ai_description && p.ai_description.trim().length > 0)
-    .map((p, i) => `Photo ${i + 1}: ${p.ai_description}`)
+    .map((p, i) => {
+      const cap = p.caption?.trim()
+      return cap
+        ? `Photo ${i + 1} (caption: ${cap}): ${p.ai_description}`
+        : `Photo ${i + 1}: ${p.ai_description}`
+    })
 
   const prompts = (options.prompts ?? [])
     .map((p) => (typeof p === 'string' ? p.trim() : ''))
