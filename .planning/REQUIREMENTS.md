@@ -63,11 +63,11 @@ Each requirement maps to exactly one roadmap phase.
 
 ### Capture & Upload Resilience
 
-- [ ] **CAPT-01**: Audio and photo uploads retry automatically with exponential backoff on transient failures before surfacing an error — a network flap no longer costs the user their capture.
-- [ ] **CAPT-02**: Closing or navigating the tab during the upload/dispatch window triggers an unsaved-work warning (beforeunload extended beyond the recording state).
-- [ ] **CAPT-03**: A finished recording is persisted locally (IndexedDB) before upload and until dispatch is confirmed — after a failed upload or accidental close, the user can resume the upload instead of losing the recording.
-- [ ] **CAPT-04**: Orphaned storage objects (uploads whose DB row was never created — including the out-of-credits path — and photo objects with no row) are reconciled by a scheduled cleanup for both the audio and photos buckets.
-- [ ] **CAPT-05**: The offline/draft UX tells the truth — the false "showing cached data" banner is corrected or removed, and text drafts persist in all three capture flows, not just the new-project wizard.
+- [x] **CAPT-01**: Audio and photo uploads retry automatically with exponential backoff on transient failures before surfacing an error — a network flap no longer costs the user their capture.
+- [x] **CAPT-02**: Closing or navigating the tab during the upload/dispatch window triggers an unsaved-work warning (beforeunload extended beyond the recording state).
+- [x] **CAPT-03**: A finished recording is persisted locally (IndexedDB) before upload and until dispatch is confirmed — after a failed upload or accidental close, the user can resume the upload instead of losing the recording.
+- [x] **CAPT-04**: Orphaned storage objects (uploads whose DB row was never created — including the out-of-credits path — and photo objects with no row) are reconciled by a scheduled cleanup for both the audio and photos buckets.
+- [x] **CAPT-05**: The offline/draft UX tells the truth — the false "showing cached data" banner is corrected or removed, and text drafts persist in all three capture flows, not just the new-project wizard.
 
 ### Refine Safety & Review
 
