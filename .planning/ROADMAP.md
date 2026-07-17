@@ -39,6 +39,7 @@
 - ✅ **v4.17 Admin Polish & Credit UX Compliance** — Phases 156-159 (shipped 2026-07-06) · [archive](milestones/v4.17-ROADMAP.md) — fixed a real regression against a locked v4.15 decision (tenant-facing surfaces leaking raw credit numbers), then polished the super-admin experience: nav reorg (Dashboard/Companies/Inbox first + new grouped "Content" section) + Legal Pages→Pages rename, two owner-flagged confusing labels fixed (Message→Message Template, Support Mode→View as Company), a credit-model-centric admin Billing page overhaul, and a "Premium Xtimator" glassmorphism visual redesign of the v4.16 Inbox
 - ✅ **v4.18 Estimate Document & Send Experience Refresh** — Phases 160-163 (shipped 2026-07-09) · [archive](milestones/v4.18-ROADMAP.md) · [audit](milestones/v4.18-MILESTONE-AUDIT.md) — 24/24 requirements shipped (PUBURL-01..06 + PRESENT-01..05 + DOCUX-01..07 + SENDHUB-01..06). Per-estimate presentation-settings resolver + gear panel + format-first Send hub + friendly URLs + cross-surface visibility parity across 6 renderers + Bill To pencil affordance + ClientPicker consolidation + mobile line-item doc-native rebuild + 5-file deletion sweep of retired send surfaces. GUARD-03 preserved structurally at every seam.
 - ✅ **v4.19 Integrity & Reliability Hardening** — Phases 164-170 (shipped 2026-07-17) — 32/32 requirements shipped (TRUST-01..03, SAVE-01..07, AIREL-01..05, BILL-01..06, PHOTO-01..04, CAPT-01..05, REFINE-01..02), closing the 10 severity-ranked findings from the six-track adversarial deep audit of the estimate system ([audit](audits/v4.19-ESTIMATE-DEEP-AUDIT.md)): snapshot-on-sign + freeze-on-send trust boundary, transactional atomic save RPC, AI fetch timeouts + truncation visibility + missing tool-schema pricing fields, credit gate on refine + server-derived audio duration + vision cost threading, full photo coverage + captions in the prompt, upload retry + IndexedDB capture persistence, and refine review-before-apply (shared identity-preserving merge/diff util + flush-before-refine + review-before-apply). Pure hardening — no new AI features; GUARD-03 and Inngest durability regression contracts held throughout.
+- 🚧 **v4.20 Structured Photo Extraction** — Phase 171 (roadmap created 2026-07-17) — vision tool-call extraction (surfaces, measurements w/ units+confidence, materials, damage) persisted in photos.ai_extraction JSONB + compact serialization into the generation prompt; two-layer zod gate, prose fallback ladder, env kill-switch, provider parity, costContext attribution; v4.19 audit § E5 / FUT-02
 
 > **Phase numbering note:** v3.1.1 starts at **Phase 66**, not 62. Phases 62-65 are reserved as DEFERRED placeholders for the v3.2 Production Deploy milestone (Vercel→Hetzner deploy + Stripe live + monitoring + UAT in prod). Skipping past 62-65 keeps the global phase counter unambiguous and prevents number reuse confusion when v3.2 begins.
 
@@ -2698,3 +2699,22 @@ Plans:
   4. Refine remains preview-only server-side (no persistence before Apply+save), and the refine credit gate from Phase 167 is verified still in place end-to-end
 
 **Plans**: 1 — 170-01 COMPLETE 2026-07-17 (REFINE-01/02: shared pure `mergeRefinement` util with two-pass item matching (exact normalized-description, then similarity-guarded positional pairing of leftovers) replacing the blanket temp-id regeneration; `onBeforeRefine` flush-before-refine gate; a post-POST review screen (changed/added/removed + field-level flags) with Apply/Discard, see [170-01-SUMMARY.md](phases/170-refine-safety-review/170-01-SUMMARY.md)). **Phase 170 COMPLETE.**
+
+## 🚧 v4.20 Structured Photo Extraction (Phase 171)
+
+**Milestone Goal:** Photo analysis produces typed, structured intelligence — a vision tool-call extraction (surfaces, measurements with units + confidence, materials, damage, trade signals) persisted per photo in `photos.ai_extraction` JSONB and serialized compactly into the generation prompt, so measurement-heavy trades get quantities as data instead of prose. Design: v4.19 audit § E5 (FUT-02). All v4.19 photo-pipeline semantics (chunked coverage, skip-and-continue, N-of-M, checkpointing, captions, costContext) are regression contracts.
+
+### Phase 171: Structured Photo Extraction
+
+**Goal**: A job-site photo's measurements, surfaces, materials and damage reach the estimator as validated, typed data — with graceful prose fallback at every failure point, provider parity, and full cost attribution.
+**Depends on**: Nothing (v4.19 fully shipped). Internally: 171-01 (schema+migration) → 171-02 (providers+worker) ∥ 171-03 (prompt serialization) — 02 and 03 are file-disjoint and parallelizable after 01.
+**Requirements**: PEXT-01, PEXT-02, PEXT-03, PEXT-04, PEXT-05
+**Success Criteria** (what must be TRUE):
+
+  1. A measurement-heavy photo produces a persisted structured extraction (measurements with units + confidence) AND its ai_description (from overall_description) renders unchanged on every existing surface (share, PDF, prompt fallback)
+  2. The generation prompt for an extracted photo contains the compact measurements/materials/damage block, sanitized through the existing sanitizeField path; a prose-only photo's prompt output is byte-identical to today
+  3. A failing/invalid/truncated structured call degrades that photo to the prose pipeline with zero user-visible failure, and PHOTO_STRUCTURED_EXTRACTION=off reverts the whole feature byte-identically — chunked coverage, skip-and-continue, N-of-M and checkpointing provably intact in both modes
+  4. Both providers produce the same schema through one zod gate, locked by a parity test
+  5. Structured vision calls carry the job costContext, their real cost is visible in ai_cost_events, and photo_batch debits keep summing correctly
+
+**Plans**: TBD

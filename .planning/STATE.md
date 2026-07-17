@@ -1,9 +1,9 @@
 ---
 gsd_state_version: 1.0
-milestone: v4.19
-milestone_name: Integrity & Reliability Hardening
-status: completed
-stopped_at: Completed 170-01-PLAN.md — milestone v4.19 fully shipped (32/32)
+milestone: v4.20
+milestone_name: Structured Photo Extraction
+status: roadmap_created
+stopped_at: v4.20 roadmap created (Phase 171, PEXT-01..05) — plans being authored (Fable orchestrates, Opus validates, Sonnet executes)
 last_updated: "2026-07-17T22:50:00.000Z"
 last_activity: 2026-07-17 - Completed 170-01-PLAN.md (see [170-01-SUMMARY.md](phases/170-refine-safety-review/170-01-SUMMARY.md)). Phase 170 (Refine Safety & Review) now fully COMPLETE, 1/1 plan. Milestone v4.19 fully shipped — 7/7 phases, 32/32 requirements.
 progress:

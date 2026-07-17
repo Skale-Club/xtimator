@@ -14,7 +14,22 @@ The platform includes:
 
 A business owner can go from job site audio recording to a sent, professional estimate in under 5 minutes without touching a keyboard.
 
-## Current Milestone: v4.19 Integrity & Reliability Hardening
+## Current Milestone: v4.20 Structured Photo Extraction
+
+**Goal:** Turn photo analysis from free prose into typed intelligence — a vision tool-call extraction (surfaces, measurements with units + confidence, materials, damage, trade signals) persisted per photo and serialized compactly into the generation prompt, so a "220 sq ft tile floor" photo reaches the estimator as structured quantities instead of a paragraph the model must re-parse. The single biggest estimate-quality lever identified by the v4.19 deep audit (§ E5), deferred there as FUT-02 until the pipeline's correctness/coverage/metering foundation was fixed — which v4.19 completed.
+
+**Target features:**
+- `photos.ai_extraction JSONB` (dormant-first) + a versioned zod `PhotoExtraction` schema — the authoritative gate over both providers' tool-call output (two-layer discipline, mirroring the estimate schema)
+- Structured vision call on the primary path (OpenRouter, forced tool-call, finish_reason-aware) with a Gemini functionDeclarations fallback at provider parity; `ai_description` populated from `overall_description` so every existing consumer renders unchanged
+- Graceful degradation everywhere: invalid/truncated/failed structured output falls back to today's prose pipeline (never blocks analysis or generation); env kill-switch
+- Compact structured serialization into the generation prompt's `<photo_description>` blocks (through the existing sanitizeField hardening) — measurements, materials, damage
+- Cost attribution via the v4.19 costContext threading; the ~1.3-1.7× per-photo increase measurable in ai_cost_events
+
+**Key context:** Design sketch in [audits/v4.19-ESTIMATE-DEEP-AUDIT.md](audits/v4.19-ESTIMATE-DEEP-AUDIT.md) § E5. Preserves ALL v4.19 photo-pipeline semantics as regression contracts: chunked full coverage, skip-and-continue, N-of-M counts, per-photo step checkpointing, caption folding, truncation handling, costContext. Refine-path photos stay prose (ephemeral, no persistence — out of scope). Numbering continues — v4.19 ended at Phase 170, so v4.20 starts at **Phase 171**.
+
+## Last Milestone: v4.19 Integrity & Reliability Hardening ✅ (shipped 2026-07-17)
+
+**Shipped:** all 7 phases (164-170), 32/32 requirements (TRUST-01..03, SAVE-01..07, AIREL-01..05, BILL-01..06, PHOTO-01..04, CAPT-01..05, REFINE-01..02), 13/13 plans — the full remediation of the six-track adversarial deep audit. Snapshot-on-sign + freeze-on-send trust boundary; single-transaction save RPC + version authority + dirty-epoch + non-destructive conflict UX; AI fetch timeouts + typed truncation + tool-schema pricing fields + consistency checks + pinned temperature; refine credit gate + server-derived audio duration + Whisper retry short-circuit + cost-event dedup + vision costContext; full photo coverage + captions in the prompt + skip-and-continue; upload retry + IndexedDB capture persistence + storage-orphan reconciliation; refine flush + review-before-apply with id-preserving two-pass merge. Executed under the Fable-orchestrates/Opus-validates/Sonnet-executes split — ~20 real blockers intercepted by plan-checkers before any code. Operational deferrals: apply the 5 v4.19 migrations to prod via CI/deploy; recalibrate maxAudioMinutesPerEstimate tiers before the new hard-block reaches free-tier users; live-browser UAT of lock banner/refine review/N-of-M/upload resume. Formal /gsd:complete-milestone archival pending (housekeeping).
 
 **Goal:** Close the 10 severity-ranked findings from the 2026-07-17 six-track adversarial deep audit of the estimate generation & editing system ([audits/v4.19-ESTIMATE-DEEP-AUDIT.md](audits/v4.19-ESTIMATE-DEEP-AUDIT.md)) — restoring the three user-facing contracts the audit found broken: the legal contract ("what was signed stays what was signed"), the financial contract ("what you see is what saves; what you pay matches what you use"), and the capture contract ("your recording never gets lost").
 
