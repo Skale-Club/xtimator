@@ -13,8 +13,12 @@ import { z } from 'zod'
 const MAX_TEXT = 20_000 // summary/notes/timeline/terms — generous, bounds abuse only
 const MAX_SHORT_TEXT = 500 // titles, units, estimate_number
 const MAX_ID_LEN = 200 // DB uuid or 'temp-' + crypto.randomUUID()
-const MAX_SECTIONS = 200
-const MAX_ITEMS_PER_SECTION = 500
+// SAVE-06 (audit B7): 200×500 = 100k items was a sequential-write DoS shape
+// (each item is its own insert/update round-trip inside the write). Lowered
+// to a generous-but-bounded 60×200 = 12k — no legitimate estimate approaches
+// this; a real construction estimate rarely exceeds a few dozen line items.
+const MAX_SECTIONS = 60
+const MAX_ITEMS_PER_SECTION = 200
 
 // DB/editor domain (see use-estimate-reducer.ts) — NOT the engine's internal
 // 'percent'|'amount'|'none' domain; saveEstimate maps between the two.
@@ -23,12 +27,19 @@ const depositTypeSchema = z.enum(['none', 'percent', 'amount']).nullable()
 const taxCategorySchema = z.enum(['labor', 'materials', 'other']).nullable()
 const priceSourceSchema = z.enum(['price_book', 'ai_estimate', 'researched']).nullable()
 
+// SAVE-06 (audit B7): quantity/unit_price/discount/cost/markup_pct previously
+// accepted negatives (finite-only) — a negative quantity or unit_price can
+// invert a line's contribution to subtotal/tax in ways the UI never
+// intends, and a negative discount/markup effectively becomes a hidden
+// surcharge. Reject negatives outright; no credit-line use case exists
+// today that needs a negative line (a refund/credit line, if ever added,
+// should be its own explicit feature, not a side-effect of loose bounds).
 const saveItemSchema = z.object({
   id: z.string().min(1).max(MAX_ID_LEN),
   description: z.string().max(MAX_TEXT),
-  quantity: z.number().finite(),
+  quantity: z.number().finite().min(0),
   unit: z.string().max(MAX_SHORT_TEXT).nullable(),
-  unit_price: z.number().finite(),
+  unit_price: z.number().finite().min(0),
   sort_order: z.number().int(),
   price_source: priceSourceSchema,
   isManuallyEdited: z.boolean().optional(),
@@ -36,9 +47,9 @@ const saveItemSchema = z.object({
   // contract (absence means "not set," resolved downstream via `?? true` / `?? 0`).
   taxable: z.boolean().optional(),
   tax_category: taxCategorySchema.optional(),
-  discount: z.number().finite().optional(),
-  cost: z.number().finite().nullable().optional(),
-  markup_pct: z.number().finite().nullable().optional(),
+  discount: z.number().finite().min(0).optional(),
+  cost: z.number().finite().min(0).nullable().optional(),
+  markup_pct: z.number().finite().min(0).nullable().optional(),
 })
 
 const saveSectionSchema = z.object({

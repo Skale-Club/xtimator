@@ -3,8 +3,11 @@
 // production code path (not a copy). New fields (line discount, taxable, tax_category, tax_config)
 // are read through default-coalescing seams:
 //   item.discount ?? 0   → lineNet == lineGross (line discount DORMANT — Phase 131)
-//   item.taxable ?? true → ACTIVE this phase (a non-taxable item contributes zero base)
-//   taxConfig absent     → flat subtotal × taxRate (the retained, BYTE-IDENTICAL retrocompat branch)
+//   item.taxable ?? true → ACTIVE in BOTH tax branches (a non-taxable item contributes zero base)
+//   taxConfig absent     → flat (taxable subtotal − prorated disc) × taxRate. Phase 165 (SAVE-07)
+//                          made `taxable` ACTIVE here too (previously the flat path ignored it,
+//                          taxing the WHOLE subtotal) — an all-taxable estimate (taxable defaults
+//                          true) is still BYTE-IDENTICAL to the pre-165 retrocompat branch.
 //   taxConfig present    → ACTIVE per-category tax: Σ(taxable_base_per_category × rate_category)
 // Discount / deposit / markup activation lands in Phases 131-132 — NOT here.
 // Byte-identity discipline (Pitfall 2): BOTH tax branches use the SAME `Math.round(x * 100) / 100`
@@ -136,10 +139,40 @@ export function computeEstimateTotals(
 
   let taxAmount: number
   if (!isTaxConfig(taxConfig)) {
-    // RETROCOMPAT (taxConfig absent / null / malformed) → flat (subtotal − disc_global) × taxRate.
-    // When discGlobal === 0 this is BYTE-IDENTICAL to the pre-v4.11 `subtotal × taxRate` expression.
+    // SAVE-07 server half (audit B8 corollary): the flat path previously taxed
+    // the WHOLE subtotal regardless of any line's `taxable` flag, so the
+    // taxable=false toggle was a silent no-op whenever the company has no
+    // per-category tax_config (the common/default case — taxConfig is null
+    // unless a company has opted into per-category tax rules). DELIBERATE
+    // BEHAVIOR CHANGE: a taxable=false line now contributes ZERO to the flat
+    // taxable base, mirroring the per-category branch's `if (!isTaxable)
+    // continue` below.
+    //
+    // taxableSubtotal mirrors `subtotal`'s OWN two-level rounding (round each
+    // section's taxable sum, THEN round the sum of those) so that when every
+    // item is taxable (taxable defaults to true — the overwhelming default),
+    // taxableSubtotal === subtotal EXACTLY, not just numerically close.
+    const taxableSubtotal = Math.round(
+      calculatedSections.reduce((sum, section) => {
+        const sectionTaxableSum = section.items.reduce((s, item) => {
+          const isTaxable = item.taxable ?? true
+          return isTaxable ? s + item.total : s
+        }, 0)
+        return sum + Math.round(sectionTaxableSum * 100) / 100
+      }, 0) * 100
+    ) / 100
+
+    // Prorate the global discount onto the taxable base by its share of the
+    // overall subtotal (discount-before-tax, same principle as the
+    // per-category branch's DISC-02 proration, generalized to a single
+    // implicit "category" here). All-taxable → taxableSubtotal === subtotal →
+    // proratedDisc === discGlobal → BYTE-IDENTICAL to the prior
+    // `(subtotal - discGlobal) * safeTaxRate` expression.
+    const proratedDisc =
+      subtotal > 0 ? Math.round(discGlobal * (taxableSubtotal / subtotal) * 100) / 100 : 0
+
     // WI-2: safeTaxRate coerces a negative/non-finite rate to 0 (no-op on a valid rate).
-    taxAmount = Math.round((subtotal - discGlobal) * safeTaxRate * 100) / 100
+    taxAmount = Math.round((taxableSubtotal - proratedDisc) * safeTaxRate * 100) / 100
   } else {
     // TAX-03 ACTIVE: accumulate each taxable item's lineNet into its category base, then
     // sum base × resolved rate. Non-taxable items (taxable === false) accrue ZERO base.
