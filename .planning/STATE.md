@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v4.19
 milestone_name: Integrity & Reliability Hardening
-status: roadmap_created
-stopped_at: Roadmap created (Phases 164-170) — next /gsd:plan-phase 164
-last_updated: "2026-07-17T00:00:00.000Z"
-last_activity: 2026-07-17
+status: in_progress
+stopped_at: Completed 164-01-PLAN.md (Phase 164 Plan 01 of 2 — TRUST-01 signature snapshot)
+last_updated: "2026-07-17T16:16:50.297Z"
+last_activity: "2026-07-17 - Completed Phase 164 Plan 01 (164-01-PLAN.md): signed_content snapshot capture + share/PDF render-from-snapshot overlay (TRUST-01). NOTE: gsd-tools state record-metric/add-decision/record-session repeatedly revert this frontmatter to stale values (pre-existing documented tool bug, same one noted for v4.17/v4.18 executions) -- manually re-asserted milestone: v4.19 / status/stopped_at/progress after every tool invocation in this session."
 progress:
   total_phases: 114
-  completed_phases: 93
-  total_plans: 252
+  completed_phases: 89
+  total_plans: 259
   completed_plans: 263
 ---
 
@@ -55,6 +55,17 @@ progress:
 - **Position**: Phase 144 Plan 01 complete — `syncSubscriptionSeatItem` is now interval-aware; annual subscriptions use `seatPriceAnnualCents`; 8 new unit tests green. ANN-04 complete. Next: Phase 145 (Pricing UI Toggle, ANN-05).
 
 ## Current Position
+
+Phase: 164 (Sign & Send Trust Boundary) — Plan 01 of 2 COMPLETE, Plan 02 (freeze guards) not yet started
+Plan: 164-01-PLAN.md shipped — TRUST-01 (of TRUST-01..03 mapped to this phase) satisfied: `estimate_signatures.signed_content`/`signed_total` snapshot captured at sign time (fail-closed), share (`getEstimateByShareToken` + `getEstimateByPublicToken`) and PDF route render from the snapshot via one shared `applySignedSnapshot` overlay once a signature exists; legacy signatures (signed_content NULL) byte-identical; `lib/estimate/lock.ts` `isEstimateLocked()` landed for Plan 02 to import.
+Status: Phase 164 in progress — Plan 02 (freeze-on-send/sign guards in `saveEstimate` + refine route, TRUST-02/03) is next.
+Last activity: 2026-07-17 - Completed 164-01-PLAN.md (see [164-01-SUMMARY.md](phases/164-sign-send-trust-boundary/164-01-SUMMARY.md)). Known limitation carried forward: photo URLs are NOT part of the frozen snapshot (signed URLs expire hourly) — a post-sign photo add/remove is still visible on the share page/PDF.
+
+Note: this execution ran under SEVERE shared-environment resource contention (many concurrent node/vitest processes from other parallel sessions on the same machine/repo — v4.19 phases 166-170 are explicitly parallelizable per the roadmap and other phases' commits landed on `main` interleaved with this one, e.g. `f9d2c1cc` 166-01, `5b406cd4` 169-01). Full `npm test` runs repeatedly hit `[vitest-pool]: Failed to start forks worker` / worker-timeout infra errors (documented as a known load-induced flake class in this repo's own `vitest.config.ts` comment) unrelated to this plan's files. Verification evidence used instead: the full blast-radius test set for this plan's changes (`tests/unit/estimate/lock.test.ts`, `tests/unit/estimate/signature-snapshot.test.ts`, `tests/unit/share-query.test.ts`, `tests/unit/estimates/public-token.test.ts`, `tests/unit/settings/team-staff-consolidation.test.ts` — 5 files / 39 tests, 100% green) plus a completed full-suite run (3279/3284 real tests passing, the only 5 failures being the unrelated infra worker-timeout class in files this plan never touches) plus a clean `npx tsc --noEmit -p tsconfig.ci.json` (0 errors, run twice after edits).
+
+Note: `gsd-tools state update-progress` / `add-decision` / `record-session` reverted the frontmatter `milestone`/`status`/progress numbers to stale values MULTIPLE times during this session (pre-existing documented tool bug, same class noted for v4.17/v4.18 executions) — manually re-asserted `milestone: v4.19` / `status: in_progress` / `stopped_at` after every state-tool invocation.
+
+### Previous Position (v4.18, for continuity)
 
 Phase: v4.18 MILESTONE COMPLETE — all 4 phases (160, 161, 162, 163) shipped end-to-end
 Plan: 24/24 requirements delivered (PUBURL-01..06 + PRESENT-01..05 + DOCUX-01..07 + SENDHUB-01..06)
@@ -206,7 +217,7 @@ Prior: 102-01 (HARD-07 replay-safe TTL) shipped. Added a neutral `requestedAt: A
 Prior: 102-02 (HARD-06 cap half) shipped. Replaced the hard-coded `(state.refineAttempts ?? 0) < 1` literal in `checkVagueAfterAssessEdge` (`lib/estimate/graph/nodes/decide.ts`) with a single `AUTO_REFINE_MAX_ATTEMPTS` module constant — read once at module load via an IIFE (`Number.isFinite(raw) && raw >= 0 ? raw : 1`) from the optional non-secret `process.env.AUTO_REFINE_MAX_ATTEMPTS`, defaulting to 1. Operator kept exactly `<` so the default is byte-identical to today (Research Pitfall 1). `auto-refine.ts` doc comment updated to reference the configurable cap (documentation-only; increment logic untouched). Channel-neutral (no DB, no async, no channel import) → graph-neutrality stays green. `tests/unit/estimate/auto-refine-cap.test.ts` now fully GREEN (default=1 AND `AUTO_REFINE_MAX_ATTEMPTS=2` override cases); `auto-refine-isolation` + `graph-neutrality` (12/12) and `never-reply-regression` Path C (loops exactly once at default) stay green. No env VALUE committed — only the var NAME appears (CLAUDE.md secret-handling). 1 atomic commit (02a41f2). xphere untouched. HARD-06 NOT marked complete — only the configurable-cap half is done; the web recourse UI half is owned by Plan 102-04.
 Prior (102-00, Wave 0 RED/EXTEND scaffold): authored 4 failing-by-design test files (auto-refine-cap [HARD-06 cap, now GREEN via 102-02], replay-safe-ttl [HARD-07, still RED → 102-01], batch-reporting [HARD-05, still RED → 102-03], needs-details-banner [HARD-06 recourse, still RED → 102-04]); 2 commits (201afb0, 35e8537).
 Last activity: 2026-07-08 - Completed quick task 260707-umu: dashboard Recent projects filters aligned with Projects page control bar
-Stopped at: Completed 163-06-PLAN.md (Phase 163 fully closed)
+Stopped at: Completed 164-01-PLAN.md
 Prior Stopped at: Completed 157-01-PLAN.md
 Next Up: **Phase 108 COMPLETE (5/5 plans — 108-01 metering [RMETER-01/02/03], 108-02 vagueness gate [RFALL-02], 108-03 orchestrator `researchUnmatchedPrices` [RPRICE-01/03/04, RFALL-01], 108-04 wire into `generateEstimateForProject` [RPRICE-01/03, RFALL-01], 108-05 "Couch cleaning 8 seats" full-graph regression [RFALL-03]).** THE PAYOFF is live in the production generation path AND locked by a green deterministic full-graph regression (EVIDENCED → $180/non-vague, empty-research+context → never-$0 ladder/non-vague, all-empty → still blocks). All three price-research adapters (`openrouter-web`, gated `anthropic-web`, deterministic `fixture`) remain configured-via-`platform_integrations` (all-misses no-op when unconfigured). Suggested: `/gsd:verify-work 108`, then `/gsd:execute-phase 109` (durability + cost-control hardening — dedicated `step.run('price-research')` retry isolation, runtime OpenRouter→Anthropic fallback ordering, per-estimate item caps, refine-loop memoization). DEFERRED (operational, carried from 108-01): apply migration `20260624000002_phase108_usage_event_price_researched.sql` (+ the earlier `20260624000001` price_research_cache) to remote via CI→GHCR→Coolify.
 Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gsd:verify-work 104` to validate the phase, then address the operational deferrals. DEFERRED (operational, all of Phase 104): apply migrations `20260621000001_notification_categories_remap.sql` + `20260621000002_notification_opt_in_consent.sql` + `20260621000003_whatsapp_notification_templates.sql` to the remote DB; ensure the Twilio from-number is SMS-capable; verify the Meta token carries `whatsapp_business_management` scope + author/approve the registry templates in Meta WhatsApp Manager (the `message_template_status_update` webhook then flips them to approved). Also still queued: `/gsd:verify-work 103` + `/gsd:complete-milestone` (v4.5) carry-over UATs.
@@ -931,6 +942,7 @@ Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gs
 - [Phase 163-format-first-send-hub-cross-surface-settings-rollout]: Deletion sweep as separate plan (163-06) after a 3-step retirement (build hub 163-04, wire 163-05, delete 163-06) keeps every intermediate state buildable + tests green
 - [Phase 163-format-first-send-hub-cross-surface-settings-rollout]: Pre-flight collateral commit (comment scrub + test-fallback retarget) separate from deletion commit -- deletion commit hash is a clean bisect target
 - [Phase 163-format-first-send-hub-cross-surface-settings-rollout]: Pre-existing full-suite test flake + local-DB integration test failures logged to deferred-items.md per SCOPE BOUNDARY (verified pre-existing via git stash)
+- [Phase 164]: TRUST-01: signature snapshot captured in the SAME insert as the signature row (fail-closed if content load/serialize fails); share + PDF render-from-snapshot via ONE shared applySignedSnapshot (REPLACE, not merge) + shared loadLatestSignedSnapshot query; total_amount_cents re-derived from signed_total at both share lookup call sites; photo URLs stay live (known limitation, documented).
 
 ## Performance Metrics
 
@@ -1242,6 +1254,7 @@ Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gs
 | Phase 163 P04 | 10m 26s | 3 tasks | 3 files |
 | Phase 163 P05 | 16m 03s | 3 tasks | 7 files |
 | Phase 163-format-first-send-hub-cross-surface-settings-rollout P06 | 19m 14s | 2 tasks | 10 files |
+| Phase 164 P01 | 1h45m (mostly environment contention wait; ~35min active implementation) | 3 tasks | 9 files |
 
 ## Project Reference
 

@@ -23,7 +23,7 @@ Each requirement maps to exactly one roadmap phase.
 
 ### Trust Boundary (sign/send integrity)
 
-- [ ] **TRUST-01**: When a client signs an estimate, the signature record captures an immutable snapshot of the signed content (sections, items, totals) — and the public share page + PDF render from that snapshot from then on, so what the client sees after signing is always exactly what they signed.
+- [x] **TRUST-01**: When a client signs an estimate, the signature record captures an immutable snapshot of the signed content (sections, items, totals) — and the public share page + PDF render from that snapshot from then on, so what the client sees after signing is always exactly what they signed.
 - [ ] **TRUST-02**: Once an estimate is sent, signed, or responded to, the save action and the refine route reject content edits server-side with a typed `estimate_locked` error, and the editor guides the owner to "Create new version" instead — no silent in-place mutation of a delivered document is possible from any surface (UI, server action, direct RPC).
 - [ ] **TRUST-03**: Every content-changing save writes an `estimate_updated` activity event, so edits on drafts (and any pre-freeze edits) are visible in the estimate's audit trail.
 
