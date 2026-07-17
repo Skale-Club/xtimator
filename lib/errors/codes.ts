@@ -14,6 +14,10 @@ export type ErrorType =
   | 'tier_limit'
   | 'offline'
   | 'internal'
+  // Phase 164 Plan 02 (TRUST-02) — a delivered (sent/signed/responded)
+  // estimate rejected an in-place content write. Distinct from 'conflict'
+  // (optimistic-concurrency race) so callers can branch on the code alone.
+  | 'estimate_locked'
 
 export type Surface =
   | 'estimates'
@@ -42,6 +46,7 @@ export const statusByType: Record<ErrorType, number> = {
   tier_limit: 402,
   offline: 503,
   internal: 500,
+  estimate_locked: 409,
 }
 
 export const defaultMessageByType: Record<ErrorType, string> = {
@@ -54,6 +59,8 @@ export const defaultMessageByType: Record<ErrorType, string> = {
   tier_limit: 'You reached your plan limit. Upgrade to continue.',
   offline: 'The service is temporarily unavailable. Please try again.',
   internal: 'Something went wrong on our side. Please try again.',
+  estimate_locked:
+    'Estimate has been delivered and is locked; create a new version to make changes.',
 }
 
 /**

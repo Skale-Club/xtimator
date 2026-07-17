@@ -94,12 +94,36 @@ function configureSupabase() {
             }),
           }
         }),
+        // Phase 164 Plan 02 (TRUST-02): saveEstimate now does a pre-UPDATE
+        // SELECT of sent_at/client_response/total/project_id for the
+        // freeze-on-send/sign guard (this fixture is always a draft — both
+        // null — so the guard never fires here).
         select: vi.fn().mockReturnValue({
           eq: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({ data: { project_id: 'proj_1' }, error: null }),
+            single: vi.fn().mockResolvedValue({
+              data: { sent_at: null, client_response: null, total: 1000, project_id: 'proj_1' },
+              error: null,
+            }),
           }),
         }),
       }
+    }
+
+    // Phase 164 Plan 02 (TRUST-02): signature-existence lookup — no signature
+    // by default, so the freeze-on-send/sign guard never fires in this file.
+    if (table === 'estimate_signatures') {
+      return {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            limit: vi.fn().mockResolvedValue({ data: [], error: null }),
+          }),
+        }),
+      }
+    }
+
+    // Phase 164 Plan 02 (TRUST-03): fire-and-forget estimate_updated activity insert.
+    if (table === 'estimate_activity') {
+      return { insert: vi.fn().mockResolvedValue({ error: null }) }
     }
 
     if (table === 'estimate_sections') {

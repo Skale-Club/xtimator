@@ -10,7 +10,13 @@ import { shareLinkExpiryFromNow } from '@/lib/estimates/share-link'
 import { dispatchXphereSync } from '@/lib/integrations/xphere/dispatch'
 import { computeEstimateTotals, type TaxConfig } from '@/lib/estimate/compute-totals'
 import { copyEstimatePhotos } from '@/lib/queries/estimate-photo'
-import { saveEstimateSchema, type SaveEstimateInput } from '@/lib/schemas/estimate'
+import {
+  saveEstimateSchema,
+  presentationSettingsSchema,
+  type SaveEstimateInput,
+} from '@/lib/schemas/estimate'
+import { isEstimateLocked } from '@/lib/estimate/lock'
+import type { PresentationSettings } from '@/lib/estimate/presentation-settings'
 
 // ---------------------------------------------------------------------------
 // Auth helper (same pattern as recording.ts)
@@ -116,6 +122,40 @@ export async function saveEstimate(rawEstimateData: SaveEstimateInput) {
     return { ...section, items, subtotal: engineSection.subtotal }
   })
 
+  // TRUST-02 (Phase 164 Plan 02) — freeze-on-send/sign guard. A pre-UPDATE
+  // SELECT (NOT folded into the header UPDATE's filters below — that would
+  // collide with the optimistic-concurrency zero-rows path and lose this
+  // distinct error) loads the lock-relevant fields BEFORE any write. Runs
+  // concurrently with the signature-existence lookup (Opus blocker #1 — the
+  // signed-but-unresponded window: app/api/estimates/[id]/sign/route.ts
+  // inserts the estimate_signatures row BEFORE calling respondToEstimate and
+  // SWALLOWS a respond failure, so a signed estimate can have
+  // client_response still null — isEstimateLocked() alone is not sufficient;
+  // an existing signature row locks the estimate too). This SAME query also
+  // supplies the project_id + previous total the code below used to fetch
+  // separately AFTER the update — net cost is exactly one new round-trip
+  // (the signature lookup), not two.
+  const [{ data: preUpdateRow }, { data: signatureRows }] = await Promise.all([
+    supabase
+      .from('estimates')
+      .select('sent_at, client_response, total, project_id')
+      .eq('id', estimateData.id)
+      .single(),
+    supabase
+      .from('estimate_signatures')
+      .select('id')
+      .eq('estimate_id', estimateData.id)
+      .limit(1),
+  ])
+
+  const hasSignature = !!signatureRows && signatureRows.length > 0
+  if (isEstimateLocked(preUpdateRow) || hasSignature) {
+    return { error: 'estimate_locked' }
+  }
+
+  const previousTotal = (preUpdateRow as { total?: number | null } | null)?.total ?? null
+  const projectId = (preUpdateRow as { project_id?: string } | null)?.project_id ?? null
+
   // Update estimate row.
   //
   // Pre-launch audit fix (B7): last-write-wins concurrency. When the caller
@@ -174,15 +214,6 @@ export async function saveEstimate(rawEstimateData: SaveEstimateInput) {
 
   const savedUpdatedAt =
     (updatedRows?.[0] as { updated_at?: string } | undefined)?.updated_at ?? new Date().toISOString()
-
-  // Get the project_id for this estimate (for project total update + revalidation)
-  const { data: estimateRow } = await supabase
-    .from('estimates')
-    .select('project_id')
-    .eq('id', estimateData.id)
-    .single()
-
-  const projectId = (estimateRow?.project_id as string) ?? null
 
   // Upsert sections
   const incomingSectionIds: string[] = []
@@ -352,7 +383,104 @@ export async function saveEstimate(rawEstimateData: SaveEstimateInput) {
     revalidatePath(`/projects/${projectId}`)
   }
 
+  // TRUST-03 (Phase 164 Plan 02) — every successful content save gets an
+  // auditable estimate_activity row (saveEstimate wrote ZERO activity rows
+  // before this phase — v4.19 audit A2 — so in-place tampering was invisible
+  // in the audit trail). Fire-and-forget / never-throw, matching the house
+  // pattern used elsewhere in this file (markAsSentAction's delivery-log
+  // insert, below): NOT awaited, so a slow or failed insert can never block
+  // or fail the save the user is waiting on.
+  const itemsCount = calculatedSections.reduce((sum, s) => sum + s.items.length, 0)
+  const totalDelta =
+    previousTotal != null ? Math.round((total - previousTotal) * 100) / 100 : null
+  void (async () => {
+    try {
+      const { error } = await supabase.from('estimate_activity').insert({
+        project_id: projectId,
+        company_id: companyId,
+        estimate_id: estimateData.id,
+        event_type: 'estimate_updated',
+        metadata: {
+          sections_count: calculatedSections.length,
+          items_count: itemsCount,
+          total,
+          total_delta: totalDelta,
+        },
+      })
+      if (error) console.error('[164-02] estimate_updated activity insert failed', error)
+    } catch (err) {
+      console.error('[164-02] estimate_updated activity insert threw', err)
+    }
+  })()
+
   return { data: { total, updated_at: savedUpdatedAt } }
+}
+
+// ---------------------------------------------------------------------------
+// Action 1b: savePresentationSettings (Phase 164 Plan 02 — TRUST-02 carve-out)
+// ---------------------------------------------------------------------------
+//
+// Content lock ≠ display-preferences lock (see 164-02-PLAN.md's PRESENTATION
+// CARVE-OUT interface note). A locked estimate's gear panel calls this
+// DIRECTLY instead of riding the shared content-save path above (saveEstimate
+// rejects every write on a locked estimate) — so an owner can still toggle
+// section visibility / tax / discount / deposit overrides on an
+// already-sent/signed estimate. Updates ONLY the presentation_settings
+// column: no totals recompute (GUARD-03 math never lives here) and no
+// estimate_updated activity row (a display-preference change is not a
+// content change). Lock-EXEMPT by design — no isEstimateLocked/signature
+// check here, intentionally.
+export async function savePresentationSettings(
+  estimateId: string,
+  settings: PresentationSettings,
+  expectedUpdatedAt?: string
+) {
+  // Runtime boundary guard (this is a 'use server' action reachable directly
+  // via its RPC endpoint, bypassing TypeScript — same discipline as
+  // saveEstimate's zod validation above; reuses the SAME shared schema
+  // rather than duplicating it).
+  if (typeof estimateId !== 'string' || !estimateId) {
+    return { error: 'Invalid estimate id' }
+  }
+  const parsed = presentationSettingsSchema.safeParse(settings)
+  if (!parsed.success) {
+    return {
+      error: `Invalid presentation settings: ${parsed.error.issues[0]?.message ?? 'validation failed'}`,
+    }
+  }
+
+  const ctx = await getAuthContext()
+  if ('error' in ctx) return { error: ctx.error }
+  const { supabase } = ctx
+
+  let updateQuery = supabase
+    .from('estimates')
+    .update({
+      presentation_settings: parsed.data,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', estimateId)
+
+  if (expectedUpdatedAt) {
+    updateQuery = updateQuery.eq('updated_at', expectedUpdatedAt)
+  }
+
+  const { data: updatedRows, error } = await updateQuery.select('id, updated_at')
+
+  if (error) return { error: 'Failed to save presentation settings' }
+
+  if (expectedUpdatedAt && (!updatedRows || updatedRows.length === 0)) {
+    return {
+      error:
+        'This estimate was changed elsewhere since you last loaded it. Reload to see the latest version before continuing.',
+      conflict: true as const,
+    }
+  }
+
+  const savedUpdatedAt =
+    (updatedRows?.[0] as { updated_at?: string } | undefined)?.updated_at ?? new Date().toISOString()
+
+  return { data: { updated_at: savedUpdatedAt } }
 }
 
 // ---------------------------------------------------------------------------

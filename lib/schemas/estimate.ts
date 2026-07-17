@@ -50,8 +50,11 @@ const saveSectionSchema = z.object({
 
 // Mirrors lib/estimate/presentation-settings.ts's PresentationSettings — a pure
 // pass-through JSONB blob (GUARD-03: never read by the totals engine), so this only
-// guards the SHAPE persisted, not any pricing math.
-const presentationSettingsSchema = z
+// guards the SHAPE persisted, not any pricing math. Exported: Phase 164 Plan 02's
+// savePresentationSettings (lib/actions/estimate.ts) is ALSO a 'use server' action
+// reachable directly via its RPC endpoint (same boundary concern as saveEstimate
+// above) and reuses this schema rather than duplicating it.
+export const presentationSettingsSchema = z
   .object({
     sections: z
       .object({
