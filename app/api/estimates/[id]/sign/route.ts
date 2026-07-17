@@ -3,11 +3,27 @@ import { headers } from 'next/headers'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { isDemoCompany } from '@/lib/demo/config'
 import { respondToEstimate } from '@/app/estimate/[token]/actions'
+import {
+  buildSignedContentSnapshot,
+  type SnapshotSourceEstimate,
+  type SnapshotSourceSection,
+} from '@/lib/estimate/signed-snapshot'
 
 interface SignRequestBody {
   token: string
   signerName: string
   signatureData: string
+}
+
+// TRUST-01: select('*') here (not the old minimal column list) because the
+// full row is ALSO the source for the immutable signed_content snapshot
+// below — the snapshot must mirror every rendered/editable field.
+type SignEstimateRow = SnapshotSourceEstimate & {
+  id: string
+  company_id: string
+  project_id: string
+  share_token: string
+  client_response: string | null
 }
 
 export async function POST(
@@ -33,16 +49,18 @@ export async function POST(
     const supabase = requireServiceClient()
 
     // Verify estimate by share_token + id match
-    const { data: estimate } = await supabase
+    const { data: estimateData } = await supabase
       .from('estimates')
-      .select('id, company_id, project_id, share_token, client_response')
+      .select('*')
       .eq('id', id)
       .eq('share_token', token)
       .single()
 
-    if (!estimate) {
+    if (!estimateData) {
       return NextResponse.json({ error: 'Estimate not found' }, { status: 404 })
     }
+
+    const estimate = estimateData as unknown as SignEstimateRow
 
     if (estimate.client_response) {
       return NextResponse.json({ error: 'Estimate already responded to' }, { status: 409 })
@@ -69,7 +87,43 @@ export async function POST(
     const ipAddress = headersList.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null
     const userAgent = headersList.get('user-agent') ?? null
 
-    // Insert signature record
+    // TRUST-01: load the full render content (sections + items, ordered by
+    // sort_order) BEFORE inserting the signature, and build the immutable
+    // snapshot from it. Failure posture is FAIL CLOSED — a signature we
+    // cannot evidence is the exact bug this phase kills, so a content-load
+    // or serialization failure aborts the signing request entirely rather
+    // than inserting a signature without a snapshot.
+    const { data: sectionsData, error: sectionsError } = await supabase
+      .from('estimate_sections')
+      .select('*, items:estimate_items(*)')
+      .eq('estimate_id', estimate.id)
+      .order('sort_order', { ascending: true })
+      .order('sort_order', { foreignTable: 'estimate_items', ascending: true })
+
+    if (sectionsError || !sectionsData) {
+      console.error('Signature snapshot content load error:', sectionsError)
+      return NextResponse.json(
+        { error: 'Failed to load estimate content for signing' },
+        { status: 500 }
+      )
+    }
+
+    let signedContent: ReturnType<typeof buildSignedContentSnapshot>
+    try {
+      signedContent = buildSignedContentSnapshot(
+        estimate,
+        sectionsData as unknown as SnapshotSourceSection[]
+      )
+    } catch (snapshotError) {
+      console.error('Signature snapshot build error:', snapshotError)
+      return NextResponse.json(
+        { error: 'Failed to build signature snapshot' },
+        { status: 500 }
+      )
+    }
+
+    // Insert signature record — signed_content + signed_total captured in
+    // the SAME insert as the signature row itself (never an update-after).
     const { error: insertError } = await supabase
       .from('estimate_signatures')
       .insert({
@@ -79,6 +133,8 @@ export async function POST(
         signature_data: signatureData,
         ip_address: ipAddress,
         user_agent: userAgent,
+        signed_content: signedContent,
+        signed_total: estimate.total,
       })
 
     if (insertError) {
