@@ -2609,7 +2609,7 @@ Plans:
   4. Every content-changing save writes an `estimate_updated` row to `estimate_activity`, visible in the estimate's activity trail
   5. A regression test proves the pre-freeze behavior for drafts is unchanged: a never-sent draft saves exactly as today
 
-**Plans**: 2 — 164-01 COMPLETE 2026-07-17 (TRUST-01: signature snapshot capture + share/PDF render-from-snapshot, see [164-01-SUMMARY.md](phases/164-sign-send-trust-boundary/164-01-SUMMARY.md)); 164-02 (freeze guards, TRUST-02/03) not yet planned/executed
+**Plans**: 2 — 164-01 COMPLETE 2026-07-17 (TRUST-01: signature snapshot capture + share/PDF render-from-snapshot, see [164-01-SUMMARY.md](phases/164-sign-send-trust-boundary/164-01-SUMMARY.md)); 164-02 COMPLETE 2026-07-17 (TRUST-02/03: freeze-on-send/sign guards in saveEstimate + refine route, estimate_updated activity emission, editor lock UX + presentation-settings carve-out, see [164-02-SUMMARY.md](phases/164-sign-send-trust-boundary/164-02-SUMMARY.md)). **Phase 164 COMPLETE.**
 
 ### Phase 165: Atomic Save & Version Authority
 

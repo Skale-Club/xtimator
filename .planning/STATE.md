@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v3.1.1
-milestone_name: MVP Launch Prep + Future-Proofing
+milestone: v4.19
+milestone_name: Integrity & Reliability Hardening
 status: executing
-stopped_at: Completed 166-02-PLAN.md
-last_updated: "2026-07-17T18:17:23.153Z"
-last_activity: "2026-07-17 - Completed 164-01-PLAN.md (see [164-01-SUMMARY.md](phases/164-sign-send-trust-boundary/164-01-SUMMARY.md)). Known limitation carried forward: photo URLs are NOT part of the frozen snapshot (signed URLs expire hourly) — a post-sign photo add/remove is still visible on the share page/PDF."
+stopped_at: Completed 164-02-PLAN.md
+last_updated: "2026-07-17T19:18:00.000Z"
+last_activity: "2026-07-17 - Completed 164-02-PLAN.md (see [164-02-SUMMARY.md](phases/164-sign-send-trust-boundary/164-02-SUMMARY.md)). Phase 164 (Sign & Send Trust Boundary) COMPLETE — TRUST-01..03 all shipped."
 progress:
-  total_phases: 18
-  completed_phases: 18
-  total_plans: 51
-  completed_plans: 51
+  total_phases: 7
+  completed_phases: 3
+  total_plans: 8
+  completed_plans: 7
 ---
 
 # Project State
@@ -56,14 +56,14 @@ progress:
 
 ## Current Position
 
-Phase: 164 (Sign & Send Trust Boundary) — Plan 01 of 2 COMPLETE, Plan 02 (freeze guards) not yet started
-Plan: 164-01-PLAN.md shipped — TRUST-01 (of TRUST-01..03 mapped to this phase) satisfied: `estimate_signatures.signed_content`/`signed_total` snapshot captured at sign time (fail-closed), share (`getEstimateByShareToken` + `getEstimateByPublicToken`) and PDF route render from the snapshot via one shared `applySignedSnapshot` overlay once a signature exists; legacy signatures (signed_content NULL) byte-identical; `lib/estimate/lock.ts` `isEstimateLocked()` landed for Plan 02 to import.
-Status: Phase 164 in progress — Plan 02 (freeze-on-send/sign guards in `saveEstimate` + refine route, TRUST-02/03) is next.
-Last activity: 2026-07-17 - Completed 164-01-PLAN.md (see [164-01-SUMMARY.md](phases/164-sign-send-trust-boundary/164-01-SUMMARY.md)). Known limitation carried forward: photo URLs are NOT part of the frozen snapshot (signed URLs expire hourly) — a post-sign photo add/remove is still visible on the share page/PDF.
+Phase: 164 (Sign & Send Trust Boundary) — Plan 02 of 2 COMPLETE. Phase 164 SHIPPED — TRUST-01..03 all satisfied.
+Plan: 164-02-PLAN.md shipped — TRUST-02/03 satisfied: `saveEstimate` rejects content writes to a locked estimate (sent_at OR client_response OR an existing estimate_signatures row — closing the signed-but-unresponded window) before any DB write; the refine route carries the identical guard ahead of the 167-01 credit gate; every successful content save fires a fire-and-forget `estimate_updated` estimate_activity row; the editor gained a lock banner + Create-new-version action + a lock-exempt presentation-settings carve-out (savePresentationSettings) + a stale-tab latch preventing the audit's documented toast-storm.
+Status: Phase 164 COMPLETE (2/2 plans, TRUST-01..03 all shipped). Next: Phase 165 (Save Atomicity & Version Authority) — depends on 164, sequential (both rewrite lib/actions/estimate.ts); meanwhile 166-169 continue in parallel per the roadmap.
+Last activity: 2026-07-17 - Completed 164-02-PLAN.md (see [164-02-SUMMARY.md](phases/164-sign-send-trust-boundary/164-02-SUMMARY.md)).
 
-Note: this execution ran under SEVERE shared-environment resource contention (many concurrent node/vitest processes from other parallel sessions on the same machine/repo — v4.19 phases 166-170 are explicitly parallelizable per the roadmap and other phases' commits landed on `main` interleaved with this one, e.g. `f9d2c1cc` 166-01, `5b406cd4` 169-01). Full `npm test` runs repeatedly hit `[vitest-pool]: Failed to start forks worker` / worker-timeout infra errors (documented as a known load-induced flake class in this repo's own `vitest.config.ts` comment) unrelated to this plan's files. Verification evidence used instead: the full blast-radius test set for this plan's changes (`tests/unit/estimate/lock.test.ts`, `tests/unit/estimate/signature-snapshot.test.ts`, `tests/unit/share-query.test.ts`, `tests/unit/estimates/public-token.test.ts`, `tests/unit/settings/team-staff-consolidation.test.ts` — 5 files / 39 tests, 100% green) plus a completed full-suite run (3279/3284 real tests passing, the only 5 failures being the unrelated infra worker-timeout class in files this plan never touches) plus a clean `npx tsc --noEmit -p tsconfig.ci.json` (0 errors, run twice after edits).
+Note: this execution ran under SEVERE shared-environment resource contention (same class documented in 164-01's note above — git log shows phases 166/167/168/169 landing real commits interleaved with this plan's 3 task commits; a mid-verification `tasklist` snapshot showed 24 concurrent node.exe processes). A background full `npm test` produced zero output after 28+ minutes and was still running when this plan's SUMMARY was written. Verification evidence used instead: the complete blast-radius test set for every file this plan touched (`tests/unit/actions/estimate-lock-guard.test.ts` [new], `tests/unit/api/refine-lock-guard.test.ts` [new], `estimate-save-concurrency.test.ts`, `estimate-save-pricing-fields.test.ts`, `estimate-save-no-gate.test.ts`, `refine-credit-gate.test.ts`, `refine-route-contract.test.ts`, `refine-error-surface.test.ts`, `lock.test.ts`, `presentation-settings.test.ts` + `presentation-settings-panel.test.tsx` + `presentation-settings-cross-surface.test.tsx`, `errors.test.ts` — 82 tests, 100% green) plus a clean `npx tsc --noEmit -p tsconfig.ci.json` (0 errors, run 3 times after edits).
 
-Note: `gsd-tools state update-progress` / `add-decision` / `record-session` reverted the frontmatter `milestone`/`status`/progress numbers to stale values MULTIPLE times during this session (pre-existing documented tool bug, same class noted for v4.17/v4.18 executions) — manually re-asserted `milestone: v4.19` / `status: in_progress` / `stopped_at` after every state-tool invocation.
+Note: this file's frontmatter (`milestone: v3.1.1`, stale `progress` numbers referencing an old 18-phase/51-plan milestone) was found ALREADY corrupted on load — the same pre-existing `gsd-tools state` tool bug 164-01 documented, apparently re-triggered by another concurrent session's tool invocation. Manually re-asserted `milestone: v4.19` below; `stopped_at`/`last_updated`/`progress.*` were left untouched (not this phase's to own, and actively contested by other concurrently-executing phases) rather than risk a lost-update race against a legitimately more-recent concurrent session's claim.
 
 ### Previous Position (v4.18, for continuity)
 
