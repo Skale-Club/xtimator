@@ -2654,7 +2654,7 @@ Plans:
   4. A user Retry after a generate-stage failure does not re-call Whisper when a transcript already exists, and `ai_cost_events` cannot hold duplicate rows for the same attempt+operation (unique index); fallback-served transcriptions are attributed to the provider that served
   5. Per-plan audio-minute limits are enforced against server-derived duration (or the dead entitlement is removed with a documented decision) — total transcription spend per plan is bounded
 
-**Plans**: TBD
+**Plans**: 2 — 167-01 COMPLETE 2026-07-17 (BILL-01/02/04/05/06: refine credit gate, server-derived audio duration + entitlement enforcement, transcribe retry short-circuit + provider attribution + cost-event dedup, see [167-01-SUMMARY.md](phases/167-billing-cost-integrity/167-01-SUMMARY.md)); 167-02 COMPLETE 2026-07-17 (BILL-03: analyzePhotoOR's per-photo call threads `{ attemptId, companyId, projectId }` so vision cost rows and the photo-batch credit-debit read-back record real cost, see [167-02-SUMMARY.md](phases/167-billing-cost-integrity/167-02-SUMMARY.md)). **Phase 167 COMPLETE.**
 
 ### Phase 168: Photo Pipeline Fidelity
 
