@@ -20,6 +20,11 @@ import {
   resolveQualityThresholds,
 } from '@/lib/estimate/quality/quality-signal'
 import { isVagueEstimate } from '@/lib/estimate/quality/vagueness'
+import {
+  checkEstimateConsistency,
+  type ConsistencyFlag,
+} from '@/lib/estimate/quality/consistency'
+import * as Sentry from '@sentry/nextjs'
 import { getPriceBookItems } from '@/lib/queries/price-book'
 import {
   resolveEstimateLanguage,
@@ -84,6 +89,25 @@ function normalizeClientNameForMatch(name: string): string {
     .trim()
     .replace(/[.,]/g, '')
     .replace(/\s+/g, ' ')
+}
+
+/**
+ * AIREL-04 (audit C4) — absurdity ceiling on the computed grand total. Resolved
+ * HERE (not inside the pure consistency module), mirroring the
+ * resolveQualityThresholds env-at-the-boundary pattern (quality-signal.ts:116-121).
+ *
+ * The default MUST sit ABOVE the existing $1M PER-UNIT price-anchoring clamp
+ * (UNIT_PRICE_CEILING, lib/ai/price-anchoring.ts:53) — a lower value would make the
+ * two guardrails internally inconsistent — and real construction/remodel jobs
+ * routinely exceed $250k. This is an ABSURDITY ceiling tuned to catch
+ * hallucinations only, not a business-realistic cap. `ESTIMATE_TOTAL_CEILING_USD`
+ * lets ops tune it without a deploy-time code change; a malformed/non-positive
+ * value falls back to the default (never throws).
+ */
+const DEFAULT_ESTIMATE_TOTAL_CEILING_USD = 2_000_000
+function resolveEstimateTotalCeiling(): number {
+  const raw = Number(process.env.ESTIMATE_TOTAL_CEILING_USD)
+  return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_ESTIMATE_TOTAL_CEILING_USD
 }
 
 /**
@@ -271,11 +295,27 @@ export async function generateEstimateForProject(
   // Server-side math validation
   const taxRate = Number(company.default_tax_rate) || 0
 
+  // AIREL-04: resolved once, reused by both the aiProposedSubtotal dedupe below and
+  // the over-ceiling verdict evaluated after totals are computed.
+  const estimateTotalCeiling = resolveEstimateTotalCeiling()
+
   // GUARD-03 snapshot: capture the naive subtotal the AI's OWN numbers imply
   // BEFORE anchoring/clamping mutates any unit_price. Used for the discrepancy
   // metric below; the AI total itself is never persisted as authoritative.
+  //
+  // AIREL-04 / Opus Warning C (metric coherence): dedupe the AI's OWN raw
+  // sections FIRST (same exact-duplicate-collapse rule the server applies to the
+  // anchored/researched sections below) before summing. Without this, a
+  // hallucinated repeated line would inflate aiProposedSubtotal but NOT the
+  // (deduped) server total, producing an artificial totals_discrepancy delta
+  // that has nothing to do with anchoring/research — dedupe would otherwise fire
+  // unexplained Sentry anomalies. `computedTotal` is irrelevant to this call (0,
+  // so overCeiling is always false here) — only the deduped `.sections` are used;
+  // the real over-ceiling verdict is evaluated later against the server grand total.
   const aiProposedSubtotal = round2(
-    aiEstimate.sections.reduce(
+    checkEstimateConsistency(aiEstimate.sections, 0, {
+      totalCeiling: estimateTotalCeiling,
+    }).sections.reduce(
       (sum, section) =>
         sum +
         section.items.reduce(
@@ -333,6 +373,19 @@ export async function generateEstimateForProject(
     console.warn('[generate-estimate] price research failed (non-fatal)', err)
   }
 
+  // AIREL-04 (audit C4): collapse exact-duplicate lines BEFORE totals are computed —
+  // duplicates must never inflate the persisted total. Runs on the anchored+
+  // researched sections (price_book/researched prices are already resolved by this
+  // point). `computedTotal` is irrelevant to THIS call (0, so overCeiling is always
+  // false here) — the real over-ceiling verdict is evaluated below once the actual
+  // server grand total is known; only `.sections` and the duplicate/qty-0 flags are
+  // consumed here. Never-throw (consistency module discipline) — a check failure
+  // degrades to the pre-dedupe sections, never an estimate failure.
+  const consistencyPreCompute = checkEstimateConsistency(researchedSections, 0, {
+    totalCeiling: estimateTotalCeiling,
+  })
+  const dedupedSections = consistencyPreCompute.sections
+
   // GUARD-03 totals. TAX-03: when companies.tax_config is present the engine computes tax
   // PER-CATEGORY (Σ taxable_base_per_category × rate_category); when it is null/absent this is
   // BYTE-IDENTICAL to the pre-v4.11 flat-rate computation (ENG-02). A malformed tax_config is
@@ -350,7 +403,7 @@ export async function generateEstimateForProject(
     discountAmount,
     deposit,
     balanceDue,
-  } = computeEstimateTotals(researchedSections, { taxRate, taxConfig })
+  } = computeEstimateTotals(dedupedSections, { taxRate, taxConfig })
 
   // GUARD-03: the server recalculation above is the SINGLE authoritative source.
   // Defensively coerce each persisted total to a finite, >= 0 value (no-op on the
@@ -376,6 +429,22 @@ export async function generateEstimateForProject(
       safeSubtotal,
       safeTaxAmount,
       safeGrandTotal,
+    })
+  }
+
+  // AIREL-04: over-ceiling verdict against the REAL server-computed grand total
+  // (post-dedupe, post-tax) — the same `computedTotal > ceiling` comparison the
+  // pure consistency module is unit-tested against, applied here directly (rather
+  // than re-invoking the module a second time) since dedupe already ran above.
+  // Merged with the duplicate/qty-0 flags from the pre-compute pass so
+  // `consistencyFlags` carries every AIREL-04 signal for this generation.
+  const overCeiling = safeGrandTotal > estimateTotalCeiling
+  const consistencyFlags: ConsistencyFlag[] = [...consistencyPreCompute.flags]
+  if (overCeiling) {
+    consistencyFlags.push({
+      kind: 'total_over_ceiling',
+      total: safeGrandTotal,
+      ceiling: estimateTotalCeiling,
     })
   }
 
@@ -513,6 +582,27 @@ export async function generateEstimateForProject(
     })
   }
 
+  // AIREL-04: surface consistency flags (duplicate collapses / qty-0-with-price /
+  // over-ceiling) in the SAME best-effort, never-throw observability channel as
+  // the totals_discrepancy signal above. Additive — does not touch
+  // quality-signal.ts's locked EstimateQualitySignal shape.
+  if (consistencyFlags.length > 0) {
+    try {
+      console.info('[estimate_consistency]', {
+        companyId,
+        estimateId,
+        flags: consistencyFlags,
+      })
+      Sentry.captureMessage('[estimate-quality] consistency flag', {
+        level: 'warning',
+        tags: { company_id: companyId, estimate_id: estimateId },
+        extra: { flags: consistencyFlags },
+      })
+    } catch {
+      // Observability must never break generation.
+    }
+  }
+
   // Insert sections and items in exactly two round-trips (was 2×S sequential).
   // 1) Bulk-insert every section, RETURNING ids in insertion order.
   // 2) Bulk-insert every item across all sections in one call, mapping each item
@@ -594,8 +684,19 @@ export async function generateEstimateForProject(
   // total>0 estimate), the owner is just prompted to fill the flagged line. When
   // nothing is flagged (or total===0), status stays 'estimate_ready' — byte-identical
   // to before. projects.status is unconstrained TEXT (no migration).
+  //
+  // AIREL-04 (audit C4): a computed grand total that blows past the configured
+  // absurdity ceiling (overCeiling) routes through this SAME non-destructive seam —
+  // added with `||`, never replacing the flaggedUnpriced condition. The estimate
+  // persists CURRENT and EDITABLE, exactly like the flaggedUnpriced case; it is
+  // NEVER routed through assess/autoRefine/revertVagueEstimate (that destructive
+  // vague path stays untouched) and NEVER deleted. flag > block (adaptive-first):
+  // a false positive on a legitimate large job must never destroy the estimate —
+  // it just asks the owner to review before proceeding.
   const projectStatus =
-    flaggedUnpriced > 0 && safeGrandTotal > 0 ? 'awaiting_details' : 'estimate_ready'
+    (flaggedUnpriced > 0 && safeGrandTotal > 0) || overCeiling
+      ? 'awaiting_details'
+      : 'estimate_ready'
 
   // QUICK-mv1-01 — zero side effects on discard: rename + project_type + mismatch
   // logging moved from the pre-persist position (formerly here, before the AI
@@ -662,6 +763,21 @@ export async function generateEstimateForProject(
         metadata: { detected: detectedTrade, configured: configuredIndustry },
       })
     }
+  }
+
+  // AIREL-04: a distinct, additive activity event for the over-ceiling case — so a
+  // future banner/notification can differentiate "review — total unusually high"
+  // from the flaggedUnpriced awaiting_details reason (which writes no such row
+  // today). estimate_activity.event_type is unconstrained TEXT (no migration —
+  // same as trade_mismatch_detected above).
+  if (overCeiling) {
+    await supabase.from('estimate_activity').insert({
+      project_id: projectId,
+      company_id: companyId,
+      estimate_id: estimateId,
+      event_type: 'estimate_over_ceiling_flagged',
+      metadata: { total: safeGrandTotal, ceiling: estimateTotalCeiling },
+    })
   }
 
   // Log activity

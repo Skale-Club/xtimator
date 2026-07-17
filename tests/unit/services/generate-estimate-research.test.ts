@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import type { EstimateOutput, EstimateSectionOutput } from '@/lib/ai/types'
 
 // Loads the real generate-estimate service (heavy AI/provider chain) at runtime; under
@@ -91,7 +91,9 @@ function makeSupabaseMock() {
   const captured: {
     estimateInsert?: Record<string, unknown>
     projectStatusUpdate?: Record<string, unknown>
-  } = {}
+    activityInserts: Array<Record<string, unknown>>
+    itemInsertRows?: Array<Record<string, unknown>>
+  } = { activityInserts: [] }
 
   const projectsUpdateSpy = vi.fn().mockImplementation((payload: Record<string, unknown>) => {
     // The final status write carries { status, total }.
@@ -219,11 +221,21 @@ function makeSupabaseMock() {
     }
 
     if (table === 'estimate_items') {
-      return { insert: vi.fn().mockResolvedValue({ error: null }) }
+      return {
+        insert: vi.fn().mockImplementation((rows: Array<Record<string, unknown>>) => {
+          captured.itemInsertRows = rows
+          return Promise.resolve({ error: null })
+        }),
+      }
     }
 
     if (table === 'estimate_activity') {
-      return { insert: vi.fn().mockResolvedValue({ error: null }) }
+      return {
+        insert: vi.fn().mockImplementation((payload: Record<string, unknown>) => {
+          captured.activityInserts.push(payload)
+          return Promise.resolve({ error: null })
+        }),
+      }
     }
 
     return {
@@ -258,6 +270,10 @@ describe('generateEstimateForProject — price research wire (108-04)', () => {
   beforeEach(() => {
     vi.resetAllMocks()
     setupDefaults()
+  })
+
+  afterEach(() => {
+    delete process.env.ESTIMATE_TOTAL_CEILING_USD
   })
 
   it('Test 1 (insertion order): persisted subtotal/total reflect the researched price (research ran BEFORE totals)', async () => {
@@ -350,5 +366,139 @@ describe('generateEstimateForProject — price research wire (108-04)', () => {
 
     expect(captured.projectStatusUpdate!.status).toBe('estimate_ready')
     expect(captured.projectStatusUpdate!.total).toBe(0)
+  })
+
+  // AIREL-04 (166-02) — deterministic post-generation consistency checks: exact-
+  // duplicate collapse (before totals), qty-0-with-price flagging, and a
+  // configurable over-ceiling verdict that routes through the SAME non-destructive
+  // RFALL-01 awaiting_details seam exercised by Test 4a above.
+
+  it('AIREL-04 Test A — exact-duplicate lines cannot inflate the persisted total (two identical $500 lines -> one)', async () => {
+    generateEstimateMock.mockResolvedValue({
+      ...AI_OUTPUT,
+      sections: [
+        {
+          title: 'Cleaning',
+          items: [
+            { description: 'Duplicate item', quantity: 1, unit_price: 500, price_source: 'ai_estimate' },
+            { description: 'Duplicate item', quantity: 1, unit_price: 500, price_source: 'ai_estimate' },
+          ],
+        },
+      ],
+    })
+    // Pass-through research: nothing to re-tag (already priced > 0), nothing flagged.
+    researchMock.mockImplementation(async (sections: EstimateSectionOutput[]) => ({
+      sections,
+      flaggedUnpriced: 0,
+    }))
+
+    const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {})
+    const { fromMock, captured } = makeSupabaseMock()
+    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock } as never)
+
+    await generateEstimateForProject('company-1', 'project-1')
+
+    // Total counts the line ONCE (500), not the naive duplicate-inflated 1000.
+    expect(captured.estimateInsert!.subtotal).toBe(500)
+    expect(captured.estimateInsert!.total).toBe(500)
+    expect(captured.itemInsertRows).toHaveLength(1)
+
+    // Metric coherence (Opus Warning C): aiProposedSubtotal is ALSO recomputed on a
+    // deduped view of the AI's own raw sections, so the totals_discrepancy signal
+    // is not artificially blown out by the AI-side duplicate — server (500) vs
+    // AI-implied (500, deduped) is a ~0% delta, not a false ~100% anomaly.
+    const discrepancyCall = infoSpy.mock.calls.find((c) => c[0] === '[totals_discrepancy]')
+    expect(discrepancyCall).toBeDefined()
+    const discrepancy = discrepancyCall![1] as { delta_pct: number | null; server_grand: number; ai_grand: number }
+    expect(discrepancy.server_grand).toBe(500)
+    expect(discrepancy.ai_grand).toBe(500)
+    expect(discrepancy.delta_pct).toBe(0)
+
+    infoSpy.mockRestore()
+  })
+
+  it('AIREL-04 Test B — over-ceiling: estimate persists CURRENT + editable via awaiting_details, never deleted, with a distinct flag', async () => {
+    // quantity x unit_price exceeds the $2,000,000 default ceiling while staying
+    // under the $1M PER-UNIT price-anchoring clamp (900,000 < 1,000,000) so this
+    // is exclusively an over-ceiling case, not a per-unit clamp case.
+    generateEstimateMock.mockResolvedValue({
+      ...AI_OUTPUT,
+      sections: [
+        {
+          title: 'Full remodel',
+          items: [
+            { description: 'Whole-house remodel', quantity: 3, unit_price: 900_000, price_source: 'ai_estimate' },
+          ],
+        },
+      ],
+    })
+    researchMock.mockImplementation(async (sections: EstimateSectionOutput[]) => ({
+      sections,
+      flaggedUnpriced: 0,
+    }))
+
+    const { fromMock, captured } = makeSupabaseMock()
+    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock } as never)
+
+    const result = await generateEstimateForProject('company-1', 'project-1')
+
+    // Not deleted, not a plain silent success either: the estimate DID persist...
+    expect(result.estimateId).toBe('estimate-1')
+    expect(captured.estimateInsert).toBeDefined()
+    expect(captured.estimateInsert!.total).toBe(2_700_000)
+
+    // ...but flagged current+editable via the SAME non-destructive RFALL-01 seam.
+    expect(captured.projectStatusUpdate!.status).toBe('awaiting_details')
+    expect(captured.projectStatusUpdate!.total).toBe(2_700_000)
+
+    // Distinct metadata differentiates this from the flaggedUnpriced reason.
+    const overCeilingActivity = captured.activityInserts.find(
+      (a) => a.event_type === 'estimate_over_ceiling_flagged'
+    )
+    expect(overCeilingActivity).toBeDefined()
+    expect(overCeilingActivity!.metadata).toEqual({ total: 2_700_000, ceiling: 2_000_000 })
+  })
+
+  it('AIREL-04 Test C — ESTIMATE_TOTAL_CEILING_USD env override is honored (configurable without a deploy-time code change)', async () => {
+    process.env.ESTIMATE_TOTAL_CEILING_USD = '1000'
+    generateEstimateMock.mockResolvedValue({
+      ...AI_OUTPUT,
+      sections: [
+        { title: 'Small job', items: [{ description: 'Fence repair', quantity: 1, unit_price: 1500, price_source: 'ai_estimate' }] },
+      ],
+    })
+    researchMock.mockImplementation(async (sections: EstimateSectionOutput[]) => ({
+      sections,
+      flaggedUnpriced: 0,
+    }))
+
+    const { fromMock, captured } = makeSupabaseMock()
+    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock } as never)
+
+    await generateEstimateForProject('company-1', 'project-1')
+
+    expect(captured.projectStatusUpdate!.status).toBe('awaiting_details')
+    const overCeilingActivity = captured.activityInserts.find(
+      (a) => a.event_type === 'estimate_over_ceiling_flagged'
+    )
+    expect(overCeilingActivity!.metadata).toEqual({ total: 1500, ceiling: 1000 })
+  })
+
+  it('AIREL-04 Test D — under the (default) ceiling with no duplicates/no qty-0: byte-identical regression, no consistency flags, estimate_ready', async () => {
+    // Same shape as the Test 1 baseline (researched to $180) — proves the AIREL-04
+    // wiring is a strict no-op on a normal, in-bounds estimate.
+    const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {})
+    const { fromMock, captured } = makeSupabaseMock()
+    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock } as never)
+
+    await generateEstimateForProject('company-1', 'project-1')
+
+    expect(captured.estimateInsert!.total).toBe(180)
+    expect(captured.projectStatusUpdate!.status).toBe('estimate_ready')
+    expect(captured.activityInserts.some((a) => a.event_type === 'estimate_over_ceiling_flagged')).toBe(false)
+    // No [estimate_consistency] log fires when there is nothing to flag.
+    expect(infoSpy.mock.calls.find((c) => c[0] === '[estimate_consistency]')).toBeUndefined()
+
+    infoSpy.mockRestore()
   })
 })
