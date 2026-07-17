@@ -1,124 +1,105 @@
-# Requirements: Xtimator — Milestone v4.18 Estimate Document & Send Experience Refresh
+# Requirements: Xtimator — Milestone v4.19 Integrity & Reliability Hardening
 
-**Defined:** 2026-07-08
+**Defined:** 2026-07-17
 **Core Value:** A business owner can go from job site audio recording to a sent, professional estimate in under 5 minutes without touching a keyboard.
-**Milestone goal:** Give business owners full control and polish over the estimate document itself — a per-estimate settings panel, a format-first send flow with friendlier client links, mobile line-item parity with desktop, and a complete alignment/inline-editing pass on the document (including editable Bill To). Source: [SEED-041](seeds/SEED-041-estimate-settings-control-panel.md) + [SEED-042](seeds/SEED-042-format-first-send-flow-friendly-estimate-links.md) + [SEED-043](seeds/SEED-043-mobile-estimate-line-item-editor-parity.md) + [SEED-044](seeds/SEED-044-estimate-document-alignment-and-client-editing.md).
+**Milestone goal:** Close every finding from the 2026-07-17 six-track adversarial deep audit of the estimate generation & editing system. Source (required reading for every phase plan — all file:line evidence lives there): [audits/v4.19-ESTIMATE-DEEP-AUDIT.md](audits/v4.19-ESTIMATE-DEEP-AUDIT.md).
 
-> **Locked decisions (non-negotiable, resolved autonomously from research + seed "Decisions to Lock" per the standing no-checkpoint-interruptions preference):**
-> - **Friendly URL shape:** `/estimate/{companySlug}/{estimateSlug}-{shortToken}`, where `shortToken` is ≥10 base62 chars from `crypto.randomBytes(...).toString('base64url')` stored in a NEW `estimates.public_slug_token` column (its own unique index) — never a truncated/reused `share_token` UUID. Old `/estimate/{share_token}` links keep working forever; both routes coexist permanently, no forced migration.
-> - **No new anon RLS policy on `estimates`, ever.** The friendly-URL lookup mirrors `getEstimateByShareToken`'s exact service-role + exact-match posture. This codebase already shipped and reverted one anon-RLS PII leak on this table (`20260606000002_drop_estimates_anon_select_policy.sql`) — do not recreate that bug class.
-> - **Non-destructive hiding is the ONLY hiding mechanism going forward.** The new presentation-settings toggles never clear field content, this REPLACES today's destructive `toggleField()` for Summary/Sections/Payment Terms/Timeline/Warranty/Notes — no dual system.
-> - **"Tax Off" preserves the default rate.** It's a separate enabled/disabled flag on top of the existing rate, not a mutation to `tax_rate = 0` — so re-enabling restores the original value.
-> - **Section visibility is honored on ALL channels from day one** — editor, both share templates (classic/modern), both PDF templates, plain-text, and WhatsApp. Deferring any channel is exactly the "settings-drift" risk research flagged as the #1 structural risk of this milestone.
-> - **Coarse toggles only — no granular per-field hiding in v1** (e.g., no "show quantities but hide unit price"). Matches the seed's own stated caution and FEATURES.md's "must have = coarse, differentiator/risk = granular."
-> - **No reusable settings presets/templates in v1** — settings are per-estimate only (explicitly deferred in SEED-041 itself).
-> - **Client picker: switch or unlink, no inline creation in v1.** A compact popover (not a full command dialog) from a hover-reveal pencil icon beside the Bill To client name.
-> - **Inline-edit affordance:** thin solid underline on hover/focus for the project name (replacing the dotted underline), reconciled with `ProjectTitle`'s more complete validation/error-retry behavior. The Bill To block gets a small pencil icon instead (a different entity-switch action, not inline text edit).
-> - **Mobile line-item editor stays fully inline-editable** (no collapse-behind-expand), refactoring `ItemCardMobile` in place, sharing compact field styles with `SortableDocumentItemRow`. Existing 44px icon/toggle touch targets are preserved even as visual density increases.
-> - **`estimate_deliveries` gains explicit `format` + widened `channel`** columns (mirroring the existing `20260526000005` precedent) so every send/copy/open/download action is auditable, not just email/SMS sends.
-> - **Send Hub always defaults to "Online Estimate"** — no remembered-last-used state in v1.
-> - **PDF/Plain Text via SMS/WhatsApp falls back to the Online Estimate link** — no new attachment-delivery channel is built.
-> - **Email/SMS/WhatsApp copy stays fixed** (reuses existing `estimate_template_*` company fields) — no new per-estimate template layer.
-> - **Autonomous execution.** Per the standing no-checkpoint-interruptions preference — research-flagged open decisions above were resolved by best judgment, grounded in PITFALLS.md/ARCHITECTURE.md/FEATURES.md, and documented here rather than pausing to ask.
+> **Locked decisions (resolved autonomously per the standing no-checkpoint-interruptions preference):**
+> - **Snapshot-on-sign ships BEFORE freeze-on-send.** The snapshot (evidence integrity) is the load-bearing fix and is cheap; the freeze (prevention) follows in the same phase but is the larger change. Both must guard the server actions/routes, not just the UI — RLS has no status predicate.
+> - **Freeze policy:** once an estimate has `sent_at` set OR a signature OR a `client_response`, `saveEstimate` and the refine route reject content writes with a typed `estimate_locked` error; the editor surfaces "Create new version" as the path forward. Presentation-settings changes remain allowed (they don't alter priced content — v4.18 behavior preserved).
+> - **Atomic save = one Postgres RPC** (`SECURITY INVOKER`, implicit transaction) doing the `updated_at` compare-and-set, the `is_current`/lock guard, all section/item upserts, both orphan-delete passes, and the project-total update — returning new `updated_at` + real row ids so the client remaps temp ids. No multi-call PostgREST sequence survives.
+> - **Money stays float-major-units + `Math.round(x*100)/100` in the estimates engine for THIS milestone.** The audit showed pure-float drift is cents-scale and boundary-specific; the dollar-scale bug is preview/engine divergence, fixed by parity (SAVE-07), not by a minor-units migration. A minor-units consolidation is deferred (Future).
+> - **Ground-truth audio duration:** prefer Whisper `verbose_json` duration when the endpoint supports it; ALWAYS apply a byte-size sanity clamp (`minutes ≈ bytes×8/bitrate/60`, reject declared duration outside [0.5×, 2×] of the estimate) as the guaranteed layer. Cost/debit/entitlement all key on the server-derived value.
+> - **Photo coverage:** batch in chunks of 20 within one Inngest job (per-photo steps already checkpoint), analyze ALL project photos, and surface "N of M photos analyzed" in the capture progress UI. Failed photos skip-and-continue (parity with `ingestMultimodal`); the job fails only if ZERO photos succeed.
+> - **Structured photo extraction (vision tool-call schema) is deferred to a future milestone** — this milestone fixes correctness/coverage/metering of the existing prose pipeline first. Captions ship now (cheap, high value).
+> - **Capture persistence:** hand-rolled ~100-LOC IndexedDB wrapper (no new dependency), fail-soft on iOS eviction/private mode. TUS resumable upload explicitly deferred — it would break the `StorageProvider` abstraction for low ROI at ≤10MB blobs.
+> - **Refine review-before-apply v1 = a summary diff** (changed/added/removed lines with old→new prices) with Apply/Discard — not per-line accept/reject (deferred). Apply merges by matching unchanged rows to preserve ids/created_at; only genuinely new rows get temp ids.
+> - **No new AI features in this milestone.** Pure hardening — model behavior may only get MORE deterministic (pinned temperature, higher token ceiling, schema fields the zod gate already accepts).
+> - **Verified strengths are regression contracts:** Inngest idempotency/concurrency, GUARD-03 server math, price-research evidence gate, prompt-injection hardening, cross-tenant scoping. Phase plans must not weaken any of them; the audit doc's final section lists them.
 
 ## v1 Requirements
 
 Each requirement maps to exactly one roadmap phase.
 
-### URL Contract & Public Access Security
+### Trust Boundary (sign/send integrity)
 
-- [x] **PUBURL-01**: A shared estimate can be opened via a friendly branded URL shaped `/estimate/{companySlug}/{estimateSlug}-{shortToken}`, generated for every estimate (existing and new). *(Complete — Plan 01 landed the schema/builder, Plan 03 landed the route that resolves it, Plan 05 wires new-estimate creation + backfills existing rows.)*
-- [x] **PUBURL-02**: Every existing `/estimate/{share_token}` link keeps resolving and behaving exactly as today (same expiration via `share_expires_at`, same view-logging, same accept/decline actions) — zero regression for links already sent to real clients. *(Complete — Plan 02 proved the existing functions byte-unchanged; Plan 03 proved `app/estimate/[token]/*` byte-for-byte untouched via `git diff`.)*
-- [x] **PUBURL-03**: The public lookup for the new friendly route uses the same service-role + exact-match posture as the existing token lookup — no new `anon`-accessible RLS policy is added to `estimates` under any condition. *(Complete — enforced by both Plan 01's static migration-contract test and Plan 02's live anon-RLS negative test.)*
-- [x] **PUBURL-04**: All existing inline share-URL construction call sites (including the 2 inside the Stripe Connect webhook) are replaced by one shared isomorphic path-builder, verified to preserve the `?stripe=success`/`?stripe=canceled` redirect contract. *(Complete — Plan 04 migrated all 5 real call sites (SMS, WhatsApp x2, Stripe Connect webhook x2) with a permanent repo-wide sweep test guarding against regression.)*
-- [x] **PUBURL-05**: View-logging and accept/decline actions work identically regardless of which URL (token or friendly) the client used to reach the estimate. *(Complete — Plan 02 landed `realShareToken` threading; Plan 03's new route keys `logEstimateView`/`EstimateView`/`respondToEstimate` off `realShareToken`, and a live e2e spec proves the parity.)*
-- [x] **PUBURL-06**: The existing custom-domain white-label behavior (SEED-009) is verified compatible with the new friendly route before it ships; if the underlying header logic is found dead, that finding is documented rather than assumed working.
+- [ ] **TRUST-01**: When a client signs an estimate, the signature record captures an immutable snapshot of the signed content (sections, items, totals) — and the public share page + PDF render from that snapshot from then on, so what the client sees after signing is always exactly what they signed.
+- [ ] **TRUST-02**: Once an estimate is sent, signed, or responded to, the save action and the refine route reject content edits server-side with a typed `estimate_locked` error, and the editor guides the owner to "Create new version" instead — no silent in-place mutation of a delivered document is possible from any surface (UI, server action, direct RPC).
+- [ ] **TRUST-03**: Every content-changing save writes an `estimate_updated` activity event, so edits on drafts (and any pre-freeze edits) are visible in the estimate's audit trail.
 
-### Presentation Settings Data Model & Persistence
+### Atomic Save & Version Authority
 
-- [ ] **PRESENT-01**: Every estimate has a persisted `presentation_settings` record (dormant-first JSONB, `NULL` = today's behavior = everything visible) covering visibility of Summary, Line Sections/Scope Details, Payment Terms, Timeline, Warranty, Notes, and Attached Photos.
-- [ ] **PRESENT-02**: Toggling a section's visibility off never deletes or clears its underlying generated content — content is preserved and restored exactly when toggled back on.
-- [ ] **PRESENT-03**: An estimate can override Tax (Default / Custom / Off), Discount, and Deposit independently of company defaults, scoped to that estimate only.
-- [ ] **PRESENT-04**: A single pure resolver module is the one place that decides section visibility — no renderer re-implements its own visibility check.
-- [ ] **PRESENT-05**: If an estimate has already been sent or viewed by the client, changing its presentation or pricing settings shows a non-blocking inline notice that the client has already seen this estimate.
+- [ ] **SAVE-01**: Saving an estimate is atomic — a single transactional RPC performs the concurrency check, all section/item writes, orphan deletes, and the project-total update; a failure leaves the estimate exactly as it was (no partial header/items divergence, no session-poisoning false conflicts).
+- [ ] **SAVE-02**: The save path enforces version authority server-side — writes to a non-current version are rejected, and superseding a version bumps its `updated_at` (DB trigger) so a stale open tab can never silently write to an orphaned version.
+- [ ] **SAVE-03**: After a successful save, the editor adopts the server-assigned row ids (temp-id remap) and server-computed totals — no re-insert churn on subsequent saves, no duplicate-row window.
+- [ ] **SAVE-04**: An edit made while a save is in flight keeps the editor dirty (dirty-epoch reconciliation) — no keystroke is ever stranded unsaved behind a false-clean state with no unload warning.
+- [ ] **SAVE-05**: On a genuine concurrency conflict, autosave pauses until resolved and the user gets a non-destructive resolution path — resolving never silently discards their edits, and repeated failing saves/toast stacking cannot occur.
+- [ ] **SAVE-06**: Line-item inputs are bounded server-side — negative quantity/unit price/discount/cost/markup are rejected, and section/item count ceilings are realistic (no 100k-item payloads).
+- [ ] **SAVE-07**: The editor's live totals preview matches what the server persists for the same inputs — per-category `tax_config` and per-line `taxable` are honored identically on both sides (or the editor adopts server totals on save), and the `taxable` toggle visibly does what it claims in every tax mode.
 
-### Estimate Document Consolidated Pass
+### AI Reliability & Output Integrity
 
-- [x] **DOCUX-01**: A gear icon on the left side of the floating `Photos / Send` pill opens a settings panel — a popover on desktop, a bottom sheet on mobile — exposing the Pricing, Document Sections, and Client Presentation controls from PRESENT-01/03.
-- [x] **DOCUX-02**: The `Bill To` block is editable directly inside the estimate document — hovering/focusing it in edit mode reveals a pencil icon; clicking opens a compact popover to search and switch the linked client, or unlink the current one.
-- [x] **DOCUX-03**: The existing client-picker implementations (`LinkClientInline`, `LinkClientButton`, `LinkClientCard`, and the 4th implementation inside `estimate-document.tsx`) are consolidated into one shared component reused everywhere a client can be linked.
-- [x] **DOCUX-04**: The project name's inline-edit affordance uses a thin solid underline on hover/focus (replacing the dotted/serrated underline) and reconciles with `ProjectTitle`'s validation/error-retry behavior.
-- [x] **DOCUX-05**: A full alignment pass removes accidental spacing/offset inconsistencies across the company header, estimate title band, project/bill-to grid, summary, section headers, and line-item table — verified on desktop and mobile against the same estimate.
-- [x] **DOCUX-06**: The mobile line-item editor visually matches the desktop document-native table language (same density, hierarchy, document surface) instead of a standalone glass card — verified at 360px/390px/430px with no text clipping and no regression to existing touch targets.
-- [x] **DOCUX-07**: Confirmed-dead components (`section-card.tsx`, `item-row.tsx`) are removed as part of this pass.
+- [ ] **AIREL-01**: Every AI fetch in the codebase carries an explicit timeout (generation, needs-details, price-research web adapters) — a hung upstream can no longer pin a generation job or bypass the provider fallback.
+- [ ] **AIREL-02**: Estimate generation cannot silently truncate — output token ceiling raised to fit large estimates, `finish_reason` is read, and a length-stop surfaces as a distinct typed error that drives a targeted retry instead of masquerading as malformed JSON.
+- [ ] **AIREL-03**: The live OpenRouter tool schema requests `taxable`, `tax_category`, `cost`, and `markup_pct` — per-category tax and cost+markup work on the primary provider path, not only via the Gemini fallback.
+- [ ] **AIREL-04**: Generated estimates pass post-generation consistency checks before persisting — duplicate line detection, qty-0-with-price flagging, and a configurable per-estimate total ceiling that routes to needs-details instead of silently persisting an absurd total.
+- [ ] **AIREL-05**: Estimate generation runs at a pinned low temperature on all providers — run-to-run price variance is deliberately minimized.
 
-### Format-First Send Hub & Cross-Surface Settings Rollout
+### Billing & Cost Integrity
 
-- [x] **SENDHUB-01**: Clicking `Send` opens a hub organized around three primary formats — Online Estimate (default), PDF, and Plain Text — each exposing its own delivery actions (copy/open/email/SMS/WhatsApp/download as applicable), replacing the channel-first Email/SMS tabs and the separate "Share & Export" menu.
-- [x] **SENDHUB-02**: Sending PDF or Plain Text via SMS/WhatsApp falls back to delivering the Online Estimate link.
-- [x] **SENDHUB-03**: `estimate_deliveries` records both `format` (online_link / pdf / plain_text) and a widened `channel` (adds copy / open / download / manual alongside email / sms / whatsapp).
-- [x] **SENDHUB-04**: The PRESENT-04 settings resolver is wired into every remaining render/format path — classic PDF, modern PDF, classic share, modern share, the plain-text template, and the WhatsApp formatter.
-- [x] **SENDHUB-05**: A cross-surface verification test confirms that, for a single presentation-settings toggle, section visibility is identical across all 6 render/format outputs — not just the editor preview.
-- [x] **SENDHUB-06**: `Mark as Sent` and language selection remain available in the new Send hub as secondary actions, visually subordinate to the three primary format choices.
+- [ ] **BILL-01**: The refine endpoint is credit-gated like generation — a zero-balance company cannot run unmetered Whisper/Vision/Claude calls through refine.
+- [ ] **BILL-02**: Audio transcription cost, credit debit, and entitlement checks key on a server-derived duration (Whisper-reported and/or byte-size clamp) — a client-declared duration can no longer under-price transcription.
+- [ ] **BILL-03**: Vision calls carry the job's cost context (attemptId/companyId/projectId) so photo-batch cost roll-up and credit debits record real cost instead of permanently-null reads.
+- [ ] **BILL-04**: Retrying a failed generation does not re-pay for transcription — the transcribe job short-circuits when a non-empty transcript already exists.
+- [ ] **BILL-05**: Cost events are deduplicated per attempt+operation (unique index) and record the provider that actually served (fallback attribution) — measured platform cost is accurate.
+- [ ] **BILL-06**: Per-plan audio-minute limits are actually enforced against the server-derived duration — the dead `maxAudioMinutesPerEstimate` entitlement becomes real (or is consciously removed), bounding total transcription spend per plan.
 
-## v2 Requirements
+### Photo Pipeline Fidelity
 
-Deferred to a future milestone. Tracked but not in this roadmap.
+- [ ] **PHOTO-01**: User-entered photo captions are included (sanitized) alongside AI descriptions in the estimate generation prompt — typed context like "north wall, 12ft ceiling" is never discarded.
+- [ ] **PHOTO-02**: All of a project's photos are analyzed (batched beyond the current first-20 cutoff), the user sees "N of M photos analyzed" when coverage is partial, and unanalyzed photos can be re-analyzed without re-charging already-analyzed ones.
+- [ ] **PHOTO-03**: One failing photo no longer fails the whole batch — per-photo skip-and-continue with the job failing only when zero photos succeed, matching the refine path's policy.
+- [ ] **PHOTO-04**: Vision descriptions are never silently truncated mid-sentence — `finish_reason` is checked, the token cap is adequate, and the Gemini fallback uses an equivalent cap so both providers produce comparable descriptions.
 
-- **PRESENTX-01**: Granular per-field visibility inside a section (e.g., hide quantities/unit price while keeping totals) — add only if owners request it after the coarse toggles ship.
-- **PRESENTX-02**: Reusable settings presets/templates across estimates (explicitly deferred in SEED-041 itself).
-- **DOCUXX-01**: Inline client creation from the Bill To picker (v1 only supports switching to an existing client or unlinking).
-- **SENDHUBX-01**: Send hub remembers the owner's last-used format instead of always defaulting to Online Estimate.
-- **PUBURLX-01**: Rate limiting on the public estimate route, applying the existing Redis sliding-window infrastructure (SEED-012) — deferred because the ≥10-char base62 CSPRNG suffix already provides ~60 bits of entropy as the primary defense; revisit if abuse is observed.
+### Capture & Upload Resilience
 
-## Out of Scope
+- [ ] **CAPT-01**: Audio and photo uploads retry automatically with exponential backoff on transient failures before surfacing an error — a network flap no longer costs the user their capture.
+- [ ] **CAPT-02**: Closing or navigating the tab during the upload/dispatch window triggers an unsaved-work warning (beforeunload extended beyond the recording state).
+- [ ] **CAPT-03**: A finished recording is persisted locally (IndexedDB) before upload and until dispatch is confirmed — after a failed upload or accidental close, the user can resume the upload instead of losing the recording.
+- [ ] **CAPT-04**: Orphaned storage objects (uploads whose DB row was never created — including the out-of-credits path — and photo objects with no row) are reconciled by a scheduled cleanup for both the audio and photos buckets.
+- [ ] **CAPT-05**: The offline/draft UX tells the truth — the false "showing cached data" banner is corrected or removed, and text drafts persist in all three capture flows, not just the new-project wizard.
 
-| Feature | Reason |
-|---------|--------|
-| Building new custom-domain / white-label support | Already shipped via SEED-009 — this milestone only verifies the friendly-URL route stays compatible with it (PUBURL-06), it does not build new domain infrastructure |
-| Granular per-field/column visibility (hide qty or unit price alone) | FEATURES.md flags full per-field toggle sprawl as an explicit anti-feature risk; ships coarse section toggles only in v1 |
-| Reusable settings presets/templates | Explicitly deferred in SEED-041 itself |
-| Inline client creation | Keeps the Bill To picker's v1 scope tight; existing client-management flows still available outside the document |
-| New attachment-delivery channels for PDF over SMS/WhatsApp | No infrastructure exists for this today; falls back to the Online Estimate link instead |
-| Per-estimate-template-configurable send copy | No new template layer; reuses existing `estimate_template_*` company fields |
-| Rate limiting the public estimate route | Token entropy (≥60 bits) is the primary defense for v1; existing Redis rate-limit infra (SEED-012) can be applied later if abuse is observed |
+### Refine Safety & Review
+
+- [ ] **REFINE-01**: Opening refine with unsaved edits flushes (or explicitly confirms) a save first, so the AI always refines the estimate the user is actually looking at and no local edit is silently discarded by the apply.
+- [ ] **REFINE-02**: Refinement results are presented as a reviewable change summary (changed/added/removed lines, old→new prices) with Apply/Discard, and applying preserves the identity (ids/created_at) of untouched rows instead of regenerating the entire tree.
+
+## Future Requirements (deferred)
+
+- **FUT-01**: Migrate the estimates totals engine to integer minor units (consolidate with `lib/money`) — deferred; preview-parity (SAVE-07) closes the dollar-scale divergence first.
+- **FUT-02**: Structured photo extraction (vision tool-call schema: surfaces/measurements/materials/damage → `photos.ai_extraction JSONB`) — the biggest estimate-quality lever for measurement-heavy trades; ~1.3-1.7× per-photo cost.
+- **FUT-03**: Per-line accept/reject in the refine review UI (v1 ships a summary diff with Apply/Discard).
+- **FUT-04**: TUS resumable uploads for very large blobs (requires a provider-capability seam in `StorageProvider`).
+- **FUT-05**: Editor undo stack (beyond Discard).
+- **FUT-06**: Editor performance pass — memoization + row virtualization for 50+ item estimates (audit finding B9; not integrity-critical).
+- **FUT-07**: LLM-judge quality gate on generated estimates (beyond the AIREL-04 deterministic checks).
+
+## Out of Scope (this milestone)
+
+- **New AI features / model changes** — pure hardening; behavior may only become more deterministic.
+- **Real service worker / offline mode** — CAPT-05 only makes the current UI honest; building actual offline capability is a separate product decision.
+- **Whisper language-hint tuning** — low-risk quality tweak, tracked in the audit (D6), can ride any later phase; not integrity work.
+- **Dead-code cleanup beyond what phases touch** (e.g. deleting `lib/ai/providers/anthropic.ts`) — hygiene items land opportunistically inside the phase that touches the file, never as their own phase.
+- **Per-role (owner vs staff) edit restrictions** — RLS is intentionally role-flat today; a product decision, not an audit fix.
 
 ## Traceability
 
-Every v1 requirement maps to exactly one phase. Coverage: 24/24 mapped, 0 orphans, 0 duplicates. Numbering continues the global counter — v4.17 ended at Phase 159, so this milestone starts at **Phase 160**.
-
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PUBURL-01 | Phase 160 — URL Contract & Public Access Security | Complete |
-| PUBURL-02 | Phase 160 — URL Contract & Public Access Security | Complete |
-| PUBURL-03 | Phase 160 — URL Contract & Public Access Security | Complete |
-| PUBURL-04 | Phase 160 — URL Contract & Public Access Security | Complete |
-| PUBURL-05 | Phase 160 — URL Contract & Public Access Security | Complete |
-| PUBURL-06 | Phase 160 — URL Contract & Public Access Security | Complete |
-| PRESENT-01 | Phase 161 — Presentation Settings Data Model & Persistence | Pending |
-| PRESENT-02 | Phase 161 — Presentation Settings Data Model & Persistence | Pending |
-| PRESENT-03 | Phase 161 — Presentation Settings Data Model & Persistence | Pending |
-| PRESENT-04 | Phase 161 — Presentation Settings Data Model & Persistence | Pending |
-| PRESENT-05 | Phase 161 — Presentation Settings Data Model & Persistence | Pending |
-| DOCUX-01 | Phase 162 — Estimate Document Consolidated Pass | Complete |
-| DOCUX-02 | Phase 162 — Estimate Document Consolidated Pass | Complete |
-| DOCUX-03 | Phase 162 — Estimate Document Consolidated Pass | Complete |
-| DOCUX-04 | Phase 162 — Estimate Document Consolidated Pass | Complete |
-| DOCUX-05 | Phase 162 — Estimate Document Consolidated Pass | Complete |
-| DOCUX-06 | Phase 162 — Estimate Document Consolidated Pass | Complete |
-| DOCUX-07 | Phase 162 — Estimate Document Consolidated Pass | Complete |
-| SENDHUB-01 | Phase 163 — Format-First Send Hub & Cross-Surface Settings Rollout | Complete |
-| SENDHUB-02 | Phase 163 — Format-First Send Hub & Cross-Surface Settings Rollout | Complete |
-| SENDHUB-03 | Phase 163 — Format-First Send Hub & Cross-Surface Settings Rollout | Complete |
-| SENDHUB-04 | Phase 163 — Format-First Send Hub & Cross-Surface Settings Rollout | Complete |
-| SENDHUB-05 | Phase 163 — Format-First Send Hub & Cross-Surface Settings Rollout | Complete |
-| SENDHUB-06 | Phase 163 — Format-First Send Hub & Cross-Surface Settings Rollout | Complete |
-
-**Phase → requirement rollup:**
-- **Phase 160 — URL Contract & Public Access Security**: PUBURL-01, PUBURL-02, PUBURL-03, PUBURL-04, PUBURL-05, PUBURL-06 (file-disjoint from Phase 161; highest-severity pitfall, done first with its own security checkpoint)
-- **Phase 161 — Presentation Settings Data Model & Persistence**: PRESENT-01, PRESENT-02, PRESENT-03, PRESENT-04, PRESENT-05 (file-disjoint from Phase 160, can run in parallel; must land before Phase 163 and the settings-UI sub-step of Phase 162)
-- **Phase 162 — Estimate Document Consolidated Pass**: DOCUX-01, DOCUX-02, DOCUX-03, DOCUX-04, DOCUX-05, DOCUX-06, DOCUX-07 (internally sequenced 3a client-picker/alignment → 3b settings UI wiring → 3c mobile parity, since 3 of 4 seeds touch the same `estimate-document.tsx`)
-- **Phase 163 — Format-First Send Hub & Cross-Surface Settings Rollout**: SENDHUB-01, SENDHUB-02, SENDHUB-03, SENDHUB-04, SENDHUB-05, SENDHUB-06 (depends on Phase 161's settings model and benefits from Phase 160's friendly URLs; closes the settings-drift risk)
-
----
-*Requirements defined: 2026-07-08 — milestone v4.18 Estimate Document & Send Experience Refresh, informed by 4-agent research (STACK/FEATURES/ARCHITECTURE/PITFALLS, see `.planning/research/SUMMARY.md`). Phase numbering continues the global counter — v4.17 ended at Phase 159, so this milestone starts at Phase 160. Roadmap: [.planning/ROADMAP.md](ROADMAP.md).*
+| TRUST-01..03 | 164 | Pending |
+| SAVE-01..07 | 165 | Pending |
+| AIREL-01..05 | 166 | Pending |
+| BILL-01..06 | 167 | Pending |
+| PHOTO-01..04 | 168 | Pending |
+| CAPT-01..05 | 169 | Pending |
+| REFINE-01..02 | 170 | Pending |
