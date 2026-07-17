@@ -2624,7 +2624,7 @@ Plans:
   4. On a genuine two-tab conflict, autosave pauses, exactly one non-stacking notice appears, and the resolution path lets the user keep their edits (no forced destructive reload)
   5. Negative quantity/unit-price/discount/cost/markup are rejected server-side, and the editor's displayed grand total equals the persisted total for the same inputs in every tax mode (flat and per-category `tax_config`), with the `taxable` toggle doing something visible in both
 
-**Plans**: TBD
+**Plans**: 1 of 2+ (165-02 not yet authored) — 165-01 COMPLETE 2026-07-17 (SAVE-01/02/06/07-server: `save_estimate_atomic` SECURITY INVOKER RPC folding the lock/is_current/compare-and-set guards + all section/item upserts + orphan deletes + project total into one transaction, `trg_estimates_set_updated_at` version-authority trigger, zod negative-value bounds + realistic caps, flat-tax-path `taxable` fix, see [165-01-SUMMARY.md](phases/165-atomic-save-version-authority/165-01-SUMMARY.md)). **Phase 165 NOT YET COMPLETE** — SAVE-03 (temp-id remap adoption), SAVE-04 (dirty-epoch reconciliation), SAVE-05 (non-destructive conflict UX), and SAVE-07's CLIENT half (editor preview parity) remain open for a future 165-02 (client-side, not yet planned/authored).
 
 ### Phase 166: AI Reliability & Output Integrity
 

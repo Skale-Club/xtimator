@@ -29,13 +29,13 @@ Each requirement maps to exactly one roadmap phase.
 
 ### Atomic Save & Version Authority
 
-- [ ] **SAVE-01**: Saving an estimate is atomic — a single transactional RPC performs the concurrency check, all section/item writes, orphan deletes, and the project-total update; a failure leaves the estimate exactly as it was (no partial header/items divergence, no session-poisoning false conflicts).
-- [ ] **SAVE-02**: The save path enforces version authority server-side — writes to a non-current version are rejected, and superseding a version bumps its `updated_at` (DB trigger) so a stale open tab can never silently write to an orphaned version.
+- [x] **SAVE-01**: Saving an estimate is atomic — a single transactional RPC performs the concurrency check, all section/item writes, orphan deletes, and the project-total update; a failure leaves the estimate exactly as it was (no partial header/items divergence, no session-poisoning false conflicts). *(165-01: `save_estimate_atomic` SECURITY INVOKER RPC — one implicit transaction, distinct SQLSTATEs per guard.)*
+- [x] **SAVE-02**: The save path enforces version authority server-side — writes to a non-current version are rejected, and superseding a version bumps its `updated_at` (DB trigger) so a stale open tab can never silently write to an orphaned version. *(165-01: is_current guard inside the RPC + `trg_estimates_set_updated_at` BEFORE UPDATE trigger.)*
 - [ ] **SAVE-03**: After a successful save, the editor adopts the server-assigned row ids (temp-id remap) and server-computed totals — no re-insert churn on subsequent saves, no duplicate-row window.
 - [ ] **SAVE-04**: An edit made while a save is in flight keeps the editor dirty (dirty-epoch reconciliation) — no keystroke is ever stranded unsaved behind a false-clean state with no unload warning.
 - [ ] **SAVE-05**: On a genuine concurrency conflict, autosave pauses until resolved and the user gets a non-destructive resolution path — resolving never silently discards their edits, and repeated failing saves/toast stacking cannot occur.
-- [ ] **SAVE-06**: Line-item inputs are bounded server-side — negative quantity/unit price/discount/cost/markup are rejected, and section/item count ceilings are realistic (no 100k-item payloads).
-- [ ] **SAVE-07**: The editor's live totals preview matches what the server persists for the same inputs — per-category `tax_config` and per-line `taxable` are honored identically on both sides (or the editor adopts server totals on save), and the `taxable` toggle visibly does what it claims in every tax mode.
+- [x] **SAVE-06**: Line-item inputs are bounded server-side — negative quantity/unit price/discount/cost/markup are rejected, and section/item count ceilings are realistic (no 100k-item payloads). *(165-01: zod `.min(0)` + MAX_SECTIONS 60 / MAX_ITEMS_PER_SECTION 200.)*
+- [x] **SAVE-07**: The editor's live totals preview matches what the server persists for the same inputs — per-category `tax_config` and per-line `taxable` are honored identically on both sides (or the editor adopts server totals on save), and the `taxable` toggle visibly does what it claims in every tax mode. *(165-01 closes the SERVER half only — the flat tax path now honors per-line `taxable`. The editor's own inline flat-tax preview math in `use-estimate-reducer.ts` is a SEPARATE code path, untouched by this plan, and still ignores `taxable`/`tax_config` — client/server parity is NOT yet closed; tracked for a follow-up client-side plan.)*
 
 ### AI Reliability & Output Integrity
 
