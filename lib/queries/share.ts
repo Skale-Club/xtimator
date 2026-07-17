@@ -9,6 +9,43 @@ import { getEstimatePhotos } from '@/lib/queries/estimate-photo'
 import { createStorage } from '@/lib/storage'
 import { toMinorUnits } from '@/lib/money/currency'
 import { isShareLinkExpired } from '@/lib/estimates/share-link'
+import {
+  applySignedSnapshot,
+  type SignedContentSnapshot,
+} from '@/lib/estimate/signed-snapshot'
+
+/**
+ * TRUST-01: the most recent signature row's immutable content, if any.
+ * `signed_content: null` covers BOTH "no signature yet" and "a legacy
+ * signature predating this column" — both mean render the LIVE rows
+ * unchanged (byte-identical retrocompat).
+ */
+export interface LatestSignedSnapshotRow {
+  id: string
+  signed_at: string
+  signed_content: SignedContentSnapshot | null
+  signed_total: number | null
+}
+
+/**
+ * Shared query used by BOTH share lookups here AND the PDF route
+ * (app/api/estimates/[id]/pdf/route.ts) so the "latest signature" lookup
+ * never drifts between the two client-facing render surfaces.
+ */
+export async function loadLatestSignedSnapshot(
+  supabase: ReturnType<typeof requireServiceClient>,
+  estimateId: string
+): Promise<LatestSignedSnapshotRow | null> {
+  const { data } = await supabase
+    .from('estimate_signatures')
+    .select('id, signed_at, signed_content, signed_total')
+    .eq('estimate_id', estimateId)
+    .order('signed_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  return (data as LatestSignedSnapshotRow | null) ?? null
+}
 
 // Internal fields never sent to the public browser payload: share_token is a
 // bearer credential the viewer already holds. attachedPhotos is also omitted
@@ -152,11 +189,23 @@ export async function getEstimateByShareToken(
     }))
   )
 
-  const estimateWithSections: EstimateWithSections = {
-    ...estimate,
-    sections: sectionsWithItems,
-    attachedPhotos: attachedPhotosRaw,
-  }
+  // TRUST-01: once a signature with a non-null snapshot exists, REPLACE the
+  // enumerated rendered-content field set with the frozen snapshot — never
+  // merge. Legacy signatures (signed_content IS NULL) fall through
+  // unchanged (byte-identical retrocompat). Photo URLs, company branding,
+  // and share metadata are NOT part of the overlay set and stay live (see
+  // lib/estimate/signed-snapshot.ts's known-limitation doc comment).
+  const signedSnapshotRow = await loadLatestSignedSnapshot(supabase, estimate.id)
+  const signedContent = signedSnapshotRow?.signed_content ?? null
+
+  const estimateWithSections: EstimateWithSections = applySignedSnapshot(
+    {
+      ...estimate,
+      sections: sectionsWithItems,
+      attachedPhotos: attachedPhotosRaw,
+    },
+    signedContent
+  )
 
   // Fetch project + client
   const { data: projectData } = await supabase
@@ -240,9 +289,17 @@ export async function getEstimateByShareToken(
   const paid_at = (estimateRaw.paid_at as string | null) ?? null
   const payment_amount_cents =
     (estimateRaw.payment_amount_cents as number | null) ?? null
-  const totalDollars = Number(estimate.total ?? 0)
+  // CRITICAL (TRUST-01): once a snapshot has been applied, the pay amount
+  // must key off signed_total — never live estimate.total, which may have
+  // drifted since signing. currency_code is read from the (possibly
+  // overlaid) estimateWithSections so a signed estimate's pay amount is
+  // computed in the currency that was frozen AT SIGNING time.
+  const payoutDollars = signedContent
+    ? (signedSnapshotRow?.signed_total ?? estimateWithSections.total)
+    : estimate.total
+  const totalDollars = Number(payoutDollars ?? 0)
   const total_amount_cents = Number.isFinite(totalDollars)
-    ? toMinorUnits(totalDollars, estimate.currency_code)
+    ? toMinorUnits(totalDollars, estimateWithSections.currency_code)
     : 0
 
   // Strip internal fields from the estimate before it crosses to the client:
@@ -371,11 +428,19 @@ export async function getEstimateByPublicToken(
     }))
   )
 
-  const estimateWithSections: EstimateWithSections = {
-    ...estimate,
-    sections: sectionsWithItems,
-    attachedPhotos: attachedPhotosRaw,
-  }
+  // TRUST-01: same REPLACE-not-merge overlay as getEstimateByShareToken —
+  // see that function's comment for the full rationale.
+  const signedSnapshotRow = await loadLatestSignedSnapshot(supabase, estimate.id)
+  const signedContent = signedSnapshotRow?.signed_content ?? null
+
+  const estimateWithSections: EstimateWithSections = applySignedSnapshot(
+    {
+      ...estimate,
+      sections: sectionsWithItems,
+      attachedPhotos: attachedPhotosRaw,
+    },
+    signedContent
+  )
 
   const { data: projectData } = await supabase
     .from('projects')
@@ -430,9 +495,14 @@ export async function getEstimateByPublicToken(
   const paid_at = (estimateRaw.paid_at as string | null) ?? null
   const payment_amount_cents =
     (estimateRaw.payment_amount_cents as number | null) ?? null
-  const totalDollars = Number(estimate.total ?? 0)
+  // CRITICAL (TRUST-01): re-derive from signed_total, never live estimate.total
+  // — see getEstimateByShareToken's identical comment for the full rationale.
+  const payoutDollars = signedContent
+    ? (signedSnapshotRow?.signed_total ?? estimateWithSections.total)
+    : estimate.total
+  const totalDollars = Number(payoutDollars ?? 0)
   const total_amount_cents = Number.isFinite(totalDollars)
-    ? toMinorUnits(totalDollars, estimate.currency_code)
+    ? toMinorUnits(totalDollars, estimateWithSections.currency_code)
     : 0
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars

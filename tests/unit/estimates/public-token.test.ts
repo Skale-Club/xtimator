@@ -15,6 +15,9 @@ interface MockConfig {
   projectRow?: AnyRow | null
   companyRow?: AnyRow | null
   stateRow?: AnyRow | null
+  /** TRUST-01 — latest estimate_signatures row (id, signed_at, signed_content,
+   *  signed_total). Undefined/null = no signature yet (today's behavior). */
+  signatureRow?: AnyRow | null
 }
 
 // Captures the column lists passed to .select() per table for assertions.
@@ -71,6 +74,19 @@ function installMock(cfg: MockConfig) {
       return {
         select: vi.fn(() => ({
           eq: vi.fn(() => ({ order: vi.fn().mockResolvedValue({ data: [] }) })),
+        })),
+      }
+    }
+    if (table === 'estimate_signatures') {
+      return {
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            order: vi.fn(() => ({
+              limit: vi.fn(() => ({
+                maybeSingle: vi.fn().mockResolvedValue({ data: cfg.signatureRow ?? null }),
+              })),
+            })),
+          })),
         })),
       }
     }
@@ -151,6 +167,104 @@ describe('getEstimateByPublicToken', () => {
     installMock({ estimateRow: null })
     const result = await getEstimateByPublicToken('nope')
     expect(result).toBeNull()
+  })
+})
+
+// TRUST-01 (Phase 164 Plan 01) — the friendly-URL sibling must gain the SAME
+// signed-snapshot overlay behavior as getEstimateByShareToken (same shared
+// applySignedSnapshot function, no second implementation).
+describe('getEstimateByPublicToken — TRUST-01 signed-snapshot overlay', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  const liveEstimateAfterEdit: AnyRow = {
+    ...validEstimate,
+    total: 15000,
+    summary: 'EDITED summary after signing',
+    deposit_type: 'amount',
+    deposit_value: 5000,
+    balance_due: 10000,
+    discount_type: 'fixed',
+    discount_value: 500,
+    discount_amount: 500,
+    estimate_date: '2026-08-01',
+    estimate_number: 'EST-9999',
+    subtotal: 14000,
+  }
+
+  const liveSectionsAfterEdit: AnyRow[] = [
+    { id: 'sec-1', estimate_id: 'e1', company_id: 'c1', title: 'Edited Section', sort_order: 1, subtotal: 14000 },
+  ]
+
+  const signedSnapshot = {
+    version: 1 as const,
+    summary: 'ORIGINAL signed summary',
+    notes: null,
+    timeline: null,
+    payment_terms: null,
+    warranty_terms: null,
+    estimate_date: '2026-07-01',
+    estimate_number: 'EST-1042',
+    subtotal: 10000,
+    tax_rate: 0.0825,
+    tax_amount: 825,
+    discount_type: 'percentage',
+    discount_value: 10,
+    discount_amount: 1000,
+    deposit_type: 'percent',
+    deposit_value: 30,
+    balance_due: 6877.5,
+    total: 9825,
+    currency_code: 'USD',
+    presentation_settings: null,
+    sections: [
+      { id: 'sec-1', title: 'Original Section', sort_order: 1, subtotal: 8000, items: [] },
+    ],
+  }
+
+  it('snapshot present: drift-prone fields + total_amount_cents reflect the SIGNED value via the shortToken lookup too', async () => {
+    installMock({
+      estimateRow: liveEstimateAfterEdit,
+      sections: liveSectionsAfterEdit,
+      projectRow: validProject,
+      companyRow: validCompany,
+      signatureRow: {
+        id: 'sig-1',
+        signed_at: '2026-07-01T12:00:00Z',
+        signed_content: signedSnapshot,
+        signed_total: 9825,
+      },
+    })
+
+    const result = await getEstimateByPublicToken('shorttok123')
+    expect(result).not.toBeNull()
+    const { estimate } = result!
+
+    expect(estimate.summary).toBe('ORIGINAL signed summary')
+    expect(estimate.estimate_date).toBe('2026-07-01')
+    expect(estimate.estimate_number).toBe('EST-1042')
+    expect(estimate.deposit_type).toBe('percent')
+    expect(estimate.deposit_value).toBe(30)
+    expect(estimate.discount_type).toBe('percentage')
+    expect(estimate.discount_value).toBe(10)
+    expect(estimate.sections[0].subtotal).toBe(8000)
+    expect(estimate.total_amount_cents).toBe(982500)
+    expect(estimate.total_amount_cents).not.toBe(1500000)
+  })
+
+  it('legacy signature (signed_content IS NULL) renders LIVE rows unchanged via the shortToken lookup', async () => {
+    installMock({
+      estimateRow: liveEstimateAfterEdit,
+      sections: liveSectionsAfterEdit,
+      projectRow: validProject,
+      companyRow: validCompany,
+      signatureRow: { id: 'sig-legacy', signed_at: '2026-05-19T00:00:00Z', signed_content: null, signed_total: null },
+    })
+
+    const result = await getEstimateByPublicToken('shorttok123')
+    expect(result).not.toBeNull()
+    expect(result!.estimate.summary).toBe('EDITED summary after signing')
+    expect(result!.estimate.sections[0].subtotal).toBe(14000)
+    expect(result!.estimate.total_amount_cents).toBe(1500000)
   })
 })
 

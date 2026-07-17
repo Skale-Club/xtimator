@@ -4,6 +4,8 @@ import { createElement } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { getEstimateWithContext } from '@/lib/queries/estimate'
+import { loadLatestSignedSnapshot } from '@/lib/queries/share'
+import { applySignedSnapshot } from '@/lib/estimate/signed-snapshot'
 import { createStorage } from '@/lib/storage'
 import EstimatePDF from '@/components/pdf/estimate-pdf'
 import EstimatePDFModern from '@/components/pdf/estimate-pdf-modern'
@@ -49,24 +51,45 @@ export async function GET(
       )
     }
 
-    const { estimate, project, company } = result
+    const { estimate: liveEstimate, project, company } = result
+
+    // TRUST-01: once a signature with a non-null snapshot exists, render from
+    // the frozen content — never live rows. Same REPLACE-not-merge overlay,
+    // and the SAME shared query/overlay functions, as lib/queries/share.ts's
+    // two lookup functions — no second implementation.
+    const signatureServiceClient = requireServiceClient()
+    const signedSnapshotRow = await loadLatestSignedSnapshot(
+      signatureServiceClient,
+      liveEstimate.id
+    )
+    const signedContent = signedSnapshotRow?.signed_content ?? null
+    const estimate = applySignedSnapshot(liveEstimate, signedContent)
 
     // PDF caching (lightweight ETag / 304 approach — see summary): the rendered
-    // bytes are a function of the estimate content (updated_at bumps on every
-    // edit), the selected template, and the label language. Emit an ETag over
-    // exactly those inputs; when the client re-requests an UNCHANGED estimate we
-    // answer 304 and skip the expensive renderToBuffer AND the preparedBy lookup
-    // + per-photo signed-URL resolution below. A full storage-object cache was
+    // bytes are a function of the estimate content, the selected template, and
+    // the label language. Emit an ETag over exactly those inputs; when the
+    // client re-requests an UNCHANGED estimate we answer 304 and skip the
+    // expensive renderToBuffer AND the preparedBy lookup + per-photo
+    // signed-URL resolution below. A full storage-object cache was
     // deliberately avoided: this route's PDF varies by company branding /
     // preparedBy / attached photos (none captured by estimate.updated_at) and is
     // a DIFFERENT render than the send route's attachment, so a shared
     // updated_at-keyed object would risk serving stale/wrong PDFs.
+    //
+    // TRUST-01: once a snapshot is used, the render is a pure function of the
+    // FROZEN signature (id + signed_at) — a post-sign edit bumping
+    // updated_at must NOT invalidate an already-correct cached signed PDF, so
+    // the key switches off updated_at entirely in that case.
     const rawTemplateId = (company as { estimate_template_style?: string }).estimate_template_style
     const templateId: EstimateTemplateId = isEstimateTemplateId(rawTemplateId)
       ? rawTemplateId
       : DEFAULT_ESTIMATE_TEMPLATE_ID
     const estimateLanguage = isSupportedLanguage(estimate.language) ? estimate.language : 'en'
-    const etag = `"est-${estimate.id}-${estimate.updated_at}-${templateId}-${estimateLanguage}"`
+    const contentKey =
+      signedSnapshotRow && signedSnapshotRow.signed_content
+        ? `sig-${signedSnapshotRow.id}-${signedSnapshotRow.signed_at}`
+        : `est-${estimate.id}-${estimate.updated_at}`
+    const etag = `"${contentKey}-${templateId}-${estimateLanguage}"`
     if (request.headers.get('if-none-match') === etag) {
       return new Response(null, {
         status: 304,
