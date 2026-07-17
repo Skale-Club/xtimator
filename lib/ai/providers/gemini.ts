@@ -85,6 +85,15 @@ export async function analyzePhotoGemini(base64: string, mimeType: string): Prom
       { text: PHOTO_PROMPT },
       { inlineData: { mimeType, data: base64 } },
     ],
+    // Phase 168 (PHOTO-04, audit E4): the Gemini vision fallback previously had
+    // NO cap (asymmetric with OpenRouter's). 450 mirrors analyzePhotoOR's base
+    // cap (openrouter-client.ts) — deliberately DIFFERENT from this file's own
+    // generateEstimate/refineEstimate's 8192 (a vision description is much
+    // shorter than a full estimate). Flat config key per @google/genai's
+    // GenerateContentConfig shape (see generateEstimate's comment above).
+    config: {
+      maxOutputTokens: 450,
+    },
   })
 
   return (response.text ?? '').trim()

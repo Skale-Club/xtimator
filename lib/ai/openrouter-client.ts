@@ -229,6 +229,32 @@ async function traceTranscription(
 export const PHOTO_PROMPT =
   "Describe this photo from a contractor's perspective. Note materials, conditions, measurements if visible, damage, and areas needing work. Be specific and concise."
 
+/** Base output cap (Phase 168 PHOTO-04, raised from 300 — audit E4). */
+const VISION_BASE_MAX_TOKENS = 450
+/** One-shot retry cap when the base attempt truncates (finish_reason 'length'). */
+const VISION_RETRY_MAX_TOKENS = 600
+
+/**
+ * Trims trailing partial-sentence text at the LAST sentence-ending
+ * punctuation (`.`, `!`, `?`) found in the string. Used ONLY as the
+ * last-resort fallback when a vision response is still truncated
+ * (finish_reason 'length') after the one retry at a higher cap — a
+ * mid-sentence cutoff must never be persisted verbatim (Phase 168 PHOTO-04).
+ * When no sentence-ending punctuation exists at all, returns the trimmed
+ * text unchanged (nothing to safely cut to; the empty-output guard downstream
+ * still catches a genuinely blank result).
+ */
+function trimToSentenceBoundary(text: string): string {
+  const trimmed = text.trimEnd()
+  let lastIdx = -1
+  for (const punct of ['.', '!', '?']) {
+    const idx = trimmed.lastIndexOf(punct)
+    if (idx > lastIdx) lastIdx = idx
+  }
+  if (lastIdx === -1) return trimmed
+  return trimmed.slice(0, lastIdx + 1)
+}
+
 /**
  * Analyse a single photo via OpenRouter chat completions (vision).
  * `base64` is the raw base64 string; `mimeType` is e.g. "image/jpeg".
@@ -246,50 +272,83 @@ export async function analyzePhotoOR(
     const visionModel = model ?? OR_DEFAULTS.chat
     const startTime = new Date()
 
-    const body = {
-      model: visionModel,
-      max_tokens: 300,
-      messages: [
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'image_url',
-              image_url: { url: `data:${mimeType};base64,${base64}` },
-            },
-            { type: 'text', text: PHOTO_PROMPT },
-          ],
+    // Phase 168 (PHOTO-04, audit E4): a single completion attempt at the given
+    // max_tokens cap. Extracted so the truncation retry below can re-issue the
+    // IDENTICAL request shape at a higher cap without duplicating it.
+    async function completeVision(maxTokens: number): Promise<{
+      content: string
+      finishReason: string | null
+      costUsd: number | null
+    }> {
+      const body = {
+        model: visionModel,
+        max_tokens: maxTokens,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'image_url',
+                image_url: { url: `data:${mimeType};base64,${base64}` },
+              },
+              { type: 'text', text: PHOTO_PROMPT },
+            ],
+          },
+        ],
+        // COST-01: request the real upstream USD cost in the response usage block.
+        usage: { include: true },
+      }
+
+      const res = await fetch(`${OPENROUTER_BASE}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+          ...SITE_HEADERS,
         },
-      ],
-      // COST-01: request the real upstream USD cost in the response usage block.
-      usage: { include: true },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(AI_CHAT_TIMEOUT_MS),
+      })
+
+      if (!res.ok) {
+        const err = await res.text().catch(() => 'unknown')
+        throw new Error(`OpenRouter vision failed (${res.status}): ${err.slice(0, 400)}`)
+      }
+
+      const json = (await res.json()) as {
+        choices?: Array<{
+          message?: { content?: string | null }
+          // Phase 168 (PHOTO-04): read to detect a mid-sentence truncation —
+          // disjoint from 166-01's separate providers/openrouter.ts type.
+          finish_reason?: string | null
+        }>
+        error?: { message?: string }
+        // Phase 110 (COST-01): real USD cost returned automatically (no flag).
+        usage?: { cost?: number }
+      }
+      if (json.error?.message) throw new Error(`OpenRouter vision error: ${json.error.message}`)
+
+      return {
+        content: json.choices?.[0]?.message?.content ?? '',
+        finishReason: json.choices?.[0]?.finish_reason ?? null,
+        costUsd: json.usage?.cost ?? null,
+      }
     }
 
-    const res = await fetch(`${OPENROUTER_BASE}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-        ...SITE_HEADERS,
-      },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(AI_CHAT_TIMEOUT_MS),
-    })
-
-    if (!res.ok) {
-      const err = await res.text().catch(() => 'unknown')
-      throw new Error(`OpenRouter vision failed (${res.status}): ${err.slice(0, 400)}`)
+    // Phase 168 (PHOTO-04, audit E4): base cap 450 (was 300, never read
+    // finish_reason). On 'length', retry ONCE at a higher cap (600); if STILL
+    // truncated, trim at the last sentence boundary rather than persist a
+    // mid-sentence cut. recordAICost fires exactly ONCE below, for whichever
+    // attempt is final (never once per attempt).
+    let attempt = await completeVision(VISION_BASE_MAX_TOKENS)
+    if (attempt.finishReason === 'length') {
+      attempt = await completeVision(VISION_RETRY_MAX_TOKENS)
+      if (attempt.finishReason === 'length') {
+        attempt = { ...attempt, content: trimToSentenceBoundary(attempt.content) }
+      }
     }
+    const result = attempt.content
 
-    const json = (await res.json()) as {
-      choices?: Array<{ message?: { content?: string | null } }>
-      error?: { message?: string }
-      // Phase 110 (COST-01): real USD cost returned automatically (no flag).
-      usage?: { cost?: number }
-    }
-    if (json.error?.message) throw new Error(`OpenRouter vision error: ${json.error.message}`)
-
-    const result = json.choices?.[0]?.message?.content ?? ''
     // Phase 110 (COST-01): capture the vision call's real USD cost. null when
     // absent (NEVER 0). Correlation ids come ONLY from the non-LLM costContext.
     // AWAIT (not void): a floating promise is dropped when an Inngest step
@@ -300,7 +359,7 @@ export async function analyzePhotoOR(
       operationType: 'vision',
       provider: 'openrouter',
       model: visionModel,
-      realCostUsd: json.usage?.cost ?? null,
+      realCostUsd: attempt.costUsd,
       companyId: costContext?.companyId ?? null,
       projectId: costContext?.projectId ?? null,
     })
