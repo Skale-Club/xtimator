@@ -23,7 +23,10 @@ import { AI_CHAT_TIMEOUT_MS } from '../openrouter-client'
 
 const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1'
 
-const estimateToolSchema = {
+// AIREL-03: exported so the parity test (tests/unit/ai/tool-schema-fields.test.ts)
+// can statically import this object and lock its shape against drift from the
+// zod schema (lib/ai/schema.ts) and the Gemini tool schema (gemini.ts).
+export const estimateToolSchema = {
   type: 'object' as const,
   required: ['summary', 'sections', 'suggested_project_name', 'detected_trade'],
   properties: {
@@ -69,6 +72,34 @@ const estimateToolSchema = {
                   enum: ['price_book', 'ai_estimate'],
                   description:
                     "'price_book' if this price came from the company's price book entry. 'ai_estimate' if you estimated it from market rates.",
+                },
+                // AIREL-03: the four pricing fields the LIVE OpenRouter schema
+                // was missing — gemini.ts:144-154 and the zod schema.ts:31-43
+                // both already carry them (only the Gemini fallback / refine
+                // path could ask for per-category tax + cost/markup). All
+                // OPTIONAL (see required[] below — deliberately NOT added
+                // there) and classification-only: the AI labels/suggests, the
+                // server always computes the trusted numbers (ENG-01 — no AI
+                // calculator).
+                taxable: {
+                  type: 'boolean',
+                  description: 'true if this line item is taxable (default true if omitted).',
+                },
+                tax_category: {
+                  type: 'string',
+                  enum: ['labor', 'materials', 'other'],
+                  description:
+                    'Classify the work: "labor" for labor/service lines, "materials" for physical goods, "other" otherwise. Classification only — do NOT compute any tax.',
+                },
+                cost: {
+                  type: 'number',
+                  description:
+                    'Optional per-unit COST (your cost basis). Provide cost + markup_pct INSTEAD of unit_price and the server computes the price. Do NOT compute the marked-up price yourself.',
+                },
+                markup_pct: {
+                  type: 'number',
+                  description:
+                    'Optional markup percent applied to cost (e.g. 20 = 20%). The server computes unit_price = cost × (1 + markup_pct/100).',
                 },
               },
             },
@@ -174,6 +205,10 @@ export class OpenRouterAdapter implements AIProvider {
       // 2,900-4,400 output tokens, leaving little headroom before a silent
       // truncation. Raised to 8192, symmetric with Gemini's maxOutputTokens.
       max_tokens: 8192,
+      // AIREL-05: pinned for BOTH generate and refine (this one body covers
+      // both operations) to minimize run-to-run price/output variance — no
+      // temperature was set anywhere on the estimate paths before this.
+      temperature: 0.3,
       messages: [
         { role: 'system', content: args.system },
         { role: 'user', content: args.user },
