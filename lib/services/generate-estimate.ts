@@ -2,6 +2,7 @@ import { revalidatePath } from 'next/cache'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { getProjectRecordings } from '@/lib/queries/recording'
 import { getProjectPhotos } from '@/lib/queries/photo'
+import { serializePhotoContext } from '@/lib/estimate/photo-context'
 import { PLACEHOLDER_PREFIX } from '@/lib/constants/project'
 import { type EstimateInput } from '@/lib/ai'
 import { getAIProviderWithFallback } from '@/lib/ai/provider-with-fallback'
@@ -208,20 +209,17 @@ export async function generateEstimateForProject(
     .filter((r) => r.transcript && r.transcript.trim().length > 0)
     .map((r) => r.transcript!)
 
-  // PHOTO-01 (audit E2): fold the user-entered caption (e.g. "north wall, 12ft
-  // ceiling" — already rendered in share/PDF) alongside the AI vision
-  // description so it reaches the estimator instead of being discarded. The
-  // WHOLE resulting string is wrapped in sanitizeField at prompt-builder.ts's
-  // <photo_description> tag — no parallel unsanitized path. No-caption photos
-  // keep the exact pre-existing string (byte-identical).
+  // PHOTO-01 (audit E2) + PEXT-02 (v4.20): fold the user-entered caption (e.g.
+  // "north wall, 12ft ceiling" — already rendered in share/PDF) alongside the
+  // AI vision description, plus a compact structured-extraction suffix when
+  // one exists (serializePhotoContext), so both reach the estimator instead
+  // of being discarded. The WHOLE resulting string is wrapped in sanitizeField
+  // at prompt-builder.ts's <photo_description> tag — no parallel unsanitized
+  // path. No-caption, no-extraction photos keep the exact pre-existing string
+  // (byte-identical) — serializePhotoContext reproduces that format exactly.
   const photoDescriptions = photos
     .filter((p) => p.ai_description && p.ai_description.trim().length > 0)
-    .map((p, i) => {
-      const cap = p.caption?.trim()
-      return cap
-        ? `Photo ${i + 1} (caption: ${cap}): ${p.ai_description}`
-        : `Photo ${i + 1}: ${p.ai_description}`
-    })
+    .map((p, i) => serializePhotoContext(p, i))
 
   const prompts = (options.prompts ?? [])
     .map((p) => (typeof p === 'string' ? p.trim() : ''))
