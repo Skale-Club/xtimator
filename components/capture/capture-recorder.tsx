@@ -18,6 +18,7 @@ import { createPhoto, deletePhoto } from '@/lib/actions/photo'
 import { createClient } from '@/lib/supabase/client'
 import { createStorage } from '@/lib/storage'
 import { uploadWithRetry } from '@/lib/storage/upload-with-retry'
+import { savePendingCapture, getPendingCapture, deletePendingCapture, isAvailable as isBlobStoreAvailable, type PendingCapture } from '@/lib/capture/blob-store'
 import { getSupportedAudioMimeType, getFileExtension } from '@/lib/utils/media-format'
 import { cn } from '@/lib/utils'
 import { compressImage, isLikelyHeic } from '@/lib/utils/image-compressor'
@@ -43,6 +44,10 @@ const TICK_MS = 250                            // RESEARCH Pattern 4
 
 // Hard cap on photos attachable to a single capture (popup New Xtimate flow).
 const MAX_PHOTOS = 16
+
+// CAPT-03: a pending IDB capture older than this is treated as stale and
+// silently discarded rather than offered for resume.
+const PENDING_CAPTURE_MAX_AGE_MS = 24 * 60 * 60 * 1000
 
 // Draft persistence — the typed description survives closing the popup (outside
 // click / X / Escape) so it can be restored on the next open. Keyed per flow
@@ -270,6 +275,16 @@ export function CaptureRecorder({
   const estimateLanguage = estimateLanguageProp ?? internalEstimateLanguage
   const setEstimateLanguage = setEstimateLanguageProp ?? setInternalEstimateLanguage
 
+  // CAPT-03: the IndexedDB key for this project/flow's pending (unsent)
+  // recording. Prefers draftKey (popup:<id> / edit:<id> / capture:<id> / 'new')
+  // so a per-flow resume never bleeds across flows on the same project; falls
+  // back to the always-present projectId, then a defensive 'default'.
+  const pendingCaptureKey = draftKey ?? projectId ?? 'default'
+  // A pending capture found on mount (< 24h old) — renders the inline
+  // "Resume upload / Discard" card while idle. null once resolved/discarded/
+  // resumed.
+  const [pendingResume, setPendingResume] = useState<PendingCapture | null>(null)
+
   // Refs
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioContextRef = useRef<AudioContext | null>(null)
@@ -372,6 +387,24 @@ export function CaptureRecorder({
     })()
     return () => { cancelled = true }
   }, [restorePhotos, projectId])
+
+  // CAPT-03: mount-time resume scan — a remount (crash, tab close, popup
+  // reopen) with a pending capture for this project/flow surfaces a "Resume
+  // upload / Discard" card instead of silently losing the recording. Stale
+  // entries (>24h) are cleaned up silently rather than offered for resume.
+  useEffect(() => {
+    let cancelled = false
+    void getPendingCapture(pendingCaptureKey).then((stored) => {
+      if (cancelled || !stored) return
+      if (Date.now() - stored.createdAt > PENDING_CAPTURE_MAX_AGE_MS) {
+        void deletePendingCapture(pendingCaptureKey)
+        return
+      }
+      setPendingResume(stored)
+    })
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingCaptureKey])
 
   // REC-03/REC-04 attempt lineage — REWRITTEN 260707-lyq (P4 Wave 2): attemptId
   // is the stable lineage id (minted ONCE, never reset — even across Retry) so
@@ -847,6 +880,13 @@ export function CaptureRecorder({
       return
     }
     recordingIdRef.current = started.data.recordingId
+    // CAPT-03: dispatch confirmed (the server has the recording row + the
+    // transcribe→generate chain dispatched) — the IDB-persisted blob has
+    // served its purpose. Fire-and-forget: blob-store never throws, and a
+    // slow delete must not delay the stage transition below. Do NOT delete
+    // on a transient upload/dispatch failure above (return before this line)
+    // — that's exactly the resume case this feature protects.
+    void deletePendingCapture(pendingCaptureKey)
 
     setStage('transcribing')
     try {
@@ -866,12 +906,36 @@ export function CaptureRecorder({
       if (isAbortSignal(err)) return  // unmount; not a user-facing failure
       failAt('generating', (err as Error).message ?? t('Estimate generation failed'))
     }
-  }, [companyId, projectId, estimateLanguage, ensureAttempt, captureOutcomeBaseline, handleStageProgress, ensureStepMedians, t, failAt, handleEstimateOutcome])
+  }, [companyId, projectId, estimateLanguage, ensureAttempt, captureOutcomeBaseline, handleStageProgress, ensureStepMedians, t, failAt, handleEstimateOutcome, pendingCaptureKey])
 
   // Mirror the latest runPipeline closure into a ref — recorder.onstop is bound
   // ONCE at recording start and must invoke the LATEST closure (fresh
   // estimateLanguage/onComplete/elapsed refs), not the one captured at start (260707-grq).
   useEffect(() => { runPipelineRef.current = runPipeline }, [runPipeline])
+
+  // CAPT-03: resume a pending capture found on mount. A fresh remount resets
+  // every ref runPipeline depends on (Opus blocker #2) — seed them BEFORE
+  // invoking runPipeline so its min-duration guard (:826 above) doesn't
+  // reject the reconstructed blob, and so the storagePath extension/
+  // contentType aren't mislabeled (e.g. iOS audio/mp4 read as webm).
+  // setAudioBlob is also seeded so a subsequent manual Retry (CaptureFailure)
+  // still has input to re-run.
+  const handleResumeCapture = useCallback(() => {
+    if (!pendingResume) return
+    const stored = pendingResume
+    setPendingResume(null)
+    const reconstructed = new Blob([stored.buffer], { type: stored.mimeType })
+    elapsedMsRef.current = stored.durationSeconds * 1000
+    accumulatedMsRef.current = stored.durationSeconds * 1000
+    mimeTypeRef.current = stored.mimeType
+    setAudioBlob(reconstructed)
+    void runPipeline(reconstructed)
+  }, [pendingResume, runPipeline])
+
+  const handleDiscardCapture = useCallback(() => {
+    setPendingResume(null)
+    void deletePendingCapture(pendingCaptureKey)
+  }, [pendingCaptureKey])
 
   // Unified generation handler (text-only, audio, or photos-only)
   const handleGenerate = useCallback(async () => {
@@ -1005,6 +1069,33 @@ export function CaptureRecorder({
       recorder.onstop = () => {
         const blob = new Blob(chunksRef.current, { type: recorder.mimeType })
         setAudioBlob(blob)
+        // CAPT-03: initiate the IndexedDB persist BEFORE starting the upload
+        // below — a finished recording now survives a crash/close during the
+        // 40s-2min upload window (audit F1/F3). Fire-and-forget: onstop is
+        // synchronous and this must never block/delay the pipeline dispatch.
+        // "Persist before upload" is initiation ORDER only, not a
+        // happens-before guarantee (Opus check #6) — blob.arrayBuffer() and
+        // the IDB write are both async, so on a very fast network the upload
+        // could in theory land first. That's acceptable: this fix targets the
+        // large "slow network" failure window, not a guaranteed race outcome.
+        // isAvailable() memo skips the (potentially large) arrayBuffer()
+        // conversion entirely when IDB isn't on the global at all — no point
+        // doing that work just to have savePendingCapture fail-soft anyway.
+        if (isBlobStoreAvailable()) {
+          const durationSecondsAtStop = finalizeDurationSeconds(elapsedMsRef.current)
+          const mimeTypeAtStop = recorder.mimeType || mimeTypeRef.current
+          void blob.arrayBuffer()
+            .then((buffer) =>
+              savePendingCapture({
+                key: pendingCaptureKey,
+                buffer,
+                mimeType: mimeTypeAtStop,
+                durationSeconds: durationSecondsAtStop,
+                createdAt: Date.now(),
+              })
+            )
+            .catch((err) => console.error('[capture] IDB persist failed (non-fatal):', err))
+        }
         // Pipeline fires after blob is set — call through runPipelineRef so the
         // LATEST closure runs at stop, not the one bound when onstop was assigned
         // at recording start (260707-grq: root cause of the duration=0 bug).
@@ -1114,35 +1205,58 @@ export function CaptureRecorder({
 
       {/* Body */}
       {showRecorderUI ? (
-        <RecorderBody
-          analyser={analyser}
-          isRecording={isRecording}
-          isPaused={isPaused}
-          elapsedMs={elapsedMs}
-          ringColorClass={ringColorClass}
-          progress={progress}
-          onToggle={handleToggleRecording}
-          onPause={isPaused ? resumeRecording : pauseRecording}
-          // Multi-modal props
-          descriptionText={descriptionText}
-          setDescriptionText={setDescriptionText}
-          uploadedPhotos={uploadedPhotos}
-          isUploadingPhotos={isUploadingPhotos}
-          photoItems={photoItems}
-          onRemovePhoto={handleRemovePhoto}
-          photoInputRef={photoInputRef}
-          onPhotoFileChange={handlePhotoFileChange}
-          hasAnyInput={hasAnyInput}
-          onGenerate={handleGenerate}
-          // Language selector
-          estimateLanguage={estimateLanguage}
-          setEstimateLanguage={setEstimateLanguage}
-          // Single-modality lock (undefined in legacy fullscreen route → all three blocks)
-          mode={mode}
-          // Horizontal layout: popup with no mode lock
-          isHorizontal={isPopup && mode === undefined}
-          onStartBlank={onStartBlank}
-        />
+        <>
+          {/* CAPT-03: an unsent recording found on mount (crash, tab close,
+              popup reopen) for this project/flow — Resume re-runs the
+              pipeline with the reconstructed blob; Discard drops it from IDB. */}
+          {pendingResume && (
+            <div
+              className="mx-4 mt-3 flex items-center justify-between gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-sm"
+              data-testid="capture-resume-card"
+            >
+              <span className="text-amber-900 dark:text-amber-200">
+                {t('You have an unsent recording')} ({Math.max(1, Math.round(pendingResume.durationSeconds / 60))} {t('min')})
+              </span>
+              <div className="flex gap-2 shrink-0">
+                <Button variant="ghost" size="sm" onClick={handleDiscardCapture} data-testid="capture-resume-discard">
+                  {t('Discard')}
+                </Button>
+                <Button size="sm" onClick={handleResumeCapture} data-testid="capture-resume-upload">
+                  {t('Resume upload')}
+                </Button>
+              </div>
+            </div>
+          )}
+          <RecorderBody
+            analyser={analyser}
+            isRecording={isRecording}
+            isPaused={isPaused}
+            elapsedMs={elapsedMs}
+            ringColorClass={ringColorClass}
+            progress={progress}
+            onToggle={handleToggleRecording}
+            onPause={isPaused ? resumeRecording : pauseRecording}
+            // Multi-modal props
+            descriptionText={descriptionText}
+            setDescriptionText={setDescriptionText}
+            uploadedPhotos={uploadedPhotos}
+            isUploadingPhotos={isUploadingPhotos}
+            photoItems={photoItems}
+            onRemovePhoto={handleRemovePhoto}
+            photoInputRef={photoInputRef}
+            onPhotoFileChange={handlePhotoFileChange}
+            hasAnyInput={hasAnyInput}
+            onGenerate={handleGenerate}
+            // Language selector
+            estimateLanguage={estimateLanguage}
+            setEstimateLanguage={setEstimateLanguage}
+            // Single-modality lock (undefined in legacy fullscreen route → all three blocks)
+            mode={mode}
+            // Horizontal layout: popup with no mode lock
+            isHorizontal={isPopup && mode === undefined}
+            onStartBlank={onStartBlank}
+          />
+        </>
       ) : isPopup ? (
         // Popup variant — calm three-blue-dots overlay over a neutral surface.
         // `relative` provides the positioning context for the absolutely-positioned
